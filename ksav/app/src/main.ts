@@ -41,6 +41,7 @@ interface Settings extends DocConfig {
   prose: boolean;
   zoom: number;
   outline?: boolean;
+  nikud?: boolean;
   autocomplete?: boolean;
   syncScroll?: boolean;
   customCommands?: string; // user #let definitions, prepended at compile
@@ -572,6 +573,50 @@ function applySkin(name: string) {
   rerenderChrome();
 }
 
+// Nikud marks (combining) for the vowel-input bar.
+const NIKUD: [string, string][] = [
+  ["ְ", "שווא"],
+  ["ַ", "פתח"],
+  ["ָ", "קמץ"],
+  ["ֶ", "סגול"],
+  ["ֵ", "צירי"],
+  ["ִ", "חיריק"],
+  ["ֹ", "חולם"],
+  ["ֻ", "קובוץ"],
+  ["ּ", "דגש"],
+  ["ׁ", "שין ימנית"],
+  ["ׂ", "שין שמאלית"],
+  ["ֱ", "חטף סגול"],
+  ["ֲ", "חטף פתח"],
+  ["ֳ", "חטף קמץ"],
+];
+function insertText(s: string) {
+  const sel = view.state.selection.main;
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: s },
+    selection: { anchor: sel.from + s.length },
+  });
+  view.focus();
+  scheduleCompile();
+}
+function buildNikudBar(): HTMLElement {
+  return el(
+    "div",
+    { id: "nikud-bar", class: "nikud-bar" },
+    NIKUD.map(([mark, name]) =>
+      el("button", { class: "nikud-btn", title: name, onClick: () => insertText(mark) }, [
+        "א" + mark,
+      ]),
+    ),
+  );
+}
+function toggleNikud() {
+  settings.nikud = !settings.nikud;
+  saveSettings();
+  document.getElementById("nikud-bar")!.classList.toggle("open", settings.nikud);
+  rerenderChrome();
+}
+
 // ---------------------------------------------------------------- app chrome
 function iconBtn(label: string, title: string, onClick: () => void, cls = "") {
   return el("button", { class: `tb-btn ${cls}`, title, onClick }, [label]);
@@ -722,6 +767,12 @@ function buildHeader(): HTMLElement {
     toggleOutline,
     settings.outline ? "chip active" : "chip",
   );
+  const nikudBtn = iconBtn(
+    "אָ",
+    t("nikud"),
+    toggleNikud,
+    settings.nikud ? "chip active" : "chip",
+  );
   const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
@@ -746,6 +797,7 @@ function buildHeader(): HTMLElement {
     proseToggle,
     layoutToggle,
     themeToggle,
+    nikudBtn,
     historyBtn,
     settingsBtn,
   ]);
@@ -1228,6 +1280,7 @@ function render() {
   app.dataset.layout = settings.layout;
   app.append(
     buildHeader(),
+    buildNikudBar(),
     el("main", {}, [
       el("section", { class: "pane preview-pane" }, [
         el("div", { class: "pane-head", "data-i18n": "preview" }, [t("preview")]),
@@ -1293,6 +1346,7 @@ function render() {
   applyUiDir();
   applyZoom();
   updateCounts();
+  if (settings.nikud) document.getElementById("nikud-bar")!.classList.add("open");
   if (settings.outline) {
     document.getElementById("outline-drawer")!.classList.add("open");
     renderOutline();

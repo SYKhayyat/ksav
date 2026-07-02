@@ -56,6 +56,19 @@ header {
 .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .tb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
 
+/* nikud input bar (toggleable) */
+.nikud-bar {
+  display: none; flex-wrap: wrap; gap: 3px; padding: 6px 12px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.nikud-bar.open { display: flex; }
+.nikud-btn {
+  font-family: "Frank Ruhl Libre", serif; font-size: 17px; min-width: 34px; height: 32px;
+  cursor: pointer; background: #fff; border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+}
+:root[data-theme="dark"] .nikud-btn { background: var(--panel); }
+.nikud-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+
 /* ---- dropdown menus ---- */
 .menu { position: relative; }
 .menu-list {

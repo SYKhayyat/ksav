@@ -97,6 +97,9 @@ pub static COMMANDS: &[Command] = &[
     cmd!("ציון", "refmark", "torah", "ציון מקור בסוגריים", "Inline reference", "#ציון[|]"),
     cmd!("גמרא", "gemara", "torah", "מראה מקום לגמרא", "Gemara reference", "#גמרא[ברכות][ב.]"),
     cmd!("דיבור_המתחיל", "dh", "torah", "דיבור המתחיל", "Lemma (d\"h)", "#דיבור_המתחיל[|]"),
+    // ---- cross-references ----
+    cmd!("סמן", "anchor", "reference", "סמן יעד להפניה", "Mark a reference target", "#סמן(\"|\")"),
+    cmd!("הפניה", "xref", "reference", "הפניה ליעד (מספר מתעדכן)", "Reference (auto number)", "#הפניה(\"|\")"),
 ];
 
 /// The registry serialized to JSON, for the front end.

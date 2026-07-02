@@ -191,6 +191,19 @@
 #let endnote = הערתסיום
 #let endnotes = הערות_בסוף
 
+// ---- הפניות · cross-references (auto-numbered, auto-updating) ----
+// #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow
+// document order and update automatically when targets are added/reordered.
+#let _ksav_xref = state("ksav-xref", ())
+#let סמן(שם) = _ksav_xref.update(l => l + (שם,))
+#let הפניה(שם) = context {
+  let l = _ksav_xref.final()
+  let idx = l.position(x => x == שם)
+  if idx == none [?] else [#(idx + 1)]
+}
+#let anchor = סמן
+#let xref = הפניה
+
 // ============================================================
 //  טבלאות · tables
 // ============================================================

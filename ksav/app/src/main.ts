@@ -9,7 +9,7 @@ import {
   revealAll,
   setRevealAll,
 } from "./ksav-lang";
-import { HttpBackend } from "./api";
+import { createBackend } from "./api";
 import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig } from "./api";
 import { t, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
@@ -53,7 +53,7 @@ function saveSettings() {
 const settings = loadSettings();
 setLang(settings.lang);
 
-const backend: Backend = new HttpBackend();
+let backend: Backend;
 let commandsReg: CommandDef[] = [];
 let templatesReg: TemplateDef[] = [];
 let lastResult: CompileResult | null = null;
@@ -562,6 +562,7 @@ function render() {
     el("div", { class: "statusbar" }, [
       el("span", { id: "status", class: "ok" }, [t("ready")]),
       el("span", { id: "diagnostics" }),
+      el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
     ]),
     buildSettingsDrawer(),
     // command palette overlay
@@ -609,6 +610,11 @@ function wireKeys() {
 async function boot() {
   render();
   wireKeys();
+  const status = document.getElementById("status")!;
+  status.textContent = t("rendering");
+  backend = await createBackend();
+  const badge = document.getElementById("engine-badge");
+  if (badge) badge.textContent = backend.kind === "wasm" ? "⬡ wasm" : "⬢ server";
   try {
     [commandsReg, templatesReg] = await Promise.all([backend.commands(), backend.templates()]);
     rerenderChrome();

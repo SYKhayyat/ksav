@@ -46,12 +46,14 @@ export interface TemplateDef {
 }
 
 export interface Backend {
+  readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig): Promise<CompileResult>;
   commands(): Promise<CommandDef[]>;
   templates(): Promise<TemplateDef[]>;
 }
 
 export class HttpBackend implements Backend {
+  readonly kind = "server";
   constructor(private base = "") {}
 
   async compile(body: string, cfg: DocConfig): Promise<CompileResult> {
@@ -73,4 +75,62 @@ export class HttpBackend implements Backend {
     const res = await fetch(this.base + "/templates");
     return res.json();
   }
+}
+
+/** Runs the real Typst engine entirely in the browser via WebAssembly. */
+export class WasmBackend implements Backend {
+  readonly kind = "wasm";
+  private mod: {
+    ksav_compile(s: string): string;
+    ksav_commands(): string;
+    ksav_templates(): string;
+  } | null = null;
+  private ready: Promise<void> | null = null;
+
+  private ensure(): Promise<void> {
+    if (!this.ready) {
+      this.ready = (async () => {
+        // The imports live inside `if (__WASM__)` so the default build, where
+        // __WASM__ is the literal `false`, tree-shakes the wasm chunk away.
+        // Only an offline build (VITE_WASM=1) bundles it.
+        if (__WASM__) {
+          const glue = await import("./wasmpkg/ksav_wasm.js");
+          const wasmUrl = (await import("./wasmpkg/ksav_wasm_bg.wasm?url")).default;
+          await glue.default({ module_or_path: wasmUrl });
+          this.mod = glue as never;
+        } else {
+          throw new Error("wasm backend not built");
+        }
+      })();
+    }
+    return this.ready;
+  }
+
+  async compile(body: string, cfg: DocConfig): Promise<CompileResult> {
+    await this.ensure();
+    return JSON.parse(this.mod!.ksav_compile(JSON.stringify({ body, ...cfg })));
+  }
+  async commands(): Promise<CommandDef[]> {
+    await this.ensure();
+    return JSON.parse(this.mod!.ksav_commands());
+  }
+  async templates(): Promise<TemplateDef[]> {
+    await this.ensure();
+    return JSON.parse(this.mod!.ksav_templates());
+  }
+}
+
+/**
+ * Pick a backend: use the server when it's reachable (fast, no big download),
+ * otherwise fall back to the in-browser wasm engine (works with no server).
+ */
+export async function createBackend(): Promise<Backend> {
+  try {
+    const res = await fetch("/commands", { signal: AbortSignal.timeout(800) });
+    if (res.ok) return new HttpBackend();
+  } catch {
+    /* no server — fall through to wasm if this build includes it */
+  }
+  if (__WASM__) return new WasmBackend();
+  return new HttpBackend();
 }

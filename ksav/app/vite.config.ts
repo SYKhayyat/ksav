@@ -5,7 +5,12 @@ import { defineConfig } from "vite";
 // serves the built SPA from the same origin, so these same paths just work.
 const engine = "http://127.0.0.1:7878";
 
+// __WASM__ is inlined as a literal boolean so the wasm import is tree-shaken
+// out of the default (server/desktop) build, and only bundled when VITE_WASM=1.
 export default defineConfig({
+  define: {
+    __WASM__: JSON.stringify(process.env.VITE_WASM === "1"),
+  },
   server: {
     port: 5173,
     proxy: {

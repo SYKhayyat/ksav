@@ -10,8 +10,11 @@ use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
 pub mod commands;
-pub mod server;
 pub mod templates;
+
+// The HTTP server uses tiny_http (net/threads) and can't target wasm.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod server;
 
 /// The Hebrew prelude, embedded at build time.
 const PRELUDE: &str = include_str!("../typst/ksav.typ");
@@ -53,6 +56,40 @@ impl Default for DocConfig {
             line_spacing_em: 0.75,
             columns: 1,
         }
+    }
+}
+
+impl DocConfig {
+    /// Read a config from a JSON object, keeping defaults for missing keys.
+    pub fn from_json(v: &serde_json::Value) -> DocConfig {
+        let mut cfg = DocConfig::default();
+        if let Some(f) = v.get("font").and_then(|x| x.as_str()) {
+            if !f.is_empty() {
+                cfg.font = f.to_string();
+            }
+        }
+        if let Some(s) = v.get("size_pt").and_then(|x| x.as_f64()) {
+            cfg.size_pt = s;
+        }
+        if let Some(m) = v.get("margin_cm").and_then(|x| x.as_f64()) {
+            cfg.margin_cm = m;
+        }
+        if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
+            cfg.dir = d.to_string();
+        }
+        if let Some(n) = v.get("numbering").and_then(|x| x.as_bool()) {
+            cfg.numbering = n;
+        }
+        if let Some(j) = v.get("justify").and_then(|x| x.as_bool()) {
+            cfg.justify = j;
+        }
+        if let Some(l) = v.get("line_spacing_em").and_then(|x| x.as_f64()) {
+            cfg.line_spacing_em = l;
+        }
+        if let Some(c) = v.get("columns").and_then(|x| x.as_u64()) {
+            cfg.columns = c as u32;
+        }
+        cfg
     }
 }
 
@@ -177,6 +214,34 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
             }
         }
     }
+}
+
+/// JSON-in / JSON-out compile, shared by the HTTP server and the wasm binding.
+/// Input: `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}`.
+/// Output: `{ok, pages_svg, pdf_base64, diagnostics, typst_source}`.
+pub fn compile_request(input_json: &str) -> String {
+    use base64::Engine as _;
+    let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
+    let body = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
+    let cfg = DocConfig::from_json(&v);
+    let result = compile(body, &cfg);
+    let diags: Vec<serde_json::Value> = result
+        .diagnostics
+        .iter()
+        .map(|d| serde_json::json!({ "severity": d.severity, "message": d.message }))
+        .collect();
+    let pdf_b64 = result
+        .pdf
+        .as_ref()
+        .map(|p| base64::engine::general_purpose::STANDARD.encode(p));
+    serde_json::json!({
+        "ok": result.ok(),
+        "pages_svg": result.pages_svg,
+        "pdf_base64": pdf_b64,
+        "diagnostics": diags,
+        "typst_source": result.typst_source,
+    })
+    .to_string()
 }
 
 #[cfg(test)]

@@ -29,3 +29,7 @@ Thumbs.db
 .vscode/
 *.log
 .gstack/
+
+# Generated wasm bindings (run: wasm-pack build; then copy to app/src/wasmpkg)
+/ksav/app/src/wasmpkg/
+/ksav/wasm/target/

@@ -7,10 +7,7 @@
 //! This is exactly the backend a Tauri or browser front end talks to; the
 //! native shell can be wrapped around it later without touching this contract.
 
-use base64::Engine as _;
 use tiny_http::{Header, Method, Response, Server};
-
-use crate::{compile, DocConfig};
 
 /// Fallback single-file editor, used when the `embed-ui` feature is off.
 const INDEX_HTML: &str = include_str!("../web/index.html");
@@ -117,54 +114,5 @@ fn header(key: &str, value: &str) -> Header {
 }
 
 fn handle_compile(body_json: &str) -> String {
-    let v: serde_json::Value = serde_json::from_str(body_json).unwrap_or(serde_json::Value::Null);
-    let src = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
-
-    let mut cfg = DocConfig::default();
-    if let Some(f) = v.get("font").and_then(|x| x.as_str()) {
-        if !f.is_empty() {
-            cfg.font = f.to_string();
-        }
-    }
-    if let Some(s) = v.get("size_pt").and_then(|x| x.as_f64()) {
-        cfg.size_pt = s;
-    }
-    if let Some(m) = v.get("margin_cm").and_then(|x| x.as_f64()) {
-        cfg.margin_cm = m;
-    }
-    if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
-        cfg.dir = d.to_string();
-    }
-    if let Some(n) = v.get("numbering").and_then(|x| x.as_bool()) {
-        cfg.numbering = n;
-    }
-    if let Some(j) = v.get("justify").and_then(|x| x.as_bool()) {
-        cfg.justify = j;
-    }
-    if let Some(l) = v.get("line_spacing_em").and_then(|x| x.as_f64()) {
-        cfg.line_spacing_em = l;
-    }
-    if let Some(c) = v.get("columns").and_then(|x| x.as_u64()) {
-        cfg.columns = c as u32;
-    }
-
-    let result = compile(src, &cfg);
-    let diags: Vec<serde_json::Value> = result
-        .diagnostics
-        .iter()
-        .map(|d| serde_json::json!({ "severity": d.severity, "message": d.message }))
-        .collect();
-    let pdf_b64 = result
-        .pdf
-        .as_ref()
-        .map(|p| base64::engine::general_purpose::STANDARD.encode(p));
-
-    serde_json::json!({
-        "ok": result.ok(),
-        "pages_svg": result.pages_svg,
-        "pdf_base64": pdf_b64,
-        "diagnostics": diags,
-        "typst_source": result.typst_source,
-    })
-    .to_string()
+    crate::compile_request(body_json)
 }

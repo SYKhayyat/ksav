@@ -63,6 +63,26 @@ works for free.
 - **Settings**: font, size, margins, direction, page numbers, justify, line
   spacing, columns, zoom. **Light/dark theme.** One/two-panel layout.
 
+## Runs in the browser (WASM)
+
+The whole engine compiles to WebAssembly (`ksav/wasm/`), so the app can run the
+**real Typst compiler entirely in the browser with no server** — deploy the
+built files to any static host. The app picks its backend automatically: it uses
+the local server when one is reachable (fast, tiny download), and falls back to
+the in-browser wasm engine otherwise. A badge in the status bar shows which is
+active (`⬢ server` / `⬡ wasm`).
+
+The wasm is a lazily-loaded ~23 MB chunk (~9 MB gzipped) and is only bundled in
+an explicit offline build, so the server/desktop build stays lean.
+
+## Cross-platform
+
+Runs on **Linux, macOS, and Windows**. The engine is pure Rust with **the fonts
+embedded in the binary** (`include_bytes!`) — no dependency on system fonts or
+any OS-specific code — so a build behaves identically everywhere. The editor is
+web tech (browser or Tauri webview), and the wasm build runs in any modern
+browser on any OS.
+
 ## Status
 
 - [x] Real Typst 0.15 compilation (embedded via `typst-as-lib`)
@@ -72,7 +92,8 @@ works for free.
 - [x] PDF / SVG / Typst-source export, live diagnostics
 - [x] **Full SPA** — CodeMirror 6, command palette, prose mode, bilingual UI,
       settings, themes, templates, exports (M2)
-- [ ] WASM build for in-browser operation (M3)
+- [x] **WASM** — real Typst in the browser, no server; auto backend selection (M3)
+- [x] Cross-platform (Linux / macOS / Windows), fonts embedded
 - [ ] Tauri desktop app (M4)
 
 ## Develop
@@ -85,12 +106,21 @@ cargo run --manifest-path engine/Cargo.toml -- serve
 cd app && npm install && npm run dev        # http://localhost:5173
 ```
 
-## Ship a single self-contained binary
+## Ship a single self-contained binary (server / desktop)
 
 ```sh
-cd app && npm run build                     # -> app/dist
+cd app && npm run build                     # lean -> app/dist (no wasm)
 cargo build --release --features embed-ui --manifest-path engine/Cargo.toml
 ./engine/target/release/ksav serve          # serves the whole SPA + API
+```
+
+## Ship an offline, no-server web build (WASM)
+
+```sh
+cd wasm && wasm-pack build --target web --release --out-dir pkg
+cp pkg/ksav_wasm.js pkg/ksav_wasm.d.ts pkg/ksav_wasm_bg.wasm* ../app/src/wasmpkg/
+cd ../app && VITE_WASM=1 npm run build       # app/dist runs with no server
+# serve app/dist on any static host
 ```
 
 ## Run

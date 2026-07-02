@@ -514,6 +514,22 @@ function commentOut() {
   scheduleCompile();
 }
 
+// Document skins: one-click presets that restyle the document (font, size,
+// margins, spacing, numbering).
+const SKINS: Record<string, Partial<Settings>> = {
+  sefer: { font: "Frank Ruhl Hofshi", size_pt: 13, margin_cm: 3, line_spacing_em: 0.7, justify: true, hebrew_numbering: true, numbering: true, paper: "a4" },
+  modern: { font: "David Libre", size_pt: 12, margin_cm: 2.5, line_spacing_em: 0.95, justify: false, hebrew_numbering: false, numbering: true },
+  letter: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 3, line_spacing_em: 0.85, justify: true, hebrew_numbering: false, numbering: false },
+  plain: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 2.5, line_spacing_em: 0.75, justify: true, hebrew_numbering: false, numbering: true, header: "", footer: "" },
+};
+function applySkin(name: string) {
+  Object.assign(settings, SKINS[name]);
+  saveSettings();
+  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  scheduleCompile();
+  rerenderChrome();
+}
+
 // ---------------------------------------------------------------- app chrome
 function iconBtn(label: string, title: string, onClick: () => void, cls = "") {
   return el("button", { class: `tb-btn ${cls}`, title, onClick }, [label]);
@@ -612,6 +628,15 @@ function buildHeader(): HTMLElement {
     el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
   ]);
 
+  const skinsMenu = menu(
+    "🎨 " + t("skins"),
+    Object.keys(SKINS).map((name) =>
+      el("button", { class: "menu-item", onClick: () => applySkin(name) }, [
+        el("b", {}, [t("skin." + name)]),
+      ]),
+    ),
+  );
+
   const exportMenu = menu("⬇ " + t("export"), [
     el("button", { class: "menu-item", onClick: exportPdf }, [t("exportPdf")]),
     el("button", { class: "menu-item", onClick: exportHtml }, [t("exportHtml")]),
@@ -668,6 +693,7 @@ function buildHeader(): HTMLElement {
     undoBtn,
     redoBtn,
     templatesMenu,
+    skinsMenu,
     exportMenu,
     findBtn,
     outlineBtn,

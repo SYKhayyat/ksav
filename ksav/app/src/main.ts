@@ -5,6 +5,8 @@ import type { KeyBinding } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
 import { codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll } from "@codemirror/language";
+import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import {
   ksavHighlighter,
   ksavFold,
@@ -27,6 +29,7 @@ interface Settings extends DocConfig {
   prose: boolean;
   zoom: number;
   outline?: boolean;
+  autocomplete?: boolean;
   keybindings?: Record<string, string>; // action id -> key combo override
 }
 
@@ -44,6 +47,7 @@ const DEFAULTS: Settings = {
   justify: true,
   line_spacing_em: 0.75,
   columns: 1,
+  autocomplete: true,
 };
 
 function loadSettings(): Settings {
@@ -184,6 +188,36 @@ function eventToKey(e: KeyboardEvent): string | null {
   return parts.join("-");
 }
 
+// Command autocomplete: typing `#` offers Ksav commands from the registry
+// (Hebrew + English). Not a dictionary — only triggers on the `#` command sigil.
+function ksavCompletions(context: CompletionContext): CompletionResult | null {
+  const word = context.matchBefore(/#[A-Za-z֐-׿_]*/u);
+  if (!word) return null;
+  if (word.from === word.to && !context.explicit) return null;
+  const q = word.text.slice(1).toLowerCase();
+  const options = commandsReg
+    .filter((c) => !q || c.he.includes(q) || c.en.toLowerCase().includes(q))
+    .map((c) => ({
+      label: "#" + c.he,
+      detail: c.en,
+      info: getLang() === "he" ? c.desc_he : c.desc_en,
+      apply: (v: EditorView, _c: unknown, from: number, to: number) => {
+        const snip = c.insert;
+        const pipe = snip.indexOf("|");
+        const text = pipe >= 0 ? snip.slice(0, pipe) + snip.slice(pipe + 1) : snip;
+        const cursor = pipe >= 0 ? from + pipe : from + text.length;
+        v.dispatch({ changes: { from, to, insert: text }, selection: { anchor: cursor } });
+      },
+    }));
+  return { from: word.from, options, filter: false };
+}
+const autoCompartment = new Compartment();
+function autoExtension() {
+  return settings.autocomplete === false
+    ? []
+    : autocompletion({ override: [ksavCompletions], icons: false });
+}
+
 function makeEditor(): EditorView {
   return new EditorView({
     doc: loadDoc(),
@@ -196,10 +230,12 @@ function makeEditor(): EditorView {
       foldGutter(),
       search({ top: true }),
       shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
+      autoCompartment.of(autoExtension()),
       keymap.of([
         ...defaultKeymap,
         ...historyKeymap,
         ...searchKeymap,
+        ...completionKeymap,
         ...foldKeymap,
         indentWithTab,
       ]),
@@ -511,6 +547,7 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("lineSpacing", "line_spacing_em", 0.4, 1.5, 0.05),
     numberRow("columns", "columns", 1, 3, 1),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
+    checkRow("autocompleteLabel", "autocomplete"),
     el("h3", { style: "margin-top:18px" }, [t("shortcuts")]),
     ...shortcutRows,
     el("button", { class: "sc-reset", type: "button", onClick: resetShortcuts }, [t("resetShortcuts")]),
@@ -705,6 +742,8 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     scheduleCompile();
   } else if (key === "zoom") {
     applyZoom();
+  } else if (key === "autocomplete") {
+    view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
   } else {
     scheduleCompile();
   }

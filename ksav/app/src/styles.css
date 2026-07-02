@@ -155,6 +155,20 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   background: var(--panel); color: var(--ink); font-family: var(--hebrew);
 }
 .set-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.sc-key {
+  font-family: var(--mono); font-size: 12px; padding: 3px 10px; min-width: 100px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
+  cursor: pointer;
+}
+.sc-key:hover { border-color: var(--accent); color: var(--accent); }
+.sc-key.capturing { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.sc-reset {
+  margin-top: 12px; width: 100%; padding: 7px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--muted);
+  font-family: var(--hebrew);
+}
+.sc-reset:hover { border-color: var(--danger); color: var(--danger); }
+.wordcount { font-size: 12px; color: var(--muted); }
 
 /* ---- command palette ---- */
 .overlay {

@@ -69,6 +69,19 @@ const HE: Dict = {
   "mode.two": "שני חלונות",
   "mode.page": "עמוד (כמו Word)",
   "mode.source": "קוד בלבד",
+  words: "מילים",
+  chars: "תווים",
+  shortcuts: "קיצורי מקלדת",
+  pressKey: "הקישו צירוף…",
+  resetShortcuts: "אפס לברירת מחדל",
+  "sc.bold": "מודגש",
+  "sc.italic": "נטוי",
+  "sc.underline": "קו תחתון",
+  "sc.footnote": "הערת שוליים",
+  "sc.palette": "פקודות",
+  "sc.find": "חיפוש",
+  "sc.foldAll": "קפל הכל",
+  "sc.unfoldAll": "פרוש הכל",
 };
 
 const EN: Dict = {
@@ -129,6 +142,19 @@ const EN: Dict = {
   "mode.two": "Split view",
   "mode.page": "Page (like Word)",
   "mode.source": "Source only",
+  words: "words",
+  chars: "chars",
+  shortcuts: "Keyboard shortcuts",
+  pressKey: "Press keys…",
+  resetShortcuts: "Reset to defaults",
+  "sc.bold": "Bold",
+  "sc.italic": "Italic",
+  "sc.underline": "Underline",
+  "sc.footnote": "Footnote",
+  "sc.palette": "Commands",
+  "sc.find": "Find",
+  "sc.foldAll": "Fold all",
+  "sc.unfoldAll": "Unfold all",
 };
 
 const DICTS: Record<Lang, Dict> = { he: HE, en: EN };

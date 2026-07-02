@@ -1,6 +1,7 @@
 import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
-import { Compartment } from "@codemirror/state";
+import { Compartment, Prec } from "@codemirror/state";
+import type { KeyBinding } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
 import { codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll } from "@codemirror/language";
@@ -24,6 +25,7 @@ interface Settings extends DocConfig {
   layout: Layout;
   prose: boolean;
   zoom: number;
+  keybindings?: Record<string, string>; // action id -> key combo override
 }
 
 const DEFAULTS: Settings = {
@@ -118,9 +120,67 @@ const editorTheme = (dark: boolean) =>
     { dark },
   );
 
+function loadDoc(): string {
+  return localStorage.getItem("ksav.doc") ?? STARTER;
+}
+
+// ---- configurable keyboard shortcuts ----
+// Each action has an id (localized in Settings) and a runner. Keys are CM key
+// strings ("Mod-b" etc.; Mod = Ctrl on Win/Linux, Cmd on macOS) and are user-
+// overridable, persisted in settings.keybindings.
+const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
+  { id: "bold", run: () => (insertSnippet("#הדגשה[|]"), true) },
+  { id: "italic", run: () => (insertSnippet("#נטוי[|]"), true) },
+  { id: "underline", run: () => (insertSnippet("#קו_תחתון[|]"), true) },
+  { id: "footnote", run: () => (insertSnippet("#הערה[|]"), true) },
+  { id: "palette", run: () => (openPalette(), true) },
+  { id: "find", run: (v) => openSearchPanel(v) },
+  { id: "foldAll", run: (v) => foldAll(v) },
+  { id: "unfoldAll", run: (v) => unfoldAll(v) },
+];
+const DEFAULT_KEYS: Record<string, string> = {
+  bold: "Mod-b",
+  italic: "Mod-i",
+  underline: "Mod-u",
+  footnote: "Mod-Shift-f",
+  palette: "Mod-k",
+  find: "Mod-f",
+  foldAll: "Mod-Alt-[",
+  unfoldAll: "Mod-Alt-]",
+};
+function keybindings(): Record<string, string> {
+  return { ...DEFAULT_KEYS, ...(settings.keybindings || {}) };
+}
+function buildShortcutKeymap(): KeyBinding[] {
+  const kb = keybindings();
+  return ACTIONS.filter((a) => kb[a.id]).map((a) => ({
+    key: kb[a.id],
+    run: a.run,
+    preventDefault: true,
+  }));
+}
+const shortcutCompartment = new Compartment();
+function reconfigureShortcuts() {
+  view.dispatch({
+    effects: shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
+  });
+}
+
+/** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k"). */
+function eventToKey(e: KeyboardEvent): string | null {
+  const k = e.key;
+  if (["Control", "Meta", "Alt", "Shift"].includes(k)) return null; // modifier only
+  const parts: string[] = [];
+  if (e.ctrlKey || e.metaKey) parts.push("Mod");
+  if (e.altKey) parts.push("Alt");
+  if (e.shiftKey) parts.push("Shift");
+  parts.push(k.length === 1 ? k.toLowerCase() : k);
+  return parts.join("-");
+}
+
 function makeEditor(): EditorView {
   return new EditorView({
-    doc: STARTER,
+    doc: loadDoc(),
     parent: document.getElementById("editor-host")!,
     extensions: [
       history(),
@@ -129,7 +189,14 @@ function makeEditor(): EditorView {
       codeFolding(),
       foldGutter(),
       search({ top: true }),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, ...foldKeymap, indentWithTab]),
+      shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
+      keymap.of([
+        ...defaultKeymap,
+        ...historyKeymap,
+        ...searchKeymap,
+        ...foldKeymap,
+        indentWithTab,
+      ]),
       EditorView.lineWrapping,
       ksavHighlighter,
       ksavFold,
@@ -138,10 +205,23 @@ function makeEditor(): EditorView {
       proseCompartment.of(settings.prose ? proseMode : []),
       themeCompartment.of(editorTheme(settings.theme === "dark")),
       EditorView.updateListener.of((u) => {
-        if (u.docChanged) scheduleCompile();
+        if (u.docChanged) {
+          scheduleCompile();
+          updateCounts();
+        }
       }),
     ],
   });
+}
+
+// Hebrew-aware word + character count.
+function updateCounts() {
+  const el = document.getElementById("wordcount");
+  if (!el || !view) return;
+  const text = view.state.doc.toString();
+  const words = (text.match(/[^\s]+/g) || []).length;
+  const chars = text.length;
+  el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
 }
 
 let view: EditorView;
@@ -172,8 +252,10 @@ async function runCompile() {
   status.textContent = t("rendering");
   status.className = "";
   const t0 = performance.now();
+  const body = view.state.doc.toString();
+  localStorage.setItem("ksav.doc", body); // auto-save
   try {
-    const res = await backend.compile(view.state.doc.toString(), cfg());
+    const res = await backend.compile(body, cfg());
     lastResult = res;
     const ms = Math.round(performance.now() - t0);
     const preview = document.getElementById("preview")!;
@@ -393,6 +475,13 @@ function buildSettingsDrawer(): HTMLElement {
       el("option", { value: "ltr", ...(settings.dir === "ltr" ? { selected: "selected" } : {}) }, [t("ltr")]),
     ],
   );
+  const kb = keybindings();
+  const shortcutRows = ACTIONS.map((a) => {
+    const btn = el("button", { class: "sc-key", type: "button" }, [kb[a.id] || "—"]);
+    btn.addEventListener("click", () => captureShortcut(a.id, btn));
+    return el("label", { class: "set-row" }, [el("span", {}, [t("sc." + a.id)]), btn]);
+  });
+
   return el("aside", { id: "settings-drawer", class: "drawer" }, [
     el("h3", {}, [t("settings")]),
     el("label", { class: "set-row" }, [el("span", {}, [t("font")]), fontSel]),
@@ -404,7 +493,43 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("lineSpacing", "line_spacing_em", 0.4, 1.5, 0.05),
     numberRow("columns", "columns", 1, 3, 1),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
+    el("h3", { style: "margin-top:18px" }, [t("shortcuts")]),
+    ...shortcutRows,
+    el("button", { class: "sc-reset", type: "button", onClick: resetShortcuts }, [t("resetShortcuts")]),
   ]);
+}
+
+let capturing = false;
+function captureShortcut(actionId: string, btn: HTMLButtonElement) {
+  if (capturing) return;
+  capturing = true;
+  const original = btn.textContent || "—";
+  btn.textContent = t("pressKey");
+  btn.classList.add("capturing");
+  const done = (text: string) => {
+    capturing = false;
+    btn.classList.remove("capturing");
+    btn.textContent = text;
+    window.removeEventListener("keydown", handler, true);
+  };
+  const handler = (e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") return done(original);
+    const key = eventToKey(e);
+    if (!key) return; // still waiting for a non-modifier key
+    settings.keybindings = { ...(settings.keybindings || {}), [actionId]: key };
+    saveSettings();
+    reconfigureShortcuts();
+    done(key);
+  };
+  window.addEventListener("keydown", handler, true);
+}
+function resetShortcuts() {
+  delete settings.keybindings;
+  saveSettings();
+  reconfigureShortcuts();
+  rerenderChrome();
 }
 function toggleSettings() {
   document.getElementById("settings-drawer")!.classList.toggle("open");
@@ -600,6 +725,7 @@ function render() {
     el("div", { class: "statusbar" }, [
       el("span", { id: "status", class: "ok" }, [t("ready")]),
       el("span", { id: "diagnostics" }),
+      el("span", { id: "wordcount", class: "wordcount" }),
       el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
     ]),
     buildSettingsDrawer(),
@@ -633,15 +759,13 @@ function render() {
   applyLayout();
   applyUiDir();
   applyZoom();
+  updateCounts();
 }
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 function wireKeys() {
   window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      openPalette();
-    } else if (e.key === "Escape") {
+    if (e.key === "Escape") {
       closePalette();
       closePreviewOverlay();
     } else if (e.key === "Alt" && settings.prose) {

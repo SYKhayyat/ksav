@@ -42,6 +42,18 @@ pub fn serve(addr: &str) {
                     .with_header(header("Access-Control-Allow-Origin", "*"));
                 let _ = request.respond(resp);
             }
+            (Method::Get, "/commands") => {
+                let resp = Response::from_string(crate::commands::commands_json())
+                    .with_header(header("Content-Type", "application/json; charset=utf-8"))
+                    .with_header(header("Access-Control-Allow-Origin", "*"));
+                let _ = request.respond(resp);
+            }
+            (Method::Get, "/templates") => {
+                let resp = Response::from_string(crate::templates::templates_json())
+                    .with_header(header("Content-Type", "application/json; charset=utf-8"))
+                    .with_header(header("Access-Control-Allow-Origin", "*"));
+                let _ = request.respond(resp);
+            }
             (Method::Options, _) => {
                 let resp = Response::empty(204)
                     .with_header(header("Access-Control-Allow-Origin", "*"))
@@ -79,6 +91,18 @@ fn handle_compile(body_json: &str) -> String {
     if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
         cfg.dir = d.to_string();
     }
+    if let Some(n) = v.get("numbering").and_then(|x| x.as_bool()) {
+        cfg.numbering = n;
+    }
+    if let Some(j) = v.get("justify").and_then(|x| x.as_bool()) {
+        cfg.justify = j;
+    }
+    if let Some(l) = v.get("line_spacing_em").and_then(|x| x.as_f64()) {
+        cfg.line_spacing_em = l;
+    }
+    if let Some(c) = v.get("columns").and_then(|x| x.as_u64()) {
+        cfg.columns = c as u32;
+    }
 
     let result = compile(src, &cfg);
     let diags: Vec<serde_json::Value> = result
@@ -96,6 +120,7 @@ fn handle_compile(body_json: &str) -> String {
         "pages_svg": result.pages_svg,
         "pdf_base64": pdf_b64,
         "diagnostics": diags,
+        "typst_source": result.typst_source,
     })
     .to_string()
 }

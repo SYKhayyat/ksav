@@ -9,7 +9,9 @@ use typst::diag::{SourceDiagnostic, Warned};
 use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
+pub mod commands;
 pub mod server;
+pub mod templates;
 
 /// The Hebrew prelude, embedded at build time.
 const PRELUDE: &str = include_str!("../typst/ksav.typ");
@@ -19,6 +21,7 @@ const FONT_FRANK_REG: &[u8] = include_bytes!("../assets/fonts/FrankRuhlHofshi-Re
 const FONT_FRANK_BOLD: &[u8] = include_bytes!("../assets/fonts/FrankRuhlHofshi-Bold.otf");
 const FONT_DAVID_REG: &[u8] = include_bytes!("../assets/fonts/DavidLibre-Regular.ttf");
 const FONT_DAVID_BOLD: &[u8] = include_bytes!("../assets/fonts/DavidLibre-Bold.ttf");
+const FONT_CASCADIA: &[u8] = include_bytes!("../assets/fonts/CascadiaMono.ttf");
 
 /// Document-level settings, normally supplied by the editor toolbar.
 #[derive(Debug, Clone)]
@@ -28,6 +31,14 @@ pub struct DocConfig {
     pub margin_cm: f64,
     /// "rtl" or "ltr"
     pub dir: String,
+    /// Show page numbers.
+    pub numbering: bool,
+    /// Justify paragraphs.
+    pub justify: bool,
+    /// Line spacing (leading) in em.
+    pub line_spacing_em: f64,
+    /// Number of text columns (1 = single column).
+    pub columns: u32,
 }
 
 impl Default for DocConfig {
@@ -37,6 +48,10 @@ impl Default for DocConfig {
             size_pt: 12.0,
             margin_cm: 2.5,
             dir: "rtl".to_string(),
+            numbering: true,
+            justify: true,
+            line_spacing_em: 0.75,
+            columns: 1,
         }
     }
 }
@@ -57,6 +72,9 @@ pub struct Compiled {
     pub pages_svg: Vec<String>,
     /// Errors and warnings from the real Typst compiler.
     pub diagnostics: Vec<Diagnostic>,
+    /// The full assembled Typst source (prelude + wrapper + body) — the
+    /// "export to plain Typst" output.
+    pub typst_source: String,
 }
 
 impl Compiled {
@@ -70,15 +88,22 @@ impl Compiled {
 /// Kept public so callers (and tests) can inspect exactly what gets compiled.
 pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
+    let columns = cfg.columns.max(1);
     format!(
         "{prelude}\n\
-         #show: מסמך.with(גופן: \"{font}\", גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir})\n\n\
+         #show: מסמך.with(\
+         גופן: \"{font}\", גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, \
+         מספור: {numbering}, יישור: {justify}, ריווח_שורות: {leading}em, טורים: {columns})\n\n\
          {body}\n",
         prelude = PRELUDE,
         font = cfg.font.replace('"', "\\\""),
         size = cfg.size_pt,
         margin = cfg.margin_cm,
         dir = dir,
+        numbering = if cfg.numbering { "true" } else { "false" },
+        justify = if cfg.justify { "true" } else { "false" },
+        leading = cfg.line_spacing_em,
+        columns = columns,
         body = body,
     )
 }
@@ -103,10 +128,17 @@ fn diag_messages(diags: &[SourceDiagnostic], severity: &str) -> Vec<Diagnostic> 
 /// Compile Hebrew Ksav markup into PDF + SVG previews.
 pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
     let source = assemble_source(body, cfg);
+    let typst_source = source.clone();
 
     let engine = TypstEngine::builder()
         .main_file(source)
-        .fonts([FONT_FRANK_REG, FONT_FRANK_BOLD, FONT_DAVID_REG, FONT_DAVID_BOLD])
+        .fonts([
+            FONT_FRANK_REG,
+            FONT_FRANK_BOLD,
+            FONT_DAVID_REG,
+            FONT_DAVID_BOLD,
+            FONT_CASCADIA,
+        ])
         .build();
 
     let Warned { output, warnings } = engine.compile::<PagedDocument>();
@@ -125,6 +157,7 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
                 pdf,
                 pages_svg,
                 diagnostics,
+                typst_source,
             }
         }
         Err(err) => {
@@ -140,6 +173,7 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
                 pdf: None,
                 pages_svg: Vec::new(),
                 diagnostics,
+                typst_source,
             }
         }
     }

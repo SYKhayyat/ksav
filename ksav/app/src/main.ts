@@ -3,8 +3,10 @@ import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemir
 import { Compartment } from "@codemirror/state";
 import { history, historyKeymap, defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { searchKeymap } from "@codemirror/search";
+import { codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll } from "@codemirror/language";
 import {
   ksavHighlighter,
+  ksavFold,
   proseMode,
   revealAll,
   setRevealAll,
@@ -121,9 +123,12 @@ function makeEditor(): EditorView {
       history(),
       drawSelection(),
       highlightActiveLine(),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+      codeFolding(),
+      foldGutter(),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, ...foldKeymap, indentWithTab]),
       EditorView.lineWrapping,
       ksavHighlighter,
+      ksavFold,
       revealAll,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: settings.dir })),
       proseCompartment.of(settings.prose ? proseMode : []),
@@ -309,6 +314,8 @@ function buildHeader(): HTMLElement {
     () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
     "chip",
   );
+  const foldAllBtn = iconBtn("⊟", t("foldAll"), () => foldAll(view), "chip");
+  const unfoldAllBtn = iconBtn("⊞", t("unfoldAll"), () => unfoldAll(view), "chip");
   const proseToggle = iconBtn(
     settings.prose ? "🅐" : "＃",
     settings.prose ? t("raw") : t("prose"),
@@ -333,6 +340,8 @@ function buildHeader(): HTMLElement {
     templatesMenu,
     exportMenu,
     langToggle,
+    foldAllBtn,
+    unfoldAllBtn,
     proseToggle,
     layoutToggle,
     themeToggle,

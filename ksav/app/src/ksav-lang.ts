@@ -9,6 +9,8 @@
 import { EditorView, ViewPlugin, Decoration, ViewUpdate } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
+import type { EditorState } from "@codemirror/state";
+import { foldService } from "@codemirror/language";
 
 // ---- shared scanning -------------------------------------------------------
 
@@ -172,6 +174,83 @@ function proseDecorations(view: EditorView): DecorationSet {
     true,
   );
 }
+
+// ---- folding (org-mode style: headings + lists + any multi-line command) ----
+
+// Recognizes a heading line and returns its outline level, else null.
+const HEAD_RE =
+  /^\s*#(שער|title|תת_שער|subtitle|סימן|siman|כותרת([1-6])?|h([1-6]))(?:\s*\(\s*(?:רמה|level)\s*:\s*(\d+))?/u;
+
+function headingLevel(text: string): number | null {
+  const m = HEAD_RE.exec(text);
+  if (!m) return null;
+  const name = m[1];
+  if (name === "תת_שער" || name === "subtitle") return null; // subtitle isn't a section
+  if (m[4]) return parseInt(m[4], 10); // explicit רמה: n / level: n
+  if (m[2]) return parseInt(m[2], 10); // כותרתN
+  if (m[3]) return parseInt(m[3], 10); // hN
+  return 1; // שער / title / סימן / bare כותרת
+}
+
+// Find the position of the delimiter matching the one at `openPos`.
+function matchDelim(state: EditorState, openPos: number): number | null {
+  const doc = state.doc;
+  const open = doc.sliceString(openPos, openPos + 1);
+  const close = open === "[" ? "]" : ")";
+  const text = doc.sliceString(openPos, doc.length);
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === open) depth++;
+    else if (c === close) {
+      depth--;
+      if (depth === 0) return openPos + i;
+    }
+  }
+  return null;
+}
+
+const CMD_OPEN_RE = /#[A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*[[(]/gu;
+
+/**
+ * Fold service:
+ *   - a heading folds its whole section (down to the next same-or-higher
+ *     heading) — Word / org-mode outline folding;
+ *   - a line that opens a multi-line `#command[...]` or `#command(...)`
+ *     (a list, table, footnote, or a nested sub-list) folds that block.
+ */
+export const ksavFold = foldService.of((state, lineStart) => {
+  const doc = state.doc;
+  const line = doc.lineAt(lineStart);
+  const text = line.text;
+
+  // 1) heading section fold
+  const lvl = headingLevel(text);
+  if (lvl != null) {
+    let end = doc.length;
+    for (let n = line.number + 1; n <= doc.lines; n++) {
+      const l = doc.line(n);
+      const l2 = headingLevel(l.text);
+      if (l2 != null && l2 <= lvl) {
+        end = l.from - 1;
+        break;
+      }
+    }
+    return end > line.to ? { from: line.to, to: end } : null;
+  }
+
+  // 2) multi-line bracketed command fold (first such command on the line)
+  CMD_OPEN_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CMD_OPEN_RE.exec(text))) {
+    const openPos = line.from + m.index + m[0].length - 1; // the [ or (
+    const close = matchDelim(state, openPos);
+    if (close != null && close > line.to) {
+      return { from: openPos + 1, to: close };
+    }
+  }
+  return null;
+});
 
 export const proseMode = ViewPlugin.fromClass(
   class {

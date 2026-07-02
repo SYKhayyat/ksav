@@ -63,6 +63,8 @@ const HE: Dict = {
   "cat.torah": "תורני",
   newDoc: "מסמך חדש",
   proseHint: "לחצו Alt כדי לראות את הקוד הגולמי",
+  foldAll: "קפל הכל",
+  unfoldAll: "פרוש הכל",
 };
 
 const EN: Dict = {
@@ -117,6 +119,8 @@ const EN: Dict = {
   "cat.torah": "Torah",
   newDoc: "New document",
   proseHint: "Hold Alt to reveal raw markup",
+  foldAll: "Fold all",
+  unfoldAll: "Unfold all",
 };
 
 const DICTS: Record<Lang, Dict> = { he: HE, en: EN };

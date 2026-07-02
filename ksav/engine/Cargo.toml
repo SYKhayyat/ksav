@@ -1,0 +1,30 @@
+[package]
+name = "ksav-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Hebrew-first typesetting engine built on real Typst compilation"
+
+[lib]
+name = "ksav_engine"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ksav"
+path = "src/main.rs"
+
+[dependencies]
+typst = "0.15"
+typst-layout = "0.15"
+typst-pdf = "0.15"
+typst-svg = "0.15"
+typst-as-lib = "0.16"
+ecow = "0.2"
+tiny_http = "0.12"
+serde_json = "1"
+base64 = "0.22"
+
+[profile.dev]
+opt-level = 1        # typst is slow to run unoptimized; keep dev builds usable
+
+[profile.release]
+opt-level = 3

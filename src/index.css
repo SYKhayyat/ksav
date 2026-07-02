@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Rubik", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom scrollbars for a beautiful editorial experience */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Print styling to format virtual paper as real prints/PDFs */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #live_preview_panel, #live_preview_panel * {
+    visibility: visible;
+  }
+  #live_preview_panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+  header, nav, button, form, select, .no-print {
+    display: none !important;
+  }
+}
+

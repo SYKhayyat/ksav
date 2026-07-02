@@ -1,0 +1,40 @@
+name: ksav_typesetter
+description: "Ksav - Hebrew-First Desktop & Mobile Offline Typesetting and Writing System"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.5
+  path_provider: ^2.0.15
+  shared_preferences: ^2.2.0
+  flutter_html: ^3.0.0-beta.2
+  file_picker: ^5.3.1
+  share_plus: ^7.0.0
+  intl: ^0.18.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.1
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Rubik
+      fonts:
+        - asset: assets/fonts/Rubik-Regular.ttf
+        - asset: assets/fonts/Rubik-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Rubik-Bold.ttf
+          weight: 700
+    - family: Frank Ruhl Libre
+      fonts:
+        - asset: assets/fonts/FrankRuhlLibre-Regular.ttf
+        - asset: assets/fonts/FrankRuhlLibre-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/FrankRuhlLibre-Bold.ttf
+          weight: 700

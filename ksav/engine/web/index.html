@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>כְּתָב · Ksav</title>
+<style>
+  :root {
+    --bg: #f3f4f6; --panel: #ffffff; --ink: #111827; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #2563eb; --accent-soft: #eff6ff; --danger: #b91c1c;
+    --mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    --hebrew: "Frank Ruhl Libre", "David Libre", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: var(--hebrew); background: var(--bg); color: var(--ink); display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 8px 14px;
+    background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .brand small { color: var(--muted); font-weight: 400; font-size: 12px; margin-inline-start: 6px; }
+  .spacer { flex: 1; }
+
+  .toolbar { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .toolbar button, .bar button {
+    font-family: var(--hebrew); font-size: 13px; padding: 5px 10px; cursor: pointer;
+    background: #fff; border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+  }
+  .toolbar button:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .toolbar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+  label.ctl { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+  label.ctl select, label.ctl input { font-family: var(--hebrew); font-size: 12px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; }
+
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+  .pane { min-height: 0; display: flex; flex-direction: column; }
+  .pane.source { border-inline-start: 1px solid var(--line); }
+  .pane-head { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+               padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+
+  #editor {
+    flex: 1; width: 100%; resize: none; border: 0; outline: none; padding: 18px;
+    font-family: var(--mono); font-size: 15px; line-height: 1.7; direction: rtl; text-align: right;
+    background: #fbfbfd; color: var(--ink);
+  }
+
+  #preview { flex: 1; overflow: auto; padding: 22px; background: var(--bg); }
+  .page { background: #fff; margin: 0 auto 22px; box-shadow: 0 2px 14px rgba(0,0,0,.12); max-width: 820px; }
+  .page svg { width: 100%; height: auto; display: block; }
+
+  .bar { display: flex; align-items: center; gap: 12px; padding: 6px 14px; background: var(--panel);
+         border-top: 1px solid var(--line); font-size: 13px; min-height: 34px; }
+  .status-ok { color: #15803d; } .status-err { color: var(--danger); }
+  #diagnostics { color: var(--danger); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; flex: 1; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">כְּתָב<small>Ksav · Typst אמיתי</small></div>
+    <div class="toolbar" id="toolbar">
+      <button data-wrap="הדגשה" title="מודגש"><b>ב</b></button>
+      <button data-wrap="נטוי" title="נטוי"><i>נ</i></button>
+      <button data-wrap="קו_תחתון" title="קו תחתון"><u>ק</u></button>
+      <span class="sep"></span>
+      <button data-wrap="כותרת1" title="כותרת ראשית">כותרת 1</button>
+      <button data-wrap="כותרת2" title="כותרת משנה">כותרת 2</button>
+      <span class="sep"></span>
+      <button data-insert="#רשימה(\n  פריט[],\n  פריט[],\n)" title="רשימה">• רשימה</button>
+      <button data-insert="#ממוספרת(\n  פריט[],\n  פריט[],\n)" title="ממוספרת">1. ממוספרת</button>
+      <button data-insert="#טבלה(\n  עמודות: 2,\n  תא[], תא[],\n  תא[], תא[],\n)" title="טבלה">טבלה</button>
+      <button data-wrap="הערה" title="הערת שוליים">הערה</button>
+      <span class="sep"></span>
+      <button data-wrap="מרכז" title="מרכז">מרכז</button>
+    </div>
+    <div class="spacer"></div>
+    <label class="ctl">גופן
+      <select id="font">
+        <option value="Frank Ruhl Hofshi">Frank Ruhl</option>
+        <option value="David Libre">David</option>
+      </select>
+    </label>
+    <label class="ctl">גודל <input id="size" type="number" min="8" max="36" step="1" value="12" style="width:52px"></label>
+    <label class="ctl">שוליים <input id="margin" type="number" min="1" max="6" step="0.5" value="2.5" style="width:56px"></label>
+    <button id="download" class="">הורד PDF ⬇</button>
+  </header>
+
+  <main>
+    <section class="pane">
+      <div class="pane-head">תצוגה מקדימה · live preview</div>
+      <div id="preview"></div>
+    </section>
+    <section class="pane source">
+      <div class="pane-head">מקור · source</div>
+      <textarea id="editor" spellcheck="false"></textarea>
+    </section>
+  </main>
+
+  <div class="bar">
+    <span id="status" class="status-ok">מוכן</span>
+    <span id="diagnostics"></span>
+  </div>
+
+<script>
+const STARTER = `#שער[ברוכים הבאים לכְּתָב]
+#תת_שער[כתיבה עברית על גבי Typst אמיתי]
+
+#קו_מפריד
+
+#כותרת1[מבוא]
+
+זהו עורך #הדגשה[כְּתָב]. כל פקודה כאן היא פונקציית Typst אמיתית, ולכן #נטוי[הקינון בלתי מוגבל] עובד מאליו.
+
+#רשימה(
+  פריט[פריט פשוט.],
+  פריט[פריט עם הערת שוליים#הערה[הערה יכולה להכיל רשימות, טבלאות וכותרות.]],
+)
+
+#כותרת2[טבלה]
+
+#טבלה(
+  עמודות: 2,
+  כותרת_תא[מונח], כותרת_תא[פירוש],
+  תא[קינון], תא[מבנה בתוך מבנה],
+)
+`;
+
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const statusEl = document.getElementById('status');
+const diagEl = document.getElementById('diagnostics');
+const fontEl = document.getElementById('font');
+const sizeEl = document.getElementById('size');
+const marginEl = document.getElementById('margin');
+let lastPdfB64 = null;
+
+editor.value = STARTER;
+
+function cfg() {
+  return {
+    body: editor.value,
+    font: fontEl.value,
+    size_pt: parseFloat(sizeEl.value) || 12,
+    margin_cm: parseFloat(marginEl.value) || 2.5,
+    dir: "rtl",
+  };
+}
+
+let timer = null;
+function scheduleCompile() {
+  clearTimeout(timer);
+  timer = setTimeout(runCompile, 200);
+}
+
+async function runCompile() {
+  statusEl.textContent = 'מרנדר…'; statusEl.className = '';
+  const t0 = performance.now();
+  try {
+    const res = await fetch('/compile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg()),
+    });
+    const data = await res.json();
+    const ms = Math.round(performance.now() - t0);
+    lastPdfB64 = data.pdf_base64 || null;
+
+    if (data.pages_svg && data.pages_svg.length) {
+      preview.innerHTML = data.pages_svg.map(s => `<div class="page">${s}</div>`).join('');
+    }
+    const errs = (data.diagnostics || []).filter(d => d.severity === 'error');
+    if (data.ok) {
+      statusEl.textContent = `✓ ${data.pages_svg.length} עמ' · ${ms}ms`;
+      statusEl.className = 'status-ok';
+      diagEl.textContent = (data.diagnostics || []).map(d => d.message).join('\n');
+    } else {
+      statusEl.textContent = `✗ שגיאת קומפילציה`;
+      statusEl.className = 'status-err';
+      diagEl.textContent = errs.map(d => d.message).join('\n');
+    }
+  } catch (e) {
+    statusEl.textContent = '✗ שגיאת רשת'; statusEl.className = 'status-err';
+    diagEl.textContent = String(e);
+  }
+}
+
+// Toolbar: wrap selection in a Hebrew command, or insert a snippet.
+document.getElementById('toolbar').addEventListener('click', (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const s = editor.selectionStart, en = editor.selectionEnd, val = editor.value;
+  if (btn.dataset.wrap) {
+    const cmd = btn.dataset.wrap, sel = val.slice(s, en);
+    const ins = `#${cmd}[${sel}]`;
+    editor.value = val.slice(0, s) + ins + val.slice(en);
+    editor.selectionStart = editor.selectionEnd = s + cmd.length + 2 + sel.length;
+  } else if (btn.dataset.insert) {
+    const ins = btn.dataset.insert.replace(/\\n/g, '\n');
+    editor.value = val.slice(0, s) + ins + val.slice(en);
+    editor.selectionStart = editor.selectionEnd = s + ins.length;
+  }
+  editor.focus();
+  scheduleCompile();
+});
+
+document.getElementById('download').addEventListener('click', () => {
+  if (!lastPdfB64) return;
+  const bytes = Uint8Array.from(atob(lastPdfB64), c => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'ksav.pdf'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+editor.addEventListener('input', scheduleCompile);
+[fontEl, sizeEl, marginEl].forEach(el => el.addEventListener('change', scheduleCompile));
+runCompile();
+</script>
+</body>
+</html>

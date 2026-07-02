@@ -1,0 +1,30 @@
+# Rust
+target/
+
+# Node / front-end
+node_modules/
+build/
+dist/
+.vite/
+coverage/
+
+# Build + generated output
+/ksav/out/
+*.pdf
+
+# Keep bundled font assets even though *.otf/*.ttf are binaries
+!ksav/engine/assets/**
+
+# WASM build artifacts
+/ksav/wasm/pkg/
+
+# Env / secrets
+.env*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

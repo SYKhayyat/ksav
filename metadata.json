@@ -1,0 +1,6 @@
+{
+  "name": "Ksav",
+  "description": "A Hebrew-First typesetting and writing system powered by Typst concepts and Hebrew command aliases.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

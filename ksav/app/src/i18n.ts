@@ -65,6 +65,10 @@ const HE: Dict = {
   proseHint: "לחצו Alt כדי לראות את הקוד הגולמי",
   foldAll: "קפל הכל",
   unfoldAll: "פרוש הכל",
+  find: "חיפוש והחלפה",
+  "mode.two": "שני חלונות",
+  "mode.page": "עמוד (כמו Word)",
+  "mode.source": "קוד בלבד",
 };
 
 const EN: Dict = {
@@ -121,6 +125,10 @@ const EN: Dict = {
   proseHint: "Hold Alt to reveal raw markup",
   foldAll: "Fold all",
   unfoldAll: "Unfold all",
+  find: "Find & replace",
+  "mode.two": "Split view",
+  "mode.page": "Page (like Word)",
+  "mode.source": "Source only",
 };
 
 const DICTS: Record<Lang, Dict> = { he: HE, en: EN };

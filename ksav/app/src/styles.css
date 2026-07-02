@@ -76,9 +76,41 @@ header {
 
 /* ---- main split ---- */
 main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
-#app[data-layout="one"] main { grid-template-columns: 1fr; }
-#app[data-layout="one"] .preview-pane { display: none; }
+/* source-only and page modes are single-pane */
+#app[data-layout="source"] main,
+#app[data-layout="page"] main { grid-template-columns: 1fr; }
+#app[data-layout="source"] .preview-pane,
+#app[data-layout="page"] .preview-pane { display: none; }
 .pane { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ---- Page mode: a single centered page you type on, like Word ---- */
+#app[data-layout="page"] .source-pane { border: none; }
+#app[data-layout="page"] .source-pane .pane-head { display: none; }
+#app[data-layout="page"] #editor-host {
+  background: var(--bg); overflow: auto; padding: 30px 16px;
+}
+#app[data-layout="page"] .cm-editor {
+  max-width: 860px; margin: 0 auto; background: #fff; color: #111827;
+  box-shadow: 0 3px 24px rgba(0,0,0,.15); border-radius: 3px; min-height: 1040px;
+}
+:root[data-theme="dark"] #app[data-layout="page"] .cm-editor { background: #f8fafc; }
+#app[data-layout="page"] .cm-content {
+  padding: 72px 84px; font-family: "Frank Ruhl Libre","David Libre",serif; font-size: 17px;
+}
+#app[data-layout="page"] .cm-gutters { display: none; }
+#app[data-layout="page"] .cm-activeLine { background: transparent; }
+
+/* floating preview button + modal (page mode) */
+.float-preview-btn {
+  position: fixed; bottom: 46px; inset-inline-start: 22px; z-index: 45; display: none;
+  width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #fff;
+  border: none; box-shadow: 0 5px 16px rgba(0,0,0,.28); cursor: pointer; font-size: 20px;
+}
+#app[data-layout="page"] .float-preview-btn { display: inline-flex; align-items: center; justify-content: center; }
+.preview-modal-box {
+  width: min(900px, 94vw); max-height: 88vh; overflow: auto; background: var(--bg);
+  border-radius: 12px; padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.4);
+}
 .source-pane { border-inline-start: 1px solid var(--line); }
 .pane-head {
   font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);

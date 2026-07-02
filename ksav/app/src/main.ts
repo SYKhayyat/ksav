@@ -2,7 +2,7 @@ import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
 import { Compartment } from "@codemirror/state";
 import { history, historyKeymap, defaultKeymap, indentWithTab } from "@codemirror/commands";
-import { searchKeymap } from "@codemirror/search";
+import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
 import { codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll } from "@codemirror/language";
 import {
   ksavHighlighter,
@@ -17,10 +17,11 @@ import { t, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 
 // ---------------------------------------------------------------- state
+type Layout = "two" | "page" | "source";
 interface Settings extends DocConfig {
   lang: Lang;
   theme: "light" | "dark";
-  layout: "two" | "one";
+  layout: Layout;
   prose: boolean;
   zoom: number;
 }
@@ -43,7 +44,9 @@ const DEFAULTS: Settings = {
 
 function loadSettings(): Settings {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem("ksav.settings") || "{}") };
+    const s = { ...DEFAULTS, ...JSON.parse(localStorage.getItem("ksav.settings") || "{}") };
+    if ((s.layout as string) === "one") s.layout = "source"; // migrate old value
+    return s;
   } catch {
     return { ...DEFAULTS };
   }
@@ -125,6 +128,7 @@ function makeEditor(): EditorView {
       highlightActiveLine(),
       codeFolding(),
       foldGutter(),
+      search({ top: true }),
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, ...foldKeymap, indentWithTab]),
       EditorView.lineWrapping,
       ksavHighlighter,
@@ -314,6 +318,7 @@ function buildHeader(): HTMLElement {
     () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
     "chip",
   );
+  const findBtn = iconBtn("🔍", t("find"), () => openSearchPanel(view), "chip");
   const foldAllBtn = iconBtn("⊟", t("foldAll"), () => foldAll(view), "chip");
   const unfoldAllBtn = iconBtn("⊞", t("unfoldAll"), () => unfoldAll(view), "chip");
   const proseToggle = iconBtn(
@@ -322,10 +327,11 @@ function buildHeader(): HTMLElement {
     () => setSetting("prose", !settings.prose),
     settings.prose ? "chip active" : "chip",
   );
+  const layoutIcons: Record<Layout, string> = { two: "◫", page: "📄", source: "⟨⟩" };
   const layoutToggle = iconBtn(
-    settings.layout === "two" ? "▐▌" : "▐",
-    settings.layout === "two" ? t("onePanel") : t("twoPanel"),
-    () => setSetting("layout", settings.layout === "two" ? "one" : "two"),
+    layoutIcons[settings.layout],
+    `${t("layout")}: ${t("mode." + settings.layout)}`,
+    cycleLayout,
     "chip",
   );
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
@@ -339,6 +345,7 @@ function buildHeader(): HTMLElement {
     el("div", { class: "spacer" }),
     templatesMenu,
     exportMenu,
+    findBtn,
     langToggle,
     foldAllBtn,
     unfoldAllBtn,
@@ -530,6 +537,28 @@ function applyTheme() {
 function applyLayout() {
   document.getElementById("app")!.dataset.layout = settings.layout;
 }
+
+// Cycle split → page (Word-like) → source. Entering page mode turns on prose so
+// you see formatting, not markup.
+function cycleLayout() {
+  const order: Layout[] = ["two", "page", "source"];
+  const next = order[(order.indexOf(settings.layout) + 1) % order.length];
+  if (next === "page" && !settings.prose) {
+    settings.prose = true;
+    saveSettings();
+    view.dispatch({ effects: proseCompartment.reconfigure(proseMode) });
+  }
+  setSetting("layout", next);
+}
+
+function openPreviewOverlay() {
+  const body = document.getElementById("preview-modal-body")!;
+  body.innerHTML = document.getElementById("preview")!.innerHTML;
+  document.getElementById("preview-modal")!.classList.add("open");
+}
+function closePreviewOverlay() {
+  document.getElementById("preview-modal")!.classList.remove("open");
+}
 function applyUiDir() {
   document.documentElement.lang = getLang();
   document.documentElement.dir = isRtlUi() ? "rtl" : "ltr";
@@ -587,6 +616,16 @@ function render() {
         el("div", { id: "palette-list" }),
       ]),
     ]),
+    // floating preview (page mode): a button + a modal showing the rendered pages
+    el("button", {
+      id: "float-preview-btn",
+      class: "float-preview-btn",
+      title: t("preview"),
+      onClick: openPreviewOverlay,
+    }, ["📄"]),
+    el("div", { id: "preview-modal", class: "overlay", onClick: (e: Event) => {
+      if ((e.target as HTMLElement).id === "preview-modal") closePreviewOverlay();
+    } }, [el("div", { class: "preview-modal-box" }, [el("div", { id: "preview-modal-body" })])]),
   );
 
   view = makeEditor();
@@ -604,6 +643,7 @@ function wireKeys() {
       openPalette();
     } else if (e.key === "Escape") {
       closePalette();
+      closePreviewOverlay();
     } else if (e.key === "Alt" && settings.prose) {
       view.dispatch({ effects: setRevealAll.of(true) });
     }

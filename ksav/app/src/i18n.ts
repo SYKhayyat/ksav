@@ -1,0 +1,137 @@
+// Bilingual UI strings. The whole app chrome flips between Hebrew (RTL) and
+// English (LTR); the *document* direction is a separate setting.
+
+export type Lang = "he" | "en";
+
+type Dict = Record<string, string>;
+
+const HE: Dict = {
+  appName: "כְּתָב",
+  tagline: "מערכת הכתיבה העברית",
+  // toolbar / menus
+  templates: "תבניות",
+  insert: "הוספה",
+  settings: "הגדרות",
+  export: "ייצוא",
+  palette: "פקודות",
+  language: "שפה",
+  theme: "ערכת נושא",
+  layout: "פריסה",
+  prose: "מצב פרוזה",
+  raw: "מצב קוד",
+  twoPanel: "שני חלונות",
+  onePanel: "חלון אחד",
+  preview: "תצוגה מקדימה",
+  source: "מקור",
+  // settings panel
+  font: "גופן",
+  fontSize: "גודל גופן",
+  margin: "שוליים",
+  direction: "כיוון",
+  rtl: "מימין לשמאל",
+  ltr: "משמאל לימין",
+  pageNumbers: "מספרי עמודים",
+  justify: "יישור לשני צדדים",
+  lineSpacing: "ריווח שורות",
+  columns: "טורים",
+  zoom: "מרחק תצוגה",
+  light: "בהיר",
+  dark: "כהה",
+  // export menu
+  exportPdf: "PDF",
+  exportHtml: "HTML",
+  exportTypst: "מקור Typst",
+  print: "הדפסה",
+  // status
+  ready: "מוכן",
+  rendering: "מרנדר…",
+  pages: "עמ׳",
+  compileError: "שגיאת קומפילציה",
+  networkError: "שגיאת רשת",
+  noErrors: "אין שגיאות",
+  // palette
+  searchCommands: "חיפוש פקודה…",
+  // categories
+  "cat.style": "עיצוב",
+  "cat.heading": "כותרות",
+  "cat.align": "יישור",
+  "cat.list": "רשימות",
+  "cat.table": "טבלאות",
+  "cat.footnote": "הערות",
+  "cat.block": "בלוקים",
+  "cat.layout": "פריסה",
+  "cat.torah": "תורני",
+  newDoc: "מסמך חדש",
+  proseHint: "לחצו Alt כדי לראות את הקוד הגולמי",
+};
+
+const EN: Dict = {
+  appName: "Ksav",
+  tagline: "The Hebrew writing system",
+  templates: "Templates",
+  insert: "Insert",
+  settings: "Settings",
+  export: "Export",
+  palette: "Commands",
+  language: "Language",
+  theme: "Theme",
+  layout: "Layout",
+  prose: "Prose mode",
+  raw: "Code mode",
+  twoPanel: "Two panels",
+  onePanel: "One panel",
+  preview: "Preview",
+  source: "Source",
+  font: "Font",
+  fontSize: "Font size",
+  margin: "Margins",
+  direction: "Direction",
+  rtl: "Right-to-left",
+  ltr: "Left-to-right",
+  pageNumbers: "Page numbers",
+  justify: "Justify",
+  lineSpacing: "Line spacing",
+  columns: "Columns",
+  zoom: "Zoom",
+  light: "Light",
+  dark: "Dark",
+  exportPdf: "PDF",
+  exportHtml: "HTML",
+  exportTypst: "Typst source",
+  print: "Print",
+  ready: "Ready",
+  rendering: "Rendering…",
+  pages: "pp.",
+  compileError: "Compilation error",
+  networkError: "Network error",
+  noErrors: "No errors",
+  searchCommands: "Search commands…",
+  "cat.style": "Style",
+  "cat.heading": "Headings",
+  "cat.align": "Alignment",
+  "cat.list": "Lists",
+  "cat.table": "Tables",
+  "cat.footnote": "Footnotes",
+  "cat.block": "Blocks",
+  "cat.layout": "Layout",
+  "cat.torah": "Torah",
+  newDoc: "New document",
+  proseHint: "Hold Alt to reveal raw markup",
+};
+
+const DICTS: Record<Lang, Dict> = { he: HE, en: EN };
+
+let current: Lang = "he";
+
+export function setLang(l: Lang) {
+  current = l;
+}
+export function getLang(): Lang {
+  return current;
+}
+export function t(key: string): string {
+  return DICTS[current][key] ?? DICTS.en[key] ?? key;
+}
+export function isRtlUi(): boolean {
+  return current === "he";
+}

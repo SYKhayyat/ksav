@@ -12,7 +12,55 @@ use tiny_http::{Header, Method, Response, Server};
 
 use crate::{compile, DocConfig};
 
+/// Fallback single-file editor, used when the `embed-ui` feature is off.
 const INDEX_HTML: &str = include_str!("../web/index.html");
+
+/// The full built SPA (ksav/app/dist), embedded when `embed-ui` is enabled.
+#[cfg(feature = "embed-ui")]
+static UI: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../app/dist");
+
+#[cfg_attr(not(feature = "embed-ui"), allow(dead_code))]
+fn content_type_for(path: &str) -> &'static str {
+    match path.rsplit('.').next() {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("json") => "application/json; charset=utf-8",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Serve a static asset for a GET request. Returns true if it was handled.
+fn serve_static(request: tiny_http::Request, url: &str) {
+    let rel = if url == "/" || url == "/index.html" {
+        "index.html"
+    } else {
+        url.trim_start_matches('/')
+    };
+
+    #[cfg(feature = "embed-ui")]
+    {
+        if let Some(file) = UI.get_file(rel) {
+            let resp = Response::from_data(file.contents())
+                .with_header(header("Content-Type", content_type_for(rel)));
+            let _ = request.respond(resp);
+            return;
+        }
+    }
+
+    // Fallback: the bundled single-file editor at the root.
+    if rel == "index.html" {
+        let resp = Response::from_string(INDEX_HTML)
+            .with_header(header("Content-Type", "text/html; charset=utf-8"));
+        let _ = request.respond(resp);
+        return;
+    }
+
+    let _ = request.respond(Response::from_string("not found").with_status_code(404));
+}
 
 pub fn serve(addr: &str) {
     let server = match Server::http(addr) {
@@ -28,11 +76,6 @@ pub fn serve(addr: &str) {
         let method = request.method().clone();
         let url = request.url().to_string();
         match (method, url.as_str()) {
-            (Method::Get, "/") | (Method::Get, "/index.html") => {
-                let resp = Response::from_string(INDEX_HTML)
-                    .with_header(header("Content-Type", "text/html; charset=utf-8"));
-                let _ = request.respond(resp);
-            }
             (Method::Post, "/compile") => {
                 let mut body = String::new();
                 let _ = request.as_reader().read_to_string(&mut body);
@@ -61,6 +104,7 @@ pub fn serve(addr: &str) {
                     .with_header(header("Access-Control-Allow-Headers", "Content-Type"));
                 let _ = request.respond(resp);
             }
+            (Method::Get, _) => serve_static(request, &url),
             _ => {
                 let _ = request.respond(Response::from_string("not found").with_status_code(404));
             }

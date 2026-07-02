@@ -45,6 +45,24 @@ works for free.
   compiler diagnostics (errors + hints) surfaced back.
 - Compiles a page in ~20-30ms.
 
+## The editor (SPA)
+
+`ksav/app/` is a Vite + TypeScript single-page app (CodeMirror 6):
+
+- **Ksav syntax highlighting** for `#command[...]` in the editor.
+- **Prose mode** — hides the command syntax and renders content with the real
+  style (bold looks bold, headings look like headings). The command under the
+  cursor, and everything while **Alt** is held, reveal their raw markup so you
+  can always edit.
+- **Live preview** — real Typst SVG, ~20-90ms round-trip.
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 53 commands
+  in Hebrew or English), **templates** menu, **export** menu (PDF / HTML / Typst
+  / print).
+- **Bilingual UI** (Hebrew ⇄ English) with full RTL/LTR flip of the chrome —
+  independent of the document's own direction. Persisted.
+- **Settings**: font, size, margins, direction, page numbers, justify, line
+  spacing, columns, zoom. **Light/dark theme.** One/two-panel layout.
+
 ## Status
 
 - [x] Real Typst 0.15 compilation (embedded via `typst-as-lib`)
@@ -52,10 +70,28 @@ works for free.
 - [x] 8 templates (all compile)
 - [x] Command + template registries (JSON)
 - [x] PDF / SVG / Typst-source export, live diagnostics
-- [x] Two-panel web editor (basic)
-- [ ] Full SPA: CodeMirror 6, command palette, prose mode, bilingual UI (M2)
+- [x] **Full SPA** — CodeMirror 6, command palette, prose mode, bilingual UI,
+      settings, themes, templates, exports (M2)
 - [ ] WASM build for in-browser operation (M3)
 - [ ] Tauri desktop app (M4)
+
+## Develop
+
+```sh
+# 1. Run the engine (HTTP API on :7878)
+cargo run --manifest-path engine/Cargo.toml -- serve
+
+# 2. Run the SPA dev server (proxies API to the engine)
+cd app && npm install && npm run dev        # http://localhost:5173
+```
+
+## Ship a single self-contained binary
+
+```sh
+cd app && npm run build                     # -> app/dist
+cargo build --release --features embed-ui --manifest-path engine/Cargo.toml
+./engine/target/release/ksav serve          # serves the whole SPA + API
+```
 
 ## Run
 

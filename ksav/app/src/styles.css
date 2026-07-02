@@ -264,6 +264,7 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .pm-h1 { font-size: 1.6em; font-weight: 800; }
 .pm-h2 { font-size: 1.35em; font-weight: 700; }
 .pm-h3 { font-size: 1.15em; font-weight: 700; }
+.pm-bullet { color: var(--accent); font-weight: 600; margin-inline-end: 2px; }
 .pm-center { display: inline-block; width: 100%; text-align: center; }
 .pm-right { display: inline-block; width: 100%; text-align: right; }
 .pm-left { display: inline-block; width: 100%; text-align: left; }

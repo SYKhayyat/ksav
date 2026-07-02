@@ -6,7 +6,7 @@
 //                        commands while Alt is held, reveal their raw markup so
 //                        you can always edit.
 
-import { EditorView, ViewPlugin, Decoration, ViewUpdate } from "@codemirror/view";
+import { EditorView, ViewPlugin, Decoration, ViewUpdate, WidgetType } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState } from "@codemirror/state";
@@ -158,11 +158,82 @@ export const revealAll = StateField.define<boolean>({
   },
 });
 
+// A small inline widget rendering a bullet or number in prose mode.
+class LabelWidget extends WidgetType {
+  constructor(readonly text: string) {
+    super();
+  }
+  eq(o: LabelWidget) {
+    return o.text === this.text;
+  }
+  toDOM() {
+    const s = document.createElement("span");
+    s.className = "pm-bullet";
+    s.textContent = this.text;
+    return s;
+  }
+}
+
+// Match the delimiter (`[` or `(`) at `openPos` within a text string.
+function matchInText(text: string, openPos: number): number | null {
+  const open = text[openPos];
+  const close = open === "[" ? "]" : ")";
+  let depth = 1;
+  for (let i = openPos + 1; i < text.length; i++) {
+    if (text[i] === open) depth++;
+    else if (text[i] === close) {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return null;
+}
+
+const LIST_OPEN_RE = /#(רשימה|ממוספרת|bullets|numbered)\s*\(/gu;
+const ITEM_OPEN_RE = /(פריט|item)\s*\[/gu;
+
 function proseDecorations(view: EditorView): DecorationSet {
   const reveal = view.state.field(revealAll, false);
   const sel = view.state.selection;
   const ranges: { from: number; to: number; deco: Decoration; side: number }[] = [];
   const text = view.state.doc.toString();
+  const touchedAt = (from: number, to: number) =>
+    reveal || sel.ranges.some((r) => r.from <= to && r.to >= from);
+
+  // ---- lists: hide scaffolding, show bullets/numbers (WYSIWYG) ----
+  LIST_OPEN_RE.lastIndex = 0;
+  let lm: RegExpExecArray | null;
+  while ((lm = LIST_OPEN_RE.exec(text))) {
+    const cmdStart = lm.index;
+    const openParen = lm.index + lm[0].length - 1;
+    const closeParen = matchInText(text, openParen);
+    if (closeParen == null) continue;
+    if (touchedAt(cmdStart, closeParen + 1)) continue;
+    const ordered = lm[1] === "ממוספרת" || lm[1] === "numbered";
+    ranges.push({ from: cmdStart, to: openParen + 1, deco: hide, side: -1 });
+    ranges.push({ from: closeParen, to: closeParen + 1, deco: hide, side: 1 });
+    // items directly inside this list
+    ITEM_OPEN_RE.lastIndex = openParen + 1;
+    let idx = 0;
+    let im: RegExpExecArray | null;
+    while ((im = ITEM_OPEN_RE.exec(text)) && im.index < closeParen) {
+      const itemOpen = im.index + im[0].length - 1;
+      const itemClose = matchInText(text, itemOpen);
+      if (itemClose == null || itemClose > closeParen) break;
+      idx++;
+      const bullet = ordered ? `${idx}. ` : "• ";
+      ranges.push({
+        from: im.index,
+        to: itemOpen + 1,
+        deco: Decoration.replace({ widget: new LabelWidget(bullet) }),
+        side: -1,
+      });
+      ranges.push({ from: itemClose, to: itemClose + 1, deco: hide, side: 1 });
+      if (text[itemClose + 1] === ",")
+        ranges.push({ from: itemClose + 1, to: itemClose + 2, deco: hide, side: 1 });
+      ITEM_OPEN_RE.lastIndex = itemClose + 1; // skip nested items (handled by their own list)
+    }
+  }
 
   for (const s of scanCommands(text)) {
     const cls = PROSE_STYLE[s.name];

@@ -9,6 +9,10 @@ const HE: Dict = {
   appName: "כְּתָב",
   tagline: "מערכת הכתיבה העברית",
   // toolbar / menus
+  file: "קובץ",
+  open: "פתיחה",
+  save: "שמירה",
+  confirmNew: "ליצור מסמך חדש? השינויים הנוכחיים יימחקו.",
   templates: "תבניות",
   insert: "הוספה",
   settings: "הגדרות",
@@ -96,6 +100,10 @@ const HE: Dict = {
 const EN: Dict = {
   appName: "Ksav",
   tagline: "The Hebrew writing system",
+  file: "File",
+  open: "Open",
+  save: "Save",
+  confirmNew: "Start a new document? Current changes will be cleared.",
   templates: "Templates",
   insert: "Insert",
   settings: "Settings",

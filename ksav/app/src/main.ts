@@ -432,6 +432,12 @@ function buildHeader(): HTMLElement {
     ),
   );
 
+  const fileMenu = menu("📁 " + t("file"), [
+    el("button", { class: "menu-item", onClick: newDoc }, [t("newDoc")]),
+    el("button", { class: "menu-item", onClick: openFile }, [t("open")]),
+    el("button", { class: "menu-item", onClick: saveFile }, [t("save")]),
+  ]);
+
   const exportMenu = menu("⬇ " + t("export"), [
     el("button", { class: "menu-item", onClick: exportPdf }, [t("exportPdf")]),
     el("button", { class: "menu-item", onClick: exportHtml }, [t("exportHtml")]),
@@ -484,6 +490,7 @@ function buildHeader(): HTMLElement {
     ]),
     buildToolbar(),
     el("div", { class: "spacer" }),
+    fileMenu,
     undoBtn,
     redoBtn,
     templatesMenu,
@@ -724,6 +731,39 @@ function download(name: string, blob: Blob) {
   a.click();
   URL.revokeObjectURL(url);
 }
+function openFile() {
+  const input = el("input", { type: "file", accept: ".ksav,.typ,.txt", style: "display:none" });
+  input.addEventListener("change", () => {
+    const f = input.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: String(reader.result) },
+        selection: { anchor: 0 },
+      });
+      view.focus();
+      scheduleCompile();
+    };
+    reader.readAsText(f);
+  });
+  document.body.append(input);
+  input.click();
+  input.remove();
+  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+}
+function saveFile() {
+  download("document.ksav", new Blob([view.state.doc.toString()], { type: "text/plain" }));
+  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+}
+function newDoc() {
+  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  if (!confirm(t("confirmNew"))) return;
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" }, selection: { anchor: 0 } });
+  view.focus();
+  scheduleCompile();
+}
+
 function exportPdf() {
   if (!lastResult?.pdf_base64) return;
   const bytes = Uint8Array.from(atob(lastResult.pdf_base64), (c) => c.charCodeAt(0));

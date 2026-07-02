@@ -22,16 +22,31 @@
   שפה: "he",
   יישור: true,
   מספור: true,
+  מספור_עברי: false,
+  נייר: "a4",
+  כותרת_עליונה: none,
+  כותרת_תחתונה: none,
   ריווח_שורות: 0.75em,
   טורים: 1,
   body,
 ) = {
+  let np = if מספור_עברי { "א" } else { "1" }
   set text(font: גופן, size: גודל, lang: שפה, dir: כיוון)
-  set page(margin: שוליים, numbering: if מספור { "1" } else { none })
+  set page(
+    paper: נייר,
+    margin: שוליים,
+    numbering: if מספור { np } else { none },
+    header: if כותרת_עליונה != none {
+      align(center, text(size: 0.85em, fill: luma(100), כותרת_עליונה))
+    } else { auto },
+    footer: if כותרת_תחתונה != none {
+      align(center, text(size: 0.85em, fill: luma(100), כותרת_תחתונה))
+    } else { auto },
+  )
   set par(justify: יישור, leading: ריווח_שורות, spacing: 1.2em)
   set heading(numbering: none)
   set list(indent: 1em)
-  set enum(indent: 1em)
+  set enum(indent: 1em, numbering: np + ".")
   show heading: set block(spacing: 1.1em)
   if טורים > 1 {
     columns(טורים, body)
@@ -128,21 +143,53 @@
 // ============================================================
 #let רשימה(..פריטים) = list(..פריטים)
 #let ממוספרת(..פריטים) = enum(..פריטים)
+#let ממוספרת_עברית(..פריטים) = enum(numbering: "א.", ..פריטים)  // Hebrew-lettered
 #let פריט(body) = body
 #let רשימת_הגדרות(..זוגות) = terms(..זוגות)
 #let הגדרה(מונח, פירוש) = terms.item(מונח, פירוש)
 
 #let bullets = רשימה
 #let numbered = ממוספרת
+#let henum = ממוספרת_עברית
 #let item = פריט
 #let deflist = רשימת_הגדרות
 #let defitem = הגדרה
+
+// תוכן · table of contents (from the document's headings)
+#let תוכן(כותרת: [תוכן העניינים]) = outline(title: כותרת)
+#let toc = תוכן
 
 // ============================================================
 //  הערות שוליים · footnotes
 // ============================================================
 #let הערה(body) = footnote(body)
 #let fnote = הערה
+
+// ---- הערות סיום · endnotes (collected in named streams) ----
+// #הערתסיום[...] places a marker and stores the note; #הערות_בסוף renders the
+// collected notes for a stream. Multiple streams give separate note sections
+// (e.g. one for content notes, one for mekoros). Notes may themselves contain
+// footnotes or other endnotes — they render when the stream is dumped.
+#let _ksav_en = state("ksav-endnotes", (:))
+#let הערתסיום(body, זרם: "הערות") = {
+  _ksav_en.update(d => {
+    let a = d.at(זרם, default: ())
+    d.insert(זרם, a + (body,))
+    d
+  })
+  context super[#(_ksav_en.get().at(זרם, default: ()).len())]
+}
+#let הערות_בסוף(זרם: "הערות", כותרת: none) = context {
+  let items = _ksav_en.final().at(זרם, default: ())
+  if items.len() > 0 {
+    v(1em)
+    line(length: 100%, stroke: 0.5pt + luma(150))
+    if כותרת != none { heading(outlined: false, numbering: none, כותרת) }
+    enum(..items)
+  }
+}
+#let endnote = הערתסיום
+#let endnotes = הערות_בסוף
 
 // ============================================================
 //  טבלאות · tables

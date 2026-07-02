@@ -47,6 +47,10 @@ const DEFAULTS: Settings = {
   justify: true,
   line_spacing_em: 0.75,
   columns: 1,
+  paper: "a4",
+  hebrew_numbering: false,
+  header: "",
+  footer: "",
   autocomplete: true,
 };
 
@@ -280,6 +284,10 @@ function cfg(): DocConfig {
     justify: settings.justify,
     line_spacing_em: settings.line_spacing_em,
     columns: settings.columns,
+    paper: settings.paper,
+    hebrew_numbering: settings.hebrew_numbering,
+    header: settings.header,
+    footer: settings.footer,
   };
 }
 
@@ -512,6 +520,15 @@ function checkRow(labelKey: string, key: keyof Settings) {
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
 }
+function textRow(labelKey: string, key: keyof Settings, placeholder = "") {
+  const input = el("input", {
+    type: "text",
+    placeholder,
+    value: String(settings[key] ?? ""),
+    onInput: (e: Event) => setSetting(key, (e.target as HTMLInputElement).value as never),
+  });
+  return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
+}
 
 function buildSettingsDrawer(): HTMLElement {
   const fontSel = el(
@@ -529,6 +546,18 @@ function buildSettingsDrawer(): HTMLElement {
       el("option", { value: "ltr", ...(settings.dir === "ltr" ? { selected: "selected" } : {}) }, [t("ltr")]),
     ],
   );
+  const paperSel = el(
+    "select",
+    { onChange: (e: Event) => setSetting("paper", (e.target as HTMLSelectElement).value as never) },
+    [
+      ["a4", "A4"],
+      ["us-letter", "Letter"],
+      ["a5", "A5"],
+      ["a3", "A3"],
+    ].map(([v, lbl]) =>
+      el("option", { value: v, ...(settings.paper === v ? { selected: "selected" } : {}) }, [lbl]),
+    ),
+  );
   const kb = keybindings();
   const shortcutRows = ACTIONS.map((a) => {
     const btn = el("button", { class: "sc-key", type: "button" }, [kb[a.id] || "—"]);
@@ -542,10 +571,14 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("fontSize", "size_pt", 8, 36, 1),
     numberRow("margin", "margin_cm", 1, 6, 0.5),
     el("label", { class: "set-row" }, [el("span", {}, [t("direction")]), dirSel]),
+    el("label", { class: "set-row" }, [el("span", {}, [t("paper")]), paperSel]),
     checkRow("pageNumbers", "numbering"),
+    checkRow("hebrewNumbering", "hebrew_numbering"),
     checkRow("justify", "justify"),
     numberRow("lineSpacing", "line_spacing_em", 0.4, 1.5, 0.05),
     numberRow("columns", "columns", 1, 3, 1),
+    textRow("headerText", "header", ""),
+    textRow("footerText", "footer", ""),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
     el("h3", { style: "margin-top:18px" }, [t("shortcuts")]),

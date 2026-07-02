@@ -11,6 +11,10 @@ export interface DocConfig {
   justify: boolean;
   line_spacing_em: number;
   columns: number;
+  paper: string;
+  hebrew_numbering: boolean;
+  header: string;
+  footer: string;
 }
 
 export interface Diagnostic {

@@ -167,7 +167,7 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .outline-empty { color: var(--muted); font-size: 13px; padding: 8px; }
 .drawer h3 { margin: 0 0 12px; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; font-size: 13px; }
-.set-row input[type="number"], .set-row select {
+.set-row input[type="number"], .set-row input[type="text"], .set-row select {
   width: 120px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel); color: var(--ink); font-family: var(--hebrew);
 }

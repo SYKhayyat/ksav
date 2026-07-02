@@ -62,6 +62,8 @@ pub static COMMANDS: &[Command] = &[
     // ---- lists ----
     cmd!("רשימה", "bullets", "list", "רשימת תבליטים", "Bulleted list", "#רשימה(\n  פריט[|],\n  פריט[],\n)"),
     cmd!("ממוספרת", "numbered", "list", "רשימה ממוספרת", "Numbered list", "#ממוספרת(\n  פריט[|],\n  פריט[],\n)"),
+    cmd!("ממוספרת_עברית", "henum", "list", "רשימה ממוספרת עברית (א,ב,ג)", "Hebrew-lettered list", "#ממוספרת_עברית(\n  פריט[|],\n  פריט[],\n)"),
+    cmd!("תוכן", "toc", "list", "תוכן העניינים", "Table of contents", "#תוכן()"),
     cmd!("פריט", "item", "list", "פריט ברשימה", "List item", "פריט[|]"),
     cmd!("רשימת_הגדרות", "deflist", "list", "רשימת הגדרות", "Definition list", "#רשימת_הגדרות(\n  הגדרה[מונח][|],\n)"),
     // ---- table ----
@@ -71,6 +73,8 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מיזוג", "colspan_", "table", "מיזוג עמודות", "Merge columns", "#מיזוג(2)[|]"),
     // ---- footnote ----
     cmd!("הערה", "fnote", "footnote", "הערת שוליים", "Footnote", "#הערה[|]"),
+    cmd!("הערתסיום", "endnote", "footnote", "הערת סיום (נאספת בסוף)", "Endnote (collected at end)", "#הערתסיום[|]"),
+    cmd!("הערות_בסוף", "endnotes", "footnote", "הצגת הערות הסיום", "Render collected endnotes", "#הערות_בסוף(כותרת: [הערות])"),
     // ---- blocks ----
     cmd!("ציטוט", "blockquote", "block", "ציטוט בלוק", "Block quote", "#ציטוט[|]"),
     cmd!("הערת_צד", "callout", "block", "תיבת הדגשה (כחול)", "Callout (blue)", "#הערת_צד[|]"),

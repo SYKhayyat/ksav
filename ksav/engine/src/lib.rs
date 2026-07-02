@@ -42,6 +42,14 @@ pub struct DocConfig {
     pub line_spacing_em: f64,
     /// Number of text columns (1 = single column).
     pub columns: u32,
+    /// Paper size (Typst name: "a4", "us-letter", "a5", ...).
+    pub paper: String,
+    /// Use Hebrew-letter numbering (א,ב,ג) for pages and ordered lists.
+    pub hebrew_numbering: bool,
+    /// Running header text (empty = none).
+    pub header: String,
+    /// Running footer text (empty = default page number).
+    pub footer: String,
 }
 
 impl Default for DocConfig {
@@ -55,6 +63,10 @@ impl Default for DocConfig {
             justify: true,
             line_spacing_em: 0.75,
             columns: 1,
+            paper: "a4".to_string(),
+            hebrew_numbering: false,
+            header: String::new(),
+            footer: String::new(),
         }
     }
 }
@@ -88,6 +100,20 @@ impl DocConfig {
         }
         if let Some(c) = v.get("columns").and_then(|x| x.as_u64()) {
             cfg.columns = c as u32;
+        }
+        if let Some(p) = v.get("paper").and_then(|x| x.as_str()) {
+            if !p.is_empty() {
+                cfg.paper = p.to_string();
+            }
+        }
+        if let Some(h) = v.get("hebrew_numbering").and_then(|x| x.as_bool()) {
+            cfg.hebrew_numbering = h;
+        }
+        if let Some(h) = v.get("header").and_then(|x| x.as_str()) {
+            cfg.header = h.to_string();
+        }
+        if let Some(f) = v.get("footer").and_then(|x| x.as_str()) {
+            cfg.footer = f.to_string();
         }
         cfg
     }
@@ -123,6 +149,15 @@ impl Compiled {
 /// Assemble the full Typst source: prelude + document wrapper + user body.
 ///
 /// Kept public so callers (and tests) can inspect exactly what gets compiled.
+/// Escape a string for embedding as a Typst string literal, or "none" if empty.
+fn typst_str_or_none(s: &str) -> String {
+    if s.is_empty() {
+        "none".to_string()
+    } else {
+        format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+}
+
 pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
     let columns = cfg.columns.max(1);
@@ -130,7 +165,9 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         "{prelude}\n\
          #show: מסמך.with(\
          גופן: \"{font}\", גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, \
-         מספור: {numbering}, יישור: {justify}, ריווח_שורות: {leading}em, טורים: {columns})\n\n\
+         מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: \"{paper}\", \
+         כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
+         יישור: {justify}, ריווח_שורות: {leading}em, טורים: {columns})\n\n\
          {body}\n",
         prelude = PRELUDE,
         font = cfg.font.replace('"', "\\\""),
@@ -138,6 +175,10 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         margin = cfg.margin_cm,
         dir = dir,
         numbering = if cfg.numbering { "true" } else { "false" },
+        hebrew_num = if cfg.hebrew_numbering { "true" } else { "false" },
+        paper = cfg.paper.replace('"', ""),
+        header = typst_str_or_none(&cfg.header),
+        footer = typst_str_or_none(&cfg.footer),
         justify = if cfg.justify { "true" } else { "false" },
         leading = cfg.line_spacing_em,
         columns = columns,
@@ -281,6 +322,30 @@ mod tests {
     #[test]
     fn footnote_within_footnote() {
         let out = compile("א#הערה[ב#הערה[ג#הערה[ד]]]", &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn endnotes_streams_and_cross_nesting() {
+        // regular footnote, endnote-with-footnote-inside, footnote-with-endnote-
+        // inside, and a second named stream — all rendered.
+        let body = "א#הערה[ב] ג#הערתסיום[ד#הערה[ה]] ו#הערה[ז#הערתסיום[ח]] \
+                    ט#הערתסיום(זרם: \"מקורות\")[י]\n\
+                    #הערות_בסוף(כותרת: [הערות])\n#הערות_בסוף(זרם: \"מקורות\", כותרת: [מקורות])";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn hebrew_numbering_and_header_footer() {
+        let cfg = DocConfig {
+            hebrew_numbering: true,
+            header: "קונטרס".to_string(),
+            footer: "בס\"ד".to_string(),
+            paper: "us-letter".to_string(),
+            ..DocConfig::default()
+        };
+        let out = compile("#כותרת1[פרק]\n#ממוספרת(פריט[א], פריט[ב])\n#תוכן()", &cfg);
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     }
 }

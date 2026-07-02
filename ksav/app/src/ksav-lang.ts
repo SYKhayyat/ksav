@@ -181,6 +181,21 @@ function proseDecorations(view: EditorView): DecorationSet {
 const HEAD_RE =
   /^\s*#(שער|title|תת_שער|subtitle|סימן|siman|כותרת([1-6])?|h([1-6]))(?:\s*\(\s*(?:רמה|level)\s*:\s*(\d+))?/u;
 
+/** Extract the document outline (headings with level, title, and position). */
+export function outline(text: string): { level: number; title: string; from: number }[] {
+  const res: { level: number; title: string; from: number }[] = [];
+  let pos = 0;
+  for (const line of text.split("\n")) {
+    const lvl = headingLevel(line);
+    if (lvl != null) {
+      const titles = [...line.matchAll(/\[([^[\]]*)\]/g)].map((m) => m[1]).join(" ").trim();
+      res.push({ level: lvl, title: titles || line.trim(), from: pos });
+    }
+    pos += line.length + 1; // + newline
+  }
+  return res;
+}
+
 function headingLevel(text: string): number | null {
   const m = HEAD_RE.exec(text);
   if (!m) return null;

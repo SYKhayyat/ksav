@@ -2,7 +2,7 @@ import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
 import { Compartment, Prec } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
-import { history, historyKeymap, defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
 import { codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll } from "@codemirror/language";
 import {
@@ -11,6 +11,7 @@ import {
   proseMode,
   revealAll,
   setRevealAll,
+  outline,
 } from "./ksav-lang";
 import { createBackend } from "./api";
 import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig } from "./api";
@@ -25,6 +26,7 @@ interface Settings extends DocConfig {
   layout: Layout;
   prose: boolean;
   zoom: number;
+  outline?: boolean;
   keybindings?: Record<string, string>; // action id -> key combo override
 }
 
@@ -133,6 +135,8 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "italic", run: () => (insertSnippet("#נטוי[|]"), true) },
   { id: "underline", run: () => (insertSnippet("#קו_תחתון[|]"), true) },
   { id: "footnote", run: () => (insertSnippet("#הערה[|]"), true) },
+  { id: "undo", run: (v) => undo(v) },
+  { id: "redo", run: (v) => redo(v) },
   { id: "palette", run: () => (openPalette(), true) },
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
@@ -143,6 +147,8 @@ const DEFAULT_KEYS: Record<string, string> = {
   italic: "Mod-i",
   underline: "Mod-u",
   footnote: "Mod-Shift-f",
+  undo: "Mod-z",
+  redo: "Mod-y",
   palette: "Mod-k",
   find: "Mod-f",
   foldAll: "Mod-Alt-[",
@@ -208,6 +214,7 @@ function makeEditor(): EditorView {
         if (u.docChanged) {
           scheduleCompile();
           updateCounts();
+          if (settings.outline) renderOutline();
         }
       }),
     ],
@@ -400,6 +407,8 @@ function buildHeader(): HTMLElement {
     () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
     "chip",
   );
+  const undoBtn = iconBtn("↶", t("sc.undo"), () => undo(view), "chip");
+  const redoBtn = iconBtn("↷", t("sc.redo"), () => redo(view), "chip");
   const findBtn = iconBtn("🔍", t("find"), () => openSearchPanel(view), "chip");
   const foldAllBtn = iconBtn("⊟", t("foldAll"), () => foldAll(view), "chip");
   const unfoldAllBtn = iconBtn("⊞", t("unfoldAll"), () => unfoldAll(view), "chip");
@@ -416,6 +425,12 @@ function buildHeader(): HTMLElement {
     cycleLayout,
     "chip",
   );
+  const outlineBtn = iconBtn(
+    "☰",
+    t("outline"),
+    toggleOutline,
+    settings.outline ? "chip active" : "chip",
+  );
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
   return el("header", {}, [
@@ -425,9 +440,12 @@ function buildHeader(): HTMLElement {
     ]),
     buildToolbar(),
     el("div", { class: "spacer" }),
+    undoBtn,
+    redoBtn,
     templatesMenu,
     exportMenu,
     findBtn,
+    outlineBtn,
     langToggle,
     foldAllBtn,
     unfoldAllBtn,
@@ -533,6 +551,43 @@ function resetShortcuts() {
 }
 function toggleSettings() {
   document.getElementById("settings-drawer")!.classList.toggle("open");
+}
+
+// ---- outline / document map ----
+function toggleOutline() {
+  settings.outline = !settings.outline;
+  saveSettings();
+  document.getElementById("outline-drawer")!.classList.toggle("open", settings.outline);
+  if (settings.outline) renderOutline();
+  rerenderChrome();
+}
+function renderOutline() {
+  const host = document.getElementById("outline-list");
+  if (!host || !view) return;
+  const items = outline(view.state.doc.toString());
+  host.innerHTML = "";
+  if (!items.length) {
+    host.append(el("div", { class: "outline-empty" }, [t("noHeadings")]));
+    return;
+  }
+  const minLevel = Math.min(...items.map((i) => i.level));
+  for (const it of items) {
+    const row = el(
+      "button",
+      {
+        class: "outline-item",
+        style: `padding-inline-start:${8 + (it.level - minLevel) * 14}px`,
+        onClick: () => jumpTo(it.from),
+      },
+      [it.title],
+    );
+    host.append(row);
+  }
+}
+function jumpTo(pos: number) {
+  const p = Math.min(pos, view.state.doc.length);
+  view.dispatch({ selection: { anchor: p }, scrollIntoView: true });
+  view.focus();
 }
 
 // ---------------------------------------------------------------- command palette
@@ -729,6 +784,10 @@ function render() {
       el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
     ]),
     buildSettingsDrawer(),
+    el("aside", { id: "outline-drawer", class: "drawer drawer-start" }, [
+      el("h3", {}, [t("outline")]),
+      el("div", { id: "outline-list" }),
+    ]),
     // command palette overlay
     el("div", { id: "palette", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "palette") closePalette();
@@ -760,6 +819,10 @@ function render() {
   applyUiDir();
   applyZoom();
   updateCounts();
+  if (settings.outline) {
+    document.getElementById("outline-drawer")!.classList.add("open");
+    renderOutline();
+  }
 }
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode

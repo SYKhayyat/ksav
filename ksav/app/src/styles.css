@@ -148,6 +148,23 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 }
 [dir="rtl"] .drawer { transform: translateX(-100%); }
 .drawer.open, [dir="rtl"] .drawer.open { transform: translateX(0); }
+
+/* start-side drawer (outline) mirrors the end-side one */
+.drawer-start {
+  inset-inline-end: auto; inset-inline-start: 0;
+  border-inline-start: none; border-inline-end: 1px solid var(--line);
+  box-shadow: 8px 0 30px rgba(0,0,0,.15);
+  transform: translateX(-100%);
+}
+[dir="rtl"] .drawer-start { transform: translateX(100%); }
+.drawer-start.open, [dir="rtl"] .drawer-start.open { transform: translateX(0); }
+.outline-item {
+  display: block; width: 100%; text-align: start; background: transparent; border: 0;
+  cursor: pointer; padding: 6px 8px; border-radius: 6px; color: var(--ink);
+  font-family: var(--hebrew); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.outline-item:hover { background: var(--accent-soft); color: var(--accent); }
+.outline-empty { color: var(--muted); font-size: 13px; padding: 8px; }
 .drawer h3 { margin: 0 0 12px; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; font-size: 13px; }
 .set-row input[type="number"], .set-row select {

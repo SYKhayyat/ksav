@@ -4,8 +4,20 @@ import { Compartment, Prec } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
-import { codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll } from "@codemirror/language";
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import {
+  codeFolding,
+  foldGutter,
+  foldKeymap,
+  foldAll,
+  unfoldAll,
+  bracketMatching,
+} from "@codemirror/language";
+import {
+  autocompletion,
+  completionKeymap,
+  closeBrackets,
+  closeBracketsKeymap,
+} from "@codemirror/autocomplete";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import {
   ksavHighlighter,
@@ -147,10 +159,23 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "comment", run: () => (commentOut(), true) },
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
+  { id: "h1", run: () => (insertSnippet("#כותרת1[|]"), true) },
+  { id: "h2", run: () => (insertSnippet("#כותרת2[|]"), true) },
+  { id: "h3", run: () => (insertSnippet("#כותרת3[|]"), true) },
+  { id: "bullets", run: () => (insertSnippet("#רשימה(\n  פריט[|],\n)"), true) },
+  { id: "numbered", run: () => (insertSnippet("#ממוספרת(\n  פריט[|],\n)"), true) },
+  { id: "table", run: () => (insertSnippet("#טבלה(עמודות: 2,\n  תא[|], תא[],\n)"), true) },
+  { id: "toc", run: () => (insertSnippet("#תוכן()"), true) },
+  { id: "center", run: () => (insertSnippet("#מרכז[|]"), true) },
+  { id: "right", run: () => (insertSnippet("#ימין[|]"), true) },
+  { id: "left", run: () => (insertSnippet("#שמאל[|]"), true) },
   { id: "palette", run: () => (openPalette(), true) },
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
+  { id: "save", run: () => (saveFile(), true) },
+  { id: "open", run: () => (openFile(), true) },
+  { id: "newDoc", run: () => (newDoc(), true) },
 ];
 const DEFAULT_KEYS: Record<string, string> = {
   bold: "Mod-b",
@@ -161,10 +186,16 @@ const DEFAULT_KEYS: Record<string, string> = {
   comment: "Mod-/",
   undo: "Mod-z",
   redo: "Mod-y",
+  h1: "Mod-1",
+  h2: "Mod-2",
+  h3: "Mod-3",
+  center: "Mod-e",
   palette: "Mod-k",
   find: "Mod-f",
   foldAll: "Mod-Alt-[",
   unfoldAll: "Mod-Alt-]",
+  save: "Mod-s",
+  open: "Mod-o",
 };
 function keybindings(): Record<string, string> {
   return { ...DEFAULT_KEYS, ...(settings.keybindings || {}) };
@@ -236,10 +267,13 @@ function makeEditor(): EditorView {
       highlightActiveLine(),
       codeFolding(),
       foldGutter(),
+      bracketMatching(),
+      closeBrackets(),
       search({ top: true }),
       shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
       autoCompartment.of(autoExtension()),
       keymap.of([
+        ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap,
         ...searchKeymap,

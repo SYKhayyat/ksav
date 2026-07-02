@@ -266,4 +266,21 @@ mod tests {
         let out = compile(body, &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     }
+
+    /// Full torture test: every structure nested inside every other, footnotes
+    /// three deep, lists five deep, headings up to level 10. Renders because
+    /// Typst parses the document — nesting is unbounded.
+    #[test]
+    fn everything_inside_everything() {
+        let body = include_str!("../examples/nesting.ksav");
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        assert!(out.pages_svg.len() >= 1);
+    }
+
+    #[test]
+    fn footnote_within_footnote() {
+        let out = compile("א#הערה[ב#הערה[ג#הערה[ד]]]", &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
 }

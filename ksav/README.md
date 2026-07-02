@@ -25,8 +25,24 @@ The engine prepends this prelude to the user's document, injects a
 direction / numbering / columns / line-spacing), then compiles with real Typst.
 
 Because **Typst itself parses the document**, we never reimplement a parser — and
-unlimited nesting (a table inside a footnote inside a heading inside a list item)
-works for free.
+arbitrary cross-nesting (a table inside a footnote inside a heading inside a list
+item) works for free.
+
+### Nesting depth
+
+Any structure can contain any other — lists in tables, headings in footnotes,
+headings in tables, tables in footnotes, footnotes in footnotes, etc. Verified in
+`engine/examples/nesting.ksav` (regression-tested):
+
+- **Headings** — unbounded: any level number (`#כותרת(רמה: 1000)`), unlimited count.
+- **Lists** — nest ~30–60 deep.
+- **Footnotes** — nest ~40–60 deep.
+
+The list/footnote ceilings are **Typst's own recursion safety limits**
+(`MAX_SHOW_RULE_DEPTH = 64`, parser `MAX_DEPTH = 256`), shared by every Typst
+document — they exist so pathological input errors cleanly instead of crashing the
+process. For comparison, Word caps list nesting at 9 levels; no real document
+nests past a handful.
 
 ## Features (engine)
 

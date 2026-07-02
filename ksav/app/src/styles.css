@@ -229,6 +229,8 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .ksav-cmd { color: var(--accent); font-weight: 600; }
 :root[data-theme="dark"] .ksav-cmd { color: #7dd3fc; }
 .ksav-bracket { color: var(--muted); }
+.ksav-comment { color: #6b7280; font-style: italic; opacity: 0.85; }
+:root[data-theme="dark"] .ksav-comment { color: #94a3b8; }
 
 /* ---- editor: prose-mode content styling ---- */
 .pm-bold { font-weight: 700; }

@@ -143,6 +143,8 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "italic", run: () => (insertSnippet("#נטוי[|]"), true) },
   { id: "underline", run: () => (insertSnippet("#קו_תחתון[|]"), true) },
   { id: "footnote", run: () => (insertSnippet("#הערה[|]"), true) },
+  { id: "region", run: () => (insertRegion(), true) },
+  { id: "comment", run: () => (commentOut(), true) },
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
   { id: "palette", run: () => (openPalette(), true) },
@@ -155,6 +157,8 @@ const DEFAULT_KEYS: Record<string, string> = {
   italic: "Mod-i",
   underline: "Mod-u",
   footnote: "Mod-Shift-f",
+  region: "Mod-Shift-r",
+  comment: "Mod-/",
   undo: "Mod-z",
   redo: "Mod-y",
   palette: "Mod-k",
@@ -361,6 +365,35 @@ function insertSnippet(snippet: string) {
   view.focus();
 }
 
+// Wrap the selection in a foldable comment region (//{ … //}). The markers are
+// comments, so they never render — they just create a collapsible, labelled block.
+function insertRegion() {
+  const sel = view.state.selection.main;
+  const selText = view.state.sliceDoc(sel.from, sel.to);
+  const label = t("region");
+  const text = `//{ ${label}\n${selText}\n//}\n`;
+  const cursor = sel.from + 4; // start of the label, so it can be renamed
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: text },
+    selection: { anchor: cursor, head: cursor + label.length },
+  });
+  view.focus();
+  scheduleCompile();
+}
+
+// Wrap the selection in a block comment (/* … */): foldable, styled, and NOT
+// rendered — a collapsible editor comment.
+function commentOut() {
+  const sel = view.state.selection.main;
+  const selText = view.state.sliceDoc(sel.from, sel.to) || t("region");
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: `/* ${selText} */` },
+    selection: { anchor: sel.from + 3, head: sel.from + 3 + selText.length },
+  });
+  view.focus();
+  scheduleCompile();
+}
+
 // ---------------------------------------------------------------- app chrome
 function iconBtn(label: string, title: string, onClick: () => void, cls = "") {
   return el("button", { class: `tb-btn ${cls}`, title, onClick }, [label]);
@@ -403,6 +436,8 @@ function buildToolbar(): HTMLElement {
     b("סימן", "§"),
     b("סעיף", "א."),
     b("מראה_מקום", "‡"),
+    sep(),
+    iconBtn("▤", t("region"), insertRegion),
     iconBtn("⋯", t("palette"), openPalette),
   ]);
 }

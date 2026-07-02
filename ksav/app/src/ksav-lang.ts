@@ -56,12 +56,32 @@ export function scanCommands(text: string): CmdSpan[] {
 
 const cmdMark = Decoration.mark({ class: "ksav-cmd" });
 const bracketMark = Decoration.mark({ class: "ksav-bracket" });
+const commentMark = Decoration.mark({ class: "ksav-comment" });
+
+// Comment spans in a chunk of text: /* block */ and // line (not part of ://).
+function scanComments(text: string): { from: number; to: number }[] {
+  const spans: { from: number; to: number }[] = [];
+  for (const m of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
+    spans.push({ from: m.index!, to: m.index! + m[0].length });
+  }
+  for (const m of text.matchAll(/(^|[^:])(\/\/[^\n]*)/g)) {
+    const start = m.index! + m[1].length;
+    spans.push({ from: start, to: start + m[2].length });
+  }
+  return spans;
+}
 
 function highlightDecorations(view: EditorView): DecorationSet {
   const ranges: { from: number; to: number; deco: Decoration }[] = [];
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.doc.sliceString(from, to);
+    const comments = scanComments(text);
+    const inComment = (i: number) => comments.some((c) => i >= c.from && i < c.to);
+    for (const c of comments) {
+      ranges.push({ from: from + c.from, to: from + c.to, deco: commentMark });
+    }
     for (const s of scanCommands(text)) {
+      if (inComment(s.cmdStart)) continue; // don't colorize commands inside comments
       ranges.push({ from: from + s.cmdStart, to: from + s.nameEnd, deco: cmdMark });
       if (s.open != null)
         ranges.push({ from: from + s.open, to: from + s.open + 1, deco: bracketMark });
@@ -238,6 +258,32 @@ export const ksavFold = foldService.of((state, lineStart) => {
   const doc = state.doc;
   const line = doc.lineAt(lineStart);
   const text = line.text;
+
+  // 0) custom fold region: //{ ... //} (Notepad++-style; these are comments,
+  //    so they never render — they just mark a collapsible, labelled region).
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith("//{")) {
+    let depth = 1;
+    for (let n = line.number + 1; n <= doc.lines; n++) {
+      const lt = doc.line(n).text.trimStart();
+      if (lt.startsWith("//{")) depth++;
+      else if (lt.startsWith("//}")) {
+        depth--;
+        if (depth === 0) return { from: line.to, to: doc.line(n).to };
+      }
+    }
+    return null;
+  }
+  // 0b) block comment /* ... */ spanning lines
+  const starIdx = text.indexOf("/*");
+  if (starIdx >= 0 && text.indexOf("*/", starIdx) < 0) {
+    const rest = doc.sliceString(line.from + starIdx, doc.length);
+    const close = rest.indexOf("*/");
+    if (close >= 0) {
+      const closePos = line.from + starIdx + close + 2;
+      if (closePos > line.to) return { from: line.from + starIdx + 2, to: closePos - 2 };
+    }
+  }
 
   // 1) heading section fold
   const lvl = headingLevel(text);

@@ -42,6 +42,8 @@ interface Settings extends DocConfig {
   zoom: number;
   outline?: boolean;
   autocomplete?: boolean;
+  customCommands?: string; // user #let definitions, prepended at compile
+  snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
 }
 
@@ -146,6 +148,41 @@ function loadDoc(): string {
   return localStorage.getItem("ksav.doc") ?? STARTER;
 }
 
+// User abbreviations: "abbr = expansion" per line. `|` marks the cursor, `\n`
+// a newline. Typing the abbreviation then Tab expands it.
+function snippetMap(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const line of (settings.snippets || "").split("\n")) {
+    const i = line.indexOf("=");
+    if (i > 0) {
+      const k = line.slice(0, i).trim();
+      if (k) map[k] = line.slice(i + 1).trim();
+    }
+  }
+  return map;
+}
+const snippetTab = {
+  key: "Tab",
+  run: (v: EditorView) => {
+    const sel = v.state.selection.main;
+    if (!sel.empty) return false;
+    const line = v.state.doc.lineAt(sel.head);
+    const before = line.text.slice(0, sel.head - line.from);
+    const m = before.match(/(\S+)$/);
+    if (!m) return false;
+    const map = snippetMap();
+    const exp = map[m[1]];
+    if (exp == null) return false;
+    const from = sel.head - m[1].length;
+    const raw = exp.replace(/\\n/g, "\n");
+    const pipe = raw.indexOf("|");
+    const text = pipe >= 0 ? raw.slice(0, pipe) + raw.slice(pipe + 1) : raw;
+    const cursor = pipe >= 0 ? from + pipe : from + text.length;
+    v.dispatch({ changes: { from, to: sel.head, insert: text }, selection: { anchor: cursor } });
+    return true;
+  },
+};
+
 // ---- configurable keyboard shortcuts ----
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
 // strings ("Mod-b" etc.; Mod = Ctrl on Win/Linux, Cmd on macOS) and are user-
@@ -227,27 +264,44 @@ function eventToKey(e: KeyboardEvent): string | null {
   return parts.join("-");
 }
 
-// Command autocomplete: typing `#` offers Ksav commands from the registry
-// (Hebrew + English). Not a dictionary — only triggers on the `#` command sigil.
+// Names of user-defined commands, parsed from the custom-commands preamble.
+function userCommandNames(): string[] {
+  const src = settings.customCommands || "";
+  return [...src.matchAll(/#?let\s+([A-Za-z֐-׿_][\w֐-׿]*)/gu)].map((m) => m[1]);
+}
+
+// Command autocomplete: typing `#` offers Ksav commands from the registry plus
+// any user-defined commands. Not a dictionary — only triggers on `#`.
 function ksavCompletions(context: CompletionContext): CompletionResult | null {
   const word = context.matchBefore(/#[A-Za-z֐-׿_]*/u);
   if (!word) return null;
   if (word.from === word.to && !context.explicit) return null;
   const q = word.text.slice(1).toLowerCase();
+  const insertApply =
+    (snip: string) => (v: EditorView, _c: unknown, from: number, to: number) => {
+      const pipe = snip.indexOf("|");
+      const text = pipe >= 0 ? snip.slice(0, pipe) + snip.slice(pipe + 1) : snip;
+      const cursor = pipe >= 0 ? from + pipe : from + text.length;
+      v.dispatch({ changes: { from, to, insert: text }, selection: { anchor: cursor } });
+    };
   const options = commandsReg
     .filter((c) => !q || c.he.includes(q) || c.en.toLowerCase().includes(q))
     .map((c) => ({
       label: "#" + c.he,
       detail: c.en,
       info: getLang() === "he" ? c.desc_he : c.desc_en,
-      apply: (v: EditorView, _c: unknown, from: number, to: number) => {
-        const snip = c.insert;
-        const pipe = snip.indexOf("|");
-        const text = pipe >= 0 ? snip.slice(0, pipe) + snip.slice(pipe + 1) : snip;
-        const cursor = pipe >= 0 ? from + pipe : from + text.length;
-        v.dispatch({ changes: { from, to, insert: text }, selection: { anchor: cursor } });
-      },
+      apply: insertApply(c.insert),
     }));
+  for (const name of userCommandNames()) {
+    if (!q || name.toLowerCase().includes(q)) {
+      options.push({
+        label: "#" + name,
+        detail: getLang() === "he" ? "פקודה שלי" : "your command",
+        info: "",
+        apply: insertApply("#" + name + "[|]"),
+      });
+    }
+  }
   return { from: word.from, options, filter: false };
 }
 const autoCompartment = new Compartment();
@@ -279,6 +333,7 @@ function makeEditor(): EditorView {
         ...searchKeymap,
         ...completionKeymap,
         ...foldKeymap,
+        snippetTab,
         indentWithTab,
       ]),
       EditorView.lineWrapping,
@@ -341,8 +396,11 @@ async function runCompile() {
   status.textContent = t("rendering");
   status.className = "";
   const t0 = performance.now();
-  const body = view.state.doc.toString();
-  localStorage.setItem("ksav.doc", body); // auto-save
+  const userDoc = view.state.doc.toString();
+  localStorage.setItem("ksav.doc", userDoc); // auto-save (editor content only)
+  // Prepend user-defined commands so they're usable in the document.
+  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
+  const body = pre + userDoc;
   try {
     const res = await backend.compile(body, cfg());
     lastResult = res;
@@ -491,20 +549,39 @@ function menu(label: string, items: (Node | string)[]): HTMLElement {
 function buildHeader(): HTMLElement {
   const lang = getLang();
 
-  const templatesMenu = menu(
-    "📄 " + t("templates"),
-    templatesReg.map((tpl) =>
-      el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
-        el("b", {}, [lang === "he" ? tpl.he : tpl.en]),
-        el("span", { class: "menu-desc" }, [lang === "he" ? tpl.desc_he : tpl.desc_en]),
-      ]),
-    ),
+  const builtinItems = templatesReg.map((tpl) =>
+    el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
+      el("b", {}, [lang === "he" ? tpl.he : tpl.en]),
+      el("span", { class: "menu-desc" }, [lang === "he" ? tpl.desc_he : tpl.desc_en]),
+    ]),
   );
+  const users = userTemplates();
+  const userItems = users.map((ut) =>
+    el("div", { class: "menu-item-row" }, [
+      el("button", { class: "menu-item menu-item-main", onClick: () => loadBody(ut.body) }, [
+        el("b", {}, ["★ " + ut.name]),
+      ]),
+      el("button", {
+        class: "menu-del",
+        title: t("delete"),
+        onClick: (e: Event) => {
+          e.stopPropagation();
+          deleteUserTemplate(ut.id);
+        },
+      }, ["×"]),
+    ]),
+  );
+  const templatesMenu = menu("📄 " + t("templates"), [
+    ...builtinItems,
+    ...(users.length ? [el("div", { class: "menu-sep" })] : []),
+    ...userItems,
+  ]);
 
   const fileMenu = menu("📁 " + t("file"), [
     el("button", { class: "menu-item", onClick: newDoc }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: openFile }, [t("open")]),
     el("button", { class: "menu-item", onClick: saveFile }, [t("save")]),
+    el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
   ]);
 
   const exportMenu = menu("⬇ " + t("export"), [
@@ -605,6 +682,19 @@ function textRow(labelKey: string, key: keyof Settings, placeholder = "") {
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
 }
+function textAreaRow(labelKey: string, key: keyof Settings, placeholder = "") {
+  const ta = el(
+    "textarea",
+    {
+      class: "set-textarea",
+      rows: 4,
+      placeholder,
+      onInput: (e: Event) => setSetting(key, (e.target as HTMLTextAreaElement).value as never),
+    },
+    [String(settings[key] ?? "")],
+  );
+  return el("div", { class: "set-block" }, [el("span", {}, [t(labelKey)]), ta]);
+}
 
 function buildSettingsDrawer(): HTMLElement {
   const fontSel = el(
@@ -657,6 +747,9 @@ function buildSettingsDrawer(): HTMLElement {
     textRow("footerText", "footer", ""),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
+    el("h3", { style: "margin-top:18px" }, [t("customization")]),
+    textAreaRow("customCommandsLabel", "customCommands", "#let דגש(x) = text(fill: red, strong(x))"),
+    textAreaRow("snippetsLabel", "snippets", "בסד = בס\"ד\nסי = #סימן[|][]"),
     el("h3", { style: "margin-top:18px" }, [t("shortcuts")]),
     ...shortcutRows,
     el("button", { class: "sc-reset", type: "button", onClick: resetShortcuts }, [t("resetShortcuts")]),
@@ -784,14 +877,46 @@ function renderPaletteList(q: string) {
 }
 
 // ---------------------------------------------------------------- templates / exports
-function loadTemplate(tpl: TemplateDef) {
+function loadBody(body: string) {
   view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: tpl.body },
+    changes: { from: 0, to: view.state.doc.length, insert: body },
     selection: { anchor: 0 },
   });
   document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
   view.focus();
   scheduleCompile();
+}
+function loadTemplate(tpl: TemplateDef) {
+  loadBody(tpl.body);
+}
+
+interface UserTemplate {
+  id: string;
+  name: string;
+  body: string;
+}
+function userTemplates(): UserTemplate[] {
+  try {
+    return JSON.parse(localStorage.getItem("ksav.userTemplates") || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveUserTemplates(list: UserTemplate[]) {
+  localStorage.setItem("ksav.userTemplates", JSON.stringify(list));
+}
+function saveAsTemplate() {
+  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  const name = prompt(t("templateName"));
+  if (!name) return;
+  const list = userTemplates();
+  list.push({ id: "u" + performance.now().toString(36), name, body: view.state.doc.toString() });
+  saveUserTemplates(list);
+  rerenderChrome();
+}
+function deleteUserTemplate(id: string) {
+  saveUserTemplates(userTemplates().filter((u) => u.id !== id));
+  rerenderChrome();
 }
 
 function download(name: string, blob: Blob) {

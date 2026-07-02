@@ -73,6 +73,14 @@ header {
 .menu-item:hover { background: var(--accent-soft); }
 .menu-item b { font-size: 14px; }
 .menu-desc { font-size: 11px; color: var(--muted); }
+.menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
+.menu-item-row { display: flex; align-items: center; }
+.menu-item-main { flex: 1; }
+.menu-del {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 16px; padding: 4px 8px; border-radius: 6px;
+}
+.menu-del:hover { color: var(--danger); background: var(--accent-soft); }
 
 /* ---- main split ---- */
 main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
@@ -172,6 +180,13 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   background: var(--panel); color: var(--ink); font-family: var(--hebrew);
 }
 .set-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.set-block { margin: 10px 0; }
+.set-block span { display: block; font-size: 13px; margin-bottom: 5px; }
+.set-textarea {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink); font-family: var(--mono); font-size: 12px;
+  resize: vertical; direction: ltr; text-align: left;
+}
 .sc-key {
   font-family: var(--mono); font-size: 12px; padding: 3px 10px; min-width: 100px;
   border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);

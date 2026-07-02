@@ -191,6 +191,38 @@
 #let endnote = הערתסיום
 #let endnotes = הערות_בסוף
 
+// ---- הערות צד · side-column footnotes ----
+// A substantial notes column beside the text (not a thin margin). Wrap a
+// section in #עם_הערות_צד[...]; inside it, #הערת_צד[...] drops a numbered marker
+// and its note flows, numbered to match, in the side column. Each block
+// numbers independently.
+#let _ksav_sn = state("ksav-sidenotes", ())
+#let _ksav_snc = counter("ksav-sidenote")
+#let הערת_גיליון(body) = {
+  _ksav_snc.step()
+  context super(_ksav_snc.display())
+  _ksav_sn.update(l => l + (body,))
+}
+#let עם_הערות_צד(עיקר, יחס: 2) = {
+  _ksav_sn.update(())
+  _ksav_snc.update(0)
+  grid(
+    columns: (יחס * 1fr, 1fr),
+    column-gutter: 1.2em,
+    עיקר,
+    {
+      set text(size: 0.78em, fill: luma(65))
+      context {
+        for (i, n) in _ksav_sn.get().enumerate() {
+          block(spacing: 0.6em)[#super[#(i + 1)] #n]
+        }
+      }
+    },
+  )
+}
+#let sidenote = הערת_גיליון
+#let sidenotes = עם_הערות_צד
+
 // ---- הפניות · cross-references (auto-numbered, auto-updating) ----
 // #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow
 // document order and update automatically when targets are added/reordered.

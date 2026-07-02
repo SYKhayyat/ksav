@@ -337,6 +337,13 @@ mod tests {
     }
 
     #[test]
+    fn side_column_notes() {
+        let body = "#עם_הערות_צד[טקסט#הערת_גיליון[הערה א] ועוד#הערת_גיליון[הערה ב] סוף.]";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
     fn hebrew_numbering_and_header_footer() {
         let cfg = DocConfig {
             hebrew_numbering: true,

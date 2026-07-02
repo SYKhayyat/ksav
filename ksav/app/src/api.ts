@@ -120,11 +120,40 @@ export class WasmBackend implements Backend {
   }
 }
 
+/** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
+export class TauriBackend implements Backend {
+  readonly kind = "desktop";
+  private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<string>) | null = null;
+
+  private async inv() {
+    if (!this.invoke) {
+      const core = await import("@tauri-apps/api/core");
+      this.invoke = core.invoke as never;
+    }
+    return this.invoke!;
+  }
+  async compile(body: string, cfg: DocConfig): Promise<CompileResult> {
+    const invoke = await this.inv();
+    return JSON.parse(await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg }) }));
+  }
+  async commands(): Promise<CommandDef[]> {
+    return JSON.parse(await (await this.inv())("ksav_commands"));
+  }
+  async templates(): Promise<TemplateDef[]> {
+    return JSON.parse(await (await this.inv())("ksav_templates"));
+  }
+}
+
 /**
- * Pick a backend: use the server when it's reachable (fast, no big download),
- * otherwise fall back to the in-browser wasm engine (works with no server).
+ * Pick a backend:
+ *   - Tauri desktop  → in-process engine (no HTTP)
+ *   - server reachable → HTTP (fast, tiny download)
+ *   - otherwise      → in-browser wasm engine (works with no server)
  */
 export async function createBackend(): Promise<Backend> {
+  if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+    return new TauriBackend();
+  }
   try {
     const res = await fetch("/commands", { signal: AbortSignal.timeout(800) });
     if (res.ok) return new HttpBackend();

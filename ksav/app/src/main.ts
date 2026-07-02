@@ -614,7 +614,14 @@ async function boot() {
   status.textContent = t("rendering");
   backend = await createBackend();
   const badge = document.getElementById("engine-badge");
-  if (badge) badge.textContent = backend.kind === "wasm" ? "⬡ wasm" : "⬢ server";
+  if (badge) {
+    const labels: Record<string, string> = {
+      server: "⬢ server",
+      wasm: "⬡ wasm",
+      desktop: "🖥 native",
+    };
+    badge.textContent = labels[backend.kind] ?? backend.kind;
+  }
   try {
     [commandsReg, templatesReg] = await Promise.all([backend.commands(), backend.templates()]);
     rerenderChrome();

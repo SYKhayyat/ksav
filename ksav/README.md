@@ -94,7 +94,7 @@ browser on any OS.
       settings, themes, templates, exports (M2)
 - [x] **WASM** — real Typst in the browser, no server; auto backend selection (M3)
 - [x] Cross-platform (Linux / macOS / Windows), fonts embedded
-- [ ] Tauri desktop app (M4)
+- [x] **Tauri desktop app** — native window, engine in-process via `invoke` (M4)
 
 ## Develop
 
@@ -119,9 +119,27 @@ cargo build --release --features embed-ui --manifest-path engine/Cargo.toml
 ```sh
 cd wasm && wasm-pack build --target web --release --out-dir pkg
 cp pkg/ksav_wasm.js pkg/ksav_wasm.d.ts pkg/ksav_wasm_bg.wasm* ../app/src/wasmpkg/
-cd ../app && VITE_WASM=1 npm run build       # app/dist runs with no server
+cd ../app && npm run build:wasm              # app/dist runs with no server
 # serve app/dist on any static host
 ```
+
+## Desktop app (Tauri)
+
+A native window on **Windows, macOS, and Linux** that runs the engine in-process
+(no HTTP server, no localhost) — the frontend calls Rust via `invoke`.
+
+```sh
+cd app
+npm run tauri dev      # dev window + hot reload (starts Vite for you)
+npm run tauri build    # standalone app + installers in src-tauri/target/release
+```
+
+- **`tauri dev`** connects the window to the Vite dev server — use it while
+  developing. A bare `cargo build` debug binary also expects this server (that's
+  why running it alone shows "could not connect to localhost").
+- **`tauri build`** embeds the frontend, so the produced app is fully
+  standalone. Linux needs `webkit2gtk` + `libayatana-appindicator`; macOS and
+  Windows (WebView2) need no extra runtime.
 
 ## Run
 

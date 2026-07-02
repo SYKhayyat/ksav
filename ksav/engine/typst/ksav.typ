@@ -311,6 +311,18 @@
 // גמרא — format a Talmudic reference, e.g. #גמרא("ברכות", "ב.")
 #let גמרא(מסכת, דף) = text(style: "italic", [#מסכת #דף])
 
+// עם_פירוש — main text with commentary alongside it on the page (parallel
+// columns, RTL: body on the right, commentary in the outer/left column). Not
+// true wrap-around tzuras hadaf (Typst can't reflow around growing blocks), but
+// real facing commentary.
+#let עם_פירוש(עיקר, פירוש, יחס: 1.7) = grid(
+  columns: (יחס * 1fr, 1fr),
+  column-gutter: 1.2em,
+  עיקר,
+  text(size: 0.82em, fill: luma(75), פירוש),
+)
+#let commentary = עם_פירוש
+
 #let siman = סימן
 #let seif = סעיף
 #let osource = אות

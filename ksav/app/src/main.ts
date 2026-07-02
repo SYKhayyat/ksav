@@ -386,36 +386,46 @@ function cfg(): DocConfig {
   };
 }
 
-// Turn a raw Typst diagnostic into plain, actionable guidance.
-function friendlyError(msg: string): string {
-  const he = getLang() === "he";
+// Turn a raw Typst diagnostic into plain, actionable guidance — Hebrew AND
+// English together, so it helps regardless of the reader.
+function friendlyPair(msg: string): { he: string; en: string } | null {
   const m = msg.toLowerCase();
   const unknown = msg.match(/unknown variable:\s*(\S+)/);
   if (unknown)
-    return he
-      ? `הפקודה #${unknown[1]} אינה מוכרת — בדקו את האיות, או הגדירו אותה תחת "הפקודות שלי".`
-      : `Unknown command #${unknown[1]} — check the spelling, or define it under "Your commands".`;
+    return {
+      he: `הפקודה #${unknown[1]} אינה מוכרת — בדקו את האיות, או הגדירו אותה תחת "הפקודות שלי".`,
+      en: `Unknown command #${unknown[1]} — check the spelling, or define it under "Your commands".`,
+    };
   if (m.includes("unclosed delimiter"))
-    return he
-      ? "יש סוגר שלא נסגר — ודאו שלכל [ יש ] ולכל ( יש )."
-      : "A bracket isn't closed — make sure every [ has a ] and every ( has a ).";
+    return {
+      he: "יש סוגר שלא נסגר — ודאו שלכל [ יש ] ולכל ( יש ).",
+      en: "A bracket isn't closed — make sure every [ has a ] and every ( has a ).",
+    };
   if (m.includes("maximum") && m.includes("depth"))
-    return he
-      ? "יותר מדי רמות קינון בבת אחת (מגבלת בטיחות של Typst). נסו לפשט מעט את המבנה."
-      : "Too many levels of nesting at once (a Typst safety limit). Try simplifying the structure a little.";
+    return {
+      he: "יותר מדי רמות קינון בבת אחת (מגבלת בטיחות של Typst). נסו לפשט מעט את המבנה.",
+      en: "Too many levels of nesting at once (a Typst safety limit). Try simplifying the structure a little.",
+    };
   if (m.includes("not valid in code") || m.includes("preceding hash"))
-    return he
-      ? "יש בעיה ליד סימן # — אולי חסר רווח או סוגר, או שרצית סולמית רגילה (כתבו \\#)."
-      : "Something's off near a # — you may be missing a space or bracket, or want a literal # (write \\#).";
+    return {
+      he: "יש בעיה ליד סימן # — אולי חסר רווח או סוגר, או שרצית סולמית רגילה (כתבו \\#).",
+      en: "Something's off near a # — you may be missing a space or bracket, or want a literal # (write \\#).",
+    };
   if (m.includes("file not found") || m.includes("failed to load"))
-    return he
-      ? "קובץ (למשל תמונה) לא נמצא — בדקו את הנתיב."
-      : "A file (e.g. an image) wasn't found — check the path.";
+    return {
+      he: "קובץ (למשל תמונה) לא נמצא — בדקו את הנתיב.",
+      en: "A file (e.g. an image) wasn't found — check the path.",
+    };
   if (m.includes("expected") || m.includes("unexpected"))
-    return he
-      ? "התחביר אינו תקין כאן — בדקו סוגריים, פסיקים ומבנה הפקודה."
-      : "Invalid syntax here — check brackets, commas, and the command structure.";
-  return msg; // fall back to the raw message
+    return {
+      he: "התחביר אינו תקין כאן — בדקו סוגריים, פסיקים ומבנה הפקודה.",
+      en: "Invalid syntax here — check brackets, commas, and the command structure.",
+    };
+  return null;
+}
+function friendlyError(msg: string): string {
+  const p = friendlyPair(msg);
+  return p ? `${p.he}  ·  ${p.en}` : msg;
 }
 
 let compileTimer: number | undefined;

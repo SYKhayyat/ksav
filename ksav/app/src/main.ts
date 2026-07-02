@@ -680,6 +680,7 @@ function buildHeader(): HTMLElement {
     toggleOutline,
     settings.outline ? "chip active" : "chip",
   );
+  const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
   return el("header", {}, [
@@ -703,6 +704,7 @@ function buildHeader(): HTMLElement {
     proseToggle,
     layoutToggle,
     themeToggle,
+    historyBtn,
     settingsBtn,
   ]);
 }
@@ -884,6 +886,61 @@ function jumpTo(pos: number) {
   view.focus();
 }
 
+// ---- version history (local snapshots) ----
+interface Snapshot {
+  t: number;
+  body: string;
+}
+function snapshots(): Snapshot[] {
+  try {
+    return JSON.parse(localStorage.getItem("ksav.history") || "[]");
+  } catch {
+    return [];
+  }
+}
+function takeSnapshot(force = false) {
+  if (!view) return;
+  const body = view.state.doc.toString();
+  const list = snapshots();
+  if (!force && list.length && list[list.length - 1].body === body) return; // no change
+  list.push({ t: Date.now(), body });
+  localStorage.setItem("ksav.history", JSON.stringify(list.slice(-80)));
+  if (document.getElementById("history-modal")?.classList.contains("open")) renderHistory();
+}
+function restoreSnapshot(s: Snapshot) {
+  if (!confirm(t("confirmRestore"))) return;
+  takeSnapshot(true); // snapshot current before restoring, so it's not lost
+  loadBody(s.body);
+  closeHistory();
+}
+function openHistory() {
+  document.getElementById("history-modal")!.classList.add("open");
+  renderHistory();
+}
+function closeHistory() {
+  document.getElementById("history-modal")!.classList.remove("open");
+}
+function renderHistory() {
+  const host = document.getElementById("history-list");
+  if (!host) return;
+  const list = snapshots().slice().reverse();
+  host.innerHTML = "";
+  if (!list.length) {
+    host.append(el("div", { class: "outline-empty" }, [t("noHistory")]));
+    return;
+  }
+  for (const s of list) {
+    const first = (s.body.split("\n").find((l) => l.trim()) || "—").slice(0, 42);
+    host.append(
+      el("button", { class: "pal-item", onClick: () => restoreSnapshot(s) }, [
+        el("span", { class: "pal-cat" }, [new Date(s.t).toLocaleDateString()]),
+        el("b", {}, [first]),
+        el("code", {}, [new Date(s.t).toLocaleTimeString()]),
+      ]),
+    );
+  }
+}
+
 // ---------------------------------------------------------------- command palette
 function openPalette() {
   const overlay = document.getElementById("palette")!;
@@ -1002,6 +1059,7 @@ function openFile() {
   document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
 }
 function saveFile() {
+  takeSnapshot(true);
   download("document.ksav", new Blob([view.state.doc.toString()], { type: "text/plain" }));
   document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
 }
@@ -1172,6 +1230,18 @@ function render() {
     el("div", { id: "preview-modal", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "preview-modal") closePreviewOverlay();
     } }, [el("div", { class: "preview-modal-box" }, [el("div", { id: "preview-modal-body" })])]),
+    // version history modal
+    el("div", { id: "history-modal", class: "overlay", onClick: (e: Event) => {
+      if ((e.target as HTMLElement).id === "history-modal") closeHistory();
+    } }, [
+      el("div", { class: "palette-box" }, [
+        el("div", { class: "history-head" }, [
+          el("b", {}, [t("history")]),
+          el("button", { class: "sc-key", onClick: () => takeSnapshot(true) }, [t("snapshotNow")]),
+        ]),
+        el("div", { id: "history-list" }),
+      ]),
+    ]),
   );
 
   view = makeEditor();
@@ -1193,6 +1263,7 @@ function wireKeys() {
     if (e.key === "Escape") {
       closePalette();
       closePreviewOverlay();
+      closeHistory();
     } else if (e.key === "Alt" && settings.prose) {
       view.dispatch({ effects: setRevealAll.of(true) });
     }
@@ -1227,6 +1298,8 @@ async function boot() {
     /* registries optional for first paint */
   }
   runCompile();
+  // periodic auto-snapshot (only stores when the text changed)
+  window.setInterval(() => takeSnapshot(), 180000);
 }
 
 boot();

@@ -217,7 +217,11 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   background: var(--panel); color: var(--ink); font-family: var(--hebrew);
   border-bottom: 1px solid var(--line);
 }
-#palette-list { max-height: 52vh; overflow: auto; padding: 6px; }
+#palette-list, #history-list { max-height: 52vh; overflow: auto; padding: 6px; }
+.history-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+}
 .pal-item {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
   background: transparent; border: 0; cursor: pointer; padding: 8px 10px; border-radius: 8px;

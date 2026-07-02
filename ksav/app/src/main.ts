@@ -42,6 +42,7 @@ interface Settings extends DocConfig {
   zoom: number;
   outline?: boolean;
   autocomplete?: boolean;
+  syncScroll?: boolean;
   customCommands?: string; // user #let definitions, prepended at compile
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
@@ -66,6 +67,7 @@ const DEFAULTS: Settings = {
   header: "",
   footer: "",
   autocomplete: true,
+  syncScroll: true,
 };
 
 function loadSettings(): Settings {
@@ -434,6 +436,32 @@ function applyZoom() {
   document.documentElement.style.setProperty("--zoom", String(settings.zoom));
 }
 
+// Sync scrolling: scrolling the editor drives the preview and vice-versa
+// (percentage-based). Clicking the preview jumps the editor cursor to the
+// matching spot (best-effort by line fraction). Two-panel mode only.
+function wireSyncScroll() {
+  const preview = document.getElementById("preview")!;
+  const scroller = view.scrollDOM;
+  let lock = false;
+  const frac = (e: HTMLElement) => e.scrollTop / Math.max(1, e.scrollHeight - e.clientHeight);
+  const apply = (src: HTMLElement, dst: HTMLElement) => {
+    if (lock || settings.syncScroll === false || settings.layout !== "two") return;
+    lock = true;
+    dst.scrollTop = frac(src) * (dst.scrollHeight - dst.clientHeight);
+    requestAnimationFrame(() => (lock = false));
+  };
+  scroller.addEventListener("scroll", () => apply(scroller, preview));
+  preview.addEventListener("scroll", () => apply(preview, scroller));
+  preview.addEventListener("click", (e) => {
+    if (settings.layout !== "two") return;
+    const rect = preview.getBoundingClientRect();
+    const f = (preview.scrollTop + (e.clientY - rect.top)) / Math.max(1, preview.scrollHeight);
+    const line = Math.min(view.state.doc.lines, Math.max(1, Math.round(f * view.state.doc.lines)));
+    view.dispatch({ selection: { anchor: view.state.doc.line(line).from }, scrollIntoView: true });
+    view.focus();
+  });
+}
+
 // ---------------------------------------------------------------- snippet insertion
 function insertSnippet(snippet: string) {
   const sel = view.state.selection.main;
@@ -747,6 +775,7 @@ function buildSettingsDrawer(): HTMLElement {
     textRow("footerText", "footer", ""),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
+    checkRow("syncScrollLabel", "syncScroll"),
     el("h3", { style: "margin-top:18px" }, [t("customization")]),
     textAreaRow("customCommandsLabel", "customCommands", "#let דגש(x) = text(fill: red, strong(x))"),
     textAreaRow("snippetsLabel", "snippets", "בסד = בס\"ד\nסי = #סימן[|][]"),
@@ -1120,6 +1149,7 @@ function render() {
   );
 
   view = makeEditor();
+  wireSyncScroll();
   applyTheme();
   applyLayout();
   applyUiDir();

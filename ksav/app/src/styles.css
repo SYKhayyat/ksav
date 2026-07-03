@@ -278,6 +278,17 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .pm-h2 { font-size: 1.35em; font-weight: 700; }
 .pm-h3 { font-size: 1.15em; font-weight: 700; }
 .pm-bullet { color: var(--accent); font-weight: 600; margin-inline-end: 2px; }
+.pm-fn {
+  color: var(--accent); font-weight: 700; font-size: 0.7em;
+  background: var(--accent-soft); border-radius: 3px; padding: 0 3px; margin: 0 1px;
+}
+.pm-quote { font-style: italic; color: var(--muted); border-inline-start: 3px solid var(--line); padding-inline-start: 8px; }
+.pm-source { font-size: 0.85em; font-style: italic; color: var(--muted); }
+.pm-code { font-family: var(--mono); font-size: 0.9em; background: var(--accent-soft); border-radius: 3px; padding: 0 3px; }
+.pm-callout { background: #eff6ff; border-inline-start: 3px solid #2563eb; padding: 1px 8px; border-radius: 3px; }
+.pm-warn { background: #fef2f2; border-inline-start: 3px solid #dc2626; padding: 1px 8px; border-radius: 3px; }
+.pm-ok { background: #f0fdf4; border-inline-start: 3px solid #16a34a; padding: 1px 8px; border-radius: 3px; }
+.pm-box { border: 1px solid var(--line); padding: 1px 8px; border-radius: 4px; }
 .pm-center { display: inline-block; width: 100%; text-align: center; }
 .pm-right { display: inline-block; width: 100%; text-align: right; }
 .pm-left { display: inline-block; width: 100%; text-align: left; }

@@ -144,6 +144,25 @@ const PROSE_STYLE: Record<string, string> = {
   right_: "pm-right",
   שמאל: "pm-left",
   left_: "pm-left",
+  כותרת4: "pm-h3",
+  כותרת5: "pm-h3",
+  כותרת6: "pm-h3",
+  ציטוט: "pm-quote",
+  blockquote: "pm-quote",
+  מקור: "pm-source",
+  cite_: "pm-source",
+  קוד: "pm-code",
+  mono: "pm-code",
+  הערת_צד: "pm-callout",
+  callout: "pm-callout",
+  אזהרה: "pm-warn",
+  warnbox: "pm-warn",
+  הצלחה: "pm-ok",
+  okbox: "pm-ok",
+  תיבה: "pm-box",
+  framebox: "pm-box",
+  דיבור_המתחיל: "pm-bold",
+  dh: "pm-bold",
 };
 
 const hide = Decoration.replace({});
@@ -173,6 +192,23 @@ class LabelWidget extends WidgetType {
     return s;
   }
 }
+
+// A numbered footnote marker chip (the body is hidden in prose mode).
+class FootnoteWidget extends WidgetType {
+  constructor(readonly n: number) {
+    super();
+  }
+  eq(o: FootnoteWidget) {
+    return o.n === this.n;
+  }
+  toDOM() {
+    const s = document.createElement("sup");
+    s.className = "pm-fn";
+    s.textContent = String(this.n);
+    return s;
+  }
+}
+const FOOTNOTE_NAMES = new Set(["הערה", "fnote", "מראה_מקום", "sourcenote"]);
 
 // Match the delimiter (`[` or `(`) at `openPos` within a text string.
 function matchInText(text: string, openPos: number): number | null {
@@ -235,16 +271,28 @@ function proseDecorations(view: EditorView): DecorationSet {
     }
   }
 
+  let fnCount = 0;
   for (const s of scanCommands(text)) {
+    // footnotes -> a numbered superscript chip (body hidden)
+    if (FOOTNOTE_NAMES.has(s.name) && s.open != null && s.close != null) {
+      fnCount++;
+      if (!touchedAt(s.cmdStart, s.close + 1)) {
+        ranges.push({
+          from: s.cmdStart,
+          to: s.close + 1,
+          deco: Decoration.replace({ widget: new FootnoteWidget(fnCount) }),
+          side: 0,
+        });
+      }
+      continue;
+    }
     const cls = PROSE_STYLE[s.name];
     if (cls == null || s.open == null || s.close == null) continue;
 
     const spanFrom = s.cmdStart;
     const spanTo = s.close + 1;
     // Reveal raw markup if Alt is held, or the cursor/selection touches it.
-    const touched =
-      reveal ||
-      sel.ranges.some((r) => r.from <= spanTo && r.to >= spanFrom);
+    const touched = touchedAt(spanFrom, spanTo);
     if (touched) continue;
 
     // hide "#name[" and the matching "]"

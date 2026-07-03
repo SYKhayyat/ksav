@@ -100,6 +100,9 @@ pub static COMMANDS: &[Command] = &[
     cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [הפירוש])"),
     cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
     cmd!("הערת_גיליון", "sidenote", "torah", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),
+    cmd!("עם_הערות_דו_צד", "twosided", "torah", "קטע עם הערות משני הצדדים", "Section with notes on both sides", "#עם_הערות_דו_צד[|]"),
+    cmd!("הערת_ימין", "noteright", "torah", "הערה בטור הימני (דו-צדדי)", "Right-side note (two-sided)", "#הערת_ימין[|]"),
+    cmd!("הערת_שמאל", "noteleft", "torah", "הערה בטור השמאלי (דו-צדדי)", "Left-side note (two-sided)", "#הערת_שמאל[|]"),
     // ---- cross-references ----
     cmd!("סמן", "anchor", "reference", "סמן יעד להפניה", "Mark a reference target", "#סמן(\"|\")"),
     cmd!("הפניה", "xref", "reference", "הפניה ליעד (מספר מתעדכן)", "Reference (auto number)", "#הפניה(\"|\")"),

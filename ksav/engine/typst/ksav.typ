@@ -223,6 +223,43 @@
 #let sidenote = הערת_גיליון
 #let sidenotes = עם_הערות_צד
 
+// ---- הערות דו-צדדיות · two note streams, one down each side ----
+// Wrap a large section (or the whole document) in #עם_הערות_דו_צד[...]. Inside,
+// #הערת_ימין[...] feeds the right column (numbered 1,2,3) and #הערת_שמאל[...]
+// the left column (numbered 1′,2′,3′) — two independent apparatuses running
+// down both sides of the centered main text. Use once per document/section
+// (the streams are document-wide).
+#let _ksav_rn = state("ksav-rn", ())
+#let _ksav_rc = counter("ksav-rc")
+#let _ksav_ln = state("ksav-ln", ())
+#let _ksav_lc = counter("ksav-lc")
+#let הערת_ימין(body) = {
+  _ksav_rc.step()
+  context super(_ksav_rc.display())
+  _ksav_rn.update(l => l + (body,))
+}
+#let הערת_שמאל(body) = {
+  _ksav_lc.step()
+  context super[#_ksav_lc.display()′]
+  _ksav_ln.update(l => l + (body,))
+}
+#let עם_הערות_דו_צד(עיקר, יחס: 2.4) = grid(
+  columns: (1fr, יחס * 1fr, 1fr),
+  column-gutter: 1em,
+  {
+    set text(size: 0.75em, fill: luma(65))
+    context { for (i, n) in _ksav_rn.final().enumerate() { block(spacing: 0.5em)[#super[#(i + 1)] #n] } }
+  },
+  עיקר,
+  {
+    set text(size: 0.75em, fill: luma(65))
+    context { for (i, n) in _ksav_ln.final().enumerate() { block(spacing: 0.5em)[#super[#(i + 1)′] #n] } }
+  },
+)
+#let noteright = הערת_ימין
+#let noteleft = הערת_שמאל
+#let twosided = עם_הערות_דו_צד
+
 // ---- הפניות · cross-references (auto-numbered, auto-updating) ----
 // #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow
 // document order and update automatically when targets are added/reordered.

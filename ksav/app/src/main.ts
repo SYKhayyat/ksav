@@ -669,6 +669,27 @@ function buildToolbar(): HTMLElement {
   ]);
 }
 
+// A Word-like Insert menu: every command from the registry, grouped by
+// category, so nothing requires knowing the markup.
+function buildInsertMenu(): HTMLElement {
+  const lang = getLang();
+  const cats: string[] = [];
+  for (const c of commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
+  const items: (Node | string)[] = [];
+  for (const cat of cats) {
+    items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
+    for (const c of commandsReg.filter((x) => x.category === cat)) {
+      items.push(
+        el("button", { class: "menu-item menu-cmd", onClick: () => insertSnippet(c.insert) }, [
+          el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
+          el("code", {}, ["#" + c.he]),
+        ]),
+      );
+    }
+  }
+  return menu("➕ " + t("insert"), items);
+}
+
 function menu(label: string, items: (Node | string)[]): HTMLElement {
   const list = el("div", { class: "menu-list" }, items);
   const btn = el("button", { class: "menu-btn", onClick: (e: Event) => {
@@ -786,6 +807,7 @@ function buildHeader(): HTMLElement {
       el("small", {}, [t("tagline")]),
     ]),
     buildToolbar(),
+    buildInsertMenu(),
     el("div", { class: "spacer" }),
     fileMenu,
     undoBtn,
@@ -1378,6 +1400,35 @@ function wireKeys() {
   });
 }
 
+// First-run welcome: shown once, offers a template or a blank start.
+function maybeOnboard() {
+  if (localStorage.getItem("ksav.onboarded")) return;
+  const lang = getLang();
+  const overlay = el("div", { id: "welcome", class: "overlay open" }, [
+    el("div", { class: "palette-box welcome-box" }, [
+      el("h2", {}, [t("welcomeTitle")]),
+      el("p", {}, [t("welcomeBody")]),
+      el(
+        "div",
+        { class: "welcome-templates" },
+        templatesReg
+          .slice(0, 6)
+          .map((tpl) =>
+            el("button", { class: "welcome-tpl", onClick: () => { loadBody(tpl.body); dismissOnboard(); } }, [
+              lang === "he" ? tpl.he : tpl.en,
+            ]),
+          ),
+      ),
+      el("button", { class: "welcome-start", onClick: dismissOnboard }, [t("welcomeStart")]),
+    ]),
+  ]);
+  document.getElementById("app")!.append(overlay);
+}
+function dismissOnboard() {
+  localStorage.setItem("ksav.onboarded", "1");
+  document.getElementById("welcome")?.remove();
+}
+
 async function boot() {
   render();
   wireKeys();
@@ -1396,6 +1447,7 @@ async function boot() {
   try {
     [commandsReg, templatesReg] = await Promise.all([backend.commands(), backend.templates()]);
     rerenderChrome();
+    maybeOnboard();
   } catch {
     /* registries optional for first paint */
   }

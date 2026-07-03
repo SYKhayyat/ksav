@@ -86,6 +86,12 @@ header {
 .menu-item:hover { background: var(--accent-soft); }
 .menu-item b { font-size: 14px; }
 .menu-desc { font-size: 11px; color: var(--muted); }
+.menu-cat {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted);
+  padding: 8px 9px 3px; font-weight: 700;
+}
+.menu-cmd { flex-direction: row; align-items: center; justify-content: space-between; }
+.menu-cmd code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
 .menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
 .menu-item-row { display: flex; align-items: center; }
 .menu-item-main { flex: 1; }
@@ -247,6 +253,21 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   background: var(--accent-soft); padding: 2px 6px; border-radius: 5px; min-width: 62px; text-align: center;
 }
 .pal-item code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* welcome / onboarding */
+.welcome-box { padding: 26px 28px; max-width: 540px; text-align: center; }
+.welcome-box h2 { margin: 0 0 10px; font-size: 24px; }
+.welcome-box p { color: var(--muted); line-height: 1.6; margin: 0 0 18px; }
+.welcome-templates { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px; }
+.welcome-tpl {
+  padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  background: var(--panel); color: var(--ink); font-family: var(--hebrew); font-size: 14px;
+}
+.welcome-tpl:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.welcome-start {
+  padding: 9px 22px; border: 0; border-radius: 8px; cursor: pointer;
+  background: var(--accent); color: #fff; font-family: var(--hebrew); font-size: 15px;
+}
 
 /* ---- editor: folding ---- */
 .cm-gutters { background: var(--editor-bg) !important; border: none !important; color: var(--muted); }

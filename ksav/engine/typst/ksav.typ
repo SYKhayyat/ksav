@@ -27,6 +27,8 @@
   כותרת_עליונה: none,
   כותרת_תחתונה: none,
   ריווח_שורות: 0.75em,
+  ריווח_פסקאות: 1.2em,
+  הזחה_ראשונה: 0em,
   טורים: 1,
   body,
 ) = {
@@ -43,7 +45,7 @@
       align(center, text(size: 0.85em, fill: luma(100), כותרת_תחתונה))
     } else { auto },
   )
-  set par(justify: יישור, leading: ריווח_שורות, spacing: 1.2em)
+  set par(justify: יישור, leading: ריווח_שורות, spacing: ריווח_פסקאות, first-line-indent: הזחה_ראשונה)
   set heading(numbering: none)
   set list(indent: 1em)
   set enum(indent: 1em, numbering: np + ".")

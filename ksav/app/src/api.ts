@@ -10,6 +10,8 @@ export interface DocConfig {
   numbering: boolean;
   justify: boolean;
   line_spacing_em: number;
+  para_spacing_em: number;
+  first_line_indent_em: number;
   columns: number;
   paper: string;
   hebrew_numbering: boolean;

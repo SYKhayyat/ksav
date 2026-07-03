@@ -40,6 +40,10 @@ pub struct DocConfig {
     pub justify: bool,
     /// Line spacing (leading) in em.
     pub line_spacing_em: f64,
+    /// Space between paragraphs, in em.
+    pub para_spacing_em: f64,
+    /// First-line indent, in em (0 = none).
+    pub first_line_indent_em: f64,
     /// Number of text columns (1 = single column).
     pub columns: u32,
     /// Paper size (Typst name: "a4", "us-letter", "a5", ...).
@@ -62,6 +66,8 @@ impl Default for DocConfig {
             numbering: true,
             justify: true,
             line_spacing_em: 0.75,
+            para_spacing_em: 1.2,
+            first_line_indent_em: 0.0,
             columns: 1,
             paper: "a4".to_string(),
             hebrew_numbering: false,
@@ -97,6 +103,12 @@ impl DocConfig {
         }
         if let Some(l) = v.get("line_spacing_em").and_then(|x| x.as_f64()) {
             cfg.line_spacing_em = l;
+        }
+        if let Some(p) = v.get("para_spacing_em").and_then(|x| x.as_f64()) {
+            cfg.para_spacing_em = p;
+        }
+        if let Some(fi) = v.get("first_line_indent_em").and_then(|x| x.as_f64()) {
+            cfg.first_line_indent_em = fi;
         }
         if let Some(c) = v.get("columns").and_then(|x| x.as_u64()) {
             cfg.columns = c as u32;
@@ -167,7 +179,8 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
          גופן: \"{font}\", גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: \"{paper}\", \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
-         יישור: {justify}, ריווח_שורות: {leading}em, טורים: {columns})\n\n\
+         יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
+         הזחה_ראשונה: {indent}em, טורים: {columns})\n\n\
          {body}\n",
         prelude = PRELUDE,
         font = cfg.font.replace('"', "\\\""),
@@ -181,6 +194,8 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         footer = typst_str_or_none(&cfg.footer),
         justify = if cfg.justify { "true" } else { "false" },
         leading = cfg.line_spacing_em,
+        para = cfg.para_spacing_em,
+        indent = cfg.first_line_indent_em,
         columns = columns,
         body = body,
     )

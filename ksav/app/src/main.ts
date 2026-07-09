@@ -5,7 +5,6 @@ import type { KeyBinding } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
 import {
-  codeFolding,
   foldGutter,
   foldKeymap,
   foldAll,
@@ -22,6 +21,7 @@ import type { CompletionContext, CompletionResult } from "@codemirror/autocomple
 import {
   ksavHighlighter,
   ksavFold,
+  ksavFolding,
   proseMode,
   revealAll,
   setRevealAll,
@@ -324,7 +324,7 @@ function makeEditor(): EditorView {
       history(),
       drawSelection(),
       highlightActiveLine(),
-      codeFolding(),
+      ksavFolding,
       foldGutter(),
       bracketMatching(),
       closeBrackets(),

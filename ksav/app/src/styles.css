@@ -277,6 +277,11 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   background: var(--accent-soft); color: var(--accent); border: 1px solid var(--line);
   border-radius: 4px; padding: 0 6px; margin: 0 2px; font-size: 0.85em;
 }
+.ksav-fold-label {
+  cursor: pointer; font-weight: 600;
+  max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: inline-block; vertical-align: bottom;
+}
 
 /* ---- editor: raw-mode command coloring ---- */
 .ksav-cmd { color: var(--accent); font-weight: 600; }

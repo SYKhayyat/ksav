@@ -10,7 +10,7 @@ import { EditorView, ViewPlugin, Decoration, ViewUpdate, WidgetType } from "@cod
 import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState } from "@codemirror/state";
-import { foldService } from "@codemirror/language";
+import { foldService, codeFolding } from "@codemirror/language";
 
 // ---- shared scanning -------------------------------------------------------
 
@@ -482,6 +482,38 @@ export const ksavFold = foldService.of((state, lineStart) => {
     }
   }
   return null;
+});
+
+// A collapsed fold shows a meaningful label instead of a bare "…": the region's
+// name, the heading title, or the command being folded. This is what makes a
+// collapsed block still readable — you see what you named it.
+function foldLabelText(state: EditorState, range: { from: number; to: number }): string {
+  const text = state.doc.lineAt(range.from).text;
+  const region = text.match(/\/\/\{\s*(.*)$/); // //{ label
+  if (region) return region[1].trim() || "…";
+  if (headingLevel(text) != null) {
+    const title = [...text.matchAll(/\[([^[\]]*)\]/g)].map((m) => m[1]).join(" ").trim();
+    return title || "…";
+  }
+  const star = text.match(/\/\*\s*(.*)$/); // /* comment
+  if (star) return (star[1].replace(/\*\/.*$/, "").trim() || "הערה") + " …";
+  const cmd = text.match(/#([A-Za-z֐-׿_][\w֐-׿]*)/u);
+  if (cmd) return cmd[1] + " …";
+  return "…";
+}
+
+/** codeFolding wired to show the region/heading/list label on the collapsed chip. */
+export const ksavFolding = codeFolding({
+  preparePlaceholder: (state, range) => foldLabelText(state, range),
+  placeholderDOM: (_view, onclick, prepared) => {
+    const s = document.createElement("span");
+    s.className = "cm-foldPlaceholder ksav-fold-label";
+    s.textContent = "⋯ " + (typeof prepared === "string" ? prepared : "") + " ⋯";
+    s.title = "לחצו כדי לפרוש · click to unfold";
+    s.setAttribute("aria-label", "folded");
+    s.onclick = onclick;
+    return s;
+  },
 });
 
 export const proseMode = ViewPlugin.fromClass(

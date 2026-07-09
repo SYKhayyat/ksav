@@ -318,3 +318,12 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .pm-center { display: inline-block; width: 100%; text-align: center; }
 .pm-right { display: inline-block; width: 100%; text-align: right; }
 .pm-left { display: inline-block; width: 100%; text-align: left; }
+
+/* prose-mode rendered table (WYSIWYG) */
+.pm-table-wrap { margin: 0.6em 0; overflow-x: auto; }
+.pm-tbl { border-collapse: collapse; width: 100%; font-size: 0.95em; }
+.pm-tbl th, .pm-tbl td {
+  border: 1px solid var(--line); padding: 6px 10px; text-align: start; vertical-align: top;
+}
+.pm-tbl th { background: var(--accent-soft); font-weight: 700; }
+.pm-tbl code { font-family: var(--mono); font-size: 0.9em; }

@@ -232,11 +232,131 @@ const LIST_OPEN_RE = /#(רשימה|ממוספרת|bullets|numbered)\s*\(/gu;
 // but isn't supported on Safari < 16.4, so we capture-and-offset instead.
 const ITEM_OPEN_RE = /(^|[^A-Za-z0-9֐-׿_])(פריט|item)\s*\[/gu;
 
-function proseDecorations(view: EditorView): DecorationSet {
-  const reveal = view.state.field(revealAll, false);
-  const sel = view.state.selection;
+// ---- tables: rendered as a real grid in prose mode ----
+
+const TABLE_OPEN_RE = /#(טבלה|mktable)\s*\(/gu;
+const CELL_RE = /(כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*(?:\(\s*(\d+)\s*\))?\s*\[/gu;
+
+const INLINE_TAG: Record<string, [string, string]> = {
+  הדגשה: ["<strong>", "</strong>"],
+  bold: ["<strong>", "</strong>"],
+  נטוי: ["<em>", "</em>"],
+  italic: ["<em>", "</em>"],
+  קו_תחתון: ["<u>", "</u>"],
+  uline: ["<u>", "</u>"],
+  קו_חוצה: ["<s>", "</s>"],
+  sthrough: ["<s>", "</s>"],
+  קוד: ["<code>", "</code>"],
+  mono: ["<code>", "</code>"],
+};
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Render a cell's Ksav markup to safe HTML: known inline commands become tags,
+// unknown wrappers keep only their content, everything is HTML-escaped.
+function renderInline(text: string): string {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const m = text.slice(i).match(/#([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*\[/u);
+    if (!m) {
+      out += escapeHtml(text.slice(i));
+      break;
+    }
+    const cmdIdx = i + m.index!;
+    out += escapeHtml(text.slice(i, cmdIdx));
+    const openBr = cmdIdx + m[0].length - 1;
+    const closeBr = matchInText(text, openBr);
+    if (closeBr == null) {
+      out += escapeHtml(text.slice(cmdIdx));
+      break;
+    }
+    const inner = renderInline(text.slice(openBr + 1, closeBr));
+    const tag = INLINE_TAG[m[1]];
+    out += tag ? tag[0] + inner + tag[1] : inner;
+    i = closeBr + 1;
+  }
+  return out;
+}
+
+interface TableModel {
+  cols: number;
+  cells: { html: string; header: boolean; span: number }[];
+}
+
+// Parse `#טבלה(עמודות: N, תא[…], כותרת_תא[…], מיזוג(k)[…], …)` into a grid model.
+function parseTable(text: string, openParen: number, closeParen: number): TableModel {
+  const inner = text.slice(openParen + 1, closeParen);
+  const colsMatch = inner.match(/(?:עמודות|columns)\s*:\s*(\d+)/);
+  const cols = Math.max(1, colsMatch ? parseInt(colsMatch[1], 10) : 2);
+  const cells: TableModel["cells"] = [];
+  CELL_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CELL_RE.exec(inner))) {
+    const openBr = m.index + m[0].length - 1;
+    const closeBr = matchInText(inner, openBr);
+    if (closeBr == null) break;
+    const header = m[1] === "כותרת_תא" || m[1] === "headcell";
+    const merge = m[1] === "מיזוג" || m[1] === "colspan_";
+    const span = merge && m[2] ? Math.max(1, parseInt(m[2], 10)) : 1;
+    cells.push({ html: renderInline(inner.slice(openBr + 1, closeBr)), header, span });
+    CELL_RE.lastIndex = closeBr + 1; // skip nested cells (e.g. a table inside a cell)
+  }
+  return { cols, cells };
+}
+
+function tableHtml(model: TableModel): string {
+  let html = '<table class="pm-tbl"><tbody>';
+  let col = 0;
+  let open = false;
+  for (const c of model.cells) {
+    if (col === 0) {
+      html += "<tr>";
+      open = true;
+    }
+    const tag = c.header ? "th" : "td";
+    const span = c.span > 1 ? ` colspan="${c.span}"` : "";
+    html += `<${tag}${span}>${c.html || "&nbsp;"}</${tag}>`;
+    col += c.span;
+    if (col >= model.cols) {
+      html += "</tr>";
+      open = false;
+      col = 0;
+    }
+  }
+  if (open) html += "</tr>";
+  return html + "</tbody></table>";
+}
+
+// A block widget that renders a Ksav table as an HTML grid in prose mode.
+class TableWidget extends WidgetType {
+  constructor(readonly html: string) {
+    super();
+  }
+  eq(o: TableWidget) {
+    return o.html === this.html;
+  }
+  toDOM() {
+    const d = document.createElement("div");
+    d.className = "pm-table-wrap";
+    d.title = "לחצו כדי לערוך · click to edit";
+    d.innerHTML = this.html;
+    return d;
+  }
+  // Let clicks through to the editor so the cursor lands on the table and the
+  // raw markup reveals for editing (same touch-to-reveal as the rest of prose).
+  ignoreEvent() {
+    return false;
+  }
+}
+
+function proseDecorations(state: EditorState): DecorationSet {
+  const reveal = state.field(revealAll, false);
+  const sel = state.selection;
   const ranges: { from: number; to: number; deco: Decoration; side: number }[] = [];
-  const text = view.state.doc.toString();
+  const text = state.doc.toString();
   const touchedAt = (from: number, to: number) =>
     reveal || sel.ranges.some((r) => r.from <= to && r.to >= from);
 
@@ -266,16 +386,63 @@ function proseDecorations(view: EditorView): DecorationSet {
   const insideFootnote = (pos: number) =>
     topFn.some((s) => pos > s.cmdStart && pos <= s.close!);
 
+  // ---- list coverage (outermost lists), used to keep a nested table raw ----
+  const listSpans: { from: number; to: number }[] = [];
+  LIST_OPEN_RE.lastIndex = 0;
+  let ls: RegExpExecArray | null;
+  while ((ls = LIST_OPEN_RE.exec(text))) {
+    if (inComment(ls.index) || insideFootnote(ls.index)) continue;
+    const op = ls.index + ls[0].length - 1;
+    const cp = matchInText(text, op);
+    if (cp == null) continue;
+    if (ls.index < (listSpans[listSpans.length - 1]?.to ?? -1)) continue; // nested
+    listSpans.push({ from: ls.index, to: cp });
+  }
+  const insideList = (pos: number) => listSpans.some((s) => pos > s.from && pos <= s.to);
+
+  // ---- tables: render `#טבלה(…)` as a real grid (a block widget) ----
+  // Block widgets and line-break-spanning replaces are only legal from a
+  // StateField (not a plugin) — which is why prose mode is a StateField. A table
+  // is rendered only when it stands on its own line(s) and isn't inside a
+  // footnote/list/comment or under the cursor; otherwise it stays editable raw.
+  const tableSpans: { from: number; to: number }[] = [];
+  TABLE_OPEN_RE.lastIndex = 0;
+  let tm: RegExpExecArray | null;
+  while ((tm = TABLE_OPEN_RE.exec(text))) {
+    const cmdStart = tm.index;
+    if (inComment(cmdStart) || insideFootnote(cmdStart) || insideList(cmdStart)) continue;
+    const openParen = cmdStart + tm[0].length - 1;
+    const closeParen = matchInText(text, openParen);
+    if (closeParen == null) continue;
+    const startLine = state.doc.lineAt(cmdStart);
+    const endLine = state.doc.lineAt(closeParen);
+    // Block-eligible only if the markup owns whole lines (nothing else on them).
+    const clean =
+      text.slice(startLine.from, cmdStart).trim() === "" &&
+      text.slice(closeParen + 1, endLine.to).trim() === "";
+    if (!clean) continue;
+    if (touchedAt(startLine.from, endLine.to)) continue; // editing: show raw
+    const html = tableHtml(parseTable(text, openParen, closeParen));
+    ranges.push({
+      from: startLine.from,
+      to: endLine.to,
+      deco: Decoration.replace({ widget: new TableWidget(html), block: true }),
+      side: 0,
+    });
+    tableSpans.push({ from: startLine.from, to: endLine.to });
+  }
+  const insideTable = (pos: number) => tableSpans.some((s) => pos >= s.from && pos <= s.to);
+
   for (const c of comments) {
     if (touchedAt(c.from, c.to)) continue;
-    if (insideFootnote(c.from)) continue; // covered by the footnote chip's replace
+    if (insideFootnote(c.from) || insideTable(c.from)) continue; // covered by another widget
     // A plugin-provided `replace` decoration may NOT span a line break —
     // CodeMirror throws "Decorations that replace line breaks may not be
     // specified via plugins". So we only hide single-line comments (inline `//`,
     // a solo `//{`/`//}` region marker, or a one-line `/* */`); a multi-line
     // block comment is left visible (greyed) rather than risking a crash. A solo
     // marker line collapses to an empty line, which reads as a normal break.
-    if (c.to > view.state.doc.lineAt(c.from).to) continue; // multi-line: skip
+    if (c.to > state.doc.lineAt(c.from).to) continue; // multi-line: skip
     if (c.from < c.to) ranges.push({ from: c.from, to: c.to, deco: hide, side: -1 });
   }
 
@@ -285,7 +452,7 @@ function proseDecorations(view: EditorView): DecorationSet {
   while ((lm = LIST_OPEN_RE.exec(text))) {
     const cmdStart = lm.index;
     if (inComment(cmdStart)) continue; // commented-out list: leave to the comment hider
-    if (insideFootnote(cmdStart)) continue; // inside a footnote chip — covered already
+    if (insideFootnote(cmdStart) || insideTable(cmdStart)) continue; // covered by another widget
     const openParen = lm.index + lm[0].length - 1;
     const closeParen = matchInText(text, openParen);
     if (closeParen == null) continue;
@@ -321,7 +488,7 @@ function proseDecorations(view: EditorView): DecorationSet {
   let fnCount = 0;
   for (const s of allCmds) {
     if (inComment(s.cmdStart)) continue; // commented-out command: hidden by the comment hider
-    if (insideFootnote(s.cmdStart)) continue; // nested inside a footnote chip — don't double-decorate
+    if (insideFootnote(s.cmdStart) || insideTable(s.cmdStart)) continue; // covered by another widget
     // footnotes -> a numbered superscript chip (body hidden)
     if (FOOTNOTE_NAMES.has(s.name) && s.open != null && s.close != null) {
       fnCount++;
@@ -516,21 +683,16 @@ export const ksavFolding = codeFolding({
   },
 });
 
-export const proseMode = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = proseDecorations(view);
-    }
-    update(u: ViewUpdate) {
-      if (
-        u.docChanged ||
-        u.selectionSet ||
-        u.viewportChanged ||
-        u.transactions.some((t) => t.effects.some((e) => e.is(setRevealAll)))
-      )
-        this.decorations = proseDecorations(u.view);
-    }
+// Prose mode is a StateField (not a ViewPlugin) because it emits block widgets
+// (rendered tables) and line-break-spanning replaces, which CodeMirror only
+// permits from a field. It recomputes on edits, selection moves, and the
+// reveal-all (Alt) toggle — it doesn't depend on the viewport.
+export const proseMode = StateField.define<DecorationSet>({
+  create: (state) => proseDecorations(state),
+  update(deco, tr) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setRevealAll)))
+      return proseDecorations(tr.state);
+    return deco.map(tr.changes);
   },
-  { decorations: (v) => v.decorations },
-);
+  provide: (f) => EditorView.decorations.from(f),
+});

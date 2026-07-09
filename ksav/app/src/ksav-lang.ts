@@ -269,16 +269,14 @@ function proseDecorations(view: EditorView): DecorationSet {
   for (const c of comments) {
     if (touchedAt(c.from, c.to)) continue;
     if (insideFootnote(c.from)) continue; // covered by the footnote chip's replace
-    // When the comment occupies its whole line(s), swallow the trailing newline
-    // too, so no blank gap is left where the marker used to be.
-    const startLine = view.state.doc.lineAt(c.from);
-    const endLine = view.state.doc.lineAt(c.to);
-    const soloLine =
-      text.slice(startLine.from, c.from).trim() === "" &&
-      text.slice(c.to, endLine.to).trim() === "";
-    const from = soloLine ? startLine.from : c.from;
-    const to = soloLine ? Math.min(text.length, endLine.to + 1) : c.to;
-    if (from < to) ranges.push({ from, to, deco: hide, side: -1 });
+    // A plugin-provided `replace` decoration may NOT span a line break —
+    // CodeMirror throws "Decorations that replace line breaks may not be
+    // specified via plugins". So we only hide single-line comments (inline `//`,
+    // a solo `//{`/`//}` region marker, or a one-line `/* */`); a multi-line
+    // block comment is left visible (greyed) rather than risking a crash. A solo
+    // marker line collapses to an empty line, which reads as a normal break.
+    if (c.to > view.state.doc.lineAt(c.from).to) continue; // multi-line: skip
+    if (c.from < c.to) ranges.push({ from: c.from, to: c.to, deco: hide, side: -1 });
   }
 
   // ---- lists: hide scaffolding, show bullets/numbers (WYSIWYG) ----

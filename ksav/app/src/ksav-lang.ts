@@ -226,7 +226,9 @@ function matchInText(text: string, openPos: number): number | null {
 }
 
 const LIST_OPEN_RE = /#(רשימה|ממוספרת|bullets|numbered)\s*\(/gu;
-const ITEM_OPEN_RE = /(פריט|item)\s*\[/gu;
+// The leading lookbehind is a word boundary: without it, a longer word ending
+// in פריט (e.g. תפריט[…]) or `subitem[…]` would be mistaken for a list item.
+const ITEM_OPEN_RE = /(?<![A-Za-z0-9֐-׿_])(פריט|item)\s*\[/gu;
 
 function proseDecorations(view: EditorView): DecorationSet {
   const reveal = view.state.field(revealAll, false);
@@ -236,11 +238,54 @@ function proseDecorations(view: EditorView): DecorationSet {
   const touchedAt = (from: number, to: number) =>
     reveal || sel.ranges.some((r) => r.from <= to && r.to >= from);
 
+  // ---- comments & fold-region markers: hidden in prose (Word-like) mode ----
+  // These never render in the compiled output (Typst strips `//` and `/* */`),
+  // so in prose mode we hide them too — the region's body then reads as plain
+  // text with no visible collapse markers, matching the printed page. A marker
+  // is revealed when the cursor touches it or Alt is held, so it stays editable.
+  const comments = scanComments(text);
+  const inComment = (i: number) => comments.some((c) => i >= c.from && i < c.to);
+
+  // ---- footnote coverage ----
+  // A footnote collapses to ONE numbered chip: a full-span `replace` over the
+  // whole `#הערה[…]`. Anything nested inside it (bold, a list, another footnote,
+  // even a comment) must NOT emit its own decoration, or two `replace` ranges
+  // overlap and CodeMirror throws ("Ran out of text content"). We compute the
+  // outermost footnote spans up front and skip anything that falls inside one.
+  const allCmds = scanCommands(text);
+  const topFn: CmdSpan[] = [];
+  let fnCover = -1;
+  for (const s of allCmds) {
+    if (!FOOTNOTE_NAMES.has(s.name) || s.open == null || s.close == null) continue;
+    if (inComment(s.cmdStart) || s.cmdStart < fnCover) continue; // nested/commented
+    topFn.push(s);
+    fnCover = s.close + 1;
+  }
+  const insideFootnote = (pos: number) =>
+    topFn.some((s) => pos > s.cmdStart && pos <= s.close!);
+
+  for (const c of comments) {
+    if (touchedAt(c.from, c.to)) continue;
+    if (insideFootnote(c.from)) continue; // covered by the footnote chip's replace
+    // When the comment occupies its whole line(s), swallow the trailing newline
+    // too, so no blank gap is left where the marker used to be.
+    const startLine = view.state.doc.lineAt(c.from);
+    const endLine = view.state.doc.lineAt(c.to);
+    const soloLine =
+      text.slice(startLine.from, c.from).trim() === "" &&
+      text.slice(c.to, endLine.to).trim() === "";
+    const from = soloLine ? startLine.from : c.from;
+    const to = soloLine ? Math.min(text.length, endLine.to + 1) : c.to;
+    if (from < to) ranges.push({ from, to, deco: hide, side: -1 });
+  }
+
   // ---- lists: hide scaffolding, show bullets/numbers (WYSIWYG) ----
   LIST_OPEN_RE.lastIndex = 0;
   let lm: RegExpExecArray | null;
   while ((lm = LIST_OPEN_RE.exec(text))) {
     const cmdStart = lm.index;
+    if (inComment(cmdStart)) continue; // commented-out list: leave to the comment hider
+    if (insideFootnote(cmdStart)) continue; // inside a footnote chip — covered already
     const openParen = lm.index + lm[0].length - 1;
     const closeParen = matchInText(text, openParen);
     if (closeParen == null) continue;
@@ -272,7 +317,9 @@ function proseDecorations(view: EditorView): DecorationSet {
   }
 
   let fnCount = 0;
-  for (const s of scanCommands(text)) {
+  for (const s of allCmds) {
+    if (inComment(s.cmdStart)) continue; // commented-out command: hidden by the comment hider
+    if (insideFootnote(s.cmdStart)) continue; // nested inside a footnote chip — don't double-decorate
     // footnotes -> a numbered superscript chip (body hidden)
     if (FOOTNOTE_NAMES.has(s.name) && s.open != null && s.close != null) {
       fnCount++;
@@ -317,8 +364,11 @@ function proseDecorations(view: EditorView): DecorationSet {
 // ---- folding (org-mode style: headings + lists + any multi-line command) ----
 
 // Recognizes a heading line and returns its outline level, else null.
+// The trailing `(?![…])` is a word boundary: without it, `#כותרת_תא` (a table
+// header cell) and other `כותרת`-prefixed commands would be mistaken for a
+// heading, corrupting the outline and fold behavior.
 const HEAD_RE =
-  /^\s*#(שער|title|תת_שער|subtitle|סימן|siman|כותרת([1-6])?|h([1-6]))(?:\s*\(\s*(?:רמה|level)\s*:\s*(\d+))?/u;
+  /^\s*#(שער|title|תת_שער|subtitle|סימן|siman|כותרת([1-6])?|h([1-6]))(?![A-Za-z0-9֐-׿_])(?:\s*\(\s*(?:רמה|level)\s*:\s*(\d+))?/u;
 
 /** Extract the document outline (headings with level, title, and position). */
 export function outline(text: string): { level: number; title: string; from: number }[] {

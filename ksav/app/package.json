@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:wasm": "cross-env VITE_WASM=1 vite build",
+    "build": "tsc --noEmit && vite build",
+    "build:wasm": "tsc --noEmit && cross-env VITE_WASM=1 vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },

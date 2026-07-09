@@ -440,6 +440,7 @@ function scheduleCompile() {
 }
 
 async function runCompile() {
+  if (!backend) return; // backend still initializing (createBackend not resolved yet)
   const status = document.getElementById("status")!;
   const diag = document.getElementById("diagnostics")!;
   status.textContent = t("rendering");
@@ -538,8 +539,13 @@ function insertRegion() {
   const sel = view.state.selection.main;
   const selText = view.state.sliceDoc(sel.from, sel.to);
   const label = t("region");
-  const text = `//{ ${label}\n${selText}\n//}\n`;
-  const cursor = sel.from + 4; // start of the label, so it can be renamed
+  // The `//{` marker must start its own line, or the fold service (which keys on
+  // a line beginning with `//{`) won't recognize the region. Prepend a newline
+  // when the selection doesn't already start at the beginning of a line.
+  const atLineStart = sel.from === 0 || view.state.sliceDoc(sel.from - 1, sel.from) === "\n";
+  const lead = atLineStart ? "" : "\n";
+  const text = `${lead}//{ ${label}\n${selText}\n//}\n`;
+  const cursor = sel.from + lead.length + 4; // start of the label, so it can be renamed
   view.dispatch({
     changes: { from: sel.from, to: sel.to, insert: text },
     selection: { anchor: cursor, head: cursor + label.length },
@@ -1163,7 +1169,10 @@ function openFile() {
   const input = el("input", { type: "file", accept: ".ksav,.typ,.txt", style: "display:none" });
   input.addEventListener("change", () => {
     const f = input.files?.[0];
-    if (!f) return;
+    if (!f) {
+      input.remove();
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       view.dispatch({
@@ -1172,12 +1181,12 @@ function openFile() {
       });
       view.focus();
       scheduleCompile();
+      input.remove(); // remove only after the file has been read (not before the dialog resolves)
     };
     reader.readAsText(f);
   });
   document.body.append(input);
   input.click();
-  input.remove();
   document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
 }
 function saveFile() {

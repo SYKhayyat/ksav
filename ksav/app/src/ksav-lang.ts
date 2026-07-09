@@ -226,9 +226,11 @@ function matchInText(text: string, openPos: number): number | null {
 }
 
 const LIST_OPEN_RE = /#(רשימה|ממוספרת|bullets|numbered)\s*\(/gu;
-// The leading lookbehind is a word boundary: without it, a longer word ending
-// in פריט (e.g. תפריט[…]) or `subitem[…]` would be mistaken for a list item.
-const ITEM_OPEN_RE = /(?<![A-Za-z0-9֐-׿_])(פריט|item)\s*\[/gu;
+// Group 1 captures the character before the item name (or start-of-string) as a
+// word boundary: without it, a longer word ending in פריט (e.g. תפריט[…]) or
+// `subitem[…]` would be mistaken for a list item. A lookbehind would be cleaner
+// but isn't supported on Safari < 16.4, so we capture-and-offset instead.
+const ITEM_OPEN_RE = /(^|[^A-Za-z0-9֐-׿_])(פריט|item)\s*\[/gu;
 
 function proseDecorations(view: EditorView): DecorationSet {
   const reveal = view.state.field(revealAll, false);
@@ -293,18 +295,20 @@ function proseDecorations(view: EditorView): DecorationSet {
     const ordered = lm[1] === "ממוספרת" || lm[1] === "numbered";
     ranges.push({ from: cmdStart, to: openParen + 1, deco: hide, side: -1 });
     ranges.push({ from: closeParen, to: closeParen + 1, deco: hide, side: 1 });
-    // items directly inside this list
-    ITEM_OPEN_RE.lastIndex = openParen + 1;
+    // items directly inside this list. Start at the `(` so it can act as the
+    // boundary char (group 1) for an item that immediately follows it.
+    ITEM_OPEN_RE.lastIndex = openParen;
     let idx = 0;
     let im: RegExpExecArray | null;
     while ((im = ITEM_OPEN_RE.exec(text)) && im.index < closeParen) {
-      const itemOpen = im.index + im[0].length - 1;
+      const itemNameStart = im.index + im[1].length; // skip the captured boundary char
+      const itemOpen = im.index + im[0].length - 1; // the `[`
       const itemClose = matchInText(text, itemOpen);
       if (itemClose == null || itemClose > closeParen) break;
       idx++;
       const bullet = ordered ? `${idx}. ` : "• ";
       ranges.push({
-        from: im.index,
+        from: itemNameStart,
         to: itemOpen + 1,
         deco: Decoration.replace({ widget: new LabelWidget(bullet) }),
         side: -1,

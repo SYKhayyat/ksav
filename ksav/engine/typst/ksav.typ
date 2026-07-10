@@ -713,7 +713,22 @@
 #let defitem = הגדרה
 
 // תוכן · table of contents (from the document's headings)
-#let תוכן(כותרת: [תוכן העניינים]) = outline(title: כותרת)
+//   מספור: auto  → follow the heading config (show numbers only when
+//                  #הגדרות_כותרות(מספור: …) asked for them; default = none = off)
+//           true  → force numbers in the TOC
+//           false → suppress numbers even if headings are numbered
+// The wrapper always keeps the heading counter stepping (so in-body numbering
+// can display), which would otherwise leak numbers into the outline; here we
+// drop the entry prefix whenever numbers aren't wanted.
+#let תוכן(כותרת: [תוכן העניינים], מספור: auto) = context {
+  let show-nums = if מספור == auto { _hd_cfg.get().at("מספור", default: none) != none } else { מספור }
+  if show-nums {
+    outline(title: כותרת)
+  } else {
+    show outline.entry: it => it.indented(none, it.inner())
+    outline(title: כותרת)
+  }
+}
 #let toc = תוכן
 
 // ============================================================

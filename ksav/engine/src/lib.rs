@@ -513,6 +513,17 @@ mod tests {
     }
 
     #[test]
+    fn toc_number_suppression() {
+        // Headers keep a stepping counter, but the TOC must be able to hide the
+        // numbers: auto (default, follows heading config = none), explicit false,
+        // and explicit true all compile.
+        let body = "#כותרת1[פרק]\n#כותרת2[סעיף]\n\
+                    #תוכן()\n#תוכן(מספור: false)\n#תוכן(מספור: true)";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
     fn hebrew_numbering_and_header_footer() {
         let cfg = DocConfig {
             hebrew_numbering: true,

@@ -305,6 +305,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_registered_command_is_defined() {
+        // Each command's Hebrew name and English alias must have a matching `#let`
+        // in the prelude — otherwise the palette would insert an undefined call.
+        let defined = |name: &str| {
+            PRELUDE.contains(&format!("#let {name}("))
+                || PRELUDE.contains(&format!("#let {name} ="))
+                || PRELUDE.contains(&format!("#let {name}("))
+                || PRELUDE.contains(&format!("#let {name}\n"))
+        };
+        for c in commands::COMMANDS {
+            assert!(defined(c.he), "Hebrew command not defined in prelude: {}", c.he);
+            assert!(defined(c.en), "English alias not defined in prelude: {}", c.en);
+        }
+    }
+
+    #[test]
+    fn config_english_aliases_compile() {
+        let body = "#headings_config(מספור: \"1.1\")\n#lists_config(סמן: ([◆],))\n\
+                    #tables_config(פסים: true)\n#pagebands_config(מספור: (\"1\", \"א\"))\n\
+                    #streams_config(פריסה: \"צד\")\n#h1[פרק]\n#bullets(item[א])\n\
+                    #mktable(עמודות: 2, cell[1], cell[2])\n\
+                    א#pageband1[ב] ג#contentnote[ד] ה#stream_note(\"x\")[ו]\n\
+                    #endnotes_side(זרמים: (\"x\",))";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
     fn compiles_basic_hebrew() {
         let out = compile("#הדגשה[שלום עולם]", &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
@@ -458,6 +486,28 @@ mod tests {
     #[test]
     fn side_column_notes() {
         let body = "#עם_הערות_צד[טקסט#הערת_גיליון[הערה א] ועוד#הערת_גיליון[הערה ב] סוף.]";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn configurable_headings_lists_tables() {
+        let body = "#הגדרות_כותרות(גודל: (2em, 1.4em), צבע: (rgb(\"#b91c1c\"), luma(40)), \
+                    יישור: (center, right), מספור: \"1.1\", קו: (true, false))\n\
+                    #הגדרות_רשימות(סמן: ([◆], [–]), הזחה: 1.5em, הידוק: true)\n\
+                    #הגדרות_טבלאות(פסים: true, צבע_פס: luma(240), מרווח: 10pt, קו: 1pt + luma(80))\n\
+                    #כותרת1[פרק] #כותרת2[סעיף]\n#רשימה(פריט[א], פריט[ב])\n\
+                    #טבלה(עמודות: 2, תא[1], תא[2], תא[3], תא[4])";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn per_stream_columns() {
+        // A stream with 2 columns next to a 1-column stream — independent counts.
+        let body = "#הגדרות_זרמים(טורים: (\"מקורות\": 2))\n\
+                    א#הערת_מקור[ראשון] ב#הערת_מקור[שני] ג#הערת_מקור[שלישי] \
+                    ד#הערת_תוכן[ביאור].";
         let out = compile(body, &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     }

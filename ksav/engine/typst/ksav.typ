@@ -330,6 +330,8 @@
   פריסה: "מוערם",       // "מוערם" = stacked · "צד" = side-by-side (a column per stream)
   מספור: (:),           // per-stream numbering scheme, e.g. ("מקורות": "א"); default "1"
   כותרות: (:),          // per-stream heading label, e.g. ("מקורות": [מקורות])
+  טורים: (:),           // per-stream column count, e.g. ("מקורות": 2); default 1
+                        //   (independent of the main-text and other streams' columns)
   גודל: 0.85em,
   סגנון: "normal",
   צבע: luma(20),
@@ -388,11 +390,15 @@
         let all-s = all.filter(e => e.value.stream == s)   // stream-wide numbering
         let head = cfg.at("כותרות", default: (:)).at(s, default: none)
         if head != none { block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head)) }
-        for e in ents {
-          let num = all-s.position(x => x.value.key == e.value.key) + 1
-          block(spacing: cfg.at("ריווח_פריט", default: 0.22em),
-            _sf_wrap(cfg, [#super(_sf_mark(cfg, s, num)) #e.value.body]))
+        let entries = {
+          for e in ents {
+            let num = all-s.position(x => x.value.key == e.value.key) + 1
+            block(spacing: cfg.at("ריווח_פריט", default: 0.22em),
+              _sf_wrap(cfg, [#super(_sf_mark(cfg, s, num)) #e.value.body]))
+          }
         }
+        let ncols = cfg.at("טורים", default: (:)).at(s, default: 1)
+        if ncols > 1 { columns(ncols, entries) } else { entries }
       }
       block(width: 100%, {
         if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
@@ -423,6 +429,98 @@
 #let contentnote = הערת_תוכן
 #let sourcenote_stream = הערת_מקור
 #let streams_config = הגדרות_זרמים
+
+// ============================================================
+//  עיצוב גלובלי · configurable headings / lists / tables
+// ------------------------------------------------------------
+//  Everything is a state read at the element's own location, so a single
+//  #הגדרות_* call anywhere (usually at the top) restyles all following
+//  headings / lists / tables. Each knob accepts either ONE value (applies
+//  everywhere) or, where it makes sense, a per-level array.
+// ============================================================
+// generic picker: array ⇒ per-level (clamped); scalar ⇒ applies to all levels
+#let _cfg_pick(c, key, lvl, fb) = {
+  let a = c.at(key, default: fb)
+  if type(a) == array { if a.len() > 0 { a.at(calc.min(lvl - 1, a.len() - 1)) } else { fb } } else { a }
+}
+
+// ---- כותרות · headings ----
+#let _hd_defaults = (
+  גודל: (1.6em, 1.35em, 1.18em, 1.06em, 1em, 0.95em),   // per-level size
+  משקל: "bold",                                          // weight (or per-level array)
+  צבע: luma(0),                                          // fill
+  סגנון: "normal",                                       // "normal" | "italic"
+  יישור: none,          // none = inherit; else right/left/center (or per-level array)
+  ריווח_לפני: (1.2em, 1.1em, 1em, 0.9em, 0.8em, 0.8em),  // space above
+  ריווח_אחרי: (0.6em, 0.55em, 0.5em, 0.45em, 0.4em, 0.4em), // space below
+  קו_תחתון: false,      // underline the heading text
+  קו: false,            // draw a rule line under the heading
+  מספור: none,          // heading numbering scheme, e.g. "1.1.1" or "א." (none = off)
+  רברבתי: false,        // small caps
+  מרווח_אותיות: 0pt,    // letter tracking
+)
+#let _hd_cfg = state("ksav-hd-cfg", _hd_defaults)
+#let הגדרות_כותרות(..opts) = _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+#let _hd_show(it) = context {
+  let c = _hd_cfg.get()
+  let lvl = it.level
+  let scheme = c.at("מספור", default: none)
+  let num = if scheme != none { [#counter(heading).display(scheme)#h(0.5em)] } else { [] }
+  let styled = {
+    set text(
+      size: _cfg_pick(c, "גודל", lvl, 1em),
+      weight: _cfg_pick(c, "משקל", lvl, "bold"),
+      fill: _cfg_pick(c, "צבע", lvl, luma(0)),
+      style: _cfg_pick(c, "סגנון", lvl, "normal"),
+      tracking: c.at("מרווח_אותיות", default: 0pt),
+    )
+    let body = { num; it.body }
+    if _cfg_pick(c, "רברבתי", lvl, false) { body = smallcaps(body) }
+    if _cfg_pick(c, "קו_תחתון", lvl, false) { body = underline(body) }
+    body
+  }
+  let al = _cfg_pick(c, "יישור", lvl, none)
+  let head = if al != none { align(al, styled) } else { styled }
+  block(
+    above: _cfg_pick(c, "ריווח_לפני", lvl, 1em),
+    below: _cfg_pick(c, "ריווח_אחרי", lvl, 0.6em),
+    {
+      head
+      if _cfg_pick(c, "קו", lvl, false) { v(0.25em); line(length: 100%, stroke: 0.5pt + luma(160)) }
+    },
+  )
+}
+
+// ---- רשימות · lists ----
+#let _ls_defaults = (
+  סמן: none,            // bullet marker(s): a symbol, an array per depth, or none (Typst default)
+  הזחה: 1em,            // indent
+  הזחת_גוף: auto,       // body-indent (gap after the marker)
+  ריווח: auto,          // spacing between items (auto = paragraph spacing)
+  הידוק: false,         // tight (single-line spacing between items)
+  מספור: auto,          // enum numbering scheme (auto = document default "1."/"א.")
+  ריווח_מספור: auto,    // number-to-body gap for enums
+)
+#let _ls_cfg = state("ksav-ls-cfg", _ls_defaults)
+#let הגדרות_רשימות(..opts) = _ls_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+
+// ---- טבלאות · tables ----
+#let _tb_defaults = (
+  קו: 0.5pt + luma(160),   // stroke (a length+color, a stroke, or none)
+  מרווח: 8pt,              // cell inset
+  יישור: auto,             // cell alignment
+  פסים: false,             // zebra striping
+  צבע_פס: luma(245),       // stripe colour
+  צבע_כותרת: luma(235),    // header-cell fill
+  גופן: none,              // font override inside tables (none = inherit)
+  גודל: none,              // text size inside tables (none = inherit)
+)
+#let _tb_cfg = state("ksav-tb-cfg", _tb_defaults)
+#let הגדרות_טבלאות(..opts) = _tb_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+
+#let headings_config = הגדרות_כותרות
+#let lists_config = הגדרות_רשימות
+#let tables_config = הגדרות_טבלאות
 
 // ============================================================
 //  מעטפת המסמך · document wrapper
@@ -478,10 +576,18 @@
   // Space footnote entries apart so each note — including a note-on-a-note that
   // Typst hoists into its own entry — reads as a separate block, not one run-on list.
   set footnote.entry(gap: ריווח_הערות)
-  set heading(numbering: none)
+  // Keep the heading counter stepping (so #הגדרות_כותרות(מספור: …) can display a
+  // number) while suppressing Typst's own number — _hd_show renders headings
+  // itself and only prints a number when the config asks for one.
+  set heading(numbering: "1.")
+  set enum(numbering: np + ".")
+  // Configurable headings (size / weight / colour / alignment / numbering /
+  // rule / small-caps per level) — driven by #הגדרות_כותרות, read per heading.
+  show heading: _hd_show
   set list(indent: 1em)
-  set enum(indent: 1em, numbering: np + ".")
-  show heading: set block(spacing: 1.1em)
+  // Lists and tables are configured at their creation site inside the #רשימה /
+  // #ממוספרת / #טבלה commands (a `set` in a `show list`/`show table` rule styles
+  // only *nested* elements, never the matched one, so it can't be used here).
   if טורים > 1 {
     columns(טורים, body)
   } else {
@@ -575,8 +681,25 @@
 // ============================================================
 //  רשימות · lists (nest freely)
 // ============================================================
-#let רשימה(..פריטים) = list(..פריטים)
-#let ממוספרת(..פריטים) = enum(..פריטים)
+// #רשימה / #ממוספרת read #הגדרות_רשימות at their location (marker, indent,
+// spacing, tight, enum numbering). Only keys actually configured are passed, so
+// unset ones inherit the document defaults.
+#let רשימה(..פריטים) = context {
+  let c = _ls_cfg.get()
+  let a = (indent: c.at("הזחה", default: 1em), tight: c.at("הידוק", default: false))
+  let m = c.at("סמן", default: none)
+  if m != none { a.insert("marker", m) }
+  if c.at("ריווח", default: auto) != auto { a.insert("spacing", c.ריווח) }
+  if c.at("הזחת_גוף", default: auto) != auto { a.insert("body-indent", c.הזחת_גוף) }
+  list(..a, ..פריטים)
+}
+#let ממוספרת(..פריטים) = context {
+  let c = _ls_cfg.get()
+  let a = (indent: c.at("הזחה", default: 1em), tight: c.at("הידוק", default: false))
+  if c.at("מספור", default: auto) != auto { a.insert("numbering", c.מספור) }
+  if c.at("ריווח", default: auto) != auto { a.insert("spacing", c.ריווח) }
+  enum(..a, ..פריטים)
+}
 #let ממוספרת_עברית(..פריטים) = enum(numbering: "א.", ..פריטים)  // Hebrew-lettered
 #let פריט(body) = body
 #let רשימת_הגדרות(..זוגות) = terms(..זוגות)
@@ -736,18 +859,32 @@
 // ============================================================
 //  טבלאות · tables
 // ============================================================
-#let טבלה(עמודות: 2, יישור: auto, פסים: false, ..תאים) = {
-  set table(fill: (_, row) => if פסים and calc.odd(row) { luma(245) } else { none }) if פסים
-  table(
+// Stroke / inset / align / striping / font come from #הגדרות_טבלאות (applied by
+// the global `show table` rule). Per-table overrides: pass יישור, or פסים:
+// true/false to force zebra striping on/off for just this table.
+// #טבלה reads #הגדרות_טבלאות at its location: stroke / inset / align / striping /
+// font / size. Per-table overrides: יישור, or פסים: true/false to force zebra
+// striping on/off just for this table.
+#let טבלה(עמודות: 2, יישור: auto, פסים: none, ..תאים) = context {
+  let c = _tb_cfg.get()
+  let stripe = if פסים == none { c.at("פסים", default: false) } else { פסים }
+  let al = if יישור != auto { יישור } else { c.at("יישור", default: auto) }
+  let t = table(
     columns: עמודות,
-    align: יישור,
-    stroke: 0.5pt + luma(160),
-    inset: 8pt,
+    align: al,
+    stroke: c.at("קו", default: 0.5pt + luma(160)),
+    inset: c.at("מרווח", default: 8pt),
+    fill: if stripe { (_, row) => if calc.odd(row) { c.at("צבע_פס", default: luma(245)) } else { none } } else { none },
     ..תאים,
   )
+  let f = c.at("גופן", default: none)
+  let s = c.at("גודל", default: none)
+  if f != none { t = text(font: f, t) }
+  if s != none { t = text(size: s, t) }
+  t
 }
 #let תא(body) = body
-#let כותרת_תא(body) = table.cell(fill: luma(235), strong(body))
+#let כותרת_תא(body) = context { table.cell(fill: _tb_cfg.get().at("צבע_כותרת", default: luma(235)), strong(body)) }
 #let מיזוג(מספר, body) = table.cell(colspan: מספר, body)
 
 #let mktable = טבלה

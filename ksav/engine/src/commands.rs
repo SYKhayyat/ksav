@@ -53,6 +53,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("כותרת2", "h2", "heading", "כותרת רמה 2", "Heading level 2", "#כותרת2[|]"),
     cmd!("כותרת3", "h3", "heading", "כותרת רמה 3", "Heading level 3", "#כותרת3[|]"),
     cmd!("כותרת", "hlevel", "heading", "כותרת בכל רמה", "Heading at any level", "#כותרת(רמה: 4)[|]"),
+    cmd!("הגדרות_כותרות", "headings_config", "heading", "עיצוב הכותרות (גודל/צבע/יישור/מספור/קו לכל רמה)", "Configure headings (size/colour/align/numbering/rule per level)", "#הגדרות_כותרות(גודל: (2em, 1.4em), צבע: (rgb(\"#b91c1c\"), luma(40)), מספור: \"1.1\", קו: (true, false))|"),
     // ---- align / direction ----
     cmd!("מרכז", "center_", "align", "יישור למרכז", "Center align", "#מרכז[|]"),
     cmd!("ימין", "right_", "align", "יישור לימין", "Right align", "#ימין[|]"),
@@ -66,10 +67,12 @@ pub static COMMANDS: &[Command] = &[
     cmd!("תוכן", "toc", "list", "תוכן העניינים", "Table of contents", "#תוכן()"),
     cmd!("פריט", "item", "list", "פריט ברשימה", "List item", "פריט[|]"),
     cmd!("רשימת_הגדרות", "deflist", "list", "רשימת הגדרות", "Definition list", "#רשימת_הגדרות(\n  הגדרה[מונח][|],\n)"),
+    cmd!("הגדרות_רשימות", "lists_config", "list", "עיצוב הרשימות (סמן/הזחה/ריווח/מספור)", "Configure lists (marker/indent/spacing/numbering)", "#הגדרות_רשימות(סמן: ([◆], [–]), הזחה: 1.5em, הידוק: true)|"),
     // ---- table ----
     cmd!("טבלה", "mktable", "table", "טבלה", "Table", "#טבלה(עמודות: 2,\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n)"),
     cmd!("תא", "cell", "table", "תא בטבלה", "Table cell", "תא[|]"),
     cmd!("כותרת_תא", "headcell", "table", "תא כותרת", "Header cell", "כותרת_תא[|]"),
+    cmd!("הגדרות_טבלאות", "tables_config", "table", "עיצוב הטבלאות (קו/מרווח/פסים/צבע כותרת/גופן)", "Configure tables (stroke/inset/striping/header fill/font)", "#הגדרות_טבלאות(פסים: true, צבע_כותרת: rgb(\"#dbeafe\"), מרווח: 10pt)|"),
     cmd!("מיזוג", "colspan_", "table", "מיזוג עמודות", "Merge columns", "#מיזוג(2)[|]"),
     // ---- footnote ----
     cmd!("הערה", "fnote", "footnote", "הערת שוליים", "Footnote", "#הערה[|]"),

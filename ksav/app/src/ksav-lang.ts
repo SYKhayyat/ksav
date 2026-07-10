@@ -208,7 +208,20 @@ class FootnoteWidget extends WidgetType {
     return s;
   }
 }
-const FOOTNOTE_NAMES = new Set(["הערה", "fnote", "מראה_מקום", "sourcenote"]);
+const FOOTNOTE_NAMES = new Set([
+  "הערה", "fnote", "הערה_על_הערה", "subnote", "מראה_מקום", "sourcenote",
+  // layered (tiered) footnotes
+  "הערה_א", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז",
+  "tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7",
+  // regrouped bands (marker is a superscript too)
+  "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה", "מדור_ו", "מדור_ז",
+  "band1", "band2", "band3", "band4", "band5", "band6", "band7",
+  // per-page regrouped bands
+  "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז",
+  "pageband1", "pageband2", "pageband3", "pageband4", "pageband5", "pageband6", "pageband7",
+  // independent footnote streams
+  "הערת_תוכן", "הערת_מקור", "contentnote", "sourcenote_stream",
+]);
 
 // Match the delimiter (`[` or `(`) at `openPos` within a text string.
 function matchInText(text: string, openPos: number): number | null {

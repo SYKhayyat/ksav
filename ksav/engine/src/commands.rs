@@ -73,8 +73,34 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מיזוג", "colspan_", "table", "מיזוג עמודות", "Merge columns", "#מיזוג(2)[|]"),
     // ---- footnote ----
     cmd!("הערה", "fnote", "footnote", "הערת שוליים", "Footnote", "#הערה[|]"),
+    cmd!("הערה_על_הערה", "subnote", "footnote", "הערה על הערה (בלוק נפרד, מקוננת)", "Note on a note (separate block, nestable)", "#הערה_על_הערה[|]"),
+    // layered (tiered) footnotes — a note ON a note is its own stacked block, per page
+    cmd!("הערה_א", "tier1", "footnote", "הערה שכבתית — דרגה א (על הגוף)", "Layered note — tier A (on the text)", "#הערה_א[|]"),
+    cmd!("הערה_ב", "tier2", "footnote", "הערה על הערה — דרגה ב (בלוק נפרד)", "Note on a note — tier B (separate block)", "#הערה_ב[|]"),
+    cmd!("הערה_ג", "tier3", "footnote", "הערה על הערה — דרגה ג", "Note on a note — tier C", "#הערה_ג[|]"),
+    cmd!("הערה_בדרגה", "tier", "footnote", "הערה שכבתית בכל דרגה", "Layered note at any tier", "#הערה_בדרגה(2)[|]"),
+    cmd!("הגדרות_הערות", "footnote_config", "footnote", "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות)", "Configure layered notes (size/style/indent/labels)", "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em))"),
+    // regrouped stacked bands (Gemara / critical-apparatus) — collect then render
+    cmd!("מדור_א", "band1", "footnote", "מדור א — בלוק ההערות הראשון (כל דרגה 1)", "Band A — the first note block (all tier-1)", "#מדור_א[|]"),
+    cmd!("מדור_ב", "band2", "footnote", "מדור ב — הערות על מדור א", "Band B — notes on band A", "#מדור_ב[|]"),
+    cmd!("מדור_ג", "band3", "footnote", "מדור ג — הערות על מדור ב", "Band C — notes on band B", "#מדור_ג[|]"),
+    cmd!("מדור_בדרגה", "band", "footnote", "מדור בכל דרגה", "Band at any tier", "#מדור_בדרגה(2)[|]"),
+    cmd!("הערות_מדורגות", "banded_notes", "footnote", "הצגת המדורים כבלוקים נערמים (בסוף הקטע)", "Render the bands, stacked (at end of section)", "#הערות_מדורגות(כותרת: [הערות])"),
+    cmd!("הגדרות_מדורגות", "banded_config", "footnote", "עיצוב המדורים (מספור/טורים/צבע לכל דרגה)", "Configure bands (numbering/columns/colour per tier)", "#הגדרות_מדורגות(טורים: (2, 1, 1))"),
     cmd!("הערתסיום", "endnote", "footnote", "הערת סיום (נאספת בסוף)", "Endnote (collected at end)", "#הערתסיום[|]"),
     cmd!("הערות_בסוף", "endnotes", "footnote", "הצגת הערות הסיום", "Render collected endnotes", "#הערות_בסוף(כותרת: [הערות])"),
+    cmd!("הערות_בסוף_צד", "endnotes_side", "footnote", "הערות סיום — כמה זרמים זה לצד זה", "Endnotes — several streams side by side", "#הערות_בסוף_צד(זרמים: (\"א\", \"ב\"), כותרות: (\"א\": [ביאורים], \"ב\": [מקורות]))"),
+    // per-page regrouped bands — the Gemara look at the foot of EACH page
+    cmd!("מדף_א", "pageband1", "footnote", "מדף א — בלוק הערות בתחתית העמוד (כל דרגה 1)", "Page-band A — foot-of-page block (all tier-1)", "#מדף_א[|]"),
+    cmd!("מדף_ב", "pageband2", "footnote", "מדף ב — הערות על מדף א (בלוק נפרד בעמוד)", "Page-band B — notes on band A (separate page block)", "#מדף_ב[|]"),
+    cmd!("מדף_ג", "pageband3", "footnote", "מדף ג — הערות על מדף ב", "Page-band C — notes on band B", "#מדף_ג[|]"),
+    cmd!("מדף_בדרגה", "pageband", "footnote", "מדף בכל דרגה (בתחתית העמוד)", "Page-band at any tier (foot of page)", "#מדף_בדרגה(2)[|]"),
+    cmd!("הגדרות_מדפים", "pagebands_config", "footnote", "עיצוב המדפים בעמוד (מספור/טורים/צבע לכל דרגה)", "Configure page-bands (numbering/columns/colour per tier)", "#הגדרות_מדפים(מספור: (\"1\", \"א\", \"a\"))"),
+    // multiple independent footnote streams (per page, stacked or side by side)
+    cmd!("הערה_זרם", "stream_note", "footnote", "הערת שוליים בזרם נפרד (מספור עצמאי)", "Footnote in a separate stream (independent numbering)", "#הערה_זרם(\"מקורות\")[|]"),
+    cmd!("הערת_תוכן", "contentnote", "footnote", "הערת תוכן — זרם \"תוכן\"", "Content note — the \"content\" stream", "#הערת_תוכן[|]"),
+    cmd!("הערת_מקור", "sourcenote_stream", "footnote", "הערת מקור — זרם \"מקורות\"", "Source note — the \"sources\" stream", "#הערת_מקור[|]"),
+    cmd!("הגדרות_זרמים", "streams_config", "footnote", "עיצוב זרמי ההערות (פריסה מוערמת/צד, מספור, כותרות)", "Configure footnote streams (stacked/side-by-side, numbering, titles)", "#הגדרות_זרמים(פריסה: \"צד\", זרמים: (\"תוכן\", \"מקורות\"))"),
     // ---- blocks ----
     cmd!("ציטוט", "blockquote", "block", "ציטוט בלוק", "Block quote", "#ציטוט[|]"),
     cmd!("הערת_צד", "callout", "block", "תיבת הדגשה (כחול)", "Callout (blue)", "#הערת_צד[|]"),

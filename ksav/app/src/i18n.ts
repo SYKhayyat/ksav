@@ -134,6 +134,11 @@ const HE: Dict = {
   "sc.find": "חיפוש",
   "sc.foldAll": "קפל הכל",
   "sc.unfoldAll": "פרוש הכל",
+  previewSide: "מיקום התצוגה",
+  "side.left": "משמאל",
+  "side.right": "מימין",
+  "side.top": "למעלה",
+  "side.bottom": "למטה",
 };
 
 const EN: Dict = {
@@ -259,6 +264,11 @@ const EN: Dict = {
   "sc.find": "Find",
   "sc.foldAll": "Fold all",
   "sc.unfoldAll": "Unfold all",
+  previewSide: "Preview position",
+  "side.left": "Left",
+  "side.right": "Right",
+  "side.top": "Top",
+  "side.bottom": "Bottom",
 };
 
 const DICTS: Record<Lang, Dict> = { he: HE, en: EN };

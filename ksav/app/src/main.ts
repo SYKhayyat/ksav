@@ -34,10 +34,13 @@ import type { Lang } from "./i18n";
 
 // ---------------------------------------------------------------- state
 type Layout = "two" | "page" | "source";
+type PreviewSide = "left" | "right" | "top" | "bottom";
 interface Settings extends DocConfig {
   lang: Lang;
   theme: "light" | "dark";
   layout: Layout;
+  previewSide?: PreviewSide; // which side the preview sits on in split view
+  previewFrac?: number; // fraction of the split given to the preview (0–1)
   prose: boolean;
   zoom: number;
   outline?: boolean;
@@ -53,6 +56,8 @@ const DEFAULTS: Settings = {
   lang: "he",
   theme: "light",
   layout: "two",
+  previewSide: "left",
+  previewFrac: 0.5,
   prose: false,
   zoom: 1,
   font: "Frank Ruhl Hofshi",
@@ -658,6 +663,7 @@ function buildToolbar(): HTMLElement {
     b("ממוספרת", "1."),
     b("טבלה", "▦"),
     b("הערה", "†"),
+    b("הערה_על_הערה", "⁑"),
     sep(),
     b("ימין", "⇥"),
     b("מרכז", "≡"),
@@ -792,6 +798,14 @@ function buildHeader(): HTMLElement {
     cycleLayout,
     "chip",
   );
+  const sideIcons: Record<PreviewSide, string> = { left: "◧", right: "◨", top: "⬒", bottom: "⬓" };
+  const side = settings.previewSide || "left";
+  const previewSideToggle = iconBtn(
+    sideIcons[side],
+    `${t("previewSide")}: ${t("side." + side)}`,
+    cyclePreviewSide,
+    settings.layout === "two" ? "chip" : "chip disabled",
+  );
   const outlineBtn = iconBtn(
     "☰",
     t("outline"),
@@ -828,6 +842,7 @@ function buildHeader(): HTMLElement {
     unfoldAllBtn,
     proseToggle,
     layoutToggle,
+    previewSideToggle,
     themeToggle,
     nikudBtn,
     historyBtn,
@@ -1268,6 +1283,62 @@ function applyLayout() {
   document.getElementById("app")!.dataset.layout = settings.layout;
 }
 
+// Preview placement: which side of the split the preview sits on, and how much
+// of the split it takes. Applied to <main> so CSS can flip orientation/order.
+function applyPreviewSide() {
+  const main = document.querySelector("main");
+  if (main) (main as HTMLElement).dataset.side = settings.previewSide || "left";
+  document.documentElement.style.setProperty("--preview-frac", String(settings.previewFrac ?? 0.5));
+}
+function cyclePreviewSide() {
+  const order: PreviewSide[] = ["left", "right", "bottom", "top"];
+  const cur = settings.previewSide || "left";
+  settings.previewSide = order[(order.indexOf(cur) + 1) % order.length];
+  saveSettings();
+  applyPreviewSide();
+  rerenderChrome();
+}
+
+// Drag the divider between the two panes to resize the split (not fixed 50/50).
+// Works for both horizontal (left/right) and vertical (top/bottom) placements.
+function wireSplitter() {
+  const splitter = document.getElementById("splitter");
+  const main = document.querySelector("main") as HTMLElement | null;
+  if (!splitter || !main) return;
+  let dragging = false;
+  const onMove = (e: PointerEvent) => {
+    if (!dragging) return;
+    const rect = main.getBoundingClientRect();
+    const side = settings.previewSide || "left";
+    const vertical = side === "top" || side === "bottom";
+    const total = vertical ? rect.height : rect.width;
+    const pos = vertical ? e.clientY - rect.top : e.clientX - rect.left;
+    // <main> is forced LTR, so pos maps left→right / top→bottom physically.
+    const leadFrac = Math.min(1, Math.max(0, pos / Math.max(1, total)));
+    const previewLeads = side === "left" || side === "top";
+    let pf = previewLeads ? leadFrac : 1 - leadFrac;
+    pf = Math.min(0.85, Math.max(0.15, pf));
+    settings.previewFrac = pf;
+    document.documentElement.style.setProperty("--preview-frac", String(pf));
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = "";
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    saveSettings();
+  };
+  splitter.addEventListener("pointerdown", (e) => {
+    if (settings.layout !== "two") return; // splitter only active in split view
+    dragging = true;
+    (e as PointerEvent).preventDefault();
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+}
+
 // Cycle split → page (Word-like) → source. Entering page mode turns on prose so
 // you see formatting, not markup.
 function cycleLayout() {
@@ -1323,6 +1394,7 @@ function render() {
         el("div", { class: "pane-head", "data-i18n": "preview" }, [t("preview")]),
         el("div", { id: "preview" }),
       ]),
+      el("div", { class: "splitter", id: "splitter", title: t("previewSide") }),
       el("section", { class: "pane source-pane" }, [
         el("div", { class: "pane-head", "data-i18n": "source" }, [t("source")]),
         el("div", { id: "editor-host" }),
@@ -1378,8 +1450,10 @@ function render() {
 
   view = makeEditor();
   wireSyncScroll();
+  wireSplitter();
   applyTheme();
   applyLayout();
+  applyPreviewSide();
   applyUiDir();
   applyZoom();
   updateCounts();

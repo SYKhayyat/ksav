@@ -341,12 +341,116 @@ mod tests {
     }
 
     #[test]
+    fn deep_note_on_note_separate_blocks() {
+        // A note-on-a-note nested 5 deep — each level is hoisted to its own
+        // footnote block (sequential numbering, spaced apart via footnote.entry gap).
+        let body = "א#הערה[ב#הערה_על_הערה[ג#הערה_על_הערה[ד#הערה_על_הערה[ה\
+                    #הערה_על_הערה[ו]]]]] ז#הערה[ח]";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        assert!(!out.pages_svg.is_empty());
+    }
+
+    #[test]
+    fn layered_tiered_footnotes() {
+        // A note on a note becomes its own stacked block at the foot of the page,
+        // 5 tiers deep — native-footnote based, so it must converge (no warnings).
+        let body = "טקסט#הערה_א[ראשונה #הערה_ב[שנייה #הערה_ג[שלישית \
+                    #הערה_ד[רביעית #הערה_ה[חמישית]]]]] המשך#הערה_א[עוד אחת].";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        assert!(!out.pages_svg.is_empty());
+        let converged = !out
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("converge"));
+        assert!(converged, "did not converge: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn layered_tiered_footnote_config() {
+        // Per-tier styling: custom slant, indent, gap, and bold tier labels.
+        let body = "#הגדרות_הערות(סגנון: (\"normal\", \"italic\", \"normal\"), \
+                    הזחה: (0em, 1em, 2em), תוויות: (\"\", \"על הערה: \", \"על תת-הערה: \"))\n\
+                    א#הערה_א[פ #הערה_ב[ק #הערה_ג[ר]]] ב#הערה_א[ש].";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn regrouped_stacked_bands() {
+        // Fully regrouped Gemara-style bands (all tier-1, then all tier-2, …),
+        // rendered in the main flow — 5 tiers, must compile AND converge.
+        let body = "#הגדרות_מדורגות(טורים: (2, 1, 1), מספור: (\"1\", \"א\", \"a\", \"i\", \"1\"))\n\
+                    א#מדור_א[ראש #מדור_ב[שני #מדור_ג[שלישי #מדור_ד[רביעי #מדור_ה[חמישי]]]]] \
+                    ב#מדור_א[עוד].\n#הערות_מדורגות(כותרת: [הערות])";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        let converged = !out
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("converge"));
+        assert!(converged, "did not converge: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn per_page_regrouped_bands() {
+        // The hard one: fully-regrouped bands (all tier-1, then tier-2, …) at the
+        // foot of EACH page, 5 tiers deep, across multiple pages. Read-only footer,
+        // so it must converge (no warnings).
+        let filler = "מילה ".repeat(400); // push onto a second page
+        let body = format!(
+            "#הגדרות_מדפים(מספור: (\"1\", \"א\", \"a\", \"i\", \"1\"))\n\
+             ראש#מדף_א[פתיחה #מדף_ב[שנייה #מדף_ג[שלישית #מדף_ד[רביעית #מדף_ה[חמישית]]]]] \
+             {filler} \
+             אמצע#מדף_א[עוד הערה #מדף_ב[ועוד תת-הערה]] {filler} סוף#מדף_א[אחרונה].",
+            filler = filler
+        );
+        let out = compile(&body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        assert!(out.pages_svg.len() >= 2, "expected multiple pages");
+        let converged = !out
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("converge"));
+        assert!(converged, "did not converge: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn footnote_streams() {
+        // Multiple independent per-page footnote streams, side by side, each with
+        // its own numbering. Read-only footer ⇒ must converge.
+        let body = "#הגדרות_זרמים(פריסה: \"צד\", זרמים: (\"תוכן\", \"מקורות\"), \
+                    מספור: (\"מקורות\": \"א\"), כותרות: (\"תוכן\": [ביאורים], \"מקורות\": [מקורות]))\n\
+                    טקסט#הערת_תוכן[ביאור ראשון] ועוד#הערת_מקור[רמב\"ם] וגם\
+                    #הערת_תוכן[ביאור שני]#הערת_מקור[שו\"ע].";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        let converged = !out
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("converge"));
+        assert!(converged, "did not converge: {:?}", out.diagnostics);
+    }
+
+    #[test]
     fn endnotes_streams_and_cross_nesting() {
         // regular footnote, endnote-with-footnote-inside, footnote-with-endnote-
         // inside, and a second named stream — all rendered.
         let body = "א#הערה[ב] ג#הערתסיום[ד#הערה[ה]] ו#הערה[ז#הערתסיום[ח]] \
                     ט#הערתסיום(זרם: \"מקורות\")[י]\n\
                     #הערות_בסוף(כותרת: [הערות])\n#הערות_בסוף(זרם: \"מקורות\", כותרת: [מקורות])";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn endnote_streams_side_by_side() {
+        // Three endnote streams rendered side by side, each its own column+title.
+        let body = "א#הערתסיום(זרם: \"א\")[ראשון] ב#הערתסיום(זרם: \"ב\")[שני] \
+                    ג#הערתסיום(זרם: \"ג\")[שלישי]\n\
+                    #הערות_בסוף_צד(זרמים: (\"א\", \"ב\", \"ג\"), \
+                    כותרות: (\"א\": [ביאורים], \"ב\": [מקורות], \"ג\": [הוספות]))";
         let out = compile(body, &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     }

@@ -101,14 +101,38 @@ header {
 }
 .menu-del:hover { color: var(--danger); background: var(--accent-soft); }
 
-/* ---- main split ---- */
-main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+/* ---- main split (flex: resizable + repositionable) ----
+   <main> is forced LTR so preview side is physical (left/right/top/bottom),
+   independent of the UI's reading direction. Panes/editor keep their own dir. */
+main { flex: 1; display: flex; min-height: 0; direction: ltr; }
+/* orientation by preview side (row = beside, column = above/below) */
+#app[data-layout="two"] main[data-side="top"],
+#app[data-layout="two"] main[data-side="bottom"] { flex-direction: column; }
+
+/* split sizing: preview gets --preview-frac of the space, source the rest */
+#app[data-layout="two"] .preview-pane { flex: var(--preview-frac, .5) 1 0; }
+#app[data-layout="two"] .source-pane  { flex: calc(1 - var(--preview-frac, .5)) 1 0; }
+
+/* order: preview leads on left/top, trails on right/bottom */
+main[data-side="left"] .preview-pane, main[data-side="top"] .preview-pane { order: 0; }
+main[data-side="left"] .source-pane, main[data-side="top"] .source-pane { order: 2; }
+main[data-side="right"] .preview-pane, main[data-side="bottom"] .preview-pane { order: 2; }
+main[data-side="right"] .source-pane, main[data-side="bottom"] .source-pane { order: 0; }
+
 /* source-only and page modes are single-pane */
-#app[data-layout="source"] main,
-#app[data-layout="page"] main { grid-template-columns: 1fr; }
 #app[data-layout="source"] .preview-pane,
 #app[data-layout="page"] .preview-pane { display: none; }
-.pane { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+#app[data-layout="source"] .source-pane,
+#app[data-layout="page"] .source-pane { flex: 1 1 0; }
+.pane { min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* draggable divider between the two panes (split view only) */
+.splitter { order: 1; flex: 0 0 6px; background: var(--line); display: none; touch-action: none; }
+#app[data-layout="two"] .splitter { display: block; }
+main[data-side="left"] .splitter, main[data-side="right"] .splitter { cursor: col-resize; }
+main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: row-resize; }
+.splitter:hover { background: var(--accent); }
+.chip.disabled { opacity: .4; }
 
 /* ---- Page mode: a single centered page you type on, like Word ---- */
 #app[data-layout="page"] .source-pane { border: none; }
@@ -138,7 +162,6 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   width: min(900px, 94vw); max-height: 88vh; overflow: auto; background: var(--bg);
   border-radius: 12px; padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.4);
 }
-.source-pane { border-inline-start: 1px solid var(--line); }
 .pane-head {
   font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
   padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line);

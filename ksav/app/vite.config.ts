@@ -15,6 +15,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/compile": engine,
+      // The checker and its suggestions were missing here, so every spell check
+      // in `npm run dev` 404'd against Vite itself — the feature looked dead in
+      // the one place it is developed. Production is unaffected: there the Rust
+      // binary serves the SPA from its own origin.
+      "/spell": engine,
+      "/suggest": engine,
       "/commands": engine,
       "/templates": engine,
     },

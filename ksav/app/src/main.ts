@@ -382,7 +382,7 @@ function keybindings(): Record<string, string> {
 function buildShortcutKeymap(): KeyBinding[] {
   const kb = keybindings();
   const claimed = new Set(Object.values(kb));
-  const bindings: KeyBinding[] = [];
+  const bindings: KeyBinding[] = [...nikudKeymap()];
   for (const a of ACTIONS) {
     if (kb[a.id]) bindings.push({ key: kb[a.id], run: a.run, preventDefault: true });
     for (const alias of KEY_ALIASES[a.id] ?? []) {
@@ -898,47 +898,102 @@ function undoSkin() {
   }
 }
 
-// Nikud marks (combining) for the vowel-input bar.
-const NIKUD: [string, string][] = [
-  ["ְ", "שווא"],
-  ["ַ", "פתח"],
-  ["ָ", "קמץ"],
-  ["ֶ", "סגול"],
-  ["ֵ", "צירי"],
-  ["ִ", "חיריק"],
-  ["ֹ", "חולם"],
-  ["ֻ", "קובוץ"],
-  ["ּ", "דגש"],
-  ["ׁ", "שין ימנית"],
-  ["ׂ", "שין שמאלית"],
-  ["ֱ", "חטף סגול"],
-  ["ֲ", "חטף פתח"],
-  ["ֳ", "חטף קמץ"],
+// Nikud marks (combining), with the key that types each one.
+//
+// The bar used to be click-only: fourteen buttons you mouse at, one at a time.
+// That is tolerable for the occasional mark and miserable for a whole verse —
+// and the siddur and bentcher templates are pointed throughout, so "a whole
+// verse" is the normal case, not the exception.
+//
+// A vowel is a *combining* mark: typing the letter and then the mark composes
+// them, which is exactly type-letter-then-key. So each mark gets a key, held
+// with Alt, chosen to sit under the fingers in rough order of how often the mark
+// is used rather than by any mnemonic — there is no letter-to-vowel mnemonic in
+// Hebrew, and pretending otherwise would be harder to learn, not easier.
+const NIKUD: [string, string, string][] = [
+  ["ַ", "פתח", "Alt-a"],
+  ["ָ", "קמץ", "Alt-s"],
+  ["ֶ", "סגול", "Alt-d"],
+  ["ֵ", "צירי", "Alt-f"],
+  ["ִ", "חיריק", "Alt-g"],
+  ["ֹ", "חולם", "Alt-h"],
+  ["ֻ", "קובוץ", "Alt-j"],
+  ["ְ", "שווא", "Alt-k"],
+  ["ּ", "דגש", "Alt-l"],
+  ["ׁ", "שין ימנית", "Alt-w"],
+  ["ׂ", "שין שמאלית", "Alt-e"],
+  ["ֱ", "חטף סגול", "Alt-z"],
+  ["ֲ", "חטף פתח", "Alt-x"],
+  ["ֳ", "חטף קמץ", "Alt-c"],
 ];
-function insertText(s: string) {
-  const sel = view.state.selection.main;
+
+/**
+ * Keys that type a nikud mark.
+ *
+ * Bound at the highest precedence so they beat CodeMirror's own Alt bindings,
+ * and only while the nikud bar is open — Alt-letter combinations are useful for
+ * other things, and a writer who is not pointing text should keep them.
+ */
+function nikudKeymap(): KeyBinding[] {
+  return NIKUD.map(([mark, , key]) => ({
+    key,
+    preventDefault: true,
+    run: () => {
+      if (!settings.nikud) return false;
+      insertNikud(mark);
+      return true;
+    },
+  }));
+}
+/**
+ * Add a vowel mark at the cursor.
+ *
+ * Deliberately does not replace the selection, the way inserting ordinary text
+ * would. A nikud is a *diacritic* — it points the letter before it — so with a
+ * word selected the writer means "point this", not "delete this and leave a
+ * floating vowel". The mark goes at the end of the selection, which is the
+ * letter it belongs to.
+ */
+function insertNikud(mark: string) {
+  const at = view.state.selection.main.to;
   view.dispatch({
-    changes: { from: sel.from, to: sel.to, insert: s },
-    selection: { anchor: sel.from + s.length },
+    changes: { from: at, to: at, insert: mark },
+    selection: { anchor: at + mark.length },
   });
   view.focus();
   scheduleCompile();
 }
+
 function buildNikudBar(): HTMLElement {
   return el(
     "div",
     { id: "nikud-bar", class: "nikud-bar" },
-    NIKUD.map(([mark, name]) =>
-      el("button", { class: "nikud-btn", title: name, onClick: () => insertText(mark) }, [
-        "א" + mark,
-      ]),
-    ),
+    [
+      ...NIKUD.map(([mark, name, key]) =>
+        el(
+          "button",
+          {
+            class: "nikud-btn",
+            // The shortcut is on the button, because a shortcut nobody can find
+            // is the same as no shortcut.
+            title: `${name} · ${key.replace("Alt-", "Alt+")}`,
+            onClick: () => insertNikud(mark),
+          },
+          [
+            el("span", { class: "nikud-glyph" }, ["א" + mark]),
+            el("span", { class: "nikud-key" }, [key.replace("Alt-", "")]),
+          ],
+        ),
+      ),
+      el("span", { class: "nikud-hint" }, [t("nikudHint")]),
+    ],
   );
 }
 function toggleNikud() {
   settings.nikud = !settings.nikud;
   saveSettings();
   document.getElementById("nikud-bar")!.classList.toggle("open", settings.nikud);
+  reconfigureShortcuts();
   rerenderChrome();
 }
 

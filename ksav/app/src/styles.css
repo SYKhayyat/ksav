@@ -629,3 +629,14 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   .table-bar { bottom: 40px; max-width: 96vw; overflow-x: auto; }
   .table-bar-label { display: none; }
 }
+
+/* ---- nikud bar: shortcut hints ------------------------------------------
+   A vowel is a combining mark, so typing the letter then the mark composes
+   them — the keys turn the bar from a click target into something you can
+   actually point a whole verse with. The key is printed on the button, because
+   a shortcut nobody can find is the same as no shortcut. */
+.nikud-btn { display: inline-flex; flex-direction: column; align-items: center; gap: 0; line-height: 1.1; }
+.nikud-glyph { font-size: 15px; }
+.nikud-key { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.nikud-hint { font-size: 11px; color: var(--muted); padding-inline-start: 8px; align-self: center; }
+@media (max-width: 720px) { .nikud-hint { display: none; } }

@@ -46,17 +46,21 @@ nests past a handful.
 
 ## Features (engine)
 
-- **53 commands**, each bilingual (Hebrew + English), across styles, headings,
-  alignment, direction (RTL/LTR runs), lists, definition lists, tables, footnotes,
-  blocks (quote / callout / warning / success / framed box), layout, and a
+- **104 commands**, each bilingual (Hebrew + English), across styles, headings,
+  alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
+  note apparatus, blocks (quote / callout / warning / success / framed box),
+  layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
+  **mathematics** (`נוסחה`), per-section page setup (`מקטע_עמוד`), and a
   dedicated **Torah/yeshiva layer**: `סימן`, `סעיף`, `פסוק`, `מראה_מקום`
   (mekoros footnotes), `ציון`, `גמרא`, `דיבור_המתחיל`.
 - **8 document templates**: letter, article, sefer, divrei-torah, siddur,
   bentcher, kesubah, get — real Hebrew content with nikud and authentic mekoros.
 - **Command registry** exposed as JSON (`/commands`) — drives the palette,
   toolbar, and docs. **Template registry** at `/templates`.
-- **Bundled fonts** (Frank Ruhl Hofshi, David Libre, Cascadia Mono) — output is
-  self-contained, with full nikud support.
+- **Bundled fonts** (Frank Ruhl Hofshi, David Libre, Cascadia Mono, and NewCM
+  Math for equations) — output is self-contained, with full nikud support. The
+  math font is there because Typst's math layout needs an OpenType MATH table and
+  no Hebrew text font carries one.
 - **Exports**: PDF, per-page SVG (live preview), and plain Typst source. Real
   compiler diagnostics (errors + hints) surfaced back.
 - Compiles a page in ~20-30ms.
@@ -72,8 +76,12 @@ nests past a handful.
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
 - **Word-like toolbar**, **command palette** (Ctrl+K, searches all 53 commands
-  in Hebrew or English), **templates** menu, **export** menu (PDF / HTML / Typst
-  / print).
+  in Hebrew or English), **templates** menu, **export** menu (PDF / HTML /
+  Markdown / text / Typst / print).
+- **Review panel** — every tracked change and editorial comment in the document,
+  accepted or rejected one at a time (which rewrites the source, so the decision
+  is in the file), plus a switch between reading the markup, the document as if
+  every change were accepted, and the document before any of them.
 - **Bilingual UI** (Hebrew ⇄ English) with full RTL/LTR flip of the chrome —
   independent of the document's own direction. Persisted.
 - **Settings**: font, size, margins, direction, page numbers, justify, line
@@ -132,6 +140,14 @@ browser on any OS.
 - [x] **Exports** — PDF, real reflowable HTML (Typst's own HTML backend),
       Markdown, plain text, Typst source.
 - [x] **Responsive** down to a phone.
+- [x] **Review tools** — tracked insertions and deletions, editorial margin
+      comments, accept/reject per change, and three ways to read the document
+      (markup / as-if-accepted / original).
+- [x] **Section-level page setup** — `מקטע_עמוד` gives one section its own
+      header, footer, columns, margins, paper, orientation, page numbering,
+      border and watermark.
+- [x] **Mathematics** — `נוסחה` / `נוסחה_בשורה` evaluate Typst's maths notation,
+      laid out left-to-right inside Hebrew text, with a keypad for the notation.
 
 ## Checking how something renders
 

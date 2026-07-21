@@ -166,7 +166,8 @@ half-built features, redundancy, things a user wouldn't want or wouldn't underst
 the Word-features that simply aren't here. Each item cites `file:line` and a fix direction.
 Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
 Status: **✅ done** items were fixed after this audit was written; each is a commit
-with the reasoning. Everything not marked ✅ is still outstanding.
+with the reasoning. Everything not marked ✅ is still outstanding — **as of the
+current build, nothing is: every item below is done.**
 
 > **Guiding principle for this audit — the objective is to *complete*, not to cut.**
 > Where a feature is broken or half-built, the goal is to make it **fully featured and
@@ -264,7 +265,7 @@ with the reasoning. Everything not marked ✅ is still outstanding.
   go and writes the right commands — including the scaffolding (the dump call at
   the end, the wrapper around the section) whose absence is the most common reason
   these layouts appear broken. The raw commands remain in the palette.
-- 🟠 **Three disconnected styling systems that fight each other.** (1) the Settings drawer
+- ✅ 🟠 **Three disconnected styling systems that fight each other.** (1) the Settings drawer
   (`DocConfig`: font/size/margins/spacing…), (2) one-click **Skins** which silently
   `Object.assign` over those settings (`main.ts:583–589`), and (3) in-document `#הגדרות_כותרות/
   _רשימות/_טבלאות` commands that have *no* UI surface at all. Change the font in Settings, then
@@ -272,6 +273,9 @@ with the reasoning. Everything not marked ✅ is still outstanding.
   styling (per-level heading config) is only reachable by typing Typst-ish markup. A user has no
   mental model of "where does my formatting live." **Fix:** one Styles panel; make Skins a
   starting point that's clearly a reset, and expose heading/list/table config as controls.
+  **Fixed** (priority item 6): one Styles panel holds page setup, presets and the
+  document's own heading/list/table design; a preset says what it replaced and can
+  be undone; arguments the panel does not understand are preserved verbatim.
 
 ## D. UX — bad, non-intuitive, or "why would I want that"
 
@@ -337,11 +341,25 @@ with the reasoning. Everything not marked ✅ is still outstanding.
   border and fill are set through the Styles panel's table section.
 - ✅ 🟠 **A Styles gallery** — **built** as the Styles panel: presets plus real
   controls for the `#הגדרות_*` commands that were previously invisible.
-- 🟡 **Review tools** — tracked changes, margin comments, accept/reject. Needed by anyone editing
-  someone else's kisvei yad / manuscript.
-- 🟡 **Math / equations** (acknowledged as deferred).
-- 🟡 **Section-level page setup** — different headers/footers or columns per section, page
-  borders, watermark. Today header/footer are one document-wide string each (`DocConfig`).
+- ✅ 🟡 **Review tools** — **built.** `#הוספה` / `#מחיקה` / `#הערת_עורך` are tracked
+  insertions, tracked deletions and editorial comments, and `#הגדרות_סקירה(תצוגה:)`
+  reads the document with the marks, as if every change were accepted, or as it
+  read before any of them. A comment rides the sidenote engine, so it lands beside
+  its own line. Accepting and rejecting is a **rewrite of the source**, not a view
+  setting — a decision that only changed the display would be gone the next time
+  the file was opened — and the review drawer takes them one at a time or all at
+  once, nested marks included.
+- ✅ 🟡 **Math / equations** — **built.** `#נוסחה` / `#נוסחה_בשורה` evaluate Typst's
+  own maths notation from a string and wrap it in an LTR run, because mathematics
+  reads left-to-right in Hebrew too. This is what made it more than a wrapper: math
+  layout needs a font with an OpenType MATH table, no Hebrew text font has one, and
+  without it every formula failed outright — so the engine now bundles NewCM Math
+  (OFL, 1.3 MB). The insert dialog carries a keypad for the notation.
+- ✅ 🟡 **Section-level page setup** — **built.** `#מקטע_עמוד(…)[…]` gives one section
+  its own header, footer, columns, margins, paper, orientation, page numbering,
+  border and watermark; the rest of the document is untouched. It has to override
+  the footer as well as `numbering:`, because the document wrapper draws the page
+  number itself and would otherwise overrule the section.
 - ✅ 🟡 **Interop export** — Markdown and plain-text export added, alongside real
   reflowable HTML. `.docx` remains correctly ruled out.
 
@@ -368,8 +386,13 @@ Items 1–5 below are **done**; each is a commit with its reasoning.
    live only while the nikud bar is open. A vowel now points the end of a
    selection instead of replacing it.
 
-Still outstanding:
+9. ✅ **Review tools** (E5) — tracked changes, editorial comments, and a review
+   drawer that accepts or rejects them one at a time by rewriting the source.
+10. ✅ **Section-level page setup** (E7) and **math** (E6) — `#מקטע_עמוד` and
+   `#נוסחה`, the latter at the cost of a bundled math font.
 
-9. **Review tools** (E5) — tracked changes and margin comments, for anyone editing
-   someone else's kisvei yad. The largest remaining item by far.
-10. **Section-level page setup** (E7) and **math** (E6) — both still deferred.
+**Nothing in this audit is outstanding.** All three closing items are held by
+rendered-output tests in `engine/tests/review.rs`, on the same standard as the
+apparatus: which words survive each review view, that a landscape section is the
+only landscape page, that a watermark does not leak into its neighbours, and that
+a formula runs left-to-right inside right-to-left text.

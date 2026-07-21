@@ -452,3 +452,53 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   .tb-btn, .chip, .menu-btn { min-height: 36px; }
   .menu-item { padding-block: 10px; }
 }
+
+/* ---- notes chooser ------------------------------------------------------
+   Eleven note layouts, picked by where the note should land rather than by
+   command name. Cards, not a list: the little page sketch does more to explain
+   a layout than any label could. */
+.notes-chooser-box {
+  width: min(980px, 94vw); max-height: 88vh; overflow: auto;
+  background: var(--panel); border-radius: 12px; padding: 22px 26px;
+  box-shadow: 0 12px 48px rgba(0,0,0,.3);
+}
+.notes-chooser-box h2 { margin: 0 0 4px; font-size: 20px; }
+.notes-lede { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.notes-chooser-box h3 {
+  margin: 20px 0 10px; font-size: 13px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.note-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+.note-card {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  background: var(--bg);
+}
+.note-card:hover { border-color: var(--accent); }
+/* The page sketch is forced LTR: it is a picture of a page, not text, so it
+   must not mirror when the UI is Hebrew. */
+.note-sketch {
+  direction: ltr; white-space: pre; font-family: var(--mono); font-size: 9px;
+  line-height: 1.45; color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; flex: none;
+}
+.note-body { min-width: 0; }
+.note-body b { font-size: 14px; }
+.note-body p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.note-caveat { font-style: italic; }
+.note-actions { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+.note-use {
+  font-family: var(--hebrew); font-size: 12px; padding: 5px 12px; cursor: pointer;
+  border-radius: 6px; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff;
+}
+.note-use.secondary { background: transparent; color: var(--accent); }
+.note-use:hover { filter: brightness(1.08); }
+
+@media (max-width: 720px) {
+  .notes-chooser-box { width: 96vw; padding: 16px; }
+  .note-grid { grid-template-columns: 1fr; }
+}

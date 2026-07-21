@@ -26,6 +26,14 @@ const HE: Dict = {
   savedTo: "נשמר ב־{0}",
   savedCopy: "עותק הורד ({0}) — הדפדפן הזה אינו מאפשר כתיבה חוזרת לקובץ.",
   permissionDenied: "אין הרשאת כתיבה לקובץ — נסו \"שמירה בשם\".",
+  // notes chooser
+  notesChooser: "בחירת סוג הערות",
+  notesChooserTitle: "איפה ההערות יופיעו?",
+  notesChooserLede: "בחרו לפי המקום שבו ההערה צריכה להופיע — הפקודות המתאימות ייכתבו מעצמן.",
+  notesOneLayer: "שכבה אחת של הערות",
+  notesTwoLayers: "הערות על ההערות",
+  useThis: "השתמש בזה",
+  useSecond: "הסימן העליון",
   // images & fonts
   insertImage: "הוספת תמונה…",
   images: "תמונות",
@@ -183,6 +191,14 @@ const EN: Dict = {
   savedTo: "Saved to {0}",
   savedCopy: "Downloaded a copy ({0}) \u2014 this browser can't write back to a file.",
   permissionDenied: "No write permission for that file \u2014 try \"Save as\".",
+  // notes chooser
+  notesChooser: "Choose a note layout",
+  notesChooserTitle: "Where should the notes appear?",
+  notesChooserLede: "Pick by where the note needs to land — the right commands get written for you.",
+  notesOneLayer: "One layer of notes",
+  notesTwoLayers: "Notes on your notes",
+  useThis: "Use this",
+  useSecond: "Upper marker",
   // images & fonts
   insertImage: "Insert image\u2026",
   images: "Images",

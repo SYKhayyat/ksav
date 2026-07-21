@@ -34,6 +34,8 @@ import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import type { DocAsset, KsavDoc } from "./docs";
 import * as files from "./files";
+import { NOTE_CHOICES, applyChoice } from "./notes";
+import type { NoteChoice } from "./notes";
 import type { FileBinding } from "./files";
 
 // ---------------------------------------------------------------- state
@@ -890,6 +892,10 @@ function buildInsertMenu(): HTMLElement {
   const cats: string[] = [];
   for (const c of commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
   const items: (Node | string)[] = [
+    el("button", { class: "menu-item", onClick: openNotesChooser }, [
+      el("b", {}, ["✻ " + t("notesChooser")]),
+      el("span", { class: "menu-desc" }, [t("notesChooserLede")]),
+    ]),
     el("button", { class: "menu-item", onClick: insertImage }, [
       el("b", {}, ["🖼 " + t("insertImage")]),
     ]),
@@ -1043,6 +1049,7 @@ function buildHeader(): HTMLElement {
     toggleNikud,
     settings.nikud ? "chip active" : "chip",
   );
+  const notesBtn = iconBtn("✻", t("notesChooser"), openNotesChooser, "chip");
   const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
@@ -1069,6 +1076,7 @@ function buildHeader(): HTMLElement {
     exportMenu,
     findBtn,
     outlineBtn,
+    notesBtn,
     langToggle,
     foldAllBtn,
     unfoldAllBtn,
@@ -1570,6 +1578,77 @@ function setStatus(msg: string, cls = "") {
   status.className = cls;
 }
 
+// ---------------------------------------------------------------- notes chooser
+//
+// The eleven note layouts used to be ~25 raw command names in one palette group.
+// This asks the writer the question they can actually answer — where should the
+// note go? — and emits the right commands plus whatever scaffolding the layout
+// needs (the dump call at the end, the wrapper around the section). Forgetting
+// that scaffolding is the most common way these layouts appear "broken": the
+// notes are collected and then never rendered.
+
+function openNotesChooser() {
+  closeMenus();
+  const overlay = document.getElementById("notes-chooser")!;
+  renderNotesChooser();
+  overlay.classList.add("open");
+}
+
+function closeNotesChooser() {
+  document.getElementById("notes-chooser")!.classList.remove("open");
+  view.focus();
+}
+
+function chooseNote(choice: NoteChoice, which: "primary" | "secondary") {
+  const from = view.state.selection.main.from;
+  const { text, caret } = applyChoice(view.state.doc.toString(), from, choice, which);
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: text },
+    selection: { anchor: caret },
+  });
+  closeNotesChooser();
+  scheduleCompile();
+}
+
+function noteCard(c: NoteChoice): HTMLElement {
+  const he = getLang() === "he";
+  const note = he ? c.noteHe : c.noteEn;
+  return el("div", { class: "note-card" }, [
+    el("div", { class: "note-sketch" }, [c.sketch.join("\n")]),
+    el("div", { class: "note-body" }, [
+      el("b", {}, [he ? c.he : c.en]),
+      el("p", {}, [he ? c.descHe : c.descEn]),
+      ...(note ? [el("p", { class: "note-caveat" }, [note])] : []),
+      el("div", { class: "note-actions" }, [
+        el("button", { class: "note-use", onClick: () => chooseNote(c, "primary") }, [
+          t("useThis"),
+        ]),
+        // A two-layer layout needs both markers; offer the upper one directly so
+        // the writer never has to work out which command pairs with which.
+        ...(c.insert2
+          ? [
+              el("button", { class: "note-use secondary", onClick: () => chooseNote(c, "secondary") }, [
+                t("useSecond"),
+              ]),
+            ]
+          : []),
+      ]),
+    ]),
+  ]);
+}
+
+function renderNotesChooser() {
+  const box = document.getElementById("notes-chooser-body")!;
+  box.replaceChildren(
+    el("h2", {}, [t("notesChooserTitle")]),
+    el("p", { class: "notes-lede" }, [t("notesChooserLede")]),
+    el("h3", {}, [t("notesOneLayer")]),
+    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "one").map(noteCard)),
+    el("h3", {}, [t("notesTwoLayers")]),
+    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "two").map(noteCard)),
+  );
+}
+
 // ---------------------------------------------------------------- assets
 //
 // An image belongs to the document, not to a path on someone's disk: the engine
@@ -1848,6 +1927,10 @@ function render() {
       el("h3", {}, [t("outline")]),
       el("div", { id: "outline-list" }),
     ]),
+    // notes chooser overlay
+    el("div", { id: "notes-chooser", class: "overlay", onClick: (e: Event) => {
+      if ((e.target as HTMLElement).id === "notes-chooser") closeNotesChooser();
+    } }, [el("div", { class: "notes-chooser-box" }, [el("div", { id: "notes-chooser-body" })])]),
     // command palette overlay
     el("div", { id: "palette", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "palette") closePalette();
@@ -1914,6 +1997,7 @@ function wireKeys() {
       closePalette();
       closePreviewOverlay();
       closeHistory();
+      closeNotesChooser();
     } else if (e.key === "Alt" && settings.prose) {
       view.dispatch({ effects: setRevealAll.of(true) });
     }

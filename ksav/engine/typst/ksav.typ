@@ -42,21 +42,39 @@
 #let _fn_pick(arr, i, fb) = if type(arr) == array and i >= 1 and i - 1 < arr.len() { arr.at(i - 1) } else { fb }
 
 // ---- shared apparatus helpers ----
-// Ordered dedup of queried elements by their content key (first occurrence wins).
-// Every collect-then-render apparatus below needs this: when a stored note body is
-// re-displayed inside the apparatus it re-emits its own (and its children's)
-// metadata, so the raw query grows on every layout pass. Keying by content and
-// keeping the first occurrence makes the displayed set fixed, which is what lets
-// these apparatuses converge without any write during rendering.
-#let _ksav_dedup(elems) = {
-  let keys = ()
-  let out = ()
-  for e in elems {
-    let k = e.value.key
-    if not keys.contains(k) { keys.push(k); out.push(e) }
-  }
-  out
+// Every collect-then-render apparatus below has the same problem: when a stored
+// note body is re-displayed inside the apparatus, the nested notes in that body
+// run again and re-emit their metadata, so the raw query grows on every layout
+// pass and the document never converges.
+//
+// The fix is to recognise those phantom registrations by WHERE they are. Every
+// apparatus brackets its rendered block with an open and a close marker, so a
+// registration is a re-display exactly when it sits inside such a bracket — which
+// is true iff the number of open markers before it exceeds the number of closes.
+// That is a document-ORDER test, not a geometric one: page coordinates cannot
+// answer it, because native footnotes also land below an apparatus block on the
+// page while being genuinely outside it.
+//
+// This replaces an earlier dedup-by-content-key, which merged any two notes whose
+// text happened to be byte-identical: writing "עיין שם" twice produced ONE note
+// carrying both markers. Position tells originals apart; content cannot.
+#let _ksav_ap0 = label("ksav-ap0")
+#let _ksav_ap1 = label("ksav-ap1")
+#let _ksav_ap_open = [#metadata(none)#_ksav_ap0]
+#let _ksav_ap_close = [#metadata(none)#_ksav_ap1]
+#let _ksav_is_real(e) = {
+  let l = e.location()
+  query(selector(_ksav_ap0).before(l)).len() == query(selector(_ksav_ap1).before(l)).len()
 }
+#let _ksav_real(elems) = elems.filter(_ksav_is_real)
+// How many elements matching `sel` (that are real, not apparatus re-displays)
+// run from the start of the scope up to and including the caller. Document order,
+// via `.before()` — coordinates cannot be used, because several notes can sit on
+// one line and would then all count each other.
+#let _ksav_rank(sel, loc, pred) = calc.max(
+  _ksav_real(query(selector(sel).before(loc))).filter(pred).len(),
+  1,
+)
 // Restrict a selector to the span between the surrounding pair of `marker`
 // elements — i.e. "the current section". `loc` is the caller's own location.
 // Used so a per-section apparatus sees only its own section's notes.
@@ -154,7 +172,10 @@
 // a note belongs to the section that ends at the first dump after it.
 #let _md_dump_label = label("ksav-md-dump")
 // The מדור notes of the section surrounding `loc`, deduped, in document order.
-#let _md_section_notes(loc) = _ksav_dedup(
+// This section's notes: everything labelled ksav-md between the surrounding pair
+// of dumps, minus the phantom re-registrations inside this section's own rendered
+// apparatus (identified by the apparatus marker it drops).
+#let _md_section_notes(loc) = _ksav_real(
   query(_ksav_between(selector(label("ksav-md")), _md_dump_label, loc))
 )
 
@@ -167,16 +188,17 @@
 // flag to burn out after the first section, and no counter to reset.
 #let מדור_בדרגה(דרגה, body) = context {
   let cfg = _md_cfg.get()
-  let key = repr(body)
-  [#metadata((tier: דרגה, key: key, body: body))#label("ksav-md")]
+  [#metadata((tier: דרגה, body: body))#label("ksav-md")]
   // Force nested tiers to register in this same pass, in a zero-size inline box
   // so it can never break the line the marker sits on.
   box(place(hide(body)))
   context {
     let loc = here()
-    let same = _md_section_notes(loc).filter(e => e.value.tier == דרגה)
-    let idx = same.position(e => e.value.key == key)
-    super(_md_mark(cfg, דרגה, if idx == none { 1 } else { idx + 1 }))
+    super(_md_mark(cfg, דרגה, _ksav_rank(
+      _ksav_between(selector(label("ksav-md")), _md_dump_label, loc),
+      loc,
+      e => e.value.tier == דרגה,
+    )))
   }
 }
 // #הערות_מדורגות() — render this section's collected tiers as stacked bands, here.
@@ -187,6 +209,7 @@
     let notes = _md_section_notes(here()).map(m => m.value)
     if notes.len() > 0 {
       let cfg = _md_cfg.get()
+      _ksav_ap_open
       if כותרת != none { heading(level: 3, outlined: false, numbering: none, כותרת) }
       if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.3em) }
       let tiers = notes.map(v => v.tier).dedup().sorted()
@@ -208,6 +231,7 @@
           if cfg.at("קו_בין", default: true) { line(length: 40%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.5em)) }
         }
       }
+      _ksav_ap_close
     }
   }
   // The section boundary itself. Must come *after* the context above, so that
@@ -284,28 +308,29 @@
   fill: _fn_pick(cfg.at("צבע", default: ()), tier, luma(0)),
   body,
 )
-#let _pp_dedup = _ksav_dedup   // shared with the section bands (see _ksav_dedup)
 // מדף_בדרגה(דרגה, body) — collect a per-page-band note in tier `דרגה`.
+// Every מדף note registered outside an apparatus block — i.e. the real ones.
+#let _pp_all() = _ksav_real(query(label("ksav-pp")))
 #let מדף_בדרגה(דרגה, body) = context {
   let cfg = _pp_cfg.get()
-  let key = repr(body)
-  [#metadata((tier: דרגה, key: key, body: body))#label("ksav-pp")]
+  [#metadata((tier: דרגה, body: body))#label("ksav-pp")]
   // Force nested tiers to register in this pass. Wrapped in a zero-size inline
   // box so that when this body is later re-displayed inside a footer band, the
   // hidden machinery can't break the line before the child's cross-ref marker.
   box(place(hide(body)))
-  // marker number = rank of this key among same-tier notes, document-wide
+  // marker number = how many same-tier notes run up to and including this one
   context {
-    let same = _pp_dedup(query(label("ksav-pp")).filter(e => e.value.tier == דרגה))
-    let idx = same.position(e => e.value.key == key)
-    super(_pp_mark(cfg, דרגה, if idx == none { 1 } else { idx + 1 }))
+    let loc = here()
+    super(_pp_mark(cfg, דרגה, _ksav_rank(
+      label("ksav-pp"), loc, e => e.value.tier == דרגה,
+    )))
   }
 }
 // Read-only footer: render the bands for the CURRENT page. Called from the
 // wrapper's page footer. Renders nothing (and touches nothing) when the page
 // has no per-page-band notes, so it's free for documents that don't use them.
 #let _pp_page_bands() = context {
-  let all = _pp_dedup(query(label("ksav-pp")))   // first occurrence of every note, doc order
+  let all = _pp_all()
   if all.len() > 0 {
     let cfg = _pp_cfg.get()
     let pg = here().page()
@@ -323,13 +348,14 @@
       }
       set align(if text.dir == rtl { right } else { left })
       block(width: 100%, {
+        _ksav_ap_open
         if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
         for (bi, t) in tiers.enumerate() {
           let ents = mine.filter(e => e.value.tier == t)
           let tier-all = all.filter(e => e.value.tier == t)   // for doc-wide numbering
           let band = {
             for e in ents {
-              let num = tier-all.position(x => x.value.key == e.value.key) + 1
+              let num = tier-all.position(x => x.location() == e.location()) + 1
               block(spacing: cfg.at("ריווח_פריט", default: 0.25em),
                 _pp_wrap(cfg, t, [#super(_pp_mark(cfg, t, num)) #e.value.body]))
             }
@@ -345,6 +371,7 @@
             if cfg.at("קו_בין", default: true) { line(length: 35%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.35em)) }
           }
         }
+        _ksav_ap_close
       })
     }
   }
@@ -412,15 +439,16 @@
   body,
 )
 // הערה_זרם(זרם, body) — a footnote in the named stream `זרם`.
+#let _sf_all() = _ksav_real(query(label("ksav-sf")))
 #let הערה_זרם(זרם, body) = context {
   let cfg = _sf_cfg.get()
-  let key = זרם + "\u{0}" + repr(body)
-  [#metadata((stream: זרם, key: key, body: body))#label("ksav-sf")]
+  [#metadata((stream: זרם, body: body))#label("ksav-sf")]
   box(place(hide(body)))
   context {
-    let same = _pp_dedup(query(label("ksav-sf")).filter(e => e.value.stream == זרם))
-    let idx = same.position(e => e.value.key == key)
-    super(_sf_mark(cfg, זרם, if idx == none { 1 } else { idx + 1 }))
+    let loc = here()
+    super(_sf_mark(cfg, זרם, _ksav_rank(
+      label("ksav-sf"), loc, e => e.value.stream == זרם,
+    )))
   }
 }
 // Ordered list of stream names actually present, honouring an explicit order.
@@ -432,7 +460,7 @@
 }
 // Read-only footer: render every stream's notes for the current page.
 #let _sf_page_streams() = context {
-  let all = _pp_dedup(query(label("ksav-sf")))
+  let all = _sf_all()
   if all.len() > 0 {
     let cfg = _sf_cfg.get()
     let pg = here().page()
@@ -453,7 +481,7 @@
         if head != none { block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head)) }
         let entries = {
           for e in ents {
-            let num = all-s.position(x => x.value.key == e.value.key) + 1
+            let num = all-s.position(x => x.location() == e.location()) + 1
             block(spacing: cfg.at("ריווח_פריט", default: 0.22em),
               _sf_wrap(cfg, [#super(_sf_mark(cfg, s, num)) #e.value.body]))
           }
@@ -464,6 +492,7 @@
         if h != none { block(width: 100%, height: h, clip: true, filled) } else { filled }
       }
       block(width: 100%, {
+        _ksav_ap_open
         if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
         if cfg.at("פריסה", default: "מוערם") == "צד" {
           // side by side: one equal column per stream
@@ -482,6 +511,7 @@
             }
           }
         }
+        _ksav_ap_close
       })
     }
   }
@@ -840,16 +870,18 @@
 // dumping twice no longer reprints the first dump's notes.
 #let _en_label(זרם) = label("ksav-en-" + זרם)
 #let _en_dump_label(זרם) = label("ksav-end-" + זרם)
-#let _en_section(זרם, loc) = _ksav_dedup(
+#let _en_section(זרם, loc) = _ksav_real(
   query(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc))
 )
-#let הערתסיום(body, זרם: "הערות") = context {
-  let key = repr(body)
-  [#metadata((key: key, body: body))#_en_label(זרם)]
+#let הערתסיום(body, זרם: "הערות") = {
+  [#metadata((body: body))#_en_label(זרם)]
   context {
-    let same = _en_section(זרם, here())
-    let idx = same.position(e => e.value.key == key)
-    super[#(if idx == none { 1 } else { idx + 1 })]
+    let loc = here()
+    super[#_ksav_rank(
+      _ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc),
+      loc,
+      e => true,
+    )]
   }
 }
 // The rendered block for one stream's notes in the section around `loc`.
@@ -861,10 +893,12 @@
   context {
     let items = _en_section(זרם, here()).map(e => e.value.body)
     if items.len() > 0 {
+      _ksav_ap_open
       v(1em)
       line(length: 100%, stroke: 0.5pt + luma(150))
       if כותרת != none { heading(outlined: false, numbering: none, level: 3, כותרת) }
       enum(..items)
+      _ksav_ap_close
     }
   }
   // The section boundary — after the context above, so that context renders the
@@ -879,6 +913,7 @@
     let loc = here()
     let present = זרמים.filter(s => _en_section(s, loc).len() > 0)
     if present.len() > 0 {
+      _ksav_ap_open
       v(1em)
       line(length: 100%, stroke: 0.5pt + luma(150))
       v(0.4em)
@@ -889,6 +924,7 @@
       }
       let widths = if type(יחס) == array { יחס.map(x => x * 1fr) } else { present.map(_ => 1fr) }
       grid(columns: widths, column-gutter: 1.5em, ..present.map(col))
+      _ksav_ap_close
     }
   }
   for s in זרמים { [#metadata(none)#_en_dump_label(s)] }
@@ -938,13 +974,14 @@
 // and stacks them greedily (a note sits at its marker's line, or just below the
 // previous note when that would overlap). Every note computes the same stack
 // from the same query, so they agree without sharing any state.
-#let _sn_note(lbl, side, mark, body) = context {
+#let _sn_note(lbl, side, mark, body) = {
+  [#metadata((body: body))#label(lbl)]
+  context {
   let cfg = _sn_cfg.get()
-  let key = repr(body)
-  [#metadata((key: key, body: body))#label(lbl)]
-  let all = _ksav_dedup(query(label(lbl)))
-  let idx = all.position(e => e.value.key == key)
-  let num = if idx == none { 1 } else { idx + 1 }
+  // here() is read AFTER the metadata above, so the rank counts this note itself.
+  let loc0 = here()
+  let all = query(label(lbl))
+  let num = _ksav_rank(label(lbl), loc0, e => true)
   super[#mark(num)]
   if _sn_active.get() == 0 {
     // No side column is open, so there is nowhere to put the note. Fall back to
@@ -964,8 +1001,10 @@
       for e in mine {
         let want = e.location().position().y
         let top = calc.max(want, cursor)
-        if e.value.key == key { dy = top - loc.position().y }
-        let n = all.position(x => x.value.key == e.value.key) + 1
+        // `mine` is only this page's notes, so identify myself by document-wide
+        // rank rather than by index within the page.
+        let n = _ksav_rank(label(lbl), e.location(), x => true)
+        if n == num { dy = top - loc.position().y }
         cursor = top + measure(box(width: colw, _sn_wrap(cfg, mark(n), e.value.body))).height + gap
       }
       // `place` in a flow anchors horizontally to the container's START corner
@@ -986,6 +1025,7 @@
       }
       place(dx: dx, dy: dy, box(width: colw, _sn_wrap(cfg, mark(num), body)))
     })
+  }
   }
 }
 

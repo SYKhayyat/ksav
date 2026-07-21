@@ -444,3 +444,41 @@ fn option_11_endnotes_carrying_balanced_footnotes() {
         "the sub-note is not at the foot of the page — it did not balance"
     );
 }
+
+// ── Identity: two notes with the same words are two notes ────────────────────
+
+#[test]
+fn two_notes_with_identical_text_stay_two_notes() {
+    // Regression: the apparatuses used to tell notes apart by a content key
+    // (repr of the body), so writing the same words twice produced ONE entry
+    // carrying both markers. "עיין שם" is about the most repeated note text in
+    // Hebrew, so this silently lost notes in ordinary documents.
+    for body in [
+        "אלף#מדף_א[עיין שם] בית#מדף_א[עיין שם] גימל#מדף_א[אחרת].",
+        "אלף#מדור_א[עיין שם] בית#מדור_א[עיין שם] גימל#מדור_א[אחרת].\n#הערות_מדורגות()",
+        "אלף#הערתסיום[עיין שם] בית#הערתסיום[עיין שם] גימל#הערתסיום[אחרת].\n#הערות_בסוף()",
+        "אלף#הערת_מקור[עיין שם] בית#הערת_מקור[עיין שם] גימל#הערת_מקור[אחרת].",
+    ] {
+        let runs = render(body);
+        let n = runs.iter().filter(|r| r.text.contains("עיין שם")).count();
+        assert_eq!(
+            n, 2,
+            "expected both identical notes to be rendered, got {n}, in: {body}"
+        );
+    }
+}
+
+#[test]
+fn identical_notes_get_distinct_numbers() {
+    let runs = render("אלף#מדף_א[עיין שם] בית#מדף_א[עיין שם] גימל#מדף_א[אחרת].");
+    // The three markers in the main text must read 1, 2, 3 — not 1, 1, 2.
+    let main: Vec<&str> = runs
+        .iter()
+        .filter(|r| r.page == 1 && r.y < 200.0)
+        .map(|r| r.text.as_str())
+        .collect();
+    let joined: String = main.concat();
+    for d in ['1', '2', '3'] {
+        assert!(joined.contains(d), "marker {d} missing from the text: {joined:?}");
+    }
+}

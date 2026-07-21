@@ -327,8 +327,10 @@ with the reasoning. Everything not marked ✅ is still outstanding.
   Aramaic and ~99% of pointed text — the correct words — while rejecting the whole
   citation apparatus. So the lexicon is built from Public Domain corpora (Sefaria
   for Torah Hebrew, Project Ben-Yehuda for general Hebrew) plus a curated
-  supplement and the writer's own dictionary. 269k entries, 732 KB gzipped, 2.9%
-  on modern Torah prose against Hspell's 4.9%, and 0% on pointed text.
+  supplement and the writer's own dictionary. 269k entries, 732 KB gzipped, and —
+  with Hebrew prefix stripping and a year rule — **0.7%** missed words on modern
+  Torah prose against Hspell's 4.9%, 0% on pointed text, and zero flagged words
+  across Ksav's own templates.
 - ✅ 🟠 **Image / media insertion** (see A) — with resize, alignment and caption.
 - ✅ 🟠 **Table editing UI** — **built**: a bar appears whenever the cursor is inside
   a table, offering insert/delete row and column and a header-row toggle. Cell

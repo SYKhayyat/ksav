@@ -250,3 +250,73 @@ fn request_offsets_are_utf16_units_not_bytes() {
     assert_eq!(sliced, "כשכשכשכש", "offsets do not index UTF-16 units");
     assert!(start + len <= utf16.len(), "the range runs past the document");
 }
+
+// ── Hebrew morphology ───────────────────────────────────────────────────────
+
+#[test]
+fn a_prefixed_word_is_recognised() {
+    // Hebrew glues ו/ה/ב/כ/ל/מ/ש onto the front of a word, including onto
+    // abbreviations. A lexicon cannot enumerate every combination, and without
+    // prefix stripping ושו"ע is flagged while שו"ע is known — exactly the case
+    // that makes a checker look stupid.
+    let l = bundled();
+    for w in ["ושו\"ע", "בגמרא", "ובגמרא", "שבגמרא", "כדאיתא", "להלכה", "מהלכה"] {
+        assert!(l.contains(w), "{w:?} was not recognised through its prefix");
+    }
+}
+
+#[test]
+fn prefix_stripping_does_not_swallow_real_typos() {
+    // The cost of prefix stripping is over-acceptance, and it has to stay
+    // bounded: allowing a two-letter stem let the genuine typo שלומ (missing
+    // final mem) through as ש+לום or של+ומ, because the corpus contains those
+    // fragments.
+    let l = bundled();
+    assert!(!l.contains("שלומ"), "a real typo was accepted through a short stem");
+}
+
+#[test]
+fn a_hebrew_year_is_not_flagged() {
+    // Every year is a new word and no dictionary lists them, but they are
+    // correct by construction.
+    let l = bundled();
+    for y in ["תשפ\"ה", "תשע\"ד", "תש\"פ", "ה'תשפ\"ו"] {
+        assert!(spell::check(y, &l).is_empty(), "{y:?} was flagged as a misspelling");
+    }
+}
+
+#[test]
+fn an_opening_quote_after_a_prefix_is_not_part_of_the_word() {
+    // `ה"והגית` is the prefix ה plus a quoted word, not an acronym. Hebrew
+    // acronyms have a one- or two-letter tail (שו"ע, מהרש"א, נפק"מ); a quotation
+    // opens a whole word.
+    let toks: Vec<&str> = spell::words("ה\"והגית בם\" נאמר")
+        .into_iter()
+        .map(|(_, w)| w)
+        .collect();
+    assert!(toks.contains(&"והגית"), "the quoted word was glued to the prefix: {toks:?}");
+    // …while a genuine acronym still holds together.
+    let acronyms: Vec<&str> = spell::words("כתב שו\"ע וכן מהרש\"א")
+        .into_iter()
+        .map(|(_, w)| w)
+        .collect();
+    assert!(acronyms.contains(&"שו\"ע"), "{acronyms:?}");
+    assert!(acronyms.contains(&"מהרש\"א"), "{acronyms:?}");
+}
+
+#[test]
+fn ksavs_own_templates_are_not_underlined() {
+    // The first thing a writer sees must not be covered in squiggles. This is
+    // also a standing check on the lexicon: if a template gains a word the
+    // lexicon does not know, that shows up here rather than in front of a user.
+    let l = bundled();
+    let mut flagged: Vec<String> = Vec::new();
+    for t in ksav_engine::templates::TEMPLATES {
+        for m in spell::check(t.body, &l) {
+            flagged.push(format!("{} ({})", m.word, t.id));
+        }
+    }
+    flagged.sort();
+    flagged.dedup();
+    assert!(flagged.is_empty(), "templates contain flagged words: {flagged:?}");
+}

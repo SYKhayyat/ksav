@@ -482,3 +482,32 @@
 ואכמ"ל
 עוד
 זה
+
+# ---- ordinary Hebrew the public-domain corpora happen to miss ----
+# Found by running the checker over Ksav's own templates: the first thing a
+# writer sees must not be underlined. Kept short and checked by hand.
+הגייה
+ההגייה
+הגיית
+דין
+דיניהם
+דיניהן
+כינוי
+כינויים
+כינוייהם
+מרכיב
+מרכיבי
+מרכיבים
+הזחה
+הזחת
+הסבר
+הסברי
+הסברים
+גברא
+חפצא
+ניסוח
+ניסוחן
+דבקות
+התנתקות
+שגרתי
+שגרתית

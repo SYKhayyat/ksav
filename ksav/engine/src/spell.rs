@@ -91,7 +91,35 @@ impl Lexicon {
     }
 
     pub fn contains(&self, word: &str) -> bool {
-        self.words.contains(&normalize(word))
+        let w = normalize(word);
+        if self.words.contains(&w) {
+            return true;
+        }
+        // Hebrew glues its prepositions and conjunctions onto the front of the
+        // word — ו, ה, ב, כ, ל, מ, ש, and stacks of them (ושה־, ובמ־). A lexicon
+        // cannot enumerate every combination, and without this every prefixed
+        // form of every word is a miss: ושו"ע and ומג"א are flagged while שו"ע
+        // and מג"א are known, which is exactly the case that makes a checker
+        // look stupid.
+        //
+        // Two prefix letters is the practical ceiling, and the stem left behind
+        // must be at least three letters. Both bounds are about over-acceptance:
+        // this does accept some nonsense that happens to be a prefix plus a real
+        // word (the trade every Hebrew checker makes, Hspell included), and
+        // allowing a two-letter stem made it much worse — the corpus contains
+        // fragments like ומ and לום, which between them let the genuine typo
+        // שלומ through as ש+לום or של+ומ.
+        let chars: Vec<char> = w.chars().collect();
+        for take in 1..=2.min(chars.len().saturating_sub(3)) {
+            if !chars[..take].iter().all(|c| is_prefix_letter(*c)) {
+                break;
+            }
+            let rest: String = chars[take..].iter().collect();
+            if self.words.contains(&rest) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Words within one edit of `word`, best first — the "did you mean" list.
@@ -131,6 +159,12 @@ fn is_hebrew_mark(c: char) -> bool {
 
 fn is_hebrew_letter(c: char) -> bool {
     matches!(c, '\u{05D0}'..='\u{05EA}')
+}
+
+/// The letters Hebrew attaches to the front of a word: ו (and), ה (the),
+/// ב (in), כ (like), ל (to), מ (from), ש (that).
+fn is_prefix_letter(c: char) -> bool {
+    matches!(c, 'ו' | 'ה' | 'ב' | 'כ' | 'ל' | 'מ' | 'ש')
 }
 
 /// Gershayim (double) — used *between* letters in an acronym: שו"ע, ע"ב.
@@ -179,7 +213,7 @@ pub fn is_pointed(word: &str) -> bool {
 /// carrying nikud cannot be validated; and a bare acronym of one letter plus
 /// gershayim is a reference, not a word.
 pub fn should_check(word: &str) -> bool {
-    if word.is_empty() || is_pointed(word) {
+    if word.is_empty() || is_pointed(word) || is_hebrew_year(word) {
         return false;
     }
     let mut letters = 0usize;
@@ -194,6 +228,33 @@ pub fn should_check(word: &str) -> bool {
     letters >= 2
 }
 
+/// A Hebrew year, written in letters: תשפ"ה, תש"פ, ה'תשפ"ה, תשע"ד.
+///
+/// Dates are written this way constantly and there is no dictionary of them —
+/// every year is a new word. They are always correct by construction, so they
+/// are exempt rather than flagged.
+fn is_hebrew_year(word: &str) -> bool {
+    let w = normalize(word);
+    // Optional millennium marker (ה' / ה), then the year letters with gershayim
+    // before the final letter.
+    let body = w.strip_prefix("ה'").unwrap_or(&w);
+    let letters: String = body.chars().filter(|c| is_hebrew_letter(*c)).collect();
+    if letters.chars().count() < 3 || letters.chars().count() > 5 {
+        return false;
+    }
+    // A year must carry gershayim (תשפ"ה) and start with the ת/ש of the current
+    // and previous millennia, which is what every year in use looks like.
+    body.chars().any(is_gershayim) && letters.starts_with(['ת', 'ש'])
+}
+
+/// How many Hebrew letters begin `s`, ignoring the marks that hang off them.
+fn run_of_letters(s: &str) -> usize {
+    s.chars()
+        .take_while(|c| is_hebrew_letter(*c) || is_hebrew_mark(*c))
+        .filter(|c| is_hebrew_letter(*c))
+        .count()
+}
+
 /// Split text into Hebrew word tokens with their byte offsets.
 ///
 /// A token keeps its gershayim, because in Hebrew they are part of the word:
@@ -205,16 +266,22 @@ pub fn words(text: &str) -> Vec<(usize, &str)> {
     let mut start: Option<usize> = None;
     for (i, c) in text.char_indices() {
         // The two marks need different rules, because Hebrew uses them
-        // differently. Gershayim sit BETWEEN letters (שו"ע, ע"ב), so they join
-        // only with a Hebrew letter on both sides — otherwise a closing
-        // quotation mark would glue itself onto the word it closes. A geresh is
-        // also an abbreviation marker at the END of a word (תוס', סי', וגו'),
-        // so a preceding letter is enough.
-        let next_is_letter = text[i + c.len_utf8()..]
-            .chars()
-            .next()
-            .is_some_and(|n| is_hebrew_letter(n) || is_hebrew_mark(n));
-        let joins = start.is_some() && ((is_gershayim(c) && next_is_letter) || is_geresh(c));
+        // differently.
+        //
+        // Gershayim sit BETWEEN letters in an acronym (שו"ע, ע"ב), so they join
+        // only with letters on both sides — otherwise a closing quotation mark
+        // would glue itself onto the word it closes. But an OPENING quotation
+        // mark also has a letter on both sides when it follows a prefix:
+        // `ה"והגית` is the prefix ה plus a quoted word, not an acronym. The
+        // discriminator is length — the tail of a Hebrew acronym is almost
+        // always one or two letters (שו"ע, מהרש"א, נפק"מ, חוה"מ), while a
+        // quotation opens a whole word.
+        //
+        // A geresh is also an abbreviation marker at the END of a word (תוס',
+        // סי', וגו'), so for it a preceding letter is enough.
+        let tail = run_of_letters(&text[i + c.len_utf8()..]);
+        let joins =
+            start.is_some() && ((is_gershayim(c) && tail >= 1 && tail <= 2) || is_geresh(c));
         let part = is_hebrew_letter(c) || is_hebrew_mark(c) || joins;
         match (part, start) {
             (true, None) => start = Some(i),

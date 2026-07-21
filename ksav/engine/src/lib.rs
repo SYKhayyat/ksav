@@ -5,10 +5,12 @@
 //! wrapper driven by the editor settings, then run the genuine Typst compiler to
 //! produce a PDF and per-page SVG previews.
 
+use assets::Assets;
 use typst::diag::{SourceDiagnostic, Warned};
 use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
+pub mod assets;
 pub mod commands;
 pub mod probe;
 pub mod templates;
@@ -254,24 +256,50 @@ fn diag_messages(diags: &[SourceDiagnostic], severity: &str) -> Vec<Diagnostic> 
         .collect()
 }
 
+/// Lay out an assembled source, with the request's assets available to it.
+///
+/// The document has no file system to read from, so its images arrive as bytes on
+/// the request and are registered under the names the document uses. User fonts
+/// arrive the same way and join the bundled ones.
+fn layout_source(source: String, assets: &Assets) -> Warned<Result<PagedDocument, typst_as_lib::TypstAsLibError>> {
+    let mut fonts: Vec<&[u8]> = vec![
+        FONT_FRANK_REG,
+        FONT_FRANK_BOLD,
+        FONT_DAVID_REG,
+        FONT_DAVID_BOLD,
+        FONT_CASCADIA,
+    ];
+    fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
+    let files: Vec<(&str, &[u8])> = assets
+        .files
+        .iter()
+        .map(|a| (a.name.as_str(), a.bytes.as_slice()))
+        .collect();
+    let engine = TypstEngine::builder()
+        .main_file(source)
+        .fonts(fonts)
+        .with_static_file_resolver(files)
+        .build();
+    engine.compile::<PagedDocument>()
+}
+
 /// Compile and lay out a document, returning the laid-out pages.
 ///
 /// This is what `compile` uses internally; it is public so tests (and the render
 /// probe) can inspect *where things actually landed on the page* rather than only
 /// whether compilation succeeded.
 pub fn compile_doc(body: &str, cfg: &DocConfig) -> Result<PagedDocument, Vec<Diagnostic>> {
+    compile_doc_with(body, cfg, &Assets::default())
+}
+
+/// `compile_doc`, with the request's images and fonts available to the document.
+pub fn compile_doc_with(
+    body: &str,
+    cfg: &DocConfig,
+    assets: &Assets,
+) -> Result<PagedDocument, Vec<Diagnostic>> {
     let source = assemble_source(body, cfg);
-    let engine = TypstEngine::builder()
-        .main_file(source)
-        .fonts([
-            FONT_FRANK_REG,
-            FONT_FRANK_BOLD,
-            FONT_DAVID_REG,
-            FONT_DAVID_BOLD,
-            FONT_CASCADIA,
-        ])
-        .build();
-    let Warned { output, warnings } = engine.compile::<PagedDocument>();
+    let Warned { output, warnings } = layout_source(source, assets);
     match output {
         Ok(doc) => Ok(doc),
         Err(err) => {
@@ -291,21 +319,15 @@ pub fn compile_doc(body: &str, cfg: &DocConfig) -> Result<PagedDocument, Vec<Dia
 
 /// Compile Hebrew Ksav markup into PDF + SVG previews.
 pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
+    compile_with(body, cfg, &Assets::default())
+}
+
+/// `compile`, with the request's images and fonts available to the document.
+pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
     let source = assemble_source(body, cfg);
     let typst_source = source.clone();
 
-    let engine = TypstEngine::builder()
-        .main_file(source)
-        .fonts([
-            FONT_FRANK_REG,
-            FONT_FRANK_BOLD,
-            FONT_DAVID_REG,
-            FONT_DAVID_BOLD,
-            FONT_CASCADIA,
-        ])
-        .build();
-
-    let Warned { output, warnings } = engine.compile::<PagedDocument>();
+    let Warned { output, warnings } = layout_source(source, assets);
     let mut diagnostics = diag_messages(&warnings, "warning");
 
     match output {
@@ -344,14 +366,17 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
 }
 
 /// JSON-in / JSON-out compile, shared by the HTTP server and the wasm binding.
-/// Input: `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}`.
+/// Input: `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em,
+/// columns, assets: [{name, data}], fonts: [{name, data}]}` — `data` is base64,
+/// with or without a `data:` URL prefix.
 /// Output: `{ok, pages_svg, pdf_base64, diagnostics, typst_source}`.
 pub fn compile_request(input_json: &str) -> String {
     use base64::Engine as _;
     let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
     let body = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
     let cfg = DocConfig::from_json(&v);
-    let result = compile(body, &cfg);
+    let assets = Assets::from_json(&v);
+    let result = compile_with(body, &cfg, &assets);
     let diags: Vec<serde_json::Value> = result
         .diagnostics
         .iter()

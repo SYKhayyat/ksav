@@ -1159,7 +1159,15 @@
 #let מעבר_טור = colbreak()
 #let הזחה(body) = pad(right: 1.5em, body)
 #let טורים_בלוק(מספר, body) = columns(מספר, body)
-#let תמונה(נתיב, רוחב: auto) = image(נתיב, width: רוחב)
+// תמונה — insert a picture. `נתיב` is the asset's name as sent with the compile
+// request (the editor attaches the bytes; there is no file system to read from).
+// רוחב sizes it, יישור places it (right / מרכז / left), and כיתוב adds a caption,
+// in which case it becomes a numbered figure.
+#let תמונה(נתיב, רוחב: auto, יישור: none, כיתוב: none) = {
+  let pic = image(נתיב, width: רוחב)
+  let out = if כיתוב != none { figure(pic, caption: כיתוב) } else { pic }
+  if יישור != none { align(יישור, out) } else { out }
+}
 
 // חסר — a fill-in blank line (form field), e.g. for a kesubah or letter
 #let חסר(רוחב: 3em) = box(width: רוחב, stroke: (bottom: 0.6pt + luma(60)))

@@ -19,6 +19,22 @@ export interface DocConfig {
   footer: string;
 }
 
+/**
+ * Files that travel with the document on every compile.
+ *
+ * The engine has no file system — it may be a wasm module in this very tab — so
+ * `#תמונה("logo.png")` can only work if the bytes are on the request. `data` is
+ * base64, with or without a `data:` URL prefix.
+ */
+export interface RequestAssets {
+  /** Images and other files the document refers to by name. */
+  assets: { name: string; data: string }[];
+  /** Extra fonts to make available for this compile. */
+  fonts: { name: string; data: string }[];
+}
+
+export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
+
 export interface Diagnostic {
   severity: "error" | "warning";
   message: string;
@@ -53,7 +69,7 @@ export interface TemplateDef {
 
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
-  compile(body: string, cfg: DocConfig): Promise<CompileResult>;
+  compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
   commands(): Promise<CommandDef[]>;
   templates(): Promise<TemplateDef[]>;
 }
@@ -62,11 +78,11 @@ export class HttpBackend implements Backend {
   readonly kind = "server";
   constructor(private base = "") {}
 
-  async compile(body: string, cfg: DocConfig): Promise<CompileResult> {
+  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     const res = await fetch(this.base + "/compile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, ...cfg }),
+      body: JSON.stringify({ body, ...cfg, ...assets }),
     });
     if (!res.ok) throw new Error(`compile ${res.status}`);
     return res.json();
@@ -112,9 +128,9 @@ export class WasmBackend implements Backend {
     return this.ready;
   }
 
-  async compile(body: string, cfg: DocConfig): Promise<CompileResult> {
+  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     await this.ensure();
-    return JSON.parse(this.mod!.ksav_compile(JSON.stringify({ body, ...cfg })));
+    return JSON.parse(this.mod!.ksav_compile(JSON.stringify({ body, ...cfg, ...assets })));
   }
   async commands(): Promise<CommandDef[]> {
     await this.ensure();
@@ -138,9 +154,11 @@ export class TauriBackend implements Backend {
     }
     return this.invoke!;
   }
-  async compile(body: string, cfg: DocConfig): Promise<CompileResult> {
+  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     const invoke = await this.inv();
-    return JSON.parse(await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg }) }));
+    return JSON.parse(
+      await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...assets }) }),
+    );
   }
   async commands(): Promise<CommandDef[]> {
     return JSON.parse(await (await this.inv())("ksav_commands"));

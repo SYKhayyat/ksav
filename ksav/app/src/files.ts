@@ -1,0 +1,238 @@
+// Real files — open one, and save back to the same one.
+//
+// "Save" used to write a fresh `document.ksav` into the Downloads folder every
+// time, and Open kept no handle, so you could never reopen a file and overwrite
+// it: each save spawned another copy and there was no such thing as "the current
+// file". This module gives a document a *binding* to somewhere real, and a Save
+// that writes back to it.
+//
+// Three tiers, best first:
+//   • Tauri desktop      — a native dialog and a genuine path on disk.
+//   • File System Access — a real handle in the browser (Chrome/Edge today).
+//   • Download fallback  — Firefox and Safari, where writing back is impossible.
+//
+// The fallback is deliberately honest rather than pretending: `canWriteBack` is
+// false there, so the UI can say "Save a copy" instead of implying an overwrite
+// that will not happen.
+
+export interface FileBinding {
+  /** How this binding writes: which tier picked it up. */
+  kind: "tauri" | "handle" | "download";
+  /** Display name, e.g. `mishnayos.ksav`. */
+  name: string;
+  /** Absolute path — Tauri only. */
+  path?: string;
+  /** FileSystemFileHandle — browser handle tier only. */
+  handle?: FileSystemFileHandle;
+}
+
+export interface OpenedFile {
+  text: string;
+  binding: FileBinding;
+}
+
+const EXT = "ksav";
+const ACCEPT = ".ksav,.typ,.txt";
+
+function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+function hasFsAccess(): boolean {
+  return typeof window !== "undefined" && "showSaveFilePicker" in window;
+}
+
+/** Can a binding of this kind be written back to, or only re-downloaded? */
+export function canWriteBack(b: FileBinding | null): boolean {
+  return !!b && b.kind !== "download";
+}
+
+/** True when this platform can bind a document to a file at all. */
+export function supportsRealFiles(): boolean {
+  return isTauri() || hasFsAccess();
+}
+
+async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const core = await import("@tauri-apps/api/core");
+  return core.invoke(cmd, args) as Promise<T>;
+}
+
+function baseName(p: string): string {
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return i >= 0 ? p.slice(i + 1) : p;
+}
+
+// ---------------------------------------------------------------- open
+
+export async function openFile(): Promise<OpenedFile | null> {
+  if (isTauri()) {
+    const res = await tauriInvoke<{ path: string; contents: string } | null>("ksav_open_file");
+    if (!res) return null;
+    return {
+      text: res.contents,
+      binding: { kind: "tauri", name: baseName(res.path), path: res.path },
+    };
+  }
+  if (hasFsAccess()) {
+    try {
+      const [handle] = await (window as never as {
+        showOpenFilePicker(o: unknown): Promise<FileSystemFileHandle[]>;
+      }).showOpenFilePicker({
+        types: [{ description: "Ksav document", accept: { "text/plain": [".ksav", ".typ", ".txt"] } }],
+        multiple: false,
+      });
+      const file = await handle.getFile();
+      return { text: await file.text(), binding: { kind: "handle", name: handle.name, handle } };
+    } catch {
+      return null; // the picker was dismissed
+    }
+  }
+  return openViaInput();
+}
+
+/** The universal fallback: a hidden <input type=file>. No handle, so no write-back. */
+function openViaInput(): Promise<OpenedFile | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ACCEPT;
+    input.style.display = "none";
+    let settled = false;
+    const finish = (v: OpenedFile | null) => {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      resolve(v);
+    };
+    input.addEventListener("change", () => {
+      const f = input.files?.[0];
+      if (!f) return finish(null);
+      const reader = new FileReader();
+      reader.onload = () =>
+        finish({ text: String(reader.result), binding: { kind: "download", name: f.name } });
+      reader.onerror = () => finish(null);
+      reader.readAsText(f);
+    });
+    // A dismissed picker fires no event in most browsers; releasing on the next
+    // window focus keeps the promise from hanging forever.
+    window.addEventListener("focus", () => setTimeout(() => finish(null), 800), { once: true });
+    document.body.append(input);
+    input.click();
+  });
+}
+
+// ---------------------------------------------------------------- save
+
+/** Write to the bound file. Returns false if this binding cannot be written to. */
+export async function saveTo(binding: FileBinding, text: string): Promise<boolean> {
+  if (binding.kind === "tauri" && binding.path) {
+    await tauriInvoke("ksav_write_file", { path: binding.path, contents: text });
+    return true;
+  }
+  if (binding.kind === "handle" && binding.handle) {
+    const w = await (binding.handle as never as {
+      createWritable(): Promise<{ write(d: string): Promise<void>; close(): Promise<void> }>;
+    }).createWritable();
+    await w.write(text);
+    await w.close();
+    return true;
+  }
+  return false;
+}
+
+/** Ask where to save, write there, and return the new binding. */
+export async function saveAs(suggestedName: string, text: string): Promise<FileBinding | null> {
+  const name = suggestedName.endsWith("." + EXT) ? suggestedName : `${suggestedName}.${EXT}`;
+  if (isTauri()) {
+    const path = await tauriInvoke<string | null>("ksav_save_file", {
+      suggested: name,
+      contents: text,
+    });
+    if (!path) return null;
+    return { kind: "tauri", name: baseName(path), path };
+  }
+  if (hasFsAccess()) {
+    try {
+      const handle = await (window as never as {
+        showSaveFilePicker(o: unknown): Promise<FileSystemFileHandle>;
+      }).showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: "Ksav document", accept: { "text/plain": [".ksav"] } }],
+      });
+      const binding: FileBinding = { kind: "handle", name: handle.name, handle };
+      await saveTo(binding, text);
+      return binding;
+    } catch {
+      return null; // dismissed
+    }
+  }
+  download(name, text);
+  return { kind: "download", name };
+}
+
+export function download(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------- handle store
+//
+// A FileSystemFileHandle survives a reload, but only in IndexedDB — it is not
+// JSON, so localStorage cannot hold it. Keeping them means a document is still
+// bound to its file after the tab is closed and reopened, which is the whole
+// point of having a "current file" at all.
+
+const DB = "ksav-files";
+const STORE = "handles";
+
+function idb(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === "undefined") return resolve(null);
+    const req = indexedDB.open(DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+
+export async function rememberBinding(docId: string, binding: FileBinding | null): Promise<void> {
+  const db = await idb();
+  if (!db) return;
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+  if (binding) store.put({ kind: binding.kind, name: binding.name, path: binding.path, handle: binding.handle }, docId);
+  else store.delete(docId);
+}
+
+export async function recallBinding(docId: string): Promise<FileBinding | null> {
+  const db = await idb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    const req = db.transaction(STORE, "readonly").objectStore(STORE).get(docId);
+    req.onsuccess = () => resolve((req.result as FileBinding) ?? null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+/**
+ * Re-ask for permission on a recalled handle. Browsers drop write permission
+ * across sessions, so a handle that looks fine can still refuse to be written
+ * until the user confirms — check before promising the writer a real save.
+ */
+export async function ensureWritable(binding: FileBinding): Promise<boolean> {
+  if (binding.kind !== "handle" || !binding.handle) return binding.kind === "tauri";
+  const h = binding.handle as never as {
+    queryPermission(o: unknown): Promise<PermissionState>;
+    requestPermission(o: unknown): Promise<PermissionState>;
+  };
+  try {
+    if ((await h.queryPermission({ mode: "readwrite" })) === "granted") return true;
+    return (await h.requestPermission({ mode: "readwrite" })) === "granted";
+  } catch {
+    return false;
+  }
+}

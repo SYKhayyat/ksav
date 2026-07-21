@@ -12,6 +12,28 @@ const HE: Dict = {
   file: "קובץ",
   open: "פתיחה",
   save: "שמירה",
+  // documents / files
+  saveAs: "שמירה בשם…",
+  saveCopy: "שמירת עותק…",
+  documents: "מסמכים",
+  library: "ספריית המסמכים",
+  untitled: "ללא שם",
+  rename: "שינוי שם",
+  renamePrompt: "שם המסמך:",
+  duplicate: "שכפול",
+  confirmDeleteDoc: "למחוק את המסמך \"{0}\"? אי אפשר לבטל.",
+  noFileBound: "המסמך אינו מקושר לקובץ — \"שמירה בשם\" תקשר אותו.",
+  savedTo: "נשמר ב־{0}",
+  savedCopy: "עותק הורד ({0}) — הדפדפן הזה אינו מאפשר כתיבה חוזרת לקובץ.",
+  permissionDenied: "אין הרשאת כתיבה לקובץ — נסו \"שמירה בשם\".",
+  // images & fonts
+  insertImage: "הוספת תמונה…",
+  images: "תמונות",
+  addFont: "הוספת גופן…",
+  assetTooBig: "הקובץ גדול מדי ({0}) — עד {1}.",
+  removeAsset: "הסרה",
+  assetsTitle: "קבצים במסמך",
+  noAssets: "אין קבצים מצורפים.",
   confirmNew: "ליצור מסמך חדש? השינויים הנוכחיים יימחקו.",
   saveAsTemplate: "שמור כתבנית",
   templateName: "שם התבנית:",
@@ -147,6 +169,28 @@ const EN: Dict = {
   file: "File",
   open: "Open",
   save: "Save",
+  // documents / files
+  saveAs: "Save as\u2026",
+  saveCopy: "Save a copy\u2026",
+  documents: "Documents",
+  library: "Document library",
+  untitled: "Untitled",
+  rename: "Rename",
+  renamePrompt: "Document name:",
+  duplicate: "Duplicate",
+  confirmDeleteDoc: "Delete \"{0}\"? This cannot be undone.",
+  noFileBound: "This document isn't bound to a file yet \u2014 \"Save as\" will bind it.",
+  savedTo: "Saved to {0}",
+  savedCopy: "Downloaded a copy ({0}) \u2014 this browser can't write back to a file.",
+  permissionDenied: "No write permission for that file \u2014 try \"Save as\".",
+  // images & fonts
+  insertImage: "Insert image\u2026",
+  images: "Images",
+  addFont: "Add a font\u2026",
+  assetTooBig: "That file is too large ({0}) \u2014 the limit is {1}.",
+  removeAsset: "Remove",
+  assetsTitle: "Files in this document",
+  noAssets: "No attached files.",
   confirmNew: "Start a new document? Current changes will be cleared.",
   saveAsTemplate: "Save as template",
   templateName: "Template name:",
@@ -283,6 +327,10 @@ export function getLang(): Lang {
 }
 export function t(key: string): string {
   return DICTS[current][key] ?? DICTS.en[key] ?? key;
+}
+/** `t` with `{0}`, `{1}`… substituted — for messages that name a file or size. */
+export function tf(key: string, ...args: (string | number)[]): string {
+  return t(key).replace(/\{(\d+)\}/g, (m, i) => String(args[Number(i)] ?? m));
 }
 export function isRtlUi(): boolean {
   return current === "he";

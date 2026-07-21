@@ -29,8 +29,12 @@ import {
 } from "./ksav-lang";
 import { createBackend } from "./api";
 import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig } from "./api";
-import { t, setLang, getLang, isRtlUi } from "./i18n";
+import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
+import * as docs from "./docs";
+import type { DocAsset, KsavDoc } from "./docs";
+import * as files from "./files";
+import type { FileBinding } from "./files";
 
 // ---------------------------------------------------------------- state
 type Layout = "two" | "page" | "source";
@@ -51,6 +55,10 @@ interface Settings extends DocConfig {
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
 }
+
+/** The font families the engine bundles. Anything else must be attached to the
+ *  document (see `addFont`) — there is no system font access from wasm. */
+const BUNDLED_FONTS = ["Frank Ruhl Hofshi", "David Libre", "Cascadia Mono"];
 
 const DEFAULTS: Settings = {
   lang: "he",
@@ -154,8 +162,106 @@ const editorTheme = (dark: boolean) =>
     { dark },
   );
 
+// ---------------------------------------------------------------- the open document
+//
+// The app used to hold one nameless document in one localStorage key. It now
+// holds a library; `currentDoc` is whichever one is open, and `currentBinding` is
+// the real file it saves to, when it has one.
+let currentDoc: KsavDoc;
+let currentBinding: FileBinding | null = null;
+/** Set while switching documents, so the editor's own change events don't write
+ *  the outgoing document's text over the incoming one. */
+let switching = false;
+
 function loadDoc(): string {
-  return localStorage.getItem("ksav.doc") ?? STARTER;
+  currentDoc = docs.openingDoc(STARTER, t("untitled"));
+  void files.recallBinding(currentDoc.id).then((b) => {
+    currentBinding = b;
+    updateTitleBar();
+  });
+  return currentDoc.body;
+}
+
+/** Persist the open document (body, title and assets) to the library. */
+function persistDoc() {
+  if (!currentDoc || switching) return;
+  currentDoc.body = view ? view.state.doc.toString() : currentDoc.body;
+  docs.putDoc(currentDoc);
+}
+
+/** Switch the editor to another document in the library. */
+async function openDoc(id: string) {
+  const next = docs.getDoc(id);
+  if (!next) return;
+  persistDoc();
+  switching = true;
+  currentDoc = next;
+  docs.setCurrentId(next.id);
+  currentBinding = await files.recallBinding(next.id);
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: next.body },
+    selection: { anchor: 0 },
+  });
+  switching = false;
+  updateTitleBar();
+  rerenderChrome();
+  view.focus();
+  scheduleCompile();
+}
+
+function newNamedDoc() {
+  closeMenus();
+  persistDoc();
+  const doc = docs.createDoc(t("untitled"), "");
+  void openDoc(doc.id);
+}
+
+function duplicateDoc(id: string) {
+  const src = docs.getDoc(id);
+  if (!src) return;
+  const copy = docs.createDoc(src.title + " ‏(2)", src.body, src.assets);
+  void openDoc(copy.id);
+}
+
+function removeDoc(id: string) {
+  const entry = docs.library().find((e) => e.id === id);
+  if (!entry) return;
+  if (!confirm(tf("confirmDeleteDoc", entry.title))) return;
+  docs.deleteDoc(id);
+  void files.rememberBinding(id, null);
+  if (currentDoc.id === id) {
+    const next = docs.library()[0];
+    if (next) void openDoc(next.id);
+    else newNamedDoc();
+  } else {
+    rerenderChrome();
+  }
+}
+
+function renameDoc() {
+  const name = prompt(t("renamePrompt"), currentDoc.title);
+  if (name === null) return;
+  currentDoc.title = name.trim() || t("untitled");
+  persistDoc();
+  updateTitleBar();
+  rerenderChrome();
+}
+
+/** The document title shown in the header, with the bound file beside it. */
+function updateTitleBar() {
+  const el0 = document.getElementById("doc-title");
+  if (!el0 || !currentDoc) return;
+  el0.textContent = currentDoc.title;
+  const sub0 = document.getElementById("doc-file");
+  if (sub0) {
+    sub0.textContent = currentBinding ? currentBinding.name : "";
+    sub0.title = currentBinding?.path || currentBinding?.name || t("noFileBound");
+  }
+  document.title = currentDoc.title + " · Ksav";
+}
+
+function closeMenus() {
+  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
 }
 
 // User abbreviations: "abbr = expansion" per line. `|` marks the cursor, `\n`
@@ -364,13 +470,26 @@ function makeEditor(): EditorView {
   });
 }
 
-// Hebrew-aware word + character count.
+// Hebrew-aware word + character count — of the TEXT, not the markup.
+//
+// This used to count the raw document string, so `#הדגשה[...]`, `//` comments and
+// every command name inflated the number the writer watches. Strip the markup
+// first: comments, then command heads (`#צבע(rgb("#..."))` and the like), then the
+// brackets that wrapped their content, leaving the words that will actually print.
+export function countableText(src: string): string {
+  return src
+    .replace(/\/\/[^\n]*/g, " ") // line comments
+    .replace(/\/\*[\s\S]*?\*\//g, " ") // block comments
+    .replace(/#[A-Za-z_\u0590-\u05FF][\w\u0590-\u05FF]*(\s*\([^()]*\))?/g, " ") // #command(args)
+    .replace(/[[\]]/g, " ") // the brackets around command bodies
+    .replace(/^\s*=+\s/gm, " "); // heading markers
+}
 function updateCounts() {
   const el = document.getElementById("wordcount");
   if (!el || !view) return;
-  const text = view.state.doc.toString();
+  const text = countableText(view.state.doc.toString());
   const words = (text.match(/[^\s]+/g) || []).length;
-  const chars = text.length;
+  const chars = text.replace(/\s+/g, " ").trim().length;
   el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
 }
 
@@ -452,12 +571,24 @@ async function runCompile() {
   status.className = "";
   const t0 = performance.now();
   const userDoc = view.state.doc.toString();
-  localStorage.setItem("ksav.doc", userDoc); // auto-save (editor content only)
+  // Auto-save into the library. A document the writer never renamed takes its
+  // title from its own first heading, so the library is readable either way.
+  if (currentDoc && !switching) {
+    currentDoc.body = userDoc;
+    if (currentDoc.title === t("untitled")) {
+      const guess = docs.guessTitle(userDoc, t("untitled"));
+      if (guess && guess !== t("untitled")) {
+        currentDoc.title = guess;
+        updateTitleBar();
+      }
+    }
+    docs.putDoc(currentDoc);
+  }
   // Prepend user-defined commands so they're usable in the document.
   const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
   const body = pre + userDoc;
   try {
-    const res = await backend.compile(body, cfg());
+    const res = await backend.compile(body, cfg(), docs.requestAssets(currentDoc?.assets ?? []));
     lastResult = res;
     const ms = Math.round(performance.now() - t0);
     const preview = document.getElementById("preview")!;
@@ -683,11 +814,64 @@ function buildToolbar(): HTMLElement {
 
 // A Word-like Insert menu: every command from the registry, grouped by
 // category, so nothing requires knowing the markup.
+/** The Documents menu: every document in the library, newest first. */
+function buildDocsMenu(): HTMLElement {
+  return lazyMenu("🗂 " + t("documents"), docsMenuItems);
+}
+
+/** Rebuilt on every open, so it never shows a stale library. */
+function docsMenuItems(): (Node | string)[] {
+  const items: (Node | string)[] = [
+    el("button", { class: "menu-item", onClick: newNamedDoc }, [t("newDoc")]),
+    el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
+    el("button", { class: "menu-item", onClick: () => duplicateDoc(currentDoc.id) }, [t("duplicate")]),
+    el("div", { class: "menu-sep" }),
+    el("div", { class: "menu-cat" }, [t("library")]),
+  ];
+  for (const entry of docs.library()) {
+    const open = entry.id === currentDoc?.id;
+    items.push(
+      el("div", { class: "menu-item-row" }, [
+        el(
+          "button",
+          {
+            class: "menu-item menu-item-main" + (open ? " active" : ""),
+            onClick: () => {
+              closeMenus();
+              void openDoc(entry.id);
+            },
+          },
+          [
+            el("b", {}, [(open ? "● " : "") + entry.title]),
+            el("span", { class: "menu-desc" }, [
+              [entry.fileName, new Date(entry.updated).toLocaleString()].filter(Boolean).join(" · "),
+            ]),
+          ],
+        ),
+        el("button", {
+          class: "menu-del",
+          title: t("delete"),
+          onClick: (e: Event) => {
+            e.stopPropagation();
+            removeDoc(entry.id);
+          },
+        }, ["×"]),
+      ]),
+    );
+  }
+  return items;
+}
+
 function buildInsertMenu(): HTMLElement {
   const lang = getLang();
   const cats: string[] = [];
   for (const c of commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
-  const items: (Node | string)[] = [];
+  const items: (Node | string)[] = [
+    el("button", { class: "menu-item", onClick: insertImage }, [
+      el("b", {}, ["🖼 " + t("insertImage")]),
+    ]),
+    el("div", { class: "menu-sep" }),
+  ];
   for (const cat of cats) {
     items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
     for (const c of commandsReg.filter((x) => x.category === cat)) {
@@ -703,12 +887,27 @@ function buildInsertMenu(): HTMLElement {
 }
 
 function menu(label: string, items: (Node | string)[]): HTMLElement {
-  const list = el("div", { class: "menu-list" }, items);
+  return lazyMenu(label, () => items);
+}
+
+/**
+ * A menu whose contents are rebuilt every time it opens.
+ *
+ * The header is rendered once, so a menu built there freezes whatever the data
+ * looked like at boot — the document library would still say "Untitled" long
+ * after the document had been titled. Building on open keeps it honest.
+ */
+function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
+  const list = el("div", { class: "menu-list" });
   const btn = el("button", { class: "menu-btn", onClick: (e: Event) => {
     e.stopPropagation();
     document.querySelectorAll(".menu-list.open").forEach((m) => {
       if (m !== list) m.classList.remove("open");
     });
+    if (!list.classList.contains("open")) {
+      list.replaceChildren();
+      list.append(...build().map((n) => (typeof n === "string" ? document.createTextNode(n) : n)));
+    }
     list.classList.toggle("open");
   } }, [label]);
   return el("div", { class: "menu" }, [btn, list]);
@@ -749,6 +948,9 @@ function buildHeader(): HTMLElement {
     el("button", { class: "menu-item", onClick: newDoc }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: openFile }, [t("open")]),
     el("button", { class: "menu-item", onClick: saveFile }, [t("save")]),
+    el("button", { class: "menu-item", onClick: saveFileAs }, [
+      files.supportsRealFiles() ? t("saveAs") : t("saveCopy"),
+    ]),
     el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
   ]);
 
@@ -826,9 +1028,16 @@ function buildHeader(): HTMLElement {
       el("span", { class: "brand-name" }, [t("appName")]),
       el("small", {}, [t("tagline")]),
     ]),
+    // The open document's name, clickable to rename — a writing tool with a
+    // library needs to say, at all times, which document you are in.
+    el("button", { class: "doc-title-btn", title: t("rename"), onClick: renameDoc }, [
+      el("span", { class: "doc-title", id: "doc-title" }, [currentDoc?.title ?? ""]),
+      el("small", { class: "doc-file", id: "doc-file" }, [currentBinding?.name ?? ""]),
+    ]),
     buildToolbar(),
     buildInsertMenu(),
     el("div", { class: "spacer" }),
+    buildDocsMenu(),
     fileMenu,
     undoBtn,
     redoBtn,
@@ -894,13 +1103,25 @@ function textAreaRow(labelKey: string, key: keyof Settings, placeholder = "") {
 }
 
 function buildSettingsDrawer(): HTMLElement {
-  const fontSel = el(
-    "select",
-    { onChange: (e: Event) => setSetting("font", (e.target as HTMLSelectElement).value as never) },
-    ["Frank Ruhl Hofshi", "David Libre"].map((f) =>
-      el("option", { value: f, ...(settings.font === f ? { selected: "selected" } : {}) }, [f]),
-    ),
-  );
+  // Bundled families, plus anything the writer has attached to this document.
+  // The box is free text rather than a fixed list, because a font file carries
+  // its own family name and only the file knows it.
+  const fontList = el("datalist", { id: "font-families" }, [
+    ...BUNDLED_FONTS,
+    ...(currentDoc?.assets ?? [])
+      .filter((a) => a.kind === "font")
+      .map((a) => a.name.replace(/\.[^.]+$/, "")),
+  ].map((f) => el("option", { value: f })));
+  const fontSel = el("span", { class: "font-pick" }, [
+    el("input", {
+      type: "text",
+      list: "font-families",
+      value: settings.font,
+      onChange: (e: Event) => setSetting("font", (e.target as HTMLInputElement).value as never),
+    }),
+    fontList,
+    el("button", { type: "button", class: "mini", title: t("addFont"), onClick: addFont }, ["+"]),
+  ]);
   const dirSel = el(
     "select",
     { onChange: (e: Event) => setSetting("dir", (e.target as HTMLSelectElement).value as never) },
@@ -921,6 +1142,21 @@ function buildSettingsDrawer(): HTMLElement {
       el("option", { value: v, ...(settings.paper === v ? { selected: "selected" } : {}) }, [lbl]),
     ),
   );
+  const assets = currentDoc?.assets ?? [];
+  const assetRows = assets.length
+    ? assets.map((a) =>
+        el("div", { class: "set-row asset-row" }, [
+          el("span", { class: "asset-name" }, [(a.kind === "font" ? "🅵 " : "🖼 ") + a.name]),
+          el("button", {
+            type: "button",
+            class: "mini",
+            title: t("removeAsset"),
+            onClick: () => removeAsset(a.name),
+          }, ["×"]),
+        ]),
+      )
+    : [el("div", { class: "set-note" }, [t("noAssets")])];
+
   const kb = keybindings();
   const shortcutRows = ACTIONS.map((a) => {
     const btn = el("button", { class: "sc-key", type: "button" }, [kb[a.id] || "—"]);
@@ -947,6 +1183,8 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("syncScrollLabel", "syncScroll"),
+    el("h3", { style: "margin-top:18px" }, [t("assetsTitle")]),
+    ...assetRows,
     el("h3", { style: "margin-top:18px" }, [t("customization")]),
     textAreaRow("customCommandsLabel", "customCommands", "#let דגש(x) = text(fill: red, strong(x))"),
     textAreaRow("snippetsLabel", "snippets", "בסד = בס\"ד\nסי = #סימן[|][]"),
@@ -1180,41 +1418,155 @@ function download(name: string, blob: Blob) {
   a.click();
   URL.revokeObjectURL(url);
 }
-function openFile() {
-  const input = el("input", { type: "file", accept: ".ksav,.typ,.txt", style: "display:none" });
-  input.addEventListener("change", () => {
-    const f = input.files?.[0];
-    if (!f) {
-      input.remove();
+/**
+ * Open a file into a NEW library document, rather than overwriting whatever is
+ * currently open. "Open" destroying your unsaved work is not acceptable in a
+ * writing tool.
+ */
+async function openFile() {
+  closeMenus();
+  const opened = await files.openFile();
+  if (!opened) return;
+  persistDoc();
+  const stripExt = opened.binding.name.replace(/\.[^.]+$/, "");
+  const parsed = docs.parseDoc(opened.text, stripExt || t("untitled"));
+  const doc = docs.createDoc(parsed.title, parsed.body, parsed.assets);
+  docs.setFileName(doc.id, opened.binding.name);
+  await files.rememberBinding(doc.id, opened.binding);
+  await openDoc(doc.id);
+}
+
+function fileText(): string {
+  persistDoc();
+  return docs.serializeDoc(currentDoc);
+}
+
+/** Save to the bound file; if there is none, fall through to Save As. */
+async function saveFile() {
+  closeMenus();
+  takeSnapshot(true);
+  const text = fileText();
+  if (currentBinding && files.canWriteBack(currentBinding)) {
+    if (!(await files.ensureWritable(currentBinding))) {
+      setStatus(t("permissionDenied"), "err");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: String(reader.result) },
-        selection: { anchor: 0 },
-      });
-      view.focus();
-      scheduleCompile();
-      input.remove(); // remove only after the file has been read (not before the dialog resolves)
-    };
-    reader.readAsText(f);
-  });
-  document.body.append(input);
-  input.click();
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+    await files.saveTo(currentBinding, text);
+    setStatus(tf("savedTo", currentBinding.name), "ok");
+    return;
+  }
+  await saveFileAs();
 }
-function saveFile() {
-  takeSnapshot(true);
-  download("document.ksav", new Blob([view.state.doc.toString()], { type: "text/plain" }));
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+
+async function saveFileAs() {
+  closeMenus();
+  const text = fileText();
+  const binding = await files.saveAs(currentDoc.title || "document", text);
+  if (!binding) return;
+  currentBinding = binding;
+  docs.setFileName(currentDoc.id, binding.name);
+  await files.rememberBinding(currentDoc.id, binding);
+  updateTitleBar();
+  setStatus(
+    files.canWriteBack(binding) ? tf("savedTo", binding.name) : tf("savedCopy", binding.name),
+    "ok",
+  );
 }
+
 function newDoc() {
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
-  if (!confirm(t("confirmNew"))) return;
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" }, selection: { anchor: 0 } });
-  view.focus();
+  newNamedDoc();
+}
+
+/** A transient message in the status bar. */
+function setStatus(msg: string, cls = "") {
+  const status = document.getElementById("status");
+  if (!status) return;
+  status.textContent = msg;
+  status.className = cls;
+}
+
+// ---------------------------------------------------------------- assets
+//
+// An image belongs to the document, not to a path on someone's disk: the engine
+// has no file system, so the bytes travel with every compile request. Attaching
+// one therefore means storing it on the document and referring to it by name.
+
+/** Refuse enormous attachments — browser storage is a few MB in total, and a
+ *  document that cannot be saved is worse than one that cannot hold a photo. */
+const MAX_ASSET_BYTES = 4 * 1024 * 1024;
+
+function humanSize(bytes: number): string {
+  return bytes < 1024 * 1024
+    ? `${Math.round(bytes / 1024)} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function pickFile(accept: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = el("input", { type: "file", accept, style: "display:none" });
+    let settled = false;
+    const finish = (f: File | null) => {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      resolve(f);
+    };
+    input.addEventListener("change", () => finish(input.files?.[0] ?? null));
+    window.addEventListener("focus", () => setTimeout(() => finish(null), 800), { once: true });
+    document.body.append(input);
+    input.click();
+  });
+}
+
+function readAsDataUrl(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(f);
+  });
+}
+
+/** Attach a file to the open document, returning the name it got. */
+async function attachAsset(f: File, kind: DocAsset["kind"]): Promise<string | null> {
+  if (f.size > MAX_ASSET_BYTES) {
+    setStatus(tf("assetTooBig", humanSize(f.size), humanSize(MAX_ASSET_BYTES)), "err");
+    return null;
+  }
+  const name = docs.uniqueAssetName(currentDoc.assets, f.name);
+  currentDoc.assets.push({ name, data: await readAsDataUrl(f), kind });
+  persistDoc();
+  return name;
+}
+
+async function insertImage() {
+  closeMenus();
+  const f = await pickFile("image/*");
+  if (!f) return;
+  const name = await attachAsset(f, "image");
+  if (!name) return;
+  insertSnippet(`#תמונה("${name}", רוחב: 60%)`);
   scheduleCompile();
+}
+
+async function addFont() {
+  const f = await pickFile(".ttf,.otf,.ttc,font/*");
+  if (!f) return;
+  const name = await attachAsset(f, "font");
+  if (!name) return;
+  // The document must ask for the font by its FAMILY name, which lives inside
+  // the file and which we cannot read here — so say what happened and let the
+  // writer type the family into the font box.
+  setStatus(`${name} ✓`, "ok");
+  scheduleCompile();
+  rerenderChrome();
+}
+
+function removeAsset(name: string) {
+  currentDoc.assets = currentDoc.assets.filter((a) => a.name !== name);
+  persistDoc();
+  scheduleCompile();
+  rerenderChrome();
 }
 
 function exportPdf() {

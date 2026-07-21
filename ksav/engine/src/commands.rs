@@ -46,6 +46,8 @@ pub static COMMANDS: &[Command] = &[
     cmd!("רקע", "bg", "style", "צבע רקע", "Background color", "#רקע(yellow)[|]"),
     cmd!("גופן_שונה", "usefont", "style", "החלפת גופן", "Change font", "#גופן_שונה(\"David Libre\")[|]"),
     cmd!("קוד", "mono", "style", "טקסט מונו (קוד)", "Monospace / code", "#קוד[|]"),
+    cmd!("גודל_גופן", "fsize", "style", "גודל גופן מדויק", "Exact font size", "#גודל_גופן(14pt)[|]"),
+    cmd!("מרווח_אותיות", "track", "style", "מרווח בין אותיות", "Letter spacing", "#מרווח_אותיות(0.1em)[|]"),
     // ---- heading / title ----
     cmd!("שער", "title", "heading", "כותרת ראשית ממורכזת", "Centered document title", "#שער[|]"),
     cmd!("תת_שער", "subtitle", "heading", "כותרת משנה ממורכזת", "Centered subtitle", "#תת_שער[|]"),
@@ -118,6 +120,11 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הזחה", "indent_", "layout", "בלוק מוזח", "Indented block", "#הזחה[|]"),
     cmd!("טורים_בלוק", "cols", "layout", "טורים מרובים", "Multiple columns", "#טורים_בלוק(2)[|]"),
     cmd!("חסר", "blank", "layout", "שורת מילוי (טופס)", "Fill-in blank", "#חסר"),
+    cmd!("מעבר_שורה", "lbreak", "layout", "מעבר שורה", "Line break", "#מעבר_שורה"),
+    cmd!("מעבר_טור", "cbreak", "layout", "מעבר טור", "Column break", "#מעבר_טור"),
+    cmd!("רווח_אופקי", "hspace", "layout", "רווח אופקי", "Horizontal space", "#רווח_אופקי(מידה: 1em)"),
+    // ---- images ----
+    cmd!("תמונה", "img", "image", "הוספת תמונה", "Insert an image", "#תמונה(\"|\", רוחב: 60%)"),
     // ---- torah / yeshiva ----
     cmd!("סימן", "siman", "torah", "כותרת סימן", "Siman heading", "#סימן[א׳][|]"),
     cmd!("סעיף", "seif", "torah", "סעיף הלכתי ממוספר", "Lettered halacha", "#סעיף[א][|]"),
@@ -125,6 +132,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מראה_מקום", "sourcenote", "torah", "מראה מקום (הערה)", "Source footnote", "#מראה_מקום[|]"),
     cmd!("ציון", "refmark", "torah", "ציון מקור בסוגריים", "Inline reference", "#ציון[|]"),
     cmd!("גמרא", "gemara", "torah", "מראה מקום לגמרא", "Gemara reference", "#גמרא[ברכות][ב.]"),
+    cmd!("אות", "osource", "torah", "אות מודגשת בתחילת קטע", "Bold paragraph letter", "#אות[|]"),
     cmd!("דיבור_המתחיל", "dh", "torah", "דיבור המתחיל", "Lemma (d\"h)", "#דיבור_המתחיל[|]"),
     cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [הפירוש])"),
     cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),

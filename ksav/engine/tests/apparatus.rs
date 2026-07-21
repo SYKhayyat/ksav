@@ -372,3 +372,75 @@ fn a_sidenote_outside_a_side_column_falls_back_to_a_footnote() {
     let anchor = runs.iter().find(|r| r.text.contains("טקסט")).expect("anchor");
     assert!(note.y > anchor.y, "the fallback note is not below the text");
 }
+
+// ── Options 2 / 9 / 11: endnotes, and the two two-layer options ─────────────
+
+#[test]
+fn endnotes_are_scoped_and_numbered_per_section() {
+    // Same bug class as the מדור bands: #הערות_בסוף read the whole document's
+    // notes, so dumping at the end of each chapter printed every chapter's notes
+    // in every chapter.
+    let runs = render(
+        "= פרק א
+אלף#הערתסיום[הערה א].
+#הערות_בסוף(כותרת: [סוף פרק א])
+         = פרק ב
+בית#הערתסיום[הערה ב].
+#הערות_בסוף(כותרת: [סוף פרק ב])",
+    );
+    let count = |n: &str| runs.iter().filter(|r| r.text.contains(n)).count();
+    assert_eq!(count("הערה א"), 1, "chapter א's note was printed more than once");
+    assert_eq!(count("הערה ב"), 1, "chapter ב's note was printed more than once");
+    let y = |n: &str| runs.iter().find(|r| r.text.contains(n)).unwrap().y;
+    assert!(y("הערה א") < y("סוף פרק ב"), "chapter א's note leaked into chapter ב");
+    assert!(y("הערה ב") > y("סוף פרק ב"), "chapter ב's note is not in chapter ב");
+}
+
+#[test]
+fn option_9_footnotes_with_an_endnote_block_of_subnotes() {
+    // Spec option 9, previously unverified: the primary commentary as balanced
+    // page-bottom footnotes, with the he'aros-on-the-commentary collected into
+    // their own numbered block at the back. The open question was whether a
+    // second-layer marker registered from INSIDE a footnote body survives Typst's
+    // introspection. It does.
+    let runs = render(
+        "טקסט#הערה[פירוש בתחתית העמוד#הערתסיום[הערה על הפירוש]]          ועוד#הערה[פירוש שני#הערתסיום[הערה שנייה על הפירוש]].
+         #הערות_בסוף(כותרת: [הערות על הפירוש])",
+    );
+    let at = |n: &str| runs.iter().find(|r| r.text.contains(n)).unwrap_or_else(|| panic!("{n:?} missing"));
+    // Tier 1 is at the foot of the page, below the endnote block.
+    let anchor = at("טקסט");
+    let commentary = at("פירוש בתחתית העמוד");
+    let block_head = at("הערות על הפירוש");
+    assert!(commentary.y > block_head.y, "the footnotes did not stay at the page foot");
+    assert!(commentary.y > anchor.y);
+    // Tier 2 was collected — both sub-notes made it into the block.
+    for n in ["הערה על הפירוש", "הערה שנייה על הפירוש"] {
+        assert!(at(n).y > block_head.y, "sub-note {n:?} is not in the endnote block");
+    }
+}
+
+#[test]
+fn option_11_endnotes_carrying_balanced_footnotes() {
+    // Spec option 11, previously unverified and called the cheapest path to
+    // genuinely balanced notes-on-notes: the commentary is endnotes, and the
+    // he'aros on it are real page-bottom footnotes on the endnote pages — where
+    // the one native footnote series is free because the endnotes *are* the text.
+    let runs = render(
+        "טקסט#הערתסיום[פירוש ארוך על הטקסט#הערה[הערה על הפירוש]]          ועוד#הערתסיום[פירוש שני#הערה[הערה שנייה]].
+         #מעבר_עמוד
+#הערות_בסוף(כותרת: [הפירוש])",
+    );
+    let at = |n: &str| runs.iter().find(|r| r.text.contains(n)).unwrap_or_else(|| panic!("{n:?} missing"));
+    let commentary = at("פירוש ארוך על הטקסט");
+    let subnote = at("הערה על הפירוש");
+    // The sub-note is a real footnote: same page as the endnote it hangs off,
+    // at the foot of it.
+    assert_eq!(subnote.page, commentary.page, "the sub-note left the endnote's page");
+    assert!(subnote.y > commentary.y, "the sub-note is not below the commentary");
+    // And it balances at the page foot, well below the endnote block itself.
+    assert!(
+        subnote.y - at("פירוש שני").y > 200.0,
+        "the sub-note is not at the foot of the page — it did not balance"
+    );
+}

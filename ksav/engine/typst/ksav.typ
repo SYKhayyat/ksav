@@ -832,42 +832,66 @@
 // collected notes for a stream. Multiple streams give separate note sections
 // (e.g. one for content notes, one for mekoros). Notes may themselves contain
 // footnotes or other endnotes — they render when the stream is dumped.
-#let _ksav_en = state("ksav-endnotes", (:))
-#let הערתסיום(body, זרם: "הערות") = {
-  _ksav_en.update(d => {
-    let a = d.at(זרם, default: ())
-    d.insert(זרם, a + (body,))
-    d
-  })
-  context super[#(_ksav_en.get().at(זרם, default: ()).len())]
-}
-#let הערות_בסוף(זרם: "הערות", כותרת: none) = context {
-  let items = _ksav_en.final().at(זרם, default: ())
-  if items.len() > 0 {
-    v(1em)
-    line(length: 100%, stroke: 0.5pt + luma(150))
-    if כותרת != none { heading(outlined: false, numbering: none, כותרת) }
-    enum(..items)
+//
+// Scoped per SECTION, exactly like the מדור bands: each #הערות_בסוף drops a
+// per-stream boundary marker after itself, and a note belongs to the section that
+// ends at the first boundary after it. So endnotes can be dumped at the end of
+// every chapter (each numbered from 1) as well as at the end of the document —
+// dumping twice no longer reprints the first dump's notes.
+#let _en_label(זרם) = label("ksav-en-" + זרם)
+#let _en_dump_label(זרם) = label("ksav-end-" + זרם)
+#let _en_section(זרם, loc) = _ksav_dedup(
+  query(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc))
+)
+#let הערתסיום(body, זרם: "הערות") = context {
+  let key = repr(body)
+  [#metadata((key: key, body: body))#_en_label(זרם)]
+  context {
+    let same = _en_section(זרם, here())
+    let idx = same.position(e => e.value.key == key)
+    super[#(if idx == none { 1 } else { idx + 1 })]
   }
+}
+// The rendered block for one stream's notes in the section around `loc`.
+#let _en_block(זרם, loc) = {
+  let items = _en_section(זרם, loc).map(e => e.value.body)
+  if items.len() > 0 { enum(..items) }
+}
+#let הערות_בסוף(זרם: "הערות", כותרת: none) = {
+  context {
+    let items = _en_section(זרם, here()).map(e => e.value.body)
+    if items.len() > 0 {
+      v(1em)
+      line(length: 100%, stroke: 0.5pt + luma(150))
+      if כותרת != none { heading(outlined: false, numbering: none, level: 3, כותרת) }
+      enum(..items)
+    }
+  }
+  // The section boundary — after the context above, so that context renders the
+  // section ending here rather than the next one.
+  [#metadata(none)#_en_dump_label(זרם)]
 }
 // הערות_בסוף_צד — render several endnote streams SIDE BY SIDE (one column each),
 // e.g. content notes and sources as two parallel end-columns. Any number of
 // streams; pass their order and optional per-stream titles.
-#let הערות_בסוף_צד(זרמים: (), כותרות: (:), יחס: none) = context {
-  let d = _ksav_en.final()
-  let present = זרמים.filter(s => d.at(s, default: ()).len() > 0)
-  if present.len() > 0 {
-    v(1em)
-    line(length: 100%, stroke: 0.5pt + luma(150))
-    v(0.4em)
-    let col(s) = {
-      let title = כותרות.at(s, default: none)
-      if title != none { block(spacing: 0.4em, heading(outlined: false, numbering: none, level: 3, title)) }
-      enum(..d.at(s, default: ()))
+#let הערות_בסוף_צד(זרמים: (), כותרות: (:), יחס: none) = {
+  context {
+    let loc = here()
+    let present = זרמים.filter(s => _en_section(s, loc).len() > 0)
+    if present.len() > 0 {
+      v(1em)
+      line(length: 100%, stroke: 0.5pt + luma(150))
+      v(0.4em)
+      let col(s) = {
+        let title = כותרות.at(s, default: none)
+        if title != none { block(spacing: 0.4em, heading(outlined: false, numbering: none, level: 3, title)) }
+        _en_block(s, loc)
+      }
+      let widths = if type(יחס) == array { יחס.map(x => x * 1fr) } else { present.map(_ => 1fr) }
+      grid(columns: widths, column-gutter: 1.5em, ..present.map(col))
     }
-    let widths = if type(יחס) == array { יחס.map(x => x * 1fr) } else { present.map(_ => 1fr) }
-    grid(columns: widths, column-gutter: 1.5em, ..present.map(col))
   }
+  for s in זרמים { [#metadata(none)#_en_dump_label(s)] }
 }
 #let endnote = הערתסיום
 #let endnotes = הערות_בסוף

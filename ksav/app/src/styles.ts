@@ -18,12 +18,16 @@
 // every key it does not recognise verbatim**, so opening the panel can never
 // silently discard styling a writer typed by hand.
 
-export type StyleCommand = "headings" | "lists" | "tables";
+export type StyleCommand = "headings" | "lists" | "tables" | "review";
 
 const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   headings: ["הגדרות_כותרות", "headings_config"],
   lists: ["הגדרות_רשימות", "lists_config"],
   tables: ["הגדרות_טבלאות", "tables_config"],
+  // Not styling, but the same shape — one `#הגדרות_*` call whose named arguments
+  // the UI reads and writes — so it uses the same machinery rather than a second
+  // copy of it. This one carries which review view the document is read in.
+  review: ["הגדרות_סקירה", "review_config"],
 };
 
 /** The canonical (Hebrew) name we write. */

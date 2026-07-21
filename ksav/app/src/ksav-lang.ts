@@ -242,6 +242,12 @@ const PROSE_STYLE: Record<string, string> = {
   refmark: "pm-source",
   גמרא: "pm-gemara",
   gemara: "pm-gemara",
+  // Review marks look, in prose mode, like what they mean: an insertion
+  // underlined, a deletion struck through — the same shapes the page shows.
+  הוספה: "pm-ins",
+  inserted: "pm-ins",
+  מחיקה: "pm-del",
+  deleted: "pm-del",
 };
 
 const hide = Decoration.replace({});
@@ -383,6 +389,9 @@ addNotes("endnote", "1", ["הערתסיום", "endnote"]);
 addNotes("sidenote", "1", ["הערת_גיליון", "sidenote"]);
 addNotes("side-right", "1", ["הערת_ימין", "noteright"]);
 addNotes("side-left", "1", ["הערת_שמאל", "noteleft"]);
+// An editorial comment is a margin note in its own right, numbered by the same
+// sidenote engine — so it collapses to a chip like one, with its text on hover.
+addNotes("review", "1", ["הערת_עורך", "comment_"]);
 
 const FOOTNOTE_NAMES = new Set(Object.keys(NOTE_KINDS));
 

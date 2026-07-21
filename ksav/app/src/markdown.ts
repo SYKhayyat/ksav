@@ -59,6 +59,10 @@ const DROPPED = new Set([
   "הגדרות_מדפים", "pagebands_config", "הגדרות_זרמים", "streams_config",
   "הגדרות_כותרות", "headings_config", "הגדרות_רשימות", "lists_config",
   "הגדרות_טבלאות", "tables_config", "הגדרות_הערות_צד", "sidenotes_config",
+  // Review: an export is the document, not the review of it, so it reads as if
+  // every change were accepted — the deleted text and the comments are gone,
+  // the inserted text (which falls through below) stays.
+  "הגדרות_סקירה", "review_config", "מחיקה", "deleted", "הערת_עורך", "comment_",
 ]);
 
 /** Note commands: their body becomes a footnote, their site a marker. */
@@ -223,6 +227,14 @@ export function toMarkdown(src: string, opts: MarkdownOptions = {}): string {
         out += ATOMS[s.name];
       } else if (s.name === "הפניה" || s.name === "xref") {
         out += "(§)";
+      } else if (s.name === "נוסחה" || s.name === "formula" || s.name === "נוסחה_בשורה" || s.name === "iformula") {
+        // A formula's source is a string argument, not a `[body]`: emitted as
+        // TeX-ish `$…$` maths, which is what every Markdown flavour that renders
+        // maths at all expects. Falling through would have printed the quotes.
+        const src_ = /"((?:[^"\\]|\\.)*)"/.exec(src.slice(s.argOpen ?? i, (s.argClose ?? i) + 1))?.[1] ?? "";
+        const math = src_.replace(/\\(.)/g, "$1");
+        const display = s.name === "נוסחה" || s.name === "formula";
+        out += markup ? (display ? `\n\n$$${math}$$\n\n` : `$${math}$`) : math;
       } else if (s.name === "תמונה" || s.name === "img") {
         const name = /"([^"]*)"/.exec(src.slice(s.argOpen ?? i, (s.argClose ?? i) + 1))?.[1] ?? "";
         out += markup ? `![](${name})` : name;

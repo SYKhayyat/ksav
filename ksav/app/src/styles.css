@@ -598,6 +598,9 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   background: var(--panel); color: var(--ink);
 }
 .style-preset:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+/* The chosen one, for preset rows that represent a current state (the review
+   view) rather than a one-shot action. */
+.style-preset.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 700; }
 .style-undo {
   display: block; width: 100%; margin-top: 6px; padding: 6px 10px; cursor: pointer;
   font-family: var(--hebrew); font-size: 12px; text-align: start;
@@ -640,3 +643,49 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .nikud-key { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .nikud-hint { font-size: 11px; color: var(--muted); padding-inline-start: 8px; align-self: center; }
 @media (max-width: 720px) { .nikud-hint { display: none; } }
+
+/* ---- review: tracked changes and comments -------------------------------
+   The panel is a drawer rather than a modal on purpose: going through changes
+   means reading them against the text they are in, so the document has to stay
+   on screen. Clicking an entry puts the cursor on the mark. */
+.rv-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.rv-item {
+  display: flex; align-items: stretch; gap: 6px; margin-bottom: 6px;
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  border-inline-start-width: 3px;
+}
+.rv-insert { border-inline-start-color: #15803d; }
+.rv-delete { border-inline-start-color: #b91c1c; }
+.rv-comment { border-inline-start-color: #b45309; }
+.rv-main {
+  flex: 1; display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  background: none; border: 0; padding: 6px 8px; cursor: pointer; text-align: start;
+  color: var(--fg); font: inherit; min-width: 0;
+}
+.rv-main:hover { background: var(--accent-soft); }
+.rv-kind { font-size: 10px; color: var(--muted); letter-spacing: .03em; }
+.rv-text { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.rv-author { font-size: 10px; color: var(--muted); }
+.rv-actions { display: flex; flex-direction: column; }
+.rv-actions button {
+  flex: 1; border: 0; border-inline-start: 1px solid var(--line);
+  background: var(--panel); color: var(--muted); font-size: 11px; padding: 2px 8px; cursor: pointer;
+}
+.rv-yes:hover { background: #dcfce7; color: #14532d; }
+.rv-no:hover { background: #fee2e2; color: #7f1d1d; }
+
+/* Review marks in prose mode look like what they mean on the page. */
+.pm-ins { color: #15803d; text-decoration: underline; }
+.pm-del { color: #b91c1c; text-decoration: line-through; }
+
+/* ---- the shared form modal (section page setup, formulas) --------------- */
+.form-modal-box { padding: 14px 16px 16px; max-height: 84vh; overflow: auto; }
+.form-modal-box .set-row { margin: 6px 0; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.math-bits { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.math-bit {
+  min-width: 30px; padding: 3px 7px; font-size: 13px;
+  background: var(--panel); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+.math-bit:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }

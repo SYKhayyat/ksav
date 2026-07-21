@@ -39,6 +39,7 @@ import { toMarkdown, toPlainText } from "./markdown";
 import * as spell from "./spell";
 import * as styles from "./styles";
 import * as tables from "./table";
+import * as review from "./review";
 import type { NoteChoice } from "./notes";
 import type { FileBinding } from "./files";
 
@@ -61,6 +62,7 @@ interface Settings extends DocConfig {
   customCommands?: string; // user #let definitions, prepended at compile
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
+  reviewer?: string; // the name that goes on this person's review comments
 }
 
 /** The font families the engine bundles. Anything else must be attached to the
@@ -337,6 +339,9 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "save", run: () => (saveFile(), true) },
   { id: "open", run: () => (openFile(), true) },
   { id: "newDoc", run: () => (newDoc(), true) },
+  { id: "markInsert", run: () => (markReview("insert"), true) },
+  { id: "markDelete", run: () => (markReview("delete"), true) },
+  { id: "addComment", run: () => (addComment(), true) },
 ];
 const DEFAULT_KEYS: Record<string, string> = {
   bold: "Mod-b",
@@ -364,6 +369,9 @@ const DEFAULT_KEYS: Record<string, string> = {
   save: "Mod-s",
   open: "Mod-o",
   newDoc: "Mod-Alt-n",
+  markInsert: "Mod-Alt-i",
+  markDelete: "Mod-Alt-d",
+  addComment: "Mod-Alt-m",
 };
 
 /**
@@ -603,6 +611,9 @@ function makeEditor(): EditorView {
         if (u.docChanged) {
           scheduleCompile();
           updateCounts();
+          // The review list is a view of the document's own marks, so an edit
+          // anywhere — not only a decision taken in the panel — must refresh it.
+          if (isReviewOpen()) renderReviewPanel();
           if (settings.outline) renderOutline();
         }
       }),
@@ -1108,6 +1119,13 @@ function buildInsertMenu(): HTMLElement {
     el("button", { class: "menu-item", onClick: insertImage }, [
       el("b", {}, ["🖼 " + t("insertImage")]),
     ]),
+    el("button", { class: "menu-item", onClick: openFormula }, [
+      el("b", {}, ["∑ " + t("insertFormula")]),
+    ]),
+    el("button", { class: "menu-item", onClick: openSectionSetup }, [
+      el("b", {}, ["▭ " + t("sectionSetup")]),
+      el("span", { class: "menu-desc" }, [t("sectionSetupLede")]),
+    ]),
     el("div", { class: "menu-sep" }),
   ];
   for (const cat of cats) {
@@ -1256,6 +1274,7 @@ function buildHeader(): HTMLElement {
   );
   const stylesBtn = iconBtn("🎨", t("stylesTitle"), openStyles, "chip");
   const notesBtn = iconBtn("✻", t("notesChooser"), openNotesChooser, "chip");
+  const reviewBtn = iconBtn("✎", t("reviewTitle"), openReview, "chip");
   const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
@@ -1283,6 +1302,7 @@ function buildHeader(): HTMLElement {
     findBtn,
     outlineBtn,
     notesBtn,
+    reviewBtn,
     langToggle,
     foldAllBtn,
     unfoldAllBtn,
@@ -2051,6 +2071,350 @@ function renderStylesPanel() {
   );
 }
 
+// ---------------------------------------------------------------- a small form modal
+//
+// Two features below (section page setup, formulas) need the same thing: a few
+// fields, then insert. `prompt()` can ask for one string and nothing more, and a
+// second bespoke overlay for each would be two copies of the same fifty lines.
+
+let modalOk: (() => void) | null = null;
+
+function openModal(title: string, lede: string, rows: (Node | string)[], onOk: () => void) {
+  modalOk = onOk;
+  const box = document.getElementById("form-modal-body")!;
+  box.replaceChildren(
+    el("div", { class: "styles-head" }, [
+      el("h2", {}, [title]),
+      el("button", { class: "styles-close", title: t("close"), onClick: closeModal }, ["×"]),
+    ]),
+    el("p", { class: "styles-lede" }, [lede]),
+    ...rows,
+    el("div", { class: "modal-actions" }, [
+      el("button", { class: "note-use", onClick: () => { const f = modalOk; closeModal(); f?.(); } }, [
+        t("insertAction"),
+      ]),
+      el("button", { class: "sc-key", onClick: closeModal }, [t("cancel")]),
+    ]),
+  );
+  document.getElementById("form-modal")!.classList.add("open");
+}
+
+function closeModal() {
+  modalOk = null;
+  document.getElementById("form-modal")!.classList.remove("open");
+}
+
+/** A labelled row holding one control, for the modal and the review panel. */
+function fieldRow(label: string, control: Node): HTMLElement {
+  return el("label", { class: "set-row" }, [el("span", {}, [label]), control]);
+}
+
+function textField(value = "", placeholder = ""): HTMLInputElement {
+  return el("input", { type: "text", value, placeholder }) as HTMLInputElement;
+}
+function numberField(value: string, min: number, max: number, step = 1): HTMLInputElement {
+  return el("input", { type: "number", value, min, max, step }) as HTMLInputElement;
+}
+function checkField(checked = false): HTMLInputElement {
+  return el("input", { type: "checkbox", ...(checked ? { checked: "checked" } : {}) }) as HTMLInputElement;
+}
+
+// ---------------------------------------------------------------- review
+//
+// Tracked changes and editorial comments — the one thing anyone editing someone
+// else's kisvei yad cannot do without. The marks are ordinary commands in the
+// document (see review.ts); this is the panel that walks them and takes the
+// decisions, plus the three buttons that make a mark in the first place.
+
+/** Wrap the selection in a review mark. */
+function markReview(kind: "insert" | "delete") {
+  const cmd = kind === "insert" ? "הוספה" : "מחיקה";
+  const by = settings.reviewer?.trim();
+  insertSnippet(by ? `#${cmd}(מאת: "${by.replace(/"/g, "")}")[|]` : `#${cmd}[|]`);
+  scheduleCompile();
+  if (isReviewOpen()) renderReviewPanel();
+}
+
+/**
+ * Comment on the selection.
+ *
+ * The comment goes *after* the selected text rather than around it: a comment is
+ * about the text, not a change to it, so wrapping would put the reader's words
+ * inside the reviewer's mark.
+ */
+function addComment() {
+  const text = prompt(t("commentPrompt"));
+  if (!text) return;
+  const by = settings.reviewer?.trim();
+  const args = by ? `(מאת: "${by.replace(/"/g, "")}")` : "";
+  const at = view.state.selection.main.to;
+  const call = `#הערת_עורך${args}[${text}]`;
+  view.dispatch({ changes: { from: at, to: at, insert: call }, selection: { anchor: at + call.length } });
+  view.focus();
+  scheduleCompile();
+  if (isReviewOpen()) renderReviewPanel();
+}
+
+function isReviewOpen(): boolean {
+  return document.getElementById("review-panel")?.classList.contains("open") ?? false;
+}
+
+function openReview() {
+  closeMenus();
+  renderReviewPanel();
+  document.getElementById("review-panel")!.classList.add("open");
+}
+
+function closeReview() {
+  document.getElementById("review-panel")!.classList.remove("open");
+}
+
+/** Replace the whole document text (a decision rewrites the source). */
+function replaceDoc(next: string) {
+  const doc = view.state.doc.toString();
+  if (next === doc) return;
+  view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+  scheduleCompile();
+  renderReviewPanel();
+}
+
+function decideMark(mark: review.ReviewMark, decision: review.Decision) {
+  replaceDoc(review.decide(view.state.doc.toString(), mark, decision));
+}
+
+function decideEverything(decision: review.Decision) {
+  if (!confirm(t(decision === "accept" ? "confirmAcceptAll" : "confirmRejectAll"))) return;
+  replaceDoc(review.decideAll(view.state.doc.toString(), decision));
+}
+
+/** Which review view the document currently reads in. */
+function reviewView(): review.ReviewView {
+  const raw = styles.findStyleCall(view.state.doc.toString(), "review")?.args.get("תצוגה");
+  return review.viewFromValue(styles.readString(raw));
+}
+
+function setReviewView(v: review.ReviewView) {
+  const doc = view.state.doc.toString();
+  // The markup view is the default, so it is written as *no* command at all
+  // rather than as a redundant one sitting at the top of every reviewed file.
+  const next = styles.setStyleArgs(doc, "review", {
+    "תצוגה": v === "markup" ? null : styles.typstString(review.VIEW_VALUE[v]),
+  });
+  replaceDoc(next);
+}
+
+const MARK_ICON: Record<review.MarkKind, string> = { insert: "＋", delete: "－", comment: "✎" };
+
+function renderReviewPanel() {
+  const box = document.getElementById("review-body");
+  if (!box || !view) return;
+  const doc = view.state.doc.toString();
+  const marks = review.scanMarks(doc);
+  const changes = marks.filter((m) => m.kind !== "comment").length;
+  const view0 = reviewView();
+
+  const viewButtons = el(
+    "div",
+    { class: "style-presets" },
+    (["markup", "final", "original"] as review.ReviewView[]).map((v) =>
+      el(
+        "button",
+        {
+          class: "style-preset" + (v === view0 ? " active" : ""),
+          onClick: () => setReviewView(v),
+        },
+        [t("rv." + v)],
+      ),
+    ),
+  );
+
+  const markRow = (m: review.ReviewMark) =>
+    el("div", { class: `rv-item rv-${m.kind}` }, [
+      el(
+        "button",
+        {
+          class: "rv-main",
+          title: m.body,
+          // Clicking the entry puts the cursor on the mark, so "which one is
+          // this?" is answered by looking at the document, not by guessing.
+          onClick: () => jumpTo(m.from),
+        },
+        [
+          el("span", { class: "rv-kind" }, [MARK_ICON[m.kind] + " " + t("rv." + m.kind)]),
+          el("span", { class: "rv-text" }, [review.excerpt(m.body) || "—"]),
+          ...(m.author ? [el("span", { class: "rv-author" }, [m.author])] : []),
+        ],
+      ),
+      el("div", { class: "rv-actions" }, [
+        el("button", { class: "rv-yes", title: t("accept"), onClick: () => decideMark(m, "accept") }, [
+          m.kind === "comment" ? t("resolve") : t("accept"),
+        ]),
+        ...(m.kind === "comment"
+          ? []
+          : [
+              el("button", { class: "rv-no", title: t("reject"), onClick: () => decideMark(m, "reject") }, [
+                t("reject"),
+              ]),
+            ]),
+      ]),
+    ]);
+
+  box.replaceChildren(
+    el("div", { class: "styles-head" }, [
+      el("h2", {}, [t("reviewTitle")]),
+      el("button", { class: "styles-close", title: t("close"), onClick: closeReview }, ["×"]),
+    ]),
+    el("p", { class: "styles-lede" }, [t("reviewLede")]),
+
+    el("h3", {}, [t("reviewView")]),
+    viewButtons,
+
+    el("h3", {}, [t("review")]),
+    el("div", { class: "rv-tools" }, [
+      el("button", { class: "sc-key", onClick: () => markReview("insert") }, ["＋ " + t("markInsert")]),
+      el("button", { class: "sc-key", onClick: () => markReview("delete") }, ["－ " + t("markDelete")]),
+      el("button", { class: "sc-key", onClick: addComment }, ["✎ " + t("addComment")]),
+    ]),
+    fieldRow(
+      t("reviewerName"),
+      (() => {
+        const input = textField(settings.reviewer ?? "");
+        input.addEventListener("input", () => {
+          settings.reviewer = input.value;
+          saveSettings();
+        });
+        return input;
+      })(),
+    ),
+
+    el("h3", {}, [tf("reviewCount", String(changes), String(marks.length - changes))]),
+    ...(marks.length
+      ? [
+          el("div", { class: "rv-tools" }, [
+            el("button", { class: "sc-key", onClick: () => decideEverything("accept") }, [t("acceptAll")]),
+            el("button", { class: "sc-key", onClick: () => decideEverything("reject") }, [t("rejectAll")]),
+          ]),
+          ...marks.map(markRow),
+        ]
+      : [el("div", { class: "set-note" }, [t("reviewEmpty")])]),
+  );
+}
+
+// ---------------------------------------------------------------- section page setup
+//
+// Header, footer, columns, margins, orientation, numbering, a border and a
+// watermark — for one section rather than the whole document. Writing
+// `#מקטע_עמוד(…)` by hand means knowing eight argument names; this asks.
+
+function openSectionSetup() {
+  closeMenus();
+  const cols = numberField("1", 1, 4);
+  const landscape = checkField();
+  const margin = numberField("", 0.5, 8, 0.5);
+  margin.placeholder = "—";
+  const header = textField();
+  const footer = textField();
+  const border = checkField();
+  const watermark = textField();
+  const numbering = el(
+    "select",
+    {},
+    [["", "num.keep"], ["1", "num.arabic"], ["א", "num.hebrew"], ["i", "num.roman"]].map(([v, k]) =>
+      el("option", { value: v }, [t(k)]),
+    ),
+  ) as HTMLSelectElement;
+
+  openModal(t("sectionSetupTitle"), t("sectionSetupLede"), [
+    fieldRow(t("secColumns"), cols),
+    fieldRow(t("secLandscape"), landscape),
+    fieldRow(t("secMargin"), margin),
+    fieldRow(t("secHeader"), header),
+    fieldRow(t("secFooter"), footer),
+    fieldRow(t("secNumbering"), numbering),
+    fieldRow(t("secBorder"), border),
+    fieldRow(t("secWatermark"), watermark),
+  ], () => {
+    const q = (s: string) => `"${s.replace(/"/g, "")}"`;
+    const args: string[] = [];
+    if (Number(cols.value) > 1) args.push(`טורים: ${Number(cols.value)}`);
+    if (landscape.checked) args.push("לרוחב: true");
+    if (margin.value.trim()) args.push(`שוליים: ${parseFloat(margin.value)}cm`);
+    if (header.value.trim()) args.push(`כותרת_עליונה: ${q(header.value.trim())}`);
+    if (footer.value.trim()) args.push(`כותרת_תחתונה: ${q(footer.value.trim())}`);
+    if (numbering.value) args.push(`מספור: ${q(numbering.value)}`);
+    if (border.checked) args.push("מסגרת: true");
+    if (watermark.value.trim()) args.push(`סימן_מים: ${q(watermark.value.trim())}`);
+    insertSnippet(`#מקטע_עמוד(${args.join(", ")})[\n|\n]`);
+    scheduleCompile();
+  });
+}
+
+// ---------------------------------------------------------------- formulas
+//
+// Typst's own maths notation, which is compact and readable but which nobody
+// knows on their first day. The buttons write the constructs; the box is plain
+// text, so anyone who does know the notation can simply type.
+
+const MATH_BITS: [string, string][] = [
+  ["a/b", "(a)/(b)"],
+  ["xⁿ", "^( )"],
+  ["xₙ", "_( )"],
+  ["√", "sqrt( )"],
+  ["∑", "sum_(i=1)^n "],
+  ["∏", "product_(i=1)^n "],
+  ["∫", "integral_a^b "],
+  ["≤", " <= "],
+  ["≥", " >= "],
+  ["≠", " != "],
+  ["±", " plus.minus "],
+  ["→", " arrow.r "],
+  ["∞", "infinity"],
+  ["α", "alpha"],
+  ["π", "pi"],
+  ["( )", "lr(( ))"],
+  ["מטריצה", "mat(1, 2; 3, 4)"],
+  ["מקרים", "cases(a &\"if\" x > 0, b &\"else\")"],
+];
+
+function openFormula() {
+  closeMenus();
+  const src = el("textarea", { class: "set-textarea", rows: 3, placeholder: "x^2 + y^2 = z^2" }, [
+  ]) as HTMLTextAreaElement;
+  const display = checkField(true);
+  const numbered = checkField();
+
+  const insertAt = (snippet: string) => {
+    const s = src.selectionStart ?? src.value.length;
+    const e = src.selectionEnd ?? s;
+    src.value = src.value.slice(0, s) + snippet + src.value.slice(e);
+    src.focus();
+    src.setSelectionRange(s + snippet.length, s + snippet.length);
+  };
+
+  openModal(t("formulaTitle"), t("formulaLede"), [
+    src,
+    el(
+      "div",
+      { class: "math-bits" },
+      MATH_BITS.map(([label, snip]) =>
+        el("button", { class: "math-bit", title: snip, onClick: () => insertAt(snip) }, [label]),
+      ),
+    ),
+    fieldRow(t("formulaDisplay"), display),
+    fieldRow(t("formulaNumbered"), numbered),
+  ], () => {
+    const body = src.value.trim();
+    if (!body) return;
+    const q = '"' + body.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    insertSnippet(
+      display.checked
+        ? `#נוסחה(${q}${numbered.checked ? ", ממוספרת: true" : ""})`
+        : `#נוסחה_בשורה(${q})`,
+    );
+    scheduleCompile();
+  });
+}
+
 // ---------------------------------------------------------------- notes chooser
 //
 // The eleven note layouts used to be ~25 raw command names in one palette group.
@@ -2470,6 +2834,15 @@ function render() {
     el("aside", { id: "styles-panel", class: "drawer drawer-styles" }, [
       el("div", { id: "styles-body" }),
     ]),
+    // review panel (a drawer, so the document stays visible while you go
+    // through the changes — the whole point is comparing them with the text)
+    el("aside", { id: "review-panel", class: "drawer drawer-styles" }, [
+      el("div", { id: "review-body" }),
+    ]),
+    // a shared form modal (section page setup, formulas)
+    el("div", { id: "form-modal", class: "overlay", onClick: (e: Event) => {
+      if ((e.target as HTMLElement).id === "form-modal") closeModal();
+    } }, [el("div", { class: "palette-box form-modal-box" }, [el("div", { id: "form-modal-body" })])]),
     // notes chooser overlay
     el("div", { id: "notes-chooser", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "notes-chooser") closeNotesChooser();
@@ -2543,6 +2916,8 @@ function wireKeys() {
       closeNotesChooser();
       closeSpellMenu();
       closeStyles();
+      closeReview();
+      closeModal();
     } else if (e.key === "Alt" && settings.prose) {
       view.dispatch({ effects: setRevealAll.of(true) });
     }

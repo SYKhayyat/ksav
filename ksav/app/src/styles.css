@@ -573,3 +573,39 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .spell-item:hover { background: var(--accent-soft); color: var(--accent); }
 .spell-add { color: var(--muted); }
 .spell-none, .spell-loading { padding: 5px 9px; color: var(--muted); font-size: 12px; }
+
+/* ---- styles panel -------------------------------------------------------
+   A drawer rather than a modal: you are tuning how the document looks, so the
+   document has to stay visible while you do it. */
+.drawer-styles { width: 330px; }
+.styles-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.styles-head h2 { margin: 0; font-size: 18px; }
+.styles-close {
+  border: none; background: none; color: var(--muted); font-size: 20px;
+  line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.styles-close:hover { color: var(--ink); }
+.styles-lede { margin: 4px 0 14px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+#styles-body h3 {
+  margin: 20px 0 6px; font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.styles-note { margin: 0 0 8px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.style-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.style-preset {
+  font-family: var(--hebrew); font-size: 12px; padding: 6px 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); color: var(--ink);
+}
+.style-preset:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.style-undo {
+  display: block; width: 100%; margin-top: 6px; padding: 6px 10px; cursor: pointer;
+  font-family: var(--hebrew); font-size: 12px; text-align: start;
+  border: 1px dashed var(--line); border-radius: 6px;
+  background: none; color: var(--muted);
+}
+.style-undo:hover { border-color: var(--accent); color: var(--accent); }
+#styles-body input[type="color"] {
+  width: 42px; height: 26px; padding: 0; border: 1px solid var(--line);
+  border-radius: 5px; background: none; cursor: pointer;
+}

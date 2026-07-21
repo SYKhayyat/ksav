@@ -37,6 +37,7 @@ import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
 import { toMarkdown, toPlainText } from "./markdown";
 import * as spell from "./spell";
+import * as styles from "./styles";
 import type { NoteChoice } from "./notes";
 import type { FileBinding } from "./files";
 
@@ -849,12 +850,50 @@ const SKINS: Record<string, Partial<Settings>> = {
   letter: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 3, line_spacing_em: 0.85, justify: true, hebrew_numbering: false, numbering: false },
   plain: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 2.5, line_spacing_em: 0.75, justify: true, hebrew_numbering: false, numbering: true, header: "", footer: "" },
 };
+/**
+ * The settings a preset replaced, so it can be undone.
+ *
+ * A skin used to `Object.assign` straight over your settings: choose one and
+ * your font was gone, with nothing to say it had happened and no way back. A
+ * preset is a starting point, not a one-way door.
+ */
+let styleUndo: { name: string; before: Partial<Settings> } | null = null;
+
 function applySkin(name: string) {
-  Object.assign(settings, SKINS[name]);
+  const preset = SKINS[name];
+  const before: Partial<Settings> = {};
+  for (const k of Object.keys(preset) as (keyof Settings)[]) {
+    (before as Record<string, unknown>)[k] = settings[k];
+  }
+  styleUndo = { name, before };
+  Object.assign(settings, preset);
   saveSettings();
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  closeMenus();
   scheduleCompile();
+  // rerenderChrome rebuilds the whole chrome, which drops the panel's contents
+  // and its open state — so restore both, or applying a preset from inside the
+  // panel closes the panel and hides the undo it just made available.
+  const wasOpen = document.getElementById("styles-panel")?.classList.contains("open");
   rerenderChrome();
+  if (wasOpen) {
+    renderStylesPanel();
+    document.getElementById("styles-panel")?.classList.add("open");
+  }
+  setStatus(tf("presetApplied", t("skin." + name)), "ok");
+}
+
+function undoSkin() {
+  if (!styleUndo) return;
+  Object.assign(settings, styleUndo.before);
+  styleUndo = null;
+  saveSettings();
+  scheduleCompile();
+  const wasOpen = document.getElementById("styles-panel")?.classList.contains("open");
+  rerenderChrome();
+  if (wasOpen) {
+    renderStylesPanel();
+    document.getElementById("styles-panel")?.classList.add("open");
+  }
 }
 
 // Nikud marks (combining) for the vowel-input bar.
@@ -1096,14 +1135,8 @@ function buildHeader(): HTMLElement {
     el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
   ]);
 
-  const skinsMenu = menu(
-    "🎨 " + t("skins"),
-    Object.keys(SKINS).map((name) =>
-      el("button", { class: "menu-item", onClick: () => applySkin(name) }, [
-        el("b", {}, [t("skin." + name)]),
-      ]),
-    ),
-  );
+  // The Skins menu is gone: presets now live inside the Styles panel, next to
+  // the settings they overwrite, where the relationship is visible.
 
   const exportMenu = menu("⬇ " + t("export"), [
     el("button", { class: "menu-item", onClick: exportPdf }, [t("exportPdf")]),
@@ -1164,6 +1197,7 @@ function buildHeader(): HTMLElement {
     toggleNikud,
     settings.nikud ? "chip active" : "chip",
   );
+  const stylesBtn = iconBtn("🎨", t("stylesTitle"), openStyles, "chip");
   const notesBtn = iconBtn("✻", t("notesChooser"), openNotesChooser, "chip");
   const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
@@ -1187,7 +1221,7 @@ function buildHeader(): HTMLElement {
     undoBtn,
     redoBtn,
     templatesMenu,
-    skinsMenu,
+    stylesBtn,
     exportMenu,
     findBtn,
     outlineBtn,
@@ -1717,6 +1751,185 @@ function setStatus(msg: string, cls = "") {
   status.className = cls;
 }
 
+// ---------------------------------------------------------------- styles panel
+//
+// One place for formatting, because there were three and they fought:
+// app settings, presets that silently overwrote them, and the in-document
+// #הגדרות_* commands — the most powerful styling in the product, with no UI at
+// all. This panel puts page setup, presets and the document's own heading / list
+// / table design side by side, so "where does my formatting live" has an answer.
+
+function openStyles() {
+  closeMenus();
+  renderStylesPanel();
+  document.getElementById("styles-panel")!.classList.add("open");
+}
+
+function closeStyles() {
+  document.getElementById("styles-panel")!.classList.remove("open");
+}
+
+/** Read the document's current value for one styling argument. */
+function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
+  const call = styles.findStyleCall(view.state.doc.toString(), kind);
+  return call?.args.get(key);
+}
+
+/** Write styling arguments into the document, replacing the existing call. */
+function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
+  const doc = view.state.doc.toString();
+  const next = styles.setStyleArgs(doc, kind, changes);
+  if (next === doc) return;
+  view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+  scheduleCompile();
+  renderStylesPanel();
+}
+
+/** A labelled row in the styles panel. */
+function styleRow(label: string, control: Node): HTMLElement {
+  return el("label", { class: "set-row" }, [el("span", {}, [label]), control]);
+}
+
+function selectControl(
+  options: [string, string][],
+  current: string,
+  onPick: (v: string) => void,
+): HTMLElement {
+  return el(
+    "select",
+    { onChange: (e: Event) => onPick((e.target as HTMLSelectElement).value) },
+    options.map(([v, lbl]) =>
+      el("option", { value: v, ...(current === v ? { selected: "selected" } : {}) }, [lbl]),
+    ),
+  );
+}
+
+function toggleControl(current: boolean, onPick: (v: boolean) => void): HTMLElement {
+  const input = el("input", { type: "checkbox", ...(current ? { checked: "checked" } : {}) });
+  input.addEventListener("change", () => onPick(input.checked));
+  return input;
+}
+
+function colorControl(current: string, onPick: (v: string) => void): HTMLElement {
+  const input = el("input", { type: "color", value: current });
+  input.addEventListener("change", () => onPick(input.value));
+  return input;
+}
+
+function renderStylesPanel() {
+  const box = document.getElementById("styles-body");
+  if (!box) return;
+
+  // --- presets ---
+  const presets = el("div", { class: "style-presets" },
+    Object.keys(SKINS).map((name) =>
+      el("button", { class: "style-preset", onClick: () => applySkin(name) }, [t("skin." + name)]),
+    ),
+  );
+
+  // --- headings (in-document) ---
+  const hNumbering = styles.readString(styleArg("headings", "מספור")) ?? "";
+  const hRule = styles.readBool(styleArg("headings", "קו")) ?? false;
+  const hUnderline = styles.readBool(styleArg("headings", "קו_תחתון")) ?? false;
+  const hSmallcaps = styles.readBool(styleArg("headings", "רברבתי")) ?? false;
+  const hColor = styles.readColor(styleArg("headings", "צבע")) ?? "#000000";
+  const hAlign = (styleArg("headings", "יישור") ?? "none").trim();
+
+  const headings = [
+    styleRow(t("headingNumbering"), selectControl(
+      [["", t("none")], ["1.", "1. 2. 3."], ["1.1", "1.1 1.2"], ["א.", "א. ב. ג."], ["I.", "I. II."]],
+      hNumbering,
+      (v) => setStyleArgs("headings", { "מספור": v ? styles.typstString(v) : null }),
+    )),
+    styleRow(t("headingAlign"), selectControl(
+      [["none", t("inherit")], ["right", t("right")], ["center", t("center")], ["left", t("left")]],
+      hAlign,
+      (v) => setStyleArgs("headings", { "יישור": v === "none" ? null : v }),
+    )),
+    styleRow(t("headingColor"), colorControl(hColor, (v) =>
+      setStyleArgs("headings", { "צבע": v === "#000000" ? null : styles.typstColor(v) }))),
+    styleRow(t("headingRule"), toggleControl(hRule, (v) =>
+      setStyleArgs("headings", { "קו": v ? "true" : null }))),
+    styleRow(t("headingUnderline"), toggleControl(hUnderline, (v) =>
+      setStyleArgs("headings", { "קו_תחתון": v ? "true" : null }))),
+    styleRow(t("headingSmallcaps"), toggleControl(hSmallcaps, (v) =>
+      setStyleArgs("headings", { "רברבתי": v ? "true" : null }))),
+  ];
+
+  // --- lists (in-document) ---
+  const lMarker = styleArg("lists", "סמן") ?? "";
+  const lTight = styles.readBool(styleArg("lists", "הידוק")) ?? false;
+  const lIndent = styles.readLength(styleArg("lists", "הזחה"), "em") ?? 1;
+
+  const indentInput = el("input", { type: "number", min: 0, max: 5, step: 0.25, value: String(lIndent) });
+  indentInput.addEventListener("change", () => {
+    const v = parseFloat(indentInput.value);
+    setStyleArgs("lists", { "הזחה": Number.isFinite(v) && v !== 1 ? `${v}em` : null });
+  });
+
+  const lists = [
+    styleRow(t("listMarker"), selectControl(
+      [["", t("default")], ["[•]", "•"], ["[–]", "–"], ["[◆]", "◆"], ["[▪]", "▪"], ["[✦]", "✦"]],
+      lMarker,
+      (v) => setStyleArgs("lists", { "סמן": v || null }),
+    )),
+    styleRow(t("listIndent"), indentInput),
+    styleRow(t("listTight"), toggleControl(lTight, (v) =>
+      setStyleArgs("lists", { "הידוק": v ? "true" : null }))),
+  ];
+
+  // --- tables (in-document) ---
+  const tStripe = styles.readBool(styleArg("tables", "פסים")) ?? false;
+  const tHeaderFill = styles.readColor(styleArg("tables", "צבע_כותרת")) ?? "#ebebeb";
+  const tInset = styles.readLength(styleArg("tables", "מרווח"), "pt") ?? 8;
+
+  const insetInput = el("input", { type: "number", min: 0, max: 30, step: 1, value: String(tInset) });
+  insetInput.addEventListener("change", () => {
+    const v = parseFloat(insetInput.value);
+    setStyleArgs("tables", { "מרווח": Number.isFinite(v) && v !== 8 ? `${v}pt` : null });
+  });
+
+  const tables = [
+    styleRow(t("tableStripes"), toggleControl(tStripe, (v) =>
+      setStyleArgs("tables", { "פסים": v ? "true" : null }))),
+    styleRow(t("tableHeaderFill"), colorControl(tHeaderFill, (v) =>
+      setStyleArgs("tables", { "צבע_כותרת": styles.typstColor(v) }))),
+    styleRow(t("tableInset"), insetInput),
+    styleRow(t("tableBorder"), toggleControl(
+      (styleArg("tables", "קו") ?? "x") !== "none",
+      (v) => setStyleArgs("tables", { "קו": v ? null : "none" }),
+    )),
+  ];
+
+  box.replaceChildren(
+    el("div", { class: "styles-head" }, [
+      el("h2", {}, [t("stylesTitle")]),
+      el("button", { class: "styles-close", title: t("close"), onClick: closeStyles }, ["×"]),
+    ]),
+    el("p", { class: "styles-lede" }, [t("stylesLede")]),
+
+    el("h3", {}, [t("stylePresets")]),
+    el("p", { class: "styles-note" }, [t("presetWarning")]),
+    presets,
+    ...(styleUndo
+      ? [el("button", { class: "style-undo", onClick: () => { undoSkin(); renderStylesPanel(); } }, [
+          "↶ " + tf("undoPreset", t("skin." + styleUndo.name)),
+        ])]
+      : []),
+
+    el("h3", {}, [t("stylePage")]),
+    el("p", { class: "styles-note" }, [t("pageStyleNote")]),
+
+    el("h3", {}, [t("styleHeadings")]),
+    ...headings,
+    el("h3", {}, [t("styleLists")]),
+    ...lists,
+    el("h3", {}, [t("styleTables")]),
+    ...tables,
+    el("p", { class: "styles-note" }, [t("documentStyleNote")]),
+  );
+}
+
 // ---------------------------------------------------------------- notes chooser
 //
 // The eleven note layouts used to be ~25 raw command names in one palette group.
@@ -2131,6 +2344,10 @@ function render() {
       el("h3", {}, [t("outline")]),
       el("div", { id: "outline-list" }),
     ]),
+    // styles panel (a drawer, so the document stays visible while you tune it)
+    el("aside", { id: "styles-panel", class: "drawer drawer-styles" }, [
+      el("div", { id: "styles-body" }),
+    ]),
     // notes chooser overlay
     el("div", { id: "notes-chooser", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "notes-chooser") closeNotesChooser();
@@ -2203,6 +2420,7 @@ function wireKeys() {
       closeHistory();
       closeNotesChooser();
       closeSpellMenu();
+      closeStyles();
     } else if (e.key === "Alt" && settings.prose) {
       view.dispatch({ effects: setRevealAll.of(true) });
     }

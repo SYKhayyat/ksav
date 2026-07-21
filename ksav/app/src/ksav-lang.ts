@@ -21,11 +21,46 @@ export interface CmdSpan {
   cmdStart: number; // position of '#'
   nameEnd: number; // position just after the command name
   name: string;
+  /** Position of '(' when the command takes arguments, else null. */
+  argOpen: number | null;
+  /** Position of the matching ')', else null. */
+  argClose: number | null;
   open: number | null; // position of '['
   close: number | null; // position of matching ']'
 }
 
-/** Find every `#command` and, when present, its balanced `[...]`. */
+/** Scan forward from `at` over a balanced group, returning the closer's index. */
+function matchGroup(text: string, at: number, open: string, close: string): number | null {
+  let depth = 1;
+  for (let i = at + 1; i < text.length; i++) {
+    // Skip string literals, so a bracket inside `rgb("#b91c1c")` cannot
+    // unbalance the scan.
+    if (text[i] === '"') {
+      i++;
+      while (i < text.length && text[i] !== '"') {
+        if (text[i] === "\\") i++;
+        i++;
+      }
+      continue;
+    }
+    if (text[i] === open) depth++;
+    else if (text[i] === close) {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find every `#command`, its optional `(...)` arguments, and its `[...]` body.
+ *
+ * The argument group matters more than it looks: this used to recognise only
+ * `#name[`, so every command that takes arguments — `#צבע(rgb("#b91c1c"))[…]`,
+ * `#גודל_גופן(14pt)[…]`, `#הערה_זרם("מקורות")[…]`, `#כותרת(רמה: 4)[…]` — was
+ * invisible to prose mode and showed up as literal markup in the middle of the
+ * "looks like Word" view.
+ */
 export function scanCommands(text: string): CmdSpan[] {
   const spans: CmdSpan[] = [];
   CMD_RE.lastIndex = 0;
@@ -34,20 +69,24 @@ export function scanCommands(text: string): CmdSpan[] {
     const cmdStart = m.index;
     const name = m[1];
     const nameEnd = cmdStart + 1 + name.length;
+    let argOpen: number | null = null;
+    let argClose: number | null = null;
+    let bodyAt = nameEnd;
+    if (text[nameEnd] === "(") {
+      const end = matchGroup(text, nameEnd, "(", ")");
+      if (end != null) {
+        argOpen = nameEnd;
+        argClose = end;
+        bodyAt = end + 1;
+      }
+    }
     let open: number | null = null;
     let close: number | null = null;
-    if (text[nameEnd] === "[") {
-      open = nameEnd;
-      let depth = 1;
-      let j = nameEnd + 1;
-      while (j < text.length && depth > 0) {
-        if (text[j] === "[") depth++;
-        else if (text[j] === "]") depth--;
-        j++;
-      }
-      if (depth === 0) close = j - 1;
+    if (text[bodyAt] === "[") {
+      open = bodyAt;
+      close = matchGroup(text, bodyAt, "[", "]");
     }
-    spans.push({ cmdStart, nameEnd, name, open, close });
+    spans.push({ cmdStart, nameEnd, name, argOpen, argClose, open, close });
   }
   return spans;
 }
@@ -163,9 +202,95 @@ const PROSE_STYLE: Record<string, string> = {
   framebox: "pm-box",
   דיבור_המתחיל: "pm-bold",
   dh: "pm-bold",
+  // These all take a `(...)` argument, which prose mode could not even see until
+  // scanCommands learned to skip an argument group — so they used to appear as
+  // literal `#צבע(rgb("#b91c1c"))[…]` in the middle of the "looks like Word" view.
+  צבע: "pm-color",
+  color: "pm-color",
+  רקע: "pm-mark",
+  bg: "pm-mark",
+  גודל_גופן: "pm-big",
+  fsize: "pm-big",
+  מרווח_אותיות: "pm-tracked",
+  track: "pm-tracked",
+  גופן_שונה: "pm-otherfont",
+  usefont: "pm-otherfont",
+  רברבתי: "pm-scaps",
+  scaps: "pm-scaps",
+  עילי: "pm-sup",
+  sup: "pm-sup",
+  תחתי: "pm-sub",
+  sub_: "pm-sub",
+  הזחה: "pm-indent",
+  indent_: "pm-indent",
+  מימין_לשמאל: "pm-rtl",
+  rtl_: "pm-rtl",
+  משמאל_לימין: "pm-ltr",
+  ltr_: "pm-ltr",
+  // Torah layer.
+  סימן: "pm-h1",
+  siman: "pm-h1",
+  סעיף: "pm-seif",
+  seif: "pm-seif",
+  אות: "pm-bold",
+  osource: "pm-bold",
+  פסוק: "pm-verse",
+  verse: "pm-verse",
+  ציון: "pm-source",
+  refmark: "pm-source",
+  גמרא: "pm-gemara",
+  gemara: "pm-gemara",
 };
 
 const hide = Decoration.replace({});
+
+/**
+ * Commands that take no body and so have nothing to "style" — in prose mode they
+ * should look like the thing they produce, not like their own name.
+ */
+const SELF_CLOSING: Record<string, { cls: string; text: string }> = {
+  קו_מפריד: { cls: "pm-hr", text: "" },
+  hrule: { cls: "pm-hr", text: "" },
+  חסר: { cls: "pm-blank", text: "\u00a0\u00a0\u00a0\u00a0\u00a0" },
+  blank: { cls: "pm-blank", text: "\u00a0\u00a0\u00a0\u00a0\u00a0" },
+  מעבר_עמוד: { cls: "pm-pagebreak", text: "— — —" },
+  pbreak: { cls: "pm-pagebreak", text: "— — —" },
+  מעבר_טור: { cls: "pm-pagebreak", text: "⋮" },
+  cbreak: { cls: "pm-pagebreak", text: "⋮" },
+  תמונה: { cls: "pm-image", text: "🖼" },
+  img: { cls: "pm-image", text: "🖼" },
+  תוכן: { cls: "pm-toc", text: "⧉" },
+  toc: { cls: "pm-toc", text: "⧉" },
+  סמן: { cls: "pm-anchor", text: "⚑" },
+  anchor: { cls: "pm-anchor", text: "⚑" },
+  הפניה: { cls: "pm-xref", text: "↗" },
+  xref: { cls: "pm-xref", text: "↗" },
+  הערות_בסוף: { cls: "pm-apparatus", text: "▤ הערות" },
+  endnotes: { cls: "pm-apparatus", text: "▤ notes" },
+  הערות_מדורגות: { cls: "pm-apparatus", text: "▤ מדורים" },
+  banded_notes: { cls: "pm-apparatus", text: "▤ bands" },
+  הערות_בסוף_צד: { cls: "pm-apparatus", text: "▤ הערות" },
+  endnotes_side: { cls: "pm-apparatus", text: "▤ notes" },
+};
+
+/** A small inline stand-in for a body-less command. */
+class MarkWidget extends WidgetType {
+  constructor(readonly cls: string, readonly text: string) {
+    super();
+  }
+  eq(o: MarkWidget) {
+    return o.cls === this.cls && o.text === this.text;
+  }
+  toDOM() {
+    const n = document.createElement("span");
+    n.className = this.cls;
+    n.textContent = this.text;
+    return n;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
 
 /** Toggle for "reveal all raw markup" (bound to the Alt key). */
 export const setRevealAll = StateEffect.define<boolean>();
@@ -195,33 +320,77 @@ class LabelWidget extends WidgetType {
 
 // A numbered footnote marker chip (the body is hidden in prose mode).
 class FootnoteWidget extends WidgetType {
-  constructor(readonly n: number) {
+  constructor(readonly label: string, readonly title: string) {
     super();
   }
   eq(o: FootnoteWidget) {
-    return o.n === this.n;
+    return o.label === this.label && o.title === this.title;
   }
   toDOM() {
     const s = document.createElement("sup");
     s.className = "pm-fn";
-    s.textContent = String(this.n);
+    s.textContent = this.label;
+    // The note's own text, so a writer can read it without revealing markup.
+    s.title = this.title;
     return s;
   }
 }
-const FOOTNOTE_NAMES = new Set([
+/**
+ * Every note command, mapped to the apparatus it belongs to and how that
+ * apparatus numbers.
+ *
+ * The chip number used to be a single running counter over *all* note kinds, so
+ * the preview's superscripts simply did not match the printed page: real output
+ * numbers each stream independently and letters the upper bands (א,ב). Grouping
+ * by family and using each family's own default scheme gets the preview to agree
+ * with the PDF for any document that has not overridden the numbering itself.
+ */
+type NoteScheme = "1" | "א" | "a";
+interface NoteKind {
+  family: string;
+  scheme: NoteScheme;
+}
+const NOTE_KINDS: Record<string, NoteKind> = {};
+const addNotes = (family: string, scheme: NoteScheme, names: string[]) => {
+  for (const n of names) NOTE_KINDS[n] = { family, scheme };
+};
+
+// The one native page-foot series: plain footnotes, sub-notes, mekoros notes and
+// every tier of the layered notes all land in it, in one running sequence.
+addNotes("native", "1", [
   "הערה", "fnote", "הערה_על_הערה", "subnote", "מראה_מקום", "sourcenote",
-  // layered (tiered) footnotes
   "הערה_א", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז",
   "tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7",
-  // regrouped bands (marker is a superscript too)
-  "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה", "מדור_ו", "מדור_ז",
-  "band1", "band2", "band3", "band4", "band5", "band6", "band7",
-  // per-page regrouped bands
-  "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז",
-  "pageband1", "pageband2", "pageband3", "pageband4", "pageband5", "pageband6", "pageband7",
-  // independent footnote streams
-  "הערת_תוכן", "הערת_מקור", "contentnote", "sourcenote_stream",
+  "הערה_בדרגה", "tier",
 ]);
+// Section bands and per-page bands: one independent sequence per tier, and the
+// engine letters tiers 2 and 3 by default.
+const BAND_TIERS: [string, NoteScheme][] = [["א", "1"], ["ב", "א"], ["ג", "a"], ["ד", "1"], ["ה", "א"], ["ו", "a"], ["ז", "1"]];
+BAND_TIERS.forEach(([letter, scheme], i) => {
+  addNotes(`band${i + 1}`, scheme, [`מדור_${letter}`, `band${i + 1}`]);
+  addNotes(`pageband${i + 1}`, scheme, [`מדף_${letter}`, `pageband${i + 1}`]);
+});
+addNotes("band1", "1", ["מדור_בדרגה", "band"]);
+addNotes("pageband1", "1", ["מדף_בדרגה", "pageband"]);
+// Independent per-page streams — the sources stream is lettered by convention.
+addNotes("stream-content", "1", ["הערת_תוכן", "contentnote"]);
+addNotes("stream-source", "א", ["הערת_מקור", "sourcenote_stream"]);
+addNotes("stream-other", "1", ["הערה_זרם", "stream_note"]);
+// Endnotes, and the margin apparatuses.
+addNotes("endnote", "1", ["הערתסיום", "endnote"]);
+addNotes("sidenote", "1", ["הערת_גיליון", "sidenote"]);
+addNotes("side-right", "1", ["הערת_ימין", "noteright"]);
+addNotes("side-left", "1", ["הערת_שמאל", "noteleft"]);
+
+const FOOTNOTE_NAMES = new Set(Object.keys(NOTE_KINDS));
+
+const HEB_LETTERS = "אבגדהוזחטיכלמנסעפצקרשת".split("");
+/** Render `n` (1-based) in an apparatus's own numbering scheme. */
+function noteLabel(scheme: NoteScheme, n: number): string {
+  if (scheme === "א") return HEB_LETTERS[(n - 1) % HEB_LETTERS.length];
+  if (scheme === "a") return String.fromCharCode(97 + ((n - 1) % 26));
+  return String(n);
+}
 
 // Match the delimiter (`[` or `(`) at `openPos` within a text string.
 function matchInText(text: string, openPos: number): number | null {
@@ -250,6 +419,9 @@ const ITEM_OPEN_RE = /(^|[^A-Za-z0-9֐-׿_])(פריט|item)\s*\[/gu;
 const TABLE_OPEN_RE = /#(טבלה|mktable)\s*\(/gu;
 const CELL_RE = /(כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*(?:\(\s*(\d+)\s*\))?\s*\[/gu;
 
+// A table cell rendered only bold/italic/underline/strike/code, so a cell using
+// anything else — a colour, a highlight, small caps — showed its raw markup
+// inside an otherwise WYSIWYG table. These are the same styles the body honours.
 const INLINE_TAG: Record<string, [string, string]> = {
   הדגשה: ["<strong>", "</strong>"],
   bold: ["<strong>", "</strong>"],
@@ -261,6 +433,26 @@ const INLINE_TAG: Record<string, [string, string]> = {
   sthrough: ["<s>", "</s>"],
   קוד: ["<code>", "</code>"],
   mono: ["<code>", "</code>"],
+  סימון: ['<span class="pm-mark">', "</span>"],
+  mark: ['<span class="pm-mark">', "</span>"],
+  רקע: ['<span class="pm-mark">', "</span>"],
+  bg: ['<span class="pm-mark">', "</span>"],
+  צבע: ['<span class="pm-color">', "</span>"],
+  color: ['<span class="pm-color">', "</span>"],
+  רברבתי: ['<span class="pm-scaps">', "</span>"],
+  scaps: ['<span class="pm-scaps">', "</span>"],
+  עילי: ["<sup>", "</sup>"],
+  sup: ["<sup>", "</sup>"],
+  תחתי: ["<sub>", "</sub>"],
+  sub_: ["<sub>", "</sub>"],
+  גדול: ['<span class="pm-big">', "</span>"],
+  big: ['<span class="pm-big">', "</span>"],
+  קטן: ['<span class="pm-small">', "</span>"],
+  tiny: ['<span class="pm-small">', "</span>"],
+  דיבור_המתחיל: ["<strong>", "</strong>"],
+  dh: ["<strong>", "</strong>"],
+  ציון: ['<span class="pm-source">', "</span>"],
+  refmark: ['<span class="pm-source">', "</span>"],
 };
 
 function escapeHtml(s: string): string {
@@ -273,7 +465,9 @@ function renderInline(text: string): string {
   let out = "";
   let i = 0;
   while (i < text.length) {
-    const m = text.slice(i).match(/#([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*\[/u);
+    // `(?:\([^()]*\))?` skips a command's argument group, so `#צבע(rgb("…"))[…]`
+    // in a cell renders its content instead of printing its own arguments.
+    const m = text.slice(i).match(/#([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*(?:\([^()]*\))?\s*\[/u);
     if (!m) {
       out += escapeHtml(text.slice(i));
       break;
@@ -498,18 +692,41 @@ function proseDecorations(state: EditorState): DecorationSet {
     }
   }
 
-  let fnCount = 0;
+  // One counter per apparatus, not one for the whole document.
+  const fnCounts: Record<string, number> = {};
   for (const s of allCmds) {
     if (inComment(s.cmdStart)) continue; // commented-out command: hidden by the comment hider
     if (insideFootnote(s.cmdStart) || insideTable(s.cmdStart)) continue; // covered by another widget
+
+    // ---- commands with no body: shown as the thing they produce ----
+    const block = SELF_CLOSING[s.name];
+    if (block && s.open == null) {
+      const to = s.argClose != null ? s.argClose + 1 : s.nameEnd;
+      if (!touchedAt(s.cmdStart, to)) {
+        ranges.push({
+          from: s.cmdStart,
+          to,
+          deco: Decoration.replace({ widget: new MarkWidget(block.cls, block.text) }),
+          side: 0,
+        });
+      }
+      continue;
+    }
+
     // footnotes -> a numbered superscript chip (body hidden)
-    if (FOOTNOTE_NAMES.has(s.name) && s.open != null && s.close != null) {
-      fnCount++;
+    const kind = NOTE_KINDS[s.name];
+    if (kind && s.open != null && s.close != null) {
+      const n = (fnCounts[kind.family] = (fnCounts[kind.family] ?? 0) + 1);
       if (!touchedAt(s.cmdStart, s.close + 1)) {
         ranges.push({
           from: s.cmdStart,
           to: s.close + 1,
-          deco: Decoration.replace({ widget: new FootnoteWidget(fnCount) }),
+          deco: Decoration.replace({
+            widget: new FootnoteWidget(
+              noteLabel(kind.scheme, n),
+              text.slice(s.open + 1, s.close).replace(/#[^\[]*\[|[[\]]/g, " ").trim(),
+            ),
+          }),
           side: 0,
         });
       }
@@ -524,7 +741,8 @@ function proseDecorations(state: EditorState): DecorationSet {
     const touched = touchedAt(spanFrom, spanTo);
     if (touched) continue;
 
-    // hide "#name[" and the matching "]"
+    // hide "#name(args)[" and the matching "]" — the argument group included, or
+    // a coloured run would still read as `#צבע(rgb("#b91c1c"))` on the page.
     ranges.push({ from: s.cmdStart, to: s.open + 1, deco: hide, side: -1 });
     ranges.push({ from: s.close, to: s.close + 1, deco: hide, side: 1 });
     // style the inner content

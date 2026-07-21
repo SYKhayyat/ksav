@@ -502,3 +502,41 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   .notes-chooser-box { width: 96vw; padding: 16px; }
   .note-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- prose mode: the styles added with the wider command coverage --------
+   Everything below is an approximation of the printed result, not the result
+   itself — prose mode is a legible stand-in for the page, and the live preview
+   is the authority. */
+.pm-color { color: #b91c1c; }
+.pm-scaps { font-variant: small-caps; }
+.pm-sup { vertical-align: super; font-size: .78em; }
+.pm-sub { vertical-align: sub; font-size: .78em; }
+.pm-tracked { letter-spacing: .12em; }
+.pm-otherfont { font-family: "David Libre", var(--hebrew); }
+.pm-indent { display: inline-block; padding-inline-start: 1.5em; }
+.pm-rtl { direction: rtl; unicode-bidi: isolate; }
+.pm-ltr { direction: ltr; unicode-bidi: isolate; }
+.pm-seif { font-weight: 600; }
+.pm-verse { font-style: italic; }
+.pm-gemara { font-style: italic; color: var(--muted); }
+
+/* Body-less commands: shown as the thing they produce, not as their own name. */
+.pm-hr {
+  display: inline-block; width: 100%; vertical-align: middle;
+  border-top: 1px solid var(--muted); height: 0;
+}
+.pm-blank { border-bottom: 1px solid var(--ink); }
+.pm-pagebreak, .pm-toc, .pm-apparatus, .pm-anchor, .pm-xref, .pm-image {
+  color: var(--muted); font-size: .85em; letter-spacing: .05em;
+}
+.pm-pagebreak { display: inline-block; width: 100%; text-align: center; }
+.pm-toc, .pm-apparatus {
+  display: inline-block; border: 1px dashed var(--line); border-radius: 5px;
+  padding: 1px 7px; background: var(--bg);
+}
+.pm-anchor, .pm-xref, .pm-image {
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--bg);
+}
+/* A note chip carries the note's own text as its tooltip, so it can be read
+   without revealing the markup. */
+.pm-fn { cursor: help; }

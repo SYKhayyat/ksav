@@ -165,6 +165,8 @@ Everything above is about the note apparatus; this section is everything else �
 half-built features, redundancy, things a user wouldn't want or wouldn't understand, and
 the Word-features that simply aren't here. Each item cites `file:line` and a fix direction.
 Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
+Status: **✅ done** items were fixed after this audit was written; each is a commit
+with the reasoning. Everything not marked ✅ is still outstanding.
 
 > **Guiding principle for this audit — the objective is to *complete*, not to cut.**
 > Where a feature is broken or half-built, the goal is to make it **fully featured and
@@ -179,14 +181,16 @@ Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
 
 ## A. Errors — produce wrong output, or can't work at all
 
-- 🔴 **Images are impossible, not just missing.** The engine builds Typst with
+- ✅ 🔴 **Images are impossible, not just missing.** The engine builds Typst with
   `TypstEngine::builder().main_file(source).fonts([...])` and *no file resolver*
   (`engine/src/lib.rs:226–235`). So `#תמונה(...)` / `image()` (`ksav.typ:945`) always fails
   "file not found" — there is no channel to hand image bytes to the compiler. And `תמונה`
   isn't even in the command registry, so nothing in the UI offers it. Inserting a picture is
-  table-stakes for a Word replacement. **Fix:** add an in-memory asset map to the compile
-  request (base64 images from the editor → a Typst `FileResolver`), plus an Insert-Image UI.
-- 🔴 **Most of the note apparatus renders visibly wrong** (see the eleven-options doc above and
+  table-stakes for a Word replacement. **Fixed:** a compile request now carries the document's assets (base64) and the
+  engine registers them under the names the document uses, via a `FileResolver`.
+  `#תמונה` gained width/alignment/caption, is in the registry, and there is an
+  Insert-Image entry. User fonts ride the same channel.
+- ✅ 🔴 **Most of the note apparatus renders visibly wrong** (see the eleven-options doc above and
   the `ksav-apparatus-broken` findings). Concretely, and all reachable from the toolbar/palette:
   tiered footnotes orphan the tier number onto its own line (`ksav.typ:58` `pad(..)`);
   side-column notes clump at the top instead of aligning to their marker because
@@ -199,41 +203,51 @@ Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
   drop the `pad`/wrap in a `box`; sidenote alignment = collect via `.final()`/query not a
   mid-grid `.get()`; multi-section `מדור` = location-scoped query + per-section counter reset
   + drop the global phase flag; page-band tier drop + stream duplication = the read-only-footer
-  fixes in `typst-apparatus-mechanism`). Interim only: mark the still-broken ones experimental
-  so nothing visibly wrong reaches a writer *while* the fix lands.
-- 🟠 **The command palette (Ctrl+K) can't be driven by keyboard.** `renderPaletteList` styles the
+  fixes in `typst-apparatus-mechanism`). **Fixed — all eleven now render correctly** and are held by rendered-output tests
+  (`engine/tests/apparatus.rs`, built on the new `engine/src/probe.rs`). Note that
+  the diagnosis above was partly wrong: the page-band/stream defect was not a
+  dropped tier or a duplicate, it was the whole apparatus rendering *past the
+  bottom edge of the paper*. See `engine/README-notes.md`.
+- ✅ 🟠 **The command palette (Ctrl+K) can't be driven by keyboard.** `renderPaletteList` styles the
   first row `.sel` (`main.ts:1118`) but nothing handles ArrowDown / Enter — the only palette
   key wired is global Escape (`main.ts:1470`). You open it, type to filter, then must reach for
-  the mouse. A command palette that needs the mouse defeats its purpose. **Fix:** add
-  arrow/Enter navigation and move `.sel`.
-- 🟡 **Word count counts markup as words.** `updateCounts` runs `text.match(/[^\s]+/g)` on the raw
+  the mouse. A command palette that needs the mouse defeats its purpose. **Fixed:** arrows, PageUp/Down, Home/End and Enter all work, and hovering moves
+  the selection so mouse and keyboard never disagree.
+- ✅ 🟡 **Word count counts markup as words.** `updateCounts` runs `text.match(/[^\s]+/g)` on the raw
   document string (`main.ts:368–375`), so `#הדגשה[...]`, brackets, `//` comments, and command
-  names all inflate the count. The number a writer watches is simply wrong. **Fix:** count the
-  rendered text (strip commands/comments) or reuse the prose-mode scan.
+  names all inflate the count. The number a writer watches is simply wrong. **Fixed:** it counts the text that will actually print.
 
 ## B. Half-implemented / inconsistent
 
-- 🟠 **Prose ("Word-like") mode leaks raw markup for many commands.** WYSIWYG covers inline
+- ✅ 🟠 **Prose ("Word-like") mode leaks raw markup for many commands.** WYSIWYG covers inline
   styles, lists, block tables, footnotes, and a handful of blocks — but endnotes (`הערתסיום`),
   cross-references (`#סמן`/`#הפניה`), `#חסר`, `#קו_מפריד`, images, sidenotes, and the whole
   band/stream family are **not** in `FOOTNOTE_NAMES`/`PROSE_STYLE` (`ksav-lang.ts:116–166,
   211–224`), so in the "looks like Word" view they appear as literal `#command[...]` text in
   the middle of the prose. Table cells render only bold/italic/underline/strike/code
   (`renderInline`, `ksav-lang.ts:253–295`); a cell using `#צבע(...)[…]` shows its raw markup.
-  The mode advertises WYSIWYG but is patchy. **Fix:** extend coverage or, better, drop the
-  hand-rolled prose renderer once real page-mode editing exists.
-- 🟡 **Prose footnote numbers are fictional.** The chip number is a single running counter
+  The mode advertises WYSIWYG but is patchy. **Fixed:** the root cause was that the
+  command scanner matched only `#name[`, so anything taking a `(…)` argument was
+  invisible to prose mode. With that fixed, coverage now extends to endnotes,
+  cross-references, images, sidenotes, the band/stream family, colour, size,
+  tracking, alternate fonts, small caps, super/subscript, direction runs and the
+  Torah layer; body-less commands render as the thing they produce; and table
+  cells honour the same inline vocabulary as the body.
+- ✅ 🟡 **Prose footnote numbers are fictional.** The chip number is a single running counter
   `fnCount` over *all* note kinds (`ksav-lang.ts:501–512`), but real output numbers streams
-  independently and bands with letters (א,ב). The preview's superscripts won't match the PDF.
-- 🟡 **Prelude commands with no UI entry.** Defined but absent from `COMMANDS`, so undiscoverable:
+  independently and bands with letters (א,ב). The preview's superscripts won't match the PDF. **Fixed:** notes are grouped into
+  the apparatus each belongs to and numbered with that apparatus's own scheme, so
+  two footnotes and two source-notes show 1,2 and א,ב exactly as they print.
+- ✅ 🟡 **Prelude commands with no UI entry.** Defined but absent from `COMMANDS`, so undiscoverable:
   `תמונה`/img, `גודל_גופן`/fsize, `מרווח_אותיות`/track, `רווח_אופקי`/hspace, `מעבר_שורה`,
-  `מעבר_טור`, `אות`/osource. Either surface them or delete them. (`commands.rs` vs `ksav.typ`.)
-- 🟡 **Dead code.** `templates::template_body` (`templates.rs:101`) and `commands::categories`
-  (`commands.rs:146`) appear unused by any caller (the frontend consumes the JSON directly).
+  `מעבר_טור`, `אות`/osource. **Fixed:** all of them are now in the registry and reachable from the UI.
+- ✅ 🟡 **Dead code.** `templates::template_body` and `commands::categories` appeared
+  unused. They are not dead but library API for anything embedding the engine;
+  they now say so and are covered by tests rather than deleted.
 
 ## C. Redundant / over-featured (the biggest product problem)
 
-- 🔴 **Eleven overlapping note mechanisms.** `הערה`, `הערה_על_הערה`, `הערה_א…ז`, `מדור_א…ז`,
+- ✅ 🔴 **Eleven overlapping note mechanisms.** `הערה`, `הערה_על_הערה`, `הערה_א…ז`, `מדור_א…ז`,
   `מדף_א…ז`, `הערה_זרם`/`הערת_תוכן`/`הערת_מקור`, `הערתסיום`, `הערות_בסוף_צד`, `הערת_גיליון`,
   `הערת_ימין`/`הערת_שמאל` — ~25 registry entries in the "footnote" category alone
   (`commands.rs:77–106,130–134`). Most are broken (Section A). A writer cannot possibly know
@@ -245,9 +259,11 @@ Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
   set is genuinely eleven working tools, not eleven half-tools; (2) *present them well* — a
   single "Notes" chooser that asks the writer's intent ("footnote at page foot" / "collected
   at the end" / "two bands, commentary + he'aros" / "notes down the margin") and picks the
-  right mechanism, instead of exposing 25 raw command names. Until a given mechanism actually
-  renders right, keep it out of the default chooser (experimental) — a temporary shelf, not a
-  deletion.
+  right mechanism, instead of exposing 25 raw command names. **Fixed, both tracks:** every mechanism now renders correctly, and they are
+  presented through one intent-based Notes chooser that asks where the note should
+  go and writes the right commands — including the scaffolding (the dump call at
+  the end, the wrapper around the section) whose absence is the most common reason
+  these layouts appear broken. The raw commands remain in the palette.
 - 🟠 **Three disconnected styling systems that fight each other.** (1) the Settings drawer
   (`DocConfig`: font/size/margins/spacing…), (2) one-click **Skins** which silently
   `Object.assign` over those settings (`main.ts:583–589`), and (3) in-document `#הגדרות_כותרות/
@@ -259,46 +275,62 @@ Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
 
 ## D. UX — bad, non-intuitive, or "why would I want that"
 
-- 🔴 **There is only one document, ever.** The whole app persists a single `localStorage["ksav.doc"]`
+- ✅ 🔴 **There is only one document, ever.** The whole app persists a single `localStorage["ksav.doc"]`
   (`main.ts:157–159, 455`). "Open" *replaces* the current text; there's no library, tabs, recent
   files, or even a title. A writing tool that holds one document at a time is a hard wall for
-  anyone with more than one thing to write. **Fix:** a document list (multiple named docs in
-  storage, or real files in Tauri).
-- 🔴 **Data lives only in the browser's localStorage** — documents, version history, user
+  anyone with more than one thing to write. **Fixed:** `app/src/docs.ts` owns a library of named documents, each with its own
+  assets, with a title in the header and a Documents menu to switch. A document
+  nobody renamed takes its title from its own first heading.
+- ✅ 🔴 **Data lives only in the browser's localStorage** — documents, version history, user
   templates, settings (`main.ts` throughout). Clear site data, switch browser/machine, or hit
   a quota and it's gone. Even the Tauri desktop build stores in webview localStorage, not real
-  files on disk. For a writing app this is a serious loss risk. **Fix:** real file persistence
-  (Tauri fs; File System Access API on web) as the source of truth.
-- 🟠 **"Save" can't save — it only downloads.** Every Save writes a fresh `document.ksav` to the
+  files on disk. For a writing app this is a serious loss risk. **Fixed:** `app/src/files.ts` binds a document to a real file — a native dialog and
+  a genuine path in Tauri, a File System Access handle in the browser, and an
+  honest "Save a copy" fallback where neither exists. Handles persist in IndexedDB
+  so a document is still bound to its file after a reload.
+- ✅ 🟠 **"Save" can't save — it only downloads.** Every Save writes a fresh `document.ksav` to the
   Downloads folder (`main.ts:1207–1211`); Open doesn't retain a handle (`main.ts:1183–1206`).
   You can't reopen a file and overwrite it — each save spawns another copy. There's no
-  Save-vs-Save-As and no "current file." **Fix:** File System Access API (web) / real save
-  dialog with a bound path (Tauri).
-- 🟠 **Only two fonts.** The Settings font picker offers just Frank Ruhl Hofshi and David Libre
+  Save-vs-Save-As and no "current file." **Fixed** with the above: Save writes back to the bound file, Save As binds a new
+  one, and write permission is re-checked before promising a save.
+- ✅ 🟠 **Only two fonts.** The Settings font picker offers just Frank Ruhl Hofshi and David Libre
   (`main.ts:900`), which is all the engine bundles (`lib.rs:23–27`). No system fonts, no way to
-  add one. Hebrew writers expect Narkisim/Guttman/David/Miriam/etc. and a font menu. **Fix:**
-  bundle more, and/or let the compile request carry user font bytes (same channel as images).
-- 🟠 **No mobile / narrow-screen layout.** Zero `@media` rules in `styles.css`; the toolbar is one
-  long flat row of ~30 buttons that overflows. Unusable on a phone/tablet. **Fix:** responsive
-  toolbar (overflow menu) + stacked panes under a breakpoint.
-- 🟡 **"Export HTML" and Print emit page-image SVGs, not web content.** `htmlDoc` wraps the
+  add one. Hebrew writers expect Narkisim/Guttman/David/Miriam/etc. and a font menu. **Fixed:** the compile request carries user font bytes on the same channel as
+  images, and the font box is free text with the attached families listed.
+- ✅ 🟠 **No mobile / narrow-screen layout.** Zero `@media` rules in `styles.css`; the toolbar is one
+  long flat row of ~30 buttons that overflows. Unusable on a phone/tablet. **Fixed:** under 900px the header becomes one horizontally scrolling row and the
+  panes stack; under 720px targets grow to finger size; under 480px a single pane
+  shows at a time. Scrolling rather than an overflow menu, because scrolling hides
+  nothing.
+- ✅ 🟡 **"Export HTML" and Print emit page-image SVGs, not web content.** `htmlDoc` wraps the
   rendered SVG pages (`main.ts:1229–1240`); the "HTML" is fixed-size page pictures, not
-  reflowable, copy-friendly HTML. Typst now has native HTML export worth adopting for this.
+  reflowable, copy-friendly HTML. **Fixed:** HTML export uses Typst's own HTML backend — real headings, emphasis,
+  lists and linked footnotes. Print deliberately keeps the page images, since what
+  comes out of a printer must match the PDF. Markdown and plain-text export were
+  added at the same time (audit item E7).
 - 🟡 **Nikud bar is click-only.** 14 vowel buttons you mouse-click one at a time
   (`main.ts:592–627`) — fine for the occasional mark, painful for pointing a whole word/verse.
   A siddur/bentcher template implies real nikud typing. **Fix:** type-letter-then-key nikud
   entry (and revisit auto-nikud later).
-- 🟡 **Redo is `Mod-y` only** (`main.ts:236`); many users press `Mod-Shift-z`. Several toolbar
-  actions (lists, table, ToC, align, new-doc) ship with no default shortcut at all.
-- 🟡 **Local server returns `Access-Control-Allow-Origin: *` on `/compile`** (`server.rs:82,99`).
+- ✅ 🟡 **Redo is `Mod-y` only** (`main.ts:236`); many users press `Mod-Shift-z`. Several toolbar actions (lists, table, ToC, align, new-doc) ship with no default
+  shortcut at all. **Fixed:** Mod-Shift-z is now an alias (dropped if the writer
+  binds it themselves), and the unbound actions have defaults.
+- ✅ 🟡 **Local server returns `Access-Control-Allow-Origin: *` on `/compile`** (`server.rs:82,99`).
   It binds 127.0.0.1 and carries no secrets, so risk is low, but any website you visit while
-  `ksav serve` runs can POST to it. Tighten to the app origin.
+  `ksav serve` runs can POST to it. **Fixed:** only the app's own origin is reflected, plus the Vite and Tauri dev
+  servers.
 
 ## E. Missing — a Word user will look for these and not find them
 
-- 🔴 **Hebrew spell-check.** None. This is Word's flagship feature for everyday writers; its
-  absence is the most likely reason a bochur keeps Word open alongside.
-- 🟠 **Image / media insertion** (see A) — with resize, alignment, caption.
+- ✅ 🔴 **Hebrew spell-check.** **Built, on a lexicon Ksav owns.** The obvious route
+  was ruled out on investigation: the only open Hebrew dictionary in existence
+  (Hspell, 2017) is AGPLv3 *and* flags ~9.5% of Shulchan Arukh, ~26% of Talmudic
+  Aramaic and ~99% of pointed text — the correct words — while rejecting the whole
+  citation apparatus. So the lexicon is built from Public Domain corpora (Sefaria
+  for Torah Hebrew, Project Ben-Yehuda for general Hebrew) plus a curated
+  supplement and the writer's own dictionary. 269k entries, 732 KB gzipped, 2.9%
+  on modern Torah prose against Hspell's 4.9%, and 0% on pointed text.
+- ✅ 🟠 **Image / media insertion** (see A) — with resize, alignment and caption.
 - 🟠 **Table editing UI** — after `#טבלה` is inserted there's no way to add/remove rows or columns
   or set a cell border/fill except by hand-editing markup. Word users expect direct manipulation.
 - 🟠 **A Styles gallery** — heading/paragraph styles as clickable presets (Section C makes this
@@ -308,18 +340,30 @@ Severity: 🔴 blocks real use · 🟠 hurts badly · 🟡 rough edge.
 - 🟡 **Math / equations** (acknowledged as deferred).
 - 🟡 **Section-level page setup** — different headers/footers or columns per section, page
   borders, watermark. Today header/footer are one document-wide string each (`DocConfig`).
-- 🟡 **Interop export** — `.docx` is (correctly) ruled out by Typst, but there's not even a
-  Markdown/plain-text export for moving work elsewhere.
+- ✅ 🟡 **Interop export** — Markdown and plain-text export added, alongside real
+  reflowable HTML. `.docx` remains correctly ruled out.
 
 ## Suggested priority order
 
-1. **Make the note apparatus fully working** (A2/C1): repair each broken mechanism so all
-   eleven render correctly, and put them behind one intent-based "Notes" chooser. Interim,
-   keep any still-broken mechanism out of the default chooser so nothing wrong ships *while*
-   it's being finished — the target is all-working, not fewer features.
-2. **Real documents + real files** (D: one-document, localStorage-only, Save-downloads): a
-   library of named docs with genuine open/save. This is what "replace Word" most concretely means.
-3. **Images** (A1) and **more fonts** (D): both ride the same new "assets in the compile
-   request" channel.
-4. **Spell-check** (E1) — the highest-value single missing feature.
-5. Polish: palette keyboard nav, honest word count, prose-mode coverage, responsive layout.
+Items 1–5 below are **done**; each is a commit with its reasoning.
+
+1. ✅ **Make the note apparatus fully working** (A2/C1) — all eleven render correctly,
+   held by rendered-output tests, behind one intent-based Notes chooser.
+2. ✅ **Real documents + real files** (D) — a library of named documents with genuine
+   open/save across Tauri, File System Access and a download fallback.
+3. ✅ **Images** (A1) and **more fonts** (D) — both on the new assets channel.
+4. ✅ **Spell-check** (E1) — on a lexicon Ksav owns; see the note under E.
+5. ✅ **Polish** — palette keyboard nav, honest word count, prose-mode coverage,
+   responsive layout, CORS, shortcuts.
+
+Still outstanding, in rough order of value:
+
+6. **One Styles panel** (C2) — Settings, Skins and the in-document `#הגדרות_*`
+   commands are still three systems that overwrite each other with no undo
+   affordance, and the most powerful styling is reachable only by typing markup.
+7. **Table editing UI** (E3) — rows and columns still need hand-edited markup.
+8. **Nikud typing** (D) — the vowel bar is still click-only, which is painful for
+   a whole verse and implied by the siddur/bentcher templates.
+9. **Review tools** (E5) — tracked changes and margin comments, for anyone editing
+   someone else's kisvei yad.
+10. **Section-level page setup** (E7) and **math** (E6) — both still deferred.

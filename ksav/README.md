@@ -119,6 +119,19 @@ browser on any OS.
 - [x] **Rendered-output tests** — `engine/src/probe.rs` reads the laid-out
       document and `engine/tests/apparatus.rs` asserts where things landed on the
       page, rather than only that the document compiled.
+- [x] **A document library and real files** — many named documents, each with its
+      own images and fonts; Save writes back to a genuine file (native dialog in
+      Tauri, File System Access in the browser, an honest "Save a copy" where
+      neither exists).
+- [x] **Images and user fonts** — carried with the compile request, since the
+      engine has no file system to read from.
+- [x] **Hebrew spell-check** on a lexicon Ksav owns, built from public-domain
+      corpora so it knows Torah Hebrew and the citation apparatus that general
+      dictionaries reject. Squiggles, suggestions, and a one-click user
+      dictionary.
+- [x] **Exports** — PDF, real reflowable HTML (Typst's own HTML backend),
+      Markdown, plain text, Typst source.
+- [x] **Responsive** down to a phone.
 
 ## Checking how something renders
 

@@ -27,6 +27,8 @@ import {
   setRevealAll,
   outline,
 } from "./ksav-lang";
+import { bracketLint, healAll } from "./bracket-lint";
+import { analyze } from "./brackets";
 import { createBackend } from "./api";
 import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig, Diagnostic } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
@@ -342,6 +344,14 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "markInsert", run: () => (markReview("insert"), true) },
   { id: "markDelete", run: () => (markReview("delete"), true) },
   { id: "addComment", run: () => (addComment(), true) },
+  {
+    id: "healBrackets",
+    run: (v) => {
+      const n = healAll(v);
+      setStatus(n ? tf("healedCount", n) : t("healedNothing"), n ? "ok" : "");
+      return true;
+    },
+  },
 ];
 const DEFAULT_KEYS: Record<string, string> = {
   bold: "Mod-b",
@@ -372,6 +382,7 @@ const DEFAULT_KEYS: Record<string, string> = {
   markInsert: "Mod-Alt-i",
   markDelete: "Mod-Alt-d",
   addComment: "Mod-Alt-m",
+  healBrackets: "Mod-Alt-b",
 };
 
 /**
@@ -576,6 +587,7 @@ function makeEditor(): EditorView {
       EditorView.lineWrapping,
       ksavHighlighter,
       ksavFold,
+      bracketLint,
       revealAll,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: settings.dir })),
       proseCompartment.of(settings.prose ? proseMode : []),
@@ -738,7 +750,14 @@ async function runCompile() {
   }
   // Prepend user-defined commands so they're usable in the document.
   const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
-  const body = pre + userDoc;
+  // Speculative heal. A document is unbalanced for as long as it takes to type
+  // the body of a `#הערה[`, and compiling that raw would blank the preview and
+  // replace it with an error pointing at end-of-file. Compile the repaired copy
+  // instead, and say so — the writer keeps seeing their page while they type.
+  // The document itself is never modified; only what we hand the compiler is.
+  const { problems, healed } = analyze(userDoc);
+  const healedCount = problems.length;
+  const body = pre + (healedCount ? healed : userDoc);
   try {
     const res = await backend.compile(body, cfg(), docs.requestAssets(currentDoc?.assets ?? []));
     lastResult = res;
@@ -751,7 +770,13 @@ async function runCompile() {
       applyZoom();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");
-    if (res.ok) {
+    if (res.ok && healedCount) {
+      // Rendered, but not from what is literally on screen. Say which, and how
+      // many — silently showing a page built from text the writer did not type
+      // would be worse than the blank preview this replaces.
+      status.textContent = `⚠ ${tf("previewHealed", healedCount)} · ${ms}ms`;
+      status.className = "warn";
+    } else if (res.ok) {
       status.textContent = `✓ ${res.pages_svg.length} ${t("pages")} · ${ms}ms`;
       status.className = "ok";
     } else {
@@ -1215,6 +1240,8 @@ function buildHeader(): HTMLElement {
 
   const exportMenu = menu("⬇ " + t("export"), [
     el("button", { class: "menu-item", onClick: exportPdf }, [t("exportPdf")]),
+    el("button", { class: "menu-item", onClick: () => void exportWord() }, [t("exportWord")]),
+    el("button", { class: "menu-item", onClick: () => void copyForWord() }, [t("copyForWord")]),
     el("button", { class: "menu-item", onClick: () => void exportHtml() }, [t("exportHtml")]),
     el("button", { class: "menu-item", onClick: exportMarkdown }, [t("exportMarkdown")]),
     el("button", { class: "menu-item", onClick: exportText }, [t("exportText")]),
@@ -2570,14 +2597,30 @@ function removeAsset(name: string) {
   rerenderChrome();
 }
 
+/**
+ * Warn when what is about to leave the app was built from a *healed* copy.
+ *
+ * `lastResult` comes from the speculative compile, so while a bracket is missing
+ * it holds a document with closers the writer never typed. Keeping the preview
+ * alive on that basis is a kindness; letting a file walk out the door on it
+ * without a word is not — the status line may have scrolled past by the time
+ * they hit Export.
+ */
+function warnIfHealed() {
+  const n = analyze(view.state.doc.toString()).problems.length;
+  if (n) setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
+}
+
 function exportPdf() {
   if (!lastResult?.pdf_base64) return;
   const bytes = Uint8Array.from(atob(lastResult.pdf_base64), (c) => c.charCodeAt(0));
   download(fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
+  warnIfHealed();
 }
 function exportTypst() {
   if (!lastResult) return;
   download(fileStem() + ".typ", new Blob([lastResult.typst_source], { type: "text/plain" }));
+  warnIfHealed();
 }
 /**
  * The rendered pages wrapped in HTML — a *picture* of the document.
@@ -2609,7 +2652,84 @@ function escapeAttr(s: string): string {
  * images rather than silently producing nothing.
  */
 async function exportHtml() {
-  if (!backend) return;
+  // Unlike the Word handoff, this one may fall back to page images: an HTML file
+  // that merely *shows* the document is still useful, where one Word cannot edit
+  // is not.
+  const html = await reflowableHtml();
+  download(
+    fileStem() + ".html",
+    new Blob([html ?? pageImageHtml()], { type: "text/html;charset=utf-8" }),
+  );
+}
+
+// ---------------------------------------------------------------- Word handoff
+//
+// `.docx` from Typst is not feasible and is correctly ruled out. But "produce a
+// .docx" was never the requirement — the requirement is that the rebbi, the
+// chavrusa or the kovetz editor this document is sent to can *edit* it, and all
+// of them open Word. Word reads HTML natively and converts it to a real editable
+// document, so Typst's own reflowable HTML export reaches them after all.
+//
+// What crosses over: prose, headings, bold/italic, lists, tables and plain
+// footnotes. What flattens: the multi-stream apparatus, fixed bands and side
+// columns — which is honest, and no loss, because nobody edits an eleven-layer
+// apparatus in Word anyway. `wordFlattenNote` says so rather than letting it be
+// discovered.
+
+const PAPER_CSS: Record<string, string> = {
+  a4: "21cm 29.7cm",
+  "us-letter": "8.5in 11in",
+  a5: "14.8cm 21cm",
+  a3: "29.7cm 42cm",
+};
+
+/**
+ * Wrap reflowable HTML in the envelope Word looks for.
+ *
+ * The `mso` namespaces plus the `<w:WordDocument>` block are what make Word treat
+ * the file as its own document rather than a web page it is merely displaying —
+ * without them it opens in Web Layout with no page size, and "Save As .docx"
+ * produces something that prints wrong. `@page` carries the real paper and
+ * margins across, and `dir` carries the RTL.
+ */
+function wordEnvelope(inner: string, styles: string): string {
+  const size = PAPER_CSS[settings.paper] ?? PAPER_CSS.a4;
+  const dir = settings.dir;
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${escapeAttr(currentDoc?.title ?? "Ksav")}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
+<w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>
+@page WordSection1 { size: ${size}; margin: ${settings.margin_cm}cm; }
+div.WordSection1 { page: WordSection1; }
+body { font-family: "${settings.font}", serif; font-size: ${settings.size_pt}pt;
+       direction: ${dir}; text-align: ${dir === "rtl" ? "right" : "left"};
+       line-height: ${1 + settings.line_spacing_em}; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #000; padding: 4pt; }
+${styles}
+</style></head>
+<body dir="${dir}" lang="${dir === "rtl" ? "he" : "en"}"><div class="WordSection1">
+${inner}
+</div></body></html>`;
+}
+
+/** Pull the body content and any styles out of Typst's full HTML document. */
+function splitHtml(html: string): { inner: string; styles: string } {
+  const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html);
+  const styles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
+    .map((m) => m[1])
+    .join("\n");
+  return { inner: body ? body[1] : html, styles };
+}
+
+/**
+ * Ask the engine for reflowable HTML. Returns null (having said why) when
+ * Typst's HTML backend cannot handle this document — page images are useless
+ * here, because a picture is exactly what Word cannot edit.
+ */
+async function reflowableHtml(): Promise<string | null> {
+  if (!backend) return null;
   const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
   const body = pre + view.state.doc.toString();
   try {
@@ -2617,16 +2737,45 @@ async function exportHtml() {
       ...docs.requestAssets(currentDoc?.assets ?? []),
       format: "html",
     })) as unknown as { ok: boolean; html?: string; diagnostics?: Diagnostic[] };
-    if (res.ok && res.html) {
-      download(fileStem() + ".html", new Blob([res.html], { type: "text/html;charset=utf-8" }));
-      return;
-    }
+    if (res.ok && res.html) return res.html;
     const why = res.diagnostics?.[0]?.message ?? "";
     setStatus(t("htmlFellBack") + (why ? ` — ${friendlyError(why)}` : ""), "warn");
   } catch {
     setStatus(t("htmlFellBack"), "warn");
   }
-  download(fileStem() + ".html", new Blob([pageImageHtml()], { type: "text/html;charset=utf-8" }));
+  return null;
+}
+
+async function exportWord() {
+  const html = await reflowableHtml();
+  if (!html) return;
+  const { inner, styles } = splitHtml(html);
+  // `.doc` (not `.docx`): Word opens HTML under this extension and converts it,
+  // and the writer can then Save As a genuine .docx from inside Word.
+  download(
+    fileStem() + ".doc",
+    new Blob([wordEnvelope(inner, styles)], { type: "application/msword;charset=utf-8" }),
+  );
+  setStatus(t("wordFlattenNote"), "warn");
+}
+
+/** The same content onto the clipboard, for pasting into an already-open Word. */
+async function copyForWord() {
+  const html = await reflowableHtml();
+  if (!html) return;
+  const { inner, styles } = splitHtml(html);
+  const full = wordEnvelope(inner, styles);
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/html": new Blob([full], { type: "text/html" }),
+        "text/plain": new Blob([toPlainText(view.state.doc.toString())], { type: "text/plain" }),
+      }),
+    ]);
+    setStatus(t("copiedForWord"), "ok");
+  } catch {
+    setStatus(t("copyFailed"), "warn");
+  }
 }
 
 /** A filename stem from the document's title, safe on every platform. */

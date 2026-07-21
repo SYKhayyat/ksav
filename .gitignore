@@ -37,3 +37,9 @@ Thumbs.db
 # Lexicon build cache: the fetched corpora and the Ben-Yehuda word counts.
 # Large and fully derivable — the built lexicon is what ships.
 ksav/engine/tools/.corpus-cache/
+
+# Front-end test scratch
+/ksav/app/.tmp-test/
+
+# Locally built Linux installers
+/ksav/packaging/out/

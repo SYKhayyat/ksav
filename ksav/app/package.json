@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "test": "esbuild src/brackets.ts --format=esm --outfile=.tmp-test/brackets.mjs && node test/brackets.test.mjs",
     "build:wasm": "tsc --noEmit && cross-env VITE_WASM=1 vite build",
     "preview": "vite preview",
     "tauri": "tauri"
@@ -14,6 +15,7 @@
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.7.1",
     "@codemirror/language": "^6.10.3",
+    "@codemirror/lint": "^6.9.7",
     "@codemirror/search": "^6.5.8",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.34.1",

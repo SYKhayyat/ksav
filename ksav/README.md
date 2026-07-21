@@ -76,8 +76,24 @@ nests past a handful.
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
 - **Word-like toolbar**, **command palette** (Ctrl+K, searches all 53 commands
-  in Hebrew or English), **templates** menu, **export** menu (PDF / HTML /
-  Markdown / text / Typst / print).
+  in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
+  HTML / Markdown / text / Typst / print).
+- **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
+  `[` once it reaches end of file, thousands of characters from the mistake, and
+  the preview goes blank. Instead: a live lint marks the opener that never closes
+  and names its command, a one-click fix inserts the closer where it belongs, and
+  the preview compiles a *healed* copy so a half-typed command never blanks the
+  page. One pure scan feeds all three, so they cannot disagree. Held by
+  `app/test/brackets.test.mjs` (`npm test`), including the invariant that healed
+  text is always balanced and healing is idempotent.
+- **Word handoff** — `.docx` from Typst is not feasible, but that was never the
+  requirement: what matters is that the rebbi or kovetz editor you send it to can
+  *edit* it. Typst's reflowable HTML export wrapped in Word's own HTML envelope
+  (mso namespaces, `@page` size and margins, RTL) opens in Word as a real
+  editable document, either as a `.doc` file or straight off the clipboard.
+  Prose, headings, emphasis, lists, tables and plain footnotes carry across; the
+  multi-stream apparatus flattens, and the app says so rather than letting you
+  find out.
 - **Review panel** — every tracked change and editorial comment in the document,
   accepted or rejected one at a time (which rewrites the source, so the decision
   is in the file), plus a switch between reading the markup, the document as if
@@ -205,6 +221,39 @@ npm run tauri build    # standalone app + installers in src-tauri/target/release
 - **`tauri build`** embeds the frontend, so the produced app is fully
   standalone. Linux needs `webkit2gtk` + `libayatana-appindicator`; macOS and
   Windows (WebView2) need no extra runtime.
+
+### Installers
+
+Not having one of these was the single biggest reason to keep using Word — no
+missing feature came close. If installing Ksav requires cargo, npm or a dev
+server on a port, then for almost everyone the software does not exist.
+
+| Platform | Artifacts | How |
+| --- | --- | --- |
+| Windows | `.msi` (WiX), `.exe` (NSIS) | `cd app && npm run tauri build` |
+| Linux | `.deb`, `.AppImage` | `ksav/packaging/build-linux.sh` (needs Docker) |
+| macOS | `.dmg` (arm64 + x86_64) | CI only — see below |
+
+**Linux builds through Docker** rather than natively, because a `.deb` cannot be
+cross-built from Windows and Docker over WSL is a real Linux userland on the same
+machine. The image pins **Ubuntu 22.04 on purpose**: glibc is backward but not
+forward compatible, so a binary linked there runs on 22.04 and everything newer,
+where one built on 24.04 would silently exclude older distros. `node_modules` and
+the cargo target directory live in named volumes, so the Linux build never
+overwrites the host's Windows-native `node_modules` and never recompiles Typst
+from cold twice. Installers are copied out to `ksav/packaging/out/`.
+
+**macOS cannot be cross-built at all** — a `.dmg` only comes from a macOS
+machine. `.github/workflows/release.yml` builds all four targets on tag push and
+attaches them to a draft release; it is written but has never run, because the
+repo has no git remote yet.
+
+> **The installers are unsigned.** Windows SmartScreen will say "unrecognized
+> app" and macOS will say "unidentified developer". That is a genuine adoption
+> cost — a first-time user meeting that dialog is nearly as stuck as one with no
+> installer — and there is no engineering workaround: it needs a certificate
+> ($99/yr Apple, ~$200–400/yr Windows OV). The workflow has the signing secrets
+> commented in place, so it becomes a signed build with no other change.
 
 ## Run
 

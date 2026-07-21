@@ -1,0 +1,102 @@
+# Build the Ksav desktop app for Windows, macOS and Linux, and attach the
+# installers to a GitHub release.
+#
+# Why this exists: a bochur cannot install Ksav today, and that — not any missing
+# feature — is the largest single reason to keep using Word. The bundlers were
+# already configured in `tauri.conf.json`; nothing had ever run them.
+#
+# macOS is the only platform that *needs* CI. Windows and Linux installers can be
+# produced locally (Linux through Docker over WSL), but a .dmg cannot be
+# cross-built, so it can only come from a macOS runner.
+#
+# Trigger: push a tag, e.g.  git tag v0.1.0 && git push origin v0.1.0
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # so the matrix can be exercised without cutting a release
+
+jobs:
+  build:
+    permissions:
+      contents: write # to create the release and upload the installers
+    strategy:
+      fail-fast: false # one platform failing must not hide the other two
+      matrix:
+        include:
+          - platform: windows-latest # .msi (WiX) + .exe (NSIS)
+            args: ""
+          - platform: ubuntu-22.04 # .deb + .AppImage
+            args: ""
+          # Both Mac architectures. Apple Silicon is the one a student is most
+          # likely to have; Intel Macs are still everywhere in yeshivos.
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # webkit2gtk is the webview Tauri renders into on Linux; libappindicator
+      # and librsvg are what the .deb and .AppImage bundlers link against.
+      - name: Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf build-essential curl wget file \
+            libssl-dev libgtk-3-dev libayatana-appindicator3-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ contains(matrix.args, 'aarch64') && 'aarch64-apple-darwin' || contains(matrix.args, 'x86_64-apple') && 'x86_64-apple-darwin' || '' }}
+
+      # The Rust cache is worth having: this workspace builds the whole Typst
+      # compiler, which is not a quick compile from cold.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/app/src-tauri -> target"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install front-end dependencies
+        working-directory: ./ksav/app
+        run: npm ci
+
+      # Cheap, and it fails the build before a 20-minute Rust compile if the
+      # editor code is broken.
+      - name: Test and typecheck
+        working-directory: ./ksav/app
+        run: |
+          npm test
+          npx tsc --noEmit
+
+      - name: Engine tests
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: ./ksav/engine
+        run: cargo test --release
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing is not configured. Unsigned, Windows SmartScreen shows
+          # "unrecognized app" and macOS says "unidentified developer" — a real
+          # adoption cost, and the honest fix is a certificate ($99/yr Apple,
+          # ~$200-400/yr Windows OV), not a workaround. Add the secrets and
+          # these become signed builds with no other change:
+          #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY
+          #   TAURI_SIGNING_PRIVATE_KEY (updater)
+        with:
+          projectPath: ./ksav/app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Ksav ${{ github.ref_name }}"
+          releaseBody: "Download the installer for your system below."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

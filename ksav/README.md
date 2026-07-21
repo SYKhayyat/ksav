@@ -111,6 +111,26 @@ browser on any OS.
 - [x] **WASM** — real Typst in the browser, no server; auto backend selection (M3)
 - [x] Cross-platform (Linux / macOS / Windows), fonts embedded
 - [x] **Tauri desktop app** — native window, engine in-process via `invoke` (M4)
+- [x] **The full note apparatus** — all eleven note layouts in `spec.md` render
+      correctly (footnotes, endnotes, per-section endnotes, fixed page-foot
+      regions, parallel streams, true sidenotes down either margin, and the four
+      two-layer notes-on-notes arrangements). See
+      [`engine/README-notes.md`](engine/README-notes.md).
+- [x] **Rendered-output tests** — `engine/src/probe.rs` reads the laid-out
+      document and `engine/tests/apparatus.rs` asserts where things landed on the
+      page, rather than only that the document compiled.
+
+## Checking how something renders
+
+`compile(..).ok()` only says the document compiled — it cannot see a note in the
+wrong column or a number orphaned onto its own line. To see the actual layout:
+
+```sh
+cargo run --manifest-path engine/Cargo.toml --example probe -- mydoc.ksav
+```
+
+Each output line is one visual line of the document: its y, the x of its leftmost
+run, the font sizes on it, and its text.
 
 ## Develop
 

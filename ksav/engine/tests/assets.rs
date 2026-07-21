@@ -109,3 +109,29 @@ fn a_font_sent_with_the_request_can_be_used_by_the_document() {
         out.diagnostics
     );
 }
+
+// ── Library API surface ──────────────────────────────────────────────────────
+
+#[test]
+fn template_bodies_are_reachable_by_id() {
+    for t in ksav_engine::templates::TEMPLATES {
+        let body = ksav_engine::templates::template_body(t.id)
+            .unwrap_or_else(|| panic!("template {:?} not reachable by id", t.id));
+        assert_eq!(body, t.body);
+    }
+    assert!(ksav_engine::templates::template_body("no-such-template").is_none());
+}
+
+#[test]
+fn every_command_category_is_listed_once() {
+    let cats = ksav_engine::commands::categories();
+    let mut seen = std::collections::HashSet::new();
+    for c in &cats {
+        assert!(seen.insert(*c), "category {c:?} listed twice");
+    }
+    // Every command's category must appear, or a UI grouping by `categories()`
+    // would silently drop commands.
+    for c in ksav_engine::commands::COMMANDS {
+        assert!(cats.contains(&c.category), "category {:?} missing", c.category);
+    }
+}

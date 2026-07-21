@@ -151,6 +151,10 @@ pub fn commands_json() -> String {
 }
 
 /// Distinct category keys, in first-seen order.
+///
+/// Like `template_body`, this is library API rather than something the bundled
+/// front ends use — they group the JSON registry themselves. It is the
+/// definition of the category order a UI should present.
 pub fn categories() -> Vec<&'static str> {
     let mut seen = Vec::new();
     for c in COMMANDS {

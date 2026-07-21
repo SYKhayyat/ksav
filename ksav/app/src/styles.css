@@ -379,3 +379,76 @@ button.mini {
   border-radius: 5px; width: 24px; height: 24px; line-height: 1; cursor: pointer; flex: none;
 }
 button.mini:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ---- narrow screens / phones + tablets --------------------------------
+   The header is one flat row of ~30 controls, which simply overflows below
+   about 900px. Rather than hide functionality, collapse the toolbar into a
+   scrolling strip, stack the two panes, and let the drawers take the full
+   width — everything stays reachable, it just stops fighting for one line. */
+
+@media (max-width: 900px) {
+  /* One scrolling row for the whole header, rather than four wrapped ones.
+     Wrapping ~30 controls costs ~190px before a single word of the document is
+     visible; scrolling costs one row and hides nothing. */
+  header {
+    gap: 6px; padding: 6px 8px;
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  header::-webkit-scrollbar { display: none; }
+  header > * { flex: none; }
+  /* The tagline is the first thing to go — it is decoration. */
+  .brand small { display: none; }
+  /* The spacer pushed everything after it onto a new line; with one scrolling
+     row there is nothing to push. */
+  .spacer { display: none; }
+
+  /* The split becomes vertical regardless of the chosen preview side: side by
+     side is unreadable once each pane is under ~450px. */
+  #app[data-layout="two"] main { flex-direction: column; }
+  #app[data-layout="two"] main[data-side="right"] .preview-pane,
+  #app[data-layout="two"] main[data-side="bottom"] .preview-pane { order: 2; }
+  #app[data-layout="two"] main[data-side="right"] .source-pane,
+  #app[data-layout="two"] main[data-side="bottom"] .source-pane { order: 0; }
+  main[data-side="left"] .splitter, main[data-side="right"] .splitter { cursor: row-resize; }
+
+  .drawer, .drawer-start { width: min(340px, 100vw); }
+  #preview { padding: 10px; }
+}
+
+@media (max-width: 720px) {
+  .doc-title-btn { max-width: 40vw; }
+
+  /* One horizontally scrolling strip instead of a wrapping thicket of buttons.
+     Scrollable beats hidden: every command stays reachable by thumb. */
+  .toolbar {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch; max-width: 100%;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .tb-btn, .chip, .menu-btn { flex: none; }
+
+  /* Comfortable touch targets — 30px is a mouse size, not a finger size. */
+  .tb-btn, .chip, .menu-btn { min-width: 36px; height: 36px; }
+  .nikud-bar button { min-width: 34px; height: 34px; }
+
+  .menu-list { max-width: 92vw; }
+  .palette-box { width: 94vw; }
+  .drawer, .drawer-start { width: 100vw; }
+}
+
+@media (max-width: 480px) {
+  .brand-name { font-size: 16px; }
+  /* Below this the two-pane split leaves neither pane usable; show one at a
+     time and let the floating preview button swap between them. */
+  #app[data-layout="two"] .preview-pane { display: none; }
+  #app[data-layout="two"] .splitter { display: none; }
+  #app[data-layout="two"] .source-pane { flex: 1 1 0; }
+  #app[data-layout="two"] .float-preview-btn { display: inline-flex; align-items: center; justify-content: center; }
+}
+
+/* Coarse pointers get the larger targets even on a wide tablet. */
+@media (pointer: coarse) {
+  .tb-btn, .chip, .menu-btn { min-height: 36px; }
+  .menu-item { padding-block: 10px; }
+}

@@ -98,6 +98,10 @@ pub fn templates_json() -> String {
 }
 
 /// Look up a template body by id.
+///
+/// The bundled front ends read the whole registry as JSON and never call this,
+/// but it is the natural entry point for anything embedding the engine as a
+/// library (`ksav_engine::templates::template_body("sefer")`), so it stays.
 pub fn template_body(id: &str) -> Option<&'static str> {
     TEMPLATES.iter().find(|t| t.id == id).map(|t| t.body)
 }

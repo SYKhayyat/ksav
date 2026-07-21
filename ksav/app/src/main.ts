@@ -335,31 +335,54 @@ const DEFAULT_KEYS: Record<string, string> = {
   italic: "Mod-i",
   underline: "Mod-u",
   footnote: "Mod-Shift-f",
-  region: "Mod-Shift-r",
+  region: "Mod-Shift-g",
   comment: "Mod-/",
   undo: "Mod-z",
   redo: "Mod-y",
   h1: "Mod-1",
   h2: "Mod-2",
   h3: "Mod-3",
+  bullets: "Mod-Shift-8",
+  numbered: "Mod-Shift-7",
+  table: "Mod-Shift-t",
+  toc: "Mod-Shift-o",
   center: "Mod-e",
+  right: "Mod-Shift-r",
+  left: "Mod-Shift-l",
   palette: "Mod-k",
   find: "Mod-f",
   foldAll: "Mod-Alt-[",
   unfoldAll: "Mod-Alt-]",
   save: "Mod-s",
   open: "Mod-o",
+  newDoc: "Mod-Alt-n",
+};
+
+/**
+ * Extra keys for an action beyond its configured one.
+ *
+ * Redo answered only to Mod-y, but a great many people press Mod-Shift-z and
+ * simply conclude that redo is broken. An alias is not a second setting: it is
+ * dropped as soon as the writer binds that combination to something themselves.
+ */
+const KEY_ALIASES: Record<string, string[]> = {
+  redo: ["Mod-Shift-z"],
 };
 function keybindings(): Record<string, string> {
   return { ...DEFAULT_KEYS, ...(settings.keybindings || {}) };
 }
 function buildShortcutKeymap(): KeyBinding[] {
   const kb = keybindings();
-  return ACTIONS.filter((a) => kb[a.id]).map((a) => ({
-    key: kb[a.id],
-    run: a.run,
-    preventDefault: true,
-  }));
+  const claimed = new Set(Object.values(kb));
+  const bindings: KeyBinding[] = [];
+  for (const a of ACTIONS) {
+    if (kb[a.id]) bindings.push({ key: kb[a.id], run: a.run, preventDefault: true });
+    for (const alias of KEY_ALIASES[a.id] ?? []) {
+      // Never let an alias shadow a key the writer has deliberately assigned.
+      if (!claimed.has(alias)) bindings.push({ key: alias, run: a.run, preventDefault: true });
+    }
+  }
+  return bindings;
 }
 const shortcutCompartment = new Compartment();
 function reconfigureShortcuts() {
@@ -1335,6 +1358,62 @@ function closePalette() {
   document.getElementById("palette")!.classList.remove("open");
   view.focus();
 }
+/**
+ * Move the palette selection, and run the selected command.
+ *
+ * The palette styled its first row `.sel` but nothing ever moved it: you opened
+ * it, typed to filter, and then had to reach for the mouse. A command palette
+ * that needs the mouse defeats its own purpose.
+ */
+function movePaletteSelection(delta: number) {
+  const rows = [...document.querySelectorAll<HTMLElement>("#palette-list .pal-item")];
+  if (!rows.length) return;
+  const cur = rows.findIndex((r) => r.classList.contains("sel"));
+  const next = Math.min(rows.length - 1, Math.max(0, (cur < 0 ? 0 : cur) + delta));
+  rows.forEach((r) => r.classList.remove("sel"));
+  rows[next].classList.add("sel");
+  rows[next].scrollIntoView({ block: "nearest" });
+}
+
+function runPaletteSelection() {
+  const sel = document.querySelector<HTMLElement>("#palette-list .pal-item.sel");
+  // With nothing selected (an empty result set) do nothing, rather than firing
+  // whatever happens to be first.
+  sel?.click();
+}
+
+/** Arrow keys / Enter for the palette input. Returns true if it handled the key. */
+function paletteKey(e: KeyboardEvent): boolean {
+  switch (e.key) {
+    case "ArrowDown":
+      movePaletteSelection(1);
+      return true;
+    case "ArrowUp":
+      movePaletteSelection(-1);
+      return true;
+    case "PageDown":
+      movePaletteSelection(8);
+      return true;
+    case "PageUp":
+      movePaletteSelection(-8);
+      return true;
+    case "Home":
+      movePaletteSelection(-9999);
+      return true;
+    case "End":
+      movePaletteSelection(9999);
+      return true;
+    case "Enter":
+      runPaletteSelection();
+      return true;
+    case "Escape":
+      closePalette();
+      return true;
+    default:
+      return false;
+  }
+}
+
 function renderPaletteList(q: string) {
   const list = document.getElementById("palette-list")!;
   const lang = getLang();
@@ -1354,6 +1433,12 @@ function renderPaletteList(q: string) {
       "button",
       {
         class: "pal-item" + (i === 0 ? " sel" : ""),
+        // Hover moves the selection so the mouse and the keyboard never
+        // disagree about which row Enter would run.
+        onMouseEnter: (e: Event) => {
+          list.querySelectorAll(".pal-item.sel").forEach((r) => r.classList.remove("sel"));
+          (e.currentTarget as HTMLElement).classList.add("sel");
+        },
         onClick: () => {
           insertSnippet(c.insert);
           closePalette();
@@ -1772,6 +1857,12 @@ function render() {
           id: "palette-input",
           placeholder: t("searchCommands"),
           oninput: (e: Event) => renderPaletteList((e.target as HTMLInputElement).value),
+          onKeyDown: (e: Event) => {
+            if (paletteKey(e as KeyboardEvent)) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          },
         }),
         el("div", { id: "palette-list" }),
       ]),

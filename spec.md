@@ -308,10 +308,9 @@ with the reasoning. Everything not marked ✅ is still outstanding.
   lists and linked footnotes. Print deliberately keeps the page images, since what
   comes out of a printer must match the PDF. Markdown and plain-text export were
   added at the same time (audit item E7).
-- 🟡 **Nikud bar is click-only.** 14 vowel buttons you mouse-click one at a time
-  (`main.ts:592–627`) — fine for the occasional mark, painful for pointing a whole word/verse.
-  A siddur/bentcher template implies real nikud typing. **Fix:** type-letter-then-key nikud
-  entry (and revisit auto-nikud later).
+- ✅ 🟡 **Nikud bar is click-only.** **Fixed:** every vowel has an Alt key, shown on
+  its button, bound only while the bar is open. Auto-nikud remains a separate,
+  much larger question.
 - ✅ 🟡 **Redo is `Mod-y` only** (`main.ts:236`); many users press `Mod-Shift-z`. Several toolbar actions (lists, table, ToC, align, new-doc) ship with no default
   shortcut at all. **Fixed:** Mod-Shift-z is now an alias (dropped if the writer
   binds it themselves), and the unbound actions have defaults.
@@ -331,10 +330,11 @@ with the reasoning. Everything not marked ✅ is still outstanding.
   supplement and the writer's own dictionary. 269k entries, 732 KB gzipped, 2.9%
   on modern Torah prose against Hspell's 4.9%, and 0% on pointed text.
 - ✅ 🟠 **Image / media insertion** (see A) — with resize, alignment and caption.
-- 🟠 **Table editing UI** — after `#טבלה` is inserted there's no way to add/remove rows or columns
-  or set a cell border/fill except by hand-editing markup. Word users expect direct manipulation.
-- 🟠 **A Styles gallery** — heading/paragraph styles as clickable presets (Section C makes this
-  worse: the power is there in `#הגדרות_*` but invisible).
+- ✅ 🟠 **Table editing UI** — **built**: a bar appears whenever the cursor is inside
+  a table, offering insert/delete row and column and a header-row toggle. Cell
+  border and fill are set through the Styles panel's table section.
+- ✅ 🟠 **A Styles gallery** — **built** as the Styles panel: presets plus real
+  controls for the `#הגדרות_*` commands that were previously invisible.
 - 🟡 **Review tools** — tracked changes, margin comments, accept/reject. Needed by anyone editing
   someone else's kisvei yad / manuscript.
 - 🟡 **Math / equations** (acknowledged as deferred).
@@ -356,14 +356,18 @@ Items 1–5 below are **done**; each is a commit with its reasoning.
 5. ✅ **Polish** — palette keyboard nav, honest word count, prose-mode coverage,
    responsive layout, CORS, shortcuts.
 
-Still outstanding, in rough order of value:
+6. ✅ **One Styles panel** (C2) — page setup, presets and the document's own
+   heading/list/table design in one drawer. Presets are reversible and say so;
+   the in-document `#הגדרות_*` commands have real controls; arguments the panel
+   does not understand are preserved verbatim.
+7. ✅ **Table editing UI** (E3) — a bar appears when the cursor is inside a table,
+   with insert/delete row and column and a header-row toggle.
+8. ✅ **Nikud typing** (D) — every vowel has an Alt key, printed on its button,
+   live only while the nikud bar is open. A vowel now points the end of a
+   selection instead of replacing it.
 
-6. **One Styles panel** (C2) — Settings, Skins and the in-document `#הגדרות_*`
-   commands are still three systems that overwrite each other with no undo
-   affordance, and the most powerful styling is reachable only by typing markup.
-7. **Table editing UI** (E3) — rows and columns still need hand-edited markup.
-8. **Nikud typing** (D) — the vowel bar is still click-only, which is painful for
-   a whole verse and implied by the siddur/bentcher templates.
+Still outstanding:
+
 9. **Review tools** (E5) — tracked changes and margin comments, for anyone editing
-   someone else's kisvei yad.
+   someone else's kisvei yad. The largest remaining item by far.
 10. **Section-level page setup** (E7) and **math** (E6) — both still deferred.

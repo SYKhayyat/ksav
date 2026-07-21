@@ -229,3 +229,24 @@ fn suggestions_can_be_asked_for_inline_or_per_word() {
         serde_json::from_str(&ksav_engine::spell::suggest_request(&one)).unwrap();
     assert!(!out2["suggestions"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn request_offsets_are_utf16_units_not_bytes() {
+    // Every consumer is a JavaScript editor, and JS string indices are UTF-16.
+    // Hebrew is 2 bytes per letter in UTF-8 but 1 UTF-16 unit, so byte offsets
+    // land the squiggle at roughly twice its real position — past the end of the
+    // document, where it silently disappears.
+    let text = "אבגד כשכשכשכש";
+    let req = serde_json::json!({ "text": text }).to_string();
+    let out: serde_json::Value =
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).unwrap();
+    let m = &out["misspellings"][0];
+    let start = m["start"].as_u64().unwrap() as usize;
+    let len = m["len"].as_u64().unwrap() as usize;
+
+    // Slice the way JavaScript would, and get the word back.
+    let utf16: Vec<u16> = text.encode_utf16().collect();
+    let sliced = String::from_utf16(&utf16[start..start + len]).unwrap();
+    assert_eq!(sliced, "כשכשכשכש", "offsets do not index UTF-16 units");
+    assert!(start + len <= utf16.len(), "the range runs past the document");
+}

@@ -27,3 +27,15 @@ pub fn ksav_commands() -> String {
 pub fn ksav_templates() -> String {
     ksav_engine::templates::templates_json()
 }
+
+/// Spell-check text (same as the server's `/spell`).
+#[wasm_bindgen]
+pub fn ksav_spell(input_json: &str) -> String {
+    ksav_engine::spell::spell_request(input_json)
+}
+
+/// Suggestions for one word (same as the server's `/suggest`).
+#[wasm_bindgen]
+pub fn ksav_suggest(input_json: &str) -> String {
+    ksav_engine::spell::suggest_request(input_json)
+}

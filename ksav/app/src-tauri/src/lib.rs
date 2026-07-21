@@ -86,6 +86,18 @@ fn ksav_write_file(path: String, contents: String) -> Result<(), String> {
     std::fs::write(path, contents).map_err(|e| e.to_string())
 }
 
+/// Spell-check text. Input/output JSON match the web `/spell` contract.
+#[tauri::command]
+fn ksav_spell(input: String) -> String {
+    ksav_engine::spell::spell_request(&input)
+}
+
+/// Suggestions for one word. Matches the web `/suggest` contract.
+#[tauri::command]
+fn ksav_suggest(input: String) -> String {
+    ksav_engine::spell::suggest_request(&input)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -106,7 +118,9 @@ pub fn run() {
             ksav_templates,
             ksav_open_file,
             ksav_save_file,
-            ksav_write_file
+            ksav_write_file,
+            ksav_spell,
+            ksav_suggest
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

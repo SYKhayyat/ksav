@@ -74,9 +74,26 @@ export interface TemplateDef {
   body: string;
 }
 
+/** One word the checker does not recognise, positioned in the text it checked. */
+export interface Misspelling {
+  start: number;
+  len: number;
+  word: string;
+  suggestions?: string[];
+}
+
+export interface SpellResult {
+  misspellings: Misspelling[];
+  lexicon_size: number;
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
+  /** Check text against the Hebrew lexicon plus the writer's own words. */
+  spell(text: string, userWords: string, suggest?: boolean): Promise<SpellResult>;
+  /** Suggestions for one word — asked for only when a menu is opened. */
+  suggest(word: string, userWords: string): Promise<string[]>;
   commands(): Promise<CommandDef[]>;
   templates(): Promise<TemplateDef[]>;
 }
@@ -93,6 +110,26 @@ export class HttpBackend implements Backend {
     });
     if (!res.ok) throw new Error(`compile ${res.status}`);
     return res.json();
+  }
+
+  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
+    const res = await fetch(this.base + "/spell", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, user_words: userWords, suggest }),
+    });
+    if (!res.ok) throw new Error(`spell ${res.status}`);
+    return res.json();
+  }
+
+  async suggest(word: string, userWords: string): Promise<string[]> {
+    const res = await fetch(this.base + "/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ word, user_words: userWords }),
+    });
+    if (!res.ok) throw new Error(`suggest ${res.status}`);
+    return (await res.json()).suggestions ?? [];
   }
 
   async commands(): Promise<CommandDef[]> {
@@ -113,6 +150,8 @@ export class WasmBackend implements Backend {
     ksav_compile(s: string): string;
     ksav_commands(): string;
     ksav_templates(): string;
+    ksav_spell(s: string): string;
+    ksav_suggest(s: string): string;
   } | null = null;
   private ready: Promise<void> | null = null;
 
@@ -138,6 +177,14 @@ export class WasmBackend implements Backend {
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     await this.ensure();
     return JSON.parse(this.mod!.ksav_compile(JSON.stringify({ body, ...cfg, ...assets })));
+  }
+  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
+    await this.ensure();
+    return JSON.parse(this.mod!.ksav_spell(JSON.stringify({ text, user_words: userWords, suggest })));
+  }
+  async suggest(word: string, userWords: string): Promise<string[]> {
+    await this.ensure();
+    return JSON.parse(this.mod!.ksav_suggest(JSON.stringify({ word, user_words: userWords }))).suggestions ?? [];
   }
   async commands(): Promise<CommandDef[]> {
     await this.ensure();
@@ -166,6 +213,19 @@ export class TauriBackend implements Backend {
     return JSON.parse(
       await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...assets }) }),
     );
+  }
+  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
+    const invoke = await this.inv();
+    return JSON.parse(
+      await invoke("ksav_spell", { input: JSON.stringify({ text, user_words: userWords, suggest }) }),
+    );
+  }
+  async suggest(word: string, userWords: string): Promise<string[]> {
+    const invoke = await this.inv();
+    const out = JSON.parse(
+      await invoke("ksav_suggest", { input: JSON.stringify({ word, user_words: userWords }) }),
+    );
+    return out.suggestions ?? [];
   }
   async commands(): Promise<CommandDef[]> {
     return JSON.parse(await (await this.inv())("ksav_commands"));

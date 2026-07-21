@@ -36,6 +36,7 @@ import type { DocAsset, KsavDoc } from "./docs";
 import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
 import { toMarkdown, toPlainText } from "./markdown";
+import * as spell from "./spell";
 import type { NoteChoice } from "./notes";
 import type { FileBinding } from "./files";
 
@@ -53,6 +54,7 @@ interface Settings extends DocConfig {
   outline?: boolean;
   nikud?: boolean;
   autocomplete?: boolean;
+  spellcheck?: boolean;
   syncScroll?: boolean;
   customCommands?: string; // user #let definitions, prepended at compile
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
@@ -86,6 +88,7 @@ const DEFAULTS: Settings = {
   header: "",
   footer: "",
   autocomplete: true,
+  spellcheck: true,
   syncScroll: true,
 };
 
@@ -447,6 +450,88 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
   return { from: word.from, options, filter: false };
 }
 const autoCompartment = new Compartment();
+// ---------------------------------------------------------------- spell check
+//
+// The engine holds the lexicon and does the checking (see engine/src/spell.rs);
+// this schedules the checks and turns a click on a squiggle into something
+// useful. Checking is debounced separately from compiling, and longer: a
+// misspelling that appears half a second late costs nothing, whereas checking on
+// every keystroke would squiggle words the writer is still in the middle of.
+
+let spellTimer: number | undefined;
+
+function scheduleSpellCheck() {
+  clearTimeout(spellTimer);
+  if (!settings.spellcheck) return;
+  spellTimer = window.setTimeout(runSpellCheck, 700);
+}
+
+async function runSpellCheck() {
+  if (!backend || !settings.spellcheck || !view) return;
+  // Only the text that will actually print: command names are not misspellings,
+  // and underlining them would make the feature useless on its first document.
+  const text = spell.checkableText(view.state.doc.toString());
+  try {
+    const res = await backend.spell(text, spell.userWordsText(), false);
+    view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
+  } catch {
+    // A failed check is not worth interrupting the writer over.
+  }
+}
+
+function clearSpellCheck() {
+  if (view) view.dispatch({ effects: spell.setMisspellings.of([]) });
+}
+
+/** The suggestion menu for the squiggle at `pos`, anchored at the pointer. */
+async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
+  closeSpellMenu();
+  const box = el("div", { class: "spell-menu", style: `left:${x}px; top:${y}px` }, [
+    el("div", { class: "spell-word" }, [m.word]),
+    el("div", { class: "spell-loading" }, ["…"]),
+  ]);
+  document.body.append(box);
+
+  let suggestions: string[] = [];
+  try {
+    suggestions = await backend!.suggest(m.word, spell.userWordsText());
+  } catch {
+    suggestions = [];
+  }
+  if (!box.isConnected) return; // dismissed while we were asking
+
+  const replace = (word: string) => {
+    view.dispatch({
+      changes: { from: m.start, to: m.start + m.len, insert: word },
+      selection: { anchor: m.start + word.length },
+    });
+    closeSpellMenu();
+    view.focus();
+    scheduleSpellCheck();
+  };
+
+  box.replaceChildren(
+    el("div", { class: "spell-word" }, [m.word]),
+    ...(suggestions.length
+      ? suggestions.map((w) => el("button", { class: "spell-item", onClick: () => replace(w) }, [w]))
+      : [el("div", { class: "spell-none" }, [t("noSuggestions")])]),
+    el("div", { class: "menu-sep" }),
+    // Teaching it a word has to be one click: no lexicon holds every chaburah's
+    // terminology or every rebbe's name, and a checker that cannot be taught is
+    // one people switch off.
+    el("button", { class: "spell-item spell-add", onClick: () => {
+      spell.addUserWord(m.word);
+      closeSpellMenu();
+      runSpellCheck();
+      view.focus();
+    } }, ["＋ " + t("addToDictionary")]),
+  );
+}
+
+function closeSpellMenu() {
+  document.querySelectorAll(".spell-menu").forEach((n) => n.remove());
+}
+
 function autoExtension() {
   return settings.autocomplete === false
     ? []
@@ -485,6 +570,32 @@ function makeEditor(): EditorView {
       dirCompartment.of(EditorView.contentAttributes.of({ dir: settings.dir })),
       proseCompartment.of(settings.prose ? proseMode : []),
       themeCompartment.of(editorTheme(settings.theme === "dark")),
+      spell.misspellings,
+      spell.spellDecorations,
+      // A squiggle answers to a plain click, not only a right-click: on a
+      // touchscreen there is no right-click at all.
+      EditorView.domEventHandlers({
+        mousedown(e, v) {
+          if (!settings.spellcheck) return false;
+          const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
+          if (pos == null) return false;
+          const m = spell.misspellingAt(v, pos);
+          if (!m) return false;
+          e.preventDefault();
+          void openSpellMenu(m, e.clientX, e.clientY);
+          return true;
+        },
+        contextmenu(e, v) {
+          if (!settings.spellcheck) return false;
+          const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
+          if (pos == null) return false;
+          const m = spell.misspellingAt(v, pos);
+          if (!m) return false;
+          e.preventDefault();
+          void openSpellMenu(m, e.clientX, e.clientY);
+          return true;
+        },
+      }),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           scheduleCompile();
@@ -587,6 +698,7 @@ let compileTimer: number | undefined;
 function scheduleCompile() {
   clearTimeout(compileTimer);
   compileTimer = window.setTimeout(runCompile, 250);
+  scheduleSpellCheck();
 }
 
 async function runCompile() {
@@ -1176,6 +1288,27 @@ function buildSettingsDrawer(): HTMLElement {
       el("option", { value: v, ...(settings.paper === v ? { selected: "selected" } : {}) }, [lbl]),
     ),
   );
+  // The writer's own words, listed so a mistaken "add to dictionary" can be
+  // undone — otherwise a typo taught by accident is permanent and invisible.
+  const dictWords = spell.userWords();
+  const dictRows = dictWords.length
+    ? dictWords.map((w) =>
+        el("div", { class: "set-row asset-row" }, [
+          el("span", { class: "asset-name" }, [w]),
+          el("button", {
+            type: "button",
+            class: "mini",
+            title: t("delete"),
+            onClick: () => {
+              spell.removeUserWord(w);
+              runSpellCheck();
+              rerenderChrome();
+            },
+          }, ["×"]),
+        ]),
+      )
+    : [el("div", { class: "set-note" }, [t("emptyDictionary")])];
+
   const assets = currentDoc?.assets ?? [];
   const assetRows = assets.length
     ? assets.map((a) =>
@@ -1216,7 +1349,10 @@ function buildSettingsDrawer(): HTMLElement {
     textRow("footerText", "footer", ""),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
+    checkRow("spellcheckLabel", "spellcheck"),
     checkRow("syncScrollLabel", "syncScroll"),
+    el("h3", { style: "margin-top:18px" }, [t("userDictionary")]),
+    ...dictRows,
     el("h3", { style: "margin-top:18px" }, [t("assetsTitle")]),
     ...assetRows,
     el("h3", { style: "margin-top:18px" }, [t("customization")]),
@@ -1849,6 +1985,11 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     applyZoom();
   } else if (key === "autocomplete") {
     view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
+  } else if (key === "spellcheck") {
+    // Turning it off must take the existing squiggles with it, not just stop
+    // adding new ones.
+    if (settings.spellcheck) scheduleSpellCheck();
+    else clearSpellCheck();
   } else {
     scheduleCompile();
   }
@@ -2061,6 +2202,7 @@ function wireKeys() {
       closePreviewOverlay();
       closeHistory();
       closeNotesChooser();
+      closeSpellMenu();
     } else if (e.key === "Alt" && settings.prose) {
       view.dispatch({ effects: setRevealAll.of(true) });
     }
@@ -2068,8 +2210,9 @@ function wireKeys() {
   window.addEventListener("keyup", (e) => {
     if (e.key === "Alt" && settings.prose) view.dispatch({ effects: setRevealAll.of(false) });
   });
-  window.addEventListener("click", () => {
+  window.addEventListener("click", (e) => {
     document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+    if (!(e.target as HTMLElement).closest(".spell-menu")) closeSpellMenu();
   });
 }
 
@@ -2125,6 +2268,10 @@ async function boot() {
     /* registries optional for first paint */
   }
   runCompile();
+  // The first check has to be scheduled explicitly: boot compiles directly
+  // rather than through scheduleCompile, so nothing would be checked until the
+  // writer's first keystroke.
+  scheduleSpellCheck();
   // periodic auto-snapshot (only stores when the text changed)
   window.setInterval(() => takeSnapshot(), 180000);
 }

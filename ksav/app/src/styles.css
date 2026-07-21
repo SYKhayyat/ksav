@@ -540,3 +540,36 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 /* A note chip carries the note's own text as its tooltip, so it can be read
    without revealing the markup. */
 .pm-fn { cursor: help; }
+
+/* ---- spell check --------------------------------------------------------
+   A dotted underline rather than a wavy border: it reads as a suggestion, not
+   an error, which is the right tone for a checker that cannot know every word
+   a Torah writer uses. */
+.cm-spell-error {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+:root[data-theme="dark"] .cm-spell-error { text-decoration-color: #f87171; }
+
+.spell-menu {
+  position: fixed; z-index: 80; min-width: 160px; max-width: 260px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22); padding: 5px; font-size: 13px;
+}
+.spell-word {
+  padding: 4px 9px 6px; color: var(--muted); font-size: 11px;
+  border-bottom: 1px solid var(--line); margin-bottom: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.spell-item {
+  display: block; width: 100%; text-align: start; font-family: var(--hebrew);
+  font-size: 13px; padding: 5px 9px; border: none; border-radius: 5px;
+  background: none; color: var(--ink); cursor: pointer;
+}
+.spell-item:hover { background: var(--accent-soft); color: var(--accent); }
+.spell-add { color: var(--muted); }
+.spell-none, .spell-loading { padding: 5px 9px; color: var(--muted); font-size: 12px; }

@@ -330,9 +330,19 @@ pub fn spell_request(input_json: &str) -> String {
     let found: Vec<serde_json::Value> = check(text, &lexicon)
         .into_iter()
         .map(|m| {
+            // Offsets go out as UTF-16 code units, not bytes.
+            //
+            // Every consumer of this API is a JavaScript editor, and JS string
+            // indices — including CodeMirror's document positions — are UTF-16.
+            // Hebrew is two bytes per letter in UTF-8 but one UTF-16 unit, so
+            // handing over byte offsets puts every marker at roughly twice its
+            // real position: the squiggles land past the end of the document and
+            // silently vanish.
+            let start = text[..m.start].encode_utf16().count();
+            let len = m.word.encode_utf16().count();
             let mut o = serde_json::json!({
-                "start": m.start,
-                "len": m.len,
+                "start": start,
+                "len": len,
                 "word": m.word,
             });
             if want_suggestions {

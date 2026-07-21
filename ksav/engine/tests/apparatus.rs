@@ -267,3 +267,108 @@ fn fixed_band_heights_keep_their_slot_when_empty() {
         "the first band moved when the second band emptied — the slots are not fixed"
     );
 }
+
+// ── Option 6: side / margin notes ───────────────────────────────────────────
+
+#[test]
+fn sidenotes_align_to_their_own_marker_line() {
+    // Regression: #עם_הערות_צד read the collected notes mid-grid and printed them
+    // as one list, so every note clumped at the TOP of the column regardless of
+    // where its marker was — a "notes column", not sidenotes.
+    let runs = render(
+        "#עם_הערות_צד[
+         שורה ראשונה ארוכה מאוד מאוד עם טקסט נוסף כדי למלא#הערת_גיליון[הערה ראשונה] את השורה.
+         #מרווח(מידה: 4em)
+         שורה שנייה הרבה יותר למטה בעמוד עם עוד טקסט#הערת_גיליון[הערה שנייה] וסיום.
+]",
+    );
+    let at = |n: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(n))
+            .unwrap_or_else(|| panic!("{n:?} not rendered"))
+    };
+    // Each note sits within a line-height of the text line carrying its marker.
+    for (anchor, note) in [("שורה ראשונה", "הערה ראשונה"), ("שורה שנייה", "הערה שנייה")] {
+        let a = at(anchor);
+        let n = at(note);
+        assert_eq!(n.page, a.page);
+        assert!(
+            (n.y - a.y).abs() < 15.0,
+            "note {note:?} is at y={:.1} but its marker's line is at y={:.1}              — the note did not follow its marker",
+            n.y,
+            a.y
+        );
+    }
+    // …and the two notes are at genuinely different heights, i.e. not clumped.
+    assert!(
+        (at("הערה ראשונה").y - at("הערה שנייה").y).abs() > 40.0,
+        "both notes landed at the same height — they are still clumping"
+    );
+}
+
+#[test]
+fn sidenotes_land_in_the_note_column_not_the_text() {
+    // In RTL the note column is the LEFT one; every note must sit entirely to the
+    // left of the main text column.
+    let runs = render(
+        "#עם_הערות_צד[טקסט ארוך מאוד שממלא את רוב רוחב הטור הראשי כדי לבדוק         #הערת_גיליון[בטור הצד] את המיקום.]",
+    );
+    let note = runs.iter().find(|r| r.text.contains("בטור הצד")).expect("note");
+    let text_left = runs
+        .iter()
+        .filter(|r| r.text.contains("טקסט ארוך"))
+        .map(|r| r.x)
+        .fold(f64::MAX, f64::min);
+    assert!(
+        note.x < text_left,
+        "the sidenote (x={:.1}) is not left of the main column (x={:.1})",
+        note.x,
+        text_left
+    );
+}
+
+#[test]
+fn two_sided_notes_go_to_opposite_gutters() {
+    // Spec option 6's two-sided variant: הערת_ימין down one side, הערת_שמאל the
+    // other, each beside its own line.
+    let runs = render(
+        "#עם_הערות_דו_צד[
+         אלף בית גימל דלת הא וו זין חית טית יוד#הערת_ימין[מקור בימין] כף למד מם נון סמך.
+         #מרווח(מידה: 3em)
+         שורה שנייה עם הערה בצד השני של העמוד#הערת_שמאל[ביאור בשמאל] וסיום.
+]",
+    );
+    let at = |n: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(n))
+            .unwrap_or_else(|| panic!("{n:?} not rendered"))
+    };
+    let right = at("מקור בימין");
+    let left = at("ביאור בשמאל");
+    assert!(
+        right.x > left.x,
+        "the right-gutter note (x={:.1}) is not right of the left-gutter one (x={:.1})",
+        right.x,
+        left.x
+    );
+    // Each still follows its own marker's line.
+    assert!((right.y - at("אלף בית").y).abs() < 15.0);
+    assert!((left.y - at("שורה שנייה").y).abs() < 15.0);
+}
+
+#[test]
+fn a_sidenote_outside_a_side_column_falls_back_to_a_footnote() {
+    // With no column open there is nowhere to place the note; it must become a
+    // real footnote rather than being laid out past the edge of the paper.
+    let (runs, sizes) = render_with("טקסט#הערת_גיליון[הערה יתומה].", &DocConfig::default());
+    let note = runs.iter().find(|r| r.text.contains("הערה יתומה")).expect("note");
+    let (w, h) = sizes[note.page - 1];
+    assert!(
+        note.x > 0.0 && note.x < w && note.y < h,
+        "orphaned sidenote landed off the page at ({:.1}, {:.1})",
+        note.x,
+        note.y
+    );
+    let anchor = runs.iter().find(|r| r.text.contains("טקסט")).expect("anchor");
+    assert!(note.y > anchor.y, "the fallback note is not below the text");
+}

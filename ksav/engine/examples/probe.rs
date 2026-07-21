@@ -30,7 +30,14 @@ fn main() {
                     s.dedup();
                     s
                 };
-                println!("y={:7.2} [{}] {}", l.y, sizes.join(","), l.text());
+                let x0 = l.runs.first().map(|r| r.x).unwrap_or(0.0);
+                println!(
+                    "y={:7.2} x={:6.1} [{}] {}",
+                    l.y,
+                    x0,
+                    sizes.join(","),
+                    l.text()
+                );
             }
         }
         Err(diags) => {

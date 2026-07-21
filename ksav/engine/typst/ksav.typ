@@ -873,71 +873,140 @@
 #let endnotes = הערות_בסוף
 #let endnotes_side = הערות_בסוף_צד
 
-// ---- הערות צד · side-column footnotes ----
-// A substantial notes column beside the text (not a thin margin). Wrap a
-// section in #עם_הערות_צד[...]; inside it, #הערת_צד[...] drops a numbered marker
-// and its note flows, numbered to match, in the side column. Each block
-// numbers independently.
-#let _ksav_sn = state("ksav-sidenotes", ())
-#let _ksav_snc = counter("ksav-sidenote")
-#let הערת_גיליון(body) = {
-  _ksav_snc.step()
-  context super(_ksav_snc.display())
-  _ksav_sn.update(l => l + (body,))
-}
-#let עם_הערות_צד(עיקר, יחס: 2) = {
-  _ksav_sn.update(())
-  _ksav_snc.update(0)
-  grid(
-    columns: (יחס * 1fr, 1fr),
-    column-gutter: 1.2em,
-    עיקר,
-    {
-      set text(size: 0.78em, fill: luma(65))
-      context {
-        for (i, n) in _ksav_sn.get().enumerate() {
-          block(spacing: 0.6em)[#super[#(i + 1)] #n]
-        }
+// ---- הערות צד · side-column notes, aligned to their marker's line ----
+// A substantial notes column beside the text (not a thin margin). Wrap a section
+// in #עם_הערות_צד[...]; inside it, #הערת_גיליון[...] drops a numbered marker and
+// its note appears in the side column *beside that line*.
+//
+// Real sidenotes, not a "notes column": each note is `place`d at the vertical
+// offset of its own marker, so the reader's eye goes straight across. The
+// mechanism is read-only, so it converges: a note drops inline metadata, then
+// every note on the page queries *all* of them, measures each at the column
+// width, and stacks them greedily (a note sits at its marker's line, or just
+// below the previous note if that would overlap). Every note computes the same
+// stack from the same query, so they agree without any shared state.
+#let _sn_defaults = (
+  יחס: 2,          // main-column : note-column width ratio
+  מרווח: 1.2em,    // gutter between the two columns
+  גודל: 0.78em,
+  צבע: luma(65),
+  ריווח: 0.6em,    // minimum vertical gap between two stacked notes
+)
+#let _sn_cfg = state("ksav-sn-cfg", _sn_defaults)
+#let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+// Is a side-column wrapper currently open? A sidenote outside one has no column
+// to land in, so it must not be `place`d off the page — see _sn_note.
+#let _sn_active = state("ksav-sn-active", 0)
+#let _sn_wrap(cfg, mark, body) = text(
+  size: cfg.at("גודל", default: 0.78em),
+  fill: cfg.at("צבע", default: luma(65)),
+  [#super[#mark] #body],
+)
+
+// The shared sidenote engine. `lbl` names the stream (one per gutter), `mark`
+// renders a number, and `side` is "חוץ" (the far side of the main column),
+// "ימין" or "שמאל" (an absolute page side, for the two-sided layout).
+//
+// Real sidenotes, not a "notes column": each note is `place`d at the vertical
+// offset of its OWN marker, so the reader's eye goes straight across. The
+// mechanism is read-only, so it converges — a note drops inline metadata, then
+// every note on the page queries all of them, measures each at the column width
+// and stacks them greedily (a note sits at its marker's line, or just below the
+// previous note when that would overlap). Every note computes the same stack
+// from the same query, so they agree without sharing any state.
+#let _sn_note(lbl, side, mark, body) = context {
+  let cfg = _sn_cfg.get()
+  let key = repr(body)
+  [#metadata((key: key, body: body))#label(lbl)]
+  let all = _ksav_dedup(query(label(lbl)))
+  let idx = all.position(e => e.value.key == key)
+  let num = if idx == none { 1 } else { idx + 1 }
+  super[#mark(num)]
+  if _sn_active.get() == 0 {
+    // No side column is open, so there is nowhere to put the note. Fall back to
+    // a real footnote rather than placing it off the edge of the paper.
+    footnote(_sn_wrap(cfg, mark(num), body))
+  } else {
+    // layout() hands us the width of the enclosing column — the main text column,
+    // since we are inside it — from which the note column's width follows.
+    layout(sz => context {
+      let loc = here()
+      let gutter = cfg.at("מרווח", default: 1.2em).to-absolute()
+      let colw = sz.width / cfg.at("יחס", default: 2)
+      let gap = cfg.at("ריווח", default: 0.6em).to-absolute()
+      let mine = all.filter(e => e.location().page() == loc.page())
+      let cursor = -1e4pt
+      let dy = 0pt
+      for e in mine {
+        let want = e.location().position().y
+        let top = calc.max(want, cursor)
+        if e.value.key == key { dy = top - loc.position().y }
+        let n = all.position(x => x.value.key == e.value.key) + 1
+        cursor = top + measure(box(width: colw, _sn_wrap(cfg, mark(n), e.value.body))).height + gap
       }
-    },
-  )
+      // `place` in a flow anchors horizontally to the container's START corner
+      // (the RIGHT edge of the column in RTL, the left in LTR) and vertically to
+      // the current position — which is what lets dy be measured from the
+      // marker's own line. dx is absolute (positive = rightwards), so the two
+      // text directions need opposite signs.
+      let rtl_ = text.dir == rtl
+      let away = sz.width + gutter          // to the far side of the main column
+      let near = -1 * (colw + gutter)       // to the near side of it
+      let dx = if side == "חוץ" {
+        if rtl_ { -1 * away } else { away }
+      } else if (side == "ימין") == rtl_ {
+        // the gutter on the same side the column starts from
+        if rtl_ { -1 * near } else { near }
+      } else {
+        if rtl_ { -1 * away } else { away }
+      }
+      place(dx: dx, dy: dy, box(width: colw, _sn_wrap(cfg, mark(num), body)))
+    })
+  }
+}
+
+#let הערת_גיליון(body) = _sn_note("ksav-sn", "חוץ", n => [#n], body)
+
+// עם_הערות_צד — reserve the note column beside `עיקר`. The notes themselves are
+// placed by #הערת_גיליון at their own lines; this only narrows the text column so
+// there is empty page for them to land on.
+#let עם_הערות_צד(עיקר, יחס: 2) = {
+  _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d })
+  _sn_active.update(n => n + 1)
+  context {
+    let cfg = _sn_cfg.get()
+    grid(
+      columns: (יחס * 1fr, 1fr),
+      column-gutter: cfg.at("מרווח", default: 1.2em),
+      עיקר,
+      [],
+    )
+  }
+  _sn_active.update(n => n - 1)
 }
 #let sidenote = הערת_גיליון
 #let sidenotes = עם_הערות_צד
+#let sidenotes_config = הגדרות_הערות_צד
 
 // ---- הערות דו-צדדיות · two note streams, one down each side ----
-// Wrap a large section (or the whole document) in #עם_הערות_דו_צד[...]. Inside,
+// Wrap a section (or the whole document) in #עם_הערות_דו_צד[...]. Inside,
 // #הערת_ימין[...] feeds the right column (numbered 1,2,3) and #הערת_שמאל[...]
-// the left column (numbered 1′,2′,3′) — two independent apparatuses running
-// down both sides of the centered main text. Use once per document/section
-// (the streams are document-wide).
-#let _ksav_rn = state("ksav-rn", ())
-#let _ksav_rc = counter("ksav-rc")
-#let _ksav_ln = state("ksav-ln", ())
-#let _ksav_lc = counter("ksav-lc")
-#let הערת_ימין(body) = {
-  _ksav_rc.step()
-  context super(_ksav_rc.display())
-  _ksav_rn.update(l => l + (body,))
+// the left column (numbered 1′,2′,3′) — two independent apparatuses running down
+// both sides of the centred main text, each note beside its own line.
+#let הערת_ימין(body) = _sn_note("ksav-sn-r", "ימין", n => [#n], body)
+#let הערת_שמאל(body) = _sn_note("ksav-sn-l", "שמאל", n => [#n′], body)
+#let עם_הערות_דו_צד(עיקר, יחס: 2.4) = {
+  _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d })
+  _sn_active.update(n => n + 1)
+  grid(
+    columns: (1fr, יחס * 1fr, 1fr),
+    column-gutter: 1em,
+    [],
+    עיקר,
+    [],
+  )
+  _sn_active.update(n => n - 1)
 }
-#let הערת_שמאל(body) = {
-  _ksav_lc.step()
-  context super[#_ksav_lc.display()′]
-  _ksav_ln.update(l => l + (body,))
-}
-#let עם_הערות_דו_צד(עיקר, יחס: 2.4) = grid(
-  columns: (1fr, יחס * 1fr, 1fr),
-  column-gutter: 1em,
-  {
-    set text(size: 0.75em, fill: luma(65))
-    context { for (i, n) in _ksav_rn.final().enumerate() { block(spacing: 0.5em)[#super[#(i + 1)] #n] } }
-  },
-  עיקר,
-  {
-    set text(size: 0.75em, fill: luma(65))
-    context { for (i, n) in _ksav_ln.final().enumerate() { block(spacing: 0.5em)[#super[#(i + 1)′] #n] } }
-  },
-)
 #let noteright = הערת_ימין
 #let noteleft = הערת_שמאל
 #let twosided = עם_הערות_דו_צד

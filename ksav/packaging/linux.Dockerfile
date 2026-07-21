@@ -23,6 +23,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Ayatana only: `libappindicator3-dev` and `libayatana-appindicator3-dev` declare
 # a Conflicts on each other, so asking for both fails the whole apt transaction.
 # Ayatana is the maintained fork and the one Tauri looks for first.
+#
+# Note there is no `linux.deb.depends` in tauri.conf.json: Tauri derives
+# libwebkit2gtk and libgtk from what the binary actually links against, and
+# listing them again just duplicates the package's Depends line. (Nor can that
+# note live in the config file — Tauri's schema rejects unknown keys, so even a
+# `"//"` comment fails the build.)
 RUN apt-get update && apt-get install -y \
       libwebkit2gtk-4.1-dev \
       libayatana-appindicator3-dev \

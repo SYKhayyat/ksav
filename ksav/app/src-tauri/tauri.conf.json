@@ -33,11 +33,6 @@
     "copyright": "Ksav",
     "shortDescription": "Hebrew-first writing and typesetting",
     "longDescription": "Ksav (כְּתָב) is a Hebrew-first writing system built on the real Typst compiler. It typesets Hebrew documents with proper RTL, nikud, and a full note apparatus — footnotes, endnotes, section notes, side notes and parallel commentary streams — that word processors cannot produce.",
-    "linux": {
-      "deb": {
-        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
-      }
-    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

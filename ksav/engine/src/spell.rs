@@ -1,0 +1,361 @@
+//! Hebrew spell-checking, built on a lexicon Ksav owns.
+//!
+//! # Why this is not Hunspell
+//!
+//! There is exactly one open Hebrew spelling dictionary in the world — Hspell,
+//! last released in 2017 — and every other tool (Chrome, Firefox, LibreOffice,
+//! Google Docs) ships the same data. Two things rule it out as a foundation here:
+//!
+//! * **Licence.** It is AGPLv3, including the generated word lists, and its
+//!   authors read that as covering network use. Embedding it in the binary the
+//!   way the fonts are embedded would put Ksav's own licensing in question.
+//! * **It does not know Torah Hebrew.** Measured against real text it flags
+//!   ~9.5% of Shulchan Arukh, ~8% of Mishnah Berurah and ~26% of Talmudic
+//!   Aramaic — the *correct* words — and rejects the everyday citation apparatus
+//!   outright (ע"א, שו"ע, עיי"ש, ודו"ק, תוס'). A checker that underlines one
+//!   correct word in four in the passage a bochur is quoting does not help them.
+//!   It teaches them to ignore every squiggle, which is worse than no checker.
+//!
+//! So the lexicon is built from Public Domain sources that match what Ksav's
+//! users actually write (see `tools/build_lexicon.py`), plus a hand-curated
+//! supplement for Talmudic vocabulary and the abbreviation apparatus, plus the
+//! writer's own dictionary. Hspell can still be loaded as a user-installed pack
+//! for modern Hebrew — `Lexicon::add_words` takes any word list — but nothing
+//! AGPL is bundled.
+//!
+//! # What it deliberately does not check
+//!
+//! **Pointed text.** The lexicon holds no nikud, and neither does any Hebrew
+//! dictionary that exists: pointed and unpointed Hebrew are different spelling
+//! systems. Checking pointed text against an unpointed lexicon flags ~99% of it.
+//! So nikud is stripped before lookup, which means a *wrong vowel is invisible to
+//! this checker* — it can never validate nikud, and it does not pretend to.
+
+use std::collections::HashSet;
+
+/// The bundled Torah lexicon, generated from Public Domain texts.
+const LEXICON: &str = include_str!("../assets/lexicon.txt");
+/// Hand-curated Talmudic vocabulary and the citation apparatus.
+const SUPPLEMENT: &str = include_str!("../assets/lexicon-supplement.txt");
+
+/// One word the checker does not recognise, located in the original text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Misspelling {
+    /// Byte offset of the word in the text that was checked.
+    pub start: usize,
+    /// Byte length of the word as it appears in the text.
+    pub len: usize,
+    /// The word itself, as written (nikud and all).
+    pub word: String,
+}
+
+/// The words the checker accepts.
+#[derive(Debug, Clone, Default)]
+pub struct Lexicon {
+    words: HashSet<String>,
+}
+
+impl Lexicon {
+    /// An empty lexicon — accepts nothing but the structural exemptions.
+    pub fn empty() -> Lexicon {
+        Lexicon::default()
+    }
+
+    /// The bundled Torah lexicon plus the curated supplement.
+    pub fn bundled() -> Lexicon {
+        let mut l = Lexicon::default();
+        l.add_words(LEXICON);
+        l.add_words(SUPPLEMENT);
+        l
+    }
+
+    /// Add words from a newline-separated list. `#` comments and blanks are
+    /// ignored, and every entry is normalized the same way lookups are, so a
+    /// list written with Hebrew gershayim still matches text typed with them.
+    pub fn add_words(&mut self, list: &str) {
+        for line in list.lines() {
+            let w = line.trim();
+            if w.is_empty() || w.starts_with('#') {
+                continue;
+            }
+            self.words.insert(normalize(w));
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.words.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.words.is_empty()
+    }
+
+    pub fn contains(&self, word: &str) -> bool {
+        self.words.contains(&normalize(word))
+    }
+
+    /// Words within one edit of `word`, best first — the "did you mean" list.
+    ///
+    /// Deliberately small and simple: an exhaustive scan with an early length
+    /// filter. The lexicon is tens of thousands of entries, not millions, and a
+    /// writer asks for suggestions on one word at a time.
+    pub fn suggest(&self, word: &str, limit: usize) -> Vec<String> {
+        let target = normalize(word);
+        if target.is_empty() {
+            return Vec::new();
+        }
+        let tc: Vec<char> = target.chars().collect();
+        let mut scored: Vec<(usize, &String)> = self
+            .words
+            .iter()
+            .filter(|w| {
+                let n = w.chars().count();
+                n + 1 >= tc.len() && n <= tc.len() + 1
+            })
+            .filter_map(|w| {
+                let d = edit_distance(&tc, w, 1)?;
+                Some((d, w))
+            })
+            .collect();
+        // Shortest edit first, then alphabetical so the order is stable rather
+        // than whatever the hash set happened to yield.
+        scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(b.1)));
+        scored.into_iter().take(limit).map(|(_, w)| w.clone()).collect()
+    }
+}
+
+/// Hebrew combining marks: nikud, te'amim and the meteg/rafe family.
+fn is_hebrew_mark(c: char) -> bool {
+    matches!(c, '\u{0591}'..='\u{05C7}')
+}
+
+fn is_hebrew_letter(c: char) -> bool {
+    matches!(c, '\u{05D0}'..='\u{05EA}')
+}
+
+/// Gershayim (double) — used *between* letters in an acronym: שו"ע, ע"ב.
+fn is_gershayim(c: char) -> bool {
+    matches!(c, '"' | '\u{05F4}' | '\u{201C}' | '\u{201D}')
+}
+
+/// Geresh (single) — used between letters *and* as a trailing abbreviation
+/// marker: תוס', סי', וגו'.
+fn is_geresh(c: char) -> bool {
+    matches!(c, '\'' | '\u{05F3}' | '\u{2018}' | '\u{2019}')
+}
+
+/// Fold a word to the form the lexicon stores.
+///
+/// Two normalizations, both mandatory:
+/// * **Strip Hebrew marks.** No Hebrew dictionary contains nikud; leaving it in
+///   makes essentially every pointed word a miss.
+/// * **Fold gershayim to ASCII.** Abbreviations are written with U+05F4 by a
+///   Hebrew keyboard and with `"` by the source texts. Without this every single
+///   abbreviation fails — which is most of a citation.
+pub fn normalize(word: &str) -> String {
+    word.chars()
+        .filter(|c| !is_hebrew_mark(*c))
+        .map(|c| match c {
+            '\u{05F4}' | '\u{201C}' | '\u{201D}' => '"',
+            '\u{05F3}' | '\u{2018}' | '\u{2019}' => '\'',
+            other => other,
+        })
+        .collect()
+}
+
+/// Does this word carry nikud?
+///
+/// Pointed text is not checkable against an unpointed lexicon, so the checker
+/// skips it rather than flagging ~99% of a siddur.
+pub fn is_pointed(word: &str) -> bool {
+    word.chars().any(is_hebrew_mark)
+}
+
+/// Should this token be checked at all?
+///
+/// Everything exempted here is exempted because flagging it would be wrong, not
+/// because it is hard: single letters are used as enumerators (א., ב.) and
+/// gematria; anything with a digit or Latin letter is not Hebrew prose; a word
+/// carrying nikud cannot be validated; and a bare acronym of one letter plus
+/// gershayim is a reference, not a word.
+pub fn should_check(word: &str) -> bool {
+    if word.is_empty() || is_pointed(word) {
+        return false;
+    }
+    let mut letters = 0usize;
+    for c in word.chars() {
+        if c.is_ascii_digit() || c.is_ascii_alphabetic() {
+            return false;
+        }
+        if is_hebrew_letter(c) {
+            letters += 1;
+        }
+    }
+    letters >= 2
+}
+
+/// Split text into Hebrew word tokens with their byte offsets.
+///
+/// A token keeps its gershayim, because in Hebrew they are part of the word:
+/// `שו"ע` and `תוס'` are single words, and splitting on the quote would produce
+/// three nonsense fragments and three squiggles.
+pub fn words(text: &str) -> Vec<(usize, &str)> {
+    let mut out = Vec::new();
+    let bytes = text.as_bytes();
+    let mut start: Option<usize> = None;
+    for (i, c) in text.char_indices() {
+        // The two marks need different rules, because Hebrew uses them
+        // differently. Gershayim sit BETWEEN letters (שו"ע, ע"ב), so they join
+        // only with a Hebrew letter on both sides — otherwise a closing
+        // quotation mark would glue itself onto the word it closes. A geresh is
+        // also an abbreviation marker at the END of a word (תוס', סי', וגו'),
+        // so a preceding letter is enough.
+        let next_is_letter = text[i + c.len_utf8()..]
+            .chars()
+            .next()
+            .is_some_and(|n| is_hebrew_letter(n) || is_hebrew_mark(n));
+        let joins = start.is_some() && ((is_gershayim(c) && next_is_letter) || is_geresh(c));
+        let part = is_hebrew_letter(c) || is_hebrew_mark(c) || joins;
+        match (part, start) {
+            (true, None) => start = Some(i),
+            (false, Some(s)) => {
+                out.push((s, &text[s..i]));
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(s) = start {
+        out.push((s, &text[s..bytes.len()]));
+    }
+    out
+}
+
+/// Check a piece of text, returning every word the lexicon does not know.
+pub fn check(text: &str, lexicon: &Lexicon) -> Vec<Misspelling> {
+    words(text)
+        .into_iter()
+        .filter(|(_, w)| should_check(w))
+        .filter(|(_, w)| !lexicon.contains(w))
+        .map(|(start, w)| Misspelling {
+            start,
+            len: w.len(),
+            word: w.to_string(),
+        })
+        .collect()
+}
+
+/// Levenshtein distance between `a` (as chars) and `b`, or `None` above `max`.
+///
+/// Hebrew final letters are treated as the same letter as their medial form for
+/// scoring, so a suggestion differing only in ם/מ ranks as a near miss — which
+/// is exactly the mistake a typist makes.
+fn edit_distance(a: &[char], b: &str, max: usize) -> Option<usize> {
+    let b: Vec<char> = b.chars().map(fold_final).collect();
+    let a: Vec<char> = a.iter().copied().map(fold_final).collect();
+    if a.len().abs_diff(b.len()) > max {
+        return None;
+    }
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut cur = vec![0usize; b.len() + 1];
+    for i in 1..=a.len() {
+        cur[0] = i;
+        let mut best = cur[0];
+        for j in 1..=b.len() {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+            best = best.min(cur[j]);
+        }
+        if best > max {
+            return None; // no path through this row can come in under the cap
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    let d = prev[b.len()];
+    (d <= max).then_some(d)
+}
+
+fn fold_final(c: char) -> char {
+    match c {
+        'ך' => 'כ',
+        'ם' => 'מ',
+        'ן' => 'נ',
+        'ף' => 'פ',
+        'ץ' => 'צ',
+        other => other,
+    }
+}
+
+// ---------------------------------------------------------------- request API
+
+use std::sync::OnceLock;
+
+/// The bundled lexicon, parsed once.
+///
+/// A quarter of a million entries is not something to rebuild per keystroke, and
+/// the editor checks on every pause in typing.
+fn shared() -> &'static Lexicon {
+    static SHARED: OnceLock<Lexicon> = OnceLock::new();
+    SHARED.get_or_init(Lexicon::bundled)
+}
+
+/// A lexicon for one request: the bundled one plus the writer's own words.
+///
+/// The user dictionary is not a nicety. No lexicon can hold every chaburah's
+/// terminology, every rebbe's name or a writer's own coinages, and a checker
+/// that cannot be taught is one people switch off.
+fn for_request(user_words: &str) -> std::borrow::Cow<'static, Lexicon> {
+    if user_words.trim().is_empty() {
+        std::borrow::Cow::Borrowed(shared())
+    } else {
+        let mut l = shared().clone();
+        l.add_words(user_words);
+        std::borrow::Cow::Owned(l)
+    }
+}
+
+/// JSON-in / JSON-out spell check, shared by the server, wasm and desktop.
+///
+/// Input: `{text, user_words?, suggest?}` — `suggest` asks for a suggestion list
+/// per miss, which the editor only wants when a menu is actually being opened.
+/// Output: `{misspellings: [{start, len, word, suggestions?}], lexicon_size}`.
+pub fn spell_request(input_json: &str) -> String {
+    let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
+    let text = v.get("text").and_then(|x| x.as_str()).unwrap_or("");
+    let user_words = v.get("user_words").and_then(|x| x.as_str()).unwrap_or("");
+    let want_suggestions = v.get("suggest").and_then(|x| x.as_bool()).unwrap_or(false);
+    let limit = v.get("limit").and_then(|x| x.as_u64()).unwrap_or(5) as usize;
+
+    let lexicon = for_request(user_words);
+    let found: Vec<serde_json::Value> = check(text, &lexicon)
+        .into_iter()
+        .map(|m| {
+            let mut o = serde_json::json!({
+                "start": m.start,
+                "len": m.len,
+                "word": m.word,
+            });
+            if want_suggestions {
+                o["suggestions"] = serde_json::json!(lexicon.suggest(&m.word, limit));
+            }
+            o
+        })
+        .collect();
+
+    serde_json::json!({
+        "misspellings": found,
+        "lexicon_size": lexicon.len(),
+    })
+    .to_string()
+}
+
+/// JSON-in / JSON-out suggestions for a single word.
+/// Input: `{word, user_words?, limit?}` → `{suggestions: [...]}`.
+pub fn suggest_request(input_json: &str) -> String {
+    let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
+    let word = v.get("word").and_then(|x| x.as_str()).unwrap_or("");
+    let user_words = v.get("user_words").and_then(|x| x.as_str()).unwrap_or("");
+    let limit = v.get("limit").and_then(|x| x.as_u64()).unwrap_or(6) as usize;
+    let lexicon = for_request(user_words);
+    serde_json::json!({ "suggestions": lexicon.suggest(word, limit) }).to_string()
+}

@@ -13,6 +13,7 @@ use typst_layout::PagedDocument;
 pub mod assets;
 pub mod commands;
 pub mod probe;
+pub mod spell;
 pub mod templates;
 
 // The HTTP server uses tiny_http (net/threads) and can't target wasm.

@@ -33,3 +33,7 @@ Thumbs.db
 # Generated wasm bindings (run: wasm-pack build; then copy to app/src/wasmpkg)
 /ksav/app/src/wasmpkg/
 /ksav/wasm/target/
+
+# Lexicon build cache: the fetched corpora and the Ben-Yehuda word counts.
+# Large and fully derivable — the built lexicon is what ships.
+ksav/engine/tools/.corpus-cache/

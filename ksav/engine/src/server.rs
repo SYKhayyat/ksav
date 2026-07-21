@@ -83,6 +83,24 @@ pub fn serve(addr: &str) {
                     .with_header(header("Content-Type", "application/json; charset=utf-8"));
                 let _ = request.respond(with_cors(resp, cors));
             }
+            (Method::Post, "/spell") => {
+                let cors = cors_header(&request, &addr_str);
+                let mut body = String::new();
+                let _ = request.as_reader().read_to_string(&mut body);
+                let json = crate::spell::spell_request(&body);
+                let resp = Response::from_string(json)
+                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
+                let _ = request.respond(with_cors(resp, cors));
+            }
+            (Method::Post, "/suggest") => {
+                let cors = cors_header(&request, &addr_str);
+                let mut body = String::new();
+                let _ = request.as_reader().read_to_string(&mut body);
+                let json = crate::spell::suggest_request(&body);
+                let resp = Response::from_string(json)
+                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
+                let _ = request.respond(with_cors(resp, cors));
+            }
             (Method::Get, "/commands") => {
                 let cors = cors_header(&request, &addr_str);
                 let resp = Response::from_string(crate::commands::commands_json())

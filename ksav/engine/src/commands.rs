@@ -140,6 +140,16 @@ pub static COMMANDS: &[Command] = &[
     cmd!("עם_הערות_דו_צד", "twosided", "torah", "קטע עם הערות משני הצדדים", "Section with notes on both sides", "#עם_הערות_דו_צד[|]"),
     cmd!("הערת_ימין", "noteright", "torah", "הערה בטור הימני (דו-צדדי)", "Right-side note (two-sided)", "#הערת_ימין[|]"),
     cmd!("הערת_שמאל", "noteleft", "torah", "הערה בטור השמאלי (דו-צדדי)", "Left-side note (two-sided)", "#הערת_שמאל[|]"),
+    // ---- review (tracked changes + editorial comments) ----
+    cmd!("הוספה", "inserted", "review", "סימון הוספה (שינוי עקוב)", "Mark an insertion (tracked change)", "#הוספה[|]"),
+    cmd!("מחיקה", "deleted", "review", "סימון מחיקה (שינוי עקוב)", "Mark a deletion (tracked change)", "#מחיקה[|]"),
+    cmd!("הערת_עורך", "comment_", "review", "הערת עורך בשוליים", "Editorial margin comment", "#הערת_עורך[|]"),
+    cmd!("הגדרות_סקירה", "review_config", "review", "תצוגת הסקירה (סימון / סופי / מקורי)", "Review view (markup / final / original)", "#הגדרות_סקירה(תצוגה: \"סופי\")"),
+    // ---- section page setup ----
+    cmd!("מקטע_עמוד", "page_section", "layout", "מקטע עם הגדרות עמוד משלו (טורים/שוליים/כותרות/סימן מים)", "Section with its own page setup (columns/margins/headers/watermark)", "#מקטע_עמוד(טורים: 2)[|]"),
+    // ---- math ----
+    cmd!("נוסחה", "formula", "math", "נוסחה מוצגת (שורה משלה)", "Displayed formula (own line)", "#נוסחה(\"|\")"),
+    cmd!("נוסחה_בשורה", "iformula", "math", "נוסחה בתוך השורה", "Inline formula", "#נוסחה_בשורה(\"|\")"),
     // ---- cross-references ----
     cmd!("סמן", "anchor", "reference", "סמן יעד להפניה", "Mark a reference target", "#סמן(\"|\")"),
     cmd!("הפניה", "xref", "reference", "הפניה ליעד (מספר מתעדכן)", "Reference (auto number)", "#הפניה(\"|\")"),

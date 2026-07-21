@@ -1239,6 +1239,169 @@
 )
 #let commentary = עם_פירוש
 
+// ============================================================
+//  סקירה · review: tracked changes and editorial comments
+// ------------------------------------------------------------
+//  Anyone editing someone else's kisvei yad needs to show what they changed
+//  rather than silently changing it. Three marks:
+//
+//    #הוספה[…]       text this reviewer added
+//    #מחיקה[…]       text this reviewer wants removed (kept, struck through)
+//    #הערת_עורך[…]   a comment on the text, not part of it
+//
+//  and one switch over how the document is displayed:
+//
+//    #הגדרות_סקירה(תצוגה: "סימון" | "סופי" | "מקורי")
+//
+//  "סימון" (the default) shows the marks; "סופי" shows the document as it would
+//  read if every change were accepted; "מקורי" as it read before any of them.
+//  Accepting and rejecting *individually* is an editing operation, not a
+//  rendering one — the app's review panel does it by rewriting the source, which
+//  is the only way the decision survives into the file.
+//
+//  A comment rides the sidenote engine (#הערת_גיליון), so it lands beside the
+//  line it belongs to and stacks without colliding; outside a side-column
+//  section that engine falls back to a real footnote, so a comment is never
+//  placed off the paper.
+// ============================================================
+#let _rv_defaults = (
+  תצוגה: "סימון",              // "סימון" · "סופי" · "מקורי"
+  צבע_הוספה: rgb("#15803d"),   // insertions
+  צבע_מחיקה: rgb("#b91c1c"),   // deletions
+  צבע_הערה: rgb("#b45309"),    // comments
+  שמות: true,                   // print the reviewer's name on a comment
+)
+#let _rv_cfg = state("ksav-rv-cfg", _rv_defaults)
+#let הגדרות_סקירה(..opts) = _rv_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+#let _rv_mode(c) = c.at("תצוגה", default: "סימון")
+#let _rv_by(c, מאת) = if מאת != none and c.at("שמות", default: true) {
+  text(size: 0.8em, fill: luma(110), [ ‏(#מאת)])
+} else { none }
+
+// הוספה — text the reviewer added.
+#let הוספה(body, מאת: none) = context {
+  let c = _rv_cfg.get()
+  let m = _rv_mode(c)
+  if m == "מקורי" {
+    // It was not there before this review, so the "original" view has none of it.
+  } else if m == "סופי" {
+    body
+  } else {
+    underline(text(fill: c.at("צבע_הוספה", default: rgb("#15803d")), body))
+  }
+}
+
+// מחיקה — text the reviewer wants removed. Struck through, not gone: the point
+// of a tracked deletion is that the author can still read what would go.
+#let מחיקה(body, מאת: none) = context {
+  let c = _rv_cfg.get()
+  let m = _rv_mode(c)
+  if m == "סופי" {
+    // Accepted, the text is gone.
+  } else if m == "מקורי" {
+    body
+  } else {
+    strike(text(fill: c.at("צבע_מחיקה", default: rgb("#b91c1c")), body))
+  }
+}
+
+// הערת_עורך — a comment ABOUT the text. Never part of the document, so it shows
+// only in the markup view.
+#let הערת_עורך(body, מאת: none) = context {
+  let c = _rv_cfg.get()
+  if _rv_mode(c) == "סימון" {
+    let tint = c.at("צבע_הערה", default: rgb("#b45309"))
+    _sn_note(
+      "ksav-rv",
+      "חוץ",
+      n => text(fill: tint)[✎#n],
+      text(fill: tint, { body; _rv_by(c, מאת) }),
+    )
+  }
+}
+
+#let review_config = הגדרות_סקירה
+#let inserted = הוספה
+#let deleted = מחיקה
+#let comment_ = הערת_עורך
+
+// ============================================================
+//  מקטע עמוד · section-level page setup
+// ------------------------------------------------------------
+//  Header, footer, columns, margins, orientation, paper, page numbering, a page
+//  border and a watermark — for ONE section rather than the whole document.
+//  Wrap the section: #מקטע_עמוד(טורים: 2, סימן_מים: "טיוטה")[ … ].
+//
+//  A section starts on a fresh page and the following text starts on another:
+//  that is what per-section page setup means, and Typst's own `page` function —
+//  which this is — works the same way.
+// ============================================================
+#let מקטע_עמוד(
+  body,
+  כותרת_עליונה: none,
+  כותרת_תחתונה: none,
+  טורים: none,
+  שוליים: none,
+  נייר: none,
+  לרוחב: none,
+  מספור: none,
+  מסגרת: none,
+  סימן_מים: none,
+) = {
+  let a = (:)
+  if נייר != none { a.insert("paper", נייר) }
+  if לרוחב != none { a.insert("flipped", לרוחב) }
+  if שוליים != none { a.insert("margin", שוליים) }
+  if טורים != none { a.insert("columns", טורים) }
+  if מספור != none { a.insert("numbering", מספור) }
+  if כותרת_עליונה != none {
+    a.insert("header", align(center, text(size: 0.85em, fill: luma(100), כותרת_עליונה)))
+  }
+  // A footer is given when asked for one, and also when this section numbers its
+  // pages differently: the document wrapper draws the page number itself, so a
+  // bare `numbering:` would otherwise be overruled by the wrapper's own footer.
+  if כותרת_תחתונה != none {
+    a.insert("footer", align(center, text(size: 0.85em, fill: luma(100), כותרת_תחתונה)))
+  } else if מספור != none {
+    a.insert("footer", context align(center, text(
+      size: 0.85em, fill: luma(100), numbering(מספור, ..counter(page).get()),
+    )))
+  }
+  if מסגרת != none or סימן_מים != none {
+    let stroke_ = if מסגרת == true { 0.8pt + luma(120) } else { מסגרת }
+    a.insert("background", {
+      if מסגרת != none { place(rect(width: 100%, height: 100%, stroke: stroke_)) }
+      if סימן_מים != none {
+        place(center + horizon, rotate(-30deg, text(
+          size: 64pt, weight: "bold", fill: luma(200).transparentize(35%), סימן_מים,
+        )))
+      }
+    })
+  }
+  page(..a, body)
+}
+#let page_section = מקטע_עמוד
+
+// ============================================================
+//  נוסחאות · mathematics
+// ------------------------------------------------------------
+//  Typst's math is written in its own notation ("x^2 + sqrt(y) = sum_(i=1)^n"),
+//  which is what these take as a STRING and evaluate. Passing it as a string —
+//  rather than exposing Typst's `$…$` — keeps a formula from colliding with the
+//  Hebrew text around it, and lets the editor treat it as one object.
+//
+//  Mathematics is written left-to-right in every language, Hebrew included, so
+//  both wrap the equation in an LTR run.
+// ============================================================
+#let נוסחה(תוכן, ממוספרת: false) = text(dir: ltr, math.equation(
+  block: true,
+  numbering: if ממוספרת { "(1)" } else { none },
+  eval(תוכן, mode: "math"),
+))
+#let נוסחה_בשורה(תוכן) = text(dir: ltr, math.equation(block: false, eval(תוכן, mode: "math")))
+#let formula = נוסחה
+#let iformula = נוסחה_בשורה
+
 #let siman = סימן
 #let seif = סעיף
 #let osource = אות

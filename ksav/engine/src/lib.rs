@@ -29,6 +29,11 @@ const FONT_FRANK_BOLD: &[u8] = include_bytes!("../assets/fonts/FrankRuhlHofshi-B
 const FONT_DAVID_REG: &[u8] = include_bytes!("../assets/fonts/DavidLibre-Regular.ttf");
 const FONT_DAVID_BOLD: &[u8] = include_bytes!("../assets/fonts/DavidLibre-Bold.ttf");
 const FONT_CASCADIA: &[u8] = include_bytes!("../assets/fonts/CascadiaMono.ttf");
+/// The math font (OFL). Typst's math layout needs a font carrying an OpenType
+/// MATH table — no Hebrew text font has one — so without this, every formula
+/// fails outright with "no font could be found". It is the largest thing the
+/// engine bundles (1.3 MB) and the only way `#נוסחה` can work out of the box.
+const FONT_NEWCM_MATH: &[u8] = include_bytes!("../assets/fonts/NewCMMath-Regular.otf");
 
 /// Document-level settings, normally supplied by the editor toolbar.
 #[derive(Debug, Clone)]
@@ -269,6 +274,7 @@ fn layout_source(source: String, assets: &Assets) -> Warned<Result<PagedDocument
         FONT_DAVID_REG,
         FONT_DAVID_BOLD,
         FONT_CASCADIA,
+        FONT_NEWCM_MATH,
     ];
     fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
     let files: Vec<(&str, &[u8])> = assets
@@ -427,7 +433,7 @@ pub fn compile_request(input_json: &str) -> String {
 /// equivalent.
 pub fn compile_html(body: &str, cfg: &DocConfig, assets: &Assets) -> Result<String, Vec<Diagnostic>> {
     let source = assemble_source(body, cfg);
-    let mut fonts: Vec<&[u8]> = vec![FONT_FRANK_REG, FONT_FRANK_BOLD, FONT_DAVID_REG, FONT_DAVID_BOLD, FONT_CASCADIA];
+    let mut fonts: Vec<&[u8]> = vec![FONT_FRANK_REG, FONT_FRANK_BOLD, FONT_DAVID_REG, FONT_DAVID_BOLD, FONT_CASCADIA, FONT_NEWCM_MATH];
     fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
     let files: Vec<(&str, &[u8])> = assets.files.iter().map(|a| (a.name.as_str(), a.bytes.as_slice())).collect();
     let engine = TypstEngine::builder().main_file(source).fonts(fonts).with_static_file_resolver(files).build();
@@ -669,6 +675,48 @@ mod tests {
         // and explicit true all compile.
         let body = "#כותרת1[פרק]\n#כותרת2[סעיף]\n\
                     #תוכן()\n#תוכן(מספור: false)\n#תוכן(מספור: true)";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn review_marks_in_every_view() {
+        // Tracked changes and an editorial comment, in all three review views.
+        for view in ["סימון", "סופי", "מקורי"] {
+            let body = format!(
+                "#הגדרות_סקירה(תצוגה: \"{view}\")\n\
+                 כתב #הוספה[מוסיף] ו#מחיקה[מוחק]#הערת_עורך(מאת: \"עורך\")[לבדוק] סוף."
+            );
+            let out = compile(&body, &DocConfig::default());
+            assert!(out.ok(), "{view}: {:?}", out.diagnostics);
+        }
+    }
+
+    #[test]
+    fn review_comment_inside_side_column() {
+        // A comment inside a side-column section lands in the column rather than
+        // falling back to a footnote.
+        let body = "#עם_הערות_צד[טקסט#הערת_עורך[לשקול שוב] ועוד#הערת_עורך[ומכאן].]";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn section_page_setup() {
+        // Two sections with their own page setup, around ordinary text.
+        let body = "רגיל\n#מקטע_עמוד(טורים: 2, כותרת_עליונה: \"נספח\", מספור: \"i\")[\
+                    טקסט בשני טורים.]\n\
+                    #מקטע_עמוד(לרוחב: true, מסגרת: true, סימן_מים: \"טיוטה\", שוליים: 1.5cm)[\
+                    דף לרוחב עם מסגרת.]\nהמשך רגיל.";
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+        assert!(out.pages_svg.len() >= 3, "each section should own its pages");
+    }
+
+    #[test]
+    fn math_formulas() {
+        let body = "בשורה #נוסחה_בשורה(\"a^2 + b^2 = c^2\") וגם מוצגת:\n\
+                    #נוסחה(\"sum_(i=1)^n i = (n(n+1))/2\", ממוספרת: true)";
         let out = compile(body, &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     }

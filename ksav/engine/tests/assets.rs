@@ -135,3 +135,39 @@ fn every_command_category_is_listed_once() {
         assert!(cats.contains(&c.category), "category {:?} missing", c.category);
     }
 }
+
+// ── HTML export ─────────────────────────────────────────────────────────────
+
+#[test]
+fn html_export_is_real_web_content_not_page_pictures() {
+    // "Export HTML" used to wrap the rendered SVG page images in a little HTML —
+    // fixed-size pictures of pages, not something reflowable, copyable or
+    // readable on a phone.
+    let html = ksav_engine::compile_html(
+        "#כותרת1[פרק ראשון]\n\nטקסט עם #הדגשה[הדגשה] ו#נטוי[הטיה].\n\n\
+         #רשימה(פריט[אלף], פריט[בית])",
+        &DocConfig::default(),
+        &Assets::default(),
+    )
+    .unwrap_or_else(|d| panic!("html export failed: {d:?}"));
+
+    // A heading must be a heading, not a styled <div> — the outline is most of
+    // what makes an HTML export worth having.
+    assert!(html.contains("<h1>פרק ראשון</h1>"), "no semantic heading in: {html}");
+    // …and it must not carry the counter number the paged wrapper keeps stepping.
+    assert!(!html.contains("<h1>1."), "the heading counter leaked into the HTML");
+    assert!(html.contains("<strong>הדגשה</strong>"));
+    assert!(html.contains("<em>הטיה</em>"));
+    assert!(html.contains("<li>"), "the list did not become a real list");
+    assert!(html.contains("lang=\"he\""), "the document language was not carried over");
+    assert!(!html.contains("<svg"), "the export still contains page pictures");
+}
+
+#[test]
+fn an_html_request_returns_html_rather_than_pages() {
+    let req = serde_json::json!({ "body": "#כותרת2[כותרת]", "format": "html" }).to_string();
+    let out: serde_json::Value =
+        serde_json::from_str(&ksav_engine::compile_request(&req)).expect("valid json");
+    assert_eq!(out["ok"], true, "diagnostics: {:?}", out["diagnostics"]);
+    assert!(out["html"].as_str().unwrap().contains("<h2>כותרת</h2>"));
+}

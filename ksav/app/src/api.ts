@@ -31,6 +31,11 @@ export interface RequestAssets {
   assets: { name: string; data: string }[];
   /** Extra fonts to make available for this compile. */
   fonts: { name: string; data: string }[];
+  /**
+   * "html" asks for Typst's native HTML export instead of paged output, in
+   * which case the result carries `html` rather than `pages_svg`/`pdf_base64`.
+   */
+  format?: "html";
 }
 
 export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
@@ -46,6 +51,8 @@ export interface CompileResult {
   pdf_base64: string | null;
   diagnostics: Diagnostic[];
   typst_source: string;
+  /** Set only for a `format: "html"` request. */
+  html?: string;
 }
 
 export interface CommandDef {

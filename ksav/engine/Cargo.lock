@@ -1228,6 +1228,7 @@ dependencies = [
  "tiny_http",
  "typst",
  "typst-as-lib",
+ "typst-html",
  "typst-layout",
  "typst-pdf",
  "typst-svg",

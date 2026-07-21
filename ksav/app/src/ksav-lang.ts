@@ -29,20 +29,22 @@ export interface CmdSpan {
   close: number | null; // position of matching ']'
 }
 
-/** Scan forward from `at` over a balanced group, returning the closer's index. */
+/**
+ * Scan forward from `at` over a balanced group, returning the closer's index.
+ *
+ * Deliberately does NOT treat `"` as a string delimiter. Hebrew writes
+ * abbreviations with gershayim — רש"י, שו"ע, רמב"ם, ע"ב — and a document is full
+ * of them, so skipping from one `"` to the next swallows everything up to the
+ * next abbreviation and the group never closes. (That bug ate whole tables:
+ * `#טבלה(… תא[רש"י] …)` scanned to end-of-document and the table fell out of
+ * prose mode and out of the Markdown export as raw markup.)
+ *
+ * The cost is a genuine but far rarer case: an unbalanced bracket inside a Typst
+ * string literal, e.g. `#הערה_זרם("a)b")`. Hebrew quotes beat exotic strings.
+ */
 function matchGroup(text: string, at: number, open: string, close: string): number | null {
   let depth = 1;
   for (let i = at + 1; i < text.length; i++) {
-    // Skip string literals, so a bracket inside `rgb("#b91c1c")` cannot
-    // unbalance the scan.
-    if (text[i] === '"') {
-      i++;
-      while (i < text.length && text[i] !== '"') {
-        if (text[i] === "\\") i++;
-        i++;
-      }
-      continue;
-    }
     if (text[i] === open) depth++;
     else if (text[i] === close) {
       depth--;

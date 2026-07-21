@@ -376,6 +376,23 @@ pub fn compile_request(input_json: &str) -> String {
     let body = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
     let cfg = DocConfig::from_json(&v);
     let assets = Assets::from_json(&v);
+
+    // `{"format": "html"}` asks for the web export instead of a paged render.
+    if v.get("format").and_then(|x| x.as_str()) == Some("html") {
+        return match compile_html(body, &cfg, &assets) {
+            Ok(html) => serde_json::json!({ "ok": true, "html": html, "diagnostics": [] }),
+            Err(diags) => serde_json::json!({
+                "ok": false,
+                "html": serde_json::Value::Null,
+                "diagnostics": diags
+                    .iter()
+                    .map(|d| serde_json::json!({ "severity": d.severity, "message": d.message }))
+                    .collect::<Vec<_>>(),
+            }),
+        }
+        .to_string();
+    }
+
     let result = compile_with(body, &cfg, &assets);
     let diags: Vec<serde_json::Value> = result
         .diagnostics
@@ -396,9 +413,45 @@ pub fn compile_request(input_json: &str) -> String {
     .to_string()
 }
 
+/// Compile to Typst's native HTML — real reflowable web content.
+///
+/// "Export HTML" used to wrap the rendered SVG *page images* in a bit of HTML:
+/// fixed-size pictures of pages, not something you can reflow, copy, search or
+/// read on a phone. This produces genuine semantic markup instead — headings are
+/// `<h1>`…`<h6>`, emphasis is `<strong>`/`<em>`, paragraphs are `<p>`.
+///
+/// Typst's HTML export is still under development, so this can fail on a
+/// document the paged backend handles fine; callers should keep the paged export
+/// available and report the diagnostics rather than presenting HTML as
+/// equivalent.
+pub fn compile_html(body: &str, cfg: &DocConfig, assets: &Assets) -> Result<String, Vec<Diagnostic>> {
+    let source = assemble_source(body, cfg);
+    let mut fonts: Vec<&[u8]> = vec![FONT_FRANK_REG, FONT_FRANK_BOLD, FONT_DAVID_REG, FONT_DAVID_BOLD, FONT_CASCADIA];
+    fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
+    let files: Vec<(&str, &[u8])> = assets.files.iter().map(|a| (a.name.as_str(), a.bytes.as_slice())).collect();
+    let engine = TypstEngine::builder().main_file(source).fonts(fonts).with_static_file_resolver(files).build();
+    let Warned { output, warnings } = engine.compile::<typst_html::HtmlDocument>();
+    match output {
+        Ok(doc) => match typst_html::html(&doc, &typst_html::HtmlOptions::default()) {
+            Ok(s) => Ok(s),
+            Err(diags) => Err(diag_messages(&diags, "error")),
+        },
+        Err(err) => {
+            let mut d = diag_messages(&warnings, "warning");
+            use typst_as_lib::TypstAsLibError::*;
+            match err {
+                TypstSource(x) => d.extend(diag_messages(&x, "error")),
+                other => d.push(Diagnostic { severity: "error".into(), message: other.to_string() }),
+            }
+            Err(d)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
 
     #[test]
     fn every_registered_command_is_defined() {

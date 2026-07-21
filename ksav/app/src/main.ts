@@ -28,13 +28,14 @@ import {
   outline,
 } from "./ksav-lang";
 import { createBackend } from "./api";
-import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig } from "./api";
+import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig, Diagnostic } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import type { DocAsset, KsavDoc } from "./docs";
 import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
+import { toMarkdown, toPlainText } from "./markdown";
 import type { NoteChoice } from "./notes";
 import type { FileBinding } from "./files";
 
@@ -994,7 +995,9 @@ function buildHeader(): HTMLElement {
 
   const exportMenu = menu("⬇ " + t("export"), [
     el("button", { class: "menu-item", onClick: exportPdf }, [t("exportPdf")]),
-    el("button", { class: "menu-item", onClick: exportHtml }, [t("exportHtml")]),
+    el("button", { class: "menu-item", onClick: () => void exportHtml() }, [t("exportHtml")]),
+    el("button", { class: "menu-item", onClick: exportMarkdown }, [t("exportMarkdown")]),
+    el("button", { class: "menu-item", onClick: exportText }, [t("exportText")]),
     el("button", { class: "menu-item", onClick: exportTypst }, [t("exportTypst")]),
     el("button", { class: "menu-item", onClick: doPrint }, [t("print")]),
   ]);
@@ -1736,28 +1739,88 @@ function removeAsset(name: string) {
 function exportPdf() {
   if (!lastResult?.pdf_base64) return;
   const bytes = Uint8Array.from(atob(lastResult.pdf_base64), (c) => c.charCodeAt(0));
-  download("ksav.pdf", new Blob([bytes], { type: "application/pdf" }));
+  download(fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
 }
 function exportTypst() {
   if (!lastResult) return;
-  download("ksav.typ", new Blob([lastResult.typst_source], { type: "text/plain" }));
+  download(fileStem() + ".typ", new Blob([lastResult.typst_source], { type: "text/plain" }));
 }
-function htmlDoc(): string {
+/**
+ * The rendered pages wrapped in HTML — a *picture* of the document.
+ *
+ * This is what printing wants (it must look exactly like the PDF), and it is the
+ * fallback for the web export when Typst's HTML backend cannot handle a
+ * document. It is not reflowable and is not what "Export HTML" should mean.
+ */
+function pageImageHtml(): string {
   const pages = (lastResult?.pages_svg || [])
     .map((s) => `<div class="page">${s}</div>`)
     .join("\n");
   return `<!doctype html><html dir="${settings.dir}"><head><meta charset="utf-8">
-<title>Ksav</title><style>body{background:#e5e7eb;margin:0;padding:24px}
+<title>${escapeAttr(currentDoc?.title ?? "Ksav")}</title><style>body{background:#e5e7eb;margin:0;padding:24px}
 .page{background:#fff;max-width:820px;margin:0 auto 24px;box-shadow:0 2px 12px rgba(0,0,0,.15)}
 .page svg{width:100%;height:auto;display:block}</style></head><body>${pages}</body></html>`;
 }
-function exportHtml() {
-  download("ksav.html", new Blob([htmlDoc()], { type: "text/html" }));
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Real web content: Typst's own HTML backend, so headings are headings and the
+ * text reflows, is selectable and reads on a phone.
+ *
+ * Typst's HTML export is still under development and can fail on a document the
+ * paged backend renders fine. When it does, say so and fall back to the page
+ * images rather than silently producing nothing.
+ */
+async function exportHtml() {
+  if (!backend) return;
+  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
+  const body = pre + view.state.doc.toString();
+  try {
+    const res = (await backend.compile(body, cfg(), {
+      ...docs.requestAssets(currentDoc?.assets ?? []),
+      format: "html",
+    })) as unknown as { ok: boolean; html?: string; diagnostics?: Diagnostic[] };
+    if (res.ok && res.html) {
+      download(fileStem() + ".html", new Blob([res.html], { type: "text/html;charset=utf-8" }));
+      return;
+    }
+    const why = res.diagnostics?.[0]?.message ?? "";
+    setStatus(t("htmlFellBack") + (why ? ` — ${friendlyError(why)}` : ""), "warn");
+  } catch {
+    setStatus(t("htmlFellBack"), "warn");
+  }
+  download(fileStem() + ".html", new Blob([pageImageHtml()], { type: "text/html;charset=utf-8" }));
+}
+
+/** A filename stem from the document's title, safe on every platform. */
+function fileStem(): string {
+  const raw = (currentDoc?.title ?? "ksav").trim();
+  const safe = raw.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "-");
+  return safe || "ksav";
+}
+
+function exportMarkdown() {
+  download(
+    fileStem() + ".md",
+    new Blob([toMarkdown(view.state.doc.toString())], { type: "text/markdown;charset=utf-8" }),
+  );
+}
+
+function exportText() {
+  download(
+    fileStem() + ".txt",
+    new Blob([toPlainText(view.state.doc.toString())], { type: "text/plain;charset=utf-8" }),
+  );
 }
 function doPrint() {
   const w = window.open("", "_blank");
   if (!w) return;
-  w.document.write(htmlDoc());
+  // Printing wants the page images: what comes out of the printer must look
+  // exactly like the PDF, which reflowable HTML would not.
+  w.document.write(pageImageHtml());
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 300);

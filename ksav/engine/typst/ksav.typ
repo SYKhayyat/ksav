@@ -555,8 +555,18 @@
 #let _hd_cfg = state("ksav-hd-cfg", _hd_defaults)
 #let הגדרות_כותרות(..opts) = _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 #let _hd_show(it) = context {
+  // In HTML export, leave the heading alone: Typst turns a real heading into an
+  // <h1>…<h6>, and replacing it with a styled block would emit a semantically
+  // meaningless <div> — losing the document outline that makes the HTML worth
+  // exporting in the first place. The page styling below is print styling.
   let c = _hd_cfg.get()
   let lvl = it.level
+  if target() == "html" {
+    // Emit a real <h1>…<h6> carrying only the heading's own text: the wrapper
+    // keeps Typst's heading counter stepping (so in-body numbering can display),
+    // which would otherwise leak a "1." into every HTML heading.
+    return html.elem("h" + str(calc.min(lvl, 6)), it.body)
+  }
   let scheme = c.at("מספור", default: none)
   let num = if scheme != none { [#counter(heading).display(scheme)#h(0.5em)] } else { [] }
   let styled = {

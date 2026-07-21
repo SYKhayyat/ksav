@@ -38,6 +38,7 @@ import { NOTE_CHOICES, applyChoice } from "./notes";
 import { toMarkdown, toPlainText } from "./markdown";
 import * as spell from "./spell";
 import * as styles from "./styles";
+import * as tables from "./table";
 import type { NoteChoice } from "./notes";
 import type { FileBinding } from "./files";
 
@@ -598,6 +599,7 @@ function makeEditor(): EditorView {
         },
       }),
       EditorView.updateListener.of((u) => {
+        if (u.docChanged || u.selectionSet) updateTableBar();
         if (u.docChanged) {
           scheduleCompile();
           updateCounts();
@@ -1751,6 +1753,70 @@ function setStatus(msg: string, cls = "") {
   status.className = cls;
 }
 
+// ---------------------------------------------------------------- table editing
+//
+// Inserting #טבלה used to be the end of the help you got: adding a row or a
+// column meant rewriting the call by hand and counting cells to keep them
+// aligned with the declared column count. Getting that count wrong silently
+// reflows the whole table.
+//
+// So: when the cursor is inside a table, a small bar appears with the structural
+// operations. It is driven off the cursor rather than a click on the rendered
+// preview, because the preview is an SVG picture of a page and has no idea which
+// cell you pointed at.
+
+function tableToolbar(): HTMLElement {
+  return el("div", { id: "table-bar", class: "table-bar" });
+}
+
+/** Show or hide the table bar for wherever the cursor currently is. */
+function updateTableBar() {
+  const bar = document.getElementById("table-bar");
+  if (!bar || !view) return;
+  const doc = view.state.doc.toString();
+  const pos = view.state.selection.main.head;
+  // Named `tbl`, not `t`: `t` is the translation function, and shadowing it here
+  // makes every label in this toolbar a compile error.
+  const tbl = tables.tableAt(doc, pos);
+  if (!tbl) {
+    bar.classList.remove("open");
+    bar.replaceChildren();
+    return;
+  }
+  const idx = tables.cellIndexAt(tbl, pos);
+  // With the cursor between cells, act on the last row/column rather than
+  // refusing: "add a row" should always mean something inside a table.
+  const row = idx == null ? tables.rowCount(tbl) - 1 : tables.rowOf(tbl, idx);
+  const col = idx == null ? tbl.cols - 1 : tables.colOf(tbl, idx);
+
+  const apply = (next: string) => {
+    if (next === doc) return;
+    view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+    scheduleCompile();
+    // The bar is rebuilt from the new document on the next selection update.
+    requestAnimationFrame(updateTableBar);
+  };
+
+  const act = (label: string, title: string, run: () => string) =>
+    el("button", { class: "tb-btn", title, onClick: () => apply(run()) }, [label]);
+
+  bar.replaceChildren(
+    el("span", { class: "table-bar-label" }, [
+      tf("tableAt", String(row + 1), String(col + 1), String(tables.rowCount(tbl)), String(tbl.cols)),
+    ]),
+    act("↑+", t("insertRowAbove"), () => tables.insertRow(doc, tbl, row - 1)),
+    act("↓+", t("insertRowBelow"), () => tables.insertRow(doc, tbl, row)),
+    act("⊖", t("deleteRow"), () => tables.deleteRow(doc, tbl, row)),
+    el("span", { class: "tb-sep" }),
+    act("→+", t("insertColAfter"), () => tables.insertColumn(doc, tbl, col)),
+    act("+←", t("insertColBefore"), () => tables.insertColumn(doc, tbl, col - 1)),
+    act("⊗", t("deleteCol"), () => tables.deleteColumn(doc, tbl, col)),
+    el("span", { class: "tb-sep" }),
+    act("H", t("toggleHeaderRow"), () => tables.toggleHeaderRow(doc, tbl, row)),
+  );
+  bar.classList.add("open");
+}
+
 // ---------------------------------------------------------------- styles panel
 //
 // One place for formatting, because there were three and they fought:
@@ -2344,6 +2410,7 @@ function render() {
       el("h3", {}, [t("outline")]),
       el("div", { id: "outline-list" }),
     ]),
+    tableToolbar(),
     // styles panel (a drawer, so the document stays visible while you tune it)
     el("aside", { id: "styles-panel", class: "drawer drawer-styles" }, [
       el("div", { id: "styles-body" }),

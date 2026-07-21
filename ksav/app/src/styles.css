@@ -609,3 +609,23 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   width: 42px; height: 26px; padding: 0; border: 1px solid var(--line);
   border-radius: 5px; background: none; cursor: pointer;
 }
+
+/* ---- table structure bar ------------------------------------------------
+   Appears only when the cursor is inside a table. Driven by the cursor rather
+   than a click on the preview, because the preview is an SVG picture of a page
+   and cannot say which cell you pointed at. */
+.table-bar {
+  position: fixed; bottom: 34px; inset-inline-start: 50%; transform: translateX(50%);
+  z-index: 46; display: none; align-items: center; gap: 3px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+  box-shadow: 0 5px 20px rgba(0,0,0,.18); padding: 4px 8px;
+}
+[dir="ltr"] .table-bar { transform: translateX(-50%); }
+.table-bar.open { display: flex; }
+.table-bar-label {
+  font-size: 11px; color: var(--muted); padding-inline-end: 6px; white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .table-bar { bottom: 40px; max-width: 96vw; overflow-x: auto; }
+  .table-bar-label { display: none; }
+}

@@ -26,6 +26,15 @@ const HE: Dict = {
   savedTo: "נשמר ב־{0}",
   savedCopy: "עותק הורד ({0}) — הדפדפן הזה אינו מאפשר כתיבה חוזרת לקובץ.",
   permissionDenied: "אין הרשאת כתיבה לקובץ — נסו \"שמירה בשם\".",
+  // table editing
+  tableAt: "טבלה · שורה {0}/{2}, עמודה {1}/{3}",
+  insertRowAbove: "הוסף שורה מעל",
+  insertRowBelow: "הוסף שורה מתחת",
+  deleteRow: "מחק שורה",
+  insertColAfter: "הוסף עמודה אחרי",
+  insertColBefore: "הוסף עמודה לפני",
+  deleteCol: "מחק עמודה",
+  toggleHeaderRow: "שורת כותרת",
   // styles panel
   stylesTitle: "עיצוב",
   stylesLede: "כל העיצוב במקום אחד — הגדרות העמוד, ערכות מוכנות, ועיצוב הכותרות/רשימות/טבלאות של המסמך.",
@@ -232,6 +241,15 @@ const EN: Dict = {
   savedTo: "Saved to {0}",
   savedCopy: "Downloaded a copy ({0}) \u2014 this browser can't write back to a file.",
   permissionDenied: "No write permission for that file \u2014 try \"Save as\".",
+  // table editing
+  tableAt: "Table \u00b7 row {0}/{2}, column {1}/{3}",
+  insertRowAbove: "Insert row above",
+  insertRowBelow: "Insert row below",
+  deleteRow: "Delete row",
+  insertColAfter: "Insert column after",
+  insertColBefore: "Insert column before",
+  deleteCol: "Delete column",
+  toggleHeaderRow: "Header row",
   // styles panel
   stylesTitle: "Styles",
   stylesLede: "All the formatting in one place — page setup, presets, and this document's heading, list and table design.",

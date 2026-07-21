@@ -266,6 +266,10 @@
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.35em,    // gap between bands
   ריווח_פריט: 0.25em,   // gap between entries within a band
+  גבהים: none,          // fixed per-tier band heights, e.g. (2cm, 1cm) — the
+                        //   "fixed regions" layout: a band always occupies its
+                        //   height, empty space stays empty, overflow is clipped.
+                        //   none = each band takes exactly the height it needs.
 )
 #let _pp_cfg = state("ksav-pp-cfg", _pp_defaults)
 #let הגדרות_מדפים(..opts) = _pp_cfg.update(c => {
@@ -307,7 +311,16 @@
     let pg = here().page()
     let mine = all.filter(e => e.location().page() == pg)
     if mine.len() > 0 {
-      let tiers = mine.map(e => e.value.tier).dedup().sorted()
+      // With fixed band heights, EVERY configured band shows on every page that
+      // has any apparatus at all — an empty band keeps its slot empty rather than
+      // letting the ones below it drift up the page. That fixed geometry is the
+      // whole point of the "regions" layout.
+      let heights = cfg.at("גבהים", default: none)
+      let tiers = if type(heights) == array {
+        range(1, heights.len() + 1)
+      } else {
+        mine.map(e => e.value.tier).dedup().sorted()
+      }
       set align(if text.dir == rtl { right } else { left })
       block(width: 100%, {
         if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
@@ -322,7 +335,11 @@
             }
           }
           let cols = _fn_pick(cfg.at("טורים", default: ()), t, 1)
-          if cols > 1 { columns(cols, band) } else { band }
+          let filled = if cols > 1 { columns(cols, band) } else { band }
+          let h = _fn_pick(if type(heights) == array { heights } else { () }, t, none)
+          if h != none {
+            block(width: 100%, height: h, clip: true, filled)
+          } else { filled }
           if bi < tiers.len() - 1 {
             v(cfg.at("ריווח_בין", default: 0.35em))
             if cfg.at("קו_בין", default: true) { line(length: 35%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.35em)) }
@@ -370,6 +387,8 @@
   כותרות: (:),          // per-stream heading label, e.g. ("מקורות": [מקורות])
   טורים: (:),           // per-stream column count, e.g. ("מקורות": 2); default 1
                         //   (independent of the main-text and other streams' columns)
+  גבהים: (:),           // fixed per-stream region height, e.g. ("מקורות": 1.5cm) —
+                        //   the stream always occupies that slot, empty or not.
   גודל: 0.85em,
   סגנון: "normal",
   צבע: luma(20),
@@ -420,7 +439,11 @@
     let mine = all.filter(e => e.location().page() == pg)
     if mine.len() > 0 {
       let present = mine.map(e => e.value.stream).dedup()
-      let streams = _sf_order(cfg, present)
+      // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
+      // laid out on every apparatus page, even with nothing in it this page, so
+      // a stream never drifts into another's place.
+      let fixed = cfg.at("גבהים", default: (:)).keys()
+      let streams = _sf_order(cfg, present + fixed.filter(s => not present.contains(s)))
       set align(if text.dir == rtl { right } else { left })
       // one rendered block per stream (heading + numbered entries)
       let render-stream(s) = {
@@ -436,7 +459,9 @@
           }
         }
         let ncols = cfg.at("טורים", default: (:)).at(s, default: 1)
-        if ncols > 1 { columns(ncols, entries) } else { entries }
+        let filled = if ncols > 1 { columns(ncols, entries) } else { entries }
+        let h = cfg.at("גבהים", default: (:)).at(s, default: none)
+        if h != none { block(width: 100%, height: h, clip: true, filled) } else { filled }
       }
       block(width: 100%, {
         if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
@@ -583,13 +608,22 @@
   הזחה_ראשונה: 0em,
   ריווח_הערות: 0.85em,
   טורים: 1,
+  // אזור_הערות — height reserved at the foot of every page for the per-page
+  // apparatus (מדף bands / זרם streams). Those render in the page FOOTER, which
+  // lives in the bottom margin and does not push the text up: without a reserve
+  // they grow straight off the bottom of the paper and take the page number with
+  // them. Reserving reduces the text area by exactly this much, so the apparatus
+  // always has somewhere to go. `none` = reserve nothing (correct for documents
+  // that only use native footnotes / endnotes, which need no reserve at all).
+  אזור_הערות: none,
   body,
 ) = {
   let np = if מספור_עברי { "א" } else { "1" }
+  let reserve = if אזור_הערות == none { 0pt } else { אזור_הערות }
   set text(font: גופן, size: גודל, lang: שפה, dir: כיוון)
   set page(
     paper: נייר,
-    margin: שוליים,
+    margin: (top: שוליים, left: שוליים, right: שוליים, bottom: שוליים + reserve),
     numbering: if מספור { np } else { none },
     header: if כותרת_עליונה != none {
       align(center, text(size: 0.85em, fill: luma(100), כותרת_עליונה))
@@ -598,8 +632,20 @@
     // stacked above the page number / custom footer line. We render the number
     // ourselves here because a custom footer replaces Typst's automatic one.
     footer: {
-      _pp_page_bands()
-      _sf_page_streams()
+      // The apparatus occupies the reserved region; the page number sits under it
+      // at a fixed offset, so it stays put no matter how much apparatus a page
+      // carries. Overflow past the reserve is clipped rather than run off the
+      // sheet — a clipped note is visible as a problem, a note printed past the
+      // paper edge is not.
+      if reserve != 0pt {
+        block(width: 100%, height: reserve, clip: true, {
+          _pp_page_bands()
+          _sf_page_streams()
+        })
+      } else {
+        _pp_page_bands()
+        _sf_page_streams()
+      }
       context {
         let ln = if כותרת_תחתונה != none {
           text(size: 0.85em, fill: luma(100), כותרת_תחתונה)

@@ -10,9 +10,13 @@ use ksav_engine::DocConfig;
 
 /// Lay a body out, or panic with the diagnostics.
 fn render(body: &str) -> Vec<TextRun> {
-    let doc = probe::layout(body, &DocConfig::default())
-        .unwrap_or_else(|d| panic!("compile failed: {d:?}"));
-    probe::text_runs(&doc)
+    render_with(body, &DocConfig::default()).0
+}
+
+/// Lay a body out, returning its runs and each page's size in points.
+fn render_with(body: &str, cfg: &DocConfig) -> (Vec<TextRun>, Vec<(f64, f64)>) {
+    let doc = probe::layout(body, cfg).unwrap_or_else(|d| panic!("compile failed: {d:?}"));
+    (probe::text_runs(&doc), probe::page_sizes(&doc))
 }
 
 fn visual_lines(runs: &[TextRun]) -> Vec<Line> {
@@ -145,5 +149,121 @@ fn two_tier_section_bands_regroup_by_tier() {
     assert!(
         tier2 > tier1_last,
         "tier-2 band is not below the whole tier-1 band"
+    );
+}
+
+// ── Options 4 / 5: fixed page-foot regions and parallel streams ──────────────
+
+/// A body long enough to run onto a second page.
+fn filler() -> String {
+    "מילה ".repeat(380)
+}
+
+#[test]
+fn page_band_apparatus_stays_on_the_paper() {
+    // Regression: the per-page apparatus renders into the page FOOTER, which sits
+    // in the bottom margin and does not push the text up. With nothing reserving
+    // room for it, the bands grew straight off the bottom of the sheet and took
+    // the page number with them — printed past the paper edge, invisible.
+    let (runs, sizes) = render_with(
+        &format!(
+            "ראש#מדף_א[פתיחה #מדף_ב[שנייה #מדף_ג[שלישית]]] {f}              אמצע#מדף_א[עוד הערה #מדף_ב[ועוד]] {f} סוף#מדף_א[אחרונה].",
+            f = filler()
+        ),
+        &DocConfig::default(),
+    );
+    assert!(sizes.len() >= 2, "expected a multi-page document");
+    for r in &runs {
+        let (_, h) = sizes[r.page - 1];
+        assert!(
+            r.y < h,
+            "text {:?} laid out past the bottom of page {} (y={:.1}, page height {:.1})",
+            r.text,
+            r.page,
+            r.y,
+            h
+        );
+    }
+}
+
+#[test]
+fn page_number_sits_at_the_same_height_on_every_page() {
+    // The reserved region is fixed, so a page carrying a heavy apparatus and a
+    // page carrying none must still print their number in the same place.
+    let (runs, _) = render_with(
+        &format!(
+            "ראש#מדף_א[פתיחה #מדף_ב[שנייה]] {f} {f} סוף.",
+            f = filler()
+        ),
+        &DocConfig::default(),
+    );
+    let mut ys: Vec<(usize, f64)> = Vec::new();
+    for p in 1..=runs.iter().map(|r| r.page).max().unwrap() {
+        let y = runs
+            .iter()
+            .filter(|r| r.page == p)
+            .map(|r| r.y)
+            .fold(f64::MIN, f64::max);
+        ys.push((p, y));
+    }
+    let first = ys[0].1;
+    for (p, y) in &ys {
+        assert!(
+            (y - first).abs() < 0.5,
+            "page {p}'s footer line is at y={y:.1}, page 1's at y={first:.1}"
+        );
+    }
+}
+
+#[test]
+fn parallel_streams_number_independently_and_share_the_page() {
+    // Spec option 5: two apparatuses anchored in the same text, each with its own
+    // symbols, side by side at the foot of the page.
+    let runs = render(
+        "#הגדרות_זרמים(פריסה: \"צד\", זרמים: (\"תוכן\", \"מקורות\"),          מספור: (\"מקורות\": \"א\"))
+         ראש#הערת_תוכן[ביאור ראשון]#הערת_מקור[רמבם]          אמצע#הערת_תוכן[ביאור שני]#הערת_מקור[שוע].",
+    );
+    let idx = |needle: &str| {
+        runs.iter()
+            .position(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle:?} not rendered"))
+    };
+    // Each stream numbers from its own sequence: content 1,2 — sources א,ב.
+    assert_eq!(runs[idx("ביאור שני") - 1].text.trim(), "2");
+    assert_eq!(runs[idx("שוע") - 1].text.trim(), "ב");
+    // Side-by-side: the two streams' first entries share a baseline.
+    let c = &runs[idx("ביאור ראשון")];
+    let s = &runs[idx("רמבם")];
+    assert_eq!(c.page, s.page);
+    assert!(
+        (c.y - s.y).abs() < 1.0,
+        "side-by-side streams are not on the same baseline ({} vs {})",
+        c.y,
+        s.y
+    );
+}
+
+#[test]
+fn fixed_band_heights_keep_their_slot_when_empty() {
+    // Spec option 4: N stacked regions whose heights you choose. A band with
+    // nothing on this page still occupies its slot, so the band below it does not
+    // drift up into its place.
+    let body = |second_tier: &str| {
+        format!(
+            "#הגדרות_מדפים(גבהים: (1.2cm, 1.2cm))
+             ראש#מדף_א[בלוק ראשון]{second_tier} סוף."
+        )
+    };
+    let with = render(&body("#מדף_ב[בלוק שני]"));
+    let without = render(&body(""));
+    let y_of = |rs: &[TextRun], n: &str| {
+        rs.iter()
+            .find(|r| r.text.contains(n))
+            .unwrap_or_else(|| panic!("{n:?} not rendered"))
+            .y
+    };
+    assert!(
+        (y_of(&with, "בלוק ראשון") - y_of(&without, "בלוק ראשון")).abs() < 0.5,
+        "the first band moved when the second band emptied — the slots are not fixed"
     );
 }

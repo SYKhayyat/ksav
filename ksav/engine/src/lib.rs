@@ -55,6 +55,33 @@ pub struct DocConfig {
     pub header: String,
     /// Running footer text (empty = default page number).
     pub footer: String,
+    /// Height in cm reserved at the foot of every page for the per-page note
+    /// apparatus (page-bands / streams). `None` = decide automatically from the
+    /// document: reserve only when the document actually uses that apparatus.
+    pub notes_region_cm: Option<f64>,
+}
+
+/// Commands whose notes render into the page *footer* rather than expanding the
+/// text region — these are the ones that need a reserved region at the page foot.
+const PAGE_APPARATUS_COMMANDS: &[&str] = &[
+    "מדף_", "pageband", "הערה_זרם", "stream_note", "הערת_תוכן", "contentnote", "הערת_מקור",
+    "sourcenote_stream",
+];
+
+/// How much page-foot region a body needs, in cm.
+///
+/// The per-page apparatus lives in the bottom margin, so with nothing reserved it
+/// grows straight off the bottom of the sheet — the single most visible defect in
+/// that apparatus. Rather than make every writer discover a knob, reserve a
+/// workable default as soon as the document uses one of those commands, and
+/// nothing at all otherwise (native footnotes expand the text region themselves
+/// and must not lose page height to a reserve they never use).
+pub fn auto_notes_region_cm(body: &str) -> f64 {
+    if PAGE_APPARATUS_COMMANDS.iter().any(|c| body.contains(c)) {
+        3.0
+    } else {
+        0.0
+    }
 }
 
 impl Default for DocConfig {
@@ -74,6 +101,7 @@ impl Default for DocConfig {
             hebrew_numbering: false,
             header: String::new(),
             footer: String::new(),
+            notes_region_cm: None,
         }
     }
 }
@@ -128,6 +156,9 @@ impl DocConfig {
         if let Some(f) = v.get("footer").and_then(|x| x.as_str()) {
             cfg.footer = f.to_string();
         }
+        if let Some(n) = v.get("notes_region_cm").and_then(|x| x.as_f64()) {
+            cfg.notes_region_cm = Some(n);
+        }
         cfg
     }
 }
@@ -181,7 +212,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: \"{paper}\", \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
-         הזחה_ראשונה: {indent}em, טורים: {columns})\n\n\
+         הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})\n\n\
          {body}\n",
         prelude = PRELUDE,
         font = cfg.font.replace('"', "\\\""),
@@ -198,6 +229,10 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         para = cfg.para_spacing_em,
         indent = cfg.first_line_indent_em,
         columns = columns,
+        region = match cfg.notes_region_cm.unwrap_or_else(|| auto_notes_region_cm(body)) {
+            r if r <= 0.0 => "none".to_string(),
+            r => format!("{r}cm"),
+        },
         body = body,
     )
 }

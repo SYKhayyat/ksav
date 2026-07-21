@@ -58,6 +58,18 @@ fn walk(frame: &Frame, origin: Point, page: usize, out: &mut Vec<TextRun>) {
     }
 }
 
+/// Each page's (width, height) in points — so a test can assert that nothing
+/// (apparatus, page number) was laid out past the edge of the paper.
+pub fn page_sizes(doc: &PagedDocument) -> Vec<(f64, f64)> {
+    doc.pages()
+        .iter()
+        .map(|p| {
+            let s = p.frame.size();
+            (s.x.to_pt(), s.y.to_pt())
+        })
+        .collect()
+}
+
 /// All text on a page, joined in layout order — for "does this word appear at all".
 pub fn page_text(runs: &[TextRun], page: usize) -> String {
     runs.iter()

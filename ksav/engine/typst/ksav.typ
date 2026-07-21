@@ -52,13 +52,18 @@
 #let הערה_בדרגה(דרגה, body) = context {
   let cfg = _fn_cfg.get()
   let ind = _fn_pick(cfg.at("הזחה", default: ()), דרגה, 0em)
-  let pad-args = if text.dir == rtl { (right: ind) } else { (left: ind) }
   let lbls = cfg.at("תוויות", default: none)
   let lbl = if type(lbls) == array { _fn_pick(lbls, דרגה, none) } else { none }
-  footnote(pad(..pad-args, _fn_wrap(cfg, דרגה, {
+  // The tier indent must be INLINE (#h), never a block-level `pad`: a footnote
+  // entry lays out as "«number» «body»", so wrapping the body in a block pushes
+  // it onto the line below and orphans the number on a line of its own. #h keeps
+  // the number and the first words of the note together, which is the whole
+  // point of the entry.
+  footnote(_fn_wrap(cfg, דרגה, {
+    if ind != 0em { h(ind) }
     if lbl != none and lbl != "" { [#strong(lbl) ] }
     body
-  })))
+  }))
 }
 
 // tier aliases — Hebrew letters mirror the "block A / block B / block C" model

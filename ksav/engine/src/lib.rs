@@ -10,6 +10,7 @@ use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
 pub mod commands;
+pub mod probe;
 pub mod templates;
 
 // The HTTP server uses tiny_http (net/threads) and can't target wasm.
@@ -216,6 +217,41 @@ fn diag_messages(diags: &[SourceDiagnostic], severity: &str) -> Vec<Diagnostic> 
             }
         })
         .collect()
+}
+
+/// Compile and lay out a document, returning the laid-out pages.
+///
+/// This is what `compile` uses internally; it is public so tests (and the render
+/// probe) can inspect *where things actually landed on the page* rather than only
+/// whether compilation succeeded.
+pub fn compile_doc(body: &str, cfg: &DocConfig) -> Result<PagedDocument, Vec<Diagnostic>> {
+    let source = assemble_source(body, cfg);
+    let engine = TypstEngine::builder()
+        .main_file(source)
+        .fonts([
+            FONT_FRANK_REG,
+            FONT_FRANK_BOLD,
+            FONT_DAVID_REG,
+            FONT_DAVID_BOLD,
+            FONT_CASCADIA,
+        ])
+        .build();
+    let Warned { output, warnings } = engine.compile::<PagedDocument>();
+    match output {
+        Ok(doc) => Ok(doc),
+        Err(err) => {
+            let mut diagnostics = diag_messages(&warnings, "warning");
+            use typst_as_lib::TypstAsLibError::*;
+            match err {
+                TypstSource(diags) => diagnostics.extend(diag_messages(&diags, "error")),
+                other => diagnostics.push(Diagnostic {
+                    severity: "error".to_string(),
+                    message: other.to_string(),
+                }),
+            }
+            Err(diagnostics)
+        }
+    }
 }
 
 /// Compile Hebrew Ksav markup into PDF + SVG previews.

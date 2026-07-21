@@ -40,6 +40,34 @@
 #let footnote_config = הגדרות_הערות
 
 #let _fn_pick(arr, i, fb) = if type(arr) == array and i >= 1 and i - 1 < arr.len() { arr.at(i - 1) } else { fb }
+
+// ---- shared apparatus helpers ----
+// Ordered dedup of queried elements by their content key (first occurrence wins).
+// Every collect-then-render apparatus below needs this: when a stored note body is
+// re-displayed inside the apparatus it re-emits its own (and its children's)
+// metadata, so the raw query grows on every layout pass. Keying by content and
+// keeping the first occurrence makes the displayed set fixed, which is what lets
+// these apparatuses converge without any write during rendering.
+#let _ksav_dedup(elems) = {
+  let keys = ()
+  let out = ()
+  for e in elems {
+    let k = e.value.key
+    if not keys.contains(k) { keys.push(k); out.push(e) }
+  }
+  out
+}
+// Restrict a selector to the span between the surrounding pair of `marker`
+// elements — i.e. "the current section". `loc` is the caller's own location.
+// Used so a per-section apparatus sees only its own section's notes.
+#let _ksav_between(sel, marker, loc) = {
+  let s = sel
+  let before = query(selector(marker).before(loc))
+  if before.len() > 0 { s = s.after(before.last().location()) }
+  let after = query(selector(marker).after(loc))
+  if after.len() > 0 { s = s.before(after.first().location()) }
+  s
+}
 #let _fn_wrap(cfg, tier, body) = text(
   size: _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em),
   style: _fn_pick(cfg.at("סגנון", default: ()), tier, "normal"),
@@ -115,9 +143,6 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
-#let _md_phase = state("ksav-md-phase", "collect")
-#let _md_ct(t) = counter("ksav-mdc-" + str(t))   // collect numbering, per tier
-#let _md_rt(t) = counter("ksav-mdr-" + str(t))   // render cursor, per tier
 #let _md_mark(cfg, tier, num) = numbering(_fn_pick(cfg.at("מספור", default: ()), tier, "1"), num)
 #let _md_wrap(cfg, tier, body) = text(
   size: _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em),
@@ -125,53 +150,70 @@
   fill: _fn_pick(cfg.at("צבע", default: ()), tier, luma(0)),
   body,
 )
+// Every #הערות_מדורגות call drops this marker, which delimits one "section":
+// a note belongs to the section that ends at the first dump after it.
+#let _md_dump_label = label("ksav-md-dump")
+// The מדור notes of the section surrounding `loc`, deduped, in document order.
+#let _md_section_notes(loc) = _ksav_dedup(
+  query(_ksav_between(selector(label("ksav-md")), _md_dump_label, loc))
+)
+
+// מדור_בדרגה(דרגה, body) — collect a section-band note in tier `דרגה`.
+//
+// Read-only rendering, exactly like the per-page bands: the note drops inline
+// metadata in the main flow, and its number is the *rank of its content key*
+// among same-tier notes in the same section — derived from a query, never from a
+// counter. That is what makes multiple sections work: there is no global phase
+// flag to burn out after the first section, and no counter to reset.
 #let מדור_בדרגה(דרגה, body) = context {
   let cfg = _md_cfg.get()
-  if _md_phase.get() == "collect" {
-    _md_ct(דרגה).step()
-    context {
-      let num = _md_ct(דרגה).get().first()
-      [#metadata((tier: דרגה, num: num, body: body))#label("ksav-md")]
-      place(hide(body))                    // force nested tiers to register this pass
-      super(_md_mark(cfg, דרגה, num))
-    }
-  } else {
-    _md_rt(דרגה).step()
-    context { super(_md_mark(cfg, דרגה, _md_rt(דרגה).get().first())) }
+  let key = repr(body)
+  [#metadata((tier: דרגה, key: key, body: body))#label("ksav-md")]
+  // Force nested tiers to register in this same pass, in a zero-size inline box
+  // so it can never break the line the marker sits on.
+  box(place(hide(body)))
+  context {
+    let loc = here()
+    let same = _md_section_notes(loc).filter(e => e.value.tier == דרגה)
+    let idx = same.position(e => e.value.key == key)
+    super(_md_mark(cfg, דרגה, if idx == none { 1 } else { idx + 1 }))
   }
 }
-// #הערות_מדורגות() — render every collected tier as a stacked band, here.
-#let הערות_מדורגות(כותרת: none) = context {
-  let notes = query(label("ksav-md")).map(m => m.value)
-  if notes.len() > 0 {
-    let cfg = _md_cfg.get()
-    _md_phase.update("render")
-    if כותרת != none { heading(outlined: false, numbering: none, כותרת) }
-    if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.3em) }
-    let tiers = notes.map(v => v.tier).dedup().sorted()
-    for (bi, t) in tiers.enumerate() {
-      let ents = notes.filter(v => v.tier == t)
-      let cols = _fn_pick(cfg.at("טורים", default: ()), t, 1)
-      let band = {
-        if cfg.at("תוויות", default: false) {
-          block(spacing: 0.2em, text(size: 0.62em, fill: luma(160))[· #_md_mark(cfg, t, 1) ·])
+// #הערות_מדורגות() — render this section's collected tiers as stacked bands, here.
+// Call it once per section (and/or at the end of the document); each call renders
+// only the notes written since the previous call.
+#let הערות_מדורגות(כותרת: none) = {
+  context {
+    let notes = _md_section_notes(here()).map(m => m.value)
+    if notes.len() > 0 {
+      let cfg = _md_cfg.get()
+      if כותרת != none { heading(level: 3, outlined: false, numbering: none, כותרת) }
+      if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.3em) }
+      let tiers = notes.map(v => v.tier).dedup().sorted()
+      for (bi, t) in tiers.enumerate() {
+        let ents = notes.filter(v => v.tier == t)
+        let cols = _fn_pick(cfg.at("טורים", default: ()), t, 1)
+        let band = {
+          if cfg.at("תוויות", default: false) {
+            block(spacing: 0.2em, text(size: 0.62em, fill: luma(160))[· #_md_mark(cfg, t, 1) ·])
+          }
+          for (i, v) in ents.enumerate() {
+            block(spacing: cfg.at("ריווח_פריט", default: 0.35em),
+              _md_wrap(cfg, t, [#super(_md_mark(cfg, t, i + 1)) #v.body]))
+          }
         }
-        for v in ents {
-          block(spacing: cfg.at("ריווח_פריט", default: 0.35em),
-            _md_wrap(cfg, t, [#super(_md_mark(cfg, t, v.num)) #v.body]))
+        if cols > 1 { columns(cols, band) } else { band }
+        if bi < tiers.len() - 1 {
+          v(cfg.at("ריווח_בין", default: 0.5em))
+          if cfg.at("קו_בין", default: true) { line(length: 40%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.5em)) }
         }
-      }
-      if cols > 1 { columns(cols, band) } else { band }
-      if bi < tiers.len() - 1 {
-        v(cfg.at("ריווח_בין", default: 0.5em))
-        if cfg.at("קו_בין", default: true) { line(length: 40%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.5em)) }
       }
     }
-    // NB: the collect→render switch is *monotone* — we never flip back. Flipping
-    // back re-enables collection on re-display passes and the document oscillates
-    // (never converges). So render must be the last apparatus: any מדור notes
-    // written AFTER #הערות_מדורגות won't be collected. Call it at end of section.
   }
+  // The section boundary itself. Must come *after* the context above, so that
+  // context's `here()` sits before it and the section it renders is the one that
+  // ends here — not the next one.
+  [#metadata(none)#_md_dump_label]
 }
 #let מדור_א(body) = מדור_בדרגה(1, body)
 #let מדור_ב(body) = מדור_בדרגה(2, body)
@@ -238,16 +280,7 @@
   fill: _fn_pick(cfg.at("צבע", default: ()), tier, luma(0)),
   body,
 )
-// ordered dedup of query elements by their content key (first occurrence wins)
-#let _pp_dedup(elems) = {
-  let keys = ()
-  let out = ()
-  for e in elems {
-    let k = e.value.key
-    if not keys.contains(k) { keys.push(k); out.push(e) }
-  }
-  out
-}
+#let _pp_dedup = _ksav_dedup   // shared with the section bands (see _ksav_dedup)
 // מדף_בדרגה(דרגה, body) — collect a per-page-band note in tier `דרגה`.
 #let מדף_בדרגה(דרגה, body) = context {
   let cfg = _pp_cfg.get()

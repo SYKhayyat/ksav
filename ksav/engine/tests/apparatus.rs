@@ -74,3 +74,76 @@ fn tiered_notes_land_below_the_main_text() {
         note.y
     );
 }
+
+// ── Options 3 / 8: section endnotes and two-tier section bands ───────────────
+
+#[test]
+fn each_section_renders_only_its_own_notes() {
+    // Regression (spec option 3): a global monotone collect→render flag plus an
+    // unscoped query meant the *second* #הערות_מדורגות reprinted the *first*
+    // section's notes verbatim, and no section after the first ever showed its own.
+    let runs = render(
+        "= פרק א\n\
+         אלף#מדור_א[הערה על אלף] בית#מדור_א[הערה על בית].\n\
+         #הערות_מדורגות(כותרת: [הערות פרק א])\n\n\
+         = פרק ב\n\
+         גימל#מדור_א[הערה על גימל] דלת#מדור_א[הערה על דלת].\n\
+         #הערות_מדורגות(כותרת: [הערות פרק ב])",
+    );
+    let lines = visual_lines(&runs);
+    let y_of = |needle: &str| line_with(&lines, needle).y;
+
+    // Section 1's apparatus holds section 1's notes, and nothing else.
+    let head_a = y_of("הערות פרק א");
+    let head_b = y_of("הערות פרק ב");
+    assert!(head_a < head_b);
+    for note in ["הערה על אלף", "הערה על בית"] {
+        let y = y_of(note);
+        assert!(y > head_a && y < head_b, "{note:?} is not inside section א");
+    }
+    // Section 2's notes appear once, under section 2 — not reprinted from א.
+    for note in ["הערה על גימל", "הערה על דלת"] {
+        assert!(y_of(note) > head_b, "{note:?} is not inside section ב");
+    }
+}
+
+#[test]
+fn section_band_numbering_restarts_each_section() {
+    // Both sections' first note must be numbered 1 (א here), not 1 and then 3.
+    let runs = render(
+        "#הגדרות_מדורגות(מספור: (\"א\",))\n\
+         אלף#מדור_א[ראשונה] בית#מדור_א[שנייה].\n#הערות_מדורגות()\n\n\
+         גימל#מדור_א[שלישית].\n#הערות_מדורגות()",
+    );
+    // A band entry lays out as «marker superscript» then «body», so the run
+    // immediately before the body run is the entry's number. If numbering did not
+    // restart, the third note would be numbered ג rather than א.
+    let i = runs
+        .iter()
+        .position(|r| r.text.contains("שלישית"))
+        .expect("third note not rendered");
+    assert_eq!(
+        runs[i - 1].text.trim(),
+        "א",
+        "second section's first note is numbered {:?}, not א",
+        runs[i - 1].text
+    );
+}
+
+#[test]
+fn two_tier_section_bands_regroup_by_tier() {
+    // Spec option 8, the Shaar-HaTziyun look: all tier-1 in one band, then all
+    // tier-2 below it — each independently numbered, per section.
+    let runs = render(
+        "#הגדרות_מדורגות(מספור: (\"א\", \"1\"))\n\
+         אלף#מדור_א[פירוש אלף#מדור_ב[הערה על הפירוש]] בית#מדור_א[פירוש בית].\n\
+         #הערות_מדורגות()",
+    );
+    let lines = visual_lines(&runs);
+    let tier1_last = line_with(&lines, "פירוש בית").y;
+    let tier2 = line_with(&lines, "הערה על הפירוש").y;
+    assert!(
+        tier2 > tier1_last,
+        "tier-2 band is not below the whole tier-1 band"
+    );
+}

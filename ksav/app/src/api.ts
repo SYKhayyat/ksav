@@ -36,6 +36,15 @@ export interface RequestAssets {
    * which case the result carries `html` rather than `pages_svg`/`pdf_base64`.
    */
   format?: "html";
+  /**
+   * Ask for the PDF as well as the previews.
+   *
+   * Off by default. The engine used to render a PDF on every compile and
+   * base64 it into the response — around 300 KB per keystroke-triggered
+   * preview, of which nothing on screen read a single byte. Only export and
+   * print actually need it.
+   */
+  want_pdf?: boolean;
 }
 
 export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };

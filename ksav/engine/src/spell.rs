@@ -128,27 +128,97 @@ impl Lexicon {
     /// filter. The lexicon is tens of thousands of entries, not millions, and a
     /// writer asks for suggestions on one word at a time.
     pub fn suggest(&self, word: &str, limit: usize) -> Vec<String> {
+        let mut scored = self.suggest_scored(word);
+        // Shortest edit first, then alphabetical so the order is stable rather
+        // than whatever the hash set happened to yield.
+        scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+        scored.into_iter().take(limit).map(|(_, w)| w).collect()
+    }
+
+    /// Candidates with their edit distances, unsorted — so a layered checker can
+    /// merge the writer's own words into the ranking rather than appending them.
+    fn suggest_scored(&self, word: &str) -> Vec<(usize, String)> {
         let target = normalize(word);
         if target.is_empty() {
             return Vec::new();
         }
         let tc: Vec<char> = target.chars().collect();
-        let mut scored: Vec<(usize, &String)> = self
-            .words
+        self.words
             .iter()
             .filter(|w| {
                 let n = w.chars().count();
                 n + 1 >= tc.len() && n <= tc.len() + 1
             })
-            .filter_map(|w| {
-                let d = edit_distance(&tc, w, 1)?;
-                Some((d, w))
-            })
-            .collect();
-        // Shortest edit first, then alphabetical so the order is stable rather
-        // than whatever the hash set happened to yield.
-        scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(b.1)));
-        scored.into_iter().take(limit).map(|(_, w)| w.clone()).collect()
+            .filter_map(|w| edit_distance(&tc, w, 1).map(|d| (d, w.clone())))
+            .collect()
+    }
+}
+
+/// Anything that can answer "is this a word?" and "did you mean…?".
+///
+/// Exists so `check` works equally against the bundled lexicon and against a
+/// lexicon layered with the writer's own dictionary, without either one needing
+/// to be a copy of the other.
+pub trait Dict {
+    fn contains(&self, word: &str) -> bool;
+    fn suggest(&self, word: &str, limit: usize) -> Vec<String>;
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Dict for Lexicon {
+    fn contains(&self, word: &str) -> bool {
+        Lexicon::contains(self, word)
+    }
+    fn suggest(&self, word: &str, limit: usize) -> Vec<String> {
+        Lexicon::suggest(self, word, limit)
+    }
+    fn len(&self) -> usize {
+        Lexicon::len(self)
+    }
+}
+
+/// The bundled lexicon with the writer's own words layered on top.
+///
+/// The overlay is the point. `for_request` used to *clone* the whole
+/// 269,385-entry lexicon the moment a writer had added a single word to their
+/// dictionary — on every check, forever. Measured: 9 ms became 183 ms, a
+/// twentyfold regression, and it applied to exactly the people engaged enough
+/// with the feature to have taught it something. The shared lexicon is behind a
+/// `OnceLock` precisely so it is built once; copying it per request threw that
+/// away. Here the base is borrowed and only the handful of user words is owned.
+pub struct Layered<'a> {
+    base: &'a Lexicon,
+    user: Lexicon,
+}
+
+impl<'a> Layered<'a> {
+    pub fn new(base: &'a Lexicon, user_words: &str) -> Layered<'a> {
+        let mut user = Lexicon::default();
+        user.add_words(user_words);
+        Layered { base, user }
+    }
+}
+
+impl Dict for Layered<'_> {
+    fn contains(&self, word: &str) -> bool {
+        // The user's own list first: it is tiny, and a word they added is the
+        // one most likely to be the reason this lookup is happening.
+        self.user.contains(word) || self.base.contains(word)
+    }
+
+    fn suggest(&self, word: &str, limit: usize) -> Vec<String> {
+        let mut scored = self.base.suggest_scored(word);
+        scored.extend(self.user.suggest_scored(word));
+        scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+        scored.dedup_by(|a, b| a.1 == b.1);
+        scored.into_iter().take(limit).map(|(_, w)| w).collect()
+    }
+
+    fn len(&self) -> usize {
+        self.base.len() + self.user.len()
     }
 }
 
@@ -299,7 +369,7 @@ pub fn words(text: &str) -> Vec<(usize, &str)> {
 }
 
 /// Check a piece of text, returning every word the lexicon does not know.
-pub fn check(text: &str, lexicon: &Lexicon) -> Vec<Misspelling> {
+pub fn check<D: Dict + ?Sized>(text: &str, lexicon: &D) -> Vec<Misspelling> {
     words(text)
         .into_iter()
         .filter(|(_, w)| should_check(w))
@@ -371,14 +441,10 @@ fn shared() -> &'static Lexicon {
 /// The user dictionary is not a nicety. No lexicon can hold every chaburah's
 /// terminology, every rebbe's name or a writer's own coinages, and a checker
 /// that cannot be taught is one people switch off.
-fn for_request(user_words: &str) -> std::borrow::Cow<'static, Lexicon> {
-    if user_words.trim().is_empty() {
-        std::borrow::Cow::Borrowed(shared())
-    } else {
-        let mut l = shared().clone();
-        l.add_words(user_words);
-        std::borrow::Cow::Owned(l)
-    }
+///
+/// The shared lexicon is *borrowed*, never copied — see `Layered`.
+fn for_request(user_words: &str) -> Layered<'static> {
+    Layered::new(shared(), user_words)
 }
 
 /// JSON-in / JSON-out spell check, shared by the server, wasm and desktop.

@@ -59,6 +59,112 @@ fn serve_static(request: tiny_http::Request, url: &str) {
     let _ = request.respond(Response::from_string("not found").with_status_code(404));
 }
 
+/// The largest request body the API will read.
+///
+/// `read_to_string` used to read until end-of-stream with no ceiling at all, so
+/// a single client could make the server allocate until it died. A compile
+/// request carries the document plus every image and font attached to it, so the
+/// limit has to be generous — but it does have to exist.
+const MAX_BODY_BYTES: u64 = 64 * 1024 * 1024;
+
+/// How many requests are served at once.
+///
+/// The server was strictly serial: one loop, one compile at a time, so four
+/// concurrent compiles returned in 469/868/1255/1667 ms — a perfect staircase —
+/// and a spell check queued behind a compile waited for the whole render. Typst
+/// layout is CPU-bound, so the pool is sized to the machine rather than made
+/// unbounded: more threads than cores would only trade throughput for context
+/// switches, and an unbounded pool would let a stuck client spawn threads until
+/// the process fell over.
+fn worker_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(2, 16)
+}
+
+/// Read a request body, refusing anything over the ceiling.
+fn read_body(request: &mut tiny_http::Request) -> Result<String, String> {
+    let declared = request.body_length().unwrap_or(0) as u64;
+    if declared > MAX_BODY_BYTES {
+        return Err(format!("request body over {MAX_BODY_BYTES} bytes"));
+    }
+    let mut body = String::new();
+    // Still capped while reading: `Content-Length` is the client's claim, not a
+    // fact, and a chunked body declares no length at all.
+    let mut limited = std::io::Read::take(request.as_reader(), MAX_BODY_BYTES + 1);
+    std::io::Read::read_to_string(&mut limited, &mut body).map_err(|e| e.to_string())?;
+    if body.len() as u64 > MAX_BODY_BYTES {
+        return Err(format!("request body over {MAX_BODY_BYTES} bytes"));
+    }
+    Ok(body)
+}
+
+fn json_response(json: String) -> Response<std::io::Cursor<Vec<u8>>> {
+    Response::from_string(json)
+        .with_header(header("Content-Type", "application/json; charset=utf-8"))
+}
+
+fn error_json(message: &str) -> String {
+    serde_json::json!({
+        "ok": false,
+        "pages_svg": [],
+        "pdf_base64": serde_json::Value::Null,
+        "diagnostics": [{ "severity": "error", "message": message }],
+        "typst_source": "",
+    })
+    .to_string()
+}
+
+/// Handle one request. Runs on a worker thread.
+fn handle(mut request: tiny_http::Request, addr_str: &str) {
+    let method = request.method().clone();
+    let url = request.url().to_string();
+    // A JSON endpoint that reads a body: check the size before doing any work.
+    let post = |request: &mut tiny_http::Request, f: fn(&str) -> String| match read_body(request) {
+        Ok(body) => f(&body),
+        Err(e) => error_json(&e),
+    };
+    match (method, url.as_str()) {
+        (Method::Post, "/compile") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, crate::compile_request);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
+        (Method::Post, "/spell") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, crate::spell::spell_request);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
+        (Method::Post, "/suggest") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, crate::spell::suggest_request);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
+        (Method::Get, "/commands") => {
+            let cors = cors_header(&request, addr_str);
+            let resp = json_response(crate::commands::commands_json());
+            let _ = request.respond(with_cors(resp, cors));
+        }
+        (Method::Get, "/templates") => {
+            let cors = cors_header(&request, addr_str);
+            let resp = json_response(crate::templates::templates_json());
+            let _ = request.respond(with_cors(resp, cors));
+        }
+        (Method::Options, _) => {
+            let cors = cors_header(&request, addr_str);
+            let resp = Response::empty(204)
+                .with_header(header("Access-Control-Allow-Methods", "POST, GET, OPTIONS"))
+                .with_header(header("Access-Control-Allow-Headers", "Content-Type"));
+            let _ = request.respond(with_cors(resp, cors));
+        }
+        (Method::Get, _) => serve_static(request, &url),
+        _ => {
+            let _ = request.respond(Response::from_string("not found").with_status_code(404));
+        }
+    }
+}
+
 pub fn serve(addr: &str) {
     let server = match Server::http(addr) {
         Ok(s) => s,
@@ -67,64 +173,26 @@ pub fn serve(addr: &str) {
             std::process::exit(1);
         }
     };
-    println!("Ksav editor serving on http://{addr}");
-    let addr_str = addr.to_string();
+    let workers = worker_count();
+    println!("Ksav editor serving on http://{addr} ({workers} workers)");
+    let server = std::sync::Arc::new(server);
+    let addr_str = std::sync::Arc::new(addr.to_string());
 
-    for mut request in server.incoming_requests() {
-        let method = request.method().clone();
-        let url = request.url().to_string();
-        match (method, url.as_str()) {
-            (Method::Post, "/compile") => {
-                let cors = cors_header(&request, &addr_str);
-                let mut body = String::new();
-                let _ = request.as_reader().read_to_string(&mut body);
-                let json = handle_compile(&body);
-                let resp = Response::from_string(json)
-                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
-                let _ = request.respond(with_cors(resp, cors));
+    let mut handles = Vec::with_capacity(workers);
+    for _ in 0..workers {
+        let server = std::sync::Arc::clone(&server);
+        let addr_str = std::sync::Arc::clone(&addr_str);
+        handles.push(std::thread::spawn(move || {
+            // `recv()` on a shared Server is the pool: whichever worker is free
+            // takes the next request, so a long compile never blocks a spell
+            // check behind it.
+            while let Ok(request) = server.recv() {
+                handle(request, &addr_str);
             }
-            (Method::Post, "/spell") => {
-                let cors = cors_header(&request, &addr_str);
-                let mut body = String::new();
-                let _ = request.as_reader().read_to_string(&mut body);
-                let json = crate::spell::spell_request(&body);
-                let resp = Response::from_string(json)
-                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
-                let _ = request.respond(with_cors(resp, cors));
-            }
-            (Method::Post, "/suggest") => {
-                let cors = cors_header(&request, &addr_str);
-                let mut body = String::new();
-                let _ = request.as_reader().read_to_string(&mut body);
-                let json = crate::spell::suggest_request(&body);
-                let resp = Response::from_string(json)
-                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
-                let _ = request.respond(with_cors(resp, cors));
-            }
-            (Method::Get, "/commands") => {
-                let cors = cors_header(&request, &addr_str);
-                let resp = Response::from_string(crate::commands::commands_json())
-                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
-                let _ = request.respond(with_cors(resp, cors));
-            }
-            (Method::Get, "/templates") => {
-                let cors = cors_header(&request, &addr_str);
-                let resp = Response::from_string(crate::templates::templates_json())
-                    .with_header(header("Content-Type", "application/json; charset=utf-8"));
-                let _ = request.respond(with_cors(resp, cors));
-            }
-            (Method::Options, _) => {
-                let cors = cors_header(&request, &addr_str);
-                let resp = Response::empty(204)
-                    .with_header(header("Access-Control-Allow-Methods", "POST, GET, OPTIONS"))
-                    .with_header(header("Access-Control-Allow-Headers", "Content-Type"));
-                let _ = request.respond(with_cors(resp, cors));
-            }
-            (Method::Get, _) => serve_static(request, &url),
-            _ => {
-                let _ = request.respond(Response::from_string("not found").with_status_code(404));
-            }
-        }
+        }));
+    }
+    for h in handles {
+        let _ = h.join();
     }
 }
 
@@ -176,10 +244,6 @@ fn with_cors<R: std::io::Read>(resp: Response<R>, cors: Option<Header>) -> Respo
 
 fn header(key: &str, value: &str) -> Header {
     Header::from_bytes(key.as_bytes(), value.as_bytes()).expect("valid header")
-}
-
-fn handle_compile(body_json: &str) -> String {
-    crate::compile_request(body_json)
 }
 
 #[cfg(test)]

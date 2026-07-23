@@ -15,6 +15,8 @@
 // false there, so the UI can say "Save a copy" instead of implying an overwrite
 // that will not happen.
 
+import * as store from "./store";
+
 export interface FileBinding {
   /** How this binding writes: which tier picked it up. */
   kind: "tauri" | "handle" | "download";
@@ -185,37 +187,35 @@ export function download(name: string, text: string) {
 // JSON, so localStorage cannot hold it. Keeping them means a document is still
 // bound to its file after the tab is closed and reopened, which is the whole
 // point of having a "current file" at all.
-
-const DB = "ksav-files";
-const STORE = "handles";
-
-function idb(): Promise<IDBDatabase | null> {
-  return new Promise((resolve) => {
-    if (typeof indexedDB === "undefined") return resolve(null);
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => resolve(null);
-  });
-}
+//
+// The store itself is `store.ts`, shared with the document library: one database
+// with one version, so adding a bucket can never race with another module's
+// upgrade.
 
 export async function rememberBinding(docId: string, binding: FileBinding | null): Promise<void> {
-  const db = await idb();
-  if (!db) return;
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
-  if (binding) store.put({ kind: binding.kind, name: binding.name, path: binding.path, handle: binding.handle }, docId);
-  else store.delete(docId);
+  try {
+    if (binding) {
+      await store.put(store.HANDLES, docId, {
+        kind: binding.kind,
+        name: binding.name,
+        path: binding.path,
+        handle: binding.handle,
+      });
+    } else {
+      await store.del(store.HANDLES, docId);
+    }
+  } catch {
+    // Which file a document is bound to is a convenience; failing to remember it
+    // must not stop the writer from saving.
+  }
 }
 
 export async function recallBinding(docId: string): Promise<FileBinding | null> {
-  const db = await idb();
-  if (!db) return null;
-  return new Promise((resolve) => {
-    const req = db.transaction(STORE, "readonly").objectStore(STORE).get(docId);
-    req.onsuccess = () => resolve((req.result as FileBinding) ?? null);
-    req.onerror = () => resolve(null);
-  });
+  try {
+    return await store.get<FileBinding>(store.HANDLES, docId);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -223,6 +223,19 @@ export async function recallBinding(docId: string): Promise<FileBinding | null> 
  * across sessions, so a handle that looks fine can still refuse to be written
  * until the user confirms — check before promising the writer a real save.
  */
+export async function hasWritePermission(binding: FileBinding): Promise<boolean> {
+  if (binding.kind === "tauri") return true;
+  if (binding.kind !== "handle" || !binding.handle) return false;
+  const h = binding.handle as never as {
+    queryPermission(o: unknown): Promise<PermissionState>;
+  };
+  try {
+    return (await h.queryPermission({ mode: "readwrite" })) === "granted";
+  } catch {
+    return false;
+  }
+}
+
 export async function ensureWritable(binding: FileBinding): Promise<boolean> {
   if (binding.kind !== "handle" || !binding.handle) return binding.kind === "tauri";
   const h = binding.handle as never as {

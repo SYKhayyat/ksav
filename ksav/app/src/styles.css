@@ -264,6 +264,29 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 12px 14px; border-bottom: 1px solid var(--line);
 }
+.history-scope {
+  padding: 8px 10px 4px; font-size: 12px; color: var(--muted);
+}
+
+/* The storage-failure banner.
+   Deliberately loud and deliberately persistent: the bug it reports is silent
+   data loss, and a message the writer can miss is the same as no message. It
+   sits above everything, including the drawers and the overlays. */
+.save-error {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 9999;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: #b91c1c; color: #fff;
+  font-family: var(--hebrew); font-size: 14px;
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, .3);
+}
+.save-error-text { flex: 1; min-width: 240px; line-height: 1.5; }
+.save-error-act {
+  background: rgba(255, 255, 255, .15); color: #fff;
+  border: 1px solid rgba(255, 255, 255, .5); border-radius: 6px;
+  padding: 6px 12px; cursor: pointer; font: inherit;
+}
+.save-error-act:hover { background: rgba(255, 255, 255, .28); }
 .pal-item {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
   background: transparent; border: 0; cursor: pointer; padding: 8px 10px; border-radius: 8px;

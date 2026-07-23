@@ -114,8 +114,44 @@ impl Default for DocConfig {
     }
 }
 
+/// Read a finite number from JSON, clamped to a range the typesetter can use.
+///
+/// Every one of these values is a *length* or a *count* that goes straight into
+/// the Typst prelude. Unvalidated, `size_pt: 0` produced invisible text,
+/// `size_pt: -5` and `line_spacing_em: -3` produced garbage, and `columns: 5000`
+/// produced a page of hairlines — all of them reported as `ok: true`, which is
+/// the worst possible answer: silently wrong output that looks like success.
+/// NaN and infinity are rejected outright rather than clamped, because a NaN
+/// formatted into the source is not a Typst length at all and fails inside the
+/// prelude, pointing the writer at code they never wrote.
+fn clamped(v: &serde_json::Value, key: &str, lo: f64, hi: f64) -> Option<f64> {
+    let n = v.get(key)?.as_f64()?;
+    if !n.is_finite() {
+        return None;
+    }
+    Some(n.clamp(lo, hi))
+}
+
+/// A paper name safe to place inside a Typst string literal.
+///
+/// Typst paper names are lowercase ASCII with hyphens and digits — `a4`,
+/// `us-letter`, `presentation-16-9`. Anything else is dropped rather than
+/// escaped: this value is interpolated into the prelude, and `paper: "a4\"`
+/// used to close the literal early and fail the whole document with "unclosed
+/// delimiter" pointing at the prelude instead of at the setting.
+fn sanitize_paper(p: &str) -> String {
+    p.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
 impl DocConfig {
     /// Read a config from a JSON object, keeping defaults for missing keys.
+    ///
+    /// Every numeric field is range-checked. A request that asks for something
+    /// impossible gets the nearest possible thing rather than silently garbage
+    /// output — see `clamped`.
     pub fn from_json(v: &serde_json::Value) -> DocConfig {
         let mut cfg = DocConfig::default();
         if let Some(f) = v.get("font").and_then(|x| x.as_str()) {
@@ -123,10 +159,13 @@ impl DocConfig {
                 cfg.font = f.to_string();
             }
         }
-        if let Some(s) = v.get("size_pt").and_then(|x| x.as_f64()) {
+        // 1pt is legible-under-a-loupe; 400pt is a poster. Outside that range
+        // the number is a mistake, not a choice.
+        if let Some(s) = clamped(v, "size_pt", 1.0, 400.0) {
             cfg.size_pt = s;
         }
-        if let Some(m) = v.get("margin_cm").and_then(|x| x.as_f64()) {
+        // Margins must leave a text region: half of the short side of A5.
+        if let Some(m) = clamped(v, "margin_cm", 0.0, 7.0) {
             cfg.margin_cm = m;
         }
         if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
@@ -138,21 +177,24 @@ impl DocConfig {
         if let Some(j) = v.get("justify").and_then(|x| x.as_bool()) {
             cfg.justify = j;
         }
-        if let Some(l) = v.get("line_spacing_em").and_then(|x| x.as_f64()) {
+        if let Some(l) = clamped(v, "line_spacing_em", 0.0, 10.0) {
             cfg.line_spacing_em = l;
         }
-        if let Some(p) = v.get("para_spacing_em").and_then(|x| x.as_f64()) {
+        if let Some(p) = clamped(v, "para_spacing_em", 0.0, 20.0) {
             cfg.para_spacing_em = p;
         }
-        if let Some(fi) = v.get("first_line_indent_em").and_then(|x| x.as_f64()) {
+        if let Some(fi) = clamped(v, "first_line_indent_em", 0.0, 20.0) {
             cfg.first_line_indent_em = fi;
         }
-        if let Some(c) = v.get("columns").and_then(|x| x.as_u64()) {
+        // More columns than this on any real paper is a column of single
+        // letters; the layout succeeds and the document is unreadable.
+        if let Some(c) = clamped(v, "columns", 1.0, 12.0) {
             cfg.columns = c as u32;
         }
         if let Some(p) = v.get("paper").and_then(|x| x.as_str()) {
-            if !p.is_empty() {
-                cfg.paper = p.to_string();
+            let clean = sanitize_paper(p);
+            if !clean.is_empty() {
+                cfg.paper = clean;
             }
         }
         if let Some(h) = v.get("hebrew_numbering").and_then(|x| x.as_bool()) {
@@ -164,7 +206,7 @@ impl DocConfig {
         if let Some(f) = v.get("footer").and_then(|x| x.as_str()) {
             cfg.footer = f.to_string();
         }
-        if let Some(n) = v.get("notes_region_cm").and_then(|x| x.as_f64()) {
+        if let Some(n) = clamped(v, "notes_region_cm", 0.0, 20.0) {
             cfg.notes_region_cm = Some(n);
         }
         cfg
@@ -181,7 +223,13 @@ pub struct Diagnostic {
 /// Result of a compile pass.
 #[derive(Debug, Default)]
 pub struct Compiled {
-    /// PDF bytes for export (None if compilation failed).
+    /// Whether the document laid out at all.
+    ///
+    /// An explicit flag, not `pdf.is_some()`: previews no longer render a PDF,
+    /// and inferring success from a artefact the caller asked us not to produce
+    /// would report every successful preview as a failure.
+    pub ok: bool,
+    /// PDF bytes for export (None if compilation failed or none was asked for).
     pub pdf: Option<Vec<u8>>,
     /// One SVG string per page, for the live preview.
     pub pages_svg: Vec<String>,
@@ -194,19 +242,28 @@ pub struct Compiled {
 
 impl Compiled {
     pub fn ok(&self) -> bool {
-        self.pdf.is_some()
+        self.ok
     }
 }
 
-/// Assemble the full Typst source: prelude + document wrapper + user body.
+/// Escape a string for embedding as a Typst string literal.
 ///
-/// Kept public so callers (and tests) can inspect exactly what gets compiled.
-/// Escape a string for embedding as a Typst string literal, or "none" if empty.
+/// The backslash must be doubled *first*: escaping the quote first would turn
+/// `"` into `\"` and the following pass would then turn that backslash into
+/// `\\"`, closing the literal after all. Every value interpolated into the
+/// prelude goes through this or through `sanitize_paper`; nothing else is
+/// allowed to build a string literal by hand, which is how `font` and `paper`
+/// came to miss the backslash case that `header`/`footer` handled correctly.
+fn typst_str(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// `typst_str`, or the literal `none` when the string is empty.
 fn typst_str_or_none(s: &str) -> String {
     if s.is_empty() {
         "none".to_string()
     } else {
-        format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+        typst_str(s)
     }
 }
 
@@ -216,20 +273,20 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     format!(
         "{prelude}\n\
          #show: מסמך.with(\
-         גופן: \"{font}\", גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, \
-         מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: \"{paper}\", \
+         גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, \
+         מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
          הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})\n\n\
          {body}\n",
         prelude = PRELUDE,
-        font = cfg.font.replace('"', "\\\""),
+        font = typst_str(&cfg.font),
         size = cfg.size_pt,
         margin = cfg.margin_cm,
         dir = dir,
         numbering = if cfg.numbering { "true" } else { "false" },
         hebrew_num = if cfg.hebrew_numbering { "true" } else { "false" },
-        paper = cfg.paper.replace('"', ""),
+        paper = typst_str(&sanitize_paper(&cfg.paper)),
         header = typst_str_or_none(&cfg.header),
         footer = typst_str_or_none(&cfg.footer),
         justify = if cfg.justify { "true" } else { "false" },
@@ -331,6 +388,17 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
 
 /// `compile`, with the request's images and fonts available to the document.
 pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
+    compile_parts(body, cfg, assets, true)
+}
+
+/// Compile, optionally skipping the PDF.
+///
+/// The live preview consumes the SVGs and nothing else, yet a PDF was rendered
+/// and base64-encoded into every response — around 300 KB per keystroke-driven
+/// compile of a 16-page document, none of it ever read. `want_pdf` is off for
+/// previews and on for export and print, which is the only place the bytes are
+/// actually wanted.
+pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: bool) -> Compiled {
     let source = assemble_source(body, cfg);
     let typst_source = source.clone();
 
@@ -339,7 +407,9 @@ pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
 
     match output {
         Ok(doc) => {
-            let pdf = typst_pdf::pdf(&doc, &typst_pdf::PdfOptions::default()).ok();
+            let pdf = want_pdf
+                .then(|| typst_pdf::pdf(&doc, &typst_pdf::PdfOptions::default()).ok())
+                .flatten();
             let svg_opts = typst_svg::SvgOptions::default();
             let pages_svg = doc
                 .pages()
@@ -347,6 +417,7 @@ pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
                 .map(|p| typst_svg::svg(p, &svg_opts))
                 .collect();
             Compiled {
+                ok: true,
                 pdf,
                 pages_svg,
                 diagnostics,
@@ -363,6 +434,7 @@ pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
                 }),
             }
             Compiled {
+                ok: false,
                 pdf: None,
                 pages_svg: Vec::new(),
                 diagnostics,
@@ -400,7 +472,12 @@ pub fn compile_request(input_json: &str) -> String {
         .to_string();
     }
 
-    let result = compile_with(body, &cfg, &assets);
+    // Previews don't want a PDF; export and print do, and say so.
+    let want_pdf = v
+        .get("want_pdf")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
+    let result = compile_parts(body, &cfg, &assets, want_pdf);
     let diags: Vec<serde_json::Value> = result
         .diagnostics
         .iter()
@@ -458,6 +535,118 @@ pub fn compile_html(body: &str, cfg: &DocConfig, assets: &Assets) -> Result<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ------------------------------------------------------- config validation
+    //
+    // Every one of these used to return `ok: true` with silently garbage output,
+    // which is the worst answer a compiler can give: a page that looks like it
+    // worked and is not what anybody asked for.
+
+    fn cfg_from(json: serde_json::Value) -> DocConfig {
+        DocConfig::from_json(&json)
+    }
+
+    #[test]
+    fn impossible_numbers_are_brought_back_into_range() {
+        let c = cfg_from(serde_json::json!({
+            "size_pt": 0, "line_spacing_em": -3.0, "columns": 5000, "margin_cm": -1.0,
+        }));
+        assert!(c.size_pt >= 1.0, "zero-size text is invisible, not a choice");
+        assert!(c.line_spacing_em >= 0.0, "negative leading stacks lines on top of each other");
+        assert!(c.columns <= 12, "5000 columns is a page of hairlines");
+        assert!(c.margin_cm >= 0.0);
+    }
+
+    #[test]
+    fn a_document_with_impossible_settings_still_renders() {
+        let cfg = cfg_from(serde_json::json!({
+            "size_pt": -5, "columns": 5000, "line_spacing_em": -3.0, "first_line_indent_em": -9.0,
+        }));
+        let out = compile("שלום", &cfg);
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    #[test]
+    fn nan_and_infinity_are_refused_rather_than_clamped() {
+        // Serde will not parse a bare NaN, so this is the shape that actually
+        // reaches us: a string where a number was expected. Either way the
+        // default must survive — a NaN formatted into the prelude is not a
+        // Typst length and fails inside code the writer never wrote.
+        let c = cfg_from(serde_json::json!({ "size_pt": "NaN", "columns": "many" }));
+        assert_eq!(c.size_pt, DocConfig::default().size_pt);
+        assert_eq!(c.columns, DocConfig::default().columns);
+    }
+
+    // ------------------------------------------------------- string escaping
+
+    #[test]
+    fn a_backslash_in_a_setting_cannot_escape_its_string_literal() {
+        // `paper: "a4\"` used to close the literal early and fail the whole
+        // document with "unclosed delimiter" pointing at the prelude rather than
+        // at the setting. Every one of these must simply render.
+        for cfg in [
+            DocConfig { paper: "a4\\".into(), ..Default::default() },
+            DocConfig { paper: "a4\"".into(), ..Default::default() },
+            DocConfig { font: "Frank\\".into(), ..Default::default() },
+            DocConfig { font: "Frank\" ,גודל: 99pt, x: \"".into(), ..Default::default() },
+            DocConfig { header: "כותרת\\".into(), ..Default::default() },
+            DocConfig { footer: "\\\"".into(), ..Default::default() },
+        ] {
+            let out = compile("שלום", &cfg);
+            assert!(
+                out.ok(),
+                "a hostile {:?}/{:?} broke the document: {:?}",
+                cfg.font,
+                cfg.paper,
+                out.diagnostics
+            );
+        }
+    }
+
+    #[test]
+    fn a_paper_name_is_reduced_to_something_typst_can_read() {
+        assert_eq!(sanitize_paper("A4"), "a4");
+        assert_eq!(sanitize_paper("us-letter"), "us-letter");
+        assert_eq!(sanitize_paper("a4\\\" ,x: \"y"), "a4xy");
+        assert_eq!(sanitize_paper("\"\\"), "");
+    }
+
+    #[test]
+    fn typst_str_doubles_the_backslash_before_the_quote() {
+        // Order matters: escaping the quote first would turn `"` into `\"`, and
+        // the backslash pass would then produce `\\"` — closing the literal.
+        assert_eq!(typst_str("a\\"), "\"a\\\\\"");
+        assert_eq!(typst_str("a\"b"), "\"a\\\"b\"");
+        assert_eq!(typst_str("\\\""), "\"\\\\\\\"\"");
+    }
+
+    // ------------------------------------------------------- preview vs export
+
+    #[test]
+    fn a_preview_carries_no_pdf_and_an_export_does() {
+        let body = serde_json::json!({ "body": "שלום" }).to_string();
+        let preview: serde_json::Value = serde_json::from_str(&compile_request(&body)).unwrap();
+        assert_eq!(preview["ok"], true);
+        assert!(!preview["pages_svg"].as_array().unwrap().is_empty());
+        assert!(
+            preview["pdf_base64"].is_null(),
+            "the preview must not carry ~300 KB of base64 nothing on screen reads"
+        );
+
+        let export = serde_json::json!({ "body": "שלום", "want_pdf": true }).to_string();
+        let exported: serde_json::Value = serde_json::from_str(&compile_request(&export)).unwrap();
+        assert!(exported["pdf_base64"].as_str().is_some_and(|s| !s.is_empty()));
+    }
+
+    #[test]
+    fn success_is_reported_even_when_no_pdf_was_asked_for() {
+        // `ok` used to mean `pdf.is_some()`, which would report every successful
+        // preview as a failure the moment previews stopped rendering a PDF.
+        let out = compile_parts("שלום", &DocConfig::default(), &Assets::default(), false);
+        assert!(out.ok());
+        assert!(out.pdf.is_none());
+        assert!(!out.pages_svg.is_empty());
+    }
 
 
     #[test]

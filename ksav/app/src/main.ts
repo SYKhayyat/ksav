@@ -35,6 +35,7 @@ import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import type { DocAsset, KsavDoc } from "./docs";
+import * as store from "./store";
 import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
 import { toMarkdown, toPlainText } from "./markdown";
@@ -61,6 +62,7 @@ interface Settings extends DocConfig {
   autocomplete?: boolean;
   spellcheck?: boolean;
   syncScroll?: boolean;
+  autosaveFile?: boolean; // write back to the bound file on a timer, not only on Ctrl+S
   customCommands?: string; // user #let definitions, prepended at compile
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
@@ -77,7 +79,12 @@ const DEFAULTS: Settings = {
   layout: "two",
   previewSide: "left",
   previewFrac: 0.5,
-  prose: false,
+  // Prose is the default view. Ksav is pitched as a replacement for Word, and
+  // opening a Word replacement in raw markup asks the writer to learn a syntax
+  // before they can type a sentence. Alt still reveals the markup, and the
+  // ＃ toggle in the header switches permanently — the markup is one key away,
+  // which is the right distance for the people who want it.
+  prose: true,
   zoom: 1,
   font: "Frank Ruhl Hofshi",
   size_pt: 12,
@@ -96,6 +103,7 @@ const DEFAULTS: Settings = {
   autocomplete: true,
   spellcheck: true,
   syncScroll: true,
+  autosaveFile: true,
 };
 
 function loadSettings(): Settings {
@@ -185,27 +193,127 @@ let currentBinding: FileBinding | null = null;
  *  the outgoing document's text over the incoming one. */
 let switching = false;
 
-function loadDoc(): string {
-  currentDoc = docs.openingDoc(STARTER, t("untitled"));
-  void files.recallBinding(currentDoc.id).then((b) => {
-    currentBinding = b;
-    updateTitleBar();
-  });
-  return currentDoc.body;
+// ---------------------------------------------------------------- saving
+//
+// Saving is its own concern, on its own timer, with its own error handling.
+//
+// It used to be a side effect of compiling: `runCompile` wrote the document to
+// storage on its way to the renderer, *before* the try block. So when storage
+// filled up, the write threw, the compile never ran, nothing caught it, the
+// status line said "rendering…" forever — and every keystroke after that was
+// discarded in silence. A writer typed four hundred thousand characters into a
+// buffer that had stopped being persisted and had no way to know.
+//
+// Two rules come out of that, and they are the whole design here:
+//   • Saving must not depend on rendering. A render is a convenience; a save is
+//     the writer's work.
+//   • A save that fails must be impossible to miss. Not a console line, not a
+//     status flicker — a banner that stays until the problem is fixed.
+
+let saveTimer: number | undefined;
+/** Resolves when no save is in flight — awaited before anything reads storage. */
+let savePending: Promise<void> = Promise.resolve();
+/** True while the editor holds text that has not reached durable storage. */
+let unsavedChanges = false;
+/** True while the document differs from the file it is bound to. */
+let unsavedToFile = false;
+/** The failure currently on screen, so it is only rendered once. */
+let saveFailure: string | null = null;
+
+const SAVE_DEBOUNCE_MS = 600;
+
+/** Queue a save of the open document. Cheap to call on every keystroke. */
+function scheduleSave() {
+  if (!currentDoc || switching) return;
+  unsavedChanges = true;
+  unsavedToFile = true;
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => void saveNow(), SAVE_DEBOUNCE_MS);
 }
 
-/** Persist the open document (body, title and assets) to the library. */
-function persistDoc() {
-  if (!currentDoc || switching) return;
-  currentDoc.body = view ? view.state.doc.toString() : currentDoc.body;
-  docs.putDoc(currentDoc);
+/**
+ * Write the open document to storage now.
+ *
+ * Serialised through `savePending` so two saves can never interleave, and so
+ * callers that need the stored copy to be current (export, Save-to-file, opening
+ * another document) can simply await it.
+ */
+function saveNow(): Promise<void> {
+  clearTimeout(saveTimer);
+  if (!currentDoc || switching) return savePending;
+  savePending = savePending.then(async () => {
+    if (!currentDoc || switching) return;
+    currentDoc.body = view ? view.state.doc.toString() : currentDoc.body;
+    // A document the writer never renamed takes its title from its own first
+    // heading, so the library is readable either way.
+    if (currentDoc.title === t("untitled")) {
+      const guess = docs.guessTitle(currentDoc.body, t("untitled"));
+      if (guess && guess !== t("untitled")) {
+        currentDoc.title = guess;
+        updateTitleBar();
+      }
+    }
+    try {
+      await docs.putDoc(currentDoc);
+      unsavedChanges = false;
+      clearSaveFailure();
+    } catch (e) {
+      reportSaveFailure(e);
+    }
+  });
+  return savePending;
+}
+
+/** Everything that must be on disk before we read it back. */
+function flushSaves(): Promise<void> {
+  return saveNow();
+}
+
+/**
+ * Put a storage failure in front of the writer and keep it there.
+ *
+ * Deliberately a modal-weight banner rather than a status message: the failure
+ * mode this replaces was silent data loss, and the only safe response is to stop
+ * the writer and tell them their text is not being kept.
+ */
+function reportSaveFailure(e: unknown) {
+  const full = e instanceof docs.StorageFullError;
+  const msg = full ? t("storageFull") : `${t("saveFailed")} — ${String(e)}`;
+  if (saveFailure === msg) return;
+  saveFailure = msg;
+  document.getElementById("save-error")?.remove();
+  const banner = el("div", { id: "save-error", class: "save-error", role: "alert" }, [
+    el("span", { class: "save-error-text" }, [msg]),
+    el("button", { class: "save-error-act", onClick: () => void saveNow() }, [t("retrySave")]),
+    el("button", { class: "save-error-act", onClick: () => void exportBackup() }, [
+      t("downloadBackup"),
+    ]),
+  ]);
+  document.getElementById("app")?.append(banner);
+}
+
+function clearSaveFailure() {
+  if (!saveFailure) return;
+  saveFailure = null;
+  document.getElementById("save-error")?.remove();
+}
+
+/**
+ * The escape hatch from a full store: get the text out of the browser entirely.
+ *
+ * Offered on the failure banner itself, because "your work is not being saved"
+ * is only half an answer without a way to rescue it.
+ */
+async function exportBackup() {
+  const text = docs.serializeDoc({ ...currentDoc, body: view.state.doc.toString() });
+  files.download(`${fileStem()}.ksav`, text);
 }
 
 /** Switch the editor to another document in the library. */
 async function openDoc(id: string) {
-  const next = docs.getDoc(id);
+  const next = await docs.getDoc(id);
   if (!next) return;
-  persistDoc();
+  await flushSaves();
   switching = true;
   currentDoc = next;
   docs.setCurrentId(next.id);
@@ -215,36 +323,38 @@ async function openDoc(id: string) {
     selection: { anchor: 0 },
   });
   switching = false;
+  unsavedChanges = false;
+  unsavedToFile = false;
   updateTitleBar();
   rerenderChrome();
   view.focus();
   scheduleCompile();
 }
 
-function newNamedDoc() {
+async function newNamedDoc() {
   closeMenus();
-  persistDoc();
-  const doc = docs.createDoc(t("untitled"), "");
-  void openDoc(doc.id);
+  await flushSaves();
+  const doc = await docs.createDoc(t("untitled"), "");
+  await openDoc(doc.id);
 }
 
-function duplicateDoc(id: string) {
-  const src = docs.getDoc(id);
+async function duplicateDoc(id: string) {
+  const src = await docs.getDoc(id);
   if (!src) return;
-  const copy = docs.createDoc(src.title + " ‏(2)", src.body, src.assets);
-  void openDoc(copy.id);
+  const copy = await docs.createDoc(src.title + " ‏(2)", src.body, src.assets);
+  await openDoc(copy.id);
 }
 
-function removeDoc(id: string) {
+async function removeDoc(id: string) {
   const entry = docs.library().find((e) => e.id === id);
   if (!entry) return;
   if (!confirm(tf("confirmDeleteDoc", entry.title))) return;
-  docs.deleteDoc(id);
-  void files.rememberBinding(id, null);
+  await docs.deleteDoc(id);
+  await files.rememberBinding(id, null);
   if (currentDoc.id === id) {
     const next = docs.library()[0];
-    if (next) void openDoc(next.id);
-    else newNamedDoc();
+    if (next) await openDoc(next.id);
+    else await newNamedDoc();
   } else {
     rerenderChrome();
   }
@@ -254,7 +364,7 @@ function renameDoc() {
   const name = prompt(t("renamePrompt"), currentDoc.title);
   if (name === null) return;
   currentDoc.title = name.trim() || t("untitled");
-  persistDoc();
+  void saveNow();
   updateTitleBar();
   rerenderChrome();
 }
@@ -561,7 +671,7 @@ function autoExtension() {
 
 function makeEditor(): EditorView {
   return new EditorView({
-    doc: loadDoc(),
+    doc: currentDoc.body,
     parent: document.getElementById("editor-host")!,
     extensions: [
       history(),
@@ -621,6 +731,9 @@ function makeEditor(): EditorView {
       EditorView.updateListener.of((u) => {
         if (u.docChanged || u.selectionSet) updateTableBar();
         if (u.docChanged) {
+          // Saving and rendering are scheduled independently. One must never be
+          // able to stop the other — that coupling is what silently lost text.
+          scheduleSave();
           scheduleCompile();
           updateCounts();
           // The review list is a view of the document's own marks, so an edit
@@ -721,6 +834,17 @@ function friendlyError(msg: string): string {
 }
 
 let compileTimer: number | undefined;
+/**
+ * Which compile is the current one.
+ *
+ * A compile takes 0.4–3 s and the debounce is a quarter of a second, so two are
+ * routinely in flight at once. Results used to be applied in arrival order,
+ * which means a slow render of older text could land on top of a fast render of
+ * newer text and leave the preview showing a page the document no longer says.
+ * Every request takes a ticket; only the newest ticket may touch the screen.
+ */
+let compileGeneration = 0;
+
 function scheduleCompile() {
   clearTimeout(compileTimer);
   compileTimer = window.setTimeout(runCompile, 250);
@@ -729,25 +853,13 @@ function scheduleCompile() {
 
 async function runCompile() {
   if (!backend) return; // backend still initializing (createBackend not resolved yet)
+  const mine = ++compileGeneration;
   const status = document.getElementById("status")!;
   const diag = document.getElementById("diagnostics")!;
   status.textContent = t("rendering");
   status.className = "";
   const t0 = performance.now();
   const userDoc = view.state.doc.toString();
-  // Auto-save into the library. A document the writer never renamed takes its
-  // title from its own first heading, so the library is readable either way.
-  if (currentDoc && !switching) {
-    currentDoc.body = userDoc;
-    if (currentDoc.title === t("untitled")) {
-      const guess = docs.guessTitle(userDoc, t("untitled"));
-      if (guess && guess !== t("untitled")) {
-        currentDoc.title = guess;
-        updateTitleBar();
-      }
-    }
-    docs.putDoc(currentDoc);
-  }
   // Prepend user-defined commands so they're usable in the document.
   const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
   // Speculative heal. A document is unbalanced for as long as it takes to type
@@ -760,6 +872,7 @@ async function runCompile() {
   const body = pre + (healedCount ? healed : userDoc);
   try {
     const res = await backend.compile(body, cfg(), docs.requestAssets(currentDoc?.assets ?? []));
+    if (mine !== compileGeneration) return; // superseded while we were waiting
     lastResult = res;
     const ms = Math.round(performance.now() - t0);
     const preview = document.getElementById("preview")!;
@@ -787,9 +900,33 @@ async function runCompile() {
     diag.textContent = shown.map((d) => friendlyError(d.message)).join("  ·  ");
     diag.title = shown.map((d) => d.message).join("\n"); // raw messages on hover
   } catch (e) {
+    if (mine !== compileGeneration) return;
     status.textContent = `✗ ${t("networkError")}`;
     status.className = "err";
     diag.textContent = String(e);
+  }
+}
+
+/**
+ * A compile that is allowed to be slow, for the things that need real output:
+ * the PDF, and exports.
+ *
+ * The preview asks for SVG only. Regenerating the PDF on every keystroke cost
+ * roughly 300 KB of base64 per response that nothing on screen ever read.
+ */
+async function compileForExport(): Promise<CompileResult | null> {
+  if (!backend) return null;
+  await flushSaves();
+  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
+  const body = pre + view.state.doc.toString();
+  try {
+    return await backend.compile(body, cfg(), {
+      ...docs.requestAssets(currentDoc?.assets ?? []),
+      want_pdf: true,
+    });
+  } catch (e) {
+    setStatus(`${t("networkError")} — ${String(e)}`, "err");
+    return null;
   }
 }
 
@@ -1092,9 +1229,11 @@ function buildDocsMenu(): HTMLElement {
 /** Rebuilt on every open, so it never shows a stale library. */
 function docsMenuItems(): (Node | string)[] {
   const items: (Node | string)[] = [
-    el("button", { class: "menu-item", onClick: newNamedDoc }, [t("newDoc")]),
+    el("button", { class: "menu-item", onClick: () => void newNamedDoc() }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
-    el("button", { class: "menu-item", onClick: () => duplicateDoc(currentDoc.id) }, [t("duplicate")]),
+    el("button", { class: "menu-item", onClick: () => void duplicateDoc(currentDoc.id) }, [
+      t("duplicate"),
+    ]),
     el("div", { class: "menu-sep" }),
     el("div", { class: "menu-cat" }, [t("library")]),
   ];
@@ -1123,7 +1262,7 @@ function docsMenuItems(): (Node | string)[] {
           title: t("delete"),
           onClick: (e: Event) => {
             e.stopPropagation();
-            removeDoc(entry.id);
+            void removeDoc(entry.id);
           },
         }, ["×"]),
       ]),
@@ -1239,13 +1378,13 @@ function buildHeader(): HTMLElement {
   // the settings they overwrite, where the relationship is visible.
 
   const exportMenu = menu("⬇ " + t("export"), [
-    el("button", { class: "menu-item", onClick: exportPdf }, [t("exportPdf")]),
+    el("button", { class: "menu-item", onClick: () => void exportPdf() }, [t("exportPdf")]),
     el("button", { class: "menu-item", onClick: () => void exportWord() }, [t("exportWord")]),
     el("button", { class: "menu-item", onClick: () => void copyForWord() }, [t("copyForWord")]),
     el("button", { class: "menu-item", onClick: () => void exportHtml() }, [t("exportHtml")]),
     el("button", { class: "menu-item", onClick: exportMarkdown }, [t("exportMarkdown")]),
     el("button", { class: "menu-item", onClick: exportText }, [t("exportText")]),
-    el("button", { class: "menu-item", onClick: exportTypst }, [t("exportTypst")]),
+    el("button", { class: "menu-item", onClick: () => void exportTypst() }, [t("exportTypst")]),
     el("button", { class: "menu-item", onClick: doPrint }, [t("print")]),
   ]);
 
@@ -1456,7 +1595,7 @@ function buildSettingsDrawer(): HTMLElement {
             type: "button",
             class: "mini",
             title: t("removeAsset"),
-            onClick: () => removeAsset(a.name),
+            onClick: () => void removeAsset(a.name),
           }, ["×"]),
         ]),
       )
@@ -1489,6 +1628,7 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("spellcheckLabel", "spellcheck"),
     checkRow("syncScrollLabel", "syncScroll"),
+    checkRow("autosaveFileLabel", "autosaveFile"),
     el("h3", { style: "margin-top:18px" }, [t("userDictionary")]),
     ...dictRows,
     el("h3", { style: "margin-top:18px" }, [t("assetsTitle")]),
@@ -1576,44 +1716,58 @@ function jumpTo(pos: number) {
 }
 
 // ---- version history (local snapshots) ----
-interface Snapshot {
-  t: number;
-  body: string;
-}
-function snapshots(): Snapshot[] {
+//
+// Scoped to a document. History used to be one `ksav.history` key holding
+// `{t, body}` records with no document id in them, so the list shown while you
+// were in document A was every snapshot ever taken of every document — and
+// restoring one silently replaced A's text with B's, with no way back. There is
+// nothing to filter on in a record that does not say what it belongs to, so the
+// records now live under the document itself (see `docs.ts`).
+
+async function takeSnapshot(force = false): Promise<boolean> {
+  if (!view || !currentDoc) return false;
+  const body = view.state.doc.toString();
   try {
-    return JSON.parse(localStorage.getItem("ksav.history") || "[]");
-  } catch {
-    return [];
+    const stored = await docs.pushSnapshot(currentDoc.id, body);
+    if (!stored && force) {
+      // Nothing changed since the last snapshot: the point is already kept.
+      setStatus(t("snapshotUnchanged"), "");
+    }
+    if (document.getElementById("history-modal")?.classList.contains("open")) {
+      await renderHistory();
+    }
+    return stored;
+  } catch (e) {
+    // History is a convenience, but a *failed* history write means the store is
+    // in trouble, and the writer needs to know that before their text is next.
+    reportSaveFailure(e);
+    return false;
   }
 }
-function takeSnapshot(force = false) {
-  if (!view) return;
-  const body = view.state.doc.toString();
-  const list = snapshots();
-  if (!force && list.length && list[list.length - 1].body === body) return; // no change
-  list.push({ t: Date.now(), body });
-  localStorage.setItem("ksav.history", JSON.stringify(list.slice(-80)));
-  if (document.getElementById("history-modal")?.classList.contains("open")) renderHistory();
-}
-function restoreSnapshot(s: Snapshot) {
+
+async function restoreSnapshot(s: docs.Snapshot) {
   if (!confirm(t("confirmRestore"))) return;
-  takeSnapshot(true); // snapshot current before restoring, so it's not lost
+  await takeSnapshot(true); // snapshot current before restoring, so it's not lost
   loadBody(s.body);
   closeHistory();
 }
+
 function openHistory() {
   document.getElementById("history-modal")!.classList.add("open");
-  renderHistory();
+  void renderHistory();
 }
 function closeHistory() {
   document.getElementById("history-modal")!.classList.remove("open");
 }
-function renderHistory() {
+
+async function renderHistory() {
   const host = document.getElementById("history-list");
-  if (!host) return;
-  const list = snapshots().slice().reverse();
+  if (!host || !currentDoc) return;
+  const list = (await docs.snapshots(currentDoc.id)).slice().reverse();
   host.innerHTML = "";
+  // Say whose history this is: with one list per document, the title is the
+  // thing that makes "restore" a safe button to press.
+  host.append(el("div", { class: "history-scope" }, [tf("historyOf", currentDoc.title)]));
   if (!list.length) {
     host.append(el("div", { class: "outline-empty" }, [t("noHistory")]));
     return;
@@ -1621,7 +1775,7 @@ function renderHistory() {
   for (const s of list) {
     const first = (s.body.split("\n").find((l) => l.trim()) || "—").slice(0, 42);
     host.append(
-      el("button", { class: "pal-item", onClick: () => restoreSnapshot(s) }, [
+      el("button", { class: "pal-item", onClick: () => void restoreSnapshot(s) }, [
         el("span", { class: "pal-cat" }, [new Date(s.t).toLocaleDateString()]),
         el("b", {}, [first]),
         el("code", {}, [new Date(s.t).toLocaleTimeString()]),
@@ -1797,31 +1951,37 @@ async function openFile() {
   closeMenus();
   const opened = await files.openFile();
   if (!opened) return;
-  persistDoc();
+  await flushSaves();
   const stripExt = opened.binding.name.replace(/\.[^.]+$/, "");
   const parsed = docs.parseDoc(opened.text, stripExt || t("untitled"));
-  const doc = docs.createDoc(parsed.title, parsed.body, parsed.assets);
-  docs.setFileName(doc.id, opened.binding.name);
+  const doc = await docs.createDoc(parsed.title, parsed.body, parsed.assets);
+  await docs.setFileName(doc.id, opened.binding.name);
   await files.rememberBinding(doc.id, opened.binding);
   await openDoc(doc.id);
 }
 
-function fileText(): string {
-  persistDoc();
+async function fileText(): Promise<string> {
+  await flushSaves();
   return docs.serializeDoc(currentDoc);
 }
 
 /** Save to the bound file; if there is none, fall through to Save As. */
 async function saveFile() {
   closeMenus();
-  takeSnapshot(true);
-  const text = fileText();
+  await takeSnapshot(true);
+  const text = await fileText();
   if (currentBinding && files.canWriteBack(currentBinding)) {
     if (!(await files.ensureWritable(currentBinding))) {
       setStatus(t("permissionDenied"), "err");
       return;
     }
-    await files.saveTo(currentBinding, text);
+    try {
+      await files.saveTo(currentBinding, text);
+    } catch (e) {
+      setStatus(`${t("saveFailed")} — ${String(e)}`, "err");
+      return;
+    }
+    unsavedToFile = false;
     setStatus(tf("savedTo", currentBinding.name), "ok");
     return;
   }
@@ -1830,12 +1990,13 @@ async function saveFile() {
 
 async function saveFileAs() {
   closeMenus();
-  const text = fileText();
+  const text = await fileText();
   const binding = await files.saveAs(currentDoc.title || "document", text);
   if (!binding) return;
   currentBinding = binding;
-  docs.setFileName(currentDoc.id, binding.name);
+  await docs.setFileName(currentDoc.id, binding.name);
   await files.rememberBinding(currentDoc.id, binding);
+  unsavedToFile = false;
   updateTitleBar();
   setStatus(
     files.canWriteBack(binding) ? tf("savedTo", binding.name) : tf("savedCopy", binding.name),
@@ -1843,8 +2004,33 @@ async function saveFileAs() {
   );
 }
 
+/**
+ * Keep the bound file up to date on its own, the way the library copy is.
+ *
+ * Manual-only file saving means the .ksav on disk drifts behind the document
+ * every session, and the writer discovers it at the worst moment — when they
+ * open the file somewhere else. Only ever writes to a binding that can actually
+ * be written back to and whose permission is already granted: prompting for
+ * filesystem access out of a background timer would be its own bug.
+ */
+const FILE_AUTOSAVE_MS = 30_000;
+
+async function autosaveToFile() {
+  if (!unsavedToFile || !currentBinding || !files.canWriteBack(currentBinding)) return;
+  if (!settings.autosaveFile) return;
+  if (!(await files.hasWritePermission(currentBinding))) return;
+  try {
+    await files.saveTo(currentBinding, await fileText());
+    unsavedToFile = false;
+    setStatus(tf("autosavedTo", currentBinding.name), "ok");
+  } catch {
+    // A background save that fails must not steal the writer's attention; the
+    // next manual Save will report it properly.
+  }
+}
+
 function newDoc() {
-  newNamedDoc();
+  void newNamedDoc();
 }
 
 /** A transient message in the status bar. */
@@ -2519,9 +2705,33 @@ function renderNotesChooser() {
 // has no file system, so the bytes travel with every compile request. Attaching
 // one therefore means storing it on the document and referring to it by name.
 
-/** Refuse enormous attachments — browser storage is a few MB in total, and a
- *  document that cannot be saved is worse than one that cannot hold a photo. */
-const MAX_ASSET_BYTES = 4 * 1024 * 1024;
+/**
+ * Refuse enormous attachments.
+ *
+ * The old ceiling was 4 MB, which base64 turns into 5.3 MB — larger than the
+ * entire ~4.5 MB localStorage quota it existed to protect. A guard set above the
+ * limit it guards is not a guard. Documents live in IndexedDB now, which is
+ * measured in hundreds of megabytes, so the real constraints are different ones:
+ * every asset is re-sent on every compile, and every asset is carried inside the
+ * .ksav file. 8 MB is generous for a scan or a font and still keeps a compile
+ * request something a browser can hand across in one piece.
+ */
+const MAX_ASSET_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Refuse an attachment that would not fit, *before* reading it.
+ *
+ * `navigator.storage.estimate()` is advisory and absent in some browsers, so a
+ * `null` answer means "go ahead and find out" rather than "refuse" — but when it
+ * does answer, telling the writer now beats failing after the read.
+ */
+async function roomFor(bytes: number): Promise<boolean> {
+  const e = await store.estimate();
+  if (!e) return true;
+  // base64 costs a third on top, and the store wants headroom to work in.
+  const needed = Math.ceil(bytes * 1.4);
+  return e.usage + needed < e.quota;
+}
 
 function humanSize(bytes: number): string {
   return bytes < 1024 * 1024
@@ -2561,9 +2771,22 @@ async function attachAsset(f: File, kind: DocAsset["kind"]): Promise<string | nu
     setStatus(tf("assetTooBig", humanSize(f.size), humanSize(MAX_ASSET_BYTES)), "err");
     return null;
   }
+  if (!(await roomFor(f.size))) {
+    setStatus(t("storageFull"), "err");
+    return null;
+  }
   const name = docs.uniqueAssetName(currentDoc.assets, f.name);
-  currentDoc.assets.push({ name, data: await readAsDataUrl(f), kind });
-  persistDoc();
+  const added: DocAsset = { name, data: await readAsDataUrl(f), kind };
+  currentDoc.assets.push(added);
+  try {
+    await docs.putDoc(currentDoc);
+  } catch (e) {
+    // Take the attachment back out rather than leaving the in-memory document
+    // referring to bytes that were never stored.
+    currentDoc.assets = currentDoc.assets.filter((a) => a !== added);
+    reportSaveFailure(e);
+    return null;
+  }
   return name;
 }
 
@@ -2590,9 +2813,9 @@ async function addFont() {
   rerenderChrome();
 }
 
-function removeAsset(name: string) {
+async function removeAsset(name: string) {
   currentDoc.assets = currentDoc.assets.filter((a) => a.name !== name);
-  persistDoc();
+  await saveNow();
   scheduleCompile();
   rerenderChrome();
 }
@@ -2611,15 +2834,31 @@ function warnIfHealed() {
   if (n) setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
 }
 
-function exportPdf() {
-  if (!lastResult?.pdf_base64) return;
-  const bytes = Uint8Array.from(atob(lastResult.pdf_base64), (c) => c.charCodeAt(0));
+/**
+ * Export the PDF.
+ *
+ * Asks the engine for one now rather than reusing the preview's, because the
+ * preview no longer carries a PDF at all — rendering one on every keystroke was
+ * ~300 KB of base64 per response that nothing on screen ever read.
+ */
+async function exportPdf() {
+  closeMenus();
+  setStatus(t("rendering"), "");
+  const res = await compileForExport();
+  if (!res?.pdf_base64) {
+    setStatus(t("compileError"), "err");
+    return;
+  }
+  const bytes = Uint8Array.from(atob(res.pdf_base64), (c) => c.charCodeAt(0));
   download(fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
   warnIfHealed();
 }
-function exportTypst() {
-  if (!lastResult) return;
-  download(fileStem() + ".typ", new Blob([lastResult.typst_source], { type: "text/plain" }));
+
+async function exportTypst() {
+  closeMenus();
+  const res = await compileForExport();
+  if (!res) return;
+  download(fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
   warnIfHealed();
 }
 /**
@@ -3032,7 +3271,9 @@ function render() {
       el("div", { class: "palette-box" }, [
         el("div", { class: "history-head" }, [
           el("b", {}, [t("history")]),
-          el("button", { class: "sc-key", onClick: () => takeSnapshot(true) }, [t("snapshotNow")]),
+          el("button", { class: "sc-key", onClick: () => void takeSnapshot(true) }, [
+            t("snapshotNow"),
+          ]),
         ]),
         el("div", { id: "history-list" }),
       ]),
@@ -3110,8 +3351,29 @@ function dismissOnboard() {
 }
 
 async function boot() {
+  // The store opens before anything is drawn: the editor is constructed with
+  // the document's text in it, so there is never a frame in which the writer
+  // could type into a buffer that has no document behind it.
+  try {
+    currentDoc = await docs.init(STARTER, t("untitled"));
+  } catch (e) {
+    // No durable store at all — a private window, or storage blocked. Say so
+    // loudly and start an in-memory document rather than pretending.
+    currentDoc = { id: docs.newId(), title: t("untitled"), body: STARTER, assets: [], updated: Date.now() };
+    render();
+    wireKeys();
+    reportSaveFailure(e);
+    backend = await createBackend();
+    runCompile();
+    return;
+  }
+  void files.recallBinding(currentDoc.id).then((b) => {
+    currentBinding = b;
+    updateTitleBar();
+  });
   render();
   wireKeys();
+  wireUnloadGuard();
   const status = document.getElementById("status")!;
   status.textContent = t("rendering");
   backend = await createBackend();
@@ -3137,7 +3399,41 @@ async function boot() {
   // writer's first keystroke.
   scheduleSpellCheck();
   // periodic auto-snapshot (only stores when the text changed)
-  window.setInterval(() => takeSnapshot(), 180000);
+  window.setInterval(() => void takeSnapshot(), 180000);
+  // periodic write-back to the bound file, when there is one to write to
+  window.setInterval(() => void autosaveToFile(), FILE_AUTOSAVE_MS);
+}
+
+/**
+ * Don't let a close throw work away.
+ *
+ * Two different things can be unsaved, and they need different treatment. The
+ * library copy is written on a 600 ms debounce, so on the way out we simply
+ * flush it — no prompt, because there is nothing for the writer to decide. The
+ * *file* on disk is another matter: only the writer knows whether they meant to
+ * save it, so that one asks. Closing a tab with unsaved changes to a bound file
+ * used to lose them with no prompt at all.
+ */
+function wireUnloadGuard() {
+  window.addEventListener("beforeunload", (e) => {
+    if (unsavedChanges) void saveNow();
+    if (saveFailure || (unsavedToFile && currentBinding && files.canWriteBack(currentBinding))) {
+      e.preventDefault();
+      // Browsers ignore the string and show their own wording, but returnValue
+      // still has to be set for the prompt to appear at all.
+      e.returnValue = "";
+      return "";
+    }
+    return undefined;
+  });
+  // `beforeunload` is not guaranteed on mobile or when a tab is discarded;
+  // `pagehide` is the one that actually fires there.
+  window.addEventListener("pagehide", () => {
+    if (unsavedChanges) void saveNow();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && unsavedChanges) void saveNow();
+  });
 }
 
 boot();

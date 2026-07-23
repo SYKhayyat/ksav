@@ -2,7 +2,7 @@
 //!
 //! - `GET  /`        → the two-panel web editor (bundled at build time)
 //! - `POST /compile` → JSON `{body, font, size_pt, margin_cm, dir}` in,
-//!                     JSON `{ok, pages_svg, pdf_base64, diagnostics}` out.
+//!   JSON `{ok, pages_svg, pdf_base64, diagnostics}` out.
 //!
 //! This is exactly the backend a Tauri or browser front end talks to; the
 //! native shell can be wrapped around it later without touching this contract.

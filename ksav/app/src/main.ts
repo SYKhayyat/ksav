@@ -1704,6 +1704,17 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("syncScrollLabel", "syncScroll"),
     checkRow("autosaveFileLabel", "autosaveFile"),
     el("h3", { style: "margin-top:18px" }, [t("userDictionary")]),
+    // The dictionary is per browser profile, so it is invisible to the desktop
+    // app and gone if that profile is cleared. Until there is somewhere to sync
+    // it to, the writer at least owns it as a file.
+    el("div", { class: "set-row" }, [
+      el("button", { class: "sc-key", type: "button", onClick: exportDictionary }, [
+        t("exportDictionary"),
+      ]),
+      el("button", { class: "sc-key", type: "button", onClick: () => void importDictionary() }, [
+        t("importDictionary"),
+      ]),
+    ]),
     ...dictRows,
     el("h3", { style: "margin-top:18px" }, [t("assetsTitle")]),
     ...assetRows,
@@ -1795,6 +1806,19 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
   };
   window.addEventListener("keydown", handler, true);
 }
+function exportDictionary() {
+  files.download("ksav-dictionary.txt", spell.exportUserWords());
+}
+
+async function importDictionary() {
+  const f = await pickFile(".txt,text/plain");
+  if (!f) return;
+  const added = spell.importUserWords(await f.text());
+  runSpellCheck();
+  rerenderChrome();
+  setStatus(added ? tf("dictionaryImported", added) : t("dictionaryNothingNew"), added ? "ok" : "");
+}
+
 function resetShortcuts() {
   delete settings.keybindings;
   saveSettings();

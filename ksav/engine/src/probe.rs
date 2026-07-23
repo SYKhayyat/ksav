@@ -104,7 +104,7 @@ pub fn lines(runs: &[TextRun], tol: f64) -> Vec<Line> {
     for l in &mut ls {
         l.runs.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
     }
-    ls.sort_by(|a, b| (a.page, ord(a.y)).cmp(&(b.page, ord(b.y))));
+    ls.sort_by_key(|a| (a.page, ord(a.y)));
     ls
 }
 

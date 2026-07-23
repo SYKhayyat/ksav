@@ -351,7 +351,7 @@ pub fn words(text: &str) -> Vec<(usize, &str)> {
         // סי', וגו'), so for it a preceding letter is enough.
         let tail = run_of_letters(&text[i + c.len_utf8()..]);
         let joins =
-            start.is_some() && ((is_gershayim(c) && tail >= 1 && tail <= 2) || is_geresh(c));
+            start.is_some() && ((is_gershayim(c) && (1..=2).contains(&tail)) || is_geresh(c));
         let part = is_hebrew_letter(c) || is_hebrew_mark(c) || joins;
         match (part, start) {
             (true, None) => start = Some(i),

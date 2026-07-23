@@ -704,7 +704,7 @@ mod tests {
         let body = include_str!("../examples/nesting.ksav");
         let out = compile(body, &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
-        assert!(out.pages_svg.len() >= 1);
+        assert!(!out.pages_svg.is_empty());
     }
 
     #[test]

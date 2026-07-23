@@ -1,0 +1,92 @@
+# Run the tests on every push and pull request.
+#
+# `release.yml` builds installers when a tag is pushed. Nothing ran on ordinary
+# pushes, so nothing has ever been checked by anything but a person remembering
+# to — and since there was no remote at all, not even that. The moment a remote
+# exists this is the file that starts earning its keep.
+#
+# Deliberately not the release matrix: this has to be fast enough that people
+# wait for it. It builds the engine once on Linux and runs everything.
+
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"] # tags are release.yml's job
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A new push supersedes the run in flight for the same branch. There is no
+  # value in finishing a check of code that has already been replaced.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: editor
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      - name: Install
+        working-directory: ./ksav/app
+        run: npm ci
+      - name: Typecheck
+        working-directory: ./ksav/app
+        run: npx tsc --noEmit
+      - name: Test
+        working-directory: ./ksav/app
+        run: npm test
+      - name: Build
+        working-directory: ./ksav/app
+        run: npx vite build
+
+  engine:
+    name: engine
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      # The workspace builds the whole Typst compiler, which is not a quick
+      # compile from cold.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+
+      # The engine's own standard is 0 warnings; enforce it rather than trust it.
+      - name: Clippy
+        working-directory: ./ksav/engine
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        working-directory: ./ksav/engine
+        run: cargo test --release
+
+  desktop:
+    name: desktop shell
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev \
+            libayatana-appindicator3-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/app/src-tauri -> target"
+      # Compiles the Tauri commands and runs the path-allowlist tests. The
+      # bundlers are release.yml's job; this only has to prove the shell builds.
+      - name: Test
+        working-directory: ./ksav/app/src-tauri
+        run: cargo test

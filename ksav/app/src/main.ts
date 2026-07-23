@@ -4,13 +4,7 @@ import { Compartment, Prec } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
-import {
-  foldGutter,
-  foldKeymap,
-  foldAll,
-  unfoldAll,
-  bracketMatching,
-} from "@codemirror/language";
+import { foldGutter, foldKeymap, foldAll, unfoldAll, bracketMatching } from "@codemirror/language";
 import {
   autocompletion,
   completionKeymap,
@@ -28,123 +22,54 @@ import {
   outline,
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
-import { analyze } from "./brackets";
 import { createBackend } from "./api";
-import type { Backend, CommandDef, TemplateDef, CompileResult, DocConfig, Diagnostic } from "./api";
+import type { TemplateDef } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
-import type { DocAsset, KsavDoc } from "./docs";
+import type { DocAsset } from "./docs";
 import * as store from "./store";
 import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
-import { toMarkdown, toPlainText } from "./markdown";
 import * as spell from "./spell";
 import * as styles from "./styles";
 import * as tables from "./table";
 import * as review from "./review";
 import type { NoteChoice } from "./notes";
-import type { FileBinding } from "./files";
 
-// ---------------------------------------------------------------- state
-type Layout = "two" | "page" | "source";
-type PreviewSide = "left" | "right" | "top" | "bottom";
-interface Settings extends DocConfig {
-  lang: Lang;
-  theme: "light" | "dark";
-  layout: Layout;
-  previewSide?: PreviewSide; // which side the preview sits on in split view
-  previewFrac?: number; // fraction of the split given to the preview (0–1)
-  prose: boolean;
-  zoom: number;
-  outline?: boolean;
-  nikud?: boolean;
-  autocomplete?: boolean;
-  spellcheck?: boolean;
-  syncScroll?: boolean;
-  autosaveFile?: boolean; // write back to the bound file on a timer, not only on Ctrl+S
-  customCommands?: string; // user #let definitions, prepended at compile
-  snippets?: string; // "abbrev = expansion" per line, expanded on Tab
-  keybindings?: Record<string, string>; // action id -> key combo override
-  reviewer?: string; // the name that goes on this person's review comments
-}
-
-/** The font families the engine bundles. Anything else must be attached to the
- *  document (see `addFont`) — there is no system font access from wasm. */
-const BUNDLED_FONTS = ["Frank Ruhl Hofshi", "David Libre", "Cascadia Mono"];
-
-const DEFAULTS: Settings = {
-  lang: "he",
-  theme: "light",
-  layout: "two",
-  previewSide: "left",
-  previewFrac: 0.5,
-  // Prose is the default view. Ksav is pitched as a replacement for Word, and
-  // opening a Word replacement in raw markup asks the writer to learn a syntax
-  // before they can type a sentence. Alt still reveals the markup, and the
-  // ＃ toggle in the header switches permanently — the markup is one key away,
-  // which is the right distance for the people who want it.
-  prose: true,
-  zoom: 1,
-  font: "Frank Ruhl Hofshi",
-  size_pt: 12,
-  margin_cm: 2.5,
-  dir: "rtl",
-  numbering: true,
-  justify: true,
-  line_spacing_em: 0.75,
-  para_spacing_em: 1.2,
-  first_line_indent_em: 0,
-  columns: 1,
-  paper: "a4",
-  hebrew_numbering: false,
-  header: "",
-  footer: "",
-  autocomplete: true,
-  spellcheck: true,
-  syncScroll: true,
-  autosaveFile: true,
-};
-
-function loadSettings(): Settings {
-  try {
-    const s = { ...DEFAULTS, ...JSON.parse(localStorage.getItem("ksav.settings") || "{}") };
-    if ((s.layout as string) === "one") s.layout = "source"; // migrate old value
-    return s;
-  } catch {
-    return { ...DEFAULTS };
-  }
-}
-function saveSettings() {
-  localStorage.setItem("ksav.settings", JSON.stringify(settings));
-}
-
-const settings = loadSettings();
-setLang(settings.lang);
-
-let backend: Backend;
-let commandsReg: CommandDef[] = [];
-let templatesReg: TemplateDef[] = [];
-let lastResult: CompileResult | null = null;
-
-// ---------------------------------------------------------------- helpers
-type Props = Record<string, unknown>;
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: Props = {},
-  children: (Node | string)[] = [],
-): HTMLElementTagNameMap[K] {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === "class") n.className = v as string;
-    else if (k === "style") n.setAttribute("style", v as string);
-    else if (k.startsWith("on") && typeof v === "function")
-      n.addEventListener(k.slice(2).toLowerCase(), v as EventListener);
-    else if (v != null) n.setAttribute(k, String(v));
-  }
-  for (const c of children) n.append(c);
-  return n;
-}
+// The modules `main.ts` was split into. What is left here is the shell: the
+// editor itself, the chrome around it, the panels, and boot. Everything with a
+// life of its own — the store, saving, compiling, exporting, the diagnostics
+// vocabulary, the settings — now lives beside this file rather than inside it.
+import {
+  el,
+  iconBtn,
+  tbGroup,
+  fieldRow,
+  textField,
+  numberField,
+  checkField,
+  pickFile,
+  readAsDataUrl,
+  humanSize,
+} from "./dom";
+import * as runtime from "./runtime";
+import { setStatus, closeMenus, jumpTo } from "./runtime";
+import {
+  settings,
+  saveSettings,
+  BUNDLED_FONTS,
+  SKINS,
+  applyPreset,
+  undoPreset,
+  pendingUndo,
+} from "./settings";
+import type { Settings, Layout, PreviewSide } from "./settings";
+import * as save from "./save";
+import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
+import { scheduleCompile, runCompile, applyZoom, onSchedule } from "./compile";
+import { nikudKeymap, buildNikudBar } from "./nikud";
+import * as exports from "./exports";
 
 // ---------------------------------------------------------------- editor
 const STARTER = `#שער[ברוכים הבאים לכְּתָב]
@@ -185,149 +110,29 @@ const editorTheme = (dark: boolean) =>
 // ---------------------------------------------------------------- the open document
 //
 // The app used to hold one nameless document in one localStorage key. It now
-// holds a library; `currentDoc` is whichever one is open, and `currentBinding` is
+// holds a library; `runtime.currentDoc` is whichever one is open, and `runtime.currentBinding` is
 // the real file it saves to, when it has one.
-let currentDoc: KsavDoc;
-let currentBinding: FileBinding | null = null;
-/** Set while switching documents, so the editor's own change events don't write
+/** Set while runtime.switching documents, so the editor's own change events don't write
  *  the outgoing document's text over the incoming one. */
-let switching = false;
-
-// ---------------------------------------------------------------- saving
-//
-// Saving is its own concern, on its own timer, with its own error handling.
-//
-// It used to be a side effect of compiling: `runCompile` wrote the document to
-// storage on its way to the renderer, *before* the try block. So when storage
-// filled up, the write threw, the compile never ran, nothing caught it, the
-// status line said "rendering…" forever — and every keystroke after that was
-// discarded in silence. A writer typed four hundred thousand characters into a
-// buffer that had stopped being persisted and had no way to know.
-//
-// Two rules come out of that, and they are the whole design here:
-//   • Saving must not depend on rendering. A render is a convenience; a save is
-//     the writer's work.
-//   • A save that fails must be impossible to miss. Not a console line, not a
-//     status flicker — a banner that stays until the problem is fixed.
-
-let saveTimer: number | undefined;
-/** Resolves when no save is in flight — awaited before anything reads storage. */
-let savePending: Promise<void> = Promise.resolve();
-/** True while the editor holds text that has not reached durable storage. */
-let unsavedChanges = false;
-/** True while the document differs from the file it is bound to. */
-let unsavedToFile = false;
-/** The failure currently on screen, so it is only rendered once. */
-let saveFailure: string | null = null;
-
-const SAVE_DEBOUNCE_MS = 600;
-
-/** Queue a save of the open document. Cheap to call on every keystroke. */
-function scheduleSave() {
-  if (!currentDoc || switching) return;
-  unsavedChanges = true;
-  unsavedToFile = true;
-  clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => void saveNow(), SAVE_DEBOUNCE_MS);
-}
-
-/**
- * Write the open document to storage now.
- *
- * Serialised through `savePending` so two saves can never interleave, and so
- * callers that need the stored copy to be current (export, Save-to-file, opening
- * another document) can simply await it.
- */
-function saveNow(): Promise<void> {
-  clearTimeout(saveTimer);
-  if (!currentDoc || switching) return savePending;
-  savePending = savePending.then(async () => {
-    if (!currentDoc || switching) return;
-    currentDoc.body = view ? view.state.doc.toString() : currentDoc.body;
-    // A document the writer never renamed takes its title from its own first
-    // heading, so the library is readable either way.
-    if (currentDoc.title === t("untitled")) {
-      const guess = docs.guessTitle(currentDoc.body, t("untitled"));
-      if (guess && guess !== t("untitled")) {
-        currentDoc.title = guess;
-        updateTitleBar();
-      }
-    }
-    try {
-      await docs.putDoc(currentDoc);
-      unsavedChanges = false;
-      clearSaveFailure();
-    } catch (e) {
-      reportSaveFailure(e);
-    }
-  });
-  return savePending;
-}
-
-/** Everything that must be on disk before we read it back. */
-function flushSaves(): Promise<void> {
-  return saveNow();
-}
-
-/**
- * Put a storage failure in front of the writer and keep it there.
- *
- * Deliberately a modal-weight banner rather than a status message: the failure
- * mode this replaces was silent data loss, and the only safe response is to stop
- * the writer and tell them their text is not being kept.
- */
-function reportSaveFailure(e: unknown) {
-  const full = e instanceof docs.StorageFullError;
-  const msg = full ? t("storageFull") : `${t("saveFailed")} — ${String(e)}`;
-  if (saveFailure === msg) return;
-  saveFailure = msg;
-  document.getElementById("save-error")?.remove();
-  const banner = el("div", { id: "save-error", class: "save-error", role: "alert" }, [
-    el("span", { class: "save-error-text" }, [msg]),
-    el("button", { class: "save-error-act", onClick: () => void saveNow() }, [t("retrySave")]),
-    el("button", { class: "save-error-act", onClick: () => void exportBackup() }, [
-      t("downloadBackup"),
-    ]),
-  ]);
-  document.getElementById("app")?.append(banner);
-}
-
-function clearSaveFailure() {
-  if (!saveFailure) return;
-  saveFailure = null;
-  document.getElementById("save-error")?.remove();
-}
-
-/**
- * The escape hatch from a full store: get the text out of the browser entirely.
- *
- * Offered on the failure banner itself, because "your work is not being saved"
- * is only half an answer without a way to rescue it.
- */
-async function exportBackup() {
-  const text = docs.serializeDoc({ ...currentDoc, body: view.state.doc.toString() });
-  files.download(`${fileStem()}.ksav`, text);
-}
 
 /** Switch the editor to another document in the library. */
 async function openDoc(id: string) {
   const next = await docs.getDoc(id);
   if (!next) return;
   await flushSaves();
-  switching = true;
-  currentDoc = next;
+  runtime.setSwitching(true);
+  runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
-  currentBinding = await files.recallBinding(next.id);
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: next.body },
+  runtime.setCurrentBinding(await files.recallBinding(next.id));
+  runtime.view.dispatch({
+    changes: { from: 0, to: runtime.view.state.doc.length, insert: next.body },
     selection: { anchor: 0 },
   });
-  switching = false;
-  unsavedChanges = false;
-  unsavedToFile = false;
+  runtime.setSwitching(false);
+  save.markFileSaved();
   updateTitleBar();
   rerenderChrome();
-  view.focus();
+  runtime.view.focus();
   scheduleCompile();
 }
 
@@ -351,7 +156,7 @@ async function removeDoc(id: string) {
   if (!confirm(tf("confirmDeleteDoc", entry.title))) return;
   await docs.deleteDoc(id);
   await files.rememberBinding(id, null);
-  if (currentDoc.id === id) {
+  if (runtime.currentDoc.id === id) {
     const next = docs.library()[0];
     if (next) await openDoc(next.id);
     else await newNamedDoc();
@@ -361,9 +166,9 @@ async function removeDoc(id: string) {
 }
 
 function renameDoc() {
-  const name = prompt(t("renamePrompt"), currentDoc.title);
+  const name = prompt(t("renamePrompt"), runtime.currentDoc.title);
   if (name === null) return;
-  currentDoc.title = name.trim() || t("untitled");
+  runtime.currentDoc.title = name.trim() || t("untitled");
   void saveNow();
   updateTitleBar();
   rerenderChrome();
@@ -372,25 +177,16 @@ function renameDoc() {
 /** The document title shown in the header, with the bound file beside it. */
 function updateTitleBar() {
   const el0 = document.getElementById("doc-title");
-  if (!el0 || !currentDoc) return;
-  el0.textContent = currentDoc.title;
+  if (!el0 || !runtime.currentDoc) return;
+  el0.textContent = runtime.currentDoc.title;
   const sub0 = document.getElementById("doc-file");
   if (sub0) {
-    sub0.textContent = currentBinding ? currentBinding.name : "";
-    sub0.title = currentBinding?.path || currentBinding?.name || t("noFileBound");
+    sub0.textContent = runtime.currentBinding ? runtime.currentBinding.name : "";
+    sub0.title = runtime.currentBinding?.path || runtime.currentBinding?.name || t("noFileBound");
   }
-  document.title = currentDoc.title + " · Ksav";
+  document.title = runtime.currentDoc.title + " · Ksav";
 }
 
-function closeMenus() {
-  document.querySelectorAll(".menu-list.open").forEach((m) => {
-    m.classList.remove("open");
-    m.previousElementSibling?.setAttribute("aria-expanded", "false");
-  });
-}
-
-// User abbreviations: "abbr = expansion" per line. `|` marks the cursor, `\n`
-// a newline. Typing the abbreviation then Tab expands it.
 function snippetMap(): Record<string, string> {
   const map: Record<string, string> = {};
   for (const line of (settings.snippets || "").split("\n")) {
@@ -514,7 +310,7 @@ function keybindings(): Record<string, string> {
 function buildShortcutKeymap(): KeyBinding[] {
   const kb = keybindings();
   const claimed = new Set(Object.values(kb));
-  const bindings: KeyBinding[] = [...nikudKeymap()];
+  const bindings: KeyBinding[] = [...nikudKeymap(scheduleCompile)];
   for (const a of ACTIONS) {
     if (kb[a.id]) bindings.push({ key: kb[a.id], run: a.run, preventDefault: true });
     for (const alias of KEY_ALIASES[a.id] ?? []) {
@@ -526,7 +322,7 @@ function buildShortcutKeymap(): KeyBinding[] {
 }
 const shortcutCompartment = new Compartment();
 function reconfigureShortcuts() {
-  view.dispatch({
+  runtime.view.dispatch({
     effects: shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
   });
 }
@@ -563,7 +359,7 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
       const cursor = pipe >= 0 ? from + pipe : from + text.length;
       v.dispatch({ changes: { from, to, insert: text }, selection: { anchor: cursor } });
     };
-  const options = commandsReg
+  const options = runtime.commandsReg
     .filter((c) => !q || c.he.includes(q) || c.en.toLowerCase().includes(q))
     .map((c) => ({
       label: "#" + c.he,
@@ -601,20 +397,20 @@ function scheduleSpellCheck() {
 }
 
 async function runSpellCheck() {
-  if (!backend || !settings.spellcheck || !view) return;
+  if (!runtime.backend || !settings.spellcheck || !runtime.view) return;
   // Only the text that will actually print: command names are not misspellings,
   // and underlining them would make the feature useless on its first document.
-  const text = spell.checkableText(view.state.doc.toString());
+  const text = spell.checkableText(runtime.view.state.doc.toString());
   try {
-    const res = await backend.spell(text, spell.userWordsText(), false);
-    view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
+    const res = await runtime.backend.spell(text, spell.userWordsText(), false);
+    runtime.view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
   } catch {
     // A failed check is not worth interrupting the writer over.
   }
 }
 
 function clearSpellCheck() {
-  if (view) view.dispatch({ effects: spell.setMisspellings.of([]) });
+  if (runtime.view) runtime.view.dispatch({ effects: spell.setMisspellings.of([]) });
 }
 
 /** The suggestion menu for the squiggle at `pos`, anchored at the pointer. */
@@ -628,19 +424,19 @@ async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
 
   let suggestions: string[] = [];
   try {
-    suggestions = await backend!.suggest(m.word, spell.userWordsText());
+    suggestions = await runtime.backend!.suggest(m.word, spell.userWordsText());
   } catch {
     suggestions = [];
   }
   if (!box.isConnected) return; // dismissed while we were asking
 
   const replace = (word: string) => {
-    view.dispatch({
+    runtime.view.dispatch({
       changes: { from: m.start, to: m.start + m.len, insert: word },
       selection: { anchor: m.start + word.length },
     });
     closeSpellMenu();
-    view.focus();
+    runtime.view.focus();
     scheduleSpellCheck();
   };
 
@@ -657,7 +453,7 @@ async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
       spell.addUserWord(m.word);
       closeSpellMenu();
       runSpellCheck();
-      view.focus();
+      runtime.view.focus();
     } }, ["＋ " + t("addToDictionary")]),
   );
 }
@@ -674,7 +470,7 @@ function autoExtension() {
 
 function makeEditor(): EditorView {
   return new EditorView({
-    doc: currentDoc.body,
+    doc: runtime.currentDoc.body,
     parent: document.getElementById("editor-host")!,
     extensions: [
       history(),
@@ -739,7 +535,7 @@ function makeEditor(): EditorView {
           scheduleSave();
           scheduleCompile();
           updateCounts();
-          // The review list is a view of the document's own marks, so an edit
+          // The review list is a runtime.view of the document's own marks, so an edit
           // anywhere — not only a decision taken in the panel — must refresh it.
           if (isReviewOpen()) renderReviewPanel();
           if (settings.outline) renderOutline();
@@ -765,213 +561,20 @@ export function countableText(src: string): string {
 }
 function updateCounts() {
   const el = document.getElementById("wordcount");
-  if (!el || !view) return;
-  const text = countableText(view.state.doc.toString());
+  if (!el || !runtime.view) return;
+  const text = countableText(runtime.view.state.doc.toString());
   const words = (text.match(/[^\s]+/g) || []).length;
   const chars = text.replace(/\s+/g, " ").trim().length;
   el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
 }
 
-let view: EditorView;
-
-// ---------------------------------------------------------------- compile
-function cfg(): DocConfig {
-  return {
-    font: settings.font,
-    size_pt: settings.size_pt,
-    margin_cm: settings.margin_cm,
-    dir: settings.dir,
-    numbering: settings.numbering,
-    justify: settings.justify,
-    line_spacing_em: settings.line_spacing_em,
-    para_spacing_em: settings.para_spacing_em,
-    first_line_indent_em: settings.first_line_indent_em,
-    columns: settings.columns,
-    paper: settings.paper,
-    hebrew_numbering: settings.hebrew_numbering,
-    header: settings.header,
-    footer: settings.footer,
-  };
-}
-
-// Turn a raw Typst diagnostic into plain, actionable guidance — Hebrew AND
-// English together, so it helps regardless of the reader.
-function friendlyPair(msg: string): { he: string; en: string } | null {
-  const m = msg.toLowerCase();
-  const unknown = msg.match(/unknown variable:\s*(\S+)/);
-  if (unknown)
-    return {
-      he: `הפקודה #${unknown[1]} אינה מוכרת — בדקו את האיות, או הגדירו אותה תחת "הפקודות שלי".`,
-      en: `Unknown command #${unknown[1]} — check the spelling, or define it under "Your commands".`,
-    };
-  if (m.includes("unclosed delimiter"))
-    return {
-      he: "יש סוגר שלא נסגר — ודאו שלכל [ יש ] ולכל ( יש ).",
-      en: "A bracket isn't closed — make sure every [ has a ] and every ( has a ).",
-    };
-  if (m.includes("maximum") && m.includes("depth"))
-    return {
-      he: "יותר מדי רמות קינון בבת אחת (מגבלת בטיחות של Typst). נסו לפשט מעט את המבנה.",
-      en: "Too many levels of nesting at once (a Typst safety limit). Try simplifying the structure a little.",
-    };
-  if (m.includes("not valid in code") || m.includes("preceding hash"))
-    return {
-      he: "יש בעיה ליד סימן # — אולי חסר רווח או סוגר, או שרצית סולמית רגילה (כתבו \\#).",
-      en: "Something's off near a # — you may be missing a space or bracket, or want a literal # (write \\#).",
-    };
-  if (m.includes("file not found") || m.includes("failed to load"))
-    return {
-      he: "קובץ (למשל תמונה) לא נמצא — בדקו את הנתיב.",
-      en: "A file (e.g. an image) wasn't found — check the path.",
-    };
-  // An unknown paper size makes Typst enumerate every name it knows — around
-  // forty of them, in one unbroken line, in the status bar. The writer picked
-  // from a menu of four; naming those four is the entire useful content.
-  if (m.includes("expected") && (m.includes("\"a4\"") || m.includes("\"us-letter\"")))
-    return {
-      he: "גודל דף לא מוכר — בחרו A4, Letter, A5 או A3 בהגדרות (⚙).",
-      en: "Unknown paper size — choose A4, Letter, A5 or A3 in Settings (⚙).",
-    };
-  if (m.includes("unknown font family") || m.includes("no font could be found"))
-    return {
-      he: "הגופן אינו זמין — בחרו גופן מהרשימה בהגדרות, או צרפו קובץ גופן למסמך.",
-      en: "That font isn't available — pick one from the list in Settings, or attach a font file to the document.",
-    };
-  if (m.includes("expected") || m.includes("unexpected"))
-    return {
-      he: "התחביר אינו תקין כאן — בדקו סוגריים, פסיקים ומבנה הפקודה.",
-      en: "Invalid syntax here — check brackets, commas, and the command structure.",
-    };
-  return null;
-}
-
-/**
- * How much raw compiler output the status bar will show.
- *
- * Anything unmapped is still shown, because an unhelpful message beats a
- * swallowed one — but it is shown *short*. Typst's longest diagnostics are
- * enumerations of every valid value, which fill the status bar, push the word
- * count off screen and tell the writer nothing. The full text stays available:
- * it is the `title` on the same element, and it is what a bug report needs.
- */
-const MAX_DIAGNOSTIC_CHARS = 160;
-
-function friendlyError(msg: string): string {
-  const p = friendlyPair(msg);
-  if (p) return `${p.he}  ·  ${p.en}`;
-  const oneLine = msg.replace(/\s+/g, " ").trim();
-  return oneLine.length > MAX_DIAGNOSTIC_CHARS
-    ? oneLine.slice(0, MAX_DIAGNOSTIC_CHARS - 1) + "…"
-    : oneLine;
-}
-
-let compileTimer: number | undefined;
-/**
- * Which compile is the current one.
- *
- * A compile takes 0.4–3 s and the debounce is a quarter of a second, so two are
- * routinely in flight at once. Results used to be applied in arrival order,
- * which means a slow render of older text could land on top of a fast render of
- * newer text and leave the preview showing a page the document no longer says.
- * Every request takes a ticket; only the newest ticket may touch the screen.
- */
-let compileGeneration = 0;
-
-function scheduleCompile() {
-  clearTimeout(compileTimer);
-  compileTimer = window.setTimeout(runCompile, 250);
-  scheduleSpellCheck();
-}
-
-async function runCompile() {
-  if (!backend) return; // backend still initializing (createBackend not resolved yet)
-  const mine = ++compileGeneration;
-  const status = document.getElementById("status")!;
-  const diag = document.getElementById("diagnostics")!;
-  status.textContent = t("rendering");
-  status.className = "";
-  const t0 = performance.now();
-  const userDoc = view.state.doc.toString();
-  // Prepend user-defined commands so they're usable in the document.
-  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
-  // Speculative heal. A document is unbalanced for as long as it takes to type
-  // the body of a `#הערה[`, and compiling that raw would blank the preview and
-  // replace it with an error pointing at end-of-file. Compile the repaired copy
-  // instead, and say so — the writer keeps seeing their page while they type.
-  // The document itself is never modified; only what we hand the compiler is.
-  const { problems, healed } = analyze(userDoc);
-  const healedCount = problems.length;
-  const body = pre + (healedCount ? healed : userDoc);
-  try {
-    const res = await backend.compile(body, cfg(), docs.requestAssets(currentDoc?.assets ?? []));
-    if (mine !== compileGeneration) return; // superseded while we were waiting
-    lastResult = res;
-    const ms = Math.round(performance.now() - t0);
-    const preview = document.getElementById("preview")!;
-    if (res.pages_svg.length) {
-      preview.innerHTML = res.pages_svg
-        .map((s) => `<div class="page">${s}</div>`)
-        .join("");
-      applyZoom();
-    }
-    const errs = res.diagnostics.filter((d) => d.severity === "error");
-    if (res.ok && healedCount) {
-      // Rendered, but not from what is literally on screen. Say which, and how
-      // many — silently showing a page built from text the writer did not type
-      // would be worse than the blank preview this replaces.
-      status.textContent = `⚠ ${tf("previewHealed", healedCount)} · ${ms}ms`;
-      status.className = "warn";
-    } else if (res.ok) {
-      status.textContent = `✓ ${res.pages_svg.length} ${t("pages")} · ${ms}ms`;
-      status.className = "ok";
-    } else {
-      status.textContent = `✗ ${t("compileError")}`;
-      status.className = "err";
-    }
-    const shown = errs.length ? errs : res.diagnostics;
-    diag.textContent = shown.map((d) => friendlyError(d.message)).join("  ·  ");
-    diag.title = shown.map((d) => d.message).join("\n"); // raw messages on hover
-  } catch (e) {
-    if (mine !== compileGeneration) return;
-    status.textContent = `✗ ${t("networkError")}`;
-    status.className = "err";
-    diag.textContent = String(e);
-  }
-}
-
-/**
- * A compile that is allowed to be slow, for the things that need real output:
- * the PDF, and exports.
- *
- * The preview asks for SVG only. Regenerating the PDF on every keystroke cost
- * roughly 300 KB of base64 per response that nothing on screen ever read.
- */
-async function compileForExport(): Promise<CompileResult | null> {
-  if (!backend) return null;
-  await flushSaves();
-  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
-  const body = pre + view.state.doc.toString();
-  try {
-    return await backend.compile(body, cfg(), {
-      ...docs.requestAssets(currentDoc?.assets ?? []),
-      want_pdf: true,
-    });
-  } catch (e) {
-    setStatus(`${t("networkError")} — ${String(e)}`, "err");
-    return null;
-  }
-}
-
-function applyZoom() {
-  document.documentElement.style.setProperty("--zoom", String(settings.zoom));
-}
 
 // Sync scrolling: scrolling the editor drives the preview and vice-versa
 // (percentage-based). Clicking the preview jumps the editor cursor to the
 // matching spot (best-effort by line fraction). Two-panel mode only.
 function wireSyncScroll() {
   const preview = document.getElementById("preview")!;
-  const scroller = view.scrollDOM;
+  const scroller = runtime.view.scrollDOM;
   let lock = false;
   const frac = (e: HTMLElement) => e.scrollTop / Math.max(1, e.scrollHeight - e.clientHeight);
   const apply = (src: HTMLElement, dst: HTMLElement) => {
@@ -986,16 +589,16 @@ function wireSyncScroll() {
     if (settings.layout !== "two") return;
     const rect = preview.getBoundingClientRect();
     const f = (preview.scrollTop + (e.clientY - rect.top)) / Math.max(1, preview.scrollHeight);
-    const line = Math.min(view.state.doc.lines, Math.max(1, Math.round(f * view.state.doc.lines)));
-    view.dispatch({ selection: { anchor: view.state.doc.line(line).from }, scrollIntoView: true });
-    view.focus();
+    const line = Math.min(runtime.view.state.doc.lines, Math.max(1, Math.round(f * runtime.view.state.doc.lines)));
+    runtime.view.dispatch({ selection: { anchor: runtime.view.state.doc.line(line).from }, scrollIntoView: true });
+    runtime.view.focus();
   });
 }
 
 // ---------------------------------------------------------------- snippet insertion
 function insertSnippet(snippet: string) {
-  const sel = view.state.selection.main;
-  const selText = view.state.sliceDoc(sel.from, sel.to);
+  const sel = runtime.view.state.selection.main;
+  const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
   const pipe = snippet.indexOf("|");
   let text = snippet;
   let cursor = snippet.length;
@@ -1008,73 +611,49 @@ function insertSnippet(snippet: string) {
       cursor = pipe;
     }
   }
-  view.dispatch({
+  runtime.view.dispatch({
     changes: { from: sel.from, to: sel.to, insert: text },
     selection: { anchor: sel.from + cursor },
   });
-  view.focus();
+  runtime.view.focus();
 }
 
 // Wrap the selection in a foldable comment region (//{ … //}). The markers are
 // comments, so they never render — they just create a collapsible, labelled block.
 function insertRegion() {
-  const sel = view.state.selection.main;
-  const selText = view.state.sliceDoc(sel.from, sel.to);
+  const sel = runtime.view.state.selection.main;
+  const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
   const label = t("region");
   // The `//{` marker must start its own line, or the fold service (which keys on
   // a line beginning with `//{`) won't recognize the region. Prepend a newline
   // when the selection doesn't already start at the beginning of a line.
-  const atLineStart = sel.from === 0 || view.state.sliceDoc(sel.from - 1, sel.from) === "\n";
+  const atLineStart = sel.from === 0 || runtime.view.state.sliceDoc(sel.from - 1, sel.from) === "\n";
   const lead = atLineStart ? "" : "\n";
   const text = `${lead}//{ ${label}\n${selText}\n//}\n`;
   const cursor = sel.from + lead.length + 4; // start of the label, so it can be renamed
-  view.dispatch({
+  runtime.view.dispatch({
     changes: { from: sel.from, to: sel.to, insert: text },
     selection: { anchor: cursor, head: cursor + label.length },
   });
-  view.focus();
+  runtime.view.focus();
   scheduleCompile();
 }
 
 // Wrap the selection in a block comment (/* … */): foldable, styled, and NOT
 // rendered — a collapsible editor comment.
 function commentOut() {
-  const sel = view.state.selection.main;
-  const selText = view.state.sliceDoc(sel.from, sel.to) || t("region");
-  view.dispatch({
+  const sel = runtime.view.state.selection.main;
+  const selText = runtime.view.state.sliceDoc(sel.from, sel.to) || t("region");
+  runtime.view.dispatch({
     changes: { from: sel.from, to: sel.to, insert: `/* ${selText} */` },
     selection: { anchor: sel.from + 3, head: sel.from + 3 + selText.length },
   });
-  view.focus();
+  runtime.view.focus();
   scheduleCompile();
 }
 
-// Document skins: one-click presets that restyle the document (font, size,
-// margins, spacing, numbering).
-const SKINS: Record<string, Partial<Settings>> = {
-  sefer: { font: "Frank Ruhl Hofshi", size_pt: 13, margin_cm: 3, line_spacing_em: 0.7, justify: true, hebrew_numbering: true, numbering: true, paper: "a4" },
-  modern: { font: "David Libre", size_pt: 12, margin_cm: 2.5, line_spacing_em: 0.95, justify: false, hebrew_numbering: false, numbering: true },
-  letter: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 3, line_spacing_em: 0.85, justify: true, hebrew_numbering: false, numbering: false },
-  plain: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 2.5, line_spacing_em: 0.75, justify: true, hebrew_numbering: false, numbering: true, header: "", footer: "" },
-};
-/**
- * The settings a preset replaced, so it can be undone.
- *
- * A skin used to `Object.assign` straight over your settings: choose one and
- * your font was gone, with nothing to say it had happened and no way back. A
- * preset is a starting point, not a one-way door.
- */
-let styleUndo: { name: string; before: Partial<Settings> } | null = null;
-
 function applySkin(name: string) {
-  const preset = SKINS[name];
-  const before: Partial<Settings> = {};
-  for (const k of Object.keys(preset) as (keyof Settings)[]) {
-    (before as Record<string, unknown>)[k] = settings[k];
-  }
-  styleUndo = { name, before };
-  Object.assign(settings, preset);
-  saveSettings();
+  applyPreset(name);
   closeMenus();
   scheduleCompile();
   // rerenderChrome rebuilds the whole chrome, which drops the panel's contents
@@ -1090,10 +669,7 @@ function applySkin(name: string) {
 }
 
 function undoSkin() {
-  if (!styleUndo) return;
-  Object.assign(settings, styleUndo.before);
-  styleUndo = null;
-  saveSettings();
+  if (!undoPreset()) return;
   scheduleCompile();
   const wasOpen = document.getElementById("styles-panel")?.classList.contains("open");
   rerenderChrome();
@@ -1103,97 +679,6 @@ function undoSkin() {
   }
 }
 
-// Nikud marks (combining), with the key that types each one.
-//
-// The bar used to be click-only: fourteen buttons you mouse at, one at a time.
-// That is tolerable for the occasional mark and miserable for a whole verse —
-// and the siddur and bentcher templates are pointed throughout, so "a whole
-// verse" is the normal case, not the exception.
-//
-// A vowel is a *combining* mark: typing the letter and then the mark composes
-// them, which is exactly type-letter-then-key. So each mark gets a key, held
-// with Alt, chosen to sit under the fingers in rough order of how often the mark
-// is used rather than by any mnemonic — there is no letter-to-vowel mnemonic in
-// Hebrew, and pretending otherwise would be harder to learn, not easier.
-const NIKUD: [string, string, string][] = [
-  ["ַ", "פתח", "Alt-a"],
-  ["ָ", "קמץ", "Alt-s"],
-  ["ֶ", "סגול", "Alt-d"],
-  ["ֵ", "צירי", "Alt-f"],
-  ["ִ", "חיריק", "Alt-g"],
-  ["ֹ", "חולם", "Alt-h"],
-  ["ֻ", "קובוץ", "Alt-j"],
-  ["ְ", "שווא", "Alt-k"],
-  ["ּ", "דגש", "Alt-l"],
-  ["ׁ", "שין ימנית", "Alt-w"],
-  ["ׂ", "שין שמאלית", "Alt-e"],
-  ["ֱ", "חטף סגול", "Alt-z"],
-  ["ֲ", "חטף פתח", "Alt-x"],
-  ["ֳ", "חטף קמץ", "Alt-c"],
-];
-
-/**
- * Keys that type a nikud mark.
- *
- * Bound at the highest precedence so they beat CodeMirror's own Alt bindings,
- * and only while the nikud bar is open — Alt-letter combinations are useful for
- * other things, and a writer who is not pointing text should keep them.
- */
-function nikudKeymap(): KeyBinding[] {
-  return NIKUD.map(([mark, , key]) => ({
-    key,
-    preventDefault: true,
-    run: () => {
-      if (!settings.nikud) return false;
-      insertNikud(mark);
-      return true;
-    },
-  }));
-}
-/**
- * Add a vowel mark at the cursor.
- *
- * Deliberately does not replace the selection, the way inserting ordinary text
- * would. A nikud is a *diacritic* — it points the letter before it — so with a
- * word selected the writer means "point this", not "delete this and leave a
- * floating vowel". The mark goes at the end of the selection, which is the
- * letter it belongs to.
- */
-function insertNikud(mark: string) {
-  const at = view.state.selection.main.to;
-  view.dispatch({
-    changes: { from: at, to: at, insert: mark },
-    selection: { anchor: at + mark.length },
-  });
-  view.focus();
-  scheduleCompile();
-}
-
-function buildNikudBar(): HTMLElement {
-  return el(
-    "div",
-    { id: "nikud-bar", class: "nikud-bar" },
-    [
-      ...NIKUD.map(([mark, name, key]) =>
-        el(
-          "button",
-          {
-            class: "nikud-btn",
-            // The shortcut is on the button, because a shortcut nobody can find
-            // is the same as no shortcut.
-            title: `${name} · ${key.replace("Alt-", "Alt+")}`,
-            onClick: () => insertNikud(mark),
-          },
-          [
-            el("span", { class: "nikud-glyph" }, ["א" + mark]),
-            el("span", { class: "nikud-key" }, [key.replace("Alt-", "")]),
-          ],
-        ),
-      ),
-      el("span", { class: "nikud-hint" }, [t("nikudHint")]),
-    ],
-  );
-}
 function toggleNikud() {
   settings.nikud = !settings.nikud;
   saveSettings();
@@ -1216,29 +701,9 @@ function toggleNikud() {
 // a set of *labelled* groups — visible captions for sighted users, `role=group`
 // with `aria-label` for assistive technology.
 
-function iconBtn(label: string, title: string, onClick: () => void, cls = "") {
-  return el(
-    "button",
-    { class: `tb-btn ${cls}`, title, "aria-label": title, type: "button", onClick },
-    [
-      // The glyph is decorative once the button has a name; leaving it exposed
-      // makes the reader announce "dagger, Footnote" instead of "Footnote".
-      el("span", { "aria-hidden": "true" }, [label]),
-    ],
-  );
-}
-
-/** One labelled ribbon group: the buttons, plus the caption that names them. */
-function tbGroup(label: string, buttons: Node[]): HTMLElement {
-  return el("div", { class: "tb-group", role: "group", "aria-label": label }, [
-    el("div", { class: "tb-group-row" }, buttons),
-    el("span", { class: "tb-group-label", "aria-hidden": "true" }, [label]),
-  ]);
-}
-
 function buildToolbar(): HTMLElement {
   const lang = getLang();
-  const byName = (he: string) => commandsReg.find((c) => c.he === he);
+  const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
   const b = (he: string, label: string) => {
     const c = byName(he);
     if (!c) return el("span");
@@ -1278,14 +743,14 @@ function docsMenuItems(): (Node | string)[] {
   const items: (Node | string)[] = [
     el("button", { class: "menu-item", onClick: () => void newNamedDoc() }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
-    el("button", { class: "menu-item", onClick: () => void duplicateDoc(currentDoc.id) }, [
+    el("button", { class: "menu-item", onClick: () => void duplicateDoc(runtime.currentDoc.id) }, [
       t("duplicate"),
     ]),
     el("div", { class: "menu-sep" }),
     el("div", { class: "menu-cat" }, [t("library")]),
   ];
   for (const entry of docs.library()) {
-    const open = entry.id === currentDoc?.id;
+    const open = entry.id === runtime.currentDoc?.id;
     items.push(
       el("div", { class: "menu-item-row" }, [
         el(
@@ -1321,7 +786,7 @@ function docsMenuItems(): (Node | string)[] {
 function buildInsertMenu(): HTMLElement {
   const lang = getLang();
   const cats: string[] = [];
-  for (const c of commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
+  for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
   const items: (Node | string)[] = [
     el("button", { class: "menu-item", onClick: openNotesChooser }, [
       el("b", {}, ["✻ " + t("notesChooser")]),
@@ -1341,7 +806,7 @@ function buildInsertMenu(): HTMLElement {
   ];
   for (const cat of cats) {
     items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
-    for (const c of commandsReg.filter((x) => x.category === cat)) {
+    for (const c of runtime.commandsReg.filter((x) => x.category === cat)) {
       items.push(
         el("button", { class: "menu-item menu-cmd", onClick: () => insertSnippet(c.insert) }, [
           el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
@@ -1393,7 +858,7 @@ function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
 function buildHeader(): HTMLElement {
   const lang = getLang();
 
-  const builtinItems = templatesReg.map((tpl) =>
+  const builtinItems = runtime.templatesReg.map((tpl) =>
     el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
       el("b", {}, [lang === "he" ? tpl.he : tpl.en]),
       el("span", { class: "menu-desc" }, [lang === "he" ? tpl.desc_he : tpl.desc_en]),
@@ -1435,14 +900,14 @@ function buildHeader(): HTMLElement {
   // the settings they overwrite, where the relationship is visible.
 
   const exportMenu = menu("⬇ " + t("export"), [
-    el("button", { class: "menu-item", onClick: () => void exportPdf() }, [t("exportPdf")]),
-    el("button", { class: "menu-item", onClick: () => void exportWord() }, [t("exportWord")]),
-    el("button", { class: "menu-item", onClick: () => void copyForWord() }, [t("copyForWord")]),
-    el("button", { class: "menu-item", onClick: () => void exportHtml() }, [t("exportHtml")]),
-    el("button", { class: "menu-item", onClick: exportMarkdown }, [t("exportMarkdown")]),
-    el("button", { class: "menu-item", onClick: exportText }, [t("exportText")]),
-    el("button", { class: "menu-item", onClick: () => void exportTypst() }, [t("exportTypst")]),
-    el("button", { class: "menu-item", onClick: doPrint }, [t("print")]),
+    el("button", { class: "menu-item", onClick: () => void exports.exportPdf() }, [t("exportPdf")]),
+    el("button", { class: "menu-item", onClick: () => void exports.exportWord() }, [t("exportWord")]),
+    el("button", { class: "menu-item", onClick: () => void exports.copyForWord() }, [t("copyForWord")]),
+    el("button", { class: "menu-item", onClick: () => void exports.exportHtml() }, [t("exportHtml")]),
+    el("button", { class: "menu-item", onClick: exports.exportMarkdown }, [t("exportMarkdown")]),
+    el("button", { class: "menu-item", onClick: exports.exportText }, [t("exportText")]),
+    el("button", { class: "menu-item", onClick: () => void exports.exportTypst() }, [t("exportTypst")]),
+    el("button", { class: "menu-item", onClick: exports.doPrint }, [t("print")]),
   ]);
 
   const langToggle = iconBtn(
@@ -1457,11 +922,11 @@ function buildHeader(): HTMLElement {
     () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
     "chip",
   );
-  const undoBtn = iconBtn("↶", t("sc.undo"), () => undo(view), "chip");
-  const redoBtn = iconBtn("↷", t("sc.redo"), () => redo(view), "chip");
-  const findBtn = iconBtn("🔍", t("find"), () => openSearchPanel(view), "chip");
-  const foldAllBtn = iconBtn("⊟", t("foldAll"), () => foldAll(view), "chip");
-  const unfoldAllBtn = iconBtn("⊞", t("unfoldAll"), () => unfoldAll(view), "chip");
+  const undoBtn = iconBtn("↶", t("sc.undo"), () => undo(runtime.view), "chip");
+  const redoBtn = iconBtn("↷", t("sc.redo"), () => redo(runtime.view), "chip");
+  const findBtn = iconBtn("🔍", t("find"), () => openSearchPanel(runtime.view), "chip");
+  const foldAllBtn = iconBtn("⊟", t("foldAll"), () => foldAll(runtime.view), "chip");
+  const unfoldAllBtn = iconBtn("⊞", t("unfoldAll"), () => unfoldAll(runtime.view), "chip");
   const proseToggle = iconBtn(
     settings.prose ? "🅐" : "＃",
     settings.prose ? t("raw") : t("prose"),
@@ -1514,16 +979,16 @@ function buildHeader(): HTMLElement {
         class: "doc-title-btn",
         type: "button",
         title: t("rename"),
-        "aria-label": `${t("rename")}: ${currentDoc?.title ?? ""}`,
+        "aria-label": `${t("rename")}: ${runtime.currentDoc?.title ?? ""}`,
         onClick: renameDoc,
       },
       [
-        el("span", { class: "doc-title", id: "doc-title" }, [currentDoc?.title ?? ""]),
-        el("small", { class: "doc-file", id: "doc-file" }, [currentBinding?.name ?? ""]),
+        el("span", { class: "doc-title", id: "doc-title" }, [runtime.currentDoc?.title ?? ""]),
+        el("small", { class: "doc-file", id: "doc-file" }, [runtime.currentBinding?.name ?? ""]),
       ],
     ),
     buildToolbar(),
-    // The menu bar and the view chips are navigation, and saying so is what
+    // The menu bar and the runtime.view chips are navigation, and saying so is what
     // gives a screen-reader user a way to skip past forty-odd controls to the
     // editor. The page had no landmarks at all.
     el("nav", { class: "menubar", "aria-label": t("menubar") }, [
@@ -1605,7 +1070,7 @@ function buildSettingsDrawer(): HTMLElement {
   // its own family name and only the file knows it.
   const fontList = el("datalist", { id: "font-families" }, [
     ...BUNDLED_FONTS,
-    ...(currentDoc?.assets ?? [])
+    ...(runtime.currentDoc?.assets ?? [])
       .filter((a) => a.kind === "font")
       .map((a) => a.name.replace(/\.[^.]+$/, "")),
   ].map((f) => el("option", { value: f })));
@@ -1660,7 +1125,7 @@ function buildSettingsDrawer(): HTMLElement {
       )
     : [el("div", { class: "set-note" }, [t("emptyDictionary")])];
 
-  const assets = currentDoc?.assets ?? [];
+  const assets = runtime.currentDoc?.assets ?? [];
   const assetRows = assets.length
     ? assets.map((a) =>
         el("div", { class: "set-row asset-row" }, [
@@ -1839,8 +1304,8 @@ function toggleOutline() {
 }
 function renderOutline() {
   const host = document.getElementById("outline-list");
-  if (!host || !view) return;
-  const items = outline(view.state.doc.toString());
+  if (!host || !runtime.view) return;
+  const items = outline(runtime.view.state.doc.toString());
   host.innerHTML = "";
   if (!items.length) {
     host.append(el("div", { class: "outline-empty" }, [t("noHeadings")]));
@@ -1860,12 +1325,6 @@ function renderOutline() {
     host.append(row);
   }
 }
-function jumpTo(pos: number) {
-  const p = Math.min(pos, view.state.doc.length);
-  view.dispatch({ selection: { anchor: p }, scrollIntoView: true });
-  view.focus();
-}
-
 // ---- version history (local snapshots) ----
 //
 // Scoped to a document. History used to be one `ksav.history` key holding
@@ -1876,10 +1335,10 @@ function jumpTo(pos: number) {
 // records now live under the document itself (see `docs.ts`).
 
 async function takeSnapshot(force = false): Promise<boolean> {
-  if (!view || !currentDoc) return false;
-  const body = view.state.doc.toString();
+  if (!runtime.view || !runtime.currentDoc) return false;
+  const body = runtime.view.state.doc.toString();
   try {
-    const stored = await docs.pushSnapshot(currentDoc.id, body);
+    const stored = await docs.pushSnapshot(runtime.currentDoc.id, body);
     if (!stored && force) {
       // Nothing changed since the last snapshot: the point is already kept.
       setStatus(t("snapshotUnchanged"), "");
@@ -1913,12 +1372,12 @@ function closeHistory() {
 
 async function renderHistory() {
   const host = document.getElementById("history-list");
-  if (!host || !currentDoc) return;
-  const list = (await docs.snapshots(currentDoc.id)).slice().reverse();
+  if (!host || !runtime.currentDoc) return;
+  const list = (await docs.snapshots(runtime.currentDoc.id)).slice().reverse();
   host.innerHTML = "";
   // Say whose history this is: with one list per document, the title is the
   // thing that makes "restore" a safe button to press.
-  host.append(el("div", { class: "history-scope" }, [tf("historyOf", currentDoc.title)]));
+  host.append(el("div", { class: "history-scope" }, [tf("historyOf", runtime.currentDoc.title)]));
   if (!list.length) {
     host.append(el("div", { class: "outline-empty" }, [t("noHistory")]));
     return;
@@ -1946,7 +1405,7 @@ function openPalette() {
 }
 function closePalette() {
   document.getElementById("palette")!.classList.remove("open");
-  view.focus();
+  runtime.view.focus();
 }
 /**
  * Move the palette selection, and run the selected command.
@@ -2008,7 +1467,7 @@ function renderPaletteList(q: string) {
   const list = document.getElementById("palette-list")!;
   const lang = getLang();
   const query = q.trim().toLowerCase();
-  const items = commandsReg.filter((c) => {
+  const items = runtime.commandsReg.filter((c) => {
     if (!query) return true;
     return (
       c.he.includes(query) ||
@@ -2046,12 +1505,12 @@ function renderPaletteList(q: string) {
 
 // ---------------------------------------------------------------- templates / exports
 function loadBody(body: string) {
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: body },
+  runtime.view.dispatch({
+    changes: { from: 0, to: runtime.view.state.doc.length, insert: body },
     selection: { anchor: 0 },
   });
   closeMenus();
-  view.focus();
+  runtime.view.focus();
   scheduleCompile();
 }
 function loadTemplate(tpl: TemplateDef) {
@@ -2078,7 +1537,7 @@ function saveAsTemplate() {
   const name = prompt(t("templateName"));
   if (!name) return;
   const list = userTemplates();
-  list.push({ id: "u" + performance.now().toString(36), name, body: view.state.doc.toString() });
+  list.push({ id: "u" + performance.now().toString(36), name, body: runtime.view.state.doc.toString() });
   saveUserTemplates(list);
   rerenderChrome();
 }
@@ -2087,17 +1546,6 @@ function deleteUserTemplate(id: string) {
   rerenderChrome();
 }
 
-function download(name: string, blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const a = el("a", { href: url, download: name });
-  a.click();
-  URL.revokeObjectURL(url);
-}
-/**
- * Open a file into a NEW library document, rather than overwriting whatever is
- * currently open. "Open" destroying your unsaved work is not acceptable in a
- * writing tool.
- */
 async function openFile() {
   closeMenus();
   const opened = await files.openFile();
@@ -2113,7 +1561,7 @@ async function openFile() {
 
 async function fileText(): Promise<string> {
   await flushSaves();
-  return docs.serializeDoc(currentDoc);
+  return docs.serializeDoc(runtime.currentDoc);
 }
 
 /** Save to the bound file; if there is none, fall through to Save As. */
@@ -2121,21 +1569,21 @@ async function saveFile() {
   closeMenus();
   await takeSnapshot(true);
   const text = await fileText();
-  if (currentBinding && files.canWriteBack(currentBinding)) {
-    if (!(await files.ensureWritable(currentBinding))) {
+  if (runtime.currentBinding && files.canWriteBack(runtime.currentBinding)) {
+    if (!(await files.ensureWritable(runtime.currentBinding))) {
       setStatus(t("permissionDenied"), "err");
       return;
     }
     let written = false;
     try {
-      written = await files.saveTo(currentBinding, text);
+      written = await files.saveTo(runtime.currentBinding, text);
     } catch (e) {
       setStatus(`${t("saveFailed")} — ${String(e)}`, "err");
       return;
     }
     if (written) {
-      unsavedToFile = false;
-      setStatus(tf("savedTo", currentBinding.name), "ok");
+      save.markFileSaved();
+      setStatus(tf("savedTo", runtime.currentBinding.name), "ok");
       return;
     }
     // The binding no longer authorises a write — a desktop path from a previous
@@ -2147,12 +1595,12 @@ async function saveFile() {
 async function saveFileAs() {
   closeMenus();
   const text = await fileText();
-  const binding = await files.saveAs(currentDoc.title || "document", text);
+  const binding = await files.saveAs(runtime.currentDoc.title || "document", text);
   if (!binding) return;
-  currentBinding = binding;
-  await docs.setFileName(currentDoc.id, binding.name);
-  await files.rememberBinding(currentDoc.id, binding);
-  unsavedToFile = false;
+  runtime.setCurrentBinding(binding);
+  await docs.setFileName(runtime.currentDoc.id, binding.name);
+  await files.rememberBinding(runtime.currentDoc.id, binding);
+  save.markFileSaved();
   updateTitleBar();
   setStatus(
     files.canWriteBack(binding) ? tf("savedTo", binding.name) : tf("savedCopy", binding.name),
@@ -2172,29 +1620,14 @@ async function saveFileAs() {
 const FILE_AUTOSAVE_MS = 30_000;
 
 async function autosaveToFile() {
-  if (!unsavedToFile || !currentBinding || !files.canWriteBack(currentBinding)) return;
-  if (!settings.autosaveFile) return;
-  if (!(await files.hasWritePermission(currentBinding))) return;
-  try {
-    await files.saveTo(currentBinding, await fileText());
-    unsavedToFile = false;
-    setStatus(tf("autosavedTo", currentBinding.name), "ok");
-  } catch {
-    // A background save that fails must not steal the writer's attention; the
-    // next manual Save will report it properly.
+  const name = runtime.currentBinding?.name ?? "";
+  if (await save.autosaveToFile(settings.autosaveFile !== false, fileText)) {
+    setStatus(tf("autosavedTo", name), "ok");
   }
 }
 
 function newDoc() {
   void newNamedDoc();
-}
-
-/** A transient message in the status bar. */
-function setStatus(msg: string, cls = "") {
-  const status = document.getElementById("status");
-  if (!status) return;
-  status.textContent = msg;
-  status.className = cls;
 }
 
 // ---------------------------------------------------------------- table editing
@@ -2216,9 +1649,9 @@ function tableToolbar(): HTMLElement {
 /** Show or hide the table bar for wherever the cursor currently is. */
 function updateTableBar() {
   const bar = document.getElementById("table-bar");
-  if (!bar || !view) return;
-  const doc = view.state.doc.toString();
-  const pos = view.state.selection.main.head;
+  if (!bar || !runtime.view) return;
+  const doc = runtime.view.state.doc.toString();
+  const pos = runtime.view.state.selection.main.head;
   // Named `tbl`, not `t`: `t` is the translation function, and shadowing it here
   // makes every label in this toolbar a compile error.
   const tbl = tables.tableAt(doc, pos);
@@ -2235,7 +1668,7 @@ function updateTableBar() {
 
   const apply = (next: string) => {
     if (next === doc) return;
-    view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+    runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
     scheduleCompile();
     // The bar is rebuilt from the new document on the next selection update.
     requestAnimationFrame(updateTableBar);
@@ -2281,16 +1714,16 @@ function closeStyles() {
 
 /** Read the document's current value for one styling argument. */
 function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
-  const call = styles.findStyleCall(view.state.doc.toString(), kind);
+  const call = styles.findStyleCall(runtime.view.state.doc.toString(), kind);
   return call?.args.get(key);
 }
 
 /** Write styling arguments into the document, replacing the existing call. */
 function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
-  const doc = view.state.doc.toString();
+  const doc = runtime.view.state.doc.toString();
   const next = styles.setStyleArgs(doc, kind, changes);
   if (next === doc) return;
-  view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+  runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
   scheduleCompile();
   renderStylesPanel();
 }
@@ -2421,9 +1854,9 @@ function renderStylesPanel() {
     el("h3", {}, [t("stylePresets")]),
     el("p", { class: "styles-note" }, [t("presetWarning")]),
     presets,
-    ...(styleUndo
+    ...(pendingUndo()
       ? [el("button", { class: "style-undo", onClick: () => { undoSkin(); renderStylesPanel(); } }, [
-          "↶ " + tf("undoPreset", t("skin." + styleUndo.name)),
+          "↶ " + tf("undoPreset", t("skin." + pendingUndo()!.name)),
         ])]
       : []),
 
@@ -2473,21 +1906,6 @@ function closeModal() {
   document.getElementById("form-modal")!.classList.remove("open");
 }
 
-/** A labelled row holding one control, for the modal and the review panel. */
-function fieldRow(label: string, control: Node): HTMLElement {
-  return el("label", { class: "set-row" }, [el("span", {}, [label]), control]);
-}
-
-function textField(value = "", placeholder = ""): HTMLInputElement {
-  return el("input", { type: "text", value, placeholder }) as HTMLInputElement;
-}
-function numberField(value: string, min: number, max: number, step = 1): HTMLInputElement {
-  return el("input", { type: "number", value, min, max, step }) as HTMLInputElement;
-}
-function checkField(checked = false): HTMLInputElement {
-  return el("input", { type: "checkbox", ...(checked ? { checked: "checked" } : {}) }) as HTMLInputElement;
-}
-
 // ---------------------------------------------------------------- review
 //
 // Tracked changes and editorial comments — the one thing anyone editing someone
@@ -2516,10 +1934,10 @@ function addComment() {
   if (!text) return;
   const by = settings.reviewer?.trim();
   const args = by ? `(מאת: "${by.replace(/"/g, "")}")` : "";
-  const at = view.state.selection.main.to;
+  const at = runtime.view.state.selection.main.to;
   const call = `#הערת_עורך${args}[${text}]`;
-  view.dispatch({ changes: { from: at, to: at, insert: call }, selection: { anchor: at + call.length } });
-  view.focus();
+  runtime.view.dispatch({ changes: { from: at, to: at, insert: call }, selection: { anchor: at + call.length } });
+  runtime.view.focus();
   scheduleCompile();
   if (isReviewOpen()) renderReviewPanel();
 }
@@ -2540,31 +1958,31 @@ function closeReview() {
 
 /** Replace the whole document text (a decision rewrites the source). */
 function replaceDoc(next: string) {
-  const doc = view.state.doc.toString();
+  const doc = runtime.view.state.doc.toString();
   if (next === doc) return;
-  view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+  runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
   scheduleCompile();
   renderReviewPanel();
 }
 
 function decideMark(mark: review.ReviewMark, decision: review.Decision) {
-  replaceDoc(review.decide(view.state.doc.toString(), mark, decision));
+  replaceDoc(review.decide(runtime.view.state.doc.toString(), mark, decision));
 }
 
 function decideEverything(decision: review.Decision) {
   if (!confirm(t(decision === "accept" ? "confirmAcceptAll" : "confirmRejectAll"))) return;
-  replaceDoc(review.decideAll(view.state.doc.toString(), decision));
+  replaceDoc(review.decideAll(runtime.view.state.doc.toString(), decision));
 }
 
-/** Which review view the document currently reads in. */
+/** Which review runtime.view the document currently reads in. */
 function reviewView(): review.ReviewView {
-  const raw = styles.findStyleCall(view.state.doc.toString(), "review")?.args.get("תצוגה");
+  const raw = styles.findStyleCall(runtime.view.state.doc.toString(), "review")?.args.get("תצוגה");
   return review.viewFromValue(styles.readString(raw));
 }
 
 function setReviewView(v: review.ReviewView) {
-  const doc = view.state.doc.toString();
-  // The markup view is the default, so it is written as *no* command at all
+  const doc = runtime.view.state.doc.toString();
+  // The markup runtime.view is the default, so it is written as *no* command at all
   // rather than as a redundant one sitting at the top of every reviewed file.
   const next = styles.setStyleArgs(doc, "review", {
     "תצוגה": v === "markup" ? null : styles.typstString(review.VIEW_VALUE[v]),
@@ -2576,8 +1994,8 @@ const MARK_ICON: Record<review.MarkKind, string> = { insert: "＋", delete: "－
 
 function renderReviewPanel() {
   const box = document.getElementById("review-body");
-  if (!box || !view) return;
-  const doc = view.state.doc.toString();
+  if (!box || !runtime.view) return;
+  const doc = runtime.view.state.doc.toString();
   const marks = review.scanMarks(doc);
   const changes = marks.filter((m) => m.kind !== "comment").length;
   const view0 = reviewView();
@@ -2802,14 +2220,14 @@ function openNotesChooser() {
 
 function closeNotesChooser() {
   document.getElementById("notes-chooser")!.classList.remove("open");
-  view.focus();
+  runtime.view.focus();
 }
 
 function chooseNote(choice: NoteChoice, which: "primary" | "secondary") {
-  const from = view.state.selection.main.from;
-  const { text, caret } = applyChoice(view.state.doc.toString(), from, choice, which);
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: text },
+  const from = runtime.view.state.selection.main.from;
+  const { text, caret } = applyChoice(runtime.view.state.doc.toString(), from, choice, which);
+  runtime.view.dispatch({
+    changes: { from: 0, to: runtime.view.state.doc.length, insert: text },
     selection: { anchor: caret },
   });
   closeNotesChooser();
@@ -2889,39 +2307,6 @@ async function roomFor(bytes: number): Promise<boolean> {
   return e.usage + needed < e.quota;
 }
 
-function humanSize(bytes: number): string {
-  return bytes < 1024 * 1024
-    ? `${Math.round(bytes / 1024)} KB`
-    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function pickFile(accept: string): Promise<File | null> {
-  return new Promise((resolve) => {
-    const input = el("input", { type: "file", accept, style: "display:none" });
-    let settled = false;
-    const finish = (f: File | null) => {
-      if (settled) return;
-      settled = true;
-      input.remove();
-      resolve(f);
-    };
-    input.addEventListener("change", () => finish(input.files?.[0] ?? null));
-    window.addEventListener("focus", () => setTimeout(() => finish(null), 800), { once: true });
-    document.body.append(input);
-    input.click();
-  });
-}
-
-function readAsDataUrl(f: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(f);
-  });
-}
-
-/** Attach a file to the open document, returning the name it got. */
 async function attachAsset(f: File, kind: DocAsset["kind"]): Promise<string | null> {
   if (f.size > MAX_ASSET_BYTES) {
     setStatus(tf("assetTooBig", humanSize(f.size), humanSize(MAX_ASSET_BYTES)), "err");
@@ -2931,15 +2316,15 @@ async function attachAsset(f: File, kind: DocAsset["kind"]): Promise<string | nu
     setStatus(t("storageFull"), "err");
     return null;
   }
-  const name = docs.uniqueAssetName(currentDoc.assets, f.name);
+  const name = docs.uniqueAssetName(runtime.currentDoc.assets, f.name);
   const added: DocAsset = { name, data: await readAsDataUrl(f), kind };
-  currentDoc.assets.push(added);
+  runtime.currentDoc.assets.push(added);
   try {
-    await docs.putDoc(currentDoc);
+    await docs.putDoc(runtime.currentDoc);
   } catch (e) {
     // Take the attachment back out rather than leaving the in-memory document
     // referring to bytes that were never stored.
-    currentDoc.assets = currentDoc.assets.filter((a) => a !== added);
+    runtime.currentDoc.assets = runtime.currentDoc.assets.filter((a) => a !== added);
     reportSaveFailure(e);
     return null;
   }
@@ -2970,238 +2355,10 @@ async function addFont() {
 }
 
 async function removeAsset(name: string) {
-  currentDoc.assets = currentDoc.assets.filter((a) => a.name !== name);
+  runtime.currentDoc.assets = runtime.currentDoc.assets.filter((a) => a.name !== name);
   await saveNow();
   scheduleCompile();
   rerenderChrome();
-}
-
-/**
- * Warn when what is about to leave the app was built from a *healed* copy.
- *
- * `lastResult` comes from the speculative compile, so while a bracket is missing
- * it holds a document with closers the writer never typed. Keeping the preview
- * alive on that basis is a kindness; letting a file walk out the door on it
- * without a word is not — the status line may have scrolled past by the time
- * they hit Export.
- */
-function warnIfHealed() {
-  const n = analyze(view.state.doc.toString()).problems.length;
-  if (n) setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
-}
-
-/**
- * Export the PDF.
- *
- * Asks the engine for one now rather than reusing the preview's, because the
- * preview no longer carries a PDF at all — rendering one on every keystroke was
- * ~300 KB of base64 per response that nothing on screen ever read.
- */
-async function exportPdf() {
-  closeMenus();
-  setStatus(t("rendering"), "");
-  const res = await compileForExport();
-  if (!res?.pdf_base64) {
-    setStatus(t("compileError"), "err");
-    return;
-  }
-  const bytes = Uint8Array.from(atob(res.pdf_base64), (c) => c.charCodeAt(0));
-  download(fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
-  warnIfHealed();
-}
-
-async function exportTypst() {
-  closeMenus();
-  const res = await compileForExport();
-  if (!res) return;
-  download(fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
-  warnIfHealed();
-}
-/**
- * The rendered pages wrapped in HTML — a *picture* of the document.
- *
- * This is what printing wants (it must look exactly like the PDF), and it is the
- * fallback for the web export when Typst's HTML backend cannot handle a
- * document. It is not reflowable and is not what "Export HTML" should mean.
- */
-function pageImageHtml(): string {
-  const pages = (lastResult?.pages_svg || [])
-    .map((s) => `<div class="page">${s}</div>`)
-    .join("\n");
-  return `<!doctype html><html dir="${settings.dir}"><head><meta charset="utf-8">
-<title>${escapeAttr(currentDoc?.title ?? "Ksav")}</title><style>body{background:#e5e7eb;margin:0;padding:24px}
-.page{background:#fff;max-width:820px;margin:0 auto 24px;box-shadow:0 2px 12px rgba(0,0,0,.15)}
-.page svg{width:100%;height:auto;display:block}</style></head><body>${pages}</body></html>`;
-}
-
-function escapeAttr(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-}
-
-/**
- * Real web content: Typst's own HTML backend, so headings are headings and the
- * text reflows, is selectable and reads on a phone.
- *
- * Typst's HTML export is still under development and can fail on a document the
- * paged backend renders fine. When it does, say so and fall back to the page
- * images rather than silently producing nothing.
- */
-async function exportHtml() {
-  // Unlike the Word handoff, this one may fall back to page images: an HTML file
-  // that merely *shows* the document is still useful, where one Word cannot edit
-  // is not.
-  const html = await reflowableHtml();
-  download(
-    fileStem() + ".html",
-    new Blob([html ?? pageImageHtml()], { type: "text/html;charset=utf-8" }),
-  );
-}
-
-// ---------------------------------------------------------------- Word handoff
-//
-// `.docx` from Typst is not feasible and is correctly ruled out. But "produce a
-// .docx" was never the requirement — the requirement is that the rebbi, the
-// chavrusa or the kovetz editor this document is sent to can *edit* it, and all
-// of them open Word. Word reads HTML natively and converts it to a real editable
-// document, so Typst's own reflowable HTML export reaches them after all.
-//
-// What crosses over: prose, headings, bold/italic, lists, tables and plain
-// footnotes. What flattens: the multi-stream apparatus, fixed bands and side
-// columns — which is honest, and no loss, because nobody edits an eleven-layer
-// apparatus in Word anyway. `wordFlattenNote` says so rather than letting it be
-// discovered.
-
-const PAPER_CSS: Record<string, string> = {
-  a4: "21cm 29.7cm",
-  "us-letter": "8.5in 11in",
-  a5: "14.8cm 21cm",
-  a3: "29.7cm 42cm",
-};
-
-/**
- * Wrap reflowable HTML in the envelope Word looks for.
- *
- * The `mso` namespaces plus the `<w:WordDocument>` block are what make Word treat
- * the file as its own document rather than a web page it is merely displaying —
- * without them it opens in Web Layout with no page size, and "Save As .docx"
- * produces something that prints wrong. `@page` carries the real paper and
- * margins across, and `dir` carries the RTL.
- */
-function wordEnvelope(inner: string, styles: string): string {
-  const size = PAPER_CSS[settings.paper] ?? PAPER_CSS.a4;
-  const dir = settings.dir;
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><title>${escapeAttr(currentDoc?.title ?? "Ksav")}</title>
-<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
-<w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
-<style>
-@page WordSection1 { size: ${size}; margin: ${settings.margin_cm}cm; }
-div.WordSection1 { page: WordSection1; }
-body { font-family: "${settings.font}", serif; font-size: ${settings.size_pt}pt;
-       direction: ${dir}; text-align: ${dir === "rtl" ? "right" : "left"};
-       line-height: ${1 + settings.line_spacing_em}; }
-table { border-collapse: collapse; }
-td, th { border: 1px solid #000; padding: 4pt; }
-${styles}
-</style></head>
-<body dir="${dir}" lang="${dir === "rtl" ? "he" : "en"}"><div class="WordSection1">
-${inner}
-</div></body></html>`;
-}
-
-/** Pull the body content and any styles out of Typst's full HTML document. */
-function splitHtml(html: string): { inner: string; styles: string } {
-  const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html);
-  const styles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
-    .map((m) => m[1])
-    .join("\n");
-  return { inner: body ? body[1] : html, styles };
-}
-
-/**
- * Ask the engine for reflowable HTML. Returns null (having said why) when
- * Typst's HTML backend cannot handle this document — page images are useless
- * here, because a picture is exactly what Word cannot edit.
- */
-async function reflowableHtml(): Promise<string | null> {
-  if (!backend) return null;
-  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
-  const body = pre + view.state.doc.toString();
-  try {
-    const res = (await backend.compile(body, cfg(), {
-      ...docs.requestAssets(currentDoc?.assets ?? []),
-      format: "html",
-    })) as unknown as { ok: boolean; html?: string; diagnostics?: Diagnostic[] };
-    if (res.ok && res.html) return res.html;
-    const why = res.diagnostics?.[0]?.message ?? "";
-    setStatus(t("htmlFellBack") + (why ? ` — ${friendlyError(why)}` : ""), "warn");
-  } catch {
-    setStatus(t("htmlFellBack"), "warn");
-  }
-  return null;
-}
-
-async function exportWord() {
-  const html = await reflowableHtml();
-  if (!html) return;
-  const { inner, styles } = splitHtml(html);
-  // `.doc` (not `.docx`): Word opens HTML under this extension and converts it,
-  // and the writer can then Save As a genuine .docx from inside Word.
-  download(
-    fileStem() + ".doc",
-    new Blob([wordEnvelope(inner, styles)], { type: "application/msword;charset=utf-8" }),
-  );
-  setStatus(t("wordFlattenNote"), "warn");
-}
-
-/** The same content onto the clipboard, for pasting into an already-open Word. */
-async function copyForWord() {
-  const html = await reflowableHtml();
-  if (!html) return;
-  const { inner, styles } = splitHtml(html);
-  const full = wordEnvelope(inner, styles);
-  try {
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/html": new Blob([full], { type: "text/html" }),
-        "text/plain": new Blob([toPlainText(view.state.doc.toString())], { type: "text/plain" }),
-      }),
-    ]);
-    setStatus(t("copiedForWord"), "ok");
-  } catch {
-    setStatus(t("copyFailed"), "warn");
-  }
-}
-
-/** A filename stem from the document's title, safe on every platform. */
-function fileStem(): string {
-  const raw = (currentDoc?.title ?? "ksav").trim();
-  const safe = raw.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "-");
-  return safe || "ksav";
-}
-
-function exportMarkdown() {
-  download(
-    fileStem() + ".md",
-    new Blob([toMarkdown(view.state.doc.toString())], { type: "text/markdown;charset=utf-8" }),
-  );
-}
-
-function exportText() {
-  download(
-    fileStem() + ".txt",
-    new Blob([toPlainText(view.state.doc.toString())], { type: "text/plain;charset=utf-8" }),
-  );
-}
-function doPrint() {
-  const w = window.open("", "_blank");
-  if (!w) return;
-  // Printing wants the page images: what comes out of the printer must look
-  // exactly like the PDF, which reflowable HTML would not.
-  w.document.write(pageImageHtml());
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
 }
 
 // ---------------------------------------------------------------- setting mutations
@@ -3213,20 +2370,20 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     rerenderChrome();
   } else if (key === "theme") {
     applyTheme();
-    view.dispatch({ effects: themeCompartment.reconfigure(editorTheme(settings.theme === "dark")) });
+    runtime.view.dispatch({ effects: themeCompartment.reconfigure(editorTheme(settings.theme === "dark")) });
   } else if (key === "prose") {
-    view.dispatch({ effects: proseCompartment.reconfigure(settings.prose ? proseMode : []) });
+    runtime.view.dispatch({ effects: proseCompartment.reconfigure(settings.prose ? proseMode : []) });
     rerenderChrome();
   } else if (key === "layout") {
     applyLayout();
     rerenderChrome();
   } else if (key === "dir") {
-    view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: settings.dir })) });
+    runtime.view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: settings.dir })) });
     scheduleCompile();
   } else if (key === "zoom") {
     applyZoom();
   } else if (key === "autocomplete") {
-    view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
+    runtime.view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
   } else if (key === "spellcheck") {
     // Turning it off must take the existing squiggles with it, not just stop
     // adding new ones.
@@ -3292,7 +2449,7 @@ function wireSplitter() {
     saveSettings();
   };
   splitter.addEventListener("pointerdown", (e) => {
-    if (settings.layout !== "two") return; // splitter only active in split view
+    if (settings.layout !== "two") return; // splitter only active in split runtime.view
     dragging = true;
     (e as PointerEvent).preventDefault();
     document.body.style.userSelect = "none";
@@ -3309,7 +2466,7 @@ function cycleLayout() {
   if (next === "page" && !settings.prose) {
     settings.prose = true;
     saveSettings();
-    view.dispatch({ effects: proseCompartment.reconfigure(proseMode) });
+    runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseMode) });
   }
   setSetting("layout", next);
 }
@@ -3350,7 +2507,7 @@ function render() {
   app.dataset.layout = settings.layout;
   app.append(
     buildHeader(),
-    buildNikudBar(),
+    buildNikudBar(scheduleCompile),
     el("main", {}, [
       el("section", { class: "pane preview-pane", "aria-label": t("preview") }, [
         el("div", { class: "pane-head", "data-i18n": "preview" }, [t("preview")]),
@@ -3447,7 +2604,7 @@ function render() {
     ]),
   );
 
-  view = makeEditor();
+  runtime.setView(makeEditor());
   wireSyncScroll();
   wireSplitter();
   applyTheme();
@@ -3476,11 +2633,11 @@ function wireKeys() {
       closeReview();
       closeModal();
     } else if (e.key === "Alt" && settings.prose) {
-      view.dispatch({ effects: setRevealAll.of(true) });
+      runtime.view.dispatch({ effects: setRevealAll.of(true) });
     }
   });
   window.addEventListener("keyup", (e) => {
-    if (e.key === "Alt" && settings.prose) view.dispatch({ effects: setRevealAll.of(false) });
+    if (e.key === "Alt" && settings.prose) runtime.view.dispatch({ effects: setRevealAll.of(false) });
   });
   window.addEventListener("click", (e) => {
     closeMenus();
@@ -3499,7 +2656,7 @@ function maybeOnboard() {
       el(
         "div",
         { class: "welcome-templates" },
-        templatesReg
+        runtime.templatesReg
           .slice(0, 6)
           .map((tpl) =>
             el("button", { class: "welcome-tpl", onClick: () => { loadBody(tpl.body); dismissOnboard(); } }, [
@@ -3517,33 +2674,51 @@ function dismissOnboard() {
   document.getElementById("welcome")?.remove();
 }
 
+/**
+ * Hand the shell's own operations to the modules that need them.
+ *
+ * `runtime.ts` and `save.ts` are imported *by* the panels, so they cannot import
+ * the shell back without a cycle. Installing the three things they need as hooks
+ * says the dependency is deliberate and one-directional, where a circular import
+ * would only hide it. Registered before anything is drawn, so no code path can
+ * fire one of them while it is still the default no-op.
+ */
+function installHooks() {
+  runtime.onRerenderChrome(rerenderChrome);
+  runtime.onOpenDoc(openDoc);
+  save.onUpdateTitleBar(updateTitleBar);
+  // Spell-check rides the compile timer: one pause in typing, both schedules.
+  onSchedule(scheduleSpellCheck);
+}
+
 async function boot() {
+  installHooks();
   // The store opens before anything is drawn: the editor is constructed with
   // the document's text in it, so there is never a frame in which the writer
   // could type into a buffer that has no document behind it.
   try {
-    currentDoc = await docs.init(STARTER, t("untitled"));
+    runtime.setCurrentDoc(await docs.init(STARTER, t("untitled")));
   } catch (e) {
     // No durable store at all — a private window, or storage blocked. Say so
     // loudly and start an in-memory document rather than pretending.
-    currentDoc = { id: docs.newId(), title: t("untitled"), body: STARTER, assets: [], updated: Date.now() };
+    runtime.setCurrentDoc({ id: docs.newId(), title: t("untitled"), body: STARTER, assets: [], updated: Date.now() });
     render();
     wireKeys();
     reportSaveFailure(e);
-    backend = await createBackend();
+    runtime.setBackend(await createBackend());
     runCompile();
     return;
   }
-  void files.recallBinding(currentDoc.id).then((b) => {
-    currentBinding = b;
+  void files.recallBinding(runtime.currentDoc.id).then((b) => {
+    runtime.setCurrentBinding(b);
     updateTitleBar();
   });
   render();
   wireKeys();
-  wireUnloadGuard();
+  save.wireUnloadGuard();
   const status = document.getElementById("status")!;
   status.textContent = t("rendering");
-  backend = await createBackend();
+  runtime.setBackend(await createBackend());
   const badge = document.getElementById("engine-badge");
   if (badge) {
     const labels: Record<string, string> = {
@@ -3551,10 +2726,14 @@ async function boot() {
       wasm: "⬡ wasm",
       desktop: "🖥 native",
     };
-    badge.textContent = labels[backend.kind] ?? backend.kind;
+    badge.textContent = labels[runtime.backend!.kind] ?? runtime.backend!.kind;
   }
   try {
-    [commandsReg, templatesReg] = await Promise.all([backend.commands(), backend.templates()]);
+    const [commands, templates] = await Promise.all([
+      runtime.backend!.commands(),
+      runtime.backend!.templates(),
+    ]);
+    runtime.setRegistries(commands, templates);
     rerenderChrome();
     maybeOnboard();
   } catch {
@@ -3571,36 +2750,5 @@ async function boot() {
   window.setInterval(() => void autosaveToFile(), FILE_AUTOSAVE_MS);
 }
 
-/**
- * Don't let a close throw work away.
- *
- * Two different things can be unsaved, and they need different treatment. The
- * library copy is written on a 600 ms debounce, so on the way out we simply
- * flush it — no prompt, because there is nothing for the writer to decide. The
- * *file* on disk is another matter: only the writer knows whether they meant to
- * save it, so that one asks. Closing a tab with unsaved changes to a bound file
- * used to lose them with no prompt at all.
- */
-function wireUnloadGuard() {
-  window.addEventListener("beforeunload", (e) => {
-    if (unsavedChanges) void saveNow();
-    if (saveFailure || (unsavedToFile && currentBinding && files.canWriteBack(currentBinding))) {
-      e.preventDefault();
-      // Browsers ignore the string and show their own wording, but returnValue
-      // still has to be set for the prompt to appear at all.
-      e.returnValue = "";
-      return "";
-    }
-    return undefined;
-  });
-  // `beforeunload` is not guaranteed on mobile or when a tab is discarded;
-  // `pagehide` is the one that actually fires there.
-  window.addEventListener("pagehide", () => {
-    if (unsavedChanges) void saveNow();
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && unsavedChanges) void saveNow();
-  });
-}
 
 boot();

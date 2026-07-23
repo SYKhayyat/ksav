@@ -165,16 +165,32 @@ export class HttpBackend implements Backend {
 export class WasmBackend implements Backend {
   readonly kind = "wasm";
   private worker: Worker | null = null;
+  private booting: Promise<Worker> | null = null;
   private nextId = 1;
   private pending = new Map<number, { resolve: (s: string) => void; reject: (e: Error) => void }>();
 
-  private ensure(): Worker {
-    if (this.worker) return this.worker;
-    // Constructed inside `if (__WASM__)` so the default build, where __WASM__ is
-    // the literal `false`, drops the worker and the 23 MB module with it. Only
-    // an offline build (VITE_WASM=1) bundles them.
+  private ensure(): Promise<Worker> {
+    if (this.worker) return Promise.resolve(this.worker);
+    if (!this.booting) {
+      this.booting = this.spawn();
+      // A failed spawn must not be remembered as a permanent verdict.
+      this.booting.catch(() => {
+        this.booting = null;
+      });
+    }
+    return this.booting;
+  }
+
+  private async spawn(): Promise<Worker> {
+    // `__WASM__` is the literal `false` in the default build, so this throw is
+    // unconditional there and everything after it is dead code the bundler
+    // removes — taking the worker chunk and the 28 MB module with it. That only
+    // works because the `new Worker(new URL(…))` lives behind a dynamic import:
+    // written inline it is a *static* construct the bundler resolves before it
+    // ever evaluates this branch. See `wasm-worker-host.ts`.
     if (!__WASM__) throw new Error("wasm backend not built");
-    const w = new Worker(new URL("./wasm-worker.ts", import.meta.url), { type: "module" });
+    const { createEngineWorker } = await import("@wasm-worker-host");
+    const w = createEngineWorker();
     w.onmessage = (e: MessageEvent<{ id: number; ok: boolean; output?: string; error?: string }>) => {
       const { id, ok, output, error } = e.data;
       const slot = this.pending.get(id);
@@ -195,10 +211,11 @@ export class WasmBackend implements Backend {
     this.pending.clear();
     this.worker?.terminate();
     this.worker = null;
+    this.booting = null;
   }
 
-  private call(name: string, input: string): Promise<string> {
-    const w = this.ensure();
+  private async call(name: string, input: string): Promise<string> {
+    const w = await this.ensure();
     const id = this.nextId++;
     return new Promise<string>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });

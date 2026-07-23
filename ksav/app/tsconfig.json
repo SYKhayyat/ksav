@@ -9,7 +9,14 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
+    "baseUrl": ".",
+    "paths": {
+      // Vite swaps this module by build mode (see vite.config.ts): the real
+      // spawner when VITE_WASM=1, a throwing stub otherwise. Both files have
+      // the same shape, so typechecking against either is equivalent.
+      "@wasm-worker-host": ["src/wasm-worker-host.ts"]
+    }
   },
   "include": ["src"]
 }

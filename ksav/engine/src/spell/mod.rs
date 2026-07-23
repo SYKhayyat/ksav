@@ -145,8 +145,16 @@ impl<L: Learn> Dict for Layered<'_, L> {
         let mut scored = self.base.suggest_scored(word);
         scored.extend(self.user.suggest_scored(word));
         scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-        scored.dedup_by(|a, b| a.1 == b.1);
-        scored.into_iter().take(limit).map(|(_, w)| w).collect()
+        // A word the writer has taught it may also be in the bundled lexicon, and
+        // the two can score differently — so dedup by what was seen rather than
+        // by adjacency, keeping the better-scored one.
+        let mut seen = std::collections::HashSet::new();
+        scored
+            .into_iter()
+            .filter(|(_, w)| seen.insert(w.clone()))
+            .take(limit)
+            .map(|(_, w)| w)
+            .collect()
     }
 
     fn len(&self) -> usize {

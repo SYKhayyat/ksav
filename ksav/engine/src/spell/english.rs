@@ -171,8 +171,16 @@ impl Lexicon {
     pub fn suggest(&self, word: &str, limit: usize) -> Vec<String> {
         let mut scored = self.suggest_scored(word);
         scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-        scored.dedup_by(|a, b| a.1 == b.1);
-        scored.into_iter().take(limit).map(|(_, w)| w).collect()
+        // Two entries can re-case to the same suggestion — `The` and `the` both
+        // become `The` for a title-case typo — so dedup on the string that would
+        // actually be offered, keeping the better-scored one.
+        let mut seen = HashSet::new();
+        scored
+            .into_iter()
+            .filter(|(_, w)| seen.insert(w.clone()))
+            .take(limit)
+            .map(|(_, w)| w)
+            .collect()
     }
 
     /// Candidates with their scores, unsorted; lower is better.

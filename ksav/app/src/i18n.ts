@@ -256,6 +256,7 @@ const HE: Dict = {
   aboutTitle: "אודות ורישיונות",
   aboutLicence: "כְּתָב מופץ תחת רישיון MIT או Apache-2.0, לבחירתכם.",
   aboutFonts: "הגופנים המצורפים מורשים בנפרד, והרישיונות שלהם דורשים שההודעה הזו תלווה כל הפצה:",
+  aboutLexicons: "מילון האיות האנגלי בנוי על מסד נתונים חיצוני, שרישיונו דורש אף הוא שההודעה הזו תלווה כל הפצה. המילון העברי נבנה ממקורות שהם נחלת הכלל בלבד.",
   // accessible names for the chrome
   toolbar: "סרגל כלים",
   menubar: "תפריטים",
@@ -560,6 +561,7 @@ const EN: Dict = {
   aboutTitle: "About & licences",
   aboutLicence: "Ksav is distributed under the MIT licence or Apache-2.0, at your option.",
   aboutFonts: "The bundled fonts are separately licensed, and their licences require this notice to accompany any redistribution:",
+  aboutLexicons: "The English spelling dictionary is built on an outside database whose licence also requires this notice to accompany any redistribution. The Hebrew one is built from Public Domain sources only.",
   // accessible names for the chrome
   toolbar: "Toolbar",
   menubar: "Menus",

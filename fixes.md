@@ -372,22 +372,88 @@ One thing that was already right is worth naming, because it is what made the
 engine's version findable: the Word export had been setting `lang="he"` or
 `lang="en"` from the direction since it was written.
 
-### Two decisions, not fixes
+### English spell-check — **done**
 
-**English spell-check is absent, deliberately for now.** The checker skips any
-word containing a Latin letter, so English is never wrong — it is simply never
-checked. That is the safe behaviour and not a satisfying one. Fixing it properly
-means a second lexicon (SCOWL or wamerican, both redistributable) and a second
-morphology: the prefix-stripping that carries Hebrew from 2.9% to 0.7% is
-meaningless for English, which needs its inflections in the word list instead. It
-is perhaps a day's work and ~200 KB more dictionary, and it is a real feature
-rather than a fix, so it is written down here rather than smuggled in.
+The original entry read:
 
-Stated in full, because it is the uncomfortable half: until then an English
-document is unchecked, **and nothing in the interface says so**. The spell-check
-toggle reads as on, and an English page with three typos in it comes back clean.
-That is a misleading silence, and the cheap half of the fix — saying "Hebrew only"
-on the toggle — is worth doing before the expensive half.
+> **English spell-check is absent, deliberately for now.** The checker skips any
+> word containing a Latin letter, so English is never wrong — it is simply never
+> checked. […] Stated in full, because it is the uncomfortable half: until then
+> an English document is unchecked, **and nothing in the interface says so**. The
+> spell-check toggle reads as on, and an English page with three typos in it
+> comes back clean.
+
+There are now two lexicons and two checkers, and the interface names both.
+
+**Dispatch is per word, not per document.** `spell::words` tags every token with
+the script it is written in and `Checker` sends it to that language's lexicon. A
+document-level setting would have been simpler and wrong: Ksav's documents are
+routinely bilingual — an English sefer quoting a Gemara, a Hebrew ma'amar citing
+an English source — and choosing one language per document leaves the other half
+unchecked in exactly the writing this product exists for. It also means nobody
+has to tell it anything. A language with no lexicon loaded is `None` rather than
+an empty dictionary, because "we do not check this script" and "every word in
+this script is wrong" must not be the same state.
+
+**The word list is the mirror image of the Hebrew one.** For Hebrew there is one
+open dictionary and it does not know Torah Hebrew, so Ksav builds its own. For
+English there is an excellent open word list — Kevin Atkinson's English Speller
+Database, the data behind SCOWL, `wamerican` and Aspell — and the one thing it
+lacks is the vocabulary these writers use in every paragraph. *"The Rambam
+paskens that one may not daven Mincha after shkiah"* is nine words, five of which
+a general English dictionary rejects; underline those five and you have
+reproduced Hspell's failure from the other end. So `lexicon-en.txt` is ESDB
+(size 60, US + British + Canadian + Australian spellings) plus the Public Domain
+Judaic English on Sefaria for the biblical proper nouns — that corpus took the
+JPS 1917 Torah from 3.1% missed words to 0.6% — and
+`lexicon-en-supplement.txt` is a thousand hand-written entries of contemporary
+transliteration, which no public-domain corpus can supply because the writing
+that uses it is all in copyright. That paragraph above now measures 0%.
+
+**Four rules of morphology, each earned:**
+
+- *Case, asymmetrically.* A lowercase entry accepts every capitalisation of
+  itself; a capitalised one accepts only itself and its all-caps form. So
+  `Abimelech` passes and `abimelech` does not. The hand supplement is therefore
+  written entirely in lowercase — transliterated words have no settled
+  capitalisation ("the Gemara", "learning gemara"), and insisting on one would
+  underline a correct spelling over a style choice.
+- *Possessives.* ESDB lists `X's` only for words it holds, so every proper noun
+  the corpus and supplement contribute would be a miss the moment someone wrote
+  *about* it. Stripping it in code also let the builder drop 19,000 derivable
+  entries from the shipped file.
+- *The transliterated prefix.* `l'halacha`, `b'gemara`, `d'oraisa` — Hebrew glues
+  its prepositions onto the front of a word and English Torah writing carries
+  that over with an apostrophe. Open-ended, so it is a rule and not a list, with
+  the same three-letter stem bound the Hebrew side uses.
+- *The curly apostrophe.* Every word processor produces U+2019 and every word
+  list uses ASCII. Without folding it, every contraction and possessive in a
+  pasted paragraph is a miss.
+
+**Two things turned up while doing it.** Suggestions used plain Levenshtein, in
+which `teh` is *two* edits from `the` — so the commonest typo in English could
+never be offered. Adjacent transposition is now one edit, which helps Hebrew too.
+And ranking one edit's worth of candidates alphabetically put every capitalised
+entry first, because that is what byte order does: `teh` came back as
+`ETH, NEH, Te, Ted, Tet, Tex, Th` with the list cut off before `the`.
+Transpositions now rank first — every letter the writer intended is present, in
+the right multiset, which is stronger evidence of intent than a substitution.
+
+The standing risk here is the opposite of Hebrew's. Hebrew's danger is
+under-acceptance; English's is over-acceptance, since a 96,000-entry list, a hand
+supplement and two morphological rules give a typo a lot of places to hide. So
+`ordinary_typos_are_still_caught` is as load-bearing as anything else in
+`engine/tests/spell_en.rs`, and the supplement has a test that fails on any entry
+the generated lexicon already accepts, so it cannot quietly fill up with words
+carrying no weight.
+
+ESDB's licence is permissive but explicitly covers word lists derived from it and
+requires its notice in all copies. The notice is carried three ways — the full
+text in `licenses/ESDB.txt`, a copy in the header of the generated lexicon where
+no build step can separate it from the data, and rendered in the app beside the
+font notices — and a test fails if the header copy goes missing.
+
+### One decision, not a fix
 
 **The starter document and all eight templates are Hebrew.** An English writer's
 first screen is Hebrew text they must delete. That is the correct default for a

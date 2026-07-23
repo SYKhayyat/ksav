@@ -29,7 +29,7 @@ Two corpora, because they cover opposite halves of the language
 
 Usage
 -----
-    python tools/build_lexicon.py             # fetch + rebuild assets/lexicon.txt
+    python tools/build_lexicon.py             # fetch + rebuild assets/lexicon-he.txt
     python tools/build_lexicon.py --offline   # rebuild from the cached corpus only
     python tools/build_lexicon.py --benyehuda path/to/txt_stripped.zip
 
@@ -55,7 +55,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.dirname(HERE)
 CACHE = os.path.join(HERE, ".corpus-cache")
-OUT = os.path.join(ENGINE, "assets", "lexicon.txt")
+OUT = os.path.join(ENGINE, "assets", "lexicon-he.txt")
 # Word counts extracted from the Ben-Yehuda dump, so the 246 MB zip is needed
 # only once. Committed? No — it is large and derivable; the built lexicon is what
 # ships.
@@ -240,7 +240,7 @@ def main():
         f.write("# Mishnah Berurah, Rashi) for Torah Hebrew, and Project Ben-Yehuda for\n")
         f.write("# general Hebrew. See that script for the source list and the reasoning.\n")
         f.write("# Do not edit by hand: rerun the builder. Hand additions belong in\n")
-        f.write("# lexicon-supplement.txt.\n")
+        f.write("# lexicon-he-supplement.txt.\n")
         f.write(f"# {len(words)} entries, normalized (no nikud, ASCII gershayim).\n")
         for w in words:
             f.write(w + "\n")

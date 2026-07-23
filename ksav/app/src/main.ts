@@ -1230,19 +1230,49 @@ const BUNDLED_FONT_NOTICES: { name: string; copyright: string; licence: string; 
   },
 ];
 
+/**
+ * The lexicon notices, for the same reason as the fonts.
+ *
+ * `lexicon-en.txt` is a word list derived from the English Speller Database, and
+ * ESDB's licence covers derived word lists explicitly: the copyright and
+ * permission notice must appear in all copies. The list is compiled into the
+ * engine with `include_str!`, so every binary and the wasm module are copies.
+ * The Hebrew lexicon needs no notice — it is built from Public Domain text — and
+ * it is named here anyway, because "which dictionaries is this thing using" is a
+ * fair question and the answer should not be half an answer.
+ */
+const BUNDLED_LEXICON_NOTICES: { name: string; copyright: string; licence: string; url: string }[] = [
+  {
+    name: "English Speller Database (SCOWL)",
+    copyright: "Copyright 2000–2026 Kevin Atkinson; Australian data © 2016 Benjamin Titze",
+    licence: "ESDB licence",
+    url: "https://wordlist.aspell.net",
+  },
+  {
+    name: "Ksav Hebrew lexicon",
+    copyright: "Built from Public Domain texts (Sefaria, Project Ben-Yehuda)",
+    licence: "MIT OR Apache-2.0",
+    url: "https://github.com/SYKhayyat/ksav",
+  },
+];
+
 function buildAboutSection(): Node[] {
   return [
     el("h3", { style: "margin-top:18px" }, [t("aboutTitle")]),
     el("div", { class: "set-note" }, [t("aboutLicence")]),
     el("div", { class: "set-note" }, [t("aboutFonts")]),
-    ...BUNDLED_FONT_NOTICES.map((f) =>
-      el("div", { class: "font-notice" }, [
-        el("b", {}, [f.name]),
-        el("span", {}, [f.copyright]),
-        el("a", { href: f.url, target: "_blank", rel: "noopener noreferrer" }, [f.licence]),
-      ]),
-    ),
+    ...BUNDLED_FONT_NOTICES.map(noticeRow),
+    el("div", { class: "set-note" }, [t("aboutLexicons")]),
+    ...BUNDLED_LEXICON_NOTICES.map(noticeRow),
   ];
+}
+
+function noticeRow(n: { name: string; copyright: string; licence: string; url: string }): HTMLElement {
+  return el("div", { class: "font-notice" }, [
+    el("b", {}, [n.name]),
+    el("span", {}, [n.copyright]),
+    el("a", { href: n.url, target: "_blank", rel: "noopener noreferrer" }, [n.licence]),
+  ]);
 }
 
 let capturing = false;

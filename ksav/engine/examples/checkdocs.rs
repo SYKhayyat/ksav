@@ -1,15 +1,17 @@
-//! Which words in Ksav's own templates does the lexicon flag?
+//! Which words in Ksav's own templates do the lexicons flag?
 //! The first thing a writer sees should not be underlined.
 //! `cargo run --example checkdocs`
 
-use ksav_engine::spell::{self, Lexicon};
+use ksav_engine::spell::{english, hebrew, Checker};
 
 fn main() {
-    let lex = Lexicon::bundled();
+    let he = hebrew::Lexicon::bundled();
+    let en = english::Lexicon::bundled();
+    let checker = Checker::new(Some(&he), Some(&en));
     let mut all: Vec<String> = Vec::new();
     for t in ksav_engine::templates::TEMPLATES {
-        for m in spell::check(t.body, &lex) {
-            all.push(m.word);
+        for m in checker.check(t.body) {
+            all.push(format!("{} [{}] ({})", m.word, m.lang.code(), t.id));
         }
     }
     all.sort();

@@ -2,9 +2,12 @@
 //!
 //! The numbers quoted here are the measured miss rates of the *general* Hebrew
 //! dictionary (Hspell / Hunspell he_IL) on the same kinds of text — the reason
-//! Ksav has its own lexicon at all. See `src/spell.rs`.
+//! Ksav has its own lexicon at all. See `src/spell/hebrew.rs`.
+//!
+//! The English half lives in `spell_en.rs`, and the tokenizer that decides which
+//! of the two a word belongs to is tested in both.
 
-use ksav_engine::spell::{self, Lexicon};
+use ksav_engine::spell::{self, hebrew::Lexicon, Checker};
 
 fn bundled() -> Lexicon {
     Lexicon::bundled()
@@ -59,7 +62,7 @@ fn pointed_text_is_never_flagged() {
     // flags ~99% of it. Ksav's siddur and bentcher templates are pointed
     // throughout; the honest behaviour is to say nothing about them.
     let siddur = "מֵאֵימָתַי קוֹרִין אֶת שְׁמַע בְּעַרְבִית מִשָּׁעָה שֶׁהַכֹּהֲנִים נִכְנָסִים";
-    let found = spell::check(siddur, &bundled());
+    let found = Checker::hebrew_only(&bundled()).check(siddur);
     assert!(
         found.is_empty(),
         "pointed text produced {} squiggles: {:?}",
@@ -72,7 +75,7 @@ fn pointed_text_is_never_flagged() {
 fn a_real_misspelling_is_caught_and_located() {
     let l = bundled();
     let text = "כתב הרמב\"ם בהלכות תפילה כשכשכשכש וכן פסק המחבר";
-    let found = spell::check(text, &l);
+    let found = Checker::hebrew_only(&l).check(text);
     let hit = found
         .iter()
         .find(|m| m.word == "כשכשכשכש")
@@ -90,7 +93,7 @@ fn torah_hebrew_passes_cleanly() {
     let l = bundled();
     let text = "כתב הרמב\"ם דלא אמרינן הכי אלא היכא דאיתא בגמרא, \
                 ועיין תוס' ב\"ק ע\"א ד\"ה והא, וצ\"ע.";
-    let found = spell::check(text, &l);
+    let found = Checker::hebrew_only(&l).check(text);
     assert!(
         found.is_empty(),
         "Torah Hebrew produced squiggles: {:?}",
@@ -101,9 +104,12 @@ fn torah_hebrew_passes_cleanly() {
 #[test]
 fn structural_tokens_are_left_alone() {
     let l = bundled();
-    // Single letters (enumerators, gematria), digits, Latin, and anything mixed.
+    // Single letters (enumerators, gematria), digits, and — for a checker with
+    // no English lexicon loaded — Latin. `Checker::hebrew_only` is the point of
+    // that last one: "there is no dictionary for this script" and "every word in
+    // this script is wrong" must not be the same state.
     for text in ["א. ב. ג.", "פרק 3", "Typst", "ver2", "5773"] {
-        let found = spell::check(text, &l);
+        let found = Checker::hebrew_only(&l).check(text);
         assert!(found.is_empty(), "{text:?} produced squiggles: {found:?}");
     }
 }
@@ -112,7 +118,7 @@ fn structural_tokens_are_left_alone() {
 fn an_abbreviation_is_one_word_not_three() {
     // Splitting on the quote would turn שו"ע into שו + ע and underline both.
     let toks = spell::words("כתב שו\"ע וכן תוס' שם");
-    let found: Vec<&str> = toks.iter().map(|(_, w)| *w).collect();
+    let found: Vec<&str> = toks.iter().map(|t| t.text).collect();
     assert!(found.contains(&"שו\"ע"), "abbreviation was split: {found:?}");
     assert!(found.contains(&"תוס'"), "geresh word was split: {found:?}");
 }
@@ -121,7 +127,7 @@ fn an_abbreviation_is_one_word_not_three() {
 fn an_opening_quote_does_not_glue_to_the_next_word() {
     // A quotation mark before a word is punctuation, not part of it.
     let toks = spell::words("אמר \"שלום\" לחבירו");
-    let found: Vec<&str> = toks.iter().map(|(_, w)| *w).collect();
+    let found: Vec<&str> = toks.iter().map(|t| t.text).collect();
     assert!(found.contains(&"שלום"), "got {found:?}");
     assert!(!found.iter().any(|w| w.starts_with('"')), "a quote glued on: {found:?}");
 }
@@ -152,11 +158,11 @@ fn a_user_dictionary_is_honoured() {
     // chaburah's terminology, every rebbe's name, or the writer's own coinages.
     let mut l = bundled();
     assert!(!l.contains("קווצקוו"), "the test word is already known");
-    assert!(!spell::check("מילה קווצקוו כאן", &l).is_empty());
+    assert!(!Checker::hebrew_only(&l).check("מילה קווצקוו כאן").is_empty());
     l.add_words("# a comment\n\nקווצקוו\n");
     assert!(l.contains("קווצקוו"));
     assert!(
-        !spell::check("מילה קווצקוו כאן", &l)
+        !Checker::hebrew_only(&l).check("מילה קווצקוו כאן")
             .iter()
             .any(|m| m.word == "קווצקוו"),
         "the user's own word is still flagged"
@@ -167,15 +173,15 @@ fn a_user_dictionary_is_honoured() {
 fn the_lexicon_holds_no_nikud() {
     // A pointed entry could never be matched (lookups are stripped) and would
     // silently bloat the asset.
-    for line in include_str!("../assets/lexicon.txt").lines() {
+    for line in include_str!("../assets/lexicon-he.txt").lines() {
         assert!(
-            !spell::is_pointed(line),
+            !spell::hebrew::is_pointed(line),
             "lexicon entry carries nikud: {line:?}"
         );
     }
-    for line in include_str!("../assets/lexicon-supplement.txt").lines() {
+    for line in include_str!("../assets/lexicon-he-supplement.txt").lines() {
         assert!(
-            !spell::is_pointed(line),
+            !spell::hebrew::is_pointed(line),
             "supplement entry carries nikud: {line:?}"
         );
     }
@@ -281,7 +287,7 @@ fn a_hebrew_year_is_not_flagged() {
     // correct by construction.
     let l = bundled();
     for y in ["תשפ\"ה", "תשע\"ד", "תש\"פ", "ה'תשפ\"ו"] {
-        assert!(spell::check(y, &l).is_empty(), "{y:?} was flagged as a misspelling");
+        assert!(Checker::hebrew_only(&l).check(y).is_empty(), "{y:?} was flagged as a misspelling");
     }
 }
 
@@ -292,13 +298,13 @@ fn an_opening_quote_after_a_prefix_is_not_part_of_the_word() {
     // opens a whole word.
     let toks: Vec<&str> = spell::words("ה\"והגית בם\" נאמר")
         .into_iter()
-        .map(|(_, w)| w)
+        .map(|t| t.text)
         .collect();
     assert!(toks.contains(&"והגית"), "the quoted word was glued to the prefix: {toks:?}");
     // …while a genuine acronym still holds together.
     let acronyms: Vec<&str> = spell::words("כתב שו\"ע וכן מהרש\"א")
         .into_iter()
-        .map(|(_, w)| w)
+        .map(|t| t.text)
         .collect();
     assert!(acronyms.contains(&"שו\"ע"), "{acronyms:?}");
     assert!(acronyms.contains(&"מהרש\"א"), "{acronyms:?}");
@@ -307,13 +313,17 @@ fn an_opening_quote_after_a_prefix_is_not_part_of_the_word() {
 #[test]
 fn ksavs_own_templates_are_not_underlined() {
     // The first thing a writer sees must not be covered in squiggles. This is
-    // also a standing check on the lexicon: if a template gains a word the
-    // lexicon does not know, that shows up here rather than in front of a user.
-    let l = bundled();
+    // also a standing check on the lexicons: if a template gains a word neither
+    // one knows, that shows up here rather than in front of a user.
+    //
+    // Both languages, because the templates are now both languages.
+    let he = bundled();
+    let en = ksav_engine::spell::english::Lexicon::bundled();
+    let checker = Checker::new(Some(&he), Some(&en));
     let mut flagged: Vec<String> = Vec::new();
     for t in ksav_engine::templates::TEMPLATES {
-        for m in spell::check(t.body, &l) {
-            flagged.push(format!("{} ({})", m.word, t.id));
+        for m in checker.check(t.body) {
+            flagged.push(format!("{} [{}] ({})", m.word, m.lang.code(), t.id));
         }
     }
     flagged.sort();

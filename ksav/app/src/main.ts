@@ -383,7 +383,10 @@ function updateTitleBar() {
 }
 
 function closeMenus() {
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  document.querySelectorAll(".menu-list.open").forEach((m) => {
+    m.classList.remove("open");
+    m.previousElementSibling?.setAttribute("aria-expanded", "false");
+  });
 }
 
 // User abbreviations: "abbr = expansion" per line. `|` marks the cursor, `\n`
@@ -821,6 +824,19 @@ function friendlyPair(msg: string): { he: string; en: string } | null {
       he: "קובץ (למשל תמונה) לא נמצא — בדקו את הנתיב.",
       en: "A file (e.g. an image) wasn't found — check the path.",
     };
+  // An unknown paper size makes Typst enumerate every name it knows — around
+  // forty of them, in one unbroken line, in the status bar. The writer picked
+  // from a menu of four; naming those four is the entire useful content.
+  if (m.includes("expected") && (m.includes("\"a4\"") || m.includes("\"us-letter\"")))
+    return {
+      he: "גודל דף לא מוכר — בחרו A4, Letter, A5 או A3 בהגדרות (⚙).",
+      en: "Unknown paper size — choose A4, Letter, A5 or A3 in Settings (⚙).",
+    };
+  if (m.includes("unknown font family") || m.includes("no font could be found"))
+    return {
+      he: "הגופן אינו זמין — בחרו גופן מהרשימה בהגדרות, או צרפו קובץ גופן למסמך.",
+      en: "That font isn't available — pick one from the list in Settings, or attach a font file to the document.",
+    };
   if (m.includes("expected") || m.includes("unexpected"))
     return {
       he: "התחביר אינו תקין כאן — בדקו סוגריים, פסיקים ומבנה הפקודה.",
@@ -828,9 +844,25 @@ function friendlyPair(msg: string): { he: string; en: string } | null {
     };
   return null;
 }
+
+/**
+ * How much raw compiler output the status bar will show.
+ *
+ * Anything unmapped is still shown, because an unhelpful message beats a
+ * swallowed one — but it is shown *short*. Typst's longest diagnostics are
+ * enumerations of every valid value, which fill the status bar, push the word
+ * count off screen and tell the writer nothing. The full text stays available:
+ * it is the `title` on the same element, and it is what a bug report needs.
+ */
+const MAX_DIAGNOSTIC_CHARS = 160;
+
 function friendlyError(msg: string): string {
   const p = friendlyPair(msg);
-  return p ? `${p.he}  ·  ${p.en}` : msg;
+  if (p) return `${p.he}  ·  ${p.en}`;
+  const oneLine = msg.replace(/\s+/g, " ").trim();
+  return oneLine.length > MAX_DIAGNOSTIC_CHARS
+    ? oneLine.slice(0, MAX_DIAGNOSTIC_CHARS - 1) + "…"
+    : oneLine;
 }
 
 let compileTimer: number | undefined;
@@ -1171,8 +1203,37 @@ function toggleNikud() {
 }
 
 // ---------------------------------------------------------------- app chrome
+//
+// Every button in this app is a glyph. That is defensible for a dense editing
+// toolbar and indefensible without names: a `title` tooltip is not an accessible
+// name, so a screen reader announced the toolbar as "†, button", "⁑, button",
+// "▤, button" — forty-two of them, page-wide, with zero `aria-label` and no
+// landmarks. Worse for everyone, sighted users included: ⁑ ⇥ ⇤ ▣ § א. ‡ ▤ ⋯ ◫
+// ◧ ⊟ ⊞ ＃ is a private vocabulary with nothing to learn it from, in a product
+// whose competition is Word's labelled ribbon groups.
+//
+// So `iconBtn` requires a name and sets `aria-label` from it, and the toolbar is
+// a set of *labelled* groups — visible captions for sighted users, `role=group`
+// with `aria-label` for assistive technology.
+
 function iconBtn(label: string, title: string, onClick: () => void, cls = "") {
-  return el("button", { class: `tb-btn ${cls}`, title, onClick }, [label]);
+  return el(
+    "button",
+    { class: `tb-btn ${cls}`, title, "aria-label": title, type: "button", onClick },
+    [
+      // The glyph is decorative once the button has a name; leaving it exposed
+      // makes the reader announce "dagger, Footnote" instead of "Footnote".
+      el("span", { "aria-hidden": "true" }, [label]),
+    ],
+  );
+}
+
+/** One labelled ribbon group: the buttons, plus the caption that names them. */
+function tbGroup(label: string, buttons: Node[]): HTMLElement {
+  return el("div", { class: "tb-group", role: "group", "aria-label": label }, [
+    el("div", { class: "tb-group-row" }, buttons),
+    el("span", { class: "tb-group-label", "aria-hidden": "true" }, [label]),
+  ]);
 }
 
 function buildToolbar(): HTMLElement {
@@ -1184,38 +1245,24 @@ function buildToolbar(): HTMLElement {
     const title = lang === "he" ? c.desc_he : c.desc_en;
     return iconBtn(label, `${title} · #${c.he}`, () => insertSnippet(c.insert));
   };
-  const sep = () => el("span", { class: "tb-sep" });
 
-  return el("div", { class: "toolbar" }, [
-    b("הדגשה", "B"),
-    b("נטוי", "I"),
-    b("קו_תחתון", "U"),
-    b("קו_חוצה", "S"),
-    b("סימון", "🖍"),
-    sep(),
-    b("כותרת1", "H1"),
-    b("כותרת2", "H2"),
-    b("כותרת3", "H3"),
-    sep(),
-    b("רשימה", "•"),
-    b("ממוספרת", "1."),
-    b("טבלה", "▦"),
-    b("הערה", "†"),
-    b("הערה_על_הערה", "⁑"),
-    sep(),
-    b("ימין", "⇥"),
-    b("מרכז", "≡"),
-    b("שמאל", "⇤"),
-    sep(),
-    b("ציטוט", "❝"),
-    b("הערת_צד", "▣"),
-    sep(),
-    b("סימן", "§"),
-    b("סעיף", "א."),
-    b("מראה_מקום", "‡"),
-    sep(),
-    iconBtn("▤", t("region"), insertRegion),
-    iconBtn("⋯", t("palette"), openPalette),
+  return el("div", { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") }, [
+    tbGroup(t("cat.style"), [
+      b("הדגשה", "B"),
+      b("נטוי", "I"),
+      b("קו_תחתון", "U"),
+      b("קו_חוצה", "S"),
+      b("סימון", "🖍"),
+    ]),
+    tbGroup(t("cat.heading"), [b("כותרת1", "H1"), b("כותרת2", "H2"), b("כותרת3", "H3")]),
+    tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
+    tbGroup(t("cat.footnote"), [b("הערה", "†"), b("הערה_על_הערה", "⁑"), b("הערת_צד", "▣")]),
+    tbGroup(t("cat.align"), [b("ימין", "⇥"), b("מרכז", "≡"), b("שמאל", "⇤")]),
+    tbGroup(t("cat.torah"), [b("ציטוט", "❝"), b("סימן", "§"), b("סעיף", "א."), b("מראה_מקום", "‡")]),
+    tbGroup(t("tools"), [
+      iconBtn("▤", t("region"), insertRegion),
+      iconBtn("⋯", t("palette"), openPalette),
+    ]),
   ]);
 }
 
@@ -1318,18 +1365,28 @@ function menu(label: string, items: (Node | string)[]): HTMLElement {
  * after the document had been titled. Building on open keeps it honest.
  */
 function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
-  const list = el("div", { class: "menu-list" });
-  const btn = el("button", { class: "menu-btn", onClick: (e: Event) => {
-    e.stopPropagation();
-    document.querySelectorAll(".menu-list.open").forEach((m) => {
-      if (m !== list) m.classList.remove("open");
-    });
-    if (!list.classList.contains("open")) {
-      list.replaceChildren();
-      list.append(...build().map((n) => (typeof n === "string" ? document.createTextNode(n) : n)));
-    }
-    list.classList.toggle("open");
-  } }, [label]);
+  const list = el("div", { class: "menu-list", role: "menu", "aria-label": label });
+  const btn = el("button", {
+    class: "menu-btn",
+    type: "button",
+    "aria-haspopup": "true",
+    "aria-expanded": "false",
+    onClick: (e: Event) => {
+      e.stopPropagation();
+      document.querySelectorAll(".menu-list.open").forEach((m) => {
+        if (m !== list) {
+          m.classList.remove("open");
+          m.previousElementSibling?.setAttribute("aria-expanded", "false");
+        }
+      });
+      if (!list.classList.contains("open")) {
+        list.replaceChildren();
+        list.append(...build().map((n) => (typeof n === "string" ? document.createTextNode(n) : n)));
+      }
+      const open = list.classList.toggle("open");
+      btn.setAttribute("aria-expanded", String(open));
+    },
+  }, [label]);
   return el("div", { class: "menu" }, [btn, list]);
 }
 
@@ -1444,41 +1501,58 @@ function buildHeader(): HTMLElement {
   const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
-  return el("header", {}, [
+  return el("header", { role: "banner" }, [
     el("div", { class: "brand" }, [
       el("span", { class: "brand-name" }, [t("appName")]),
       el("small", {}, [t("tagline")]),
     ]),
     // The open document's name, clickable to rename — a writing tool with a
     // library needs to say, at all times, which document you are in.
-    el("button", { class: "doc-title-btn", title: t("rename"), onClick: renameDoc }, [
-      el("span", { class: "doc-title", id: "doc-title" }, [currentDoc?.title ?? ""]),
-      el("small", { class: "doc-file", id: "doc-file" }, [currentBinding?.name ?? ""]),
-    ]),
+    el(
+      "button",
+      {
+        class: "doc-title-btn",
+        type: "button",
+        title: t("rename"),
+        "aria-label": `${t("rename")}: ${currentDoc?.title ?? ""}`,
+        onClick: renameDoc,
+      },
+      [
+        el("span", { class: "doc-title", id: "doc-title" }, [currentDoc?.title ?? ""]),
+        el("small", { class: "doc-file", id: "doc-file" }, [currentBinding?.name ?? ""]),
+      ],
+    ),
     buildToolbar(),
-    buildInsertMenu(),
+    // The menu bar and the view chips are navigation, and saying so is what
+    // gives a screen-reader user a way to skip past forty-odd controls to the
+    // editor. The page had no landmarks at all.
+    el("nav", { class: "menubar", "aria-label": t("menubar") }, [
+      buildInsertMenu(),
+      buildDocsMenu(),
+      fileMenu,
+      templatesMenu,
+      exportMenu,
+    ]),
     el("div", { class: "spacer" }),
-    buildDocsMenu(),
-    fileMenu,
-    undoBtn,
-    redoBtn,
-    templatesMenu,
-    stylesBtn,
-    exportMenu,
-    findBtn,
-    outlineBtn,
-    notesBtn,
-    reviewBtn,
-    langToggle,
-    foldAllBtn,
-    unfoldAllBtn,
-    proseToggle,
-    layoutToggle,
-    previewSideToggle,
-    themeToggle,
-    nikudBtn,
-    historyBtn,
-    settingsBtn,
+    el("div", { class: "chipbar", role: "group", "aria-label": t("viewControls") }, [
+      undoBtn,
+      redoBtn,
+      stylesBtn,
+      findBtn,
+      outlineBtn,
+      notesBtn,
+      reviewBtn,
+      langToggle,
+      foldAllBtn,
+      unfoldAllBtn,
+      proseToggle,
+      layoutToggle,
+      previewSideToggle,
+      themeToggle,
+      nikudBtn,
+      historyBtn,
+      settingsBtn,
+    ]),
   ]);
 }
 
@@ -1608,7 +1682,7 @@ function buildSettingsDrawer(): HTMLElement {
     return el("label", { class: "set-row" }, [el("span", {}, [t("sc." + a.id)]), btn]);
   });
 
-  return el("aside", { id: "settings-drawer", class: "drawer" }, [
+  return el("aside", { id: "settings-drawer", class: "drawer", "aria-label": t("settings") }, [
     el("h3", {}, [t("settings")]),
     el("label", { class: "set-row" }, [el("span", {}, [t("font")]), fontSel]),
     numberRow("fontSize", "size_pt", 8, 36, 1),
@@ -1952,7 +2026,7 @@ function loadBody(body: string) {
     changes: { from: 0, to: view.state.doc.length, insert: body },
     selection: { anchor: 0 },
   });
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  closeMenus();
   view.focus();
   scheduleCompile();
 }
@@ -1976,7 +2050,7 @@ function saveUserTemplates(list: UserTemplate[]) {
   localStorage.setItem("ksav.userTemplates", JSON.stringify(list));
 }
 function saveAsTemplate() {
-  document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+  closeMenus();
   const name = prompt(t("templateName"));
   if (!name) return;
   const list = userTemplates();
@@ -3254,35 +3328,46 @@ function render() {
     buildHeader(),
     buildNikudBar(),
     el("main", {}, [
-      el("section", { class: "pane preview-pane" }, [
+      el("section", { class: "pane preview-pane", "aria-label": t("preview") }, [
         el("div", { class: "pane-head", "data-i18n": "preview" }, [t("preview")]),
         el("div", { id: "preview" }),
       ]),
-      el("div", { class: "splitter", id: "splitter", title: t("previewSide") }),
-      el("section", { class: "pane source-pane" }, [
+      el("div", {
+        class: "splitter",
+        id: "splitter",
+        title: t("previewSide"),
+        role: "separator",
+        tabindex: "0",
+        "aria-label": t("previewSide"),
+      }),
+      el("section", { class: "pane source-pane", "aria-label": t("source") }, [
         el("div", { class: "pane-head", "data-i18n": "source" }, [t("source")]),
-        el("div", { id: "editor-host" }),
+        el("div", { id: "editor-host", "aria-label": t("source") }),
       ]),
     ]),
-    el("div", { class: "statusbar" }, [
+    // Announced as it changes: "rendering…", "3 pages", a compile error and —
+    // the reason this matters — a save failure are all reported here, and a
+    // status nobody is told about is the failure mode this whole pass exists to
+    // remove. `polite` rather than `assertive`: it must not interrupt typing.
+    el("div", { class: "statusbar", role: "status", "aria-live": "polite" }, [
       el("span", { id: "status", class: "ok" }, [t("ready")]),
       el("span", { id: "diagnostics" }),
       el("span", { id: "wordcount", class: "wordcount" }),
       el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
     ]),
     buildSettingsDrawer(),
-    el("aside", { id: "outline-drawer", class: "drawer drawer-start" }, [
+    el("aside", { id: "outline-drawer", class: "drawer drawer-start", "aria-label": t("outline") }, [
       el("h3", {}, [t("outline")]),
       el("div", { id: "outline-list" }),
     ]),
     tableToolbar(),
     // styles panel (a drawer, so the document stays visible while you tune it)
-    el("aside", { id: "styles-panel", class: "drawer drawer-styles" }, [
+    el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle") }, [
       el("div", { id: "styles-body" }),
     ]),
     // review panel (a drawer, so the document stays visible while you go
     // through the changes — the whole point is comparing them with the text)
-    el("aside", { id: "review-panel", class: "drawer drawer-styles" }, [
+    el("aside", { id: "review-panel", class: "drawer drawer-styles", "aria-label": t("reviewTitle") }, [
       el("div", { id: "review-body" }),
     ]),
     // a shared form modal (section page setup, formulas)
@@ -3374,7 +3459,7 @@ function wireKeys() {
     if (e.key === "Alt" && settings.prose) view.dispatch({ effects: setRevealAll.of(false) });
   });
   window.addEventListener("click", (e) => {
-    document.querySelectorAll(".menu-list.open").forEach((m) => m.classList.remove("open"));
+    closeMenus();
     if (!(e.target as HTMLElement).closest(".spell-menu")) closeSpellMenu();
   });
 }

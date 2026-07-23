@@ -43,7 +43,22 @@ header {
 .brand small { color: var(--muted); font-size: 11px; }
 .spacer { flex: 1; }
 
-.toolbar { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+/* A labelled ribbon, not a wall of glyphs.
+   ⁑ ⇥ ⇤ ▣ § א. ‡ is a private vocabulary; the caption under each group is what
+   makes it learnable, and it is what the product this replaces has had since
+   2007. The label is aria-hidden because the group already carries the same
+   text as its accessible name — otherwise a reader announces it twice. */
+.toolbar { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
+.tb-group {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 0 5px; border-inline-end: 1px solid var(--line);
+}
+.tb-group:last-child { border-inline-end: 0; }
+.tb-group-row { display: flex; align-items: center; gap: 3px; }
+.tb-group-label {
+  font-size: 9.5px; letter-spacing: .3px; color: var(--muted);
+  text-transform: uppercase; white-space: nowrap; line-height: 1.2;
+}
 .tb-btn, .chip, .menu-btn {
   font-family: var(--hebrew); font-size: 13px; min-width: 30px; height: 30px;
   padding: 0 9px; cursor: pointer; color: var(--ink);
@@ -55,6 +70,15 @@ header {
 }
 .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .tb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.menubar, .chipbar { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+
+/* Keyboard focus must be visible everywhere. A caret is enough inside the
+   editor; a chip you have tabbed to and cannot see is a dead end. */
+.tb-btn:focus-visible, .chip:focus-visible, .menu-btn:focus-visible,
+.menu-item:focus-visible, .pal-item:focus-visible, .doc-title-btn:focus-visible,
+.splitter:focus-visible, .save-error-act:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
 
 /* nikud input bar (toggleable) */
 .nikud-bar {
@@ -459,7 +483,11 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
     -webkit-overflow-scrolling: touch; max-width: 100%;
   }
   .toolbar::-webkit-scrollbar { display: none; }
-  .tb-btn, .chip, .menu-btn { flex: none; }
+  .tb-btn, .chip, .menu-btn, .tb-group { flex: none; }
+  /* The captions are the first thing to go on a phone: at this width they cost
+     a whole row and the horizontal strip already forces one-at-a-time reading.
+     The accessible names stay — they are on the group, not on the caption. */
+  .tb-group-label { display: none; }
 
   /* Comfortable touch targets — 30px is a mouse size, not a finger size. */
   .tb-btn, .chip, .menu-btn { min-width: 36px; height: 36px; }

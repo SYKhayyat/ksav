@@ -101,8 +101,20 @@ function readJson<T>(key: string, fallback: T): T {
 
 let index: LibraryEntry[] = [];
 
+/**
+ * The library, newest first.
+ *
+ * `updated` is a millisecond stamp, so two documents created in the same tick
+ * tie — and `Array.prototype.sort` is stable, which meant the *older* of the two
+ * won and "New document" could appear below the one it was made from. Ties are
+ * broken by position, latest-added first, so the order is always the order the
+ * writer would expect rather than whatever the clock granularity allowed.
+ */
 export function library(): LibraryEntry[] {
-  return index.slice().sort((a, b) => b.updated - a.updated);
+  return index
+    .map((entry, i) => ({ entry, i }))
+    .sort((a, b) => b.entry.updated - a.entry.updated || b.i - a.i)
+    .map(({ entry }) => entry);
 }
 
 /**

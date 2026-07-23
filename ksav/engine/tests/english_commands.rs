@@ -129,6 +129,22 @@ fn an_english_callout_takes_a_tint_and_an_accent() {
 }
 
 #[test]
+fn the_document_wrapper_survives_being_partially_applied() {
+    // `#show: document.with(...)` is the one place an alias is used as a value
+    // rather than called, and the English aliases are closures now. If `.with`
+    // did not carry the renaming through, a writer's own page setup would be
+    // silently ignored and the document would lay out at the defaults — which
+    // compiles cleanly and looks like nothing happened.
+    let big = render("#show: document.with(size: 24pt)\nSized", &ltr());
+    let run = big.iter().find(|r| r.text.contains("Sized")).expect("no text");
+    assert!(
+        (run.size - 24.0).abs() < 0.5,
+        "`size:` did not reach the document wrapper: {}pt",
+        run.size
+    );
+}
+
+#[test]
 fn an_english_review_mark_takes_a_name() {
     let page = text(&render("#inserted(by: \"Shimon\")[a new clause]", &ltr()));
     assert!(page.contains("a new clause"), "{page}");

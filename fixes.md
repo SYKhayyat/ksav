@@ -35,7 +35,7 @@ bochurim and a zman.
 | Non-intuitiveness | done |
 | Missing | 2 of 5 done; 3 are money or people, not code |
 | English / LTR | typography, spell-check, starter, templates and parameter names — done |
-| Tests | 37 assertions in 1 file → **326 in 8**, plus 142 engine tests |
+| Tests | 37 assertions in 1 file → **326 in 8**, plus 145 engine tests |
 
 ---
 
@@ -529,6 +529,31 @@ than from a string in the interface. Those two have come apart here before — a
 checked-in wasm module that predated spell-check shipped with no checker in it at
 all and nothing said so — and if a lexicon ever fails to load, the panel says
 which one rather than repeating the claim.
+
+### What running it found
+
+Two things that no test would have caught, because no test was looking at the
+first screen.
+
+**The Hebrew starter document had three squiggles on it, and always had.**
+`פונקציית`, `קינון`, `מתרנדר` — the templates have had a
+"must not be underlined" check since they were written, but the two starters live
+in the editor rather than in the template registry and nothing checked them. The
+cause is a real gap rather than three missing words: the lexicon is built from
+Torah texts and from Project Ben-Yehuda, which is pre-war literature, so it
+contains no technical vocabulary at all. The supplement now carries the everyday
+part of it and says in its own comment that the gap is wider than the entries
+listed. `מתרנדר` was reworded away, because it was jargon and `מוצג` is better
+Hebrew.
+
+**`Ctrl` is not a word in any English dictionary**, and the English starter names
+it twice. Now in the supplement with the rest of the keyboard.
+
+Both are held by `neither_starter_document_opens_covered_in_squiggles`, which
+reads the two literals out of `main.ts`. Reaching into the editor's source from an
+engine test is not elegant; it is the only way to hold text that has to exist
+before the engine has loaded, and it fails loudly rather than silently if the
+literals move.
 
 ---
 

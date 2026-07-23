@@ -1242,3 +1242,11 @@ loshon
 # ---- the patronymic ----
 ben
 bas
+
+# ---- the keyboard, which the interface's own text names constantly ----
+ctrl
+esc
+cmd
+del
+pgup
+pgdn

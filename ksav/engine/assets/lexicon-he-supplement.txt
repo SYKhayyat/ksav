@@ -511,3 +511,27 @@
 התנתקות
 שגרתי
 שגרתית
+
+# ---- modern vocabulary the product's own text uses ----
+#
+# The generated lexicon draws on Torah texts and on Project Ben-Yehuda, which is
+# public-domain literature and therefore pre-war: it contains no technical
+# vocabulary at all. That is a real gap for anyone writing about anything modern,
+# and the first place it showed was Ksav's own welcome document, which used three
+# words the checker did not know. The gap is wider than these few entries; this
+# is the part of it the product itself walks into.
+פונקציה
+פונקציות
+פונקציית
+קינון
+תוכנה
+מחשב
+מסך
+קובץ
+קבצים
+תיקייה
+מקלדת
+עכבר
+אתר
+דפדפן
+

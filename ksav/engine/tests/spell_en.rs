@@ -77,6 +77,52 @@ fn it_knows_the_words_a_general_english_dictionary_rejects() {
 }
 
 #[test]
+fn the_interfaces_own_english_is_not_underlined() {
+    // The editor's welcome document and its own help text are the first English
+    // a writer sees, and `Ctrl` — which the starter names twice — is not in any
+    // English dictionary. Whatever else the checker gets wrong, it must not open
+    // by underlining the product's own words.
+    for w in ["Ksav", "Typst", "Ctrl", "Esc", "Cmd", "typesets", "CodeMirror"] {
+        assert!(flagged(w).is_empty(), "{w:?} was flagged");
+    }
+}
+
+#[test]
+fn neither_starter_document_opens_covered_in_squiggles() {
+    // The templates have had this check since they were written; the two starter
+    // documents did not, because they live in the editor rather than in the
+    // registry — and the Hebrew one was quietly showing three squiggles on the
+    // very first screen. The lexicon is built from Torah texts and from
+    // pre-war literature, so it knew no word for "function" or "nesting".
+    //
+    // Reaching into `main.ts` for the two literals is not elegant. It is the
+    // only way to hold text that has to exist before the engine has loaded, and
+    // it fails loudly rather than silently if the literals move.
+    let source = include_str!("../../app/src/main.ts");
+    let he = hebrew::Lexicon::bundled();
+    let english = en();
+    let checker = Checker::new(Some(&he), Some(&english));
+    for name in ["STARTER_HE", "STARTER_EN"] {
+        let body = starter(source, name);
+        let flagged: Vec<String> = checker.check(&body).into_iter().map(|m| m.word).collect();
+        assert!(flagged.is_empty(), "{name} contains flagged words: {flagged:?}");
+    }
+}
+
+/// The body of a `const NAME = \`…\`;` template literal in the editor's source.
+fn starter(source: &str, name: &str) -> String {
+    let head = format!("const {name} = `");
+    let start = source
+        .find(&head)
+        .unwrap_or_else(|| panic!("{name} is no longer declared the way this test looks for it"))
+        + head.len();
+    let len = source[start..]
+        .find('`')
+        .unwrap_or_else(|| panic!("{name} has no closing backtick"));
+    source[start..start + len].to_string()
+}
+
+#[test]
 fn a_real_misspelling_is_caught_and_located() {
     let text = "The Rambam writes that this is entirley a machlokes.";
     let found = check(text);

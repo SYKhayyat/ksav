@@ -43,6 +43,15 @@ pub struct DocConfig {
     pub margin_cm: f64,
     /// "rtl" or "ltr"
     pub dir: String,
+    /// BCP-47 language tag for the text (`lang:` in Typst). Empty = follow the
+    /// direction: `rtl` → Hebrew, `ltr` → English.
+    ///
+    /// This is not cosmetic. Typst drives hyphenation, smart-quote shape and its
+    /// own generated labels off `lang`, so an English document typeset as Hebrew
+    /// gets `”hello”` for `"hello"` (the closing mark on both sides, which is
+    /// right for Hebrew and wrong for English) and no hyphenation at all in
+    /// justified text, because there are no Hebrew hyphenation patterns.
+    pub lang: String,
     /// Show page numbers.
     pub numbering: bool,
     /// Justify paragraphs.
@@ -99,6 +108,7 @@ impl Default for DocConfig {
             size_pt: 12.0,
             margin_cm: 2.5,
             dir: "rtl".to_string(),
+            lang: String::new(),
             numbering: true,
             justify: true,
             line_spacing_em: 0.75,
@@ -139,6 +149,48 @@ fn clamped(v: &serde_json::Value, key: &str, lo: f64, hi: f64) -> Option<f64> {
 /// escaped: this value is interpolated into the prelude, and `paper: "a4\"`
 /// used to close the literal early and fail the whole document with "unclosed
 /// delimiter" pointing at the prelude instead of at the setting.
+/// A language tag reduced to what Typst will actually accept: an ISO 639
+/// two- or three-letter code, e.g. `en`, `he`, `yid`.
+///
+/// Anything else becomes empty, which falls back to the direction default.
+/// Filtering the characters is not enough on its own: Typst rejects a tag of the
+/// wrong *length* outright, and a rejected tag fails the whole compile with
+/// "expected two or three letter language code" — an error about code the writer
+/// never wrote, over a setting they may not know exists. Same rule as the
+/// numeric fields: refuse the impossible value here, where it can still be
+/// ignored, rather than pass it on and blank someone's document.
+fn sanitize_lang(l: &str) -> String {
+    // A region subtag is a legitimate thing to send (`pt-BR`); Typst carries it
+    // separately, so keep the language and drop the rest rather than refusing.
+    let base = l.split('-').next().unwrap_or("");
+    let letters: String = base
+        .chars()
+        .filter(char::is_ascii_alphabetic)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    if (2..=3).contains(&letters.len()) {
+        letters
+    } else {
+        String::new()
+    }
+}
+
+/// The language a document is actually typeset in: the explicit tag when there
+/// is one, otherwise the one that goes with its direction.
+///
+/// Hebrew is the default because Ksav is Hebrew-first, but a left-to-right
+/// document is an English one until told otherwise — typesetting it as Hebrew
+/// costs it hyphenation and gives it the wrong quotation marks.
+pub fn effective_lang(cfg: &DocConfig) -> &str {
+    if !cfg.lang.is_empty() {
+        &cfg.lang
+    } else if cfg.dir == "ltr" {
+        "en"
+    } else {
+        "he"
+    }
+}
+
 fn sanitize_paper(p: &str) -> String {
     p.chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
@@ -170,6 +222,11 @@ impl DocConfig {
         }
         if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
             cfg.dir = d.to_string();
+        }
+        // Sanitised like `paper`, and for the same reason: it is formatted into
+        // the prelude as a string literal, so it may only ever be a tag.
+        if let Some(l) = v.get("lang").and_then(|x| x.as_str()) {
+            cfg.lang = sanitize_lang(l);
         }
         if let Some(n) = v.get("numbering").and_then(|x| x.as_bool()) {
             cfg.numbering = n;
@@ -273,7 +330,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     format!(
         "{prelude}\n\
          #show: מסמך.with(\
-         גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, \
+         גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, שפה: {lang}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
@@ -284,6 +341,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         size = cfg.size_pt,
         margin = cfg.margin_cm,
         dir = dir,
+        lang = typst_str(effective_lang(cfg)),
         numbering = if cfg.numbering { "true" } else { "false" },
         hebrew_num = if cfg.hebrew_numbering { "true" } else { "false" },
         paper = typst_str(&sanitize_paper(&cfg.paper)),

@@ -34,7 +34,8 @@ bochurim and a zman.
 | Code quality | done |
 | Non-intuitiveness | done |
 | Missing | 2 of 5 done; 3 are money or people, not code |
-| Tests | 37 assertions in 1 file → **317 in 8**, plus 92 engine tests |
+| English / LTR | typography fixed; two gaps recorded as decisions below |
+| Tests | 37 assertions in 1 file → **317 in 8**, plus 99 engine tests |
 
 ---
 
@@ -329,6 +330,74 @@ important line in this document. Nothing above substitutes for it.
 
 ---
 
+## English, left-to-right — mostly yes; three things were wrong
+
+Asked directly: does Ksav work for an English left-to-right document, given it is
+Hebrew-first? Most of it did. `dir: "ltr"` has always been a real setting, every
+command has a collision-free English alias, the interface itself is bilingual and
+flips its chrome, and the bundled Hebrew faces carry Latin — an English page
+compiles and sets cleanly, left-aligned, in 19 ms.
+
+But the direction was the *only* thing that followed the writer's choice. The
+prelude pinned `lang: "he"` on every document ever compiled, and Typst drives
+three separate things off `lang`. So an English document came out with:
+
+- **the wrong quotation marks** — `"hello"` set as `”hello”`, the *closing* mark
+  on both sides. That is correct Hebrew convention and simply wrong in English;
+- **no hyphenation at all**, while still justified by default. Hyphenation is
+  pattern-based per language and there are no Hebrew patterns, so English text
+  filled the line the only way left to it — by stretching the spaces;
+- **a Hebrew heading over its table of contents** — `תוכן העניינים` above a list
+  of English chapter titles.
+
+Every one of those documents compiled without a single diagnostic, which is why
+none of it had been noticed. They are held now by `engine/tests/ltr.rs`, which
+reads the laid-out page rather than the exit code.
+
+`DocConfig` gained a `lang`, and an empty one means *follow the direction* — `ltr`
+is English, `rtl` is Hebrew. That is the whole fix at the call site: nobody has to
+find a setting. An explicit tag still wins, because direction and language are not
+the same choice — Yiddish and Arabic are right-to-left and are not Hebrew.
+
+The tag is sanitised like `paper` and `font`, and then checked for *shape* as
+well, which the others do not need. Typst refuses a tag that is not two or three
+letters, and refuses it by failing the entire compile — so a bad value would blank
+someone's document with an error about code they never wrote. It is dropped at the
+boundary instead, the same rule the numeric fields already follow.
+
+`#תוכן()` now takes its heading from the document's language, and an explicit
+`כותרת:` still overrides it.
+
+One thing that was already right is worth naming, because it is what made the
+engine's version findable: the Word export had been setting `lang="he"` or
+`lang="en"` from the direction since it was written.
+
+### Two decisions, not fixes
+
+**English spell-check is absent, deliberately for now.** The checker skips any
+word containing a Latin letter, so English is never wrong — it is simply never
+checked. That is the safe behaviour and not a satisfying one. Fixing it properly
+means a second lexicon (SCOWL or wamerican, both redistributable) and a second
+morphology: the prefix-stripping that carries Hebrew from 2.9% to 0.7% is
+meaningless for English, which needs its inflections in the word list instead. It
+is perhaps a day's work and ~200 KB more dictionary, and it is a real feature
+rather than a fix, so it is written down here rather than smuggled in.
+
+Stated in full, because it is the uncomfortable half: until then an English
+document is unchecked, **and nothing in the interface says so**. The spell-check
+toggle reads as on, and an English page with three typos in it comes back clean.
+That is a misleading silence, and the cheap half of the fix — saying "Hebrew only"
+on the toggle — is worth doing before the expensive half.
+
+**The starter document and all eight templates are Hebrew.** An English writer's
+first screen is Hebrew text they must delete. That is the correct default for a
+Hebrew-first tool and the wrong first impression for the other half of the claim;
+the honest fix is an English starter chosen from the interface language, not a
+translation of the Torah templates, which are Hebrew *because of what they are*.
+Left as a decision because it is a content question, not an engineering one.
+
+---
+
 ## What I'd do next
 
 The original list is done except its last item, which is the one that matters:
@@ -339,3 +408,8 @@ The original list is done except its last item, which is the one that matters:
 Push to a remote, cut `v0.1.0`, and let CI produce the installers. Then hand it
 over. The boring reliability layer is in place; what it is missing now is contact
 with someone's actual sefer.
+
+Ahead of the two English decisions above, in that order: mark the spell-check
+toggle Hebrew-only, since it currently reads as a clean bill of health on text it
+never looked at; then an English starter document; then an English lexicon, which
+is the only one of the three that is a day's work rather than an afternoon's.

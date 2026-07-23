@@ -7,6 +7,15 @@ export interface DocConfig {
   size_pt: number;
   margin_cm: number;
   dir: "rtl" | "ltr";
+  /**
+   * The language the document is written in, as a BCP-47 tag.
+   *
+   * Empty means "follow the direction" — the engine reads `ltr` as English and
+   * `rtl` as Hebrew. It matters because Typst hyphenates, shapes quotation marks
+   * and names its own generated headings by language, so an English document
+   * typeset as Hebrew gets no hyphenation and the wrong quotes.
+   */
+  lang?: string;
   numbering: boolean;
   justify: boolean;
   line_spacing_em: number;

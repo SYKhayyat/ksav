@@ -13,7 +13,12 @@ import type { Lang } from "./i18n";
 export type Layout = "two" | "page" | "source";
 export type PreviewSide = "left" | "right" | "top" | "bottom";
 
-export interface Settings extends DocConfig {
+// `DocConfig` also has a `lang` — the language the *document* is written in —
+// and it is deliberately not inherited here. `settings.lang` is the language of
+// the interface, which is a different choice: a Hebrew speaker may well write an
+// English document, and conflating the two would silently typeset it wrong. The
+// document language is left to the engine, which reads it off the direction.
+export interface Settings extends Omit<DocConfig, "lang"> {
   lang: Lang;
   theme: "light" | "dark";
   layout: Layout;

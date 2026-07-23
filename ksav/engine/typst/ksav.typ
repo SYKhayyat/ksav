@@ -844,13 +844,18 @@
 // The wrapper always keeps the heading counter stepping (so in-body numbering
 // can display), which would otherwise leak numbers into the outline; here we
 // drop the entry prefix whenever numbers aren't wanted.
-#let תוכן(כותרת: [תוכן העניינים], מספור: auto) = context {
+// כותרת: auto → the title in the document's own language. A Hebrew heading on
+// an English document was the most visible way Ksav's Hebrew-first defaults
+// leaked into a left-to-right document; the heading follows `lang` now, and an
+// explicit title still overrides it.
+#let תוכן(כותרת: auto, מספור: auto) = context {
+  let title = if כותרת != auto { כותרת } else if text.lang == "he" { [תוכן העניינים] } else { [Contents] }
   let show-nums = if מספור == auto { _hd_cfg.get().at("מספור", default: none) != none } else { מספור }
   if show-nums {
-    outline(title: כותרת)
+    outline(title: title)
   } else {
     show outline.entry: it => it.indented(none, it.inner())
-    outline(title: כותרת)
+    outline(title: title)
   }
 }
 #let toc = תוכן

@@ -9,6 +9,62 @@
 // ============================================================
 
 // ============================================================
+//  שמות פרמטרים באנגלית · English parameter names
+// ------------------------------------------------------------
+//  An English alias for every command is only half of "the same document can
+//  be written in either language". The parameters were still Hebrew, so an
+//  English table read `#mktable(עמודות: 3, פסים: true)` — which is not English
+//  and is not something anyone would type.
+//
+//  So an English alias is not a plain binding but a wrapper that renames its
+//  named arguments through the table below and forwards everything else
+//  untouched. Positional arguments, trailing content blocks and Typst's own
+//  argument errors all pass straight through. A name with no entry is passed as
+//  written, so the Hebrew parameter names keep working on the English alias too
+//  — the point is to accept both, not to swap one exclusion for another.
+//
+//  `extra` exists because two Hebrew parameters share one English word: טורים
+//  (text columns) and עמודות (table columns) are both `columns`. Rather than
+//  invent a second English word for one of them, the two functions that need
+//  the other reading say so at their own alias.
+// ============================================================
+#let _en_params = (
+  // page and text
+  size: "גודל", font: "גופן", colour: "צבע", color: "צבע", align: "יישור",
+  weight: "משקל", paper: "נייר", margin: "שוליים", lang: "שפה", dir: "כיוון",
+  landscape: "לרוחב", watermark: "סימן_מים", header: "כותרת_עליונה",
+  footer: "כותרת_תחתונה", numbering: "מספור", hebrew_numbering: "מספור_עברי",
+  justify: "יישור", leading: "ריווח_שורות", para_spacing: "ריווח_פסקאות",
+  first_indent: "הזחה_ראשונה", columns: "עמודות", notes_region: "אזור_הערות",
+  // structure
+  level: "רמה", title: "כותרת", titles: "כותרות", names: "שמות", by: "מאת",
+  caption: "כיתוב", width: "רוחב", ratio: "יחס", amount: "מידה",
+  indent: "הזחה", body_indent: "הזחת_גוף", tight: "הידוק", marker: "סמן",
+  style: "סגנון", labels: "תוויות", layout: "פריסה", display: "תצוגה",
+  heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
+  // notes and streams
+  stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
+  // spacing, in the several senses the prelude distinguishes
+  spacing: "ריווח", inset: "מרווח", item_spacing: "ריווח_פריט",
+  space_between: "ריווח_בין", space_before: "ריווח_לפני",
+  space_after: "ריווח_אחרי", number_spacing: "ריווח_מספור",
+  note_spacing: "ריווח_הערות", rule_between: "קו_בין",
+  tracking: "מרווח_אותיות", underline: "קו_תחתון", smallcaps: "רברבתי",
+  // named colours
+  header_fill: "צבע_כותרת", stripe: "צבע_פס", striped: "פסים",
+  insert_colour: "צבע_הוספה", delete_colour: "צבע_מחיקה",
+  note_colour: "צבע_הערה",
+)
+
+/// Wrap a Hebrew-named command so its parameters may be given in English.
+#let _en(f, extra: (:)) = (..a) => {
+  let names = _en_params + extra
+  let named = (:)
+  for (k, v) in a.named() { named.insert(names.at(k, default: k), v) }
+  f(..a.pos(), ..named)
+}
+
+// ============================================================
 //  הערות שכבתיות · layered (tiered) footnotes — per page
 // ------------------------------------------------------------
 //  A note ON a note becomes its own stacked block at the foot of the page,
@@ -37,7 +93,7 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
-#let footnote_config = הגדרות_הערות
+#let footnote_config = _en(הגדרות_הערות)
 
 #let _fn_pick(arr, i, fb) = if type(arr) == array and i >= 1 and i - 1 < arr.len() { arr.at(i - 1) } else { fb }
 
@@ -254,8 +310,8 @@
 #let band5 = מדור_ה
 #let band6 = מדור_ו
 #let band7 = מדור_ז
-#let banded_notes = הערות_מדורגות
-#let banded_config = הגדרות_מדורגות
+#let banded_notes = _en(הערות_מדורגות)
+#let banded_config = _en(הגדרות_מדורגות, extra: (columns: "טורים"))
 
 // ============================================================
 //  מדפים · fully regrouped bands, PER PAGE (experimental)
@@ -391,7 +447,7 @@
 #let pageband5 = מדף_ה
 #let pageband6 = מדף_ו
 #let pageband7 = מדף_ז
-#let pagebands_config = הגדרות_מדפים
+#let pagebands_config = _en(הגדרות_מדפים, extra: (columns: "טורים"))
 
 // ============================================================
 //  זרמי הערות · multiple independent footnote streams (per page)
@@ -521,7 +577,7 @@
 #let stream_note = הערה_זרם
 #let contentnote = הערת_תוכן
 #let sourcenote_stream = הערת_מקור
-#let streams_config = הגדרות_זרמים
+#let streams_config = _en(הגדרות_זרמים, extra: (columns: "טורים"))
 
 // ============================================================
 //  עיצוב גלובלי · configurable headings / lists / tables
@@ -621,9 +677,9 @@
 #let _tb_cfg = state("ksav-tb-cfg", _tb_defaults)
 #let הגדרות_טבלאות(..opts) = _tb_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 
-#let headings_config = הגדרות_כותרות
-#let lists_config = הגדרות_רשימות
-#let tables_config = הגדרות_טבלאות
+#let headings_config = _en(הגדרות_כותרות)
+#let lists_config = _en(הגדרות_רשימות)
+#let tables_config = _en(הגדרות_טבלאות)
 
 // ============================================================
 //  מעטפת המסמך · document wrapper
@@ -718,7 +774,7 @@
     body
   }
 }
-#let document = מסמך
+#let document = _en(מסמך, extra: (columns: "טורים", table_columns: "עמודות"))
 
 // ============================================================
 //  עיצוב פנימי · inline text styles
@@ -858,7 +914,7 @@
     outline(title: title)
   }
 }
-#let toc = תוכן
+#let toc = _en(תוכן)
 
 // ============================================================
 //  הערות שוליים · footnotes
@@ -944,9 +1000,9 @@
   }
   for s in זרמים { [#metadata(none)#_en_dump_label(s)] }
 }
-#let endnote = הערתסיום
-#let endnotes = הערות_בסוף
-#let endnotes_side = הערות_בסוף_צד
+#let endnote = _en(הערתסיום)
+#let endnotes = _en(הערות_בסוף)
+#let endnotes_side = _en(הערות_בסוף_צד)
 
 // ---- הערות צד · side-column notes, aligned to their marker's line ----
 // A substantial notes column beside the text (not a thin margin). Wrap a section
@@ -1064,8 +1120,8 @@
   _sn_active.update(n => n - 1)
 }
 #let sidenote = הערת_גיליון
-#let sidenotes = עם_הערות_צד
-#let sidenotes_config = הגדרות_הערות_צד
+#let sidenotes = _en(עם_הערות_צד)
+#let sidenotes_config = _en(הגדרות_הערות_צד, extra: (gutter: "מרווח"))
 
 // ---- הערות דו-צדדיות · two note streams, one down each side ----
 // Wrap a section (or the whole document) in #עם_הערות_דו_צד[...]. Inside,
@@ -1088,7 +1144,7 @@
 }
 #let noteright = הערת_ימין
 #let noteleft = הערת_שמאל
-#let twosided = עם_הערות_דו_צד
+#let twosided = _en(עם_הערות_דו_צד)
 
 // ---- הפניות · cross-references (auto-numbered, auto-updating) ----
 // #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow
@@ -1134,7 +1190,7 @@
 #let כותרת_תא(body) = context { table.cell(fill: _tb_cfg.get().at("צבע_כותרת", default: luma(235)), strong(body)) }
 #let מיזוג(מספר, body) = table.cell(colspan: מספר, body)
 
-#let mktable = טבלה
+#let mktable = _en(טבלה)
 #let cell = תא
 #let headcell = כותרת_תא
 #let colspan_ = מיזוג
@@ -1157,7 +1213,7 @@
 #let מקור(body) = text(size: 0.85em, style: "italic", fill: luma(90), body)
 
 #let blockquote = ציטוט
-#let callout = הערת_צד
+#let callout = _en(הערת_צד, extra: (accent: "קו"))
 #let framebox = תיבה
 #let warnbox = אזהרה
 #let okbox = הצלחה
@@ -1186,17 +1242,17 @@
 
 // חסר — a fill-in blank line (form field), e.g. for a kesubah or letter
 #let חסר(רוחב: 3em) = box(width: רוחב, stroke: (bottom: 0.6pt + luma(60)))
-#let blank = חסר
+#let blank = _en(חסר)
 
 #let hrule = קו_מפריד
-#let vspace = מרווח
-#let hspace = רווח_אופקי
+#let vspace = _en(מרווח)
+#let hspace = _en(רווח_אופקי)
 #let pbreak = מעבר_עמוד
 #let lbreak = מעבר_שורה
 #let cbreak = מעבר_טור
 #let indent_ = הזחה
 #let cols = טורים_בלוק
-#let img = תמונה
+#let img = _en(תמונה)
 
 // ============================================================
 //  תורני · Torah / yeshiva writing
@@ -1242,7 +1298,7 @@
   עיקר,
   text(size: 0.82em, fill: luma(75), פירוש),
 )
-#let commentary = עם_פירוש
+#let commentary = _en(עם_פירוש)
 
 // ============================================================
 //  סקירה · review: tracked changes and editorial comments
@@ -1325,10 +1381,10 @@
   }
 }
 
-#let review_config = הגדרות_סקירה
-#let inserted = הוספה
-#let deleted = מחיקה
-#let comment_ = הערת_עורך
+#let review_config = _en(הגדרות_סקירה)
+#let inserted = _en(הוספה)
+#let deleted = _en(מחיקה)
+#let comment_ = _en(הערת_עורך)
 
 // ============================================================
 //  מקטע עמוד · section-level page setup
@@ -1404,7 +1460,7 @@
   eval(תוכן, mode: "math"),
 ))
 #let נוסחה_בשורה(תוכן) = text(dir: ltr, math.equation(block: false, eval(תוכן, mode: "math")))
-#let formula = נוסחה
+#let formula = _en(נוסחה)
 #let iformula = נוסחה_בשורה
 
 #let siman = סימן

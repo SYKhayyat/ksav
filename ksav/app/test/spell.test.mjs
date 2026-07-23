@@ -1,7 +1,7 @@
 // The editor's half of spell-checking: which text is worth checking, and the
 // writer's own dictionary.
 //
-// The lexicon and the checking itself live in the engine (engine/src/spell.rs)
+// The lexicon and the checking itself live in the engine (engine/src/spell/)
 // and are tested there. What is testable here is the part that decides *what* to
 // send — sending command names to the checker would underline `#הדגשה` on the
 // first document anyone wrote — and the dictionary that is about to become a
@@ -173,5 +173,40 @@ export async function run() {
     check("…and leaves an empty dictionary empty", spell.userWords(), []);
     check("an empty dictionary still exports a readable file", spell.exportUserWords().startsWith("#"), true);
     check("…that round-trips to nothing", spell.importUserWords(spell.exportUserWords()), 0);
+  }
+
+  // ------------------------------------------------------------ English markup
+  //
+  // Command names are Latin now too, and that matters more than it sounds. The
+  // Hebrew command names were never underlined partly because they *are* Hebrew
+  // words the lexicon knows; `mktable` and `headcell` are not English words, so
+  // if the masker did not reach them every English document would open covered
+  // in squiggles over its own markup.
+  {
+    const src = "#h1[The Chiyuv]\n\n#mktable(columns: 2, headcell[Posek], cell[Rambam])";
+    const text = spell.checkableText(src);
+    ok("English prose survives", text.includes("The Chiyuv") && text.includes("Rambam"));
+    notOk("the command name does not", text.includes("mktable"));
+    notOk("nor a bare call head inside the arguments", text.includes("headcell"));
+    ok("…while its body does", text.includes("Posek"));
+    check("offsets are preserved", text.length, src.length);
+  }
+
+  // ------------------------------------------------------------ what is checked
+  //
+  // "It checks Hebrew and English" is a claim about what the engine loaded, and
+  // this app has already shipped a wasm module that silently had no checker in
+  // it at all. So the interface reports the sizes the engine returns rather than
+  // repeating the claim.
+  {
+    check("nothing is claimed before the first check", spell.lexiconSizes(), null);
+    spell.noteLexiconSizes({ he: 269385, en: 97136 });
+    check("both lexicons are reported", spell.lexiconSizes(), { he: 269385, en: 97136 });
+    spell.noteLexiconSizes({ he: 269385 });
+    check("a missing lexicon reads as zero, not as absent",
+      spell.lexiconSizes(), { he: 269385, en: 0 });
+    spell.noteLexiconSizes(undefined);
+    check("…and a response without the field leaves the last answer alone",
+      spell.lexiconSizes(), { he: 269385, en: 0 });
   }
 }

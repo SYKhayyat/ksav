@@ -1,0 +1,61 @@
+#title[The Obligation of Talmud Torah Today]
+#subtitle[A study in the Rishonim and the Acharonim]
+
+#center_[by Rabbi David ben Zion Cohen]
+
+#hrule
+
+#h1[Introduction]
+
+Talmud Torah is one of the foundations on which the world of Klal Yisroel
+stands, as the Mishnah teaches#fnote[Mishnah Peah 1:1.] that "talmud Torah is
+equal to them all". The Rishonim, however, differ over how to define the chiyuv:
+is it a continuous obligation with no interruption, or an obligation with a
+fresh kiyum at every moment? This article examines the root of the machlokes and
+the nafka mina that follow from it.
+
+#h2[The view of the Rambam]
+
+The Rambam #refmark[Hilchos Talmud Torah 1:8] writes that every man in Yisroel
+is obligated in talmud Torah, rich and poor alike, and it is clear from his
+language that the chiyuv rests on the gavra continuously. The Minchas
+Chinuch#fnote[Minchas Chinuch mitzvah 419, and see at length there how he
+resolves the apparent contradiction in the Rambam.] reads the same from the
+phrase "and he is obligated to learn until the day of his death".
+
+#h2[The view of Rabbeinu Tam]
+
+The Tosafos in #gemara[Kiddushin][30a] in the name of Rabbeinu Tam hold that
+there is a kiyum of the mitzvah in setting fixed times for learning, and that
+the chiyuv is not literally continuous. The yesod is the posuk
+
+#verse[Yehoshua 1:8][This book of the Torah shall not depart out of thy mouth,
+but thou shalt meditate therein day and night],
+
+from which Chazal derived the obligation of continuous hagiyah — but l'maaseh
+one perek in the morning and one perek in the evening is enough.
+
+#h2[The views side by side]
+
+#mktable(
+  columns: 3,
+  striped: true,
+  headcell[Posek], headcell[Nature of the chiyuv], headcell[Source],
+  cell[Rambam], cell[Continuous, on the gavra], cell[Hil. T"T 1:8],
+  cell[Rabbeinu Tam], cell[A kiyum in fixed times], cell[Tosafos Kiddushin 30a],
+  cell[The Gra], cell[Continuous, kiyum renewed], cell[Shnos Eliyahu],
+)
+
+#callout[
+  #bold[L'maaseh:] according to the Rambam, one who is botel from Torah
+  transgresses an aseh at every moment. According to Rabbeinu Tam he transgresses
+  only where he set no fixed times at all.
+]
+
+#h1[Summary]
+
+The root of the machlokes is whether "v'hagisa" is the maaseh of the mitzvah or
+its tachlis. L'halacha most of the Poskim hold like the Rambam, l'chumra; and in
+any case whoever learns more Torah is praiseworthy.
+
+#cite_[Based on Shulchan Aruch Yoreh Deah siman 246 and the nosei keilim there.]

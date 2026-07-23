@@ -1,15 +1,18 @@
 // Spell-check in the editor: squiggles, suggestions, and teaching it a word.
 //
-// The checker itself lives in the engine (see engine/src/spell.rs and the
-// reasoning there about why Ksav owns its Hebrew lexicon). This is the editor
-// half: it decides *what* to check, when, and what happens when you click a
-// squiggle.
+// The checkers themselves live in the engine (see engine/src/spell/ and the
+// reasoning there about why Ksav owns a Hebrew lexicon and builds an English one
+// on top of a general word list). This is the editor half: it decides *what* to
+// check, when, and what happens when you click a squiggle.
 //
 // Two things matter more here than they might elsewhere:
 //
-//   * **Never check markup.** `#הערה` is not a misspelling. Ksav documents are
-//     full of command names, and underlining them would make the feature useless
-//     immediately. Only the text that will actually print gets checked.
+//   * **Never check markup.** `#הערה` is not a misspelling, and neither is
+//     `#mktable`. Ksav documents are full of command names, and underlining them
+//     would make the feature useless immediately. Only the text that will
+//     actually print gets checked — which matters more now that command names
+//     can be Latin: the Hebrew ones were half-protected by being Hebrew words
+//     the lexicon knows, and `mktable` is not an English word at all.
 //   * **Teaching it a word must be one click.** No lexicon can hold every
 //     chaburah's terminology, every rebbe's name, or a writer's own coinages. A
 //     checker that cannot be taught is one people switch off.
@@ -23,7 +26,34 @@ export interface Misspelling {
   start: number;
   len: number;
   word: string;
+  /** Which lexicon flagged it: "he" or "en". */
+  lang?: string;
   suggestions?: string[];
+}
+
+// ---------------------------------------------------------------- what is checked
+//
+// The checker used to skip every word containing a Latin letter, so an English
+// page with three typos in it came back clean while the toggle still read as on.
+// It checks both languages now — but "it checks both" is a claim about what the
+// engine loaded, not about what this file believes, and those came apart once
+// already: a checked-in wasm module that predated spell-check shipped with no
+// checker in it at all and nothing said so.
+//
+// So the interface reports the sizes the engine actually returns. If a lexicon
+// is missing, the settings panel says which one rather than repeating the claim.
+
+let sizes: { he: number; en: number } | null = null;
+
+/** Record the lexicon sizes from a spell response. */
+export function noteLexiconSizes(s: { he?: number; en?: number } | undefined) {
+  if (!s) return;
+  sizes = { he: Number(s.he) || 0, en: Number(s.en) || 0 };
+}
+
+/** The lexicon sizes last reported by the engine, or null before the first check. */
+export function lexiconSizes(): { he: number; en: number } | null {
+  return sizes;
 }
 
 /** Replace the current set of squiggles. */

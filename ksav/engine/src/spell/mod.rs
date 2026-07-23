@@ -164,11 +164,18 @@ pub struct Token<'a> {
     /// The token exactly as written.
     pub text: &'a str,
     pub lang: Language,
+    /// It is the head of a command call rather than a word: a `#` immediately
+    /// precedes it (`#fnote`), or a bracket immediately follows it
+    /// (`headcell[…]`, the bare form a call takes inside an argument list).
+    pub command: bool,
 }
 
 impl Token<'_> {
     /// Should this token be checked at all, by its own language's rules?
     pub fn checkable(&self) -> bool {
+        if self.command {
+            return false;
+        }
         match self.lang {
             Language::Hebrew => hebrew::should_check(self.text),
             Language::English => english::should_check(self.text),
@@ -188,6 +195,15 @@ impl Token<'_> {
 /// [`english::should_check`] instead of arriving as a bare `ver` to be flagged.
 /// A Hebrew run breaks at a digit, which is the behaviour it has always had:
 /// `פרק3` is a real word followed by a number.
+///
+/// A token that is the head of a command call — `#fnote`, or the bare
+/// `headcell[…]` a call takes inside an argument list — is marked as such and
+/// never checked. The editor already blanks markup before it asks (`spell.ts`,
+/// which handles this properly, comments and nesting included), so this is not
+/// what keeps `#הערה` out of the squiggles in the app. It is what makes the
+/// engine's answer right on its own, for the tests and for anything embedding it
+/// as a library: `#mktable` is not a misspelling of anything, and the Hebrew
+/// commands only ever escaped notice because their names are Hebrew words.
 pub fn words(text: &str) -> Vec<Token<'_>> {
     let mut out: Vec<Token<'_>> = Vec::new();
     let mut start: Option<(usize, Language)> = None;
@@ -225,6 +241,7 @@ pub fn words(text: &str) -> Vec<Token<'_>> {
                     start: s,
                     text: &text[s..i],
                     lang,
+                    command: is_command(text, s, i),
                 });
             }
         }
@@ -237,9 +254,15 @@ pub fn words(text: &str) -> Vec<Token<'_>> {
             start: s,
             text: &text[s..],
             lang,
+            command: is_command(text, s, text.len()),
         });
     }
     out
+}
+
+/// Is the token at `start..end` the head of a command call rather than a word?
+fn is_command(text: &str, start: usize, end: usize) -> bool {
+    text[..start].ends_with('#') || text[end..].starts_with(['[', '('])
 }
 
 // -------------------------------------------------------------------- checking

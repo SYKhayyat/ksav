@@ -249,6 +249,36 @@ fn a_token_carrying_a_digit_is_not_prose() {
 }
 
 #[test]
+fn gershayim_hold_an_english_abbreviation_together() {
+    // English Torah writing keeps the Hebrew abbreviation mark even when the
+    // letters around it are Latin. Splitting on it produces `zt` and a squiggle.
+    let toks: Vec<&str> = spell::words("Reb Moshe zt\"l said").iter().map(|t| t.text).collect();
+    assert!(toks.contains(&"zt\"l"), "the abbreviation was split: {toks:?}");
+    for w in ["zt\"l", "shlit\"a", "a\"h", "hy\"d"] {
+        assert!(flagged(w).is_empty(), "{w:?} was flagged");
+    }
+    // The curly form an editor produces folds to the same entry.
+    assert!(flagged("zt\u{201D}l").is_empty(), "curly gershayim broke the lookup");
+    // …and an ordinary quotation is still punctuation, not part of the word.
+    let quoted: Vec<&str> = spell::words("he said \"hello\" then").iter().map(|t| t.text).collect();
+    assert!(quoted.contains(&"hello"), "{quoted:?}");
+    assert!(!quoted.iter().any(|w| w.contains('"')), "a quote glued on: {quoted:?}");
+}
+
+#[test]
+fn a_command_head_is_not_a_word() {
+    // The editor blanks markup before it asks, so this is not what keeps
+    // `#mktable` out of the squiggles in the app. It is what makes the engine
+    // right on raw Ksav source, which is what the template tests and any library
+    // embedder feed it. The Hebrew commands only ever escaped notice because
+    // their names happen to be Hebrew words.
+    assert!(flagged("#mktable(columns: 2)").is_empty(), "a command head was flagged");
+    assert!(flagged("headcell[Posek]").is_empty(), "a bare call head was flagged");
+    // A word is still a word when it is not a call.
+    assert_eq!(flagged("entirley"), vec!["entirley".to_string()]);
+}
+
+#[test]
 fn the_two_scripts_split_without_a_separator() {
     let toks = spell::words("שלוםhello");
     let pairs: Vec<(&str, Language)> = toks.iter().map(|t| (t.text, t.lang)).collect();

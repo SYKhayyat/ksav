@@ -289,30 +289,48 @@ pub(crate) fn is_part(c: char) -> bool {
 
 /// Does this mark stay inside the English word being read?
 ///
-/// Only an apostrophe, and only with a letter after it. That joins `don't` and
-/// `Rashi's` while leaving a closing quotation mark outside the word it closes,
-/// and it deliberately drops the trailing apostrophe of a plural possessive —
-/// `the bochurim's` is checked as `bochurim`, which is the word in question.
+/// Two marks, for two different reasons.
+///
+/// **The apostrophe**, with a letter after it: that joins `don't` and `Rashi's`
+/// while leaving a closing quotation mark outside the word it closes, and it
+/// deliberately drops the trailing apostrophe of a plural possessive — `the
+/// bochurim's` is checked as `bochurim`, which is the word in question.
+///
+/// **Gershayim**, with a one- or two-letter tail: `zt"l`, `shlit"a`, `a"h`,
+/// `hy"d`. English Torah writing keeps the Hebrew abbreviation mark even when
+/// the letters around it are Latin, and splitting on it produces `zt` and a
+/// squiggle. The tail bound is the Hebrew one and does the same work — it is
+/// what tells an abbreviation apart from a quotation, since a quotation opens a
+/// whole word and a closing quotation mark has nothing after it at all.
 pub(crate) fn joins(c: char, rest: &str) -> bool {
-    matches!(c, '\'' | '\u{2019}' | '\u{02BC}')
-        && rest.chars().next().is_some_and(is_part)
-        && !rest.starts_with(|c: char| c.is_ascii_digit())
+    let next = rest.chars().next();
+    if matches!(c, '\'' | '\u{2019}' | '\u{02BC}') {
+        return next.is_some_and(|n| n.is_alphabetic() && is_part(n));
+    }
+    if matches!(c, '"' | '\u{201C}' | '\u{201D}') {
+        let tail = rest.chars().take_while(|c| c.is_alphabetic()).count();
+        return (1..=2).contains(&tail);
+    }
+    false
 }
 
 // --------------------------------------------------------------- normalisation
 
 /// Fold a word to the form the lexicon stores.
 ///
-/// One fold, and it is not cosmetic: every word processor, every browser and
-/// every web page produces the curly apostrophe U+2019, while every word list
-/// ever published uses the ASCII one. Without this fold *every* contraction and
-/// possessive in a pasted paragraph is a miss — don't, it's, Israel's — which
-/// measured as 0.1–0.3 points of miss rate on running prose, all of it noise.
-/// It is the exact counterpart of folding gershayim on the Hebrew side.
+/// It is not cosmetic: every word processor, every browser and every web page
+/// produces the curly apostrophe U+2019, while every word list ever published
+/// uses the ASCII one. Without this fold *every* contraction and possessive in a
+/// pasted paragraph is a miss — don't, it's, Israel's — which measured as
+/// 0.1–0.3 points of miss rate on running prose, all of it noise. Gershayim fold
+/// the same way and for the same reason, so `zt”l` typed by an editor that
+/// curls quotes matches the `zt"l` in the word list. It is the exact counterpart
+/// of the fold on the Hebrew side.
 pub fn normalize(word: &str) -> String {
     word.chars()
         .map(|c| match c {
             '\u{2019}' | '\u{02BC}' => '\'',
+            '\u{201C}' | '\u{201D}' => '"',
             other => other,
         })
         .collect()

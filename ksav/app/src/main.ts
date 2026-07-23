@@ -72,7 +72,14 @@ import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 
 // ---------------------------------------------------------------- editor
-const STARTER = `#שער[ברוכים הבאים לכְּתָב]
+//
+// The first screen. There are two of them, because there was only ever one and
+// it was Hebrew: an English writer opened Ksav to a page of Hebrew they had to
+// delete before they could type a word. That is the right default for a
+// Hebrew-first tool and the wrong first impression for the other half of what it
+// claims. The English one is its own document, not a translation — the two say
+// the same three things about the product in the idiom of their own language.
+const STARTER_HE = `#שער[ברוכים הבאים לכְּתָב]
 #תת_שער[מערכת הכתיבה העברית · על גבי Typst אמיתי]
 
 #קו_מפריד
@@ -87,6 +94,56 @@ const STARTER = `#שער[ברוכים הבאים לכְּתָב]
   פריט[החליפו בין עברית לאנגלית, ומצב פרוזה, מלמעלה.],
 )
 `;
+
+const STARTER_EN = `#title[Welcome to Ksav]
+#subtitle[A Hebrew writing system, on real Typst]
+
+#hrule
+
+#h1[Getting started]
+
+This is the #bold[Ksav] editor. Every command here is a real Typst function, so
+#italic[nesting has no limit] — a table inside a footnote inside a heading inside
+a list all typesets correctly, without anything special being done about it.
+
+#bullets(
+  item[Pick a starting point from the #bold[Templates] menu.],
+  item[Open #bold[Commands] with Ctrl+K to see everything there is.],
+  item[Switch between English and Hebrew, and prose mode, from the top bar.],
+)
+
+Hebrew and English can share a page: #rtl_[כתב עברי] sets right to left in the
+middle of this sentence, and the spelling of both is checked.
+`;
+
+/** The first document, in the language of the interface it was opened in. */
+function starterDoc(): string {
+  return getLang() === "en" ? STARTER_EN : STARTER_HE;
+}
+
+/**
+ * Follow the interface language with the starter, while it is still the starter.
+ *
+ * The interface opens in Hebrew, because Ksav is Hebrew-first and that is the
+ * right default. So an English writer's actual first move is to switch the
+ * language — at which point choosing the starter "by interface language" at boot
+ * has already happened and chosen Hebrew, and they are back to deleting a page
+ * of Hebrew. Switching the language a second later has to bring the welcome text
+ * with it or the English starter is a document almost nobody would ever see.
+ *
+ * The guard is exact equality with one of the two starters. The moment a writer
+ * has typed a single character it is their document, and nothing here may touch
+ * it — a "helpful" replacement of real text would be unforgivable, and there is
+ * no undo across a document swap.
+ */
+function swapUntouchedStarter() {
+  const body = runtime.view.state.doc.toString();
+  const want = starterDoc();
+  if (body === want || (body !== STARTER_HE && body !== STARTER_EN)) return;
+  const dir = getLang() === "en" ? "ltr" : "rtl";
+  if (settings.dir !== dir) setSetting("dir", dir);
+  loadBody(want);
+}
 
 const proseCompartment = new Compartment();
 const dirCompartment = new Compartment();
@@ -382,7 +439,7 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
 const autoCompartment = new Compartment();
 // ---------------------------------------------------------------- spell check
 //
-// The engine holds the lexicon and does the checking (see engine/src/spell.rs);
+// The engine holds the lexicons and does the checking (see engine/src/spell/);
 // this schedules the checks and turns a click on a squiggle into something
 // useful. Checking is debounced separately from compiling, and longer: a
 // misspelling that appears half a second late costs nothing, whereas checking on
@@ -403,10 +460,31 @@ async function runSpellCheck() {
   const text = spell.checkableText(runtime.view.state.doc.toString());
   try {
     const res = await runtime.backend.spell(text, spell.userWordsText(), false);
+    spell.noteLexiconSizes(res.lexicon_sizes);
     runtime.view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
   } catch {
     // A failed check is not worth interrupting the writer over.
   }
+}
+
+/**
+ * What the checker is actually checking, said out loud.
+ *
+ * This is the other half of adding English. The toggle used to read as on over a
+ * page it had never looked at, and a silence that reads as a clean bill of
+ * health is worse than a missing feature. So the panel names the languages —
+ * and names them from what the *engine reported*, not from what this file
+ * believes, because those came apart once before: a checked-in wasm module that
+ * predated spell-check shipped with no checker in it and nothing said so.
+ */
+function spellCoverageNote(): string {
+  const s = spell.lexiconSizes();
+  if (!s) return t("spellLanguages"); // before the first check, what the engine ships with
+  const n = (v: number) => v.toLocaleString(getLang() === "he" ? "he-IL" : "en-US");
+  if (s.he > 0 && s.en > 0) return tf("spellLanguagesCount", n(s.he), n(s.en));
+  if (s.he > 0) return tf("spellLanguagesPartial", t("langHebrew"));
+  if (s.en > 0) return tf("spellLanguagesPartial", t("langEnglish"));
+  return t("spellLanguagesNone");
 }
 
 function clearSpellCheck() {
@@ -858,7 +936,7 @@ function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
 function buildHeader(): HTMLElement {
   const lang = getLang();
 
-  const builtinItems = runtime.templatesReg.map((tpl) =>
+  const builtinItems = templatesForMenu().map((tpl) =>
     el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
       el("b", {}, [lang === "he" ? tpl.he : tpl.en]),
       el("span", { class: "menu-desc" }, [lang === "he" ? tpl.desc_he : tpl.desc_en]),
@@ -1166,6 +1244,7 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("spellcheckLabel", "spellcheck"),
+    el("div", { class: "set-note" }, [spellCoverageNote()]),
     checkRow("syncScrollLabel", "syncScroll"),
     checkRow("autosaveFileLabel", "autosaveFile"),
     el("h3", { style: "margin-top:18px" }, [t("userDictionary")]),
@@ -1543,8 +1622,46 @@ function loadBody(body: string) {
   runtime.view.focus();
   scheduleCompile();
 }
+/**
+ * Load a template, and put the document in the direction it was written for.
+ *
+ * The direction is not decoration here. An English letter loaded into a
+ * right-to-left document sets flush right with its date on the wrong side —
+ * correct for the setting, wrong for the letter, and confusing enough that a
+ * writer would reasonably conclude English is not supported. Picking a template
+ * is a deliberate act, and the direction control in the toolbar visibly moves
+ * with it, so this is a change the writer can see and undo rather than a hidden
+ * one.
+ *
+ * `lang` is absent on templates coming from an older engine build, in which case
+ * the direction is left alone: guessing would be worse than doing nothing.
+ */
 function loadTemplate(tpl: TemplateDef) {
+  const wanted = tpl.lang === "en" ? "ltr" : tpl.lang === "he" ? "rtl" : null;
+  if (wanted && settings.dir !== wanted) {
+    // Through `setSetting`, not by assignment: the direction also reconfigures
+    // the editor's own text direction, and setting the field alone would leave
+    // the preview and the source pane disagreeing about which way the page runs.
+    setSetting("dir", wanted);
+    rerenderChrome();
+  }
   loadBody(tpl.body);
+}
+
+/**
+ * The templates, with the ones in the interface's own language first.
+ *
+ * Not filtered — a Hebrew speaker writing an English letter, and an English
+ * speaker who wants the siddur, both exist and neither should have to go
+ * looking. Ordered, because the first thing in a menu is what a menu is telling
+ * you to use.
+ */
+function templatesForMenu(): TemplateDef[] {
+  const lang = getLang();
+  return [...runtime.templatesReg].sort((a, b) => {
+    const mine = (t: TemplateDef) => (t.lang === lang ? 0 : 1);
+    return mine(a) - mine(b);
+  });
 }
 
 interface UserTemplate {
@@ -2397,6 +2514,7 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
   saveSettings();
   if (key === "lang") {
     setLang(value as Lang);
+    swapUntouchedStarter();
     rerenderChrome();
   } else if (key === "theme") {
     applyTheme();
@@ -2686,10 +2804,10 @@ function maybeOnboard() {
       el(
         "div",
         { class: "welcome-templates" },
-        runtime.templatesReg
+        templatesForMenu()
           .slice(0, 6)
           .map((tpl) =>
-            el("button", { class: "welcome-tpl", onClick: () => { loadBody(tpl.body); dismissOnboard(); } }, [
+            el("button", { class: "welcome-tpl", onClick: () => { loadTemplate(tpl); dismissOnboard(); } }, [
               lang === "he" ? tpl.he : tpl.en,
             ]),
           ),
@@ -2726,12 +2844,20 @@ async function boot() {
   // The store opens before anything is drawn: the editor is constructed with
   // the document's text in it, so there is never a frame in which the writer
   // could type into a buffer that has no document behind it.
+  const starter = starterDoc();
+  // An English starter is a left-to-right document, and it is the only moment
+  // where flipping the direction is unambiguously right: nothing else exists yet
+  // to be disturbed by it.
+  if (getLang() === "en" && !localStorage.getItem("ksav.onboarded")) {
+    settings.dir = "ltr";
+    saveSettings();
+  }
   try {
-    runtime.setCurrentDoc(await docs.init(STARTER, t("untitled")));
+    runtime.setCurrentDoc(await docs.init(starter, t("untitled")));
   } catch (e) {
     // No durable store at all — a private window, or storage blocked. Say so
     // loudly and start an in-memory document rather than pretending.
-    runtime.setCurrentDoc({ id: docs.newId(), title: t("untitled"), body: STARTER, assets: [], updated: Date.now() });
+    runtime.setCurrentDoc({ id: docs.newId(), title: t("untitled"), body: starter, assets: [], updated: Date.now() });
     render();
     wireKeys();
     reportSaveFailure(e);

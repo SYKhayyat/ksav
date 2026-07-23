@@ -87,6 +87,10 @@ export interface TemplateDef {
   he: string;
   en: string;
   category: string;
+  /** The language the body is written in: "he" or "en". Loading a template
+   *  switches the document to the direction that goes with it — an English
+   *  letter set flush right is nobody's letter. */
+  lang: string;
   desc_he: string;
   desc_en: string;
   body: string;
@@ -97,18 +101,24 @@ export interface Misspelling {
   start: number;
   len: number;
   word: string;
+  /** Which lexicon flagged it: "he" or "en". */
+  lang?: string;
   suggestions?: string[];
 }
 
 export interface SpellResult {
   misspellings: Misspelling[];
+  /** Both lexicons together. */
   lexicon_size: number;
+  /** Per language, so the interface can name what it is actually checking
+   *  rather than repeat a claim the engine might not be able to keep. */
+  lexicon_sizes?: { he: number; en: number };
 }
 
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
-  /** Check text against the Hebrew lexicon plus the writer's own words. */
+  /** Check text against both lexicons plus the writer's own words. */
   spell(text: string, userWords: string, suggest?: boolean): Promise<SpellResult>;
   /** Suggestions for one word — asked for only when a menu is opened. */
   suggest(word: string, userWords: string): Promise<string[]>;

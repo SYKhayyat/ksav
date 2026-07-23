@@ -34,8 +34,8 @@ bochurim and a zman.
 | Code quality | done |
 | Non-intuitiveness | done |
 | Missing | 2 of 5 done; 3 are money or people, not code |
-| English / LTR | typography fixed; two gaps recorded as decisions below |
-| Tests | 37 assertions in 1 file → **317 in 8**, plus 99 engine tests |
+| English / LTR | typography, spell-check, starter, templates and parameter names — done |
+| Tests | 37 assertions in 1 file → **326 in 8**, plus 142 engine tests |
 
 ---
 
@@ -130,7 +130,7 @@ Both build modes are verified.
 > redistribution, and `release.yml` exists specifically to publish installers.
 
 **MIT OR Apache-2.0**, the Rust ecosystem convention, with the field filled in on
-all five manifests. Permissive is also the consistent choice: `spell.rs` rejects
+all five manifests. Permissive is also the consistent choice: `spell/hebrew.rs` rejects
 Hspell partly *because* it is AGPL, and refusing a copyleft dependency then
 shipping one would be strange.
 
@@ -453,20 +453,89 @@ text in `licenses/ESDB.txt`, a copy in the header of the generated lexicon where
 no build step can separate it from the data, and rendered in the app beside the
 font notices — and a test fails if the header copy goes missing.
 
-### One decision, not a fix
+### The first screen — **done**
 
-**The starter document and all eight templates are Hebrew.** An English writer's
-first screen is Hebrew text they must delete. That is the correct default for a
-Hebrew-first tool and the wrong first impression for the other half of the claim;
-the honest fix is an English starter chosen from the interface language, not a
-translation of the Torah templates, which are Hebrew *because of what they are*.
-Left as a decision because it is a content question, not an engineering one.
+The original entry read:
+
+> **The starter document and all eight templates are Hebrew.** An English
+> writer's first screen is Hebrew text they must delete. […] the honest fix is
+> an English starter chosen from the interface language, not a translation of the
+> Torah templates, which are Hebrew *because of what they are*.
+
+There are two starters and two more templates, and no translations.
+
+The starter follows the interface language, and — this is the part that decides
+whether the English one is ever seen — it **keeps following it**. The interface
+opens in Hebrew, because Ksav is Hebrew-first and that is the right default, so
+an English writer's actual first move is to switch the language. Choosing a
+starter once at boot has already chosen Hebrew by then. Switching the language
+now brings the welcome text with it, guarded by exact equality with one of the
+two starters: the moment a writer has typed a single character it is their
+document and nothing may touch it.
+
+The general templates — a letter, an article — exist in English as documents of
+their own. The letter is a letter to a rosh yeshiva; the article is a piece of
+Torah writing in English with footnotes, a table of shitos and a source line,
+because that is what someone writing English in Ksav is actually writing. The
+six Torah templates are untouched: a siddur, a bentcher, a kesubah and a get are
+Hebrew because of what they are, and an English kesubah is not a document anyone
+wants.
+
+A template now carries its `lang`, which does two things. The templates menu
+lists the interface language's own first — not filtered, because a Hebrew speaker
+writing an English letter and an English speaker who wants the siddur both exist.
+And loading one switches the document's direction, through `setSetting` so the
+editor's own text direction moves with it: an English letter dropped into a
+right-to-left document sets flush right with its date on the wrong side, which is
+nobody's letter, and is confusing enough that a writer would reasonably conclude
+English is not supported.
+
+### English parameter names — **done**, and it was not in the plan
+
+Writing those templates found the hole. "Every command has a collision-free
+English alias" was only half of what it sounded like: the *parameters* were still
+Hebrew, so an English table read `#mktable(עמודות: 3, פסים: true)`. That is not
+English and it is not something anyone would type, and a template written half in
+one language and half in the other would have been exactly the "good enough for
+now" this document opens by refusing.
+
+So an English alias is no longer a plain binding but a wrapper that renames its
+named arguments through one table of 60-odd words in the prelude. It still
+accepts the Hebrew names, because the point is to accept both rather than to swap
+one exclusion for another — somebody converting a document command by command
+must not hit a cliff halfway through. Two Hebrew parameters share one English
+word (טורים and עמודות are both "columns"), and rather than invent a second
+English word for one of them, the three functions that need the other reading say
+so at their own alias.
+
+`engine/tests/english_commands.rs` renders every one of these: a wrapper that
+silently dropped every named argument would compile perfectly and lay out the
+default document. It also checks that every English name in the command registry
+is a name the prelude actually defines — the registry is what the palette, the
+toolbar and the completions are built from, so a name in it the compiler does not
+know is a command the interface offers and then refuses.
+
+### What the toggle says
+
+The plan's cheapest item was to mark the spell-check toggle "Hebrew only", since
+it read as a clean bill of health on text it had never looked at. That label
+would have been obsolete the same day, so what went in instead is the honest
+version of the same idea: the settings panel names the languages being checked
+and the size of each lexicon, and says in as many words that text in any other
+language is *left alone, not confirmed correct*.
+
+It reads those numbers from what the engine returned on the last check rather
+than from a string in the interface. Those two have come apart here before — a
+checked-in wasm module that predated spell-check shipped with no checker in it at
+all and nothing said so — and if a lexicon ever fails to load, the panel says
+which one rather than repeating the claim.
 
 ---
 
 ## What I'd do next
 
-The original list is done except its last item, which is the one that matters:
+Everything on the original list is done. What is left is the item that was always
+the important one:
 
 > Then hand it to five bochurim for a zman. Everything after that should be driven
 > by what they hit.
@@ -475,7 +544,15 @@ Push to a remote, cut `v0.1.0`, and let CI produce the installers. Then hand it
 over. The boring reliability layer is in place; what it is missing now is contact
 with someone's actual sefer.
 
-Ahead of the two English decisions above, in that order: mark the spell-check
-toggle Hebrew-only, since it currently reads as a clean bill of health on text it
-never looked at; then an English starter document; then an English lexicon, which
-is the only one of the three that is a day's work rather than an afternoon's.
+Two things are worth naming as *known*, rather than left to be discovered:
+
+- **The English lexicon has no frequency data.** Suggestions are ranked by edit
+  type and case, which is enough to put `the` above `tea` for `teh`, but a word
+  list carrying counts would rank better still. It is a bigger asset and a
+  measurable gain; it is not obviously worth it until someone complains.
+- **Page setup is app-wide, not per document.** Direction, font, margins and
+  paper live in settings, so opening an English document and then a Hebrew one
+  means changing the direction by hand. Loading a template now does that for you,
+  which papers over the seam rather than removing it. Making page setup a
+  property of the document is the real fix and a larger change than anything in
+  this file.

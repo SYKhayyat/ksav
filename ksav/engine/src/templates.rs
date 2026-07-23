@@ -3,6 +3,23 @@
 //! Each `body` is Ksav markup (the same thing a user types); the engine wraps
 //! it with the document settings when compiling. The UI lists these as starting
 //! points and loads `body` into the editor.
+//!
+//! # Why templates carry a language
+//!
+//! Every template used to be Hebrew, so an English writer's first screen was
+//! Hebrew text they had to delete. That is the right default for a Hebrew-first
+//! tool and the wrong first impression for the other half of what Ksav claims.
+//!
+//! The fix is not to translate the Torah templates: a siddur, a bentcher, a
+//! kesubah and a get are Hebrew *because of what they are*, and an English
+//! kesubah is not a document anyone wants. It is to write the general ones —
+//! a letter, an article — in English as well, as documents of their own rather
+//! than as translations, and to let the interface show the language a writer is
+//! working in first.
+//!
+//! `lang` is also what tells the editor which direction to switch to when the
+//! template is loaded. A left-to-right template dropped into a right-to-left
+//! document sets an English letter flush right, which is nobody's letter.
 
 use serde::Serialize;
 
@@ -12,6 +29,9 @@ pub struct Template {
     pub he: &'static str,
     pub en: &'static str,
     pub category: &'static str,
+    /// The language the body is written in: `"he"` or `"en"`. Drives the
+    /// direction the editor switches to, and the order the menu lists them in.
+    pub lang: &'static str,
     pub desc_he: &'static str,
     pub desc_en: &'static str,
     pub body: &'static str,
@@ -23,6 +43,7 @@ pub static TEMPLATES: &[Template] = &[
         he: "מכתב",
         en: "Letter",
         category: "general",
+        lang: "he",
         desc_he: "מכתב רשמי בעברית",
         desc_en: "A formal Hebrew letter",
         body: include_str!("../templates/letter.ksav"),
@@ -32,15 +53,37 @@ pub static TEMPLATES: &[Template] = &[
         he: "מאמר",
         en: "Article",
         category: "general",
+        lang: "he",
         desc_he: "מאמר עם כותרות, הערות וטבלה",
         desc_en: "Article with headings, footnotes, a table",
         body: include_str!("../templates/article.ksav"),
+    },
+    Template {
+        id: "letter-en",
+        he: "מכתב באנגלית",
+        en: "Letter (English)",
+        category: "general",
+        lang: "en",
+        desc_he: "מכתב רשמי באנגלית, משמאל לימין",
+        desc_en: "A formal English letter, left to right",
+        body: include_str!("../templates/letter-en.ksav"),
+    },
+    Template {
+        id: "article-en",
+        he: "מאמר באנגלית",
+        en: "Article (English)",
+        category: "general",
+        lang: "en",
+        desc_he: "מאמר באנגלית עם הערות, מקורות וטבלה",
+        desc_en: "English article with footnotes, sources, a table",
+        body: include_str!("../templates/article-en.ksav"),
     },
     Template {
         id: "sefer",
         he: "ספר",
         en: "Sefer",
         category: "torah",
+        lang: "he",
         desc_he: "ספר תורני במבנה סימן וסעיף עם מראי מקומות",
         desc_en: "Rabbinic sefer: siman/seif with mekoros",
         body: include_str!("../templates/sefer.ksav"),
@@ -50,6 +93,7 @@ pub static TEMPLATES: &[Template] = &[
         he: "דברי תורה",
         en: "Divrei Torah",
         category: "torah",
+        lang: "he",
         desc_he: "דבר תורה על הפרשה עם מקורות",
         desc_en: "A dvar Torah on the parsha with sources",
         body: include_str!("../templates/divrei-torah.ksav"),
@@ -59,6 +103,7 @@ pub static TEMPLATES: &[Template] = &[
         he: "סידור",
         en: "Siddur",
         category: "torah",
+        lang: "he",
         desc_he: "נוסח תפילה עם ניקוד והנחיות",
         desc_en: "Prayer text with nikud and instructions",
         body: include_str!("../templates/siddur.ksav"),
@@ -68,6 +113,7 @@ pub static TEMPLATES: &[Template] = &[
         he: "ברכת המזון",
         en: "Bentcher",
         category: "torah",
+        lang: "he",
         desc_he: "ברכת המזון עם ניקוד",
         desc_en: "Birkas Hamazon with nikud",
         body: include_str!("../templates/bentcher.ksav"),
@@ -77,6 +123,7 @@ pub static TEMPLATES: &[Template] = &[
         he: "כתובה",
         en: "Kesubah",
         category: "torah",
+        lang: "he",
         desc_he: "נוסח כתובה מסורתי",
         desc_en: "Traditional kesubah text",
         body: include_str!("../templates/kesubah.ksav"),
@@ -86,6 +133,7 @@ pub static TEMPLATES: &[Template] = &[
         he: "גט",
         en: "Get",
         category: "torah",
+        lang: "he",
         desc_he: "מבנה שטר גט (להסבר)",
         desc_en: "Structure of a get document (informational)",
         body: include_str!("../templates/get.ksav"),

@@ -18,7 +18,14 @@ language:
 ```typst
 #let הדגשה(body) = strong(body)     ;  #let bold = הדגשה
 #let טבלה(עמודות: 2, ..תאים) = table(columns: עמודות, ..תאים)
+#let mktable = _en(טבלה)            ;  #mktable(columns: 2, ...)
 ```
+
+The alias is a wrapper, not a plain binding, because an English name over Hebrew
+*parameters* is only half a translation: `#mktable(עמודות: 3)` is not English and
+is not something anyone would type. `_en` renames named arguments through one
+table in the prelude and still accepts the Hebrew ones, so a document can be
+converted a command at a time without hitting a cliff halfway through.
 
 The engine prepends this prelude to the user's document, injects a
 `#show: מסמך.with(...)` wrapper driven by editor settings (font / size / margins /
@@ -53,8 +60,12 @@ nests past a handful.
   **mathematics** (`נוסחה`), per-section page setup (`מקטע_עמוד`), and a
   dedicated **Torah/yeshiva layer**: `סימן`, `סעיף`, `פסוק`, `מראה_מקום`
   (mekoros footnotes), `ציון`, `גמרא`, `דיבור_המתחיל`.
-- **8 document templates**: letter, article, sefer, divrei-torah, siddur,
-  bentcher, kesubah, get — real Hebrew content with nikud and authentic mekoros.
+- **10 document templates**: letter, article, sefer, divrei-torah, siddur,
+  bentcher, kesubah, get — real Hebrew content with nikud and authentic mekoros —
+  plus an English letter and an English article, written as documents of their
+  own rather than translations. Each carries its `lang`, so loading one puts the
+  document in the direction it was written for. The Torah templates stay Hebrew:
+  a siddur, a bentcher, a kesubah and a get are Hebrew because of what they are.
 - **Command registry** exposed as JSON (`/commands`) — drives the palette,
   toolbar, and docs. **Template registry** at `/templates`.
 - **Bundled fonts** (Frank Ruhl Hofshi, David Libre, Cascadia Mono, and NewCM
@@ -149,10 +160,15 @@ browser on any OS.
       neither exists).
 - [x] **Images and user fonts** — carried with the compile request, since the
       engine has no file system to read from.
-- [x] **Hebrew spell-check** on a lexicon Ksav owns, built from public-domain
-      corpora so it knows Torah Hebrew and the citation apparatus that general
-      dictionaries reject. Squiggles, suggestions, and a one-click user
-      dictionary.
+- [x] **Spell-check in both languages, dispatched per word.** Hebrew runs on a
+      lexicon Ksav owns, built from public-domain corpora so it knows Torah
+      Hebrew and the citation apparatus general dictionaries reject. English runs
+      on the English Speller Database plus public-domain Judaic English plus a
+      hand-written list of transliterated Hebrew, Aramaic and Yiddish — because a
+      general dictionary rejects five words in nine of an ordinary sentence about
+      a sugya. Each token goes to the lexicon for its own script, so a bilingual
+      document is checked in both halves without anyone setting anything.
+      Squiggles, suggestions, and a one-click user dictionary.
 - [x] **Exports** — PDF, real reflowable HTML (Typst's own HTML backend),
       Markdown, plain text, Typst source.
 - [x] **Responsive** down to a phone.
@@ -230,6 +246,24 @@ started. `app/test/harness.mjs` installs `localStorage` and IndexedDB shims, and
 its `localStorage.quota` is settable, because the bug most of these tests exist to
 prevent is what happens *at* the quota and waiting for a real 4.5 MB to fill is
 not a test, it is a delay.
+
+## Rebuild the lexicons
+
+Both generated word lists are committed, so a normal build never touches the
+network. Rebuild them only to change a source or a size:
+
+```sh
+cd engine
+python tools/build_lexicon.py               # Hebrew: Sefaria + Project Ben-Yehuda
+python tools/build_english_lexicon.py       # English: ESDB + Public Domain Judaic English
+cargo run --example spellrate -- some.txt   # miss rate, per language
+cargo run --example checkdocs               # what the templates trip on
+```
+
+The hand-curated supplements (`assets/lexicon-he-supplement.txt`,
+`assets/lexicon-en-supplement.txt`) are edited by hand and never regenerated;
+`cargo test` fails on any English supplement entry the generated list already
+accepts, so it cannot fill up with words carrying no weight.
 
 ## Ship a single self-contained binary (server / desktop)
 
@@ -363,7 +397,12 @@ downloads. See [`../THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) and
 Settings → About & licences, because the web build has no installer to put a text
 file beside.
 
+The English lexicon is derived from the **English Speller Database**, whose
+licence covers word lists created from it and requires its notice in all copies.
+That notice travels three ways: `../licenses/ESDB.txt`, the header of
+`engine/assets/lexicon-en.txt` itself, and Settings → About.
+
 Nothing under the GNU AGPL is bundled. Hspell — the only other open Hebrew
-spelling dictionary in existence — is deliberately not included; `engine/src/
-spell.rs` gives the licence reasoning and the measurements that ruled it out on
-quality grounds as well.
+spelling dictionary in existence — is deliberately not included;
+`engine/src/spell/hebrew.rs` gives the licence reasoning and the measurements
+that ruled it out on quality grounds as well.

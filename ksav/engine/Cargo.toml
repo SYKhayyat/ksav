@@ -3,6 +3,10 @@ name = "ksav-engine"
 version = "0.1.0"
 edition = "2021"
 description = "Hebrew-first typesetting engine built on real Typst compilation"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/SYKhayyat/ksav"
+# The six fonts under assets/fonts are separately licensed (OFL 1.1 / GUST);
+# see THIRD-PARTY-NOTICES.md at the repository root.
 
 [lib]
 name = "ksav_engine"

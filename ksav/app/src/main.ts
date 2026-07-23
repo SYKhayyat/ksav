@@ -1639,7 +1639,60 @@ function buildSettingsDrawer(): HTMLElement {
     el("h3", { style: "margin-top:18px" }, [t("shortcuts")]),
     ...shortcutRows,
     el("button", { class: "sc-reset", type: "button", onClick: resetShortcuts }, [t("resetShortcuts")]),
+    ...buildAboutSection(),
   ]);
+}
+
+/**
+ * The licence notice, in the app.
+ *
+ * Not decoration and not a nicety. Six fonts are compiled into the engine, so
+ * every way Ksav is distributed — the installers, the server binary, and the
+ * ~23 MB wasm module the browser build downloads — is a redistribution of them.
+ * Both the SIL OFL and the GUST licence require their notice to accompany a
+ * redistribution, and a web build has no installer to put a text file beside.
+ * So the notice lives where the software is.
+ */
+const BUNDLED_FONT_NOTICES: { name: string; copyright: string; licence: string; url: string }[] = [
+  {
+    name: "Frank Ruhl Hofshi",
+    copyright: "Copyright 2015 The Frank Ruhl Hofshi Project Authors",
+    licence: "SIL Open Font License 1.1",
+    url: "https://openfontlicense.org",
+  },
+  {
+    name: "David Libre",
+    copyright: "Copyright (c) 2003–2016 The David Libre Project Authors",
+    licence: "SIL Open Font License 1.1",
+    url: "https://openfontlicense.org",
+  },
+  {
+    name: "Cascadia Mono",
+    copyright: "Copyright (c) 2020 Microsoft Corporation",
+    licence: "SIL Open Font License 1.1",
+    url: "https://github.com/microsoft/cascadia-code",
+  },
+  {
+    name: "New Computer Modern Math",
+    copyright: "Copyright (C) 2019–2026 Antonis Tsolomitis",
+    licence: "GUST Font License 1.0 (LPPL 1.3c)",
+    url: "https://tug.org/fonts/licenses/GUST-FONT-LICENSE.txt",
+  },
+];
+
+function buildAboutSection(): Node[] {
+  return [
+    el("h3", { style: "margin-top:18px" }, [t("aboutTitle")]),
+    el("div", { class: "set-note" }, [t("aboutLicence")]),
+    el("div", { class: "set-note" }, [t("aboutFonts")]),
+    ...BUNDLED_FONT_NOTICES.map((f) =>
+      el("div", { class: "font-notice" }, [
+        el("b", {}, [f.name]),
+        el("span", {}, [f.copyright]),
+        el("a", { href: f.url, target: "_blank", rel: "noopener noreferrer" }, [f.licence]),
+      ]),
+    ),
+  ];
 }
 
 let capturing = false;
@@ -1975,15 +2028,20 @@ async function saveFile() {
       setStatus(t("permissionDenied"), "err");
       return;
     }
+    let written = false;
     try {
-      await files.saveTo(currentBinding, text);
+      written = await files.saveTo(currentBinding, text);
     } catch (e) {
       setStatus(`${t("saveFailed")} — ${String(e)}`, "err");
       return;
     }
-    unsavedToFile = false;
-    setStatus(tf("savedTo", currentBinding.name), "ok");
-    return;
+    if (written) {
+      unsavedToFile = false;
+      setStatus(tf("savedTo", currentBinding.name), "ok");
+      return;
+    }
+    // The binding no longer authorises a write — a desktop path from a previous
+    // session, or a handle whose permission lapsed. Ask where to put it.
   }
   await saveFileAs();
 }

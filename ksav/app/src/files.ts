@@ -128,8 +128,16 @@ function openViaInput(): Promise<OpenedFile | null> {
 /** Write to the bound file. Returns false if this binding cannot be written to. */
 export async function saveTo(binding: FileBinding, text: string): Promise<boolean> {
   if (binding.kind === "tauri" && binding.path) {
-    await tauriInvoke("ksav_write_file", { path: binding.path, contents: text });
-    return true;
+    try {
+      await tauriInvoke("ksav_write_file", { path: binding.path, contents: text });
+      return true;
+    } catch {
+      // The desktop shell only permits writes to paths chosen in a dialog this
+      // session, so a binding recalled from a previous run is refused. That is
+      // not an error to report — it is a Save-As, exactly as a browser handle
+      // whose permission has lapsed becomes one.
+      return false;
+    }
   }
   if (binding.kind === "handle" && binding.handle) {
     const w = await (binding.handle as never as {

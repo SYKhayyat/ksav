@@ -264,6 +264,16 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 12px 14px; border-bottom: 1px solid var(--line);
 }
+/* The bundled-font licence notice in the settings drawer. Small, but it is a
+   licence condition rather than a credit, so it is legible and selectable. */
+.font-notice {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 6px 0; border-bottom: 1px solid var(--line);
+  font-size: 11px; color: var(--muted); line-height: 1.5;
+}
+.font-notice b { color: var(--ink); font-size: 12px; }
+.font-notice a { color: var(--accent); }
+
 .history-scope {
   padding: 8px 10px 4px; font-size: 12px; color: var(--muted);
 }

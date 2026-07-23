@@ -3,6 +3,8 @@ name = "ksav-wasm"
 version = "0.1.0"
 edition = "2021"
 description = "WebAssembly binding for the Ksav engine — real Typst in the browser"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/SYKhayyat/ksav"
 
 [lib]
 crate-type = ["cdylib"]

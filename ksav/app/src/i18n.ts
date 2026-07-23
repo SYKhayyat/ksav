@@ -252,6 +252,10 @@ const HE: Dict = {
   downloadBackup: "הורד גיבוי",
   autosavedTo: "נשמר אוטומטית ב־{0}",
   autosaveFileLabel: "שמירה אוטומטית לקובץ המקושר",
+  // about / licences
+  aboutTitle: "אודות ורישיונות",
+  aboutLicence: "כְּתָב מופץ תחת רישיון MIT או Apache-2.0, לבחירתכם.",
+  aboutFonts: "הגופנים המצורפים מורשים בנפרד, והרישיונות שלהם דורשים שההודעה הזו תלווה כל הפצה:",
   region: "אזור",
   autocompleteLabel: "השלמה אוטומטית (#)",
   spellcheckLabel: "בדיקת איות",
@@ -543,6 +547,10 @@ const EN: Dict = {
   downloadBackup: "Download a backup",
   autosavedTo: "Auto-saved to {0}",
   autosaveFileLabel: "Auto-save to the bound file",
+  // about / licences
+  aboutTitle: "About & licences",
+  aboutLicence: "Ksav is distributed under the MIT licence or Apache-2.0, at your option.",
+  aboutFonts: "The bundled fonts are separately licensed, and their licences require this notice to accompany any redistribution:",
   region: "Region",
   autocompleteLabel: "Autocomplete (#)",
   spellcheckLabel: "Spell check",

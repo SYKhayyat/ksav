@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
     }
   },
   "bundle": {
@@ -30,7 +30,15 @@
     "targets": "all",
     "publisher": "Ksav",
     "category": "Productivity",
-    "copyright": "Ksav",
+    "copyright": "Copyright (c) 2026 The Ksav Authors. MIT OR Apache-2.0. Bundled fonts are separately licensed — see THIRD-PARTY-NOTICES.md.",
+    "licenseFile": "../../../LICENSE",
+    "resources": {
+      "../../../LICENSE": "LICENSE",
+      "../../../LICENSE-MIT": "LICENSE-MIT",
+      "../../../LICENSE-APACHE": "LICENSE-APACHE",
+      "../../../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md",
+      "../../../licenses/*": "licenses/"
+    },
     "shortDescription": "Hebrew-first writing and typesetting",
     "longDescription": "Ksav (כְּתָב) is a Hebrew-first writing system built on the real Typst compiler. It typesets Hebrew documents with proper RTL, nikud, and a full note apparatus — footnotes, endnotes, section notes, side notes and parallel commentary streams — that word processors cannot produce.",
     "icon": [

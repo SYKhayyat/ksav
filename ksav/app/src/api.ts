@@ -152,56 +152,79 @@ export class HttpBackend implements Backend {
   }
 }
 
-/** Runs the real Typst engine entirely in the browser via WebAssembly. */
+/**
+ * Runs the real Typst engine entirely in the browser via WebAssembly — in a
+ * worker, so a compile does not freeze the tab.
+ *
+ * This used to call `ksav_compile` straight from the page. A compile is 0.4–2.9
+ * s of CPU-bound layout and the editor fires one on every pause in typing, so
+ * the "no server needed" build spent those seconds with no scrolling, no
+ * typing and no caret. wasm-bindgen cannot yield mid-compile; the work has to
+ * happen on another thread.
+ */
 export class WasmBackend implements Backend {
   readonly kind = "wasm";
-  private mod: {
-    ksav_compile(s: string): string;
-    ksav_commands(): string;
-    ksav_templates(): string;
-    ksav_spell(s: string): string;
-    ksav_suggest(s: string): string;
-  } | null = null;
-  private ready: Promise<void> | null = null;
+  private worker: Worker | null = null;
+  private nextId = 1;
+  private pending = new Map<number, { resolve: (s: string) => void; reject: (e: Error) => void }>();
 
-  private ensure(): Promise<void> {
-    if (!this.ready) {
-      this.ready = (async () => {
-        // The imports live inside `if (__WASM__)` so the default build, where
-        // __WASM__ is the literal `false`, tree-shakes the wasm chunk away.
-        // Only an offline build (VITE_WASM=1) bundles it.
-        if (__WASM__) {
-          const glue = await import("./wasmpkg/ksav_wasm.js");
-          const wasmUrl = (await import("./wasmpkg/ksav_wasm_bg.wasm?url")).default;
-          await glue.default({ module_or_path: wasmUrl });
-          this.mod = glue as never;
-        } else {
-          throw new Error("wasm backend not built");
-        }
-      })();
-    }
-    return this.ready;
+  private ensure(): Worker {
+    if (this.worker) return this.worker;
+    // Constructed inside `if (__WASM__)` so the default build, where __WASM__ is
+    // the literal `false`, drops the worker and the 23 MB module with it. Only
+    // an offline build (VITE_WASM=1) bundles them.
+    if (!__WASM__) throw new Error("wasm backend not built");
+    const w = new Worker(new URL("./wasm-worker.ts", import.meta.url), { type: "module" });
+    w.onmessage = (e: MessageEvent<{ id: number; ok: boolean; output?: string; error?: string }>) => {
+      const { id, ok, output, error } = e.data;
+      const slot = this.pending.get(id);
+      if (!slot) return;
+      this.pending.delete(id);
+      if (ok) slot.resolve(output ?? "");
+      else slot.reject(new Error(error ?? "engine error"));
+    };
+    // A worker that dies takes every call in flight with it; failing them is the
+    // only way the editor learns that rather than waiting forever.
+    w.onerror = (e) => this.failAll(new Error(e.message || "engine worker failed"));
+    this.worker = w;
+    return w;
+  }
+
+  private failAll(err: Error) {
+    for (const { reject } of this.pending.values()) reject(err);
+    this.pending.clear();
+    this.worker?.terminate();
+    this.worker = null;
+  }
+
+  private call(name: string, input: string): Promise<string> {
+    const w = this.ensure();
+    const id = this.nextId++;
+    return new Promise<string>((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      w.postMessage({ id, call: name, input });
+    });
   }
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
-    await this.ensure();
-    return JSON.parse(this.mod!.ksav_compile(JSON.stringify({ body, ...cfg, ...assets })));
+    return JSON.parse(await this.call("compile", JSON.stringify({ body, ...cfg, ...assets })));
   }
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    await this.ensure();
-    return JSON.parse(this.mod!.ksav_spell(JSON.stringify({ text, user_words: userWords, suggest })));
+    return JSON.parse(
+      await this.call("spell", JSON.stringify({ text, user_words: userWords, suggest })),
+    );
   }
   async suggest(word: string, userWords: string): Promise<string[]> {
-    await this.ensure();
-    return JSON.parse(this.mod!.ksav_suggest(JSON.stringify({ word, user_words: userWords }))).suggestions ?? [];
+    const out = JSON.parse(
+      await this.call("suggest", JSON.stringify({ word, user_words: userWords })),
+    );
+    return out.suggestions ?? [];
   }
   async commands(): Promise<CommandDef[]> {
-    await this.ensure();
-    return JSON.parse(this.mod!.ksav_commands());
+    return JSON.parse(await this.call("commands", ""));
   }
   async templates(): Promise<TemplateDef[]> {
-    await this.ensure();
-    return JSON.parse(this.mod!.ksav_templates());
+    return JSON.parse(await this.call("templates", ""));
   }
 }
 

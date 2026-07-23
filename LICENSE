@@ -1,0 +1,35 @@
+Ksav is dual-licensed under either of
+
+  * Apache License, Version 2.0 ...... LICENSE-APACHE  (or http://www.apache.org/licenses/LICENSE-2.0)
+  * MIT license ...................... LICENSE-MIT     (or http://opensource.org/licenses/MIT)
+
+at your option.
+
+This is the Rust ecosystem's convention: the MIT licence is short and
+maximally permissive, and Apache-2.0 adds an explicit patent grant that some
+organisations require before they will use or contribute to a project. You may
+comply with either one; you do not have to comply with both.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in Ksav by you shall be dual-licensed as above, without any
+additional terms or conditions.
+
+
+WHY THIS MATTERS FOR KSAV
+-------------------------
+
+There was no licence here at all until now, which under copyright law means
+all rights reserved: nobody could legally use, fork or redistribute the work,
+and the open-sourcing that spec.md names as the answer to the bus factor was
+foreclosed. A permissive licence is also the consistent choice — engine/src/
+spell.rs rejects Hspell partly *because* it is AGPL, and it would be strange to
+refuse a copyleft dependency and then ship one.
+
+
+THE BUNDLED FONTS ARE SEPARATELY LICENSED
+-----------------------------------------
+
+Six font files are compiled into the Ksav binaries and are NOT covered by the
+licences above. They carry their own terms, and those terms require their
+notices to travel with any redistribution — which includes every installer this
+project publishes. See THIRD-PARTY-NOTICES.md and the licenses/ directory.

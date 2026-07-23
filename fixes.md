@@ -1,4 +1,4 @@
-# Ksav — Production Readiness Assessment & Fix List
+# Ksav — production readiness: what was fixed, and what is left
 
 > ## Standard of work
 >
@@ -17,86 +17,325 @@
 
 ---
 
-I read the engine, the SPA, the Typst prelude and the packaging, ran both test suites, and exercised the running app in a browser. Here's the assessment.
+This was an assessment; it is now a record of the work done against it. The
+original findings are kept verbatim under each item, because a fix is only
+legible next to the thing it fixed.
 
-## Verdict
+## Status
 
-**Not ready.** The engine is genuinely production-grade. The application shell around it is not, and there is a reproducible silent-data-loss bug that disqualifies it on its own. Call it 1–2 weeks of focused work to reach "safe for five pilot users."
+**Every engineering item is done.** What remains is not engineering: one item
+needs a GitHub account, one needs code-signing certificates, and one needs five
+bochurim and a zman.
 
-## What's actually strong
+| | |
+|---|---|
+| Blockers | 4 of 5 fixed; #5 (git remote) prepared, needs the repo |
+| Serious | 8 of 8 fixed |
+| Code quality | done |
+| Non-intuitiveness | done |
+| Missing | 2 of 5 done; 3 are money or people, not code |
+| Tests | 37 assertions in 1 file → **317 in 8**, plus 92 engine tests |
 
-Don't let the list below obscure this. The Rust side is better than most shipping code:
-
-- **The core bet is right.** Every Ksav command is a real Typst function (`engine/typst/ksav.typ`), so Typst parses the document and arbitrary cross-nesting works for free. No hand-rolled parser to maintain, no divergence between what the editor thinks and what renders.
-- **The tests assert rendered geometry, not exit codes.** `engine/tests/apparatus.rs` checks *where things landed on the page* — `sidenotes_align_to_their_own_marker_line`, `page_band_apparatus_stays_on_the_paper`, `two_notes_with_identical_text_stay_two_notes`. That is a much higher bar than `assert!(out.ok())`, and it caught real bugs (the content-key dedup that merged two notes reading "עיין שם").
-- 0 warnings, 0 TODOs, 0 `unwrap()`, one `expect()` in the whole engine. ~85 tests pass.
-- **The lexicon decision is well-reasoned and documented.** `spell.rs` explains why Hspell was rejected (AGPL *and* it flags 26% of Talmudic Aramaic as wrong), and `tools/build_lexicon.py` documents the PD provenance of every corpus, including why Talmud Bavli is absent.
-- The file sandbox holds: `#read("C:/Windows/win.ini")` from a document returns "file not found."
-- i18n is complete — 207 keys, exact HE/EN parity, every used key defined.
+---
 
 ## Blockers
 
-**1. Storage exhaustion silently stops saving and rendering, permanently.** I reproduced this in the running app:
+### 1. Storage exhaustion silently stopped saving and rendering — **fixed**
 
+> `docs.putDoc(currentDoc)` at `app/src/main.ts:749` sits *before* the `try` that
+> starts at line 761. When `localStorage` fills, it throws, `runCompile` never
+> reaches its `catch`, the status line stays on "rendering…", and every subsequent
+> keystroke repeats the failure. The writer sees a slow render, not a failure, and
+> keeps typing into a buffer that is no longer persisted.
+
+Saving no longer depends on rendering. It is its own module (`app/src/save.ts`)
+with its own debounce, its own serialised queue and its own error handling; the
+compile path (`app/src/compile.ts`) never touches storage. A failed save raises a
+red banner that stays until the store works again, carrying a **Try again** and a
+**Download a backup** button — because "your work is not being saved" is only half
+an answer without a way to rescue it.
+
+The store underneath moved to **IndexedDB** (`app/src/store.ts`). localStorage
+gives a page ~4.5 MB in total and signals exhaustion by throwing from inside a
+setter; IndexedDB is measured in hundreds of megabytes and reports failure as a
+rejected promise. A write resolves on transaction *commit*, not on request
+success, so "saved" means saved. The library index stays in localStorage because
+menus need it synchronously — it is a cache, and `init()` rebuilds it from the
+documents whenever it disagrees, so it can never become the authority on what
+exists.
+
+The two contributing measurements are fixed too:
+
+> `MAX_ASSET_BYTES` is 4 MB (`main.ts:2524`) — base64 makes that 5.3 MB, larger
+> than the entire quota. The guard meant to prevent this is set above the ceiling
+> it protects.
+
+Now 8 MB against a store measured in hundreds, and an attachment is refused
+*before* it is read, using `navigator.storage.estimate()` when the browser will
+answer. A failed attachment is also rolled back out of the in-memory document,
+rather than leaving it referring to bytes that were never stored.
+
+> `takeSnapshot` (`main.ts:1590`) stores **80 full copies of the document** under
+> one key, auto-firing every 3 minutes with no size cap.
+
+Capped at 50 snapshots **and** 2 MB per document, oldest evicted first, and never
+down to zero. Both ceilings are needed: fifty snapshots of a 200 KB sefer is ten
+megabytes, and a byte cap alone would let a one-line document accumulate forever.
+
+### 2. Version history was global, not per document — **fixed**
+
+> `Snapshot` is `{t, body}` (`main.ts:1579`) in a single `ksav.history` key. There
+> is no document id in the record, so history can't even be filtered. Open
+> document A, restore a snapshot that came from B, and A's text is gone.
+
+Snapshots live under the document, in IndexedDB. The history modal names whose
+history it is showing. The old global key cannot be attributed to any document —
+there is nothing in the record to attribute it *by* — so it is dropped on
+migration rather than offered under a document it may not belong to.
+
+Asserted in `app/test/docs.test.mjs`: A's history contains nothing of B's.
+
+### 3. The desktop build compiled on the UI thread — **fixed**
+
+> `src-tauri/src/lib.rs:7, 91, 97` declare `ksav_compile`, `ksav_spell` and
+> `ksav_suggest` as synchronous `#[tauri::command] fn` — Tauri runs those on the
+> main thread. The file dialogs at `:39` and `:61` are correctly `async fn`, so the
+> distinction was understood; it just wasn't applied to the expensive calls.
+
+All three are `async fn` and hand off to `spawn_blocking`. `async` alone would not
+have been enough: an async command runs on the async runtime, and Typst layout
+would occupy a runtime worker for the whole 0.4–2.9 s.
+
+> Same problem in `wasm/src/lib.rs:15` — no worker, so the "runs in the browser
+> with no server" build blocks the UI thread too.
+
+The wasm engine runs in a Web Worker (`app/src/wasm-worker.ts`) behind a
+request/response protocol matching the other two backends, so all three stay
+interchangeable.
+
+Two things turned up while doing it. The checked-in wasm package predated
+spell-check, so `ksav_spell` was **not in the module at all** and the offline
+build had silently had no checker; it is rebuilt. And moving to a worker put the
+28 MB module into the *default* build, because `new Worker(new URL(…))` is a
+static construct Vite resolves before any dead-code elimination — fixed by
+swapping the module through a build alias rather than guarding the call site.
+Both build modes are verified.
+
+### 4. No license, anywhere — **fixed**
+
+> No LICENSE or COPYING file, `license = ""` in `src-tauri/Cargo.toml`, no license
+> field in the engine or wasm manifests or either `package.json`. […] Separately,
+> the six bundled fonts are OFL/GUST; both licences require the notice to accompany
+> redistribution, and `release.yml` exists specifically to publish installers.
+
+**MIT OR Apache-2.0**, the Rust ecosystem convention, with the field filled in on
+all five manifests. Permissive is also the consistent choice: `spell.rs` rejects
+Hspell partly *because* it is AGPL, and refusing a copyleft dependency then
+shipping one would be strange.
+
+The fonts are covered properly. `THIRD-PARTY-NOTICES.md` names each one with its
+copyright and licence, the verbatim texts are in `licenses/`, the files ship as
+Tauri bundle resources, and the notice is **rendered inside the app** — the web
+build redistributes the fonts inside the wasm module and has no installer to put
+a text file beside. The licence facts were read out of the fonts' own `name`
+tables, including Cascadia's, whose ID 13 record disagrees with its ID 14 record;
+that disagreement is written down rather than papered over.
+
+### 5. Still no git remote — **prepared; needs the repository**
+
+> CI has never run, there is no macOS build, and one machine holds the only copy
+> of the work.
+
+This one cannot be finished from here: it needs a GitHub account. Everything
+around it is ready.
+
+- `.github/workflows/ci.yml` is new and runs on every push and pull request:
+  editor typecheck, tests and build; engine tests and `clippy -D warnings`;
+  desktop-shell tests. Clippy had four warnings against the engine's own stated
+  standard of zero — fixed, then enforced rather than trusted.
+- `.github/workflows/release.yml` already builds Windows, Linux and **both** macOS
+  architectures on a tag. It has never run because there has never been a remote.
+
+To finish it:
+
+```sh
+# create an empty repo on GitHub first (no README, no licence — they exist here)
+git remote add origin git@github.com:<you>/ksav.git
+git push -u origin master
+git tag v0.1.0 && git push origin v0.1.0   # cuts a draft release with installers
 ```
-status:    "מרנדר…"        ← stuck forever
-saved doc: 29,978 chars    ← 400,000 chars typed after this were never saved
-rejection: QuotaExceededError
-console errors: none
-```
 
-`docs.putDoc(currentDoc)` at `app/src/main.ts:749` sits *before* the `try` that starts at line 761. When `localStorage` fills, it throws, `runCompile` never reaches its `catch`, the status line stays on "rendering…", and every subsequent keystroke repeats the failure. The writer sees a slow render, not a failure, and keeps typing into a buffer that is no longer persisted.
+The `repository` fields in the manifests currently read
+`https://github.com/SYKhayyat/ksav`; change them if the repo lands elsewhere.
 
-Getting there is ordinary, not adversarial. I measured the quota at ~4.5 MB. Meanwhile:
-- `MAX_ASSET_BYTES` is 4 MB (`main.ts:2524`) — base64 makes that 5.3 MB, larger than the entire quota. The guard meant to prevent this is set above the ceiling it protects.
-- `takeSnapshot` (`main.ts:1590`) stores **80 full copies of the document** under one key, auto-firing every 3 minutes with no size cap. A 200 KB sefer alone is 16 MB of history.
+---
 
-**2. Version history is global, not per document.** `Snapshot` is `{t, body}` (`main.ts:1579`) in a single `ksav.history` key. There is no document id in the record, so history can't even be filtered. Open document A, restore a snapshot that came from document B, and A's text is gone. Confirmed structurally in storage.
+## Serious, not blocking — all fixed
 
-**3. The desktop build compiles on the UI thread.** `src-tauri/src/lib.rs:7, 91, 97` declare `ksav_compile`, `ksav_spell` and `ksav_suggest` as synchronous `#[tauri::command] fn` — Tauri runs those on the main thread. The file dialogs at `:39` and `:61` are correctly `async fn`, so the distinction was understood; it just wasn't applied to the expensive calls. Measured compile times were 0.4–2.9 s for 13–43 pages, so the window freezes for that long on every pause in typing. The installers are the flagship distribution. Same problem in `wasm/src/lib.rs:15` — no worker, so the "runs in the browser with no server" build blocks the UI thread too.
+**The server was strictly serial** (`engine/src/server.rs:73`) — four concurrent
+compiles returned in a perfect 469/868/1255/1667 ms staircase. It now serves on a
+thread pool sized to `available_parallelism()` (clamped 2–16, because Typst layout
+is CPU-bound and an unbounded pool only trades throughput for context switches).
+`read_to_string` had no ceiling; bodies are capped at 64 MB, checked both against
+the declared `Content-Length` and while reading, since a chunked body declares no
+length and a client's claim is not a fact.
 
-**4. No license, anywhere.** No LICENSE or COPYING file, `license = ""` in `src-tauri/Cargo.toml`, no license field in the engine or wasm manifests or either `package.json`. Default is all-rights-reserved — nobody can legally use or fork it, which also forecloses the open-sourcing that spec.md names as the answer to the bus factor. Separately, the six bundled fonts are OFL/GUST; both licences require the notice to accompany redistribution, and `release.yml` exists specifically to publish installers. The lexicon provenance is meticulous by comparison, so this reads as an omission rather than a position.
+**Spell-check was 20× slower for anyone who ever used "add to dictionary"** —
+`for_request` cloned the entire 269,385-entry lexicon on every check. There is now
+a `Dict` trait with a `Layered` implementation that *borrows* the shared lexicon
+and owns only the writer's handful of words. The `OnceLock` above it exists
+precisely so the lexicon is built once; copying it per request threw that away.
 
-**5. Still no git remote.** CI has never run, there is no macOS build, and one machine holds the only copy of the work.
+**4.5 MB response for a 16-page document**, including 292 KB of base64 PDF nothing
+on screen consumed. Previews no longer render a PDF; `want_pdf` is set by export
+and print only. `Compiled::ok` became an explicit flag rather than `pdf.is_some()`,
+which would otherwise have reported every successful preview as a failure.
 
-## Serious, not blocking
+**No cancellation of superseded compiles.** Every request takes a ticket; only the
+newest may touch the screen.
 
-- **The server is strictly serial** (`engine/src/server.rs:73`). Four concurrent compiles returned in 469/868/1255/1667 ms — a perfect staircase. Compile and spell-check block each other; there are no timeouts, no cancellation, and `read_to_string` at `:80` reads request bodies unbounded.
-- **Spell-check is 20× slower for anyone who ever used "add to dictionary."** `for_request` (`spell.rs:374`) clones the entire 269,385-entry `HashSet<String>` whenever `user_words` is non-empty. Measured 9 ms → 183 ms, on every check, forever. The `OnceLock` two functions above exists to avoid exactly this.
-- **4.5 MB response for a 16-page document**, including 292 KB of base64 PDF that nothing on screen consumes. `lib.rs:342` regenerates the PDF on every preview compile. That's a free win.
-- **No cancellation of superseded compiles** (`runCompile`, `main.ts:730`). With 1–2 s compiles behind a 250 ms debounce, two are routinely in flight and results are applied in arrival order — a stale render can overwrite a newer one.
-- **Inconsistent Typst string escaping.** `typst_str_or_none` (`lib.rs:205`) escapes backslash then quote correctly and is used for `header`/`footer`. `font` (`:226`) and `paper` (`:232`) use ad-hoc `.replace()` that misses the backslash. Verified: `paper: "a4\"` breaks out of the literal and the whole document fails with "unclosed delimiter / unclosed string" pointing at the prelude, not at the setting.
-- **No numeric validation** in `DocConfig::from_json`. `size_pt: 0`, `size_pt: -5`, `columns: 5000`, `line_spacing_em: -3` all return `ok: true` with silently garbage output.
-- **No `beforeunload` guard.** Close the tab with unsaved changes to a bound file and they're gone without a prompt.
-- `tauri.conf.json` sets `csp: null`, and `ksav_write_file` (`lib.rs:85`) takes an unvalidated path from the webview. Not exploitable today — the invariant is real but enforced by JS convention rather than at the Rust boundary.
+**Inconsistent Typst string escaping.** `font` and `paper` go through the same
+escaping as `header`/`footer`, and paper is additionally reduced to
+`[a-z0-9-]`. Tested with hostile values in every one of the four fields.
 
-## Code quality
+**No numeric validation** in `DocConfig::from_json`. Every numeric field is now
+range-checked, and NaN/infinity are refused rather than clamped — a NaN formatted
+into the prelude is not a Typst length and fails inside code the writer never
+wrote.
 
-Two very different halves.
+**No `beforeunload` guard.** The library copy is flushed on the way out with no
+prompt (there is nothing for the writer to decide); the *file* on disk prompts,
+because only they know whether they meant to save it. `pagehide` and
+`visibilitychange` are covered too, since `beforeunload` is not guaranteed on
+mobile.
 
-The engine is clean, well-factored and unusually well-commented — the comments explain *why*, name the bug they fixed, and are honest about tradeoffs. `docs.ts`, `files.ts`, `styles.ts`, `review.ts` and `notes.ts` are all good modules with clear reasoning at the top.
+**`csp: null` and an unvalidated `ksav_write_file`.** A real CSP is set. The
+dialogs record what the user picked and writes are checked against that list at
+the Rust boundary — `..` traversal included, since the check canonicalises. A
+binding from a previous session falls through to Save-As, exactly as a lapsed
+browser handle does. Three tests.
 
-`main.ts` is the weak spot: **3,143 lines / 120 KB** carrying state, DOM construction, menus, exports, review, tables, styles, assets and boot. 13 module-level mutables, 35 `getElementById(...)!` non-null assertions. Test coverage is **1 test file for 15 modules** (`brackets.test.mjs`, 37 assertions). There is no test at all for `docs.ts` — the persistence layer where blocker #1 lives — or for `files.ts`, `review.ts`, `styles.ts`, `markdown.ts`.
+---
 
-One design mistake worth naming on its own: **auto-save is implemented as a side effect of compiling.** Saving should not depend on rendering. That coupling is the direct cause of blocker #1.
+## Code quality — done
 
-## Non-intuitiveness
+> `main.ts` is the weak spot: **3,143 lines / 120 KB** carrying state, DOM
+> construction, menus, exports, review, tables, styles, assets and boot.
 
-- **The toolbar is 42 icon-only buttons with zero `aria-label`.** They carry `title` tooltips, but the accessible name of a button reading "†" is "†". A screen reader announces "†, button", "⁑, button", "▤, button". Page-wide: 0 `[aria-label]`, 1 `[role]`, no `nav` landmarks.
-- The glyph vocabulary (⁑ ⇥ ⇤ ▣ § א. ‡ ▤ ⋯ ◫ ◧ ⊟ ⊞ ＃) has no labels and no grouping — the opposite of the labeled ribbon groups in the product it's replacing.
-- **The editor opens in raw markup, not prose mode.** For something pitched as a Word replacement, the Word-like view should be the default.
-- Unmapped compiler errors leak raw internals — `paper: "nonsense"` surfaces a 40-item list of Typst paper names.
+The reason everything had to live there was that the editor view, the backend, the
+registries and the open document were module-level mutables *inside* it: a panel
+that needed the editor had nowhere else to get one. `app/src/runtime.ts` inverts
+that — it holds the singletons and imports almost nothing, so anything may import
+it. Two hooks (`rerenderChrome`, `openDoc`) are installed by the shell at boot
+rather than imported from it, so the dependency is explicit instead of circular.
+
+Split out: `dom.ts`, `settings.ts`, `diagnostics.ts`, `compile.ts`, `save.ts`,
+`exports.ts`, `nikud.ts`, `runtime.ts`, `store.ts`. `main.ts` is 2,754 lines and
+is now the shell — editor, chrome, panels, boot. Module-level mutables in it: 3.
+
+> Test coverage is **1 test file for 15 modules** […] There is no test at all for
+> `docs.ts` — the persistence layer where blocker #1 lives — or for `files.ts`,
+> `review.ts`, `styles.ts`, `markdown.ts`.
+
+**317 assertions across 8 files.** The runner builds whatever is listed and runs
+whatever `test/*.test.mjs` exists, so adding a test is adding a file — that
+friction is how a suite ends up with one file in it. `docs.ts` and `store.ts` are
+tested against the blockers directly; `review.ts` has all four accept/reject cases
+written down, because getting any one backwards silently corrupts a manuscript;
+`styles.ts` asserts that an argument the panel does not recognise survives a
+write; `table.ts` asserts that every structural edit leaves the cell count
+agreeing with the declared column count; `markdown.ts` asserts nothing exported
+still looks like a Ksav command.
+
+Writing them found two real bugs that had nothing to do with the audit:
+
+1. **Spell-check never looked inside a table cell or a list item.** Inside `(…)`
+   Typst is in code context, so nested calls are written bare — `תא[רש"י]`,
+   `פריט[א]` — with no `#`; the command scanner matches on `#` and never saw them,
+   so blanking a command head from `#` to the closing paren blanked every cell and
+   every item with it. The bulleted list in Ksav's own starter document was going
+   unchecked. Twelve regression tests.
+2. **Documents created in the same millisecond sorted oldest-first**, so "New
+   document" could appear below the document it was made from.
+
+> One design mistake worth naming on its own: **auto-save is implemented as a side
+> effect of compiling.**
+
+That coupling is gone; see blocker #1.
+
+---
+
+## Non-intuitiveness — done
+
+> **The toolbar is 42 icon-only buttons with zero `aria-label`.** […] A screen
+> reader announces "†, button", "⁑, button", "▤, button". Page-wide: 0
+> `[aria-label]`, 1 `[role]`, no `nav` landmarks.
+
+`iconBtn` requires a name and sets `aria-label` from it; the glyph is
+`aria-hidden`, so a reader says "Footnote" rather than "dagger, Footnote".
+Landmarks: banner, a `nav` for the menu bar, labelled panes and drawers, a
+`role="separator"` splitter, and a polite live region on the status bar — which is
+also where a save failure is announced. Menus report `aria-expanded`. Focus rings
+are visible everywhere.
+
+> The glyph vocabulary (⁑ ⇥ ⇤ ▣ § א. ‡ ▤ ⋯ ◫ ◧ ⊟ ⊞ ＃) has no labels and no
+> grouping — the opposite of the labeled ribbon groups in the product it's
+> replacing.
+
+Seven labelled groups with visible captions — text style, headings, lists, notes,
+alignment, Torah, tools. Captions collapse on a phone, where the strip already
+scrolls; the accessible names stay, because they live on the group.
+
+> **The editor opens in raw markup, not prose mode.**
+
+Prose is the default. Alt reveals the markup and the `＃` chip switches
+permanently — one key away, which is the right distance for the people who want
+it.
+
+> Unmapped compiler errors leak raw internals — `paper: "nonsense"` surfaces a
+> 40-item list of Typst paper names.
+
+Paper and font errors are mapped to plain bilingual guidance; anything still
+unmapped is truncated to 160 characters with the full text kept on hover, because
+an unhelpful message beats a swallowed one but should not fill the status bar.
+
+---
 
 ## Missing
 
-macOS installer and code signing (both acknowledged in spec.md, both cost money not engineering). No cloud sync, collaboration, or mobile. The user dictionary lives in per-browser-profile `localStorage`, so it's invisible to the desktop app and lost on a browser change. No autosave-to-file — file saving is manual only. And the author's own honest note stands: **nobody has written a real document in it yet.**
+**Auto-save to file — done.** The bound file is written back on a 30-second timer,
+but only to a binding that can be written back to and whose permission is already
+granted: prompting for filesystem access out of a background timer would be its
+own bug. Switchable in Settings.
 
-## What I'd do
+**The user dictionary — done, as far as it honestly can be.** It lives in one
+browser profile, so it is invisible to the desktop app and gone if that profile is
+cleared. Sync would need an account system and inventing one for a word list would
+be absurd; instead it exports and imports as a plain commented word list, in the
+same shape `Lexicon::add_words` reads. Import **merges** rather than replaces,
+because someone loading their dictionary onto a second machine wants both halves.
 
-1. Move `putDoc` out of `runCompile` into its own debounced save with a `try/catch` that surfaces a visible, blocking error; cap history size and scope it per document; drop `MAX_ASSET_BYTES` below the quota or move assets to IndexedDB.
-2. Make the three Tauri commands `async fn`; put the wasm engine in a worker.
-3. Add a LICENSE and ship the font licence notices.
-4. Push to a remote so CI can produce the macOS build and the work stops living on one disk.
-5. Then hand it to five bochurim for a zman. Everything after that should be driven by what they hit.
+**macOS installer and code signing — still money, not engineering.** The CI matrix
+builds both macOS architectures already. Signing needs an Apple Developer
+certificate ($99/yr) and a Windows OV certificate (~$200–400/yr); `release.yml`
+documents exactly which secrets to add, and they become signed builds with no
+other change.
 
-The hard part — real Typst, a working eleven-layout note apparatus, a Hebrew lexicon that doesn't insult Torah text — is done and done well. What's missing is the boring reliability layer around it.
+**No cloud sync, collaboration, or mobile.** Unchanged, and deliberately out of
+scope — each is a product, not a fix.
+
+**Nobody has written a real document in it yet.** Still true, and still the most
+important line in this document. Nothing above substitutes for it.
+
+---
+
+## What I'd do next
+
+The original list is done except its last item, which is the one that matters:
+
+> Then hand it to five bochurim for a zman. Everything after that should be driven
+> by what they hit.
+
+Push to a remote, cut `v0.1.0`, and let CI produce the installers. Then hand it
+over. The boring reliability layer is in place; what it is missing now is contact
+with someone's actual sefer.

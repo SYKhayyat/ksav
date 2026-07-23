@@ -164,6 +164,30 @@ browser on any OS.
       border and watermark.
 - [x] **Mathematics** — `נוסחה` / `נוסחה_בשורה` evaluate Typst's maths notation,
       laid out left-to-right inside Hebrew text, with a keypad for the notation.
+- [x] **Durable storage** — documents, assets and per-document history in
+      IndexedDB; saving decoupled from rendering, with a visible, blocking error
+      when the store refuses. See [Storage](#storage).
+- [x] **Off the UI thread** — the desktop commands are `async` + `spawn_blocking`,
+      the wasm engine runs in a Web Worker, and the server serves on a thread
+      pool. A 0.4–2.9 s compile no longer freezes the window or the tab.
+- [x] **Accessible chrome** — every control has a name, the toolbar is seven
+      labelled ribbon groups, the page has landmarks, and the status bar is a
+      live region.
+- [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
+      shipped in the installers *and* rendered in the app. See [Licence](#licence).
+- [x] **CI** — typecheck, 317 editor assertions, 92 engine tests and
+      `clippy -D warnings` on every push. See [Test](#test).
+
+Not done, and not engineering:
+
+- [ ] **A git remote.** CI and the release matrix (Windows, Linux, both macOS
+      architectures) are written and have never run, because one machine still
+      holds the only copy of the work.
+- [ ] **Code signing.** Unsigned, Windows SmartScreen says "unrecognized app" and
+      macOS says "unidentified developer". The fix is a certificate ($99/yr Apple,
+      ~$200–400/yr Windows OV), not a workaround; `release.yml` names the secrets.
+- [ ] **Nobody has written a real document in it yet.** The most important line
+      here. Nothing above substitutes for it.
 
 ## Checking how something renders
 
@@ -186,6 +210,26 @@ cargo run --manifest-path engine/Cargo.toml -- serve
 # 2. Run the SPA dev server (proxies API to the engine)
 cd app && npm install && npm run dev        # http://localhost:5173
 ```
+
+## Test
+
+```sh
+cd app && npm test                          # 317 assertions across 8 files
+cd app && npx tsc --noEmit                  # typecheck
+cargo test --manifest-path engine/Cargo.toml
+cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path app/src-tauri/Cargo.toml
+```
+
+`.github/workflows/ci.yml` runs all of these on every push and pull request.
+
+The editor's runner (`app/test/run.mjs`) builds the modules listed in `MODULES`
+and executes every `app/test/*.test.mjs`, so **adding a test is adding a file** —
+that friction is how a suite ends up with one file in it, which is where this one
+started. `app/test/harness.mjs` installs `localStorage` and IndexedDB shims, and
+its `localStorage.quota` is settable, because the bug most of these tests exist to
+prevent is what happens *at* the quota and waiting for a real 4.5 MB to fill is
+not a test, it is a delay.
 
 ## Ship a single self-contained binary (server / desktop)
 
@@ -280,3 +324,46 @@ use ksav_engine::{compile, DocConfig};
 let result = compile("#הדגשה[שלום עולם]", &DocConfig::default());
 // result.pdf, result.pages_svg, result.diagnostics, result.typst_source
 ```
+
+## Storage
+
+Documents, their images and fonts, and the per-document version history live in
+**IndexedDB** (`app/src/store.ts`). Only preferences and a small library index
+live in `localStorage`.
+
+That split is not a preference. `localStorage` gives a page roughly 4.5 MB in
+total, is synchronous, and signals exhaustion by throwing from the middle of a
+setter — and Ksav filled it routinely: a 4 MB image is 5.3 MB once base64-encoded,
+and the history was eighty whole copies of the document under one key. The throw
+landed inside the compile path where nothing caught it, so the editor said
+"rendering…" forever and every keystroke after that was lost. IndexedDB is
+asynchronous, is measured in hundreds of megabytes, and reports failure as a
+rejected promise the writer can actually be shown.
+
+A write resolves on transaction *commit* rather than request success, so "saved"
+means saved. The library index stays in `localStorage` because menus need it
+synchronously; it is a cache, and `docs.init()` rebuilds it from the documents
+whenever it disagrees, so it can never become the authority on what exists.
+
+Saving is its own module (`app/src/save.ts`) on its own timer, and never depends
+on rendering. A save that fails raises a banner that stays until the store works
+again, with a **Download a backup** button on it.
+
+## Licence
+
+Dual-licensed **MIT OR Apache-2.0**, at your option — see
+[`../LICENSE`](../LICENSE), [`../LICENSE-MIT`](../LICENSE-MIT) and
+[`../LICENSE-APACHE`](../LICENSE-APACHE).
+
+The six bundled fonts are **separately licensed** (SIL OFL 1.1 and the GUST Font
+License) and their licences require the notice to accompany redistribution — which
+includes every installer, the server binary, and the wasm module the browser build
+downloads. See [`../THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) and
+[`../licenses/`](../licenses); the same notice is rendered in the app under
+Settings → About & licences, because the web build has no installer to put a text
+file beside.
+
+Nothing under the GNU AGPL is bundled. Hspell — the only other open Hebrew
+spelling dictionary in existence — is deliberately not included; `engine/src/
+spell.rs` gives the licence reasoning and the measurements that ruled it out on
+quality grounds as well.

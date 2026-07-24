@@ -17,6 +17,12 @@ Installers for Windows, macOS (Apple Silicon and Intel) and Linux are attached t
 the [latest release](https://github.com/SYKhayyat/ksav/releases). You do not need
 Rust, Node, or a terminal to use Ksav — those are only for building it yourself.
 
+> **Not published yet.** CI has built every installer — Windows, both Mac
+> architectures and Linux — but the `v0.1.0` release is still a *draft*, so that
+> link shows an empty page to anyone but the maintainer. Publishing the draft is
+> all that stands between the files and the people they are for. Until then,
+> build it yourself from the instructions below.
+
 **The installers are not code-signed, so the first launch is blocked on every
 system.** The download is not broken; a certificate is a cost Ksav has not paid
 yet. Getting past it:

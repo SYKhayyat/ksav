@@ -191,20 +191,29 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI** — typecheck, 389 editor assertions, 155 engine tests,
-      `clippy -D warnings`, and a build-and-run check of the browser (wasm)
-      engine on every push. See [Test](#test).
+- [x] **CI, running and green** — typecheck, 389 editor assertions, 155 engine
+      tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
+      of the browser (wasm) engine, on every push. See [Test](#test).
 
-Not done, and not engineering:
+Done since, and worth stating because these were the longest-standing gaps:
 
-- [ ] **A git remote.** CI and the release matrix are written and have never run
-      as workflows, because one machine still holds the only copy of the work.
-      The Windows installers themselves are not untested — `npm run tauri build`
-      produces the `.msi` and the NSIS `.exe` on this machine and they have been
-      built from the current tree. The `.deb` and `.AppImage` can be produced
-      locally too, through `packaging/build-linux.sh`. What genuinely has never
-      run is macOS: a `.dmg` cannot be cross-built, so both Mac architectures
-      wait on a runner.
+- [x] **A git remote, and CI that actually runs.** `ci.yml` runs on every push and
+      is green across all four jobs — editor, engine, desktop shell, browser
+      engine.
+- [x] **The release matrix has run, on every platform.** `v0.1.0` drove
+      `release.yml` to success on `windows-latest`, `ubuntu-22.04` and *both*
+      macOS architectures, so the `.msi`, `.exe`, `.deb`, `.AppImage` and both
+      `.dmg`s have all genuinely been produced by a runner.
+
+Not done:
+
+- [ ] **The release is still a draft, so nothing is downloadable.** This is the
+      one to fix first, and it is a button rather than a task. `release.yml` sets
+      `releaseDraft: true` — deliberately, so a release is reviewed before it is
+      public — and the draft from `v0.1.0` was never published. Until it is,
+      `/releases/latest` returns 404 and anyone following the Download link in the
+      root README finds an empty page. Every installer already exists; no one can
+      reach them.
 - [ ] **Code signing.** Unsigned, Windows SmartScreen says "unrecognized app" and
       macOS says "unidentified developer". The fix is a certificate ($99/yr Apple,
       ~$200–400/yr Windows OV), not a workaround; `release.yml` names the secrets.
@@ -333,9 +342,16 @@ overwrites the host's Windows-native `node_modules` and never recompiles Typst
 from cold twice. Installers are copied out to `ksav/packaging/out/`.
 
 **macOS cannot be cross-built at all** — a `.dmg` only comes from a macOS
-machine. `.github/workflows/release.yml` builds all four targets on tag push and
-attaches them to a draft release; it is written but has never run, because the
-repo has no git remote yet.
+machine, which is the whole reason `release.yml` exists. It builds all four
+targets on tag push and attaches them to a **draft** release. It has run: the
+`v0.1.0` tag drove it to success on `windows-latest`, `ubuntu-22.04` and both
+macOS architectures, so every installer this project ships has now been produced
+by a runner.
+
+The draft is still a draft, though, and that is the thing to do next. Nothing is
+downloadable until someone opens the release and presses publish — `releaseDraft:
+true` is the right default, but a draft nobody publishes is the same as no
+release at all.
 
 > **The installers are unsigned.** Windows SmartScreen will say "unrecognized
 > app" and macOS will say "unidentified developer". That is a genuine adoption

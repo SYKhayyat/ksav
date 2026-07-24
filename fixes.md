@@ -41,8 +41,14 @@ bochurim and a zman.
 > only ever reasoned about — the browser (wasm) engine and the desktop installers
 > — built and exercised for the first time. Its verdict is **ready**, and what it
 > found were four documentation defects, one missing CI job, and two small code
-> gaps. All are fixed. See *Third audit* below for what was checked and what
-> stands.
+> gaps, all since fixed.
+>
+> It also overtook the top of this file. "One item needs a GitHub account" is
+> done: the remote exists, CI runs green, and `v0.1.0` built installers on
+> Windows, Linux and both macOS architectures. What is left of that line is a
+> certificate, five bochurim and a zman — and one draft release that was never
+> published, which is the only thing now standing between the installers and the
+> people they were built for.
 
 | | |
 |---|---|
@@ -1055,8 +1061,10 @@ push real and hostile documents through it.
 
 **Verdict: ready.** No blockers. The engine is correct, bounded, fast at the size
 of a real sefer, and safe against the injection its own escaping exists to stop.
-What stood between Ksav and a release was a signing certificate and a git remote
-— exactly what the first list said, and still not engineering.
+
+What stands between Ksav and its readers is now a single unpressed button: every
+installer has been built by CI on every platform, and the release they are
+attached to was never published. That is the whole remaining distance.
 
 ## What was verified by running it
 
@@ -1083,8 +1091,9 @@ lexicons answered, suggestions came back. It works. It had never been shown to.
 
 *The desktop installers.* `npm run tauri build` produced `Ksav_0.1.0_x64_en-US.msi`
 and `Ksav_0.1.0_x64-setup.exe` from the current tree, cleanly. The claim that the
-installers "have never been run" was true when written and is no longer; what
-remains genuinely unbuilt is macOS, because a `.dmg` cannot be cross-built.
+installers "have never been run" was true when written and is no longer — and it
+turned out to be more thoroughly false than this audit first knew; see *Two of
+the oldest items closed themselves mid-audit* below.
 
 ## What it found, and what was done
 
@@ -1146,24 +1155,47 @@ the stat check never settled. Set `core.autocrlf false` locally and it is gone.
 `.gitattributes` now explains this, because the next person to clone on Windows
 will hit it and will also assume it is a real change.
 
-## What still stands, unchanged
+## Two of the oldest items closed themselves mid-audit
 
-Named plainly, and none of it is engineering:
+This section was first written to say "no git remote, so CI and the release
+workflows have never executed" and "macOS installers have never been built".
+Both were true of the tree being audited and both stopped being true while the
+audit was being written: a remote appeared on 23 July, and pushing this work's
+own commit was the thing that revealed it. Recorded rather than quietly
+corrected, because an audit that silently rewrites its own findings is worth
+less than one that shows where it was overtaken.
 
-- **No git remote,** so the CI and release *workflows* have still never executed.
+What is actually true now, checked against the GitHub API rather than assumed:
+
+- **CI runs on every push and is green** — editor, engine, desktop shell and the
+  new browser-engine job, all four passing on this commit. The wasm job is the
+  slow one at 7.5 minutes cold, nearly all of it the `wasm32-unknown-unknown`
+  build; the Rust cache should take most of that back on later runs.
+- **The release matrix has run on every platform.** `v0.1.0` drove `release.yml`
+  to success on `windows-latest`, `ubuntu-22.04` and *both* macOS architectures.
+  The `.dmg` that could not be cross-built here has been built there.
+
+## What still stands
+
+- **The release is a draft, so nothing is downloadable.** Found by asking the
+  API rather than by reading the workflow, and it is the most consequential
+  thing in this audit: `/releases` returns zero published releases and
+  `/releases/latest` is a 404, so the Download link at the top of the root
+  README shows a visitor an empty page. Every installer exists. Nobody can
+  reach one. `releaseDraft: true` is a deliberate and correct default — a
+  release should be looked at before it is public — but the looking never
+  happened. This is a button, not a task.
 - **No code signing,** so every operating system blocks the first launch. The
   README and the release body both say which button to press, which is the
   honest interim answer, not a fix.
-- **macOS installers have never been built** and cannot be, here. Windows and
-  Linux can be produced locally; a `.dmg` needs a Mac.
 - **A runaway compile is contained but not reclaimed** on the two native builds.
   It can no longer hold anyone up — this audit confirmed that by measurement, not
   by argument — but the abandoned work does finish on its own thread.
 - **Page setup is still app-wide.**
 - **No bochur has written a real sefer in it.** Three audits have now said this
-  is the item that matters most. Nothing above substitutes for it, and the more
-  the engineering holds up, the more conspicuous it becomes that this is the only
-  question left.
+  is the item that matters most. Nothing above substitutes for it, and now that
+  the remote, the CI and the installers have all stopped being excuses, it is
+  very nearly the only question left.
 
 ## What could not be checked
 

@@ -35,12 +35,61 @@ function canonical(kind: StyleCommand): string {
   return COMMAND_NAMES[kind][0];
 }
 
+/**
+ * The English spelling of every argument name this panel writes.
+ *
+ * The panel speaks Hebrew internally — those are the canonical keys — and this
+ * translates on the way out. Without it, opening the Styles panel on an English
+ * document rewrote `#headings_config(numbering: "1.1")` as
+ * `#הגדרות_כותרות(מספור: "1.1")`: still correct Typst, since every command and
+ * parameter accepts both, and still a writer's English document turning Hebrew
+ * underneath them because they clicked a control.
+ *
+ * A subset of `_en_params` in `engine/typst/ksav.typ`, which is the authority.
+ * Only the keys this panel actually writes are here; anything else it finds in
+ * the document is preserved verbatim under whatever name it already had.
+ */
+const EN_ARGS: Record<string, string> = {
+  הזחה: "indent",
+  הידוק: "tight",
+  יישור: "align",
+  מספור: "numbering",
+  מרווח: "inset",
+  סמן: "marker",
+  פסים: "striped",
+  צבע: "colour",
+  צבע_כותרת: "header_fill",
+  קו: "rule",
+  קו_תחתון: "underline",
+  רברבתי: "smallcaps",
+  תצוגה: "display",
+};
+const HE_ARGS: Record<string, string> = Object.fromEntries(
+  Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
+);
+
+/** The language a document's commands are written in. */
+export type CommandLang = "he" | "en";
+
+/** An argument name in the form the panel reasons about (Hebrew). */
+function canonicalKey(key: string): string {
+  return HE_ARGS[key] ?? key;
+}
+
+/** An argument name in the form the document is written in. */
+function keyIn(lang: CommandLang, key: string): string {
+  return lang === "en" ? (EN_ARGS[key] ?? key) : key;
+}
+
 export interface StyleCall {
   /** Byte range of the whole `#command(...)` in the document. */
   from: number;
   to: number;
-  /** Argument name → its source text, in order. */
+  /** Argument name → its source text, in order. Names are canonicalised to
+   *  Hebrew, so a caller never has to know which language the document used. */
   args: Map<string, string>;
+  /** Which language the call was written in, so a rewrite stays in it. */
+  lang: CommandLang;
 }
 
 /** Split a Typst argument list into `name: value` pairs, respecting nesting. */
@@ -116,7 +165,9 @@ export function findStyleCall(doc: string, kind: StyleCommand): StyleCall | null
       else if (c === ")") depth--;
     }
     if (depth !== 0) continue; // unbalanced — leave it alone
-    return { from: at, to: i, args: splitArgs(doc.slice(open + 1, i - 1)) };
+    const raw = splitArgs(doc.slice(open + 1, i - 1));
+    const args = new Map([...raw].map(([k, v]) => [canonicalKey(k), v]));
+    return { from: at, to: i, args, lang: name === canonical(kind) ? "he" : "en" };
   }
   return null;
 }
@@ -127,11 +178,16 @@ export function findStyleCall(doc: string, kind: StyleCommand): StyleCall | null
  * A value of `null` removes that argument. Arguments the caller does not mention
  * are left exactly as they were, including ones this UI knows nothing about.
  * Returns the new document text and where the call now ends.
+ *
+ * `lang` decides the language of a *new* call. An existing one keeps the
+ * language it was already written in, whatever the document's direction says —
+ * the writer's own text wins over a setting.
  */
 export function setStyleArgs(
   doc: string,
   kind: StyleCommand,
   changes: Record<string, string | null>,
+  lang: CommandLang = "he",
 ): string {
   const existing = findStyleCall(doc, kind);
   const args = existing ? new Map(existing.args) : new Map<string, string>();
@@ -147,11 +203,13 @@ export function setStyleArgs(
     return trimBlankLine(doc.slice(0, existing.from) + doc.slice(existing.to));
   }
 
+  const out = existing ? existing.lang : lang;
+  const name = out === "en" ? COMMAND_NAMES[kind][1] : canonical(kind);
   const rendered =
     "#" +
-    canonical(kind) +
+    name +
     "(" +
-    [...args.entries()].map(([k, v]) => `${k}: ${v}`).join(", ") +
+    [...args.entries()].map(([k, v]) => `${keyIn(out, k)}: ${v}`).join(", ") +
     ")";
 
   if (existing) return doc.slice(0, existing.from) + rendered + doc.slice(existing.to);

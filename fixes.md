@@ -35,7 +35,7 @@ bochurim and a zman.
 | Non-intuitiveness | done |
 | Missing | 2 of 5 done; 3 are money or people, not code |
 | English / LTR | typography, spell-check, starter, templates and parameter names — done |
-| Tests | 37 assertions in 1 file → **326 in 8**, plus 145 engine tests |
+| Tests | 37 assertions in 1 file → **351 in 8**, plus 145 engine tests |
 
 ---
 
@@ -554,6 +554,32 @@ reads the two literals out of `main.ts`. Reaching into the editor's source from 
 engine test is not elegant; it is the only way to hold text that has to exist
 before the engine has loaded, and it fails loudly rather than silently if the
 literals move.
+
+### Two editors that wrote Hebrew into an English document
+
+Making the parameters bilingual in the prelude was only the compiler's half. Two
+panels *generate* those calls, and both wrote Hebrew unconditionally.
+
+**The table toolbar** rebuilds the whole call from its cell list on every
+structural edit, and rebuilt it as `#name(עמודות: N, …cells)` — so adding a row
+to an English table put a Hebrew argument name in it, and, worse and older,
+**dropped every other named argument**. Both article templates are striped, so
+the first table most people would ever have edited would have come back
+un-striped with no indication why. The column count now keeps the name it was
+written with and every other setting is preserved verbatim, which needed a
+depth-aware argument splitter: a cell body is full of commas, and at depth 0 a
+`"` opens a Typst string while inside a `[…]` body it is the ordinary character
+Hebrew writes gershayim with.
+
+**The styles panel** canonicalised to the Hebrew command on every write, so
+clicking one control turned `#headings_config(numbering: "1.1")` into
+`#הגדרות_כותרות(מספור: "1.1")`. Still correct Typst — both are accepted — and
+still the writer's English document turning Hebrew underneath them. It now reads
+argument names into its own vocabulary and writes them back in the language the
+call was already in; a call that does not exist yet follows the document's
+direction. Twelve keys, a documented subset of the prelude's table, and every key
+the panel does not recognise still survives untouched, which was already the
+module's stated promise.
 
 ---
 

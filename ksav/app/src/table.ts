@@ -30,16 +30,58 @@ export interface TableInfo {
   argsTo: number;
   /** Declared column count. */
   cols: number;
-  /** Range of the `עמודות: N` argument, so it can be rewritten. */
-  colsFrom: number;
-  colsTo: number;
   cells: TableCell[];
+  /**
+   * Every other named argument, verbatim and in order — `פסים: true`,
+   * `יישור: center`.
+   *
+   * Rebuilding the call used to write `#טבלה(עמודות: N, …cells)` and nothing
+   * else, so adding a row to a striped table silently un-striped it. Both
+   * article templates are striped, which made that the first table most people
+   * would have edited.
+   */
+  options: string[];
   /** Which Hebrew/English names this table was written with. */
-  names: { table: string; cell: string; header: string };
+  names: { table: string; cell: string; header: string; cols: string };
 }
 
 const TABLE_NAMES = ["טבלה", "mktable"];
 const CELL_RE = /(כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*(?:\(\s*(\d+)\s*\))?\s*\[/gu;
+/** An argument that is a cell rather than a setting. */
+const CELL_HEAD = /^(?:כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*[([]/u;
+const COLS_ARG = /^(?:עמודות|columns)\s*:/u;
+
+/**
+ * Split an argument list at its top-level commas.
+ *
+ * Depth-aware, because an argument's own value can hold commas — `יישור:
+ * (left, right)` — and a cell body is full of them. A `"` only opens a string at
+ * depth 0, where Typst is in code context; inside a `[…]` body it is an ordinary
+ * character, which is how Hebrew writes gershayim.
+ */
+function topLevelArgs(args: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  let inString = false;
+  for (let i = 0; i < args.length; i++) {
+    const c = args[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"' && depth === 0) inString = true;
+    else if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") depth--;
+    else if (c === "," && depth === 0) {
+      out.push(args.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(args.slice(start));
+  return out.map((s) => s.trim()).filter(Boolean);
+}
 
 function matchBracket(src: string, open: number, close: string, limit: number): number | null {
   const opener = src[open];
@@ -67,10 +109,11 @@ export function tableAt(doc: string, pos: number): TableInfo | null {
       const argsTo = close;
       const args = doc.slice(argsFrom, argsTo);
 
-      const colsMatch = /(?:עמודות|columns)\s*:\s*(\d+)/u.exec(args);
-      const cols = colsMatch ? Math.max(1, parseInt(colsMatch[1], 10)) : 2;
-      const colsFrom = colsMatch ? argsFrom + colsMatch.index : -1;
-      const colsTo = colsMatch ? colsFrom + colsMatch[0].length : -1;
+      const colsMatch = /(עמודות|columns)\s*:\s*(\d+)/u.exec(args);
+      const cols = colsMatch ? Math.max(1, parseInt(colsMatch[2], 10)) : 2;
+      const options = topLevelArgs(args).filter(
+        (a) => !CELL_HEAD.test(a) && !COLS_ARG.test(a),
+      );
 
       const cells: TableCell[] = [];
       const re = new RegExp(CELL_RE.source, "gu");
@@ -96,12 +139,11 @@ export function tableAt(doc: string, pos: number): TableInfo | null {
         argsFrom,
         argsTo,
         cols,
-        colsFrom,
-        colsTo,
+        options,
         cells,
         names: hebrew
-          ? { table: "טבלה", cell: "תא", header: "כותרת_תא" }
-          : { table: "mktable", cell: "cell", header: "headcell" },
+          ? { table: "טבלה", cell: "תא", header: "כותרת_תא", cols: colsMatch?.[1] ?? "עמודות" }
+          : { table: "mktable", cell: "cell", header: "headcell", cols: colsMatch?.[1] ?? "columns" },
       };
     }
   }
@@ -139,7 +181,12 @@ function render(t: TableInfo, cells: TableCell[], cols: number): string {
         ",",
     );
   }
-  return `#${t.names.table}(עמודות: ${cols},\n${lines.join("\n")}\n)`;
+  // The column count keeps the name it was written with, and every other
+  // setting comes back verbatim: an English table must not come out of a row
+  // insert with a Hebrew argument name in it, and a striped one must not come
+  // out unstriped.
+  const head = [`${t.names.cols}: ${cols}`, ...t.options].join(", ");
+  return `#${t.names.table}(${head},\n${lines.join("\n")}\n)`;
 }
 
 /** A blank cell, matching the kind of the row it joins. */

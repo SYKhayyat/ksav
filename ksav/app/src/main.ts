@@ -461,6 +461,12 @@ async function runSpellCheck() {
   try {
     const res = await runtime.backend.spell(text, spell.userWordsText(), false);
     spell.noteLexiconSizes(res.lexicon_sizes);
+    // The panel is built before the first check answers, so the note starts as
+    // the general statement and becomes the measured one here. Updating the node
+    // rather than rebuilding the chrome, because this runs on every pause in
+    // typing.
+    const note = document.getElementById("spell-coverage");
+    if (note) note.textContent = spellCoverageNote();
     runtime.view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
   } catch {
     // A failed check is not worth interrupting the writer over.
@@ -1244,7 +1250,7 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("spellcheckLabel", "spellcheck"),
-    el("div", { class: "set-note" }, [spellCoverageNote()]),
+    el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
     checkRow("syncScrollLabel", "syncScroll"),
     checkRow("autosaveFileLabel", "autosaveFile"),
     el("h3", { style: "margin-top:18px" }, [t("userDictionary")]),
@@ -1865,10 +1871,15 @@ function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
   return call?.args.get(key);
 }
 
-/** Write styling arguments into the document, replacing the existing call. */
+/** Write styling arguments into the document, replacing the existing call.
+ *
+ *  A styling command the document does not have yet is written in the language
+ *  the document is being set in, so clicking a control in an English document
+ *  does not drop a Hebrew command into it. An existing call keeps whatever
+ *  language it was already written in. */
 function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
   const doc = runtime.view.state.doc.toString();
-  const next = styles.setStyleArgs(doc, kind, changes);
+  const next = styles.setStyleArgs(doc, kind, changes, settings.dir === "ltr" ? "en" : "he");
   if (next === doc) return;
   runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
   scheduleCompile();

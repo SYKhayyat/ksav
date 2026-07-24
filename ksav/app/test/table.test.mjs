@@ -5,15 +5,17 @@
 // does not fail loudly — it silently reflows the whole table, which is exactly
 // the hand-editing failure the module exists to prevent.
 
-import { check, ok } from "./harness.mjs";
+import { check, ok, notOk } from "./harness.mjs";
 import * as tables from "../.tmp-test/table.mjs";
 
 const T = "#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n  תא[ג], תא[ד],\n)";
 
-/** Re-read a table from the text it now is, so assertions never trust stale offsets. */
+/** Re-read a table from the text it now is, so assertions never trust stale offsets.
+ *  Anchored on the call head rather than on a Hebrew cell name, because a table
+ *  can be written in either language. */
 function read(doc) {
-  const t = tables.tableAt(doc, doc.indexOf("תא"));
-  return t;
+  const at = Math.max(doc.indexOf("#טבלה"), doc.indexOf("#mktable"));
+  return tables.tableAt(doc, at < 0 ? 0 : at + 1);
 }
 
 /** Cells and columns agree — the property a hand edit gets wrong. */
@@ -126,5 +128,47 @@ export async function run() {
     doc = tables.deleteColumn(doc, read(doc), 0);
     ok("deleting the last column leaves something parseable or nothing at all",
       doc === "" || tables.tableAt(doc, 0) === null || consistent(doc));
+  }
+
+  // ------------------------------------------------------------ what a rewrite must not lose
+  //
+  // Every structural edit rebuilds the whole call from the cell list. It used to
+  // rebuild it as `#name(עמודות: N, …cells)` and nothing else — so adding a row
+  // to a striped table silently un-striped it, and an English table came back
+  // with a Hebrew argument name in it. Both article templates are striped, which
+  // made that the first table most people would ever have edited.
+  {
+    const striped = `#טבלה(עמודות: 2, פסים: true, יישור: center,\n  תא[א], תא[ב],\n)`;
+    const after = tables.insertRow(striped, tables.tableAt(striped, 5), 0);
+    ok("striping survives a row insert", after.includes("פסים: true"));
+    ok("…and so does every other setting", after.includes("יישור: center"));
+    ok("…and the column count is still there", after.includes("עמודות: 2"));
+    ok("…and the table still parses", consistent(after));
+  }
+
+  {
+    const english =
+      `#mktable(columns: 2, striped: true,\n  headcell[Posek], headcell[Ruling],\n  cell[Rambam], cell[Chayav],\n)`;
+    const t = tables.tableAt(english, 10);
+    check("an English table is read as English", t.names.table, "mktable");
+    check("…with its own settings kept", t.options, ["striped: true"]);
+    const after = tables.insertRow(english, t, 1);
+    ok("a rewritten English table keeps English argument names", after.includes("columns: 2"));
+    notOk("…and gains no Hebrew ones", after.includes("עמודות"));
+    ok("…and keeps its striping", after.includes("striped: true"));
+    ok("…and still parses", consistent(after));
+  }
+
+  {
+    // A cell body full of commas and gershayim must not be mistaken for a
+    // settings list: at depth 0 a quote opens a string, inside a body it is the
+    // ordinary character Hebrew writes gershayim with.
+    const body = `רש"י, תוס' ובעה"ת`;
+    const tricky = `#טבלה(עמודות: 2, פסים: true,\n  תא[${body}], תא[ב],\n)`;
+    const t = tables.tableAt(tricky, 5);
+    check("a cell is not read as a setting", t.options, ["פסים: true"]);
+    check("…and its commas stay inside it", t.cells[0].body, body);
+    const after = tables.insertRow(tricky, t, 0);
+    ok("…through a rewrite", tables.tableAt(after, 5).cells.some((c) => c.body === body));
   }
 }

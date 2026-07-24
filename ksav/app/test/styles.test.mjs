@@ -121,4 +121,57 @@ export async function run() {
     check("the wrong unit is refused", styles.readLength("1.5em", "pt"), null);
     check("a bare number is refused", styles.readLength("1.5", "em"), null);
   }
+
+  // ------------------------------------------------------------ the language it is written in
+  //
+  // The panel speaks Hebrew internally. Writing that straight out turned an
+  // English document Hebrew the moment a writer clicked a control:
+  // `#headings_config(numbering: "1.1")` came back as
+  // `#הגדרות_כותרות(מספור: "1.1")` — still correct Typst, since both are
+  // accepted, and still not the document they were writing.
+  {
+    const en = `#headings_config(numbering: "1.1", indent: 1em)
+
+Body`;
+    const call = styles.findStyleCall(en, "headings");
+    check("an English call is recognised", call.lang, "en");
+    check("…and its keys are read in the panel's own vocabulary",
+      [...call.args.keys()], ["מספור", "הזחה"]);
+
+    const after = styles.setStyleArgs(en, "headings", { "יישור": "center" });
+    ok("a rewrite keeps the English command", after.includes("#headings_config("));
+    ok("…writes the new argument in English", after.includes("align: center"));
+    ok("…keeps the existing ones in English", after.includes('numbering: "1.1"'));
+    ok("…and adds no Hebrew", !/[א-ת]/.test(after.split("\n")[0]));
+  }
+
+  {
+    // A Hebrew document is untouched by any of this.
+    const he = `#הגדרות_כותרות(מספור: "1.1")
+
+גוף`;
+    const after = styles.setStyleArgs(he, "headings", { "יישור": "center" });
+    ok("a Hebrew call stays Hebrew", after.includes("#הגדרות_כותרות(מספור: \"1.1\", יישור: center)"));
+  }
+
+  {
+    // A brand-new call follows the document being written, not the panel.
+    const fresh = styles.setStyleArgs("Body text", "lists", { "סמן": "([-])" }, "en");
+    ok("a new call in an English document is English", fresh.startsWith("#lists_config(marker:"));
+    const heFresh = styles.setStyleArgs("גוף", "lists", { "סמן": "([-])" }, "he");
+    ok("…and in a Hebrew one, Hebrew", heFresh.startsWith("#הגדרות_רשימות(סמן:"));
+    ok("…with Hebrew the default when nothing says otherwise",
+      styles.setStyleArgs("x", "lists", { "סמן": "([-])" }).startsWith("#הגדרות_רשימות("));
+  }
+
+  {
+    // The conservative property, across languages: a key the panel knows nothing
+    // about survives a write under exactly the name it had.
+    const en = `#tables_config(striped: true, מרווח_מיוחד: 3pt)
+
+Body`;
+    const after = styles.setStyleArgs(en, "tables", { "צבע_כותרת": "luma(235)" });
+    ok("an unknown key survives verbatim", after.includes("מרווח_מיוחד: 3pt"));
+    ok("…alongside the new one in English", after.includes("header_fill: luma(235)"));
+  }
 }

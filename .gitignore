@@ -30,8 +30,14 @@ Thumbs.db
 *.log
 .gstack/
 
-# Generated wasm bindings (run: wasm-pack build; then copy to app/src/wasmpkg)
-/ksav/app/src/wasmpkg/
+# Generated wasm bindings (run: wasm-pack build; then copy to app/src/wasmpkg).
+# The 29 MB module and its JS glue are build output and stay out of the repo —
+# but the two .d.ts files are kept, because `wasm-worker.ts` imports from them
+# and `tsc` typechecks every file under src/. Without them a clean clone could
+# not typecheck or build at all, which is exactly how CI first broke: the
+# artifacts existed on the machine that wrote the code and nowhere else.
+/ksav/app/src/wasmpkg/*
+!/ksav/app/src/wasmpkg/*.d.ts
 /ksav/wasm/target/
 
 # Lexicon build cache: the fetched corpora and the Ben-Yehuda word counts.

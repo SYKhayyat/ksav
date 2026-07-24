@@ -75,10 +75,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      # libappindicator3-dev and libayatana-appindicator3-dev CONFLICT: the
+      # ayatana package Replaces: the old one, so asking for both makes apt exit
+      # 100 and the job never reaches a compiler. Tauri v2 wants ayatana; install
+      # only that. (The Docker packaging script already learned this; this file
+      # had not.)
       - name: Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+          sudo apt-get install -y libwebkit2gtk-4.1-dev \
             librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev \
             libayatana-appindicator3-dev
       - uses: dtolnay/rust-toolchain@stable

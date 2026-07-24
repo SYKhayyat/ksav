@@ -34,6 +34,16 @@ bochurim and a zman.
 > in document length. The verdict there is *not ready for general release*, so
 > the sentence above should be read as "every item **on this list**".
 
+> **Superseded again.** A third audit on 24 July 2026 — also appended at the end
+> — found no blockers. It is the first one that judged the product by *running*
+> it rather than by reading it: every template and every command compiled, the
+> engine measured at real sefer scale, and the two shipping modes these lists had
+> only ever reasoned about — the browser (wasm) engine and the desktop installers
+> — built and exercised for the first time. Its verdict is **ready**, and what it
+> found were four documentation defects, one missing CI job, and two small code
+> gaps. All are fixed. See *Third audit* below for what was checked and what
+> stands.
+
 | | |
 |---|---|
 | Blockers | 4 of 5 fixed; #5 (git remote) prepared, needs the repo |
@@ -1028,3 +1038,143 @@ the shared escaper, the custom-command round-trip). `engine`: **153** across nin
 binaries (new: the compile deadline, the asset cache, multi-miss UTF-16 offsets,
 the page-foot reserve). Both suites green, `clippy -D warnings` clean, the app
 builds.
+
+---
+
+# Third audit — 24 July 2026
+
+The first two audits read the code. This one ran it.
+
+That distinction is the whole value of this pass. Both previous lists ended by
+naming things they could not check — "the installers and the release workflow:
+never run"; "the wasm build end to end … judged from its source rather than from
+use" — and those unchecked paths are two of the three ways Ksav actually ships.
+A defect there would have reached a writer without anything in this repository
+noticing. So the method here was to build every artefact, start the server, and
+push real and hostile documents through it.
+
+**Verdict: ready.** No blockers. The engine is correct, bounded, fast at the size
+of a real sefer, and safe against the injection its own escaping exists to stop.
+What stood between Ksav and a release was a signing certificate and a git remote
+— exactly what the first list said, and still not engineering.
+
+## What was verified by running it
+
+| Check | Result |
+|---|---|
+| Both suites, cold | 389 app assertions (9 files) + 154 engine tests, green |
+| Typecheck, SPA build | Clean |
+| All 10 bundled templates | Compile: 0 errors, 0 warnings |
+| All 104 registry commands | 103 compile; the one that does not is `#תמונה`, whose placeholder legitimately needs a real file |
+| Injection via `font` / `header` / `paper` / `lang` | Every attempt to close the Typst literal and call `#panic` was neutralised |
+| `NaN`, `1e308`, negative margins, `columns: 5000` | Rejected or clamped; no silently-garbage page |
+| 170-page sefer (497 KB) | Compiles in 5.6 s |
+| Edit loop, 68-page sefer | ~1.0 s per recompile — the memoization fix holds at scale |
+| Runaway `#for` (4M iterations) | Cut at 20.1 s; `/commands` answered in 0.00 s immediately after; normal compiles unaffected |
+| 8 concurrent compiles | 0.21 s total |
+| Bilingual UI | 300 keys per language, symmetric, every static call site resolves (302 after the fixes below) |
+| Secrets in tracked files | None |
+
+**The two paths nothing had ever exercised, both now passing.**
+
+*The browser engine.* Built from the README's own instructions, loaded, and put
+through the surface a writer touches first: all ten templates compiled, both
+lexicons answered, suggestions came back. It works. It had never been shown to.
+
+*The desktop installers.* `npm run tauri build` produced `Ksav_0.1.0_x64_en-US.msi`
+and `Ksav_0.1.0_x64-setup.exe` from the current tree, cleanly. The claim that the
+installers "have never been run" was true when written and is no longer; what
+remains genuinely unbuilt is macOS, because a `.dmg` cannot be cross-built.
+
+## What it found, and what was done
+
+**1. The browser build had no CI job — fixed.** One of three shipping modes, and
+the only one nothing checked. `app/src/wasmpkg/` is git-ignored and built
+locally, so the entire no-server path could break and every job would still be
+green; this audit verified it by hand, which is not a thing that repeats. There
+is now a `wasm` job in `ci.yml` that builds the crate for
+`wasm32-unknown-unknown`, produces the offline Vite bundle (a different module
+graph from the default build, so the default build passing said nothing about
+it), and then *runs* the module — `.github/scripts/wasm-smoke.mjs` compiles every
+template and checks both lexicons. Building only proves it linked; a wasm binary
+that instantiates and panics on first use would pass every other step.
+
+**2. A wrong-typed `body` still rendered a blank page as success — fixed.**
+`engine/src/lib.rs`. The commit *"A request that doesn't parse is an error, not a
+blank page"* fixed unparseable JSON and stopped there. JSON that parsed and
+carried no usable `body` — absent, `null`, a number, an object — still fell
+through `unwrap_or("")` and compiled one empty page reported as `ok: true`: the
+same wiped preview that looks like a successful render, reached by a different
+route. Both routes now answer through one `malformed_request` helper. An *empty
+string* stays legitimate, because that is a new document, and a test pins that
+distinction so the fix cannot later be over-applied.
+
+**3. A registry failure left an empty toolbar in silence — fixed.**
+`app/src/main.ts`. `catch { /* registries optional for first paint */ }` — true
+of the paint, false of the app: the writer got an empty ribbon, empty menus, an
+empty palette, no completions, nothing said, and nothing that would ever fetch
+them again. It now retries once, and if that fails too hands the retry to the
+writer. The notice is a banner rather than a status line for a mechanical reason
+as much as a design one: boot runs the first compile immediately afterwards and
+that compile *writes the status bar*, so a message left there would have flashed
+once and vanished — barely better than silence.
+
+That fix exposed a second one. The save-error banner and this new one were both
+`position: fixed; bottom: 0`, so they occupied the same pixels and whichever came
+last simply hid the other — a writer could be told their toolbar was empty and
+never told their work was not being saved. Both now render into one `.notices`
+stack (`noticeHost` in `dom.ts`); the container is pinned, the banners inside it
+are ordinary blocks, and no notice can bury another.
+
+**4. The README contradicted itself — fixed.** It is the page anyone evaluating
+this reads first, and its numbers had drifted: "8 templates" against 10 (and its
+own correct "10" eleven lines earlier), "53 commands" against 104 (likewise), 317
+assertions and 92 engine tests against 389 and 155, a "~23 MB" wasm chunk that
+measures 28.1 MB raw and 10.6 MB gzipped. All corrected against measurement, not
+against memory.
+
+**5. A stray tooling log was committed — removed.**
+`engine/assets/fonts/.gstack/browse-audit.jsonl`: a browser-automation log,
+tracked, sitting inside the directory whose font licences matter. `.gstack/` was
+already in `.gitignore`; the file predated the rule.
+
+**6. A file was permanently "modified" with an empty diff — fixed, and it was not
+what it looked like.** The audit first read this as line-ending drift. It was
+not: index, worktree and HEAD blobs were byte-identical. The cause was a global
+`core.autocrlf=true` fighting this repository's own `.gitattributes eol=lf`, so
+the stat check never settled. Set `core.autocrlf false` locally and it is gone.
+`.gitattributes` now explains this, because the next person to clone on Windows
+will hit it and will also assume it is a real change.
+
+## What still stands, unchanged
+
+Named plainly, and none of it is engineering:
+
+- **No git remote,** so the CI and release *workflows* have still never executed.
+- **No code signing,** so every operating system blocks the first launch. The
+  README and the release body both say which button to press, which is the
+  honest interim answer, not a fix.
+- **macOS installers have never been built** and cannot be, here. Windows and
+  Linux can be produced locally; a `.dmg` needs a Mac.
+- **A runaway compile is contained but not reclaimed** on the two native builds.
+  It can no longer hold anyone up — this audit confirmed that by measurement, not
+  by argument — but the abandoned work does finish on its own thread.
+- **Page setup is still app-wide.**
+- **No bochur has written a real sefer in it.** Three audits have now said this
+  is the item that matters most. Nothing above substitutes for it, and the more
+  the engineering holds up, the more conspicuous it becomes that this is the only
+  question left.
+
+## What could not be checked
+
+- **The editor itself, in a browser.** Every claim here about the UI comes from
+  the source and from 389 headless assertions, not from clicking. That is the
+  largest remaining gap in this audit's own coverage.
+- **The macOS and Linux installers.**
+
+## Tests
+
+`app`: **389** assertions across 9 files. `engine`: 154 → **155** (new: a request
+whose body is missing or is not text is an error, and an empty body is still a
+document). `clippy -D warnings` clean, both suites green, the app and the desktop
+bundles build.

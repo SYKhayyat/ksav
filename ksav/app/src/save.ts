@@ -17,7 +17,7 @@
 
 import * as docs from "./docs";
 import * as files from "./files";
-import { el } from "./dom";
+import { el, noticeHost } from "./dom";
 import { t } from "./i18n";
 import * as runtime from "./runtime";
 import { settings } from "./settings";
@@ -132,7 +132,7 @@ export function reportSaveFailure(e: unknown) {
       t("downloadBackup"),
     ]),
   ]);
-  document.getElementById("app")?.append(banner);
+  noticeHost().append(banner);
 }
 
 function clearSaveFailure() {

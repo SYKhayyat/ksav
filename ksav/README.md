@@ -86,7 +86,7 @@ nests past a handful.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 53 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 104 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -123,7 +123,7 @@ the local server when one is reachable (fast, tiny download), and falls back to
 the in-browser wasm engine otherwise. A badge in the status bar shows which is
 active (`⬢ server` / `⬡ wasm`).
 
-The wasm is a lazily-loaded ~23 MB chunk (~9 MB gzipped) and is only bundled in
+The wasm is a lazily-loaded ~28 MB chunk (~11 MB gzipped) and is only bundled in
 an explicit offline build, so the server/desktop build stays lean.
 
 ## Cross-platform
@@ -138,7 +138,7 @@ browser on any OS.
 
 - [x] Real Typst 0.15 compilation (embedded via `typst-as-lib`)
 - [x] Bilingual command layer + Torah/yeshiva commands
-- [x] 8 templates (all compile)
+- [x] 10 templates (all compile)
 - [x] Command + template registries (JSON)
 - [x] PDF / SVG / Typst-source export, live diagnostics
 - [x] **Full SPA** — CodeMirror 6, command palette, prose mode, bilingual UI,
@@ -191,14 +191,20 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI** — typecheck, 317 editor assertions, 92 engine tests and
-      `clippy -D warnings` on every push. See [Test](#test).
+- [x] **CI** — typecheck, 389 editor assertions, 155 engine tests,
+      `clippy -D warnings`, and a build-and-run check of the browser (wasm)
+      engine on every push. See [Test](#test).
 
 Not done, and not engineering:
 
-- [ ] **A git remote.** CI and the release matrix (Windows, Linux, both macOS
-      architectures) are written and have never run, because one machine still
-      holds the only copy of the work.
+- [ ] **A git remote.** CI and the release matrix are written and have never run
+      as workflows, because one machine still holds the only copy of the work.
+      The Windows installers themselves are not untested — `npm run tauri build`
+      produces the `.msi` and the NSIS `.exe` on this machine and they have been
+      built from the current tree. The `.deb` and `.AppImage` can be produced
+      locally too, through `packaging/build-linux.sh`. What genuinely has never
+      run is macOS: a `.dmg` cannot be cross-built, so both Mac architectures
+      wait on a runner.
 - [ ] **Code signing.** Unsigned, Windows SmartScreen says "unrecognized app" and
       macOS says "unidentified developer". The fix is a certificate ($99/yr Apple,
       ~$200–400/yr Windows OV), not a workaround; `release.yml` names the secrets.
@@ -230,14 +236,19 @@ cd app && npm install && npm run dev        # http://localhost:5173
 ## Test
 
 ```sh
-cd app && npm test                          # 317 assertions across 8 files
+cd app && npm test                          # 389 assertions across 9 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml
+cargo test --manifest-path engine/Cargo.toml            # 155 tests
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
 
-`.github/workflows/ci.yml` runs all of these on every push and pull request.
+`.github/workflows/ci.yml` runs all of these on every push and pull request, plus
+one more that cannot run from a plain checkout: it builds the wasm engine and
+then *runs* it (`.github/scripts/wasm-smoke.mjs` — every template compiled, both
+lexicons answered). The built package is git-ignored and produced locally, so
+without that job the entire no-server build could break and every other check
+would still be green.
 
 The editor's runner (`app/test/run.mjs`) builds the modules listed in `MODULES`
 and executes every `app/test/*.test.mjs`, so **adding a test is adding a file** —

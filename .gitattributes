@@ -1,4 +1,14 @@
-# Normalize line endings; keep binaries untouched
+# Normalize line endings; keep binaries untouched.
+#
+# `eol=lf` is deliberate and it is the whole policy: LF in the index and LF in
+# the working tree, on every platform. If you also have `core.autocrlf=true` set
+# globally — Git for Windows offers it during installation, so many people do —
+# the two disagree, and Git reports files as permanently modified with an empty
+# diff, because the blob it hashes matches while the stat check never settles.
+# Nothing is actually wrong with those files. Turn it off for this repository:
+#
+#     git config --local core.autocrlf false
+#
 * text=auto eol=lf
 *.png binary
 *.jpg binary

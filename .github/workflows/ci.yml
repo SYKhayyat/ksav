@@ -70,6 +70,57 @@ jobs:
         working-directory: ./ksav/engine
         run: cargo test --release
 
+  wasm:
+    name: browser engine
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/wasm -> target"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      - uses: jetli/wasm-pack-action@v0.4.0
+
+      # The in-browser build is one of the three ways Ksav ships, and it was the
+      # only one nothing checked: `app/src/wasmpkg/` is git-ignored and built
+      # locally, so the whole no-server path could break and every job here would
+      # still be green. Building it is most of the value — `wasm32-unknown-unknown`
+      # is a genuinely different target, and the engine reaching for threads, the
+      # filesystem or the clock fails here and nowhere else.
+      - name: Build the wasm engine
+        working-directory: ./ksav/wasm
+        run: wasm-pack build --target web --release --out-dir pkg
+
+      - name: Install
+        working-directory: ./ksav/app
+        run: npm ci
+
+      # `build:wasm` is the offline bundle, and it is a different Vite graph from
+      # the default build: the worker chunk and the engine module are only pulled
+      # in when VITE_WASM=1, so the default build passing says nothing about it.
+      - name: Bundle the offline build
+        working-directory: ./ksav/app
+        run: |
+          mkdir -p src/wasmpkg
+          cp ../wasm/pkg/ksav_wasm.js ../wasm/pkg/ksav_wasm.d.ts src/wasmpkg/
+          cp ../wasm/pkg/ksav_wasm_bg.wasm ../wasm/pkg/ksav_wasm_bg.wasm.d.ts src/wasmpkg/
+          npm run build:wasm
+
+      # Proves the module actually runs, not merely that it linked: compile every
+      # bundled template through the wasm engine and check the spell-checker
+      # answers. A wasm binary that instantiates and then panics on first use
+      # would pass every step above this one.
+      - name: Run the engine
+        working-directory: ./ksav/app
+        run: node ../../.github/scripts/wasm-smoke.mjs
+
   desktop:
     name: desktop shell
     runs-on: ubuntu-22.04

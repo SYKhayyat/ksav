@@ -44,6 +44,7 @@ import type { NoteChoice } from "./notes";
 // vocabulary, the settings — now lives beside this file rather than inside it.
 import {
   el,
+  noticeHost,
   iconBtn,
   tbGroup,
   fieldRow,
@@ -2941,6 +2942,80 @@ function installHooks() {
   onSchedule(scheduleSpellCheck);
 }
 
+const REGISTRY_RETRY_MS = 2000;
+
+/**
+ * A banner for something durably wrong with the chrome, as opposed to with the
+ * writer's work.
+ *
+ * The lighter sibling of the save-error banner: that one is red because text is
+ * at risk, this one is amber because only the toolbar is. Both live in the same
+ * `.notices` stack, so neither can hide the other.
+ */
+function showChromeNotice(message: string, retry?: () => void) {
+  document.getElementById("chrome-error")?.remove();
+  const banner = el("div", { id: "chrome-error", class: "chrome-error", role: "alert" }, [
+    el("span", { class: "save-error-text" }, [message]),
+    ...(retry
+      ? [el("button", { class: "save-error-act", type: "button", onClick: retry }, [t("retrySave")])]
+      : []),
+  ]);
+  noticeHost().append(banner);
+}
+
+function clearChromeNotice() {
+  document.getElementById("chrome-error")?.remove();
+}
+
+/**
+ * Load the command and template registries, retrying before giving up.
+ *
+ * These drive the toolbar, the menus, the palette and the completions, so
+ * without them the editor still takes text but has no visible way to format it.
+ * The failure used to be swallowed with a comment calling the registries
+ * "optional for first paint" — which is true of the *paint* and false of the
+ * app: the writer got an empty ribbon, empty menus and an empty palette, with
+ * nothing said and nothing that would ever fetch them again.
+ *
+ * The notice is a banner and not a status-bar line for a mechanical reason as
+ * much as a design one: boot runs the first compile straight after this, and
+ * that compile writes the status bar — so a message left there would flash once
+ * and vanish, which is barely better than silence.
+ *
+ * Only the *first* attempt is worth awaiting. Boot waits for it so the chrome
+ * can be drawn with the registries in hand, but the retry happens on a timer
+ * with nobody waiting: holding the editor's first render behind a second
+ * network attempt would make a failed fetch cost the writer two seconds of
+ * blank screen, which is a worse bug than the one being fixed.
+ */
+async function loadRegistries(): Promise<void> {
+  if (await fetchRegistries()) return;
+  showChromeNotice(t("registriesFailed"));
+  window.setTimeout(async () => {
+    if (await fetchRegistries()) return;
+    // Out of automatic attempts: hand the retry over rather than leaving a
+    // "retrying…" that will never resolve.
+    showChromeNotice(t("registriesGaveUp"), () => void loadRegistries());
+  }, REGISTRY_RETRY_MS);
+}
+
+/** One attempt. Returns whether the chrome now has what it needs. */
+async function fetchRegistries(): Promise<boolean> {
+  try {
+    const [commands, templates] = await Promise.all([
+      runtime.backend!.commands(),
+      runtime.backend!.templates(),
+    ]);
+    runtime.setRegistries(commands, templates);
+    clearChromeNotice();
+    rerenderChrome();
+    maybeOnboard();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function boot() {
   installHooks();
   // The store opens before anything is drawn: the editor is constructed with
@@ -2991,17 +3066,7 @@ async function boot() {
     };
     badge.textContent = labels[runtime.backend!.kind] ?? runtime.backend!.kind;
   }
-  try {
-    const [commands, templates] = await Promise.all([
-      runtime.backend!.commands(),
-      runtime.backend!.templates(),
-    ]);
-    runtime.setRegistries(commands, templates);
-    rerenderChrome();
-    maybeOnboard();
-  } catch {
-    /* registries optional for first paint */
-  }
+  await loadRegistries();
   runCompile();
   // The first check has to be scheduled explicitly: boot compiles directly
   // rather than through scheduleCompile, so nothing would be checked until the

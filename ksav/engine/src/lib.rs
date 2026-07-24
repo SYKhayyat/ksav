@@ -547,6 +547,27 @@ pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: boo
 /// columns, assets: [{name, data}], fonts: [{name, data}]}` — `data` is base64,
 /// with or without a `data:` URL prefix.
 /// Output: `{ok, pages_svg, pdf_base64, diagnostics, typst_source}`.
+/// The response for a request the engine could not make sense of.
+///
+/// Shared by the two ways that happens — JSON that does not parse, and JSON that
+/// parses but carries no usable document — because they need the same answer: a
+/// failed compile that says why. Anything that renders a page here would be
+/// rendering a page nobody asked for.
+fn malformed_request(reason_he: &str, reason_en: &str) -> String {
+    serde_json::json!({
+        "ok": false,
+        "pages_svg": [],
+        "pdf_base64": serde_json::Value::Null,
+        "diagnostics": [{
+            "severity": "error",
+            "message": format!("{reason_he} · {reason_en}"),
+        }],
+        "typst_source": "",
+        "missing_assets": [],
+    })
+    .to_string()
+}
+
 pub fn compile_request(input_json: &str) -> String {
     use base64::Engine as _;
     // A request that does not parse is not an empty document.
@@ -560,25 +581,37 @@ pub fn compile_request(input_json: &str) -> String {
     let v: serde_json::Value = match serde_json::from_str(input_json) {
         Ok(v) => v,
         Err(e) => {
-            return serde_json::json!({
-                "ok": false,
-                "pages_svg": [],
-                "pdf_base64": serde_json::Value::Null,
-                "diagnostics": [{
-                    "severity": "error",
-                    "message": format!(
-                        "הבקשה לא נקראה — ייתכן שההעברה נקטעה ({e}) · \
-                         the request could not be read — the transfer may have been \
-                         truncated ({e})"
-                    ),
-                }],
-                "typst_source": "",
-                "missing_assets": [],
-            })
-            .to_string();
+            return malformed_request(
+                &format!("הבקשה לא נקראה — ייתכן שההעברה נקטעה ({e})"),
+                &format!("the request could not be read — the transfer may have been truncated ({e})"),
+            );
         }
     };
-    let body = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
+    // …and neither is a request whose `body` is missing or is not text.
+    //
+    // The check above caught JSON that fails to parse, but stopped there: JSON
+    // that parsed and simply had no `body` — or a `body` that was a number, an
+    // object, or `null` — still fell through to `unwrap_or("")` and compiled one
+    // blank page reported as `ok: true`. That is the same silent-blank-preview
+    // failure, reached by a different route, and it deserves the same answer.
+    // An *empty* string stays perfectly legitimate: that is a new document.
+    let body = match v.get("body") {
+        Some(b) => match b.as_str() {
+            Some(s) => s,
+            None => {
+                return malformed_request(
+                    "הבקשה לא נקראה — שדה הטקסט של המסמך אינו טקסט",
+                    "the request could not be read — the document's body field is not text",
+                );
+            }
+        },
+        None => {
+            return malformed_request(
+                "הבקשה לא נקראה — אין במסמך שדה טקסט",
+                "the request could not be read — it carries no document body",
+            );
+        }
+    };
     let cfg = DocConfig::from_json(&v);
     // Assets resolve from a per-process cache keyed by content hash, so an
     // unchanged image is not re-sent and re-decoded on every keystroke. Any hash
@@ -810,6 +843,43 @@ mod tests {
         let good = serde_json::json!({ "body": "שלום" }).to_string();
         let out: serde_json::Value = serde_json::from_str(&compile_request(&good)).unwrap();
         assert_eq!(out["ok"], true);
+    }
+
+    #[test]
+    fn a_request_with_no_usable_body_is_an_error_not_a_blank_page() {
+        // The same failure as above by a different route: JSON that parses fine
+        // but whose `body` is missing or is not text used to reach `unwrap_or("")`
+        // and compile one blank page reported as `ok: true` — a wiped preview
+        // that looks like a successful render.
+        let cases = [
+            serde_json::json!({}),
+            serde_json::json!({ "font": "David Libre" }),
+            serde_json::json!({ "body": 12345 }),
+            serde_json::json!({ "body": serde_json::Value::Null }),
+            serde_json::json!({ "body": ["שלום"] }),
+            serde_json::json!({ "body": { "text": "שלום" } }),
+        ];
+        for bad in cases {
+            let out: serde_json::Value =
+                serde_json::from_str(&compile_request(&bad.to_string())).unwrap();
+            assert_eq!(out["ok"], false, "{bad} must not report success");
+            assert!(
+                out["pages_svg"].as_array().is_some_and(|p| p.is_empty()),
+                "{bad} must not render a page"
+            );
+            let msg = out["diagnostics"][0]["message"].as_str().unwrap_or("");
+            assert!(
+                msg.contains("could not be read"),
+                "{bad} must say why: {msg}"
+            );
+        }
+
+        // An *empty* body is not malformed — it is a new document, and it must
+        // still render its one blank page rather than being called an error.
+        let empty = serde_json::json!({ "body": "" }).to_string();
+        let out: serde_json::Value = serde_json::from_str(&compile_request(&empty)).unwrap();
+        assert_eq!(out["ok"], true, "an empty document is legitimate");
+        assert_eq!(out["pages_svg"].as_array().unwrap().len(), 1);
     }
 
     #[test]

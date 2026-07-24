@@ -306,8 +306,14 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
    Deliberately loud and deliberately persistent: the bug it reports is silent
    data loss, and a message the writer can miss is the same as no message. It
    sits above everything, including the drawers and the overlays. */
-.save-error {
+/* Every durable failure banner stacks here, so a second one never hides the
+   first — see `noticeHost` in dom.ts. The container is what is pinned; the
+   banners inside it are ordinary blocks. */
+.notices {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 9999;
+  display: flex; flex-direction: column;
+}
+.save-error {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   padding: 12px 16px;
   background: #b91c1c; color: #fff;
@@ -321,6 +327,16 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
   padding: 6px 12px; cursor: pointer; font: inherit;
 }
 .save-error-act:hover { background: rgba(255, 255, 255, .28); }
+/* The chrome's own failure notice: the same shape as the save banner, amber
+   rather than red, because what is broken is the toolbar and not the writer's
+   work. It shares the `.notices` stack, so the two are never in each other's
+   way. */
+.chrome-error {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  background: #b45309; color: #fff;
+  font-family: var(--hebrew); font-size: 14px;
+}
 .pal-item {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
   background: transparent; border: 0; cursor: pointer; padding: 8px 10px; border-radius: 8px;

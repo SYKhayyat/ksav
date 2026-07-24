@@ -36,6 +36,26 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /**
+ * The stack that persistent failure banners live in.
+ *
+ * There is more than one thing that can go durably wrong — storage refusing a
+ * save, the command registries failing to load — and each announces itself with
+ * a banner pinned to the bottom of the window. Pinned individually they occupied
+ * the *same* few pixels and the later one simply hid the earlier, so the writer
+ * could be told their toolbar was empty and never told their work was not being
+ * saved. One fixed container, stacked as a column, means every notice is
+ * visible; each banner is an ordinary block inside it and positions nothing
+ * itself.
+ */
+export function noticeHost(): HTMLElement {
+  const existing = document.getElementById("notices");
+  if (existing) return existing;
+  const host = el("div", { id: "notices", class: "notices" });
+  (document.getElementById("app") ?? document.body).append(host);
+  return host;
+}
+
+/**
  * An icon button that has a name.
  *
  * The name is not optional, and that is the point. Every button in this app is a

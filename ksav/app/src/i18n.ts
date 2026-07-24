@@ -210,6 +210,8 @@ const HE: Dict = {
   compileError: "שגיאת קומפילציה",
   networkError: "שגיאת רשת",
   noErrors: "אין שגיאות",
+  registriesFailed: "רשימת הפקודות לא נטענה — הסרגל והתפריטים ריקים; מנסה שוב…",
+  registriesGaveUp: "רשימת הפקודות לא נטענה — הסרגל והתפריטים יישארו ריקים. רעננו את הדף.",
   // palette
   searchCommands: "חיפוש פקודה…",
   // categories
@@ -527,6 +529,9 @@ const EN: Dict = {
   compileError: "Compilation error",
   networkError: "Network error",
   noErrors: "No errors",
+  registriesFailed: "The command list did not load — the toolbar and menus are empty; retrying…",
+  registriesGaveUp:
+    "The command list did not load — the toolbar and menus will stay empty. Reload the page.",
   searchCommands: "Search commands…",
   "cat.style": "Style",
   "cat.heading": "Headings",

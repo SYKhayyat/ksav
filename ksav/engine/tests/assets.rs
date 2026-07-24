@@ -66,6 +66,39 @@ fn a_missing_image_fails_with_a_useful_diagnostic_not_a_panic() {
 }
 
 #[test]
+fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
+    // First request carries the bytes under a hash; the second sends only the
+    // hash and must resolve from the cache with nothing missing. Distinctive
+    // hashes so the process-global cache is not disturbed by other tests.
+    let with_bytes = serde_json::json!({
+        "assets": [{ "name": "logo.png", "hash": "test-cache-hit-abc", "data": PNG_B64 }]
+    });
+    let (a1, missing1) = Assets::from_request(&with_bytes);
+    assert_eq!(a1.files.len(), 1, "the bytes should decode");
+    assert!(missing1.is_empty(), "nothing is missing when bytes are sent");
+
+    let hash_only = serde_json::json!({
+        "assets": [{ "name": "logo.png", "hash": "test-cache-hit-abc" }]
+    });
+    let (a2, missing2) = Assets::from_request(&hash_only);
+    assert_eq!(a2.files.len(), 1, "the cached bytes resolve the hash-only entry");
+    assert_eq!(a2.files[0].bytes, a1.files[0].bytes, "…to the same bytes");
+    assert!(missing2.is_empty(), "a cached hash is not missing");
+}
+
+#[test]
+fn an_unknown_hash_with_no_bytes_is_reported_missing() {
+    // The client believed this was cached; the engine does not hold it. It must be
+    // reported so the client re-sends, not silently dropped into a broken image.
+    let v = serde_json::json!({
+        "assets": [{ "name": "gone.png", "hash": "test-never-sent-xyz" }]
+    });
+    let (assets, missing) = Assets::from_request(&v);
+    assert!(assets.files.is_empty(), "an unresolved asset is not conjured");
+    assert_eq!(missing, vec!["test-never-sent-xyz".to_string()]);
+}
+
+#[test]
 fn assets_are_read_from_a_request_with_or_without_a_data_url_prefix() {
     let v = serde_json::json!({
         "assets": [

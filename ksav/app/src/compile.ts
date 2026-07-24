@@ -48,9 +48,14 @@ export function scheduleCompile() {
   alsoSchedule();
 }
 
-/** The user's document with their own `#let` preamble in front of it. */
+/** The user's document with their own `#let` preamble in front of it.
+ *
+ *  A document that carries its own custom commands (opened from a file that
+ *  embedded them) uses those, so a shared sefer compiles for its reader; an
+ *  ordinary local document falls back to the app-wide set. */
 function withPreamble(body: string): string {
-  const pre = settings.customCommands?.trim() ? settings.customCommands + "\n\n" : "";
+  const custom = runtime.currentDoc?.customCommands ?? settings.customCommands;
+  const pre = custom?.trim() ? custom + "\n\n" : "";
   return pre + body;
 }
 

@@ -171,4 +171,59 @@ export async function run() {
     const after = tables.insertRow(tricky, t, 0);
     ok("…through a rewrite", tables.tableAt(after, 5).cells.some((c) => c.body === body));
   }
+
+  // ------------------------------------------------------------ merged cells
+  //
+  // A `מיזוג(n)` cell spans n columns, so `index / cols` no longer names its row.
+  // The row/column arithmetic used to ignore the span: inserting a row into a
+  // table with a two-wide header pulled the header into the first data row,
+  // orphaned a cell two rows down, and dropped a blank row between them — the
+  // failure this module's own comment names as the reason it exists.
+  {
+    const merged =
+      "#טבלה(עמודות: 2, פסים: true,\n  מיזוג(2)[כותרת רחבה],\n  תא[א], תא[ב],\n)";
+    const t = read(merged);
+    check("a merged cell reports its span", t.cells[0].span, 2);
+    check("…and its body", t.cells[0].body, "כותרת רחבה");
+    check("the table is two grid rows, not three", tables.rowCount(t), 2);
+    check("the wide cell sits at row 0", tables.rowOf(t, 0), 0);
+    check("the first data cell is at row 1", tables.rowOf(t, 1), 1);
+    check("…in column 0", tables.colOf(t, 1), 0);
+    check("…and its neighbour in column 1", tables.colOf(t, 2), 1);
+
+    const after = tables.insertRow(merged, t, 0);
+    const at = read(after);
+    ok("inserting a row keeps the merge intact", at.cells.some((c) => c.span === 2 && c.body === "כותרת רחבה"));
+    ok("…the data cells are not scrambled", at.cells.some((c) => c.body === "א") && at.cells.some((c) => c.body === "ב"));
+    ok("…and the whole thing still parses cleanly", consistent(after));
+    ok("…rendered with the merge command, not a plain cell", after.includes("מיזוג(2)[כותרת רחבה]"));
+  }
+
+  {
+    // Round-trip a merged table through every operation; the merge must survive
+    // where it can, and the table must stay consistent throughout.
+    let doc = "#טבלה(עמודות: 3, פסים: true,\n  מיזוג(3)[כותרת],\n  תא[א], תא[ב], תא[ג],\n  תא[ד], תא[ה], תא[ו],\n)";
+    const ops = [
+      ["insertRow below the merge", (d, t) => tables.insertRow(d, t, 0)],
+      ["toggleHeaderRow on a data row", (d, t) => tables.toggleHeaderRow(d, t, 2)],
+      ["insertColumn inside the merge", (d, t) => tables.insertColumn(d, t, 0)],
+      ["deleteColumn", (d, t) => tables.deleteColumn(d, t, 1)],
+      ["deleteRow", (d, t) => tables.deleteRow(d, t, 1)],
+    ];
+    for (const [name, op] of ops) {
+      doc = op(doc, read(doc));
+      ok(`merged table after ${name}: still consistent`, consistent(doc));
+    }
+    ok("the merge widened when a column was inserted through it", /מיזוג\(4\)/.test(doc) || /מיזוג\(3\)/.test(doc));
+  }
+
+  {
+    // Inserting a column at a merged cell's edge drops a single blank cell in;
+    // inserting one through its middle widens the merge. Both keep the row sum.
+    const merged = "#טבלה(עמודות: 2,\n  מיזוג(2)[רחב],\n  תא[א], תא[ב],\n)";
+    const widened = tables.insertColumn(merged, read(merged), 0); // through the merge
+    ok("a column through a merge widens it", read(widened).cells.some((c) => c.span === 3));
+    ok("…and the table stays consistent", consistent(widened));
+    check("…with the new declared width", read(widened).cols, 3);
+  }
 }

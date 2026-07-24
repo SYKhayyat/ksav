@@ -205,6 +205,33 @@ fn a_spell_request_returns_located_misses() {
 }
 
 #[test]
+fn offsets_are_utf16_and_correct_across_several_misses() {
+    // Two nonsense words with a known Hebrew word between them. Hebrew is two
+    // bytes per letter in UTF-8 but one UTF-16 unit, so the expected start is the
+    // character index — which is what a JavaScript editor positions by. The
+    // conversion is now a single forward pass rather than a prefix re-walk per
+    // word, so this pins that it still lands every marker exactly.
+    // Three nonsense words, with known Hebrew words between them so the checker
+    // has real gaps of multi-byte text to walk over.
+    let text = "זזזזזז שלום ססססס עולם טטטטט";
+    let req = serde_json::json!({ "text": text }).to_string();
+    let out: serde_json::Value =
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).unwrap();
+    let m = out["misspellings"].as_array().unwrap();
+    assert_eq!(m.len(), 3, "got {m:?}");
+    // The forward pass must match the straightforward prefix-walk for every word.
+    let u16_at = |needle: &str| text[..text.find(needle).unwrap()].encode_utf16().count() as u64;
+    for (i, word) in ["זזזזזז", "ססססס", "טטטטט"].iter().enumerate() {
+        assert_eq!(m[i]["word"], *word);
+        assert_eq!(m[i]["start"].as_u64().unwrap(), u16_at(word), "wrong offset for {word}");
+    }
+    // …and every offset is a plain character index here (all Hebrew), never the
+    // byte offset that would put each marker at roughly twice its real position.
+    assert_eq!(m[0]["start"], 0);
+    assert_eq!(m[1]["start"], 12); // 6 + 1 + 4 + 1
+}
+
+#[test]
 fn a_request_can_carry_the_writers_own_dictionary() {
     let text = "מילה כשכשכשכש כאן";
     let plain = serde_json::json!({ "text": text }).to_string();

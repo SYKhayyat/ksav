@@ -85,7 +85,10 @@ export function download(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = el("a", { href: url, download: name });
   a.click();
-  URL.revokeObjectURL(url);
+  // Revoke on the next tick, not synchronously: Firefox starts the download
+  // asynchronously after click(), and revoking the URL in the same turn can abort
+  // it before it begins, so nothing is saved.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /** Escape a string for use inside a double-quoted HTML attribute. */

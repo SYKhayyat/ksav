@@ -203,6 +203,21 @@ export async function run() {
     check("…and round-trips", parsed.assets.length, 1);
     check("…keeping the title", parsed.title, "T");
 
+    // Custom commands travel with the document so a shared .ksav compiles for its
+    // reader, not only its author.
+    {
+      const doc = { title: "T", body: "#דגש[x]", assets: [] };
+      const plain = docs.serializeDoc(doc);
+      check("a document with no custom commands stays plain text", plain, "#דגש[x]");
+      const carried = docs.serializeDoc(doc, "#let דגש(x) = strong(x)");
+      ok("the app-wide fallback is embedded when the doc has none", carried.includes("customCommands"));
+      const back = docs.parseDoc(carried, "F");
+      check("…and round-trips", back.customCommands, "#let דגש(x) = strong(x)");
+      // A document's own commands win over the fallback and are kept on re-save.
+      const owned = docs.serializeDoc({ ...doc, customCommands: "#let own() = []" }, "#let other() = []");
+      check("the document's own commands are what serialise", docs.parseDoc(owned, "F").customCommands, "#let own() = []");
+    }
+
     check("plain text parses as a body", docs.parseDoc("just text", "F").body, "just text");
     check("…taking the fallback title", docs.parseDoc("just text", "F").title, "F");
     check("foreign JSON is treated as text, not swallowed", docs.parseDoc('{"a":1}', "F").body, '{"a":1}');

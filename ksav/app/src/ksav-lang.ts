@@ -9,7 +9,7 @@
 import { EditorView, ViewPlugin, Decoration, ViewUpdate, WidgetType } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
-import type { EditorState } from "@codemirror/state";
+import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
 
 // ---- shared scanning -------------------------------------------------------
@@ -570,13 +570,47 @@ class TableWidget extends WidgetType {
   }
 }
 
-function proseDecorations(state: EditorState): DecorationSet {
+/** What prose mode holds in its StateField: the decorations, plus the spans
+ *  whose visibility depends on the cursor — the second lets a pure selection
+ *  move skip the whole recompute when nothing it could reveal actually flips. */
+interface ProseValue {
+  deco: DecorationSet;
+  touch: { from: number; to: number }[];
+}
+
+/**
+ * A coverage mask over document positions.
+ *
+ * The prose predicates — is this position inside a comment, a footnote, a list,
+ * a table — used to be linear scans over their span lists, called once per
+ * command. Commands scale with the document and so do those spans, so the pass
+ * was O(n²): 108 ms per keystroke on a hundred-page sefer. Painting each span
+ * set into a byte mask once (native `fill`, O(document)) turns every predicate
+ * into a single array read, and the whole pass back into O(n).
+ */
+function paint(mask: Uint8Array, from: number, to: number) {
+  if (from < 0) from = 0;
+  if (to > mask.length) to = mask.length;
+  if (to > from) mask.fill(1, from, to);
+}
+
+function overlapsSel(sel: EditorSelection, from: number, to: number): boolean {
+  return sel.ranges.some((r) => r.from <= to && r.to >= from);
+}
+
+function proseDecorations(state: EditorState): ProseValue {
   const reveal = state.field(revealAll, false);
   const sel = state.selection;
   const ranges: { from: number; to: number; deco: Decoration; side: number }[] = [];
+  const touch: { from: number; to: number }[] = [];
   const text = state.doc.toString();
-  const touchedAt = (from: number, to: number) =>
-    reveal || sel.ranges.some((r) => r.from <= to && r.to >= from);
+  const touchedAt = (from: number, to: number) => {
+    // Every span asked about here is one a cursor move could reveal or hide;
+    // recording them lets the field decide, on the next selection change,
+    // whether a recompute is even necessary.
+    touch.push({ from, to });
+    return reveal || sel.ranges.some((r) => r.from <= to && r.to >= from);
+  };
 
   // ---- comments & fold-region markers: hidden in prose (Word-like) mode ----
   // These never render in the compiled output (Typst strips `//` and `/* */`),
@@ -584,7 +618,9 @@ function proseDecorations(state: EditorState): DecorationSet {
   // text with no visible collapse markers, matching the printed page. A marker
   // is revealed when the cursor touches it or Alt is held, so it stays editable.
   const comments = scanComments(text);
-  const inComment = (i: number) => comments.some((c) => i >= c.from && i < c.to);
+  const commentMask = new Uint8Array(text.length + 1);
+  for (const c of comments) paint(commentMask, c.from, c.to); // [from, to)
+  const inComment = (i: number) => commentMask[i] === 1;
 
   // ---- footnote coverage ----
   // A footnote collapses to ONE numbered chip: a full-span `replace` over the
@@ -601,8 +637,9 @@ function proseDecorations(state: EditorState): DecorationSet {
     topFn.push(s);
     fnCover = s.close + 1;
   }
-  const insideFootnote = (pos: number) =>
-    topFn.some((s) => pos > s.cmdStart && pos <= s.close!);
+  const fnMask = new Uint8Array(text.length + 1);
+  for (const s of topFn) paint(fnMask, s.cmdStart + 1, s.close! + 1); // (cmdStart, close]
+  const insideFootnote = (pos: number) => fnMask[pos] === 1;
 
   // ---- list coverage (outermost lists), used to keep a nested table raw ----
   const listSpans: { from: number; to: number }[] = [];
@@ -616,7 +653,9 @@ function proseDecorations(state: EditorState): DecorationSet {
     if (ls.index < (listSpans[listSpans.length - 1]?.to ?? -1)) continue; // nested
     listSpans.push({ from: ls.index, to: cp });
   }
-  const insideList = (pos: number) => listSpans.some((s) => pos > s.from && pos <= s.to);
+  const listMask = new Uint8Array(text.length + 1);
+  for (const s of listSpans) paint(listMask, s.from + 1, s.to + 1); // (from, to]
+  const insideList = (pos: number) => listMask[pos] === 1;
 
   // ---- tables: render `#טבלה(…)` as a real grid (a block widget) ----
   // Block widgets and line-break-spanning replaces are only legal from a
@@ -649,7 +688,9 @@ function proseDecorations(state: EditorState): DecorationSet {
     });
     tableSpans.push({ from: startLine.from, to: endLine.to });
   }
-  const insideTable = (pos: number) => tableSpans.some((s) => pos >= s.from && pos <= s.to);
+  const tableMask = new Uint8Array(text.length + 1);
+  for (const s of tableSpans) paint(tableMask, s.from, s.to + 1); // [from, to]
+  const insideTable = (pos: number) => tableMask[pos] === 1;
 
   for (const c of comments) {
     if (touchedAt(c.from, c.to)) continue;
@@ -766,10 +807,11 @@ function proseDecorations(state: EditorState): DecorationSet {
       });
   }
   ranges.sort((a, b) => a.from - b.from || a.side - b.side);
-  return Decoration.set(
+  const deco = Decoration.set(
     ranges.map((r) => r.deco.range(r.from, r.to)),
     true,
   );
+  return { deco, touch };
 }
 
 // ---- folding (org-mode style: headings + lists + any multi-line command) ----
@@ -929,12 +971,26 @@ export const ksavFolding = codeFolding({
 // (rendered tables) and line-break-spanning replaces, which CodeMirror only
 // permits from a field. It recomputes on edits, selection moves, and the
 // reveal-all (Alt) toggle — it doesn't depend on the viewport.
-export const proseMode = StateField.define<DecorationSet>({
+export const proseMode = StateField.define<ProseValue>({
   create: (state) => proseDecorations(state),
-  update(deco, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setRevealAll)))
+  update(prev, tr) {
+    if (tr.docChanged || tr.effects.some((e) => e.is(setRevealAll)))
       return proseDecorations(tr.state);
-    return deco.map(tr.changes);
+    if (tr.selection) {
+      // A cursor move only changes the view if it reveals or hides a span. If no
+      // reveal-sensitive span's overlap with the selection actually flipped, the
+      // current decorations still hold — which is what keeps arrow-keying (and
+      // holding a key down) through a long document from paying for a full
+      // recompute on every event. This was the second, cheaper half of the
+      // quadratic-latency fix.
+      const before = tr.startState.selection;
+      const after = tr.state.selection;
+      const flips = prev.touch.some(
+        (s) => overlapsSel(before, s.from, s.to) !== overlapsSel(after, s.from, s.to),
+      );
+      return flips ? proseDecorations(tr.state) : prev;
+    }
+    return { deco: prev.deco.map(tr.changes), touch: prev.touch };
   },
-  provide: (f) => EditorView.decorations.from(f),
+  provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });

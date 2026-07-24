@@ -100,6 +100,10 @@ function openViaInput(): Promise<OpenedFile | null> {
     input.accept = ACCEPT;
     input.style.display = "none";
     let settled = false;
+    // Set the moment a file is chosen, so the dismissal timeout below cannot
+    // resolve `null` out from under a FileReader that is still reading a large
+    // document — the race that used to drop an open with no word.
+    let picked = false;
     const finish = (v: OpenedFile | null) => {
       if (settled) return;
       settled = true;
@@ -109,6 +113,7 @@ function openViaInput(): Promise<OpenedFile | null> {
     input.addEventListener("change", () => {
       const f = input.files?.[0];
       if (!f) return finish(null);
+      picked = true;
       const reader = new FileReader();
       reader.onload = () =>
         finish({ text: String(reader.result), binding: { kind: "download", name: f.name } });
@@ -116,8 +121,13 @@ function openViaInput(): Promise<OpenedFile | null> {
       reader.readAsText(f);
     });
     // A dismissed picker fires no event in most browsers; releasing on the next
-    // window focus keeps the promise from hanging forever.
-    window.addEventListener("focus", () => setTimeout(() => finish(null), 800), { once: true });
+    // window focus keeps the promise from hanging forever — but only when nothing
+    // was picked, so a big file gets as long as it needs to read.
+    window.addEventListener(
+      "focus",
+      () => setTimeout(() => { if (!picked) finish(null); }, 800),
+      { once: true },
+    );
     document.body.append(input);
     input.click();
   });
@@ -186,7 +196,9 @@ export function download(name: string, text: string) {
   a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(url);
+  // Next tick, not synchronously: Firefox starts the download after click()
+  // returns, and revoking the URL in the same turn aborts it before it begins.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 // ---------------------------------------------------------------- handle store

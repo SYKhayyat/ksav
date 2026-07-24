@@ -94,11 +94,40 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
 /// nothing at all otherwise (native footnotes expand the text region themselves
 /// and must not lose page height to a reserve they never use).
 pub fn auto_notes_region_cm(body: &str) -> f64 {
-    if PAGE_APPARATUS_COMMANDS.iter().any(|c| body.contains(c)) {
+    if PAGE_APPARATUS_COMMANDS.iter().any(|c| apparatus_is_called(body, c)) {
         3.0
     } else {
         0.0
     }
+}
+
+/// Whether `name` (a command, or the common prefix of a family of them) appears
+/// as an actual call, not merely as text.
+///
+/// A bare `body.contains(name)` reserved 3 cm at the foot of every page for any
+/// document that so much as mentioned `מדף_` in prose. The names here are prefixes
+/// — `מדף_` covers `מדף_א`, `מדף_בדרגה`, … — so this consumes the rest of the
+/// identifier after the prefix and then requires the argument bracket that makes
+/// it a call: `#מדף_א[…]`, `הערה_זרם(…)`. Prose ("the מדף_ command") has a space
+/// or punctuation there, not a bracket, so it no longer triggers the reserve.
+fn apparatus_is_called(body: &str, name: &str) -> bool {
+    let mut base = 0;
+    while let Some(i) = body[base..].find(name) {
+        let start = base + i;
+        let rest = &body[start + name.len()..];
+        // Skip the rest of the identifier (Hebrew letters are alphabetic, so
+        // `is_alphanumeric` covers them), then look at the first character after.
+        let after_ident = rest
+            .char_indices()
+            .find(|(_, ch)| !(ch.is_alphanumeric() || *ch == '_'))
+            .map(|(idx, _)| idx)
+            .unwrap_or(rest.len());
+        if matches!(rest[after_ident..].chars().next(), Some('(') | Some('[')) {
+            return true;
+        }
+        base = start + name.len();
+    }
+    false
 }
 
 impl Default for DocConfig {
@@ -397,11 +426,22 @@ fn layout_source(source: String, assets: &Assets) -> Warned<Result<PagedDocument
         .iter()
         .map(|a| (a.name.as_str(), a.bytes.as_slice()))
         .collect();
-    let engine = TypstEngine::builder()
+    let mut builder = TypstEngine::builder()
         .main_file(source)
         .fonts(fonts)
-        .with_static_file_resolver(files)
-        .build();
+        .with_static_file_resolver(files);
+    // Keep Typst's memoization cache alive across compiles instead of throwing it
+    // away after each one. `typst-as-lib` defaults `comemo_evict_max_age` to
+    // `Some(0)` — evict everything immediately — which is exactly the opposite of
+    // what makes `typst-cli --watch` feel live: font loading, glyph shaping and
+    // the layout of unchanged regions all get recomputed from scratch on every
+    // keystroke. A non-zero age lets those survive, so an edit pays mainly for
+    // what actually changed. The main source keeps a stable (detached) FileId
+    // across compiles, so the cache can match against it. `10` is the value
+    // `--watch` uses: old enough to span a burst of edits, young enough that a
+    // long-idle document's cache is eventually reclaimed.
+    builder.comemo_evict_max_age(Some(10));
+    let engine = builder.build();
     engine.compile::<PagedDocument>()
 }
 
@@ -512,12 +552,15 @@ pub fn compile_request(input_json: &str) -> String {
     let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
     let body = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
     let cfg = DocConfig::from_json(&v);
-    let assets = Assets::from_json(&v);
+    // Assets resolve from a per-process cache keyed by content hash, so an
+    // unchanged image is not re-sent and re-decoded on every keystroke. Any hash
+    // the cache no longer holds comes back so the client re-sends the bytes.
+    let (assets, missing_assets) = Assets::from_request(&v);
 
     // `{"format": "html"}` asks for the web export instead of a paged render.
     if v.get("format").and_then(|x| x.as_str()) == Some("html") {
         return match compile_html(body, &cfg, &assets) {
-            Ok(html) => serde_json::json!({ "ok": true, "html": html, "diagnostics": [] }),
+            Ok(html) => serde_json::json!({ "ok": true, "html": html, "diagnostics": [], "missing_assets": missing_assets }),
             Err(diags) => serde_json::json!({
                 "ok": false,
                 "html": serde_json::Value::Null,
@@ -525,6 +568,7 @@ pub fn compile_request(input_json: &str) -> String {
                     .iter()
                     .map(|d| serde_json::json!({ "severity": d.severity, "message": d.message }))
                     .collect::<Vec<_>>(),
+                "missing_assets": missing_assets,
             }),
         }
         .to_string();
@@ -551,6 +595,9 @@ pub fn compile_request(input_json: &str) -> String {
         "pdf_base64": pdf_b64,
         "diagnostics": diags,
         "typst_source": result.typst_source,
+        // Hashes the client thought were cached but the engine no longer holds;
+        // it re-sends their bytes on the next compile.
+        "missing_assets": missing_assets,
     })
     .to_string()
 }
@@ -602,6 +649,24 @@ mod tests {
 
     fn cfg_from(json: serde_json::Value) -> DocConfig {
         DocConfig::from_json(&json)
+    }
+
+    #[test]
+    fn the_page_foot_reserve_follows_a_real_call_not_a_prose_mention() {
+        // A document that only *talks* about the apparatus must not lose 3 cm at
+        // the foot of every page for one it never uses.
+        assert_eq!(
+            auto_notes_region_cm("כאן נסביר מהו מדף_ וכיצד להשתמש בו בטקסט."),
+            0.0,
+            "a bare mention should reserve nothing"
+        );
+        // An actual call — both the bracket form and the paren form, top-level and
+        // via the family prefix — reserves the region.
+        assert_eq!(auto_notes_region_cm("שלום #מדף_א[הערה] עולם"), 3.0);
+        assert_eq!(auto_notes_region_cm("#מדף_בדרגה(2)[הערה]"), 3.0);
+        assert_eq!(auto_notes_region_cm("#הערה_זרם(זרם: \"א\")[טקסט]"), 3.0);
+        // A document with no apparatus at all reserves nothing.
+        assert_eq!(auto_notes_region_cm("סתם טקסט עם #הדגשה[מילה]"), 0.0);
     }
 
     #[test]

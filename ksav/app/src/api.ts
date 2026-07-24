@@ -35,11 +35,27 @@ export interface DocConfig {
  * `#תמונה("logo.png")` can only work if the bytes are on the request. `data` is
  * base64, with or without a `data:` URL prefix.
  */
+/**
+ * One asset on a compile request.
+ *
+ * `hash` identifies the bytes; `data` (base64) is sent only when the engine is
+ * not known to hold that hash already. An 8 MB image is ~11 MB of base64, and it
+ * used to ride along on every keystroke-driven compile — so a hash-only entry,
+ * resolved from the engine's content cache, is the difference between a tiny
+ * request and an 11 MB one on every pause in typing.
+ */
+export interface RequestAsset {
+  name: string;
+  hash: string;
+  /** base64; present only the first time the engine needs to see these bytes. */
+  data?: string;
+}
+
 export interface RequestAssets {
   /** Images and other files the document refers to by name. */
-  assets: { name: string; data: string }[];
+  assets: RequestAsset[];
   /** Extra fonts to make available for this compile. */
-  fonts: { name: string; data: string }[];
+  fonts: RequestAsset[];
   /**
    * "html" asks for Typst's native HTML export instead of paged output, in
    * which case the result carries `html` rather than `pages_svg`/`pdf_base64`.
@@ -71,6 +87,59 @@ export interface CompileResult {
   typst_source: string;
   /** Set only for a `format: "html"` request. */
   html?: string;
+  /** Hashes the client omitted bytes for but the engine did not hold; the client
+   *  re-sends them. Absent from older engines, which is treated as "none". */
+  missing_assets?: string[];
+}
+
+/**
+ * Tracks which asset hashes an engine session already holds, so their bytes can
+ * be omitted from a request and resolved from the engine's cache instead.
+ *
+ * One per backend instance — the cache lives in that engine's process/worker, so
+ * a fresh backend (or a respawned worker) starts with nothing confirmed. When the
+ * engine reports a hash it no longer has, that hash is forgotten and its bytes go
+ * out again, which keeps the two sides honest without either trusting the other's
+ * memory across a restart.
+ */
+class AssetDeduper {
+  private confirmed = new Set<string>();
+
+  reset() {
+    this.confirmed.clear();
+  }
+
+  /** The wire form of `assets`, with bytes dropped for anything already cached,
+   *  plus the hashes whose bytes this request does carry (to confirm on success). */
+  private prepare(assets: RequestAssets): { wire: RequestAssets; sent: string[] } {
+    const sent: string[] = [];
+    const strip = (list: RequestAsset[]): RequestAsset[] =>
+      list.map((a) => {
+        if (a.hash && this.confirmed.has(a.hash)) return { name: a.name, hash: a.hash };
+        if (a.hash) sent.push(a.hash);
+        return a; // carries data
+      });
+    return { wire: { ...assets, assets: strip(assets.assets), fonts: strip(assets.fonts) }, sent };
+  }
+
+  /** Run a compile with byte-deduplicated assets, re-sending on a cache miss. */
+  async compile(
+    raw: (a: RequestAssets) => Promise<CompileResult>,
+    assets: RequestAssets,
+  ): Promise<CompileResult> {
+    const first = this.prepare(assets);
+    let res = await raw(first.wire);
+    if (res.missing_assets && res.missing_assets.length) {
+      // The engine dropped these — send the bytes and try once more.
+      for (const h of res.missing_assets) this.confirmed.delete(h);
+      const retry = this.prepare(assets);
+      res = await raw(retry.wire);
+      for (const h of retry.sent) this.confirmed.add(h);
+    } else {
+      for (const h of first.sent) this.confirmed.add(h);
+    }
+    return res;
+  }
 }
 
 export interface CommandDef {
@@ -128,16 +197,19 @@ export interface Backend {
 
 export class HttpBackend implements Backend {
   readonly kind = "server";
+  private deduper = new AssetDeduper();
   constructor(private base = "") {}
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
-    const res = await fetch(this.base + "/compile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, ...cfg, ...assets }),
-    });
-    if (!res.ok) throw new Error(`compile ${res.status}`);
-    return res.json();
+    return this.deduper.compile(async (a) => {
+      const res = await fetch(this.base + "/compile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, ...cfg, ...a }),
+      });
+      if (!res.ok) throw new Error(`compile ${res.status}`);
+      return res.json();
+    }, assets);
   }
 
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
@@ -181,12 +253,33 @@ export class HttpBackend implements Backend {
  * typing and no caret. wasm-bindgen cannot yield mid-compile; the work has to
  * happen on another thread.
  */
+/** Wall-clock ceiling for a client-side compile, mirroring the server's. */
+const COMPILE_TIMEOUT_MS = 20_000;
+
+const COMPILE_TIMEOUT_MESSAGE =
+  "ההידור ארך יותר מדי והופסק — לולאה או חזרה עם מספר גדול מאוד עלולה לגרום לכך; " +
+  "בדקו את הגבולות של #עבור/#כלעוד · compilation timed out and was stopped — a loop or " +
+  "repetition with a very large count can cause this; check any #for/#while bounds";
+
+/** A compile result carrying a single error diagnostic — the shape the engine
+ *  returns on failure, so a client-side timeout reads identically to a real one. */
+function errorResult(message: string): CompileResult {
+  return { ok: false, pages_svg: [], pdf_base64: null, typst_source: "", diagnostics: [{ severity: "error", message }] };
+}
+
+interface Pending {
+  resolve: (s: string) => void;
+  reject: (e: Error) => void;
+  timer?: ReturnType<typeof setTimeout>;
+}
+
 export class WasmBackend implements Backend {
   readonly kind = "wasm";
   private worker: Worker | null = null;
   private booting: Promise<Worker> | null = null;
   private nextId = 1;
-  private pending = new Map<number, { resolve: (s: string) => void; reject: (e: Error) => void }>();
+  private pending = new Map<number, Pending>();
+  private deduper = new AssetDeduper();
 
   private ensure(): Promise<Worker> {
     if (this.worker) return Promise.resolve(this.worker);
@@ -215,6 +308,7 @@ export class WasmBackend implements Backend {
       const slot = this.pending.get(id);
       if (!slot) return;
       this.pending.delete(id);
+      if (slot.timer) clearTimeout(slot.timer);
       if (ok) slot.resolve(output ?? "");
       else slot.reject(new Error(error ?? "engine error"));
     };
@@ -226,24 +320,61 @@ export class WasmBackend implements Backend {
   }
 
   private failAll(err: Error) {
-    for (const { reject } of this.pending.values()) reject(err);
+    for (const slot of this.pending.values()) {
+      if (slot.timer) clearTimeout(slot.timer);
+      slot.reject(err);
+    }
     this.pending.clear();
     this.worker?.terminate();
     this.worker = null;
     this.booting = null;
+    // The terminated worker took its asset cache with it, so nothing is confirmed
+    // cached anymore — the next compile must send bytes, not just hashes.
+    this.deduper.reset();
   }
 
-  private async call(name: string, input: string): Promise<string> {
+  private async call(name: string, input: string, timeoutMs?: number): Promise<string> {
     const w = await this.ensure();
     const id = this.nextId++;
     return new Promise<string>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const slot: Pending = { resolve, reject };
+      if (timeoutMs) {
+        slot.timer = setTimeout(() => {
+          if (!this.pending.has(id)) return;
+          // Typst cannot be interrupted mid-compile, but a Worker can be killed
+          // outright. A runaway (a `#for` with a wrong bound) would otherwise pin
+          // the one engine worker and queue every later compile and spell check
+          // behind it forever, finishing the tab until reload. Terminating the
+          // worker ends the runaway and lets the next call boot a fresh one.
+          this.failAll(new Error("timeout"));
+        }, timeoutMs);
+      }
+      this.pending.set(id, slot);
       w.postMessage({ id, call: name, input });
     });
   }
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
-    return JSON.parse(await this.call("compile", JSON.stringify({ body, ...cfg, ...assets })));
+    try {
+      return await this.deduper.compile(
+        async (a) =>
+          JSON.parse(
+            await this.call("compile", JSON.stringify({ body, ...cfg, ...a }), COMPILE_TIMEOUT_MS),
+          ) as CompileResult,
+        assets,
+      );
+    } catch (e) {
+      // A killed or crashed worker surfaces as an ordinary compile result with a
+      // diagnostic — the same shape the server returns — so the status bar shows
+      // it rather than the editor hanging on an unresolved promise. The throw
+      // reaches here without the deduper confirming any hashes, and failAll has
+      // already reset it, so the respawned worker starts from a clean slate.
+      return errorResult(
+        e instanceof Error && e.message === "timeout"
+          ? COMPILE_TIMEOUT_MESSAGE
+          : `מנוע ההידור נעצר · the compile engine stopped${e instanceof Error ? `: ${e.message}` : ""}`,
+      );
+    }
   }
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
     return JSON.parse(
@@ -267,6 +398,7 @@ export class WasmBackend implements Backend {
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
 export class TauriBackend implements Backend {
   readonly kind = "desktop";
+  private deduper = new AssetDeduper();
   private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<string>) | null = null;
 
   private async inv() {
@@ -278,9 +410,25 @@ export class TauriBackend implements Backend {
   }
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     const invoke = await this.inv();
-    return JSON.parse(
-      await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...assets }) }),
+    const run = this.deduper.compile(
+      async (a) =>
+        JSON.parse(await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...a }) })) as CompileResult,
+      assets,
     );
+    // Typst cannot be interrupted, and the in-process compile runs off the UI
+    // thread, so a runaway `#for` leaves the window alive but the writer waiting
+    // with nothing said. A deadline on this side unblocks the editor and shows
+    // why; the abandoned compile finishes on tokio's blocking pool, which is
+    // large enough that one lost thread does not wedge a single-user desktop app.
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = new Promise<CompileResult>((resolve) => {
+      timer = setTimeout(() => resolve(errorResult(COMPILE_TIMEOUT_MESSAGE)), COMPILE_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([run, deadline]);
+    } finally {
+      clearTimeout(timer!);
+    }
   }
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
     const invoke = await this.inv();

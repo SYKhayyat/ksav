@@ -42,7 +42,7 @@ export interface TableInfo {
    */
   options: string[];
   /** Which Hebrew/English names this table was written with. */
-  names: { table: string; cell: string; header: string; cols: string };
+  names: { table: string; cell: string; header: string; merge: string; cols: string };
 }
 
 const TABLE_NAMES = ["טבלה", "mktable"];
@@ -142,8 +142,8 @@ export function tableAt(doc: string, pos: number): TableInfo | null {
         options,
         cells,
         names: hebrew
-          ? { table: "טבלה", cell: "תא", header: "כותרת_תא", cols: colsMatch?.[1] ?? "עמודות" }
-          : { table: "mktable", cell: "cell", header: "headcell", cols: colsMatch?.[1] ?? "columns" },
+          ? { table: "טבלה", cell: "תא", header: "כותרת_תא", merge: "מיזוג", cols: colsMatch?.[1] ?? "עמודות" }
+          : { table: "mktable", cell: "cell", header: "headcell", merge: "colspan_", cols: colsMatch?.[1] ?? "columns" },
       };
     }
   }
@@ -156,27 +156,89 @@ export function cellIndexAt(t: TableInfo, pos: number): number | null {
   return i < 0 ? null : i;
 }
 
+/**
+ * Where a cell lands once merges are honoured.
+ *
+ * A `מיזוג(n)` cell occupies `n` columns, so cell index and grid position are
+ * not the same thing the moment a table has one. Everything structural below is
+ * expressed against this grid rather than against `index / cols`, which was the
+ * arithmetic that silently reflowed a merged table on any edit.
+ */
+interface Placement {
+  cell: TableCell;
+  /** Index into the cell list this placement came from. */
+  index: number;
+  /** Zero-based grid row. */
+  row: number;
+  /** Zero-based starting column. */
+  col: number;
+  /** Columns actually occupied (clamped to the table width). */
+  span: number;
+}
+
+/**
+ * Lay the cell list out into a grid of `cols` columns, honouring spans.
+ *
+ * Cells fill left-to-right, top-to-bottom; a cell that would overflow the
+ * current row wraps to the next, exactly as Typst's own auto-placement does. A
+ * span wider than the table is clamped, so a stray `מיזוג(9)` in a 2-column
+ * table can never make a row that no operation can reason about.
+ */
+function layout(cells: TableCell[], cols: number): { grid: Placement[]; rows: number } {
+  const grid: Placement[] = [];
+  let row = 0;
+  let col = 0;
+  cells.forEach((cell, index) => {
+    const span = Math.min(Math.max(1, cell.span), cols);
+    if (col > 0 && col + span > cols) {
+      row++;
+      col = 0;
+    }
+    grid.push({ cell, index, row, col, span });
+    col += span;
+    if (col >= cols) {
+      row++;
+      col = 0;
+    }
+  });
+  const rows = col === 0 ? row : row + 1;
+  return { grid, rows };
+}
+
+function placementsIn(grid: Placement[], row: number): Placement[] {
+  return grid.filter((p) => p.row === row);
+}
+
 export function rowOf(t: TableInfo, cellIndex: number): number {
-  return Math.floor(cellIndex / t.cols);
+  return layout(t.cells, t.cols).grid[cellIndex]?.row ?? 0;
 }
 
 export function colOf(t: TableInfo, cellIndex: number): number {
-  return cellIndex % t.cols;
+  return layout(t.cells, t.cols).grid[cellIndex]?.col ?? 0;
 }
 
 export function rowCount(t: TableInfo): number {
-  return Math.max(1, Math.ceil(t.cells.length / t.cols));
+  return Math.max(1, layout(t.cells, t.cols).rows);
 }
 
-/** Render a table back to source, laid out one row per line. */
+/** The source for one cell, preserving whether it is a header or a merge. */
+function cellSource(t: TableInfo, c: TableCell): string {
+  // Span wins over header: the markup has no spanning-header form (מיזוג is
+  // `table.cell(colspan:)`, כותרת_תא is a styled single cell), so a cell that is
+  // both keeps its width, which is the property a structural edit must not lose.
+  if (c.span > 1) return `${t.names.merge}(${c.span})[${c.body}]`;
+  return `${c.header ? t.names.header : t.names.cell}[${c.body}]`;
+}
+
+/** Render a table back to source, laid out one grid row per line. */
 function render(t: TableInfo, cells: TableCell[], cols: number): string {
+  const { grid, rows } = layout(cells, cols);
   const lines: string[] = [];
-  for (let r = 0; r * cols < cells.length; r++) {
-    const row = cells.slice(r * cols, (r + 1) * cols);
+  for (let r = 0; r < rows; r++) {
     lines.push(
       "  " +
-        row
-          .map((c) => `${c.header ? t.names.header : t.names.cell}[${c.body}]`)
+        placementsIn(grid, r)
+          .map((p) => cellSource(t, p.cell))
           .join(", ") +
         ",",
     );
@@ -195,20 +257,35 @@ function blank(header: boolean): TableCell {
 }
 
 /**
- * Pad the cell list to a whole number of rows.
+ * Pad the final grid row out to the full width.
  *
  * A hand-edited table often has a partial last row; every operation below
- * assumes a rectangle, and quietly completing it is kinder than refusing to act.
+ * assumes each row sums to `cols`, and quietly completing it is kinder than
+ * refusing to act. Interior rows left short by an oversized merge are Typst's
+ * problem to auto-fill, not ours to reshape.
  */
 function rectangular(cells: TableCell[], cols: number): TableCell[] {
+  const { grid, rows } = layout(cells, cols);
   const out = cells.slice();
-  while (out.length % cols !== 0) out.push(blank(false));
+  if (rows === 0) return out;
+  const last = placementsIn(grid, rows - 1);
+  const filled = last.reduce((n, p) => n + p.span, 0);
+  const header = last.length > 0 && last.every((p) => p.cell.header);
+  for (let c = filled; c < cols; c++) out.push(blank(header));
   return out;
+}
+
+/** Index at which grid row `row` begins, or the cell count if past the end. */
+function rowStartIndex(grid: Placement[], row: number, count: number): number {
+  const first = grid.find((p) => p.row >= row);
+  return first ? first.index : count;
 }
 
 export function insertRow(doc: string, t: TableInfo, afterRow: number): string {
   const cells = rectangular(t.cells, t.cols);
-  const at = Math.min(Math.max(afterRow + 1, 0), Math.ceil(cells.length / t.cols)) * t.cols;
+  const { grid, rows } = layout(cells, t.cols);
+  const target = Math.min(Math.max(afterRow + 1, 0), rows);
+  const at = rowStartIndex(grid, target, cells.length);
   const fresh = Array.from({ length: t.cols }, () => blank(false));
   cells.splice(at, 0, ...fresh);
   return replace(doc, t, render(t, cells, t.cols));
@@ -216,21 +293,39 @@ export function insertRow(doc: string, t: TableInfo, afterRow: number): string {
 
 export function deleteRow(doc: string, t: TableInfo, row: number): string {
   const cells = rectangular(t.cells, t.cols);
-  if (cells.length <= t.cols) return doc; // never delete the last row
-  cells.splice(row * t.cols, t.cols);
-  return replace(doc, t, render(t, cells, t.cols));
+  const { grid, rows } = layout(cells, t.cols);
+  if (rows <= 1) return doc; // never delete the last row
+  const keep = cells.filter((_, i) => grid[i].row !== row);
+  return replace(doc, t, render(t, keep, t.cols));
 }
 
 export function insertColumn(doc: string, t: TableInfo, afterCol: number): string {
   const cells = rectangular(t.cells, t.cols);
+  const { grid, rows } = layout(cells, t.cols);
   const at = Math.min(Math.max(afterCol + 1, 0), t.cols);
   const out: TableCell[] = [];
-  for (let r = 0; r * t.cols < cells.length; r++) {
-    const row = cells.slice(r * t.cols, (r + 1) * t.cols);
-    // A new cell in the header row is itself a header cell, so the table does
-    // not end up with a hole in its header.
-    row.splice(at, 0, blank(row.every((c) => c.header)));
-    out.push(...row);
+  for (let r = 0; r < rows; r++) {
+    const rowCells = placementsIn(grid, r);
+    const header = rowCells.length > 0 && rowCells.every((p) => p.cell.header);
+    let placed = false;
+    for (const p of rowCells) {
+      // The new column falls at this cell's left edge — drop a blank in ahead
+      // of it, matching the row's kind so a header row stays a header row.
+      if (!placed && p.col === at) {
+        out.push(blank(header));
+        placed = true;
+      }
+      const c = { ...p.cell, span: p.span };
+      // The new column falls *inside* a merged cell — widen the merge rather
+      // than splitting it, which is the only edit that keeps the row summing.
+      if (!placed && p.col < at && p.col + p.span > at) {
+        c.span += 1;
+        placed = true;
+      }
+      out.push(c);
+    }
+    // `at` sits at the row's right edge (including a full-width single row).
+    if (!placed) out.push(blank(header));
   }
   return replace(doc, t, render(t, out, t.cols + 1));
 }
@@ -238,11 +333,19 @@ export function insertColumn(doc: string, t: TableInfo, afterCol: number): strin
 export function deleteColumn(doc: string, t: TableInfo, col: number): string {
   if (t.cols <= 1) return doc; // never delete the last column
   const cells = rectangular(t.cells, t.cols);
+  const { grid, rows } = layout(cells, t.cols);
   const out: TableCell[] = [];
-  for (let r = 0; r * t.cols < cells.length; r++) {
-    const row = cells.slice(r * t.cols, (r + 1) * t.cols);
-    row.splice(col, 1);
-    out.push(...row);
+  for (let r = 0; r < rows; r++) {
+    for (const p of placementsIn(grid, r)) {
+      const covers = col >= p.col && col < p.col + p.span;
+      if (covers) {
+        // A merge over the deleted column narrows by one; a single cell in it
+        // disappears. Cells to the right slide left for free, in render order.
+        if (p.span > 1) out.push({ ...p.cell, span: p.span - 1 });
+      } else {
+        out.push({ ...p.cell, span: p.span });
+      }
+    }
   }
   return replace(doc, t, render(t, out, t.cols - 1));
 }
@@ -250,10 +353,10 @@ export function deleteColumn(doc: string, t: TableInfo, col: number): string {
 /** Turn the row into header cells, or back into ordinary ones. */
 export function toggleHeaderRow(doc: string, t: TableInfo, row: number): string {
   const cells = rectangular(t.cells, t.cols).map((c) => ({ ...c }));
-  const start = row * t.cols;
-  const slice = cells.slice(start, start + t.cols);
-  const makeHeader = !slice.every((c) => c.header);
-  for (const c of slice) c.header = makeHeader;
+  const { grid } = layout(cells, t.cols);
+  const slice = placementsIn(grid, row);
+  const makeHeader = !slice.every((p) => p.cell.header);
+  for (const p of slice) cells[p.index].header = makeHeader;
   return replace(doc, t, render(t, cells, t.cols));
 }
 

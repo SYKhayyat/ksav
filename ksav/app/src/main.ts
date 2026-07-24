@@ -35,6 +35,7 @@ import * as spell from "./spell";
 import * as styles from "./styles";
 import * as tables from "./table";
 import * as review from "./review";
+import { typstString, typstContent } from "./typst-escape";
 import type { NoteChoice } from "./notes";
 
 // The modules `main.ts` was split into. What is left here is the shell: the
@@ -238,10 +239,22 @@ function updateTitleBar() {
   el0.textContent = runtime.currentDoc.title;
   const sub0 = document.getElementById("doc-file");
   if (sub0) {
-    sub0.textContent = runtime.currentBinding ? runtime.currentBinding.name : "";
-    sub0.title = runtime.currentBinding?.path || runtime.currentBinding?.name || t("noFileBound");
+    // A dot when the bound file on disk is behind the editor. The writer used to
+    // first hear of unsaved changes only in the browser's leave-page dialog,
+    // though the save layer already knew — this surfaces it where the file is
+    // named. Only shown when there is a file to be behind.
+    const dirty = !!runtime.currentBinding && save.hasUnsavedFileChanges();
+    sub0.textContent = runtime.currentBinding ? (dirty ? "● " : "") + runtime.currentBinding.name : "";
+    sub0.classList.toggle("dirty", dirty);
+    sub0.title = runtime.currentBinding
+      ? (dirty ? t("unsavedChanges") + " · " : "") +
+        (runtime.currentBinding.path || runtime.currentBinding.name)
+      : t("noFileBound");
   }
-  document.title = runtime.currentDoc.title + " · Ksav";
+  document.title =
+    (runtime.currentBinding && save.hasUnsavedFileChanges() ? "● " : "") +
+    runtime.currentDoc.title +
+    " · Ksav";
 }
 
 function snippetMap(): Record<string, string> {
@@ -446,6 +459,10 @@ const autoCompartment = new Compartment();
 // every keystroke would squiggle words the writer is still in the middle of.
 
 let spellTimer: number | undefined;
+/** Set when the last check could not reach the engine, so the coverage note can
+ *  say so instead of continuing to read as a clean bill of health — the exact
+ *  silence this feature was built to avoid. */
+let spellFailed = false;
 
 function scheduleSpellCheck() {
   clearTimeout(spellTimer);
@@ -460,6 +477,7 @@ async function runSpellCheck() {
   const text = spell.checkableText(runtime.view.state.doc.toString());
   try {
     const res = await runtime.backend.spell(text, spell.userWordsText(), false);
+    spellFailed = false;
     spell.noteLexiconSizes(res.lexicon_sizes);
     // The panel is built before the first check answers, so the note starts as
     // the general statement and becomes the measured one here. Updating the node
@@ -468,8 +486,15 @@ async function runSpellCheck() {
     const note = document.getElementById("spell-coverage");
     if (note) note.textContent = spellCoverageNote();
     runtime.view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
-  } catch {
-    // A failed check is not worth interrupting the writer over.
+  } catch (e) {
+    // A single dropped check is not worth a modal, but it must not read as a
+    // clean page either: the toggle still says "on" and the panel still names
+    // two lexicons, so a silence here is exactly the false all-clear this feature
+    // exists to refuse. Mark it, and let the coverage note tell the truth.
+    spellFailed = true;
+    const note = document.getElementById("spell-coverage");
+    if (note) note.textContent = spellCoverageNote();
+    console.warn("spell check failed:", e);
   }
 }
 
@@ -484,6 +509,7 @@ async function runSpellCheck() {
  * predated spell-check shipped with no checker in it and nothing said so.
  */
 function spellCoverageNote(): string {
+  if (spellFailed) return t("spellFailed"); // the check could not reach the engine
   const s = spell.lexiconSizes();
   if (!s) return t("spellLanguages"); // before the first check, what the engine ships with
   const n = (v: number) => v.toLocaleString(getLang() === "he" ? "he-IL" : "en-US");
@@ -671,6 +697,13 @@ function wireSyncScroll() {
   preview.addEventListener("scroll", () => apply(preview, scroller));
   preview.addEventListener("click", (e) => {
     if (settings.layout !== "two") return;
+    // Don't hijack a text selection: click-to-jump was firing on every click, so
+    // selecting text in the preview (to copy a rendered line) was impossible — the
+    // caret jumped away the instant the mouse went up. A plain click leaves the
+    // selection collapsed and still jumps; a drag-select leaves text selected, and
+    // is left alone.
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
     const rect = preview.getBoundingClientRect();
     const f = (preview.scrollTop + (e.clientY - rect.top)) / Math.max(1, preview.scrollHeight);
     const line = Math.min(runtime.view.state.doc.lines, Math.max(1, Math.round(f * runtime.view.state.doc.lines)));
@@ -1379,10 +1412,25 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
     if (e.key === "Escape") return done(original);
     const key = eventToKey(e);
     if (!key) return; // still waiting for a non-modifier key
-    settings.keybindings = { ...(settings.keybindings || {}), [actionId]: key };
+    // Refuse to bind a chord that another action already holds without saying so.
+    // Silently assigning it left two actions on one key, one of them shadowed with
+    // no way to tell which won. Offer to move it; if declined, keep what was there.
+    const kb = keybindings();
+    const conflict = ACTIONS.find((a) => a.id !== actionId && kb[a.id] === key);
+    let reassigned = false;
+    if (conflict) {
+      if (!confirm(tf("shortcutConflict", key))) return done(original);
+      // Unbind the other so the chord is held by exactly one action.
+      settings.keybindings = { ...(settings.keybindings || {}), [conflict.id]: "", [actionId]: key };
+      reassigned = true;
+    } else {
+      settings.keybindings = { ...(settings.keybindings || {}), [actionId]: key };
+    }
     saveSettings();
     reconfigureShortcuts();
     done(key);
+    // Redraw so the action that lost the chord shows as unbound, not stale.
+    if (reassigned) rerenderChrome();
   };
   window.addEventListener("keydown", handler, true);
 }
@@ -1682,8 +1730,19 @@ function userTemplates(): UserTemplate[] {
     return [];
   }
 }
-function saveUserTemplates(list: UserTemplate[]) {
-  localStorage.setItem("ksav.userTemplates", JSON.stringify(list));
+function saveUserTemplates(list: UserTemplate[]): boolean {
+  // A template holds a whole document, so this is the one storage write outside
+  // the careful save story that can plausibly hit the localStorage quota. It used
+  // to throw straight through the caller; now it reports the failure instead of
+  // letting an uncaught exception abandon a half-updated menu.
+  try {
+    localStorage.setItem("ksav.userTemplates", JSON.stringify(list));
+    return true;
+  } catch (e) {
+    console.warn("saving templates failed:", e);
+    setStatus(t("templateSaveFailed"), "error");
+    return false;
+  }
 }
 function saveAsTemplate() {
   closeMenus();
@@ -1691,12 +1750,34 @@ function saveAsTemplate() {
   if (!name) return;
   const list = userTemplates();
   list.push({ id: "u" + performance.now().toString(36), name, body: runtime.view.state.doc.toString() });
-  saveUserTemplates(list);
-  rerenderChrome();
+  if (saveUserTemplates(list)) rerenderChrome();
 }
 function deleteUserTemplate(id: string) {
-  saveUserTemplates(userTemplates().filter((u) => u.id !== id));
-  rerenderChrome();
+  if (saveUserTemplates(userTemplates().filter((u) => u.id !== id))) rerenderChrome();
+}
+
+/**
+ * A document already bound to this exact file, if there is one.
+ *
+ * Only when the identity is certain — a Tauri path, or a File System Access
+ * handle that reports itself the same entry. A "download"-tier binding has no
+ * durable file identity, so it is always treated as new rather than guessed at.
+ */
+async function docBoundTo(binding: files.FileBinding): Promise<string | null> {
+  if (binding.kind === "download") return null;
+  for (const entry of docs.library()) {
+    const other = await files.recallBinding(entry.id);
+    if (!other || other.kind !== binding.kind) continue;
+    if (binding.kind === "tauri" && binding.path && other.path === binding.path) return entry.id;
+    if (binding.kind === "handle" && binding.handle && other.handle) {
+      try {
+        if (await binding.handle.isSameEntry(other.handle)) return entry.id;
+      } catch {
+        /* an unusable handle simply isn't a match */
+      }
+    }
+  }
+  return null;
 }
 
 async function openFile() {
@@ -1704,9 +1785,17 @@ async function openFile() {
   const opened = await files.openFile();
   if (!opened) return;
   await flushSaves();
+  // Opening the same file twice used to make a second document bound to the same
+  // path, filling the library with duplicates of one sefer. If one is already
+  // open, switch to it instead of cloning it.
+  const existing = await docBoundTo(opened.binding);
+  if (existing) {
+    await openDoc(existing);
+    return;
+  }
   const stripExt = opened.binding.name.replace(/\.[^.]+$/, "");
   const parsed = docs.parseDoc(opened.text, stripExt || t("untitled"));
-  const doc = await docs.createDoc(parsed.title, parsed.body, parsed.assets);
+  const doc = await docs.createDoc(parsed.title, parsed.body, parsed.assets, parsed.customCommands);
   await docs.setFileName(doc.id, opened.binding.name);
   await files.rememberBinding(doc.id, opened.binding);
   await openDoc(doc.id);
@@ -1714,7 +1803,9 @@ async function openFile() {
 
 async function fileText(): Promise<string> {
   await flushSaves();
-  return docs.serializeDoc(runtime.currentDoc);
+  // Pass the app-wide custom commands as the fallback so a local document that
+  // uses one is written to disk self-contained, compiling for whoever opens it.
+  return docs.serializeDoc(runtime.currentDoc, settings.customCommands);
 }
 
 /** Save to the bound file; if there is none, fall through to Save As. */
@@ -2075,7 +2166,7 @@ function closeModal() {
 function markReview(kind: "insert" | "delete") {
   const cmd = kind === "insert" ? "הוספה" : "מחיקה";
   const by = settings.reviewer?.trim();
-  insertSnippet(by ? `#${cmd}(מאת: "${by.replace(/"/g, "")}")[|]` : `#${cmd}[|]`);
+  insertSnippet(by ? `#${cmd}(מאת: ${typstString(by)})[|]` : `#${cmd}[|]`);
   scheduleCompile();
   if (isReviewOpen()) renderReviewPanel();
 }
@@ -2091,9 +2182,9 @@ function addComment() {
   const text = prompt(t("commentPrompt"));
   if (!text) return;
   const by = settings.reviewer?.trim();
-  const args = by ? `(מאת: "${by.replace(/"/g, "")}")` : "";
+  const args = by ? `(מאת: ${typstString(by)})` : "";
   const at = runtime.view.state.selection.main.to;
-  const call = `#הערת_עורך${args}[${text}]`;
+  const call = `#הערת_עורך${args}[${typstContent(text)}]`;
   runtime.view.dispatch({ changes: { from: at, to: at, insert: call }, selection: { anchor: at + call.length } });
   runtime.view.focus();
   scheduleCompile();
@@ -2279,7 +2370,7 @@ function openSectionSetup() {
     fieldRow(t("secBorder"), border),
     fieldRow(t("secWatermark"), watermark),
   ], () => {
-    const q = (s: string) => `"${s.replace(/"/g, "")}"`;
+    const q = typstString;
     const args: string[] = [];
     if (Number(cols.value) > 1) args.push(`טורים: ${Number(cols.value)}`);
     if (landscape.checked) args.push("לרוחב: true");
@@ -2350,7 +2441,7 @@ function openFormula() {
   ], () => {
     const body = src.value.trim();
     if (!body) return;
-    const q = '"' + body.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    const q = typstString(body);
     insertSnippet(
       display.checked
         ? `#נוסחה(${q}${numbered.checked ? ", ממוספרת: true" : ""})`
@@ -2863,23 +2954,28 @@ async function boot() {
     settings.dir = "ltr";
     saveSettings();
   }
+  // Whether a durable store is available. When it is not — a private window, or
+  // storage blocked — the fix is to lose *persistence* and nothing else. The old
+  // fallback returned early here, and in doing so skipped the command/template
+  // registries (leaving an empty toolbar, empty menus, no completions), the
+  // unload guard (so closing the tab discarded the work with no prompt, in the
+  // one case where nothing else was keeping it either), spell-check and the
+  // timers. Everything below still runs; only the store-backed steps are guarded.
+  let durable = true;
   try {
     runtime.setCurrentDoc(await docs.init(starter, t("untitled")));
   } catch (e) {
-    // No durable store at all — a private window, or storage blocked. Say so
-    // loudly and start an in-memory document rather than pretending.
+    durable = false;
     runtime.setCurrentDoc({ id: docs.newId(), title: t("untitled"), body: starter, assets: [], updated: Date.now() });
-    render();
-    wireKeys();
-    reportSaveFailure(e);
-    runtime.setBackend(await createBackend());
-    runCompile();
-    return;
+    reportSaveFailure(e); // the banner is honest; everything after it now works
   }
-  void files.recallBinding(runtime.currentDoc.id).then((b) => {
-    runtime.setCurrentBinding(b);
-    updateTitleBar();
-  });
+  if (durable) {
+    // A binding lives in the store, so there is nothing to recall without one.
+    void files.recallBinding(runtime.currentDoc.id).then((b) => {
+      runtime.setCurrentBinding(b);
+      updateTitleBar();
+    });
+  }
   render();
   wireKeys();
   save.wireUnloadGuard();
@@ -2911,9 +3007,12 @@ async function boot() {
   // rather than through scheduleCompile, so nothing would be checked until the
   // writer's first keystroke.
   scheduleSpellCheck();
-  // periodic auto-snapshot (only stores when the text changed)
-  window.setInterval(() => void takeSnapshot(), 180000);
-  // periodic write-back to the bound file, when there is one to write to
+  // periodic auto-snapshot (only stores when the text changed) — snapshots live
+  // in the store, so this is the one timer with nothing to do without one.
+  if (durable) window.setInterval(() => void takeSnapshot(), 180000);
+  // periodic write-back to the bound file, when there is one to write to. Kept
+  // even with no store: a file binding made this session writes to disk, not to
+  // the store, so it is exactly the escape hatch a private window still has.
   window.setInterval(() => void autosaveToFile(), FILE_AUTOSAVE_MS);
 }
 

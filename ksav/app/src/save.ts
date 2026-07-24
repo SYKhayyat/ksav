@@ -20,6 +20,7 @@ import * as files from "./files";
 import { el } from "./dom";
 import { t } from "./i18n";
 import * as runtime from "./runtime";
+import { settings } from "./settings";
 
 const SAVE_DEBOUNCE_MS = 600;
 
@@ -40,10 +41,14 @@ export function hasUnsavedFileChanges(): boolean {
   return unsavedToFile;
 }
 export function markFileSaved() {
+  const was = unsavedToFile;
   unsavedToFile = false;
+  if (was) updateTitleBar(); // the dot in the title bar clears
 }
 export function markFileDirty() {
+  const was = unsavedToFile;
   unsavedToFile = true;
+  if (!was) updateTitleBar();
 }
 export function currentFailure(): string | null {
   return saveFailure;
@@ -53,7 +58,9 @@ export function currentFailure(): string | null {
 export function scheduleSave() {
   if (!runtime.currentDoc || runtime.switching) return;
   unsavedChanges = true;
+  const wasDirty = unsavedToFile;
   unsavedToFile = true;
+  if (!wasDirty) updateTitleBar(); // first edit since the last file save: show the dot
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => void saveNow(), SAVE_DEBOUNCE_MS);
 }
@@ -144,7 +151,7 @@ export function exportBackup() {
   const doc = runtime.currentDoc;
   files.download(
     `${runtime.fileStem()}.ksav`,
-    docs.serializeDoc({ ...doc, body: runtime.docText() }),
+    docs.serializeDoc({ ...doc, body: runtime.docText() }, settings.customCommands),
   );
 }
 
@@ -171,6 +178,7 @@ export async function autosaveToFile(enabled: boolean, text: () => Promise<strin
   try {
     if (!(await files.saveTo(binding, await text()))) return false;
     unsavedToFile = false;
+    updateTitleBar(); // the background write cleared the file: drop the dot
     return true;
   } catch {
     // A background save that fails must not steal the writer's attention; the

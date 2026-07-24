@@ -44,6 +44,17 @@ export interface KsavDoc {
   body: string;
   assets: DocAsset[];
   updated: number;
+  /**
+   * The document's own `#let` definitions, when it carries them.
+   *
+   * Custom commands are otherwise an app-wide setting, so a `.ksav` that uses one
+   * compiled for its author and failed for everyone else. A document opened from a
+   * file that embedded them carries them here, and the compile prefers them over
+   * the app-wide set — which keeps a shared sefer self-contained without
+   * overwriting the reader's own commands. Absent for an ordinary local document,
+   * which keeps using the app-wide set.
+   */
+  customCommands?: string;
 }
 
 export interface LibraryEntry {
@@ -198,8 +209,10 @@ export async function createDoc(
   title: string,
   body = "",
   assets: DocAsset[] = [],
+  customCommands?: string,
 ): Promise<KsavDoc> {
   const doc: KsavDoc = { id: newId(), title, body, assets, updated: Date.now() };
+  if (customCommands?.trim()) doc.customCommands = customCommands;
   await putDoc(doc);
   return doc;
 }
@@ -381,16 +394,30 @@ export function guessTitle(body: string, fallback: string): string {
 
 const FILE_MAGIC = "ksav-document";
 
-export function serializeDoc(doc: KsavDoc): string {
-  if (!doc.assets.length) return doc.body;
+export function serializeDoc(doc: KsavDoc, fallbackCustom = ""): string {
+  // The document's own custom commands travel with it so a `.ksav` that uses one
+  // compiles for whoever opens it, not only its author. `fallbackCustom` is the
+  // app-wide set, embedded for a local document that never carried its own.
+  const custom = (doc.customCommands ?? fallbackCustom).trim();
+  if (!doc.assets.length && !custom) return doc.body; // plain text stays the common case
   return JSON.stringify(
-    { format: FILE_MAGIC, version: 1, title: doc.title, body: doc.body, assets: doc.assets },
+    {
+      format: FILE_MAGIC,
+      version: 1,
+      title: doc.title,
+      body: doc.body,
+      assets: doc.assets,
+      ...(custom ? { customCommands: custom } : {}),
+    },
     null,
     2,
   );
 }
 
-export function parseDoc(text: string, fallbackTitle: string): { title: string; body: string; assets: DocAsset[] } {
+export function parseDoc(
+  text: string,
+  fallbackTitle: string,
+): { title: string; body: string; assets: DocAsset[]; customCommands?: string } {
   const trimmed = text.trimStart();
   if (trimmed.startsWith("{")) {
     try {
@@ -400,6 +427,7 @@ export function parseDoc(text: string, fallbackTitle: string): { title: string; 
           title: typeof v.title === "string" && v.title ? v.title : fallbackTitle,
           body: typeof v.body === "string" ? v.body : "",
           assets: Array.isArray(v.assets) ? (v.assets as DocAsset[]) : [],
+          customCommands: typeof v.customCommands === "string" ? v.customCommands : undefined,
         };
       }
     } catch {
@@ -409,14 +437,45 @@ export function parseDoc(text: string, fallbackTitle: string): { title: string; 
   return { title: fallbackTitle, body: text, assets: [] };
 }
 
-/** Split a document's assets into the two lists a compile request wants. */
+/**
+ * A stable content hash for an asset, identifying its bytes so the engine can
+ * cache them and the client can stop re-sending an unchanged 8 MB image on every
+ * keystroke. Memoised per asset object: the document's asset array is stable
+ * between edits, so each asset is hashed once, not once per compile.
+ *
+ * Two independent 32-bit FNV-1a passes plus the length, so a collision needs both
+ * hashes and the length to coincide — vanishingly unlikely for the handful of
+ * images a document carries, and a collision would at worst show a stale image,
+ * never lose text.
+ */
+const assetHashes = new WeakMap<DocAsset, string>();
+
+function assetHash(a: DocAsset): string {
+  const cached = assetHashes.get(a);
+  if (cached) return cached;
+  const s = a.data;
+  let h1 = 0x811c9dc5;
+  let h2 = 0x811c9dc5 ^ 0x9e3779b9;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193);
+    h2 = Math.imul(h2 ^ c, 0x01000193);
+  }
+  const hash = `${s.length.toString(36)}-${(h1 >>> 0).toString(36)}-${(h2 >>> 0).toString(36)}`;
+  assetHashes.set(a, hash);
+  return hash;
+}
+
+/** Split a document's assets into the two lists a compile request wants, each
+ *  entry carrying the content hash the engine dedupes on. */
 export function requestAssets(assets: DocAsset[]): {
-  assets: { name: string; data: string }[];
-  fonts: { name: string; data: string }[];
+  assets: { name: string; hash: string; data: string }[];
+  fonts: { name: string; hash: string; data: string }[];
 } {
+  const wire = (a: DocAsset) => ({ name: a.name, hash: assetHash(a), data: a.data });
   return {
-    assets: assets.filter((a) => a.kind !== "font").map(({ name, data }) => ({ name, data })),
-    fonts: assets.filter((a) => a.kind === "font").map(({ name, data }) => ({ name, data })),
+    assets: assets.filter((a) => a.kind !== "font").map(wire),
+    fonts: assets.filter((a) => a.kind === "font").map(wire),
   };
 }
 

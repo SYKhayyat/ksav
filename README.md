@@ -1,97 +1,70 @@
 # קְסָב · Ksav
 
-**A Hebrew-first typesetting and writing system** — a rich in-browser editor for composing
-beautifully typeset Hebrew documents using "Ksav" markup, a Hebrew-first command layer inspired
-by [Typst](https://typst.app/). It ships with a Word-like toolbar, a live preview, a command
-palette, ready-made document templates, and an AI writing companion powered by Google Gemini.
+**A Hebrew-first typesetting and writing system, built on the real
+[Typst](https://typst.app/) engine.** Ksav (כְּתָב, "writing"/"script") gives Hebrew
+writers a Word-like editor — a formatting toolbar, a live preview, a command
+palette, prose and source modes, spell-check, and ready-made templates — where
+every Hebrew command is a genuine Typst function, so documents are laid out by a
+real compiler rather than approximated in the browser.
 
-Ksav (כְּתָב, "writing"/"script") is aimed at Hebrew writers — from a bochur writing divrei
-Torah to anyone who wants well-formatted RTL Hebrew documents with proper headings, footnotes,
-tables, and nikud.
+It is aimed at Hebrew writers, with a first-class Torah/yeshiva path (siddur,
+bentcher, kesubah, get, footnote apparatus, side-column commentary), and it works
+equally for left-to-right English documents.
 
-> This repository contains **three implementations** of Ksav. The top level is a React/Vite
-> web-app prototype (documented below). Two additional implementations live in subdirectories —
-> see [Repository layout](#repository-layout).
+## Start here → [`ksav/`](ksav)
+
+**The product is [`ksav/`](ksav).** It has its own detailed
+[README](ksav/README.md). The same Rust engine runs three ways from one codebase:
+
+- **`ksav serve`** — a local HTTP server that hosts the editor SPA and compiles on
+  the machine.
+- **In-browser (WebAssembly)** — the engine compiled to WASM, running Typst
+  entirely in the tab with no server.
+- **Desktop (Tauri)** — a native app (Windows / macOS / Linux) with the engine
+  in-process.
+
+```sh
+cd ksav/engine
+cargo run --release --features embed-ui -- serve   # then open the printed URL
+```
+
+See [`ksav/README.md`](ksav/README.md) for the browser, desktop, and development
+builds, the command reference, and the architecture.
 
 ## What it does
 
-- **Hebrew markup editor** — write with bracketed Hebrew commands such as `#הדגשה[טקסט]` (bold),
-  `#כותרת1[…]` (heading), `#רשימה[…]` (list), `#טבלה[…]` (table), `#הערה[…]` (footnote), and
-  alignment/size commands.
-- **Prose & source modes** — toggle between a clean "prose" view that renders the styling and a
-  raw "source" (markup) view.
-- **Live split-screen preview** of the rendered document, with print / save-as-PDF.
-- **Command palette** (`/` or `Ctrl+K`) — fuzzy-search all commands in Hebrew or English and
-  insert them at the cursor.
-- **Word-like toolbar** with formatting, templates, and configuration controls.
-- **Document sidebar** — manage multiple documents; content is auto-saved to `localStorage`.
-- **AI writing companion** — "Ksav AI" (קסב AI), a Gemini-backed assistant that drafts,
-  proofreads, and formats Hebrew text using Ksav markup. Requests are proxied through the
-  server so the API key never reaches the browser.
-- **Fully RTL, bilingual-aware UI** with configurable font, size, margins, and footnote style.
-
-## Tech stack
-
-- **Frontend:** React 19, TypeScript, Vite 6, Tailwind CSS 4, `lucide-react`, `motion`
-- **Backend:** Express (Node), serving the Vite middleware in dev and the static build in prod
-- **AI:** `@google/genai` (Google Gemini), called **server-side only**
-- **Tooling:** `tsx` (dev runner), `esbuild` (server bundling), `tsc` for type-checking
+- **Hebrew markup editor** — bracketed Hebrew commands such as `#הדגשה[טקסט]`
+  (bold), `#כותרת1[…]` (heading), `#רשימה[…]` (list), `#טבלה[…]` (table),
+  `#הערה[…]` (footnote); every command has a collision-free English alias.
+- **Real Typst output** — genuine PDF and per-page SVG previews from the actual
+  Typst compiler, with real diagnostics.
+- **Prose & source modes** — a clean "prose" view that renders styling inline
+  (WYSIWYG lists, footnotes, tables), and the raw markup a keystroke away.
+- **Live preview** with print / save-as-PDF, plus HTML, Markdown, and Typst export.
+- **Bilingual spell-check** — Hebrew and English, each on a lexicon Ksav owns,
+  dispatched per word so a bilingual document is checked in both.
+- **Command palette, Word-like toolbar, templates, document library, version
+  history, custom commands**, and a fully RTL/LTR-aware bilingual UI.
 
 ## Repository layout
 
 | Path | Description |
 | --- | --- |
-| `src/` | The React SPA — editor components (`ProseEditor`, `LivePreview`, `Toolbar`, `CommandPalette`, `AIAssistant`, `Sidebar`), the Ksav markup parser and command/template registries (`utils/parser.ts`), and shared types. This prototype renders Ksav with its own JS parser (it does not invoke a real Typst compiler). |
-| `server.ts` | Express server (port `3000`). Exposes `POST /api/gemini/assistant` and serves the frontend. |
-| `ksav/` | A ground-up rewrite that compiles documents with the **real Typst engine** (Rust + WASM), with a CodeMirror SPA and a Tauri desktop app. Has its own detailed [README](ksav/README.md). |
-| `ksav_flutter_rust/` | An earlier **Flutter + Rust (FFI)** prototype of the same editor. Has its own [README](ksav_flutter_rust/README.md) (in Hebrew). |
-| `index.html`, `vite.config.ts`, `tsconfig.json` | Vite app entry and configuration. |
-| `metadata.json` | AI Studio applet manifest. |
+| [`ksav/`](ksav) | **The product.** The Rust Typst engine, the CodeMirror SPA (`ksav/app`), the WASM crate (`ksav/wasm`), the Tauri desktop shell (`ksav/app/src-tauri`), and packaging. Start here. |
+| [`prototypes/`](prototypes) | The two original Gemini-authored **mocks**, archived for history — a React web app and a Flutter + Rust app. Neither ever invoked Typst. See [`prototypes/README.md`](prototypes/README.md). |
+| `assets/` (per-crate), `licenses/`, `THIRD-PARTY-NOTICES.md` | Bundled fonts and lexicons live under `ksav/engine/assets`; third-party license texts and notices are at the repo root. |
 
-> Per `ksav/README.md`, both the top-level `src/` React app and `ksav_flutter_rust/` are earlier
-> prototypes that *mock* the renderer. The `ksav/` directory is the ground-up rewrite that runs
-> the genuine Typst compiler — start there if you want the production engine.
+> **On the prototypes.** An earlier version of this repository had a React
+> prototype at the top level whose `server.ts` was an **open, unauthenticated
+> Gemini API-key proxy** bound to `0.0.0.0`. That server has been removed and the
+> mocks moved under `prototypes/`; see [`prototypes/README.md`](prototypes/README.md)
+> for the full account. If you cloned this expecting the AI proxy at the front
+> door, it is intentionally gone.
 
-## Getting started
+## License
 
-**Prerequisites:** Node.js and a Google Gemini API key.
-
-1. Install dependencies:
-   ```sh
-   npm install
-   ```
-2. Create a `.env` file (see [`.env.example`](.env.example)) and set your Gemini API key:
-   ```sh
-   GEMINI_API_KEY="your-key-here"
-   ```
-3. Start the dev server:
-   ```sh
-   npm run dev
-   ```
-   The app runs at http://localhost:3000 (Express with Vite middleware and HMR).
-
-### Available scripts
-
-| Script | What it does |
-| --- | --- |
-| `npm run dev` | Run the Express + Vite dev server (`tsx server.ts`). |
-| `npm run build` | Build the frontend with Vite and bundle `server.ts` into `dist/server.cjs` with esbuild. |
-| `npm run start` | Run the production build (`node dist/server.cjs`). Set `NODE_ENV=production` to serve the static `dist/`. |
-| `npm run lint` | Type-check with `tsc --noEmit`. |
-
-## Environment variables
-
-Defined in [`.env.example`](.env.example):
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `GEMINI_API_KEY` | Yes | Google Gemini API key, used server-side for the AI companion. Without it, AI requests fail (a warning is logged at startup). |
-| `APP_URL` | No | The URL where the app is hosted; used for self-referential links. Injected automatically when deployed on AI Studio. |
-
-## API
-
-The server exposes a single application endpoint:
-
-- `POST /api/gemini/assistant` — body `{ prompt, editorText }` → `{ result }`. Sends the prompt
-  (plus the current editor content as context) to Gemini with the "Ksav AI" system instruction
-  and returns the generated Hebrew markup.
+Dual-licensed under **MIT OR Apache-2.0** (the Rust ecosystem convention); see
+[`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE). Bundled fonts
+and lexicons carry their own permissive licenses, reproduced in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and [`licenses/`](licenses) and
+rendered inside the app.

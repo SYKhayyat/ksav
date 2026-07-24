@@ -512,19 +512,31 @@ pub fn spell_request(input_json: &str) -> String {
 
     let (he, en) = for_request(user_words);
     let checker = Checker::new(Some(&he), Some(&en));
-    let found: Vec<serde_json::Value> = checker
-        .check(text)
+
+    // Offsets go out as UTF-16 code units, not bytes.
+    //
+    // Every consumer of this API is a JavaScript editor, and JS string indices —
+    // including CodeMirror's document positions — are UTF-16. Hebrew is two bytes
+    // per letter in UTF-8 but one UTF-16 unit, so handing over byte offsets puts
+    // every marker at roughly twice its real position: the squiggles land past the
+    // end of the document and silently vanish.
+    //
+    // The conversion is one forward pass. `text[..m.start].encode_utf16().count()`
+    // re-walked the whole prefix for *every* misspelling — O(n·m), and a sefer full
+    // of names (all flagged) is the normal case, not the worst one. `check` returns
+    // its findings in document order; a running byte/UTF-16 cursor carried across
+    // them gives the same numbers in linear time. The sort is defensive and, on an
+    // already-ordered list, free.
+    let mut misspellings = checker.check(text);
+    misspellings.sort_by_key(|m| m.start);
+    let mut cursor_byte = 0usize;
+    let mut cursor_u16 = 0usize;
+    let found: Vec<serde_json::Value> = misspellings
         .into_iter()
         .map(|m| {
-            // Offsets go out as UTF-16 code units, not bytes.
-            //
-            // Every consumer of this API is a JavaScript editor, and JS string
-            // indices — including CodeMirror's document positions — are UTF-16.
-            // Hebrew is two bytes per letter in UTF-8 but one UTF-16 unit, so
-            // handing over byte offsets puts every marker at roughly twice its
-            // real position: the squiggles land past the end of the document and
-            // silently vanish.
-            let start = text[..m.start].encode_utf16().count();
+            cursor_u16 += text[cursor_byte..m.start].encode_utf16().count();
+            cursor_byte = m.start;
+            let start = cursor_u16;
             let len = m.word.encode_utf16().count();
             let mut o = serde_json::json!({
                 "start": start,

@@ -7,10 +7,26 @@
 //! This is exactly the backend a Tauri or browser front end talks to; the
 //! native shell can be wrapped around it later without touching this contract.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+
 use tiny_http::{Header, Method, Response, Server};
 
 /// Fallback single-file editor, used when the `embed-ui` feature is off.
 const INDEX_HTML: &str = include_str!("../web/index.html");
+
+/// Content-Security-Policy for the served editor.
+///
+/// The engine's output becomes HTML in the browser (per-page SVG assigned to
+/// `innerHTML`), and `ksav serve` had no CSP at all — so a document arriving from
+/// someone else ran with no second line of defence. This is the same policy the
+/// Tauri build enforces and the built SPA carries as a `<meta>` tag; setting it as
+/// a header too covers the fallback single-file editor, which is not the built
+/// bundle. `wasm-unsafe-eval` is harmless here and kept so the one string matches.
+#[cfg_attr(not(feature = "embed-ui"), allow(dead_code))]
+const CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; \
+     img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; \
+     worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'";
 
 /// The full built SPA (ksav/app/dist), embedded when `embed-ui` is enabled.
 #[cfg(feature = "embed-ui")]
@@ -41,14 +57,24 @@ fn serve_static(request: tiny_http::Request, url: &str) {
     #[cfg(feature = "embed-ui")]
     {
         if let Some(file) = UI.get_file(rel) {
-            let resp = Response::from_data(file.contents())
+            let mut resp = Response::from_data(file.contents())
                 .with_header(header("Content-Type", content_type_for(rel)));
+            // The document itself carries the policy; a header is ignored on the
+            // other asset types, so attaching it only to HTML keeps it meaningful.
+            if rel.ends_with(".html") {
+                resp = resp.with_header(header("Content-Security-Policy", CSP));
+            }
             let _ = request.respond(resp);
             return;
         }
     }
 
     // Fallback: the bundled single-file editor at the root.
+    //
+    // No CSP header here on purpose: this minimal editor is a single self-contained
+    // file with an inline <script>, which `script-src 'self'` would block outright.
+    // It exists only when the `embed-ui` feature is off — a lean dev build, not the
+    // shipping server, which embeds the built SPA and gets the policy above.
     if rel == "index.html" {
         let resp = Response::from_string(INDEX_HTML)
             .with_header(header("Content-Type", "text/html; charset=utf-8"));
@@ -116,6 +142,88 @@ fn error_json(message: &str) -> String {
     .to_string()
 }
 
+/// Wall-clock ceiling for a single compile.
+///
+/// Typst has no mid-compile cancellation, and it does not need malice to run
+/// away: `#for i in range(400000) [א ]` is thirty bytes of ordinary typing
+/// mistake that pins a core for a minute. Without a ceiling the editor simply
+/// stops answering, with no hint why. Overridable for a machine that wants a
+/// different budget; the default is generous enough for a real sefer and short
+/// enough that a runaway is caught while the writer is still looking at it.
+fn compile_deadline() -> Duration {
+    std::env::var("KSAV_COMPILE_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&ms| ms > 0)
+        .map(Duration::from_millis)
+        .unwrap_or(Duration::from_millis(20_000))
+}
+
+/// Compiles in flight right now, including ones that overran their deadline and
+/// are still finishing on a detached thread.
+static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+
+/// Compile with a deadline, on a thread that is not one of the pool's.
+///
+/// A compile that overruns cannot be killed (Typst offers no interruption), so
+/// two things protect the server instead of one. First, the compile runs on its
+/// own thread and the pool thread only *waits* for it with a timeout — so a
+/// runaway never occupies a worker, and spell checks, completions and static
+/// assets keep being served throughout. Second, the number of concurrent
+/// compiles is capped: an overran compile keeps running to completion on its
+/// detached thread and holds its slot until it does, so without a cap a stream
+/// of bad documents could pile up threads without bound. At the cap a new
+/// compile is refused at once with a plain message rather than joining the pile.
+///
+/// The overran computation is not reclaimed — that would need a separate process
+/// to kill, which is a heavier machine than a local single-user editor warrants
+/// — but it can no longer hold up anyone else, and the writer is told plainly.
+fn compile_with_deadline(body: &str) -> String {
+    run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
+        crate::compile_request(&b)
+    })
+}
+
+/// The deadline-and-cap machinery, with the actual work passed in.
+///
+/// Taking the work as a closure keeps this testable without leaning on how long
+/// a particular Typst document happens to take to lay out — which varies by
+/// build and machine, and which Typst can quietly short-circuit for a truly
+/// absurd loop bound. The timeout, the slot accounting and the busy response are
+/// what has to be right, and those are exercised directly.
+fn run_bounded<F>(body: String, deadline: Duration, max: usize, work: F) -> String
+where
+    F: FnOnce(String) -> String + Send + 'static,
+{
+    if IN_FLIGHT.fetch_add(1, Ordering::SeqCst) >= max {
+        IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+        return error_json(
+            "השרת עסוק בהידור מסמכים אחרים — נסו שוב בעוד רגע · \
+             the server is busy compiling — try again in a moment",
+        );
+    }
+
+    let (tx, rx) = std::sync::mpsc::sync_channel::<String>(1);
+    std::thread::spawn(move || {
+        let out = work(body);
+        // The buffer of one means this send succeeds even after the waiter has
+        // given up, so the slot is released exactly when the work truly ends.
+        let _ = tx.send(out);
+        IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+    });
+
+    match rx.recv_timeout(deadline) {
+        Ok(json) => json,
+        Err(_) => error_json(&format!(
+            "ההידור ארך יותר מ־{secs} שניות והופסק — לולאה או חזרה עם מספר גדול מאוד \
+             עלולה לגרום לכך; בדקו את הגבולות של #עבור/#כלעוד · compilation timed out \
+             after {secs}s and was stopped — a loop or repetition with a very large \
+             count can cause this; check any #for/#while bounds",
+            secs = deadline.as_secs().max(1)
+        )),
+    }
+}
+
 /// Handle one request. Runs on a worker thread.
 fn handle(mut request: tiny_http::Request, addr_str: &str) {
     let method = request.method().clone();
@@ -128,7 +236,7 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
     match (method, url.as_str()) {
         (Method::Post, "/compile") => {
             let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, crate::compile_request);
+            let json = post(&mut request, compile_with_deadline);
             let _ = request.respond(with_cors(json_response(json), cors));
         }
         (Method::Post, "/spell") => {
@@ -248,7 +356,45 @@ fn header(key: &str, value: &str) -> Header {
 
 #[cfg(test)]
 mod tests {
-    use super::allowed_origin;
+    use super::{compile_deadline, run_bounded, allowed_origin};
+    use std::time::Duration;
+
+    #[test]
+    fn work_that_finishes_in_time_returns_its_result() {
+        let json = run_bounded("hi".into(), Duration::from_secs(5), 16, |b| {
+            format!("{{\"ok\":true,\"body\":\"{b}\"}}")
+        });
+        assert!(json.contains("\"ok\":true") && json.contains("hi"));
+    }
+
+    #[test]
+    fn work_that_overruns_the_deadline_is_reported_not_awaited() {
+        // The compute keeps running (Typst cannot be interrupted); what must not
+        // happen is the caller waiting for it. The waiter returns a timeout
+        // diagnostic promptly, and the background thread finishes on its own.
+        let started = std::time::Instant::now();
+        let json = run_bounded("x".into(), Duration::from_millis(100), 16, |_| {
+            std::thread::sleep(Duration::from_millis(600));
+            "\"never seen\"".into()
+        });
+        assert!(started.elapsed() < Duration::from_millis(400), "must not wait for the slow work");
+        assert!(json.contains("\"ok\":false"), "a timeout is a failed compile");
+        assert!(json.contains("timed out"), "the diagnostic names the timeout: {json}");
+    }
+
+    #[test]
+    fn compiles_beyond_the_cap_are_refused_at_once() {
+        // With no free slot a new compile is turned away immediately rather than
+        // piling another thread onto a server already full of overran work.
+        let json = run_bounded("x".into(), Duration::from_secs(5), 0, |_| unreachable!());
+        assert!(json.contains("\"ok\":false") && json.contains("busy"));
+    }
+
+    #[test]
+    fn the_deadline_defaults_when_the_env_is_absent() {
+        std::env::remove_var("KSAV_COMPILE_TIMEOUT_MS");
+        assert_eq!(compile_deadline(), Duration::from_millis(20_000));
+    }
 
     #[test]
     fn only_the_app_and_dev_servers_may_call_the_api() {

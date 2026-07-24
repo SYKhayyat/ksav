@@ -98,7 +98,39 @@ jobs:
           projectPath: ./ksav/app
           tagName: ${{ github.ref_name }}
           releaseName: "Ksav ${{ github.ref_name }}"
-          releaseBody: "Download the installer for your system below."
+          # The installers are unsigned, so every operating system shows a scary
+          # warning the first time. Saying nothing here is what actually costs
+          # adoption: the writer concludes the download is broken and goes back to
+          # Word. Until there is a certificate, the next best thing is telling
+          # them exactly which button to press.
+          releaseBody: |
+            **Pick the file for your system**
+
+            | System | File |
+            | --- | --- |
+            | Windows | `.msi` (or `.exe`) |
+            | macOS, Apple Silicon (M1–M4) | `_aarch64.dmg` |
+            | macOS, Intel | `_x64.dmg` |
+            | Linux (Debian/Ubuntu) | `.deb` |
+            | Linux (anything else) | `.AppImage` |
+
+            **These installers are not code-signed, so the first launch is blocked.**
+            Nothing is wrong with the download — a signing certificate costs money
+            Ksav has not spent yet. To get past it:
+
+            - **Windows** — SmartScreen says "Windows protected your PC". Click
+              **More info**, then **Run anyway**.
+            - **macOS** — the app is blocked as coming from an unidentified
+              developer. Open **System Settings → Privacy & Security**, scroll to
+              the message about Ksav, and press **Open Anyway**. If macOS instead
+              claims the app "is damaged", clear the download quarantine flag:
+              `xattr -dr com.apple.quarantine /Applications/Ksav.app`
+            - **Linux** — for the `.AppImage`, mark it executable first:
+              `chmod +x Ksav_*.AppImage`
+
+            Ksav keeps your documents in the app's own storage on your machine, and
+            nothing is uploaded anywhere. Use **File → Save a copy** to keep a
+            `.ksav` file of your own.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

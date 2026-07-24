@@ -11,6 +11,26 @@ It is aimed at Hebrew writers, with a first-class Torah/yeshiva path (siddur,
 bentcher, kesubah, get, footnote apparatus, side-column commentary), and it works
 equally for left-to-right English documents.
 
+## Download
+
+Installers for Windows, macOS (Apple Silicon and Intel) and Linux are attached to
+the [latest release](https://github.com/SYKhayyat/ksav/releases). You do not need
+Rust, Node, or a terminal to use Ksav — those are only for building it yourself.
+
+**The installers are not code-signed, so the first launch is blocked on every
+system.** The download is not broken; a certificate is a cost Ksav has not paid
+yet. Getting past it:
+
+| System | What you will see | What to press |
+| --- | --- | --- |
+| Windows | "Windows protected your PC" | **More info** → **Run anyway** |
+| macOS | "unidentified developer" | **System Settings → Privacy & Security** → **Open Anyway** |
+| macOS | "Ksav is damaged" | `xattr -dr com.apple.quarantine /Applications/Ksav.app` |
+| Linux (`.AppImage`) | nothing happens | `chmod +x Ksav_*.AppImage` |
+
+Your documents stay on your machine — Ksav has no account, no server, and uploads
+nothing.
+
 ## Start here → [`ksav/`](ksav)
 
 **The product is [`ksav/`](ksav).** It has its own detailed

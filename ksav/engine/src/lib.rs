@@ -549,7 +549,35 @@ pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: boo
 /// Output: `{ok, pages_svg, pdf_base64, diagnostics, typst_source}`.
 pub fn compile_request(input_json: &str) -> String {
     use base64::Engine as _;
-    let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
+    // A request that does not parse is not an empty document.
+    //
+    // This used to fall back to `Value::Null`, which reads every field as absent:
+    // an empty body, which compiles perfectly happily into one blank page and is
+    // returned as `ok: true`. A truncated upload or a corrupted request therefore
+    // blanked the writer's preview and said nothing about why. The real client
+    // always sends valid JSON, so reaching this means something went wrong on the
+    // wire, and the honest answer is to say so.
+    let v: serde_json::Value = match serde_json::from_str(input_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({
+                "ok": false,
+                "pages_svg": [],
+                "pdf_base64": serde_json::Value::Null,
+                "diagnostics": [{
+                    "severity": "error",
+                    "message": format!(
+                        "הבקשה לא נקראה — ייתכן שההעברה נקטעה ({e}) · \
+                         the request could not be read — the transfer may have been \
+                         truncated ({e})"
+                    ),
+                }],
+                "typst_source": "",
+                "missing_assets": [],
+            })
+            .to_string();
+        }
+    };
     let body = v.get("body").and_then(|x| x.as_str()).unwrap_or("");
     let cfg = DocConfig::from_json(&v);
     // Assets resolve from a per-process cache keyed by content hash, so an
@@ -759,6 +787,29 @@ mod tests {
         let export = serde_json::json!({ "body": "שלום", "want_pdf": true }).to_string();
         let exported: serde_json::Value = serde_json::from_str(&compile_request(&export)).unwrap();
         assert!(exported["pdf_base64"].as_str().is_some_and(|s| !s.is_empty()));
+    }
+
+    #[test]
+    fn a_request_that_does_not_parse_is_an_error_not_a_blank_page() {
+        // Falling back to an absent body compiled one blank page and called it
+        // `ok: true`, so a truncated upload silently wiped the preview.
+        for bad in ["", "garbage", "{\"body\": ", "{\"body\":\"a\nb\"}"] {
+            let out: serde_json::Value = serde_json::from_str(&compile_request(bad)).unwrap();
+            assert_eq!(out["ok"], false, "{bad:?} must not report success");
+            assert!(
+                out["pages_svg"].as_array().is_some_and(|p| p.is_empty()),
+                "{bad:?} must not render a page"
+            );
+            let msg = out["diagnostics"][0]["message"].as_str().unwrap_or("");
+            assert!(
+                msg.contains("could not be read"),
+                "{bad:?} must say why: {msg}"
+            );
+        }
+        // A well-formed request is unaffected.
+        let good = serde_json::json!({ "body": "שלום" }).to_string();
+        let out: serde_json::Value = serde_json::from_str(&compile_request(&good)).unwrap();
+        assert_eq!(out["ok"], true);
     }
 
     #[test]

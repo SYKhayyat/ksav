@@ -139,6 +139,12 @@ export async function available(): Promise<boolean> {
  * the storage error a number in it instead of "something went wrong".
  */
 export async function estimate(): Promise<{ usage: number; quota: number } | null> {
+  // `navigator` itself may not exist. Every browser and webview has one, but a
+  // non-DOM host does not — Node before 21 is the one that caught this, where
+  // the bare reference threw a ReferenceError instead of returning the null the
+  // signature promises. A quota probe that is documented as advisory should
+  // answer "cannot say" in that case, not throw out of the caller's save path.
+  if (typeof navigator === "undefined") return null;
   const nav = navigator as Navigator & { storage?: StorageManager };
   if (!nav.storage?.estimate) return null;
   try {

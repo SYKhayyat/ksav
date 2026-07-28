@@ -646,6 +646,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "girsa-hebrew"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "girsa-ref"
+version = "0.1.0"
+dependencies = [
+ "girsa-hebrew",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "girsa-source"
+version = "0.1.0"
+dependencies = [
+ "girsa-ref",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "glidesort"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1222,6 +1248,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "ecow",
+ "girsa-source",
  "include_dir",
  "serde",
  "serde_json",

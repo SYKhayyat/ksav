@@ -32,7 +32,7 @@ base64 = "0.22"
 # Pinned exactly: sefer-crates is a separate repository, so taking a new
 # version has to be a deliberate act on this side. Its CI builds this crate
 # against every proposed change, so a break shows up there rather than here.
-girsa-source = { version = "=0.1.0", path = "../../../sefer-crates/crates/girsa-source" }
+girsa-source = { version = "=0.2.0", path = "../../../sefer-crates/crates/girsa-source" }
 include_dir = { version = "0.7", optional = true }
 
 # The HTTP server (net + threads) is native-only; wasm builds skip it.

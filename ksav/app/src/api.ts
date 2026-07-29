@@ -184,6 +184,15 @@ export interface SpellResult {
   lexicon_sizes?: { he: number; en: number };
 }
 
+/** A source that arrived from Girsa and is waiting for the cursor
+ *  (spec.md §10.6). Already real Ksav markup: the packet is rendered in Rust
+ *  the moment it lands, so there is no second renderer here to drift from it. */
+export interface Arrival {
+  markup: string;
+  display: string;
+  reference: string;
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
@@ -193,6 +202,10 @@ export interface Backend {
   suggest(word: string, userWords: string): Promise<string[]>;
   commands(): Promise<CommandDef[]>;
   templates(): Promise<TemplateDef[]>;
+  /** Sources handed over by Girsa since the last ask. Drained, so asking twice
+   *  does not insert the same quote twice. Empty in a plain browser, which has
+   *  no listener for Girsa to hand anything to. */
+  inbox(): Promise<Arrival[]>;
 }
 
 export class HttpBackend implements Backend {
@@ -240,6 +253,17 @@ export class HttpBackend implements Backend {
   async templates(): Promise<TemplateDef[]> {
     const res = await fetch(this.base + "/templates");
     return res.json();
+  }
+
+  async inbox(): Promise<Arrival[]> {
+    try {
+      const res = await fetch(this.base + "/inbox");
+      return res.ok ? await res.json() : [];
+    } catch {
+      // The editor polls this every second; a server that went away is a
+      // thing to stop asking about quietly, not to shout in the console.
+      return [];
+    }
   }
 }
 
@@ -393,6 +417,13 @@ export class WasmBackend implements Backend {
   async templates(): Promise<TemplateDef[]> {
     return JSON.parse(await this.call("templates", ""));
   }
+
+  /** A tab has no listener on it, so Girsa has nowhere to hand a source. The
+   *  clipboard still works: one Ctrl+C in Girsa puts the packet down and this
+   *  build reads the plain and HTML flavours like anything else would. */
+  async inbox(): Promise<Arrival[]> {
+    return [];
+  }
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
@@ -448,6 +479,9 @@ export class TauriBackend implements Backend {
   }
   async templates(): Promise<TemplateDef[]> {
     return JSON.parse(await (await this.inv())("ksav_templates"));
+  }
+  async inbox(): Promise<Arrival[]> {
+    return JSON.parse(await (await this.inv())("ksav_inbox"));
   }
 }
 

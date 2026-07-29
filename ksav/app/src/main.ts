@@ -23,6 +23,10 @@ import {
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
 import { createBackend } from "./api";
+/** How often the editor asks Girsa's desk whether anything arrived. A second
+ *  is under the threshold at which a hand-off feels like a hand-off, and it is
+ *  one lock and an empty vector when there is nothing waiting. */
+const GIRSA_POLL_MS = 1000;
 import type { TemplateDef } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
@@ -3079,6 +3083,31 @@ async function boot() {
   // even with no store: a file binding made this session writes to disk, not to
   // the store, so it is exactly the escape hatch a private window still has.
   window.setInterval(() => void autosaveToFile(), FILE_AUTOSAVE_MS);
+  // Sources handed over by Girsa while this window is open (spec.md §10.6).
+  window.setInterval(() => void takeArrivals(), GIRSA_POLL_MS);
+}
+
+/**
+ * A source Girsa handed over, inserted where the cursor is.
+ *
+ * Polled rather than pushed, because the same code has to serve `ksav serve`
+ * in a browser tab and the desktop shell — and because the cursor is the only
+ * place a quote can go without landing somewhere nobody asked for.
+ *
+ * What arrives is already real Ksav markup: the packet is rendered in Rust by
+ * `ksav_engine::source` the moment it lands, so there is no second renderer
+ * here to drift from it (spec.md §10.3 — *lightweight means the UI, not the
+ * format*).
+ */
+async function takeArrivals(): Promise<void> {
+  const waiting = await runtime.backend?.inbox().catch(() => []);
+  if (!waiting || waiting.length === 0) return;
+  for (const arrival of waiting) {
+    insertSnippet(arrival.markup);
+  }
+  const last = waiting[waiting.length - 1];
+  setStatus(tf("sourceArrived", last.display), "ok");
+  scheduleCompile();
 }
 
 

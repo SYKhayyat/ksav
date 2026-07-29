@@ -38,6 +38,10 @@ include_dir = { version = "0.7", optional = true }
 # The HTTP server (net + threads) is native-only; wasm builds skip it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tiny_http = "0.12"
+# The loopback to Girsa: token-gated, localhost only. Native-only for the same
+# reason as the server above — a browser build has no listener and nothing to
+# be handed a source by.
+girsa-post = { version = "=0.3.0", path = "../../../sefer-crates/crates/girsa-post" }
 
 [features]
 # Embed the built SPA (ksav/app/dist) into the binary. Build the app first

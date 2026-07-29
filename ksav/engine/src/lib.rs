@@ -13,6 +13,10 @@ use typst_layout::PagedDocument;
 pub mod assets;
 pub mod commands;
 pub mod probe;
+/// The loopback to Girsa. Native only, like the server: a browser build has no
+/// listener and nothing to hand it a source.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod post;
 pub mod source;
 pub mod spell;
 pub mod templates;

@@ -254,6 +254,13 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
             let resp = json_response(crate::commands::commands_json());
             let _ = request.respond(with_cors(resp, cors));
         }
+        // Sources that arrived from Girsa over the loopback and are waiting
+        // for a cursor. Drained, not read — see `crate::post`.
+        (Method::Get, "/inbox") => {
+            let cors = cors_header(&request, addr_str);
+            let resp = json_response(crate::post::drain_json());
+            let _ = request.respond(with_cors(resp, cors));
+        }
         (Method::Get, "/templates") => {
             let cors = cors_header(&request, addr_str);
             let resp = json_response(crate::templates::templates_json());
@@ -283,6 +290,23 @@ pub fn serve(addr: &str) {
     };
     let workers = worker_count();
     println!("Ksav editor serving on http://{addr} ({workers} workers)");
+
+    // The loopback desk, so Girsa can hand this editor a source while it runs
+    // (spec.md §10.6). Its own listener on a port the system picks, token-gated
+    // — deliberately not this server, which is a *web* server with an origin
+    // policy and a static file tree, and is the wrong thing to let another
+    // application post into. Kept alive for as long as `serve` runs: dropping
+    // it is what withdraws the endpoint file.
+    let _desk = match crate::post::open_desk(env!("CARGO_PKG_VERSION")) {
+        Ok(desk) => {
+            println!("paired with Girsa on 127.0.0.1:{}", desk.port());
+            Some(desk)
+        }
+        Err(e) => {
+            eprintln!("the Girsa pairing is not open: {e}");
+            None
+        }
+    };
     let server = std::sync::Arc::new(server);
     let addr_str = std::sync::Arc::new(addr.to_string());
 

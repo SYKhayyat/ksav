@@ -36,6 +36,26 @@ fn on_the_page(needle: &str, lines: &[Line]) -> bool {
     lines.iter().any(|l| l.contains(needle))
 }
 
+/// There is one endpoint file per application per user — which is the right
+/// design for the product, and means the two loopback tests are talking about
+/// the same file. They take turns, in a scratch directory, so the suite never
+/// touches the endpoint file of a Ksav somebody is actually running.
+fn alone() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    static SCRATCH: std::sync::Once = std::sync::Once::new();
+    SCRATCH.call_once(|| {
+        let dir = std::env::temp_dir().join("ksav-loopback-tests");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        std::env::set_var("GIRSA_POST_HOME", &dir);
+    });
+    let guard = LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _ = ksav_engine::post::drain();
+    guard
+}
+
 #[test]
 fn a_source_from_girsa_arrives_as_a_quote_with_its_mekor_on_the_page() {
     let markup = insert(PACKET, CitationPlacement::Mekor).expect("Ksav reads Girsa's packet");
@@ -79,6 +99,57 @@ fn what_the_library_says_about_the_edition_is_still_here_when_it_is_printed() {
         packet.version
     );
     assert!(packet.version.provenance.contains("sefaria.org"));
+}
+
+#[test]
+fn a_source_sent_over_the_loopback_arrives_and_is_ready_to_insert() {
+    // The transport, end to end and through a real socket: Girsa's client, the
+    // token, Ksav's desk, and the inbox the editor polls. What it does not
+    // cross is a process boundary — but every line of code between the two
+    // applications is the same as the one that would.
+    let _alone = alone();
+    let _desk = ksav_engine::post::open_desk("test").expect("the desk opens");
+    assert!(
+        girsa_post::presence(girsa_post::App::Ksav).is_live(),
+        "Girsa would not offer to send: {:?}",
+        girsa_post::presence(girsa_post::App::Ksav)
+    );
+
+    // Exactly what Girsa's `send_to_ksav` puts on the wire.
+    girsa_post::send(girsa_post::App::Ksav, "/insert", Some(PACKET)).expect("Ksav takes it");
+
+    let waiting = ksav_engine::post::drain();
+    assert_eq!(waiting.len(), 1);
+    assert!(waiting[0].markup.contains("ראוי לכל ירא שמים"));
+    assert_eq!(waiting[0].display, "שולחן ערוך, אורח חיים סימן א' סעיף ג'");
+
+    // And it is a document, not an import format: what the editor is about to
+    // paste in compiles as it stands.
+    let lines = probe::lines(&render(&waiting[0].markup), 1.0);
+    assert!(on_the_page("ראוי לכל ירא שמים", &lines));
+}
+
+#[test]
+fn a_stranger_on_the_machine_cannot_hand_ksav_a_source() {
+    // Localhost is not private. Without the token — which lives in a file only
+    // this user can read — the desk refuses before it looks at the path.
+    let _alone = alone();
+    let desk = ksav_engine::post::open_desk("test").expect("the desk opens");
+    girsa_post::Endpoint {
+        app: girsa_post::App::Ksav,
+        port: desk.port(),
+        token: "0".repeat(32),
+        pid: 0,
+        version: "test".into(),
+    }
+    .publish()
+    .expect("publishes");
+
+    match girsa_post::send(girsa_post::App::Ksav, "/insert", Some(PACKET)) {
+        Err(girsa_post::PostError::Refused { status, .. }) => assert_eq!(status, 401),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    assert!(ksav_engine::post::drain().is_empty());
 }
 
 #[test]

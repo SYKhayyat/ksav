@@ -40,6 +40,17 @@ async fn ksav_compile(input: String) -> Result<String, String> {
 }
 
 /// The command registry as JSON.
+/// Sources that arrived from Girsa while this window was open (spec.md §10.6).
+///
+/// Polled by the editor, because the editor is where a cursor is: nothing on
+/// this side of the process knows where the writer is typing, and a helpful
+/// insertion at the end of the document is a source landing somewhere nobody
+/// asked for. Draining, so two windows cannot each insert the same quote.
+#[tauri::command]
+fn ksav_inbox() -> String {
+    ksav_engine::post::drain_json()
+}
+
 #[tauri::command]
 fn ksav_commands() -> String {
     ksav_engine::commands::commands_json()
@@ -193,7 +204,41 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AllowedPaths::default())
+        // `ksav://insert?packet=…`, and the pairing with Girsa (spec.md §10.6).
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            // The loopback desk. A failure here costs the pairing and not the
+            // editor: Ksav is a writing application first, and without it the
+            // only thing that stops working is being handed a source.
+            match ksav_engine::post::open_desk(env!("CARGO_PKG_VERSION")) {
+                Ok(desk) => {
+                    // Kept for the life of the process: dropping it is what
+                    // withdraws the endpoint file, which is how Girsa stops
+                    // offering to send the moment this window closes.
+                    std::mem::forget(desk);
+                }
+                Err(e) => eprintln!("the Girsa pairing is not open: {e}"),
+            }
+
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(e) = app.deep_link().register_all() {
+                    eprintln!("could not register ksav:// with the system: {e}");
+                }
+            }
+            tauri_plugin_deep_link::DeepLinkExt::deep_link(app).on_open_url(|event| {
+                for url in event.urls() {
+                    if let Some(girsa_post::Errand::Insert { packet }) =
+                        girsa_post::deep_link(girsa_post::App::Ksav, url.as_str())
+                    {
+                        if let Err(why) = ksav_engine::post::arrived(&packet) {
+                            eprintln!("a source arrived and was refused: {why}");
+                        }
+                    }
+                }
+            });
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -211,7 +256,8 @@ pub fn run() {
             ksav_save_file,
             ksav_write_file,
             ksav_spell,
-            ksav_suggest
+            ksav_suggest,
+            ksav_inbox
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

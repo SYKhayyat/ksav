@@ -766,3 +766,32 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
 }
 .math-bit:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* Cite on selection (spec.md §10.4): the places a phrase turns up, under the
+   caret. Built on the spell menu's box, because it is the same gesture — a
+   short list of things the machine believes and the writer decides between. */
+.mekoros {
+  min-width: 280px;
+  max-width: 420px;
+}
+
+.mekor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.mekor-item.sel {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mekor-text {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}

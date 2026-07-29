@@ -261,6 +261,13 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
             let resp = json_response(crate::post::drain_json());
             let _ = request.respond(with_cors(resp, cors));
         }
+        // Cite-on-selection (W18): the editor asks, this forwards to Girsa,
+        // and what comes back is Girsa's answer unchanged.
+        (Method::Post, "/mekoros") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, mekoros_request);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
         (Method::Get, "/templates") => {
             let cors = cors_header(&request, addr_str);
             let resp = json_response(crate::templates::templates_json());
@@ -325,6 +332,32 @@ pub fn serve(addr: &str) {
     }
     for h in handles {
         let _ = h.join();
+    }
+}
+
+/// `{"phrase": "…", "except": null, "search": false}` → Girsa's answer.
+fn mekoros_request(body: &str) -> String {
+    #[derive(serde::Deserialize)]
+    struct Asked {
+        phrase: String,
+        #[serde(default)]
+        except: Option<String>,
+        /// Ask Girsa to open its search on this phrase instead of answering.
+        #[serde(default)]
+        search: bool,
+    }
+    let Ok(asked) = serde_json::from_str::<Asked>(body) else {
+        return error_json("that is not a phrase");
+    };
+    if asked.search {
+        return match crate::post::search_in_girsa(&asked.phrase) {
+            Ok(()) => r#"{"opened":true}"#.to_string(),
+            Err(why) => error_json(&why),
+        };
+    }
+    match crate::post::where_from(&asked.phrase, asked.except.as_deref()) {
+        Ok(answer) => answer,
+        Err(why) => error_json(&why),
     }
 }
 

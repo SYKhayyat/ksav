@@ -157,6 +157,46 @@ pub fn drain_json() -> String {
     serde_json::to_string(&drain()).unwrap_or_else(|_| "[]".to_string())
 }
 
+/// Ask the library where a phrase is from (spec.md §10.4, W18).
+///
+/// Cite-on-selection: the writer highlights a phrase and asks. **Girsa
+/// answers**, because the question is about the corpus — which segments carry
+/// these words, how many places they turn up in, and how each of them is
+/// cited. Nothing here keeps a copy of any of that.
+///
+/// What comes back is Girsa's own JSON, handed to the editor unchanged: a
+/// shape re-described on the way through is a shape that drifts.
+///
+/// # Errors
+///
+/// If Girsa is not running, or refuses — both with the reason, because *no
+/// library* and *no such phrase* are entirely different things to a writer.
+pub fn where_from(phrase: &str, except: Option<&str>) -> Result<String, String> {
+    let errand = serde_json::json!({ "phrase": phrase, "except": except }).to_string();
+    girsa_post::send(App::Girsa, "/where-from", Some(&errand)).map_err(|e| e.to_string())
+}
+
+/// Nothing fitted: put the phrase in Girsa's search and bring it up.
+///
+/// The honest end of the road (spec.md §10.4). A citation nobody could settle
+/// is not a citation to guess at — it is a search to run.
+///
+/// # Errors
+///
+/// If Girsa is not running or refuses.
+pub fn search_in_girsa(phrase: &str) -> Result<(), String> {
+    let errand = serde_json::json!({ "phrase": phrase }).to_string();
+    girsa_post::send(App::Girsa, "/search", Some(&errand))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Whether the library is there, for an affordance that would otherwise fail.
+#[must_use]
+pub fn girsa() -> girsa_post::Presence {
+    girsa_post::presence(App::Girsa)
+}
+
 /// Put a source in the inbox directly — the `ksav://insert?packet=…` path,
 /// where the operating system hands us a URL rather than a request.
 ///

@@ -51,6 +51,36 @@ fn ksav_inbox() -> String {
     ksav_engine::post::drain_json()
 }
 
+/// Cite-on-selection (spec.md §10.4): ask Girsa where a phrase is from.
+///
+/// Forwarded, not answered: the question is about the corpus, and the corpus
+/// is the library's. What comes back is Girsa's own JSON, unchanged.
+#[tauri::command]
+async fn ksav_mekoros(phrase: String, except: Option<String>) -> Result<String, String> {
+    offload(move || {
+        ksav_engine::post::where_from(&phrase, except.as_deref()).unwrap_or_else(|why| {
+            serde_json::json!({ "error": why }).to_string()
+        })
+    })
+    .await
+}
+
+/// Nothing fitted — put the phrase in Girsa's search and bring it up.
+#[tauri::command]
+async fn ksav_search_in_girsa(phrase: String) -> Result<String, String> {
+    offload(move || match ksav_engine::post::search_in_girsa(&phrase) {
+        Ok(()) => r#"{"opened":true}"#.to_string(),
+        Err(why) => serde_json::json!({ "error": why }).to_string(),
+    })
+    .await
+}
+
+/// Whether the library is there, so nothing is offered that would fail.
+#[tauri::command]
+fn ksav_girsa_presence() -> String {
+    serde_json::to_string(&ksav_engine::post::girsa()).unwrap_or_else(|_| "{}".to_string())
+}
+
 #[tauri::command]
 fn ksav_commands() -> String {
     ksav_engine::commands::commands_json()
@@ -257,7 +287,10 @@ pub fn run() {
             ksav_write_file,
             ksav_spell,
             ksav_suggest,
-            ksav_inbox
+            ksav_inbox,
+            ksav_mekoros,
+            ksav_search_in_girsa,
+            ksav_girsa_presence
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

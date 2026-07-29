@@ -196,6 +196,30 @@ export interface Arrival {
   whole: boolean;
 }
 
+/** One place a phrase turns up, as the library answered (spec.md §10.4). */
+export interface Mekor {
+  id: string;
+  ref: string;
+  /** The citation, printed by the library — the pen does not know what a
+   *  siman is, and does not have to. */
+  display: string;
+  he_title: string;
+  text: string;
+}
+
+/** What Girsa says about a phrase. `total` first, because a phrase in four
+ *  thousand places has no source — it has a language, and offering the first
+ *  as "the mekor" would be an invention. */
+export interface Mekoros {
+  phrase: string;
+  total: number;
+  is_a_quotation: boolean;
+  /** The one-line answer, in the library's own words. */
+  said: string;
+  places: Mekor[];
+  error?: string;
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
@@ -209,6 +233,10 @@ export interface Backend {
    *  does not insert the same quote twice. Empty in a plain browser, which has
    *  no listener for Girsa to hand anything to. */
   inbox(): Promise<Arrival[]>;
+  /** Where is this phrase from? Asked of Girsa, which has the corpus. */
+  mekoros(phrase: string, except?: string): Promise<Mekoros>;
+  /** Nothing fitted: put the phrase in Girsa's search and bring it up. */
+  searchInGirsa(phrase: string): Promise<void>;
 }
 
 export class HttpBackend implements Backend {
@@ -267,6 +295,23 @@ export class HttpBackend implements Backend {
       // thing to stop asking about quietly, not to shout in the console.
       return [];
     }
+  }
+
+  async mekoros(phrase: string, except?: string): Promise<Mekoros> {
+    const res = await fetch(this.base + "/mekoros", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phrase, except: except ?? null }),
+    });
+    return res.json();
+  }
+
+  async searchInGirsa(phrase: string): Promise<void> {
+    await fetch(this.base + "/mekoros", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phrase, search: true }),
+    });
   }
 }
 
@@ -427,6 +472,23 @@ export class WasmBackend implements Backend {
   async inbox(): Promise<Arrival[]> {
     return [];
   }
+
+  /** A tab cannot reach Girsa's loopback: the token lives in a file only the
+   *  two applications can read. Saying so beats a silent empty answer. */
+  async mekoros(phrase: string): Promise<Mekoros> {
+    return {
+      phrase,
+      total: 0,
+      is_a_quotation: false,
+      said: "",
+      places: [],
+      error: "חיפוש מקורות פועל כשגרסא פתוחה לצד כסב (לא בדפדפן)",
+    };
+  }
+
+  async searchInGirsa(): Promise<void> {
+    /* nothing to reach */
+  }
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
@@ -485,6 +547,14 @@ export class TauriBackend implements Backend {
   }
   async inbox(): Promise<Arrival[]> {
     return JSON.parse(await (await this.inv())("ksav_inbox"));
+  }
+  async mekoros(phrase: string, except?: string): Promise<Mekoros> {
+    return JSON.parse(
+      await (await this.inv())("ksav_mekoros", { phrase, except: except ?? null }),
+    );
+  }
+  async searchInGirsa(phrase: string): Promise<void> {
+    await (await this.inv())("ksav_search_in_girsa", { phrase });
   }
 }
 

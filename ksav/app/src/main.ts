@@ -27,7 +27,7 @@ import { createBackend } from "./api";
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
  *  one lock and an empty vector when there is nothing waiting. */
 const GIRSA_POLL_MS = 1000;
-import type { TemplateDef } from "./api";
+import type { Mekor, Mekoros, TemplateDef } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
@@ -715,6 +715,149 @@ function wireSyncScroll() {
     runtime.view.dispatch({ selection: { anchor: runtime.view.state.doc.line(line).from }, scrollIntoView: true });
     runtime.view.focus();
   });
+}
+
+// ------------------------------------------------------------------- cite on selection
+//
+// spec.md §10.4: highlight a phrase, the first mekor appears, Tab cycles the
+// rest, and **if none fits you drop into full Girsa search**. The last part is
+// not a fallback, it is the point: a citation nobody could settle is not a
+// citation to guess at.
+//
+// Everything about *which* places these are is the library's answer, printed
+// citation and all. This file chooses which one is highlighted and where the
+// mekor is inserted, and nothing else.
+
+/** The open list, so Tab can move through it and Escape can close it. */
+let mekorosBox: HTMLElement | null = null;
+
+function closeMekoros(): void {
+  mekorosBox?.remove();
+  mekorosBox = null;
+}
+
+async function askForMekor(): Promise<void> {
+  const sel = runtime.view.state.selection.main;
+  const phrase = runtime.view.state.sliceDoc(sel.from, sel.to).trim();
+  if (!phrase) {
+    setStatus(t("selectAPhrase"), "");
+    return;
+  }
+  setStatus(t("askingGirsa"), "");
+  const answer = await runtime.backend!.mekoros(phrase).catch((e) => ({
+    phrase,
+    total: 0,
+    is_a_quotation: false,
+    said: "",
+    places: [],
+    error: String(e),
+  }));
+  if (answer.error) {
+    setStatus(answer.error, "err");
+    return;
+  }
+  setStatus(answer.said, "");
+  showMekoros(sel.to, phrase, answer);
+}
+
+function showMekoros(at: number, phrase: string, answer: Mekoros): void {
+  closeMekoros();
+  const box = el("div", { class: "spell-menu mekoros" }, []);
+  document.body.append(box);
+  mekorosBox = box;
+
+  // Placed under the caret, which is where the reader is looking.
+  const where = runtime.view.coordsAtPos(at);
+  if (where) {
+    box.style.left = `${Math.min(where.left, window.innerWidth - 320)}px`;
+    box.style.top = `${where.bottom + 6}px`;
+  }
+
+  let chosen = 0;
+  const rows: HTMLElement[] = [];
+
+  const take = (place: Mekor): void => {
+    // The citation goes in as a mekor footnote — the ref travels with it,
+    // because that is what makes it re-printable later (spec.md §10.2).
+    const markup = `#מראה_מקום[${place.display}]`;
+    runtime.view.dispatch({
+      changes: { from: at, insert: markup },
+      selection: { anchor: at + markup.length },
+    });
+    closeMekoros();
+    runtime.view.focus();
+    setStatus(place.display, "ok");
+    scheduleCompile();
+  };
+
+  const said = el("div", { class: "spell-word" }, [answer.said]);
+  box.append(said);
+
+  if (!answer.is_a_quotation && answer.total > 0) {
+    // Counted, and **not** offered as a source. The list is still shown,
+    // because the reader may recognise one; nothing is preselected.
+    box.append(el("div", { class: "spell-none" }, [t("phraseNotQuotation")]));
+  }
+
+  for (const [i, place] of answer.places.entries()) {
+    const row = el("button", { class: "spell-item mekor-item", onClick: () => take(place) }, [
+      el("b", {}, [place.display || place.he_title]),
+      el("span", { class: "mekor-text" }, [place.text.slice(0, 90)]),
+    ]);
+    rows.push(row);
+    box.append(row);
+    if (i === 0 && answer.is_a_quotation) row.classList.add("sel");
+  }
+
+  box.append(el("div", { class: "menu-sep" }, []));
+  box.append(
+    el("button", { class: "spell-item spell-add", onClick: () => void dropIntoGirsa(phrase) }, [
+      t("noneFitSearch"),
+    ]),
+  );
+
+  const move = (by: number): void => {
+    if (rows.length === 0) return;
+    rows[chosen]?.classList.remove("sel");
+    chosen = (chosen + by + rows.length) % rows.length;
+    rows[chosen]?.classList.add("sel");
+    rows[chosen]?.scrollIntoView({ block: "nearest" });
+  };
+
+  box.addEventListener("keydown", (e) => onMekorosKey(e, move, () => rows[chosen]?.click()));
+  window.addEventListener("keydown", mekorosKeys, true);
+  function mekorosKeys(e: KeyboardEvent): void {
+    if (!mekorosBox) {
+      window.removeEventListener("keydown", mekorosKeys, true);
+      return;
+    }
+    onMekorosKey(e, move, () => rows[chosen]?.click());
+  }
+}
+
+/** Tab cycles, Enter takes, Escape gives up — and giving up is a real answer. */
+function onMekorosKey(e: KeyboardEvent, move: (by: number) => void, take: () => void): void {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    move(e.shiftKey ? -1 : 1);
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    move(1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    move(-1);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    take();
+  } else if (e.key === "Escape") {
+    closeMekoros();
+  }
+}
+
+async function dropIntoGirsa(phrase: string): Promise<void> {
+  closeMekoros();
+  await runtime.backend!.searchInGirsa(phrase).catch(() => {});
+  setStatus(t("openedInGirsa"), "");
 }
 
 // ---------------------------------------------------------------- snippet insertion
@@ -2878,7 +3021,12 @@ function render() {
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 function wireKeys() {
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "m") {
+      // Cite on selection (spec.md §10.4).
+      e.preventDefault();
+      void askForMekor();
+    } else if (e.key === "Escape") {
+      closeMekoros();
       closePalette();
       closePreviewOverlay();
       closeHistory();

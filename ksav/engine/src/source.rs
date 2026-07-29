@@ -20,61 +20,23 @@
 //! to full-form citations, or every quote regenerated against a corrected
 //! edition, without touching a word of the prose. No paste-based workflow can
 //! do that, which is the whole argument for the pairing.
+//!
+//! # Where the markup itself is written
+//!
+//! In `girsa-ksav`, the shared crate — **not here**. Girsa has a Ksav buffer in
+//! it (spec.md §10.3), and for that buffer to write real Ksav from the first
+//! keystroke the two applications have to agree about what a quote block is.
+//! An agreement in prose between two repositories is exactly what the shared
+//! crates exist to replace, so this module is now the receiving end and the
+//! schema check, and the commands are one implementation compiled into both.
+//!
+//! What stays here is the part only this side can do: **the tests below compile
+//! what arrives with the real Typst engine.** `girsa-ksav` can assert that it
+//! wrote `#ציטוט[…]`; only Ksav can assert that Typst accepts it.
 
 use girsa_source::{PacketError, SourcePacket};
 
-/// How the citation is placed relative to the quote.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CitationPlacement {
-    /// A mekor footnote — `#מראה_מקום[…]`. What a sefer does.
-    #[default]
-    Mekor,
-    /// Inline after the quote, in small type — `#ציון[…]`.
-    Inline,
-}
-
-/// Turn a packet into real Ksav markup.
-///
-/// Every construct here is an existing Ksav command from `typst/ksav.typ`, so
-/// what lands in the buffer is a document, not an import format that has to be
-/// converted later. spec.md §10.3 is explicit that the lightweight buffer is
-/// *the UI, not the format*: if the handoff invented its own note shape, the
-/// drift the shared crate exists to prevent would come straight back in.
-#[must_use]
-pub fn to_ksav(packet: &SourcePacket, placement: CitationPlacement) -> String {
-    let text = escape(&packet.text);
-    let display = escape(&packet.display);
-
-    let mut out = String::with_capacity(text.len() + display.len() + 64);
-    out.push_str("#ציטוט[");
-    out.push_str(&text);
-    out.push(']');
-
-    match placement {
-        CitationPlacement::Mekor => {
-            out.push_str("#מראה_מקום[");
-            out.push_str(&display);
-            out.push(']');
-        }
-        CitationPlacement::Inline => {
-            out.push_str(" #ציון[");
-            out.push_str(&display);
-            out.push(']');
-        }
-    }
-
-    if let Some(note) = &packet.note {
-        // A margin note that travelled with the source is the writer's own
-        // words, so it arrives as an editor's comment rather than as part of
-        // the quote.
-        out.push_str("#הערת_עורך[");
-        out.push_str(&escape(note));
-        out.push(']');
-    }
-
-    out.push('\n');
-    out
-}
+pub use girsa_ksav::{to_ksav, CitationPlacement};
 
 /// Read a packet off the wire and render it.
 ///
@@ -84,23 +46,6 @@ pub fn to_ksav(packet: &SourcePacket, placement: CitationPlacement) -> String {
 /// slightly wrong — in a printed sefer.
 pub fn insert(json: &str, placement: CitationPlacement) -> Result<String, PacketError> {
     Ok(to_ksav(&SourcePacket::from_json(json)?, placement))
-}
-
-/// Escape the characters Typst reads as markup.
-///
-/// A quote from a sefer is arbitrary text and routinely contains `#` (as a
-/// numeral sign), `[`, `]` and `\`. Unescaped, `[` opens a content block that
-/// never closes, and Typst cannot report it until it reaches end of file —
-/// thousands of characters from the quote, with the preview blank.
-fn escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        if matches!(c, '#' | '[' | ']' | '\\' | '$' | '*' | '_' | '<' | '>' | '@') {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out
 }
 
 #[cfg(test)]

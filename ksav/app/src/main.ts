@@ -3103,10 +3103,26 @@ async function takeArrivals(): Promise<void> {
   const waiting = await runtime.backend?.inbox().catch(() => []);
   if (!waiting || waiting.length === 0) return;
   for (const arrival of waiting) {
+    if (arrival.whole) {
+      // A whole document, handed over from Girsa's buffer. Never replaces
+      // what is open without being asked — and a snapshot is taken first, so
+      // "yes" is recoverable even when it was the wrong answer.
+      const hasText = runtime.view.state.doc.length > 0;
+      if (hasText && !window.confirm(tf("documentArrived", arrival.display))) {
+        insertSnippet(arrival.markup);
+        continue;
+      }
+      if (hasText) await takeSnapshot();
+      runtime.view.dispatch({
+        changes: { from: 0, to: runtime.view.state.doc.length, insert: arrival.markup },
+        selection: { anchor: 0 },
+      });
+      continue;
+    }
     insertSnippet(arrival.markup);
   }
   const last = waiting[waiting.length - 1];
-  setStatus(tf("sourceArrived", last.display), "ok");
+  setStatus(tf(last.whole ? "documentOpened" : "sourceArrived", last.display), "ok");
   scheduleCompile();
 }
 

@@ -191,6 +191,9 @@ export interface Arrival {
   markup: string;
   display: string;
   reference: string;
+  /** A whole document handed over from Girsa's buffer, rather than a quote to
+   *  drop in at the caret. The editor asks before replacing what is open. */
+  whole: boolean;
 }
 
 export interface Backend {

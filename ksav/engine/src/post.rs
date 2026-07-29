@@ -49,6 +49,13 @@ pub struct Arrival {
     /// The ref the document will keep. Carried so the editor can say what it
     /// took, and so nothing has to parse it back out of the markup.
     pub reference: String,
+    /// Whether this is a **whole document** rather than a quote to drop in at
+    /// the caret — Girsa's buffer, handed over (spec.md §10.3).
+    ///
+    /// The editor asks before replacing what is open. A hand-over that
+    /// silently overwrote the paragraph somebody was in the middle of would be
+    /// the single worst thing this pairing could do.
+    pub whole: bool,
 }
 
 /// Sources waiting to be inserted.
@@ -69,6 +76,7 @@ pub fn open_desk(version: &str) -> Result<Desk, std::io::Error> {
     let desk = Desk::open(App::Ksav, version)?;
     desk.serve(|path, body| match path {
         "/insert" => take(body),
+        "/document" => take_document(body),
         other => Reply::refused(404, format!("no such errand: {other}")),
     });
     Ok(desk)
@@ -88,6 +96,38 @@ fn take(body: &str) -> Reply {
         markup: to_ksav(&packet, CitationPlacement::Mekor),
         display: packet.display.clone(),
         reference: packet.reference.clone(),
+        whole: false,
+    };
+    match INBOX.lock() {
+        Ok(mut inbox) => {
+            inbox.push(arrival);
+            Reply::ok(r#"{"taken":true}"#)
+        }
+        Err(_) => Reply::refused(500, "the inbox is wedged"),
+    }
+}
+
+/// A whole buffer, handed over from Girsa's own Ksav buffer.
+///
+/// It arrives as text and goes in as text: the buffer wrote real Ksav markup
+/// from the first keystroke (spec.md §10.3), so **there is nothing to
+/// convert** — which is exactly the claim this errand exists to keep true.
+fn take_document(body: &str) -> Reply {
+    #[derive(serde::Deserialize)]
+    struct Handed {
+        #[serde(default)]
+        name: String,
+        text: String,
+    }
+    let handed: Handed = match serde_json::from_str(body) {
+        Ok(handed) => handed,
+        Err(e) => return Reply::refused(400, format!("that is not a document: {e}")),
+    };
+    let arrival = Arrival {
+        markup: handed.text,
+        display: handed.name,
+        reference: String::new(),
+        whole: true,
     };
     match INBOX.lock() {
         Ok(mut inbox) => {
@@ -170,6 +210,21 @@ mod tests {
         assert_eq!(drain().len(), 1);
         // Two windows asking would otherwise each insert the same source.
         assert!(drain().is_empty());
+    }
+
+    #[test]
+    fn a_buffer_handed_over_arrives_whole_and_says_so() {
+        let _alone = alone();
+        let handed = serde_json::json!({ "name": "חבורה", "text": "#כותרת1[סוגיא]
+" });
+        let reply = take_document(&handed.to_string());
+        assert_eq!(reply.status, 200);
+        let waiting = drain();
+        assert_eq!(waiting.len(), 1);
+        assert!(waiting[0].whole, "a document has to say it is one");
+        assert_eq!(waiting[0].markup, "#כותרת1[סוגיא]
+");
+        assert_eq!(waiting[0].display, "חבורה");
     }
 
     #[test]

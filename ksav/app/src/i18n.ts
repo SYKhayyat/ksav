@@ -202,6 +202,8 @@ const HE: Dict = {
   healAllAction: "תיקון הכל",
   healedNothing: "אין סוגריים חסרים.",
   sourceArrived: "התקבל מקור מגרסא — %s",
+  documentArrived: "התקבל מסמך מגרסא — %s. להחליף את הטקסט שכאן? (יישמר צילום קודם)",
+  documentOpened: "נפתח מסמך מגרסא — %s",
   healedCount: "תוקנו {0} סוגריים.",
   previewHealed: "התצוגה מניחה {0} סוגריים חסרים",
   // status
@@ -523,6 +525,8 @@ const EN: Dict = {
   healAllAction: "Fix all",
   healedNothing: "No missing brackets.",
   sourceArrived: "A source arrived from Girsa — %s",
+  documentArrived: "A document arrived from Girsa — %s. Replace what is here? (a snapshot is taken first)",
+  documentOpened: "Opened a document from Girsa — %s",
   healedCount: "Fixed {0} bracket(s).",
   previewHealed: "Preview assumes {0} missing bracket(s)",
   ready: "Ready",

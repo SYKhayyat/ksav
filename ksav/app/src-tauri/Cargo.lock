@@ -1627,6 +1627,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "girsa-ksav"
+version = "0.3.0"
+dependencies = [
+ "girsa-source",
+]
+
+[[package]]
 name = "girsa-post"
 version = "0.3.0"
 dependencies = [
@@ -2585,6 +2592,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "ecow",
+ "girsa-ksav",
  "girsa-post",
  "girsa-source",
  "serde",

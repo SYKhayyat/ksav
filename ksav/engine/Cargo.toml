@@ -33,6 +33,9 @@ base64 = "0.22"
 # version has to be a deliberate act on this side. Its CI builds this crate
 # against every proposed change, so a break shows up there rather than here.
 girsa-source = { version = "=0.3.0", path = "../../../sefer-crates/crates/girsa-source" }
+# The markup writer, shared so that Girsa's Ksav buffer writes the same
+# commands this engine compiles (spec.md §10.3).
+girsa-ksav = { version = "=0.3.0", path = "../../../sefer-crates/crates/girsa-ksav" }
 include_dir = { version = "0.7", optional = true }
 
 # The HTTP server (net + threads) is native-only; wasm builds skip it.

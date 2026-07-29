@@ -26,6 +26,16 @@ use ksav_engine::DocConfig;
 /// Verbatim off Girsa's clipboard. See the module note.
 const PACKET: &str = include_str!("fixtures/girsa-packet.json");
 
+/// A buffer written in Girsa's own Ksav buffer (spec.md §10.3), by
+///
+/// ```sh
+/// cargo run -p girsa-app --example write -- corpus personal ///     "השכמת הבוקר" "שולחן ערוך, אורח חיים סימן א' סעיף ג'"
+/// ```
+///
+/// Copied here byte for byte. **No conversion step exists** — that is the
+/// claim, and this is what checks it.
+const BUFFER: &str = include_str!("fixtures/girsa-buffer.ksav");
+
 fn render(body: &str) -> Vec<TextRun> {
     let doc = probe::layout(body, &DocConfig::default())
         .unwrap_or_else(|d| panic!("compile failed: {d:?}"));
@@ -150,6 +160,36 @@ fn a_stranger_on_the_machine_cannot_hand_ksav_a_source() {
         other => panic!("expected a refusal, got {other:?}"),
     }
     assert!(ksav_engine::post::drain().is_empty());
+}
+
+#[test]
+fn a_buffer_written_in_girsa_opens_in_real_ksav_with_zero_conversion() {
+    // spec.md §10.3's acceptance, from the other side. What Girsa's buffer
+    // wrote is a Ksav document: a heading, a quote block, a mekor footnote and
+    // a line of the writer's own — compiled here by the real Typst engine and
+    // read off the page.
+    let lines = probe::lines(&render(BUFFER), 1.0);
+    for words in ["השכמת הבוקר", "ראוי לכל ירא שמים", "וצריך עיון"] {
+        assert!(
+            on_the_page(words, &lines),
+            "{words:?} is not on the page: {:?}",
+            lines.iter().map(Line::text).collect::<Vec<_>>()
+        );
+    }
+    // And the mekor is a footnote, which is what a sefer does: it is set below
+    // the text it hangs off rather than beside it.
+    let quote = lines
+        .iter()
+        .find(|l| l.contains("ראוי לכל ירא שמים"))
+        .expect("the quote");
+    let mekor = lines
+        .iter()
+        .find(|l| l.contains("שולחן ערוך"))
+        .expect("the mekor");
+    assert!(
+        mekor.runs.first().map(|r| r.y) > quote.runs.first().map(|r| r.y),
+        "the mekor is not below the quote"
+    );
 }
 
 #[test]

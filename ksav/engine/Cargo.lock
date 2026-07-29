@@ -659,21 +659,21 @@ dependencies = [
 
 [[package]]
 name = "girsa-hebrew"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "girsa-ksav"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "girsa-source",
 ]
 
 [[package]]
 name = "girsa-post"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "getrandom 0.3.4",
  "serde",
@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "girsa-ref"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "girsa-hebrew",
  "serde",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "girsa-source"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "girsa-ref",
  "serde",

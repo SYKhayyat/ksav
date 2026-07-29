@@ -237,6 +237,9 @@ export interface Backend {
   mekoros(phrase: string, except?: string): Promise<Mekoros>;
   /** Nothing fitted: put the phrase in Girsa's search and bring it up. */
   searchInGirsa(phrase: string): Promise<void>;
+  /** Turn the citations in a piece of prose into live refs — the certain ones
+   *  only (spec.md §10.5). Comes back rewritten, or unchanged. */
+  linkify(text: string): Promise<string>;
 }
 
 export class HttpBackend implements Backend {
@@ -312,6 +315,17 @@ export class HttpBackend implements Backend {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phrase, search: true }),
     });
+  }
+
+  async linkify(text: string): Promise<string> {
+    const res = await fetch(this.base + "/linkify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const out = await res.json();
+    if (out.error) throw new Error(out.error);
+    return out.text ?? text;
   }
 }
 
@@ -489,6 +503,13 @@ export class WasmBackend implements Backend {
   async searchInGirsa(): Promise<void> {
     /* nothing to reach */
   }
+
+  /** Unchanged: with no Girsa to ask, the honest answer is the prose as it
+   *  was written. Linking a citation this build cannot resolve is the one
+   *  thing spec.md §10.5 forbids. */
+  async linkify(text: string): Promise<string> {
+    return text;
+  }
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
@@ -555,6 +576,11 @@ export class TauriBackend implements Backend {
   }
   async searchInGirsa(phrase: string): Promise<void> {
     await (await this.inv())("ksav_search_in_girsa", { phrase });
+  }
+  async linkify(text: string): Promise<string> {
+    const out = JSON.parse(await (await this.inv())("ksav_linkify", { text }));
+    if (out.error) throw new Error(out.error);
+    return out.text ?? text;
   }
 }
 

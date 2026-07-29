@@ -1277,7 +1277,55 @@
 #let פסוק(מקור, body) = [#emph[#body] #text(size: 0.82em, fill: luma(95))[(#מקור)]]
 
 // מראה_מקום — a source citation set as a footnote (the mekoros apparatus)
-#let מראה_מקום(body) = footnote(text(size: 0.92em, body))
+//
+// `מקור:` is the canonical ref of what is being cited — `girsa:bavli/berakhot/2a:1`
+// — and it is **stored in the document, not printed**. That is the whole of the
+// pairing's promise (Girsa spec.md §10.2): a document that keeps the place can
+// be re-printed in another citation style, or have its quotes regenerated
+// against a corrected edition, without touching a word of the prose. A document
+// that keeps only the printed string can do neither.
+//
+// It is also what `#מראה_מקומות()` collects into a source list at the back.
+#let _ksav_mekor_label = label("ksav-mekor")
+#let מראה_מקום(body, מקור: none) = {
+  if מקור != none {
+    [#metadata((ref: מקור, printed: body))#_ksav_mekor_label]
+  }
+  footnote(text(size: 0.92em, body))
+}
+
+// מקור_חי — a citation in the flow of the prose that keeps its ref.
+//
+// What linkify produces (Girsa spec.md §10.5): the words are printed exactly
+// as they were written, and the ref rides underneath. Two things follow — the
+// citation counts in `#מראה_מקומות()`, and in a compiled PDF it is a **link**
+// that opens the page it names.
+#let מקור_חי(body, מקור: none) = {
+  if מקור == none { body } else {
+    [#metadata((ref: מקור, printed: body))#_ksav_mekor_label]
+    link(מקור, body)
+  }
+}
+#let livecite = מקור_חי
+
+// מראה_מקומות — the sources cited in the document, collected and printed.
+//
+// Cheap by construction: the refs are already in the document, so this is a
+// sort and a print (Girsa spec.md §10.4). Every citation that carried a `מקור:`
+// appears once, in the order it was first cited.
+#let מראה_מקומות(כותרת: none) = context {
+  let notes = query(_ksav_mekor_label)
+  if notes.len() == 0 { return }
+  if כותרת != none { heading(level: 2, outlined: false, numbering: none, כותרת) }
+  let seen = ()
+  for note in notes {
+    let m = note.value
+    if m.ref in seen { continue }
+    seen.push(m.ref)
+    block(above: 0.4em, below: 0.4em)[#m.printed]
+  }
+}
+#let sources = מראה_מקומות
 
 // ציון — an inline reference in small gray text, e.g. (רמב״ם הל׳ תפילין)
 #let ציון(body) = text(size: 0.85em, fill: luma(95), [(#body)])

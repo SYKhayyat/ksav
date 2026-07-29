@@ -75,6 +75,18 @@ async fn ksav_search_in_girsa(phrase: String) -> Result<String, String> {
     .await
 }
 
+/// Turn the citations in a piece of prose into live refs (spec.md §10.5).
+///
+/// Girsa finds them; `girsa-ksav` writes them. Only what is certain is touched.
+#[tauri::command]
+async fn ksav_linkify(text: String) -> Result<String, String> {
+    offload(move || match ksav_engine::post::linkify(&text) {
+        Ok(text) => serde_json::json!({ "text": text }).to_string(),
+        Err(why) => serde_json::json!({ "error": why }).to_string(),
+    })
+    .await
+}
+
 /// Whether the library is there, so nothing is offered that would fail.
 #[tauri::command]
 fn ksav_girsa_presence() -> String {
@@ -290,7 +302,8 @@ pub fn run() {
             ksav_inbox,
             ksav_mekoros,
             ksav_search_in_girsa,
-            ksav_girsa_presence
+            ksav_girsa_presence,
+            ksav_linkify
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

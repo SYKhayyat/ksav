@@ -193,6 +193,32 @@ fn a_buffer_written_in_girsa_opens_in_real_ksav_with_zero_conversion() {
 }
 
 #[test]
+fn the_ref_is_in_the_document_and_the_mareh_mekomos_is_a_sort_and_a_print() {
+    // spec.md §10.2 and §10.4. The document keeps `girsa:…/1:3`, printed
+    // nowhere, and `#מראה_מקומות()` collects every citation that carried one
+    // into a list at the back — cheap by construction, because the refs were
+    // already there.
+    assert!(
+        BUFFER.contains("מקור: \"girsa:shulchan-arukh/orach-chayim/1:3\""),
+        "the buffer does not keep the place: {BUFFER}"
+    );
+
+    let with_a_list = format!("{BUFFER}
+#מראה_מקומות(כותרת: [מראה מקומות])
+");
+    let lines = probe::lines(&render(&with_a_list), 1.0);
+    assert!(on_the_page("מראה מקומות", &lines), "no source list was printed");
+
+    // The citation appears twice now — once as the footnote where it was
+    // cited, once in the list — and the list is at the end.
+    let printed: Vec<&Line> = lines
+        .iter()
+        .filter(|l| l.contains("שולחן ערוך"))
+        .collect();
+    assert!(printed.len() >= 2, "the source list did not print the mekor");
+}
+
+#[test]
 fn both_placements_of_a_real_packet_lay_out() {
     for placement in [CitationPlacement::Mekor, CitationPlacement::Inline] {
         let markup = insert(PACKET, placement).expect("reads");

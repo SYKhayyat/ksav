@@ -728,6 +728,38 @@ function wireSyncScroll() {
 // citation and all. This file chooses which one is highlighted and where the
 // mekor is inserted, and nothing else.
 
+/**
+ * Turn the citations in the selection into live refs (spec.md §10.5).
+ *
+ * Girsa finds them and `girsa-ksav` writes them — nothing here decides what a
+ * citation is. **High-confidence only**: what comes back is the same prose
+ * with the certain ones wrapped, and everything else untouched.
+ */
+async function linkifySelection(): Promise<void> {
+  const sel = runtime.view.state.selection.main;
+  const prose = runtime.view.state.sliceDoc(sel.from, sel.to);
+  if (!prose.trim()) {
+    setStatus(t("selectAPhrase"), "");
+    return;
+  }
+  setStatus(t("askingGirsa"), "");
+  try {
+    const linked = await runtime.backend!.linkify(prose);
+    if (linked === prose) {
+      setStatus(t("nothingCertain"), "");
+      return;
+    }
+    runtime.view.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: linked },
+      selection: { anchor: sel.from + linked.length },
+    });
+    setStatus(t("citationsLinked"), "ok");
+    scheduleCompile();
+  } catch (e) {
+    setStatus(String(e), "err");
+  }
+}
+
 /** The open list, so Tab can move through it and Escape can close it. */
 let mekorosBox: HTMLElement | null = null;
 
@@ -3021,7 +3053,11 @@ function render() {
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 function wireKeys() {
   window.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "m") {
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") {
+      // Linkify the selection (spec.md §10.5).
+      e.preventDefault();
+      void linkifySelection();
+    } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "m") {
       // Cite on selection (spec.md §10.4).
       e.preventDefault();
       void askForMekor();

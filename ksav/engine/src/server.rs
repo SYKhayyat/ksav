@@ -268,6 +268,12 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
             let json = post(&mut request, mekoros_request);
             let _ = request.respond(with_cors(json_response(json), cors));
         }
+        // Linkify (W19): Girsa finds the citations, this rewrites them.
+        (Method::Post, "/linkify") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, linkify_request);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
         (Method::Get, "/templates") => {
             let cors = cors_header(&request, addr_str);
             let resp = json_response(crate::templates::templates_json());
@@ -357,6 +363,21 @@ fn mekoros_request(body: &str) -> String {
     }
     match crate::post::where_from(&asked.phrase, asked.except.as_deref()) {
         Ok(answer) => answer,
+        Err(why) => error_json(&why),
+    }
+}
+
+/// `{"text": "…"}` → `{"text": "…with the citations live…"}`.
+fn linkify_request(body: &str) -> String {
+    #[derive(serde::Deserialize)]
+    struct Asked {
+        text: String,
+    }
+    let Ok(asked) = serde_json::from_str::<Asked>(body) else {
+        return error_json("that is not prose");
+    };
+    match crate::post::linkify(&asked.text) {
+        Ok(text) => serde_json::json!({ "text": text }).to_string(),
         Err(why) => error_json(&why),
     }
 }

@@ -68,7 +68,7 @@ mod tests {
     fn a_source_arrives_as_a_quote_with_a_mekor() {
         let markup = to_ksav(&packet(), CitationPlacement::Mekor);
         assert!(markup.contains("#ציטוט["));
-        assert!(markup.contains("#מראה_מקום["));
+        assert!(markup.contains("#מראה_מקום("));
         assert!(markup.contains("יתגבר כארי"));
     }
 

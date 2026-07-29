@@ -191,6 +191,52 @@ pub fn search_in_girsa(phrase: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Turn the citations in a piece of prose into live refs (spec.md §10.5).
+///
+/// Girsa finds them — it has the lexicon — and the rewriting happens **here**,
+/// in Rust, through `girsa-ksav`: the same writer both applications use, so a
+/// linkified citation and one Girsa inserted are the same markup.
+///
+/// Only what is certain is touched. Everything else comes back exactly as it
+/// was written, because a wrong link in a printed sefer cannot be seen.
+///
+/// # Errors
+///
+/// If Girsa is not running, or refuses, or answers something unreadable.
+pub fn linkify(prose: &str) -> Result<String, String> {
+    #[derive(serde::Deserialize)]
+    struct Found {
+        found: Vec<Linked>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Linked {
+        from: usize,
+        to: usize,
+        text: String,
+        reference: String,
+    }
+
+    let errand = serde_json::json!({ "text": prose }).to_string();
+    let answer = girsa_post::send(App::Girsa, "/linkify", Some(&errand)).map_err(|e| e.to_string())?;
+    let found: Found = serde_json::from_str(&answer).map_err(|e| e.to_string())?;
+
+    // Back to front, so an earlier replacement cannot move a later one's
+    // offsets. The offsets are in characters, which is what they were counted
+    // in — Hebrew is two bytes a letter and a byte offset lands mid-character
+    // about half the time.
+    let mut chars: Vec<char> = prose.chars().collect();
+    for link in found.found.iter().rev() {
+        if link.to > chars.len() || link.from >= link.to {
+            continue;
+        }
+        let markup: Vec<char> = girsa_ksav::live_citation(&link.text, &link.reference)
+            .chars()
+            .collect();
+        chars.splice(link.from..link.to, markup);
+    }
+    Ok(chars.into_iter().collect())
+}
+
 /// Whether the library is there, for an affordance that would otherwise fail.
 #[must_use]
 pub fn girsa() -> girsa_post::Presence {

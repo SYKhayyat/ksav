@@ -39,7 +39,22 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
+      # Two checkouts, side by side, exactly as they sit on a desk.
+      #
+      # Ksav reaches the shared crates as `../../../sefer-crates/crates/…`, so a
+      # lone checkout of this repository cannot resolve `girsa-post`,
+      # `girsa-source` or `girsa-ksav` — `cargo metadata` fails before any
+      # compiler runs. This file checked out one of the two, which meant the next
+      # tag pushed would have produced no installers on any of the four targets.
+      # `ci.yml` had the same hole and hit it first. Nothing had noticed because
+      # neither had ever run.
       - uses: actions/checkout@v4
+        with:
+          path: Ksav
+      - uses: actions/checkout@v4
+        with:
+          repository: SYKhayyat/sefer-crates
+          path: sefer-crates
 
       # webkit2gtk is the webview Tauri renders into on Linux; the ayatana
       # appindicator and librsvg are what the .deb and .AppImage bundlers link
@@ -61,27 +76,27 @@ jobs:
       # compiler, which is not a quick compile from cold.
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./ksav/app/src-tauri -> target"
+          workspaces: "./Ksav/ksav/app/src-tauri -> target"
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install front-end dependencies
-        working-directory: ./ksav/app
+        working-directory: ./Ksav/ksav/app
         run: npm ci
 
       # Cheap, and it fails the build before a 20-minute Rust compile if the
       # editor code is broken.
       - name: Test and typecheck
-        working-directory: ./ksav/app
+        working-directory: ./Ksav/ksav/app
         run: |
           npm test
           npx tsc --noEmit
 
       - name: Engine tests
         if: matrix.platform == 'ubuntu-22.04'
-        working-directory: ./ksav/engine
+        working-directory: ./Ksav/ksav/engine
         run: cargo test --release
 
       - uses: tauri-apps/tauri-action@v0
@@ -95,7 +110,7 @@ jobs:
           #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY
           #   TAURI_SIGNING_PRIVATE_KEY (updater)
         with:
-          projectPath: ./ksav/app
+          projectPath: ./Ksav/ksav/app
           tagName: ${{ github.ref_name }}
           releaseName: "Ksav ${{ github.ref_name }}"
           # The installers are unsigned, so every operating system shows a scary

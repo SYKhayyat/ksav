@@ -7,6 +7,22 @@
 #
 # Deliberately not the release matrix: this has to be fast enough that people
 # wait for it. It builds the engine once on Linux and runs everything.
+#
+# # The two checkouts
+#
+# Ksav compiles the shared crates from a **sibling checkout**:
+# `girsa-post`, `girsa-source`, `girsa-ksav` and friends are reached as
+# `path = "../../../sefer-crates/crates/…"`, which on a desk means
+# `Videos/Ksav` and `Videos/sefer-crates` side by side. This file checked out
+# one of the two, so from the moment Ksav gained those dependencies every Rust
+# job here failed at `cargo metadata` with
+# *unable to update …/sefer-crates/crates/girsa-ksav*, before reaching a
+# compiler. The remote had just been created, so the very first run said so.
+#
+# Hence `path: Ksav` and `path: sefer-crates`: the two checkouts have to sit
+# beside each other exactly as they do on a desk, which is also what Girsa's
+# workflow and `sefer-crates/tools/check-dependents.sh` already do. The `editor`
+# job is the one exception — it is TypeScript only and resolves no Rust.
 
 name: ci
 
@@ -52,6 +68,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: Ksav
+      - uses: actions/checkout@v4
+        with:
+          repository: SYKhayyat/sefer-crates
+          path: sefer-crates
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -59,15 +81,15 @@ jobs:
       # compile from cold.
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./ksav/engine -> target"
+          workspaces: "./Ksav/ksav/engine -> target"
 
       # The engine's own standard is 0 warnings; enforce it rather than trust it.
       - name: Clippy
-        working-directory: ./ksav/engine
+        working-directory: ./Ksav/ksav/engine
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Test
-        working-directory: ./ksav/engine
+        working-directory: ./Ksav/ksav/engine
         run: cargo test --release
 
   # Formatting, across every Rust tree in this repository.
@@ -80,26 +102,34 @@ jobs:
   # of that agreement.
   #
   # Its own job because it needs no build, no cache and no system libraries: it
-  # answers in seconds instead of queueing behind the Typst compiler.
+  # answers in seconds instead of queueing behind the Typst compiler. It does
+  # need the sibling checkout, because `cargo fmt` resolves the manifest before
+  # it formats anything.
   fmt:
     name: formatting
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: Ksav
+      - uses: actions/checkout@v4
+        with:
+          repository: SYKhayyat/sefer-crates
+          path: sefer-crates
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       # `prototypes/flutter-app/rust` is deliberately absent: nothing in this
       # file builds, tests or ships it, and gating an abandoned prototype would
-      # be a check nobody can act on.
+      # be a red nobody can act on.
       - name: Engine
-        working-directory: ./ksav/engine
+        working-directory: ./Ksav/ksav/engine
         run: cargo fmt -- --check
       - name: Browser engine
-        working-directory: ./ksav/wasm
+        working-directory: ./Ksav/ksav/wasm
         run: cargo fmt -- --check
       - name: Desktop shell
-        working-directory: ./ksav/app/src-tauri
+        working-directory: ./Ksav/ksav/app/src-tauri
         run: cargo fmt -- --check
 
   wasm:
@@ -107,17 +137,23 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: Ksav
+      - uses: actions/checkout@v4
+        with:
+          repository: SYKhayyat/sefer-crates
+          path: sefer-crates
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./ksav/wasm -> target"
+          workspaces: "./Ksav/ksav/wasm -> target"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ksav/app/package-lock.json
+          cache-dependency-path: Ksav/ksav/app/package-lock.json
       - uses: jetli/wasm-pack-action@v0.4.0
 
       # The in-browser build is one of the three ways Ksav ships, and it was the
@@ -127,18 +163,18 @@ jobs:
       # is a genuinely different target, and the engine reaching for threads, the
       # filesystem or the clock fails here and nowhere else.
       - name: Build the wasm engine
-        working-directory: ./ksav/wasm
+        working-directory: ./Ksav/ksav/wasm
         run: wasm-pack build --target web --release --out-dir pkg
 
       - name: Install
-        working-directory: ./ksav/app
+        working-directory: ./Ksav/ksav/app
         run: npm ci
 
       # `build:wasm` is the offline bundle, and it is a different Vite graph from
       # the default build: the worker chunk and the engine module are only pulled
       # in when VITE_WASM=1, so the default build passing says nothing about it.
       - name: Bundle the offline build
-        working-directory: ./ksav/app
+        working-directory: ./Ksav/ksav/app
         run: |
           mkdir -p src/wasmpkg
           cp ../wasm/pkg/ksav_wasm.js ../wasm/pkg/ksav_wasm.d.ts src/wasmpkg/
@@ -150,7 +186,7 @@ jobs:
       # answers. A wasm binary that instantiates and then panics on first use
       # would pass every step above this one.
       - name: Run the engine
-        working-directory: ./ksav/app
+        working-directory: ./Ksav/ksav/app
         run: node ../../.github/scripts/wasm-smoke.mjs
 
   desktop:
@@ -158,6 +194,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: Ksav
+      - uses: actions/checkout@v4
+        with:
+          repository: SYKhayyat/sefer-crates
+          path: sefer-crates
       # libappindicator3-dev and libayatana-appindicator3-dev CONFLICT: the
       # ayatana package Replaces: the old one, so asking for both makes apt exit
       # 100 and the job never reaches a compiler. Tauri v2 wants ayatana; install
@@ -172,9 +214,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./ksav/app/src-tauri -> target"
+          workspaces: "./Ksav/ksav/app/src-tauri -> target"
       # Compiles the Tauri commands and runs the path-allowlist tests. The
       # bundlers are release.yml's job; this only has to prove the shell builds.
       - name: Test
-        working-directory: ./ksav/app/src-tauri
+        working-directory: ./Ksav/ksav/app/src-tauri
         run: cargo test

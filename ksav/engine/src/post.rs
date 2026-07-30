@@ -30,17 +30,21 @@
 //! format*. If the editor were handed a packet and left to render it, there
 //! would be a second renderer in TypeScript and the two would drift.
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use girsa_post::desk::{Desk, Reply};
-use girsa_post::App;
+use girsa_post::{App, Endpoint};
 use girsa_source::SourcePacket;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::source::{to_ksav, CitationPlacement};
 
 /// A source that has arrived and is waiting for the cursor.
-#[derive(Debug, Clone, Serialize)]
+///
+/// `Deserialize` as well as `Serialize` because the inbox is written down —
+/// see [`remember`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Arrival {
     /// Real Ksav markup, ready to be inserted as it stands.
     pub markup: String,
@@ -63,7 +67,120 @@ pub struct Arrival {
 /// A `Vec` and not a channel: the editor polls, and a channel that nothing is
 /// reading from while the window is closed is a channel that either blocks the
 /// sender or throws the source away.
+///
+/// The `Vec` threw the source away too — just at process exit rather than
+/// immediately. See [`remember`]; this is now a cache of a file.
 static INBOX: Mutex<Vec<Arrival>> = Mutex::new(Vec::new());
+
+/// How many sources may wait at once.
+///
+/// The inbox was unbounded, so a Ksav whose editor nobody had opened would
+/// accept sources for as long as Girsa cared to send them and hold every one.
+/// Sixty-four is far more than a writer queues by hand between two glances at
+/// the window, which makes the sixty-fifth evidence that the editor is not
+/// running — and it is told so, rather than joining a queue nothing drains.
+const WAITING_ROOM: usize = 64;
+
+/// Where sources wait between runs.
+///
+/// Beside the endpoint file, and *derived* from it rather than recomputed:
+/// `girsa-post` is what decides where this user's pairing state lives, and
+/// what `GIRSA_POST_HOME` does to that. Asking it is what stops this drifting
+/// away from it.
+fn inbox_path() -> Option<PathBuf> {
+    Endpoint::path(App::Ksav)
+        .parent()
+        .map(|dir| dir.join("ksav-inbox.jsonl"))
+}
+
+/// Write down what is waiting.
+///
+/// `{"taken":true}` is a promise, and until this existed Ksav could not keep
+/// it. The inbox was memory only and drained only when the editor polled, so
+/// closing the window between the send and the poll destroyed the source —
+/// with Girsa already told it had arrived, and no way to learn otherwise.
+/// spec.md §10's stated target is AirDrop, and AirDrop does not lose the file
+/// when you close the window.
+///
+/// The whole list is rewritten rather than appended to. An importer in this
+/// project once opened its shards in append mode and doubled a graph on the
+/// second run; the same mistake here would put a quote in a document twice.
+fn remember(waiting: &[Arrival]) {
+    let Some(path) = inbox_path() else { return };
+    let mut body = String::new();
+    for arrival in waiting {
+        if let Ok(line) = serde_json::to_string(arrival) {
+            body.push_str(&line);
+            body.push('\n');
+        }
+    }
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::write(&path, body);
+}
+
+/// Take back what was still waiting when this process last stopped.
+///
+/// In front of anything this run has already been handed: those sources were
+/// sent first, and the order a writer sent things in is the order they should
+/// arrive in.
+fn recover() {
+    let Some(path) = inbox_path() else { return };
+    let Ok(body) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let mut recovered = Vec::new();
+    for (n, line) in body.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<Arrival>(line) {
+            Ok(arrival) => recovered.push(arrival),
+            // One unreadable line is one source. Said out loud, and the rest
+            // still arrive — the same rule the library's loaders keep.
+            Err(e) => eprintln!(
+                "a source that was waiting will not read ({}: line {}): {e}",
+                path.display(),
+                n + 1
+            ),
+        }
+    }
+    if recovered.is_empty() {
+        return;
+    }
+    if let Ok(mut inbox) = INBOX.lock() {
+        recovered.extend(inbox.drain(..));
+        *inbox = recovered;
+    }
+}
+
+/// Put one arrival in the inbox, or say why not.
+///
+/// One place, so the two errands that take sources cannot disagree about the
+/// cap or about being written down.
+fn wait(arrival: Arrival) -> Reply {
+    match INBOX.lock() {
+        Ok(mut inbox) => {
+            if inbox.len() >= WAITING_ROOM {
+                // Refused, not silently dropped and not queued forever. Girsa
+                // shows this sentence, so the writer learns the editor is shut
+                // instead of wondering where the quote went.
+                return Reply::refused(
+                    503,
+                    format!(
+                        "{WAITING_ROOM} sources are already waiting and nothing has taken \
+                         them — open the Ksav editor and they will all go in"
+                    ),
+                );
+            }
+            inbox.push(arrival);
+            remember(&inbox);
+            Reply::ok(r#"{"taken":true}"#)
+        }
+        Err(_) => Reply::refused(500, "the inbox is wedged"),
+    }
+}
 
 /// Open the desk and start taking sources.
 ///
@@ -74,6 +191,9 @@ static INBOX: Mutex<Vec<Arrival>> = Mutex::new(Vec::new());
 /// the desk it simply cannot be handed anything.
 pub fn open_desk(version: &str) -> Result<Desk, std::io::Error> {
     let desk = Desk::open(App::Ksav, version)?;
+    // Anything a previous run was told it had taken, and had not yet handed to
+    // the editor, is still owed to the writer.
+    recover();
     desk.serve(|path, body| match path {
         "/insert" => take(body),
         "/document" => take_document(body),
@@ -98,13 +218,7 @@ fn take(body: &str) -> Reply {
         reference: packet.reference.clone(),
         whole: false,
     };
-    match INBOX.lock() {
-        Ok(mut inbox) => {
-            inbox.push(arrival);
-            Reply::ok(r#"{"taken":true}"#)
-        }
-        Err(_) => Reply::refused(500, "the inbox is wedged"),
-    }
+    wait(arrival)
 }
 
 /// A whole buffer, handed over from Girsa's own Ksav buffer.
@@ -129,13 +243,7 @@ fn take_document(body: &str) -> Reply {
         reference: String::new(),
         whole: true,
     };
-    match INBOX.lock() {
-        Ok(mut inbox) => {
-            inbox.push(arrival);
-            Reply::ok(r#"{"taken":true}"#)
-        }
-        Err(_) => Reply::refused(500, "the inbox is wedged"),
-    }
+    wait(arrival)
 }
 
 /// Everything waiting, taken off the list.
@@ -145,10 +253,16 @@ fn take_document(body: &str) -> Reply {
 /// the reader has to ask for again.
 #[must_use]
 pub fn drain() -> Vec<Arrival> {
-    INBOX
+    let taken = INBOX
         .lock()
         .map(|mut inbox| std::mem::take(&mut *inbox))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if !taken.is_empty() {
+        // They are in the editor now, so they are not waiting any more. If
+        // this did not happen, the next start would insert them a second time.
+        remember(&[]);
+    }
+    taken
 }
 
 /// The same, as JSON, for the editor's poll.
@@ -271,11 +385,76 @@ mod tests {
     static ALONE: Mutex<()> = Mutex::new(());
 
     fn alone() -> std::sync::MutexGuard<'static, ()> {
+        // The inbox is written down now, so without this the suite would be
+        // reading and truncating the file belonging to a Ksav somebody is
+        // actually running.
+        static SCRATCH: std::sync::Once = std::sync::Once::new();
+        SCRATCH.call_once(|| {
+            let dir = std::env::temp_dir().join("ksav-post-tests");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::create_dir_all(&dir);
+            std::env::set_var("GIRSA_POST_HOME", &dir);
+        });
         let guard = ALONE
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = drain();
         guard
+    }
+
+    /// Closing the window between the send and the poll must not lose it.
+    ///
+    /// A process cannot restart itself inside a test, so this does the one
+    /// thing about process death that matters here: it drops the in-memory
+    /// inbox without touching what was written down, then opens again.
+    #[test]
+    fn a_source_taken_before_the_window_closed_is_there_when_it_opens() {
+        let _alone = alone();
+        arrived(PACKET).expect("a real packet");
+
+        // The window closes. Whether `Desk::drop` ran or the process was
+        // killed, this `Vec` went with it.
+        INBOX.lock().map(|mut inbox| inbox.clear()).unwrap();
+        recover();
+
+        let waiting = drain();
+        assert_eq!(
+            waiting.len(),
+            1,
+            "Girsa was told the source had arrived, and then it was thrown away"
+        );
+        assert_eq!(waiting[0].reference, "girsa:shulchan-arukh/orach-chayim/1:3");
+    }
+
+    /// And one the editor already took does not come back on the next start.
+    #[test]
+    fn a_source_already_inserted_does_not_arrive_a_second_time() {
+        let _alone = alone();
+        arrived(PACKET).expect("a real packet");
+        assert_eq!(drain().len(), 1);
+
+        INBOX.lock().map(|mut inbox| inbox.clear()).unwrap();
+        recover();
+        assert!(
+            drain().is_empty(),
+            "a quote in a document twice is worse than one the reader asks for again"
+        );
+    }
+
+    /// The waiting room has a wall, and it says so instead of growing.
+    #[test]
+    fn an_inbox_nothing_is_draining_refuses_rather_than_growing() {
+        let _alone = alone();
+        for _ in 0..WAITING_ROOM {
+            arrived(PACKET).expect("a real packet");
+        }
+        let why = arrived(PACKET).expect_err("the waiting room is full");
+        assert!(why.contains("open the Ksav editor"), "{why}");
+        assert_eq!(
+            drain().len(),
+            WAITING_ROOM,
+            "refusing the last one must not cost the ones already waiting"
+        );
     }
 
     #[test]

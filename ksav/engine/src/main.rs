@@ -6,18 +6,59 @@
 //! Writes `<name>.pdf` and `<name>.page-N.svg` into the output dir
 //! (default: alongside the input) and prints any compiler diagnostics.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ksav_engine::{compile, DocConfig};
 
+/// The usage text, written wherever it is asked for.
+///
+/// One copy, so the text somebody gets by asking is the text they get by
+/// getting it wrong. It used to exist only on the no-arguments path, which
+/// meant `ksav --help` fell through to the compile path and came back as
+/// `error: cannot read --help: The system cannot find the file specified` —
+/// the usage was right there and unreachable by the obvious route.
+fn usage(to: &mut dyn Write) {
+    let _ = writeln!(to, "usage:");
+    let _ = writeln!(
+        to,
+        "  ksav <input.ksav> [output_dir]   compile to PDF + SVG"
+    );
+    let _ = writeln!(
+        to,
+        "  ksav serve [addr]                launch the web editor (default 127.0.0.1:7878)"
+    );
+    let _ = writeln!(
+        to,
+        "  ksav --help                      this text"
+    );
+    let _ = writeln!(
+        to,
+        "  ksav --version                   which Ksav this is"
+    );
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        eprintln!("usage:");
-        eprintln!("  ksav <input.ksav> [output_dir]   compile to PDF + SVG");
-        eprintln!("  ksav serve [addr]                launch the web editor (default 127.0.0.1:7878)");
-        return ExitCode::from(2);
+    match args.get(1).map(String::as_str) {
+        // Asked for, so it goes to stdout and succeeds. Asking for help and
+        // being handed a non-zero exit is the same class of small lie as the
+        // rest of this file's exit codes exist to avoid.
+        Some("--help" | "-h" | "help") => {
+            usage(&mut std::io::stdout());
+            return ExitCode::SUCCESS;
+        }
+        Some("--version" | "-V") => {
+            println!("ksav {}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
+        // Not asked for: stderr, and 2 — a usage error, like everywhere else.
+        None => {
+            usage(&mut std::io::stderr());
+            return ExitCode::from(2);
+        }
+        Some(_) => {}
     }
 
     if args[1] == "serve" {

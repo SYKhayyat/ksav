@@ -312,7 +312,27 @@ pub fn serve(addr: &str) {
     // it is what withdraws the endpoint file.
     let _desk = match crate::post::open_desk(env!("CARGO_PKG_VERSION")) {
         Ok(desk) => {
-            println!("paired with Girsa on 127.0.0.1:{}", desk.port());
+            // This is *our* port: the desk Girsa may post into. Whether Girsa
+            // is there is a different question, and `post::girsa()` is the one
+            // that answers it — it reads the endpoint file and then asks it.
+            //
+            // This line used to read "paired with Girsa on {desk.port()}",
+            // which named Ksav's own port and claimed a pairing on the strength
+            // of nothing but our own listener having bound. spec.md §10.6 has
+            // presence so that *"the affordance is never offered when it would
+            // fail"*; announcing a sibling that is not running inverts it.
+            println!("listening for Girsa on 127.0.0.1:{}", desk.port());
+            match crate::post::girsa() {
+                girsa_post::Presence::Live { version } => {
+                    println!("Girsa is running (v{version}) and can hand this editor a source");
+                }
+                girsa_post::Presence::NotRunning => {
+                    println!("Girsa is not running — start it to hand sources across");
+                }
+                girsa_post::Presence::Stale { why } => {
+                    println!("Girsa left an endpoint behind but does not answer: {why}");
+                }
+            }
             Some(desk)
         }
         Err(e) => {

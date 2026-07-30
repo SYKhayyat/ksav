@@ -43,7 +43,11 @@ fn ordinary_english_passes_cleanly() {
     let text = "The quick brown fox jumps over the lazy dog. It doesn't mind, \
                 and neither do the dogs' owners, who recognise a well-known \
                 phrase when they see one — even at 3 a.m. in a café.";
-    assert!(flagged(text).is_empty(), "clean English was flagged: {:?}", flagged(text));
+    assert!(
+        flagged(text).is_empty(),
+        "clean English was flagged: {:?}",
+        flagged(text)
+    );
 }
 
 #[test]
@@ -51,7 +55,15 @@ fn british_canadian_and_australian_spellings_are_all_english() {
     // A bochur in Gateshead writes "recognise" and one in Lakewood writes
     // "recognize". Flagging either is the checker having an opinion it was not
     // asked for; the word list carries every English-speaking spelling.
-    for w in ["colour", "color", "recognise", "recognize", "theatre", "theater", "practise"] {
+    for w in [
+        "colour",
+        "color",
+        "recognise",
+        "recognize",
+        "theatre",
+        "theater",
+        "practise",
+    ] {
         assert!(flagged(w).is_empty(), "{w:?} was flagged");
     }
 }
@@ -63,17 +75,63 @@ fn it_knows_the_words_a_general_english_dictionary_rejects() {
     // general English dictionary. Underline them and the checker is useless in
     // exactly the sentence someone wanted to write.
     let must_know = [
-        "Shabbos", "Shabbat", "Shabbes", "daven", "davening", "bentching",
-        "gemara", "mishnayos", "halacha", "halachos", "posek", "poskim", "paskens",
-        "sefer", "seforim", "bochur", "bochurim", "chavrusa", "chaburah",
-        "rebbe", "rebbetzin", "kollel", "yeshivos", "shiur", "sugya", "machlokes",
-        "Rashi", "Rambam", "Ramban", "Tosafos", "Maharsha", "Acharonim", "Rishonim",
-        "kashrus", "chometz", "shkiah", "zmanim", "minyan", "parsha", "posuk",
-        "Tishrei", "Kislev", "Elul", "Sukkos", "Shavuos", "Chanukah",
+        "Shabbos",
+        "Shabbat",
+        "Shabbes",
+        "daven",
+        "davening",
+        "bentching",
+        "gemara",
+        "mishnayos",
+        "halacha",
+        "halachos",
+        "posek",
+        "poskim",
+        "paskens",
+        "sefer",
+        "seforim",
+        "bochur",
+        "bochurim",
+        "chavrusa",
+        "chaburah",
+        "rebbe",
+        "rebbetzin",
+        "kollel",
+        "yeshivos",
+        "shiur",
+        "sugya",
+        "machlokes",
+        "Rashi",
+        "Rambam",
+        "Ramban",
+        "Tosafos",
+        "Maharsha",
+        "Acharonim",
+        "Rishonim",
+        "kashrus",
+        "chometz",
+        "shkiah",
+        "zmanim",
+        "minyan",
+        "parsha",
+        "posuk",
+        "Tishrei",
+        "Kislev",
+        "Elul",
+        "Sukkos",
+        "Shavuos",
+        "Chanukah",
     ];
     let l = en();
-    let missing: Vec<&str> = must_know.iter().copied().filter(|w| !l.contains(w)).collect();
-    assert!(missing.is_empty(), "English lexicon is missing: {missing:?}");
+    let missing: Vec<&str> = must_know
+        .iter()
+        .copied()
+        .filter(|w| !l.contains(w))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "English lexicon is missing: {missing:?}"
+    );
 }
 
 #[test]
@@ -82,7 +140,15 @@ fn the_interfaces_own_english_is_not_underlined() {
     // a writer sees, and `Ctrl` — which the starter names twice — is not in any
     // English dictionary. Whatever else the checker gets wrong, it must not open
     // by underlining the product's own words.
-    for w in ["Ksav", "Typst", "Ctrl", "Esc", "Cmd", "typesets", "CodeMirror"] {
+    for w in [
+        "Ksav",
+        "Typst",
+        "Ctrl",
+        "Esc",
+        "Cmd",
+        "typesets",
+        "CodeMirror",
+    ] {
         assert!(flagged(w).is_empty(), "{w:?} was flagged");
     }
 }
@@ -105,7 +171,10 @@ fn neither_starter_document_opens_covered_in_squiggles() {
     for name in ["STARTER_HE", "STARTER_EN"] {
         let body = starter(source, name);
         let flagged: Vec<String> = checker.check(&body).into_iter().map(|m| m.word).collect();
-        assert!(flagged.is_empty(), "{name} contains flagged words: {flagged:?}");
+        assert!(
+            flagged.is_empty(),
+            "{name} contains flagged words: {flagged:?}"
+        );
     }
 }
 
@@ -143,8 +212,18 @@ fn ordinary_typos_are_still_caught() {
     // surface for a typo to slip through; these are the commonest English
     // misspellings there are and every one of them must still be wrong.
     let typos = [
-        "recieve", "seperate", "definately", "occured", "untill", "concious",
-        "neccessary", "acheive", "beleive", "goverment", "publically", "wich",
+        "recieve",
+        "seperate",
+        "definately",
+        "occured",
+        "untill",
+        "concious",
+        "neccessary",
+        "acheive",
+        "beleive",
+        "goverment",
+        "publically",
+        "wich",
     ];
     for t in typos {
         assert!(!flagged(t).is_empty(), "{t:?} was accepted as a word");
@@ -168,8 +247,14 @@ fn a_capitalised_entry_does_not_accept_the_lowercase_form() {
     // The asymmetry is the whole reason case is stored at all. `Abimelech` comes
     // from the JPS 1917 corpus and is a proper noun there; `abimelech` is not a
     // word, and a checker that shrugged at it would be storing case for nothing.
-    assert!(flagged("Abimelech").is_empty(), "the proper noun was flagged");
-    assert!(flagged("ABIMELECH").is_empty(), "the shouted proper noun was flagged");
+    assert!(
+        flagged("Abimelech").is_empty(),
+        "the proper noun was flagged"
+    );
+    assert!(
+        flagged("ABIMELECH").is_empty(),
+        "the shouted proper noun was flagged"
+    );
     assert_eq!(flagged("abimelech"), vec!["abimelech".to_string()]);
 }
 
@@ -209,7 +294,10 @@ fn a_possessive_is_not_a_new_word() {
     // The curly apostrophe every word processor produces must fold to the ASCII
     // one the word lists use, or every possessive in a pasted paragraph is a
     // miss.
-    assert!(flagged("Rashi\u{2019}s").is_empty(), "a curly apostrophe broke the possessive");
+    assert!(
+        flagged("Rashi\u{2019}s").is_empty(),
+        "a curly apostrophe broke the possessive"
+    );
     // A plural possessive keeps its trailing apostrophe outside the word.
     assert!(flagged("the bochurim' seforim").is_empty());
 }
@@ -219,8 +307,18 @@ fn a_transliterated_prefix_is_stripped() {
     // Hebrew glues its prepositions onto the front of a word and English Torah
     // writing carries that over with an apostrophe. The combinations are
     // open-ended, which is why this is a rule and not a list.
-    for w in ["l'halacha", "b'gemara", "v'shabbos", "d'rabbanan", "d'oraisa", "L'Halacha"] {
-        assert!(flagged(w).is_empty(), "{w:?} was not recognised through its prefix");
+    for w in [
+        "l'halacha",
+        "b'gemara",
+        "v'shabbos",
+        "d'rabbanan",
+        "d'oraisa",
+        "L'Halacha",
+    ] {
+        assert!(
+            flagged(w).is_empty(),
+            "{w:?} was not recognised through its prefix"
+        );
     }
 }
 
@@ -231,7 +329,10 @@ fn prefix_stripping_stays_bounded() {
     // stem long enough to be a word.
     assert!(!flagged("z'halacha").is_empty(), "z is not a prefix letter");
     assert!(!flagged("l'xyz").is_empty(), "a nonsense stem was accepted");
-    assert!(!flagged("l'ha").is_empty(), "a two-letter stem was accepted");
+    assert!(
+        !flagged("l'ha").is_empty(),
+        "a two-letter stem was accepted"
+    );
 }
 
 // ── suggestions ─────────────────────────────────────────────────────────────
@@ -254,8 +355,16 @@ fn suggestions_come_back_in_the_case_that_was_typed() {
     // Replacing `Teh` at the start of a sentence with `the` would fix the
     // spelling and break the sentence.
     let l = en();
-    assert!(l.suggest("Teh", 8).iter().any(|s| s == "The"), "{:?}", l.suggest("Teh", 8));
-    assert!(l.suggest("TEH", 8).iter().any(|s| s == "THE"), "{:?}", l.suggest("TEH", 8));
+    assert!(
+        l.suggest("Teh", 8).iter().any(|s| s == "The"),
+        "{:?}",
+        l.suggest("Teh", 8)
+    );
+    assert!(
+        l.suggest("TEH", 8).iter().any(|s| s == "THE"),
+        "{:?}",
+        l.suggest("TEH", 8)
+    );
 }
 
 #[test]
@@ -271,7 +380,10 @@ fn a_suggestion_never_loses_a_proper_nouns_capital() {
 
 #[test]
 fn a_contraction_is_one_word_not_two() {
-    let toks: Vec<&str> = spell::words("don't stop, it's Rashi's").iter().map(|t| t.text).collect();
+    let toks: Vec<&str> = spell::words("don't stop, it's Rashi's")
+        .iter()
+        .map(|t| t.text)
+        .collect();
     assert!(toks.contains(&"don't"), "{toks:?}");
     assert!(toks.contains(&"it's"), "{toks:?}");
     assert!(toks.contains(&"Rashi's"), "{toks:?}");
@@ -282,7 +394,10 @@ fn a_hyphenated_compound_is_checked_in_halves() {
     let toks: Vec<&str> = spell::words("well-known").iter().map(|t| t.text).collect();
     assert_eq!(toks, vec!["well", "known"]);
     assert!(flagged("well-known").is_empty());
-    assert!(!flagged("well-knwon").is_empty(), "the misspelled half was not caught");
+    assert!(
+        !flagged("well-knwon").is_empty(),
+        "the misspelled half was not caught"
+    );
 }
 
 #[test]
@@ -290,7 +405,11 @@ fn a_token_carrying_a_digit_is_not_prose() {
     // Binding digits to the run is what keeps `ver2` from arriving as a bare
     // `ver` to be underlined.
     for text in ["MP3", "ver2", "H2O", "1st", "COVID-19"] {
-        assert!(flagged(text).is_empty(), "{text:?} produced squiggles: {:?}", flagged(text));
+        assert!(
+            flagged(text).is_empty(),
+            "{text:?} produced squiggles: {:?}",
+            flagged(text)
+        );
     }
 }
 
@@ -298,17 +417,32 @@ fn a_token_carrying_a_digit_is_not_prose() {
 fn gershayim_hold_an_english_abbreviation_together() {
     // English Torah writing keeps the Hebrew abbreviation mark even when the
     // letters around it are Latin. Splitting on it produces `zt` and a squiggle.
-    let toks: Vec<&str> = spell::words("Reb Moshe zt\"l said").iter().map(|t| t.text).collect();
-    assert!(toks.contains(&"zt\"l"), "the abbreviation was split: {toks:?}");
+    let toks: Vec<&str> = spell::words("Reb Moshe zt\"l said")
+        .iter()
+        .map(|t| t.text)
+        .collect();
+    assert!(
+        toks.contains(&"zt\"l"),
+        "the abbreviation was split: {toks:?}"
+    );
     for w in ["zt\"l", "shlit\"a", "a\"h", "hy\"d"] {
         assert!(flagged(w).is_empty(), "{w:?} was flagged");
     }
     // The curly form an editor produces folds to the same entry.
-    assert!(flagged("zt\u{201D}l").is_empty(), "curly gershayim broke the lookup");
+    assert!(
+        flagged("zt\u{201D}l").is_empty(),
+        "curly gershayim broke the lookup"
+    );
     // …and an ordinary quotation is still punctuation, not part of the word.
-    let quoted: Vec<&str> = spell::words("he said \"hello\" then").iter().map(|t| t.text).collect();
+    let quoted: Vec<&str> = spell::words("he said \"hello\" then")
+        .iter()
+        .map(|t| t.text)
+        .collect();
     assert!(quoted.contains(&"hello"), "{quoted:?}");
-    assert!(!quoted.iter().any(|w| w.contains('"')), "a quote glued on: {quoted:?}");
+    assert!(
+        !quoted.iter().any(|w| w.contains('"')),
+        "a quote glued on: {quoted:?}"
+    );
 }
 
 #[test]
@@ -318,8 +452,14 @@ fn a_command_head_is_not_a_word() {
     // right on raw Ksav source, which is what the template tests and any library
     // embedder feed it. The Hebrew commands only ever escaped notice because
     // their names happen to be Hebrew words.
-    assert!(flagged("#mktable(columns: 2)").is_empty(), "a command head was flagged");
-    assert!(flagged("headcell[Posek]").is_empty(), "a bare call head was flagged");
+    assert!(
+        flagged("#mktable(columns: 2)").is_empty(),
+        "a command head was flagged"
+    );
+    assert!(
+        flagged("headcell[Posek]").is_empty(),
+        "a bare call head was flagged"
+    );
     // A word is still a word when it is not a call.
     assert_eq!(flagged("entirley"), vec!["entirley".to_string()]);
 }
@@ -344,7 +484,10 @@ fn a_bilingual_sentence_is_checked_in_both_languages() {
     let checker = Checker::new(Some(&he), Some(&en));
     let text = "The Rambam writes כשכשכשכש about this entirley.";
     let found = checker.check(text);
-    let words: Vec<(&str, &str)> = found.iter().map(|m| (m.word.as_str(), m.lang.code())).collect();
+    let words: Vec<(&str, &str)> = found
+        .iter()
+        .map(|m| (m.word.as_str(), m.lang.code()))
+        .collect();
     assert!(words.contains(&("כשכשכשכש", "he")), "{words:?}");
     assert!(words.contains(&("entirley", "en")), "{words:?}");
     assert_eq!(found.len(), 2, "something else was flagged too: {words:?}");
@@ -411,7 +554,10 @@ fn the_supplement_is_written_in_lowercase() {
         .filter(|w| !w.is_empty() && !w.starts_with('#'))
         .filter(|w| *w != w.to_lowercase())
         .collect();
-    assert!(wrong.is_empty(), "supplement entries carry a capital: {wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "supplement entries carry a capital: {wrong:?}"
+    );
 }
 
 #[test]
@@ -476,7 +622,10 @@ fn english_offsets_are_utf16_units_not_bytes() {
     let start = m["start"].as_u64().unwrap() as usize;
     let len = m["len"].as_u64().unwrap() as usize;
     let utf16: Vec<u16> = text.encode_utf16().collect();
-    assert_eq!(String::from_utf16(&utf16[start..start + len]).unwrap(), "entirley");
+    assert_eq!(
+        String::from_utf16(&utf16[start..start + len]).unwrap(),
+        "entirley"
+    );
 }
 
 #[test]
@@ -484,8 +633,10 @@ fn a_request_can_teach_the_english_checker_a_word() {
     let text = "My chavrusa is Guttenmacher.";
     let plain = serde_json::json!({ "text": text }).to_string();
     let taught = serde_json::json!({ "text": text, "user_words": "Guttenmacher" }).to_string();
-    let a: serde_json::Value = serde_json::from_str(&ksav_engine::spell::spell_request(&plain)).unwrap();
-    let b: serde_json::Value = serde_json::from_str(&ksav_engine::spell::spell_request(&taught)).unwrap();
+    let a: serde_json::Value =
+        serde_json::from_str(&ksav_engine::spell::spell_request(&plain)).unwrap();
+    let b: serde_json::Value =
+        serde_json::from_str(&ksav_engine::spell::spell_request(&taught)).unwrap();
     assert_eq!(a["misspellings"].as_array().unwrap().len(), 1);
     assert_eq!(
         b["misspellings"].as_array().unwrap().len(),

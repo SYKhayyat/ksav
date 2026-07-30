@@ -68,8 +68,14 @@ fn tiered_footnote_number_stays_on_its_body_line() {
 #[test]
 fn tiered_notes_land_below_the_main_text() {
     let runs = render("טקסט#הערה_א[ההערה].");
-    let main = runs.iter().find(|r| r.text.contains("טקסט")).expect("main text");
-    let note = runs.iter().find(|r| r.text.contains("ההערה")).expect("note");
+    let main = runs
+        .iter()
+        .find(|r| r.text.contains("טקסט"))
+        .expect("main text");
+    let note = runs
+        .iter()
+        .find(|r| r.text.contains("ההערה"))
+        .expect("note");
     assert_eq!(note.page, main.page, "footnote left its anchor's page");
     assert!(
         note.y > main.y,
@@ -191,10 +197,7 @@ fn page_number_sits_at_the_same_height_on_every_page() {
     // The reserved region is fixed, so a page carrying a heavy apparatus and a
     // page carrying none must still print their number in the same place.
     let (runs, _) = render_with(
-        &format!(
-            "ראש#מדף_א[פתיחה #מדף_ב[שנייה]] {f} {f} סוף.",
-            f = filler()
-        ),
+        &format!("ראש#מדף_א[פתיחה #מדף_ב[שנייה]] {f} {f} סוף.", f = filler()),
         &DocConfig::default(),
     );
     let mut ys: Vec<(usize, f64)> = Vec::new();
@@ -288,7 +291,8 @@ fn sidenotes_align_to_their_own_marker_line() {
             .unwrap_or_else(|| panic!("{n:?} not rendered"))
     };
     // Each note sits within a line-height of the text line carrying its marker.
-    for (anchor, note) in [("שורה ראשונה", "הערה ראשונה"), ("שורה שנייה", "הערה שנייה")] {
+    for (anchor, note) in [("שורה ראשונה", "הערה ראשונה"), ("שורה שנייה", "הערה שנייה")]
+    {
         let a = at(anchor);
         let n = at(note);
         assert_eq!(n.page, a.page);
@@ -313,7 +317,10 @@ fn sidenotes_land_in_the_note_column_not_the_text() {
     let runs = render(
         "#עם_הערות_צד[טקסט ארוך מאוד שממלא את רוב רוחב הטור הראשי כדי לבדוק         #הערת_גיליון[בטור הצד] את המיקום.]",
     );
-    let note = runs.iter().find(|r| r.text.contains("בטור הצד")).expect("note");
+    let note = runs
+        .iter()
+        .find(|r| r.text.contains("בטור הצד"))
+        .expect("note");
     let text_left = runs
         .iter()
         .filter(|r| r.text.contains("טקסט ארוך"))
@@ -361,7 +368,10 @@ fn a_sidenote_outside_a_side_column_falls_back_to_a_footnote() {
     // With no column open there is nowhere to place the note; it must become a
     // real footnote rather than being laid out past the edge of the paper.
     let (runs, sizes) = render_with("טקסט#הערת_גיליון[הערה יתומה].", &DocConfig::default());
-    let note = runs.iter().find(|r| r.text.contains("הערה יתומה")).expect("note");
+    let note = runs
+        .iter()
+        .find(|r| r.text.contains("הערה יתומה"))
+        .expect("note");
     let (w, h) = sizes[note.page - 1];
     assert!(
         note.x > 0.0 && note.x < w && note.y < h,
@@ -369,7 +379,10 @@ fn a_sidenote_outside_a_side_column_falls_back_to_a_footnote() {
         note.x,
         note.y
     );
-    let anchor = runs.iter().find(|r| r.text.contains("טקסט")).expect("anchor");
+    let anchor = runs
+        .iter()
+        .find(|r| r.text.contains("טקסט"))
+        .expect("anchor");
     assert!(note.y > anchor.y, "the fallback note is not below the text");
 }
 
@@ -389,11 +402,25 @@ fn endnotes_are_scoped_and_numbered_per_section() {
 #הערות_בסוף(כותרת: [סוף פרק ב])",
     );
     let count = |n: &str| runs.iter().filter(|r| r.text.contains(n)).count();
-    assert_eq!(count("הערה א"), 1, "chapter א's note was printed more than once");
-    assert_eq!(count("הערה ב"), 1, "chapter ב's note was printed more than once");
+    assert_eq!(
+        count("הערה א"),
+        1,
+        "chapter א's note was printed more than once"
+    );
+    assert_eq!(
+        count("הערה ב"),
+        1,
+        "chapter ב's note was printed more than once"
+    );
     let y = |n: &str| runs.iter().find(|r| r.text.contains(n)).unwrap().y;
-    assert!(y("הערה א") < y("סוף פרק ב"), "chapter א's note leaked into chapter ב");
-    assert!(y("הערה ב") > y("סוף פרק ב"), "chapter ב's note is not in chapter ב");
+    assert!(
+        y("הערה א") < y("סוף פרק ב"),
+        "chapter א's note leaked into chapter ב"
+    );
+    assert!(
+        y("הערה ב") > y("סוף פרק ב"),
+        "chapter ב's note is not in chapter ב"
+    );
 }
 
 #[test]
@@ -407,16 +434,26 @@ fn option_9_footnotes_with_an_endnote_block_of_subnotes() {
         "טקסט#הערה[פירוש בתחתית העמוד#הערתסיום[הערה על הפירוש]]          ועוד#הערה[פירוש שני#הערתסיום[הערה שנייה על הפירוש]].
          #הערות_בסוף(כותרת: [הערות על הפירוש])",
     );
-    let at = |n: &str| runs.iter().find(|r| r.text.contains(n)).unwrap_or_else(|| panic!("{n:?} missing"));
+    let at = |n: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(n))
+            .unwrap_or_else(|| panic!("{n:?} missing"))
+    };
     // Tier 1 is at the foot of the page, below the endnote block.
     let anchor = at("טקסט");
     let commentary = at("פירוש בתחתית העמוד");
     let block_head = at("הערות על הפירוש");
-    assert!(commentary.y > block_head.y, "the footnotes did not stay at the page foot");
+    assert!(
+        commentary.y > block_head.y,
+        "the footnotes did not stay at the page foot"
+    );
     assert!(commentary.y > anchor.y);
     // Tier 2 was collected — both sub-notes made it into the block.
     for n in ["הערה על הפירוש", "הערה שנייה על הפירוש"] {
-        assert!(at(n).y > block_head.y, "sub-note {n:?} is not in the endnote block");
+        assert!(
+            at(n).y > block_head.y,
+            "sub-note {n:?} is not in the endnote block"
+        );
     }
 }
 
@@ -431,13 +468,23 @@ fn option_11_endnotes_carrying_balanced_footnotes() {
          #מעבר_עמוד
 #הערות_בסוף(כותרת: [הפירוש])",
     );
-    let at = |n: &str| runs.iter().find(|r| r.text.contains(n)).unwrap_or_else(|| panic!("{n:?} missing"));
+    let at = |n: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(n))
+            .unwrap_or_else(|| panic!("{n:?} missing"))
+    };
     let commentary = at("פירוש ארוך על הטקסט");
     let subnote = at("הערה על הפירוש");
     // The sub-note is a real footnote: same page as the endnote it hangs off,
     // at the foot of it.
-    assert_eq!(subnote.page, commentary.page, "the sub-note left the endnote's page");
-    assert!(subnote.y > commentary.y, "the sub-note is not below the commentary");
+    assert_eq!(
+        subnote.page, commentary.page,
+        "the sub-note left the endnote's page"
+    );
+    assert!(
+        subnote.y > commentary.y,
+        "the sub-note is not below the commentary"
+    );
     // And it balances at the page foot, well below the endnote block itself.
     assert!(
         subnote.y - at("פירוש שני").y > 200.0,
@@ -479,6 +526,9 @@ fn identical_notes_get_distinct_numbers() {
         .collect();
     let joined: String = main.concat();
     for d in ['1', '2', '3'] {
-        assert!(joined.contains(d), "marker {d} missing from the text: {joined:?}");
+        assert!(
+            joined.contains(d),
+            "marker {d} missing from the text: {joined:?}"
+        );
     }
 }

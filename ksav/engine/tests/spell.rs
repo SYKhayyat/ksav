@@ -31,16 +31,50 @@ fn it_knows_the_words_a_general_hebrew_dictionary_rejects() {
     let l = bundled();
     let must_know = [
         // Talmudic vocabulary and Aramaic
-        "דלא", "אמרינן", "איתא", "כדאיתא", "מתניתין", "אביי", "סוגיא", "ברייתא",
-        "תנא", "מיגו", "חבירו", "נוהגין", "מתפללין", "ליקח",
+        "דלא",
+        "אמרינן",
+        "איתא",
+        "כדאיתא",
+        "מתניתין",
+        "אביי",
+        "סוגיא",
+        "ברייתא",
+        "תנא",
+        "מיגו",
+        "חבירו",
+        "נוהגין",
+        "מתפללין",
+        "ליקח",
         // masechtos
-        "עירובין", "כתובות", "גיטין", "סנהדרין",
+        "עירובין",
+        "כתובות",
+        "גיטין",
+        "סנהדרין",
         // the citation apparatus — the part that fails hardest elsewhere
-        "ע\"א", "ע\"ב", "ב\"ב", "ב\"ק", "ב\"מ", "שו\"ע", "רשב\"א", "ריטב\"א",
-        "מהרש\"א", "עיי\"ש", "ודו\"ק", "וצ\"ע", "צ\"ע", "ר\"ל", "נפק\"מ",
-        "תוס'", "סי'", "וגו'",
+        "ע\"א",
+        "ע\"ב",
+        "ב\"ב",
+        "ב\"ק",
+        "ב\"מ",
+        "שו\"ע",
+        "רשב\"א",
+        "ריטב\"א",
+        "מהרש\"א",
+        "עיי\"ש",
+        "ודו\"ק",
+        "וצ\"ע",
+        "צ\"ע",
+        "ר\"ל",
+        "נפק\"מ",
+        "תוס'",
+        "סי'",
+        "וגו'",
     ];
-    let missing: Vec<&str> = must_know.iter().copied().filter(|w| !l.contains(w)).collect();
+    let missing: Vec<&str> = must_know
+        .iter()
+        .copied()
+        .filter(|w| !l.contains(w))
+        .collect();
     assert!(missing.is_empty(), "lexicon is missing: {missing:?}");
 }
 
@@ -51,9 +85,15 @@ fn gershayim_match_whichever_way_they_were_typed() {
     // took Shulchan Arukh from 9.5% to 13.4% missed words elsewhere.
     let l = bundled();
     assert!(l.contains("שו\"ע"), "ASCII gershayim not found");
-    assert!(l.contains("שו\u{05F4}ע"), "Hebrew gershayim did not fold to ASCII");
+    assert!(
+        l.contains("שו\u{05F4}ע"),
+        "Hebrew gershayim did not fold to ASCII"
+    );
     assert!(l.contains("תוס'"), "ASCII geresh not found");
-    assert!(l.contains("תוס\u{05F3}"), "Hebrew geresh did not fold to ASCII");
+    assert!(
+        l.contains("תוס\u{05F3}"),
+        "Hebrew geresh did not fold to ASCII"
+    );
 }
 
 #[test]
@@ -119,7 +159,10 @@ fn an_abbreviation_is_one_word_not_three() {
     // Splitting on the quote would turn שו"ע into שו + ע and underline both.
     let toks = spell::words("כתב שו\"ע וכן תוס' שם");
     let found: Vec<&str> = toks.iter().map(|t| t.text).collect();
-    assert!(found.contains(&"שו\"ע"), "abbreviation was split: {found:?}");
+    assert!(
+        found.contains(&"שו\"ע"),
+        "abbreviation was split: {found:?}"
+    );
     assert!(found.contains(&"תוס'"), "geresh word was split: {found:?}");
 }
 
@@ -129,7 +172,10 @@ fn an_opening_quote_does_not_glue_to_the_next_word() {
     let toks = spell::words("אמר \"שלום\" לחבירו");
     let found: Vec<&str> = toks.iter().map(|t| t.text).collect();
     assert!(found.contains(&"שלום"), "got {found:?}");
-    assert!(!found.iter().any(|w| w.starts_with('"')), "a quote glued on: {found:?}");
+    assert!(
+        !found.iter().any(|w| w.starts_with('"')),
+        "a quote glued on: {found:?}"
+    );
 }
 
 #[test]
@@ -158,11 +204,14 @@ fn a_user_dictionary_is_honoured() {
     // chaburah's terminology, every rebbe's name, or the writer's own coinages.
     let mut l = bundled();
     assert!(!l.contains("קווצקוו"), "the test word is already known");
-    assert!(!Checker::hebrew_only(&l).check("מילה קווצקוו כאן").is_empty());
+    assert!(!Checker::hebrew_only(&l)
+        .check("מילה קווצקוו כאן")
+        .is_empty());
     l.add_words("# a comment\n\nקווצקוו\n");
     assert!(l.contains("קווצקוו"));
     assert!(
-        !Checker::hebrew_only(&l).check("מילה קווצקוו כאן")
+        !Checker::hebrew_only(&l)
+            .check("מילה קווצקוו כאן")
             .iter()
             .any(|m| m.word == "קווצקוו"),
         "the user's own word is still flagged"
@@ -223,7 +272,11 @@ fn offsets_are_utf16_and_correct_across_several_misses() {
     let u16_at = |needle: &str| text[..text.find(needle).unwrap()].encode_utf16().count() as u64;
     for (i, word) in ["זזזזזז", "ססססס", "טטטטט"].iter().enumerate() {
         assert_eq!(m[i]["word"], *word);
-        assert_eq!(m[i]["start"].as_u64().unwrap(), u16_at(word), "wrong offset for {word}");
+        assert_eq!(
+            m[i]["start"].as_u64().unwrap(),
+            u16_at(word),
+            "wrong offset for {word}"
+        );
     }
     // …and every offset is a plain character index here (all Hebrew), never the
     // byte offset that would put each marker at roughly twice its real position.
@@ -281,7 +334,10 @@ fn request_offsets_are_utf16_units_not_bytes() {
     let utf16: Vec<u16> = text.encode_utf16().collect();
     let sliced = String::from_utf16(&utf16[start..start + len]).unwrap();
     assert_eq!(sliced, "כשכשכשכש", "offsets do not index UTF-16 units");
-    assert!(start + len <= utf16.len(), "the range runs past the document");
+    assert!(
+        start + len <= utf16.len(),
+        "the range runs past the document"
+    );
 }
 
 // ── Hebrew morphology ───────────────────────────────────────────────────────
@@ -293,7 +349,15 @@ fn a_prefixed_word_is_recognised() {
     // prefix stripping ושו"ע is flagged while שו"ע is known — exactly the case
     // that makes a checker look stupid.
     let l = bundled();
-    for w in ["ושו\"ע", "בגמרא", "ובגמרא", "שבגמרא", "כדאיתא", "להלכה", "מהלכה"] {
+    for w in [
+        "ושו\"ע",
+        "בגמרא",
+        "ובגמרא",
+        "שבגמרא",
+        "כדאיתא",
+        "להלכה",
+        "מהלכה",
+    ] {
         assert!(l.contains(w), "{w:?} was not recognised through its prefix");
     }
 }
@@ -305,7 +369,10 @@ fn prefix_stripping_does_not_swallow_real_typos() {
     // final mem) through as ש+לום or של+ומ, because the corpus contains those
     // fragments.
     let l = bundled();
-    assert!(!l.contains("שלומ"), "a real typo was accepted through a short stem");
+    assert!(
+        !l.contains("שלומ"),
+        "a real typo was accepted through a short stem"
+    );
 }
 
 #[test]
@@ -314,7 +381,10 @@ fn a_hebrew_year_is_not_flagged() {
     // correct by construction.
     let l = bundled();
     for y in ["תשפ\"ה", "תשע\"ד", "תש\"פ", "ה'תשפ\"ו"] {
-        assert!(Checker::hebrew_only(&l).check(y).is_empty(), "{y:?} was flagged as a misspelling");
+        assert!(
+            Checker::hebrew_only(&l).check(y).is_empty(),
+            "{y:?} was flagged as a misspelling"
+        );
     }
 }
 
@@ -327,7 +397,10 @@ fn an_opening_quote_after_a_prefix_is_not_part_of_the_word() {
         .into_iter()
         .map(|t| t.text)
         .collect();
-    assert!(toks.contains(&"והגית"), "the quoted word was glued to the prefix: {toks:?}");
+    assert!(
+        toks.contains(&"והגית"),
+        "the quoted word was glued to the prefix: {toks:?}"
+    );
     // …while a genuine acronym still holds together.
     let acronyms: Vec<&str> = spell::words("כתב שו\"ע וכן מהרש\"א")
         .into_iter()
@@ -355,5 +428,8 @@ fn ksavs_own_templates_are_not_underlined() {
     }
     flagged.sort();
     flagged.dedup();
-    assert!(flagged.is_empty(), "templates contain flagged words: {flagged:?}");
+    assert!(
+        flagged.is_empty(),
+        "templates contain flagged words: {flagged:?}"
+    );
 }

@@ -10,7 +10,11 @@ use ksav_engine::spell::{self, english, hebrew, Checker, Language};
 fn main() {
     let he = hebrew::Lexicon::bundled();
     let en = english::Lexicon::bundled();
-    println!("Hebrew: {} entries, English: {} entries", he.len(), en.len());
+    println!(
+        "Hebrew: {} entries, English: {} entries",
+        he.len(),
+        en.len()
+    );
     let checker = Checker::new(Some(&he), Some(&en));
 
     for path in std::env::args().skip(1) {
@@ -41,7 +45,12 @@ fn main() {
             );
             println!(
                 "     e.g. {}",
-                sample.iter().take(15).cloned().collect::<Vec<_>>().join(" ")
+                sample
+                    .iter()
+                    .take(15)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" ")
             );
         }
     }

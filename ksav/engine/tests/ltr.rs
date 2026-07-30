@@ -155,7 +155,11 @@ fn an_impossible_language_tag_is_refused_not_forwarded() {
         "../../etc/passwd",
     ] {
         let c = DocConfig::from_json(&serde_json::json!({ "dir": "ltr", "lang": hostile }));
-        assert_eq!(c.lang, "", "{hostile:?} survived sanitising as {:?}", c.lang);
+        assert_eq!(
+            c.lang, "",
+            "{hostile:?} survived sanitising as {:?}",
+            c.lang
+        );
         assert_eq!(ksav_engine::effective_lang(&c), "en");
         let text = page_text(&render("Hello.", &c));
         assert!(text.contains("Hello"), "{hostile:?} broke the document");

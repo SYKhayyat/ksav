@@ -58,9 +58,8 @@ fn ksav_inbox() -> String {
 #[tauri::command]
 async fn ksav_mekoros(phrase: String, except: Option<String>) -> Result<String, String> {
     offload(move || {
-        ksav_engine::post::where_from(&phrase, except.as_deref()).unwrap_or_else(|why| {
-            serde_json::json!({ "error": why }).to_string()
-        })
+        ksav_engine::post::where_from(&phrase, except.as_deref())
+            .unwrap_or_else(|why| serde_json::json!({ "error": why }).to_string())
     })
     .await
 }

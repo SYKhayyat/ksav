@@ -26,7 +26,14 @@ pub struct Command {
 
 macro_rules! cmd {
     ($he:literal, $en:literal, $cat:literal, $dhe:literal, $den:literal, $ins:literal) => {
-        Command { he: $he, en: $en, category: $cat, desc_he: $dhe, desc_en: $den, insert: $ins }
+        Command {
+            he: $he,
+            en: $en,
+            category: $cat,
+            desc_he: $dhe,
+            desc_en: $den,
+            insert: $ins,
+        }
     };
 }
 

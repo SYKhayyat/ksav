@@ -53,10 +53,16 @@ fn an_english_table_takes_english_parameter_names() {
     // have passed.
     let cells: Vec<TextRun> = runs
         .iter()
-        .filter(|r| r.text.contains("Posek") || r.text.contains("Ruling") || r.text.contains("Source"))
+        .filter(|r| {
+            r.text.contains("Posek") || r.text.contains("Ruling") || r.text.contains("Source")
+        })
         .cloned()
         .collect();
-    assert_eq!(distinct_columns(&cells), 3, "the table is not three columns wide");
+    assert_eq!(
+        distinct_columns(&cells),
+        3,
+        "the table is not three columns wide"
+    );
 }
 
 #[test]
@@ -69,11 +75,19 @@ fn the_hebrew_parameter_names_still_work_on_an_english_alias() {
     );
     let cells: Vec<TextRun> = runs
         .iter()
-        .filter(|r| ["Aleph", "Beis", "Gimmel"].iter().any(|w| r.text.contains(w)))
+        .filter(|r| {
+            ["Aleph", "Beis", "Gimmel"]
+                .iter()
+                .any(|w| r.text.contains(w))
+        })
         .cloned()
         .collect();
     assert_eq!(cells.len(), 3, "a cell is missing: {:?}", text(&runs));
-    assert_eq!(distinct_columns(&cells), 3, "Hebrew parameters stopped working");
+    assert_eq!(
+        distinct_columns(&cells),
+        3,
+        "Hebrew parameters stopped working"
+    );
 }
 
 #[test]
@@ -82,7 +96,10 @@ fn an_english_contents_takes_an_english_title() {
         "= A Chapter\n\n#toc(title: [Table of Contents])\n",
         &ltr(),
     ));
-    assert!(page.contains("Table of Contents"), "the title was dropped: {page}");
+    assert!(
+        page.contains("Table of Contents"),
+        "the title was dropped: {page}"
+    );
 }
 
 #[test]
@@ -116,7 +133,10 @@ fn the_two_kinds_of_column_keep_their_own_word() {
     );
     let page = text(&runs);
     assert!(page.contains("Notes"), "the band title was dropped: {page}");
-    assert!(page.contains("a note"), "the note itself is missing: {page}");
+    assert!(
+        page.contains("a note"),
+        "the note itself is missing: {page}"
+    );
 }
 
 #[test]
@@ -125,7 +145,10 @@ fn an_english_callout_takes_a_tint_and_an_accent() {
         "#callout(tint: rgb(\"#fef9c3\"), accent: rgb(\"#ca8a04\"))[Watch this]",
         &ltr(),
     ));
-    assert!(page.contains("Watch this"), "the callout body is missing: {page}");
+    assert!(
+        page.contains("Watch this"),
+        "the callout body is missing: {page}"
+    );
 }
 
 #[test]
@@ -136,7 +159,10 @@ fn the_document_wrapper_survives_being_partially_applied() {
     // silently ignored and the document would lay out at the defaults — which
     // compiles cleanly and looks like nothing happened.
     let big = render("#show: document.with(size: 24pt)\nSized", &ltr());
-    let run = big.iter().find(|r| r.text.contains("Sized")).expect("no text");
+    let run = big
+        .iter()
+        .find(|r| r.text.contains("Sized"))
+        .expect("no text");
     assert!(
         (run.size - 24.0).abs() < 0.5,
         "`size:` did not reach the document wrapper: {}pt",
@@ -164,7 +190,11 @@ fn every_template_renders_in_its_own_language() {
         let doc = probe::layout(t.body, &cfg)
             .unwrap_or_else(|d| panic!("template {:?} failed to compile: {d:?}", t.id));
         let runs = probe::text_runs(&doc);
-        assert!(!runs.is_empty(), "template {:?} laid out an empty page", t.id);
+        assert!(
+            !runs.is_empty(),
+            "template {:?} laid out an empty page",
+            t.id
+        );
     }
 }
 
@@ -174,8 +204,15 @@ fn the_english_templates_are_written_in_english() {
     // the template is that the editor has to switch the document over with it:
     // an English letter dropped into a right-to-left document sets flush right,
     // which is nobody's letter.
-    for t in ksav_engine::templates::TEMPLATES.iter().filter(|t| t.lang == "en") {
-        let hebrew: String = t.body.chars().filter(|c| ('\u{05D0}'..='\u{05EA}').contains(c)).collect();
+    for t in ksav_engine::templates::TEMPLATES
+        .iter()
+        .filter(|t| t.lang == "en")
+    {
+        let hebrew: String = t
+            .body
+            .chars()
+            .filter(|c| ('\u{05D0}'..='\u{05EA}').contains(c))
+            .collect();
         assert!(
             hebrew.is_empty(),
             "the English template {:?} still contains Hebrew: {hebrew:?}",
@@ -184,7 +221,10 @@ fn the_english_templates_are_written_in_english() {
     }
     // …and the Hebrew ones are still Hebrew, which is the default and must not
     // have moved.
-    let hebrew_templates = ksav_engine::templates::TEMPLATES.iter().filter(|t| t.lang == "he").count();
+    let hebrew_templates = ksav_engine::templates::TEMPLATES
+        .iter()
+        .filter(|t| t.lang == "he")
+        .count();
     assert!(hebrew_templates >= 8, "Hebrew templates went missing");
 }
 
@@ -226,5 +266,8 @@ fn every_english_alias_in_the_registry_exists_in_the_prelude() {
             !prelude.contains(&format!("#let {en} ")) && !prelude.contains(&format!("#let {en}("))
         })
         .collect();
-    assert!(missing.is_empty(), "registry names with no definition: {missing:?}");
+    assert!(
+        missing.is_empty(),
+        "registry names with no definition: {missing:?}"
+    );
 }

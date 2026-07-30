@@ -70,6 +70,38 @@ jobs:
         working-directory: ./ksav/engine
         run: cargo test --release
 
+  # Formatting, across every Rust tree in this repository.
+  #
+  # The engine job has been installing `rustfmt` as a component since it was
+  # written and has never once invoked it, while this tree carried 111
+  # unformatted hunks. So the two halves of one product disagreed about whether
+  # formatting is a gate — and the half with the working remote was the
+  # unformatted one. Girsa gates `cargo fmt -- --check`; this is the other half
+  # of that agreement.
+  #
+  # Its own job because it needs no build, no cache and no system libraries: it
+  # answers in seconds instead of queueing behind the Typst compiler.
+  fmt:
+    name: formatting
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      # `prototypes/flutter-app/rust` is deliberately absent: nothing in this
+      # file builds, tests or ships it, and gating an abandoned prototype would
+      # be a check nobody can act on.
+      - name: Engine
+        working-directory: ./ksav/engine
+        run: cargo fmt -- --check
+      - name: Browser engine
+        working-directory: ./ksav/wasm
+        run: cargo fmt -- --check
+      - name: Desktop shell
+        working-directory: ./ksav/app/src-tauri
+        run: cargo fmt -- --check
+
   wasm:
     name: browser engine
     runs-on: ubuntu-22.04

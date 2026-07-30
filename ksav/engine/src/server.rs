@@ -454,7 +454,7 @@ fn header(key: &str, value: &str) -> Header {
 
 #[cfg(test)]
 mod tests {
-    use super::{compile_deadline, run_bounded, allowed_origin};
+    use super::{allowed_origin, compile_deadline, run_bounded};
     use std::time::Duration;
 
     #[test]
@@ -475,9 +475,18 @@ mod tests {
             std::thread::sleep(Duration::from_millis(600));
             "\"never seen\"".into()
         });
-        assert!(started.elapsed() < Duration::from_millis(400), "must not wait for the slow work");
-        assert!(json.contains("\"ok\":false"), "a timeout is a failed compile");
-        assert!(json.contains("timed out"), "the diagnostic names the timeout: {json}");
+        assert!(
+            started.elapsed() < Duration::from_millis(400),
+            "must not wait for the slow work"
+        );
+        assert!(
+            json.contains("\"ok\":false"),
+            "a timeout is a failed compile"
+        );
+        assert!(
+            json.contains("timed out"),
+            "the diagnostic names the timeout: {json}"
+        );
     }
 
     #[test]

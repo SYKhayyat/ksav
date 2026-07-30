@@ -331,7 +331,8 @@ pub fn linkify(prose: &str) -> Result<String, String> {
     }
 
     let errand = serde_json::json!({ "text": prose }).to_string();
-    let answer = girsa_post::send(App::Girsa, "/linkify", Some(&errand)).map_err(|e| e.to_string())?;
+    let answer =
+        girsa_post::send(App::Girsa, "/linkify", Some(&errand)).map_err(|e| e.to_string())?;
     let found: Found = serde_json::from_str(&answer).map_err(|e| e.to_string())?;
 
     // Back to front, so an earlier replacement cannot move a later one's
@@ -423,7 +424,10 @@ mod tests {
             1,
             "Girsa was told the source had arrived, and then it was thrown away"
         );
-        assert_eq!(waiting[0].reference, "girsa:shulchan-arukh/orach-chayim/1:3");
+        assert_eq!(
+            waiting[0].reference,
+            "girsa:shulchan-arukh/orach-chayim/1:3"
+        );
     }
 
     /// And one the editor already took does not come back on the next start.
@@ -465,7 +469,10 @@ mod tests {
         assert_eq!(waiting.len(), 1);
         assert!(waiting[0].markup.contains("#ציטוט["));
         assert!(waiting[0].markup.contains("ראוי לכל ירא שמים"));
-        assert_eq!(waiting[0].reference, "girsa:shulchan-arukh/orach-chayim/1:3");
+        assert_eq!(
+            waiting[0].reference,
+            "girsa:shulchan-arukh/orach-chayim/1:3"
+        );
     }
 
     #[test]
@@ -487,8 +494,11 @@ mod tests {
         let waiting = drain();
         assert_eq!(waiting.len(), 1);
         assert!(waiting[0].whole, "a document has to say it is one");
-        assert_eq!(waiting[0].markup, "#כותרת1[סוגיא]
-");
+        assert_eq!(
+            waiting[0].markup,
+            "#כותרת1[סוגיא]
+"
+        );
         assert_eq!(waiting[0].display, "חבורה");
     }
 

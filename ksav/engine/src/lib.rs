@@ -12,11 +12,11 @@ use typst_layout::PagedDocument;
 
 pub mod assets;
 pub mod commands;
-pub mod probe;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod post;
+pub mod probe;
 pub mod source;
 pub mod spell;
 pub mod templates;
@@ -86,7 +86,13 @@ pub struct DocConfig {
 /// Commands whose notes render into the page *footer* rather than expanding the
 /// text region — these are the ones that need a reserved region at the page foot.
 const PAGE_APPARATUS_COMMANDS: &[&str] = &[
-    "מדף_", "pageband", "הערה_זרם", "stream_note", "הערת_תוכן", "contentnote", "הערת_מקור",
+    "מדף_",
+    "pageband",
+    "הערה_זרם",
+    "stream_note",
+    "הערת_תוכן",
+    "contentnote",
+    "הערת_מקור",
     "sourcenote_stream",
 ];
 
@@ -99,7 +105,10 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
 /// nothing at all otherwise (native footnotes expand the text region themselves
 /// and must not lose page height to a reserve they never use).
 pub fn auto_notes_region_cm(body: &str) -> f64 {
-    if PAGE_APPARATUS_COMMANDS.iter().any(|c| apparatus_is_called(body, c)) {
+    if PAGE_APPARATUS_COMMANDS
+        .iter()
+        .any(|c| apparatus_is_called(body, c))
+    {
         3.0
     } else {
         0.0
@@ -377,7 +386,11 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         dir = dir,
         lang = typst_str(effective_lang(cfg)),
         numbering = if cfg.numbering { "true" } else { "false" },
-        hebrew_num = if cfg.hebrew_numbering { "true" } else { "false" },
+        hebrew_num = if cfg.hebrew_numbering {
+            "true"
+        } else {
+            "false"
+        },
         paper = typst_str(&sanitize_paper(&cfg.paper)),
         header = typst_str_or_none(&cfg.header),
         footer = typst_str_or_none(&cfg.footer),
@@ -386,7 +399,10 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         para = cfg.para_spacing_em,
         indent = cfg.first_line_indent_em,
         columns = columns,
-        region = match cfg.notes_region_cm.unwrap_or_else(|| auto_notes_region_cm(body)) {
+        region = match cfg
+            .notes_region_cm
+            .unwrap_or_else(|| auto_notes_region_cm(body))
+        {
             r if r <= 0.0 => "none".to_string(),
             r => format!("{r}cm"),
         },
@@ -416,7 +432,10 @@ fn diag_messages(diags: &[SourceDiagnostic], severity: &str) -> Vec<Diagnostic> 
 /// The document has no file system to read from, so its images arrive as bytes on
 /// the request and are registered under the names the document uses. User fonts
 /// arrive the same way and join the bundled ones.
-fn layout_source(source: String, assets: &Assets) -> Warned<Result<PagedDocument, typst_as_lib::TypstAsLibError>> {
+fn layout_source(
+    source: String,
+    assets: &Assets,
+) -> Warned<Result<PagedDocument, typst_as_lib::TypstAsLibError>> {
     let mut fonts: Vec<&[u8]> = vec![
         FONT_FRANK_REG,
         FONT_FRANK_BOLD,
@@ -588,7 +607,9 @@ pub fn compile_request(input_json: &str) -> String {
         Err(e) => {
             return malformed_request(
                 &format!("הבקשה לא נקראה — ייתכן שההעברה נקטעה ({e})"),
-                &format!("the request could not be read — the transfer may have been truncated ({e})"),
+                &format!(
+                    "the request could not be read — the transfer may have been truncated ({e})"
+                ),
             );
         }
     };
@@ -641,10 +662,7 @@ pub fn compile_request(input_json: &str) -> String {
     }
 
     // Previews don't want a PDF; export and print do, and say so.
-    let want_pdf = v
-        .get("want_pdf")
-        .and_then(|x| x.as_bool())
-        .unwrap_or(false);
+    let want_pdf = v.get("want_pdf").and_then(|x| x.as_bool()).unwrap_or(false);
     let result = compile_parts(body, &cfg, &assets, want_pdf);
     let diags: Vec<serde_json::Value> = result
         .diagnostics
@@ -679,12 +697,31 @@ pub fn compile_request(input_json: &str) -> String {
 /// document the paged backend handles fine; callers should keep the paged export
 /// available and report the diagnostics rather than presenting HTML as
 /// equivalent.
-pub fn compile_html(body: &str, cfg: &DocConfig, assets: &Assets) -> Result<String, Vec<Diagnostic>> {
+pub fn compile_html(
+    body: &str,
+    cfg: &DocConfig,
+    assets: &Assets,
+) -> Result<String, Vec<Diagnostic>> {
     let source = assemble_source(body, cfg);
-    let mut fonts: Vec<&[u8]> = vec![FONT_FRANK_REG, FONT_FRANK_BOLD, FONT_DAVID_REG, FONT_DAVID_BOLD, FONT_CASCADIA, FONT_NEWCM_MATH];
+    let mut fonts: Vec<&[u8]> = vec![
+        FONT_FRANK_REG,
+        FONT_FRANK_BOLD,
+        FONT_DAVID_REG,
+        FONT_DAVID_BOLD,
+        FONT_CASCADIA,
+        FONT_NEWCM_MATH,
+    ];
     fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
-    let files: Vec<(&str, &[u8])> = assets.files.iter().map(|a| (a.name.as_str(), a.bytes.as_slice())).collect();
-    let engine = TypstEngine::builder().main_file(source).fonts(fonts).with_static_file_resolver(files).build();
+    let files: Vec<(&str, &[u8])> = assets
+        .files
+        .iter()
+        .map(|a| (a.name.as_str(), a.bytes.as_slice()))
+        .collect();
+    let engine = TypstEngine::builder()
+        .main_file(source)
+        .fonts(fonts)
+        .with_static_file_resolver(files)
+        .build();
     let Warned { output, warnings } = engine.compile::<typst_html::HtmlDocument>();
     match output {
         Ok(doc) => match typst_html::html(&doc, &typst_html::HtmlOptions::default()) {
@@ -696,7 +733,10 @@ pub fn compile_html(body: &str, cfg: &DocConfig, assets: &Assets) -> Result<Stri
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(x) => d.extend(diag_messages(&x, "error")),
-                other => d.push(Diagnostic { severity: "error".into(), message: other.to_string() }),
+                other => d.push(Diagnostic {
+                    severity: "error".into(),
+                    message: other.to_string(),
+                }),
             }
             Err(d)
         }
@@ -740,8 +780,14 @@ mod tests {
         let c = cfg_from(serde_json::json!({
             "size_pt": 0, "line_spacing_em": -3.0, "columns": 5000, "margin_cm": -1.0,
         }));
-        assert!(c.size_pt >= 1.0, "zero-size text is invisible, not a choice");
-        assert!(c.line_spacing_em >= 0.0, "negative leading stacks lines on top of each other");
+        assert!(
+            c.size_pt >= 1.0,
+            "zero-size text is invisible, not a choice"
+        );
+        assert!(
+            c.line_spacing_em >= 0.0,
+            "negative leading stacks lines on top of each other"
+        );
         assert!(c.columns <= 12, "5000 columns is a page of hairlines");
         assert!(c.margin_cm >= 0.0);
     }
@@ -774,12 +820,30 @@ mod tests {
         // document with "unclosed delimiter" pointing at the prelude rather than
         // at the setting. Every one of these must simply render.
         for cfg in [
-            DocConfig { paper: "a4\\".into(), ..Default::default() },
-            DocConfig { paper: "a4\"".into(), ..Default::default() },
-            DocConfig { font: "Frank\\".into(), ..Default::default() },
-            DocConfig { font: "Frank\" ,גודל: 99pt, x: \"".into(), ..Default::default() },
-            DocConfig { header: "כותרת\\".into(), ..Default::default() },
-            DocConfig { footer: "\\\"".into(), ..Default::default() },
+            DocConfig {
+                paper: "a4\\".into(),
+                ..Default::default()
+            },
+            DocConfig {
+                paper: "a4\"".into(),
+                ..Default::default()
+            },
+            DocConfig {
+                font: "Frank\\".into(),
+                ..Default::default()
+            },
+            DocConfig {
+                font: "Frank\" ,גודל: 99pt, x: \"".into(),
+                ..Default::default()
+            },
+            DocConfig {
+                header: "כותרת\\".into(),
+                ..Default::default()
+            },
+            DocConfig {
+                footer: "\\\"".into(),
+                ..Default::default()
+            },
         ] {
             let out = compile("שלום", &cfg);
             assert!(
@@ -824,7 +888,9 @@ mod tests {
 
         let export = serde_json::json!({ "body": "שלום", "want_pdf": true }).to_string();
         let exported: serde_json::Value = serde_json::from_str(&compile_request(&export)).unwrap();
-        assert!(exported["pdf_base64"].as_str().is_some_and(|s| !s.is_empty()));
+        assert!(exported["pdf_base64"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()));
     }
 
     #[test]
@@ -897,7 +963,6 @@ mod tests {
         assert!(!out.pages_svg.is_empty());
     }
 
-
     #[test]
     fn every_registered_command_is_defined() {
         // Each command's Hebrew name and English alias must have a matching `#let`
@@ -909,8 +974,16 @@ mod tests {
                 || PRELUDE.contains(&format!("#let {name}\n"))
         };
         for c in commands::COMMANDS {
-            assert!(defined(c.he), "Hebrew command not defined in prelude: {}", c.he);
-            assert!(defined(c.en), "English alias not defined in prelude: {}", c.en);
+            assert!(
+                defined(c.he),
+                "Hebrew command not defined in prelude: {}",
+                c.he
+            );
+            assert!(
+                defined(c.en),
+                "English alias not defined in prelude: {}",
+                c.en
+            );
         }
     }
 
@@ -1003,7 +1076,8 @@ mod tests {
     fn regrouped_stacked_bands() {
         // Fully regrouped Gemara-style bands (all tier-1, then all tier-2, …),
         // rendered in the main flow — 5 tiers, must compile AND converge.
-        let body = "#הגדרות_מדורגות(טורים: (2, 1, 1), מספור: (\"1\", \"א\", \"a\", \"i\", \"1\"))\n\
+        let body =
+            "#הגדרות_מדורגות(טורים: (2, 1, 1), מספור: (\"1\", \"א\", \"a\", \"i\", \"1\"))\n\
                     א#מדור_א[ראש #מדור_ב[שני #מדור_ג[שלישי #מדור_ד[רביעי #מדור_ה[חמישי]]]]] \
                     ב#מדור_א[עוד].\n#הערות_מדורגות(כותרת: [הערות])";
         let out = compile(body, &DocConfig::default());
@@ -1148,7 +1222,10 @@ mod tests {
                     דף לרוחב עם מסגרת.]\nהמשך רגיל.";
         let out = compile(body, &DocConfig::default());
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
-        assert!(out.pages_svg.len() >= 3, "each section should own its pages");
+        assert!(
+            out.pages_svg.len() >= 3,
+            "each section should own its pages"
+        );
     }
 
     #[test]

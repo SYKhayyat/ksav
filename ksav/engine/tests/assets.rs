@@ -75,13 +75,20 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     });
     let (a1, missing1) = Assets::from_request(&with_bytes);
     assert_eq!(a1.files.len(), 1, "the bytes should decode");
-    assert!(missing1.is_empty(), "nothing is missing when bytes are sent");
+    assert!(
+        missing1.is_empty(),
+        "nothing is missing when bytes are sent"
+    );
 
     let hash_only = serde_json::json!({
         "assets": [{ "name": "logo.png", "hash": "test-cache-hit-abc" }]
     });
     let (a2, missing2) = Assets::from_request(&hash_only);
-    assert_eq!(a2.files.len(), 1, "the cached bytes resolve the hash-only entry");
+    assert_eq!(
+        a2.files.len(),
+        1,
+        "the cached bytes resolve the hash-only entry"
+    );
     assert_eq!(a2.files[0].bytes, a1.files[0].bytes, "…to the same bytes");
     assert!(missing2.is_empty(), "a cached hash is not missing");
 }
@@ -94,7 +101,10 @@ fn an_unknown_hash_with_no_bytes_is_reported_missing() {
         "assets": [{ "name": "gone.png", "hash": "test-never-sent-xyz" }]
     });
     let (assets, missing) = Assets::from_request(&v);
-    assert!(assets.files.is_empty(), "an unresolved asset is not conjured");
+    assert!(
+        assets.files.is_empty(),
+        "an unresolved asset is not conjured"
+    );
     assert_eq!(missing, vec!["test-never-sent-xyz".to_string()]);
 }
 
@@ -137,7 +147,9 @@ fn a_font_sent_with_the_request_can_be_used_by_the_document() {
     );
     assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     assert!(
-        !out.diagnostics.iter().any(|d| d.message.contains("unknown font")),
+        !out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("unknown font")),
         "the uploaded font was not registered: {:?}",
         out.diagnostics
     );
@@ -165,7 +177,11 @@ fn every_command_category_is_listed_once() {
     // Every command's category must appear, or a UI grouping by `categories()`
     // would silently drop commands.
     for c in ksav_engine::commands::COMMANDS {
-        assert!(cats.contains(&c.category), "category {:?} missing", c.category);
+        assert!(
+            cats.contains(&c.category),
+            "category {:?} missing",
+            c.category
+        );
     }
 }
 
@@ -186,14 +202,26 @@ fn html_export_is_real_web_content_not_page_pictures() {
 
     // A heading must be a heading, not a styled <div> — the outline is most of
     // what makes an HTML export worth having.
-    assert!(html.contains("<h1>פרק ראשון</h1>"), "no semantic heading in: {html}");
+    assert!(
+        html.contains("<h1>פרק ראשון</h1>"),
+        "no semantic heading in: {html}"
+    );
     // …and it must not carry the counter number the paged wrapper keeps stepping.
-    assert!(!html.contains("<h1>1."), "the heading counter leaked into the HTML");
+    assert!(
+        !html.contains("<h1>1."),
+        "the heading counter leaked into the HTML"
+    );
     assert!(html.contains("<strong>הדגשה</strong>"));
     assert!(html.contains("<em>הטיה</em>"));
     assert!(html.contains("<li>"), "the list did not become a real list");
-    assert!(html.contains("lang=\"he\""), "the document language was not carried over");
-    assert!(!html.contains("<svg"), "the export still contains page pictures");
+    assert!(
+        html.contains("lang=\"he\""),
+        "the document language was not carried over"
+    );
+    assert!(
+        !html.contains("<svg"),
+        "the export still contains page pictures"
+    );
 }
 
 #[test]

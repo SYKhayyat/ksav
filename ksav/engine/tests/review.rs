@@ -35,16 +35,28 @@ fn markup_view_shows_both_the_insertion_and_the_deletion() {
 fn final_view_keeps_the_insertion_and_drops_the_deletion() {
     let (runs, _) = render(&format!("#הגדרות_סקירה(תצוגה: \"סופי\")\n{TRACKED}"));
     let text = all_text(&runs);
-    assert!(text.contains("מוסיף"), "an accepted insertion must remain: {text}");
-    assert!(!text.contains("מוחק"), "an accepted deletion must be gone: {text}");
+    assert!(
+        text.contains("מוסיף"),
+        "an accepted insertion must remain: {text}"
+    );
+    assert!(
+        !text.contains("מוחק"),
+        "an accepted deletion must be gone: {text}"
+    );
 }
 
 #[test]
 fn original_view_keeps_the_deletion_and_drops_the_insertion() {
     let (runs, _) = render(&format!("#הגדרות_סקירה(תצוגה: \"מקורי\")\n{TRACKED}"));
     let text = all_text(&runs);
-    assert!(text.contains("מוחק"), "the original text must remain: {text}");
-    assert!(!text.contains("מוסיף"), "text added by review is not in the original: {text}");
+    assert!(
+        text.contains("מוחק"),
+        "the original text must remain: {text}"
+    );
+    assert!(
+        !text.contains("מוסיף"),
+        "text added by review is not in the original: {text}"
+    );
 }
 
 #[test]
@@ -53,13 +65,22 @@ fn a_comment_is_never_part_of_the_document() {
     // neither of the two reading views — not even as an empty marker.
     let body = "טקסט#הערת_עורך(מאת: \"עורך\")[לשקול שוב] המשך.";
     let (runs, _) = render(body);
-    assert!(all_text(&runs).contains("לשקול"), "comment missing from the markup view");
+    assert!(
+        all_text(&runs).contains("לשקול"),
+        "comment missing from the markup view"
+    );
 
     for view in ["סופי", "מקורי"] {
         let (runs, _) = render(&format!("#הגדרות_סקירה(תצוגה: \"{view}\")\n{body}"));
         let text = all_text(&runs);
-        assert!(!text.contains("לשקול"), "{view} view still shows the comment: {text}");
-        assert!(text.contains("המשך"), "{view} view lost the text itself: {text}");
+        assert!(
+            !text.contains("לשקול"),
+            "{view} view still shows the comment: {text}"
+        );
+        assert!(
+            text.contains("המשך"),
+            "{view} view lost the text itself: {text}"
+        );
     }
 }
 
@@ -93,8 +114,18 @@ fn a_landscape_section_is_wider_than_tall_and_only_that_section() {
     let body = "לפני\n#מקטע_עמוד(לרוחב: true)[באמצע]\nאחרי";
     let (_, sizes) = render(body);
     assert!(sizes.len() >= 3, "a section owns its own pages: {sizes:?}");
-    let portrait: Vec<usize> = sizes.iter().enumerate().filter(|(_, s)| s.0 < s.1).map(|(i, _)| i).collect();
-    let landscape: Vec<usize> = sizes.iter().enumerate().filter(|(_, s)| s.0 > s.1).map(|(i, _)| i).collect();
+    let portrait: Vec<usize> = sizes
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.0 < s.1)
+        .map(|(i, _)| i)
+        .collect();
+    let landscape: Vec<usize> = sizes
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.0 > s.1)
+        .map(|(i, _)| i)
+        .collect();
     assert_eq!(landscape.len(), 1, "exactly one landscape page: {sizes:?}");
     assert!(portrait.len() >= 2, "the rest stay portrait: {sizes:?}");
 }
@@ -108,12 +139,26 @@ fn a_section_carries_its_own_header_and_watermark() {
         .find(|r| r.text.contains("הנספח"))
         .expect("section body missing")
         .page;
-    let on_section: String = runs.iter().filter(|r| r.page == section_page).map(|r| r.text.as_str()).collect();
+    let on_section: String = runs
+        .iter()
+        .filter(|r| r.page == section_page)
+        .map(|r| r.text.as_str())
+        .collect();
     assert!(on_section.contains("נספח"), "header missing: {on_section}");
-    assert!(on_section.contains("טיוטה"), "watermark missing: {on_section}");
+    assert!(
+        on_section.contains("טיוטה"),
+        "watermark missing: {on_section}"
+    );
     // …and neither leaks onto the pages around it.
-    let elsewhere: String = runs.iter().filter(|r| r.page != section_page).map(|r| r.text.as_str()).collect();
-    assert!(!elsewhere.contains("טיוטה"), "watermark leaked out of its section: {elsewhere}");
+    let elsewhere: String = runs
+        .iter()
+        .filter(|r| r.page != section_page)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert!(
+        !elsewhere.contains("טיוטה"),
+        "watermark leaked out of its section: {elsewhere}"
+    );
 }
 
 #[test]
@@ -123,9 +168,20 @@ fn a_section_can_number_its_pages_its_own_way() {
     // the footer as well as `numbering`.
     let body = "רגיל\n#מקטע_עמוד(מספור: \"i\")[מבוא]\nהמשך";
     let (runs, _) = render(body);
-    let p = runs.iter().find(|r| r.text.contains("מבוא")).expect("section body missing").page;
-    let on_section: String = runs.iter().filter(|r| r.page == p).map(|r| r.text.as_str()).collect();
-    assert!(on_section.contains("ii") || on_section.contains("i"), "roman numeral missing: {on_section}");
+    let p = runs
+        .iter()
+        .find(|r| r.text.contains("מבוא"))
+        .expect("section body missing")
+        .page;
+    let on_section: String = runs
+        .iter()
+        .filter(|r| r.page == p)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert!(
+        on_section.contains("ii") || on_section.contains("i"),
+        "roman numeral missing: {on_section}"
+    );
 }
 
 // ── mathematics ──────────────────────────────────────────────────────────────
@@ -148,7 +204,10 @@ fn a_formula_reaches_the_page_left_to_right() {
             .x
     };
     // Mathematics runs left-to-right even inside RTL text: a precedes c.
-    assert!(at(MATH_A) < at(MATH_C), "the formula was laid out right-to-left");
+    assert!(
+        at(MATH_A) < at(MATH_C),
+        "the formula was laid out right-to-left"
+    );
 }
 
 #[test]
@@ -161,8 +220,17 @@ fn a_displayed_formula_stands_on_its_own_line_and_can_be_numbered() {
             .unwrap_or_else(|| panic!("{needle} never reached the page"))
             .y
     };
-    assert!(line_of(MATH_X) > line_of("טקסט"), "the formula is not below the text before it");
-    assert!(line_of("המשך") > line_of(MATH_X), "the formula did not stand on its own line");
+    assert!(
+        line_of(MATH_X) > line_of("טקסט"),
+        "the formula is not below the text before it"
+    );
+    assert!(
+        line_of("המשך") > line_of(MATH_X),
+        "the formula did not stand on its own line"
+    );
     let text = all_text(&runs);
-    assert!(text.contains("(1)"), "the equation number is missing: {text}");
+    assert!(
+        text.contains("(1)"),
+        "the equation number is missing: {text}"
+    );
 }

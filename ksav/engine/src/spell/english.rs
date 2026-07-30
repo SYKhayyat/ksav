@@ -208,15 +208,23 @@ impl Lexicon {
         self.lower
             .iter()
             .map(|w| (w, 0))
-            .chain(self.cased.iter().map(|w| (w, usize::from(shape == Shape::Lower))))
+            .chain(
+                self.cased
+                    .iter()
+                    .map(|w| (w, usize::from(shape == Shape::Lower))),
+            )
             .filter(|(w, _)| {
                 let n = w.chars().count();
                 n + 1 >= tc.len() && n <= tc.len() + 1
             })
             .filter_map(|(w, penalty)| {
                 let cand: Vec<char> = w.to_lowercase().chars().collect();
-                edit_distance(&tc, &cand, 1)
-                    .map(|d| (rank(d, is_transposition(&tc, &cand)) + penalty, shape.apply(w)))
+                edit_distance(&tc, &cand, 1).map(|d| {
+                    (
+                        rank(d, is_transposition(&tc, &cand)) + penalty,
+                        shape.apply(w),
+                    )
+                })
             })
             .collect()
     }

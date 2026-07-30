@@ -169,7 +169,8 @@ fn a_buffer_written_in_girsa_opens_in_real_ksav_with_zero_conversion() {
     // a line of the writer's own — compiled here by the real Typst engine and
     // read off the page.
     let lines = probe::lines(&render(BUFFER), 1.0);
-    for words in ["השכמת הבוקר", "ראוי לכל ירא שמים", "וצריך עיון"] {
+    for words in ["השכמת הבוקר", "ראוי לכל ירא שמים", "וצריך עיון"]
+    {
         assert!(
             on_the_page(words, &lines),
             "{words:?} is not on the page: {:?}",
@@ -203,19 +204,24 @@ fn the_ref_is_in_the_document_and_the_mareh_mekomos_is_a_sort_and_a_print() {
         "the buffer does not keep the place: {BUFFER}"
     );
 
-    let with_a_list = format!("{BUFFER}
+    let with_a_list = format!(
+        "{BUFFER}
 #מראה_מקומות(כותרת: [מראה מקומות])
-");
+"
+    );
     let lines = probe::lines(&render(&with_a_list), 1.0);
-    assert!(on_the_page("מראה מקומות", &lines), "no source list was printed");
+    assert!(
+        on_the_page("מראה מקומות", &lines),
+        "no source list was printed"
+    );
 
     // The citation appears twice now — once as the footnote where it was
     // cited, once in the list — and the list is at the end.
-    let printed: Vec<&Line> = lines
-        .iter()
-        .filter(|l| l.contains("שולחן ערוך"))
-        .collect();
-    assert!(printed.len() >= 2, "the source list did not print the mekor");
+    let printed: Vec<&Line> = lines.iter().filter(|l| l.contains("שולחן ערוך")).collect();
+    assert!(
+        printed.len() >= 2,
+        "the source list did not print the mekor"
+    );
 }
 
 #[test]

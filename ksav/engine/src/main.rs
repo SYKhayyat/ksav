@@ -29,14 +29,8 @@ fn usage(to: &mut dyn Write) {
         to,
         "  ksav serve [addr]                launch the web editor (default 127.0.0.1:7878)"
     );
-    let _ = writeln!(
-        to,
-        "  ksav --help                      this text"
-    );
-    let _ = writeln!(
-        to,
-        "  ksav --version                   which Ksav this is"
-    );
+    let _ = writeln!(to, "  ksav --help                      this text");
+    let _ = writeln!(to, "  ksav --version                   which Ksav this is");
 }
 
 fn main() -> ExitCode {
@@ -118,7 +112,10 @@ fn main() -> ExitCode {
         );
         ExitCode::SUCCESS
     } else {
-        eprintln!("✗ compilation failed ({} diagnostic(s))", result.diagnostics.len());
+        eprintln!(
+            "✗ compilation failed ({} diagnostic(s))",
+            result.diagnostics.len()
+        );
         ExitCode::from(1)
     }
 }

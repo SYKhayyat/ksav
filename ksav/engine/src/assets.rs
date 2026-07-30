@@ -76,7 +76,9 @@ impl ContentCache {
         self.order.push_back(hash.clone());
         self.map.insert(hash, bytes);
         while self.bytes > CACHE_CAP_BYTES {
-            let Some(old) = self.order.pop_front() else { break };
+            let Some(old) = self.order.pop_front() else {
+                break;
+            };
             if let Some(b) = self.map.remove(&old) {
                 self.bytes -= b.len();
             }

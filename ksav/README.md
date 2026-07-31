@@ -171,7 +171,12 @@ browser on any OS.
       Squiggles, suggestions, and a one-click user dictionary.
 - [x] **Exports** — PDF, real reflowable HTML (Typst's own HTML backend),
       Markdown, plain text, Typst source.
-- [x] **Responsive** down to a phone.
+- [x] **Responsive** down to a phone, and on a laptop.
+
+  It was true on a phone and false on a laptop: at 1366×768 the split gave the
+  preview 680 px, an A4 page drew at 860, and the pane scrolled to the *end* of
+  every Hebrew line. The page fits the pane by default now and the pane reads in
+  the document's own direction — see `app/src/preview.ts`.
 - [x] **Review tools** — tracked insertions and deletions, editorial margin
       comments, accept/reject per change, and three ways to read the document
       (markup / as-if-accepted / original).

@@ -17,11 +17,11 @@ Installers for Windows, macOS (Apple Silicon and Intel) and Linux are attached t
 the [latest release](https://github.com/SYKhayyat/ksav/releases). You do not need
 Rust, Node, or a terminal to use Ksav — those are only for building it yourself.
 
-> **Not published yet.** CI has built every installer — Windows, both Mac
-> architectures and Linux — but the `v0.1.0` release is still a *draft*, so that
-> link shows an empty page to anyone but the maintainer. Publishing the draft is
-> all that stands between the files and the people they are for. Until then,
-> build it yourself from the instructions below.
+`v0.1.0` is **published**, with nine installers on it: `.msi` and `.exe` for
+Windows, `.dmg` for both Mac architectures, `.deb`, `.rpm` and `.AppImage` for
+Linux, and the two `.app.tar.gz` bundles. `/releases/latest` was a 404 for as long
+as the release sat as a draft, which three consecutive audits called the single
+most consequential open item — it is a button, and it has been pressed.
 
 **The installers are not code-signed, so the first launch is blocked on every
 system.** The download is not broken; a certificate is a cost Ksav has not paid
@@ -33,6 +33,32 @@ yet. Getting past it:
 | macOS | "unidentified developer" | **System Settings → Privacy & Security** → **Open Anyway** |
 | macOS | "Ksav is damaged" | `xattr -dr com.apple.quarantine /Applications/Ksav.app` |
 | Linux (`.AppImage`) | nothing happens | `chmod +x Ksav_*.AppImage` |
+
+Every one of those four lines is also in the release body itself, because that is
+the page somebody who clicked *Download* is actually looking at — a workaround that
+only exists in a README is a workaround nobody reads.
+
+<details>
+<summary><b>When a certificate is bought, this becomes a signed build with no other change</b></summary>
+
+Apple is $99/yr and a Windows OV certificate is roughly $200–400/yr. The workflow
+already names the secrets; setting them is the whole of it, and nothing in
+`release.yml` has to be edited.
+
+| Secret | What it is | Which build |
+| --- | --- | --- |
+| `APPLE_CERTIFICATE` | the `.p12`, base64-encoded | macOS |
+| `APPLE_CERTIFICATE_PASSWORD` | its password | macOS |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: … (TEAMID)` | macOS |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | notarisation | macOS |
+| `WINDOWS_CERTIFICATE` | the `.pfx`, base64-encoded | Windows |
+| `WINDOWS_CERTIFICATE_PASSWORD` | its password | Windows |
+| `TAURI_SIGNING_PRIVATE_KEY` | the updater's key, if the updater is ever turned on | all |
+
+Until then the table above is the honest answer rather than a fix, and it is the
+one every unsigned application ships with.
+
+</details>
 
 Your documents stay on your machine — Ksav has no account, no server, and uploads
 nothing.

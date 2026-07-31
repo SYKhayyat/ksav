@@ -108,7 +108,12 @@ jobs:
           # ~$200-400/yr Windows OV), not a workaround. Add the secrets and
           # these become signed builds with no other change:
           #   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY
+          #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID       (notarisation)
+          #   WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD
           #   TAURI_SIGNING_PRIVATE_KEY (updater)
+          # The same table is in the root README, under Download, so somebody
+          # deciding whether to spend the money can see what it buys without
+          # reading a workflow file.
         with:
           projectPath: ./Ksav/ksav/app
           tagName: ${{ github.ref_name }}

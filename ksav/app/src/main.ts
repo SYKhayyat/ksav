@@ -77,6 +77,7 @@ import { scheduleCompile, runCompile, onSchedule } from "./compile";
 import { applyPreview } from "./preview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
+import { troubleSaid } from "./diagnostics";
 
 // ---------------------------------------------------------------- editor
 //
@@ -757,7 +758,8 @@ async function linkifySelection(): Promise<void> {
     setStatus(t("citationsLinked"), "ok");
     scheduleCompile();
   } catch (e) {
-    setStatus(String(e), "err");
+    const bad = troubleSaid(e, "linkify");
+    setStatus(bad.said, "err", bad.detail);
   }
 }
 
@@ -783,7 +785,9 @@ async function askForMekor(): Promise<void> {
     is_a_quotation: false,
     said: "",
     places: [],
-    error: String(e),
+    // The shape `mekoros` returns carries a message a reader will see, so it
+    // gets the reader's sentence and not the transport's.
+    error: troubleSaid(e, "reach_girsa").said,
   }));
   if (answer.error) {
     setStatus(answer.error, "err");
@@ -2004,7 +2008,8 @@ async function saveFile() {
     try {
       written = await files.saveTo(runtime.currentBinding, text);
     } catch (e) {
-      setStatus(`${t("saveFailed")} — ${String(e)}`, "err");
+      const bad = troubleSaid(e, "save_file");
+      setStatus(`${t("saveFailed")} — ${bad.said}`, "err", bad.detail);
       return;
     }
     if (written) {

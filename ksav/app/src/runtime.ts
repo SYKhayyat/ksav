@@ -98,11 +98,20 @@ export function fileStem(): string {
 // ---------------------------------------------------------------- the chrome
 
 /** A transient message in the status bar. */
-export function setStatus(msg: string, cls = "") {
+/**
+ * Put a line in the status bar.
+ *
+ * `detail` is the machine's own string, and it goes on `title` rather than into
+ * `msg`. Six sites used to append it to a translated label, which made the
+ * sentence half Hebrew and half whatever Rust or the browser happened to say.
+ */
+export function setStatus(msg: string, cls = "", detail = "") {
   const status = document.getElementById("status");
   if (!status) return;
   status.textContent = msg;
   status.className = cls;
+  if (detail) status.title = detail;
+  else status.removeAttribute("title");
 }
 
 export function closeMenus() {

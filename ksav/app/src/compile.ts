@@ -7,7 +7,7 @@
 // the two never touch. A render is a convenience; a save is the writer's work.
 
 import { analyze } from "./brackets";
-import { friendlyError } from "./diagnostics";
+import { friendlyError, troubleSaid } from "./diagnostics";
 import * as docs from "./docs";
 import { t, tf } from "./i18n";
 import { applyPreview } from "./preview";
@@ -108,9 +108,11 @@ export async function runCompile() {
     afterCompile();
   } catch (e) {
     if (mine !== generation) return;
+    const bad = troubleSaid(e, "compile");
     status.textContent = `✗ ${t("networkError")}`;
     status.className = "err";
-    diag.textContent = String(e);
+    diag.textContent = bad.said;
+    diag.title = bad.detail; // the machine's own string, one hover away
   }
 }
 
@@ -130,7 +132,8 @@ export async function compileForExport(): Promise<CompileResult | null> {
       want_pdf: true,
     });
   } catch (e) {
-    runtime.setStatus(`${t("networkError")} — ${String(e)}`, "err");
+    const bad = troubleSaid(e, "compile");
+    runtime.setStatus(`${t("networkError")} — ${bad.said}`, "err", bad.detail);
     return null;
   }
 }

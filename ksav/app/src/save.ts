@@ -21,6 +21,7 @@ import { el, noticeHost } from "./dom";
 import { t } from "./i18n";
 import * as runtime from "./runtime";
 import { settings } from "./settings";
+import { troubleSaid } from "./diagnostics";
 
 const SAVE_DEBOUNCE_MS = 600;
 
@@ -119,12 +120,16 @@ export function onUpdateTitleBar(fn: () => void) {
  */
 export function reportSaveFailure(e: unknown) {
   const full = e instanceof docs.StorageFullError;
-  const msg = full ? t("storageFull") : `${t("saveFailed")} — ${String(e)}`;
+  const bad = troubleSaid(e, "save_file");
+  const msg = full ? t("storageFull") : `${t("saveFailed")} — ${bad.said}`;
   if (saveFailure === msg) return;
   saveFailure = msg;
   document.getElementById("save-error")?.remove();
   const banner = el("div", { id: "save-error", class: "save-error", role: "alert" }, [
-    el("span", { class: "save-error-text" }, [msg]),
+    // The banner shows the sentence; the machine's own string is on the hover,
+    // because the writer needs to know their text is not being kept and the bug
+    // report needs the rest.
+    el("span", { class: "save-error-text", title: bad.detail }, [msg]),
     el("button", { class: "save-error-act", type: "button", onClick: () => void saveNow() }, [
       t("retrySave"),
     ]),

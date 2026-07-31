@@ -11,6 +11,12 @@ It is aimed at Hebrew writers, with a first-class Torah/yeshiva path (siddur,
 bentcher, kesubah, get, footnote apparatus, side-column commentary), and it works
 equally for left-to-right English documents.
 
+**If you are here to use it, not to build it:
+[`docs/start-here.md`](docs/start-here.md)** — and
+[`docs/from-word.md`](docs/from-word.md) if that is what you are leaving.
+[`docs/shortcuts.md`](docs/shortcuts.md) is all 29 bindings in both languages,
+generated from the source.
+
 ## Download
 
 Installers for Windows, macOS (Apple Silicon and Intel) and Linux are attached to

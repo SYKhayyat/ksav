@@ -35,6 +35,7 @@ import type { DocAsset } from "./docs";
 import * as store from "./store";
 import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
+import { aliasesInForce, keybindingsFrom, whoHolds } from "./bindings";
 import * as spell from "./spell";
 import * as styles from "./styles";
 import * as tables from "./table";
@@ -344,60 +345,27 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
     },
   },
 ];
-const DEFAULT_KEYS: Record<string, string> = {
-  bold: "Mod-b",
-  italic: "Mod-i",
-  underline: "Mod-u",
-  footnote: "Mod-Shift-f",
-  region: "Mod-Shift-g",
-  comment: "Mod-/",
-  undo: "Mod-z",
-  redo: "Mod-y",
-  h1: "Mod-1",
-  h2: "Mod-2",
-  h3: "Mod-3",
-  bullets: "Mod-Shift-8",
-  numbered: "Mod-Shift-7",
-  table: "Mod-Shift-t",
-  toc: "Mod-Shift-o",
-  center: "Mod-e",
-  right: "Mod-Shift-r",
-  left: "Mod-Shift-l",
-  palette: "Mod-k",
-  find: "Mod-f",
-  foldAll: "Mod-Alt-[",
-  unfoldAll: "Mod-Alt-]",
-  save: "Mod-s",
-  open: "Mod-o",
-  newDoc: "Mod-Alt-n",
-  markInsert: "Mod-Alt-i",
-  markDelete: "Mod-Alt-d",
-  addComment: "Mod-Alt-m",
-  healBrackets: "Mod-Alt-b",
-};
-
 /**
- * Extra keys for an action beyond its configured one.
+ * The bindings, and the aliases, now live in `bindings.ts` (B31, B36).
  *
- * Redo answered only to Mod-y, but a great many people press Mod-Shift-z and
- * simply conclude that redo is broken. An alias is not a second setting: it is
- * dropped as soon as the writer binds that combination to something themselves.
+ * Out of this file for two reasons: it is the one module in `src` without a test
+ * file, which the grade calls *the tell*; and `tools/card.mjs` reads them to
+ * generate the shortcut card B36 asks for, so the card cannot drift from the keys.
  */
-const KEY_ALIASES: Record<string, string[]> = {
-  redo: ["Mod-Shift-z"],
-};
 function keybindings(): Record<string, string> {
-  return { ...DEFAULT_KEYS, ...(settings.keybindings || {}) };
+  return keybindingsFrom(settings.keybindings);
 }
 function buildShortcutKeymap(): KeyBinding[] {
   const kb = keybindings();
-  const claimed = new Set(Object.values(kb));
   const bindings: KeyBinding[] = [...nikudKeymap(scheduleCompile)];
+  // Which aliases survive is `bindings.aliasesInForce`, not a `claimed` set built
+  // here: it is the same rule the settings panel needs when it warns about a
+  // conflict, and two copies of it is how one of them stops matching.
+  const aliases = aliasesInForce(kb);
   for (const a of ACTIONS) {
     if (kb[a.id]) bindings.push({ key: kb[a.id], run: a.run, preventDefault: true });
-    for (const alias of KEY_ALIASES[a.id] ?? []) {
-      // Never let an alias shadow a key the writer has deliberately assigned.
-      if (!claimed.has(alias)) bindings.push({ key: alias, run: a.run, preventDefault: true });
+    for (const alias of aliases[a.id] ?? []) {
+      bindings.push({ key: alias, run: a.run, preventDefault: true });
     }
   }
   return bindings;
@@ -1631,12 +1599,12 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
     // Silently assigning it left two actions on one key, one of them shadowed with
     // no way to tell which won. Offer to move it; if declined, keep what was there.
     const kb = keybindings();
-    const conflict = ACTIONS.find((a) => a.id !== actionId && kb[a.id] === key);
+    const conflict = whoHolds(kb, key, actionId);
     let reassigned = false;
     if (conflict) {
       if (!confirm(tf("shortcutConflict", key))) return done(original);
       // Unbind the other so the chord is held by exactly one action.
-      settings.keybindings = { ...(settings.keybindings || {}), [conflict.id]: "", [actionId]: key };
+      settings.keybindings = { ...(settings.keybindings || {}), [conflict]: "", [actionId]: key };
       reassigned = true;
     } else {
       settings.keybindings = { ...(settings.keybindings || {}), [actionId]: key };

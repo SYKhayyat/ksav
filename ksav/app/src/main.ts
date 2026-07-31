@@ -3093,25 +3093,72 @@ function wireKeys() {
 }
 
 // First-run welcome: shown once, offers a template or a blank start.
+//
+// Two things were wrong here and both were on the reader's very first screen.
+//
+// The template list was `.slice(0, 6)`. `templatesForMenu` sorts the interface's
+// own language first, so in a Hebrew interface those six were all Hebrew and the
+// four cut were `letter-en`, `article-en`, `kesubah` and `get` — an English
+// writer's first screen, in a program whose README opens *"it works equally for
+// left-to-right English documents"*, offered six Hebrew templates and no way to
+// see there were others. All ten now show, in two labelled groups with the
+// interface's language first, so the other language is visibly present rather
+// than cut off the end of a list nobody knew was a list.
+//
+// And the button labelled *"start blank"* only closed the overlay. It set the
+// onboarded flag and removed the dialog and never touched the document, so the
+// reader's first act in the program was a button that lied: 323 characters of
+// welcome document before the click and 323 after. The template buttons two lines
+// up had always done `loadTemplate(tpl); dismissOnboard()`; this one was missing
+// its half of that pair.
 function maybeOnboard() {
   if (localStorage.getItem("ksav.onboarded")) return;
   const lang = getLang();
+  const all = templatesForMenu();
+  const groups = [lang, lang === "he" ? "en" : "he"]
+    .map((l) => ({ lang: l, items: all.filter((tpl) => tpl.lang === l) }))
+    .filter((g) => g.items.length);
+  // A template whose `lang` is neither is still a template; it goes in a last
+  // group rather than off the screen.
+  const rest = all.filter((tpl) => tpl.lang !== "he" && tpl.lang !== "en");
+  if (rest.length) groups.push({ lang: "", items: rest });
+
   const overlay = el("div", { id: "welcome", class: "overlay open" }, [
     el("div", { class: "palette-box welcome-box" }, [
       el("h2", {}, [t("welcomeTitle")]),
       el("p", {}, [t("welcomeBody")]),
-      el(
-        "div",
-        { class: "welcome-templates" },
-        templatesForMenu()
-          .slice(0, 6)
-          .map((tpl) =>
-            el("button", { class: "welcome-tpl", onClick: () => { loadTemplate(tpl); dismissOnboard(); } }, [
-              lang === "he" ? tpl.he : tpl.en,
-            ]),
+      ...groups.flatMap((g) => [
+        el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),
+        el(
+          "div",
+          { class: "welcome-templates" },
+          g.items.map((tpl) =>
+            el(
+              "button",
+              {
+                class: "welcome-tpl",
+                lang: tpl.lang,
+                onClick: () => {
+                  loadTemplate(tpl);
+                  dismissOnboard();
+                },
+              },
+              [lang === "he" ? tpl.he : tpl.en],
+            ),
           ),
+        ),
+      ]),
+      el(
+        "button",
+        {
+          class: "welcome-start",
+          onClick: () => {
+            newDoc();
+            dismissOnboard();
+          },
+        },
+        [t("welcomeStart")],
       ),
-      el("button", { class: "welcome-start", onClick: dismissOnboard }, [t("welcomeStart")]),
     ]),
   ]);
   document.getElementById("app")!.append(overlay);

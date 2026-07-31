@@ -38,6 +38,7 @@
 //! an empty dictionary flags every word, and "we do not check this script" and
 //! "every word in this script is wrong" must not be the same state.
 
+pub(crate) mod common;
 pub mod english;
 pub mod hebrew;
 
@@ -411,9 +412,16 @@ pub(crate) fn is_transposition(a: &[char], b: &[char]) -> bool {
 
 /// The rank of a one-edit candidate: distance first, transpositions ahead of
 /// everything else at the same distance. Scaled so a language may add its own
-/// tie-breaker underneath without ever outweighing either.
+/// tie-breakers underneath without ever outweighing either.
+///
+/// The scale is `4 · BANDS` per edit and `2 · BANDS` for not being a
+/// transposition, which leaves exactly [`common::BANDS`] of room below both. That
+/// is what a caller may spend on its own tie-breakers — how common the word is
+/// (`common::band`) and whether its capitalisation matches — and the arithmetic
+/// is the whole safety property: a tie-breaker that could reach into the next
+/// distance would offer `the` for `then`, which is worse than offering nothing.
 pub(crate) fn rank(distance: usize, transposed: bool) -> usize {
-    4 * distance + if transposed { 0 } else { 2 }
+    (4 * distance + if transposed { 0 } else { 2 }) * common::BANDS
 }
 
 /// Optimal string alignment distance between `a` and `b`, or `None` above `max`.

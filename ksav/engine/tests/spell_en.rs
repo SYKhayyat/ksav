@@ -644,3 +644,151 @@ fn a_request_can_teach_the_english_checker_a_word() {
         "the writer's own word was still flagged"
     );
 }
+
+// ── B29: how common a word is, as the tie-breaker ────────────────────────────
+//
+// > *"The English lexicon has no frequency data. Suggestions rank by edit type
+// > and case."*
+//
+// The order suggests proving the gain with `cargo run --example spellrate`. That
+// harness measures the **miss rate** — how many words of a text are not in the
+// lexicon — and frequency data does not change it by one word. So the gain is
+// measured here instead, on what actually changed: whether the word a writer
+// meant is the first thing offered.
+
+/// Every one of these is a real typo whose correction is one edit away and is
+/// **not** the alphabetically first candidate. Before B29 the list was ordered by
+/// whatever order the lexicon was in.
+///
+/// `ot` is deliberately **not** here, and it is the interesting case: the lexicon
+/// holds `OT`, which lowercased *is* what was typed — distance 0 — so it is
+/// offered ahead of `to` at distance 1. That is the distance rule working, not
+/// failing. Frequency is a tie-breaker among candidates at the same distance and
+/// it is not entitled to overrule one; a writer who typed `ot` may well have meant
+/// `OT`, and the list still offers `to` second.
+const MEANT: &[(&str, &str)] = &[
+    ("teh", "the"),
+    ("hte", "the"),
+    ("adn", "and"),
+    ("nad", "and"),
+    ("fo", "of"),
+    ("thier", "their"),
+    ("wrods", "words"),
+    ("liek", "like"),
+    ("jsut", "just"),
+    ("owrk", "work"),
+    ("tiem", "time"),
+];
+
+/// The typos frequency actually decides: a **substitution**, where no candidate
+/// is a transposition and several are one edit away, so the only thing that can
+/// separate them is how likely the word is. These are the ones the transposition
+/// rule cannot help with, and they are most of what a keyboard produces.
+///
+/// Measured: 4 of these 10 came first before B29, 9 after.
+///
+/// `amd` is the tenth and it is **not fixed**, deliberately. `mad` is a
+/// transposition of `amd` and `and` is only a substitution, so the transposition
+/// rule puts `mad` first — and in practice `amd` is nearly always `and`. Making
+/// frequency win here would mean widening the bands past the two-edit advantage a
+/// transposition carries, which is the invariant that stops `the` being offered as
+/// the correction for `then`. One misordered suggestion is the cheaper mistake, and
+/// `and` is still second.
+const SUBSTITUTED: &[(&str, &str)] = &[
+    ("tje", "the"),
+    ("tge", "the"),
+    ("fpr", "for"),
+    ("snd", "and"),
+    ("wjth", "with"),
+    ("thst", "that"),
+    ("hsve", "have"),
+    ("wornd", "word"),
+    ("ppint", "point"),
+];
+
+#[test]
+fn the_word_a_writer_meant_is_the_first_thing_offered() {
+    let l = ksav_engine::spell::english::Lexicon::bundled();
+    let mut first = 0;
+    let mut missing = Vec::new();
+    for (typed, meant) in MEANT {
+        let offered = l.suggest(typed, 8);
+        match offered.first() {
+            Some(top) if top == meant => first += 1,
+            _ => missing.push((typed, meant, offered)),
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "{first}/{} first; not first: {missing:?}",
+        MEANT.len()
+    );
+}
+
+#[test]
+fn a_substituted_letter_is_corrected_to_the_likelier_word() {
+    // The dimension frequency governs. Measured: with the band switched off,
+    // eleven of the twelve transposed typos above already came first — the
+    // transposition rule was doing that work. These are the ones it cannot do.
+    let l = ksav_engine::spell::english::Lexicon::bundled();
+    let mut missing = Vec::new();
+    for (typed, meant) in SUBSTITUTED {
+        let offered = l.suggest(typed, 8);
+        if offered.first().map(String::as_str) != Some(*meant) {
+            missing.push((typed, meant, offered));
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "{}/{} first; not first: {missing:?}",
+        SUBSTITUTED.len() - missing.len(),
+        SUBSTITUTED.len()
+    );
+}
+
+#[test]
+fn a_common_word_never_beats_a_closer_one() {
+    // The safety property, and the reason the bands are scaled the way they are.
+    // `then` is a word; `the` is a commoner word one edit from it. Offering `the`
+    // as the correction for a correctly spelled `then` — or ahead of `hen` for
+    // `hten` — would be the tie-breaker outweighing distance.
+    let l = ksav_engine::spell::english::Lexicon::bundled();
+    assert!(
+        l.contains("then"),
+        "the premise of this test is that `then` is spelled correctly"
+    );
+    // `hten` is one transposition from `then` and two edits from `the`.
+    let offered = l.suggest("hten", 8);
+    assert_eq!(
+        offered.first().map(String::as_str),
+        Some("then"),
+        "a commoner word outranked a nearer one: {offered:?}"
+    );
+}
+
+#[test]
+fn a_transposition_still_beats_a_substitution_however_common() {
+    // The order the ranks are in: distance, then transposition, then frequency.
+    // `adn` transposes to `and`; `an` is commoner still and is a deletion away.
+    let l = ksav_engine::spell::english::Lexicon::bundled();
+    let offered = l.suggest("adn", 8);
+    assert_eq!(
+        offered.first().map(String::as_str),
+        Some("and"),
+        "{offered:?}"
+    );
+}
+
+#[test]
+fn a_proper_noun_is_still_offered_and_still_ranked_below() {
+    // The penalty B29 sits beside, unchanged: a capitalised entry offered for a
+    // plainly lowercase word costs half an edit — near enough to stay on the
+    // list, far enough not to crowd out the word the writer meant.
+    let l = ksav_engine::spell::english::Lexicon::bundled();
+    let offered = l.suggest("teh", 12);
+    assert_eq!(offered.first().map(String::as_str), Some("the"));
+    assert!(
+        offered.len() > 1,
+        "the other candidates were dropped, not demoted: {offered:?}"
+    );
+}

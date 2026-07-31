@@ -193,10 +193,18 @@ impl Lexicon {
     /// Case also *ranks*, and it has to. Sorting one edit's worth of candidates
     /// alphabetically puts every capitalised entry first, because that is what
     /// byte order does — so `teh` came back as `ETH, NEH, Te, Ted, Tet, Tex, Th`
-    /// and the list was cut off before it reached `the`. A proper noun offered
-    /// for a plainly lowercase word is the least likely answer there is, so it
-    /// costs half an edit: near enough to stay on the list, far enough to stop
-    /// crowding out the word the writer meant.
+    /// and the list was cut off before it reached `the`.
+    ///
+    /// A proper noun offered for a plainly lowercase word is the least likely
+    /// answer there is, so it **costs a whole edit**: still on the list, never
+    /// ahead of a lowercase word that is just as close.
+    ///
+    /// It used to cost half an edit, and half was not enough to do the job the
+    /// half was for. Measured on `tge`: `GTE` is a transposition of it, `the` is a
+    /// substitution, and a transposition is worth two edits of advantage — so the
+    /// telephone company was offered first for a plainly lowercase typo. Same for
+    /// `amd`, where `AMD` lowercases to exactly what was typed and `and` came
+    /// fifth.
     fn suggest_scored(&self, word: &str) -> Vec<(usize, String)> {
         let written = normalize(word);
         let target = written.to_lowercase();
@@ -220,8 +228,19 @@ impl Lexicon {
             .filter_map(|(w, penalty)| {
                 let cand: Vec<char> = w.to_lowercase().chars().collect();
                 edit_distance(&tc, &cand, 1).map(|d| {
+                    // Distance, then transposition, then **how common the word
+                    // is** (B29), then the capitalisation penalty. All three
+                    // tie-breakers fit inside one edit's worth of scale, so a
+                    // common word never beats a closer one — see `spell::rank`.
+                    //
+                    // This is the layer that was missing. Every candidate here is
+                    // one edit away by construction, so distance separates none of
+                    // them, and what was left was the order the lexicon happened
+                    // to be in: `teh` came back `eh, meh, tea, tech, ted, tee` and
+                    // `the` fell off the end.
+                    let common = crate::spell::common::band(w);
                     (
-                        rank(d, is_transposition(&tc, &cand)) + penalty,
+                        rank(d, is_transposition(&tc, &cand)) + common + rank(penalty, true),
                         shape.apply(w),
                     )
                 })

@@ -18,6 +18,7 @@ const OUT = path.join(APP, ".tmp-test");
 /** The modules a test may import. Bundled, so their own imports come along. */
 const MODULES = [
   "brackets",
+  "commands",
   "diagnostics",
   "diagview",
   "docs",

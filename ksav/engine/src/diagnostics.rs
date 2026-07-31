@@ -464,23 +464,24 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
                 .map(|(_, en)| *en)
                 .collect::<Vec<_>>()
                 .join(" or ");
-            let which = about
-                .as_deref()
-                .map(|c| (format!("הפקודה {c}"), c.to_string()))
-                .unwrap_or_else(|| ("הפקודה כאן".into(), "the command here".into()));
+            // "הפקודה כאן מצפה כאן" — *here* twice — is what the unnamed case read
+            // before. When the command cannot be named, the sentence drops the second
+            // one rather than repeating it.
+            let (he_which, en_which, he_here, en_here) = match about.as_deref() {
+                Some(c) => (format!("הפקודה {c}"), c.to_string(), " כאן", " here"),
+                None => ("הפקודה כאן".into(), "the command here".into(), "", ""),
+            };
             let he_got = got.map(|(he, _)| he).unwrap_or("ערך מסוג אחר");
             let en_got = got.map(|(_, en)| en).unwrap_or("a value of another kind");
             let message = if said.is_empty() {
                 format!(
-                    "{} קיבלה {he_got}, שאינו מה שהיא מצפה לו · \
-                     {} was given {en_got}, which is not what it expects",
-                    which.0, which.1
+                    "{he_which} קיבלה {he_got}, שאינו מה שהיא מצפה לו · \
+                     {en_which} was given {en_got}, which is not what it expects"
                 )
             } else {
                 format!(
-                    "{} מצפה כאן ל{he_wanted}, וקיבלה {he_got} · \
-                     {} expects {en_wanted} here, and was given {en_got}",
-                    which.0, which.1
+                    "{he_which} מצפה{he_here} ל{he_wanted}, וקיבלה {he_got} · \
+                     {en_which} expects {en_wanted}{en_here}, and was given {en_got}"
                 )
             };
             return Said {
@@ -829,11 +830,54 @@ mod end_to_end {
 
     #[test]
     fn a_string_argument_given_content_says_so_in_the_commands_own_words() {
-        let d = only("#נוסחה[x^2 + y^2 = z^2]\n");
-        assert_eq!(d.line, Some(1), "{d:?}");
-        assert!(d.message.contains("מלל במרכאות"), "{}", d.message);
+        // `#נוסחה[…]` used to be the example here, and B28 made it compile — so the
+        // family is asserted against a command where a string genuinely cannot be
+        // content. `#טבלה(עמודות: …)` wants a width, and brackets are not one.
+        let d = only("#טבלה(עמודות: [שתיים])[א][ב]\n");
+        assert!(d.message.contains("מידה"), "{}", d.message);
         assert!(d.message.contains("תוכן בסוגריים"), "{}", d.message);
         assert!(!d.message.contains("found content"), "{}", d.message);
+        assert!(d.raw.contains("found content"), "{}", d.raw);
+    }
+
+    /// `#נוסחה` was the one command in the registry that broke the bracket
+    /// convention, and it now takes both forms (B28).
+    ///
+    /// Every command in the README's core idea is `#הדגשה[טקסט]`, `#כותרת1[…]`,
+    /// `#רשימה[…]`, `#הערה[…]`. `#נוסחה[x^2 + y^2 = z^2]` answered *"expected
+    /// string, found content"*. The toolbar and the palette insert the right form,
+    /// so it only ever bit the writer who **types** — which is the writer this
+    /// markup language exists for.
+    ///
+    /// The four siblings are here too: every other command whose first argument is a
+    /// string a typist would reach for brackets around. The nine that take a string
+    /// which is *not* content — a file path, a colour, a stream name, a
+    /// configuration — are left alone, and the reasons are in `ksav.typ`.
+    #[test]
+    fn a_string_argument_can_be_written_with_brackets_or_with_quotes() {
+        for body in [
+            "#נוסחה[x^2 + y^2 = z^2]\n",
+            "#נוסחה(\"x^2 + y^2 = z^2\")\n",
+            "#נוסחה(ממוספרת: true)[x^2]\n",
+            "#נוסחה_בשורה[a+b]\n",
+            "#נוסחה_בשורה(\"a+b\")\n",
+            "#סמן[רשי] אחר כך #הפניה[רשי]\n",
+            "#סמן(\"רשי\") אחר כך #הפניה(\"רשי\")\n",
+            "#גופן_שונה[David Libre][טקסט]\n",
+            "#גופן_שונה(\"David Libre\")[טקסט]\n",
+        ] {
+            let out = crate::compile(body, &DocConfig::default());
+            assert!(
+                out.ok(),
+                "`{}` did not compile: {:?}",
+                body.trim(),
+                out.diagnostics
+                    .iter()
+                    .filter(|d| d.severity == "error")
+                    .map(|d| d.message.clone())
+                    .collect::<Vec<_>>()
+            );
+        }
     }
 
     #[test]

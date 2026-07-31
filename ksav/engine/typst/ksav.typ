@@ -95,6 +95,35 @@
 })
 #let footnote_config = _en(הגדרות_הערות)
 
+// ============================================================
+//  A string argument, written either way
+// ------------------------------------------------------------
+//  Every command in the README's core idea takes brackets — `#הדגשה[טקסט]`,
+//  `#כותרת1[…]`, `#רשימה[…]`, `#הערה[…]`. A handful genuinely want a *string*: a
+//  formula is evaluated, a label is an identifier, a stream and a font are names.
+//  Given brackets, those answered *"expected string, found content"* — and the
+//  toolbar and the palette insert the right form, so it only ever bit the writer
+//  who **types**, which is the writer this markup language exists for.
+//
+//  So they take both. This flattens content back to the plain string they need.
+//  There is nothing in those brackets but characters — no nested command to lose —
+//  and the space element is the only thing that needs naming.
+#let _as_string(x) = {
+  if type(x) == str { x } else if type(x) == content {
+    if x.has("text") {
+      x.text
+    } else if x.has("children") {
+      x.children.map(_as_string).join("")
+    } else if x == [ ] {
+      " "
+    } else {
+      ""
+    }
+  } else {
+    str(x)
+  }
+}
+
 #let _fn_pick(arr, i, fb) = if type(arr) == array and i >= 1 and i - 1 < arr.len() { arr.at(i - 1) } else { fb }
 
 // ---- shared apparatus helpers ----
@@ -497,6 +526,7 @@
 // הערה_זרם(זרם, body) — a footnote in the named stream `זרם`.
 #let _sf_all() = _ksav_real(query(label("ksav-sf")))
 #let הערה_זרם(זרם, body) = context {
+  let זרם = _as_string(זרם)
   let cfg = _sf_cfg.get()
   [#metadata((stream: זרם, body: body))#label("ksav-sf")]
   box(place(hide(body)))
@@ -793,7 +823,7 @@
 #let צבע(גוון, body) = text(fill: גוון, body)
 #let רקע(גוון, body) = highlight(fill: גוון, body)
 #let מרווח_אותיות(מידה, body) = text(tracking: מידה, body)
-#let גופן_שונה(שם, body) = text(font: שם, body)
+#let גופן_שונה(שם, body) = text(font: _as_string(שם), body)
 #let קוד(body) = box(
   fill: luma(240), inset: (x: 3pt), outset: (y: 3pt), radius: 2pt,
   text(font: ("Cascadia Mono", "Consolas", "monospace"), body),
@@ -1150,8 +1180,9 @@
 // #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow
 // document order and update automatically when targets are added/reordered.
 #let _ksav_xref = state("ksav-xref", ())
-#let סמן(שם) = _ksav_xref.update(l => l + (שם,))
+#let סמן(שם) = _ksav_xref.update(l => l + (_as_string(שם),))
 #let הפניה(שם) = context {
+  let שם = _as_string(שם)
   let l = _ksav_xref.final()
   let idx = l.position(x => x == שם)
   if idx == none [?] else [#(idx + 1)]
@@ -1502,12 +1533,25 @@
 //  Mathematics is written left-to-right in every language, Hebrew included, so
 //  both wrap the equation in an LTR run.
 // ============================================================
+// A formula written either way — `#נוסחה[x^2]` or `#נוסחה("x^2")`.
+//
+// It used to take a string only, which made it **the one command in the whole
+// registry that breaks the bracket convention**: every command in the README's core
+// idea is `#הדגשה[טקסט]`, `#כותרת1[…]`, `#רשימה[…]`, `#הערה[…]`, and this one
+// answered `#נוסחה[x^2 + y^2 = z^2]` with *"expected string, found content"*. The
+// toolbar and the palette insert the correct form, so it only ever bit the writer
+// who **types** — which is the writer this markup language exists for.
+//
+// `_as_string` is the shared flattener; see its note near the top.
 #let נוסחה(תוכן, ממוספרת: false) = text(dir: ltr, math.equation(
   block: true,
   numbering: if ממוספרת { "(1)" } else { none },
-  eval(תוכן, mode: "math"),
+  eval(_as_string(תוכן), mode: "math"),
 ))
-#let נוסחה_בשורה(תוכן) = text(dir: ltr, math.equation(block: false, eval(תוכן, mode: "math")))
+#let נוסחה_בשורה(תוכן) = text(
+  dir: ltr,
+  math.equation(block: false, eval(_as_string(תוכן), mode: "math")),
+)
 #let formula = _en(נוסחה)
 #let iformula = נוסחה_בשורה
 

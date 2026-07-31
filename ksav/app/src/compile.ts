@@ -7,12 +7,13 @@
 // the two never touch. A render is a convenience; a save is the writer's work.
 
 import { analyze } from "./brackets";
+import * as commands from "./commands";
 import { troubleSaid } from "./diagnostics";
 import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import { t, tf } from "./i18n";
 import { applyPreview } from "./preview";
-import { docConfig, settings } from "./settings";
+import { docConfig } from "./settings";
 import * as runtime from "./runtime";
 import type { CompileResult } from "./api";
 
@@ -57,9 +58,13 @@ export function scheduleCompile() {
  *  knows how many lines were put in front of the writer's first one. Working it
  *  out anywhere else would be a second reader of one value. */
 function withPreamble(body: string): { body: string; offset: number } {
-  const custom = runtime.currentDoc?.customCommands ?? settings.customCommands;
-  const pre = custom?.trim() ? custom + "\n\n" : "";
-  return { body: pre + body, offset: preambleLines(custom) };
+  // `commands.preambleInForce`, not the expression that used to be inlined here:
+  // `main.ts` had a second reader of the same value that consulted only the
+  // app-wide set, so a shared sefer compiled with its own commands and
+  // autocompleted with yours (B27).
+  const { text } = commands.preambleInForce();
+  const pre = text.trim() ? text + "\n\n" : "";
+  return { body: pre + body, offset: preambleLines(text) };
 }
 
 export async function runCompile() {

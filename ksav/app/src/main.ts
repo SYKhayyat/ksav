@@ -74,6 +74,7 @@ import type { Settings, Layout, PreviewSide } from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule } from "./compile";
+import * as commands from "./commands";
 import { applyPreview } from "./preview";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
 import { onGoToLine, onMarkLines } from "./diagview";
@@ -418,11 +419,17 @@ function eventToKey(e: KeyboardEvent): string | null {
   return parts.join("-");
 }
 
-// Names of user-defined commands, parsed from the custom-commands preamble.
-function userCommandNames(): string[] {
-  const src = settings.customCommands || "";
-  return [...src.matchAll(/#?let\s+([A-Za-z֐-׿_][\w֐-׿]*)/gu)].map((m) => m[1]);
+/** What to call a command that is not the registry's. */
+function whose(from: "registry" | "document" | "yours"): string {
+  if (from === "document") return t("fromDocument");
+  if (from === "yours") return t("fromYou");
+  return "";
 }
+
+// What commands this document has is `commands.ts`'s question, and the compiler,
+// the completions and the palette all ask it there. `userCommandNames` used to live
+// here, read `settings.customCommands` only — disagreeing with `compile.ts` about a
+// shared sefer's own commands — and had exactly one caller (B27).
 
 // Command autocomplete: typing `#` offers Ksav commands from the registry plus
 // any user-defined commands. Not a dictionary — only triggers on `#`.
@@ -438,24 +445,18 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
       const cursor = pipe >= 0 ? from + pipe : from + text.length;
       v.dispatch({ changes: { from, to, insert: text }, selection: { anchor: cursor } });
     };
-  const options = runtime.commandsReg
-    .filter((c) => !q || c.he.includes(q) || c.en.toLowerCase().includes(q))
+  // One list, from `commands.ts`. It carries the *document's* own commands when the
+  // document has any, so a shared sefer's `#` completion offers what its compiler
+  // will actually run.
+  const options = commands
+    .available(runtime.commandsReg)
+    .filter((c) => commands.matches(c, q))
     .map((c) => ({
-      label: "#" + c.he,
-      detail: c.en,
-      info: getLang() === "he" ? c.desc_he : c.desc_en,
+      label: "#" + c.name,
+      detail: c.en ?? whose(c.from),
+      info: c.from === "registry" ? (getLang() === "he" ? c.desc_he : c.desc_en) : whose(c.from),
       apply: insertApply(c.insert),
     }));
-  for (const name of userCommandNames()) {
-    if (!q || name.toLowerCase().includes(q)) {
-      options.push({
-        label: "#" + name,
-        detail: getLang() === "he" ? "פקודה שלי" : "your command",
-        info: "",
-        apply: insertApply("#" + name + "[|]"),
-      });
-    }
-  }
   return { from: word.from, options, filter: false };
 }
 const autoCompartment = new Compartment();
@@ -847,7 +848,10 @@ function showMekoros(at: number, phrase: string, answer: Mekoros): void {
   for (const [i, place] of answer.places.entries()) {
     const row = el("button", { class: "spell-item mekor-item", onClick: () => take(place) }, [
       el("b", {}, [place.display || place.he_title]),
-      el("span", { class: "mekor-text" }, [place.text.slice(0, 90)]),
+      // Already windowed on the match by the library, with its elisions marked;
+      // slicing it here from the start is what put the wrong 90 characters on
+      // screen (B16).
+      el("span", { class: "mekor-text", title: `${place.characters} תווים` }, [place.shown]),
     ]);
     rows.push(row);
     box.append(row);
@@ -1824,15 +1828,10 @@ function renderPaletteList(q: string) {
   const list = document.getElementById("palette-list")!;
   const lang = getLang();
   const query = q.trim().toLowerCase();
-  const items = runtime.commandsReg.filter((c) => {
-    if (!query) return true;
-    return (
-      c.he.includes(query) ||
-      c.en.toLowerCase().includes(query) ||
-      c.desc_he.includes(query) ||
-      c.desc_en.toLowerCase().includes(query)
-    );
-  });
+  // The same list the completions use. The palette never called `userCommandNames`
+  // at all, so a user-defined command was invisible here in every case — yours and
+  // the document's alike (B27).
+  const items = commands.available(runtime.commandsReg).filter((c) => commands.matches(c, query));
   list.innerHTML = "";
   items.slice(0, 60).forEach((c, i) => {
     const row = el(
@@ -1851,9 +1850,16 @@ function renderPaletteList(q: string) {
         },
       },
       [
-        el("span", { class: "pal-cat" }, [t("cat." + c.category)]),
-        el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
-        el("code", {}, ["#" + c.he + " · " + c.en]),
+        // A user-defined command says where it came from instead of a category —
+        // *this document's* or *yours*, which is the distinction that matters when
+        // both exist and the compiler runs one of them.
+        el("span", { class: "pal-cat" }, [
+          c.category ? t("cat." + c.category) : whose(c.from),
+        ]),
+        el("b", {}, [
+          c.from === "registry" ? (lang === "he" ? c.desc_he : c.desc_en) ?? c.name : c.name,
+        ]),
+        el("code", {}, ["#" + c.name + (c.en ? " · " + c.en : "")]),
       ],
     );
     list.append(row);

@@ -219,7 +219,14 @@ export interface Mekor {
    *  siman is, and does not have to. */
   display: string;
   he_title: string;
-  text: string;
+  /** The words around the match, with the match in `[brackets]` and any elision
+   *  shown as `…`. **Not the whole segment** — the largest in the corpus is
+   *  1,275,307 characters, and this used to be all of it, cut to 90 characters
+   *  from the start on arrival. See `girsa_search::snippet`. */
+  shown: string;
+  /** How long the whole segment is, so a window into it does not read as all of
+   *  it. */
+  characters: number;
 }
 
 /** What Girsa says about a phrase. `total` first, because a phrase in four

@@ -1,4 +1,4 @@
-# קְסָב · Ksav
+# כתב · Ksav
 
 **A Hebrew-first typesetting and writing system, built on the real
 [Typst](https://typst.app/) engine.** Ksav (כְּתָב, "writing"/"script") gives Hebrew

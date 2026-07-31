@@ -547,6 +547,35 @@ export class TauriBackend implements Backend {
     }
     return this.invoke!;
   }
+  /**
+   * The writer's dictionary as a file, and how to write it back (B29).
+   *
+   * The desktop app is the half of B29 that could be fixed: a browser cannot read
+   * a path, so *one file both read* is not a thing a sandbox permits. What it can
+   * do is stop the list living inside one browser profile — where it was invisible
+   * to this app and gone the day that profile was cleared.
+   */
+  async dictionary(): Promise<{ text: string; write: (text: string) => void; where: string }> {
+    const invoke = await this.inv();
+    const [text, where] = await Promise.all([
+      invoke("ksav_dictionary_read"),
+      invoke("ksav_dictionary_where"),
+    ]);
+    return {
+      text,
+      where,
+      // Fire and forget, and that is deliberate: adding a word from the squiggle
+      // menu must not wait on a disk, and a write that fails has already been
+      // kept in memory — so the cost is this session's additions, reported once
+      // on the terminal, rather than a modal in the middle of writing.
+      write: (next: string) => {
+        void invoke("ksav_dictionary_write", { contents: next }).catch((e: unknown) => {
+          console.error("could not write the dictionary:", e);
+        });
+      },
+    };
+  }
+
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     const invoke = await this.inv();
     const run = this.deduper.compile(

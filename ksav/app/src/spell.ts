@@ -285,7 +285,93 @@ export function checkableText(text: string): string {
 
 const USER_WORDS_KEY = "ksav.userWords";
 
-export function userWords(): string[] {
+/**
+ * Where the dictionary is kept, once something has said (B29).
+ *
+ * `null` means *nobody has looked yet*, and then it falls back to
+ * `localStorage` — the browser's answer, and until B29 everybody's.
+ *
+ * The desktop app calls [`keepDictionaryIn`] at startup with a file behind it.
+ * Held here rather than asked per call because the readers are synchronous: this
+ * list is handed to every spell request and every suggestion, and making those
+ * await a file read would put a disk on the path of a keystroke.
+ */
+let kept: { words: string[]; write: (text: string) => void } | null = null;
+
+/**
+ * Keep the dictionary in a file from now on, starting from what is in it (B29).
+ *
+ * > *"The user dictionary lives in one browser profile — invisible to the desktop
+ * > app, gone if the profile is cleared."*
+ *
+ * Merges whatever `localStorage` already had: a writer who used the browser build
+ * first and then installed the desktop app should not have to notice that their
+ * words moved. A merge and not a replace, for the same reason `importUserWords`
+ * is one.
+ *
+ * Returns how many the browser's copy contributed, so the window can say so once
+ * rather than leaving a writer to wonder whether a zman of teaching survived.
+ */
+export function keepDictionaryIn(text: string, write: (text: string) => void): number {
+  const merged = mergeWords(parseDictionary(text), fromLocalStorage().join("\n"));
+  kept = { words: merged.words, write };
+  // Written back only when the browser's copy actually added something, so
+  // opening the app does not rewrite the file every time it starts.
+  if (merged.added > 0) write(serializeDictionary(merged.words));
+  return merged.added;
+}
+
+/** One word per line, comments and blanks out — the format the engine reads. */
+export function parseDictionary(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const line of text.split("\n")) {
+    const word = line.trim();
+    if (!word || word.startsWith("#") || seen.has(word)) continue;
+    seen.add(word);
+    out.push(word);
+  }
+  return out;
+}
+
+/**
+ * A dictionary as a file: a comment header and the words.
+ *
+ * The same shape `Lexicon::add_words` reads in the engine, so a dictionary
+ * written here can be dropped straight into a lexicon build.
+ */
+export function serializeDictionary(words: string[]): string {
+  return (
+    "# Ksav user dictionary · מילון אישי\n" +
+    "# One word per line. Lines beginning with # are ignored.\n" +
+    "# מילה אחת בכל שורה. שורות המתחילות ב־# מתעלמים מהן.\n" +
+    (words.length ? words.join("\n") + "\n" : "")
+  );
+}
+
+/**
+ * Fold a word list into an existing dictionary, and say how many were new.
+ *
+ * Merge and never replace: someone loading their dictionary onto a second machine
+ * wants both halves, and a replace would quietly discard whatever they had taught
+ * the checker there. Order is kept — the words they had, then the ones that
+ * arrived — because a dictionary panel that reshuffles is one you cannot find
+ * anything in.
+ */
+export function mergeWords(existing: string[], text: string): { words: string[]; added: number } {
+  const words = [...existing];
+  const have = new Set(existing);
+  let added = 0;
+  for (const word of parseDictionary(text)) {
+    if (have.has(word)) continue;
+    have.add(word);
+    words.push(word);
+    added++;
+  }
+  return { words, added };
+}
+
+function fromLocalStorage(): string[] {
   try {
     const list = JSON.parse(localStorage.getItem(USER_WORDS_KEY) || "[]");
     return Array.isArray(list) ? list.filter((w) => typeof w === "string" && w.trim()) : [];
@@ -294,7 +380,16 @@ export function userWords(): string[] {
   }
 }
 
+export function userWords(): string[] {
+  return kept ? [...kept.words] : fromLocalStorage();
+}
+
 function writeUserWords(list: string[]) {
+  if (kept) {
+    kept.words = [...list];
+    kept.write(serializeDictionary(list));
+    return;
+  }
   try {
     localStorage.setItem(USER_WORDS_KEY, JSON.stringify(list));
   } catch {
@@ -329,13 +424,7 @@ export function userWordsText(): string {
  * also be dropped straight into a lexicon build.
  */
 export function exportUserWords(): string {
-  const list = userWords();
-  return (
-    "# Ksav user dictionary · מילון אישי\n" +
-    "# One word per line. Lines beginning with # are ignored.\n" +
-    "# מילה אחת בכל שורה. שורות המתחילות ב־# מתעלמים מהן.\n" +
-    (list.length ? list.join("\n") + "\n" : "")
-  );
+  return serializeDictionary(userWords());
 }
 
 /**
@@ -346,18 +435,9 @@ export function exportUserWords(): string {
  * had taught the checker there.
  */
 export function importUserWords(text: string): number {
-  const existing = userWords();
-  const have = new Set(existing);
-  let added = 0;
-  for (const line of text.split("\n")) {
-    const word = line.trim();
-    if (!word || word.startsWith("#") || have.has(word)) continue;
-    have.add(word);
-    existing.push(word);
-    added++;
-  }
-  if (added) writeUserWords(existing);
-  return added;
+  const merged = mergeWords(userWords(), text);
+  if (merged.added) writeUserWords(merged.words);
+  return merged.added;
 }
 
 /** The misspelling under a document position, if any. */

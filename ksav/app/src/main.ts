@@ -3286,6 +3286,40 @@ async function fetchRegistries(): Promise<boolean> {
   }
 }
 
+/**
+ * Move the dictionary into a file, where there is a filesystem to put it in (B29).
+ *
+ * > *"The user dictionary lives in one browser profile — invisible to the desktop
+ * > app, gone if the profile is cleared."*
+ *
+ * Silent when it works and silent when there is no file to use. It says something
+ * in exactly one case: words that were in this browser's `localStorage` have just
+ * been folded into the file — because a writer who taught the checker a hundred
+ * words in the browser build is entitled to be told they came across.
+ *
+ * A failure costs the *file*, not the dictionary: `localStorage` is still there
+ * behind it, so the worst case is the behaviour Ksav has always had.
+ */
+async function adoptDictionary(): Promise<void> {
+  const backend = runtime.backend;
+  if (!backend || typeof (backend as { dictionary?: unknown }).dictionary !== "function") return;
+  try {
+    const kept = await (
+      backend as unknown as {
+        dictionary: () => Promise<{ text: string; write: (t: string) => void; where: string }>;
+      }
+    ).dictionary();
+    const moved = spell.keepDictionaryIn(kept.text, kept.write);
+    if (moved > 0) {
+      showChromeNotice(`${moved} · ${kept.where}`);
+    }
+  } catch (e) {
+    // The dictionary still works out of localStorage; nothing a writer needs to
+    // act on, and a modal at startup over a word list would be absurd.
+    console.error("could not open the dictionary file:", e);
+  }
+}
+
 async function boot() {
   installHooks();
   // The store opens before anything is drawn: the editor is constructed with
@@ -3327,6 +3361,12 @@ async function boot() {
   const status = document.getElementById("status")!;
   status.textContent = t("rendering");
   runtime.setBackend(await createBackend());
+  // The dictionary as a file, where the desktop app can keep one (B29).
+  //
+  // After the backend and before anything spell-checks, so the first check
+  // already has the writer's own words. A browser has no `dictionary()` and
+  // keeps using `localStorage`, which is the only thing a sandbox allows.
+  await adoptDictionary();
   const badge = document.getElementById("engine-badge");
   if (badge) {
     const labels: Record<string, string> = {

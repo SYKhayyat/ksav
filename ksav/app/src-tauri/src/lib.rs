@@ -33,6 +33,68 @@ where
         .map_err(|e| format!("engine task failed: {e}"))
 }
 
+/// Where the user dictionary lives (B29).
+///
+/// > *"The user dictionary lives in one browser profile — invisible to the
+/// > desktop app, gone if the profile is cleared."*
+///
+/// A plain newline-separated file, in the format `Lexicon::add_words` already
+/// reads and the browser already exports. `KSAV_DICTIONARY` overrides it, which
+/// is how a writer puts theirs in Dropbox or in git beside their seforim — the
+/// thing the order asks for, since a word list is not worth inventing an account
+/// system over.
+fn dictionary_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    if let Ok(set) = std::env::var("KSAV_DICTIONARY") {
+        if !set.trim().is_empty() {
+            return Ok(PathBuf::from(set));
+        }
+    }
+    let dir = tauri::Manager::path(app)
+        .app_data_dir()
+        .map_err(|e| format!("no place to keep a dictionary: {e}"))?;
+    Ok(dir.join("dictionary.txt"))
+}
+
+/// The writer's own words, from the file.
+///
+/// A missing file is an **empty dictionary, not an error**: every writer starts
+/// with one and a desktop app that refused to spell-check until a file existed
+/// would be absurd.
+#[tauri::command]
+fn ksav_dictionary_read(app: tauri::AppHandle) -> Result<String, String> {
+    let path = dictionary_path(&app)?;
+    match std::fs::read_to_string(&path) {
+        Ok(text) => Ok(text),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// Write it back.
+///
+/// Beside and renamed over, like every other file this project rewrites in place:
+/// a machine that stops mid-write must cost the last word added, not the zman's
+/// worth of them.
+#[tauri::command]
+fn ksav_dictionary_write(app: tauri::AppHandle, contents: String) -> Result<(), String> {
+    let path = dictionary_path(&app)?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    let temp = path.with_extension("writing");
+    std::fs::write(&temp, contents).map_err(|e| format!("{}: {e}", temp.display()))?;
+    std::fs::rename(&temp, &path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// The path, so the window can tell the writer where their words are.
+///
+/// Shown rather than hidden: a file you cannot find is not a file you own, and
+/// backing it up or symlinking it is the whole point of it being a file.
+#[tauri::command]
+fn ksav_dictionary_where(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(dictionary_path(&app)?.display().to_string())
+}
+
 /// Compile a document. Input/output JSON match the web `/compile` contract.
 #[tauri::command]
 async fn ksav_compile(input: String) -> Result<String, String> {
@@ -302,7 +364,10 @@ pub fn run() {
             ksav_mekoros,
             ksav_search_in_girsa,
             ksav_girsa_presence,
-            ksav_linkify
+            ksav_linkify,
+            ksav_dictionary_read,
+            ksav_dictionary_write,
+            ksav_dictionary_where
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

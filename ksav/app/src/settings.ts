@@ -26,6 +26,9 @@ export interface Settings extends Omit<DocConfig, "lang"> {
   previewFrac?: number; // fraction of the split given to the preview (0–1)
   prose: boolean;
   zoom: number;
+  // Fit the page to the preview pane, which is what Word does and the reason
+  // nobody meets the 1366×768 overflow there. When on, `zoom` is not consulted.
+  fitWidth?: boolean;
   outline?: boolean;
   nikud?: boolean;
   autocomplete?: boolean;
@@ -55,6 +58,7 @@ export const DEFAULTS: Settings = {
   // which is the right distance for the people who want it.
   prose: true,
   zoom: 1,
+  fitWidth: true,
   font: "Frank Ruhl Hofshi",
   size_pt: 12,
   margin_cm: 2.5,

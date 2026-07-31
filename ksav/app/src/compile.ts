@@ -10,6 +10,7 @@ import { analyze } from "./brackets";
 import { friendlyError } from "./diagnostics";
 import * as docs from "./docs";
 import { t, tf } from "./i18n";
+import { applyPreview } from "./preview";
 import { docConfig, settings } from "./settings";
 import * as runtime from "./runtime";
 import type { CompileResult } from "./api";
@@ -24,10 +25,6 @@ export function onAfterCompile(fn: () => void) {
 let alsoSchedule: () => void = () => {};
 export function onSchedule(fn: () => void) {
   alsoSchedule = fn;
-}
-
-export function applyZoom() {
-  document.documentElement.style.setProperty("--zoom", String(settings.zoom));
 }
 
 /**
@@ -89,7 +86,7 @@ export async function runCompile() {
     const preview = document.getElementById("preview")!;
     if (res.pages_svg.length) {
       preview.innerHTML = res.pages_svg.map((s) => `<div class="page">${s}</div>`).join("");
-      applyZoom();
+      applyPreview();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");
     if (res.ok && healedCount) {

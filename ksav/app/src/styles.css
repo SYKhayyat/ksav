@@ -1,5 +1,4 @@
 :root {
-  --zoom: 1;
   --bg: #eef1f5;
   --panel: #ffffff;
   --ink: #111827;
@@ -193,11 +192,22 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
 #editor-host { flex: 1; min-height: 0; background: var(--editor-bg); }
 .cm-editor { height: 100%; background: var(--editor-bg); color: var(--ink); }
 
-/* ---- preview ---- */
-#preview { flex: 1; overflow: auto; padding: 20px; background: var(--bg); }
+/* ---- preview ----
+   The pane reads in the *document's* direction, set on the element by
+   `preview.ts`. It is a child of `main`, which is forced LTR so the pane
+   *positions* are physical — but a scroller inheriting that direction over a
+   Hebrew page rests at the end of every line, which is what made the preview
+   unreadable at 1366×768. Position and reading order are different questions and
+   this is the one that belongs to the text.
+
+   `--page-width` is set on the pane too, from `previewGeometry`: `min(100%, …)`
+   when fitting (the default) and `calc(820px * zoom)` when the reader has chosen
+   a zoom. There is deliberately no `max-width` here — the old rule capped the
+   page at 820px, which silently made every zoom above 100% do nothing. */
+#preview, #preview-modal-body { flex: 1; overflow: auto; padding: 20px; background: var(--bg); }
 .page {
   background: #fff; margin: 0 auto 20px; box-shadow: 0 2px 14px rgba(0,0,0,.14);
-  max-width: 820px; width: calc(820px * var(--zoom)); transition: width .15s;
+  width: var(--page-width, min(100%, 820px)); transition: width .15s;
 }
 .page svg { width: 100%; height: auto; display: block; }
 
@@ -355,6 +365,13 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
 .welcome-box h2 { margin: 0 0 10px; font-size: 24px; }
 .welcome-box p { color: var(--muted); line-height: 1.6; margin: 0 0 18px; }
 .welcome-templates { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px; }
+/* The language a group of templates is written in. Ten templates in one
+   unlabelled row reads as ten unrelated things; two labelled rows reads as a
+   bilingual product, which is what it is. */
+.welcome-group {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--muted); margin: 4px 0 6px;
+}
 .welcome-tpl {
   padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
   background: var(--panel); color: var(--ink); font-family: var(--hebrew); font-size: 14px;

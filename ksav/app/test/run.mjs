@@ -16,7 +16,18 @@ const APP = path.resolve(HERE, "..");
 const OUT = path.join(APP, ".tmp-test");
 
 /** The modules a test may import. Bundled, so their own imports come along. */
-const MODULES = ["brackets", "docs", "store", "markdown", "review", "styles", "table", "spell", "typst-escape"];
+const MODULES = [
+  "brackets",
+  "docs",
+  "store",
+  "markdown",
+  "preview",
+  "review",
+  "styles",
+  "table",
+  "spell",
+  "typst-escape",
+];
 
 await rm(OUT, { recursive: true, force: true });
 

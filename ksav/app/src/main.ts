@@ -73,7 +73,8 @@ import {
 import type { Settings, Layout, PreviewSide } from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, applyZoom, onSchedule } from "./compile";
+import { scheduleCompile, runCompile, onSchedule } from "./compile";
+import { applyPreview } from "./preview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 
@@ -1460,6 +1461,7 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("columns", "columns", 1, 3, 1),
     textRow("headerText", "header", ""),
     textRow("footerText", "footer", ""),
+    checkRow("fitWidthLabel", "fitWidth"),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("spellcheckLabel", "spellcheck"),
@@ -2809,9 +2811,12 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     rerenderChrome();
   } else if (key === "dir") {
     runtime.view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: settings.dir })) });
+    // The preview pane reads in the document's direction, so flipping the
+    // document has to re-point the pane in the same act.
+    applyPreview();
     scheduleCompile();
-  } else if (key === "zoom") {
-    applyZoom();
+  } else if (key === "zoom" || key === "fitWidth") {
+    applyPreview();
   } else if (key === "autocomplete") {
     runtime.view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
   } else if (key === "spellcheck") {
@@ -2905,6 +2910,9 @@ function openPreviewOverlay() {
   const body = document.getElementById("preview-modal-body")!;
   body.innerHTML = document.getElementById("preview")!.innerHTML;
   document.getElementById("preview-modal")!.classList.add("open");
+  // The modal is a second pane over the same pages, so it needs the same
+  // direction and the same page width. One call, both panes.
+  applyPreview();
 }
 function closePreviewOverlay() {
   document.getElementById("preview-modal")!.classList.remove("open");
@@ -3041,7 +3049,7 @@ function render() {
   applyLayout();
   applyPreviewSide();
   applyUiDir();
-  applyZoom();
+  applyPreview();
   updateCounts();
   if (settings.nikud) document.getElementById("nikud-bar")!.classList.add("open");
   if (settings.outline) {

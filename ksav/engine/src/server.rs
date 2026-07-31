@@ -177,7 +177,10 @@ static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
 ///
 /// The overran computation is not reclaimed — that would need a separate process
 /// to kill, which is a heavier machine than a local single-user editor warrants
-/// — but it can no longer hold up anyone else, and the writer is told plainly.
+/// — but it can no longer hold up anyone else, and the writer is told plainly:
+/// the timeout message says the compile was **abandoned and will finish in the
+/// background**, and a refusal at the cap names how many are in flight. Those two
+/// sentences and this paragraph have to agree, and for a while they did not.
 fn compile_with_deadline(body: &str) -> String {
     run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
         crate::compile_request(&b)
@@ -195,12 +198,20 @@ fn run_bounded<F>(body: String, deadline: Duration, max: usize, work: F) -> Stri
 where
     F: FnOnce(String) -> String + Send + 'static,
 {
-    if IN_FLIGHT.fetch_add(1, Ordering::SeqCst) >= max {
+    let taken = IN_FLIGHT.fetch_add(1, Ordering::SeqCst);
+    if taken >= max {
         IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
-        return error_json(
-            "השרת עסוק בהידור מסמכים אחרים — נסו שוב בעוד רגע · \
-             the server is busy compiling — try again in a moment",
-        );
+        // The count, not just the word. "The server is busy" with no number is
+        // unfalsifiable to whoever reads it — one genuinely slow sefer and eight
+        // abandoned runaways produce the same sentence, and only one of them
+        // means "wait a moment". Since an abandoned compile keeps its slot until
+        // it truly ends, this number is also the only visible trace that any were
+        // abandoned at all.
+        return error_json(&format!(
+            "השרת עסוק — {taken}/{max} הידורים באוויר, ובהם הידורים שננטשו וממשיכים ברקע; \
+             נסו שוב בעוד רגע · the server is busy — {taken}/{max} compiles in flight, \
+             including any that were abandoned and are still finishing; try again in a moment",
+        ));
     }
 
     let (tx, rx) = std::sync::mpsc::sync_channel::<String>(1);
@@ -214,11 +225,20 @@ where
 
     match rx.recv_timeout(deadline) {
         Ok(json) => json,
+        // *Abandoned*, not stopped. Typst offers no interruption, so the compute
+        // is still running on the detached thread above, still holding one of
+        // `max` slots and still burning a core until it finishes on its own. The
+        // doc comment on `compile_with_deadline` has always said so; the sentence
+        // the writer read said "was stopped", which is the opposite, and it is
+        // the reason a later refusal naming the slot count would otherwise look
+        // like a lie.
         Err(_) => error_json(&format!(
-            "ההידור ארך יותר מ־{secs} שניות והופסק — לולאה או חזרה עם מספר גדול מאוד \
-             עלולה לגרום לכך; בדקו את הגבולות של #עבור/#כלעוד · compilation timed out \
-             after {secs}s and was stopped — a loop or repetition with a very large \
-             count can cause this; check any #for/#while bounds",
+            "ההידור ארך יותר מ־{secs} שניות ולכן ננטש — הוא ימשיך ברקע עד שיסתיים, \
+             ותופס מקום אחד מ־{max} עד אז. לולאה או חזרה עם מספר גדול מאוד עלולה לגרום \
+             לכך; בדקו את הגבולות של #עבור/#כלעוד · the compile ran longer than {secs}s \
+             and was abandoned — it will finish in the background and holds one of {max} \
+             slots until it does. A loop or repetition with a very large count can cause \
+             this; check any #for/#while bounds",
             secs = deadline.as_secs().max(1)
         )),
     }
@@ -373,7 +393,9 @@ fn mekoros_request(body: &str) -> String {
         search: bool,
     }
     let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-        return error_json("that is not a phrase");
+        return error_json(
+            "הבקשה אינה מכילה ביטוי לחיפוש · the request carries no phrase to look for",
+        );
     };
     if asked.search {
         return match crate::post::search_in_girsa(&asked.phrase) {
@@ -394,7 +416,7 @@ fn linkify_request(body: &str) -> String {
         text: String,
     }
     let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-        return error_json("that is not prose");
+        return error_json("הבקשה אינה מכילה טקסט לסימון · the request carries no text to mark up");
     };
     match crate::post::linkify(&asked.text) {
         Ok(text) => serde_json::json!({ "text": text }).to_string(),
@@ -484,8 +506,8 @@ mod tests {
             "a timeout is a failed compile"
         );
         assert!(
-            json.contains("timed out"),
-            "the diagnostic names the timeout: {json}"
+            json.contains("ran longer than") && json.contains("abandoned"),
+            "the diagnostic names the deadline and what became of the work: {json}"
         );
     }
 
@@ -495,6 +517,56 @@ mod tests {
         // piling another thread onto a server already full of overran work.
         let json = run_bounded("x".into(), Duration::from_secs(5), 0, |_| unreachable!());
         assert!(json.contains("\"ok\":false") && json.contains("busy"));
+    }
+
+    /// The message must not claim the compile stopped, because it did not.
+    ///
+    /// `compile_with_deadline`'s own doc comment says *"the overran computation is
+    /// not reclaimed"* and the sentence the writer read said *"was stopped"*. The
+    /// abandoned work goes on running on a detached thread, holding one of
+    /// `worker_count()` slots and burning a core — and the next compile after
+    /// enough of these gets *"the server is busy"* for a reason these messages had
+    /// denied. Two lines of one function disagreeing about what happened is worse
+    /// than a bug, because it teaches the writer to stop reading.
+    #[test]
+    fn an_overran_compile_is_reported_as_abandoned_and_not_as_stopped() {
+        let json = run_bounded("x".into(), Duration::from_millis(50), 16, |_| {
+            std::thread::sleep(Duration::from_millis(400));
+            "\"never seen\"".into()
+        });
+        assert!(
+            !json.contains("was stopped") && !json.contains("הופסק"),
+            "the compile was not stopped; it is still running: {json}"
+        );
+        assert!(
+            json.contains("abandoned") && json.contains("ננטש"),
+            "say what is true, in both languages: {json}"
+        );
+        assert!(
+            json.contains("background") && json.contains("ברקע"),
+            "and say where the work went: {json}"
+        );
+        // Wait for the abandoned thread, so the slot count is not left charged
+        // against the next test in this process.
+        std::thread::sleep(Duration::from_millis(450));
+    }
+
+    /// A refusal names how many are in flight, because that is the whole reason.
+    ///
+    /// *"The server is busy"* with no number is unfalsifiable to the person
+    /// reading it: they cannot tell one slow document from eight abandoned ones.
+    /// The count is the difference between a message and a fact.
+    #[test]
+    fn a_busy_refusal_says_how_many_are_in_flight() {
+        let json = run_bounded("x".into(), Duration::from_secs(5), 0, |_| unreachable!());
+        assert!(json.contains("busy"), "still says it is busy: {json}");
+        // `IN_FLIGHT` is a process-wide static and these tests run in parallel, so
+        // the numerator is whatever else is in the air right now. The denominator
+        // is the cap this call was given, and that is the deterministic half.
+        assert!(
+            json.contains("/0 compiles in flight") && json.contains("/0 הידורים באוויר"),
+            "the refusal names the slots: {json}"
+        );
     }
 
     #[test]

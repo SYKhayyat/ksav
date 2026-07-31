@@ -790,7 +790,11 @@ async function askForMekor(): Promise<void> {
     error: troubleSaid(e, "reach_girsa").said,
   }));
   if (answer.error) {
-    setStatus(answer.error, "err");
+    // The engine's `error` field carries whatever `girsa-post` said, in English,
+    // so it goes through the same rephrasing as a thrown one. A resolved response
+    // that reports a failure is still a failure being reported.
+    const bad = troubleSaid(answer.error, "reach_girsa");
+    setStatus(bad.said, "err", bad.detail);
     return;
   }
   setStatus(answer.said, "");

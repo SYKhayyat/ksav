@@ -23,7 +23,7 @@
 // Nothing in this module touches the DOM except `applyPreview`, so the geometry
 // is testable without a browser.
 
-import { settings } from "./settings";
+import { docConfig, settings } from "./settings";
 
 /** The drawn width of an A4 page at 100%, in CSS pixels. */
 export const PAGE_PX = 820;
@@ -146,7 +146,8 @@ export function lineStartVisible(
  * when the document's direction changes — everything that can move either input.
  */
 export function applyPreview() {
-  const dir: "rtl" | "ltr" = settings.dir === "ltr" ? "ltr" : "rtl";
+  // The open document's direction (B26), not the application's.
+  const dir: "rtl" | "ltr" = docConfig().dir === "ltr" ? "ltr" : "rtl";
   const fitWidth = settings.fitWidth !== false;
   const panes = [document.getElementById("preview"), document.getElementById("preview-modal-body")];
   for (const pane of panes) {

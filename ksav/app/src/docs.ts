@@ -25,6 +25,8 @@
 // a cache, and `init` rebuilds it from IndexedDB whenever it goes missing or
 // disagrees, so it can never become the authority on what exists.
 
+import { settingsPageSetup } from "./settings";
+import type { PageSetup } from "./settings";
 import * as store from "./store";
 import { DOCS, HISTORY, StorageFullError } from "./store";
 
@@ -55,6 +57,17 @@ export interface KsavDoc {
    * which keeps using the app-wide set.
    */
   customCommands?: string;
+  /**
+   * This document's own page setup (B26).
+   *
+   * > *"Direction, font, margins and paper live in settings, so opening an
+   * > English document and then a Hebrew one means changing direction by hand."*
+   *
+   * Absent on every document saved before B26, and on one nobody has changed the
+   * setup of. Absent means *lay it out the shipped way* — see
+   * `settings.docConfig`, which is the one place that decides.
+   */
+  config?: PageSetup;
 }
 
 export interface LibraryEntry {
@@ -94,6 +107,19 @@ const LEGACY_HISTORY_KEY = "ksav.history";
  */
 export const MAX_SNAPSHOTS = 50;
 export const MAX_HISTORY_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Remember a document's own page setup (B26).
+ *
+ * Its own function rather than a general `update`, because this is the one field
+ * a writer changes by dragging a number in a panel — often, and while typing — and
+ * it must not carry the body along with it and race the editor's own saves.
+ */
+export async function rememberConfig(id: string, config: PageSetup): Promise<void> {
+  const doc = await store.get<KsavDoc>(DOCS, id);
+  if (!doc) return;
+  await store.put(DOCS, id, { ...doc, config, updated: Date.now() });
+}
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -213,6 +239,11 @@ export async function createDoc(
 ): Promise<KsavDoc> {
   const doc: KsavDoc = { id: newId(), title, body, assets, updated: Date.now() };
   if (customCommands?.trim()) doc.customCommands = customCommands;
+  // A new document starts laid out the way this writer has said new documents
+  // should be (B26) — `settingsPageSetup`, which is what *set as default* writes.
+  // Carried on the document from birth rather than left absent, so that changing
+  // the default later does not re-lay-out every sefer already written.
+  doc.config = settingsPageSetup();
   await putDoc(doc);
   return doc;
 }

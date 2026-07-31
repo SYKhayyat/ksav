@@ -69,8 +69,10 @@ import {
   applyPreset,
   undoPreset,
   pendingUndo,
+  PAGE_FIELDS,
+  docConfig,
 } from "./settings";
-import type { Settings, Layout, PreviewSide } from "./settings";
+import type { Settings, Layout, PreviewSide, PageSetup } from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule } from "./compile";
@@ -152,7 +154,7 @@ function swapUntouchedStarter() {
   const want = starterDoc();
   if (body === want || (body !== STARTER_HE && body !== STARTER_EN)) return;
   const dir = getLang() === "en" ? "ltr" : "rtl";
-  if (settings.dir !== dir) setSetting("dir", dir);
+  if (docConfig().dir !== dir) setSetting("dir", dir);
   loadBody(want);
 }
 
@@ -618,7 +620,7 @@ function makeEditor(): EditorView {
       ksavFold,
       bracketLint,
       revealAll,
-      dirCompartment.of(EditorView.contentAttributes.of({ dir: settings.dir })),
+      dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
       proseCompartment.of(settings.prose ? proseMode : []),
       themeCompartment.of(editorTheme(settings.theme === "dark")),
       spell.misspellings,
@@ -967,7 +969,7 @@ function commentOut() {
 }
 
 function applySkin(name: string) {
-  applyPreset(name);
+  applyPreset(name, setPageSetup);
   closeMenus();
   scheduleCompile();
   // rerenderChrome rebuilds the whole chrome, which drops the panel's contents
@@ -983,7 +985,7 @@ function applySkin(name: string) {
 }
 
 function undoSkin() {
-  if (!undoPreset()) return;
+  if (!undoPreset(setPageSetup)) return;
   scheduleCompile();
   const wasOpen = document.getElementById("styles-panel")?.classList.contains("open");
   rerenderChrome();
@@ -1342,7 +1344,8 @@ function numberRow(labelKey: string, key: keyof Settings, min: number, max: numb
     min,
     max,
     step,
-    value: String(settings[key]),
+    // The live value, which for page setup is the open document's (B26).
+    value: String(now(key)),
     onChange: (e: Event) => setSetting(key, Number((e.target as HTMLInputElement).value) as never),
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
@@ -1350,7 +1353,7 @@ function numberRow(labelKey: string, key: keyof Settings, min: number, max: numb
 function checkRow(labelKey: string, key: keyof Settings) {
   const input = el("input", {
     type: "checkbox",
-    ...(settings[key] ? { checked: "checked" } : {}),
+    ...(now(key) ? { checked: "checked" } : {}),
     onChange: (e: Event) => setSetting(key, (e.target as HTMLInputElement).checked as never),
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
@@ -1392,7 +1395,7 @@ function buildSettingsDrawer(): HTMLElement {
     el("input", {
       type: "text",
       list: "font-families",
-      value: settings.font,
+      value: docConfig().font,
       onChange: (e: Event) => setSetting("font", (e.target as HTMLInputElement).value as never),
     }),
     fontList,
@@ -1402,8 +1405,8 @@ function buildSettingsDrawer(): HTMLElement {
     "select",
     { onChange: (e: Event) => setSetting("dir", (e.target as HTMLSelectElement).value as never) },
     [
-      el("option", { value: "rtl", ...(settings.dir === "rtl" ? { selected: "selected" } : {}) }, [t("rtl")]),
-      el("option", { value: "ltr", ...(settings.dir === "ltr" ? { selected: "selected" } : {}) }, [t("ltr")]),
+      el("option", { value: "rtl", ...(docConfig().dir === "rtl" ? { selected: "selected" } : {}) }, [t("rtl")]),
+      el("option", { value: "ltr", ...(docConfig().dir === "ltr" ? { selected: "selected" } : {}) }, [t("ltr")]),
     ],
   );
   const paperSel = el(
@@ -1415,7 +1418,7 @@ function buildSettingsDrawer(): HTMLElement {
       ["a5", "A5"],
       ["a3", "A3"],
     ].map(([v, lbl]) =>
-      el("option", { value: v, ...(settings.paper === v ? { selected: "selected" } : {}) }, [lbl]),
+      el("option", { value: v, ...(docConfig().paper === v ? { selected: "selected" } : {}) }, [lbl]),
     ),
   );
   // The writer's own words, listed so a mistaken "add to dictionary" can be
@@ -1463,6 +1466,11 @@ function buildSettingsDrawer(): HTMLElement {
 
   return el("aside", { id: "settings-drawer", class: "drawer", "aria-label": t("settings") }, [
     el("h3", {}, [t("settings")]),
+    // B26. The fourteen fields below this line belong to the **open document** and
+    // travel with it; everything under `fitWidthLabel` is about the person at the
+    // desk. Saying which is which is the whole point — a writer who does not know
+    // whether a margin follows the sefer or the machine cannot use either.
+    el("div", { class: "set-note" }, [t("setupIsPerDoc")]),
     el("label", { class: "set-row" }, [el("span", {}, [t("font")]), fontSel]),
     numberRow("fontSize", "size_pt", 8, 36, 1),
     numberRow("margin", "margin_cm", 1, 6, 0.5),
@@ -1477,6 +1485,15 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("columns", "columns", 1, 3, 1),
     textRow("headerText", "header", ""),
     textRow("footerText", "footer", ""),
+    // The affordance per-document setup takes away and has to give back: a
+    // writer who has got their sefer looking right wants the next one to start
+    // there, rather than setting fourteen fields again.
+    el("div", { class: "set-row" }, [
+      el("button", { class: "sc-key", type: "button", onClick: adoptPageSetupAsDefault }, [
+        t("setAsDefault"),
+      ]),
+    ]),
+    el("h3", { style: "margin-top:18px" }, [t("thisMachine")]),
     checkRow("fitWidthLabel", "fitWidth"),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     checkRow("autocompleteLabel", "autocomplete"),
@@ -1892,7 +1909,7 @@ function loadBody(body: string) {
  */
 function loadTemplate(tpl: TemplateDef) {
   const wanted = tpl.lang === "en" ? "ltr" : tpl.lang === "he" ? "rtl" : null;
-  if (wanted && settings.dir !== wanted) {
+  if (wanted && docConfig().dir !== wanted) {
     // Through `setSetting`, not by assignment: the direction also reconfigures
     // the editor's own text direction, and setting the field alone would leave
     // the preview and the source pane disagreeing about which way the page runs.
@@ -2171,7 +2188,7 @@ function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
  *  language it was already written in. */
 function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
   const doc = runtime.view.state.doc.toString();
-  const next = styles.setStyleArgs(doc, kind, changes, settings.dir === "ltr" ? "en" : "he");
+  const next = styles.setStyleArgs(doc, kind, changes, docConfig().dir === "ltr" ? "en" : "he");
   if (next === doc) return;
   runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
   scheduleCompile();
@@ -2812,9 +2829,74 @@ async function removeAsset(name: string) {
 }
 
 // ---------------------------------------------------------------- setting mutations
-function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
-  settings[key] = value;
+/**
+ * What a setting reads as **now** (B26).
+ *
+ * Page setup comes from the open document; everything else from the application.
+ * One reader, because a panel that writes to the document and reads from the app
+ * is a panel whose numbers jump back the moment you reopen it.
+ */
+function now<K extends keyof Settings>(key: K): Settings[K] {
+  if ((PAGE_FIELDS as readonly string[]).includes(key as string)) {
+    const live = docConfig() as unknown as Record<string, unknown>;
+    if (live[key as string] !== undefined) return live[key as string] as Settings[K];
+  }
+  return settings[key];
+}
+
+/**
+ * Change a setting — of the document, or of the application (B26).
+ *
+ * > *"opening an English document and then a Hebrew one means changing direction
+ * > by hand."*
+ *
+ * Page setup is a property of the document now, so the fourteen fields in
+ * `PAGE_FIELDS` are written **to the open document** and travel with it. The rest —
+ * theme, layout, zoom, spell-check — are about the person and stay where they were.
+ *
+ * The side effects below are unchanged and run either way: flipping the direction
+ * has to re-point the editor and the preview whether the flip was saved in a
+ * document or in a preference file.
+ */
+/**
+ * Write page setup onto the open document (B26).
+ *
+ * Merged into whatever it already said rather than replacing it, so setting the
+ * margin does not silently reset the paper. Saved through `docs.update`, which is
+ * where every other change to a document goes.
+ */
+function setPageSetup(change: PageSetup): void {
+  const doc = runtime.currentDoc;
+  if (!doc) return;
+  const config = { ...(doc.config ?? {}), ...change };
+  runtime.setCurrentDoc({ ...doc, config });
+  void docs.rememberConfig(doc.id, config).catch(reportSaveFailure);
+}
+
+/**
+ * Make the open document's layout what a **new** document starts with (B26).
+ *
+ * The affordance page setup being per-document takes away and has to give back:
+ * a writer who has got their sefer looking right wants the next one to start
+ * there, and without this they would have to set fourteen fields again. Word
+ * calls it *set as default*; so does this.
+ */
+function adoptPageSetupAsDefault(): void {
+  const live = docConfig() as unknown as Record<string, unknown>;
+  for (const key of PAGE_FIELDS) {
+    (settings as unknown as Record<string, unknown>)[key] = live[key];
+  }
   saveSettings();
+  showChromeNotice(t("setupIsDefault"));
+}
+
+function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+  if ((PAGE_FIELDS as readonly string[]).includes(key as string)) {
+    setPageSetup({ [key as string]: value } as PageSetup);
+  } else {
+    settings[key] = value;
+    saveSettings();
+  }
   if (key === "lang") {
     setLang(value as Lang);
     swapUntouchedStarter();
@@ -2829,7 +2911,7 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     applyLayout();
     rerenderChrome();
   } else if (key === "dir") {
-    runtime.view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: settings.dir })) });
+    runtime.view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })) });
     // The preview pane reads in the document's direction, so flipping the
     // document has to re-point the pane in the same act.
     applyPreview();

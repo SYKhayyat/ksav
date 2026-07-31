@@ -26,6 +26,7 @@ const MODULES = [
   "markdown",
   "preview",
   "review",
+  "settings",
   "styles",
   "table",
   "spell",

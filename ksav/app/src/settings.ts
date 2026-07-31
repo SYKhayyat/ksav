@@ -8,6 +8,7 @@
 // `store.ts` for why they are not here.)
 
 import type { DocConfig } from "./api";
+import * as runtime from "./runtime";
 import type { Lang } from "./i18n";
 
 export type Layout = "two" | "page" | "source";
@@ -104,7 +105,83 @@ export function saveSettings() {
 }
 
 /** The page-setup subset that goes on a compile request. */
-export function docConfig(): DocConfig {
+/**
+ * The page-setup fields, as opposed to the fields about the application (B26).
+ *
+ * The split this list *is*: font, paper, margins and direction are facts about a
+ * document. Theme, zoom, which side the preview sits on and whether spell-check is
+ * on are facts about the person sitting in front of it. They lived in one object,
+ * so opening an English document and then a Hebrew one meant changing the
+ * direction by hand — and `fixes.md` had already called this *"the real fix and a
+ * larger change than anything in this file."*
+ */
+export const PAGE_FIELDS = [
+  "font",
+  "size_pt",
+  "margin_cm",
+  "dir",
+  "numbering",
+  "justify",
+  "line_spacing_em",
+  "para_spacing_em",
+  "first_line_indent_em",
+  "columns",
+  "paper",
+  "hebrew_numbering",
+  "header",
+  "footer",
+] as const;
+
+/** A document's own page setup, where it has said anything (B26). */
+export type PageSetup = Partial<Pick<DocConfig, (typeof PAGE_FIELDS)[number]>>;
+
+/**
+ * How a document is actually laid out: what it says about itself, over a default
+ * for everything it does not (B26).
+ *
+ * Field by field and not all-or-nothing, so a document that only ever said
+ * *ltr* keeps following the app's font — and so a field added to `DocConfig` next
+ * year does not make every document saved this year unopenable.
+ *
+ * A pure function of its two arguments, which is the point: the migration
+ * question — *what happens to a document saved before page setup was a property of
+ * documents* — is answered by what the caller passes as `fallback`, and it is
+ * answered in one place.
+ */
+export function pageSetup(own: PageSetup | undefined, fallback: DocConfig): DocConfig {
+  const out = { ...fallback };
+  if (!own) return out;
+  for (const key of PAGE_FIELDS) {
+    const value = own[key];
+    // `undefined` means *this document has not said*; `""` for a header and `0`
+    // for an indent are things it said, and must not fall through to a default.
+    if (value !== undefined) (out as Record<string, unknown>)[key] = value;
+  }
+  return out;
+}
+
+/** What a fresh document is laid out like, before anybody edits it (B26). */
+export function defaultPageSetup(): DocConfig {
+  return {
+    font: DEFAULTS.font,
+    size_pt: DEFAULTS.size_pt,
+    margin_cm: DEFAULTS.margin_cm,
+    dir: DEFAULTS.dir,
+    numbering: DEFAULTS.numbering,
+    justify: DEFAULTS.justify,
+    line_spacing_em: DEFAULTS.line_spacing_em,
+    para_spacing_em: DEFAULTS.para_spacing_em,
+    first_line_indent_em: DEFAULTS.first_line_indent_em,
+    columns: DEFAULTS.columns,
+    paper: DEFAULTS.paper,
+    hebrew_numbering: DEFAULTS.hebrew_numbering,
+    header: DEFAULTS.header,
+    footer: DEFAULTS.footer,
+  };
+}
+
+/** The page setup the app is set to hand a **new** document (B26). */
+export function settingsPageSetup(): DocConfig {
   return {
     font: settings.font,
     size_pt: settings.size_pt,
@@ -121,6 +198,20 @@ export function docConfig(): DocConfig {
     header: settings.header,
     footer: settings.footer,
   };
+}
+
+/**
+ * Which page setup a document is compiled with.
+ *
+ * Its own, over the **shipped defaults** — not over whatever the app's settings
+ * happen to say now. A document saved before B26 has no page setup of its own, and
+ * laying it out by the current global settings would mean the same file rendering
+ * differently on two machines, which is the bug this order is fixing rather than a
+ * gentler version of it. Everything in a page setup is one panel away from being
+ * changed.
+ */
+export function docConfig(): DocConfig {
+  return pageSetup(runtime.currentDoc?.config, defaultPageSetup());
 }
 
 // ---------------------------------------------------------------- presets
@@ -144,7 +235,9 @@ export const SKINS: Record<string, Partial<Settings>> = {
  */
 export interface StyleUndo {
   name: string;
-  before: Partial<Settings>;
+  /** What **this document** said before the skin, so the undo puts it back on the
+   * document and not on the application (B26). */
+  before: PageSetup;
 }
 
 let styleUndo: StyleUndo | null = null;
@@ -154,22 +247,35 @@ export function pendingUndo(): StyleUndo | null {
 }
 
 /** Apply a preset, remembering exactly what it displaced. */
-export function applyPreset(name: string) {
+/**
+ * A skin restyles the **document** (B26).
+ *
+ * Every field a skin sets is page setup — font, size, margins, spacing,
+ * numbering, paper — so after B26 they all belong to the sefer in front of the
+ * writer rather than to the application. Applying `sefer` to one document used to
+ * restyle every document they owned, which is the seam B26 is about, in the one
+ * feature whose whole purpose is restyling a document.
+ *
+ * The undo keeps what **this** document said, for the same reason.
+ */
+export function applyPreset(name: string, onto: (change: PageSetup) => void) {
   const preset = SKINS[name];
-  const before: Partial<Settings> = {};
-  for (const k of Object.keys(preset) as (keyof Settings)[]) {
-    (before as Record<string, unknown>)[k] = settings[k];
+  const live = docConfig() as unknown as Record<string, unknown>;
+  const before: PageSetup = {};
+  const change: PageSetup = {};
+  for (const key of Object.keys(preset) as (keyof Settings)[]) {
+    if (!(PAGE_FIELDS as readonly string[]).includes(key as string)) continue;
+    (before as Record<string, unknown>)[key] = live[key as string];
+    (change as Record<string, unknown>)[key] = (preset as Record<string, unknown>)[key];
   }
   styleUndo = { name, before };
-  Object.assign(settings, preset);
-  saveSettings();
+  onto(change);
 }
 
-/** Put back whatever the last preset displaced. */
-export function undoPreset(): boolean {
+/** Put back whatever the last preset displaced, on the document it displaced it in. */
+export function undoPreset(onto: (change: PageSetup) => void): boolean {
   if (!styleUndo) return false;
-  Object.assign(settings, styleUndo.before);
+  onto(styleUndo.before as PageSetup);
   styleUndo = null;
-  saveSettings();
   return true;
 }

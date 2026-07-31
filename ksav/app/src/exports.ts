@@ -13,7 +13,7 @@ import { download, escapeAttr } from "./dom";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
 import * as runtime from "./runtime";
-import { settings } from "./settings";
+import { docConfig } from "./settings";
 import { flushSaves } from "./save";
 
 /**
@@ -64,7 +64,7 @@ function pageImageHtml(): string {
   const pages = (runtime.lastResult?.pages_svg || [])
     .map((s) => `<div class="page">${s}</div>`)
     .join("\n");
-  return `<!doctype html><html dir="${settings.dir}"><head><meta charset="utf-8">
+  return `<!doctype html><html dir="${docConfig().dir}"><head><meta charset="utf-8">
 <title>${escapeAttr(runtime.currentDoc?.title ?? "Ksav")}</title><style>body{background:#e5e7eb;margin:0;padding:24px}
 .page{background:#fff;max-width:820px;margin:0 auto 24px;box-shadow:0 2px 12px rgba(0,0,0,.15)}
 .page svg{width:100%;height:auto;display:block}</style></head><body>${pages}</body></html>`;
@@ -118,18 +118,21 @@ const PAPER_CSS: Record<string, string> = {
  * margins across, and `dir` carries the RTL.
  */
 function wordEnvelope(inner: string, styles: string): string {
-  const size = PAPER_CSS[settings.paper] ?? PAPER_CSS.a4;
-  const dir = settings.dir;
+  // The document's own page setup (B26): an export is of a sefer, and which
+  // paper and direction that sefer is on is a fact about it.
+  const page = docConfig();
+  const size = PAPER_CSS[page.paper] ?? PAPER_CSS.a4;
+  const dir = page.dir;
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escapeAttr(runtime.currentDoc?.title ?? "Ksav")}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
 <w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
 <style>
-@page WordSection1 { size: ${size}; margin: ${settings.margin_cm}cm; }
+@page WordSection1 { size: ${size}; margin: ${page.margin_cm}cm; }
 div.WordSection1 { page: WordSection1; }
-body { font-family: "${settings.font}", serif; font-size: ${settings.size_pt}pt;
+body { font-family: "${page.font}", serif; font-size: ${page.size_pt}pt;
        direction: ${dir}; text-align: ${dir === "rtl" ? "right" : "left"};
-       line-height: ${1 + settings.line_spacing_em}; }
+       line-height: ${1 + page.line_spacing_em}; }
 table { border-collapse: collapse; }
 td, th { border: 1px solid #000; padding: 4pt; }
 ${styles}

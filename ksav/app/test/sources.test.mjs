@@ -50,6 +50,39 @@ export async function run() {
   }
   check("no raw caught error reaches the writer as the message", leaks, []);
 
+  // ---------------------------------------------- page setup comes from the document (B26)
+  //
+  // > *"Direction, font, margins and paper live in settings, so opening an English
+  // > document and then a Hebrew one means changing direction by hand."*
+  //
+  // Page setup is a property of the document now, and `settings` still holds the
+  // same fields — as the defaults a *new* document starts from. So a module that
+  // reads `settings.dir` is reading the wrong one, and reading it in the place a
+  // writer would notice: the editor's direction, the preview's, the .docx export's.
+  // There were ten such reads and every one of them was correct before B26.
+  const PAGE = [
+    "font", "size_pt", "margin_cm", "dir", "numbering", "justify",
+    "line_spacing_em", "para_spacing_em", "first_line_indent_em",
+    "columns", "paper", "hebrew_numbering", "header", "footer",
+  ];
+  const stale = [];
+  for (const f of names) {
+    if (f === "settings.ts") continue; // where both live, and the only place that may
+    const body = await readFile(path.join(SRC, f), "utf8");
+    body.split("\n").forEach((line, i) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+      for (const field of PAGE) {
+        // `settings.dir = "ltr"` at boot is a write to the *default* for new
+        // documents, which is what that object is for now. A read is the bug.
+        if (new RegExp("settings\\." + field + "\\b(?!\\s*=[^=])").test(line)) {
+          stale.push(f + ":" + (i + 1) + " " + field);
+        }
+      }
+    });
+  }
+  check("no module reads page setup off the application's settings", stale, []);
+
   // A helper nothing imports is not a single source of truth.
   let readers = 0;
   for (const f of names) {

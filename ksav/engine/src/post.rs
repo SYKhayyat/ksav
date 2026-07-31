@@ -190,7 +190,10 @@ fn wait(arrival: Arrival) -> Reply {
 /// reason to refuse to start: Ksav is a writing application first, and without
 /// the desk it simply cannot be handed anything.
 pub fn open_desk(version: &str) -> Result<Desk, std::io::Error> {
-    let desk = Desk::open(App::Ksav, version)?;
+    // `mut`, because the desk keeps its serving thread's handle now: dropping it
+    // has to close the listener and not merely withdraw the endpoint file
+    // (sefer-crates 0.5.0).
+    let mut desk = Desk::open(App::Ksav, version)?;
     // Anything a previous run was told it had taken, and had not yet handed to
     // the editor, is still owed to the writer.
     recover();

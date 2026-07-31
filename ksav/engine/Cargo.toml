@@ -32,10 +32,10 @@ base64 = "0.22"
 # Pinned exactly: sefer-crates is a separate repository, so taking a new
 # version has to be a deliberate act on this side. Its CI builds this crate
 # against every proposed change, so a break shows up there rather than here.
-girsa-source = { version = "=0.4.0", path = "../../../sefer-crates/crates/girsa-source" }
+girsa-source = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-source" }
 # The markup writer, shared so that Girsa's Ksav buffer writes the same
 # commands this engine compiles (spec.md §10.3).
-girsa-ksav = { version = "=0.4.0", path = "../../../sefer-crates/crates/girsa-ksav" }
+girsa-ksav = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-ksav" }
 include_dir = { version = "0.7", optional = true }
 
 # The HTTP server (net + threads) is native-only; wasm builds skip it.
@@ -44,7 +44,7 @@ tiny_http = "0.12"
 # The loopback to Girsa: token-gated, localhost only. Native-only for the same
 # reason as the server above — a browser build has no listener and nothing to
 # be handed a source by.
-girsa-post = { version = "=0.4.0", path = "../../../sefer-crates/crates/girsa-post" }
+girsa-post = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-post" }
 
 [features]
 # Embed the built SPA (ksav/app/dist) into the binary. Build the app first

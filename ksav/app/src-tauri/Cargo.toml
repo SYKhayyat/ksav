@@ -27,5 +27,5 @@ tauri-plugin-dialog = "2"
 ksav-engine = { path = "../../engine" }
 # The deep link parser, and the loopback types. The same crate the engine's
 # desk is built on, so the two ends of `ksav://insert` cannot disagree.
-girsa-post = { version = "=0.4.0", path = "../../../../sefer-crates/crates/girsa-post" }
+girsa-post = { version = "=0.5.0", path = "../../../../sefer-crates/crates/girsa-post" }
 tauri-plugin-deep-link = "2.4.9"

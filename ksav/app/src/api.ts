@@ -76,7 +76,22 @@ export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
 
 export interface Diagnostic {
   severity: "error" | "warning";
+  /** What the writer reads. Bilingual, and about their command rather than
+   *  Typst's type names — the engine rephrases it (`engine/src/diagnostics.rs`),
+   *  so every backend and anything else talking to `/compile` gets the same
+   *  sentence rather than depending on this front end to make it legible. */
   message: string;
+  /** Typst's own words, for the details affordance. Never the message. */
+  raw?: string;
+  /** 1-based line **in the body that was sent**, which carries the custom-command
+   *  preamble in front of the writer's document. `diagview.ts` subtracts it. */
+  line?: number | null;
+  /** 1-based column, counted in characters. */
+  column?: number | null;
+  /** The command this is about, when one can be named. */
+  about?: string | null;
+  /** The nearest real command name, when the one written does not exist. */
+  did_you_mean?: string | null;
 }
 
 export interface CompileResult {

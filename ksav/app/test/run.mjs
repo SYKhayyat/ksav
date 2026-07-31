@@ -19,6 +19,7 @@ const OUT = path.join(APP, ".tmp-test");
 const MODULES = [
   "brackets",
   "diagnostics",
+  "diagview",
   "docs",
   "store",
   "markdown",

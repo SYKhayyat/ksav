@@ -1,16 +1,32 @@
 // Bracket healing.
 //
-// A dropped `]` is the worst moment in Ksav. Typst reports it at *end of file* —
-// often thousands of characters from the mistake — and the preview goes blank, so
-// the writer is left staring at a red error that points nowhere while the page
-// they were reading a second ago is gone. That single experience is what makes
-// this feel like programming instead of writing.
+// A dropped `]` is the worst moment in Ksav: the preview goes blank and the writer
+// is left staring at a red error while the page they were reading a second ago is
+// gone. That single experience is what makes this feel like programming instead of
+// writing.
 //
 // Three things are built on this module:
 //   1. a live lint that marks the OPENER that never closes, before any compile;
 //   2. a one-click heal that inserts the closer where it most likely belongs;
 //   3. a speculative compile, so the preview keeps rendering while you are still
 //      mid-keystroke and the document is momentarily unbalanced.
+//
+// **A correction, measured rather than assumed.** This comment used to open by
+// saying Typst reports an unclosed `[` *at end of file, often thousands of
+// characters from the mistake*, and that was the stated reason 260 lines of
+// scanner existed. It is not true: Typst spans the opener. Driven against the real
+// engine now that diagnostics carry a location (B5) — an opener on line 1 with 200
+// lines after it reports at `1:6`, and two nested openers on lines 51 and 52
+// report at `51:7` and `52:6`.
+//
+// The module stays, and not out of sentiment. (1) is still only available here: a
+// live lint fires while the writer is typing, and the engine cannot answer until a
+// compile has gone out and come back. (2) is only here: the engine knows the
+// bracket is unclosed and has no idea where its closer belongs. And (3) is the
+// load-bearing one and is not obtainable from the engine at all — it is why the
+// preview keeps showing a page during the several seconds a `#הערה[` spends
+// half-typed. Deleting any of it would trade a real behaviour for a duplicated
+// location that turns out not to have been duplicated.
 //
 // It is deliberately dependency-free and pure (text in, findings out) so it can
 // be tested without a browser or a CodeMirror instance.

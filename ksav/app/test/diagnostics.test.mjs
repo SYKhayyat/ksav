@@ -1,59 +1,16 @@
-// Compiler output, and caught errors, as things a writer can act on.
+// A caught error, as something a writer can act on.
 //
-// `friendlyPair` was already here and already good; it had no test file. What was
-// missing entirely was the other half — a *caught* error — so six sites did
-// `${t("saveFailed")} — ${String(e)}`: a translated label with an untranslated
-// `Error` glued on. The same class of defect as Girsa's `${ksav.why}` in a Hebrew
-// toolbar, one repository over.
-//
-// The rule both halves now hold: the sentence is the reader's, the machine's
-// string is behind the details affordance, and it is never the sentence.
+// The compiler half of this file moved with the code it tested: rephrasing Typst's
+// diagnostics is `engine/src/diagnostics.rs` now, with the span it needs and the
+// registry that answers *did you mean*, and its assertions moved there too. What
+// is asserted here is the half that never existed at all — six sites that did
+// `${t("saveFailed")} — ${String(e)}`, a translated label with an untranslated
+// browser or Rust `Error` glued on.
 
 import { check, ok, notOk } from "./harness.mjs";
-import {
-  friendlyPair,
-  friendlyError,
-  troubleSaid,
-  rawOf,
-  MAX_DIAGNOSTIC_CHARS,
-} from "../.tmp-test/diagnostics.mjs";
-
-/** The four live errors the audit measured against the running server. */
-const MEASURED = [
-  "unknown variable: הדגשא",
-  "unclosed delimiter",
-  "expected auto, relative length, fraction, integer, or array, found string",
-  "expected string, found content",
-];
+import { troubleSaid, rawOf } from "../.tmp-test/diagnostics.mjs";
 
 export async function run() {
-  // ------------------------------------------------- compiler output, rephrased
-
-  for (const msg of MEASURED) {
-    const p = friendlyPair(msg);
-    ok(`"${msg.slice(0, 30)}…" is recognised`, p !== null);
-    ok(`…and says something in Hebrew`, /[֐-׿]/.test(p.he));
-    ok(`…and something in English`, /[A-Za-z]/.test(p.en));
-  }
-
-  // The one that names the mistyped command back at the writer.
-  const unknown = friendlyPair("unknown variable: הדגשא");
-  ok("an unknown command is quoted back", unknown.he.includes("הדגשא"));
-
-  // Typst's forty-item paper enumeration is replaced by the four in the menu,
-  // not merely truncated.
-  const paper = friendlyPair('expected "a4", "us-letter", "a3", "a5", "iso-b1", …, found string');
-  ok("an unknown paper size names the four in the menu", paper.he.includes("A4"));
-  notOk("and does not enumerate Typst's own", paper.he.includes("iso-b1"));
-
-  // What we do not recognise is shortened, never swallowed.
-  const long = "z".repeat(400);
-  const short = friendlyError(long);
-  check("an unrecognised message is capped", short.length, MAX_DIAGNOSTIC_CHARS);
-  ok("and ends in an ellipsis so the truncation is visible", short.endsWith("…"));
-  check("a short one is untouched", friendlyError("boom"), "boom");
-  check("whitespace is flattened", friendlyError("a\n  b"), "a b");
-
   // ------------------------------------------------------ caught errors
 
   const cases = [

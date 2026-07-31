@@ -218,7 +218,21 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
 }
 #status.ok { color: var(--ok); }
 #status.err { color: var(--danger); }
-#diagnostics { color: var(--danger); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; flex: 1; }
+#diagnostics {
+  color: var(--danger); font-family: var(--mono); font-size: 12px;
+  flex: 1; display: flex; gap: 14px; overflow: hidden; align-items: center;
+}
+/* A diagnostic that names a line is a button, because it can go there. */
+.diag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diag-go {
+  background: transparent; border: 0; padding: 0; font: inherit; color: inherit;
+  cursor: pointer; text-align: start; text-decoration: underline dotted;
+}
+.diag-go:hover { text-decoration-style: solid; }
+/* The line the compiler is complaining about. A tint rather than a squiggle:
+   `brackets.ts` already owns the squiggle, and two underlines on one line reads
+   as two mistakes. */
+.cm-error-line { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .engine-badge { font-size: 11px; color: var(--muted); font-family: var(--mono); }
 
 /* ---- settings drawer ---- */

@@ -75,6 +75,8 @@ import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule } from "./compile";
 import { applyPreview } from "./preview";
+import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
+import { onGoToLine, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
@@ -620,6 +622,8 @@ function makeEditor(): EditorView {
       themeCompartment.of(editorTheme(settings.theme === "dark")),
       spell.misspellings,
       spell.spellDecorations,
+      errorLines,
+      errorLineDecorations,
       // A squiggle answers to a plain click, not only a right-click: on a
       // touchscreen there is no right-click at all.
       EditorView.domEventHandlers({
@@ -3052,6 +3056,14 @@ function render() {
   );
 
   runtime.setView(makeEditor());
+  // A diagnostic that names a line has to be able to go there, and the line has
+  // to be visible in the editor. `diagview` knows nothing about CodeMirror and
+  // does not need to; it asks.
+  onGoToLine((line, column) => {
+    const at = offsetOf(runtime.view, line, column);
+    if (at != null) jumpTo(at);
+  });
+  onMarkLines((lines) => runtime.view.dispatch({ effects: setErrorLines.of(lines) }));
   wireSyncScroll();
   wireSplitter();
   applyTheme();

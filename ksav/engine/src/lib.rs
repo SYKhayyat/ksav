@@ -6,12 +6,14 @@
 //! produce a PDF and per-page SVG previews.
 
 use assets::Assets;
-use typst::diag::{SourceDiagnostic, Warned};
+use diagnostics::Located;
+use typst::diag::Warned;
 use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
 pub mod assets;
 pub mod commands;
+pub mod diagnostics;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
@@ -313,12 +315,7 @@ impl DocConfig {
     }
 }
 
-/// A compiler diagnostic surfaced back to the editor.
-#[derive(Debug, Clone)]
-pub struct Diagnostic {
-    pub severity: String, // "error" | "warning"
-    pub message: String,
-}
+pub use diagnostics::Diagnostic;
 
 /// Result of a compile pass.
 #[derive(Debug, Default)]
@@ -410,23 +407,6 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     )
 }
 
-fn diag_messages(diags: &[SourceDiagnostic], severity: &str) -> Vec<Diagnostic> {
-    diags
-        .iter()
-        .map(|d| {
-            let mut msg = d.message.to_string();
-            for hint in &d.hints {
-                msg.push_str("\n  ↳ ");
-                msg.push_str(&hint.v);
-            }
-            Diagnostic {
-                severity: severity.to_string(),
-                message: msg,
-            }
-        })
-        .collect()
-}
-
 /// Lay out an assembled source, with the request's assets available to it.
 ///
 /// The document has no file system to read from, so its images arrive as bytes on
@@ -484,19 +464,20 @@ pub fn compile_doc_with(
     cfg: &DocConfig,
     assets: &Assets,
 ) -> Result<PagedDocument, Vec<Diagnostic>> {
-    let source = assemble_source(body, cfg);
-    let Warned { output, warnings } = layout_source(source, assets);
+    let text = assemble_source(body, cfg);
+    // The same text Typst is about to parse, parsed again here so spans can be
+    // turned into lines. `Source::detached` is what `main_file(String)` builds, and
+    // span numbers are assigned deterministically from the parse, so the two agree.
+    let located = Located::of(&text, cfg);
+    let Warned { output, warnings } = layout_source(text, assets);
     match output {
         Ok(doc) => Ok(doc),
         Err(err) => {
-            let mut diagnostics = diag_messages(&warnings, "warning");
+            let mut diagnostics = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {
-                TypstSource(diags) => diagnostics.extend(diag_messages(&diags, "error")),
-                other => diagnostics.push(Diagnostic {
-                    severity: "error".to_string(),
-                    message: other.to_string(),
-                }),
+                TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),
+                other => diagnostics.push(Diagnostic::ours("error", other.to_string())),
             }
             Err(diagnostics)
         }
@@ -523,9 +504,10 @@ pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
 pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: bool) -> Compiled {
     let source = assemble_source(body, cfg);
     let typst_source = source.clone();
+    let located = Located::of(&source, cfg);
 
     let Warned { output, warnings } = layout_source(source, assets);
-    let mut diagnostics = diag_messages(&warnings, "warning");
+    let mut diagnostics = located.all(&warnings, "warning");
 
     match output {
         Ok(doc) => {
@@ -549,11 +531,8 @@ pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: boo
         Err(err) => {
             use typst_as_lib::TypstAsLibError::*;
             match err {
-                TypstSource(diags) => diagnostics.extend(diag_messages(&diags, "error")),
-                other => diagnostics.push(Diagnostic {
-                    severity: "error".to_string(),
-                    message: other.to_string(),
-                }),
+                TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),
+                other => diagnostics.push(Diagnostic::ours("error", other.to_string())),
             }
             Compiled {
                 ok: false,
@@ -651,10 +630,7 @@ pub fn compile_request(input_json: &str) -> String {
             Err(diags) => serde_json::json!({
                 "ok": false,
                 "html": serde_json::Value::Null,
-                "diagnostics": diags
-                    .iter()
-                    .map(|d| serde_json::json!({ "severity": d.severity, "message": d.message }))
-                    .collect::<Vec<_>>(),
+                "diagnostics": diags,
                 "missing_assets": missing_assets,
             }),
         }
@@ -664,11 +640,7 @@ pub fn compile_request(input_json: &str) -> String {
     // Previews don't want a PDF; export and print do, and say so.
     let want_pdf = v.get("want_pdf").and_then(|x| x.as_bool()).unwrap_or(false);
     let result = compile_parts(body, &cfg, &assets, want_pdf);
-    let diags: Vec<serde_json::Value> = result
-        .diagnostics
-        .iter()
-        .map(|d| serde_json::json!({ "severity": d.severity, "message": d.message }))
-        .collect();
+    let diags = &result.diagnostics;
     let pdf_b64 = result
         .pdf
         .as_ref()
@@ -703,6 +675,7 @@ pub fn compile_html(
     assets: &Assets,
 ) -> Result<String, Vec<Diagnostic>> {
     let source = assemble_source(body, cfg);
+    let located = Located::of(&source, cfg);
     let mut fonts: Vec<&[u8]> = vec![
         FONT_FRANK_REG,
         FONT_FRANK_BOLD,
@@ -726,17 +699,14 @@ pub fn compile_html(
     match output {
         Ok(doc) => match typst_html::html(&doc, &typst_html::HtmlOptions::default()) {
             Ok(s) => Ok(s),
-            Err(diags) => Err(diag_messages(&diags, "error")),
+            Err(diags) => Err(located.all(&diags, "error")),
         },
         Err(err) => {
-            let mut d = diag_messages(&warnings, "warning");
+            let mut d = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {
-                TypstSource(x) => d.extend(diag_messages(&x, "error")),
-                other => d.push(Diagnostic {
-                    severity: "error".into(),
-                    message: other.to_string(),
-                }),
+                TypstSource(x) => d.extend(located.all(&x, "error")),
+                other => d.push(Diagnostic::ours("error", other.to_string())),
             }
             Err(d)
         }

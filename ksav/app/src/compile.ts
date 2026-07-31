@@ -7,7 +7,8 @@
 // the two never touch. A render is a convenience; a save is the writer's work.
 
 import { analyze } from "./brackets";
-import { friendlyError, troubleSaid } from "./diagnostics";
+import { troubleSaid } from "./diagnostics";
+import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import { t, tf } from "./i18n";
 import { applyPreview } from "./preview";
@@ -49,11 +50,16 @@ export function scheduleCompile() {
  *
  *  A document that carries its own custom commands (opened from a file that
  *  embedded them) uses those, so a shared sefer compiles for its reader; an
- *  ordinary local document falls back to the app-wide set. */
-function withPreamble(body: string): string {
+ *  ordinary local document falls back to the app-wide set.
+ *
+ *  Returns the line offset as well as the text, because the engine reports
+ *  diagnostic lines in the body it was *sent*, and this is the only place that
+ *  knows how many lines were put in front of the writer's first one. Working it
+ *  out anywhere else would be a second reader of one value. */
+function withPreamble(body: string): { body: string; offset: number } {
   const custom = runtime.currentDoc?.customCommands ?? settings.customCommands;
   const pre = custom?.trim() ? custom + "\n\n" : "";
-  return pre + body;
+  return { body: pre + body, offset: preambleLines(custom) };
 }
 
 export async function runCompile() {
@@ -73,7 +79,10 @@ export async function runCompile() {
   // The document itself is never modified; only what we hand the compiler is.
   const { problems, healed } = analyze(userDoc);
   const healedCount = problems.length;
-  const body = withPreamble(healedCount ? healed : userDoc);
+  // Healing never inserts or removes a newline, so a line the engine reports
+  // about the healed copy is the same line in what the writer typed. `diagview`
+  // has the test that keeps that true.
+  const { body, offset } = withPreamble(healedCount ? healed : userDoc);
   try {
     const res = await backend.compile(
       body,
@@ -102,9 +111,12 @@ export async function runCompile() {
       status.textContent = `✗ ${t("compileError")}`;
       status.className = "err";
     }
-    const shown = errs.length ? errs : res.diagnostics;
-    diag.textContent = shown.map((d) => friendlyError(d.message)).join("  ·  ");
-    diag.title = shown.map((d) => d.message).join("\n"); // raw messages on hover
+    const worst = errs.length ? errs : res.diagnostics;
+    // The location goes in front of the message, the raw compiler text goes on
+    // the hover, and the whole thing is clickable so it can put the cursor on the
+    // line it names. Nothing here rephrases anything: the engine already did,
+    // once, for every backend (`engine/src/diagnostics.rs`).
+    drawDiagnostics(diag, shown(worst, offset));
     afterCompile();
   } catch (e) {
     if (mine !== generation) return;
@@ -127,7 +139,7 @@ export async function compileForExport(): Promise<CompileResult | null> {
   const backend = runtime.backend;
   if (!backend) return null;
   try {
-    return await backend.compile(withPreamble(runtime.docText()), docConfig(), {
+    return await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
       want_pdf: true,
     });
@@ -147,13 +159,13 @@ export async function reflowableHtml(): Promise<string | null> {
   const backend = runtime.backend;
   if (!backend) return null;
   try {
-    const res = (await backend.compile(withPreamble(runtime.docText()), docConfig(), {
+    const res = (await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
       format: "html",
     })) as unknown as { ok: boolean; html?: string; diagnostics?: { message: string }[] };
     if (res.ok && res.html) return res.html;
     const why = res.diagnostics?.[0]?.message ?? "";
-    runtime.setStatus(t("htmlFellBack") + (why ? ` — ${friendlyError(why)}` : ""), "warn");
+    runtime.setStatus(t("htmlFellBack") + (why ? ` — ${why}` : ""), "warn");
   } catch {
     runtime.setStatus(t("htmlFellBack"), "warn");
   }

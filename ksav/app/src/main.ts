@@ -87,6 +87,7 @@ import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
 import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
+import * as docx from "./docx";
 import * as update from "./update";
 import * as watch from "./watch";
 import { overviewRuler } from "./ruler";
@@ -1473,6 +1474,7 @@ function buildHeader(): HTMLElement {
     el("button", { class: "menu-item", onClick: saveFileAs }, [
       files.supportsRealFiles() ? t("saveAs") : t("saveCopy"),
     ]),
+    el("button", { class: "menu-item", onClick: () => void importWord() }, [t("importWord")]),
     el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
   ]);
 
@@ -2537,6 +2539,50 @@ async function maybeCheckForUpdate() {
   showChromeNotice(tf("updateAvailable", release.version), () => {
     window.open(release.url, "_blank", "noopener");
   });
+}
+
+/**
+ * Read a `.docx` in, as a new document.
+ *
+ * Always a *new* document, never over the open one — importing is not a thing
+ * anybody does to the sefer they are in the middle of writing, and getting that
+ * wrong once costs somebody an evening.
+ */
+async function importWord() {
+  closeMenus();
+  const picked = await new Promise<File | null>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".docx";
+    input.style.display = "none";
+    input.addEventListener("change", () => resolve(input.files?.[0] ?? null), { once: true });
+    // A dismissed picker fires no event in most browsers.
+    window.addEventListener("focus", () => setTimeout(() => resolve(null), 800), { once: true });
+    document.body.append(input);
+    input.click();
+  });
+  if (!picked) return;
+  setStatus(t("importing"), "");
+  let result;
+  try {
+    result = await docx.importDocx(new Uint8Array(await picked.arrayBuffer()));
+  } catch (e) {
+    const bad = troubleSaid(e, "general");
+    setStatus(`${t("importFailed")} — ${bad.said}`, "err", bad.detail);
+    return;
+  }
+  const title = picked.name.replace(/\.docx$/i, "") || t("untitled");
+  const created = await docs.createDoc(title, result.body);
+  // The direction is read off the text rather than guessed, and written onto the
+  // document's own page setup — where it belongs since B26.
+  await docs.rememberConfig(created.id, { dir: result.dir });
+  await openDoc(created.id);
+  // Say what did not come across. An import that quietly loses the pictures is
+  // the kind of thing somebody discovers at the printer.
+  setStatus(
+    result.dropped.length ? tf("importedWithGaps", title, result.dropped.join(", ")) : tf("imported", title),
+    result.dropped.length ? "warn" : "ok",
+  );
 }
 
 async function saveFileAs() {

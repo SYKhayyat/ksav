@@ -40,6 +40,14 @@ export interface Settings extends Omit<DocConfig, "lang"> {
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
   reviewer?: string; // the name that goes on this person's review comments
+  // Modal editing, for the people who cannot type without it. A property of the
+  // person, not of the sefer — a document opened on someone else's machine must
+  // not put them into vim.
+  editingMode?: "default" | "vim" | "emacs";
+  // Dim everything but the paragraph being written, and keep the caret line
+  // vertically centred.
+  focusMode?: boolean;
+  typewriter?: boolean;
 }
 
 /** The font families the engine bundles. Anything else must be attached to the
@@ -90,6 +98,9 @@ export const DEFAULTS: Settings = {
   keywords: [],
   pdf_standard: "",
   pdf_tagged: true,
+  editingMode: "default",
+  focusMode: false,
+  typewriter: false,
   autocomplete: true,
   spellcheck: true,
   syncScroll: true,

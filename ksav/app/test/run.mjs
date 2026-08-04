@@ -27,6 +27,7 @@ const MODULES = [
   "diagnostics",
   "diagview",
   "docs",
+  "focus",
   "i18n",
   "jump",
   "store",

@@ -965,3 +965,13 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   .cm-overview-ruler { display: none !important; }
   .cm-editor .cm-scroller { padding-inline-end: 0; }
 }
+
+/* ---- focus & typewriter ----
+ *
+ * Dimming is opacity and not colour, so it works in both themes and against any
+ * skin without a second rule per theme.
+ */
+.cm-dimmed { opacity: .35; transition: opacity .12s ease-out; }
+/* Room below the last line, so the *last* line can also reach the middle of the
+ * window. Only present while typewriter scrolling is on. */
+.cm-content[data-typewriter="true"] { padding-bottom: var(--ksav-typewriter-pad, 40vh); }

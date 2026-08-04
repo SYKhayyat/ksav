@@ -84,6 +84,8 @@ import { applyPreview, drawCurrentInto, pageBox } from "./preview";
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
+import { focusCompartment, focusExtension } from "./focus";
+import * as keymodes from "./keymodes";
 import { overviewRuler } from "./ruler";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
 import { lineInDocument, onGoToLine, onMarkLines } from "./diagview";
@@ -700,6 +702,15 @@ function makeEditor(): EditorView {
       bracketMatching(),
       closeBrackets(),
       search({ top: true }),
+      // Vim / Emacs, when one is chosen. Deliberately *before* the shortcut
+      // keymap: both are Prec.highest and CodeMirror breaks that tie by array
+      // order, so the mode gets first refusal on every key. See `keymodes.ts`
+      // for why the mode wins rather than Ksav's own bindings.
+      keymodes.modeCompartment.of([]),
+      // Dim everything but the paragraph in hand, and keep the caret line
+      // centred. Two settings, in one compartment because they are reconfigured
+      // together and never independently.
+      focusCompartment.of(focusExtension(!!settings.focusMode, !!settings.typewriter)),
       shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
       autoCompartment.of(autoExtension()),
       keymap.of([
@@ -1845,6 +1856,14 @@ function buildSettingsDrawer(): HTMLElement {
     el("h3", { style: "margin-top:18px" }, [t("thisMachine")]),
     checkRow("fitWidthLabel", "fitWidth"),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
+    selectRow("editingModeLabel", "editingMode", [
+      ["default", t("mode.default")],
+      ["vim", t("mode.vim")],
+      ["emacs", t("mode.emacs")],
+    ]),
+    el("div", { class: "set-note" }, [t("editingModeNote")]),
+    checkRow("focusModeLabel", "focusMode"),
+    checkRow("typewriterLabel", "typewriter"),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("spellcheckLabel", "spellcheck"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
@@ -3324,6 +3343,15 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     // document has to re-point the pane in the same act.
     applyPreview();
     scheduleCompile();
+  } else if (key === "editingMode") {
+    void keymodes.applyMode(runtime.view, keymodes.isMode(value) ? value : "default");
+    rerenderChrome();
+  } else if (key === "focusMode" || key === "typewriter") {
+    runtime.view.dispatch({
+      effects: focusCompartment.reconfigure(
+        focusExtension(!!settings.focusMode, !!settings.typewriter),
+      ),
+    });
   } else if (key === "zoom" || key === "fitWidth") {
     applyPreview();
   } else if (key === "autocomplete") {
@@ -3879,6 +3907,12 @@ async function boot() {
   // The change gutter needs the document's newest snapshot, and boot does not
   // go through `openDoc`.
   void refreshBaseline();
+  // `:w` in vim and C-x C-s in emacs go through the same save the toolbar uses,
+  // rather than a second path that would one day forget to flush something.
+  keymodes.setSaveCommand(() => void saveFile());
+  if (settings.editingMode && settings.editingMode !== "default") {
+    void keymodes.applyMode(runtime.view, settings.editingMode);
+  }
   runCompile();
   // The first check has to be scheduled explicitly: boot compiles directly
   // rather than through scheduleCompile, so nothing would be checked until the

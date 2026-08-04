@@ -1533,6 +1533,35 @@
 #let קו_מפריד = line(length: 100%, stroke: 0.5pt + luma(180))
 #let מרווח(מידה: 1em) = v(מידה)
 #let רווח_אופקי(מידה: 1em) = h(מידה)
+// חסר_הכללה — what prints where an inclusion could not be made.
+//
+// The engine expands `#כלול` textually before Typst sees anything (see
+// `engine/src/include.rs`), and when a name answers to no document it leaves one
+// of these rather than a gap. Deliberately loud: a missing chapter that printed
+// as nothing at all would be discovered when the sefer came back from the
+// printer.
+#let חסר_הכללה(body) = block(
+  width: 100%, inset: 8pt, radius: 3pt,
+  fill: rgb("#fee2e2"), stroke: 0.5pt + rgb("#b91c1c"),
+  text(fill: rgb("#b91c1c"), weight: "bold", [⚠ #body]),
+)
+#let missing_include = חסר_הכללה
+
+// כלול — and the reason there is a Typst function here at all.
+//
+// The real inclusion is textual and happens in the engine before Typst sees the
+// document, so a `#כלול(…)` that *reaches* this function is one the engine
+// did not recognise — which means exactly one thing: it was not alone on its
+// line. That is the single failure mode of the whole-line rule, and without this
+// definition it would surface as "unknown variable כלול", which names the
+// wrong problem entirely.
+//
+// It also keeps the registry's promise that every listed command is defined.
+#let כלול(שם) = חסר_הכללה[
+  הפקודה #raw("#כלול") צריכה לעמוד לבדה בשורה — ולא באמצע משפט (#שם)
+]
+#let include_part = כלול
+
 #let מעבר_עמוד = pagebreak(weak: true)
 #let מעבר_שורה = linebreak()
 #let מעבר_טור = colbreak()

@@ -14,6 +14,9 @@ use typst_layout::PagedDocument;
 pub mod assets;
 pub mod commands;
 pub mod diagnostics;
+/// A sefer is many files: `#כלול` and the line map that keeps its
+/// diagnostics meaningful.
+pub mod include;
 /// Both directions between a place in the source and a place on the page.
 pub mod jump;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
@@ -1004,6 +1007,13 @@ pub fn compile_request(input_json: &str) -> String {
         }
     };
     let cfg = DocConfig::from_json(&v);
+    // A sefer is many files. `#כלול("פרק ג")` is expanded here, before anything is
+    // compiled, and the expansion keeps a line map so a diagnostic can still name
+    // the chapter it belongs to rather than a line number in a concatenation that
+    // exists nowhere. A request with no `parts` expands to itself, at no cost.
+    let parts = include::from_request(&v);
+    let expanded = include::expand(body, &parts);
+    let body: &str = &expanded.text;
     // Assets resolve from a per-process cache keyed by content hash, so an
     // unchanged image is not re-sent and re-decoded on every keystroke. Any hash
     // the cache no longer holds comes back so the client re-sends the bytes.
@@ -1030,7 +1040,15 @@ pub fn compile_request(input_json: &str) -> String {
         .get("want_source")
         .and_then(|x| x.as_bool())
         .unwrap_or(false);
-    let result = compile_parts(body, &cfg, &assets, want_pdf, want_source);
+    let mut result = compile_parts(body, &cfg, &assets, want_pdf, want_source);
+    // Back into each chapter's own coordinates, and say out loud what the
+    // expansion could not do — a name nothing answers to, a loop.
+    include::relabel(&expanded, &mut result.diagnostics);
+    for problem in &expanded.problems {
+        result
+            .diagnostics
+            .push(Diagnostic::ours("error", problem.clone()));
+    }
 
     // Pages the client already has, by fingerprint.
     //

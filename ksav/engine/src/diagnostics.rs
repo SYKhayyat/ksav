@@ -77,6 +77,13 @@ pub struct Diagnostic {
     pub about: Option<String>,
     /// The nearest real command name, when the one written does not exist.
     pub did_you_mean: Option<String>,
+    /// Which included document this line came from, when the body was assembled
+    /// from several (`#כלול`). `None` means the main body.
+    ///
+    /// Without this, a sefer built from twelve chapters reports every error at a
+    /// line number in a document that exists nowhere — the concatenation — and
+    /// the writer has to work out which chapter that was by counting.
+    pub file: Option<String>,
 }
 
 impl Diagnostic {
@@ -604,6 +611,11 @@ fn located(
                 column,
                 about: said.about,
                 did_you_mean: said.did_you_mean,
+                // Filled in by `include::relabel` when the body was assembled
+                // from several documents; the line resolver here works in the
+                // assembled body's own coordinates and has no idea there were
+                // ever several.
+                file: None,
             }
         })
         .collect()

@@ -34,6 +34,7 @@ const MODULES = [
   "store",
   "markdown",
   "notes",
+  "parts",
   "preview",
   "review",
   "ruler",

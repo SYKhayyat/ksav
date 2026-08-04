@@ -93,7 +93,7 @@ import * as update from "./update";
 import * as watch from "./watch";
 import { overviewRuler } from "./ruler";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
-import { lineInDocument, onGoToLine, onMarkLines } from "./diagview";
+import { lineInDocument, onGoToLine, onGoToPart, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
@@ -4169,6 +4169,15 @@ async function boot() {
   // `:w` in vim and C-x C-s in emacs go through the same save the toolbar uses,
   // rather than a second path that would one day forget to flush something.
   keymodes.setSaveCommand(() => void saveFile());
+  // An error in an included chapter opens *that* chapter and goes to the line.
+  onGoToPart((file, line, column) => {
+    const entry = docs.library().find((e) => e.title === file);
+    if (!entry) return;
+    void (async () => {
+      await openDoc(entry.id);
+      runtime.jumpTo(offsetOf(runtime.view, line, column) ?? 0);
+    })();
+  });
   registerServiceWorker();
   void openSharedIfLinked();
   // Rescue the text before anything else, then say what happened.

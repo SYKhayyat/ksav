@@ -11,6 +11,7 @@ import * as commands from "./commands";
 import { troubleSaid } from "./diagnostics";
 import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
+import * as parts from "./parts";
 import { t, tf } from "./i18n";
 import { applyPreview, drawPages } from "./preview";
 import { docConfig } from "./settings";
@@ -111,7 +112,7 @@ export async function runCompile() {
     const res = await backend.compile(
       body,
       docConfig(),
-      docs.requestAssets(runtime.currentDoc?.assets ?? []),
+      { ...docs.requestAssets(runtime.currentDoc?.assets ?? []), parts: await includedParts(body) },
     );
     if (mine !== generation) return; // superseded while we were waiting
     runtime.setLastResult(res);
@@ -161,6 +162,46 @@ export async function runCompile() {
  * the assembled source — the 75 KB prelude plus the document — cost more than
  * the page did. Both are asked for here, where they are actually wanted.
  */
+/**
+ * A document's body, remembered until the document changes.
+ *
+ * Included chapters are read on the compile path, which runs on a 250 ms
+ * debounce, and reading four chapters out of IndexedDB on every pause in typing
+ * is four reads too many. `updated` is the document's own modification stamp, so
+ * the memo cannot go stale: a chapter edited in another tab bumps it and the
+ * next compile re-reads.
+ */
+const partMemo = new Map<string, { updated: number; body: string }>();
+
+/**
+ * The other documents this one includes, ready for the request.
+ *
+ * Resolved by *title*, because that is what the writer types — a document's id
+ * is a thing nobody has ever seen. Two documents sharing a title is therefore
+ * possible, and the newest wins: `library()` is ordered newest first, so the one
+ * being worked on is the one that gets included, which is the only answer that
+ * is not surprising.
+ */
+async function includedParts(body: string): Promise<{ name: string; body: string }[]> {
+  // The overwhelmingly common case, and worth not paying for: a document with no
+  // inclusions resolves nothing, reads nothing and sends nothing.
+  if (!parts.referenced(body).length) return [];
+  const byTitle = new Map<string, string>();
+  for (const entry of docs.library()) {
+    if (byTitle.has(entry.title)) continue;
+    const had = partMemo.get(entry.id);
+    if (had && had.updated === entry.updated) {
+      byTitle.set(entry.title, had.body);
+      continue;
+    }
+    const doc = await docs.getDoc(entry.id);
+    if (!doc) continue;
+    partMemo.set(entry.id, { updated: entry.updated, body: doc.body });
+    byTitle.set(entry.title, doc.body);
+  }
+  return parts.collect(body, (name) => byTitle.get(name) ?? null);
+}
+
 export async function compileForExport(
   /**
    * Fields that belong to *this* export rather than to the document — today
@@ -174,6 +215,7 @@ export async function compileForExport(
   try {
     return await backend.compile(withPreamble(runtime.docText()).body, { ...docConfig(), ...override }, {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
+      parts: await includedParts(withPreamble(runtime.docText()).body),
       want_pdf: true,
       want_source: true,
     });
@@ -195,6 +237,7 @@ export async function reflowableHtml(): Promise<string | null> {
   try {
     const res = (await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
+      parts: await includedParts(withPreamble(runtime.docText()).body),
       format: "html",
     })) as unknown as { ok: boolean; html?: string; diagnostics?: { message: string }[] };
     if (res.ok && res.html) return res.html;

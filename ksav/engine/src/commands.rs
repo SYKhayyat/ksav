@@ -151,6 +151,7 @@ pub static COMMANDS: &[Command] = &[
     // print what the marks collected — so they belong at the *back* of the
     // document, which is the one thing about them a writer has to be told.
     cmd!("ציון_מקור", "sourceref", "torah", "ציון מקור — נכנס למפתח המקורות", "Cite a sefer — indexed", "#ציון_מקור(\"|\", מקום: \"ב.\")"),
+    cmd!("כלול", "include_part", "block", "הכללת מסמך אחר (פרק) — בשורה משלו", "Include another document (a chapter) — on its own line", "#כלול(\"|\")"),
     cmd!("מפתח_מקורות", "sourceindex", "torah", "מפתח המקורות (בסוף הספר)", "Source index (at the back)", "#מפתח_מקורות()"),
     cmd!("ערך", "indexentry", "torah", "סימון ערך למפתח הענינים", "Mark a term for the topic index", "#ערך(\"|\")[]"),
     cmd!("מפתח_ענינים", "topicindex", "torah", "מפתח הענינים (בסוף הספר)", "Topic index (at the back)", "#מפתח_ענינים()"),

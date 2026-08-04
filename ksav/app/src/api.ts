@@ -99,6 +99,14 @@ export interface RequestAsset {
 export interface RequestAssets {
   /** Images and other files the document refers to by name. */
   assets: RequestAsset[];
+  /**
+   * The other documents this one includes (`#כלול`), by title.
+   *
+   * Sent whole rather than by hash, unlike an image: a chapter is text the
+   * writer is editing right now, so it changes on the very keystrokes that
+   * trigger the compile and a content cache would miss every time.
+   */
+  parts?: { name: string; body: string }[];
   /** Extra fonts to make available for this compile. */
   fonts: RequestAsset[];
   /**
@@ -146,6 +154,14 @@ export interface Diagnostic {
   about?: string | null;
   /** The nearest real command name, when the one written does not exist. */
   did_you_mean?: string | null;
+  /**
+   * The included document this line came from, when the sefer is many files.
+   *
+   * `null` for the document the writer has open. Without it every error in a
+   * twelve-chapter sefer reports a line number in a concatenation that exists
+   * nowhere.
+   */
+  file?: string | null;
 }
 
 export interface CompileResult {

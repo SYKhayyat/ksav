@@ -243,8 +243,21 @@ pub fn jump_request(input_json: &str) -> String {
         y_pt: num("y_pt"),
     };
     let (assets, _) = Assets::from_request(&v);
-    match to_source(body, &DocConfig::from_json(&v), &assets, at) {
-        Some(s) => serde_json::json!({ "line": s.line, "column": s.column }).to_string(),
+    // The page was laid out from the *expanded* body, so that is what has to be
+    // walked — and the answer then has to be translated back, or a click on
+    // chapter three would send the cursor to a line number in a concatenation
+    // the writer has never seen.
+    let expanded = crate::include::expand(body, &crate::include::from_request(&v));
+    match to_source(&expanded.text, &DocConfig::from_json(&v), &assets, at) {
+        Some(s) => {
+            let origin = expanded.origin_of(s.line);
+            serde_json::json!({
+                "line": origin.map_or(s.line, |o| o.line),
+                "column": s.column,
+                "file": origin.and_then(|o| o.file.clone()),
+            })
+            .to_string()
+        }
         None => "{}".to_string(),
     }
 }
@@ -257,12 +270,17 @@ pub fn reveal_request(input_json: &str) -> String {
     let Some(body) = v.get("body").and_then(|b| b.as_str()) else {
         return r#"{"points":[]}"#.to_string();
     };
+    let (assets, _) = Assets::from_request(&v);
+    let expanded = crate::include::expand(body, &crate::include::from_request(&v));
+    // The caller names a line in the file the cursor is actually in, which is the
+    // only line number it has; the layout knows the expanded body's.
+    let asked = v.get("line").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize;
+    let file = v.get("file").and_then(|x| x.as_str());
     let at = BodySpot {
-        line: v.get("line").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize,
+        line: expanded.line_of(file, asked).unwrap_or(asked),
         column: v.get("column").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize,
     };
-    let (assets, _) = Assets::from_request(&v);
-    let points = from_cursor(body, &DocConfig::from_json(&v), &assets, at);
+    let points = from_cursor(&expanded.text, &DocConfig::from_json(&v), &assets, at);
     serde_json::json!({ "points": points }).to_string()
 }
 

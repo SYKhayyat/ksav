@@ -68,9 +68,17 @@ export function shorten(msg: string, max = MAX_MESSAGE_CHARS): string {
  * omitted rather than faked when there is none.
  */
 export function show(d: Diagnostic, offset: number): Shown {
-  const line = lineInDocument(d.line, offset);
+  // The preamble offset belongs to the *open* document. A line reported from an
+  // included chapter is already that chapter's own line — the engine's line map
+  // put it there — and subtracting a preamble the chapter never carried would
+  // move it, always in the direction of pointing at the wrong line.
+  const fromPart = !!d.file;
+  const line = fromPart ? (d.line ?? null) : lineInDocument(d.line, offset);
   const column = line == null ? null : (d.column ?? null);
-  const where = line == null ? "" : `שורה ${line}${column == null ? "" : `:${column}`} · `;
+  const at = line == null ? "" : `שורה ${line}${column == null ? "" : `:${column}`}`;
+  // The chapter's name in front of the line number, because in a twelve-chapter
+  // sefer "line 12" is not a location.
+  const where = !at && !fromPart ? "" : `${d.file ? `${d.file} · ` : ""}${at}${at ? " · " : ""}`;
   return { d, line, column, said: where + shorten(d.message) };
 }
 
@@ -86,7 +94,11 @@ export function shown(diags: Diagnostic[], offset: number): Shown[] {
  */
 export function markedLines(list: Shown[]): number[] {
   const lines = new Set<number>();
-  for (const s of list) if (s.line != null && s.d.severity === "error") lines.add(s.line);
+  // Only the open document's own errors. A line number from an included chapter
+  // means nothing here, and underlining it would mark an innocent line.
+  for (const s of list) {
+    if (s.line != null && s.d.severity === "error" && !s.d.file) lines.add(s.line);
+  }
   return [...lines].sort((a, b) => a - b);
 }
 
@@ -94,6 +106,19 @@ export function markedLines(list: Shown[]): number[] {
 let goToLine: (line: number, column: number | null) => void = () => {};
 export function onGoToLine(fn: (line: number, column: number | null) => void) {
   goToLine = fn;
+}
+
+/**
+ * Installed by the shell: go to a line in an *included* document.
+ *
+ * Separate from `goToLine` because it is a different act — that one moves the
+ * cursor, this one opens another document first. Without it, clicking an error
+ * from chapter three would move the cursor to line 12 of whatever is open, which
+ * is a confidently wrong answer and worse than no link at all.
+ */
+let goToPart: (file: string, line: number, column: number | null) => void = () => {};
+export function onGoToPart(fn: (file: string, line: number, column: number | null) => void) {
+  goToPart = fn;
 }
 
 /** Installed by the shell: mark these lines as holding an error, and no others. */
@@ -127,7 +152,10 @@ export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
     button.textContent = s.said;
     if (s.d.raw) button.title = s.d.raw;
     const { line, column } = s;
-    button.addEventListener("click", () => goToLine(line, column));
+    const file = s.d.file;
+    button.addEventListener("click", () =>
+      file ? goToPart(file, line, column) : goToLine(line, column),
+    );
     into.append(button);
   }
 }

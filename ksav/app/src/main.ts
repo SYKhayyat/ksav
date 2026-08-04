@@ -83,6 +83,8 @@ import * as commands from "./commands";
 import { applyPreview, drawCurrentInto, pageBox } from "./preview";
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
+import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
+import { overviewRuler } from "./ruler";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
 import { lineInDocument, onGoToLine, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
@@ -205,10 +207,37 @@ async function openDoc(id: string) {
   });
   runtime.setSwitching(false);
   save.markFileSaved();
+  await refreshBaseline();
   updateTitleBar();
   rerenderChrome();
   runtime.view.focus();
   scheduleCompile();
+}
+
+/**
+ * Point the change gutter at this document's newest snapshot.
+ *
+ * Called whenever the comparison could have moved: on opening a document, and
+ * after a snapshot is taken — at which point everything is unchanged again,
+ * which is the honest reading and the reason the gutter clears itself rather
+ * than accumulating a session's worth of green.
+ *
+ * A document with no history yet has no baseline, and the gutter shows nothing.
+ * That is right: against nothing, every line is new, and a solid stripe down the
+ * whole document says less than an empty gutter does.
+ */
+async function refreshBaseline() {
+  if (!runtime.currentDoc) return;
+  let baseline: string | null = null;
+  try {
+    const list = await docs.snapshots(runtime.currentDoc.id);
+    baseline = list.length ? list[list.length - 1].body : null;
+  } catch {
+    // The history store being unreachable is reported by the code that writes
+    // to it; a gutter is not the place to raise it a second time.
+    baseline = null;
+  }
+  runtime.view.dispatch({ effects: setBaseline.of(baseline) });
 }
 
 async function newNamedDoc() {
@@ -700,6 +729,15 @@ function makeEditor(): EditorView {
       spell.spellDecorations,
       errorLines,
       errorLineDecorations,
+      // What has moved since the last snapshot: the gutter, the faint line
+      // highlight, and the ticks the overview ruler reads off the same field.
+      changes,
+      changeGutter,
+      changeHighlight,
+      // Everything wrong with the document, on one strip beside the scrollbar.
+      // Purely a view over the four fields above it — it computes no marks of
+      // its own, which is why it can be added last and removed with one line.
+      overviewRuler,
       // A squiggle answers to a plain click, not only a right-click: on a
       // touchscreen there is no right-click at all.
       EditorView.domEventHandlers({
@@ -2035,6 +2073,7 @@ async function takeSnapshot(force = false): Promise<boolean> {
     if (document.getElementById("history-modal")?.classList.contains("open")) {
       await renderHistory();
     }
+    if (stored) await refreshBaseline();
     return stored;
   } catch (e) {
     // History is a convenience, but a *failed* history write means the store is
@@ -3837,6 +3876,9 @@ async function boot() {
     badge.textContent = labels[runtime.backend!.kind] ?? runtime.backend!.kind;
   }
   await loadRegistries();
+  // The change gutter needs the document's newest snapshot, and boot does not
+  // go through `openDoc`.
+  void refreshBaseline();
   runCompile();
   // The first check has to be scheduled explicitly: boot compiles directly
   // rather than through scheduleCompile, so nothing would be checked until the

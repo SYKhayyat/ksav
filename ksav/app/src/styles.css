@@ -914,3 +914,54 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   white-space: nowrap;
   max-width: 100%;
 }
+
+/* ---- change gutter + overview ruler ----
+ *
+ * Both are views over data the editor already had. The gutter says which lines
+ * moved since the last snapshot; the ruler says where everything wrong with the
+ * document is, at document scale, so that four problems in a three-hundred-page
+ * sefer is a place rather than a number.
+ */
+.cm-change-gutter { width: 4px; padding: 0; }
+.cm-change-mark { width: 3px; height: 100%; border-radius: 2px; }
+.cm-change-added { background: var(--ok); }
+.cm-change-changed { background: var(--accent); }
+/* A removal has no line of its own, so it is drawn as a wedge at the boundary
+ * rather than as a bar over a line that did not change. */
+.cm-change-removed {
+  height: 0; align-self: start; margin-top: -2px;
+  border-inline-start: 4px solid var(--danger);
+  border-top: 3px solid transparent; border-bottom: 3px solid transparent;
+}
+.cm-changed-line { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+
+.cm-overview-ruler {
+  position: absolute; top: 0; bottom: 0; width: 10px; z-index: 2;
+  /* Pinned to the inline end, not to the right: the editor's direction is the
+   * document's, and a Hebrew sefer puts its scrollbar on the left. */
+  inset-inline-end: 0;
+  pointer-events: auto; cursor: pointer;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+.cm-ruler-tick {
+  position: absolute; inset-inline: 1px; height: 3px; border-radius: 1px;
+  /* Centred on its line rather than hanging below it, so a tick at the very top
+   * of the document is not half off the strip. */
+  transform: translateY(-1px);
+}
+.cm-ruler-error { background: var(--danger); }
+.cm-ruler-warning { background: #d97706; }
+.cm-ruler-spelling { background: color-mix(in srgb, var(--danger) 45%, transparent); }
+.cm-ruler-change { background: var(--accent); opacity: .55; }
+:root[data-theme="dark"] .cm-ruler-error { background: #f87171; }
+
+/* The strip overlays the scrollbar's lane, so the text needs to keep clear of
+ * it — otherwise the last character of a long line sits underneath the ticks. */
+.cm-editor .cm-scroller { padding-inline-end: 10px; }
+
+/* On a phone the ruler is a 10px target next to a scrollbar and would be hit by
+ * accident far more often than on purpose. */
+@media (max-width: 720px) {
+  .cm-overview-ruler { display: none !important; }
+  .cm-editor .cm-scroller { padding-inline-end: 0; }
+}

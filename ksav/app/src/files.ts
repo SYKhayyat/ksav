@@ -44,6 +44,36 @@ function hasFsAccess(): boolean {
   return typeof window !== "undefined" && "showSaveFilePicker" in window;
 }
 
+/**
+ * The file's modification time and size, or null when it cannot be read.
+ *
+ * The unit of "has this file changed underneath us" (see `watch.ts`). Null
+ * rather than a throw for every reason it can fail — no path, no handle, the
+ * file deleted, permission lapsed — because every one of those is answered the
+ * same way by every caller: there is nothing to compare, so do not claim a
+ * conflict.
+ */
+export async function fileStamp(binding: FileBinding): Promise<{ mtime: number; size: number } | null> {
+  try {
+    if (binding.kind === "tauri" && binding.path) {
+      return await tauriInvoke<{ mtime: number; size: number } | null>("ksav_file_stamp", {
+        path: binding.path,
+      });
+    }
+    if (binding.kind === "handle" && binding.handle) {
+      // `getFile` re-reads the directory entry, so this reflects what is on disk
+      // now and not what it was when the handle was made.
+      const f = await binding.handle.getFile();
+      return { mtime: f.lastModified, size: f.size };
+    }
+  } catch {
+    return null;
+  }
+  // The download tier has no file to look at: it never wrote one anywhere Ksav
+  // can find again, which is exactly why `canWriteBack` is false for it.
+  return null;
+}
+
 /** Can a binding of this kind be written back to, or only re-downloaded? */
 export function canWriteBack(b: FileBinding | null): boolean {
   return !!b && b.kind !== "download";
@@ -158,6 +188,27 @@ export async function saveTo(binding: FileBinding, text: string): Promise<boolea
     return true;
   }
   return false;
+}
+
+/**
+ * Read the bound file again, without a picker.
+ *
+ * For taking the disk's version after the file changed underneath. `null` when
+ * the tier cannot read back — the download tier never had a file to return to,
+ * which is the same reason it cannot be written to.
+ */
+export async function reread(binding: FileBinding): Promise<string | null> {
+  try {
+    if (binding.kind === "tauri" && binding.path) {
+      return await tauriInvoke<string>("ksav_read_file", { path: binding.path });
+    }
+    if (binding.kind === "handle" && binding.handle) {
+      return await (await binding.handle.getFile()).text();
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /** Ask where to save, write there, and return the new binding. */

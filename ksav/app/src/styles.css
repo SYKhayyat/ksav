@@ -975,3 +975,28 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 /* Room below the last line, so the *last* line can also reach the middle of the
  * window. Only present while typewriter scrolling is on. */
 .cm-content[data-typewriter="true"] { padding-bottom: var(--ksav-typewriter-pad, 40vh); }
+
+/* ---- crash panel ----
+ *
+ * The download button first and largest. The writer's text is already stashed;
+ * this hands it to them as a file without asking them to trust that it worked.
+ */
+#crash-panel {
+  position: fixed; inset: 0; z-index: 999; overflow: auto;
+  background: var(--panel); color: var(--ink);
+  padding: 28px 26px; font-family: var(--hebrew);
+}
+#crash-panel h3 { margin: 0 0 6px; font-size: 20px; }
+#crash-panel p { margin: 0 0 16px; color: var(--muted); }
+.crash-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.crash-acts button {
+  padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit; cursor: pointer;
+}
+.crash-acts button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+#crash-panel details { color: var(--muted); font-size: 12px; }
+#crash-panel pre {
+  white-space: pre-wrap; word-break: break-word; direction: ltr; text-align: left;
+  font-family: var(--mono); font-size: 11px; margin-top: 8px;
+  max-height: 45vh; overflow: auto;
+}

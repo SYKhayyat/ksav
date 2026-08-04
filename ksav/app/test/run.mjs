@@ -42,6 +42,8 @@ const MODULES = [
   "table",
   "spell",
   "typst-escape",
+  "update",
+  "watch",
 ];
 
 await rm(OUT, { recursive: true, force: true });

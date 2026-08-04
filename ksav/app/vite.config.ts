@@ -1,4 +1,7 @@
 import { defineConfig } from "vite";
+import { createRequire } from "node:module";
+
+const pkgVersion: string = createRequire(import.meta.url)("./package.json").version;
 import { fileURLToPath } from "node:url";
 
 // The Ksav engine (cargo run -- serve) runs on :7878 and exposes the compile +
@@ -29,12 +32,20 @@ const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 // `npm run dev`. In production the bundle is external, same-origin scripts.
 const CSP =
   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; " +
+  "img-src 'self' data: blob:; font-src 'self' data:; " +
+  // `api.github.com` is the update check and nothing else. One named origin
+  // rather than a wildcard, and it is worth writing down what it buys: an
+  // installed Ksav has no other way to learn that a release exists, because the
+  // installers are downloaded from GitHub and nothing calls home.
+  "connect-src 'self' ipc: http://ipc.localhost https://api.github.com; " +
   "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'";
 
 export default defineConfig({
   define: {
     __WASM__: JSON.stringify(wasm),
+    // Baked from package.json so there is one version number in the repository
+    // and the running app can compare itself against a release.
+    __APP_VERSION__: JSON.stringify(pkgVersion),
   },
   plugins: [
     {

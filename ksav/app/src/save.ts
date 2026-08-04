@@ -22,6 +22,7 @@ import { t } from "./i18n";
 import * as runtime from "./runtime";
 import { settings } from "./settings";
 import { troubleSaid } from "./diagnostics";
+import * as watch from "./watch";
 
 const SAVE_DEBOUNCE_MS = 600;
 
@@ -34,6 +35,22 @@ let unsavedChanges = false;
 let unsavedToFile = false;
 /** The failure currently on screen, so it is only rendered once. */
 let saveFailure: string | null = null;
+
+/**
+ * Set when a background write stood down because the file had changed on disk.
+ *
+ * Read by the shell so the title bar can say so. Kept here rather than raised as
+ * a notification from the timer, because a modal that appears while somebody is
+ * typing — over a conflict that costs nothing until they next save — is worse
+ * than a mark in the title bar that waits for them.
+ */
+let conflicted = false;
+export function hasConflict(): boolean {
+  return conflicted;
+}
+export function clearConflict(): void {
+  conflicted = false;
+}
 
 export function hasUnsavedChanges(): boolean {
   return unsavedChanges;
@@ -180,9 +197,20 @@ export async function autosaveToFile(enabled: boolean, text: () => Promise<strin
   const binding = runtime.currentBinding;
   if (!unsavedToFile || !enabled || !binding || !files.canWriteBack(binding)) return false;
   if (!(await files.hasWritePermission(binding))) return false;
+  // The check this whole module was missing. A background timer overwriting a
+  // file that somebody else changed is the quietest data loss there is: no
+  // error, no prompt, nothing in the log, and the other copy simply gone. An
+  // *automatic* write must never resolve a conflict — it stands down and leaves
+  // it to the writer, who is told by the watcher.
+  const docId = runtime.currentDoc?.id;
+  if (docId && (await watch.checkFile(docId, binding)) === "changed") {
+    conflicted = true;
+    return false;
+  }
   try {
     if (!(await files.saveTo(binding, await text()))) return false;
     unsavedToFile = false;
+    await watch.markInSync(docId ?? "", binding);
     updateTitleBar(); // the background write cleared the file: drop the dot
     return true;
   } catch {

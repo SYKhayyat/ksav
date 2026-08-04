@@ -86,6 +86,9 @@ import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi
 import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
 import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
+import * as crash from "./crash";
+import * as update from "./update";
+import * as watch from "./watch";
 import { overviewRuler } from "./ruler";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
 import { lineInDocument, onGoToLine, onMarkLines } from "./diagview";
@@ -203,6 +206,8 @@ async function openDoc(id: string) {
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
   runtime.setCurrentBinding(await files.recallBinding(next.id));
+  // Stamp the file as we found it, so "has it changed" has something to mean.
+  await watch.markInSync(next.id, runtime.currentBinding);
   runtime.view.dispatch({
     changes: { from: 0, to: runtime.view.state.doc.length, insert: next.body },
     selection: { anchor: 0 },
@@ -1869,6 +1874,9 @@ function buildSettingsDrawer(): HTMLElement {
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
     checkRow("syncScrollLabel", "syncScroll"),
     checkRow("autosaveFileLabel", "autosaveFile"),
+    checkRow("checkUpdatesLabel", "checkUpdates"),
+    el("div", { class: "set-note" }, [t("checkUpdatesNote")]),
+    el("div", { class: "set-note" }, [`${t("version")} ${update.CURRENT_VERSION}`]),
     el("h3", { style: "margin-top:18px" }, [t("userDictionary")]),
     // The dictionary is per browser profile, so it is invisible to the desktop
     // app and gone if that profile is cleared. Until there is somewhere to sync
@@ -2404,6 +2412,15 @@ async function saveFile() {
       setStatus(t("permissionDenied"), "err");
       return;
     }
+    // Somebody else changed the file since Ksav last agreed with it. A manual
+    // Save *may* resolve that — the writer is here and can decide — but it has
+    // to be their decision and not a silent overwrite.
+    if ((await watch.checkFile(runtime.currentDoc.id, runtime.currentBinding)) === "changed") {
+      if (!confirm(tf("fileChangedOnDisk", runtime.currentBinding.name))) {
+        setStatus(t("saveCancelled"), "warn");
+        return;
+      }
+    }
     let written = false;
     try {
       written = await files.saveTo(runtime.currentBinding, text);
@@ -2414,6 +2431,8 @@ async function saveFile() {
     }
     if (written) {
       save.markFileSaved();
+      save.clearConflict();
+      await watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
       setStatus(tf("savedTo", runtime.currentBinding.name), "ok");
       return;
     }
@@ -2421,6 +2440,103 @@ async function saveFile() {
     // session, or a handle whose permission lapsed. Ask where to put it.
   }
   await saveFileAs();
+}
+
+/**
+ * Take the file's version, losing what is in the editor.
+ *
+ * Offered when the file has changed underneath, and it snapshots first —
+ * "reload" is a destructive act and the version history is the only thing that
+ * makes it a reversible one.
+ */
+async function reloadFromDisk() {
+  const binding = runtime.currentBinding;
+  if (!binding) return;
+  if (!confirm(t("confirmReloadFromDisk"))) return;
+  await takeSnapshot(true);
+  const opened = await files.reread(binding);
+  if (opened === null) {
+    setStatus(t("rereadFailed"), "err");
+    return;
+  }
+  loadBody(opened);
+  await watch.markInSync(runtime.currentDoc.id, binding);
+  save.markFileSaved();
+  save.clearConflict();
+  clearChromeNotice();
+  setStatus(tf("reloadedFrom", binding.name), "ok");
+}
+
+/**
+ * The panel that appears when something threw that nobody caught.
+ *
+ * The download button comes first and is the only one that matters: the writer's
+ * text is already stashed, and this hands it to them as a file without asking
+ * them to trust that the stash worked. The stack is underneath, collapsed,
+ * because it is for the bug report and not for them.
+ */
+function showCrashPanel(detail: string) {
+  const body = runtime.docText();
+  const panel = el("div", { id: "crash-panel", role: "alertdialog" }, [
+    el("h3", {}, [t("crashTitle")]),
+    el("p", {}, [t("crashLede")]),
+    el("div", { class: "crash-acts" }, [
+      el("button", {
+        class: "primary", type: "button",
+        onClick: () => files.download((runtime.currentDoc?.title || "ksav") + ".ksav", body),
+      }, [t("crashDownload")]),
+      el("button", { type: "button", onClick: () => location.reload() }, [t("crashReload")]),
+    ]),
+    el("details", {}, [el("summary", {}, [t("crashDetails")]), el("pre", {}, [detail])]),
+  ]);
+  document.body.append(panel);
+}
+
+/**
+ * Offer back a document rescued from a crash.
+ *
+ * As a *new* document, never over the top of the open one. The rescued text is
+ * from a session that ended badly, and the surest way to turn one lost evening
+ * into two is to let it overwrite whatever is there now.
+ */
+function offerRecovery() {
+  const rescued = crash.recovery();
+  if (!rescued) return;
+  if (rescued.body.trim() === runtime.docText().trim()) {
+    // Already have it — the crash happened after the library copy was written.
+    crash.clearRecovery();
+    return;
+  }
+  showChromeNotice(tf("recoveryOffer", rescued.title || t("untitled")), () => {
+    void (async () => {
+      const doc = await docs.createDoc(
+        (rescued.title || t("untitled")) + " ‏(" + t("recovered") + ")",
+        rescued.body,
+      );
+      crash.clearRecovery();
+      clearChromeNotice();
+      await openDoc(doc.id);
+    })();
+  });
+}
+
+/**
+ * Ask GitHub whether there is a newer Ksav, at most once a day.
+ *
+ * Only where it can matter. A browser build updates itself the moment the page
+ * is reloaded, so telling somebody there to go and download an installer would
+ * be advice about a thing they do not have.
+ */
+async function maybeCheckForUpdate() {
+  if (runtime.backend?.kind !== "desktop") return;
+  if (settings.checkUpdates === false) return;
+  if (!update.dueForCheck()) return;
+  update.markChecked();
+  const release = await update.checkForUpdate();
+  if (!release) return;
+  showChromeNotice(tf("updateAvailable", release.version), () => {
+    window.open(release.url, "_blank", "noopener");
+  });
 }
 
 async function saveFileAs() {
@@ -2432,6 +2548,8 @@ async function saveFileAs() {
   await docs.setFileName(runtime.currentDoc.id, binding.name);
   await files.rememberBinding(runtime.currentDoc.id, binding);
   save.markFileSaved();
+  save.clearConflict();
+  await watch.markInSync(runtime.currentDoc.id, binding);
   updateTitleBar();
   setStatus(
     files.canWriteBack(binding) ? tf("savedTo", binding.name) : tf("savedCopy", binding.name),
@@ -3910,6 +4028,27 @@ async function boot() {
   // `:w` in vim and C-x C-s in emacs go through the same save the toolbar uses,
   // rather than a second path that would one day forget to flush something.
   keymodes.setSaveCommand(() => void saveFile());
+  // Rescue the text before anything else, then say what happened.
+  crash.install(
+    () => ({ title: runtime.currentDoc?.title ?? "", body: runtime.docText() }),
+    (_e, detail) => showCrashPanel(detail),
+  );
+  offerRecovery();
+  void maybeCheckForUpdate();
+  await watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
+  // Notice when the file changes underneath us — Dropbox pulling an older copy
+  // down, a second window, a `git checkout`. On focus above all, because
+  // alt-tabbing back from whatever touched it is the overwhelmingly common case.
+  watch.watchForChanges(
+    () => ({ docId: runtime.currentDoc?.id ?? "", binding: runtime.currentBinding }),
+    () => {
+      const name = runtime.currentBinding?.name ?? "";
+      // A notice and not a modal. The conflict costs nothing until the next
+      // save, and a dialog thrown up mid-sentence over something that can wait
+      // is how writers learn to dismiss dialogs without reading them.
+      showChromeNotice(tf("fileChangedNotice", name), () => void reloadFromDisk());
+    },
+  );
   if (settings.editingMode && settings.editingMode !== "default") {
     void keymodes.applyMode(runtime.view, settings.editingMode);
   }

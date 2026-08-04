@@ -175,6 +175,50 @@ fn ksav_commands() -> String {
     ksav_engine::commands::commands_json()
 }
 
+/// A file's modification time (ms since the epoch) and size.
+///
+/// The unit of "did this file change underneath us". `None` for every way it can
+/// fail — the file deleted, the path unreadable, a clock the platform will not
+/// give — because the caller answers all of them the same way: there is nothing
+/// to compare against, so do not claim a conflict.
+///
+/// Gated on the same allow-list as writing. Metadata is a small thing to leak,
+/// but "does /etc/shadow exist and how big is it" is still a question a web view
+/// has no business asking, and the gate costs one line.
+#[tauri::command]
+fn ksav_file_stamp(allowed: tauri::State<'_, AllowedPaths>, path: String) -> Option<serde_json::Value> {
+    let p = PathBuf::from(&path);
+    if !allowed.permits(&p) {
+        return None;
+    }
+    let meta = std::fs::metadata(&p).ok()?;
+    let mtime = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis() as u64;
+    Some(serde_json::json!({ "mtime": mtime, "size": meta.len() }))
+}
+
+/// Read a bound file again, for taking the disk's version after it changed.
+///
+/// Same allow-list as writing: a path this session chose in a dialog, and
+/// nothing else.
+#[tauri::command]
+async fn ksav_read_file(
+    allowed: tauri::State<'_, AllowedPaths>,
+    path: String,
+) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    if !allowed.permits(&p) {
+        return Err(format!(
+            "refusing to read a path that was not chosen in a dialog: {path}"
+        ));
+    }
+    std::fs::read_to_string(&p).map_err(|e| e.to_string())
+}
+
 /// The sefer catalogue as JSON, for citation autocomplete.
 #[tauri::command]
 fn ksav_sefarim() -> String {
@@ -379,6 +423,8 @@ pub fn run() {
             ksav_reveal,
             ksav_commands,
             ksav_sefarim,
+            ksav_file_stamp,
+            ksav_read_file,
             ksav_templates,
             ksav_open_file,
             ksav_save_file,

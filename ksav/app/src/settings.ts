@@ -48,6 +48,9 @@ export interface Settings extends Omit<DocConfig, "lang"> {
   // vertically centred.
   focusMode?: boolean;
   typewriter?: boolean;
+  // Ask GitHub once a day whether there is a newer release. Desktop only, and
+  // the request carries nothing — no identity, no version, no document.
+  checkUpdates?: boolean;
 }
 
 /** The font families the engine bundles. Anything else must be attached to the
@@ -101,6 +104,7 @@ export const DEFAULTS: Settings = {
   editingMode: "default",
   focusMode: false,
   typewriter: false,
+  checkUpdates: true,
   autocomplete: true,
   spellcheck: true,
   syncScroll: true,

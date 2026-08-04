@@ -29,3 +29,14 @@ ksav-engine = { path = "../../engine" }
 # desk is built on, so the two ends of `ksav://insert` cannot disagree.
 girsa-post = { version = "=0.5.0", path = "../../../../sefer-crates/crates/girsa-post" }
 tauri-plugin-deep-link = "2.4.9"
+
+# The desktop binary compiles Typst in-process, so it wants the same treatment
+# the engine's own release profile gets — and a crate does not inherit another
+# crate's profile, so without this the installer everybody downloads was the one
+# build of the three running un-optimised-across-crates layout code. Worth a
+# third of every render on the desktop; see the note in engine/Cargo.toml for the
+# measurement and for why this is `thin`.
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true

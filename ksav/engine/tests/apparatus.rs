@@ -532,3 +532,123 @@ fn identical_notes_get_distinct_numbers() {
         );
     }
 }
+
+// ── Per-tier marker shapes on the native tiered notes ────────────────────────
+
+#[test]
+fn tier_markers_are_one_running_sequence_by_default() {
+    // The default must stay what it has always been: Typst's own footnote
+    // counter, one sequence across every tier, so the numbers never repeat.
+    let runs = render("אחד#הערה_א[ראשונה #הערה_ב[שנייה]] שתיים#הערה_א[שלישית]");
+    let text: String = runs
+        .iter()
+        .filter(|r| r.page == 1 && r.y < 200.0)
+        .map(|r| r.text.as_str())
+        .collect();
+    // Two tier-1 markers in the text, numbered 1 and 3 — because the tier-2 note
+    // nested in the first one took 2. That gap is the proof that all tiers share
+    // one sequence; renumber them per tier and these would read 1 and 2.
+    assert!(
+        text.contains('1') && text.contains('3') && !text.contains('2'),
+        "the in-text markers are not one running sequence: {text:?}"
+    );
+}
+
+#[test]
+fn per_tier_numbering_gives_each_tier_its_own_marker_and_count() {
+    // #הגדרות_הערות(מספור:) — each tier counts its own notes and gets its own
+    // scheme, so the SHAPE of a marker says which block to read it in. Typst has
+    // one footnote counter and hands the numbering callback *that*, so this is
+    // ranked out of a query instead; the risk is that the rank fails to converge
+    // or double-counts a nested note, which is what this measures.
+    let runs = render(
+        "#הגדרות_הערות(מספור: (\"1\", \"א\", \"i\"))\n\
+         אחד#הערה_א[ראשונה #הערה_ב[שנייה #הערה_ג[שלישית]]] \
+         שתיים#הערה_א[רביעית] שלוש#הערה_ב[חמישית]",
+    );
+    // A wider tolerance than the usual 1pt: a marker Typst has no real superscript
+    // glyph for — every Hebrew letter, every roman numeral — is synthesised by
+    // shrinking and RAISING it, which puts it ~3.5pt above the baseline of the
+    // entry it numbers. At 1pt it reads as a line of its own.
+    let lines = probe::lines(&runs, 4.0);
+    let entry = |body: &str| -> String { line_with(&lines, body).text() };
+    // Tier 1 counts 1, 2 — not 1, 4.
+    assert!(entry("ראשונה").contains('1'), "tier-1 #1: {:?}", entry("ראשונה"));
+    assert!(entry("רביעית").contains('2'), "tier-1 #2: {:?}", entry("רביעית"));
+    // Tier 2 counts א, ב in Hebrew letters — its own scheme and its own count.
+    assert!(entry("שנייה").contains('א'), "tier-2 #1: {:?}", entry("שנייה"));
+    assert!(entry("חמישית").contains('ב'), "tier-2 #2: {:?}", entry("חמישית"));
+    // Tier 3 counts in roman.
+    assert!(entry("שלישית").contains('i'), "tier-3 #1: {:?}", entry("שלישית"));
+}
+
+// ── A heading inside a note is not a heading ─────────────────────────────────
+
+#[test]
+fn a_note_heading_does_not_orphan_the_entry_number() {
+    // Same failure mode as the tier indents: a footnote entry lays out as
+    // «number» «body», so anything block-level at the head of the body drops the
+    // body a line and leaves the number by itself. `block`, `v(weak: true)`,
+    // `linebreak` and `parbreak` all do it — hence no break before the heading.
+    let runs = render("טקסט#הערה_א[#כותרת_בהערה[ראש] הגוף]");
+    let lines = visual_lines(&runs);
+    let l = line_with(&lines, "ראש");
+    let sizes: Vec<String> = {
+        let mut s: Vec<String> = l.runs.iter().map(|r| format!("{:.1}", r.size)).collect();
+        s.dedup();
+        s
+    };
+    assert!(
+        sizes.len() >= 2,
+        "the entry number is not on the heading's line (orphaned): {:?}",
+        l.text()
+    );
+}
+
+#[test]
+fn a_blank_line_puts_a_mid_note_heading_on_its_own_line() {
+    // The break above a heading is the writer's own blank line, as it is for a
+    // heading in prose. Without this the heading runs on from the sentence above.
+    let runs = render("טקסט#הערה_א[פתיחה\n\n#כותרת_בהערה[אמצע] המשך]");
+    let lines = visual_lines(&runs);
+    assert!(
+        !line_with(&lines, "אמצע").contains("פתיחה"),
+        "the heading ran on from the prose above it"
+    );
+    assert!(
+        !line_with(&lines, "אמצע").contains("המשך"),
+        "the prose below the heading did not start a new line"
+    );
+}
+
+#[test]
+fn a_note_heading_leaves_the_document_outline_alone() {
+    // The whole point: it looks like a heading and is not one. A real #כותרת
+    // inside a note steps the document counter — so the section after it would
+    // number 3 instead of 2 — and lands in the table of contents.
+    let runs = render(
+        "#הגדרות_כותרות(מספור: \"1.\")\n\
+         #כותרת1[אחת]\n\n\
+         טקסט#הערה[#כותרת_בהערה[בהערה] הגוף]\n\n\
+         #כותרת1[שתיים]\n\n#תוכן()",
+    );
+    let body: String = runs
+        .iter()
+        .filter(|r| r.page == 1 && r.y < 300.0)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert!(
+        body.contains('1') && body.contains('2'),
+        "the heading counter skipped a number: {body:?}"
+    );
+    assert!(
+        !body.contains('3'),
+        "the note heading stepped the document heading counter: {body:?}"
+    );
+    // …and it is not listed in the table of contents.
+    let toc_hits = runs
+        .iter()
+        .filter(|r| r.text.contains("בהערה") && r.y < 300.0)
+        .count();
+    assert_eq!(toc_hits, 0, "the note heading was listed in #תוכן");
+}

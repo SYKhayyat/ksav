@@ -101,6 +101,22 @@ async fn ksav_compile(input: String) -> Result<String, String> {
     offload(move || ksav_engine::compile_request(&input)).await
 }
 
+/// A click on the page, as a place in the source. Matches the web `/jump`.
+///
+/// Offloaded like a compile, and for the same reason: answering means laying the
+/// document out, so running it on the main thread would freeze the window for
+/// exactly as long as a compile does.
+#[tauri::command]
+async fn ksav_jump(input: String) -> Result<String, String> {
+    offload(move || ksav_engine::jump::jump_request(&input)).await
+}
+
+/// The cursor, as a place on the page. Matches the web `/reveal`.
+#[tauri::command]
+async fn ksav_reveal(input: String) -> Result<String, String> {
+    offload(move || ksav_engine::jump::reveal_request(&input)).await
+}
+
 /// The command registry as JSON.
 /// Sources that arrived from Girsa while this window was open (spec.md §10.6).
 ///
@@ -353,6 +369,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ksav_compile,
+            ksav_jump,
+            ksav_reveal,
             ksav_commands,
             ksav_templates,
             ksav_open_file,

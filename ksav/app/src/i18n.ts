@@ -102,6 +102,9 @@ const HE: Dict = {
   markDelete: "סמן כמחיקה",
   addComment: "הוסף הערת עורך",
   commentPrompt: "הערת העורך:",
+  // a line break in the source that does not print
+  hiddenBreak: "מעבר שורה נסתר",
+  hiddenBreakLede: "שוברים את השורה בעורך בלי שייווצר רווח בעמוד.",
   // section page setup
   sectionSetup: "מקטע עם עמוד משלו…",
   sectionSetupTitle: "הגדרות עמוד למקטע",
@@ -218,6 +221,38 @@ const HE: Dict = {
   documentOpened: "נפתח מסמך מגרסא — %s",
   healedCount: "תוקנו {0} סוגריים.",
   previewHealed: "התצוגה מניחה {0} סוגריים חסרים",
+  // deferred note bodies — הסימון כאן, הגוף בסוף
+  deferWentToBody: "‏גוף ההערה \"{0}\"",
+  deferWentToMarker: "‏הסימון של הערה \"{0}\"",
+  deferWroteBody: "‏נפתח גוף להערה \"{0}\" — כתבו כאן.",
+  isolateAdded: "הקטע בודד — הכיווניות שלו עומדת בפני עצמה.",
+  isolateRemoved: "הבידוד הוסר.",
+  isolateNeedsSelection: "סמנו קודם את הקטע שיש לבודד.",
+  revealWorking: "מחפש היכן זה נדפס…",
+  revealFound: "‏נמצא בעמוד {0}.",
+  revealFoundMany: "‏נדפס ב‑{0} מקומות; מסומן הראשון.",
+  revealNowhere: "הטקסט שכאן לא נדפס בעמוד (הערה, פקודה או טקסט מוסתר).",
+  revealNoPages: "אין עדיין תצוגה — המתינו להידור.",
+  deferOrphanHere: "‏אין סימון להערה \"{0}\" — הציבו #הערה_בשם(\"{0}\") בטקסט.",
+  deferNothingHere: "עמדו על סימון הערה או על גופה.",
+  deferMoved: "גוף ההערה הועבר לסוף המסמך.",
+  deferStarted: "נוספה הערה — כתבו את גופה כאן.",
+  deferRecalled: "ההערה חזרה לתוך המשפט.",
+  deferCannotRecall: "אין מה להחזיר כאן (או שיש כמה סימונים לאותו גוף).",
+  deferNothingToMove: "אין הערות בתוך הטקסט.",
+  deferMovedCount: "{0} הערות הועברו לסוף המסמך.",
+  deferLintDangling: "‏אין גוף להערה \"{0}\" — היא תודפס כ‑? אדום.",
+  deferLintOrphan: "‏גוף ההערה \"{0}\" אינו מסומן באף מקום — הוא לא יודפס.",
+  deferLintDuplicate: "‏יש כבר גוף בשם \"{0}\" — הראשון הוא שיודפס.",
+  deferWriteBodyAction: "כתיבת הגוף",
+  deferDeleteBodyAction: "מחיקה",
+  deferBodiesTitle: "היכן ייכתב גוף ההערה?",
+  deferInlineLabel: "בתוך המשפט",
+  deferInlineDesc: "‏#הערה[הטקסט] — הגוף נמצא במקום שבו הוא מופיע.",
+  deferEndLabel: "בסוף הקובץ",
+  deferEndDesc:
+    "‏סימון קצר במשפט, והפרוזה נאספת בסוף — כמו ב‑org‑mode. הדף יוצא זהה; רק המקור נשאר קריא.",
+  deferAllAction: "העברת כל ההערות לסוף",
   // status
   ready: "מוכן",
   rendering: "מרנדר…",
@@ -319,6 +354,7 @@ const HE: Dict = {
   "sc.footnote": "הערת שוליים",
   "sc.region": "אזור מתקפל",
   "sc.comment": "הפוך להערה",
+  "sc.hiddenBreak": "מעבר שורה נסתר",
   "sc.h1": "כותרת 1",
   "sc.h2": "כותרת 2",
   "sc.h3": "כותרת 3",
@@ -342,6 +378,11 @@ const HE: Dict = {
   "sc.healBrackets": "תיקון סוגריים",
   "sc.foldAll": "קפל הכל",
   "sc.unfoldAll": "פרוש הכל",
+  "sc.revealCursor": "היכן זה נדפס?",
+  "sc.isolate": "בידוד כיווניות לקטע",
+  "sc.deferJump": "מעבר בין הסימון לגוף ההערה",
+  "sc.deferHere": "העברת ההערה לסוף",
+  "sc.deferRecall": "החזרת ההערה למשפט",
   previewSide: "מיקום התצוגה",
   "side.left": "משמאל",
   "side.right": "מימין",
@@ -445,6 +486,9 @@ const EN: Dict = {
   markDelete: "Mark as deleted",
   addComment: "Add a comment",
   commentPrompt: "Comment:",
+  // a line break in the source that does not print
+  hiddenBreak: "Hidden line break",
+  hiddenBreakLede: "Break the line in the editor without a space appearing on the page.",
   // section page setup
   sectionSetup: "Section with its own pages\u2026",
   sectionSetupTitle: "Section page setup",
@@ -558,6 +602,37 @@ const EN: Dict = {
   documentOpened: "Opened a document from Girsa — %s",
   healedCount: "Fixed {0} bracket(s).",
   previewHealed: "Preview assumes {0} missing bracket(s)",
+  deferWentToBody: "The body of note \"{0}\"",
+  deferWentToMarker: "The marker for note \"{0}\"",
+  deferWroteBody: "Started the body for note \"{0}\" — write it here.",
+  isolateAdded: "Isolated — this run's direction now stands on its own.",
+  isolateRemoved: "The isolate was removed.",
+  isolateNeedsSelection: "Select the run to isolate first.",
+  revealWorking: "Looking for where this printed…",
+  revealFound: "Found it on page {0}.",
+  revealFoundMany: "It printed in {0} places; the first is marked.",
+  revealNowhere: "The text here did not print on the page (a comment, a command, or hidden text).",
+  revealNoPages: "There is no preview yet — wait for a compile.",
+  deferOrphanHere: "Nothing points at \"{0}\" — put #note_named(\"{0}\") in the text.",
+  deferNothingHere: "Put the caret on a note marker, or on its body.",
+  deferMoved: "The note's prose moved to the end of the document.",
+  deferStarted: "A note was added — write its body here.",
+  deferRecalled: "The note is back inside the sentence.",
+  deferCannotRecall: "Nothing to bring back here (or several markers share this body).",
+  deferNothingToMove: "There are no inline notes.",
+  deferMovedCount: "Moved {0} note(s) to the end of the document.",
+  deferLintDangling: "No body was written for \"{0}\" — it prints as a red ?.",
+  deferLintOrphan: "Nothing points at the body \"{0}\" — it will not print.",
+  deferLintDuplicate: "There is already a body named \"{0}\" — the first one prints.",
+  deferWriteBodyAction: "Write the body",
+  deferDeleteBodyAction: "Delete",
+  deferBodiesTitle: "Where should the note's text be written?",
+  deferInlineLabel: "In the sentence",
+  deferInlineDesc: "#fnote[the text] — the prose sits where it appears.",
+  deferEndDesc:
+    "A short marker in the sentence, the prose gathered at the end — the org-mode arrangement. The page comes out identical; only the source stays readable.",
+  deferEndLabel: "At the end of the file",
+  deferAllAction: "Move every note to the end",
   ready: "Ready",
   rendering: "Rendering…",
   pages: "pp.",
@@ -656,6 +731,7 @@ const EN: Dict = {
   "sc.footnote": "Footnote",
   "sc.region": "Fold region",
   "sc.comment": "Comment out",
+  "sc.hiddenBreak": "Hidden line break",
   "sc.h1": "Heading 1",
   "sc.h2": "Heading 2",
   "sc.h3": "Heading 3",
@@ -679,6 +755,11 @@ const EN: Dict = {
   "sc.healBrackets": "Fix brackets",
   "sc.foldAll": "Fold all",
   "sc.unfoldAll": "Unfold all",
+  "sc.revealCursor": "Where did this print?",
+  "sc.isolate": "Isolate the selection's direction",
+  "sc.deferJump": "Jump between a note's marker and its body",
+  "sc.deferHere": "Send this note's text to the end",
+  "sc.deferRecall": "Bring this note back into the sentence",
   previewSide: "Preview position",
   "side.left": "Left",
   "side.right": "Right",
@@ -686,7 +767,17 @@ const EN: Dict = {
   "side.bottom": "Bottom",
 };
 
-const DICTS: Record<Lang, Dict> = { he: HE, en: EN };
+/**
+ * Both dictionaries, exported so a test can ask what is *in* one.
+ *
+ * `t` cannot answer that question: a key missing from Hebrew falls through to
+ * English (below), which is the right behaviour for a running app — a writer sees
+ * a word rather than `sc.hiddenBreak` — and useless for spotting the hole. In a
+ * Hebrew-first application an English string quietly standing in for a Hebrew one
+ * is a defect, not a fallback, so the thing that checks for it reads the shelves
+ * and not the counter.
+ */
+export const DICTS: Record<Lang, Dict> = { he: HE, en: EN };
 
 let current: Lang = "he";
 

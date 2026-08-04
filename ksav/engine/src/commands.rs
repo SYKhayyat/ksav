@@ -62,6 +62,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("כותרת2", "h2", "heading", "כותרת רמה 2", "Heading level 2", "#כותרת2[|]"),
     cmd!("כותרת3", "h3", "heading", "כותרת רמה 3", "Heading level 3", "#כותרת3[|]"),
     cmd!("כותרת", "hlevel", "heading", "כותרת בכל רמה", "Heading at any level", "#כותרת(רמה: 4)[|]"),
+    cmd!("כותרת_בהערה", "note_heading", "heading", "כותרת בתוך הערה — נראית ככותרת, אינה נכנסת לתוכן ואינה מקדמת מספור", "Heading inside a note — looks like one, but stays out of the outline and the numbering", "#כותרת_בהערה[|]"),
     cmd!("הגדרות_כותרות", "headings_config", "heading", "עיצוב הכותרות (גודל/צבע/יישור/מספור/קו לכל רמה)", "Configure headings (size/colour/align/numbering/rule per level)", "#הגדרות_כותרות(גודל: (2em, 1.4em), צבע: (rgb(\"#b91c1c\"), luma(40)), מספור: \"1.1\", קו: (true, false))|"),
     // ---- align / direction ----
     cmd!("מרכז", "center_", "align", "יישור למרכז", "Center align", "#מרכז[|]"),
@@ -91,7 +92,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הערה_ב", "tier2", "footnote", "הערה על הערה — דרגה ב (בלוק נפרד)", "Note on a note — tier B (separate block)", "#הערה_ב[|]"),
     cmd!("הערה_ג", "tier3", "footnote", "הערה על הערה — דרגה ג", "Note on a note — tier C", "#הערה_ג[|]"),
     cmd!("הערה_בדרגה", "tier", "footnote", "הערה שכבתית בכל דרגה", "Layered note at any tier", "#הערה_בדרגה(2)[|]"),
-    cmd!("הגדרות_הערות", "footnote_config", "footnote", "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות)", "Configure layered notes (size/style/indent/labels)", "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em))"),
+    cmd!("הגדרות_הערות", "footnote_config", "footnote", "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות/מספור לכל דרגה)", "Configure layered notes (size/style/indent/labels/numbering per tier)", "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"1\", \"א\", \"i\"))"),
     // regrouped stacked bands (Gemara / critical-apparatus) — collect then render
     cmd!("מדור_א", "band1", "footnote", "מדור א — בלוק ההערות הראשון (כל דרגה 1)", "Band A — the first note block (all tier-1)", "#מדור_א[|]"),
     cmd!("מדור_ב", "band2", "footnote", "מדור ב — הערות על מדור א", "Band B — notes on band A", "#מדור_ב[|]"),
@@ -113,6 +114,10 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הערת_תוכן", "contentnote", "footnote", "הערת תוכן — זרם \"תוכן\"", "Content note — the \"content\" stream", "#הערת_תוכן[|]"),
     cmd!("הערת_מקור", "sourcenote_stream", "footnote", "הערת מקור — זרם \"מקורות\"", "Source note — the \"sources\" stream", "#הערת_מקור[|]"),
     cmd!("הגדרות_זרמים", "streams_config", "footnote", "עיצוב זרמי ההערות (פריסה מוערמת/צד, מספור, כותרות)", "Configure footnote streams (stacked/side-by-side, numbering, titles)", "#הגדרות_זרמים(פריסה: \"צד\", זרמים: (\"תוכן\", \"מקורות\"))"),
+    // deferred note bodies — the marker inline, the prose gathered at the end
+    cmd!("הערה_בשם", "note_named", "footnote", "הערה שגופה נכתב בסוף המסמך", "A note whose text is written at the end of the document", "#הערה_בשם(\"|\")"),
+    cmd!("גוף_הערה", "note_body", "footnote", "גוף הערה (נכתב בסוף, מופיע במקום הסימון)", "A note body (written at the end, printed at its marker)", "#גוף_הערה(\"|\")[]"),
+    cmd!("גופי_הערות", "note_bodies", "footnote", "אזור גופי ההערות בסוף המסמך", "The note-bodies region at the end of the document", "#גופי_הערות[|]"),
     // ---- blocks ----
     cmd!("ציטוט", "blockquote", "block", "ציטוט בלוק", "Block quote", "#ציטוט[|]"),
     cmd!("הערת_צד", "callout", "block", "תיבת הדגשה (כחול)", "Callout (blue)", "#הערת_צד[|]"),

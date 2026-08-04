@@ -14,6 +14,8 @@
 //
 // Every option here renders correctly; see spec.md and engine/README-notes.md.
 
+import { deferSnippet, fileNewBody, nextName } from "./deferred";
+
 export type NoteLayers = "one" | "two";
 
 export interface NoteChoice {
@@ -229,8 +231,14 @@ export function applyChoice(
   selectionFrom: number,
   choice: NoteChoice,
   which: "primary" | "secondary" = "primary",
+  deferred = false,
 ): { text: string; caret: number } {
-  const snippet = (which === "secondary" ? choice.insert2 : choice.insert) ?? choice.insert;
+  const chosen = (which === "secondary" ? choice.insert2 : choice.insert) ?? choice.insert;
+  // Where the prose is written is orthogonal to where the note prints, so it is
+  // a rewrite of the snippet rather than a twelfth layout: the same eleven
+  // choices, each available either way round.
+  const pair = deferred ? deferSnippet(chosen, nextName(doc)) : null;
+  const snippet = pair ? pair.marker : chosen;
   const caretInSnippet = snippet.indexOf("|");
   const clean = snippet.replace("|", "");
 
@@ -247,6 +255,15 @@ export function applyChoice(
 
   if (choice.tail && !hasLine(text, choice.tail)) {
     text = text.replace(/\s*$/, "") + "\n\n" + choice.tail + "\n";
+  }
+
+  // The body last, so it is filed *after* the layout's own scaffolding rather
+  // than being pushed below it — and the caret follows the writer to it, since
+  // the prose is what they are about to type.
+  if (pair) {
+    const filed = fileNewBody(text, pair.body.replace("|", ""));
+    text = filed.text;
+    caret = filed.at + pair.body.indexOf("|");
   }
 
   return { text, caret };

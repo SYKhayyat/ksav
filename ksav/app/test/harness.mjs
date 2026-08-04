@@ -58,6 +58,103 @@ class MemoryStorage {
 globalThis.localStorage = new MemoryStorage();
 
 /**
+ * The smallest DOM that `drawPages` can be held to.
+ *
+ * Not a browser and not trying to be one: an element here is a node with a class,
+ * an `innerHTML`, and children in order — which is exactly the surface the page
+ * diff touches. What the test needs to see is *which nodes were written to*, and
+ * a real DOM would hide that behind a parser. `writes` counts assignments, so a
+ * test can assert that an unchanged page was left alone rather than rewritten
+ * with the same string.
+ */
+class FakeElement {
+  constructor(tag = "div") {
+    this.tagName = tag.toUpperCase();
+    this.className = "";
+    this.children = [];
+    this.writes = 0;
+    this._html = "";
+    this.dataset = {};
+    this.style = {};
+  }
+  replaceChildren(...nodes) {
+    this.children = nodes;
+    this._html = nodes.length ? "…" : "";
+  }
+  get innerHTML() {
+    return this._html;
+  }
+  set innerHTML(v) {
+    this._html = String(v);
+    this.writes++;
+    // Assigning markup replaces the children, as it does in a browser. The
+    // fake parses only what `drawPages` emits: a flat run of `<div class="page">`.
+    this.children = [...String(v).matchAll(/<div class="page">([\s\S]*?)<\/div>/g)].map((m) => {
+      const child = new FakeElement("div");
+      child.className = "page";
+      child._html = m[1];
+      return child;
+    });
+  }
+  get lastElementChild() {
+    return this.children[this.children.length - 1] ?? null;
+  }
+  /** Only `beforeend`, which is all the page diff uses. */
+  insertAdjacentHTML(where, html) {
+    if (where !== "beforeend") throw new Error(`unsupported: ${where}`);
+    const child = new FakeElement("div");
+    const m = String(html).match(/class="([^"]*)"/);
+    if (m) child.className = m[1];
+    child.parent = this;
+    this.children.push(child);
+  }
+  remove() {
+    const i = this.parent?.children.indexOf(this) ?? -1;
+    if (i >= 0) this.parent.children.splice(i, 1);
+  }
+}
+
+// Deliberately *not* installed as `globalThis.document`. A `document` existing at
+// all is enough to convince `@codemirror/view` it is in a browser, and it then
+// reads half a DOM off it at import time — which is why nothing under test may
+// reach for the global one. `drawPages` builds its nodes through the host
+// element instead, and this is the host.
+globalThis.FakeElement = FakeElement;
+
+/**
+ * An `IntersectionObserver` the test drives by hand.
+ *
+ * The preview keeps only the pages near the viewport drawn, so "what is on
+ * screen" is an *input* to the code under test. Faking the observer is what lets
+ * a test say "now the reader scrolls to page 40" and check what the pane did —
+ * which is the only way to catch the failure that matters here, a page that is
+ * on screen and empty.
+ */
+class FakeIntersectionObserver {
+  constructor(callback, options) {
+    this.callback = callback;
+    this.options = options;
+    this.watching = new Set();
+    FakeIntersectionObserver.live.push(this);
+  }
+  observe(node) {
+    this.watching.add(node);
+  }
+  unobserve(node) {
+    this.watching.delete(node);
+  }
+  disconnect() {
+    this.watching.clear();
+  }
+  /** Report every watched node, intersecting when `isVisible(node)` says so. */
+  report(isVisible) {
+    this.callback([...this.watching].map((t) => ({ target: t, isIntersecting: !!isVisible(t) })));
+  }
+}
+FakeIntersectionObserver.live = [];
+globalThis.IntersectionObserver = FakeIntersectionObserver;
+
+/**
  * Wipe both stores so tests cannot leak state into each other.
  *
  * The buckets are emptied rather than the database deleted. `deleteDatabase`

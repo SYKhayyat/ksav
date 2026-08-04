@@ -4,6 +4,8 @@ export const memory: WebAssembly.Memory;
 export const init: () => void;
 export const ksav_commands: () => [number, number];
 export const ksav_compile: (a: number, b: number) => [number, number];
+export const ksav_jump: (a: number, b: number) => [number, number];
+export const ksav_reveal: (a: number, b: number) => [number, number];
 export const ksav_spell: (a: number, b: number) => [number, number];
 export const ksav_suggest: (a: number, b: number) => [number, number];
 export const ksav_templates: () => [number, number];

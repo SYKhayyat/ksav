@@ -1288,6 +1288,7 @@ dependencies = [
  "typst",
  "typst-as-lib",
  "typst-html",
+ "typst-ide",
  "typst-layout",
  "typst-pdf",
  "typst-svg",
@@ -2509,6 +2510,25 @@ dependencies = [
  "typst-timing",
  "typst-utils",
  "unicode-math-class",
+]
+
+[[package]]
+name = "typst-ide"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc438f225257f69351d06ec36a98e4a199f8206032edcabd46f5a2a7d04df2b1"
+dependencies = [
+ "comemo",
+ "ecow",
+ "indexmap",
+ "rustc-hash",
+ "serde",
+ "typst",
+ "typst-eval",
+ "typst-html",
+ "typst-layout",
+ "typst-utils",
+ "unscanny",
 ]
 
 [[package]]

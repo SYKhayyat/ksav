@@ -41,8 +41,64 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 104 of them. `#` in the editor offers all of them with what each one
+There are 107 of them. `#` in the editor offers all of them with what each one
 does, so none is worth memorising.
+
+## Notes whose text lives at the end
+
+A note's prose does not have to sit in the middle of your sentence. Write a short
+marker where the note belongs and the words at the end of the file:
+
+```
+בראשית ברא#הערה_בשם("1") אלקים
+…
+#גוף_הערה("1")[עיין רש״י שם, ובמה שכתב הרמב״ן.]
+```
+
+This is the org-mode arrangement, and it exists because a sefer whose notes
+outweigh its text becomes unreadable *as a source* long before it becomes
+unreadable as a page. It changes nothing about the printed result — the page
+comes out identical, in any of the eleven note layouts — so it is a choice about
+your file, not about your sefer.
+
+**`Ctrl+Alt+J`** is the whole workflow: on a marker it takes you to the words, on
+the words it takes you back to the marker, and on a marker whose words you have
+not written yet it writes the line and puts you in it. You never type a name.
+**`Ctrl+Alt+F`** takes a note you already wrote inline and sends its prose to the
+end; **`Ctrl+Alt+R`** brings it back. The notes chooser has both, and a button
+that moves every note in the document at once.
+
+Hovering a marker shows its text without going anywhere. A marker whose words
+were never written is marked in the editor and prints a red `?` — the one thing
+worse than an unwritten note is an invisible one.
+
+## Whitespace you can see and the page cannot
+
+Typst has an opinion about the whitespace you type. A newline sets a **space**; a
+blank line starts a **paragraph**. So laying the source out to be read — breaking
+a long line, standing a nested command on its own — costs you something on the
+page.
+
+Most of it costs nothing, in fact: runs of spaces, tabs and indentation all
+collapse to one space before they reach the paper, so indent freely. The line
+break is the only one that misbehaves, and **`Ctrl+Shift+/`** is the escape from
+it: it breaks the line in the editor and prints nothing at all. What it writes is
+a comment across the break —
+
+```
+ואמר הרב/*
+*/בשם רבו
+```
+
+— which sets as one unbroken run, because whitespace inside a comment is eaten. A
+`//` comment will not do it: that one ends *at* the newline, so the newline is
+still there and still prints. `Ctrl+/` is the neighbouring key and the neighbouring
+idea — it hides *text* from the page rather than a line break.
+
+In prose view a hidden break is invisible, as it should be; put the cursor in it
+(or hold Alt) and it comes back so you can delete it. One caveat: splitting a word
+across a hidden break splits it for the spell-checker too, which will then
+underline both halves. Between words, which is the usual case, nothing notices.
 
 ## Compiling
 
@@ -53,6 +109,47 @@ off the UI thread so the window never freezes while it works.
 If something does not compile, the message says **which line** and offers what to
 do about it — and if it can be repaired mechanically, there is a button that
 repairs it.
+
+## Finding your place, both ways
+
+**Click a word in the preview and the cursor goes to that word.** Not near it —
+on it. The editor asks the compiler which piece of your source produced the ink
+under your finger, so a page with four stacked note bands answers as exactly as
+a page of plain text. A click on a margin, a running head or a band rule moves
+nothing, because you did not type those.
+
+**`Ctrl+Alt+P` does the reverse**: it finds where the text under your cursor
+printed, scrolls the preview there and rings it. Useful when the note you are
+writing is one of eleven on the page and you want to see which. If your words
+printed in more than one place — a note set in both a band and an endnote list —
+it says so and marks the first.
+
+Both directions lay the document out to answer, so they take about as long as a
+compile. That is why the second one is a key you press rather than something
+that follows your cursor around.
+
+## Hebrew and English on one line
+
+Source that mixes scripts used to jump around while you typed in it, and the two
+reasons were separate.
+
+**Every line now reads its own way.** A paragraph of English inside a Hebrew
+sefer is laid out left-to-right, with its full stop on the correct side. A line
+with no letters in it — a blank one, or a line holding only `]` — takes the
+direction of whatever it sits inside, rather than the direction of your operating
+system. That last one is what used to make the caret behave strangely on the
+blank line between two Hebrew paragraphs.
+
+**The commands are held apart from your prose.** `#צבע(rgb("#b91c1c"))` in the
+middle of a Hebrew sentence stays in one piece instead of scattering its brackets
+through the words around it.
+
+When that is not enough — and on a line of one Hebrew word, one English word and
+a bracket, eventually it will not be — select the run and press **`Ctrl+Alt+X`**.
+Press it again to undo. And any directional control character already in your
+file is now drawn as a small labelled tag (`RLM`, `LRI`, …), so a stray one is
+something you can see rather than something you find by deleting characters until
+the line settles.
 
 ## Saving
 
@@ -103,7 +200,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 29 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 30 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [`Girsa/docs/start-here.md`](../../Girsa/docs/start-here.md) — the loop, which is

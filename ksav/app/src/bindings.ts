@@ -32,6 +32,9 @@ export const DEFAULT_KEYS: Record<string, string> = {
   footnote: "Mod-Shift-f",
   region: "Mod-Shift-g",
   comment: "Mod-/",
+  // The sibling of `comment`, and deliberately next to it on the keyboard: one
+  // hides text from the page, the other hides a *line break* from the page.
+  hiddenBreak: "Mod-Shift-/",
   undo: "Mod-z",
   redo: "Mod-y",
   h1: "Mod-1",
@@ -55,6 +58,16 @@ export const DEFAULT_KEYS: Record<string, string> = {
   markDelete: "Mod-Alt-d",
   addComment: "Mod-Alt-m",
   healBrackets: "Mod-Alt-b",
+  // Forward search — "where am I on the page?". The other direction is a click
+  // on the preview and needs no key.
+  revealCursor: "Mod-Alt-p",
+  // Bidi isolation by hand, for the run the automatic pass does not cover.
+  isolate: "Mod-Alt-x",
+  // Deferred note bodies. `deferJump` is the workhorse — org-mode's C-c C-c —
+  // and gets the mnemonic key; the two that move prose around sit beside it.
+  deferJump: "Mod-Alt-j",
+  deferHere: "Mod-Alt-f",
+  deferRecall: "Mod-Alt-r",
 };
 
 /**

@@ -16,6 +16,18 @@ pub fn ksav_compile(input_json: &str) -> String {
     ksav_engine::compile_request(input_json)
 }
 
+/// A click on the page, as a place in the source (same as the server's `/jump`).
+#[wasm_bindgen]
+pub fn ksav_jump(input_json: &str) -> String {
+    ksav_engine::jump::jump_request(input_json)
+}
+
+/// The cursor, as a place on the page (same as the server's `/reveal`).
+#[wasm_bindgen]
+pub fn ksav_reveal(input_json: &str) -> String {
+    ksav_engine::jump::reveal_request(input_json)
+}
+
 /// The command registry as JSON (same as the server's `/commands`).
 #[wasm_bindgen]
 pub fn ksav_commands() -> String {

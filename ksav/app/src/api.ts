@@ -70,6 +70,15 @@ export interface RequestAssets {
    * print actually need it.
    */
   want_pdf?: boolean;
+  /**
+   * Ask for the assembled Typst source as well as the previews.
+   *
+   * Off by default, and for the same reason as `want_pdf`. The source is the 75 KB
+   * prelude plus the document: of an 84 KB response for a one-page preview, 75 KB
+   * was this, and the only thing that reads it is "export .typ", which compiles
+   * for itself.
+   */
+  want_source?: boolean;
 }
 
 export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
@@ -96,9 +105,16 @@ export interface Diagnostic {
 
 export interface CompileResult {
   ok: boolean;
+  /** Every page of the document, in order — filled in by `CompileCache` for any
+   *  the engine left out because this client already had it. */
   pages_svg: string[];
+  /** One fingerprint per page, naming what is at each position. The client keeps
+   *  its pages under these names and sends them back on the next compile, and the
+   *  preview compares them to decide which page nodes to touch. */
+  pages_hash?: string[];
   pdf_base64: string | null;
   diagnostics: Diagnostic[];
+  /** The assembled Typst source — empty unless `want_source` asked for it. */
   typst_source: string;
   /** Set only for a `format: "html"` request. */
   html?: string;
@@ -108,18 +124,102 @@ export interface CompileResult {
 }
 
 /**
- * Tracks which asset hashes an engine session already holds, so their bytes can
- * be omitted from a request and resolved from the engine's cache instead.
+ * What the engine actually puts on the wire: a page is `null` when the client
+ * said it already holds the page with that fingerprint.
  *
- * One per backend instance — the cache lives in that engine's process/worker, so
- * a fresh backend (or a respawned worker) starts with nothing confirmed. When the
- * engine reports a hash it no longer has, that hash is forgotten and its bytes go
- * out again, which keeps the two sides honest without either trusting the other's
- * memory across a restart.
+ * Deliberately not the shape the rest of the app sees. Everything downstream of
+ * [`CompileCache`] gets a complete `pages_svg`, because a preview that has to
+ * remember which of its pages are real is a preview that will one day draw a
+ * `null`.
  */
-class AssetDeduper {
-  private confirmed = new Set<string>();
+type WirePages = (string | null)[];
 
+/**
+ * The rendered pages this client is holding, by fingerprint.
+ *
+ * A one-character edit in a 48-page document leaves 47 pages byte-identical: 9.7
+ * MB was serialised, sent, parsed and written into the DOM on every pause in
+ * typing to deliver 40 KB of actual change. So the client tells the engine which
+ * pages it still has, and gets back `null` for those.
+ *
+ * The engine keeps no matching state — it answers only against the list on the
+ * request — so this cache can never desynchronise it. The worst it can do to
+ * itself is forget a page it claimed, which is caught and costs one extra
+ * round trip.
+ */
+class PageStore {
+  private held = new Map<string, string>();
+  private bytes = 0;
+  /** Roughly three copies of a very long document. Enough that a session's own
+   *  pages stay resident; bounded so a long editing session cannot grow without
+   *  end. */
+  private static readonly CAP = 32 * 1024 * 1024;
+
+  /** The fingerprints to tell the engine about. */
+  have(): string[] {
+    return [...this.held.keys()];
+  }
+
+  /** Remember the pages of a response that landed. */
+  keep(pages: string[], hashes: string[] | undefined) {
+    if (!hashes) return;
+    for (let i = 0; i < pages.length && i < hashes.length; i++) {
+      const h = hashes[i];
+      if (!h || this.held.has(h)) continue;
+      this.held.set(h, pages[i]);
+      this.bytes += pages[i].length;
+    }
+    // A Map iterates in insertion order, and the document on screen was inserted
+    // last, so evicting from the front drops the oldest pages first.
+    for (const [h, svg] of this.held) {
+      if (this.bytes <= PageStore.CAP) break;
+      this.held.delete(h);
+      this.bytes -= svg.length;
+    }
+  }
+
+  /**
+   * Put back the pages the engine left out.
+   *
+   * `null` — not a half-filled result — when a page we claimed to hold is not
+   * actually here. The caller asks again for the whole document rather than
+   * showing a gap, which is the one thing this must never do.
+   */
+  expand(res: CompileResult): CompileResult | null {
+    if (!Array.isArray(res.pages_svg)) return res; // an html export carries none
+    const wire = res.pages_svg as unknown as WirePages;
+    if (!res.pages_hash) return res; // an engine that does not name its pages
+    const pages: string[] = [];
+    for (let i = 0; i < wire.length; i++) {
+      const own = wire[i];
+      if (typeof own === "string") {
+        pages.push(own);
+        continue;
+      }
+      const kept = this.held.get(res.pages_hash[i]);
+      if (kept === undefined) return null;
+      pages.push(kept);
+    }
+    return { ...res, pages_svg: pages };
+  }
+}
+
+/**
+ * What this engine session already has, so a request can leave it out: asset
+ * bytes it holds, and rendered pages this client is still showing.
+ *
+ * One per backend instance — the asset cache lives in that engine's
+ * process/worker, so a fresh backend (or a respawned worker) starts with nothing
+ * confirmed. When the engine reports a hash it no longer has, that hash is
+ * forgotten and its bytes go out again, which keeps the two sides honest without
+ * either trusting the other's memory across a restart.
+ */
+export class CompileCache {
+  private confirmed = new Set<string>();
+  private pages = new PageStore();
+
+  /** The engine lost its asset cache (a worker died). Pages are unaffected: the
+   *  engine holds no page state to lose. */
   reset() {
     this.confirmed.clear();
   }
@@ -137,23 +237,38 @@ class AssetDeduper {
     return { wire: { ...assets, assets: strip(assets.assets), fonts: strip(assets.fonts) }, sent };
   }
 
-  /** Run a compile with byte-deduplicated assets, re-sending on a cache miss. */
+  /**
+   * Run a compile with the bytes and the pages the engine already has left out,
+   * asking again for whatever turns out not to be there.
+   *
+   * At most one retry, and it asks for everything: a second guess after a wrong
+   * one is how a cache turns a saving into a hang.
+   */
   async compile(
-    raw: (a: RequestAssets) => Promise<CompileResult>,
+    send: (payload: Record<string, unknown>) => Promise<CompileResult>,
     assets: RequestAssets,
   ): Promise<CompileResult> {
     const first = this.prepare(assets);
-    let res = await raw(first.wire);
-    if (res.missing_assets && res.missing_assets.length) {
-      // The engine dropped these — send the bytes and try once more.
-      for (const h of res.missing_assets) this.confirmed.delete(h);
+    let res = await send({ ...first.wire, have_pages: this.pages.have() });
+    let sent = first.sent;
+    let full = this.pages.expand(res);
+    const lostAssets = res.missing_assets?.length ? res.missing_assets : null;
+
+    if (lostAssets || !full) {
+      if (lostAssets) for (const h of lostAssets) this.confirmed.delete(h);
       const retry = this.prepare(assets);
-      res = await raw(retry.wire);
-      for (const h of retry.sent) this.confirmed.add(h);
-    } else {
-      for (const h of first.sent) this.confirmed.add(h);
+      // Nothing claimed on the retry when a page went missing: get the document
+      // whole rather than guess a second time.
+      res = await send({ ...retry.wire, have_pages: full ? this.pages.have() : [] });
+      sent = retry.sent;
+      // Still short is not possible with an empty claim, but if it ever were, no
+      // pages beats wrong pages — `runCompile` leaves the last good preview up.
+      full = this.pages.expand(res) ?? { ...res, pages_svg: [] };
     }
-    return res;
+
+    for (const h of sent) this.confirmed.add(h);
+    this.pages.keep(full.pages_svg, res.pages_hash);
+    return full;
   }
 }
 
@@ -242,9 +357,49 @@ export interface Mekoros {
   error?: string;
 }
 
+/**
+ * A point on a rendered page, in Typst points.
+ *
+ * Points rather than pixels, because that is the unit the page's own SVG
+ * `viewBox` is written in — so the client converts with the drawn element's
+ * width and nothing else, and neither zoom nor the fit-to-width setting can
+ * make the two sides disagree about where something is.
+ */
+export interface PagePoint {
+  /** 0-based, matching `pages_svg`. */
+  page: number;
+  x_pt: number;
+  y_pt: number;
+}
+
+/** A place in the body that was sent: 1-based line, 1-based character column.
+ *  The same convention as [`Diagnostic`], so the same preamble subtraction
+ *  applies (`diagview.lineInDocument`). */
+export interface BodySpot {
+  line: number;
+  column: number;
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
+  /**
+   * Inverse search: what did the writer type, that printed here?
+   *
+   * `null` for a click that landed on something the writer did not type — a
+   * margin, a running head, a note-band rule — and for a document that does not
+   * currently compile. The caller leaves the cursor alone in every one of those
+   * cases, which is why they need not be told apart.
+   */
+  jump(body: string, cfg: DocConfig, at: PagePoint, assets?: RequestAssets): Promise<BodySpot | null>;
+  /**
+   * Forward search: where on the page did this land?
+   *
+   * Several places, in page order: a note whose body is set in both a band and
+   * an endnote list prints twice, and text in a running head prints on every
+   * page. Empty when it printed nowhere.
+   */
+  reveal(body: string, cfg: DocConfig, at: BodySpot, assets?: RequestAssets): Promise<PagePoint[]>;
   /** Check text against both lexicons plus the writer's own words. */
   spell(text: string, userWords: string, suggest?: boolean): Promise<SpellResult>;
   /** Suggestions for one word — asked for only when a menu is opened. */
@@ -264,21 +419,65 @@ export interface Backend {
   linkify(text: string): Promise<string>;
 }
 
+/**
+ * A jump answer, from whatever the engine actually said.
+ *
+ * Deliberately paranoid about its input, because there are two ways to get a
+ * reply with no answer in it and they look nothing alike: `{}` from a click that
+ * landed on a margin, and the compile-shaped `{ok: false, diagnostics: […]}` a
+ * busy or timed-out server returns. Both mean "leave the cursor alone", so both
+ * are read as `null` here rather than being told apart by three call sites.
+ */
+function readSpot(v: unknown): BodySpot | null {
+  const o = v as { line?: unknown; column?: unknown } | null;
+  if (!o || typeof o.line !== "number" || o.line < 1) return null;
+  return { line: o.line, column: typeof o.column === "number" ? o.column : 1 };
+}
+
+function readPoints(v: unknown): PagePoint[] {
+  const list = (v as { points?: unknown } | null)?.points;
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (p): p is PagePoint =>
+      !!p && typeof p.page === "number" && typeof p.x_pt === "number" && typeof p.y_pt === "number",
+  );
+}
+
 export class HttpBackend implements Backend {
   readonly kind = "server";
-  private deduper = new AssetDeduper();
+  private cache = new CompileCache();
   constructor(private base = "") {}
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
-    return this.deduper.compile(async (a) => {
+    return this.cache.compile(async (extra) => {
       const res = await fetch(this.base + "/compile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, ...cfg, ...a }),
+        body: JSON.stringify({ body, ...cfg, ...extra }),
       });
       if (!res.ok) throw new Error(`compile ${res.status}`);
       return res.json();
     }, assets);
+  }
+
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
+    const res = await fetch(this.base + "/jump", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body, ...cfg, ...assets, ...at }),
+    });
+    if (!res.ok) return null;
+    return readSpot(await res.json());
+  }
+
+  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
+    const res = await fetch(this.base + "/reveal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body, ...cfg, ...assets, ...at }),
+    });
+    if (!res.ok) return [];
+    return readPoints(await res.json());
   }
 
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
@@ -387,7 +586,7 @@ export class WasmBackend implements Backend {
   private booting: Promise<Worker> | null = null;
   private nextId = 1;
   private pending = new Map<number, Pending>();
-  private deduper = new AssetDeduper();
+  private cache = new CompileCache();
 
   private ensure(): Promise<Worker> {
     if (this.worker) return Promise.resolve(this.worker);
@@ -438,7 +637,7 @@ export class WasmBackend implements Backend {
     this.booting = null;
     // The terminated worker took its asset cache with it, so nothing is confirmed
     // cached anymore — the next compile must send bytes, not just hashes.
-    this.deduper.reset();
+    this.cache.reset();
   }
 
   private async call(name: string, input: string, timeoutMs?: number): Promise<string> {
@@ -464,10 +663,14 @@ export class WasmBackend implements Backend {
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     try {
-      return await this.deduper.compile(
-        async (a) =>
+      return await this.cache.compile(
+        async (extra) =>
           JSON.parse(
-            await this.call("compile", JSON.stringify({ body, ...cfg, ...a }), COMPILE_TIMEOUT_MS),
+            await this.call(
+              "compile",
+              JSON.stringify({ body, ...cfg, ...extra }),
+              COMPILE_TIMEOUT_MS,
+            ),
           ) as CompileResult,
         assets,
       );
@@ -475,7 +678,7 @@ export class WasmBackend implements Backend {
       // A killed or crashed worker surfaces as an ordinary compile result with a
       // diagnostic — the same shape the server returns — so the status bar shows
       // it rather than the editor hanging on an unresolved promise. The throw
-      // reaches here without the deduper confirming any hashes, and failAll has
+      // reaches here without the cache confirming any hashes, and failAll has
       // already reset it, so the respawned worker starts from a clean slate.
       return errorResult(
         e instanceof Error && e.message === "timeout"
@@ -484,6 +687,33 @@ export class WasmBackend implements Backend {
       );
     }
   }
+  /** Bounded by the same timeout a compile gets, because it *is* a compile: a
+   *  runaway document must not pin the one engine worker just because somebody
+   *  clicked on it. A killed worker surfaces here as "no answer". */
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
+    try {
+      return readSpot(
+        JSON.parse(
+          await this.call("jump", JSON.stringify({ body, ...cfg, ...assets, ...at }), COMPILE_TIMEOUT_MS),
+        ),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
+    try {
+      return readPoints(
+        JSON.parse(
+          await this.call("reveal", JSON.stringify({ body, ...cfg, ...assets, ...at }), COMPILE_TIMEOUT_MS),
+        ),
+      );
+    } catch {
+      return [];
+    }
+  }
+
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
     return JSON.parse(
       await this.call("spell", JSON.stringify({ text, user_words: userWords, suggest })),
@@ -537,7 +767,7 @@ export class WasmBackend implements Backend {
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
 export class TauriBackend implements Backend {
   readonly kind = "desktop";
-  private deduper = new AssetDeduper();
+  private cache = new CompileCache();
   private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<string>) | null = null;
 
   private async inv() {
@@ -578,9 +808,11 @@ export class TauriBackend implements Backend {
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     const invoke = await this.inv();
-    const run = this.deduper.compile(
-      async (a) =>
-        JSON.parse(await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...a }) })) as CompileResult,
+    const run = this.cache.compile(
+      async (extra) =>
+        JSON.parse(
+          await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...extra }) }),
+        ) as CompileResult,
       assets,
     );
     // Typst cannot be interrupted, and the in-process compile runs off the UI
@@ -598,6 +830,38 @@ export class TauriBackend implements Backend {
       clearTimeout(timer!);
     }
   }
+  /**
+   * Both directions carry their assets' bytes rather than only their hashes.
+   *
+   * A compile negotiates that down through [`CompileCache`] because it happens on
+   * every pause in typing; a jump happens when somebody clicks. Paying for the
+   * bytes buys the guarantee that matters here — the layout being asked about is
+   * the layout on screen. An image whose bytes the engine turned out not to hold
+   * would lay the page out at a different height, and the answer would be off by
+   * exactly the amount nobody could see.
+   */
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
+    try {
+      const invoke = await this.inv();
+      return readSpot(
+        JSON.parse(await invoke("ksav_jump", { input: JSON.stringify({ body, ...cfg, ...assets, ...at }) })),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
+    try {
+      const invoke = await this.inv();
+      return readPoints(
+        JSON.parse(await invoke("ksav_reveal", { input: JSON.stringify({ body, ...cfg, ...assets, ...at }) })),
+      );
+    } catch {
+      return [];
+    }
+  }
+
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
     const invoke = await this.inv();
     return JSON.parse(

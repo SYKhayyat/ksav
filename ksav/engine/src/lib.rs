@@ -14,6 +14,8 @@ use typst_layout::PagedDocument;
 pub mod assets;
 pub mod commands;
 pub mod diagnostics;
+/// Both directions between a place in the source and a place on the page.
+pub mod jump;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
@@ -109,7 +111,7 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
 pub fn auto_notes_region_cm(body: &str) -> f64 {
     if PAGE_APPARATUS_COMMANDS
         .iter()
-        .any(|c| apparatus_is_called(body, c))
+        .any(|c| apparatus_is_called(body, c) || apparatus_is_named_as_kind(body, c))
     {
         3.0
     } else {
@@ -142,6 +144,27 @@ fn apparatus_is_called(body: &str, name: &str) -> bool {
             return true;
         }
         base = start + name.len();
+    }
+    false
+}
+
+/// Whether `name` is handed to the deferred-note wrapper as its layout.
+///
+/// `#הערה_בשם("א", סוג: מדף_בדרגה, 1)` puts a genuine page-foot apparatus on the
+/// page, but names the command as a *value* — there is no bracket after it, so
+/// `apparatus_is_called` cannot see it and the page would lose the 3 cm reserve
+/// while carrying the very apparatus that needs it. That failure is invisible in
+/// a compile check and reads on the page as notes running off the bottom edge.
+fn apparatus_is_named_as_kind(body: &str, name: &str) -> bool {
+    for key in ["סוג:", "kind:"] {
+        let mut base = 0;
+        while let Some(i) = body[base..].find(key) {
+            let after = base + i + key.len();
+            if body[after..].trim_start().starts_with(name) {
+                return true;
+            }
+            base = after;
+        }
     }
     false
 }
@@ -334,6 +357,12 @@ pub struct Compiled {
     pub diagnostics: Vec<Diagnostic>,
     /// The full assembled Typst source (prelude + wrapper + body) — the
     /// "export to plain Typst" output.
+    ///
+    /// Empty unless it was asked for. It is the prelude plus the document, so it
+    /// is never smaller than 75 KB, and it used to ride on every keystroke-driven
+    /// preview: of an 84 KB response for a one-page document, 75 KB was this and
+    /// 4 KB was the page. Exactly one caller reads it — "export .typ" — and that
+    /// one compiles for itself. Same story as `pdf`, same answer.
     pub typst_source: String,
 }
 
@@ -407,15 +436,21 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     )
 }
 
-/// Lay out an assembled source, with the request's assets available to it.
+/// The compiler, configured for one assembled source and the request's assets.
 ///
 /// The document has no file system to read from, so its images arrive as bytes on
 /// the request and are registered under the names the document uses. User fonts
 /// arrive the same way and join the bundled ones.
-fn layout_source(
+///
+/// Separate from [`layout_source`] because two callers want the same engine and
+/// only one of them wants the laid-out pages on their own: `jump.rs` needs the
+/// [`typst::World`] the layout was produced *against*, because that is what turns
+/// a span back into a place in a file. Building the engine twice from the same
+/// text would answer with two worlds whose spans do not mean the same thing.
+pub(crate) fn engine_for(
     source: String,
     assets: &Assets,
-) -> Warned<Result<PagedDocument, typst_as_lib::TypstAsLibError>> {
+) -> typst_as_lib::TypstEngine<typst_as_lib::TypstTemplateMainFile> {
     let mut fonts: Vec<&[u8]> = vec![
         FONT_FRANK_REG,
         FONT_FRANK_BOLD,
@@ -445,8 +480,15 @@ fn layout_source(
     // `--watch` uses: old enough to span a burst of edits, young enough that a
     // long-idle document's cache is eventually reclaimed.
     builder.comemo_evict_max_age(Some(10));
-    let engine = builder.build();
-    engine.compile::<PagedDocument>()
+    builder.build()
+}
+
+/// Lay out an assembled source, with the request's assets available to it.
+fn layout_source(
+    source: String,
+    assets: &Assets,
+) -> Warned<Result<PagedDocument, typst_as_lib::TypstAsLibError>> {
+    engine_for(source, assets).compile::<PagedDocument>()
 }
 
 /// Compile and lay out a document, returning the laid-out pages.
@@ -465,14 +507,14 @@ pub fn compile_doc_with(
     assets: &Assets,
 ) -> Result<PagedDocument, Vec<Diagnostic>> {
     let text = assemble_source(body, cfg);
-    // The same text Typst is about to parse, parsed again here so spans can be
-    // turned into lines. `Source::detached` is what `main_file(String)` builds, and
-    // span numbers are assigned deterministically from the parse, so the two agree.
-    let located = Located::of(&text, cfg);
-    let Warned { output, warnings } = layout_source(text, assets);
+    let Warned { output, warnings } = layout_source(text.clone(), assets);
     match output {
         Ok(doc) => Ok(doc),
         Err(err) => {
+            // The same text Typst just parsed, parsed again here so spans can be
+            // turned into lines — but only now that there is a diagnostic to
+            // locate. See `compile_parts` for why this is not done up front.
+            let located = Located::of(&text, cfg);
             let mut diagnostics = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {
@@ -491,26 +533,54 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
 
 /// `compile`, with the request's images and fonts available to the document.
 pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
-    compile_parts(body, cfg, assets, true)
+    compile_parts(body, cfg, assets, true, true)
 }
 
-/// Compile, optionally skipping the PDF.
+/// Compile, optionally skipping the PDF and the assembled source.
 ///
 /// The live preview consumes the SVGs and nothing else, yet a PDF was rendered
 /// and base64-encoded into every response — around 300 KB per keystroke-driven
 /// compile of a 16-page document, none of it ever read. `want_pdf` is off for
 /// previews and on for export and print, which is the only place the bytes are
 /// actually wanted.
-pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: bool) -> Compiled {
+///
+/// `want_source` is the same argument about the same mistake, found later in the
+/// same response: the assembled Typst source is the 75 KB prelude plus the
+/// document, it was returned unconditionally, and the only caller that reads it
+/// ("export .typ") runs its own compile to get it. On a one-page document that
+/// was 75 KB of an 84 KB response.
+///
+/// Neither flag changes what is compiled — both are about what is *carried back*.
+pub fn compile_parts(
+    body: &str,
+    cfg: &DocConfig,
+    assets: &Assets,
+    want_pdf: bool,
+    want_source: bool,
+) -> Compiled {
     let source = assemble_source(body, cfg);
-    let typst_source = source.clone();
-    let located = Located::of(&source, cfg);
+    // The clone is for Typst, which takes the source by value. `source` itself
+    // stays here so that it can be handed back as `typst_source` — by move, not
+    // by a second copy — and so `Located` has something to parse if it is needed.
+    let Warned { output, warnings } = layout_source(source.clone(), assets);
 
-    let Warned { output, warnings } = layout_source(source, assets);
-    let mut diagnostics = located.all(&warnings, "warning");
+    // Locating a diagnostic means parsing the assembled source a second time, and
+    // `Source::detached` copies it to do so. That was done on every compile
+    // whether or not anything had gone wrong: 4.2 ms of a 14.4 ms one-page
+    // compile, spent parsing 83 KB of prelude to resolve spans that a clean
+    // document does not have. A document with no warnings and no errors now pays
+    // none of it.
+    let locate = |diags: &[_], severity: &str| {
+        if diags.is_empty() {
+            Vec::new()
+        } else {
+            Located::of(&source, cfg).all(diags, severity)
+        }
+    };
 
     match output {
         Ok(doc) => {
+            let diagnostics = locate(&warnings, "warning");
             let pdf = want_pdf
                 .then(|| typst_pdf::pdf(&doc, &typst_pdf::PdfOptions::default()).ok())
                 .flatten();
@@ -525,31 +595,56 @@ pub fn compile_parts(body: &str, cfg: &DocConfig, assets: &Assets, want_pdf: boo
                 pdf,
                 pages_svg,
                 diagnostics,
-                typst_source,
+                typst_source: if want_source { source } else { String::new() },
             }
         }
         Err(err) => {
+            // Something went wrong, so the second parse is worth its cost here.
+            let located = Located::of(&source, cfg);
+            let mut diagnostics = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),
                 other => diagnostics.push(Diagnostic::ours("error", other.to_string())),
             }
+            drop(located);
             Compiled {
                 ok: false,
                 pdf: None,
                 pages_svg: Vec::new(),
                 diagnostics,
-                typst_source,
+                typst_source: if want_source { source } else { String::new() },
             }
         }
     }
 }
 
+/// A short, stable fingerprint of one rendered page.
+///
+/// FNV-1a rather than `DefaultHasher`, because this number crosses a wire and is
+/// compared against one an *earlier* process produced: it has to mean the same
+/// thing in every build of every backend, which the standard hasher does not
+/// promise. Sixteen hex digits is far more than enough to tell one page of a
+/// document from another, and collisions cost a stale page rather than
+/// corruption — the client only ever reuses a page it already had under that
+/// same name.
+fn page_fingerprint(svg: &str) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in svg.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x1000_0000_01b3);
+    }
+    format!("{h:016x}")
+}
+
 /// JSON-in / JSON-out compile, shared by the HTTP server and the wasm binding.
 /// Input: `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em,
-/// columns, assets: [{name, data}], fonts: [{name, data}]}` — `data` is base64,
-/// with or without a `data:` URL prefix.
-/// Output: `{ok, pages_svg, pdf_base64, diagnostics, typst_source}`.
+/// columns, assets: [{name, data}], fonts: [{name, data}], want_pdf, want_source,
+/// have_pages: [fingerprint]}` — `data` is base64, with or without a `data:` URL
+/// prefix.
+/// Output: `{ok, pages_svg, pages_hash, pdf_base64, diagnostics, typst_source}`,
+/// where a `pages_svg` entry is `null` for any page whose fingerprint the caller
+/// listed in `have_pages`.
 /// The response for a request the engine could not make sense of.
 ///
 /// Shared by the two ways that happens — JSON that does not parse, and JSON that
@@ -560,6 +655,7 @@ fn malformed_request(reason_he: &str, reason_en: &str) -> String {
     serde_json::json!({
         "ok": false,
         "pages_svg": [],
+        "pages_hash": [],
         "pdf_base64": serde_json::Value::Null,
         "diagnostics": [{
             "severity": "error",
@@ -637,9 +733,45 @@ pub fn compile_request(input_json: &str) -> String {
         .to_string();
     }
 
-    // Previews don't want a PDF; export and print do, and say so.
+    // Previews don't want a PDF or the assembled source; export and print do,
+    // and say so.
     let want_pdf = v.get("want_pdf").and_then(|x| x.as_bool()).unwrap_or(false);
-    let result = compile_parts(body, &cfg, &assets, want_pdf);
+    let want_source = v
+        .get("want_source")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
+    let result = compile_parts(body, &cfg, &assets, want_pdf, want_source);
+
+    // Pages the client already has, by fingerprint.
+    //
+    // A one-character edit in a 48-page document leaves 47 pages byte-identical
+    // and changes 40 KB of 9.7 MB — and all 9.7 MB used to be serialised, sent,
+    // parsed and written into the DOM on every pause in typing. The client says
+    // which pages it is still holding; anything it already has comes back as
+    // `null` beside its fingerprint, and it puts its own copy back.
+    //
+    // The engine keeps no per-client state for this. It answers only against the
+    // list on the request, so two windows, a reload, or a restarted server can
+    // never leave it believing something about a client that is not true.
+    let have: std::collections::HashSet<&str> = v
+        .get("have_pages")
+        .and_then(|x| x.as_array())
+        .map(|a| a.iter().filter_map(|h| h.as_str()).collect())
+        .unwrap_or_default();
+    let fingerprints: Vec<String> = result.pages_svg.iter().map(|s| page_fingerprint(s)).collect();
+    let pages: Vec<serde_json::Value> = result
+        .pages_svg
+        .iter()
+        .zip(&fingerprints)
+        .map(|(svg, fp)| {
+            if have.contains(fp.as_str()) {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::String(svg.clone())
+            }
+        })
+        .collect();
+
     let diags = &result.diagnostics;
     let pdf_b64 = result
         .pdf
@@ -647,7 +779,12 @@ pub fn compile_request(input_json: &str) -> String {
         .map(|p| base64::engine::general_purpose::STANDARD.encode(p));
     serde_json::json!({
         "ok": result.ok(),
-        "pages_svg": result.pages_svg,
+        // Each entry is the page's SVG, or `null` when the client said it already
+        // holds the page with that fingerprint.
+        "pages_svg": pages,
+        // One fingerprint per page, always — it is what the client stores its
+        // copy under and what it sends back next time.
+        "pages_hash": fingerprints,
         "pdf_base64": pdf_b64,
         "diagnostics": diags,
         "typst_source": result.typst_source,
@@ -927,10 +1064,81 @@ mod tests {
     fn success_is_reported_even_when_no_pdf_was_asked_for() {
         // `ok` used to mean `pdf.is_some()`, which would report every successful
         // preview as a failure the moment previews stopped rendering a PDF.
-        let out = compile_parts("שלום", &DocConfig::default(), &Assets::default(), false);
+        let out = compile_parts("שלום", &DocConfig::default(), &Assets::default(), false, false);
         assert!(out.ok());
         assert!(out.pdf.is_none());
         assert!(!out.pages_svg.is_empty());
+    }
+
+    #[test]
+    fn a_preview_carries_no_assembled_source_and_an_export_does() {
+        // 75 KB of prelude in an 84 KB response, for a one-page document, read by
+        // nothing on screen. The one caller that wants it asks.
+        let preview = serde_json::json!({ "body": "שלום" }).to_string();
+        let p: serde_json::Value = serde_json::from_str(&compile_request(&preview)).unwrap();
+        assert_eq!(p["ok"], true);
+        assert_eq!(
+            p["typst_source"].as_str(),
+            Some(""),
+            "the preview must not carry the prelude nobody reads"
+        );
+
+        let export = serde_json::json!({ "body": "שלום", "want_source": true }).to_string();
+        let e: serde_json::Value = serde_json::from_str(&compile_request(&export)).unwrap();
+        assert!(
+            e["typst_source"]
+                .as_str()
+                .is_some_and(|s| s.contains("#show: מסמך.with(")),
+            "an export must carry the real assembled source"
+        );
+    }
+
+    #[test]
+    fn a_page_the_client_already_holds_comes_back_as_null() {
+        // The first compile hands over every page and names them.
+        let ask = serde_json::json!({ "body": "שלום עולם" }).to_string();
+        let first: serde_json::Value = serde_json::from_str(&compile_request(&ask)).unwrap();
+        let hashes: Vec<String> = first["pages_hash"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|h| h.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(hashes.len(), 1);
+        assert!(first["pages_svg"][0].is_string());
+
+        // Asked again by a client that says it still has that page, the engine
+        // names it and sends nothing.
+        let again =
+            serde_json::json!({ "body": "שלום עולם", "have_pages": hashes.clone() }).to_string();
+        let second: serde_json::Value = serde_json::from_str(&compile_request(&again)).unwrap();
+        assert!(
+            second["pages_svg"][0].is_null(),
+            "an unchanged page must not be sent twice"
+        );
+        assert_eq!(second["pages_hash"], first["pages_hash"]);
+
+        // A page it does *not* hold arrives in full, even though it claimed
+        // something. Nothing may depend on the two lists lining up by position.
+        let other =
+            serde_json::json!({ "body": "טקסט אחר לגמרי", "have_pages": hashes }).to_string();
+        let third: serde_json::Value = serde_json::from_str(&compile_request(&other)).unwrap();
+        assert!(
+            third["pages_svg"][0].is_string(),
+            "a page the client has never seen must be sent"
+        );
+    }
+
+    #[test]
+    fn a_fingerprint_follows_the_page_and_not_the_request() {
+        // Same page, two requests: same name. Different page: different name.
+        // This is the whole contract the client's cache rests on.
+        let a = page_fingerprint("<svg>one</svg>");
+        let b = page_fingerprint("<svg>one</svg>");
+        let c = page_fingerprint("<svg>two</svg>");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(a.len(), 16, "sixteen hex digits, stable across builds");
     }
 
     #[test]

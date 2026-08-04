@@ -17,6 +17,7 @@ import {
   whoHolds,
   readable,
 } from "../.tmp-test/bindings.mjs";
+import { DICTS } from "../.tmp-test/i18n.mjs";
 
 export function run() {
 
@@ -101,5 +102,18 @@ export function run() {
       .map(([id, key]) => [id, readable(key)])
       .filter(([, printed]) => !printed || printed.includes("Mod") || printed.endsWith("+"));
     check("every shipped binding prints readably", bad, []);
+  }
+
+  // ...and as something a person can read, in both languages. An action with no
+  // `sc.` string is not a crash: the settings drawer and the card fall back to the
+  // internal id, so it ships as a row saying `hiddenBreak` and everybody assumes
+  // somebody meant to name it later. That is exactly the kind of thing that
+  // survives a review, so it is asserted rather than noticed.
+  //
+  // Read from the dictionaries and not through `t`, which would answer for Hebrew
+  // out of the English shelf and pass a test that a Hebrew-first app should fail.
+  for (const lang of ["he", "en"]) {
+    const unnamed = Object.keys(DEFAULT_KEYS).filter((id) => !DICTS[lang]["sc." + id]);
+    check(`every action is named in ${lang}`, unnamed, []);
   }
 }

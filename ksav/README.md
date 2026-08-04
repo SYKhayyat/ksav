@@ -380,8 +380,21 @@ cargo run --manifest-path engine/Cargo.toml -- serve      # http://127.0.0.1:787
 - `GET  /`          — the web editor
 - `POST /compile`   — `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}`
                       → `{ok, pages_svg[], pdf_base64, diagnostics[], typst_source}`
+- `POST /jump`      — inverse search: `{body, page, x_pt, y_pt, …DocConfig}`
+                      → `{line, column}`, or `{}` for a point the writer did not
+                      type (a margin, a running head, a note-band rule)
+- `POST /reveal`    — forward search: `{body, line, column, …DocConfig}`
+                      → `{points: [{page, x_pt, y_pt}]}`, empty when it printed
+                      nowhere and several when it printed more than once
 - `GET  /commands`  — the command registry (JSON)
 - `GET  /templates` — the template registry (JSON, includes each body)
+
+Both jump directions lay the document out to answer, so they cost what a compile
+costs and go through the same deadline and concurrency cap. Coordinates are in
+Typst points, which is the unit each page's own SVG `viewBox` is written in —
+so a client converts with the drawn element's width and nothing else, and no
+zoom setting can put the two sides out of step. Lines are counted in the body
+that was sent, exactly as `diagnostics[].line` is.
 
 ## Library API
 

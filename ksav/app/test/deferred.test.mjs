@@ -1,0 +1,485 @@
+import { check, ok, notOk } from "./harness.mjs";
+import {
+  scan,
+  problems,
+  nextName,
+  jump,
+  bodyOf,
+  createBody,
+  insertDeferred,
+  inlineNoteAt,
+  deferInlineNote,
+  inlineDeferredNote,
+  deferAllInlineNotes,
+  deferSnippet,
+  resolveDeferred,
+} from "../.tmp-test/deferred.mjs";
+import { NOTE_CHOICES, applyChoice } from "../.tmp-test/notes.mjs";
+import { toMarkdown } from "../.tmp-test/markdown.mjs";
+
+// Deferred note bodies: the editing model behind #הערה_בשם / #גוף_הערה.
+//
+// The engine tests prove the page is identical whichever way the source is
+// arranged. These prove the *source* transformations: that the pair can be
+// found, jumped between, created from either end, and moved in and out without
+// the writer losing a word.
+
+export async function run() {
+
+// ---------------------------------------------------------------- scanning
+
+// 1. the plain pair
+{
+  const t = `ראש#הערה_בשם("א") סוף.\n#גוף_הערה("א")[הביאור]\n`;
+  const s = scan(t);
+  check("scan: one marker", s.refs.length, 1);
+  check("scan: marker name", s.refs[0].name, "א");
+  check("scan: no kind by default", s.refs[0].kind, null);
+  check("scan: one body", s.defs.length, 1);
+  check("scan: body name", s.defs[0].name, "א");
+  check("scan: body text", t.slice(s.defs[0].bodyFrom, s.defs[0].bodyTo), "הביאור");
+  check("scan: the name span is the name", t.slice(s.refs[0].nameFrom, s.refs[0].nameTo), `"א"`);
+}
+
+// 2. the layout argument, and everything else riding along
+{
+  const s = scan(`#הערה_בשם("א", סוג: מדף_בדרגה, 2)`);
+  check("scan: kind", s.refs[0].kind, "מדף_בדרגה");
+  check("scan: rest", s.refs[0].rest, "2");
+}
+{
+  const s = scan(`#הערה_בשם("א", סוג: הערתסיום, זרם: "מקורות")`);
+  check("scan: kind with a named extra", s.refs[0].kind, "הערתסיום");
+  check("scan: named extra survives", s.refs[0].rest, `זרם: "מקורות"`);
+}
+
+// 3. the bracket form, which every other Ksav command accepts
+{
+  const t = `#הערה_בשם[א]\n#גוף_הערה[א][הביאור]`;
+  const s = scan(t);
+  check("scan: bracketed marker", s.refs[0].name, "א");
+  check("scan: bracketed body name", s.defs[0].name, "א");
+  check("scan: bracketed body text", t.slice(s.defs[0].bodyFrom, s.defs[0].bodyTo), "הביאור");
+  check("scan: the two forms pair up", problems(t).length, 0);
+}
+
+// 4. English aliases
+{
+  const s = scan(`Start#note_named("a", kind: endnote) end.\n#note_body("a")[the gloss]`);
+  check("scan: english marker", s.refs[0].name, "a");
+  check("scan: english kind", s.refs[0].kind, "endnote");
+  check("scan: english body", s.defs[0].name, "a");
+}
+
+// 5. named `שם:` rather than positional
+{
+  const s = scan(`#הערה_בשם(שם: "א", סוג: הערתסיום)`);
+  check("scan: named שם", s.refs[0].name, "א");
+  check("scan: named שם leaves kind alone", s.refs[0].kind, "הערתסיום");
+}
+
+// 6. commented-out markup is prose, not structure
+{
+  const s = scan(`// #הערה_בשם("א")\n#הערה_בשם("ב")\n/* #גוף_הערה("ג")[x] */\n`);
+  check("scan: skips line comments", s.refs.length, 1);
+  check("scan: the live one", s.refs[0].name, "ב");
+  check("scan: skips block comments", s.defs.length, 0);
+}
+
+// 7. gershayim are Hebrew abbreviations, not string delimiters
+{
+  const t = `#גוף_הערה("א")[עיין רש"י שם ובשו"ע]\n#הערה_בשם("א")`;
+  const s = scan(t);
+  check("scan: gershayim don't swallow the document", s.defs.length, 1);
+  check("scan: body intact", t.slice(s.defs[0].bodyFrom, s.defs[0].bodyTo), `עיין רש"י שם ובשו"ע`);
+  check("scan: marker after gershayim still found", s.refs.length, 1);
+}
+
+// 8. a body with brackets inside it
+{
+  const t = `#גוף_הערה("א")[ראה #הדגשה[כאן] ובטבלה #טבלה(עמודות: 2, תא[א], תא[ב])]`;
+  const s = scan(t);
+  check("scan: nested groups", t.slice(s.defs[0].bodyFrom, s.defs[0].bodyTo).includes("תא[ב]"), true);
+}
+
+// 9. the bodies region
+{
+  const s = scan(`טקסט\n#גופי_הערות[\n#גוף_הערה("א")[x]\n]\n`);
+  ok("scan: finds the region", s.region);
+  check("scan: the body is inside the region", s.defs[0].from > s.region.innerFrom, true);
+}
+
+// 10. a half-typed definition is not a definition
+{
+  check("scan: no body group yet", scan(`#גוף_הערה("א")`).defs.length, 0);
+  check("scan: unclosed body", scan(`#גוף_הערה("א")[חצי`).defs.length, 0);
+}
+
+// ---------------------------------------------------------------- the lint
+
+// 11. the two silent failures deferring introduces
+{
+  const p = problems(`#הערה_בשם("חסר") #הערה_בשם("קיים")\n#גוף_הערה("קיים")[x]\n#גוף_הערה("יתום")[y]`);
+  check("lint: two problems", p.length, 2);
+  check("lint: dangling first", p[0].kind, "dangling");
+  check("lint: dangling name", p[0].name, "חסר");
+  check("lint: orphan", p[1].kind, "orphan");
+  check("lint: orphan name", p[1].name, "יתום");
+}
+
+// 12. a duplicate body is reported, and is not also called an orphan
+{
+  const p = problems(`#הערה_בשם("א")\n#גוף_הערה("א")[first]\n#גוף_הערה("א")[second]`);
+  check("lint: one problem", p.length, 1);
+  check("lint: duplicate", p[0].kind, "duplicate");
+}
+
+// 13. a healthy document is quiet
+{
+  check("lint: nothing to say", problems(`#הערה_בשם("א")\n#גוף_הערה("א")[x]`).length, 0);
+  check("lint: no notes at all", problems(`סתם טקסט`).length, 0);
+}
+
+// ---------------------------------------------------------------- naming
+
+// 14. the writer never types a name
+{
+  check("name: first", nextName(`סתם טקסט`), "1");
+  check("name: skips used", nextName(`#הערה_בשם("1") #גוף_הערה("2")[x]`), "3");
+  check("name: fills a gap", nextName(`#הערה_בשם("1") #הערה_בשם("3")`), "2");
+  check("name: ignores non-numeric names", nextName(`#הערה_בשם("רש״י")`), "1");
+}
+
+// ---------------------------------------------------------------- jumping
+
+// 15. one key, both directions
+{
+  const t = `ראש#הערה_בשם("א") סוף.\n#גוף_הערה("א")[הביאור]\n`;
+  const onRef = jump(t, t.indexOf(`#הערה_בשם`) + 3);
+  check("jump: marker → body", onRef.kind, "toBody");
+  check("jump: lands in the body", t.slice(onRef.pos, onRef.pos + 5), "הביאו");
+
+  const back = jump(t, t.indexOf(`#גוף_הערה`) + 3);
+  check("jump: body → marker", back.kind, "toMarker");
+  check("jump: lands on the marker", back.pos, t.indexOf(`#הערה_בשם`));
+
+  check("jump: nothing under the caret", jump(t, 0), null);
+}
+
+// 16. the create half — the key does not report an error, it writes the line
+{
+  const t = `ראש#הערה_בשם("א") סוף.`;
+  const j = jump(t, t.indexOf("בשם"));
+  check("jump: body missing", j.kind, "bodyMissing");
+  check("jump: knows the name", j.name, "א");
+}
+{
+  const t = `#גוף_הערה("א")[הביאור]`;
+  const j = jump(t, 3);
+  check("jump: marker missing", j.kind, "markerMissing");
+}
+
+// 17. innermost wins — a marker inside a body jumps to its own body
+{
+  const t = `#גוף_הערה("א")[הפירוש#הערה_בשם("ב")]\n#גוף_הערה("ב")[על הפירוש]`;
+  const j = jump(t, t.indexOf(`#הערה_בשם`) + 3);
+  check("jump: innermost", j.kind, "toBody");
+  check("jump: to the inner body", t.slice(j.pos, j.pos + 4), "על ה");
+}
+
+// 18. reading a body without moving — for the hover preview
+{
+  const t = `#הערה_בשם("א")\n#גוף_הערה("א")[הביאור]`;
+  check("bodyOf", bodyOf(t, "א"), "הביאור");
+  check("bodyOf: missing", bodyOf(t, "ב"), null);
+}
+
+// ---------------------------------------------------------------- creating
+
+// 19. filing a body when the document has none
+{
+  const t = `ראש#הערה_בשם("א") סוף.`;
+  const c = createBody(t, "א");
+  ok("create: the body exists now", c.text.includes(`#גוף_הערה("א")[]`));
+  check("create: caret is inside the brackets", c.text[c.caret - 1], "[");
+  check("create: caret is before the closer", c.text[c.caret], "]");
+  check("create: the document is now consistent", problems(c.text).length, 0);
+}
+
+// 20. filing next to the bodies that are already there
+{
+  const t = `#הערה_בשם("א")#הערה_בשם("ב")\n\n#גוף_הערה("א")[first]\n`;
+  const c = createBody(t, "ב");
+  const s = scan(c.text);
+  check("create: two bodies", s.defs.length, 2);
+  check("create: appended after the last", s.defs[1].name, "ב");
+  check("create: consistent", problems(c.text).length, 0);
+}
+
+// 21. filing into the region, when the writer made one
+{
+  const t = `#הערה_בשם("א")\n#גופי_הערות[\n]\n`;
+  const c = createBody(t, "א");
+  const s = scan(c.text);
+  check("create: inside the region", s.defs[0].from > s.region.innerFrom, true);
+  check("create: still inside", s.defs[0].to < s.region.innerTo, true);
+}
+
+// 22. a fresh deferred note from nothing
+{
+  const t = `ראש סוף.`;
+  const c = insertDeferred(t, 3);
+  const s = scan(c.text);
+  check("insert: a marker", s.refs.length, 1);
+  check("insert: and its body", s.defs.length, 1);
+  check("insert: matched", s.refs[0].name, s.defs[0].name);
+  check("insert: marker at the caret", c.text.slice(0, 3), "ראש");
+  check("insert: caret in the body", c.text[c.caret], "]");
+  check("insert: consistent", problems(c.text).length, 0);
+}
+{
+  // …in whatever layout the chooser picked
+  const c = insertDeferred(`ראש`, 3, "הערתסיום");
+  ok("insert: carries the layout", c.text.includes(`סוג: הערתסיום`));
+}
+
+// ---------------------------------------------------------------- exile
+
+// 23. finding the note under the caret
+{
+  const t = `ראש#הערה[הביאור] סוף.`;
+  const n = inlineNoteAt(t, t.indexOf("הביאור") + 2);
+  check("at: command", n.cmd, "הערה");
+  check("at: body", t.slice(n.bodyFrom, n.bodyTo), "הביאור");
+  notOk("at: outside any note", inlineNoteAt(t, 1));
+}
+{
+  // innermost: the caret is in the inner note, so that is the one meant
+  const t = `#הערה[חיצונית #הערה[פנימית] עוד]`;
+  const n = inlineNoteAt(t, t.indexOf("פנימית") + 1);
+  check("at: innermost body", t.slice(n.bodyFrom, n.bodyTo), "פנימית");
+}
+
+// 24. sending the prose to the end
+{
+  const t = `ראש#הערה[הביאור] סוף.\n`;
+  const c = deferInlineNote(t, t.indexOf("הביאור") + 1);
+  ok("defer: marker left behind", c.text.includes(`#הערה_בשם("1")`));
+  ok("defer: prose at the end", c.text.includes(`#גוף_הערה("1")[הביאור]`));
+  notOk("defer: the inline body is gone from the sentence", /ראש#הערה\[/.test(c.text));
+  check("defer: consistent", problems(c.text).length, 0);
+  check("defer: caret stays in the sentence", c.text.slice(c.caret, c.caret + 5), " סוף.");
+}
+
+// 25. the layout and its arguments are preserved exactly
+{
+  const t = `ראש#מדף_בדרגה(2)[הביאור] סוף.`;
+  const c = deferInlineNote(t, t.indexOf("הביאור"));
+  ok("defer: keeps the layout", c.text.includes(`סוג: מדף_בדרגה`));
+  ok("defer: keeps its argument", c.text.includes(`, 2)`));
+}
+{
+  const t = `ראש#הערתסיום(זרם: "מקורות")[הביאור] סוף.`;
+  const c = deferInlineNote(t, t.indexOf("הביאור"));
+  ok("defer: keeps a named argument", c.text.includes(`זרם: "מקורות"`));
+  ok("defer: and the layout", c.text.includes(`סוג: הערתסיום`));
+}
+
+// 26. a command that is not a note is left alone
+{
+  notOk("defer: declines non-notes", deferInlineNote(`#הדגשה[טקסט]`, 4));
+}
+
+// ---------------------------------------------------------------- recall
+
+// 27. bringing it back
+{
+  const t = `ראש#הערה_בשם("1") סוף.\n\n#גוף_הערה("1")[הביאור]\n`;
+  const c = inlineDeferredNote(t, t.indexOf("בשם"));
+  ok("recall: inline again", c.text.includes(`#הערה[הביאור]`));
+  notOk("recall: the body is gone", c.text.includes(`#גוף_הערה`));
+  check("recall: consistent", problems(c.text).length, 0);
+}
+
+// 28. the round trip gives the document back
+{
+  for (const t of [
+    `ראש#הערה[הביאור] סוף.\n`,
+    `ראש#מדור_בדרגה(2)[הביאור] סוף.\n`,
+    `ראש#הערתסיום(זרם: "מקורות")[הביאור] סוף.\n`,
+    `ראש#הערה[עיין רש"י שם] סוף.\n`,
+  ]) {
+    const out = deferInlineNote(t, t.indexOf("הביאור") >= 0 ? t.indexOf("הביאור") : t.indexOf("רש"));
+    const back = inlineDeferredNote(out.text, out.text.indexOf("בשם"));
+    check(`round trip: ${t.trim().slice(0, 24)}`, back.text, t);
+  }
+}
+
+// 29. recall declines rather than silently duplicating
+{
+  const t = `א#הערה_בשם("1") ב#הערה_בשם("1")\n#גוף_הערה("1")[הביאור]`;
+  notOk("recall: two markers, one body — declines", inlineDeferredNote(t, t.indexOf("בשם")));
+}
+{
+  notOk("recall: nothing to bring back", inlineDeferredNote(`#הערה_בשם("1")`, 5));
+}
+
+// ---------------------------------------------------------------- the bulk move
+
+// 30. every note at once — the migration path for a document that exists
+{
+  const t = `א#הערה[ראשונה] ב#הערה[שנייה] ג#מדור_א[שלישית] ד.\n`;
+  const { text, moved } = deferAllInlineNotes(t);
+  check("all: moved three", moved, 3);
+  check("all: consistent", problems(text).length, 0);
+  const s = scan(text);
+  check("all: three markers", s.refs.length, 3);
+  check("all: three bodies", s.defs.length, 3);
+  check("all: distinct names", new Set(s.defs.map((d) => d.name)).size, 3);
+  check("all: layout preserved", s.refs[2].kind, "מדור_א");
+  ok("all: prose intact", text.includes("ראשונה") && text.includes("שנייה") && text.includes("שלישית"));
+  notOk("all: no inline note left in the sentence", /[א-ת]#הערה\[/.test(text));
+}
+
+// 31. a note inside a note travels with its parent, it is not hoisted separately
+{
+  const t = `א#הערה[חיצונית #הערה[פנימית]] ב.\n`;
+  const { text, moved } = deferAllInlineNotes(t);
+  check("all: one top-level note moved", moved, 1);
+  ok("all: the nested note rode along", text.includes(`#הערה[פנימית]`));
+  check("all: consistent", problems(text).length, 0);
+}
+
+// 32. names do not collide with what is already deferred
+{
+  const t = `א#הערה[חדשה] ב#הערה_בשם("1")\n#גוף_הערה("1")[קיימת]\n`;
+  const { text } = deferAllInlineNotes(t);
+  const s = scan(text);
+  check("all: no name reused", new Set(s.defs.map((d) => d.name)).size, s.defs.length);
+  check("all: consistent", problems(text).length, 0);
+}
+
+// 33. nothing to do is not an edit
+{
+  const t = `סתם טקסט בלי הערות.\n`;
+  const r = deferAllInlineNotes(t);
+  check("all: nothing moved", r.moved, 0);
+  check("all: text untouched", r.text, t);
+}
+
+// 34. a commented-out note is prose and stays put
+{
+  const t = `// #הערה[מוסתרת]\nא#הערה[אמיתית] ב.\n`;
+  const { text, moved } = deferAllInlineNotes(t);
+  check("all: only the live note", moved, 1);
+  ok("all: the comment is untouched", text.includes(`// #הערה[מוסתרת]`));
+}
+
+// ---------------------------------------------------------------- exporting
+
+// 35. everything downstream that must SEE the body gets it put back
+{
+  const t = `ראש#הערה_בשם("1") סוף.\n\n#גוף_הערה("1")[הביאור]\n`;
+  const r = resolveDeferred(t);
+  check("resolve: inline again", r, `ראש#הערה[הביאור] סוף.\n`);
+}
+{
+  const t = `ראש#הערה_בשם("1", סוג: הערתסיום, זרם: "מקורות") סוף.\n#גוף_הערה("1")[הביאור]\n`;
+  ok("resolve: the layout comes back", resolveDeferred(t).includes(`#הערתסיום(זרם: "מקורות")[הביאור]`));
+}
+{
+  // A body used twice is duplicated — which is what the page does, and what a
+  // Word file has to contain.
+  const t = `א#הערה_בשם("1") ב#הערה_בשם("1")\n#גוף_הערה("1")[חוזר]`;
+  const r = resolveDeferred(t);
+  check("resolve: both markers", (r.match(/חוזר/gu) ?? []).length, 2);
+  notOk("resolve: no definitions left", r.includes("#גוף_הערה"));
+}
+{
+  // Deferred inside deferred: expanded until nothing is left to expand.
+  const t = `א#הערה_בשם("1") ב.\n#גוף_הערה("1")[חיצונית#הערה_בשם("2")]\n#גוף_הערה("2")[פנימית]\n`;
+  const r = resolveDeferred(t);
+  ok("resolve: nested expanded", r.includes(`#הערה[חיצונית#הערה[פנימית]]`));
+  notOk("resolve: nothing deferred remains", r.includes("בשם") || r.includes("גוף_הערה"));
+}
+{
+  // A marker with no body has nothing to say in a Word file.
+  const r = resolveDeferred(`א#הערה_בשם("חסר") ב.`);
+  notOk("resolve: dangling marker dropped", r.includes("הערה_בשם"));
+  ok("resolve: the sentence survives", r.includes("א") && r.includes("ב."));
+}
+{
+  // A body that refers to itself would expand forever; it stops instead.
+  const r = resolveDeferred(`א#הערה_בשם("1")\n#גוף_הערה("1")[עצמי#הערה_בשם("1")]`);
+  ok("resolve: a cycle terminates", typeof r === "string" && r.length < 4000);
+}
+{
+  check("resolve: a document with no notes is untouched", resolveDeferred(`סתם טקסט.\n`), `סתם טקסט.\n`);
+}
+
+// 36. the Word/Markdown export therefore carries deferred notes as footnotes
+{
+  const inline = toMarkdown(`ראש#הערה[הביאור] סוף.\n`);
+  const deferredDoc = toMarkdown(`ראש#הערה_בשם("1") סוף.\n\n#גוף_הערה("1")[הביאור]\n`);
+  check("export: identical to the inline form", deferredDoc, inline);
+  ok("export: it really is a footnote", inline.includes("[^1]"));
+}
+
+// ---------------------------------------------------------------- the chooser
+
+// 35. the snippet rewrite, layout by layout
+{
+  check("snippet: plain footnote", deferSnippet(`#הערה[|]`, "1").marker, `#הערה_בשם("1")`);
+  check("snippet: named layout", deferSnippet(`#מדף_א[|]`, "1").marker, `#הערה_בשם("1", סוג: מדף_א)`);
+  check("snippet: with an argument", deferSnippet(`#מדור_בדרגה(2)[|]`, "1").marker, `#הערה_בשם("1", סוג: מדור_בדרגה, 2)`);
+  check("snippet: the caret follows the prose", deferSnippet(`#הערה[|]`, "1").body, `#גוף_הערה("1")[|]`);
+  notOk("snippet: declines a non-note", deferSnippet(`#הדגשה[|]`, "1"));
+}
+
+// 36. every one of the eleven layouts survives the chooser's deferred path
+//
+// The engine tests prove the *page* is identical either way. This proves the
+// chooser cannot emit a source that is inconsistent — a marker with no body, or
+// a layout silently downgraded to a plain footnote on the way through.
+{
+  for (const c of NOTE_CHOICES) {
+    for (const which of c.insert2 ? ["primary", "secondary"] : ["primary"]) {
+      const r = applyChoice("ראש סוף.\n", 3, c, which, true);
+      const s = scan(r.text);
+      check(`chooser/${c.id}/${which}: one marker`, s.refs.length, 1);
+      check(`chooser/${c.id}/${which}: one body`, s.defs.length, 1);
+      check(`chooser/${c.id}/${which}: consistent`, problems(r.text).length, 0);
+      // The layout the writer picked is the layout that gets written.
+      const snippet = (which === "secondary" ? c.insert2 : c.insert) ?? c.insert;
+      const cmd = /^#([A-Za-z0-9֐-׿_]+)/.exec(snippet)[1];
+      check(
+        `chooser/${c.id}/${which}: layout kept`,
+        s.refs[0].kind,
+        cmd === "הערה" ? null : cmd,
+      );
+      // The caret lands in the body, which is what the writer is about to type.
+      check(`chooser/${c.id}/${which}: caret in the body`, r.text[r.caret], "]");
+    }
+  }
+}
+
+// 37. the layout's own scaffolding still gets written, and the body sits after it
+{
+  const c = NOTE_CHOICES.find((x) => x.id === "endnote");
+  const r = applyChoice("ראש סוף.\n", 3, c, "primary", true);
+  ok("chooser: the dump call is still written", r.text.includes("#הערות_בסוף"));
+  ok(
+    "chooser: the body is filed after it",
+    r.text.indexOf("#גוף_הערה") > r.text.indexOf("#הערות_בסוף"),
+  );
+}
+
+// 38. inline remains the default, unchanged
+{
+  const c = NOTE_CHOICES.find((x) => x.id === "footnote");
+  const r = applyChoice("ראש סוף.\n", 3, c, "primary");
+  ok("chooser: still inline by default", r.text.includes("#הערה[]"));
+  notOk("chooser: no body filed", r.text.includes("#גוף_הערה"));
+}
+
+}

@@ -70,7 +70,7 @@ export interface Analysis {
  * ksav-lang.ts; the two scanners must agree or the lint would contradict the
  * renderer.
  */
-function commentRegions(text: string): { from: number; to: number; unterminated?: boolean }[] {
+export function commentRegions(text: string): { from: number; to: number; unterminated?: boolean }[] {
   const out: { from: number; to: number; unterminated?: boolean }[] = [];
   for (let i = 0; i < text.length; i++) {
     if (text[i] !== "/") continue;

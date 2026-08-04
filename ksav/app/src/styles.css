@@ -208,8 +208,51 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
 .page {
   background: #fff; margin: 0 auto 20px; box-shadow: 0 2px 14px rgba(0,0,0,.14);
   width: var(--page-width, min(100%, 820px)); transition: width .15s;
+  /* A page that is nowhere near the viewport holds no SVG at all — see
+     `preview.ts`. Its box still has to be exactly the right height, and that
+     comes from `aspect-ratio`, which `drawPages` sets per page from the page's
+     own dimensions. The fallback is A4, for a box drawn before its page has
+     ever been seen. */
+  aspect-ratio: 210 / 297;
+  /* The containing block for `.jump-mark`, which is positioned as a fraction of
+     the page rather than in pixels so it survives a zoom. */
+  position: relative;
 }
+/* A page that has been filled in takes its height from its own drawing, which
+   is the same height the ratio above reserved for it. */
+.page:has(svg) { aspect-ratio: auto; }
 .page svg { width: 100%; height: auto; display: block; }
+
+/* Forward search: "your cursor printed *here*".
+   A ring that closes on the spot rather than a static dot, because the reader is
+   looking at a full page of Hebrew and needs their eye pulled to one word. It
+   marks the glyph's baseline origin, so it is nudged up half a line to sit on
+   the letter rather than under it. Nothing here takes pointer events: the mark
+   is an answer, not a target, and a click landing on it instead of on the page
+   would break the other direction. */
+.jump-mark {
+  position: absolute; width: 0; height: 0; pointer-events: none; z-index: 2;
+}
+.jump-mark::before {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 2.2em; height: 2.2em; margin: -1.1em 0 0 -1.1em;
+  /* Not `var(--accent)`: the page under it is `#fff` in both themes, so the
+     mark is one of the few things here that should not follow the theme. */
+  border: 2px solid #c0392b; border-radius: 50%;
+  transform: translateY(-0.35em);
+  animation: jump-mark-in 1.4s ease-out forwards;
+}
+@keyframes jump-mark-in {
+  0%   { opacity: 0; scale: 3.2; }
+  18%  { opacity: 1; scale: 1; }
+  70%  { opacity: 1; scale: 1; }
+  100% { opacity: 0; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The point is to be findable, not to move. Hold it still and let it fade. */
+  .jump-mark::before { animation: jump-mark-hold 1.4s linear forwards; }
+  @keyframes jump-mark-hold { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+}
 
 /* ---- statusbar ---- */
 .statusbar {
@@ -417,6 +460,28 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
 .ksav-comment { color: #6b7280; font-style: italic; opacity: 0.85; }
 :root[data-theme="dark"] .ksav-comment { color: #94a3b8; }
 
+/* A run of syntax, held apart from the paragraph it sits in (`bidi.ts`).
+   `isolate` and nothing else: `bidi-override` and `plaintext` are not supported
+   by CodeMirror's own bidi pass, so using one would put the caret and the text
+   in different orders. The `dir` attribute beside this class supplies the
+   direction; this supplies the isolation, and neither works without the other. */
+.ksav-isolate { unicode-bidi: isolate; }
+
+/* A bidi control character, drawn (`bidi.ts`). These are invisible and take a
+   keypress to step over, so a file with a stray one in it reads identically to
+   a file without and behaves differently — which is the whole argument for
+   showing them. Small, low-contrast and inline: it is a thing you look for, not
+   a thing you should have to look past. */
+.cm-specialChar.ksav-bidi-mark {
+  font: 600 9px/1 var(--mono); vertical-align: 2px;
+  padding: 1px 2px; margin: 0 1px; border-radius: 3px;
+  color: #7c3aed; background: #ede9fe;
+  /* Its own island: a three-letter Latin tag dropped into Hebrew prose would
+     otherwise be reordered by the very algorithm it is there to explain. */
+  unicode-bidi: isolate; direction: ltr;
+}
+:root[data-theme="dark"] .cm-specialChar.ksav-bidi-mark { color: #c4b5fd; background: #2e1065; }
+
 /* ---- editor: prose-mode content styling ---- */
 .pm-bold { font-weight: 700; }
 .pm-italic { font-style: italic; }
@@ -606,9 +671,32 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .note-use.secondary { background: transparent; color: var(--accent); }
 .note-use:hover { filter: brightness(1.08); }
 
+/* Where the note's prose lives in the FILE — a separate question from where it
+   prints, so it is a row of its own below the grid rather than a twelfth card. */
+.defer-row { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.defer-options { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.defer-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  text-align: start; cursor: pointer; padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-family: var(--hebrew);
+}
+.defer-option:hover { border-color: var(--accent); }
+.defer-option.on { border-color: var(--accent); background: var(--accent-soft); }
+.defer-option b { font-size: 13px; }
+.defer-option span { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.defer-all {
+  margin-top: 12px; padding: 7px 14px; cursor: pointer;
+  font-family: var(--hebrew); font-size: 12px;
+  border: 1px dashed var(--line); border-radius: 7px;
+  background: none; color: var(--muted);
+}
+.defer-all:hover { border-color: var(--accent); color: var(--accent); }
+
 @media (max-width: 720px) {
   .notes-chooser-box { width: 96vw; padding: 16px; }
   .note-grid { grid-template-columns: 1fr; }
+  .defer-options { grid-template-columns: 1fr; }
 }
 
 /* ---- prose mode: the styles added with the wider command coverage --------

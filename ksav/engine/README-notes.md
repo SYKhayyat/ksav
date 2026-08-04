@@ -50,6 +50,19 @@ The one trap: a footnote entry lays out as «number» «body», so anything
 block-level at the start of the body (a `pad`, a `block`) pushes the body onto the
 next line and orphans the number. Tier indents are inline `#h`.
 
+Numbering is one running sequence across every tier, because it is Typst's own
+footnote counter — a tier-2 note nested in note 1 takes number 2, and the next
+tier-1 note is 3. `#הגדרות_הערות(מספור: ("1", "א", "i"))` gives each tier its own
+scheme and its own count instead, so the *shape* of a marker says which block to
+read it in. That is the one thing size and slant cannot say at the point of
+reference, where the reader actually is. It is opt-in because the shared sequence
+is the property most documents want: numbers that never repeat.
+
+Typst hands the `numbering` callback its single footnote counter, so that counter
+cannot be used to count a tier. The number is instead the note's rank among the
+real notes of its own tier, read out of a query — the same read-only ranking the
+collect-then-render apparatus uses, and it converges for the same reason.
+
 **2. Collect-then-render.** `מדור`+`הערות_מדורגות` (section bands),
 `מדף` (per-page bands), `הערה_זרם` (parallel streams), `הערתסיום`+`הערות_בסוף`
 (endnotes), and sidenotes. A note drops inline `metadata` in the main flow; the
@@ -108,6 +121,92 @@ is empty on this page does not let the bands below it drift up.
 | 10 Footnotes + companion doc | two documents | — |
 | 11 Endnotes with footnotes | `הערתסיום` with `הערה` inside | collect + native |
 
+## Deferred bodies — the twelfth thing, which is not a twelfth option
+
+`#הערה_בשם("א")` places a marker whose body is defined elsewhere, by
+`#גוף_הערה("א")[…]`. This is orthogonal to all eleven layouts above: it changes
+where the prose sits **in the source file**, and nothing about the page.
+
+```
+בראשית ברא#הערה_בשם("א") אלקים…
+#גוף_הערה("א")[עיין רש״י שם.]
+
+#הערה_בשם("א", סוג: הערתסיום)            // an endnote
+#הערה_בשם("א", סוג: מדור_בדרגה, 2)       // a section band, tier 2
+#הערה_בשם("א", סוג: הערה_זרם, "מקורות")  // the mekoros stream
+```
+
+One command reaches all eleven because every note command in `ksav.typ` takes its
+body as the **last positional argument**. `סוג` is the command itself (a value,
+not a name), the extra positionals a layout needs pass through ahead of the body,
+and named arguments pass through untouched. A new layout is reachable the day it
+is written, with nothing here to update.
+
+**Mechanism.** A definition is inert: it stores its body in `#metadata`, which is
+never laid out — so a nested note inside a deferred body does *not* fire at the
+definition site, only where the reference puts it. The reference queries for its
+definition; Typst introspection reads the finished document, so a definition may
+sit after the reference, before it, or in another chapter. The query result does
+not depend on layout, so there is no feedback loop and it converges on the first
+pass. This is the only collect-then-render mechanism here that needs no
+`_ksav_ap_open` bracketing, for that reason.
+
+**One trap, and it is in Rust, not Typst.** The page-foot reserve
+(`auto_notes_region_cm`) is chosen by reading the source for calls, and the
+deferred form names its layout as a *value* — `סוג: מדף_בדרגה` has no bracket
+after it. Without `apparatus_is_named_as_kind` a document of deferred page-bands
+compiles perfectly and lays its apparatus off the bottom of the sheet.
+
+**Verification.** `tests/deferred_notes.rs` renders each of the eleven layouts
+twice — bodies inline, then bodies deferred — and asserts every text run landed
+on the same page at the same coordinates at the same size. Equivalence is the
+claim, so equivalence is what is tested; the rest of that file is the failure
+modes (a dangling name, a duplicate definition, a body far from its marker).
+
+The editing side lives in the app: `src/deferred.ts` is the pure model (scan,
+jump, exile, recall, lint) and `src/deferred-lint.ts` the CodeMirror wiring.
+
+## Structure inside a note
+
+A note body is ordinary content, so `#רשימה`, `#טבלה`, `#קוד` and the rest already
+work inside one, to any depth, with no note-specific variants. This is worth
+stating because the LaTeX way is the opposite: `bigfoot` documents grow a parallel
+`fnitem` / `fnenum` / `fntable` / `fncode` vocabulary, one command per structure
+per context.
+
+Two of the three reasons for that vocabulary do not exist here. LaTeX caps list
+nesting at four levels, so a note wanting deeper structure must `\setlistdepth`
+and declare each level; Typst has no cap. And LaTeX's list skips are absolute
+lengths, so a list set at footnote size keeps body-size air around it and has to
+be re-tuned with `nosep`; Typst's are `em`-relative and Ksav's defaults are
+written that way, so they scale on their own. Measured: a list inside a note has
+the same spacing-to-size ratio as the same list in the body, 1.86 either way.
+
+The third reason is real, and it is the one thing here that is note-specific:
+
+**`#כותרת_בהערה[…]`** — a heading inside a note that is not a heading. `#כותרת`
+there is still a real heading: it steps the document counter, so a three-line
+footnote renumbers every section after it, and it lands in `#תוכן`, so the table of
+contents lists a line that lives in the margin. Structure inside a note is a matter
+of appearance, not of outline. Weight and colour follow `#הגדרות_כותרות` so these
+match the document's real headings; the sizes are a compressed ramp of their own,
+because 1.6em of a 0.85em note is still larger than the text being annotated.
+
+It emits a line break after and *nothing* before, which is the footnote-entry trap
+again: `block`, `v(weak: true)`, `linebreak` and `parbreak` all orphan the number
+at the head of an entry — `parbreak` does not collapse there the way it does at the
+head of a page. All four were measured. The break above is the writer's own blank
+line, exactly as for a heading in prose:
+
+```
+#הערה[#כותרת_בהערה[פתיחה] הגוף הראשון
+
+#כותרת_בהערה[המשך] הגוף השני]
+```
+
+Opening a note with one costs no blank line and puts the number and the heading on
+one line, which is what a lemma wants anyway.
+
 ## Known limits
 
 - **Sidenote stacking is per page.** A note whose marker is near the foot of the
@@ -120,3 +219,12 @@ is empty on this page does not let the bands below it drift up.
 - **Collect-then-render costs queries.** Each note runs a query per layout pass to
   find its own rank. This is fine for ordinary documents and has not been profiled
   on a full sefer.
+- **A Hebrew marker is a synthetic superscript; a digit is a real one.** With
+  `#הגדרות_הערות(מספור: ("1", "א", …))` the two tiers' markers are made
+  differently, and it shows. A digit uses the font's own `sups` glyph — full
+  nominal size, sitting on the baseline (measured: 12.0pt at the text baseline in
+  a 12pt document). Hebrew letters and roman numerals have no such glyph, so Typst
+  synthesises one by shrinking and raising (7.2pt, 4.2pt above the baseline). Both
+  read correctly; they are not optically the same weight. A document that wants
+  them to match should pick schemes from the same side of that line — all letters,
+  or all digits with different separators.

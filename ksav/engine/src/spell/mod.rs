@@ -424,6 +424,56 @@ pub(crate) fn rank(distance: usize, transposed: bool) -> usize {
     (4 * distance + if transposed { 0 } else { 2 }) * common::BANDS
 }
 
+// ------------------------------------------------------------- candidate sieve
+//
+// "Did you mean…?" for one word used to take 122 ms, because it walked all
+// 269,385 Hebrew entries, counted the characters of each to apply the length
+// filter, and then allocated — a `Vec<char>` per survivor and three more inside
+// every distance call. That is the slowest thing a single click can ask for in
+// this application, and none of the work was the distance calculation itself.
+//
+// Two things replace it, and neither changes a single suggestion. The lexicons
+// bucket their entries by character length, so the length filter costs nothing
+// and is applied by *not looking*; and each entry carries the mask below, so a
+// candidate can be dismissed by one XOR and a popcount before anything is
+// allocated at all.
+
+/// Which letters appear in a word, one bit each.
+///
+/// The filter this exists for: **one edit changes at most two bits.** A
+/// substitution can remove one letter and introduce another; an insertion or a
+/// deletion can move one; a transposition moves none, because it keeps the
+/// multiset. So `(a ^ b).count_ones() > 2` proves the two words are more than one
+/// edit apart, and proves it in two instructions.
+///
+/// It is a *necessary* condition and not a sufficient one — survivors still go
+/// through the real distance — so the sieve cannot change an answer, only how
+/// much work is done to reach it.
+pub(crate) fn letter_mask(chars: &[char]) -> u32 {
+    let mut m = 0u32;
+    for &c in chars {
+        m |= 1 << letter_bit(c);
+    }
+    m
+}
+
+/// Latin and Hebrew share the low bits. They never meet: the tokenizer ends a run
+/// where the script changes, so the two lexicons are only ever compared against
+/// words of their own alphabet. Everything else — apostrophe, geresh, an accented
+/// vowel — shares the top bit, which costs a few extra survivors and no accuracy.
+fn letter_bit(c: char) -> u32 {
+    match c {
+        'a'..='z' => c as u32 - 'a' as u32,
+        '\u{05D0}'..='\u{05EA}' => c as u32 - 0x05D0,
+        _ => 31,
+    }
+}
+
+/// The longest word this will compute a distance for without going to the heap.
+/// Above it the scratch rows are allocated instead — correct, just not free, and
+/// nothing in either lexicon comes close.
+const STACK_ROW: usize = 48;
+
 /// Optimal string alignment distance between `a` and `b`, or `None` above `max`.
 ///
 /// Levenshtein plus **transposition**, which is not an optional refinement: in
@@ -439,31 +489,127 @@ pub(crate) fn edit_distance(a: &[char], b: &[char], max: usize) -> Option<usize>
     if a.len().abs_diff(b.len()) > max {
         return None;
     }
-    // Three rows: the one before last is what makes a transposition a single
-    // edit rather than a substitution followed by another.
-    let mut prev2: Vec<usize> = vec![0; b.len() + 1];
-    let mut prev: Vec<usize> = (0..=b.len()).collect();
-    let mut cur = vec![0usize; b.len() + 1];
+    // Three rows, laid end to end in one buffer: the one before last is what
+    // makes a transposition a single edit rather than a substitution followed by
+    // another. Three `Vec`s per call was three allocations per *candidate*, and
+    // the candidates are the whole cost of a suggestion.
+    let w = b.len() + 1;
+    if w <= STACK_ROW {
+        let mut rows = [0usize; STACK_ROW * 3];
+        edit_rows(a, b, max, &mut rows)
+    } else {
+        let mut rows = vec![0usize; w * 3];
+        edit_rows(a, b, max, &mut rows)
+    }
+}
+
+/// The distance itself, over a caller-supplied scratch of at least `3·(b+1)`.
+fn edit_rows(a: &[char], b: &[char], max: usize, rows: &mut [usize]) -> Option<usize> {
+    let w = b.len() + 1;
+    // Offsets rather than swapped buffers: rotating three numbers is the same
+    // move as swapping three allocations, without the allocations.
+    let (mut prev2, mut prev, mut cur) = (0usize, w, 2 * w);
+    for j in 0..w {
+        rows[prev + j] = j;
+    }
     for i in 1..=a.len() {
-        cur[0] = i;
-        let mut best = cur[0];
-        for j in 1..=b.len() {
+        rows[cur] = i;
+        let mut best = i;
+        for j in 1..w {
             let cost = usize::from(a[i - 1] != b[j - 1]);
-            let mut d = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+            let mut d = (rows[prev + j] + 1)
+                .min(rows[cur + j - 1] + 1)
+                .min(rows[prev + j - 1] + cost);
             if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
-                d = d.min(prev2[j - 2] + 1);
+                d = d.min(rows[prev2 + j - 2] + 1);
             }
-            cur[j] = d;
+            rows[cur + j] = d;
             best = best.min(d);
         }
         if best > max {
             return None; // no path through this row can come in under the cap
         }
-        std::mem::swap(&mut prev2, &mut prev);
-        std::mem::swap(&mut prev, &mut cur);
+        let spent = prev2;
+        prev2 = prev;
+        prev = cur;
+        cur = spent;
     }
-    let d = prev[b.len()];
+    let d = rows[prev + b.len()];
     (d <= max).then_some(d)
+}
+
+// ------------------------------------------------------------ length buckets
+//
+// Both lexicons store their entries the same way: by character length, with each
+// entry carrying its letter mask. The type is shared so the two cannot drift
+// apart on the one property `suggest` depends on — that a bucket's index *is* the
+// character length of everything in it.
+
+/// How many characters of a candidate the scratch buffer holds. Anything longer
+/// is not offered as a suggestion, which costs nothing real: the typed word would
+/// have to be about as long, and a word that length is not a typo away from
+/// another one.
+pub(crate) const FOLD_BUF: usize = STACK_ROW;
+
+/// Fold a candidate's characters into a reused buffer, or `None` if it is too
+/// long to fit. The point is the *reuse*: this runs once per surviving candidate,
+/// and it used to be a fresh `Vec<char>` every time.
+pub(crate) fn fold_into<'a>(
+    buf: &'a mut [char; FOLD_BUF],
+    chars: impl Iterator<Item = char>,
+) -> Option<&'a [char]> {
+    let mut n = 0;
+    for c in chars {
+        if n == FOLD_BUF {
+            return None;
+        }
+        buf[n] = c;
+        n += 1;
+    }
+    Some(&buf[..n])
+}
+
+/// Entries of one length: the word as stored, and its [`letter_mask`].
+pub(crate) type Bucket = std::collections::HashMap<Box<str>, u32>;
+
+/// Words bucketed by character length. Index `n` holds every entry of `n`
+/// characters; short indices are simply empty.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ByLength {
+    buckets: Vec<Bucket>,
+    count: usize,
+}
+
+impl ByLength {
+    /// Add a word of `n` characters with mask `mask`. Returns whether it was new.
+    pub(crate) fn insert(&mut self, word: &str, n: usize, mask: u32) -> bool {
+        if self.buckets.len() <= n {
+            self.buckets.resize_with(n + 1, Bucket::new);
+        }
+        let fresh = self.buckets[n].insert(word.into(), mask).is_none();
+        if fresh {
+            self.count += 1;
+        }
+        fresh
+    }
+
+    pub(crate) fn contains(&self, word: &str, n: usize) -> bool {
+        self.buckets.get(n).is_some_and(|b| b.contains_key(word))
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.count
+    }
+
+    /// Every entry within one character of `n` — the only ones that can be within
+    /// one edit. This is the length filter, applied by not looking rather than by
+    /// counting the characters of a quarter of a million words.
+    pub(crate) fn near(&self, n: usize) -> impl Iterator<Item = (&Box<str>, &u32)> {
+        let lo = n.saturating_sub(1);
+        (lo..=n + 1)
+            .filter_map(move |k| self.buckets.get(k))
+            .flat_map(|b| b.iter())
+    }
 }
 
 // ---------------------------------------------------------------- request API

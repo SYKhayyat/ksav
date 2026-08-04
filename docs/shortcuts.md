@@ -19,6 +19,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Shift+F` | Footnote | הערת שוליים |
 | `Ctrl+Shift+G` | Fold region | אזור מתקפל |
 | `Ctrl+/` | Comment out | הפוך להערה |
+| `Ctrl+Shift+/` | Hidden line break | מעבר שורה נסתר |
 | `Ctrl+Z` | Undo | בטל |
 | `Ctrl+Y` · `Ctrl+Shift+Z` | Redo | בצע שוב |
 | `Ctrl+1` | Heading 1 | כותרת 1 |
@@ -42,6 +43,11 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+D` | Mark as deleted | סמן כמחיקה |
 | `Ctrl+Alt+M` | Comment | הערת עורך |
 | `Ctrl+Alt+B` | Fix brackets | תיקון סוגריים |
+| `Ctrl+Alt+P` | Where did this print? | היכן זה נדפס? |
+| `Ctrl+Alt+X` | Isolate the selection's direction | בידוד כיווניות לקטע |
+| `Ctrl+Alt+J` | Jump between a note's marker and its body | מעבר בין הסימון לגוף ההערה |
+| `Ctrl+Alt+F` | Send this note's text to the end | העברת ההערה לסוף |
+| `Ctrl+Alt+R` | Bring this note back into the sentence | החזרת ההערה למשפט |
 
 ## Not in the table
 
@@ -50,7 +56,7 @@ prose again — the markup is one key away, which is the right distance for the
 people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
-one does. There are 104 of them and none is worth memorising.
+one does. There are 108 of them and none is worth memorising.
 
 **Nikud** has its own keymap while you are typing pointed Hebrew. It is not in
 this table because it is not one binding — it is a layer, and it is documented

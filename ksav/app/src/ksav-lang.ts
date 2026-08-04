@@ -100,7 +100,7 @@ const bracketMark = Decoration.mark({ class: "ksav-bracket" });
 const commentMark = Decoration.mark({ class: "ksav-comment" });
 
 // Comment spans in a chunk of text: /* block */ and // line (not part of ://).
-function scanComments(text: string): { from: number; to: number }[] {
+export function scanComments(text: string): { from: number; to: number }[] {
   const spans: { from: number; to: number }[] = [];
   for (const m of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
     spans.push({ from: m.index!, to: m.index! + m[0].length });
@@ -188,6 +188,10 @@ const PROSE_STYLE: Record<string, string> = {
   כותרת4: "pm-h3",
   כותרת5: "pm-h3",
   כותרת6: "pm-h3",
+  // A heading inside a note looks like a small heading and is not one — so in
+  // prose mode it gets the small-heading look, and nothing in the outline.
+  כותרת_בהערה: "pm-h3",
+  note_heading: "pm-h3",
   ציטוט: "pm-quote",
   blockquote: "pm-quote",
   מקור: "pm-source",
@@ -394,6 +398,42 @@ addNotes("side-left", "1", ["הערת_שמאל", "noteleft"]);
 addNotes("review", "1", ["הערת_עורך", "comment_"]);
 
 const FOOTNOTE_NAMES = new Set(Object.keys(NOTE_KINDS));
+
+// ---- deferred note bodies ----
+// `#הערה_בשם("א")` is a marker whose prose lives at the end of the file, in
+// `#גוף_הערה("א")[…]`. Prose mode must not be able to tell: the marker collapses
+// to the same numbered chip as an inline note (with the *deferred* body on hover),
+// and the definitions region reads as a numbered list rather than as markup. Left
+// untreated, the one view whose whole promise is "it looks like the page" would
+// show a wall of `#גוף_הערה("1")[` at the bottom of every document that uses this.
+const DEFER_REF_NAMES = new Set(["הערה_בשם", "note_named"]);
+const DEFER_BODY_NAMES = new Set(["גוף_הערה", "note_body"]);
+
+/**
+ * The name, and the layout, in a deferred marker's argument list.
+ *
+ * A local parse rather than a second document scan: the span is already in hand
+ * and this runs on every keystroke. `deferred.ts` is the authority on the syntax;
+ * this reads the two fields prose mode needs and ignores the rest.
+ */
+function deferArgs(args: string): { name: string; kind: string | null } {
+  const kind = /(?:^|,)\s*(?:סוג|kind)\s*:\s*([A-Za-z0-9֐-׿_]+)/u.exec(args);
+  const named = /(?:^|,)\s*(?:שם|name)\s*:\s*"([^"]*)"/u.exec(args);
+  const positional = /^\s*"([^"]*)"/u.exec(args);
+  return {
+    name: named?.[1] ?? positional?.[1] ?? args.split(",")[0].trim(),
+    kind: kind?.[1] ?? null,
+  };
+}
+
+/** The name a deferred marker or body carries, whichever form it was written in. */
+function deferNameOf(text: string, s: CmdSpan): string {
+  if (s.argOpen != null && s.argClose != null) {
+    return deferArgs(text.slice(s.argOpen + 1, s.argClose)).name;
+  }
+  // The bracket form: `#הערה_בשם[א]`, `#גוף_הערה[א][…]`.
+  return s.open != null && s.close != null ? text.slice(s.open + 1, s.close).trim() : "";
+}
 
 const HEB_LETTERS = "אבגדהוזחטיכלמנסעפצקרשת".split("");
 /** Render `n` (1-based) in an apparatus's own numbering scheme. */
@@ -695,13 +735,19 @@ function proseDecorations(state: EditorState): ProseValue {
   for (const c of comments) {
     if (touchedAt(c.from, c.to)) continue;
     if (insideFootnote(c.from) || insideTable(c.from)) continue; // covered by another widget
-    // A plugin-provided `replace` decoration may NOT span a line break —
-    // CodeMirror throws "Decorations that replace line breaks may not be
-    // specified via plugins". So we only hide single-line comments (inline `//`,
-    // a solo `//{`/`//}` region marker, or a one-line `/* */`); a multi-line
-    // block comment is left visible (greyed) rather than risking a crash. A solo
-    // marker line collapses to an empty line, which reads as a normal break.
-    if (c.to > state.doc.lineAt(c.from).to) continue; // multi-line: skip
+    // Every comment is hidden, multi-line ones included.
+    //
+    // This used to skip any comment that crossed a line break, because a
+    // *plugin* may not replace one — CodeMirror checks `disallowBlockEffectsFor`,
+    // which is set for a decoration source that is a function (a ViewPlugin, or
+    // `decorations.compute`) and not for one that is a value. That guard is
+    // 504a3ec (9 Jul), when the comment hider *was* a plugin; prose mode became a
+    // StateField in ca61c21 (24 Jul) so that it could emit rendered tables, which
+    // are block widgets under the very same rule — and nobody came back for this
+    // line. It was hiding exactly the wrong case: a hidden line break is a
+    // multi-line comment *by construction*, so the one comment a writer wants
+    // invisible was the one left showing, greyed, in the mode whose whole promise
+    // is that it looks like the page.
     if (c.from < c.to) ranges.push({ from: c.from, to: c.to, deco: hide, side: -1 });
   }
 
@@ -744,6 +790,32 @@ function proseDecorations(state: EditorState): ProseValue {
     }
   }
 
+  // ---- deferred note bodies ----
+  // Two collections built up front: what each name's prose says (for the chip's
+  // hover text, which is the whole reason the chip is readable) and where each
+  // definition sits. The definitions are decorated *after* the main loop, because
+  // a definition's number is its marker's number and a definition is allowed to
+  // come first in the file.
+  const deferBodies = new Map<string, string>();
+  const deferDefs: { s: CmdSpan; name: string; bodyOpen: number; bodyClose: number }[] = [];
+  for (const s of allCmds) {
+    if (!DEFER_BODY_NAMES.has(s.name) || inComment(s.cmdStart)) continue;
+    // `#גוף_הערה("א")[…]` — the body follows the argument group. In the bracket
+    // form `#גוף_הערה[א][…]` the scanner captures only the first group, so the
+    // body is the group after it.
+    let bodyOpen: number | null = null;
+    if (s.argClose != null && text[s.argClose + 1] === "[") bodyOpen = s.argClose + 1;
+    else if (s.argOpen == null && s.close != null && text[s.close + 1] === "[") bodyOpen = s.close + 1;
+    if (bodyOpen == null) continue;
+    const bodyClose = matchInText(text, bodyOpen);
+    if (bodyClose == null) continue;
+    const name = deferNameOf(text, s);
+    if (!deferBodies.has(name)) deferBodies.set(name, text.slice(bodyOpen + 1, bodyClose));
+    deferDefs.push({ s, name, bodyOpen, bodyClose });
+  }
+  /** The chip a name's marker got, filled in as the main loop meets the markers. */
+  const deferLabels = new Map<string, string>();
+
   // One counter per apparatus, not one for the whole document.
   const fnCounts: Record<string, number> = {};
   for (const s of allCmds) {
@@ -764,6 +836,41 @@ function proseDecorations(state: EditorState): ProseValue {
       }
       continue;
     }
+
+    // a deferred marker -> the same chip an inline note gets, numbered in the
+    // same sequence, with the prose from the end of the file on hover
+    if (DEFER_REF_NAMES.has(s.name)) {
+      const to = s.argClose != null ? s.argClose + 1 : s.close != null ? s.close + 1 : null;
+      if (to != null) {
+        const name = deferNameOf(text, s);
+        const layout =
+          s.argOpen != null && s.argClose != null
+            ? deferArgs(text.slice(s.argOpen + 1, s.argClose)).kind
+            : null;
+        // `סוג` defaults to a plain footnote, so an unrecognised layout counts in
+        // the native series rather than starting a sequence of its own.
+        const k = (layout != null ? NOTE_KINDS[layout] : null) ?? NOTE_KINDS["הערה"];
+        const n = (fnCounts[k.family] = (fnCounts[k.family] ?? 0) + 1);
+        const label = noteLabel(k.scheme, n);
+        deferLabels.set(name, label);
+        if (!touchedAt(s.cmdStart, to)) {
+          const body = deferBodies.get(name);
+          ranges.push({
+            from: s.cmdStart,
+            to,
+            deco: Decoration.replace({
+              widget: new FootnoteWidget(
+                label,
+                body == null ? "?" : body.replace(/#[^[]*\[|[[\]]/g, " ").trim(),
+              ),
+            }),
+            side: 0,
+          });
+        }
+      }
+      continue;
+    }
+    if (DEFER_BODY_NAMES.has(s.name)) continue; // decorated below, once numbering is known
 
     // footnotes -> a numbered superscript chip (body hidden)
     const kind = NOTE_KINDS[s.name];
@@ -806,6 +913,27 @@ function proseDecorations(state: EditorState): ProseValue {
         side: 0,
       });
   }
+
+  // ---- the definitions region, as a numbered list ----
+  // `#גוף_הערה("1")[…]` becomes «¹ the prose», so the block at the end of the
+  // file reads the way it will print rather than as markup. The number is the one
+  // its marker got, which is why this runs after the loop: a definition may be
+  // written before its marker. A body nothing points at keeps a `?` — invisible
+  // would make it look filed when it is lost.
+  for (const d of deferDefs) {
+    if (insideFootnote(d.s.cmdStart) || insideTable(d.s.cmdStart)) continue;
+    if (touchedAt(d.s.cmdStart, d.bodyClose + 1)) continue;
+    ranges.push({
+      from: d.s.cmdStart,
+      to: d.bodyOpen + 1,
+      deco: Decoration.replace({
+        widget: new FootnoteWidget(deferLabels.get(d.name) ?? "?", d.name),
+      }),
+      side: -1,
+    });
+    ranges.push({ from: d.bodyClose, to: d.bodyClose + 1, deco: hide, side: 1 });
+  }
+
   ranges.sort((a, b) => a.from - b.from || a.side - b.side);
   const deco = Decoration.set(
     ranges.map((r) => r.deco.range(r.from, r.to)),

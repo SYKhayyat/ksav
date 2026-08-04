@@ -35,8 +35,7 @@
 //! So nikud is stripped before lookup, which means a *wrong vowel is invisible to
 //! this checker* — it can never validate nikud, and it does not pretend to.
 
-use super::{edit_distance, is_transposition, rank, Dict, Learn};
-use std::collections::HashSet;
+use super::{edit_distance, is_transposition, letter_mask, rank, ByLength, Dict, Learn};
 
 /// The bundled Torah lexicon, generated from Public Domain texts.
 const LEXICON: &str = include_str!("../../assets/lexicon-he.txt");
@@ -44,9 +43,14 @@ const LEXICON: &str = include_str!("../../assets/lexicon-he.txt");
 const SUPPLEMENT: &str = include_str!("../../assets/lexicon-he-supplement.txt");
 
 /// The Hebrew words the checker accepts.
+///
+/// Bucketed by character length, each entry carrying the letter mask that lets
+/// [`suggest_scored`](Lexicon::suggest_scored) dismiss it without allocating. One
+/// copy of each word, exactly as a plain set held it — the length is the index
+/// rather than something counted per lookup.
 #[derive(Debug, Clone, Default)]
 pub struct Lexicon {
-    words: HashSet<String>,
+    words: ByLength,
 }
 
 impl Lexicon {
@@ -72,7 +76,13 @@ impl Lexicon {
             if w.is_empty() || w.starts_with('#') {
                 continue;
             }
-            self.words.insert(normalize(w));
+            let word = normalize(w);
+            // The mask is of the *folded* form, because that is what a suggestion
+            // is scored against — ם and מ have to look like the same letter here
+            // for the same reason they do in the distance.
+            let folded: Vec<char> = word.chars().map(fold_final).collect();
+            self.words
+                .insert(&word, folded.len(), letter_mask(&folded));
         }
     }
 
@@ -81,12 +91,17 @@ impl Lexicon {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.words.is_empty()
+        self.words.len() == 0
+    }
+
+    /// Is this exact form in the lexicon, before any prefix morphology?
+    fn holds(&self, w: &str) -> bool {
+        self.words.contains(w, w.chars().count())
     }
 
     pub fn contains(&self, word: &str) -> bool {
         let w = normalize(word);
-        if self.words.contains(&w) {
+        if self.holds(&w) {
             return true;
         }
         // Hebrew glues its prepositions and conjunctions onto the front of the
@@ -109,7 +124,7 @@ impl Lexicon {
                 break;
             }
             let rest: String = chars[take..].iter().collect();
-            if self.words.contains(&rest) {
+            if self.words.contains(&rest, chars.len() - take) {
                 return true;
             }
         }
@@ -118,9 +133,11 @@ impl Lexicon {
 
     /// Words within one edit of `word`, best first — the "did you mean" list.
     ///
-    /// Deliberately small and simple: an exhaustive scan with an early length
-    /// filter. The lexicon is tens of thousands of entries, not millions, and a
-    /// writer asks for suggestions on one word at a time.
+    /// Still an exhaustive comparison against everything that could possibly
+    /// match; what changed is how much "everything" is. Only the three length
+    /// buckets around the typed word are looked at, and within them a letter-mask
+    /// test throws out the rest before any work is done. Same answers, in the
+    /// order this has always produced them.
     pub fn suggest(&self, word: &str, limit: usize) -> Vec<String> {
         let mut scored = self.suggest_scored(word);
         // Shortest edit first, then alphabetical so the order is stable rather
@@ -140,18 +157,21 @@ impl Lexicon {
         // suggestion differing only in ם/מ ranks as a near miss — which is
         // exactly the mistake a typist makes.
         let tc: Vec<char> = target.chars().map(fold_final).collect();
-        self.words
-            .iter()
-            .filter(|w| {
-                let n = w.chars().count();
-                n + 1 >= tc.len() && n <= tc.len() + 1
-            })
-            .filter_map(|w| {
-                let cand: Vec<char> = w.chars().map(fold_final).collect();
-                edit_distance(&tc, &cand, 1)
-                    .map(|d| (rank(d, is_transposition(&tc, &cand)), w.clone()))
-            })
-            .collect()
+        let tmask = letter_mask(&tc);
+        let mut fold = [' '; super::FOLD_BUF];
+        let mut out = Vec::new();
+        for (w, mask) in self.words.near(tc.len()) {
+            if (mask ^ tmask).count_ones() > 2 {
+                continue;
+            }
+            let Some(cand) = super::fold_into(&mut fold, w.chars().map(fold_final)) else {
+                continue; // longer than anything a suggestion could be one edit from
+            };
+            if let Some(d) = edit_distance(&tc, cand, 1) {
+                out.push((rank(d, is_transposition(&tc, cand)), w.to_string()));
+            }
+        }
+        out
     }
 }
 

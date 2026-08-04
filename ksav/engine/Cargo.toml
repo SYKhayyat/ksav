@@ -37,6 +37,12 @@ girsa-source = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-
 # commands this engine compiles (spec.md §10.3).
 girsa-ksav = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-ksav" }
 include_dir = { version = "0.7", optional = true }
+# Typst's own editor-support crate, for `src/jump.rs`. It is what turns a click
+# on the page into a place in the source and back, by walking the laid-out frames
+# for the span each glyph came from. Nothing else can answer that question: the
+# spans exist only inside a compiled document, and the alternative — guessing
+# from the scroll position — is what this replaced.
+typst-ide = "0.15"
 
 # The HTTP server (net + threads) is native-only; wasm builds skip it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -56,3 +62,15 @@ opt-level = 1        # typst is slow to run unoptimized; keep dev builds usable
 
 [profile.release]
 opt-level = 3
+# Typst layout is the whole cost of a compile, and it is spread across a dozen
+# crates calling each other in tight loops — exactly the shape link-time
+# optimisation exists for. Measured on a 48-page sefer, one edit recompiled:
+# 258ms without it, 175ms with. That is a third off every keystroke-driven
+# render, for a line of build configuration.
+#
+# `thin` and not `fat`: measured against each other they are the same speed here
+# (169-185ms against 188-210ms, inside the noise), and fat relinks every test
+# binary from scratch — it turned `cargo test --release` into a quarter of an
+# hour. A test suite nobody wants to run is a worse trade than the 5% that was
+# never there.
+lto = "thin"

@@ -22,6 +22,7 @@ import {
   outline,
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
+import { deferredNotes, jumpDeferred, deferHere, recallHere, deferAll } from "./deferred-lint";
 import { createBackend } from "./api";
 /** How often the editor asks Girsa's desk whether anything arrived. A second
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
@@ -76,11 +77,13 @@ import {
 import type { Settings, Layout, PreviewSide, PageSetup } from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, onSchedule } from "./compile";
+import { scheduleCompile, runCompile, onSchedule, bodyOnScreen } from "./compile";
 import * as commands from "./commands";
-import { applyPreview } from "./preview";
+import { applyPreview, drawCurrentInto, pageBox } from "./preview";
+import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
+import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
-import { onGoToLine, onMarkLines } from "./diagview";
+import { lineInDocument, onGoToLine, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
@@ -314,6 +317,7 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "footnote", run: () => (insertSnippet("#הערה[|]"), true) },
   { id: "region", run: () => (insertRegion(), true) },
   { id: "comment", run: () => (commentOut(), true) },
+  { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
   { id: "h1", run: () => (insertSnippet("#כותרת1[|]"), true) },
@@ -344,6 +348,17 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
       return true;
     },
   },
+  // Deferred note bodies. `deferJump` is the one that gets used: it is org-mode's
+  // C-c C-c — marker to prose, prose to marker, and it writes the prose when
+  // there is none rather than complaining that there is none.
+  // Forward search: where did what I am typing print? The pair to clicking the
+  // preview, which needs no key because it has a mouse.
+  { id: "revealCursor", run: () => (void revealCursor(), true) },
+  // The manual override for when the automatic isolation does not reach.
+  { id: "isolate", run: (v) => toggleIsolateSelection(v) },
+  { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
+  { id: "deferHere", run: (v) => (deferHere(v), true) },
+  { id: "deferRecall", run: (v) => (recallHere(v), true) },
 ];
 /**
  * The bindings, and the aliases, now live in `bindings.ts` (B31, B36).
@@ -558,6 +573,57 @@ function autoExtension() {
     : autocompletion({ override: [ksavCompletions], icons: false });
 }
 
+/**
+ * What goes in the prose compartment: the "looks like Word" view, or the raw
+ * view's own extras.
+ *
+ * One compartment holds both because they must never both be installed. Prose
+ * mode hides command syntax with replace decorations and the bidi-mark chips
+ * replace single characters; a control character inside hidden syntax would be
+ * replaced twice, which CodeMirror does not merely draw oddly — it rejects the
+ * whole decoration set and the editor goes blank. Putting them in one slot makes
+ * that impossible instead of forbidden.
+ */
+function proseOrRaw() {
+  return settings.prose ? proseMode : visibleBidiMarks(bidiMarkName);
+}
+
+/** What to call a bidi control character, in the interface's language. */
+function bidiMarkName(code: number): string {
+  const mark = BIDI_MARKS[code];
+  if (!mark) return "";
+  return `${mark.tag} — ${getLang() === "en" ? mark.en : mark.he}`;
+}
+
+/**
+ * Wrap the selection in a directional isolate, or take one off.
+ *
+ * The escape hatch for when the automatic isolation in `bidi.ts` does not cover
+ * a case — an inline raw run, a citation with brackets in it — which is a real
+ * category rather than a hypothetical one, and until now had no answer but
+ * pasting an invisible character in from somewhere else.
+ *
+ * With nothing selected there is nothing to isolate, and saying so is better
+ * than dropping an empty pair into the document where it will never be found.
+ */
+function toggleIsolateSelection(v: EditorView): boolean {
+  const range = v.state.selection.main;
+  if (range.empty) {
+    setStatus(t("isolateNeedsSelection"), "warn");
+    return true;
+  }
+  const text = v.state.sliceDoc(range.from, range.to);
+  const next = toggleIsolate(text);
+  v.dispatch({
+    changes: { from: range.from, to: range.to, insert: next },
+    // Keep the writer's own text selected, not the marks around it — the
+    // selection is what they chose, and a second press must undo the first.
+    selection: { anchor: range.from, head: range.from + next.length },
+  });
+  setStatus(next.length < text.length ? t("isolateRemoved") : t("isolateAdded"), "ok");
+  return true;
+}
+
 function makeEditor(): EditorView {
   return new EditorView({
     doc: runtime.currentDoc.body,
@@ -587,9 +653,14 @@ function makeEditor(): EditorView {
       ksavHighlighter,
       ksavFold,
       bracketLint,
+      deferredNotes,
       revealAll,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
-      proseCompartment.of(settings.prose ? proseMode : []),
+      // The document's direction above is the *fallback*; every line that has a
+      // letter in it answers for itself, and the syntax is held apart from the
+      // prose so a command stops migrating through the sentence it is in.
+      bidiSupport(() => (docConfig().dir === "ltr" ? "ltr" : "rtl")),
+      proseCompartment.of(proseOrRaw()),
       themeCompartment.of(editorTheme(settings.theme === "dark")),
       spell.misspellings,
       spell.spellDecorations,
@@ -651,7 +722,7 @@ export function countableText(src: string): string {
     .replace(/[[\]]/g, " ") // the brackets around command bodies
     .replace(/^\s*=+\s/gm, " "); // heading markers
 }
-function updateCounts() {
+function countNow() {
   const el = document.getElementById("wordcount");
   if (!el || !runtime.view) return;
   const text = countableText(runtime.view.state.doc.toString());
@@ -660,10 +731,28 @@ function updateCounts() {
   el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
 }
 
+/**
+ * The count, on a short beat rather than on every keystroke.
+ *
+ * `countableText` runs the whole document through five regular expressions, and
+ * this was called synchronously from the update listener: 1.9 ms per keystroke on
+ * a 64 KB document, 6.4 ms on a 192 KB one, inside a frame budget of 16 ms that
+ * prose mode and CodeMirror are also spending from. Nobody reads a word count at
+ * sixty frames a second; a fifth of a second late it is still the same number,
+ * and the keystroke it is late for is the one being typed.
+ */
+let countTimer: number | undefined;
+const COUNT_DEBOUNCE_MS = 200;
+function updateCounts() {
+  clearTimeout(countTimer);
+  countTimer = window.setTimeout(countNow, COUNT_DEBOUNCE_MS);
+}
+
 
 // Sync scrolling: scrolling the editor drives the preview and vice-versa
-// (percentage-based). Clicking the preview jumps the editor cursor to the
-// matching spot (best-effort by line fraction). Two-panel mode only.
+// (percentage-based, which is all a scrollbar can honestly be). Clicking the
+// preview puts the cursor on the word that was clicked — exactly, by asking the
+// compiler, not by proportion. Two-panel mode only.
 function wireSyncScroll() {
   const preview = document.getElementById("preview")!;
   const scroller = runtime.view.scrollDOM;
@@ -679,19 +768,98 @@ function wireSyncScroll() {
   preview.addEventListener("scroll", () => apply(preview, scroller));
   preview.addEventListener("click", (e) => {
     if (settings.layout !== "two") return;
-    // Don't hijack a text selection: click-to-jump was firing on every click, so
-    // selecting text in the preview (to copy a rendered line) was impossible — the
-    // caret jumped away the instant the mouse went up. A plain click leaves the
-    // selection collapsed and still jumps; a drag-select leaves text selected, and
-    // is left alone.
-    const sel = window.getSelection();
-    if (sel && !sel.isCollapsed) return;
-    const rect = preview.getBoundingClientRect();
-    const f = (preview.scrollTop + (e.clientY - rect.top)) / Math.max(1, preview.scrollHeight);
-    const line = Math.min(runtime.view.state.doc.lines, Math.max(1, Math.round(f * runtime.view.state.doc.lines)));
-    runtime.view.dispatch({ selection: { anchor: runtime.view.state.doc.line(line).from }, scrollIntoView: true });
-    runtime.view.focus();
+    // A drag that ended here is a selection, not a click: the reader is copying a
+    // rendered line, and moving the caret would take the selection with it.
+    if (!isPlainClick(window.getSelection())) return;
+    void jumpFromClick(e);
   });
+}
+
+/**
+ * Put the cursor on whatever was clicked in the preview.
+ *
+ * Nothing happens when there is no answer, and there are several honest ways to
+ * have none: the click was on a margin, on a running head, on a note-band rule,
+ * or the document does not currently compile. All of them mean "the writer did
+ * not type this", and in a document whose whole apparatus is generated they are
+ * common rather than exotic — so a miss says nothing rather than putting up a
+ * message about every click on white space.
+ */
+async function jumpFromClick(e: MouseEvent) {
+  const found = pageUnder(e.target);
+  if (!found || !runtime.backend) return;
+  const svg = runtime.lastResult?.pages_svg?.[found.index];
+  const box = pageBox(svg);
+  if (!box) return;
+  const at = pointInPage(found.index, found.node.getBoundingClientRect(), box, e.clientX, e.clientY);
+  if (!at) return;
+
+  const { body, offset } = bodyOnScreen();
+  const spot = await runtime.backend.jump(body, docConfig(), at, docs.requestAssets(runtime.currentDoc?.assets ?? []));
+  // The engine counts lines in the body it was sent, which carries the preamble
+  // this client put in front. Same subtraction as a diagnostic's, same function.
+  const line = lineInDocument(spot?.line ?? null, offset);
+  if (line == null || line > runtime.view.state.doc.lines) return;
+  const at_ = runtime.view.state.doc.line(line);
+  // The column is counted in characters and CodeMirror counts in UTF-16 units,
+  // which differ for anything outside the BMP. Walking the line's own text keeps
+  // the two in step without either side having to know about the other.
+  const col = Math.max(0, (spot?.column ?? 1) - 1);
+  const chars = [...at_.text].slice(0, col).join("").length;
+  runtime.view.dispatch({
+    selection: { anchor: Math.min(at_.from + chars, at_.to) },
+    scrollIntoView: true,
+  });
+  runtime.view.focus();
+}
+
+/**
+ * The other direction: show where the cursor's text printed.
+ *
+ * A command rather than something that follows the caret, and the reason is
+ * cost: answering means laying the whole document out, the same work a compile
+ * does. Running that on every cursor movement would turn arrow keys into
+ * compiles. Asked for, once, it is worth the wait — and this is the direction
+ * that has no substitute, because a reader can at least *find* a word in the
+ * source by eye, and cannot find a coordinate on a page at all.
+ */
+async function revealCursor(): Promise<boolean> {
+  if (!runtime.backend) return true;
+  const pages = runtime.lastResult?.pages_svg;
+  if (!pages?.length) {
+    setStatus(t("revealNoPages"), "warn");
+    return true;
+  }
+  const { body, offset } = bodyOnScreen();
+  const head = runtime.view.state.selection.main.head;
+  const line = runtime.view.state.doc.lineAt(head);
+  setStatus(t("revealWorking"));
+  const points = await runtime.backend.reveal(
+    body,
+    docConfig(),
+    // Back the other way through the same offset: the engine wants a line in the
+    // body it is being sent, and this is a line in the writer's document.
+    { line: line.number + offset, column: [...line.text.slice(0, head - line.from)].length + 1 },
+    docs.requestAssets(runtime.currentDoc?.assets ?? []),
+  );
+  const at = points[0];
+  const box = at ? pageBox(pages[at.page]) : null;
+  if (!at || !box) {
+    // Genuinely nothing to show: the cursor is in a comment, in a command's
+    // arguments, or on text the layout dropped. Saying so beats a silent no-op,
+    // because the writer pressed a key and is owed an answer.
+    setStatus(t("revealNowhere"), "warn");
+    return true;
+  }
+  const node = document.querySelector<HTMLElement>(`#preview .page[data-page="${at.page}"]`);
+  if (!node) return true;
+  node.scrollIntoView({ block: "center", behavior: "smooth" });
+  drawMark(node, at, box);
+  setStatus(
+    points.length > 1 ? tf("revealFoundMany", points.length) : tf("revealFound", at.page + 1),
+    "ok",
+  );
+  return true;
 }
 
 // ------------------------------------------------------------------- cite on selection
@@ -936,6 +1104,42 @@ function commentOut() {
   scheduleCompile();
 }
 
+/**
+ * A line break in the source that prints nothing.
+ *
+ * Typst turns a newline into a **space** and a blank line into a **paragraph
+ * break**, so the writer who breaks a long line for the sake of reading the
+ * source pays for it on the page. The escape exists — whitespace *inside* a
+ * block comment is consumed, so a comment opened at the end of one line and
+ * closed at the start of the next glues the two together with nothing between
+ * them — but it is Typst's, not Ksav's, and it appears in no menu, no palette
+ * and no document. A feature nobody can find is not a feature.
+ *
+ * A `//` comment will not do this: it ends *at* the newline, so the newline is
+ * still outside it and still prints a space. Only the block form spans the break.
+ *
+ * The other whitespace needs no escape at all — runs of spaces, tabs and leading
+ * indentation already collapse to one space before they reach the page. The line
+ * break is the only one that misbehaves, which is why this is one action and not
+ * a family of them.
+ *
+ * With a selection this *is* [`commentOut`] — "make this not print" is one idea,
+ * and two implementations of it would eventually disagree about the padding.
+ */
+function hiddenBreak() {
+  const sel = runtime.view.state.selection.main;
+  if (!sel.empty) return commentOut();
+  const text = "/*\n*/";
+  runtime.view.dispatch({
+    changes: { from: sel.from, insert: text },
+    // After the closer, on the new line: the caret is where the writing
+    // continues, and what is typed there joins the word before the break.
+    selection: { anchor: sel.from + text.length },
+  });
+  runtime.view.focus();
+  scheduleCompile();
+}
+
 function applySkin(name: string) {
   applyPreset(name, setPageSetup);
   closeMenus();
@@ -1085,6 +1289,10 @@ function buildInsertMenu(): HTMLElement {
     el("button", { class: "menu-item", onClick: openSectionSetup }, [
       el("b", {}, ["▭ " + t("sectionSetup")]),
       el("span", { class: "menu-desc" }, [t("sectionSetupLede")]),
+    ]),
+    el("button", { class: "menu-item", onClick: () => (closeMenus(), hiddenBreak()) }, [
+      el("b", {}, ["⏎ " + t("hiddenBreak")]),
+      el("span", { class: "menu-desc" }, [t("hiddenBreakLede")]),
     ]),
     el("div", { class: "menu-sep" }),
   ];
@@ -2658,9 +2866,24 @@ function closeNotesChooser() {
   runtime.view.focus();
 }
 
+/**
+ * Where the note's prose goes in the *file* — which is a separate question from
+ * where it prints, and the one the chooser could not previously ask.
+ *
+ * Sticky across notes in a session: a writer who has decided their notes live at
+ * the end has decided it for the document, not for one footnote.
+ */
+let deferBodies = false;
+
 function chooseNote(choice: NoteChoice, which: "primary" | "secondary") {
   const from = runtime.view.state.selection.main.from;
-  const { text, caret } = applyChoice(runtime.view.state.doc.toString(), from, choice, which);
+  const { text, caret } = applyChoice(
+    runtime.view.state.doc.toString(),
+    from,
+    choice,
+    which,
+    deferBodies,
+  );
   runtime.view.dispatch({
     changes: { from: 0, to: runtime.view.state.doc.length, insert: text },
     selection: { anchor: caret },
@@ -2696,6 +2919,48 @@ function noteCard(c: NoteChoice): HTMLElement {
   ]);
 }
 
+/**
+ * The second question the chooser asks: where does the *text* of the note get
+ * written?
+ *
+ * Deliberately not a twelfth card. It is orthogonal to all eleven — the page
+ * comes out identical either way — and folding it into the grid would suggest
+ * a writer has to give up a layout to get a readable source.
+ */
+function bodyPlacementRow(): HTMLElement {
+  const option = (on: boolean, label: string, desc: string) =>
+    el(
+      "button",
+      {
+        class: `defer-option${deferBodies === on ? " on" : ""}`,
+        onClick: () => {
+          deferBodies = on;
+          renderNotesChooser();
+        },
+      },
+      [el("b", {}, [label]), el("span", {}, [desc])],
+    );
+  return el("div", { class: "defer-row" }, [
+    el("h3", {}, [t("deferBodiesTitle")]),
+    el("div", { class: "defer-options" }, [
+      option(false, t("deferInlineLabel"), t("deferInlineDesc")),
+      option(true, t("deferEndLabel"), t("deferEndDesc")),
+    ]),
+    el(
+      "button",
+      {
+        class: "defer-all",
+        onClick: () => {
+          closeNotesChooser();
+          deferAll(runtime.view);
+          scheduleCompile();
+        },
+      },
+      [t("deferAllAction")],
+    ),
+  ]);
+}
+
 function renderNotesChooser() {
   const box = document.getElementById("notes-chooser-body")!;
   box.replaceChildren(
@@ -2705,6 +2970,7 @@ function renderNotesChooser() {
     el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "one").map(noteCard)),
     el("h3", {}, [t("notesTwoLayers")]),
     el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "two").map(noteCard)),
+    bodyPlacementRow(),
   );
 }
 
@@ -2873,7 +3139,7 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
     applyTheme();
     runtime.view.dispatch({ effects: themeCompartment.reconfigure(editorTheme(settings.theme === "dark")) });
   } else if (key === "prose") {
-    runtime.view.dispatch({ effects: proseCompartment.reconfigure(settings.prose ? proseMode : []) });
+    runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw()) });
     rerenderChrome();
   } else if (key === "layout") {
     applyLayout();
@@ -2977,7 +3243,12 @@ function cycleLayout() {
 
 function openPreviewOverlay() {
   const body = document.getElementById("preview-modal-body")!;
-  body.innerHTML = document.getElementById("preview")!.innerHTML;
+  // Drawn from the pages themselves, not copied out of the other pane. It used
+  // to be `body.innerHTML = preview.innerHTML`, which serialises ten megabytes
+  // of SVG the browser has already parsed and then parses all of it again — and
+  // it would now copy the *windowing* too, so every page the reader had not
+  // scrolled past would arrive in the full-screen view as an empty box.
+  drawCurrentInto(body);
   document.getElementById("preview-modal")!.classList.add("open");
   // The modal is a second pane over the same pages, so it needs the same
   // direction and the same page width. One call, both panes.

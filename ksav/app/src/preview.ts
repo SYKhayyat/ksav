@@ -77,26 +77,52 @@ export function previewGeometry(o: GeometryInput): Geometry {
   const pad = o.padding ?? PREVIEW_PAD;
   const inner = Math.max(0, o.paneWidth - pad * 2);
 
-  let pageWidthCss: string;
-  let pageWidth: number;
-  if (o.fitWidth) {
-    // `100%` rather than a pixel count, so dragging the splitter reflows without
-    // anything having to notice.
-    const cap = pagePx * MAX_FIT;
-    pageWidthCss = `min(100%, ${cap}px)`;
-    pageWidth = Math.min(inner, cap);
-  } else {
-    pageWidthCss = `calc(${pagePx}px * ${o.zoom})`;
-    pageWidth = pagePx * o.zoom;
-  }
+  const { pageWidthCss, direction } = previewStyle(o);
+  const pageWidth = o.fitWidth ? Math.min(inner, pagePx * MAX_FIT) : pagePx * o.zoom;
 
   const contentWidth = pageWidth + pad * 2;
   return {
     pageWidthCss,
     pageWidth,
     contentWidth,
-    direction: o.dir,
+    direction,
     overflows: contentWidth > o.paneWidth + 0.5,
+  };
+}
+
+/**
+ * The two things the pane is actually *given* — and the fact that neither of
+ * them depends on how wide the pane currently is.
+ *
+ * That fact is the whole reason this function exists separately. `applyPreview`
+ * used to build a full [`Geometry`], which meant reading `pane.clientWidth`
+ * straight after the pages had been written — and reading a layout property
+ * after a mutation forces the browser to lay the whole subtree out then and
+ * there, synchronously, before it will answer. On a 48-page document that is
+ * 82,525 nodes of SVG and the answer took **7690 ms**, on the main thread, on
+ * every pause in typing. It was the single most expensive thing in the pipeline,
+ * larger than the compile and larger than drawing the pages, and every one of
+ * those milliseconds bought a number that was then thrown away: `pageWidthCss` is
+ * `min(100%, …)` or `calc(820px * zoom)`, and `direction` is the document's.
+ *
+ * `previewGeometry` still computes the measured half, because the *tests* want
+ * it — whether a line's beginning is on screen at a given pane width is a real
+ * question. It is just not a question the DOM has to be interrupted to answer.
+ */
+export function previewStyle(o: {
+  dir: "rtl" | "ltr";
+  fitWidth: boolean;
+  zoom: number;
+  pagePx?: number;
+}): { pageWidthCss: string; direction: "rtl" | "ltr" } {
+  const pagePx = o.pagePx ?? PAGE_PX;
+  return {
+    // `100%` rather than a pixel count, so dragging the splitter reflows without
+    // anything having to notice — which is also why no measurement is needed.
+    pageWidthCss: o.fitWidth
+      ? `min(100%, ${pagePx * MAX_FIT}px)`
+      : `calc(${pagePx}px * ${o.zoom})`,
+    direction: o.dir,
   };
 }
 
@@ -139,6 +165,184 @@ export function lineStartVisible(
   return docDir === "rtl" ? w.to >= g.contentWidth - 0.5 : w.from <= 0.5;
 }
 
+// ------------------------------------------------------------------ the pages
+//
+// Two separate savings live here, and they close two different measurements.
+//
+// **Only redraw what changed.** `preview.innerHTML = every page` was the single
+// most expensive thing the editor did: **1227 ms** on a 48-page document, on
+// every pause in typing, to deliver 40 KB of change out of a 9.7 MB redraw. The
+// engine names every page it renders, so this compares names instead of ten
+// megabytes of markup.
+//
+// **Only keep on screen what is on screen.** Even with one page rewritten, a
+// 48-page document is ~82,500 SVG nodes in one scroller, and the browser spent
+// **1.3–2.7 s** per compile laying out and rasterising all of it — with only
+// ~60 ms of that being script, which is why it was invisible to every profile
+// that looked at JavaScript. So a page that is nowhere near the viewport holds
+// no SVG at all: just an empty box of exactly the right size, filled the moment
+// it comes near and emptied again when it leaves.
+//
+// The size is the part that has to be right. Each box is given the page's own
+// aspect ratio, taken from the SVG it would hold, so an empty page occupies
+// precisely the height a full one would. Nothing moves under the reader when a
+// page fills in, and the scrollbar means the same thing at every moment.
+
+/** How far outside the pane a page is still kept drawn: one and a half panes of
+ *  scrolling in each direction, so ordinary scrolling never outruns it. */
+const KEEP_MARGIN = "150% 0px";
+
+interface Windowed {
+  pages: string[];
+  hashes: string[];
+  /** The page boxes, in order — the nodes this pane is known to own. */
+  nodes: HTMLElement[];
+  /** What each node is currently showing — the empty string for an empty box. */
+  showing: string[];
+  observer: IntersectionObserver | null;
+}
+
+const windows = new WeakMap<Element, Windowed>();
+
+/** The pages of the open document, so a second pane can draw the same ones. */
+let current: { pages: string[]; hashes: string[] } | null = null;
+
+/**
+ * A rendered page's own dimensions, read from the SVG's header.
+ *
+ * Typst writes `viewBox="0 0 595.28 841.89"` at the front of every page, so this
+ * only ever looks at the first line and never parses the megabyte behind it.
+ *
+ * The unit is Typst points, which is also the unit `jump.ts` speaks in both
+ * directions. That is the whole reason this returns the numbers rather than only
+ * their ratio: the ratio sizes an empty box, but converting a click into a place
+ * on the page needs the page's actual size, and reading the header twice in two
+ * modules is how the two would come to disagree.
+ */
+export function pageBox(svg: string | undefined | null): { width: number; height: number } | null {
+  const m = svg ? /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg.slice(0, 400)) : null;
+  const width = m ? Number(m[1]) : 0;
+  const height = m ? Number(m[2]) : 0;
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * The width-to-height ratio of a rendered page.
+ *
+ * A page whose header cannot be read gets A4, which is the paper it almost
+ * certainly is and in any case only affects a box nobody has scrolled to yet.
+ */
+export function pageAspect(svg: string): number {
+  const box = pageBox(svg);
+  return box ? box.width / box.height : 210 / 297;
+}
+
+function fill(w: Windowed, node: HTMLElement, i: number) {
+  if (w.showing[i] === w.hashes[i]) return;
+  node.innerHTML = w.pages[i];
+  w.showing[i] = w.hashes[i];
+}
+
+function empty(w: Windowed, node: HTMLElement, i: number) {
+  if (!w.showing[i]) return;
+  node.replaceChildren();
+  w.showing[i] = "";
+}
+
+/**
+ * Draw `pages` into `host`, keeping only what is near the viewport.
+ *
+ * `hashes` names each page. Without them — an older engine, or any caller with
+ * no names to give — everything is drawn at once, which is what this always did.
+ */
+export function drawPages(host: HTMLElement, pages: string[], hashes?: string[]) {
+  current = hashes && hashes.length === pages.length ? { pages, hashes } : null;
+  render(host, pages, hashes);
+}
+
+/** Draw the open document's pages into another pane — the full-screen preview. */
+export function drawCurrentInto(host: HTMLElement) {
+  if (current) render(host, current.pages, current.hashes);
+}
+
+function render(host: HTMLElement, pages: string[], hashes?: string[]) {
+  // No names, or no observer to tell us what is on screen (a very old webview):
+  // draw the lot, exactly as this did before either mechanism existed.
+  if (!hashes || hashes.length !== pages.length || typeof IntersectionObserver === "undefined") {
+    host.innerHTML = pages.map((s) => `<div class="page">${s}</div>`).join("");
+    windows.delete(host);
+    return;
+  }
+
+  let w = windows.get(host);
+  if (!w) {
+    w = { pages, hashes, nodes: [], showing: [], observer: null };
+    w.observer = new IntersectionObserver(
+      (entries) => {
+        const state = windows.get(host);
+        if (!state) return;
+        for (const e of entries) {
+          const node = e.target as HTMLElement;
+          const i = Number(node.dataset.page);
+          // A node this pane no longer owns — removed, or left over from a pane
+          // something else rebuilt. Reporting it would write the page into a
+          // node nobody can see and, worse, mark the page as drawn.
+          if (!(i >= 0) || state.nodes[i] !== node) continue;
+          if (e.isIntersecting) fill(state, node, i);
+          else empty(state, node, i);
+        }
+      },
+      { root: host, rootMargin: KEEP_MARGIN },
+    );
+    windows.set(host, w);
+  }
+
+  // Is this still the pane we left? Everything below is bookkeeping about
+  // particular nodes, and all of it is worthless if something else has replaced
+  // them — the blind full-redraw path does exactly that, and so would any future
+  // caller that clears the pane. Believing stale bookkeeping shows the reader a
+  // row of empty boxes, so the check is by identity and the answer is to start
+  // again rather than to guess which half is still true.
+  if (w.nodes.length !== host.children.length || w.nodes.some((n, i) => n !== host.children[i])) {
+    w.observer?.disconnect();
+    host.replaceChildren();
+    w.nodes = [];
+    w.showing = [];
+  }
+  w.pages = pages;
+  w.hashes = hashes;
+
+  // Pages the document no longer has, first, so index `i` means the same page
+  // everywhere below.
+  while (w.nodes.length > pages.length) {
+    const last = w.nodes.pop();
+    w.showing.pop();
+    if (last) {
+      w.observer?.unobserve(last);
+      last.remove();
+    }
+  }
+  while (w.nodes.length < pages.length) {
+    const i = w.nodes.length;
+    host.insertAdjacentHTML("beforeend", '<div class="page"></div>');
+    const node = host.lastElementChild as HTMLElement;
+    node.dataset.page = String(i);
+    w.nodes.push(node);
+    w.showing[i] = "";
+    w.observer?.observe(node);
+  }
+
+  for (let i = 0; i < pages.length; i++) {
+    const node = w.nodes[i];
+    // The empty box has to be exactly as tall as the full one, or filling it in
+    // shoves everything below it down under the reader's eyes.
+    node.style.aspectRatio = String(pageAspect(pages[i]));
+    // A page already on screen is refreshed here rather than left to the
+    // observer, which would not fire for a node that never moved.
+    if (w.showing[i]) fill(w, node, i);
+  }
+}
+
 /**
  * Push the geometry at the DOM.
  *
@@ -149,12 +353,15 @@ export function applyPreview() {
   // The open document's direction (B26), not the application's.
   const dir: "rtl" | "ltr" = docConfig().dir === "ltr" ? "ltr" : "rtl";
   const fitWidth = settings.fitWidth !== false;
+  // Computed once and read from nothing: see `previewStyle`. This runs straight
+  // after the pages are written, so a single layout read here would force the
+  // whole preview to be laid out before it could answer.
+  const s = previewStyle({ dir, fitWidth, zoom: settings.zoom });
   const panes = [document.getElementById("preview"), document.getElementById("preview-modal-body")];
   for (const pane of panes) {
     if (!pane) continue;
-    const g = previewGeometry({ paneWidth: pane.clientWidth, dir, fitWidth, zoom: settings.zoom });
-    pane.style.direction = g.direction;
+    pane.style.direction = s.direction;
     pane.dataset.fit = fitWidth ? "width" : "zoom";
-    pane.style.setProperty("--page-width", g.pageWidthCss);
+    pane.style.setProperty("--page-width", s.pageWidthCss);
   }
 }

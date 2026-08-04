@@ -13,7 +13,7 @@
 // copy to forget about.
 
 import { build } from "esbuild";
-import { rm, mkdtemp } from "node:fs/promises";
+import { readFile, rm, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
@@ -36,6 +36,22 @@ const { DEFAULT_KEYS, KEY_ALIASES, readable } = await import(
   pathToFileURL(path.join(OUT, "bindings.mjs")).href
 );
 const i18n = await import(pathToFileURL(path.join(OUT, "i18n.mjs")).href);
+
+/**
+ * How many commands the registry holds.
+ *
+ * Counted, not typed. The card said "104 of them" for as long as there were 104,
+ * and then for a while after there weren't — which is the exact failure this
+ * generator exists to prevent, reproduced one paragraph below the table that
+ * prevents it.
+ */
+async function commandCount() {
+  const src = await readFile(
+    path.resolve(APP, "..", "engine", "src", "commands.rs"),
+    "utf8",
+  );
+  return (src.match(/^\s*cmd!\(/gmu) ?? []).length;
+}
 
 /** A label in one language, or the action's id if nobody named it. */
 function label(id, lang) {
@@ -82,7 +98,7 @@ lines.push("prose again — the markup is one key away, which is the right dista
 lines.push("people who want it. The `＃` button in the header switches permanently.");
 lines.push("");
 lines.push("**`#`** in the editor offers every command, in both languages, with what each");
-lines.push("one does. There are 104 of them and none is worth memorising.");
+lines.push(`one does. There are ${await commandCount()} of them and none is worth memorising.`);
 lines.push("");
 lines.push("**Nikud** has its own keymap while you are typing pointed Hebrew. It is not in");
 lines.push("this table because it is not one binding — it is a layer, and it is documented");

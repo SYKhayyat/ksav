@@ -17,7 +17,14 @@
 import initWasm, * as engine from "./wasmpkg/ksav_wasm.js";
 import wasmUrl from "./wasmpkg/ksav_wasm_bg.wasm?url";
 
-export type WorkerCall = "compile" | "spell" | "suggest" | "commands" | "templates";
+export type WorkerCall =
+  | "compile"
+  | "jump"
+  | "reveal"
+  | "spell"
+  | "suggest"
+  | "commands"
+  | "templates";
 
 export interface WorkerRequest {
   id: number;
@@ -31,6 +38,8 @@ export type WorkerResponse =
 
 const FNS: Record<WorkerCall, (input: string) => string> = {
   compile: (i) => engine.ksav_compile(i),
+  jump: (i) => engine.ksav_jump(i),
+  reveal: (i) => engine.ksav_reveal(i),
   spell: (i) => engine.ksav_spell(i),
   suggest: (i) => engine.ksav_suggest(i),
   commands: () => engine.ksav_commands(),

@@ -12,7 +12,7 @@ import { troubleSaid } from "./diagnostics";
 import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import { t, tf } from "./i18n";
-import { applyPreview } from "./preview";
+import { applyPreview, drawPages } from "./preview";
 import { docConfig } from "./settings";
 import * as runtime from "./runtime";
 import type { CompileResult } from "./api";
@@ -67,6 +67,25 @@ function withPreamble(body: string): { body: string; offset: number } {
   return { body: pre + body, offset: preambleLines(text) };
 }
 
+/**
+ * The exact text the pages on screen were rendered from, and its line offset.
+ *
+ * Both directions of jump (`jump.ts`) ask about a *layout*, so they have to ask
+ * about the same text the layout came from — including the speculative heal.
+ * A document mid-`#הערה[` is compiled healed and shown healed; asking where a
+ * click landed in the unhealed text would be asking about a page that was never
+ * drawn, and on a document with an unbalanced bracket that is every page.
+ *
+ * Healing never inserts or removes a newline, which is what lets the offset be a
+ * line count at all — the same invariant `diagview` rests on, and the same test
+ * holds it.
+ */
+export function bodyOnScreen(): { body: string; offset: number } {
+  const doc = runtime.docText();
+  const { problems, healed } = analyze(doc);
+  return withPreamble(problems.length ? healed : doc);
+}
+
 export async function runCompile() {
   const backend = runtime.backend;
   if (!backend) return; // still initializing (createBackend not resolved yet)
@@ -99,7 +118,7 @@ export async function runCompile() {
     const ms = Math.round(performance.now() - t0);
     const preview = document.getElementById("preview")!;
     if (res.pages_svg.length) {
-      preview.innerHTML = res.pages_svg.map((s) => `<div class="page">${s}</div>`).join("");
+      drawPages(preview, res.pages_svg, res.pages_hash);
       applyPreview();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");
@@ -135,10 +154,12 @@ export async function runCompile() {
 
 /**
  * A compile that is allowed to be slow, for the things that need real output:
- * the PDF, and exports.
+ * the PDF, the assembled Typst source, and exports.
  *
  * The preview asks for SVG only. Regenerating the PDF on every keystroke cost
- * roughly 300 KB of base64 per response that nothing on screen ever read.
+ * roughly 300 KB of base64 per response that nothing on screen ever read, and
+ * the assembled source — the 75 KB prelude plus the document — cost more than
+ * the page did. Both are asked for here, where they are actually wanted.
  */
 export async function compileForExport(): Promise<CompileResult | null> {
   const backend = runtime.backend;
@@ -147,6 +168,7 @@ export async function compileForExport(): Promise<CompileResult | null> {
     return await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
       want_pdf: true,
+      want_source: true,
     });
   } catch (e) {
     const bad = troubleSaid(e, "compile");

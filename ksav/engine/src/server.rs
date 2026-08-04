@@ -187,6 +187,31 @@ fn compile_with_deadline(body: &str) -> String {
     })
 }
 
+/// A jump costs a full layout, so it goes through the same door.
+///
+/// Both directions between the source and the page have to lay the document out
+/// to answer at all — that is what makes the answer exact instead of a guess —
+/// which means a document that takes eleven seconds to compile takes eleven
+/// seconds to click on. Letting these bypass the cap would mean a writer
+/// clicking repeatedly on a slow document could pile up unbounded layouts that
+/// the compile path is carefully arranged to prevent.
+///
+/// A refusal or a timeout comes back as `error_json`, which carries no `line`
+/// and no `points`, so the client reads it as "no answer" and leaves the cursor
+/// alone. That is the right behaviour for a busy server and also for a click on
+/// a page margin, which keeps the client from having to tell them apart.
+fn jump_with_deadline(body: &str) -> String {
+    run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
+        crate::jump::jump_request(&b)
+    })
+}
+
+fn reveal_with_deadline(body: &str) -> String {
+    run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
+        crate::jump::reveal_request(&b)
+    })
+}
+
 /// The deadline-and-cap machinery, with the actual work passed in.
 ///
 /// Taking the work as a closure keeps this testable without leaning on how long
@@ -257,6 +282,18 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
         (Method::Post, "/compile") => {
             let cors = cors_header(&request, addr_str);
             let json = post(&mut request, compile_with_deadline);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
+        // Inverse search: a click on the page, as a place in the source.
+        (Method::Post, "/jump") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, jump_with_deadline);
+            let _ = request.respond(with_cors(json_response(json), cors));
+        }
+        // Forward search: the cursor, as a place on the page.
+        (Method::Post, "/reveal") => {
+            let cors = cors_header(&request, addr_str);
+            let json = post(&mut request, reveal_with_deadline);
             let _ = request.respond(with_cors(json_response(json), cors));
         }
         (Method::Post, "/spell") => {

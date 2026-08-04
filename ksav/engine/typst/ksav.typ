@@ -44,6 +44,7 @@
   heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
   // notes and streams
   stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
+  kind: "סוג", name: "שם",
   // spacing, in the several senses the prelude distinguishes
   spacing: "ריווח", inset: "מרווח", item_spacing: "ריווח_פריט",
   space_between: "ריווח_בין", space_before: "ריווח_לפני",
@@ -73,7 +74,9 @@
 //  and always converge. Each tier is independently styled (size / slant /
 //  colour / indent / an optional bold label) via #הגדרות_הערות, so the tiers
 //  read as distinct bands. Numbering is one running sequence (native, so it
-//  never jumps). For fully *regrouped* bands with per-tier numbering and
+//  never jumps) unless #הגדרות_הערות(מספור: …) asks for a scheme per tier, in
+//  which case the marker itself says which tier a note belongs to. For fully
+//  *regrouped* bands with per-tier numbering and
 //  columns (all tier-1 together, then all tier-2, …), use the end/section
 //  apparatus #הערות_מדורגות — that renders in the main flow, where such
 //  regrouping converges (a page footer is re-laid-out too often to).
@@ -85,6 +88,12 @@
   הזחה: (0em, 1.1em, 2.2em, 3.3em, 4.4em, 5.5em, 6.6em, 7.7em, 8.8em),  // per-tier indent (nesting)
   תוויות: none,        // none, or an array of per-tier bold label prefixes ("", "על הערה: ", …)
   ריווח: 0.85em,       // gap between footnote entries
+  // מספור — none = ONE running native sequence across every tier (1,2,3,4,…), so
+  //   the numbers never jump and never repeat. Or an array of per-tier schemes,
+  //   ("1", "א", "i"), and then each tier counts its own and the marker's *shape*
+  //   tells the reader which block to look in — the one thing size and slant
+  //   cannot say at the point of reference, where the reader actually is.
+  מספור: none,
 )
 #let _fn_cfg = state("ksav-fn-cfg", _fn_defaults)
 // #הגדרות_הערות(סגנון: ("normal","italic","normal"), הזחה: (0em,1em,2em), ריווח: 1em, …)
@@ -190,11 +199,30 @@
   // it onto the line below and orphans the number on a line of its own. #h keeps
   // the number and the first words of the note together, which is the whole
   // point of the entry.
-  footnote(_fn_wrap(cfg, דרגה, {
+  let entry = _fn_wrap(cfg, דרגה, {
     if ind != 0em { h(ind) }
     if lbl != none and lbl != "" { [#strong(lbl) ] }
     body
-  }))
+  })
+  let schemes = cfg.at("מספור", default: none)
+  if type(schemes) != array {
+    footnote(entry)
+  } else {
+    // Per-tier numbering. Typst has ONE footnote counter, and the `numbering`
+    // callback is handed that counter's value — so it cannot be used to count a
+    // tier. The number is instead this note's *rank among the real notes of its
+    // own tier*, read out of a query, exactly as the collect-then-render
+    // apparatus does it; the callback then ignores the argument it was given.
+    // Read-only, so it converges, and `_ksav_real` keeps a body that an
+    // apparatus re-displays from being counted twice.
+    [#metadata(דרגה)#label("ksav-fnt")]
+    context {
+      let loc = here()
+      let n = _ksav_rank(selector(label("ksav-fnt")), loc, e => e.value == דרגה)
+      let scheme = _fn_pick(schemes, דרגה, "1")
+      footnote(numbering: _ => numbering(scheme, n), entry)
+    }
+  }
 }
 
 // tier aliases — Hebrew letters mirror the "block A / block B / block C" model
@@ -860,6 +888,48 @@
 #let שער(body) = align(center, text(size: 2em, weight: "bold", body))
 #let תת_שער(body) = align(center, text(size: 1.2em, fill: luma(110), body))
 
+// כותרת_בהערה(body, רמה: 1) — a heading INSIDE a note, a box, or a table cell:
+// it looks like a heading and it deliberately is not one. A real #כותרת there is
+// still a real heading — it steps the document's counter, so a three-line
+// footnote renumbers every section after it, and it enters #תוכן, so the table of
+// contents lists a line that lives in the margin. Structure inside a note is a
+// matter of appearance, not of outline; this gives the appearance only.
+//
+// Weight and colour follow #הגדרות_כותרות, so these match the document's real
+// headings. The sizes do not: the heading ramp starts at 1.6em, and 1.6em of a
+// 0.85em note is still half again the size of the text being annotated. This
+// ramp is compressed to stay inside the note it belongs to.
+#let _nh_sizes = (1.12em, 1.06em, 1.02em, 1em, 1em, 1em)
+#let כותרת_בהערה(body, רמה: 1) = context {
+  let c = _hd_cfg.get()
+  let lvl = calc.max(רמה, 1)
+  let styled = text(
+    size: _nh_sizes.at(calc.min(lvl - 1, _nh_sizes.len() - 1)),
+    weight: _cfg_pick(c, "משקל", lvl, "bold"),
+    fill: _cfg_pick(c, "צבע", lvl, luma(0)),
+    body,
+  )
+  // Inline text and a line break AFTER — never a `block`, and nothing at all
+  // before. A footnote entry lays out as «number» «body», and anything that
+  // breaks the line at the start of the body drops the body to the next line and
+  // strands the number alone on its own; this is the trap the tier indents avoid
+  // with an inline #h. All four candidates spring it — `block`, `v(weak: true)`,
+  // `linebreak`, and `parbreak`, which does *not* collapse at the head of an
+  // entry the way it does at the head of a page. Measured, not assumed.
+  //
+  // So the break above is the writer's own blank line, exactly as for a heading
+  // in prose. Written with one, a heading mid-note gets its paragraph air:
+  //
+  //     #הערה[#כותרת_בהערה[פתיחה] הגוף הראשון
+  //
+  //     #כותרת_בהערה[המשך] הגוף השני]
+  //
+  // Written without one — at the very start of a note, which is the common case —
+  // the number and the heading share a line, which is what a lemma wants anyway.
+  styled
+  linebreak()
+}
+
 #let hlevel(body, level: 1) = heading(level: level, body)
 #let h1 = כותרת1
 #let h2 = כותרת2
@@ -869,6 +939,7 @@
 #let h6 = כותרת6
 #let title = שער
 #let subtitle = תת_שער
+#let note_heading = _en(כותרת_בהערה)
 
 // ============================================================
 //  יישור · alignment
@@ -1175,6 +1246,71 @@
 #let noteright = הערת_ימין
 #let noteleft = הערת_שמאל
 #let twosided = _en(עם_הערות_דו_צד)
+
+// ============================================================
+//  גופי הערות · deferred note bodies — write the prose at the end
+// ------------------------------------------------------------
+//  Every note command above takes its body *inline*: #הערה[three hundred words
+//  of pilpul] sitting in the middle of a sentence. For a sefer where the notes
+//  outweigh the text, that makes the SOURCE unreadable — the body text you are
+//  trying to write is confetti scattered between note blocks. This is the
+//  org-mode arrangement: a short marker inline, the prose gathered at the end.
+//
+//    בראשית ברא#הערה_בשם("א") אלקים…
+//    …
+//    #גוף_הערה("א")[עיין רש״י שם, ובמה שכתב הרמב״ן.]
+//
+//  Where the note PRINTS is unchanged and unrestricted — that is `סוג`, and it
+//  takes any note command in this file:
+//
+//    #הערה_בשם("א")                          → a footnote (the default)
+//    #הערה_בשם("א", סוג: הערתסיום)            → an endnote
+//    #הערה_בשם("א", סוג: מדור_בדרגה, 2)       → a section band, tier 2
+//    #הערה_בשם("א", סוג: הערה_זרם, "מקורות")  → the "mekoros" stream
+//
+//  One command covers all eleven layouts because every note command in this
+//  file takes its body as the LAST positional argument, so the extra positional
+//  arguments a layout needs (a tier, a stream) pass straight through ahead of
+//  it, and named arguments pass through untouched.
+//
+//  Mechanism: a definition is inert. It stores its body in #metadata, which is
+//  never laid out — so a nested note inside a deferred body does NOT fire at
+//  the definition site, only where the reference puts it, exactly as if it had
+//  been typed inline. The reference then queries for its definition. Typst's
+//  introspection sees the whole finished document, so a definition may sit
+//  anywhere: after the reference (the usual arrangement), before it, or in a
+//  different chapter. There is no feedback loop — the query result does not
+//  depend on layout — so it converges on the first pass.
+// ============================================================
+#let _nb_label = label("ksav-notebody")
+// גוף_הערה(שם, body) — define the body of the note called `שם`. Renders nothing.
+#let גוף_הערה(שם, body) = [#metadata((שם: _as_string(שם), body: body))#_nb_label]
+// The body defined for `k`, or none. First definition wins; a duplicate name is
+// a writer error the editor lints, not something to guess about here.
+#let _nb_find(k) = {
+  let hits = query(_nb_label).filter(e => e.value.שם == k)
+  if hits.len() == 0 { none } else { hits.first().value.body }
+}
+// הערה_בשם(שם, סוג: הערה, ..) — place a note here whose body is defined elsewhere.
+#let הערה_בשם(שם, סוג: הערה, ..ארגומנטים) = context {
+  let k = _as_string(שם)
+  let body = _nb_find(k)
+  if body == none {
+    // A dangling reference is loud rather than silent: an invisible one would be
+    // a note the writer believes they wrote and the reader never sees.
+    text(fill: red, super[?#k])
+  } else {
+    סוג(..ארגומנטים.pos(), body, ..ארגומנטים.named())
+  }
+}
+// גופי_הערות[...] — an optional wrapper for the block of definitions at the end
+// of the document. It renders its contents in a zero-height context so that a
+// long run of definitions can never push a stray blank page, and it gives the
+// editor one canonical place to file a new body.
+#let גופי_הערות(body) = block(height: 0pt, spacing: 0pt, body)
+#let note_body = גוף_הערה
+#let note_named = _en(הערה_בשם)
+#let note_bodies = גופי_הערות
 
 // ---- הפניות · cross-references (auto-numbered, auto-updating) ----
 // #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow

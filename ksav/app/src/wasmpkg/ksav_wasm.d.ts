@@ -14,6 +14,16 @@ export function ksav_commands(): string;
 export function ksav_compile(input_json: string): string;
 
 /**
+ * A click on the page, as a place in the source (same as the server's `/jump`).
+ */
+export function ksav_jump(input_json: string): string;
+
+/**
+ * The cursor, as a place on the page (same as the server's `/reveal`).
+ */
+export function ksav_reveal(input_json: string): string;
+
+/**
  * Spell-check text (same as the server's `/spell`).
  */
 export function ksav_spell(input_json: string): string;
@@ -35,6 +45,8 @@ export interface InitOutput {
     readonly init: () => void;
     readonly ksav_commands: () => [number, number];
     readonly ksav_compile: (a: number, b: number) => [number, number];
+    readonly ksav_jump: (a: number, b: number) => [number, number];
+    readonly ksav_reveal: (a: number, b: number) => [number, number];
     readonly ksav_spell: (a: number, b: number) => [number, number];
     readonly ksav_suggest: (a: number, b: number) => [number, number];
     readonly ksav_templates: () => [number, number];

@@ -44,7 +44,7 @@
 //! Gemara" and "learning gemara", and insisting on one would underline a correct
 //! spelling over a style choice.
 
-use super::{edit_distance, is_transposition, rank, Dict, Learn};
+use super::{edit_distance, is_transposition, letter_mask, rank, ByLength, Dict, Learn};
 use std::collections::HashSet;
 
 /// The bundled English lexicon: ESDB plus Public Domain Judaic English.
@@ -57,12 +57,17 @@ const SUPPLEMENT: &str = include_str!("../../assets/lexicon-en-supplement.txt");
 /// Three sets rather than one, because the casing rule needs to distinguish
 /// "this entry is written lowercase" from "this entry carries a capital" and
 /// still answer an all-caps lookup in constant time.
+///
+/// Both word sets are bucketed by the character length of their **lowercase**
+/// form, and carry the letter mask of that same form — because lowercase is what
+/// a lookup and a suggestion are both matched on, so one index serves both and
+/// the two can never disagree about which bucket a word is in.
 #[derive(Debug, Clone, Default)]
 pub struct Lexicon {
     /// Entries written all in lowercase, stored as written.
-    lower: HashSet<String>,
+    lower: ByLength,
     /// Entries carrying a capital, stored as written.
-    cased: HashSet<String>,
+    cased: ByLength,
     /// The lowercase key of every entry in `cased`, so `RASHI` can be answered
     /// without either scanning or storing a second full copy in upper case.
     cased_keys: HashSet<String>,
@@ -92,10 +97,12 @@ impl Lexicon {
                 continue;
             }
             let key = w.to_lowercase();
+            let chars: Vec<char> = key.chars().collect();
+            let (n, mask) = (chars.len(), letter_mask(&chars));
             if w == key {
-                self.lower.insert(w);
+                self.lower.insert(&w, n, mask);
             } else {
-                self.cased.insert(w);
+                self.cased.insert(&w, n, mask);
                 self.cased_keys.insert(key);
             }
         }
@@ -112,8 +119,12 @@ impl Lexicon {
     /// Is this exact written form accepted, before any morphology?
     fn known(&self, w: &str) -> bool {
         let key = w.to_lowercase();
-        self.lower.contains(&key)
-            || self.cased.contains(w)
+        // One length for both sets: an entry is filed under its lowercase form's
+        // length whichever set it is in, so `Rashi` and `rashi` land in the same
+        // bucket and a lookup never has to guess which.
+        let n = key.chars().count();
+        self.lower.contains(&key, n)
+            || self.cased.contains(w, n)
             // An all-caps word matches a capitalised entry: SHECHEM is Shechem
             // shouted, not a different word. The `w != key` guard is what keeps
             // this from also accepting the lowercase form of a proper noun,
@@ -212,40 +223,48 @@ impl Lexicon {
             return Vec::new();
         }
         let tc: Vec<char> = target.chars().collect();
+        let tmask = letter_mask(&tc);
         let shape = Shape::of(&written);
-        self.lower
-            .iter()
-            .map(|w| (w, 0))
+        let mut fold = [' '; super::FOLD_BUF];
+        let mut out = Vec::new();
+        let candidates = self
+            .lower
+            .near(tc.len())
+            .map(|(w, m)| (w, m, 0))
             .chain(
                 self.cased
-                    .iter()
-                    .map(|w| (w, usize::from(shape == Shape::Lower))),
-            )
-            .filter(|(w, _)| {
-                let n = w.chars().count();
-                n + 1 >= tc.len() && n <= tc.len() + 1
-            })
-            .filter_map(|(w, penalty)| {
-                let cand: Vec<char> = w.to_lowercase().chars().collect();
-                edit_distance(&tc, &cand, 1).map(|d| {
-                    // Distance, then transposition, then **how common the word
-                    // is** (B29), then the capitalisation penalty. All three
-                    // tie-breakers fit inside one edit's worth of scale, so a
-                    // common word never beats a closer one — see `spell::rank`.
-                    //
-                    // This is the layer that was missing. Every candidate here is
-                    // one edit away by construction, so distance separates none of
-                    // them, and what was left was the order the lexicon happened
-                    // to be in: `teh` came back `eh, meh, tea, tech, ted, tee` and
-                    // `the` fell off the end.
-                    let common = crate::spell::common::band(w);
-                    (
-                        rank(d, is_transposition(&tc, &cand)) + common + rank(penalty, true),
-                        shape.apply(w),
-                    )
-                })
-            })
-            .collect()
+                    .near(tc.len())
+                    .map(|(w, m)| (w, m, usize::from(shape == Shape::Lower))),
+            );
+        for (w, mask, penalty) in candidates {
+            // One edit moves at most two letters in or out of a word, so anything
+            // further apart than that is not a candidate and never gets read.
+            if (mask ^ tmask).count_ones() > 2 {
+                continue;
+            }
+            let Some(cand) = super::fold_into(&mut fold, w.chars().flat_map(char::to_lowercase))
+            else {
+                continue;
+            };
+            if let Some(d) = edit_distance(&tc, cand, 1) {
+                // Distance, then transposition, then **how common the word is**
+                // (B29), then the capitalisation penalty. All three tie-breakers
+                // fit inside one edit's worth of scale, so a common word never
+                // beats a closer one — see `spell::rank`.
+                //
+                // This is the layer that was missing. Every candidate here is one
+                // edit away by construction, so distance separates none of them,
+                // and what was left was the order the lexicon happened to be in:
+                // `teh` came back `eh, meh, tea, tech, ted, tee` and `the` fell
+                // off the end.
+                let common = crate::spell::common::band(w);
+                out.push((
+                    rank(d, is_transposition(&tc, cand)) + common + rank(penalty, true),
+                    shape.apply(w),
+                ));
+            }
+        }
+        out
     }
 }
 

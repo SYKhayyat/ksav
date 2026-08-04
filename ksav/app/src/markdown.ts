@@ -11,6 +11,7 @@
 // notes become Markdown footnotes where the flavour supports them, and the rest
 // degrades to plain text rather than leaking `#command[…]`.
 
+import { resolveDeferred } from "./deferred";
 import { scanCommands } from "./ksav-lang";
 import type { CmdSpan } from "./ksav-lang";
 
@@ -161,8 +162,13 @@ function tableToMarkdown(
 /**
  * Convert a Ksav document to Markdown (or, with `markup: false`, to plain text).
  */
-export function toMarkdown(src: string, opts: MarkdownOptions = {}): string {
+export function toMarkdown(source: string, opts: MarkdownOptions = {}): string {
   const markup = opts.markup !== false;
+  // A note whose prose lives at the end of the file is still a note. This walker
+  // turns a note command's *body* into a footnote, so a deferred marker would
+  // convert to nothing and its prose would arrive as loose paragraphs after the
+  // document — every note in the export silently detached from its sentence.
+  const src = resolveDeferred(source);
   const spans = scanCommands(src);
   const notes: string[] = [];
 

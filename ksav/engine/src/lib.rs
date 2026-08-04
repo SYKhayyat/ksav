@@ -89,6 +89,10 @@ pub struct DocConfig {
     pub pdf_tagged: bool,
     /// Which pages to export, `1,3,5-9`. Empty = all of them.
     pub pdf_pages: String,
+    /// Keep a one-letter Hebrew word off the end of a line. Off by default: it
+    /// changes where lines break, and every document written before it existed
+    /// would silently repaginate.
+    pub prevent_orphans: bool,
     /// "rtl" or "ltr"
     pub dir: String,
     /// BCP-47 language tag for the text (`lang:` in Typst). Empty = follow the
@@ -231,6 +235,7 @@ impl Default for DocConfig {
             pdf_standard: String::new(),
             pdf_tagged: true,
             pdf_pages: String::new(),
+            prevent_orphans: false,
             dir: "rtl".to_string(),
             lang: String::new(),
             numbering: true,
@@ -441,6 +446,9 @@ impl DocConfig {
         if let Some(p) = v.get("pdf_pages").and_then(|x| x.as_str()) {
             cfg.pdf_pages = p.to_string();
         }
+        if let Some(o) = v.get("prevent_orphans").and_then(|x| x.as_bool()) {
+            cfg.prevent_orphans = o;
+        }
         cfg
     }
 }
@@ -592,6 +600,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
          תחתונה_זוגי: {foot_even}, תחתונה_אי_זוגי: {foot_odd}, \
          יישור_כותרת: {head_align}, \
          כותרת_מסמך: {title}, מחבר: {author}, מילות_מפתח: {keywords}, \
+         מניעת_יתומים: {orphans}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
          הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})\n\n\
          {body}\n",
@@ -614,6 +623,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         title = typst_str_or_none(&cfg.title),
         author = typst_str_or_none(&cfg.author),
         keywords = typst_str_array(&cfg.keywords),
+        orphans = if cfg.prevent_orphans { "true" } else { "false" },
         dir = dir,
         lang = typst_str(effective_lang(cfg)),
         numbering = if cfg.numbering { "true" } else { "false" },

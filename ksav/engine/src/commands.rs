@@ -45,6 +45,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("קו_חוצה", "sthrough", "style", "קו חוצה", "Strikethrough", "#קו_חוצה[|]"),
     cmd!("סימון", "mark", "style", "הדגשה בצבע רקע", "Highlight", "#סימון[|]"),
     cmd!("רברבתי", "scaps", "style", "אותיות רבתי", "Small caps", "#רברבתי[|]"),
+    cmd!("כתב_רשי", "rashi", "style", "כתב רש״י (דורש גופן מצורף)", "Rashi script (needs an attached font)", "#כתב_רשי[|]"),
     cmd!("עילי", "sup", "style", "כתב עילי", "Superscript", "#עילי[|]"),
     cmd!("תחתי", "sub_", "style", "כתב תחתי", "Subscript", "#תחתי[|]"),
     cmd!("גדול", "big", "style", "טקסט מוגדל", "Larger text", "#גדול[|]"),

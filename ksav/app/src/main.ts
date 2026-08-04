@@ -1,6 +1,6 @@
 import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
-import { Compartment, Prec } from "@codemirror/state";
+import { Compartment, EditorState, Prec } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
@@ -707,6 +707,17 @@ function makeEditor(): EditorView {
       foldGutter(),
       bracketMatching(),
       closeBrackets(),
+      // Pair the maths delimiter the way brackets pair — typstify's
+      // `editor/typst.go` does the same, and Typst's `$…$` works in a Ksav body
+      // because the body *is* Typst. `closeBrackets` takes its list from
+      // language data, and Ksav's highlighter is a regex scanner with no grammar
+      // behind it, so the data is provided directly rather than by a language.
+      //
+      // The gershayim is deliberately absent from that list, for the reason
+      // `brackets.ts` gives at length: `"` is not a delimiter in a Hebrew
+      // document, because רש״י and שו״ע are everywhere and pairing quotes
+      // swallows whole tables.
+      EditorState.languageData.of(() => [{ closeBrackets: { brackets: ["(", "[", "{", "$"] } }]),
       search({ top: true }),
       // Vim / Emacs, when one is chosen. Deliberately *before* the shortcut
       // keymap: both are Prec.highest and CodeMirror breaks that tie by array
@@ -1851,6 +1862,7 @@ function buildSettingsDrawer(): HTMLElement {
       ["2.0", "PDF 2.0"],
     ]),
     checkRow("pdfTagged", "pdf_tagged"),
+    checkRow("preventOrphans", "prevent_orphans"),
     el("div", { class: "set-note" }, [t("pdfStandardNote")]),
     // The affordance per-document setup takes away and has to give back: a
     // writer who has got their sefer looking right wants the next one to start

@@ -59,6 +59,14 @@ export interface DocConfig {
   /** Emit the PDF accessibility tree. On by default, as in Typst. */
   pdf_tagged?: boolean;
   /**
+   * Keep a one-letter Hebrew word off the end of a line.
+   *
+   * Off by default, and that is a decision rather than an oversight: it changes
+   * where lines break, so turning it on for every document ever written would
+   * silently repaginate all of them.
+   */
+  prevent_orphans?: boolean;
+  /**
    * Which pages to export, `1,3,5-9`. A property of one export rather than of
    * the document, so it is set at the moment of exporting and never persisted.
    */

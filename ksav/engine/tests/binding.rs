@@ -375,3 +375,108 @@ fn tags_can_be_turned_off() {
         tagged.len()
     );
 }
+
+// ── typography ───────────────────────────────────────────────────────────────
+
+#[test]
+fn a_one_letter_word_is_not_left_at_the_end_of_a_line() {
+    // The claim is about *line breaking*, so it is read off the laid-out page:
+    // with the rule on, no line may end with a one-letter Hebrew word.
+    //
+    // The text is contrived on purpose — a one-letter preposition every few
+    // words, so that some line would otherwise end on one. A natural paragraph
+    // might happen not to, and a test that passes because the case never arose
+    // is a test that will keep passing after the feature is deleted.
+    let body = "\
+בית ראשון ו בית שני ו בית שלישי ו בית רביעי ב ירושלים ל עולם ה גדול \
+ו בית חמישי ו בית שישי ב שדה ל אבות ה קדושים ו עוד דברים רבים מאוד \
+ו כך הלאה ב דרך ל מעלה ה נכונה ו הישרה ב אמת ל תמיד ה שלם ו הטוב";
+
+    let plain = DocConfig::default();
+    let tidy = DocConfig {
+        prevent_orphans: true,
+        ..DocConfig::default()
+    };
+    // Each laid-out line, in **logical** order.
+    //
+    // `probe::lines` joins a line's runs left to right, which in a right-to-left
+    // document is the reverse of the reading order — so "the last word on the
+    // line" read off that string is the *first* word of the line, and an earlier
+    // version of this test cheerfully asserted against it. Runs carry their own
+    // logical text and their x decreases as an RTL line advances, so sorting a
+    // line's runs by x descending puts them back in the order they are read.
+    let logical_lines = |cfg: &DocConfig| -> Vec<String> {
+        let runs = render(body, cfg);
+        let mut by_line: Vec<(f64, Vec<&TextRun>)> = Vec::new();
+        for run in &runs {
+            match by_line.iter_mut().find(|(y, _)| (y - run.y).abs() < 1.0) {
+                Some((_, group)) => group.push(run),
+                None => by_line.push((run.y, vec![run])),
+            }
+        }
+        by_line.sort_by(|a, b| a.0.total_cmp(&b.0));
+        by_line
+            .into_iter()
+            .map(|(_, mut group)| {
+                group.sort_by(|a, b| b.x.total_cmp(&a.x));
+                group.iter().map(|r| r.text.as_str()).collect::<String>()
+            })
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+
+    // A one-letter word left hanging. The non-breaking space is *not* whitespace,
+    // so once the rule has joined `ל` to its word the pair is a single token and
+    // cannot match — which is exactly the property being asserted.
+    let one_letter = |line: &str| {
+        line.split_whitespace()
+            .next_back()
+            .is_some_and(|w| w.chars().count() == 1 && "ובלהכמש".contains(w))
+    };
+
+    let before = logical_lines(&plain);
+    let after = logical_lines(&tidy);
+    // The fixture has to actually exhibit the problem, or the assertion below
+    // proves nothing at all.
+    assert!(
+        before.iter().any(|l| one_letter(l)),
+        "the fixture should strand a one-letter word without the rule: {before:?}"
+    );
+    assert!(
+        !after.iter().any(|l| one_letter(l)),
+        "no line should end on a one-letter word with the rule on: {after:?}"
+    );
+}
+
+#[test]
+fn orphan_prevention_is_off_unless_asked_for() {
+    // It changes where lines break, so every document written before it existed
+    // must lay out exactly as it did.
+    let body = "שלום ו עולם";
+    let runs = render(body, &DocConfig::default());
+    let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+    assert!(
+        !text.contains('\u{00A0}'),
+        "a default document should carry no non-breaking spaces: {text:?}"
+    );
+}
+
+#[test]
+fn rashi_script_falls_back_rather_than_failing() {
+    // Ksav bundles no Rashi font — every one worth using is commercial or of
+    // unclear licence. The command names the families a writer may have attached
+    // and falls back to the document's own face, because a commentary set in
+    // Frank Ruhl is a commentary and one that fails to compile is not.
+    let out = compile_parts(
+        "#כתב_רשי[ופירש רש״י שם]",
+        &DocConfig::default(),
+        &ksav_engine::assets::Assets::default(),
+        false,
+        false,
+    );
+    assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    let runs = render("#כתב_רשי[ופירש רש״י שם]", &DocConfig::default());
+    let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+    assert!(text.contains("רש״י"), "the commentary should still print: {text}");
+}

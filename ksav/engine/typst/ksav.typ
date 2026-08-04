@@ -809,6 +809,10 @@
   כותרת_מסמך: none,
   מחבר: none,
   מילות_מפתח: (),
+  // Keep a one-letter word from being stranded at the end of a line. Off by
+  // default and deliberately so: it changes where lines break, and turning it on
+  // for every document ever written would silently repaginate all of them.
+  מניעת_יתומים: false,
   ריווח_שורות: 0.75em,
   ריווח_פסקאות: 1.2em,
   הזחה_ראשונה: 0em,
@@ -927,13 +931,49 @@
   // Lists and tables are configured at their creation site inside the #רשימה /
   // #ממוספרת / #טבלה commands (a `set` in a `show list`/`show table` rule styles
   // only *nested* elements, never the matched one, so it can't be used here).
-  if טורים > 1 {
-    columns(טורים, body)
+  let laid = if טורים > 1 { columns(טורים, body) } else { body }
+  // A one-letter word in Hebrew is a preposition — ו, ב, ל, ה, כ, מ, ש — and
+  // typography does not leave one hanging at the end of a line: it belongs to
+  // the word after it, and separated it reads as a typing error. Making the
+  // space that follows it non-breaking is the whole of the fix; Typst then
+  // refuses to break there and carries the letter down with its word.
+  //
+  // The `\b` before the class is what keeps this to *whole* one-letter words.
+  // Without it the final letter of every word ending in one of those seven —
+  // which is most of them — would be glued to the next word instead.
+  //
+  // Applied around `laid` rather than at the top of this function, because a
+  // `show` rule is scoped to the block it appears in: written as a bare
+  // `if מניעת_יתומים { show … }` it would have governed the two lines of that
+  // `if` and nothing else, and would have looked exactly like a working feature.
+  if מניעת_יתומים {
+    show regex("\b[ובלהכמש] "): it => {
+      let s = it.text
+      s.slice(0, s.len() - 1) + "\u{00A0}"
+    }
+    laid
   } else {
-    body
+    laid
   }
 }
 #let document = _en(מסמך, extra: (columns: "טורים", table_columns: "עמודות"))
+
+// כתב_רשי — commentary set in Rashi script.
+//
+// The fallback chain is the honest part. Ksav bundles no Rashi font: every one
+// worth using is either commercial or of unclear licence, and shipping a font
+// this project cannot license is not a trade worth making. So the command names
+// the families a writer is likely to have attached (Settings → add a font, which
+// rides the same assets channel as an image) and falls back to the document's
+// own face when none of them is present. A commentary that comes out in Frank
+// Ruhl is a commentary; one that fails to compile is not.
+#let כתב_רשי(body, גופן: none) = text(
+  font: if גופן != none { גופן } else {
+    ("Rashi", "Keter YG Rashi", "Shofar Rashi", "Vilna", "Frank Ruhl Hofshi")
+  },
+  body,
+)
+#let rashi = כתב_רשי
 
 // ============================================================
 //  עיצוב פנימי · inline text styles

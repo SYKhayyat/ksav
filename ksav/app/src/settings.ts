@@ -101,6 +101,7 @@ export const DEFAULTS: Settings = {
   keywords: [],
   pdf_standard: "",
   pdf_tagged: true,
+  prevent_orphans: false,
   editingMode: "default",
   focusMode: false,
   typewriter: false,
@@ -183,6 +184,7 @@ export const PAGE_FIELDS = [
   "keywords",
   "pdf_standard",
   "pdf_tagged",
+  "prevent_orphans",
 ] as const;
 
 /** A document's own page setup, where it has said anything (B26). */

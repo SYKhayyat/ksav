@@ -39,6 +39,7 @@ const MODULES = [
   "ruler",
   "sefarim",
   "settings",
+  "share",
   "styles",
   "table",
   "spell",

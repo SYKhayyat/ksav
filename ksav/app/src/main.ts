@@ -87,6 +87,7 @@ import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
 import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
+import * as share from "./share";
 import * as docx from "./docx";
 import * as update from "./update";
 import * as watch from "./watch";
@@ -1486,6 +1487,8 @@ function buildHeader(): HTMLElement {
       files.supportsRealFiles() ? t("saveAs") : t("saveCopy"),
     ]),
     el("button", { class: "menu-item", onClick: () => void importWord() }, [t("importWord")]),
+    el("button", { class: "menu-item", onClick: () => void copyShareLink(false) }, [t("shareRead")]),
+    el("button", { class: "menu-item", onClick: () => void copyShareLink(true) }, [t("shareReview")]),
     el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
   ]);
 
@@ -2595,6 +2598,86 @@ async function importWord() {
     result.dropped.length ? tf("importedWithGaps", title, result.dropped.join(", ")) : tf("imported", title),
     result.dropped.length ? "warn" : "ok",
   );
+}
+
+/**
+ * Install the service worker, where there is any point in one.
+ *
+ * Not in the desktop build, which is already installed and has no network to be
+ * offline from; not on the dev server, where a cache-first worker would serve
+ * yesterday's bundle and cost an hour before anyone worked out why. The version
+ * rides on the URL because a *changed URL* is what makes a browser treat this as
+ * a new worker at all — and the worker takes its cache name from the same place,
+ * so a release can never reuse the previous release's cache.
+ */
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  if (runtime.backend?.kind === "desktop") return;
+  if (!import.meta.env.PROD) return;
+  void navigator.serviceWorker
+    .register(`/sw.js?v=${update.CURRENT_VERSION}`)
+    .catch(() => {
+      // Offline support is a bonus; failing to install it is not something to
+      // interrupt a writer over, and every other consequence of a broken
+      // network is already reported by whatever needed it.
+    });
+}
+
+/**
+ * Open a document that arrived in the link.
+ *
+ * Always as a *new* document, never over whatever is open — a link is something
+ * somebody else sent, and it must not be able to replace this person's work. The
+ * fragment is cleared afterwards so a reload does not create it a second time.
+ */
+async function openSharedIfLinked() {
+  const shared = await share.decodeShare(location.hash);
+  if (!shared) return;
+  // `window.history`, not `history`: CodeMirror's undo extension is imported
+  // under that name and shadows the global here.
+  window.history.replaceState(null, "", location.pathname + location.search);
+  const doc = await docs.createDoc(shared.title || t("untitled"), shared.body);
+  if (shared.dir) await docs.rememberConfig(doc.id, { dir: shared.dir });
+  await openDoc(doc.id);
+  setStatus(shared.review ? t("openedForReview") : t("openedFromLink"), "ok");
+}
+
+/**
+ * Copy a link that carries this document.
+ *
+ * The document travels in the URL *fragment*, which is never sent to a server —
+ * so nobody's unpublished chiddushim pass through whoever happens to be hosting
+ * the static files. The cost is a length limit, and it is stated up front rather
+ * than discovered: a link that nearly works decodes to garbage at the far end,
+ * which is worse than being told to send the file.
+ */
+async function copyShareLink(forReview: boolean) {
+  closeMenus();
+  await flushSaves();
+  // A desktop build has no useful URL of its own, so the link names the hosted
+  // copy rather than a `tauri://localhost` that works on one machine.
+  const base =
+    runtime.backend?.kind === "desktop" || location.protocol === "file:"
+      ? "https://ksav.app/"
+      : location.href;
+  const link = await share.shareLink(base, {
+    title: runtime.currentDoc?.title ?? "",
+    body: runtime.docText(),
+    dir: docConfig().dir,
+    review: forReview,
+  });
+  if (link.tooLong) {
+    setStatus(tf("shareTooLong", Math.round(link.length / 1000)), "err");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(link.url);
+    setStatus(t("shareCopied"), "ok");
+  } catch {
+    // Clipboard permission, or an insecure context. Falling back to a prompt is
+    // ugly and it is also the only thing that still works there.
+    window.prompt(t("shareCopyManually"), link.url);
+  }
 }
 
 async function saveFileAs() {
@@ -4086,6 +4169,8 @@ async function boot() {
   // `:w` in vim and C-x C-s in emacs go through the same save the toolbar uses,
   // rather than a second path that would one day forget to flush something.
   keymodes.setSaveCommand(() => void saveFile());
+  registerServiceWorker();
+  void openSharedIfLinked();
   // Rescue the text before anything else, then say what happened.
   crash.install(
     () => ({ title: runtime.currentDoc?.title ?? "", body: runtime.docText() }),

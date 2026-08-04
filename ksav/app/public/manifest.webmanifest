@@ -1,0 +1,19 @@
+{
+  "name": "כְּתָב · Ksav",
+  "short_name": "כְּתָב",
+  "description": "מערכת הכתיבה העברית — a Hebrew writing system on real Typst",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef1f5",
+  "theme_color": "#2563eb",
+  "categories": ["productivity", "education"],
+  "icons": [
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-310.png", "sizes": "310x310", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

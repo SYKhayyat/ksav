@@ -42,6 +42,14 @@ fn content_type_for(path: &str) -> &'static str {
         Some("json") => "application/json; charset=utf-8",
         Some("woff2") => "font/woff2",
         Some("ttf") => "font/ttf",
+        Some("png") => "image/png",
+        // A manifest served as `application/octet-stream` is ignored outright,
+        // so the app is simply not installable and nothing says why.
+        Some("webmanifest") => "application/manifest+json; charset=utf-8",
+        // And `WebAssembly.instantiateStreaming` *refuses* a module that does not
+        // arrive as `application/wasm` — which is the in-browser build, and was
+        // already falling back to the slower non-streaming path here.
+        Some("wasm") => "application/wasm",
         _ => "application/octet-stream",
     }
 }

@@ -26,6 +26,43 @@ export interface DocConfig {
   hebrew_numbering: boolean;
   header: string;
   footer: string;
+  /**
+   * Per-edge margins, in cm. Absent means "use `margin_cm`" — which is not the
+   * same as zero, and is why these are optional rather than defaulted.
+   *
+   * `inner`/`outer` are relative to the **binding**, not to the paper: on a
+   * two-sided document they swap sides every page, so the text block keeps the
+   * same distance from the fold on both leaves. That is the whole reason they
+   * are not called left and right.
+   */
+  margin_top_cm?: number;
+  margin_bottom_cm?: number;
+  margin_inner_cm?: number;
+  margin_outer_cm?: number;
+  /** Extra width on the inner margin alone — the strip the binding swallows. */
+  gutter_cm?: number;
+  /** Print on both sides: mirror the margins, allow verso/recto heads to differ. */
+  two_sided?: boolean;
+  /** Running heads for even (verso) and odd (recto) pages. Empty = use header/footer. */
+  header_even?: string;
+  header_odd?: string;
+  footer_even?: string;
+  footer_odd?: string;
+  /** Where the running head sits. Only means anything once `two_sided` is on. */
+  head_align?: "center" | "outside" | "inside";
+  /** PDF metadata. Without a title the file opens nameless in every reader. */
+  title?: string;
+  author?: string;
+  keywords?: string[];
+  /** A PDF standard to enforce, spelled as Typst spells it: `a-2b`, `ua-1`, … */
+  pdf_standard?: string;
+  /** Emit the PDF accessibility tree. On by default, as in Typst. */
+  pdf_tagged?: boolean;
+  /**
+   * Which pages to export, `1,3,5-9`. A property of one export rather than of
+   * the document, so it is set at the moment of exporting and never persisted.
+   */
+  pdf_pages?: string;
 }
 
 /**

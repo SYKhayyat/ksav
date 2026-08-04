@@ -15,7 +15,7 @@ import { t, tf } from "./i18n";
 import { applyPreview, drawPages } from "./preview";
 import { docConfig } from "./settings";
 import * as runtime from "./runtime";
-import type { CompileResult } from "./api";
+import type { CompileResult, DocConfig } from "./api";
 
 /** Called after a compile lands, so the shell can refresh what depends on it. */
 let afterCompile: () => void = () => {};
@@ -161,11 +161,18 @@ export async function runCompile() {
  * the assembled source — the 75 KB prelude plus the document — cost more than
  * the page did. Both are asked for here, where they are actually wanted.
  */
-export async function compileForExport(): Promise<CompileResult | null> {
+export async function compileForExport(
+  /**
+   * Fields that belong to *this* export rather than to the document — today
+   * only `pdf_pages`, because "just pages 4 to 9" is a thing you decide at the
+   * moment of exporting and would be wrong to save into the sefer.
+   */
+  override?: Partial<DocConfig>,
+): Promise<CompileResult | null> {
   const backend = runtime.backend;
   if (!backend) return null;
   try {
-    return await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
+    return await backend.compile(withPreamble(runtime.docText()).body, { ...docConfig(), ...override }, {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
       want_pdf: true,
       want_source: true,

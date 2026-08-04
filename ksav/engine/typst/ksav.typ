@@ -745,10 +745,49 @@
 //  (font / size / margin / direction / numbering) become real
 //  Typst set-rules around the whole document.
 // ============================================================
+// _rc_outside_is_left(p, כריכה_ימין) — which physical edge is the OUTSIDE one on
+// page `p`.
+//
+// Typst binds `inside`/`outside` to page parity: with `binding: right`, an odd
+// page carries its binding on the right, so its outside edge is the left one.
+// Both the mirrored margins and the running heads that align to the outside edge
+// have to agree about this, and they are computed in different places — so it is
+// one function, and neither gets to decide for itself.
+#let _rc_outside_is_left(p, כריכה_ימין) = {
+  if כריכה_ימין { calc.odd(p) } else { not calc.odd(p) }
+}
+
+// _rc_head(p, זוגי, אי_זוגי, אחיד) — the running head for page `p`.
+//
+// A verso/recto pair wins over the single-sided line, and either half may be
+// left unset: a sefer that wants the masechta on one side and nothing on the
+// other says so by giving one and not the other, which is why an unset side
+// falls through to `אחיד` and only then to nothing.
+#let _rc_head(p, זוגי, אי_זוגי, אחיד) = {
+  let side = if calc.odd(p) { אי_זוגי } else { זוגי }
+  if side != none { side } else { אחיד }
+}
+
 #let מסמך(
   גופן: "Frank Ruhl Hofshi",
   גודל: 12pt,
   שוליים: 2.5cm,
+  // Per-edge margins. `none` = take the uniform שוליים, so a document that never
+  // touches these is laid out byte-identically to before. פנימי/חיצוני are the
+  // binding-relative pair: on a two-sided document they swap sides every page,
+  // which is the whole point of them and the reason they are not left/right.
+  שוליים_עליון: none,
+  שוליים_תחתון: none,
+  שוליים_פנימי: none,
+  שוליים_חיצוני: none,
+  // Extra width added to the inner margin alone, for the part of the page the
+  // binding swallows. Separate from שוליים_פנימי because it is a property of how
+  // the sefer will be bound, not of how it is designed.
+  שולי_כריכה: 0cm,
+  // Two-sided: inner/outer alternate by page parity and the running heads may
+  // differ verso from recto. A sefer printed on both sides of the paper wants
+  // this; a document that will be read on a screen does not.
+  דו_צדדי: false,
   כיוון: rtl,
   שפה: "he",
   יישור: true,
@@ -757,6 +796,19 @@
   נייר: "a4",
   כותרת_עליונה: none,
   כותרת_תחתונה: none,
+  כותרת_זוגי: none,
+  כותרת_אי_זוגי: none,
+  תחתונה_זוגי: none,
+  תחתונה_אי_זוגי: none,
+  // "מרכז" · "חוץ" · "פנים" — where the running head sits. Centred is the safe
+  // default; a page number on the outside edge is what makes a bound sefer
+  // thumb-able, and it only means anything once דו_צדדי is on.
+  יישור_כותרת: "מרכז",
+  // PDF metadata. Not decoration: without a title the file opens nameless in
+  // every reader, and PDF/A refuses to validate without one.
+  כותרת_מסמך: none,
+  מחבר: none,
+  מילות_מפתח: (),
   ריווח_שורות: 0.75em,
   ריווח_פסקאות: 1.2em,
   הזחה_ראשונה: 0em,
@@ -774,13 +826,60 @@
 ) = {
   let np = if מספור_עברי { "א" } else { "1" }
   let reserve = if אזור_הערות == none { 0pt } else { אזור_הערות }
+  // Every edge falls back to the one uniform margin, so a document that sets
+  // none of them lays out exactly as it did before any of this existed.
+  let m_top = if שוליים_עליון != none { שוליים_עליון } else { שוליים }
+  let m_bot = if שוליים_תחתון != none { שוליים_תחתון } else { שוליים }
+  let m_in = (if שוליים_פנימי != none { שוליים_פנימי } else { שוליים }) + שולי_כריכה
+  let m_out = if שוליים_חיצוני != none { שוליים_חיצוני } else { שוליים }
+  // Bound on the right for Hebrew, on the left for English. Stated rather than
+  // left to `binding: auto`, which reads the *text* direction — so a document
+  // whose body flips direction mid-way would otherwise re-bind itself.
+  let bind_right = כיוון == rtl
+  let has_head = כותרת_עליונה != none or כותרת_זוגי != none or כותרת_אי_זוגי != none
+  let has_foot = כותרת_תחתונה != none or תחתונה_זוגי != none or תחתונה_אי_זוגי != none
+  // Where a running head sits. Only "חוץ"/"פנים" need the page number, and only
+  // on a two-sided document does either mean anything — on a one-sided one every
+  // page has the same geometry, so "outside" is a fixed edge.
+  // Either language names the placement: the engine sends the English word, a
+  // writer calling מקטע_עמוד by hand writes the Hebrew one, and anything else
+  // centres rather than silently picking an edge.
+  let want_outside = יישור_כותרת in ("חוץ", "חיצוני", "outside", "outer")
+  let want_inside = יישור_כותרת in ("פנים", "פנימי", "inside", "inner")
+  let head_align(p) = {
+    if not (want_outside or want_inside) { center } else {
+      let outside_left = if דו_צדדי { _rc_outside_is_left(p, bind_right) } else { not bind_right }
+      let want_left = if want_outside { outside_left } else { not outside_left }
+      if want_left { left } else { right }
+    }
+  }
+  if כותרת_מסמך != none or מחבר != none or מילות_מפתח.len() > 0 {
+    set document(
+      title: if כותרת_מסמך != none { כותרת_מסמך } else { auto },
+      author: if מחבר != none { (מחבר,) } else { () },
+      keywords: מילות_מפתח,
+    )
+  }
   set text(font: גופן, size: גודל, lang: שפה, dir: כיוון)
   set page(
     paper: נייר,
-    margin: (top: שוליים, left: שוליים, right: שוליים, bottom: שוליים + reserve),
+    binding: if bind_right { right } else { left },
+    margin: if דו_צדדי {
+      (top: m_top, inside: m_in, outside: m_out, bottom: m_bot + reserve)
+    } else if bind_right {
+      (top: m_top, right: m_in, left: m_out, bottom: m_bot + reserve)
+    } else {
+      (top: m_top, left: m_in, right: m_out, bottom: m_bot + reserve)
+    },
     numbering: if מספור { np } else { none },
-    header: if כותרת_עליונה != none {
-      align(center, text(size: 0.85em, fill: luma(100), כותרת_עליונה))
+    header: if has_head {
+      context {
+        let p = here().page()
+        let line = _rc_head(p, כותרת_זוגי, כותרת_אי_זוגי, כותרת_עליונה)
+        if line != none {
+          align(head_align(p), text(size: 0.85em, fill: luma(100), line))
+        }
+      }
     } else { auto },
     // Footer = per-page regrouped bands (read-only, renders nothing when unused)
     // stacked above the page number / custom footer line. We render the number
@@ -801,12 +900,14 @@
         _sf_page_streams()
       }
       context {
-        let ln = if כותרת_תחתונה != none {
-          text(size: 0.85em, fill: luma(100), כותרת_תחתונה)
+        let p = here().page()
+        let custom = if has_foot { _rc_head(p, תחתונה_זוגי, תחתונה_אי_זוגי, כותרת_תחתונה) } else { none }
+        let ln = if custom != none {
+          text(size: 0.85em, fill: luma(100), custom)
         } else if מספור {
           text(size: 0.85em, fill: luma(100), numbering(np, ..counter(page).get()))
         } else { none }
-        if ln != none { align(center, ln) }
+        if ln != none { align(head_align(p), ln) }
       }
     },
   )

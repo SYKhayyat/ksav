@@ -50,6 +50,43 @@ pub struct DocConfig {
     pub font: String,
     pub size_pt: f64,
     pub margin_cm: f64,
+    /// Per-edge margins. `None` = take `margin_cm`, so a document that sets none
+    /// of them is laid out exactly as it was before these existed.
+    ///
+    /// `inner`/`outer` are relative to the binding rather than to the paper, and
+    /// that is the point: on a two-sided document they swap sides every page, so
+    /// the text block sits the same distance from the fold on both leaves. A
+    /// left/right pair cannot express that, which is why a uniform `margin_cm`
+    /// was a hard stop the first time anyone took a file to a printer.
+    pub margin_top_cm: Option<f64>,
+    pub margin_bottom_cm: Option<f64>,
+    pub margin_inner_cm: Option<f64>,
+    pub margin_outer_cm: Option<f64>,
+    /// Extra width on the inner margin alone — the strip the binding swallows.
+    pub gutter_cm: f64,
+    /// Print on both sides: mirror the margins and allow verso/recto running
+    /// heads to differ.
+    pub two_sided: bool,
+    /// Running heads for even (verso) and odd (recto) pages. Empty = use the
+    /// single-sided `header`/`footer`.
+    pub header_even: String,
+    pub header_odd: String,
+    pub footer_even: String,
+    pub footer_odd: String,
+    /// Where the running head sits: `center`, `outside` or `inside`.
+    pub head_align: String,
+    /// PDF metadata. Without a title the file opens nameless in every reader,
+    /// and PDF/A will not validate at all.
+    pub title: String,
+    pub author: String,
+    pub keywords: Vec<String>,
+    /// A PDF standard to enforce, as Typst names it (`a-2b`, `a-3b`, `ua-1`,
+    /// `1.7`, …). Empty = plain PDF. Printers ask for PDF/A; nothing else does.
+    pub pdf_standard: String,
+    /// Emit PDF tags (the accessibility tree). On by default, as in Typst.
+    pub pdf_tagged: bool,
+    /// Which pages to export, `1,3,5-9`. Empty = all of them.
+    pub pdf_pages: String,
     /// "rtl" or "ltr"
     pub dir: String,
     /// BCP-47 language tag for the text (`lang:` in Typst). Empty = follow the
@@ -175,6 +212,23 @@ impl Default for DocConfig {
             font: "Frank Ruhl Hofshi".to_string(),
             size_pt: 12.0,
             margin_cm: 2.5,
+            margin_top_cm: None,
+            margin_bottom_cm: None,
+            margin_inner_cm: None,
+            margin_outer_cm: None,
+            gutter_cm: 0.0,
+            two_sided: false,
+            header_even: String::new(),
+            header_odd: String::new(),
+            footer_even: String::new(),
+            footer_odd: String::new(),
+            head_align: "center".to_string(),
+            title: String::new(),
+            author: String::new(),
+            keywords: Vec::new(),
+            pdf_standard: String::new(),
+            pdf_tagged: true,
+            pdf_pages: String::new(),
             dir: "rtl".to_string(),
             lang: String::new(),
             numbering: true,
@@ -334,8 +388,107 @@ impl DocConfig {
         if let Some(n) = clamped(v, "notes_region_cm", 0.0, 20.0) {
             cfg.notes_region_cm = Some(n);
         }
+        // Per-edge margins are clamped on the same range as the uniform one, and
+        // stay `None` when absent — an absent edge means "use margin_cm", which
+        // is not the same as an edge explicitly set to zero.
+        for (key, slot) in [
+            ("margin_top_cm", &mut cfg.margin_top_cm),
+            ("margin_bottom_cm", &mut cfg.margin_bottom_cm),
+            ("margin_inner_cm", &mut cfg.margin_inner_cm),
+            ("margin_outer_cm", &mut cfg.margin_outer_cm),
+        ] {
+            if let Some(m) = clamped(v, key, 0.0, 7.0) {
+                *slot = Some(m);
+            }
+        }
+        if let Some(g) = clamped(v, "gutter_cm", 0.0, 5.0) {
+            cfg.gutter_cm = g;
+        }
+        if let Some(t) = v.get("two_sided").and_then(|x| x.as_bool()) {
+            cfg.two_sided = t;
+        }
+        for (key, slot) in [
+            ("header_even", &mut cfg.header_even),
+            ("header_odd", &mut cfg.header_odd),
+            ("footer_even", &mut cfg.footer_even),
+            ("footer_odd", &mut cfg.footer_odd),
+            ("title", &mut cfg.title),
+            ("author", &mut cfg.author),
+        ] {
+            if let Some(s) = v.get(key).and_then(|x| x.as_str()) {
+                *slot = s.to_string();
+            }
+        }
+        if let Some(a) = v.get("head_align").and_then(|x| x.as_str()) {
+            cfg.head_align = sanitize_head_align(a);
+        }
+        if let Some(k) = v.get("keywords").and_then(|x| x.as_array()) {
+            cfg.keywords = k
+                .iter()
+                .filter_map(|s| s.as_str())
+                .filter(|s| !s.trim().is_empty())
+                .map(str::to_string)
+                .collect();
+        }
+        if let Some(s) = v.get("pdf_standard").and_then(|x| x.as_str()) {
+            cfg.pdf_standard = s.trim().to_ascii_lowercase();
+        }
+        if let Some(t) = v.get("pdf_tagged").and_then(|x| x.as_bool()) {
+            cfg.pdf_tagged = t;
+        }
+        if let Some(p) = v.get("pdf_pages").and_then(|x| x.as_str()) {
+            cfg.pdf_pages = p.to_string();
+        }
         cfg
     }
+}
+
+/// The three head placements, in the prelude's own vocabulary.
+///
+/// Accepts either language on the wire — the app speaks English keys and a
+/// writer editing the document speaks Hebrew — and anything unrecognised
+/// becomes centred rather than being passed through, since this value reaches
+/// the prelude as a string literal and an unknown one would silently pick a
+/// branch nobody asked for.
+fn sanitize_head_align(a: &str) -> String {
+    match a.trim() {
+        "outside" | "outer" | "חוץ" | "חיצוני" => "outside",
+        "inside" | "inner" | "פנים" | "פנימי" => "inside",
+        _ => "center",
+    }
+    .to_string()
+}
+
+/// Parse `1,3,5-9` into Typst page ranges, one-indexed and inclusive.
+///
+/// `5-` means "from 5 to the end" and `-9` means "up to 9", which is what makes
+/// `None` a legitimate bound rather than an error. Anything unparseable is
+/// dropped rather than refused: an export that silently omits a malformed range
+/// still produces the pages the writer *did* name, where refusing produces no
+/// PDF at all over a typo in one field.
+fn parse_page_ranges(spec: &str) -> Vec<std::ops::RangeInclusive<Option<std::num::NonZeroUsize>>> {
+    let num = |s: &str| s.trim().parse::<usize>().ok().and_then(std::num::NonZeroUsize::new);
+    spec.split(',')
+        .filter_map(|part| {
+            let part = part.trim();
+            if part.is_empty() {
+                return None;
+            }
+            match part.split_once('-') {
+                None => num(part).map(|n| Some(n)..=Some(n)),
+                Some((lo, hi)) => {
+                    let (lo, hi) = (num(lo), num(hi));
+                    // `-` on its own names nothing; without this it would parse
+                    // as "every page", quietly ignoring the rest of the spec.
+                    if lo.is_none() && hi.is_none() {
+                        None
+                    } else {
+                        Some(lo..=hi)
+                    }
+                }
+            }
+        })
+        .collect()
 }
 
 pub use diagnostics::Diagnostic;
@@ -393,6 +546,28 @@ fn typst_str_or_none(s: &str) -> String {
     }
 }
 
+/// A length in cm, or the literal `none` when the edge was never set.
+fn typst_cm_or_none(v: Option<f64>) -> String {
+    match v {
+        Some(n) => format!("{n}cm"),
+        None => "none".to_string(),
+    }
+}
+
+/// A Typst array literal of strings.
+fn typst_str_array(items: &[String]) -> String {
+    // The trailing comma matters for the one-element case: `("a")` is a
+    // parenthesised string in Typst, not an array of one, and `keywords:`
+    // would reject it.
+    format!(
+        "({})",
+        items
+            .iter()
+            .map(|s| format!("{},", typst_str(s)))
+            .collect::<String>()
+    )
+}
+
 pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
     let columns = cfg.columns.max(1);
@@ -402,6 +577,13 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
          גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, שפה: {lang}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
+         שוליים_עליון: {m_top}, שוליים_תחתון: {m_bot}, \
+         שוליים_פנימי: {m_in}, שוליים_חיצוני: {m_out}, \
+         שולי_כריכה: {gutter}cm, דו_צדדי: {two_sided}, \
+         כותרת_זוגי: {head_even}, כותרת_אי_זוגי: {head_odd}, \
+         תחתונה_זוגי: {foot_even}, תחתונה_אי_זוגי: {foot_odd}, \
+         יישור_כותרת: {head_align}, \
+         כותרת_מסמך: {title}, מחבר: {author}, מילות_מפתח: {keywords}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
          הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})\n\n\
          {body}\n",
@@ -409,6 +591,20 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         font = typst_str(&cfg.font),
         size = cfg.size_pt,
         margin = cfg.margin_cm,
+        m_top = typst_cm_or_none(cfg.margin_top_cm),
+        m_bot = typst_cm_or_none(cfg.margin_bottom_cm),
+        m_in = typst_cm_or_none(cfg.margin_inner_cm),
+        m_out = typst_cm_or_none(cfg.margin_outer_cm),
+        gutter = cfg.gutter_cm,
+        two_sided = if cfg.two_sided { "true" } else { "false" },
+        head_even = typst_str_or_none(&cfg.header_even),
+        head_odd = typst_str_or_none(&cfg.header_odd),
+        foot_even = typst_str_or_none(&cfg.footer_even),
+        foot_odd = typst_str_or_none(&cfg.footer_odd),
+        head_align = typst_str(&sanitize_head_align(&cfg.head_align)),
+        title = typst_str_or_none(&cfg.title),
+        author = typst_str_or_none(&cfg.author),
+        keywords = typst_str_array(&cfg.keywords),
         dir = dir,
         lang = typst_str(effective_lang(cfg)),
         numbering = if cfg.numbering { "true" } else { "false" },
@@ -580,10 +776,21 @@ pub fn compile_parts(
 
     match output {
         Ok(doc) => {
-            let diagnostics = locate(&warnings, "warning");
-            let pdf = want_pdf
-                .then(|| typst_pdf::pdf(&doc, &typst_pdf::PdfOptions::default()).ok())
-                .flatten();
+            let mut diagnostics = locate(&warnings, "warning");
+            // Whatever the export has to say, say it. These used to go into
+            // `.ok()` and vanish, so a PDF that failed to export came back as
+            // `ok: true` with no bytes and no explanation. It mattered little
+            // while every export was a plain PDF; the moment a writer asks for
+            // PDF/A it matters a great deal, because the standards refuse
+            // documents for real, nameable reasons — an unembeddable font, a
+            // missing title — that they are entitled to be told about.
+            let pdf = if want_pdf {
+                let (bytes, notes) = pdf_bytes(&doc, cfg);
+                diagnostics.extend(notes);
+                bytes
+            } else {
+                None
+            };
             let svg_opts = typst_svg::SvgOptions::default();
             let pages_svg = doc
                 .pages()
@@ -615,6 +822,70 @@ pub fn compile_parts(
                 diagnostics,
                 typst_source: if want_source { source } else { String::new() },
             }
+        }
+    }
+}
+
+/// The PDF export settings a document's config asks for.
+///
+/// The standard is parsed through serde rather than a hand-written match,
+/// because `PdfStandard`'s `#[serde(rename)]` attributes *are* Typst's own
+/// spelling of these names (`a-2b`, `ua-1`, `1.7`) and a second table here would
+/// be a second source of truth that drifts the first time Typst adds one.
+fn pdf_options(cfg: &DocConfig) -> Result<(typst_pdf::PdfOptions, Vec<Diagnostic>), String> {
+    let mut notes = Vec::new();
+    let mut opts = typst_pdf::PdfOptions {
+        tagged: cfg.pdf_tagged,
+        ..Default::default()
+    };
+    if !cfg.pdf_standard.is_empty() {
+        let std: typst_pdf::PdfStandard =
+            serde_json::from_value(serde_json::Value::String(cfg.pdf_standard.clone()))
+                .map_err(|_| format!("unknown PDF standard \"{}\"", cfg.pdf_standard))?;
+        opts.standards =
+            typst_pdf::PdfStandards::new(&[std]).map_err(|e| e.message().to_string())?;
+    }
+    let ranges = parse_page_ranges(&cfg.pdf_pages);
+    if !ranges.is_empty() {
+        opts.page_ranges = Some(typst::layout::PageRanges::new(ranges));
+        // Typst refuses the combination outright: the accessibility tree spans
+        // the whole document, so a subset of pages cannot carry a correct one.
+        // Dropping the tags is what the writer wants — they asked for three pages,
+        // not for an accessibility tree — but it is still a thing that happened to
+        // their export, so it is said out loud rather than done behind their back.
+        if opts.tagged {
+            opts.tagged = false;
+            notes.push(Diagnostic::ours(
+                "warning",
+                "ייצוא של טווח עמודים אינו יכול לשאת תגי נגישות — התגים הושמטו · \
+                 Exporting a page range cannot carry PDF tags — tags were dropped"
+                    .to_string(),
+            ));
+        }
+    }
+    Ok((opts, notes))
+}
+
+/// Render the PDF, reporting why rather than returning nothing.
+fn pdf_bytes(doc: &PagedDocument, cfg: &DocConfig) -> (Option<Vec<u8>>, Vec<Diagnostic>) {
+    let (opts, mut notes) = match pdf_options(cfg) {
+        Ok(v) => v,
+        Err(m) => return (None, vec![Diagnostic::ours("error", m)]),
+    };
+    match typst_pdf::pdf(doc, &opts) {
+        Ok(bytes) => (Some(bytes), notes),
+        Err(diags) => {
+            // Export diagnostics carry spans into the assembled source, but they
+            // are about the *document as a whole* far more often than about one
+            // line of it ("the document title is empty", "this font cannot be
+            // embedded"), so they are reported as ours rather than pinned to a
+            // line the writer would then stare at in confusion.
+            notes.extend(
+                diags
+                    .iter()
+                    .map(|d| Diagnostic::ours("error", d.message.to_string())),
+            );
+            (None, notes)
         }
     }
 }
@@ -1424,6 +1695,83 @@ mod tests {
             ..DocConfig::default()
         };
         let out = compile("#כותרת1[פרק]\n#ממוספרת(פריט[א], פריט[ב])\n#תוכן()", &cfg);
+        assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+
+    /// A page range as the numbers it names, for readable assertions.
+    fn ranges(spec: &str) -> Vec<(Option<usize>, Option<usize>)> {
+        parse_page_ranges(spec)
+            .into_iter()
+            .map(|r| (r.start().map(|n| n.get()), r.end().map(|n| n.get())))
+            .collect()
+    }
+
+    #[test]
+    fn page_ranges_parse_the_shapes_people_type() {
+        assert_eq!(ranges("3"), vec![(Some(3), Some(3))]);
+        assert_eq!(ranges("1,3"), vec![(Some(1), Some(1)), (Some(3), Some(3))]);
+        assert_eq!(ranges("5-9"), vec![(Some(5), Some(9))]);
+        // An open end on either side is legitimate, which is the whole reason the
+        // bounds are optional rather than defaulted to 1 and the page count.
+        assert_eq!(ranges("5-"), vec![(Some(5), None)]);
+        assert_eq!(ranges("-9"), vec![(None, Some(9))]);
+        // Spaces are a keystroke, not an intention.
+        assert_eq!(ranges(" 2 , 4 - 6 "), vec![(Some(2), Some(2)), (Some(4), Some(6))]);
+    }
+
+    #[test]
+    fn a_malformed_page_range_costs_only_itself() {
+        // Dropping the bad part and exporting the rest beats refusing to produce
+        // any PDF at all over a typo in one field.
+        assert_eq!(ranges("2,oops,4"), vec![(Some(2), Some(2)), (Some(4), Some(4))]);
+        // A bare dash names nothing. Read as "every page" it would silently
+        // swallow whatever else the writer asked for.
+        assert_eq!(ranges("-"), vec![]);
+        assert_eq!(ranges(""), vec![]);
+        // Page zero does not exist; NonZeroUsize is what says so.
+        assert_eq!(ranges("0"), vec![]);
+    }
+
+    #[test]
+    fn head_alignment_is_read_in_either_language() {
+        assert_eq!(sanitize_head_align("חוץ"), "outside");
+        assert_eq!(sanitize_head_align("outside"), "outside");
+        assert_eq!(sanitize_head_align("פנים"), "inside");
+        assert_eq!(sanitize_head_align("inner"), "inside");
+        // Anything unrecognised centres rather than reaching the prelude, where it
+        // would pick a branch nobody asked for.
+        assert_eq!(sanitize_head_align("sideways"), "center");
+        assert_eq!(sanitize_head_align(""), "center");
+    }
+
+    #[test]
+    fn a_keyword_list_of_one_is_still_an_array() {
+        // `("a")` is a parenthesised string in Typst, not an array, and
+        // `keywords:` rejects it — so the trailing comma is load-bearing.
+        assert_eq!(typst_str_array(&["דקדוק".to_string()]), "(\"דקדוק\",)");
+        assert_eq!(typst_str_array(&[]), "()");
+    }
+
+    #[test]
+    fn a_two_sided_document_still_carries_every_setting_it_was_given() {
+        // Cheap end-to-end guard on the wrapper's argument list: eighteen new
+        // named arguments went into one `format!`, and a typo in any of them is
+        // an "unknown argument" that fails the whole document.
+        let cfg = DocConfig {
+            two_sided: true,
+            margin_inner_cm: Some(3.5),
+            margin_outer_cm: Some(1.5),
+            margin_top_cm: Some(2.0),
+            gutter_cm: 0.5,
+            header_odd: "פרק א".to_string(),
+            footer_even: "ה'תשפ\"ו".to_string(),
+            head_align: "outside".to_string(),
+            title: "ספר".to_string(),
+            author: "המחבר".to_string(),
+            keywords: vec!["הלכה".to_string()],
+            ..DocConfig::default()
+        };
+        let out = compile("שלום עולם", &cfg);
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     }
 }

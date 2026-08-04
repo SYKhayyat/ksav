@@ -74,6 +74,22 @@ export const DEFAULTS: Settings = {
   hebrew_numbering: false,
   header: "",
   footer: "",
+  // Two-sided is off, so a document that nobody binds is laid out symmetrically
+  // and every existing file opens exactly as it did. The four per-edge margins
+  // are deliberately absent rather than set to 2.5: absent means "follow
+  // margin_cm", so moving the one margin slider still moves all four.
+  gutter_cm: 0,
+  two_sided: false,
+  header_even: "",
+  header_odd: "",
+  footer_even: "",
+  footer_odd: "",
+  head_align: "center",
+  title: "",
+  author: "",
+  keywords: [],
+  pdf_standard: "",
+  pdf_tagged: true,
   autocomplete: true,
   spellcheck: true,
   syncScroll: true,
@@ -130,6 +146,28 @@ export const PAGE_FIELDS = [
   "hebrew_numbering",
   "header",
   "footer",
+  // Two-sided page setup. Every one of these describes the *sefer* — how it will
+  // be bound, what runs across the top of a left-hand page — so they belong to
+  // the document exactly as the margin does, and travel with the file.
+  "margin_top_cm",
+  "margin_bottom_cm",
+  "margin_inner_cm",
+  "margin_outer_cm",
+  "gutter_cm",
+  "two_sided",
+  "header_even",
+  "header_odd",
+  "footer_even",
+  "footer_odd",
+  "head_align",
+  // Metadata and the export standard: also facts about the document, not about
+  // the machine it is being written on. `pdf_pages` is deliberately absent —
+  // "just pages 4 to 9" is a property of one export, not of the sefer.
+  "title",
+  "author",
+  "keywords",
+  "pdf_standard",
+  "pdf_tagged",
 ] as const;
 
 /** A document's own page setup, where it has said anything (B26). */
@@ -160,44 +198,34 @@ export function pageSetup(own: PageSetup | undefined, fallback: DocConfig): DocC
   return out;
 }
 
+/**
+ * The page-setup fields of any object that carries them.
+ *
+ * Written as one pick over `PAGE_FIELDS` rather than as two hand-listed object
+ * literals, because those literals were a third place a new field had to be
+ * remembered — and the failure of forgetting is silent: the field simply never
+ * reaches a new document, and the writer's setting appears not to stick.
+ */
+function pickPageFields(src: Partial<DocConfig>): DocConfig {
+  const out: Record<string, unknown> = {};
+  for (const key of PAGE_FIELDS) {
+    const value = (src as Record<string, unknown>)[key];
+    // An absent optional field stays absent: `pageSetup` reads `undefined` as
+    // "this document has not said", and writing the key with an undefined value
+    // would say it in a way that JSON then drops anyway.
+    if (value !== undefined) out[key] = value;
+  }
+  return out as unknown as DocConfig;
+}
+
 /** What a fresh document is laid out like, before anybody edits it (B26). */
 export function defaultPageSetup(): DocConfig {
-  return {
-    font: DEFAULTS.font,
-    size_pt: DEFAULTS.size_pt,
-    margin_cm: DEFAULTS.margin_cm,
-    dir: DEFAULTS.dir,
-    numbering: DEFAULTS.numbering,
-    justify: DEFAULTS.justify,
-    line_spacing_em: DEFAULTS.line_spacing_em,
-    para_spacing_em: DEFAULTS.para_spacing_em,
-    first_line_indent_em: DEFAULTS.first_line_indent_em,
-    columns: DEFAULTS.columns,
-    paper: DEFAULTS.paper,
-    hebrew_numbering: DEFAULTS.hebrew_numbering,
-    header: DEFAULTS.header,
-    footer: DEFAULTS.footer,
-  };
+  return pickPageFields(DEFAULTS);
 }
 
 /** The page setup the app is set to hand a **new** document (B26). */
 export function settingsPageSetup(): DocConfig {
-  return {
-    font: settings.font,
-    size_pt: settings.size_pt,
-    margin_cm: settings.margin_cm,
-    dir: settings.dir,
-    numbering: settings.numbering,
-    justify: settings.justify,
-    line_spacing_em: settings.line_spacing_em,
-    para_spacing_em: settings.para_spacing_em,
-    first_line_indent_em: settings.first_line_indent_em,
-    columns: settings.columns,
-    paper: settings.paper,
-    hebrew_numbering: settings.hebrew_numbering,
-    header: settings.header,
-    footer: settings.footer,
-  };
+  return pickPageFields(settings);
 }
 
 /**

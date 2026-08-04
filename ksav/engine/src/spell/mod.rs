@@ -554,10 +554,10 @@ pub(crate) const FOLD_BUF: usize = STACK_ROW;
 /// Fold a candidate's characters into a reused buffer, or `None` if it is too
 /// long to fit. The point is the *reuse*: this runs once per surviving candidate,
 /// and it used to be a fresh `Vec<char>` every time.
-pub(crate) fn fold_into<'a>(
-    buf: &'a mut [char; FOLD_BUF],
+pub(crate) fn fold_into(
+    buf: &mut [char; FOLD_BUF],
     chars: impl Iterator<Item = char>,
-) -> Option<&'a [char]> {
+) -> Option<&[char]> {
     let mut n = 0;
     for c in chars {
         if n == FOLD_BUF {

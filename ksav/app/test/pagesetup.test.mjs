@@ -81,4 +81,45 @@ export function run() {
   for (const key of ["font", "paper", "margin_cm", "dir", "columns", "header", "footer"]) {
     ok(`${key} is page setup`, PAGE_FIELDS.includes(key));
   }
+
+  // ------------------------------------------------------- binding & two-sided
+  //
+  // How a sefer is bound, and what runs across the top of a left-hand page, are
+  // facts about the sefer. They travel with the file for the same reason the
+  // margin does.
+  for (const key of [
+    "two_sided", "margin_inner_cm", "margin_outer_cm", "gutter_cm",
+    "header_odd", "header_even", "head_align", "title", "author", "pdf_standard",
+  ]) {
+    ok(`${key} is page setup`, PAGE_FIELDS.includes(key));
+  }
+
+  // "Just pages 4 to 9" is a property of one export, not of the document. Saving
+  // it would mean a sefer that quietly exports three pages forever after.
+  notOk("a page range is not page setup", PAGE_FIELDS.includes("pdf_pages"));
+
+  {
+    const bound = pageSetup(
+      { two_sided: true, margin_inner_cm: 4, margin_outer_cm: 1.5, header_even: "ברכות" },
+      shipped,
+    );
+    check("a bound sefer keeps its inner margin", bound.margin_inner_cm, 4);
+    check("…and its verso running head", bound.header_even, "ברכות");
+    check("…and still follows the default for the plain margin", bound.margin_cm, shipped.margin_cm);
+  }
+
+  // An unset per-edge margin means *follow the one margin*, which is not the same
+  // as zero — so it must be absent from the shipped setup rather than defaulted.
+  // If it were defaulted to 2.5, moving the single margin slider would stop
+  // moving all four edges and nobody would be able to say why.
+  notOk("the shipped setup does not pin the top edge", "margin_top_cm" in shipped);
+  notOk("nor the inner edge", "margin_inner_cm" in shipped);
+  check("but two-sided is a real, stated default", shipped.two_sided, false);
+
+  {
+    // A zero edge is a thing a writer set, and must survive the same way an empty
+    // header does.
+    const flush = pageSetup({ margin_outer_cm: 0 }, { ...shipped, margin_outer_cm: 2 });
+    check("a zero outer margin is a margin a writer chose", flush.margin_outer_cm, 0);
+  }
 }

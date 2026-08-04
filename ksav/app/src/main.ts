@@ -1393,6 +1393,7 @@ function buildHeader(): HTMLElement {
 
   const exportMenu = menu("⬇ " + t("export"), [
     el("button", { class: "menu-item", onClick: () => void exports.exportPdf() }, [t("exportPdf")]),
+    el("button", { class: "menu-item", onClick: () => void exports.exportPdfPages() }, [t("exportPdfPages")]),
     el("button", { class: "menu-item", onClick: () => void exports.exportWord() }, [t("exportWord")]),
     el("button", { class: "menu-item", onClick: () => void exports.copyForWord() }, [t("copyForWord")]),
     el("button", { class: "menu-item", onClick: () => void exports.exportHtml() }, [t("exportHtml")]),
@@ -1526,6 +1527,68 @@ function numberRow(labelKey: string, key: keyof Settings, min: number, max: numb
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
 }
+/**
+ * A number the writer may leave unset.
+ *
+ * `numberRow` renders `String(now(key))`, which for an absent optional prints
+ * the word "undefined" into the box. That matters here beyond looking wrong: the
+ * four per-edge margins mean *"follow the one margin"* when unset, so an empty
+ * box is a real and useful state, and clearing one has to write `undefined`
+ * back rather than zero — a zero margin and an unset margin are different pages.
+ */
+function optNumberRow(labelKey: string, key: keyof Settings, min: number, max: number, step: number) {
+  const live = now(key);
+  const input = el("input", {
+    type: "number",
+    min,
+    max,
+    step,
+    placeholder: t("perEdgeHint"),
+    value: live === undefined || live === null ? "" : String(live),
+    onChange: (e: Event) => {
+      const raw = (e.target as HTMLInputElement).value.trim();
+      setSetting(key, (raw === "" ? undefined : Number(raw)) as never);
+    },
+  });
+  return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
+}
+
+/** A fixed choice, labelled through the dictionary like every other row. */
+function selectRow(labelKey: string, key: keyof Settings, options: [string, string][]) {
+  const live = String(now(key) ?? "");
+  const sel = el(
+    "select",
+    { onChange: (e: Event) => setSetting(key, (e.target as HTMLSelectElement).value as never) },
+    options.map(([value, label]) =>
+      el("option", { value, ...(live === value ? { selected: "selected" } : {}) }, [label]),
+    ),
+  );
+  return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), sel]);
+}
+
+/**
+ * A comma-separated list, edited as text and stored as an array.
+ *
+ * The split is deliberately forgiving about spaces and empty entries — a
+ * keyword list is the kind of field where a trailing comma is a keystroke, not
+ * an intention.
+ */
+function listRow(labelKey: string, key: keyof Settings) {
+  const live = now(key);
+  const input = el("input", {
+    type: "text",
+    value: Array.isArray(live) ? live.join(", ") : "",
+    onChange: (e: Event) => {
+      const parts = (e.target as HTMLInputElement).value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      setSetting(key, parts as never);
+    },
+  });
+  return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
+}
+
 function checkRow(labelKey: string, key: keyof Settings) {
   const input = el("input", {
     type: "checkbox",
@@ -1538,7 +1601,10 @@ function textRow(labelKey: string, key: keyof Settings, placeholder = "") {
   const input = el("input", {
     type: "text",
     placeholder,
-    value: String(settings[key] ?? ""),
+    // `now`, not `settings`: header and footer are page setup and belong to the
+    // open document (B26), so reading the app preference here showed one value
+    // in the box and typeset another on the page.
+    value: String(now(key) ?? ""),
     onInput: (e: Event) => setSetting(key, (e.target as HTMLInputElement).value as never),
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
@@ -1661,6 +1727,41 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("columns", "columns", 1, 3, 1),
     textRow("headerText", "header", ""),
     textRow("footerText", "footer", ""),
+    // Everything a sefer that will be *printed and bound* needs and a document
+    // read on a screen does not. Kept in its own group and off by default, so
+    // the ordinary page setup above stays five fields rather than eighteen.
+    el("h3", { style: "margin-top:18px" }, [t("bindingTitle")]),
+    el("div", { class: "set-note" }, [t("bindingNote")]),
+    checkRow("twoSided", "two_sided"),
+    optNumberRow("marginTop", "margin_top_cm", 0, 7, 0.25),
+    optNumberRow("marginBottom", "margin_bottom_cm", 0, 7, 0.25),
+    optNumberRow("marginInner", "margin_inner_cm", 0, 7, 0.25),
+    optNumberRow("marginOuter", "margin_outer_cm", 0, 7, 0.25),
+    numberRow("gutter", "gutter_cm", 0, 5, 0.25),
+    selectRow("headAlign", "head_align", [
+      ["center", t("headAlign.center")],
+      ["outside", t("headAlign.outside")],
+      ["inside", t("headAlign.inside")],
+    ]),
+    textRow("headerOdd", "header_odd", ""),
+    textRow("headerEven", "header_even", ""),
+    textRow("footerOdd", "footer_odd", ""),
+    textRow("footerEven", "footer_even", ""),
+    el("h3", { style: "margin-top:18px" }, [t("pdfTitle")]),
+    textRow("docTitle", "title", ""),
+    textRow("docAuthor", "author", ""),
+    listRow("docKeywords", "keywords"),
+    selectRow("pdfStandard", "pdf_standard", [
+      ["", t("pdfStandard.none")],
+      ["a-2b", "PDF/A-2b"],
+      ["a-3b", "PDF/A-3b"],
+      ["a-4", "PDF/A-4"],
+      ["ua-1", "PDF/UA-1"],
+      ["1.7", "PDF 1.7"],
+      ["2.0", "PDF 2.0"],
+    ]),
+    checkRow("pdfTagged", "pdf_tagged"),
+    el("div", { class: "set-note" }, [t("pdfStandardNote")]),
     // The affordance per-document setup takes away and has to give back: a
     // writer who has got their sefer looking right wants the next one to start
     // there, rather than setting fourteen fields again.

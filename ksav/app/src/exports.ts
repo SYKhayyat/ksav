@@ -30,18 +30,35 @@ function warnIfHealed() {
   if (n) runtime.setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
 }
 
-export async function exportPdf() {
+export async function exportPdf(pages?: string) {
   runtime.closeMenus();
   await flushSaves();
   runtime.setStatus(t("rendering"), "");
-  const res = await compileForExport();
+  const res = await compileForExport(pages ? { pdf_pages: pages } : undefined);
   if (!res?.pdf_base64) {
-    runtime.setStatus(t("compileError"), "err");
+    // A PDF/A export can be refused for a real, nameable reason — an
+    // unembeddable font, a missing title — and "compile error" over the top of
+    // that reason is the least useful thing this could say. The engine already
+    // sends the reason down; the only work here is not throwing it away.
+    const why = res?.diagnostics?.find((d) => d.severity === "error")?.message;
+    runtime.setStatus(why ? `${t("compileError")} — ${why}` : t("compileError"), "err");
     return;
   }
   const bytes = Uint8Array.from(atob(res.pdf_base64), (c) => c.charCodeAt(0));
   download(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
-  warnIfHealed();
+  // Dropped tags on a page-range export, and anything else the export chose to
+  // do rather than fail over — worth a line, since the file is already on disk.
+  const note = res.diagnostics?.find((d) => d.severity === "warning")?.message;
+  if (note) runtime.setStatus(`⚠ ${note}`, "warn");
+  else warnIfHealed();
+}
+
+/** Export a subset of the pages — what you send when the printer wants a proof. */
+export async function exportPdfPages() {
+  runtime.closeMenus();
+  const spec = window.prompt(t("pdfPagesPrompt"), "");
+  if (spec === null) return;
+  await exportPdf(spec.trim() || undefined);
 }
 
 export async function exportTypst() {

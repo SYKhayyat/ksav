@@ -37,6 +37,7 @@ import * as store from "./store";
 import * as files from "./files";
 import { NOTE_CHOICES, applyChoice } from "./notes";
 import { aliasesInForce, keybindingsFrom, whoHolds } from "./bindings";
+import * as sefarim from "./sefarim";
 import * as spell from "./spell";
 import * as styles from "./styles";
 import * as tables from "./table";
@@ -419,6 +420,11 @@ function whose(from: "registry" | "document" | "yours"): string {
 // Command autocomplete: typing `#` offers Ksav commands from the registry plus
 // any user-defined commands. Not a dictionary — only triggers on `#`.
 function ksavCompletions(context: CompletionContext): CompletionResult | null {
+  // A sefer name where a sefer name goes. Checked first, because inside
+  // `#ציון_מקור("…` the `#` match below would still fire on the command itself
+  // and offer commands in the middle of an argument.
+  const cite = sefarimCompletions(context);
+  if (cite) return cite;
   const word = context.matchBefore(/#[A-Za-z֐-׿_]*/u);
   if (!word) return null;
   if (word.from === word.to && !context.explicit) return null;
@@ -443,6 +449,34 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
       apply: insertApply(c.insert),
     }));
   return { from: word.from, options, filter: false };
+}
+
+/**
+ * Sefer names, offered inside a citation's first argument.
+ *
+ * What it inserts is the **canonical** name, not the abbreviation that was
+ * typed: the index files a citation under the canonical name anyway, so
+ * completing to it means the page and the index agree about what the sefer is
+ * called without anyone doing a copy-editing pass.
+ */
+function sefarimCompletions(context: CompletionContext): CompletionResult | null {
+  const arg = sefarim.seferArgAt(context.state.doc.toString(), context.pos);
+  if (!arg) return null;
+  if (arg.query === "" && !context.explicit) return null;
+  const hits = sefarim.suggest(arg.query);
+  if (!hits.length) return null;
+  return {
+    from: arg.from,
+    to: arg.to,
+    filter: false,
+    options: hits.map((s) => ({
+      label: s.canonical,
+      // The abbreviations, so a writer can see that ב״ב is a thing they may type
+      // and that it will come out as בבא בתרא.
+      detail: s.aliases.join(" · "),
+      apply: s.canonical,
+    })),
+  };
 }
 const autoCompartment = new Compartment();
 // ---------------------------------------------------------------- spell check
@@ -3699,6 +3733,10 @@ async function fetchRegistries(): Promise<boolean> {
       runtime.backend!.templates(),
     ]);
     runtime.setRegistries(commands, templates);
+    // Not awaited and not in the `Promise.all`: the chrome does not need the
+    // sefer catalogue to be built, and a catalogue that never arrives must not
+    // be able to hold the toolbar hostage.
+    void sefarim.load(runtime.backend);
     clearChromeNotice();
     rerenderChrome();
     maybeOnboard();

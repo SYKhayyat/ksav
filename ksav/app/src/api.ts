@@ -318,6 +318,20 @@ export interface CommandDef {
   insert: string;
 }
 
+/**
+ * One sefer in the catalogue the source index sorts by.
+ *
+ * `order` is its place in the traditional sequence — Tanach, then Shas in seder
+ * order, then the poskim — and is the reason the index can put בבא בתרא after
+ * בבא מציעא rather than before it.
+ */
+export interface SeferDef {
+  canonical: string;
+  kind: string;
+  order: number;
+  aliases: string[];
+}
+
 export interface TemplateDef {
   id: string;
   he: string;
@@ -442,6 +456,10 @@ export interface Backend {
   /** Suggestions for one word — asked for only when a menu is opened. */
   suggest(word: string, userWords: string): Promise<string[]>;
   commands(): Promise<CommandDef[]>;
+  /** The sefer catalogue, for citation autocomplete. The same list the source
+   *  index sorts by, so what the editor offers and where the index files it
+   *  can never be two different opinions. */
+  sefarim(): Promise<SeferDef[]>;
   templates(): Promise<TemplateDef[]>;
   /** Sources handed over by Girsa since the last ask. Drained, so asking twice
    *  does not insert the same quote twice. Empty in a plain browser, which has
@@ -540,6 +558,11 @@ export class HttpBackend implements Backend {
   async commands(): Promise<CommandDef[]> {
     const res = await fetch(this.base + "/commands");
     return res.json();
+  }
+
+  async sefarim(): Promise<SeferDef[]> {
+    const res = await fetch(this.base + "/sefarim");
+    return (await res.json()).sefarim ?? [];
   }
 
   async templates(): Promise<TemplateDef[]> {
@@ -765,6 +788,9 @@ export class WasmBackend implements Backend {
   async commands(): Promise<CommandDef[]> {
     return JSON.parse(await this.call("commands", ""));
   }
+  async sefarim(): Promise<SeferDef[]> {
+    return JSON.parse(await this.call("sefarim", "")).sefarim ?? [];
+  }
   async templates(): Promise<TemplateDef[]> {
     return JSON.parse(await this.call("templates", ""));
   }
@@ -914,6 +940,9 @@ export class TauriBackend implements Backend {
   }
   async commands(): Promise<CommandDef[]> {
     return JSON.parse(await (await this.inv())("ksav_commands"));
+  }
+  async sefarim(): Promise<SeferDef[]> {
+    return JSON.parse(await (await this.inv())("ksav_sefarim")).sefarim ?? [];
   }
   async templates(): Promise<TemplateDef[]> {
     return JSON.parse(await (await this.inv())("ksav_templates"));

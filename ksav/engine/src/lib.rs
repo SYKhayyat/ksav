@@ -21,6 +21,8 @@ pub mod jump;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod post;
 pub mod probe;
+/// The catalogue of sefarim, and the order a source index prints them in.
+pub mod sefarim;
 pub mod source;
 pub mod spell;
 pub mod templates;
@@ -572,7 +574,13 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
     let columns = cfg.columns.max(1);
     format!(
-        "{prelude}\n\
+        // The sefer catalogue goes *before* the prelude, because the prelude's
+        // index functions close over it: a Typst closure captures the scope it
+        // was defined in, so a table defined after them is a table they cannot
+        // see. `body_offset` is derived by assembling an empty body rather than
+        // counted by hand, so the extra lines shift the diagnostics' idea of
+        // where the writer's text starts without anyone having to remember to.
+        "{table}\n{prelude}\n\
          #show: מסמך.with(\
          גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, שפה: {lang}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
@@ -587,6 +595,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
          הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})\n\n\
          {body}\n",
+        table = sefarim::typst_table(),
         prelude = PRELUDE,
         font = typst_str(&cfg.font),
         size = cfg.size_pt,

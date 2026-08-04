@@ -1595,6 +1595,289 @@
 }
 #let sources = מראה_מקומות
 
+// ============================================================
+//  מפתחות · the indexes (ענינים and מקורות)
+//
+//  Two indexes, one mechanism. A mark drops an invisible `metadata` into the
+//  flow; the index at the back queries every mark, asks each one which page it
+//  landed on, and prints the collected result. Nothing is counted, nothing is
+//  stored between passes, and the page numbers are therefore right by
+//  construction — they are read off the finished layout rather than predicted.
+//
+//  What separates a real index from a list of words is entirely in the sorting
+//  and the collapsing:
+//
+//    · ך sorts as כ, so סוף files under ס and not between י and ל.
+//    · Consecutive pages collapse: 12, 13, 14 prints as 12–14.
+//    · A masechta sorts where it sits in **Shas**, not in the alphabet. That is
+//      the one thing no general-purpose indexer can do, and it comes from the
+//      catalogue the engine generates above this prelude (`_ix_sefarim`).
+// ============================================================
+
+#let _ix_topic_label = label("ksav-ix-topic")
+#let _ix_src_label = label("ksav-ix-src")
+
+// The letters, as numbers. Final forms carry their base value, because ת"ק is
+// five hundred whichever way the kuf was typed.
+#let _ix_gem = (
+  "א": 1, "ב": 2, "ג": 3, "ד": 4, "ה": 5, "ו": 6, "ז": 7, "ח": 8, "ט": 9,
+  "י": 10, "כ": 20, "ך": 20, "ל": 30, "מ": 40, "ם": 40, "נ": 50, "ן": 50,
+  "ס": 60, "ע": 70, "פ": 80, "ף": 80, "צ": 90, "ץ": 90,
+  "ק": 100, "ר": 200, "ש": 300, "ת": 400,
+)
+#let _ix_gematria(s) = {
+  let n = 0
+  for c in s.clusters() { n += _ix_gem.at(c, default: 0) }
+  n
+}
+
+// Final letters, folded to their base form for sorting only. The printed entry
+// keeps whatever the writer wrote.
+#let _ix_finals = ("ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ")
+
+// The same folding the engine applied when it generated `_ix_sefarim`: nikud
+// away, every gershayim spelling to one, runs of space collapsed. The two
+// implementations have to agree, and `tests/index.rs` asserts they do by
+// rendering the spellings people actually type and looking for the canonical
+// name on the page.
+#let _ix_fold(s) = {
+  let out = ""
+  let last_space = true
+  for c in str(s).clusters() {
+    // The maqaf separates words and must be tested *before* the points range,
+    // because U+05BE sits inside it — matched there, ראש־השנה folds to
+    // ראשהשנה, which is nothing at all.
+    if c == "־" or c == "-" or c.match(regex("\s")) != none {
+      if not last_space { out += " " }
+      last_space = true
+      continue
+    }
+    if c.match(regex("[\u{0591}-\u{05C7}]")) != none { continue }
+    if c in ("\u{05F4}", "\u{201C}", "\u{201D}", "\"") { out += "\"" }
+    else if c in ("\u{05F3}", "\u{2019}", "'") { out += "'" }
+    else { out += c }
+    last_space = false
+  }
+  out.replace("''", "\"").trim()
+}
+
+// A term as it sorts: finals folded, points and marks dropped.
+#let _ix_sortkey(s) = {
+  let out = ""
+  for c in str(s).clusters() {
+    if c.match(regex("[\u{0591}-\u{05C7}\u{05F3}\u{05F4}\"']")) != none { continue }
+    out += _ix_finals.at(c, default: c)
+  }
+  lower(out.trim())
+}
+
+// A number as a fixed-width string, so that composite sort keys can be compared
+// as text. Typst does not order arrays, and a two-stage sort would depend on
+// `sorted` being stable — which it is not documented to be.
+#let _ix_pad(n, width: 6) = {
+  let s = str(calc.max(n, 0))
+  while s.len() < width { s = "0" + s }
+  s
+}
+
+// ג. → (3, 0) · ג: → (3, 1) · 12b → (12, 1)
+//
+// The amud is a second sort key rather than part of the first, because ב: comes
+// after ב. and before ג. — which is what a reader expects and what a plain
+// string sort of "ב." and "ב:" happens not to give.
+#let _ix_place_key(place) = {
+  let s = str(place)
+  let amud = if s.contains(":") or s.contains("ע\"ב") or s.contains("ע״ב") or s.ends-with("b") { 1 } else { 0 }
+  let clean = s
+  for junk in ("ע״א", "ע״ב", "ע\"א", "ע\"ב", "דף", ".", ":", "״", "\"", "׳", "'", " ", "a", "b") {
+    clean = clean.replace(junk, "")
+  }
+  let digits = clean.matches(regex("[0-9]+"))
+  let n = if digits.len() > 0 { int(digits.first().text) } else { _ix_gematria(clean) }
+  _ix_pad(n) + str(amud)
+}
+
+// The pages a set of marks landed on: deduplicated, in order, consecutive runs
+// written as ranges.
+//
+// The number is formatted with **the numbering in force at that location**, so a
+// sefer numbered א,ב,ג gets a Hebrew index and one numbered 1,2,3 gets an Arabic
+// one, with nothing to configure. `page-numbering()` is what makes that possible
+// — and it can be `none`, on a document with page numbers switched off, where
+// the bare number is still the honest answer.
+#let _ix_pages(locs) = {
+  let nums = ()
+  let shown = (:)
+  for l in locs {
+    let p = counter(page).at(l).first()
+    if p in nums { continue }
+    nums.push(p)
+    let pat = l.page-numbering()
+    shown.insert(str(p), if pat == none { str(p) } else { numbering(pat, p) })
+  }
+  nums = nums.sorted()
+  let disp(n) = shown.at(str(n))
+  let out = ()
+  let i = 0
+  while i < nums.len() {
+    let j = i
+    while j + 1 < nums.len() and nums.at(j + 1) == nums.at(j) + 1 { j += 1 }
+    if j > i {
+      out.push(disp(nums.at(i)) + "–" + disp(nums.at(j)))
+    } else {
+      out.push(disp(nums.at(i)))
+    }
+    i = j + 1
+  }
+  out.join(", ")
+}
+
+// ------------------------------------------------------------ מפתח ענינים
+//
+// ערך — mark this spot as belonging to a topic.
+//
+// The body is optional and is the ordinary case: `#ערך("שבת")[מלאכת בורר]`
+// marks the phrase *and prints it*, so the writer does not type the words twice.
+// With no body the mark is invisible, which is what you want when the topic is
+// discussed but never named in those words.
+//
+// Taken through `..שאר` rather than as a defaulted parameter, because Typst has
+// no optional *positional* argument: a parameter with a default is named-only,
+// and a trailing `[…]` block is always positional. Writing `טקסט: none` made
+// `#ערך("שבת")[מלאכת בורר]` fail with "unexpected argument" — pointing at a
+// bracket the writer had every right to type.
+#let ערך(מונח, תת: none, ..שאר) = {
+  [#metadata((
+    term: str(מונח).trim(),
+    sub: if תת == none { "" } else { str(תת).trim() },
+  ))#_ix_topic_label]
+  let body = שאר.pos()
+  if body.len() > 0 { body.first() }
+}
+#let indexentry = ערך
+
+#let _ix_entry_line(name, locs, indent: 0em) = block(
+  above: 0.25em, below: 0.25em, inset: (right: indent),
+  [#name #h(0.4em) #text(fill: luma(60), _ix_pages(locs))],
+)
+
+#let מפתח_ענינים(כותרת: [מפתח הענינים], טורים: 2, גודל: 0.9em) = context {
+  let marks = query(_ix_topic_label)
+  if marks.len() == 0 { return }
+  if כותרת != none { heading(level: 1, numbering: none, כותרת) }
+  // Gather first, print second. A term's pages are spread through the document
+  // and its sub-entries are interleaved with everything else's, so there is no
+  // way to print in one pass without the entries coming out in citation order —
+  // which is precisely not an index.
+  let groups = (:)
+  for m in marks {
+    let v = m.value
+    let g = groups.at(v.term, default: (locs: (), subs: (:)))
+    if v.sub == "" {
+      g.locs.push(m.location())
+    } else {
+      let sl = g.subs.at(v.sub, default: ())
+      sl.push(m.location())
+      g.subs.insert(v.sub, sl)
+    }
+    groups.insert(v.term, g)
+  }
+  let body = {
+    set text(size: גודל)
+    for term in groups.keys().sorted(key: _ix_sortkey) {
+      let g = groups.at(term)
+      // A term with only sub-entries prints as a bare heading over them rather
+      // than as an entry with no pages after it.
+      if g.locs.len() > 0 {
+        _ix_entry_line(strong(term), g.locs)
+      } else {
+        block(above: 0.25em, below: 0.25em, strong(term))
+      }
+      for sub in g.subs.keys().sorted(key: _ix_sortkey) {
+        _ix_entry_line(sub, g.subs.at(sub), indent: 1.2em)
+      }
+    }
+  }
+  if טורים > 1 { columns(טורים, body) } else { body }
+}
+#let topicindex = מפתח_ענינים
+
+// ------------------------------------------------------------ מפתח מקורות
+//
+// ציון_מקור — cite a sefer, printed here and filed in the source index.
+//
+// The sefer name is normalised through the generated catalogue, so ב״ב and
+// בבא בתרא are one entry in the index however the writer typed them on any
+// given page — which is the whole reason a hand-built מפתח מקורות is wrong: the
+// same masechta appears three times under three spellings.
+// The optional body overrides the printed form, and rides `..שאר` for the same
+// reason as `ערך` above: a trailing `[…]` is positional and Typst has no
+// optional positional parameter.
+#let ציון_מקור(ספר, מקום: none, סוגריים: false, ..שאר) = {
+  let e = _ix_sefarim.at(_ix_fold(ספר), default: none)
+  let canon = if e == none { str(ספר).trim() } else { e.שם }
+  let place = if מקום == none { "" } else { str(מקום).trim() }
+  [#metadata((
+    sefer: canon,
+    order: if e == none { 9000 } else { e.סדר },
+    kind: if e == none { "other" } else { e.סוג },
+    place: place,
+  ))#_ix_src_label]
+  let own = שאר.pos()
+  let printed = if own.len() > 0 { own.first() } else {
+    // The writer's own spelling is *not* what prints. Somebody who wrote ב״ב in
+    // one place and בבא בתרא in another gets one spelling throughout, which is
+    // the copy-editing pass nobody has time for.
+    text(style: "italic", canon + if place != "" { " " + place } else { "" })
+  }
+  if סוגריים { [(#printed)] } else { printed }
+}
+#let sourceref = ציון_מקור
+
+#let מפתח_מקורות(כותרת: [מפתח המקורות], קבוצות: true, טורים: 2, גודל: 0.9em) = context {
+  let marks = query(_ix_src_label)
+  if marks.len() == 0 { return }
+  if כותרת != none { heading(level: 1, numbering: none, כותרת) }
+  let by = (:)
+  for m in marks {
+    let v = m.value
+    let g = by.at(v.sefer, default: (order: v.order, kind: v.kind, places: (:)))
+    let pl = g.places.at(v.place, default: ())
+    pl.push(m.location())
+    g.places.insert(v.place, pl)
+    by.insert(v.sefer, g)
+  }
+  // Shas order first, then the alphabet for anything sharing a rank — which is
+  // every sefer the catalogue has never heard of, all of them at rank 9000.
+  let names = by.keys().sorted(key: n => _ix_pad(by.at(n).order) + "|" + _ix_sortkey(n))
+  let body = {
+    set text(size: גודל)
+    let last_kind = none
+    for name in names {
+      let g = by.at(name)
+      if קבוצות and g.kind != last_kind {
+        last_kind = g.kind
+        let title = _ix_kind_titles.at(g.kind, default: "שאר המקורות")
+        block(above: 0.9em, below: 0.35em, text(weight: "bold", fill: luma(80), smallcaps(title)))
+      }
+      // A citation with no place at all (the sefer as a whole) prints its pages
+      // against the name; one with places lists them under it.
+      let bare = g.places.at("", default: ())
+      if bare.len() > 0 {
+        _ix_entry_line(strong(name), bare)
+      } else {
+        block(above: 0.25em, below: 0.1em, strong(name))
+      }
+      let places = g.places.keys().filter(p => p != "").sorted(key: _ix_place_key)
+      for p in places {
+        _ix_entry_line(p, g.places.at(p), indent: 1.2em)
+      }
+    }
+  }
+  if טורים > 1 { columns(טורים, body) } else { body }
+}
+#let sourceindex = מפתח_מקורות
+
 // ציון — an inline reference in small gray text, e.g. (רמב״ם הל׳ תפילין)
 #let ציון(body) = text(size: 0.85em, fill: luma(95), [(#body)])
 

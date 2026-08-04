@@ -40,6 +40,12 @@ pub fn ksav_templates() -> String {
     ksav_engine::templates::templates_json()
 }
 
+/// The sefer catalogue as JSON (same as the server's `/sefarim`).
+#[wasm_bindgen]
+pub fn ksav_sefarim() -> String {
+    ksav_engine::sefarim::catalog_json()
+}
+
 /// Spell-check text (same as the server's `/spell`).
 #[wasm_bindgen]
 pub fn ksav_spell(input_json: &str) -> String {

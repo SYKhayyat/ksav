@@ -331,6 +331,14 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
             let json = post(&mut request, linkify_request);
             let _ = request.respond(with_cors(json_response(json), cors));
         }
+        // The sefer catalogue, for the editor's citation autocomplete. The same
+        // list the source index sorts by, so what the editor offers and what the
+        // index files it under can never be two different opinions.
+        (Method::Get, "/sefarim") => {
+            let cors = cors_header(&request, addr_str);
+            let resp = json_response(crate::sefarim::catalog_json());
+            let _ = request.respond(with_cors(resp, cors));
+        }
         (Method::Get, "/templates") => {
             let cors = cors_header(&request, addr_str);
             let resp = json_response(crate::templates::templates_json());

@@ -175,6 +175,12 @@ fn ksav_commands() -> String {
     ksav_engine::commands::commands_json()
 }
 
+/// The sefer catalogue as JSON, for citation autocomplete.
+#[tauri::command]
+fn ksav_sefarim() -> String {
+    ksav_engine::sefarim::catalog_json()
+}
+
 /// The template registry as JSON.
 #[tauri::command]
 fn ksav_templates() -> String {
@@ -372,6 +378,7 @@ pub fn run() {
             ksav_jump,
             ksav_reveal,
             ksav_commands,
+            ksav_sefarim,
             ksav_templates,
             ksav_open_file,
             ksav_save_file,

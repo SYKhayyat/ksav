@@ -33,6 +33,7 @@ const MODULES = [
   "notes",
   "preview",
   "review",
+  "sefarim",
   "settings",
   "styles",
   "table",

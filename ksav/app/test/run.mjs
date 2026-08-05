@@ -41,6 +41,7 @@ const MODULES = [
   "macros",
   "markdown",
   "mode",
+  "note-commands",
   "notes",
   "parts",
   "preview",

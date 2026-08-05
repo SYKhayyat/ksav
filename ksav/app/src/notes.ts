@@ -16,6 +16,7 @@
 
 import { deferSnippet, fileNewBody, nextName } from "./deferred";
 import { enclosing } from "./mode";
+import { TIERS, opensNoteBody, tierCommand } from "./note-commands";
 
 export type NoteLayers = "one" | "two";
 
@@ -371,39 +372,9 @@ export function noteFor(
   return null;
 }
 
-/** Every command that opens a note body — used to read the tier at the caret. */
-const NOTE_COMMANDS = [
-  "הערה",
-  "הערה_א",
-  "הערה_ב",
-  "הערה_ג",
-  "הערה_ד",
-  "הערה_ה",
-  "הערה_ו",
-  "הערה_ז",
-  "הערה_בדרגה",
-  "הערה_על_הערה",
-  "מראה_מקום",
-  "הערתסיום",
-  "מדור_א",
-  "מדור_ב",
-  "מדור_ג",
-  "מדור_בדרגה",
-  "מדף_א",
-  "מדף_ב",
-  "מדף_ג",
-  "מדף_בדרגה",
-  "הערת_גיליון",
-  "הערת_ימין",
-  "הערת_שמאל",
-  "הערת_תוכן",
-  "הערת_מקור",
-  "הערה_זרם",
-];
-
 /** How many notes enclose this position. 0 in ordinary prose. */
 export function noteDepthAt(doc: string, pos: number): number {
-  return enclosing(doc, pos).filter((n) => NOTE_COMMANDS.includes(n)).length;
+  return enclosing(doc, pos).filter(opensNoteBody).length;
 }
 
 /**
@@ -415,13 +386,17 @@ export function noteDepthAt(doc: string, pos: number): number {
  * real tiered mechanism had no button at all. Now the button writes the real
  * thing, and it reads the caret: a tiered note inside one note is tier ב, inside
  * two is tier ג, and standing in ordinary prose it is tier א.
+ *
+ * `lang` is the document's direction, not the interface's: an English document
+ * gets `#tier2`. Reading the caret was always the point of this function, and
+ * until the shared list arrived it could not read an English one — every
+ * `#fnote[…]` around the caret counted as zero, so this wrote tier א from inside
+ * a note.
  */
-export function tieredNoteAt(doc: string, pos: number): string {
-  const tier = Math.min(noteDepthAt(doc, pos) + 1, TIER_NAMES.length);
-  return `#${TIER_NAMES[tier - 1]}[|]`;
+export function tieredNoteAt(doc: string, pos: number, lang: "he" | "en" = "he"): string {
+  const tier = Math.min(noteDepthAt(doc, pos) + 1, TIERS.length);
+  return `#${tierCommand(tier, lang)}[|]`;
 }
-
-const TIER_NAMES = ["הערה_א", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז"];
 
 // ---------------------------------------------------------------- the index
 //
@@ -486,7 +461,7 @@ export function notesIn(doc: string): NoteSpan[] {
     }
     if (c === "#") {
       const m = /^#([A-Za-z0-9֐-׿_]+)[ \t]*(\()?/.exec(doc.slice(i, i + 48));
-      if (m && NOTE_COMMANDS.includes(m[1])) {
+      if (m && opensNoteBody(m[1])) {
         // Step over an argument list — `#הערה_בדרגה(2)[…]` — to reach the body.
         let j = i + m[0].length;
         if (m[2]) {

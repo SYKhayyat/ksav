@@ -25,6 +25,7 @@
 // wiring is in `deferred-lint.ts`.
 
 import { commentRegions } from "./brackets";
+import { NOTE_BODY_COMMANDS } from "./note-commands";
 
 // ---------------------------------------------------------------- the commands
 
@@ -42,28 +43,13 @@ const REGION_NAMES = ["גופי_הערות", "note_bodies"];
  * what lets `#הערה_בשם` stand in for any of them. A command not on this list is
  * not one this module will rewrite — it would be guessing about the shape of
  * something it does not understand.
+ *
+ * That shape claim *is* the membership rule of `NOTE_BODY_COMMANDS`, so this is
+ * an alias rather than a second list. It was the second list until the copy in
+ * `notes.ts` drifted out of the English wave and took the notes pane with it;
+ * see the head of `note-commands.ts`.
  */
-export const NOTE_COMMANDS: string[] = [
-  "הערה", "fnote",
-  "הערה_על_הערה", "subnote",
-  "הערה_א", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז",
-  "tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7",
-  "הערה_בדרגה", "tier",
-  "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה", "מדור_ו", "מדור_ז",
-  "band1", "band2", "band3", "band4", "band5", "band6", "band7",
-  "מדור_בדרגה", "band",
-  "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז",
-  "pageband1", "pageband2", "pageband3", "pageband4", "pageband5", "pageband6", "pageband7",
-  "מדף_בדרגה", "pageband",
-  "הערתסיום", "endnote",
-  "הערה_זרם", "stream_note",
-  "הערת_תוכן", "contentnote",
-  "הערת_מקור", "sourcenote_stream",
-  "הערת_גיליון", "sidenote",
-  "הערת_ימין", "noteright",
-  "הערת_שמאל", "noteleft",
-  "מראה_מקום", "sourcenote",
-];
+export const NOTE_COMMANDS: readonly string[] = NOTE_BODY_COMMANDS;
 
 /** The command a bare `#הערה_בשם("א")` stands for — its `סוג` default. */
 const DEFAULT_KIND = "הערה";
@@ -192,7 +178,11 @@ function argName(arg: string): string | null {
 }
 
 /** Find `#name` occurrences that are real calls, outside comments. */
-function callsOf(text: string, names: string[], isComment: (p: number) => boolean): number[] {
+function callsOf(
+  text: string,
+  names: readonly string[],
+  isComment: (p: number) => boolean,
+): number[] {
   const out: number[] = [];
   for (let i = 0; i < text.length; i++) {
     if (text[i] !== "#" || isComment(i)) continue;

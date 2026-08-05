@@ -497,9 +497,28 @@ export interface Backend {
    *  can never be two different opinions. */
   sefarim(): Promise<SeferDef[]>;
   templates(): Promise<TemplateDef[]>;
+}
+
+/**
+ * Talking to Girsa — the sibling application, not the engine.
+ *
+ * These four were on `Backend` for as long as there was one implementation of
+ * it. They do not compile anything: they are IPC with another program that may
+ * simply not be running, or not exist on this platform. A browser tab has no
+ * listener for Girsa to hand a source to, and cannot reach its loopback token,
+ * which lives in a file only the two installed applications can read.
+ *
+ * `WasmBackend` therefore does not implement this at all, and that is the whole
+ * point of the split. It used to implement it with four stubs — one of which
+ * returned a sentence for a *reader* ("this works when Girsa is open beside
+ * Ksav") from inside a transport, in Hebrew, to a caller that then ran it
+ * through the error rephraser and showed a generic "failed" instead. Nothing
+ * had failed. The build simply does not have the capability, and now it says so
+ * by not claiming it: callers ask `sourcesOf(backend)` and get `null`.
+ */
+export interface Sources {
   /** Sources handed over by Girsa since the last ask. Drained, so asking twice
-   *  does not insert the same quote twice. Empty in a plain browser, which has
-   *  no listener for Girsa to hand anything to. */
+   *  does not insert the same quote twice. */
   inbox(): Promise<Arrival[]>;
   /** Where is this phrase from? Asked of Girsa, which has the corpus. */
   mekoros(phrase: string, except?: string): Promise<Mekoros>;
@@ -508,6 +527,18 @@ export interface Backend {
   /** Turn the citations in a piece of prose into live refs — the certain ones
    *  only (spec.md §10.5). Comes back rewritten, or unchanged. */
   linkify(text: string): Promise<string>;
+}
+
+/**
+ * The Girsa half of a backend, or `null` if this one has no such half.
+ *
+ * One test, in one place, so that "can I reach Girsa" is never four separate
+ * `typeof b.mekoros === "function"` checks that drift apart. `inbox` stands for
+ * all four: an implementation provides the set or none of it.
+ */
+export function sourcesOf(b: Backend | undefined): Sources | null {
+  const s = b as (Backend & Partial<Sources>) | undefined;
+  return s && typeof s.inbox === "function" ? (s as Sources) : null;
 }
 
 /**
@@ -534,7 +565,7 @@ function readPoints(v: unknown): PagePoint[] {
   );
 }
 
-export class HttpBackend implements Backend {
+export class HttpBackend implements Backend, Sources {
   readonly kind = "server";
   private cache = new CompileCache();
   constructor(private base = "") {}
@@ -831,40 +862,21 @@ export class WasmBackend implements Backend {
     return JSON.parse(await this.call("templates", ""));
   }
 
-  /** A tab has no listener on it, so Girsa has nowhere to hand a source. The
-   *  clipboard still works: one Ctrl+C in Girsa puts the packet down and this
-   *  build reads the plain and HTML flavours like anything else would. */
-  async inbox(): Promise<Arrival[]> {
-    return [];
-  }
-
-  /** A tab cannot reach Girsa's loopback: the token lives in a file only the
-   *  two applications can read. Saying so beats a silent empty answer. */
-  async mekoros(phrase: string): Promise<Mekoros> {
-    return {
-      phrase,
-      total: 0,
-      is_a_quotation: false,
-      said: "",
-      places: [],
-      error: "חיפוש מקורות פועל כשגרסא פתוחה לצד כסב (לא בדפדפן)",
-    };
-  }
-
-  async searchInGirsa(): Promise<void> {
-    /* nothing to reach */
-  }
-
-  /** Unchanged: with no Girsa to ask, the honest answer is the prose as it
-   *  was written. Linking a citation this build cannot resolve is the one
-   *  thing spec.md §10.5 forbids. */
-  async linkify(text: string): Promise<string> {
-    return text;
-  }
+  // No `Sources` half. A tab has no listener for Girsa to hand a source to, and
+  // cannot reach its loopback — the token lives in a file only the two installed
+  // applications can read. The clipboard still works: one Ctrl+C in Girsa puts
+  // the packet down and this build reads the plain and HTML flavours like
+  // anything else would.
+  //
+  // These were four stubs until the interface was split. They were honest, but
+  // they were honest in the wrong module: a transport that returns a sentence
+  // for a reader has taken a decision that belongs to the surface, and the one
+  // it returned went out in Hebrew regardless of the document. Absent is a
+  // better answer than polite, and it is the one the type system can see.
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
-export class TauriBackend implements Backend {
+export class TauriBackend implements Backend, Sources {
   readonly kind = "desktop";
   private cache = new CompileCache();
   private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<string>) | null = null;
@@ -1007,7 +1019,7 @@ export class TauriBackend implements Backend {
  *   - server reachable → HTTP (fast, tiny download)
  *   - otherwise      → in-browser wasm engine (works with no server)
  */
-export async function createBackend(): Promise<Backend> {
+export async function createBackend(): Promise<Backend & Partial<Sources>> {
   if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
     return new TauriBackend();
   }

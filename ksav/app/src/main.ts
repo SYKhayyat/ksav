@@ -24,7 +24,7 @@ import {
 import { bracketLint, healAll } from "./bracket-lint";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { deferredNotes, jumpDeferred, deferHere, recallHere, deferAll } from "./deferred-lint";
-import { createBackend } from "./api";
+import { createBackend, sourcesOf } from "./api";
 /** How often the editor asks Girsa's desk whether anything arrived. A second
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
  *  one lock and an empty vector when there is nothing waiting. */
@@ -385,7 +385,7 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
     id: "tieredNote",
     run: () => {
       const st = runtime.view.state;
-      insertSnippet(tieredNoteAt(st.doc.toString(), st.selection.main.from));
+      insertSnippet(tieredNoteHere(st.doc.toString(), st.selection.main.from));
       return true;
     },
   },
@@ -1135,9 +1135,16 @@ async function linkifySelection(): Promise<void> {
     setStatus(t("selectAPhrase"), "");
     return;
   }
+  const girsa = sourcesOf(runtime.backend);
+  if (!girsa) {
+    // Not a failure: this build has no way to reach Girsa. The prose is left
+    // exactly as written, which is what spec.md §10.5 asks for anyway.
+    setStatus(t("girsaNeedsApp"), "");
+    return;
+  }
   setStatus(t("askingGirsa"), "");
   try {
-    const linked = await runtime.backend!.linkify(prose);
+    const linked = await girsa.linkify(prose);
     if (linked === prose) {
       setStatus(t("nothingCertain"), "");
       return;
@@ -1169,8 +1176,13 @@ async function askForMekor(): Promise<void> {
     setStatus(t("selectAPhrase"), "");
     return;
   }
+  const girsa = sourcesOf(runtime.backend);
+  if (!girsa) {
+    setStatus(t("girsaNeedsApp"), "");
+    return;
+  }
   setStatus(t("askingGirsa"), "");
-  const answer = await runtime.backend!.mekoros(phrase).catch((e) => ({
+  const answer = await girsa.mekoros(phrase).catch((e: unknown) => ({
     phrase,
     total: 0,
     is_a_quotation: false,
@@ -1291,11 +1303,30 @@ function onMekorosKey(e: KeyboardEvent, move: (by: number) => void, take: () => 
 
 async function dropIntoGirsa(phrase: string): Promise<void> {
   closeMekoros();
-  await runtime.backend!.searchInGirsa(phrase).catch(() => {});
+  const girsa = sourcesOf(runtime.backend);
+  if (!girsa) {
+    setStatus(t("girsaNeedsApp"), "");
+    return;
+  }
+  await girsa.searchInGirsa(phrase).catch(() => {});
   setStatus(t("openedInGirsa"), "");
 }
 
 // ---------------------------------------------------------------- snippet insertion
+
+/**
+ * The tiered note to write at `pos`, in the document's own language.
+ *
+ * Four surfaces write this — `Ctrl+Shift+N`, the toolbar's `⁑`, the Insert menu
+ * and "hang another note off this one" in the notes pane — and all four had the
+ * same line of code in them, which is exactly the arrangement that let the
+ * generated command drift out of English in the first place. The direction test
+ * is the same one `setStyleArgs` uses, for the same reason: a generated command
+ * follows the document, not the interface.
+ */
+function tieredNoteHere(doc: string, pos: number): string {
+  return tieredNoteAt(doc, pos, docConfig().dir === "ltr" ? "en" : "he");
+}
 
 /**
  * Write a snippet at the caret. **The** insertion path — every toolbar button,
@@ -1538,7 +1569,7 @@ function noteBtn(action: string, glyph: string, snippet: string | null): HTMLEle
   const title = t("sc." + action) + (key ? ` · ${readable(key)}` : "");
   return iconBtn(glyph, title, () => {
     const st = runtime.view.state;
-    insertSnippet(snippet ?? tieredNoteAt(st.doc.toString(), st.selection.main.from));
+    insertSnippet(snippet ?? tieredNoteHere(st.doc.toString(), st.selection.main.from));
   });
 }
 
@@ -1814,7 +1845,7 @@ function insertMenuItems(): (Node | string)[] {
         onClick: () => {
           closeMenus();
           const st = runtime.view.state;
-          insertSnippet(snippet ?? tieredNoteAt(st.doc.toString(), st.selection.main.from));
+          insertSnippet(snippet ?? tieredNoteHere(st.doc.toString(), st.selection.main.from));
         },
       },
       [
@@ -2672,7 +2703,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
         onClick: () => {
           closeSpellMenu();
           runtime.view.dispatch({ selection: { anchor: note.to - 1 } });
-          insertSnippet(tieredNoteAt(doc, note.to - 1));
+          insertSnippet(tieredNoteHere(doc, note.to - 1));
         },
       },
       [el("b", {}, ["⁑ " + t("sc.tieredNote")])],
@@ -5590,7 +5621,9 @@ async function boot() {
  * format*).
  */
 async function takeArrivals(): Promise<void> {
-  const waiting = await runtime.backend?.inbox().catch(() => []);
+  // Silent when this build has no Girsa half: the inbox is polled, and a poll
+  // that says "you cannot" once a second is a nuisance, not information.
+  const waiting = await sourcesOf(runtime.backend)?.inbox().catch(() => []);
   if (!waiting || waiting.length === 0) return;
   for (const arrival of waiting) {
     if (arrival.whole) {

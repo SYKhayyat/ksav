@@ -26,6 +26,8 @@
 // automatically. Guessing that they behaved alike would have produced four
 // false warnings.
 
+import { BAND_FAMILY } from "./note-commands";
+
 /** A collecting command, and the call that renders what it collected. */
 interface Rule {
   /** Command names, both languages. */
@@ -46,11 +48,9 @@ const RULES: Rule[] = [
     streamed: true,
   },
   {
-    collectors: [
-      "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה", "מדור_ו", "מדור_ז",
-      "מדור_בדרגה",
-      "band1", "band2", "band3", "band4", "band5", "band6", "band7", "band",
-    ],
+    // The whole family, both languages, from the one list — a band tier that
+    // exists but is missing here is a document that silently prints nothing.
+    collectors: [...BAND_FAMILY],
     dumps: ["הערות_מדורגות", "banded_notes"],
     fix: "#הערות_מדורגות()",
     streamed: false,

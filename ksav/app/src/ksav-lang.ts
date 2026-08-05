@@ -11,6 +11,7 @@ import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
+import { TIERS, TIER_FAMILY } from "./note-commands";
 
 // ---- shared scanning -------------------------------------------------------
 
@@ -371,14 +372,15 @@ const addNotes = (family: string, scheme: NoteScheme, names: string[]) => {
 // every tier of the layered notes all land in it, in one running sequence.
 addNotes("native", "1", [
   "הערה", "fnote", "הערה_על_הערה", "subnote", "מראה_מקום", "sourcenote",
-  "הערה_א", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז",
-  "tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7",
-  "הערה_בדרגה", "tier",
+  ...TIER_FAMILY,
 ]);
 // Section bands and per-page bands: one independent sequence per tier, and the
 // engine letters tiers 2 and 3 by default.
-const BAND_TIERS: [string, NoteScheme][] = [["א", "1"], ["ב", "א"], ["ג", "a"], ["ד", "1"], ["ה", "א"], ["ו", "a"], ["ז", "1"]];
-BAND_TIERS.forEach(([letter, scheme], i) => {
+// The tier letters come from `note-commands.ts` — this table says how each tier
+// *numbers*, and must not also be a second opinion about how many there are.
+const BAND_SCHEMES: NoteScheme[] = ["1", "א", "a", "1", "א", "a", "1"];
+TIERS.forEach((letter, i) => {
+  const scheme = BAND_SCHEMES[i];
   addNotes(`band${i + 1}`, scheme, [`מדור_${letter}`, `band${i + 1}`]);
   addNotes(`pageband${i + 1}`, scheme, [`מדף_${letter}`, `pageband${i + 1}`]);
 });

@@ -387,6 +387,10 @@ const HE: Dict = {
   sourceArrived: "התקבל מקור מגרסא — %s",
   selectAPhrase: "סמנו ביטוי כדי לחפש את מקורו",
   askingGirsa: "שואל את גרסא…",
+  // The browser build has no Girsa half at all — this is what the surfaces say
+  // instead of running a failure through the error rephraser and reporting a
+  // failure that never happened.
+  girsaNeedsApp: "חיפוש מקורות פועל כשגרסא פתוחה לצד כסב (לא בדפדפן)",
   phraseNotQuotation: "ביטוי נפוץ — לא נבחר מקור",
   noneFitSearch: "אף אחד לא מתאים — פתח חיפוש בגרסא",
   openedInGirsa: "נפתח חיפוש בגרסא",
@@ -982,6 +986,7 @@ const EN: Dict = {
   sourceArrived: "A source arrived from Girsa — %s",
   selectAPhrase: "Select a phrase to look its source up",
   askingGirsa: "Asking Girsa…",
+  girsaNeedsApp: "Looking sources up needs Girsa open beside Ksav (not in the browser)",
   phraseNotQuotation: "A common phrase — nothing preselected",
   noneFitSearch: "None fits — open the search in Girsa",
   openedInGirsa: "Opened the search in Girsa",

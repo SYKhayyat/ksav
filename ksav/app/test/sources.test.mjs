@@ -91,4 +91,40 @@ export async function run() {
     if (/\btroubleSaid\b/.test(body)) readers++;
   }
   check("`troubleSaid` has readers", readers > 2, true);
+
+  // ---------------------------------------------- Girsa is asked for, not assumed
+  //
+  // The four Girsa methods sat on `Backend` alongside `compile`, so the browser
+  // build had to implement them, and implemented them as polite stubs. One
+  // returned a sentence for a *reader* — in Hebrew, from inside a transport — to
+  // a caller that ran it through the error rephraser and reported a failure that
+  // had not happened. They are a separate `Sources` interface now, which the wasm
+  // build does not implement, and the surfaces ask before they call.
+  //
+  // Both halves are checked, because either alone passes while the bug is back:
+  // a stub can reappear in `WasmBackend`, or a caller can go back to `backend!`.
+  const GIRSA = ["inbox", "mekoros", "searchInGirsa", "linkify"];
+  const api = await readFile(path.join(SRC, "api.ts"), "utf8");
+  const wasmClass = api.slice(
+    api.indexOf("export class WasmBackend"),
+    api.indexOf("export class TauriBackend"),
+  );
+  check("the wasm class was found", wasmClass.length > 100, true);
+  const stubs = GIRSA.filter((m) => new RegExp(`^\\s*(async\\s+)?${m}\\s*\\(`, "m").test(wasmClass));
+  check("the wasm build implements no Girsa method", stubs, []);
+
+  const assumed = [];
+  for (const f of names) {
+    if (f === "api.ts") continue; // where the interface and its implementations live
+    const body = await readFile(path.join(SRC, f), "utf8");
+    body.split("\n").forEach((line, i) => {
+      if (isComment(line)) return;
+      for (const m of GIRSA) {
+        // `backend!.mekoros(…)` / `backend?.inbox()` — reached off the compile
+        // backend rather than through the capability test.
+        if (new RegExp(`backend[!?]?\\.${m}\\s*\\(`).test(line)) assumed.push(`${f}:${i + 1} ${m}`);
+      }
+    });
+  }
+  check("no surface calls Girsa off the compile backend", assumed, []);
 }

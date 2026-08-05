@@ -31,6 +31,8 @@ export interface Settings extends Omit<DocConfig, "lang"> {
   // nobody meets the 1366×768 overflow there. When on, `zoom` is not consulted.
   fitWidth?: boolean;
   outline?: boolean;
+  /** The notes pane — Word's navigation pane, for the document's notes. */
+  notesPane?: boolean;
   nikud?: boolean;
   autocomplete?: boolean;
   spellcheck?: boolean;
@@ -40,6 +42,17 @@ export interface Settings extends Omit<DocConfig, "lang"> {
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
   reviewer?: string; // the name that goes on this person's review comments
+  // Write note bodies at the end of the file (the org-mode arrangement) instead
+  // of inline. A habit, not a document property — the page is identical either
+  // way — so it belongs to the person and has to outlive the tab.
+  deferNoteBodies?: boolean;
+  // Per-operation hydra key overrides, `{"table.rowDelete": "r"}`. Generated
+  // keys are deterministic; this is how a writer overrules one, the same way
+  // `keybindings` overrules a shortcut.
+  hydraKeys?: Record<string, string>;
+  // Recorded macros. A property of the person: they travel with the writer, not
+  // with any one sefer.
+  macros?: unknown;
   // Modal editing, for the people who cannot type without it. A property of the
   // person, not of the sefer — a document opened on someone else's machine must
   // not put them into vim.

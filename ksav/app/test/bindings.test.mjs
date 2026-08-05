@@ -18,6 +18,7 @@ import {
   readable,
 } from "../.tmp-test/bindings.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
+import { actionById } from "../.tmp-test/structure.mjs";
 
 export function run() {
 
@@ -112,8 +113,18 @@ export function run() {
   //
   // Read from the dictionaries and not through `t`, which would answer for Hebrew
   // out of the English shelf and pass a test that a Hebrew-first app should fail.
+  // Two sources of names now: a plain `sc.` string, or — for a structural
+  // operation — the label already carried in `STRUCTURE_ACTIONS`, which the
+  // settings drawer reads. The invariant is "every bindable action has a human
+  // name", not "every one has an `sc.` string"; asserting the narrower thing
+  // would force a second copy of every list label to exist purely to satisfy a
+  // test, which is how registries stop being single sources.
   for (const lang of ["he", "en"]) {
-    const unnamed = Object.keys(DEFAULT_KEYS).filter((id) => !DICTS[lang]["sc." + id]);
+    const unnamed = Object.keys(DEFAULT_KEYS).filter((id) => {
+      if (DICTS[lang]["sc." + id]) return false;
+      const structural = actionById(id);
+      return !(structural && DICTS[lang][structural.label]);
+    });
     check(`every action is named in ${lang}`, unnamed, []);
   }
 }

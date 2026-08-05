@@ -46,19 +46,18 @@ fn tiered_footnote_number_stays_on_its_body_line() {
     let runs = render("טקסט#הערה_א[ראשונה #הערה_ב[שנייה]] סוף#הערה_א[אחרונה].");
     let lines = visual_lines(&runs);
 
-    for body in ["ראשונה", "שנייה", "אחרונה"] {
+    // The marker itself, on the body's own line. This used to be asserted by
+    // counting distinct font sizes on the line — the number is set at the entry
+    // size and the body was smaller, so two sizes meant they were together. That
+    // stopped being true when tier 1 became 1em (a tier-1 note *is* an ordinary
+    // footnote, and #הערה is now literally tier 1), and a proxy that fails
+    // because the thing it proxies for got more consistent is the wrong proxy.
+    // Markers run 1, 2, 3 in document order: the nested note is hoisted to its
+    // own entry after its parent.
+    for (body, mark) in [("ראשונה", "1"), ("שנייה", "2"), ("אחרונה", "3")] {
         let l = line_with(&lines, body);
-        // The entry number is set at the document size (10.2pt at the default
-        // 12pt/0.85em) while the note body is smaller — so a correct entry line
-        // carries two different sizes. An orphaned number would leave the body
-        // line with only the body's own size.
-        let sizes: Vec<String> = {
-            let mut s: Vec<String> = l.runs.iter().map(|r| format!("{:.1}", r.size)).collect();
-            s.dedup();
-            s
-        };
         assert!(
-            sizes.len() >= 2,
+            l.text().contains(mark),
             "note {body:?} has no entry number on its line (orphaned): {:?}",
             l.text()
         );
@@ -518,17 +517,21 @@ fn two_notes_with_identical_text_stay_two_notes() {
 #[test]
 fn identical_notes_get_distinct_numbers() {
     let runs = render("אלף#מדף_א[עיין שם] בית#מדף_א[עיין שם] גימל#מדף_א[אחרת].");
-    // The three markers in the main text must read 1, 2, 3 — not 1, 1, 2.
+    // The three markers in the main text must be distinct — not 1, 1, 2. Tier 1
+    // of a band apparatus is lettered א,ב,ג (the שער־הציון order; it used to
+    // ship inverted, numerals over letters), so these are the letters.
     let main: Vec<&str> = runs
         .iter()
         .filter(|r| r.page == 1 && r.y < 200.0)
         .map(|r| r.text.as_str())
         .collect();
     let joined: String = main.concat();
-    for d in ['1', '2', '3'] {
+    // Each word carries its own marker, so the test is on the *pairs*: a bare
+    // `contains('א')` would pass on the word "אלף" itself and prove nothing.
+    for pair in ["אלףא", "ביתב", "גימלג"] {
         assert!(
-            joined.contains(d),
-            "marker {d} missing from the text: {joined:?}"
+            joined.contains(pair),
+            "marker missing or repeated — expected {pair:?} in: {joined:?}"
         );
     }
 }

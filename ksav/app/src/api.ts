@@ -340,6 +340,18 @@ export interface CommandDef {
   desc_he: string;
   desc_en: string;
   insert: string;
+  /**
+   * Still compiles, no longer offered.
+   *
+   * A command in documents cannot be deleted; a command that misleads cannot
+   * keep a toolbar button. `הערה_על_הערה` is the case — it names the tiered
+   * mechanism and is a cosmetic alias for a slightly smaller, slanted footnote.
+   * Deprecated commands stay out of the toolbar, the Insert menu and the
+   * palette, and keep working wherever they are already written.
+   *
+   * Optional because an older engine build does not send it.
+   */
+  deprecated?: boolean;
 }
 
 /**

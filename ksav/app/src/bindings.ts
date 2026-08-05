@@ -30,6 +30,15 @@ export const DEFAULT_KEYS: Record<string, string> = {
   italic: "Mod-i",
   underline: "Mod-u",
   footnote: "Mod-Shift-f",
+  // The two Word puts on `Ctrl+Alt+F` and `Ctrl+Alt+D`, and the reason two other
+  // actions moved off those combinations. Someone who has only ever used Word
+  // reaches for them without thinking, and an editor that answers with "isolate
+  // this bidi run" has told them the program is not for them. `footnote` keeps
+  // its own `Ctrl+Shift+F` as well, through KEY_ALIASES; the endnote had no key
+  // at all — nor a button, nor a menu entry — so it simply takes Word's.
+  endnote: "Mod-Alt-d",
+  // A note *on* a note, at whatever tier the caret is standing in.
+  tieredNote: "Mod-Shift-n",
   region: "Mod-Shift-g",
   comment: "Mod-/",
   // The sibling of `comment`, and deliberately next to it on the keyboard: one
@@ -55,9 +64,37 @@ export const DEFAULT_KEYS: Record<string, string> = {
   open: "Mod-o",
   newDoc: "Mod-Alt-n",
   markInsert: "Mod-Alt-i",
-  markDelete: "Mod-Alt-d",
+  // Moved off `Mod-Alt-d` to give the endnote Word's own key. See `endnote`.
+  markDelete: "Mod-Alt-Shift-d",
   addComment: "Mod-Alt-m",
+  // Structural keys. Bare Enter/Tab rather than a modifier chord because that
+  // is what they are in Word and in every outliner — and they are only consulted
+  // while the caret is inside a list, falling through to ordinary Enter and Tab
+  // everywhere else. Rebindable like the rest; see `structureKeymap`.
+  "list.splitItem": "Enter",
+  "list.breakInItem": "Shift-Enter",
+  "list.indent": "Tab",
+  "list.outdent": "Shift-Tab",
+  "list.moveUp": "Alt-ArrowUp",
+  "list.moveDown": "Alt-ArrowDown",
+  // Heading tree editing, on org-mode's chords — promote/demote sideways, move
+  // the section vertically. Distinct from the list chords rather than shared:
+  // the two contexts are mutually exclusive so one key *could* serve both, but
+  // "no two actions on one combination" is a rule worth keeping literal, and a
+  // writer reading the shortcut list should not have to reason about context to
+  // know what a key does.
+  "heading.promote": "Alt-Shift-ArrowLeft",
+  "heading.demote": "Alt-Shift-ArrowRight",
+  "heading.moveUp": "Alt-Shift-ArrowUp",
+  "heading.moveDown": "Alt-Shift-ArrowDown",
+  // Record and replay. Emacs puts these on F3/F4 and so does everybody who has
+  // ever used them; the muscle memory is worth more than the mnemonic.
+  help: "F1",
+  macroRecord: "F3",
+  macroPlay: "F4",
+  hydra: "Mod-Alt-k",
   healBrackets: "Mod-Alt-b",
+  renderNotes: "Mod-Alt-e",
   // Forward search — "where am I on the page?". The other direction is a click
   // on the preview and needs no key.
   revealCursor: "Mod-Alt-p",
@@ -66,7 +103,8 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Deferred note bodies. `deferJump` is the workhorse — org-mode's C-c C-c —
   // and gets the mnemonic key; the two that move prose around sit beside it.
   deferJump: "Mod-Alt-j",
-  deferHere: "Mod-Alt-f",
+  // Moved off `Mod-Alt-f`, which is Word's footnote key. See `footnote`.
+  deferHere: "Mod-Alt-Shift-f",
   deferRecall: "Mod-Alt-r",
 };
 
@@ -80,6 +118,8 @@ export const DEFAULT_KEYS: Record<string, string> = {
  */
 export const KEY_ALIASES: Record<string, string[]> = {
   redo: ["Mod-Shift-z"],
+  // Word's footnote key, alongside Ksav's own.
+  footnote: ["Mod-Alt-f"],
 };
 
 /** The bindings in force: the shipped table with the writer's changes over it. */

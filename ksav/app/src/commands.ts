@@ -96,7 +96,14 @@ export function available(
   registry: readonly CommandDef[],
   preamble: Preamble = preambleInForce(),
 ): Available[] {
-  const out: Available[] = registry.map((c) => ({
+  // Deprecated commands drop out here, which removes them from the palette and
+  // the `#` completion in one place. They still compile — they are in documents
+  // — they are simply no longer *offered*, which is the distinction between
+  // breaking somebody's sefer and no longer pointing a new writer at the wrong
+  // thing. See `CommandDef.deprecated`.
+  const out: Available[] = registry
+    .filter((c) => !c.deprecated)
+    .map((c) => ({
     name: c.he,
     insert: c.insert,
     from: "registry",
@@ -105,6 +112,7 @@ export function available(
     en: c.en,
     category: c.category,
   }));
+
   // A user-defined command that shadows a registry name is the writer's, and it is
   // the one the compiler will run — so it replaces rather than duplicating.
   for (const own of ownCommands(preamble)) {

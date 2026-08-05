@@ -8,6 +8,114 @@ This is a ground-up rewrite. The two earlier prototypes (`../src` React app and
 `../ksav_flutter_rust`) both *mocked* the renderer — neither ever invoked Typst.
 This engine runs the genuine Typst compiler.
 
+## Using Ksav
+
+**Press `F1`.** The help panel is *generated* from the application — every
+shortcut, every operation, every command, in whichever language the interface is
+set to, and showing your own key bindings rather than the shipped ones. This
+section is the orientation; `F1` is the reference, and it is the one that cannot
+go out of date.
+
+### The first five minutes
+
+Open it and type. Ksav starts in **prose mode**, so what you see is the document
+rather than the markup — hold `Alt` to reveal the commands underneath, or press
+the `＃` chip to stay in the raw source. The page on the left is real Typst
+output, recompiled as you type.
+
+Everything structural works the way a word processor works:
+
+| You want to | Do this |
+|---|---|
+| a bullet list | the `•` button, then **Enter** for the next bullet |
+| a line *inside* a bullet | **Shift+Enter** |
+| a sub-bullet | **Tab** (and **Shift+Tab** to come back out) |
+| a heading | the paragraph-style dropdown in the toolbar — nine levels |
+| to move a whole section | **Alt+Shift+↑/↓**, subsections and all |
+| a table | the Table menu, then the ribbon that appears |
+| a footnote | the Notes button, or `Ctrl+Shift+F` |
+
+### The context ribbon
+
+Put the caret inside a list, a table or a section and a strip appears **under the
+toolbar** with everything you can do to it — add a row, merge cells, widen a
+column, promote a heading, move an item. Controls that cannot act here are
+greyed rather than hidden, so the strip is the same shape every time.
+
+The same operations are in the **Format** and **Table** menus, each showing its
+keyboard shortcut, for when you are looking for a feature rather than already
+standing in one.
+
+### Notes
+
+A footnote is `Ctrl+Shift+F` — or `Ctrl+Alt+F`, which is Word's. An endnote is
+`Ctrl+Alt+D`, Word's again. A note *on* a note is `Ctrl+Shift+N`, and it reads
+the caret: in prose it makes a first-tier note, inside a note a second-tier one,
+inside two a third. All three are on the toolbar (`†`, `⁋`, `⁑`) and in
+**Insert**, where a Word user looks first. The `†☰` chip opens a **notes pane**
+listing every note in the document — click one to jump to it, right-click it (in
+the pane or in the text) to convert it, delete it with its marker, or hang
+another note off it.
+
+Underneath, Ksav supports eleven note layouts — page-bottom footnotes, endnotes,
+notes at the end of each section, sidenotes down one or both margins, fixed bands
+at the foot of the page, two separately-numbered blocks, and combinations. The
+**Notes** button asks two questions you can answer — *where does it print* (the
+foot of the page, the end of a section, the end of the document, the margin, a
+second volume) and *how are the layers arranged* (one series, stacked bands,
+parallel streams, fixed regions, each layer somewhere else) — and the eleven
+layouts are the cells of that grid. A combination that does not exist is greyed
+with its reason rather than hidden. Picking a cell renders a real page, set from
+your own text, instead of a diagram.
+
+The chooser also writes each layout's *scaffolding*: the dump call that prints
+collected notes, the wrapper the margin layouts need, the configuration line that
+has to sit at the top of the file. Forgetting it is the commonest way one of
+these looks broken — the notes are collected and then never printed.
+
+You can mix them freely: footnotes at the foot of the page and endnotes at the
+back, in the same document, exactly as in Word — and they no longer both print
+`¹`, since the back matter takes a numbering of its own.
+
+There is a second, independent choice in that panel: whether a note's **text**
+lives inline or at the end of the file (the org-mode arrangement). The page comes
+out identical either way; only the source changes — and every way of inserting a
+note honours it, because the toolbar, the menu, the keyboard and the panel all go
+through one producer.
+
+**Styles ▸ Notes** exposes what the apparatus can actually do: per-tier size,
+slant, colour, indent and numbering scheme. It writes the same `#הגדרות_הערות`
+line you would type by hand, which is what keeps the panel and the markup from
+drifting apart.
+
+The tiers are numbered א,ב,ג over 1,2,3 — the שער־הציון arrangement, the
+commentary lettered and the he'aros on it numbered.
+
+### Going faster
+
+- **`Ctrl+Alt+K`** — a *hydra*: a panel listing every operation available where
+  the caret is, one letter each, staying open so five rows is `r r r r r`.
+  `Esc` or `q` to leave.
+- **`F3` / `F4`** — record a macro and replay it. Macros record *actions*, not
+  keystrokes and not cursor positions, so they replay correctly from anywhere.
+  Save one and it becomes bindable to a key like anything else.
+- **`Ctrl+K`** — the command palette, for everything by name.
+
+Every key above is rebindable in Settings, and Settings lists every operation in
+the product because that list is generated too.
+
+### Where your settings live
+
+Two different things, deliberately kept apart:
+
+- **The document** — font, paper, margins, direction, headers, two-sided setup.
+  These travel with the file, so a sefer opens the same way on someone else's
+  machine.
+- **You** — theme, layout, spell-check, shortcuts, macros, editing mode. These
+  stay on this machine and follow you between documents.
+
+The Settings drawer says which is which, at the line where they divide.
+
 ## Core idea
 
 Every Ksav command is a **real Typst function**, defined in

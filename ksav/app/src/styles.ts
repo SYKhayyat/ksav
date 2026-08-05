@@ -18,7 +18,7 @@
 // every key it does not recognise verbatim**, so opening the panel can never
 // silently discard styling a writer typed by hand.
 
-export type StyleCommand = "headings" | "lists" | "tables" | "review";
+export type StyleCommand = "headings" | "lists" | "tables" | "review" | "notes";
 
 const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   headings: ["הגדרות_כותרות", "headings_config"],
@@ -28,6 +28,12 @@ const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   // the UI reads and writes — so it uses the same machinery rather than a second
   // copy of it. This one carries which review view the document is read in.
   review: ["הגדרות_סקירה", "review_config"],
+  // The tiered notes. Every knob the apparatus has — per-tier size, slant,
+  // colour, indent, numbering scheme, label prefix, the gap between entries —
+  // has always been configurable and none of it was reachable except by typing
+  // the command. And the shipped ramp was 0.9em → 0.88em → 0.86em, so a writer
+  // who *did* find it was tuning something they could not see.
+  notes: ["הגדרות_הערות", "footnote_config"],
 };
 
 /** The canonical (Hebrew) name we write. */
@@ -63,6 +69,10 @@ const EN_ARGS: Record<string, string> = {
   קו_תחתון: "underline",
   רברבתי: "smallcaps",
   תצוגה: "display",
+  גודל: "size",
+  סגנון: "style",
+  תוויות: "labels",
+  ריווח: "spacing",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
@@ -265,6 +275,63 @@ export function readBool(src: string | undefined): boolean | null {
   if (!src) return null;
   const t = src.trim();
   return t === "true" ? true : t === "false" ? false : null;
+}
+
+/**
+ * Read a Typst tuple — `("א", "1")`, `(0em, 1.4em)`, `(luma(0), luma(55))`.
+ *
+ * Every per-tier setting is one of these, and the panel edits one tier at a
+ * time, so it has to take the tuple apart and put it back without disturbing
+ * the tiers it is not showing.
+ */
+export function readTuple(src: string | undefined): string[] | null {
+  if (!src) return null;
+  const t = src.trim();
+  if (!t.startsWith("(") || !t.endsWith(")")) return null;
+  const inner = t.slice(1, -1).trim();
+  if (!inner) return [];
+  const out: string[] = [];
+  let depth = 0;
+  let inString = false;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") depth--;
+    else if (c === "," && depth === 0) {
+      out.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  const last = inner.slice(start).trim();
+  if (last) out.push(last);
+  return out;
+}
+
+/** The inverse. A one-element tuple keeps its trailing comma, as Typst wants. */
+export function typstTuple(items: string[]): string {
+  if (items.length === 1) return `(${items[0]},)`;
+  return `(${items.join(", ")})`;
+}
+
+/**
+ * Replace one tier's entry in a per-tier tuple, growing it if need be.
+ *
+ * `fill` is what the tiers in between get when the writer configures tier 3 of
+ * a tuple that only mentions two — the engine's own default for that tier, so
+ * writing tier 3 never silently restyles tier 2.
+ */
+export function withTier(src: string | undefined, tier: number, value: string, fill: string[]): string {
+  const items = readTuple(src) ?? [];
+  while (items.length < tier) items.push(fill[items.length] ?? fill[fill.length - 1] ?? value);
+  items[tier - 1] = value;
+  return typstTuple(items);
 }
 
 /** Read a length like `1.5em` / `10pt` / `1cm`, returning its number. */

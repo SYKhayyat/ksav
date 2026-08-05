@@ -23,6 +23,15 @@ pub struct TextRun {
     pub y: f64,
     /// Font size in points (identifies which apparatus tier a run belongs to).
     pub size: f64,
+    /// Advance width of the run, in points.
+    ///
+    /// Without it there is no way to ask where a run *starts* in a
+    /// right-to-left document: `x` is the left edge, which for Hebrew is the
+    /// end. Two runs of the same words at different font sizes have different
+    /// left edges for reasons that have nothing to do with placement, so an
+    /// indent assertion written against `x` alone measures the width of the
+    /// text and calls it a margin.
+    pub width: f64,
     /// The text of the run.
     pub text: String,
 }
@@ -51,6 +60,7 @@ fn walk(frame: &Frame, origin: Point, page: usize, out: &mut Vec<TextRun>) {
                 x: at.x.to_pt(),
                 y: at.y.to_pt(),
                 size: t.size.to_pt(),
+                width: t.width().to_pt(),
                 text: t.text.to_string(),
             }),
             _ => {}

@@ -22,6 +22,7 @@ import {
   outline,
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
+import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { deferredNotes, jumpDeferred, deferHere, recallHere, deferAll } from "./deferred-lint";
 import { createBackend } from "./api";
 /** How often the editor asks Girsa's desk whether anything arrived. A second
@@ -35,12 +36,26 @@ import * as docs from "./docs";
 import type { DocAsset } from "./docs";
 import * as store from "./store";
 import * as files from "./files";
-import { NOTE_CHOICES, applyChoice } from "./notes";
-import { aliasesInForce, keybindingsFrom, whoHolds } from "./bindings";
+import {
+  NOTE_CHOICES,
+  NOTE_HOW,
+  NOTE_WHERE,
+  applyChoice,
+  choiceAt,
+  convertNote,
+  deleteNote,
+  noteAt,
+  noteFor,
+  notesIn,
+  tieredNoteAt,
+  whyNot,
+  type NoteHow,
+  type NoteWhere,
+} from "./notes";
+import { aliasesInForce, keybindingsFrom, readable, whoHolds } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
 import * as styles from "./styles";
-import * as tables from "./table";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
 import type { NoteChoice } from "./notes";
@@ -97,6 +112,12 @@ import { lineInDocument, onGoToLine, onGoToPart, onMarkLines } from "./diagview"
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
+import { insertionAt, legalAt } from "./mode";
+import * as structure from "./structure";
+import * as heads from "./headings";
+import * as hydra from "./hydra";
+import * as macros from "./macros";
+import * as help from "./help";
 
 // ---------------------------------------------------------------- editor
 //
@@ -354,6 +375,20 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "italic", run: () => (insertSnippet("#נטוי[|]"), true) },
   { id: "underline", run: () => (insertSnippet("#קו_תחתון[|]"), true) },
   { id: "footnote", run: () => (insertSnippet("#הערה[|]"), true) },
+  // Both of these went through `insertSnippet`, which routes a note snippet to
+  // the layout producer — so they arrive with their scaffolding (the endnote's
+  // `#הערות_בסוף()` dump, without which every endnote in the document is
+  // silently collected and never printed) and they honour "note bodies at the
+  // end of the file" like every other way in.
+  { id: "endnote", run: () => (insertSnippet("#הערתסיום[|]"), true) },
+  {
+    id: "tieredNote",
+    run: () => {
+      const st = runtime.view.state;
+      insertSnippet(tieredNoteAt(st.doc.toString(), st.selection.main.from));
+      return true;
+    },
+  },
   { id: "region", run: () => (insertRegion(), true) },
   { id: "comment", run: () => (commentOut(), true) },
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
@@ -364,7 +399,14 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "h3", run: () => (insertSnippet("#כותרת3[|]"), true) },
   { id: "bullets", run: () => (insertSnippet("#רשימה(\n  פריט[|],\n)"), true) },
   { id: "numbered", run: () => (insertSnippet("#ממוספרת(\n  פריט[|],\n)"), true) },
-  { id: "table", run: () => (insertSnippet("#טבלה(עמודות: 2,\n  תא[|], תא[],\n)"), true) },
+  {
+    id: "table",
+    run: () =>
+      (insertSnippet(
+        "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n  תא[], תא[],\n)",
+      ),
+      true),
+  },
   { id: "toc", run: () => (insertSnippet("#תוכן()"), true) },
   { id: "center", run: () => (insertSnippet("#מרכז[|]"), true) },
   { id: "right", run: () => (insertSnippet("#ימין[|]"), true) },
@@ -379,6 +421,59 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "markInsert", run: () => (markReview("insert"), true) },
   { id: "markDelete", run: () => (markReview("delete"), true) },
   { id: "addComment", run: () => (addComment(), true) },
+  // Every saved macro, as an action — which is what makes a macro bindable to a
+  // key, findable in the palette and listed in Settings with no extra wiring.
+  // Computed at module load; `reconfigureShortcuts` runs after a macro is saved.
+  ...macros.parseAll(settings.macros).map((m) => ({
+    id: macros.actionIdOf(m),
+    run: () => (playMacro(m), true),
+  })),
+  // Every structural operation, generated. Hand-listing them here would be the
+  // same mistake the ribbon used to make: a second place to forget one.
+  ...structure.STRUCTURE_ACTIONS.map((a) => ({
+    id: a.id,
+    run: () => runStructureAction(a),
+  })),
+  {
+    id: "help",
+    run: () => (openHelp(), true),
+  },
+  {
+    // Record / stop. One action rather than two, because "am I recording?" is a
+    // state the writer can see in the chip and the status line.
+    id: "macroRecord",
+    run: () => (toggleRecording(), true),
+  },
+  {
+    // Replay the most recently recorded macro — the one people want immediately
+    // after recording, without naming or binding anything.
+    id: "macroPlay",
+    run: () => {
+      const all = savedMacros();
+      if (!all.length) {
+        setStatus(t("macroNone"), "");
+        return true;
+      }
+      playMacro(all[all.length - 1]);
+      return true;
+    },
+  },
+  {
+    // The hydra for whatever the caret is in.
+    id: "hydra",
+    run: () => (openHydra(), true),
+  },
+  {
+    // Notes that were collected and never rendered. Reachable as a command and
+    // as a key, not only as a lint action: a writer who has already exported
+    // the PDF needs to find this without a squiggle to click.
+    id: "renderNotes",
+    run: (v) => {
+      const n = renderAllNotes(v);
+      setStatus(n ? tf("renderedNotesCount", n) : t("renderedNotesNone"), n ? "ok" : "");
+      return true;
+    },
+  },
   {
     id: "healBrackets",
     run: (v) => {
@@ -417,6 +512,11 @@ function buildShortcutKeymap(): KeyBinding[] {
   // conflict, and two copies of it is how one of them stops matching.
   const aliases = aliasesInForce(kb);
   for (const a of ACTIONS) {
+    // Structural operations are bound in `structureKeymap` instead. This keymap
+    // sets `preventDefault`, which swallows the key whether or not the command
+    // ran — fine for Mod-Alt-b, fatal for Enter and Tab, which must reach the
+    // editor untouched the moment the caret leaves a list.
+    if (structure.actionById(a.id)) continue;
     if (kb[a.id]) bindings.push({ key: kb[a.id], run: a.run, preventDefault: true });
     for (const alias of aliases[a.id] ?? []) {
       bindings.push({ key: alias, run: a.run, preventDefault: true });
@@ -427,7 +527,12 @@ function buildShortcutKeymap(): KeyBinding[] {
 const shortcutCompartment = new Compartment();
 function reconfigureShortcuts() {
   runtime.view.dispatch({
-    effects: shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
+    effects: [
+      shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
+      // Both, or rebinding Tab in Settings would change the shortcut list and
+      // leave the editor still doing the old thing.
+      structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
+    ],
   });
 }
 
@@ -468,7 +573,11 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
   if (word.from === word.to && !context.explicit) return null;
   const q = word.text.slice(1).toLowerCase();
   const insertApply =
-    (snip: string) => (v: EditorView, _c: unknown, from: number, to: number) => {
+    (raw: string) => (v: EditorView, _c: unknown, from: number, to: number) => {
+      // The completion fired because a `#` was typed — but inside an argument
+      // list that `#` is itself the error, so the completion replaces it with
+      // the bare call rather than completing a mistake into a longer mistake.
+      const snip = insertionAt(v.state.doc.toString(), from, raw, to);
       const pipe = snip.indexOf("|");
       const text = pipe >= 0 ? snip.slice(0, pipe) + snip.slice(pipe + 1) : snip;
       const cursor = pipe >= 0 ? from + pipe : from + text.length;
@@ -731,6 +840,14 @@ function makeEditor(): EditorView {
       focusCompartment.of(focusExtension(!!settings.focusMode, !!settings.typewriter)),
       shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
       autoCompartment.of(autoExtension()),
+      // Structural keys, above the defaults: inside a list, Enter makes the next
+      // bullet and Tab indents it, exactly as in Word and every outliner. They
+      // fall through untouched everywhere else, so Enter is still Enter in
+      // ordinary prose.
+      // Ahead of everything, including the mode keymaps: while a hydra is up it
+      // owns the keyboard.
+      Prec.highest(keymap.of(hydraKeymap())),
+      structureCompartment.of(Prec.high(keymap.of(structureKeymap()))),
       keymap.of([
         ...closeBracketsKeymap,
         ...defaultKeymap,
@@ -745,6 +862,9 @@ function makeEditor(): EditorView {
       ksavHighlighter,
       ksavFold,
       bracketLint,
+      // Notes collected and never rendered: valid source, finished-looking page,
+      // and the prose missing from it.
+      apparatusLint,
       deferredNotes,
       revealAll,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
@@ -781,18 +901,44 @@ function makeEditor(): EditorView {
           return true;
         },
         contextmenu(e, v) {
-          if (!settings.spellcheck) return false;
           const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
           if (pos == null) return false;
-          const m = spell.misspellingAt(v, pos);
-          if (!m) return false;
-          e.preventDefault();
-          void openSpellMenu(m, e.clientX, e.clientY);
-          return true;
+          if (settings.spellcheck) {
+            const m = spell.misspellingAt(v, pos);
+            if (m) {
+              e.preventDefault();
+              void openSpellMenu(m, e.clientX, e.clientY);
+              return true;
+            }
+          }
+          // Right-click on a note: convert it, delete it with its marker, or
+          // hang another note off it. The operations existed as commands and
+          // nowhere a pointer could reach them.
+          if (noteAt(v.state.doc.toString(), pos)) {
+            e.preventDefault();
+            openNoteMenu(e, pos);
+            return true;
+          }
+          return false;
         },
       }),
       EditorView.updateListener.of((u) => {
-        if (u.docChanged || u.selectionSet) updateTableBar();
+        if (u.docChanged || u.selectionSet) updateContextBar();
+        // The recorder's other half: what the writer typed. Read off the
+        // transaction rather than off keydown, so an IME, a paste and a nikud
+        // button all record as the text they produced rather than as the keys
+        // that produced them — which is the difference between a macro that
+        // replays Hebrew and one that replays a keyboard layout.
+        if (u.docChanged && recording) {
+          for (const tr of u.transactions) {
+            if (!tr.isUserEvent("input")) continue;
+            let typed = "";
+            tr.changes.iterChanges((_fa, _ta, _fb, _tb, ins) => {
+              typed += ins.toString();
+            });
+            noteTyped(typed);
+          }
+        }
         if (u.docChanged) {
           // Saving and rendering are scheduled independently. One must never be
           // able to stop the other — that coupling is what silently lost text.
@@ -803,6 +949,7 @@ function makeEditor(): EditorView {
           // anywhere — not only a decision taken in the panel — must refresh it.
           if (isReviewOpen()) renderReviewPanel();
           if (settings.outline) renderOutline();
+          if (settings.notesPane) renderNotesPane();
         }
       }),
     ],
@@ -1149,9 +1296,51 @@ async function dropIntoGirsa(phrase: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------- snippet insertion
-function insertSnippet(snippet: string) {
+
+/**
+ * Write a snippet at the caret. **The** insertion path — every toolbar button,
+ * menu entry, palette row, key binding and snippet expansion ends up here.
+ *
+ * That is what makes three separate rules enforceable at all:
+ *
+ *  - **mode and delimiters** (`insertionAt`): a command needs its `#` in markup,
+ *    must not have one inside an argument list, and must arrive comma-delimited
+ *    on both sides when it lands in one. 372 of 1,026 generated documents used
+ *    to fail on those two rules alone.
+ *  - **legality** (`legalAt`): a page break inside a list item, a table of
+ *    contents inside a heading. Refused with a reason, rather than written and
+ *    then blamed on Typst in English from the middle of a blank preview.
+ *  - **notes** (`noteFor`): a note snippet is not spliced at all. It is handed to
+ *    the chooser's own producer, so the scaffolding a layout needs is written
+ *    and `deferNoteBodies` is honoured — from the toolbar, the palette, the
+ *    keyboard and the modal alike, because there is one producer and not four.
+ */
+function insertSnippet(rawSnippet: string) {
   const sel = runtime.view.state.selection.main;
   const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
+  const doc = runtime.view.state.doc.toString();
+
+  // A note is a layout, not a string: it may need a dump call at the end of the
+  // file, a wrapper around the section, a configuration line at the top, and its
+  // prose may belong at the end of the document rather than at the caret.
+  const note = noteFor(rawSnippet);
+  if (note) {
+    applyNoteChoice(note.choice, note.which, { to: sel.to, text: selText, marker: note.marker });
+    return;
+  }
+
+  const command = commandOf(rawSnippet);
+  if (command) {
+    const legality = legalAt(doc, sel.from, command);
+    if (!legality.ok) {
+      setStatus(t(legality.reason!), "warn");
+      return;
+    }
+  }
+
+  // `sel.to` as well as `sel.from`: with a selection the neighbour on the right
+  // is what comes after the text being replaced, not the first character of it.
+  const snippet = insertionAt(doc, sel.from, rawSnippet, sel.to);
   const pipe = snippet.indexOf("|");
   let text = snippet;
   let cursor = snippet.length;
@@ -1169,6 +1358,11 @@ function insertSnippet(snippet: string) {
     selection: { anchor: sel.from + cursor },
   });
   runtime.view.focus();
+}
+
+/** The command a snippet writes, for the legality check. `""` if it is not one. */
+function commandOf(snippet: string): string {
+  return /^#?([A-Za-z0-9֐-׿_]+)/.exec(snippet.trim())?.[1] ?? "";
 }
 
 // Wrap the selection in a foldable comment region (//{ … //}). The markers are
@@ -1290,6 +1484,64 @@ function toggleNikud() {
 // a set of *labelled* groups — visible captions for sighted users, `role=group`
 // with `aria-label` for assistive technology.
 
+/**
+ * The current paragraph's level, as a control and as a readout.
+ *
+ * Bound to the same registry operations as everything else: picking a level
+ * runs `heading.levelN`, and "body text" unwraps. It is rebuilt on every
+ * selection change by `updateContextBar`, so it always shows where the caret
+ * actually is rather than what was last pressed.
+ */
+function headingLevelSelect(): HTMLElement {
+  const sel = el("select", {
+    id: "heading-level",
+    class: "heading-select",
+    title: t("paragraphStyle"),
+    "aria-label": t("paragraphStyle"),
+  }) as HTMLSelectElement;
+  sel.append(el("option", { value: "0" }, [t("bodyText")]));
+  for (let i = 1; i <= heads.MAX_LEVEL; i++) {
+    sel.append(el("option", { value: String(i) }, [t("headingLevel" + i)]));
+  }
+  sel.addEventListener("change", () => {
+    const want = parseInt(sel.value, 10);
+    const doc = runtime.view.state.doc.toString();
+    const pos = runtime.view.state.selection.main.head;
+    if (want === 0) {
+      const h = heads.headingAt(doc, pos);
+      if (!h) return;
+      const e = heads.unwrapHeading(doc, h);
+      runtime.view.dispatch({
+        changes: { from: 0, to: doc.length, insert: e.text },
+        selection: { anchor: Math.min(e.caret, e.text.length) },
+      });
+      scheduleCompile();
+      runtime.view.focus();
+      return;
+    }
+    const action = structure.actionById(`heading.level${want}`);
+    if (action) runStructureAction(action);
+    runtime.view.focus();
+  });
+  return sel;
+}
+
+/**
+ * A note button, labelled with its name *and* its shortcut.
+ *
+ * `snippet: null` means "read the caret" — the tiered note is `#הערה_א` in
+ * prose, `#הערה_ב` inside a note and `#הערה_ג` inside two, which is the only
+ * way one button can mean "a note on this".
+ */
+function noteBtn(action: string, glyph: string, snippet: string | null): HTMLElement {
+  const key = keybindings()[action];
+  const title = t("sc." + action) + (key ? ` · ${readable(key)}` : "");
+  return iconBtn(glyph, title, () => {
+    const st = runtime.view.state;
+    insertSnippet(snippet ?? tieredNoteAt(st.doc.toString(), st.selection.main.from));
+  });
+}
+
 function buildToolbar(): HTMLElement {
   const lang = getLang();
   const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
@@ -1308,9 +1560,28 @@ function buildToolbar(): HTMLElement {
       b("קו_חוצה", "S"),
       b("סימון", "🖍"),
     ]),
-    tbGroup(t("cat.heading"), [b("כותרת1", "H1"), b("כותרת2", "H2"), b("כותרת3", "H3")]),
+    // The paragraph-style control, which is a word processor's single most-used
+    // widget and which Ksav did not have. Three fixed buttons could only reach
+    // three of nine levels, and could not tell the writer which one they were
+    // standing in — a dropdown does both, and is where a Word user looks first.
+    tbGroup(t("cat.heading"), [headingLevelSelect()]),
     tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
-    tbGroup(t("cat.footnote"), [b("הערה", "†"), b("הערה_על_הערה", "⁑"), b("הערת_צד", "▣")]),
+    // The toolbar told the truth about one of these three.
+    //
+    // `†` was right. `⁑` inserted `#הערה_על_הערה`, which sounds like the tiered
+    // mechanism and is a cosmetic alias — 0.6pt smaller and slanted, in the same
+    // block and the same running sequence — while the real tiered note had no
+    // button at all. And the endnote, which the engine has always had, was
+    // reachable from nowhere: no button, no Insert item, and picking it out of
+    // the palette silently lost every note because nothing wrote the dump call.
+    // A writer clicks what the toolbar offers, so the toolbar has to offer the
+    // thing it names.
+    tbGroup(t("cat.footnote"), [
+      noteBtn("footnote", "†", "#הערה[|]"),
+      noteBtn("tieredNote", "⁑", null),
+      noteBtn("endnote", "⁋", "#הערתסיום[|]"),
+      b("הערת_צד", "▣"),
+    ]),
     tbGroup(t("cat.align"), [b("ימין", "⇥"), b("מרכז", "≡"), b("שמאל", "⇤")]),
     tbGroup(t("cat.torah"), [b("ציטוט", "❝"), b("סימן", "§"), b("סעיף", "א."), b("מראה_מקום", "‡")]),
     tbGroup(t("tools"), [
@@ -1372,11 +1643,194 @@ function docsMenuItems(): (Node | string)[] {
   return items;
 }
 
+/**
+ * A Word-style menu over the structural registry.
+ *
+ * Same operations as the contextual ribbon, same enabled/disabled rule, same
+ * keys — because they are the same list. The ribbon is for the writer who is
+ * already in a table; a menu is for the one who is looking for the feature and
+ * does not yet know that standing in a table is what reveals it. Word has both
+ * for exactly that reason, and an item that greys out is itself information:
+ * "this exists, and not here".
+ *
+ * The key is printed beside each item. A shortcut nobody can find is the same as
+ * no shortcut.
+ */
+function structureMenuItems(structures: structure.Structure[]): (Node | string)[] {
+  const doc = runtime.view?.state.doc.toString() ?? "";
+  const caret = runtime.view?.state.selection.main.head ?? 0;
+  const pos = structure.structureNear(doc, caret)?.pos ?? caret;
+  const kb = keybindings();
+  const items: (Node | string)[] = [];
+
+  for (const kind of structures) {
+    const actions = structure.STRUCTURE_ACTIONS.filter((a) => a.structure === kind);
+    if (actions.length === 0) continue;
+    items.push(el("div", { class: "menu-cat" }, [t("structure." + kind)]));
+    let group = "";
+    for (const action of actions) {
+      if (group && action.group !== group) items.push(el("div", { class: "menu-sep" }));
+      group = action.group;
+      // Computed against the live document, so the menu tells the truth about
+      // this caret rather than about tables in general.
+      const enabled = action.run(doc, pos) !== null;
+      const key = kb[action.id];
+      items.push(
+        el(
+          "button",
+          {
+            class: "menu-item menu-cmd" + (enabled ? "" : " disabled"),
+            disabled: enabled ? null : "true",
+            onClick: () => {
+              closeMenus();
+              runStructureAction(action, true);
+            },
+          },
+          [
+            el("b", {}, [`${action.glyph}  ${t(action.label)}`]),
+            key ? el("code", {}, [readable(key)]) : el("span"),
+          ],
+        ),
+      );
+    }
+  }
+  return items;
+}
+
+/**
+ * The Macros menu.
+ *
+ * Rebuilt on every open (`lazyMenu`), so a macro recorded thirty seconds ago is
+ * in it, and one deleted is not. Each saved macro shows what it actually does
+ * rather than only its name — a list of names is a list of things nobody
+ * remembers the contents of, and a macro you cannot remember is a macro you
+ * will not run.
+ */
+function buildMacroMenu(): HTMLElement {
+  return lazyMenu("⏺ " + t("macros"), () => {
+    const kb = keybindings();
+    const items: (Node | string)[] = [
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), toggleRecording()) }, [
+        el("b", {}, [recording ? "⏹  " + t("macroStop") : "⏺  " + t("macroRecord")]),
+        el("span", { class: "menu-desc" }, [t("macroRecordLede")]),
+      ]),
+      el("div", { class: "menu-sep" }),
+      el("div", { class: "menu-cat" }, [t("macroSaved2")]),
+    ];
+    const all = savedMacros();
+    if (!all.length) {
+      items.push(el("div", { class: "menu-desc", style: "padding: 6px 9px" }, [t("macroNone")]));
+      return items;
+    }
+    for (const m of all) {
+      const key = kb[macros.actionIdOf(m)];
+      items.push(
+        el("div", { class: "menu-item-row" }, [
+          el("button", {
+            class: "menu-item menu-item-main",
+            onClick: () => (closeMenus(), playMacro(m)),
+          }, [
+            el("b", {}, [m.name]),
+            el("span", { class: "menu-desc" }, [
+              macros.describe(m, macroName) + (key ? "  ·  " + readable(key) : ""),
+            ]),
+          ]),
+          // Repeat, which is the reason a macro exists: the writer did the thing
+          // once and has eleven more to go.
+          el("button", {
+            class: "menu-del",
+            title: t("macroRepeat"),
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              const n = parseInt(prompt(t("macroRepeatPrompt"), "10") ?? "", 10);
+              if (Number.isFinite(n) && n > 0) {
+                closeMenus();
+                playMacro(m, Math.min(n, 500));
+              }
+            },
+          }, ["×n"]),
+          el("button", {
+            class: "menu-del",
+            title: t("delete"),
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              deleteMacro(m.id);
+            },
+          }, ["×"]),
+        ]),
+      );
+    }
+    return items;
+  });
+}
+
+function buildFormatMenu(): HTMLElement {
+  return lazyMenu("¶ " + t("format"), () => structureMenuItems(["heading", "list"]));
+}
+
+function buildTableMenu(): HTMLElement {
+  return lazyMenu("▦ " + t("tableMenu"), () => [
+    el("button", {
+      class: "menu-item",
+      onClick: () => {
+        closeMenus();
+        insertSnippet(
+          "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n  תא[], תא[],\n)",
+        );
+      },
+    }, [el("b", {}, ["▦  " + t("insertTable")])]),
+    el("div", { class: "menu-sep" }),
+    ...structureMenuItems(["table"]),
+  ]);
+}
+
+/**
+ * The Insert menu.
+ *
+ * `lazyMenu`, and not by accident: the items are rebuilt every time the menu
+ * opens, because whether a command is legal *here* depends on where the caret
+ * is. Built once at startup — which is what it used to do, through `menu()`,
+ * which takes an already-constructed array — every entry was evaluated against
+ * an empty document at position 0, where everything is legal, and the greying
+ * this menu exists to show never appeared. Caught by driving the running app,
+ * not by any test: a menu that is wrong only after the caret moves looks
+ * perfectly correct in a screenshot of the source.
+ */
 function buildInsertMenu(): HTMLElement {
+  return lazyMenu("➕ " + t("insert"), insertMenuItems);
+}
+
+function insertMenuItems(): (Node | string)[] {
   const lang = getLang();
   const cats: string[] = [];
   for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
+  const kb = keybindings();
+  /** Insert ▸ Footnote / Endnote, where a Word user looks first. */
+  const noteItem = (action: string, glyph: string, snippet: string | null) =>
+    el(
+      "button",
+      {
+        class: "menu-item",
+        onClick: () => {
+          closeMenus();
+          const st = runtime.view.state;
+          insertSnippet(snippet ?? tieredNoteAt(st.doc.toString(), st.selection.main.from));
+        },
+      },
+      [
+        el("b", {}, [`${glyph} ${t("sc." + action)}`]),
+        kb[action] ? el("code", {}, [readable(kb[action])]) : el("span"),
+      ],
+    );
   const items: (Node | string)[] = [
+    // Two plain items, at the top, named the way Word names them. The chooser
+    // below is the right tool for picking a sefer's apparatus; it is the wrong
+    // answer to "I want a footnote", which is what somebody who has only ever
+    // used Word is asking, and which had no menu entry at all. The endnote had
+    // none anywhere in the product.
+    noteItem("footnote", "†", "#הערה[|]"),
+    noteItem("endnote", "⁋", "#הערתסיום[|]"),
+    noteItem("tieredNote", "⁑", null),
     el("button", { class: "menu-item", onClick: openNotesChooser }, [
       el("b", {}, ["✻ " + t("notesChooser")]),
       el("span", { class: "menu-desc" }, [t("notesChooserLede")]),
@@ -1397,18 +1851,33 @@ function buildInsertMenu(): HTMLElement {
     ]),
     el("div", { class: "menu-sep" }),
   ];
+  const doc = runtime.view?.state.doc.toString() ?? "";
+  const pos = runtime.view?.state.selection.main.from ?? 0;
   for (const cat of cats) {
     items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
-    for (const c of runtime.commandsReg.filter((x) => x.category === cat)) {
+    for (const c of runtime.commandsReg.filter((x) => x.category === cat && !x.deprecated)) {
+      // Greyed rather than hidden, with the reason on the tooltip. "This exists,
+      // and not here" is information; a command that silently vanishes from the
+      // menu when the caret moves is a product that looks broken.
+      const legality = legalAt(doc, pos, c.he);
       items.push(
-        el("button", { class: "menu-item menu-cmd", onClick: () => insertSnippet(c.insert) }, [
-          el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
-          el("code", {}, ["#" + c.he]),
-        ]),
+        el(
+          "button",
+          {
+            class: "menu-item menu-cmd" + (legality.ok ? "" : " disabled"),
+            disabled: legality.ok ? null : "true",
+            title: legality.ok ? "" : t(legality.reason!),
+            onClick: () => insertSnippet(c.insert),
+          },
+          [
+            el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
+            el("code", {}, ["#" + c.he]),
+          ],
+        ),
       );
     }
   }
-  return menu("➕ " + t("insert"), items);
+  return items;
 }
 
 function menu(label: string, items: (Node | string)[]): HTMLElement {
@@ -1559,8 +2028,22 @@ function buildHeader(): HTMLElement {
   );
   const stylesBtn = iconBtn("🎨", t("stylesTitle"), openStyles, "chip");
   const notesBtn = iconBtn("✻", t("notesChooser"), openNotesChooser, "chip");
+  const notesPaneBtn = iconBtn(
+    "†☰",
+    t("sc.notesPane"),
+    toggleNotesPane,
+    settings.notesPane ? "chip active" : "chip",
+  );
   const reviewBtn = iconBtn("✎", t("reviewTitle"), openReview, "chip");
   const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
+  // Recording is a mode, and a mode with no indicator is a mode people leave on.
+  const recordBtn = iconBtn(
+    recording ? "⏹" : "⏺",
+    recording ? t("macroStop") : t("macroRecord"),
+    toggleRecording,
+    recording ? "chip active recording" : "chip",
+  );
+  const helpBtn = iconBtn("?", t("help"), openHelp, "chip");
   const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
 
   return el("header", { role: "banner" }, [
@@ -1590,6 +2073,9 @@ function buildHeader(): HTMLElement {
     // editor. The page had no landmarks at all.
     el("nav", { class: "menubar", "aria-label": t("menubar") }, [
       buildInsertMenu(),
+      buildFormatMenu(),
+      buildTableMenu(),
+      buildMacroMenu(),
       buildDocsMenu(),
       fileMenu,
       templatesMenu,
@@ -1603,6 +2089,7 @@ function buildHeader(): HTMLElement {
       findBtn,
       outlineBtn,
       notesBtn,
+      notesPaneBtn,
       reviewBtn,
       langToggle,
       foldAllBtn,
@@ -1613,6 +2100,8 @@ function buildHeader(): HTMLElement {
       themeToggle,
       nikudBtn,
       historyBtn,
+      recordBtn,
+      helpBtn,
       settingsBtn,
     ]),
   ]);
@@ -1807,11 +2296,27 @@ function buildSettingsDrawer(): HTMLElement {
   const shortcutRows = ACTIONS.map((a) => {
     const btn = el("button", { class: "sc-key", type: "button" }, [kb[a.id] || "—"]);
     btn.addEventListener("click", () => captureShortcut(a.id, btn));
-    return el("label", { class: "set-row" }, [el("span", {}, [t("sc." + a.id)]), btn]);
+    // A structural operation names itself from the registry, so adding one to
+    // `STRUCTURE_ACTIONS` puts it in this list with a real name instead of a
+    // raw id — no second string to remember to write.
+    // `macroName` covers all three kinds: a structural operation names itself
+    // from the registry, a macro from its own title, and everything else from
+    // its `sc.` string. Without this a bound macro appeared in Settings as the
+    // raw text `sc.macro.m1a2b3` — a row nobody could identify, which is the
+    // same "shipped unnamed" failure the bindings test exists to catch.
+    const name = macroName(a.id);
+    return el("label", { class: "set-row" }, [el("span", {}, [name]), btn]);
   });
 
   return el("aside", { id: "settings-drawer", class: "drawer", "aria-label": t("settings") }, [
-    el("h3", {}, [t("settings")]),
+    // Every other panel in the app closes with × and with Escape; this one used
+    // to close only by finding the ⚙ chip again — and below 720px the drawer is
+    // the full viewport width, so that chip is *underneath it*. There was
+    // literally no way out of Settings on a phone.
+    el("div", { class: "styles-head" }, [
+      el("h3", {}, [t("settings")]),
+      el("button", { class: "styles-close", title: t("close"), onClick: closeSettings }, ["×"]),
+    ]),
     // B26. The fourteen fields below this line belong to the **open document** and
     // travel with it; everything under `fitWidthLabel` is about the person at the
     // desk. Saying which is which is the whole point — a writer who does not know
@@ -2064,6 +2569,10 @@ function resetShortcuts() {
 function toggleSettings() {
   document.getElementById("settings-drawer")!.classList.toggle("open");
 }
+function closeSettings() {
+  document.getElementById("settings-drawer")?.classList.remove("open");
+  runtime.view?.focus();
+}
 
 // ---- outline / document map ----
 function toggleOutline() {
@@ -2072,6 +2581,147 @@ function toggleOutline() {
   document.getElementById("outline-drawer")!.classList.toggle("open", settings.outline);
   if (settings.outline) renderOutline();
   rerenderChrome();
+}
+function closeOutline() {
+  if (!settings.outline) return;
+  toggleOutline();
+  runtime.view?.focus();
+}
+
+// ---- the notes pane ----
+//
+// Word's navigation pane, for notes. Anyone with more than ten notes works by
+// scanning a list and jumping, not by scrolling the source hunting for the one
+// that began "ועיין" — and the notes are the text a writer most often needs to
+// get back to. Ksav had an outline of the headings and nothing for the notes,
+// which in a sefer is the larger half of the document.
+
+function toggleNotesPane() {
+  settings.notesPane = !settings.notesPane;
+  saveSettings();
+  document.getElementById("notes-drawer")!.classList.toggle("open", !!settings.notesPane);
+  if (settings.notesPane) renderNotesPane();
+  rerenderChrome();
+}
+
+function closeNotesPane() {
+  if (!settings.notesPane) return;
+  toggleNotesPane();
+  runtime.view?.focus();
+}
+
+function renderNotesPane() {
+  const host = document.getElementById("notes-list");
+  if (!host || !runtime.view) return;
+  const doc = runtime.view.state.doc.toString();
+  const items = notesIn(doc);
+  host.innerHTML = "";
+  if (!items.length) {
+    host.append(el("div", { class: "outline-empty" }, [t("notesPaneEmpty")]));
+    return;
+  }
+  items.forEach((n, i) => {
+    // The note's own first words, flattened: a list of "#הערה" twelve times
+    // over is a list of nothing.
+    const gist = n.text.replace(/#[A-Za-z0-9֐-׿_]+|[\[\]]/g, " ").replace(/\s+/g, " ").trim();
+    host.append(
+      el(
+        "button",
+        {
+          class: "outline-item note-item",
+          style: `padding-inline-start:${8 + n.depth * 14}px`,
+          title: t("noteJump"),
+          onClick: () => jumpTo(n.bodyFrom),
+          onContextMenu: (e: Event) => {
+            e.preventDefault();
+            openNoteMenu(e as MouseEvent, n.from);
+          },
+        },
+        [
+          el("span", { class: "note-item-n" }, [String(i + 1)]),
+          el("span", {}, [gist || "#" + n.command]),
+        ],
+      ),
+    );
+  });
+}
+
+/**
+ * Right-click on a note: convert it, delete it, or hang another note off it.
+ *
+ * The consolation prize from §1.4 and rather more. `#הערה` is now genuinely
+ * tier 1, so a sub-note hangs off it with no conversion at all — but the band
+ * apparatuses collect their own markers and cannot adopt a native footnote
+ * without printing its text twice, so for those, converting in place beats
+ * retyping the note.
+ */
+function openNoteMenu(e: MouseEvent, at: number) {
+  closeSpellMenu();
+  const doc = runtime.view.state.doc.toString();
+  const note = noteAt(doc, at);
+  if (!note) return;
+  const targets = ["הערה", "הערתסיום", "הערה_א", "מדור_א", "מדף_א", "הערת_גיליון"].filter(
+    (c) => c !== note.command,
+  );
+  const menu = el("div", { class: "spell-menu note-menu" }, [
+    el("div", { class: "menu-cat" }, ["#" + note.command]),
+    el(
+      "button",
+      {
+        class: "menu-item",
+        onClick: () => {
+          closeSpellMenu();
+          runtime.view.dispatch({ selection: { anchor: note.to - 1 } });
+          insertSnippet(tieredNoteAt(doc, note.to - 1));
+        },
+      },
+      [el("b", {}, ["⁑ " + t("sc.tieredNote")])],
+    ),
+    el("div", { class: "menu-cat" }, [t("noteConvert")]),
+    ...targets.map((command) =>
+      el(
+        "button",
+        {
+          class: "menu-item menu-cmd",
+          onClick: () => {
+            closeSpellMenu();
+            const e2 = convertNote(runtime.view.state.doc.toString(), note, command);
+            replaceAll(e2.text, e2.caret);
+            setStatus(tf("noteConverted", command), "ok");
+          },
+        },
+        [el("code", {}, ["#" + command])],
+      ),
+    ),
+    el("div", { class: "menu-sep" }),
+    el(
+      "button",
+      {
+        class: "menu-item",
+        onClick: () => {
+          closeSpellMenu();
+          const e2 = deleteNote(runtime.view.state.doc.toString(), note);
+          replaceAll(e2.text, e2.caret);
+          setStatus(t("noteDeleted"), "ok");
+        },
+      },
+      [el("b", {}, ["✕ " + t("noteDelete")])],
+    ),
+  ]);
+  menu.style.position = "fixed";
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  document.body.append(menu);
+}
+
+/** Swap the whole document and put the caret somewhere sensible. */
+function replaceAll(text: string, caret: number) {
+  runtime.view.dispatch({
+    changes: { from: 0, to: runtime.view.state.doc.length, insert: text },
+    selection: { anchor: Math.min(caret, text.length) },
+  });
+  scheduleCompile();
+  runtime.view.focus();
 }
 function renderOutline() {
   const host = document.getElementById("outline-list");
@@ -2732,56 +3382,439 @@ function newDoc() {
 // preview, because the preview is an SVG picture of a page and has no idea which
 // cell you pointed at.
 
-function tableToolbar(): HTMLElement {
-  return el("div", { id: "table-bar", class: "table-bar" });
+function contextBar(): HTMLElement {
+  return el("div", { id: "context-bar", class: "context-bar", role: "toolbar" });
 }
 
-/** Show or hide the table bar for wherever the cursor currently is. */
-function updateTableBar() {
-  const bar = document.getElementById("table-bar");
+/**
+ * Rebuild the contextual ribbon for wherever the caret is.
+ *
+ * Every control is generated from `STRUCTURE_ACTIONS`, so an operation added to
+ * that registry appears here, in the palette, and in the shortcut list without
+ * anything being wired up twice — and so a person can reorder or rebind it. The
+ * previous version hard-coded four table buttons and their glyphs inline, which
+ * is why lists had none: there was no list of operations to render, only a
+ * paragraph of DOM.
+ */
+function updateContextBar() {
+  const bar = document.getElementById("context-bar");
   if (!bar || !runtime.view) return;
   const doc = runtime.view.state.doc.toString();
   const pos = runtime.view.state.selection.main.head;
-  // Named `tbl`, not `t`: `t` is the translation function, and shadowing it here
-  // makes every label in this toolbar a compile error.
-  const tbl = tables.tableAt(doc, pos);
-  if (!tbl) {
+  // A hydra owns the keyboard, so it must not outlive the thing it operates on.
+  // Clicking into ordinary prose and then typing would otherwise have every
+  // letter swallowed by a panel the writer had stopped thinking about — the
+  // keyboard equivalent of a drawer with no close button.
+  if (openHydraState && structure.structureNear(doc, pos)?.structure !== openHydraState.structure) {
+    closeHydra();
+  }
+
+  // The paragraph-style readout follows the caret whether or not the ribbon has
+  // anything to show, so it is updated before the early return below.
+  const levelSel = document.getElementById("heading-level") as HTMLSelectElement | null;
+  if (levelSel) {
+    const on = heads.headingAt(doc, pos);
+    levelSel.value = String(on ? on.level : 0);
+  }
+
+  // Sticky by one character: see `structureNear`. Finishing a list left the
+  // caret after the closing `)`, where the ribbon correctly emptied — and a
+  // ribbon that disappears on the character after the one you just typed reads
+  // as the feature breaking, not as the model being precise.
+  const near = structure.structureNear(doc, pos)?.pos ?? pos;
+  const here = structure.availableAt(doc, near);
+  if (here.length === 0) {
     bar.classList.remove("open");
     bar.replaceChildren();
     return;
   }
-  const idx = tables.cellIndexAt(tbl, pos);
-  // With the cursor between cells, act on the last row/column rather than
-  // refusing: "add a row" should always mean something inside a table.
-  const row = idx == null ? tables.rowCount(tbl) - 1 : tables.rowOf(tbl, idx);
-  const col = idx == null ? tbl.cols - 1 : tables.colOf(tbl, idx);
+  const at = structure.whereAmI(doc, near)!;
 
-  const apply = (next: string) => {
-    if (next === doc) return;
-    runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
-    scheduleCompile();
-    // The bar is rebuilt from the new document on the next selection update.
-    requestAnimationFrame(updateTableBar);
-  };
-
-  const act = (label: string, title: string, run: () => string) =>
-    el("button", { class: "tb-btn", title, onClick: () => apply(run()) }, [label]);
-
-  bar.replaceChildren(
-    el("span", { class: "table-bar-label" }, [
-      tf("tableAt", String(row + 1), String(col + 1), String(tables.rowCount(tbl)), String(tbl.cols)),
+  const children: Node[] = [
+    el("span", { class: "context-bar-label" }, [
+      at.structure === "table"
+        ? tf("tableAt", String(at.row), String(at.col), String(at.rows), String(at.cols))
+        : at.structure === "heading"
+          ? tf("headingAt", String(at.row), String(at.rows), String(at.col))
+          : tf("listAt", String(at.row), String(at.rows), String(at.col)),
     ]),
-    act("↑+", t("insertRowAbove"), () => tables.insertRow(doc, tbl, row - 1)),
-    act("↓+", t("insertRowBelow"), () => tables.insertRow(doc, tbl, row)),
-    act("⊖", t("deleteRow"), () => tables.deleteRow(doc, tbl, row)),
-    el("span", { class: "tb-sep" }),
-    act("→+", t("insertColAfter"), () => tables.insertColumn(doc, tbl, col)),
-    act("+←", t("insertColBefore"), () => tables.insertColumn(doc, tbl, col - 1)),
-    act("⊗", t("deleteCol"), () => tables.deleteColumn(doc, tbl, col)),
-    el("span", { class: "tb-sep" }),
-    act("H", t("toggleHeaderRow"), () => tables.toggleHeaderRow(doc, tbl, row)),
-  );
+  ];
+
+  let group = "";
+  for (const { action, enabled } of here) {
+    // A separator between groups, so rows, columns and whole-table operations
+    // read as three things rather than one wall of glyphs.
+    if (group && action.group !== group) children.push(el("span", { class: "tb-sep" }));
+    group = action.group;
+    const key = keybindings()[action.id];
+    const name = t(action.label);
+    children.push(
+      el(
+        "button",
+        {
+          class: "tb-btn" + (enabled ? "" : " disabled"),
+          // The key is in the tooltip because a shortcut nobody can find is the
+          // same as no shortcut — the same rule the nikud bar follows.
+          title: key ? `${name} · ${readable(key)}` : name,
+          "aria-label": name,
+          disabled: enabled ? null : "true",
+          onClick: () => runStructureAction(action, true),
+        },
+        // The two or three a writer reaches for carry their name. A Word user
+        // does not discover a feature by hovering eleven arrows, and Word
+        // labels its ribbon; labelling all eighteen table operations would be a
+        // wall of text, so `primary` picks the ones worth the width.
+        action.primary ? [action.glyph + " ", el("span", { class: "tb-name" }, [name])] : [action.glyph],
+      ),
+    );
+  }
+  bar.replaceChildren(...children);
   bar.classList.add("open");
+}
+
+/**
+ * The keys that make a list behave like a list.
+ *
+ * Each one is the same registry entry the ribbon renders, so a rebind in
+ * Settings changes both, and a macro that records "new item" replays the
+ * operation rather than a keystroke.
+ *
+ * They only fire when the caret is *inside* a list and the operation applies:
+ * `runStructureAction` returns false otherwise, and CodeMirror moves on to the
+ * next handler. Enter at the end of a paragraph must stay Enter.
+ */
+function structureKeymap() {
+  const kb = keybindings();
+  const out: KeyBinding[] = [];
+  for (const a of structure.STRUCTURE_ACTIONS) {
+    const key = kb[a.id];
+    // No `preventDefault`: returning false has to let the key through, which is
+    // exactly how Enter stays Enter in ordinary prose.
+    if (key) out.push({ key, run: () => runStructureAction(a) });
+  }
+  return out;
+}
+const structureCompartment = new Compartment();
+
+// ---------------------------------------------------------------- help
+//
+// Generated, in full, from the same registries everything else is a view over.
+// Nothing here is written by hand, which is the only way a help page stays true:
+// the alternative is a document that was correct on the day somebody typed it.
+
+function openHelp() {
+  closeMenus();
+  document.getElementById("help-panel")!.classList.add("open");
+  renderHelp("");
+  (document.getElementById("help-search") as HTMLInputElement | null)?.focus();
+}
+
+function closeHelp() {
+  document.getElementById("help-panel")!.classList.remove("open");
+  runtime.view?.focus();
+}
+
+function renderHelp(query: string) {
+  const box = document.getElementById("help-body")!;
+  const sections = help.search(
+    help.helpSections({
+      t,
+      keys: keybindings(),
+      macros: settings.macros,
+      commands: runtime.commandsReg,
+      lang: getLang(),
+      hydraKeys: settings.hydraKeys,
+    }),
+    query,
+  );
+
+  const body: Node[] = sections.length
+    ? sections.map((s) =>
+        el("section", { class: "help-section" }, [
+          el("h3", {}, [t(s.title)]),
+          ...(s.lede ? [el("p", { class: "help-lede" }, [t(s.lede)])] : []),
+          el("dl", { class: "help-list" }, s.entries.flatMap((e) => [
+            el("dt", {}, [e.what]),
+            el("dd", {}, [el("code", {}, [e.how])]),
+          ])),
+        ]),
+      )
+    : [el("p", { class: "help-lede" }, [t("helpNothing")])];
+
+  box.replaceChildren(...body);
+}
+
+function buildHelpPanel(): HTMLElement {
+  const input = el("input", {
+    id: "help-search",
+    type: "search",
+    placeholder: t("helpSearch"),
+    class: "help-search",
+  }) as HTMLInputElement;
+  input.addEventListener("input", () => renderHelp(input.value));
+  return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help") }, [
+    el("div", { class: "styles-head" }, [
+      el("h2", {}, [t("helpTitle")]),
+      el("button", { class: "styles-close", title: t("close"), onClick: closeHelp }, ["×"]),
+    ]),
+    el("p", { class: "help-lede" }, [t("helpLede")]),
+    input,
+    el("div", { id: "help-body" }),
+  ]);
+}
+
+// ---------------------------------------------------------------- macros
+//
+// Record what you did, do it again. The recorder logs *actions* and typed text —
+// never keystrokes, never document positions — so a macro replays correctly from
+// wherever the caret happens to be, which is the property that makes it worth
+// having. Recording the positions would produce a macro that works exactly once.
+
+let recording: macros.Step[] | null = null;
+
+/** The saved macros, read defensively — a bad preference must not stop the app. */
+function savedMacros(): macros.Macro[] {
+  return macros.parseAll(settings.macros);
+}
+
+function macroName(id: string): string {
+  const structural = structure.actionById(id);
+  if (structural) return t(structural.label);
+  const mac = savedMacros().find((m) => macros.actionIdOf(m) === id);
+  return mac ? mac.name : t("sc." + id);
+}
+
+/** Note an action for the recorder. Called by every action runner. */
+function noteAction(id: string) {
+  if (recording) recording.push({ kind: "action", id });
+}
+
+/** Note typed text for the recorder. */
+function noteTyped(text: string) {
+  if (recording && text) recording.push({ kind: "text", text });
+}
+
+function toggleRecording() {
+  if (recording) {
+    finishRecording();
+    return;
+  }
+  recording = [];
+  setStatus(t("macroRecording"), "");
+  rerenderChrome();
+}
+
+function finishRecording() {
+  const steps = macros.compact(recording ?? []);
+  recording = null;
+  const macro: macros.Macro = { id: macros.newId(), name: "", steps };
+  if (macros.isEmpty(macro)) {
+    setStatus(t("macroEmpty"), "");
+    rerenderChrome();
+    return;
+  }
+  const suggested = macros.describe(macro, macroName).slice(0, 40);
+  const name = prompt(t("macroNamePrompt"), suggested);
+  if (name === null) {
+    setStatus(t("macroDiscarded"), "");
+    rerenderChrome();
+    return;
+  }
+  macro.name = name.trim() || suggested;
+  settings.macros = [...savedMacros(), macro];
+  saveSettings();
+  // A saved macro is an action like any other from this point on: it appears in
+  // the shortcut list and can be bound to a key without another line of code.
+  reconfigureShortcuts();
+  rerenderChrome();
+  setStatus(tf("macroSaved", macro.name), "ok");
+}
+
+/** Run a macro's steps, in order, from wherever the caret is. */
+function playMacro(macro: macros.Macro, times = 1) {
+  const valid = macros.validate(macro, (id) => !!actionById(id));
+  if (valid.steps.length < macro.steps.length) {
+    // Said out loud rather than silently: a macro doing four of its five things
+    // is a macro whose next result will surprise somebody.
+    setStatus(tf("macroStepsDropped", macro.name), "");
+  }
+  for (let i = 0; i < times; i++) {
+    for (const step of valid.steps) {
+      if (step.kind === "text") {
+        const sel = runtime.view.state.selection.main;
+        runtime.view.dispatch({
+          changes: { from: sel.from, to: sel.to, insert: step.text },
+          selection: { anchor: sel.from + step.text.length },
+        });
+      } else {
+        const action = actionById(step.id);
+        action?.run(runtime.view);
+      }
+    }
+  }
+  scheduleCompile();
+  runtime.view.focus();
+}
+
+/** Any action by id — built-in, structural, or a saved macro. */
+function actionById(id: string): { id: string; run: (v: EditorView) => boolean } | undefined {
+  return ACTIONS.find((a) => a.id === id);
+}
+
+function deleteMacro(id: string) {
+  settings.macros = savedMacros().filter((m) => m.id !== id);
+  saveSettings();
+  reconfigureShortcuts();
+  rerenderChrome();
+}
+
+// ---------------------------------------------------------------- hydra
+//
+// One key opens a panel listing every operation available where the caret is,
+// each on a single letter, and the panel stays up so repeating is one keystroke.
+// Escape or `q` leaves. It is a third view over `STRUCTURE_ACTIONS` — not a
+// third list — so an operation added to the registry appears here the same day.
+
+let openHydraState: hydra.Hydra | null = null;
+
+/** Whatever the caret is in, opened as a hydra. */
+function openHydra() {
+  if (!runtime.view) return;
+  const doc = runtime.view.state.doc.toString();
+  const pos = runtime.view.state.selection.main.head;
+  const kind = structure.structureAt(doc, pos);
+  if (!kind) {
+    setStatus(t("hydraNothingHere"), "");
+    return;
+  }
+  openHydraState = hydra.hydraFor(kind, settings.hydraKeys ?? {});
+  renderHydra();
+}
+
+function closeHydra() {
+  openHydraState = null;
+  document.getElementById("hydra")!.classList.remove("open");
+  runtime.view?.focus();
+}
+
+function renderHydra() {
+  const panel = document.getElementById("hydra")!;
+  const h = openHydraState;
+  if (!h) return;
+  const doc = runtime.view.state.doc.toString();
+  const pos = runtime.view.state.selection.main.head;
+
+  let group = "";
+  const cells: Node[] = [];
+  for (const entry of h.entries) {
+    if (group && entry.action.group !== group) cells.push(el("span", { class: "hydra-break" }));
+    group = entry.action.group;
+    // Greyed rather than hidden, for the same reason the menus grey: a hydra
+    // whose contents shuffle between openings is one nobody memorises.
+    const enabled = entry.action.run(doc, pos) !== null;
+    cells.push(
+      el("button", {
+        class: "hydra-key" + (enabled ? "" : " disabled"),
+        disabled: enabled ? null : "true",
+        onClick: () => runHydraEntry(entry),
+      }, [
+        // The key the writer's own keyboard can actually produce. On a Hebrew
+        // layout the physical `a` sends `ש`, so a Hebrew-interface hydra
+        // labelled `a s b d i o m v u n h` was showing eleven keys none of which
+        // existed. Both alphabets are accepted either way (see `entryFor`); this
+        // only decides which one to print.
+        el("kbd", {}, [getLang() === "he" && entry.he ? entry.he : entry.key]),
+        el("span", {}, [t(entry.action.label)]),
+      ]),
+    );
+  }
+  panel.replaceChildren(
+    el("div", { class: "hydra-head" }, [
+      el("b", {}, [t("structure." + h.structure)]),
+      el("span", {}, [t("hydraHint")]),
+      el("div", { class: "spacer" }),
+      // A visible exit as well as Escape and `q`. The rule this codebase learned
+      // the hard way: a surface that takes over the keyboard and can only be
+      // dismissed by a key you have to already know is a surface people get
+      // stuck in.
+      el("button", { class: "styles-close", title: t("close"), onClick: closeHydra }, ["×"]),
+    ]),
+    el("div", { class: "hydra-keys" }, cells),
+  );
+  panel.classList.add("open");
+}
+
+function runHydraEntry(entry: hydra.HydraEntry) {
+  // The hydra is opened by a chord and driven by a pointer-free keyboard, but
+  // it is offered from the same sticky reading the ribbon uses, so it acts on
+  // the same structure the writer can see listed.
+  const ran = runStructureAction(entry.action, true);
+  if (!ran) return;
+  if (hydra.closesAfter(entry.action)) {
+    closeHydra();
+    return;
+  }
+  // Still open, and redrawn: what is possible changes as the document does —
+  // after deleting the second-to-last row, "delete row" has to grey out.
+  requestAnimationFrame(renderHydra);
+}
+
+/**
+ * The hydra's keys, while it is open.
+ *
+ * At the very front of the keymap and swallowing every plain letter, because a
+ * transient keymap that let `r` through to the document would type an `r` into
+ * the table it was meant to add a row to.
+ */
+function hydraKeymap(): KeyBinding[] {
+  return [
+    {
+      any: (_view, event) => {
+        if (!openHydraState) return false;
+        if (event.key === "Escape" || event.key === "q") {
+          closeHydra();
+          return true;
+        }
+        // Let modified keys through: Mod-S while a hydra is up should still save.
+        if (event.ctrlKey || event.metaKey || event.altKey) return false;
+        if (event.key.length !== 1) return false;
+        const entry = hydra.entryFor(openHydraState, event.key);
+        if (!entry) return true; // swallowed: an unbound letter must not be typed
+        runHydraEntry(entry);
+        return true;
+      },
+    },
+  ];
+}
+
+/** Perform one structural operation, wherever the caret is. */
+/**
+ * Run a structural operation.
+ *
+ * `sticky` is the ribbon's and the menus' reading of the caret: one character
+ * further in, so an operation offered while the caret rests just past a list's
+ * closing `)` actually acts (see `structureNear`). It is deliberately **off**
+ * for the keyboard. Bare Enter and Tab are bound to `list.splitItem` and
+ * `list.indent`, and a sticky Enter would split a list item while the writer
+ * was typing the paragraph after the list — the ribbon lingering is a
+ * convenience, a key that acts on something the caret has left is a bug.
+ */
+function runStructureAction(action: structure.StructureAction, sticky = false): boolean {
+  if (!runtime.view) return false;
+  noteAction(action.id);
+  const doc = runtime.view.state.doc.toString();
+  const caret = runtime.view.state.selection.main.head;
+  const pos = sticky ? (structure.structureNear(doc, caret)?.pos ?? caret) : caret;
+  const edit = action.run(doc, pos);
+  if (!edit) return false;
+  runtime.view.dispatch({
+    changes: { from: 0, to: doc.length, insert: edit.text },
+    selection: { anchor: Math.min(edit.caret, edit.text.length) },
+    scrollIntoView: true,
+  });
+  scheduleCompile();
+  requestAnimationFrame(updateContextBar);
+  return true;
 }
 
 // ---------------------------------------------------------------- styles panel
@@ -2852,6 +3885,99 @@ function colorControl(current: string, onPick: (v: string) => void): HTMLElement
   const input = el("input", { type: "color", value: current });
   input.addEventListener("change", () => onPick(input.value));
   return input;
+}
+
+/**
+ * Styles › Notes — the tiered apparatus, per tier.
+ *
+ * `#הגדרות_הערות` has always accepted per-tier size, slant, colour, indent,
+ * numbering scheme and label prefix, plus the gap between entries. All of it,
+ * and **none of it reachable except by typing the command**. This writes the
+ * same line a writer would type by hand, which is the constraint that keeps the
+ * panel from drifting away from the engine: there is no second representation
+ * of a note style anywhere, only this call in the document.
+ *
+ * Three tiers, because a fourth is rarer than the width it would cost, and any
+ * tier is still reachable by typing — the panel preserves every argument it does
+ * not understand, including entries past the third.
+ */
+function noteStyleRows(): Node[] {
+  const rows: Node[] = [];
+  // Engine defaults, so filling in a gap in a short tuple restyles nothing.
+  const D = {
+    גודל: ["1em", "0.9em", "0.82em"],
+    סגנון: ['"normal"', '"italic"', '"italic"'],
+    צבע: ["luma(0)", "luma(55)", "luma(85)"],
+    הזחה: ["0em", "1.4em", "2.8em"],
+    מספור: ['"א"', '"1"', '"a"'],
+  };
+  const tierOf = (key: keyof typeof D, tier: number): string | undefined =>
+    styles.readTuple(styleArg("notes", key))?.[tier - 1];
+  const set = (key: keyof typeof D, tier: number, value: string) =>
+    setStyleArgs("notes", { [key]: styles.withTier(styleArg("notes", key), tier, value, D[key]) });
+
+  for (const tier of [1, 2, 3]) {
+    rows.push(el("h4", { class: "style-tier" }, [tf("noteTier", String(tier))]));
+    rows.push(
+      styleRow(
+        t("noteTierNumbering"),
+        selectControl(
+          [
+            ["", t("noteNumberingRunning")],
+            ['"א"', "א ב ג"],
+            ['"1"', "1 2 3"],
+            ['"a"', "a b c"],
+            ['"i"', "i ii iii"],
+            ['"*"', "* † ‡"],
+          ],
+          tierOf("מספור", tier) ?? "",
+          (v) =>
+            v
+              ? set("מספור", tier, v)
+              : setStyleArgs("notes", { מספור: null }),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierSize"),
+        selectControl(
+          [["1em", "100%"], ["0.9em", "90%"], ["0.82em", "82%"], ["0.75em", "75%"]],
+          tierOf("גודל", tier) ?? D["גודל"][tier - 1],
+          (v) => set("גודל", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierStyle"),
+        selectControl(
+          [['"normal"', t("styleNormal")], ['"italic"', t("styleItalic")]],
+          tierOf("סגנון", tier) ?? D["סגנון"][tier - 1],
+          (v) => set("סגנון", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierIndent"),
+        selectControl(
+          [["0em", "0"], ["0.7em", "0.7em"], ["1.4em", "1.4em"], ["2.1em", "2.1em"]],
+          tierOf("הזחה", tier) ?? D["הזחה"][tier - 1],
+          (v) => set("הזחה", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierColor"),
+        colorControl(styles.readColor(tierOf("צבע", tier)) ?? "#000000", (v) =>
+          set("צבע", tier, styles.typstColor(v)),
+        ),
+      ),
+    );
+  }
+  return rows;
 }
 
 function renderStylesPanel() {
@@ -2964,6 +4090,9 @@ function renderStylesPanel() {
     ...lists,
     el("h3", {}, [t("styleTables")]),
     ...tables,
+    el("h3", {}, [t("styleNotes")]),
+    el("p", { class: "styles-note" }, [t("styleNotesNote")]),
+    ...noteStyleRows(),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
 }
@@ -3322,35 +4451,114 @@ function closeNotesChooser() {
  * Where the note's prose goes in the *file* — which is a separate question from
  * where it prints, and the one the chooser could not previously ask.
  *
- * Sticky across notes in a session: a writer who has decided their notes live at
- * the end has decided it for the document, not for one footnote.
+ * Persisted, not session-scoped: someone who writes their notes at the end of
+ * the file writes *every* note that way, and having to re-answer after each
+ * reload is how the answer stops being believed.
  */
-let deferBodies = false;
+function deferBodies(): boolean {
+  return settings.deferNoteBodies === true;
+}
 
-function chooseNote(choice: NoteChoice, which: "primary" | "secondary") {
+/**
+ * Write a note layout into the document. The only place that does.
+ *
+ * Reached from the chooser, from `insertSnippet` (and therefore from the
+ * toolbar, the palette, the Insert menu and every key binding), and from the
+ * right-click menu on an existing note. One producer means the scaffolding and
+ * the org-mode preference cannot be honoured in one surface and forgotten in
+ * three — which is exactly what happened, and what `app/test/notepaths.test.mjs`
+ * now holds.
+ */
+function applyNoteChoice(
+  choice: NoteChoice,
+  which: "primary" | "secondary",
+  sel: { to?: number; text?: string; marker?: string } = {},
+) {
   const from = runtime.view.state.selection.main.from;
   const { text, caret } = applyChoice(
     runtime.view.state.doc.toString(),
     from,
     choice,
     which,
-    deferBodies,
+    deferBodies(),
+    sel,
   );
   runtime.view.dispatch({
     changes: { from: 0, to: runtime.view.state.doc.length, insert: text },
     selection: { anchor: caret },
   });
-  closeNotesChooser();
   scheduleCompile();
 }
 
-function noteCard(c: NoteChoice): HTMLElement {
+function chooseNote(choice: NoteChoice, which: "primary" | "secondary") {
+  applyNoteChoice(choice, which);
+  closeNotesChooser();
+}
+
+/**
+ * A real page, set from the writer's own text, in place of an ASCII sketch.
+ *
+ * Four rows of `▤` and `¹` cannot say whether the band lands at the foot of the
+ * page or where the prose happens to stop — which is precisely the distinction
+ * the writer is being asked to make. So the selected card compiles: the opening
+ * of the document in hand, with the layout applied and two notes in it, and the
+ * first page shown at thumbnail size. Only the selected one, because twelve
+ * compiles to open a modal is not a preview, it is a stall.
+ */
+async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
+  const backend = runtime.backend;
+  if (!backend) return;
+  // Enough prose to fill a page, so "at the foot" and "where the text stops" are
+  // visibly different. The writer's own opening if they have one, filler if not.
+  // The writer's own words, with the markup taken out. Slicing raw source at
+  // 700 characters lands in the middle of a bracket about as often as not, and
+  // a preview that silently never appears because the excerpt would not compile
+  // is worse than an honest sketch. So: strip the commands, keep the prose.
+  const own = runtime.view.state.doc
+    .toString()
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/.*/g, " ")
+    .replace(/#[A-Za-z0-9֐-׿_]+(\([^()]*\))?/g, " ")
+    .replace(/[[\]|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 700);
+  const filler = Array.from({ length: 18 }, (_, i) => t("notePreviewLine") + " " + (i + 1)).join(
+    "\n\n",
+  );
+  const base = own.length > 120 ? own : filler;
+  let src = base;
+  for (const [at, body, which] of [
+    [Math.floor(base.length * 0.6), t("notePreviewNoteB"), "secondary"],
+    [Math.floor(base.length * 0.2), t("notePreviewNoteA"), "primary"],
+  ] as [number, string, "primary" | "secondary"][]) {
+    if (which === "secondary" && !c.insert2) continue;
+    const r = applyChoice(src, at, c, which, false);
+    src = r.text.slice(0, r.caret) + body + r.text.slice(r.caret);
+  }
+  const res = await backend.compile(src, { ...docConfig(), paper: "a5" }).catch(() => null);
+  const svg = res?.pages_svg?.[0];
+  if (!svg) return;
+  host.innerHTML = svg;
+  host.classList.add("ready");
+}
+
+function noteCard(c: NoteChoice, live = false): HTMLElement {
   const he = getLang() === "he";
   const note = he ? c.noteHe : c.noteEn;
-  return el("div", { class: "note-card" }, [
-    el("div", { class: "note-sketch" }, [c.sketch.join("\n")]),
+  // The sketch until the page arrives, and the page after it — so the card is
+  // never empty and never waiting.
+  const preview = el("div", { class: "note-preview" }, [c.sketch.join("\n")]);
+  if (live) void fillNotePreview(preview, c);
+  return el("div", { class: "note-card" + (live ? " picked" : "") }, [
+    preview,
     el("div", { class: "note-body" }, [
       el("b", {}, [he ? c.he : c.en]),
+      // Word's name for the same arrangement, beside the sefer's. Someone who
+      // has only ever used Word searches for "footnote"; someone setting a sefer
+      // searches for שער־הציון. Neither should have to learn the other's
+      // vocabulary to find the card they are already looking at.
+      ...(c.word ? [el("span", { class: "note-alias" }, [t("word." + c.word)])] : []),
       el("p", {}, [he ? c.descHe : c.descEn]),
       ...(note ? [el("p", { class: "note-caveat" }, [note])] : []),
       el("div", { class: "note-actions" }, [
@@ -3384,9 +4592,10 @@ function bodyPlacementRow(): HTMLElement {
     el(
       "button",
       {
-        class: `defer-option${deferBodies === on ? " on" : ""}`,
+        class: `defer-option${deferBodies() === on ? " on" : ""}`,
         onClick: () => {
-          deferBodies = on;
+          settings.deferNoteBodies = on;
+          saveSettings();
           renderNotesChooser();
         },
       },
@@ -3413,16 +4622,108 @@ function bodyPlacementRow(): HTMLElement {
   ]);
 }
 
+/**
+ * The two everyday kinds, as one click each.
+ *
+ * Twelve cards of equal visual weight said "choose your document's note system",
+ * and a writer who wanted an ordinary footnote read that as a decision they were
+ * not qualified to make. They are the same two cards as in the grid below — this
+ * row only says which two a person reaches for ninety-five times out of a
+ * hundred, and that reaching for one does not spend the other.
+ */
+function quickNotesRow(): HTMLElement {
+  const quick = (id: string, label: string, desc: string, glyph: string) => {
+    const choice = NOTE_CHOICES.find((c) => c.id === id)!;
+    return el("button", { class: "note-quick", onClick: () => chooseNote(choice, "primary") }, [
+      el("span", { class: "note-quick-glyph" }, [glyph]),
+      el("span", {}, [el("b", {}, [label]), el("span", {}, [desc])]),
+    ]);
+  };
+  return el("div", { class: "note-quick-row" }, [
+    quick("footnote", t("notesQuickFootnote"), t("notesQuickFootnoteDesc"), "†"),
+    quick("endnote", t("notesQuickEndnote"), t("notesQuickEndnoteDesc"), "⁋"),
+  ]);
+}
+
+/**
+ * Which cell of the where × how grid is open. Null until something is picked.
+ */
+let notesCell: { where: NoteWhere; how: NoteHow } | null = null;
+
+/**
+ * The chooser's two questions, as a matrix.
+ *
+ * Twelve cards, each encoding a *where* and a *how* at once, and the writer had
+ * to work out which was which from a four-line sketch. Nothing said that
+ * `#הערות_מדורגות` prints where the prose ends and `#מדף_א`/`#מדף_ב` prints at
+ * the foot of every page — a difference that is invisible in a short document,
+ * where the "separate blocks" apparatus rendered near the top of the page and
+ * looked plainly broken.
+ *
+ * Rows are where it prints; columns are how the layers are arranged. Cells with
+ * no arrangement are greyed **with a reason**, never hidden: a writer who cannot
+ * see that "fixed regions at the end of the document" was considered has no way
+ * to tell a wrong question from a missing feature.
+ */
+function notesMatrix(): HTMLElement {
+  const head = el("div", { class: "nm-row nm-head" }, [
+    el("div", { class: "nm-corner" }, [t("notesAxisHow")]),
+    ...NOTE_HOW.map((how) => el("div", { class: "nm-col-head" }, [t("how." + how)])),
+  ]);
+  const rows = NOTE_WHERE.map((where) =>
+    el("div", { class: "nm-row" }, [
+      el("div", { class: "nm-row-head" }, [t("where." + where)]),
+      ...NOTE_HOW.map((how) => {
+        const choice = choiceAt(where, how);
+        if (!choice) {
+          return el(
+            "div",
+            { class: "nm-cell empty", title: t(whyNot(where, how)) },
+            ["—"],
+          );
+        }
+        const on = notesCell?.where === where && notesCell?.how === how;
+        return el(
+          "button",
+          {
+            class: "nm-cell" + (on ? " on" : ""),
+            title: getLang() === "he" ? choice.descHe : choice.descEn,
+            onClick: () => {
+              notesCell = { where, how };
+              renderNotesChooser();
+            },
+          },
+          [getLang() === "he" ? choice.he : choice.en],
+        );
+      }),
+    ]),
+  );
+  return el("div", { class: "notes-matrix" }, [head, ...rows]);
+}
+
 function renderNotesChooser() {
   const box = document.getElementById("notes-chooser-body")!;
+  const picked = notesCell ? choiceAt(notesCell.where, notesCell.how) : null;
   box.replaceChildren(
-    el("h2", {}, [t("notesChooserTitle")]),
+    el("div", { class: "styles-head" }, [
+      el("h2", {}, [t("notesChooserTitle")]),
+      el("button", { class: "styles-close", title: t("close"), onClick: closeNotesChooser }, ["×"]),
+    ]),
     el("p", { class: "notes-lede" }, [t("notesChooserLede")]),
-    el("h3", {}, [t("notesOneLayer")]),
-    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "one").map(noteCard)),
-    el("h3", {}, [t("notesTwoLayers")]),
-    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "two").map(noteCard)),
+    el("p", { class: "notes-mix" }, [t("notesMix")]),
+    el("h3", {}, [t("notesCommon")]),
+    quickNotesRow(),
+    // Above the grid, not below it: where the prose lives in the *file* applies
+    // to all twelve arrangements equally, and it is the one question here whose
+    // answer a writer already knows. Below the fold it was never found.
     bodyPlacementRow(),
+    el("h3", {}, [t("notesAxisWhere")]),
+    notesMatrix(),
+    ...(picked ? [noteCard(picked, true)] : [el("p", { class: "notes-mix" }, [t("notesPickCell")])]),
+    el("h3", {}, [t("notesMore")]),
+    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "one").map((c) => noteCard(c))),
+    el("h3", {}, [t("notesTwoLayers")]),
+    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "two").map((c) => noteCard(c))),
   );
 }
 
@@ -3746,6 +5047,10 @@ function render() {
   app.dataset.layout = settings.layout;
   app.append(
     buildHeader(),
+    // Directly under the toolbar, where Word and LibreOffice put their
+    // contextual tabs. It used to be a four-button strip pinned to the bottom
+    // of the window, which the writer reasonably reported as "no UI at all".
+    contextBar(),
     buildNikudBar(scheduleCompile),
     el("main", {}, [
       el("section", { class: "pane preview-pane", "aria-label": t("preview") }, [
@@ -3777,10 +5082,23 @@ function render() {
     ]),
     buildSettingsDrawer(),
     el("aside", { id: "outline-drawer", class: "drawer drawer-start", "aria-label": t("outline") }, [
-      el("h3", {}, [t("outline")]),
+      // Its own close control, for the same reason the settings drawer needed
+      // one: below 720px a drawer is the full viewport, so the chip that opened
+      // it is underneath it and cannot be the only way back out.
+      el("div", { class: "styles-head" }, [
+        el("h3", {}, [t("outline")]),
+        el("button", { class: "styles-close", title: t("close"), onClick: closeOutline }, ["×"]),
+      ]),
       el("div", { id: "outline-list" }),
     ]),
-    tableToolbar(),
+    // The notes pane, beside the outline: the two halves of a sefer's structure.
+    el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane") }, [
+      el("div", { class: "styles-head" }, [
+        el("h3", {}, [t("notesPane")]),
+        el("button", { class: "styles-close", title: t("close"), onClick: closeNotesPane }, ["×"]),
+      ]),
+      el("div", { id: "notes-list" }),
+    ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
     el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle") }, [
       el("div", { id: "styles-body" }),
@@ -3794,6 +5112,10 @@ function render() {
     el("div", { id: "form-modal", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "form-modal") closeModal();
     } }, [el("div", { class: "palette-box form-modal-box" }, [el("div", { id: "form-modal-body" })])]),
+    buildHelpPanel(),
+    // the hydra panel — a strip, not an overlay: the document must stay visible
+    // and the caret must stay where it is while operations fire against it
+    el("div", { id: "hydra", class: "hydra" }),
     // notes chooser overlay
     el("div", { id: "notes-chooser", class: "overlay", onClick: (e: Event) => {
       if ((e.target as HTMLElement).id === "notes-chooser") closeNotesChooser();
@@ -3865,6 +5187,10 @@ function render() {
     document.getElementById("outline-drawer")!.classList.add("open");
     renderOutline();
   }
+  if (settings.notesPane) {
+    document.getElementById("notes-drawer")!.classList.add("open");
+    renderNotesPane();
+  }
 }
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
@@ -3887,7 +5213,16 @@ function wireKeys() {
       closeSpellMenu();
       closeStyles();
       closeReview();
+      closeSettings();
+      closeHelp();
       closeModal();
+      // The first-run overlay. It had no × and ignored Escape, so its only exits
+      // were the template buttons — a writer who opened it by accident with a
+      // document already in the buffer had no move that did not replace their
+      // work. Worse, it was an explicit exemption in the reachability test, with
+      // a written reason ("every control on it dismisses it") that was false.
+      // An exemption is an assertion, and that one was never checked.
+      dismissOnboard();
     } else if (e.key === "Alt" && settings.prose) {
       runtime.view.dispatch({ effects: setRevealAll.of(true) });
     }
@@ -3932,9 +5267,21 @@ function maybeOnboard() {
   const rest = all.filter((tpl) => tpl.lang !== "he" && tpl.lang !== "en");
   if (rest.length) groups.push({ lang: "", items: rest });
 
-  const overlay = el("div", { id: "welcome", class: "overlay open" }, [
+  const overlay = el(
+    "div",
+    {
+      id: "welcome",
+      class: "overlay open",
+      onClick: (e: Event) => {
+        if ((e.target as HTMLElement).id === "welcome") dismissOnboard();
+      },
+    },
+    [
     el("div", { class: "palette-box welcome-box" }, [
-      el("h2", {}, [t("welcomeTitle")]),
+      el("div", { class: "styles-head" }, [
+        el("h2", {}, [t("welcomeTitle")]),
+        el("button", { class: "styles-close", title: t("close"), onClick: dismissOnboard }, ["×"]),
+      ]),
       el("p", {}, [t("welcomeBody")]),
       ...groups.flatMap((g) => [
         el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),
@@ -3948,8 +5295,8 @@ function maybeOnboard() {
                 class: "welcome-tpl",
                 lang: tpl.lang,
                 onClick: () => {
-                  loadTemplate(tpl);
                   dismissOnboard();
+                  loadTemplate(tpl);
                 },
               },
               [lang === "he" ? tpl.he : tpl.en],
@@ -3962,19 +5309,29 @@ function maybeOnboard() {
         {
           class: "welcome-start",
           onClick: () => {
-            newDoc();
             dismissOnboard();
+            newDoc();
           },
         },
         [t("welcomeStart")],
       ),
     ]),
-  ]);
+    ],
+  );
   document.getElementById("app")!.append(overlay);
 }
+/**
+ * Close the welcome overlay, however the writer chose to leave it.
+ *
+ * A no-op when it is not on screen, because Escape now reaches it and Escape is
+ * pressed constantly: marking someone onboarded because they dismissed a
+ * completion popup would be a lie told by a keystroke.
+ */
 function dismissOnboard() {
+  const overlay = document.getElementById("welcome");
+  if (!overlay) return;
   localStorage.setItem("ksav.onboarded", "1");
-  document.getElementById("welcome")?.remove();
+  overlay.remove();
 }
 
 /**

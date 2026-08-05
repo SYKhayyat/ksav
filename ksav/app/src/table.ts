@@ -30,6 +30,18 @@ export interface TableInfo {
   argsTo: number;
   /** Declared column count. */
   cols: number;
+  /**
+   * Per-column track sizes, when the table declares them — `("2fr", "1fr")`.
+   *
+   * Typst's `columns:` takes either a count or a list of track sizes, and the
+   * engine passes the argument straight through, so `#טבלה(עמודות: (2fr, 1fr))`
+   * has always rendered correctly. The editor only ever read the integer form:
+   * a three-column table with widths parsed as *two* columns, and one click on
+   * the ribbon rewrote it as `עמודות: 2` with the cells reflowed into the wrong
+   * rows and the widths gone. Engine right, editor silently destructive — with
+   * no error anywhere, because the result still compiled.
+   */
+  widths: string[] | null;
   cells: TableCell[];
   /**
    * Every other named argument, verbatim and in order — `פסים: true`,
@@ -109,8 +121,21 @@ export function tableAt(doc: string, pos: number): TableInfo | null {
       const argsTo = close;
       const args = doc.slice(argsFrom, argsTo);
 
-      const colsMatch = /(עמודות|columns)\s*:\s*(\d+)/u.exec(args);
-      const cols = colsMatch ? Math.max(1, parseInt(colsMatch[2], 10)) : 2;
+      const colsMatch = /(עמודות|columns)\s*:\s*(\(|\d+)/u.exec(args);
+      let widths: string[] | null = null;
+      let cols = 2;
+      if (colsMatch && colsMatch[2] === "(") {
+        // A track list. Its own commas are inside the parentheses, so it is
+        // split with the same depth-aware splitter the cells use.
+        const open = argsFrom + colsMatch.index + colsMatch[0].length - 1;
+        const shut = matchBracket(doc, open, ")", argsTo + 1);
+        if (shut != null) {
+          widths = topLevelArgs(doc.slice(open + 1, shut));
+          cols = Math.max(1, widths.length);
+        }
+      } else if (colsMatch) {
+        cols = Math.max(1, parseInt(colsMatch[2], 10));
+      }
       const options = topLevelArgs(args).filter(
         (a) => !CELL_HEAD.test(a) && !COLS_ARG.test(a),
       );
@@ -139,6 +164,7 @@ export function tableAt(doc: string, pos: number): TableInfo | null {
         argsFrom,
         argsTo,
         cols,
+        widths,
         options,
         cells,
         names: hebrew
@@ -231,7 +257,12 @@ function cellSource(t: TableInfo, c: TableCell): string {
 }
 
 /** Render a table back to source, laid out one grid row per line. */
-function render(t: TableInfo, cells: TableCell[], cols: number): string {
+function render(
+  t: TableInfo,
+  cells: TableCell[],
+  cols: number,
+  widths: string[] | null = t.widths,
+): string {
   const { grid, rows } = layout(cells, cols);
   const lines: string[] = [];
   for (let r = 0; r < rows; r++) {
@@ -247,7 +278,11 @@ function render(t: TableInfo, cells: TableCell[], cols: number): string {
   // setting comes back verbatim: an English table must not come out of a row
   // insert with a Hebrew argument name in it, and a striped one must not come
   // out unstriped.
-  const head = [`${t.names.cols}: ${cols}`, ...t.options].join(", ");
+  // A table that declared track sizes keeps declaring them. Writing the count
+  // back instead is how one ribbon click used to throw the column widths away.
+  const colArg =
+    widths && widths.length === cols ? `(${widths.join(", ")})` : String(cols);
+  const head = [`${t.names.cols}: ${colArg}`, ...t.options].join(", ");
   return `#${t.names.table}(${head},\n${lines.join("\n")}\n)`;
 }
 
@@ -327,7 +362,12 @@ export function insertColumn(doc: string, t: TableInfo, afterCol: number): strin
     // `at` sits at the row's right edge (including a full-width single row).
     if (!placed) out.push(blank(header));
   }
-  return replace(doc, t, render(t, out, t.cols + 1));
+  // The new column needs a track of its own, or the list no longer matches the
+  // count and the whole declaration is dropped on the next render.
+  const widths = t.widths
+    ? [...t.widths.slice(0, at), t.widths[Math.min(at, t.widths.length - 1)] ?? "auto", ...t.widths.slice(at)]
+    : null;
+  return replace(doc, t, render(t, out, t.cols + 1, widths));
 }
 
 export function deleteColumn(doc: string, t: TableInfo, col: number): string {
@@ -347,7 +387,8 @@ export function deleteColumn(doc: string, t: TableInfo, col: number): string {
       }
     }
   }
-  return replace(doc, t, render(t, out, t.cols - 1));
+  const widths = t.widths ? t.widths.filter((_, i) => i !== col) : null;
+  return replace(doc, t, render(t, out, t.cols - 1, widths));
 }
 
 /** Turn the row into header cells, or back into ordinary ones. */
@@ -358,6 +399,154 @@ export function toggleHeaderRow(doc: string, t: TableInfo, row: number): string 
   const makeHeader = !slice.every((p) => p.cell.header);
   for (const p of slice) cells[p.index].header = makeHeader;
   return replace(doc, t, render(t, cells, t.cols));
+}
+
+/**
+ * Swap a row with the one above or below it.
+ *
+ * Rows are whole units in the cell list — a grid row's placements are
+ * contiguous — so moving one is a splice rather than a rebuild, and merges
+ * inside it travel intact.
+ */
+export function moveRow(doc: string, t: TableInfo, row: number, by: -1 | 1): string {
+  const cells = rectangular(t.cells, t.cols);
+  const { grid, rows } = layout(cells, t.cols);
+  const other = row + by;
+  if (row < 0 || row >= rows || other < 0 || other >= rows) return doc;
+  const slice = (r: number) => placementsIn(grid, r).map((p) => cells[p.index]);
+  const a = Math.min(row, other);
+  const b = Math.max(row, other);
+  const out: TableCell[] = [];
+  for (let r = 0; r < rows; r++) {
+    if (r === a) out.push(...slice(b));
+    else if (r === b) out.push(...slice(a));
+    else out.push(...slice(r));
+  }
+  return replace(doc, t, render(t, out, t.cols));
+}
+
+/**
+ * Swap a column with its neighbour.
+ *
+ * Refuses when either column is crossed by a merge: there is no honest way to
+ * reorder half of a spanning cell, and silently splitting one would lose the
+ * writer's layout. Doing nothing is the truthful answer.
+ */
+export function moveColumn(doc: string, t: TableInfo, col: number, by: -1 | 1): string {
+  const other = col + by;
+  if (col < 0 || col >= t.cols || other < 0 || other >= t.cols) return doc;
+  const cells = rectangular(t.cells, t.cols);
+  const { grid, rows } = layout(cells, t.cols);
+  const crossed = grid.some(
+    (p) => p.span > 1 && [col, other].some((c) => c > p.col && c < p.col + p.span),
+  );
+  if (crossed) return doc;
+
+  const out: TableCell[] = [];
+  for (let r = 0; r < rows; r++) {
+    const byCol = new Map<number, Placement>();
+    for (const p of placementsIn(grid, r)) byCol.set(p.col, p);
+    for (let c = 0; c < t.cols; ) {
+      const want = c === col ? other : c === other ? col : c;
+      const p = byCol.get(want);
+      if (p) {
+        out.push({ ...p.cell, span: p.span });
+        // A swapped-in merge occupies its own width at the destination.
+        c += want === c ? p.span : 1;
+      } else {
+        c += 1;
+      }
+    }
+  }
+  let widths = t.widths;
+  if (widths) {
+    widths = widths.slice();
+    [widths[col], widths[other]] = [widths[other], widths[col]];
+  }
+  return replace(doc, t, render(t, out, t.cols, widths));
+}
+
+/**
+ * Set one column's width — `2fr`, `3cm`, `auto`.
+ *
+ * A table with no declared tracks gets a full set at once, every column `auto`
+ * except this one: Typst's `columns:` is all-or-nothing, so there is no way to
+ * size a single column without saying something about the others.
+ */
+export function setColumnWidth(doc: string, t: TableInfo, col: number, width: string): string {
+  if (col < 0 || col >= t.cols) return doc;
+  const widths = t.widths
+    ? t.widths.slice()
+    : Array.from({ length: t.cols }, () => "auto");
+  widths[col] = width.trim() || "auto";
+  // Every track `auto` says exactly what the bare count says, so drop back to
+  // the count rather than leaving noise in the writer's source.
+  const next = widths.every((w) => w === "auto") ? null : widths;
+  return replace(doc, t, render(t, rectangular(t.cells, t.cols), t.cols, next));
+}
+
+/** Give every column an equal share of the width. */
+export function equalColumns(doc: string, t: TableInfo): string {
+  const widths = Array.from({ length: t.cols }, () => "1fr");
+  return replace(doc, t, render(t, rectangular(t.cells, t.cols), t.cols, widths));
+}
+
+/** Let every column size itself to its contents — Typst's default. */
+export function autoColumns(doc: string, t: TableInfo): string {
+  if (!t.widths) return doc;
+  return replace(doc, t, render(t, rectangular(t.cells, t.cols), t.cols, null));
+}
+
+/**
+ * Merge the cell at (row, col) with the one to its right.
+ *
+ * The bodies are joined with a space rather than one being dropped: a merge is
+ * a layout change, and losing the writer's second sentence to it would be the
+ * quiet kind of damage this file exists to avoid.
+ */
+export function mergeRight(doc: string, t: TableInfo, row: number, col: number): string {
+  const cells = rectangular(t.cells, t.cols);
+  const { grid } = layout(cells, t.cols);
+  const here = grid.find((p) => p.row === row && col >= p.col && col < p.col + p.span);
+  if (!here) return doc;
+  const next = grid.find((p) => p.row === row && p.col === here.col + here.span);
+  if (!next) return doc; // nothing to the right in this row
+  if (here.col + here.span + next.span > t.cols) return doc;
+
+  const merged: TableCell = {
+    ...here.cell,
+    body: [here.cell.body, next.cell.body].map((b) => b.trim()).filter(Boolean).join(" "),
+    span: here.span + next.span,
+  };
+  const out = grid
+    .filter((p) => p.index !== next.index)
+    .map((p) => (p.index === here.index ? merged : { ...p.cell, span: p.span }));
+  return replace(doc, t, render(t, out, t.cols));
+}
+
+/** Split a merged cell back into single cells, its text staying in the first. */
+export function splitCell(doc: string, t: TableInfo, row: number, col: number): string {
+  const cells = rectangular(t.cells, t.cols);
+  const { grid } = layout(cells, t.cols);
+  const here = grid.find((p) => p.row === row && col >= p.col && col < p.col + p.span);
+  if (!here || here.span < 2) return doc;
+  const out: TableCell[] = [];
+  for (const p of grid) {
+    if (p.index !== here.index) {
+      out.push({ ...p.cell, span: p.span });
+      continue;
+    }
+    out.push({ ...p.cell, span: 1 });
+    for (let i = 1; i < p.span; i++) out.push(blank(p.cell.header));
+  }
+  return replace(doc, t, render(t, out, t.cols));
+}
+
+/** Remove the whole table, leaving the text around it alone. */
+export function deleteTable(doc: string, t: TableInfo): string {
+  const before = doc.slice(0, t.from).replace(/[ \t]+$/, "");
+  const after = doc.slice(t.to).replace(/^[ \t]*\n?/, "");
+  return (before + "\n" + after).replace(/\n{3,}/g, "\n\n");
 }
 
 function replace(doc: string, t: TableInfo, source: string): string {

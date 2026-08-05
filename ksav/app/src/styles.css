@@ -68,7 +68,21 @@ header {
   background: var(--accent-soft); border-color: var(--line); color: var(--accent);
 }
 .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* Recording is a mode. A mode with no indicator is a mode people leave running,
+   and a macro that quietly recorded the next twenty minutes is worse than no
+   macro at all. */
+.chip.recording { background: var(--danger); border-color: var(--danger); animation: rec 1.4s ease-in-out infinite; }
+@keyframes rec { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .chip.recording { animation: none; } }
 .tb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+/* The paragraph-style dropdown: wide enough to read "Body text" without
+   truncating, which is the option a writer needs to find in a hurry. */
+.heading-select {
+  font-family: var(--hebrew); font-size: 12.5px; height: 30px; min-width: 108px;
+  padding: 0 6px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel); color: var(--ink); cursor: pointer;
+}
+.heading-select:hover { border-color: var(--accent); color: var(--accent); }
 .menubar, .chipbar { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
 
 /* Keyboard focus must be visible everywhere. A caret is enough inside the
@@ -115,6 +129,11 @@ header {
 }
 .menu-cmd { flex-direction: row; align-items: center; justify-content: space-between; }
 .menu-cmd code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+/* An item that cannot act here still says so, rather than vanishing: "this
+   exists, and not at this caret" is information a writer needs, and a menu that
+   silently changes length between openings is one nobody learns the shape of. */
+.menu-item.disabled, .menu-item:disabled { opacity: .38; cursor: default; }
+.menu-item.disabled:hover { background: transparent; }
 .menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
 .menu-item-row { display: flex; align-items: center; }
 .menu-item-main { flex: 1; }
@@ -636,7 +655,23 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   box-shadow: 0 12px 48px rgba(0,0,0,.3);
 }
 .notes-chooser-box h2 { margin: 0 0 4px; font-size: 20px; }
-.notes-lede { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+.notes-lede { margin: 4px 0 8px; color: var(--muted); font-size: 13px; }
+/* The sentence that stops the grid reading as a document-wide commitment. */
+.notes-mix {
+  margin: 0 0 6px; font-size: 12.5px; line-height: 1.55; color: var(--ink);
+  background: var(--accent-soft); border-radius: 8px; padding: 9px 12px;
+}
+/* The two everyday kinds, given the weight the other ten do not get. */
+.note-quick-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.note-quick {
+  display: flex; align-items: center; gap: 12px; text-align: start; cursor: pointer;
+  padding: 12px 14px; border: 1px solid var(--accent); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-family: var(--hebrew);
+}
+.note-quick:hover { background: var(--accent-soft); }
+.note-quick-glyph { font-size: 22px; color: var(--accent); line-height: 1; flex: none; }
+.note-quick b { display: block; font-size: 14px; }
+.note-quick span span { font-size: 11.5px; color: var(--muted); }
 .notes-chooser-box h3 {
   margin: 20px 0 10px; font-size: 13px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: .04em;
@@ -658,6 +693,51 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   line-height: 1.45; color: var(--muted); background: var(--panel);
   border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; flex: none;
 }
+/* The preview: the ASCII sketch until the page arrives, then a real page set
+   from the writer's own document. Same box either way, so the card never jumps
+   and never sits empty waiting. */
+.note-preview {
+  direction: ltr; white-space: pre; font-family: var(--mono); font-size: 9px;
+  line-height: 1.45; color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; flex: none;
+  width: 96px; overflow: hidden;
+}
+.note-preview.ready { padding: 0; white-space: normal; }
+.note-preview.ready svg { display: block; width: 100%; height: auto; }
+.note-card.picked { border-color: var(--accent); background: var(--accent-soft); }
+.note-card.picked .note-preview { width: 150px; }
+/* Word's name for the same arrangement, beside the sefer's. */
+.note-alias {
+  display: inline-block; margin-inline-start: 7px; padding: 1px 7px;
+  border: 1px solid var(--line); border-radius: 999px;
+  font-size: 10.5px; color: var(--muted); direction: ltr;
+}
+
+/* The two axes, as a matrix: rows are where it prints, columns are how the
+   layers are arranged. An impossible combination is greyed with its reason on
+   the tooltip, never hidden — a writer who cannot see that a combination was
+   considered has no way to tell a wrong question from a missing feature. */
+.notes-matrix { display: grid; gap: 4px; margin: 6px 0 16px; overflow-x: auto; }
+.nm-row { display: grid; grid-template-columns: 150px repeat(5, minmax(96px, 1fr)); gap: 4px; }
+.nm-corner, .nm-col-head, .nm-row-head {
+  font-size: 11px; color: var(--muted); padding: 5px 7px; line-height: 1.35;
+}
+.nm-corner, .nm-col-head { font-weight: 600; align-self: end; }
+.nm-row-head { font-weight: 600; align-self: center; }
+.nm-cell {
+  font-family: var(--hebrew); font-size: 11.5px; line-height: 1.35;
+  padding: 8px 9px; text-align: start; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink);
+}
+.nm-cell:hover { border-color: var(--accent); color: var(--accent); }
+.nm-cell.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.nm-cell.empty {
+  cursor: help; color: var(--muted); opacity: 0.55; text-align: center;
+  border-style: dashed; padding: 8px 9px;
+  display: flex; align-items: center; justify-content: center;
+}
+
 .note-body { min-width: 0; }
 .note-body b { font-size: 14px; }
 .note-body p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
@@ -693,10 +773,35 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 }
 .defer-all:hover { border-color: var(--accent); color: var(--accent); }
 
+/* The notes pane — Word's navigation pane, for notes. Same drawer as the
+   outline, because they are the two halves of a sefer's structure. */
+.note-item { display: flex; gap: 8px; align-items: baseline; }
+.note-item-n {
+  flex: none; min-width: 1.6em; text-align: end;
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.note-item span:last-child {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Right-click on a note. Borrowed from the spell menu, which is the same shape:
+   a small floating list anchored at the pointer. */
+.note-menu { min-width: 190px; }
+.note-menu .menu-cmd code { font-size: 11.5px; }
+/* The two or three ribbon operations that carry their name as well as a glyph. */
+.tb-name { font-size: 11.5px; margin-inline-start: 2px; }
+.style-tier {
+  margin: 14px 0 2px; font-size: 12px; color: var(--muted);
+  text-transform: none; letter-spacing: 0;
+}
+
 @media (max-width: 720px) {
   .notes-chooser-box { width: 96vw; padding: 16px; }
   .note-grid { grid-template-columns: 1fr; }
   .defer-options { grid-template-columns: 1fr; }
+  /* The matrix keeps its own scroller rather than squeezing five columns into
+     a phone: the labels are the point and they cannot be truncated away. */
+  .nm-row { grid-template-columns: 110px repeat(5, 84px); }
+  .tb-name { display: none; }
 }
 
 /* ---- prose mode: the styles added with the wider command coverage --------
@@ -774,6 +879,28 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    A drawer rather than a modal: you are tuning how the document looks, so the
    document has to stay visible while you do it. */
 .drawer-styles { width: 330px; }
+/* ---- help ---------------------------------------------------------------
+   Wider than the styles drawer because it is two columns of text, and a drawer
+   rather than a modal because the answer is usually "press this" — you want to
+   read it and then do it, without dismissing anything first. */
+.drawer-help { width: min(420px, 100vw); }
+.help-search {
+  width: 100%; padding: 6px 9px; margin: 4px 0 12px;
+  border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel); color: var(--ink); font-family: var(--hebrew); font-size: 13px;
+}
+.help-lede { margin: 4px 0 10px; font-size: 12px; color: var(--muted); line-height: 1.55; }
+.help-section h3 {
+  margin: 18px 0 4px; font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.help-list { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 0; }
+.help-list dt { font-size: 12.5px; }
+.help-list dd { margin: 0; }
+.help-list dd code {
+  font-family: var(--mono); font-size: 11px; color: var(--accent);
+  background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; white-space: nowrap;
+}
 .styles-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .styles-head h2 { margin: 0; font-size: 18px; }
 .styles-close {
@@ -813,21 +940,62 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    Appears only when the cursor is inside a table. Driven by the cursor rather
    than a click on the preview, because the preview is an SVG picture of a page
    and cannot say which cell you pointed at. */
-.table-bar {
-  position: fixed; bottom: 34px; inset-inline-start: 50%; transform: translateX(50%);
-  z-index: 46; display: none; align-items: center; gap: 3px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
-  box-shadow: 0 5px 20px rgba(0,0,0,.18); padding: 4px 8px;
+/* ---- contextual ribbon -------------------------------------------------
+   Where Word and LibreOffice put their contextual tabs: docked directly under
+   the toolbar, in the flow, appearing when the caret enters a list or a table.
+   It used to be a four-button strip pinned to the bottom of the window with
+   `position: fixed; bottom: 34px` — present, functional, and reported by the
+   first person to use it as "no UI at all". Being *there* is not the same as
+   being *seen*. */
+.context-bar {
+  display: none; align-items: center; gap: 3px; flex-wrap: wrap;
+  padding: 4px 10px; background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
 }
-[dir="ltr"] .table-bar { transform: translateX(-50%); }
-.table-bar.open { display: flex; }
-.table-bar-label {
-  font-size: 11px; color: var(--muted); padding-inline-end: 6px; white-space: nowrap;
+.context-bar.open { display: flex; }
+.context-bar-label {
+  font-size: 11px; color: var(--accent); font-weight: 600;
+  padding-inline-end: 8px; white-space: nowrap;
+}
+/* A control that cannot act says so, rather than being a button that does
+   nothing when pressed — the first item has nothing to indent under, and the
+   last row has nowhere to move down to. */
+.context-bar .tb-btn.disabled, .context-bar .tb-btn:disabled {
+  opacity: .32; cursor: default;
 }
 @media (max-width: 720px) {
-  .table-bar { bottom: 40px; max-width: 96vw; overflow-x: auto; }
-  .table-bar-label { display: none; }
+  .context-bar { flex-wrap: nowrap; overflow-x: auto; }
+  .context-bar-label { display: none; }
 }
+
+/* ---- hydra ---------------------------------------------------------------
+   A transient keymap with its own legend. Docked above the status line rather
+   than floating over the text: the writer is looking at the thing they are
+   operating on, and a panel that covers it defeats the point of staying open. */
+.hydra {
+  display: none; position: fixed; inset-inline: 0; bottom: 30px; z-index: 47;
+  background: var(--panel); border-top: 1px solid var(--accent);
+  box-shadow: 0 -6px 22px rgba(0,0,0,.16); padding: 7px 12px 9px;
+}
+.hydra.open { display: block; }
+.hydra-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.hydra-head b { font-size: 12.5px; color: var(--accent); }
+.hydra-head span { font-size: 11px; color: var(--muted); }
+.hydra-keys { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.hydra-break { width: 100%; height: 0; }
+.hydra-key {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  background: transparent; border: 0; padding: 2px 4px; border-radius: 5px;
+  color: var(--ink); font-family: var(--hebrew); font-size: 12px;
+}
+.hydra-key:hover { background: var(--accent-soft); }
+.hydra-key kbd {
+  font-family: var(--mono); font-size: 11px; min-width: 17px; text-align: center;
+  background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 4px;
+}
+.hydra-key.disabled { opacity: .34; cursor: default; }
+.hydra-key.disabled kbd { background: var(--muted); }
+.hydra-key.disabled:hover { background: transparent; }
 
 /* ---- nikud bar: shortcut hints ------------------------------------------
    A vowel is a combining mark, so typing the letter then the mark composes

@@ -81,11 +81,18 @@
 //  apparatus #הערות_מדורגות — that renders in the main flow, where such
 //  regrouping converges (a page footer is re-laid-out too often to).
 // ============================================================
+// The defaults are deliberately loud. They used to step 0.9em → 0.88em → 0.86em
+// — a 2% size change, which is not a visual distinction, so the indent was
+// carrying the entire burden of telling two tiers apart and a reader could not
+// see that a sub-note was a sub-note. Tier 1 is now 1em (i.e. exactly what an
+// ordinary footnote is, which is what it *is*), and each tier below steps by
+// roughly a tenth, slants, greys and indents. Two adjacent tiers have to read
+// apart in print before anyone configures anything.
 #let _fn_defaults = (
-  גודל: (0.9em, 0.88em, 0.86em, 0.85em, 0.85em, 0.85em, 0.85em, 0.85em, 0.85em),   // per-tier size
+  גודל: (1em, 0.9em, 0.82em, 0.76em, 0.72em, 0.7em, 0.7em, 0.7em, 0.7em),   // per-tier size
   סגנון: ("normal", "italic", "italic", "italic", "italic", "italic", "italic", "italic", "italic"),
-  צבע: (luma(0), luma(20), luma(45), luma(65), luma(80), luma(80), luma(80), luma(80), luma(80)),
-  הזחה: (0em, 1.1em, 2.2em, 3.3em, 4.4em, 5.5em, 6.6em, 7.7em, 8.8em),  // per-tier indent (nesting)
+  צבע: (luma(0), luma(55), luma(85), luma(105), luma(120), luma(120), luma(120), luma(120), luma(120)),
+  הזחה: (0em, 1.4em, 2.8em, 4.2em, 5.6em, 7em, 8.4em, 9.8em, 11.2em),  // per-tier indent (nesting)
   תוויות: none,        // none, or an array of per-tier bold label prefixes ("", "על הערה: ", …)
   ריווח: 0.85em,       // gap between footnote entries
   // מספור — none = ONE running native sequence across every tier (1,2,3,4,…), so
@@ -180,12 +187,17 @@
   if after.len() > 0 { s = s.before(after.first().location()) }
   s
 }
-#let _fn_wrap(cfg, tier, body) = text(
-  size: _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em),
-  style: _fn_pick(cfg.at("סגנון", default: ()), tier, "normal"),
-  fill: _fn_pick(cfg.at("צבע", default: ()), tier, luma(0)),
-  body,
-)
+#let _fn_wrap(cfg, tier, body) = {
+  let sz = _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em)
+  let st = _fn_pick(cfg.at("סגנון", default: ()), tier, "normal")
+  let cl = _fn_pick(cfg.at("צבע", default: ()), tier, luma(0))
+  // Tier 1 is an ordinary footnote, and since #הערה now *is* tier 1 it has to
+  // stay byte-identical to one: a text() wrapper forcing "normal" and black
+  // would quietly strip a slant or a colour the surrounding document had set.
+  if sz == 1em and st == "normal" and cl == luma(0) { body } else {
+    text(size: sz, style: st, fill: cl, body)
+  }
+}
 
 // הערה_בדרגה(דרגה, body) — a note in tier `דרגה` (1 = a note on the text, 2 = a note
 // ON a tier-1 note, …). Nest freely: #הערה_א[… #הערה_ב[… #הערה_ג[…]]].
@@ -256,12 +268,19 @@
 //  render phase lets stored bodies re-display (showing child markers) without
 //  re-registering. Feed it at end of a section or the document.
 // ============================================================
+// מספור — א,ב,ג for the primary band and 1,2,3 for the notes *on* it, which is
+// the שער־הציון arrangement these bands exist to set: the Mishnah Berurah's
+// letters over the Shaar HaTziyun's numbers. It shipped the other way round for
+// a long time — Arabic numerals on top of Hebrew letters — backwards against
+// the convention and against the chooser card that described it. Nothing in a
+// coordinate dump shows this; it is obvious on the page, which is where it
+// should have been checked. See `engine/tests/apparatus_marks.rs`.
 #let _md_defaults = (
-  מספור: ("1", "א", "a", "i", "*", "1", "א", "a", "i"),  // per-tier numbering scheme
+  מספור: ("א", "1", "a", "i", "*", "א", "1", "a", "i"),  // per-tier numbering scheme
   טורים: (1, 1, 1, 1, 1, 1, 1, 1, 1),                     // per-tier column count
-  גודל: (0.9em, 0.88em, 0.86em, 0.85em, 0.85em, 0.85em, 0.85em, 0.85em, 0.85em),
+  גודל: (1em, 0.9em, 0.82em, 0.78em, 0.75em, 0.75em, 0.75em, 0.75em, 0.75em),
   סגנון: ("normal", "italic", "italic", "italic", "italic", "italic", "italic", "italic", "italic"),
-  צבע: (luma(0), luma(15), luma(40), luma(60), luma(75), luma(75), luma(75), luma(75), luma(75)),
+  צבע: (luma(0), luma(50), luma(80), luma(100), luma(115), luma(115), luma(115), luma(115), luma(115)),
   קו: true,             // rule above the whole apparatus
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.5em,     // gap between bands
@@ -393,12 +412,13 @@
 //  margin room for heavy apparatus; and two notes with byte-identical body
 //  text in the same tier share a number (they collapse to one key).
 // ============================================================
+// Same order as the section bands, and for the same reason: א,ב,ג above 1,2,3.
 #let _pp_defaults = (
-  מספור: ("1", "א", "a", "i", "*", "1", "א", "a", "i"),  // per-tier numbering scheme
+  מספור: ("א", "1", "a", "i", "*", "א", "1", "a", "i"),  // per-tier numbering scheme
   טורים: (1, 1, 1, 1, 1, 1, 1, 1, 1),                     // per-tier column count
-  גודל: (0.86em, 0.84em, 0.82em, 0.8em, 0.8em, 0.8em, 0.8em, 0.8em, 0.8em),
+  גודל: (0.92em, 0.84em, 0.78em, 0.74em, 0.72em, 0.72em, 0.72em, 0.72em, 0.72em),
   סגנון: ("normal", "italic", "italic", "italic", "italic", "italic", "italic", "italic", "italic"),
-  צבע: (luma(0), luma(20), luma(45), luma(65), luma(80), luma(80), luma(80), luma(80), luma(80)),
+  צבע: (luma(0), luma(50), luma(80), luma(100), luma(115), luma(115), luma(115), luma(115), luma(115)),
   קו: true,             // rule above the whole apparatus
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.35em,    // gap between bands
@@ -683,12 +703,22 @@
   }
   let scheme = c.at("מספור", default: none)
   let num = if scheme != none { [#counter(heading).display(scheme)#h(0.5em)] } else { [] }
+  // Typst's own heading ramp stops differentiating after level 6: measured,
+  // levels 6, 7, 8 and 9 all come out at 11.4pt in the same weight, so a
+  // document that nests that deep prints four levels that look like one. The
+  // structure was real the whole time — the outline, the numbering and #תוכן all
+  // knew the difference — and only the page could not show it.
+  //
+  // Levels 1-6 are deliberately untouched: changing them would restyle every
+  // document ever written in Ksav. Below the ramp, depth is shown by slant and
+  // then by indent, which is how a sefer shows a sub-sub-point anyway.
+  let deep = calc.max(lvl - 6, 0)
   let styled = {
     set text(
       size: _cfg_pick(c, "גודל", lvl, 1em),
       weight: _cfg_pick(c, "משקל", lvl, "bold"),
       fill: _cfg_pick(c, "צבע", lvl, luma(0)),
-      style: _cfg_pick(c, "סגנון", lvl, "normal"),
+      style: _cfg_pick(c, "סגנון", lvl, if deep > 0 { "italic" } else { "normal" }),
       tracking: c.at("מרווח_אותיות", default: 0pt),
     )
     let body = { num; it.body }
@@ -698,12 +728,23 @@
   }
   let al = _cfg_pick(c, "יישור", lvl, none)
   let head = if al != none { align(al, styled) } else { styled }
+  // Past level 6, one step of indent per level. `pad` and not `h`, because a
+  // heading is a block: an inline space would be swallowed at the start of it.
+  let body = {
+    head
+    if _cfg_pick(c, "קו", lvl, false) { v(0.25em); line(length: 100%, stroke: 0.5pt + luma(160)) }
+  }
   block(
     above: _cfg_pick(c, "ריווח_לפני", lvl, 1em),
     below: _cfg_pick(c, "ריווח_אחרי", lvl, 0.6em),
-    {
-      head
-      if _cfg_pick(c, "קו", lvl, false) { v(0.25em); line(length: 100%, stroke: 0.5pt + luma(160)) }
+    // Padded on the *start* side, which is the right in Hebrew. `pad` takes
+    // physical sides only, so the direction has to be asked for: `pad(left:)` on
+    // an RTL page indents from the far edge, which moves nothing visible and
+    // looks exactly like the feature not working. It did, for one round.
+    if deep == 0 { body } else if text.dir == rtl {
+      pad(right: deep * 1em, body)
+    } else {
+      pad(left: deep * 1em, body)
     },
   )
 }
@@ -1161,7 +1202,20 @@
 // ============================================================
 //  הערות שוליים · footnotes
 // ============================================================
-#let הערה(body) = footnote(body)
+// הערה — an ordinary footnote, and **tier 1 of the layered apparatus**.
+//
+// They used to be two unrelated things, and the gap between them was a real
+// obstruction: a writer with a page full of #הערה who wanted to hang a note off
+// one of them had to go back and convert it to #הערה_א first, because #הערה_ב
+// only stacked under #הערה_א. Nothing in the mechanism required that. So the
+// tier-1 collector adopts the note the writer already wrote: #הערה[… #הערה_ב[…]]
+// works, the sub-note indents and slants against its parent, and with a
+// per-tier numbering scheme the parent is numbered as the tier-1 note it is.
+//
+// With the shipped defaults tier 1 is 1em / normal / black / no indent and the
+// numbering is one native running sequence, so this is exactly `footnote(body)`
+// — see `_fn_wrap`, which returns the body untouched in that case.
+#let הערה(body) = הערה_בדרגה(1, body)
 #let fnote = הערה
 
 // הערה_על_הערה · a note ON a note (a sub-note) in the *native* apparatus.
@@ -1181,6 +1235,21 @@
 // ends at the first boundary after it. So endnotes can be dumped at the end of
 // every chapter (each numbered from 1) as well as at the end of the document —
 // dumping twice no longer reprints the first dump's notes.
+// Endnotes carry their own numbering scheme, and that is not decoration.
+// A document with footnotes at the page foot *and* endnotes at the back marked
+// every note in both apparatuses `¹` — so the reader met two different ¹ on one
+// page with nothing to say which was which, and nothing in the product could
+// tell them apart either. `#הגדרות_הערות_סיום(מספור: "א")` gives the back-matter
+// its own shape; the chooser writes it for exactly the layouts that mix the two.
+#let _es_defaults = (מספור: "1")
+#let _es_cfg = state("ksav-es-cfg", _es_defaults)
+#let הגדרות_הערות_סיום(..opts) = _es_cfg.update(c => {
+  let d = c
+  for (k, v) in opts.named() { d.insert(k, v) }
+  d
+})
+#let endnotes_config = _en(הגדרות_הערות_סיום)
+#let _es_scheme() = _es_cfg.get().at("מספור", default: "1")
 #let _en_label(זרם) = label("ksav-en-" + זרם)
 #let _en_dump_label(זרם) = label("ksav-end-" + זרם)
 #let _en_section(זרם, loc) = _ksav_real(
@@ -1190,17 +1259,16 @@
   [#metadata((body: body))#_en_label(זרם)]
   context {
     let loc = here()
-    super[#_ksav_rank(
-      _ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc),
-      loc,
-      e => true,
+    super[#numbering(
+      _es_scheme(),
+      _ksav_rank(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc), loc, e => true),
     )]
   }
 }
 // The rendered block for one stream's notes in the section around `loc`.
 #let _en_block(זרם, loc) = {
   let items = _en_section(זרם, loc).map(e => e.value.body)
-  if items.len() > 0 { enum(..items) }
+  if items.len() > 0 { enum(numbering: _es_scheme() + ".", ..items) }
 }
 #let הערות_בסוף(זרם: "הערות", כותרת: none) = {
   context {
@@ -1210,7 +1278,7 @@
       v(1em)
       line(length: 100%, stroke: 0.5pt + luma(150))
       if כותרת != none { heading(outlined: false, numbering: none, level: 3, כותרת) }
-      enum(..items)
+      enum(numbering: _es_scheme() + ".", ..items)
       _ksav_ap_close
     }
   }
@@ -1571,10 +1639,26 @@
 // request (the editor attaches the bytes; there is no file system to read from).
 // רוחב sizes it, יישור places it (right / מרכז / left), and כיתוב adds a caption,
 // in which case it becomes a numbered figure.
+// תמונה — an image. An empty path is a *placeholder*, not an error: the Insert
+// menu and the palette can offer "image" without also having asked which image,
+// and the writer who picks it gets a box saying so instead of a blanked page
+// reporting "file not found" about a path they were never asked for. (That was
+// six of the 384 failures in the insertion sweep, and the only family where the
+// error message named something the writer had not written.)
 #let תמונה(נתיב, רוחב: auto, יישור: none, כיתוב: none) = {
+  if _as_string(נתיב).trim() == "" {
+    box(
+      width: if רוחב == auto { 60% } else { רוחב },
+      height: 4em,
+      stroke: (paint: luma(160), dash: "dashed", thickness: 0.8pt),
+      fill: luma(247),
+      align(center + horizon, text(size: 0.85em, fill: luma(110))[🖼 (תמונה — בחרו קובץ)]),
+    )
+  } else {
   let pic = image(נתיב, width: רוחב)
   let out = if כיתוב != none { figure(pic, caption: כיתוב) } else { pic }
   if יישור != none { align(יישור, out) } else { out }
+  }
 }
 
 // חסר — a fill-in blank line (form field), e.g. for a kesubah or letter

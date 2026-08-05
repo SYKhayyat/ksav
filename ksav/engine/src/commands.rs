@@ -22,10 +22,23 @@ pub struct Command {
     pub desc_en: &'static str,
     /// Text to insert; `|` marks the desired cursor position.
     pub insert: &'static str,
+    /// Still compiles, no longer advertised.
+    ///
+    /// A command that exists in documents cannot simply be deleted, and one that
+    /// misleads cannot keep a toolbar button. `הערה_על_הערה` is the case that
+    /// forced the field: it *sounds* like the tiered mechanism and is
+    /// `footnote(text(size: 0.94em, style: "italic", …))` — measured against a
+    /// plain nested footnote, 10.2pt against 9.6pt in the same block with the
+    /// same rhythm. Deprecated commands still resolve, still complete, and are
+    /// kept out of the toolbar, the Insert menu and the palette.
+    pub deprecated: bool,
 }
 
 macro_rules! cmd {
     ($he:literal, $en:literal, $cat:literal, $dhe:literal, $den:literal, $ins:literal) => {
+        cmd!($he, $en, $cat, $dhe, $den, $ins, false)
+    };
+    ($he:literal, $en:literal, $cat:literal, $dhe:literal, $den:literal, $ins:literal, $dep:literal) => {
         Command {
             he: $he,
             en: $en,
@@ -33,6 +46,7 @@ macro_rules! cmd {
             desc_he: $dhe,
             desc_en: $den,
             insert: $ins,
+            deprecated: $dep,
         }
     };
 }
@@ -80,20 +94,37 @@ pub static COMMANDS: &[Command] = &[
     cmd!("רשימת_הגדרות", "deflist", "list", "רשימת הגדרות", "Definition list", "#רשימת_הגדרות(\n  הגדרה[מונח][|],\n)"),
     cmd!("הגדרות_רשימות", "lists_config", "list", "עיצוב הרשימות (סמן/הזחה/ריווח/מספור)", "Configure lists (marker/indent/spacing/numbering)", "#הגדרות_רשימות(סמן: ([◆], [–]), הזחה: 1.5em, הידוק: true)|"),
     // ---- table ----
-    cmd!("טבלה", "mktable", "table", "טבלה", "Table", "#טבלה(עמודות: 2,\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n)"),
+    // A new table spans the text width and arrives with a header row and two
+    // body rows. The old default was a bare `עמודות: 2`, which lets Typst size
+    // each column to its contents — so an empty new table rendered as a
+    // thumbnail-sized box shoved against the margin. Valid, and nothing like
+    // what pressing "table" in a word processor is supposed to produce.
+    cmd!("טבלה", "mktable", "table", "טבלה", "Table", "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n  תא[], תא[],\n)"),
     cmd!("תא", "cell", "table", "תא בטבלה", "Table cell", "תא[|]"),
     cmd!("כותרת_תא", "headcell", "table", "תא כותרת", "Header cell", "כותרת_תא[|]"),
     cmd!("הגדרות_טבלאות", "tables_config", "table", "עיצוב הטבלאות (קו/מרווח/פסים/צבע כותרת/גופן)", "Configure tables (stroke/inset/striping/header fill/font)", "#הגדרות_טבלאות(פסים: true, צבע_כותרת: rgb(\"#dbeafe\"), מרווח: 10pt)|"),
     cmd!("מיזוג", "colspan_", "table", "מיזוג עמודות", "Merge columns", "#מיזוג(2)[|]"),
     // ---- footnote ----
     cmd!("הערה", "fnote", "footnote", "הערת שוליים", "Footnote", "#הערה[|]"),
-    cmd!("הערה_על_הערה", "subnote", "footnote", "הערה על הערה (בלוק נפרד, מקוננת)", "Note on a note (separate block, nestable)", "#הערה_על_הערה[|]"),
-    // layered (tiered) footnotes — a note ON a note is its own stacked block, per page
+    // A sub-note in the NATIVE apparatus is not a second block: Typst has one
+    // page-bottom footnote series, so these land in the same block as #הערה, in
+    // the same running sequence, distinguished only by size/slant/indent. The
+    // descriptions used to promise "a separate block" and deliver italics —
+    // which is exactly what it looked like from the writer's chair. For real
+    // separate blocks see #מדור_א/#מדור_ב (+#הערות_מדורגות) or #מדף_א/#מדף_ב.
+    // Deprecated, and the toolbar's `⁑` now points at #הערה_ב instead. This one
+    // is a cosmetic alias wearing a mechanism's name: it renders 0.6pt smaller
+    // and slanted, in the same block and the same sequence, while the real
+    // tiered note (#הערה_א/#הערה_ב/#הערה_ג) indents a tier, steps size and
+    // colour, and can carry its own numbering scheme. The writer clicked the
+    // thing the toolbar offered, and the toolbar offered the wrong thing.
+    cmd!("הערה_על_הערה", "subnote", "footnote", "מיושן — השתמשו ב#הערה_ב. הערה על הערה באותו בלוק ובאותו מספור, קטנה ונטויה", "Deprecated — use #הערה_ב. A note on a note in the same block and the same numbering, set smaller and italic", "#הערה_על_הערה[|]", true),
+    // layered (tiered) footnotes — one block, one sequence, a tier per indent
     cmd!("הערה_א", "tier1", "footnote", "הערה שכבתית — דרגה א (על הגוף)", "Layered note — tier A (on the text)", "#הערה_א[|]"),
-    cmd!("הערה_ב", "tier2", "footnote", "הערה על הערה — דרגה ב (בלוק נפרד)", "Note on a note — tier B (separate block)", "#הערה_ב[|]"),
-    cmd!("הערה_ג", "tier3", "footnote", "הערה על הערה — דרגה ג", "Note on a note — tier C", "#הערה_ג[|]"),
+    cmd!("הערה_ב", "tier2", "footnote", "הערה על הערה — דרגה ב (מוזחת באותו בלוק)", "Note on a note — tier B (indented in the same block)", "#הערה_ב[|]"),
+    cmd!("הערה_ג", "tier3", "footnote", "הערה על הערה — דרגה ג (מוזחת באותו בלוק)", "Note on a note — tier C (indented in the same block)", "#הערה_ג[|]"),
     cmd!("הערה_בדרגה", "tier", "footnote", "הערה שכבתית בכל דרגה", "Layered note at any tier", "#הערה_בדרגה(2)[|]"),
-    cmd!("הגדרות_הערות", "footnote_config", "footnote", "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות/מספור לכל דרגה)", "Configure layered notes (size/style/indent/labels/numbering per tier)", "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"1\", \"א\", \"i\"))"),
+    cmd!("הגדרות_הערות", "footnote_config", "footnote", "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות/מספור לכל דרגה)", "Configure layered notes (size/style/indent/labels/numbering per tier)", "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))"),
     // regrouped stacked bands (Gemara / critical-apparatus) — collect then render
     cmd!("מדור_א", "band1", "footnote", "מדור א — בלוק ההערות הראשון (כל דרגה 1)", "Band A — the first note block (all tier-1)", "#מדור_א[|]"),
     cmd!("מדור_ב", "band2", "footnote", "מדור ב — הערות על מדור א", "Band B — notes on band A", "#מדור_ב[|]"),
@@ -103,13 +134,14 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_מדורגות", "banded_config", "footnote", "עיצוב המדורים (מספור/טורים/צבע לכל דרגה)", "Configure bands (numbering/columns/colour per tier)", "#הגדרות_מדורגות(טורים: (2, 1, 1))"),
     cmd!("הערתסיום", "endnote", "footnote", "הערת סיום (נאספת בסוף)", "Endnote (collected at end)", "#הערתסיום[|]"),
     cmd!("הערות_בסוף", "endnotes", "footnote", "הצגת הערות הסיום", "Render collected endnotes", "#הערות_בסוף(כותרת: [הערות])"),
+    cmd!("הגדרות_הערות_סיום", "endnotes_config", "footnote", "מספור הערות הסיום — כדי שיֵראו אחרת מהערות השוליים", "Endnote numbering — so they do not look identical to the footnotes", "#הגדרות_הערות_סיום(מספור: \"א\")"),
     cmd!("הערות_בסוף_צד", "endnotes_side", "footnote", "הערות סיום — כמה זרמים זה לצד זה", "Endnotes — several streams side by side", "#הערות_בסוף_צד(זרמים: (\"א\", \"ב\"), כותרות: (\"א\": [ביאורים], \"ב\": [מקורות]))"),
     // per-page regrouped bands — the Gemara look at the foot of EACH page
     cmd!("מדף_א", "pageband1", "footnote", "מדף א — בלוק הערות בתחתית העמוד (כל דרגה 1)", "Page-band A — foot-of-page block (all tier-1)", "#מדף_א[|]"),
     cmd!("מדף_ב", "pageband2", "footnote", "מדף ב — הערות על מדף א (בלוק נפרד בעמוד)", "Page-band B — notes on band A (separate page block)", "#מדף_ב[|]"),
     cmd!("מדף_ג", "pageband3", "footnote", "מדף ג — הערות על מדף ב", "Page-band C — notes on band B", "#מדף_ג[|]"),
     cmd!("מדף_בדרגה", "pageband", "footnote", "מדף בכל דרגה (בתחתית העמוד)", "Page-band at any tier (foot of page)", "#מדף_בדרגה(2)[|]"),
-    cmd!("הגדרות_מדפים", "pagebands_config", "footnote", "עיצוב המדפים בעמוד (מספור/טורים/צבע לכל דרגה)", "Configure page-bands (numbering/columns/colour per tier)", "#הגדרות_מדפים(מספור: (\"1\", \"א\", \"a\"))"),
+    cmd!("הגדרות_מדפים", "pagebands_config", "footnote", "עיצוב המדפים בעמוד (מספור/טורים/צבע לכל דרגה)", "Configure page-bands (numbering/columns/colour per tier)", "#הגדרות_מדפים(מספור: (\"א\", \"1\", \"a\"))"),
     // multiple independent footnote streams (per page, stacked or side by side)
     cmd!("הערה_זרם", "stream_note", "footnote", "הערת שוליים בזרם נפרד (מספור עצמאי)", "Footnote in a separate stream (independent numbering)", "#הערה_זרם(\"מקורות\")[|]"),
     cmd!("הערת_תוכן", "contentnote", "footnote", "הערת תוכן — זרם \"תוכן\"", "Content note — the \"content\" stream", "#הערת_תוכן[|]"),
@@ -132,7 +164,13 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מעבר_עמוד", "pbreak", "layout", "מעבר עמוד", "Page break", "#מעבר_עמוד"),
     cmd!("הזחה", "indent_", "layout", "בלוק מוזח", "Indented block", "#הזחה[|]"),
     cmd!("טורים_בלוק", "cols", "layout", "טורים מרובים", "Multiple columns", "#טורים_בלוק(2)[|]"),
-    cmd!("חסר", "blank", "layout", "שורת מילוי (טופס)", "Fill-in blank", "#חסר"),
+    // Written with its parentheses, unlike the four content-valued commands
+    // around it: `חסר` is a *function*, so the bare form is a function value
+    // rather than a call, and inside an argument list — pressing this while the
+    // caret sits between two list items — Typst answered "expected content,
+    // found a command". The parentheses also terminate the name, so it can no
+    // longer fuse with the word after it either.
+    cmd!("חסר", "blank", "layout", "שורת מילוי (טופס)", "Fill-in blank", "#חסר()"),
     cmd!("מעבר_שורה", "lbreak", "layout", "מעבר שורה", "Line break", "#מעבר_שורה"),
     cmd!("מעבר_טור", "cbreak", "layout", "מעבר טור", "Column break", "#מעבר_טור"),
     cmd!("רווח_אופקי", "hspace", "layout", "רווח אופקי", "Horizontal space", "#רווח_אופקי(מידה: 1em)"),

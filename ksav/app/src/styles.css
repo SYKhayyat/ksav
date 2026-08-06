@@ -783,6 +783,12 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .note-item span:last-child {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* The pair's name, on a note whose prose lives at the end of the file. Muted
+   and boxed rather than coloured: it is an address, not a status. */
+.note-item-def {
+  flex: none; font-size: 10.5px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 4px;
+}
 /* Right-click on a note. Borrowed from the spell menu, which is the same shape:
    a small floating list anchored at the pointer. */
 .note-menu { min-width: 190px; }

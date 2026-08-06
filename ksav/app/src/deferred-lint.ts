@@ -79,18 +79,20 @@ export function jumpDeferred(view: EditorView): boolean {
  * One action rather than two, because the answer to "what did you mean" is
  * always the same: leave a marker here and put me where the prose goes.
  */
-export function deferHere(view: EditorView): boolean {
+export function deferHere(view: EditorView, lang: "he" | "en" = "he"): boolean {
   const text = view.state.doc.toString();
   const pos = view.state.selection.main.head;
   const note = inlineNoteAt(text, pos);
   if (note) {
+    // Exiling an existing note takes its spelling from the note itself; only a
+    // note written from nothing has to be told the document's language.
     const c = deferInlineNote(text, pos);
     if (!c) return false;
     apply(view, c.text, c.caret);
     setStatus(t("deferMoved"), "ok");
     return true;
   }
-  const c = insertDeferred(text, pos);
+  const c = insertDeferred(text, pos, null, lang);
   apply(view, c.text, c.caret);
   setStatus(t("deferStarted"), "ok");
   return true;

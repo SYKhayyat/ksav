@@ -183,6 +183,7 @@ reachable the day it is written.
 | **Equivalence** | `tests/deferred_notes.rs` lays out each of the eleven twice, inline and deferred, and asserts every text run landed on the same page at the same coordinates at the same size. |
 | **The editing model** | `Ctrl+Alt+J` jumps marker ⇄ prose and writes the prose when there is none — org-mode's `C-c C-c`. `Ctrl+Alt+F` exiles an inline note; `Ctrl+Alt+R` recalls it; the chooser moves the whole document at once. Names are generated; nobody types one. |
 | **New failure modes** | Exactly two, both silent on the page: a marker with no body (prints a red `?`, an editor error), and a body no marker points at (prints nothing, an editor warning). Both are linted with a one-click fix. |
+| **The rest of the editor** | A third failure mode was found later and was not in the source at all: every note surface asked "is this a command that opens a note body", `#הערה_בשם` is not one, and so turning this preference on emptied the notes pane, made `⁑` write tier א inside a note, and blinded the collected-and-never-rendered warning. `notes.notesIn` returns one list over both spellings and `app/test/deferrednotes.test.mjs` is the equivalence oracle for it — the app-side `assert_same_page`. |
 
 This is the org-mode arrangement, and it is worth having for the same reason it is
 worth having there: the syntax is not the point, the jump is.

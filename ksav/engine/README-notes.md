@@ -207,6 +207,18 @@ deferred form names its layout as a *value* — `סוג: מדף_בדרגה` has 
 after it. Without `apparatus_is_named_as_kind` a document of deferred page-bands
 compiles perfectly and lays its apparatus off the bottom of the sheet.
 
+**The same trap, one layer up, and it took longer to find.** Every surface in
+the app that asked "what notes are in this document" asked it by looking for a
+command that opens a note body — and `#הערה_בשם` opens none. The notes pane, its
+jump list, the tier `⁑` writes, the right-click menu and the "collected and
+never rendered" warning were therefore all blind on a document written this way,
+which is to say: turning on deferred bodies turned the rest of the note UI off.
+Both features were tested, separately, and both were green. The editor's answer
+is `notes.notesIn`, which builds one list out of both spellings, and
+`app/test/deferrednotes.test.mjs`, which is `assert_same_page` in TypeScript —
+a corpus deferred in bulk, every surface asked twice, and the two answers
+required to match.
+
 **Verification.** `tests/deferred_notes.rs` renders each of the eleven layouts
 twice — bodies inline, then bodies deferred — and asserts every text run landed
 on the same page at the same coordinates at the same size. Equivalence is the
@@ -214,7 +226,11 @@ claim, so equivalence is what is tested; the rest of that file is the failure
 modes (a dangling name, a duplicate definition, a body far from its marker).
 
 The editing side lives in the app: `src/deferred.ts` is the pure model (scan,
-jump, exile, recall, lint) and `src/deferred-lint.ts` the CodeMirror wiring.
+jump, exile, recall, retarget, remove, lint), `src/deferred-lint.ts` the
+CodeMirror wiring, and `src/notes.ts` the index every surface reads. A pair is
+written in the language of the note it stands for — `#note_named` / `#note_body`
+in an English document — for the same reason the tiered-note button writes
+`#tier2` there.
 
 ## Structure inside a note
 

@@ -106,13 +106,44 @@ export const NOTE_BODY_COMMANDS: readonly string[] = [
   "מראה_מקום", "sourcenote",
 ];
 
-/** The same set, for the hot paths — `notesIn` asks this per bracket. */
+/** The same set, for the hot paths — `notesIn` asks this per call. */
 export const NOTE_BODY_SET: ReadonlySet<string> = new Set(NOTE_BODY_COMMANDS);
 
 /** Is this command's body note prose? */
 export function opensNoteBody(command: string): boolean {
   return NOTE_BODY_SET.has(command);
 }
+
+// ------------------------------------------------- the deferred spelling
+//
+// The three commands above are absent from `NOTE_BODY_COMMANDS` for reasons
+// that are correct — none of them takes note prose as its last positional
+// argument — and that absence is not the same thing as "not a note". A
+// deferred note is one note written in two places, and every surface that
+// asks "what notes are in this document" has to know both halves or it
+// answers zero on a document full of them.
+//
+// The names lived in `deferred.ts` (the editing model) and again in
+// `ksav-lang.ts` (prose mode), which is the third copy of a list and exactly
+// the arrangement the head of this file was written about. There is one now,
+// and `notecommands.test.mjs` checks it against the prelude.
+
+/** `#הערה_בשם(…)` — a marker whose prose is defined elsewhere. */
+export const DEFER_REF_COMMANDS: readonly string[] = ["הערה_בשם", "note_named"];
+/** `#גוף_הערה(שם)[…]` — the prose of a deferred note. */
+export const DEFER_BODY_COMMANDS: readonly string[] = ["גוף_הערה", "note_body"];
+/** `#גופי_הערות[…]` — the optional region the bodies are filed in. */
+export const DEFER_REGION_COMMANDS: readonly string[] = ["גופי_הערות", "note_bodies"];
+
+/**
+ * The layout a bare `#הערה_בשם("א")` prints as — the prelude's `סוג` default.
+ *
+ * A deferred note with no `סוג` is an ordinary page-foot footnote, which is
+ * what makes `#הערה` the one command a marker never has to name. Per language,
+ * because `#note_named("1")` is a `#fnote` and writing `#הערה` back into an
+ * English document when it is recalled is the editor overruling the writer.
+ */
+export const DEFAULT_NOTE_KIND = { he: "הערה", en: "fnote" } as const;
 
 /**
  * The tiered-note command for a tier, in the language the document is written

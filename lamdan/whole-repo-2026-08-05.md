@@ -1036,6 +1036,130 @@ consequence.
 
 ## 9. Two bugs from the family this project is named for
 
+> ### ✅ (a) Fixed — 6 August 2026
+>
+> Done as prescribed in substance — one `NoteSpan[]` over both spellings — and
+> **not** as prescribed in mechanism, because the edit the diagnosis implies is
+> worse than the bug. The finding below is kept verbatim; what follows is what
+> replaced it, what the finding got wrong, and what it missed. (b) is not
+> touched; it is still open.
+>
+> **The repro reproduces exactly, and so does every number in it.** Verified
+> before anything was changed: the deferred document gives `notesIn: 0 rows`,
+> `noteDepthAt: 0`, `tieredNoteAt: #הערה_א[|]`, and the inline one gives one
+> row. Nothing in the finding's own evidence needed correcting.
+>
+> **The finding named the right two lines and the wrong edit.** Its diagnosis
+> is that `note-commands.ts:86-88` excludes `#הערה_בשם` and `#גוף_הערה` "with
+> reasons that are correct for `noteDepthAt` and correct for `deferSnippet`,
+> and simply *not evaluated* for `notesIn`" — which reads as: evaluate them,
+> and put the two commands in the list. Done at HEAD-before-the-fix, that
+> produces:
+>
+> - **one pane row, and it is the wrong one.** The marker still contributes
+>   nothing (it has no `[…]` for the walker to find), so the note is listed as
+>   `#גוף_הערה` at the end of the file rather than as the note where it prints.
+> - **a convert action that breaks the document.** Right-clicking that row and
+>   choosing endnote rewrites the definition —
+>   `#הערה_בשם("1") … #הערתסיום[עיין שם]` — leaving a marker pointing at
+>   nothing, which the page renders as a red `?`, and an endnote nobody
+>   referred to.
+> - **"defer every note" exiling the definitions.** On an already-deferred
+>   document it writes `#הערה_בשם("2", סוג: גוף_הערה, "1")` — a marker whose
+>   *layout* is the body command.
+>
+> All three executed, not reasoned about. So the two exclusions stay, exactly
+> as they are, and their comments stay right: `NOTE_BODY_COMMANDS` means *takes
+> note prose as its last positional argument*, which is a claim about call
+> shape that `deferred.ts` depends on. It was never a list of "what is a note".
+> The fix is that there is now a list of that, `notes.notesIn`, and it is built
+> out of both spellings — the spans for the inline half, `deferred.scan` for
+> the pairing.
+>
+> **Order and depth are the part that needed thinking about.** A note written
+> inside a deferred body has its bytes at the end of the file and its place in
+> the document beside its parent, so the index sorts by a tree rather than by
+> offset (the pane indents by depth; children forty rows from their parents
+> would be a tree drawn wrong), and `depth` counts enclosing *notes*, following
+> a `#גוף_הערה` back through the marker that names it. Walked over `spans.ts`'s
+> containment tree, not compared all-pairs: a sefer has thousands of notes and
+> the pane re-renders on every keystroke, which is the quadratic §1's follow-up
+> had just finished removing from the ribbon.
+>
+> **Three it missed, and the first is worse than the finding.**
+>
+> - **The "collected and never rendered" lint is blind to every deferred
+>   note** — the failure `apparatus.ts`'s own header calls *"the quietest
+>   failure in the product"*. A deferred endnote names its layout as a
+>   **value**, `#הערה_בשם("1", סוג: הערתסיום)`, so a scan for `#`-calls finds
+>   nothing to warn about. Verified against the compiler rather than reasoned
+>   about: `cargo run --example probe` on the inline and deferred spellings of
+>   the same dumpless document prints byte-identical pages, and in both of them
+>   the marker is on the page and the prose is not. An empty pane is visible;
+>   this one you find in print. The engine had already learned this exact fact
+>   once — `apparatus_is_named_as_kind` exists so a deferred page-band still
+>   reserves room at the foot of the sheet — and the editor had not.
+> - **Deferring in an English document writes Hebrew into it.** Every rewrite
+>   in `deferred.ts` emitted `#הערה_בשם` and `#גוף_הערה` whatever it was handed,
+>   and dropped `#fnote` to the default kind, so recalling the note brought back
+>   `#הערה`. The page is identical — the prelude aliases both — which is what
+>   makes it the quiet kind of wrong. A pair is now spelled in the language of
+>   the note it stands for; `#note_named("1", kind: endnote)` and
+>   `#note_body("1")[…]` compile and lay out, verified.
+> - **`notesIn` was one more scanner of this markup**, and §1's own
+>   prohibition swept clean over it: the sweep flags a `depth` counter within
+>   **fourteen** lines of a bracket literal, and this one had **fifty-five**
+>   between them. The window is eighty now, which catches it and still flags
+>   nothing else in `src/` — measured, not guessed.
+>
+> **One found and not taken.** The sweep looks forward only, so the shape it
+> still cannot see is a *backwards* walk, and there is one: `mode.ts`'s
+> `nameBefore` skips back over balanced groups with no idea what a string is.
+> Verified — `enclosing("#הערה(\"א)ב\")[גוף]", …)` answers `[]` where the same
+> document without the paren answers `["הערה"]`, so a command inside that body
+> is judged to be in no command at all. That is one more scanner and another
+> divergence of §1's family, in the 366 lines §12 calls the highest-value
+> in the app; it is a finding, not an exemption, and widening the sweep in that
+> direction belongs with the fix rather than before it.
+>
+> **The fence is an oracle, not a list of cases.** `deferrednotes.test.mjs`
+> (291 assertions) takes a twenty-one document corpus — every layout, both
+> languages, notes in tables, in list items, after comments, inside other
+> notes — defers each one in bulk through the product's own
+> `deferAllInlineNotes`, and requires every note surface to give the same
+> answers for both copies: the same notes in the same order at the same depths
+> with the same words, the same apparatus warnings, the same tier for a
+> sub-note, the same `noteAt` at each marker, and `resolveDeferred` of the
+> deferred copy equal to the document it started as. This is
+> `deferred_notes.rs`'s `assert_same_page` on the editor's side, and it is the
+> only shape that would have caught the original: a surface that learns one
+> spelling and not the other fails it by construction.
+>
+> Verified by mutation, nine ways, every one run: `notesIn` forgetting the
+> markers again, `noteDepthAt` skipping deferred notes, the apparatus lint
+> losing the deferred sites, the bulk defer writing Hebrew into English,
+> `convertNote` rewriting the body instead of the marker, `deleteNote` leaving
+> the prose as an orphan, the sub-note tier stopping at the marker, a private
+> bracket walker coming back to `notes.ts`, and prose mode taking its own copy
+> of the command names. Nine red. Two controls green: the suite at rest, and
+> renaming a local inside `notesIn`. The name prohibition earned its keep
+> immediately — it turned red on a two-line duplicate written *during* this fix
+> and caught before it was committed.
+>
+> **The steelman held.** `NOTE_BODY_COMMANDS` is unchanged and its comments are
+> still true; `deferred.ts` is still the only module that knows the pairing
+> syntax; the engine has no idea any of this happened.
+>
+> **What the line count was.** *"~1 day, −180 lines"*: it is +98 code lines
+> across the three modules (`notes.ts` +34, `deferred.ts` +57, `apparatus.ts`
+> +7), which is the same direction §4 and §7's predictions were wrong in and
+> for the same reason — a decision with one home has to be *written down* where
+> before it was implied by there being no decision at all. Brevity was not the
+> defect. Two features that were mutually exclusive were the defect.
+>
+> Cost: 8 files, +1 test file, +1 i18n key. `npm test` 3,474 across 48 files
+> (+291), `cargo test` 357 unchanged, `tsc` clean, `vite build` clean.
+
 Both are *surfaces lying about a working engine*, and both were found by execution.
 
 **a) The notes pane is empty in every deferred document.**
@@ -1339,7 +1463,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 3 | Nobody has written a document in it | `don't-build` the next wave | one kuntres |
 | 4 | 19 false/stale doc claims incl. two contradicting release-status statements and a false "page setup travels with the file" | `rewrite` → 80 lines of test | ~half a day |
 | 5 | ✅ **Fixed 6 Aug.** `ksav.typ` wrote the apparatus 3× and fixed one bug twice; `PAGE_APPARATUS_COMMANDS` was a ninth unchecked copy | `rewrite` → one `_ap_*` core + a pinned layout + a count | ~half a day, 5 files; 41 documents byte-identical; −13 code lines, and three homes for a decision down to one |
-| 6 | Notes pane empty in every deferred document; `⁑` gives the wrong tier | `rewrite` → `notesIn` returns one `NoteSpan[]` | ~1 day, −180 lines |
+| 6 | ✅ **Fixed 6 Aug.** Notes pane empty in every deferred document and `⁑` gave the wrong tier; the collected-and-never-rendered lint was blind to deferred notes too, and deferring in an English document wrote Hebrew into it | `rewrite` → one `notesIn` over both spellings + an equivalence oracle | ~1 day, 8 files; +98 code lines, not −180; 9 mutations red, 2 controls green |
 | 7 | Fresh clone does not build; not one doc mentions why | `rewrite` → submodule | ~1 hour, −8 CI steps |
 | 8 | `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test | `delete` | ~1 hour |
 | 9 | ✅ **Fixed 6 Aug.** `chrome.test.mjs` credited surfaces to each other by local-variable name and its Escape block survived the handler being deleted; the hydra had no Escape once its own buttons had focus, and two of the sixteen "surfaces" were phantoms | `rewrite` → one `panels.ts` registry + 13 mutations | ~1 day, 5 files; `main.ts` −18 lines, not −250 |

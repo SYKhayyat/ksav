@@ -83,6 +83,15 @@ out identical either way; only the source changes — and every way of inserting
 note honours it, because the toolbar, the menu, the keyboard and the panel all go
 through one producer.
 
+The rest of the editor cannot tell the difference either, which took a second
+pass to be true: the notes pane lists a deferred note under the marker where it
+prints and jumps to its prose at the end of the file, `⁑` inside a deferred body
+writes the next tier down, right-click converts it by rewriting where it prints
+and deletes both halves at once, and the "collected and never rendered" warning
+sees a deferred `#הערות_בסוף` note as readily as an inline one. In an English
+document the pair is written `#note_named` / `#note_body`, because a generated
+command follows the document's language rather than the interface's.
+
 **Styles ▸ Notes** exposes what the apparatus can actually do: per-tier size,
 slant, colour, indent and numbering scheme. It writes the same `#הגדרות_הערות`
 line you would type by hand, which is what keeps the panel and the markup from
@@ -342,7 +351,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,183 editor assertions, 357 engine
+- [x] **CI, running and green** — typecheck, 3,474 editor assertions, 357 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -402,7 +411,7 @@ one place they are developed.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,183 assertions across 47 files
+cd app && npm test                          # 3,474 assertions across 48 files
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 357 tests, 24 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings

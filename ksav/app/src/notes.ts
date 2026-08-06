@@ -14,9 +14,16 @@
 //
 // Every option here renders correctly; see spec.md and engine/README-notes.md.
 
-import { deferSnippet, fileNewBody, nextName } from "./deferred";
-import { enclosing } from "./mode";
-import { TIERS, opensNoteBody, tierCommand } from "./note-commands";
+import {
+  deferSnippet,
+  fileNewBody,
+  nextName,
+  removePair,
+  retargetRef,
+  scan as scanDeferred,
+} from "./deferred";
+import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
+import { scan as scanSpans, type Node, type Scan } from "./spans";
 
 export type NoteLayers = "one" | "two";
 
@@ -372,9 +379,21 @@ export function noteFor(
   return null;
 }
 
-/** How many notes enclose this position. 0 in ordinary prose. */
+/**
+ * How many notes enclose this position. 0 in ordinary prose.
+ *
+ * Read off the index rather than off the enclosing command names, because a
+ * deferred body is inside a note and does not look like it: the caret sits in
+ * `#גוף_הערה("1")[…]` at the end of the file, and the note it belongs to is a
+ * marker three pages up. Counting command names answered 0 there — see the
+ * index below.
+ */
 export function noteDepthAt(doc: string, pos: number): number {
-  return enclosing(doc, pos).filter(opensNoteBody).length;
+  let best = -1;
+  for (const n of notesIn(doc)) {
+    if (n.hasBody && n.bodyFrom <= pos && pos <= n.bodyTo && n.depth > best) best = n.depth;
+  }
+  return best + 1;
 }
 
 /**
@@ -406,129 +425,236 @@ export function tieredNoteAt(doc: string, pos: number, lang: "he" | "en" = "he")
 // text a writer most often needs to get back to.
 
 export interface NoteSpan {
-  /** Offset of the `#`. */
+  /**
+   * Offset of the `#` of the note's *marker* — where the note prints.
+   *
+   * For a deferred note that is the `#הערה_בשם(…)` in the prose, not the
+   * `#גוף_הערה(…)[…]` at the end of the file: the marker is the note as far as
+   * the page and the reader are concerned, and it is what a right-click, a
+   * conversion and a deletion have to act on.
+   */
   from: number;
-  /** Offset just past the closing bracket. */
+  /** One past the end of the marker. */
   to: number;
-  /** Offset of the first character of the body. */
+  /** Offset of the first character of the prose, wherever it lives. */
   bodyFrom: number;
-  /** The command, without the hash. */
+  /** One past the last character of the prose. */
+  bodyTo: number;
+  /**
+   * False for a marker whose body has not been written yet.
+   *
+   * `bodyFrom`/`bodyTo` then both sit just past the marker, so a jump still
+   * lands somewhere sensible — but a caret there is in prose, not in a note.
+   */
+  hasBody: boolean;
+  /** The layout command, without the hash — `הערה`, `הערתסיום`, `מדור_בדרגה`. */
   command: string;
   /** The note's text, brackets and nested markup included. */
   text: string;
   /** How many notes enclose this one: 0 for a note on the body. */
   depth: number;
+  /**
+   * Where the prose lives, when it does not live in the marker.
+   *
+   * Present exactly when the note is written the deferred way. `defFrom`/
+   * `defTo` cover the whole `#גוף_הערה(…)[…]` call, which is what has to go
+   * when the note is deleted.
+   */
+  deferred: { name: string; defFrom: number; defTo: number } | null;
 }
 
 /**
- * Every note in the document, in document order, nested ones included.
+ * Every note in the document, in reading order, nested ones included.
  *
- * A hand-rolled bracket walk rather than a regex, because a note body contains
- * arbitrary markup — brackets inside strings, escaped brackets, comments, and
- * other notes — and a regex that stops at the first `]` truncates any note with
- * emphasis in it. Unclosed notes are reported to where the text runs out, so a
- * document mid-edit still gets a list.
+ * # Both spellings, one list
+ *
+ * A note can be written two ways — the prose inline, or a marker here and the
+ * prose at the end of the file — and until this was one function they were
+ * mutually exclusive features. `notesIn` walked brackets looking for a command
+ * that opens a note body; `#הערה_בשם` opens none, so on a document written the
+ * deferred way it returned **nothing**, and the notes pane, its jump list and
+ * the whole right-click convert/delete/sub-note menu were empty on a document
+ * full of notes. `settings.deferNoteBodies` — the preference §1.5 of the plan
+ * exists to honour everywhere — switched the other half of the feature off.
+ *
+ * The two commands are still deliberately absent from `NOTE_BODY_COMMANDS`,
+ * and that is still right: that list means *takes note prose as its last
+ * positional argument*, which is what lets `deferred.ts` exile a body and what
+ * `noteDepthAt` counts. It was never a list of "what is a note". This is.
+ *
+ * # Order and depth are logical, not textual
+ *
+ * The rows come out in the order a reader meets them: markers in document
+ * order, and a note written inside another note's prose directly beneath its
+ * parent — which for a deferred parent means a row from the end of the file
+ * appearing next to a marker from page one. The pane indents by `depth`, so
+ * ordering any other way would draw a tree whose children are forty rows from
+ * their parents. `depth` counts enclosing *notes* by the same logic: prose
+ * inside a deferred body is inside that note, wherever the bytes are.
+ *
+ * # One scanner
+ *
+ * Both halves come from `spans.ts` (via `deferred.scan` for the pairing). The
+ * private bracket walk this replaces was one more scanner of the same markup,
+ * and it swept clean past the prohibition that exists to catch them: that
+ * sweep looks fourteen lines past a `depth` counter for a bracket literal, and
+ * this walk had fifty-five between them. The window is eighty now.
  */
 export function notesIn(doc: string): NoteSpan[] {
-  const out: NoteSpan[] = [];
-  // One frame per open bracket: the index of the note it opened, or null for an
-  // ordinary content block, or "paren" for an argument list. The last is not
-  // decoration — a string only exists inside an argument list, and a `[` inside
-  // a string opens nothing.
-  const stack: (number | null | "paren")[] = [];
-  let depth = 0;
-  let i = 0;
-  while (i < doc.length) {
-    const c = doc[i];
-    if (c === "\\") {
-      i += 2;
-      continue;
-    }
-    if (c === '"' && stack[stack.length - 1] === "paren") {
-      i++;
-      while (i < doc.length && doc[i] !== '"') i += doc[i] === "\\" ? 2 : 1;
-      i++;
-      continue;
-    }
-    if (c === "/" && doc[i + 1] === "/") {
-      while (i < doc.length && doc[i] !== "\n") i++;
-      continue;
-    }
-    if (c === "/" && doc[i + 1] === "*") {
-      const close = doc.indexOf("*/", i + 2);
-      i = close < 0 ? doc.length : close + 2;
-      continue;
-    }
-    if (c === "#") {
-      const m = /^#([A-Za-z0-9֐-׿_]+)[ \t]*(\()?/.exec(doc.slice(i, i + 48));
-      if (m && opensNoteBody(m[1])) {
-        // Step over an argument list — `#הערה_בדרגה(2)[…]` — to reach the body.
-        let j = i + m[0].length;
-        if (m[2]) {
-          let d = 1;
-          while (j < doc.length && d > 0) {
-            if (doc[j] === "(") d++;
-            else if (doc[j] === ")") d--;
-            j++;
-          }
-        }
-        while (j < doc.length && /\s/.test(doc[j])) j++;
-        if (doc[j] === "[") {
-          out.push({
-            from: i,
-            to: doc.length,
-            bodyFrom: j + 1,
-            command: m[1],
-            text: "",
-            depth,
-          });
-          stack.push(out.length - 1);
-          depth++;
-          i = j + 1;
-          continue;
-        }
-      }
-      i++;
-      continue;
-    }
-    if (c === "(") {
-      stack.push("paren");
-      i++;
-      continue;
-    }
-    if (c === ")") {
-      if (stack[stack.length - 1] === "paren") stack.pop();
-      i++;
-      continue;
-    }
-    if (c === "[") {
-      stack.push(null);
-      i++;
-      continue;
-    }
-    if (c === "]") {
-      const top = stack.pop();
-      if (typeof top === "number") {
-        out[top].to = i + 1;
-        out[top].text = doc.slice(out[top].bodyFrom, i);
-        depth--;
-      }
-      i++;
-      continue;
-    }
-    i++;
+  const s = scanSpans(doc);
+  const { refs, defs } = scanDeferred(doc);
+
+  /** First definition wins, which is the rule the prelude's `_nb_find` uses. */
+  const bodyFor = new Map<string, (typeof defs)[number]>();
+  for (const d of defs) if (!bodyFor.has(d.name)) bodyFor.set(d.name, d);
+  /** A definition by the offset it starts at, to recognise one as an ancestor. */
+  const defAt = new Map<number, (typeof defs)[number]>();
+  for (const d of defs) defAt.set(d.from, d);
+
+  const spans: NoteSpan[] = [];
+  /** By marker offset, which is how an ancestor node is turned back into a note. */
+  const byMarker = new Map<number, NoteSpan>();
+  /** The first marker for a name — the one whose place on the page the prose takes. */
+  const markerFor = new Map<string, NoteSpan>();
+
+  for (const n of s.nodes) {
+    if (!opensNoteBody(n.name)) continue;
+    const closed = n.bodies.length > 0;
+    const body = closed ? n.bodies[n.bodies.length - 1] : unclosedBody(s, n);
+    if (!body) continue;
+    const span: NoteSpan = {
+      from: n.from,
+      // An unclosed note ran off the end of the document. Report it as far as it
+      // got rather than dropping it: half-typed is the common case.
+      to: closed ? n.to : doc.length,
+      bodyFrom: body.from,
+      bodyTo: body.to,
+      hasBody: true,
+      command: n.name,
+      text: doc.slice(body.from, body.to),
+      depth: 0,
+      deferred: null,
+    };
+    spans.push(span);
+    byMarker.set(span.from, span);
   }
-  // Anything still open ran off the end of the document; report it as far as it
-  // got rather than dropping it, since a half-typed note is the common case.
-  for (const n of out) if (!n.text) n.text = doc.slice(n.bodyFrom, n.to);
+
+  for (const r of refs) {
+    const d = bodyFor.get(r.name);
+    const span: NoteSpan = {
+      from: r.from,
+      to: r.to,
+      bodyFrom: d ? d.bodyFrom : r.to,
+      bodyTo: d ? d.bodyTo : r.to,
+      hasBody: !!d,
+      command: r.kind ?? DEFAULT_NOTE_KIND[r.lang],
+      text: d ? doc.slice(d.bodyFrom, d.bodyTo) : "",
+      depth: 0,
+      // `defFrom`/`defTo` are -1 until the body is written; `hasBody` says so.
+      deferred: { name: r.name, defFrom: d ? d.from : -1, defTo: d ? d.to : -1 },
+    };
+    spans.push(span);
+    byMarker.set(span.from, span);
+    if (!markerFor.has(r.name)) markerFor.set(r.name, span);
+  }
+
+  /**
+   * The note this one is written inside, if any.
+   *
+   * Walked up `spans.ts`'s containment tree rather than compared against every
+   * other note, because a sefer has thousands of notes and the pane re-renders
+   * on every keystroke — an all-pairs test would be the quadratic the ribbon
+   * was just cured of, in a new place. Two kinds of ancestor count: a note
+   * whose own body we are in, and a `#גוף_הערה`, which puts us inside whichever
+   * note's marker names it — however far away that marker is.
+   */
+  const parentOf = (n: NoteSpan): NoteSpan | null => {
+    for (let p = s.byStart.get(n.from)?.parent ?? null; p; p = p.parent) {
+      const own = byMarker.get(p.from);
+      if (own && own !== n) return own;
+      const d = defAt.get(p.from);
+      if (d) {
+        const marker = markerFor.get(d.name);
+        return marker && marker !== n ? marker : null;
+      }
+    }
+    return null;
+  };
+
+  return arrange(spans, parentOf);
+}
+
+/**
+ * The body of a note that is still being typed.
+ *
+ * `spans.ts` gives a call no body until its bracket closes, which is the right
+ * answer for a renderer and the wrong one for a list: a half-typed note is the
+ * ordinary state of the document a writer is looking at, and dropping it out of
+ * the pane mid-word is how a pane teaches people not to trust it. Whether the
+ * bracket closed is still `spans.ts`'s answer — `closes` — and not a second
+ * opinion about it.
+ */
+function unclosedBody(s: Scan, n: Node): { from: number; to: number } | null {
+  let at = n.to;
+  while (s.text[at] === " " || s.text[at] === "\t") at++;
+  if (s.text[at] !== "[" || s.closes.has(at)) return null;
+  return { from: at + 1, to: s.text.length };
+}
+
+/**
+ * Depth and reading order, over notes whose prose may sit anywhere.
+ *
+ * A tree walk rather than a sort, because sorting by offset alone would put a
+ * note written inside a deferred body at the bottom of the pane, forty rows
+ * from the parent it is indented under.
+ */
+function arrange(spans: NoteSpan[], parentOf: (n: NoteSpan) => NoteSpan | null): NoteSpan[] {
+  const byStart = [...spans].sort((a, b) => a.from - b.from);
+  const children = new Map<NoteSpan | null, NoteSpan[]>();
+  for (const n of byStart) {
+    const p = parentOf(n);
+    const list = children.get(p);
+    if (list) list.push(n);
+    else children.set(p, [n]);
+  }
+
+  // A body that contains a marker for itself (`#גוף_הערה("1")[…#הערה_בשם("1")…]`)
+  // makes a note its own ancestor — a cycle Typst declines to expand and this
+  // must not walk forever. Anything the walk never reaches keeps its place at
+  // the end of the list rather than disappearing from it.
+  const out: NoteSpan[] = [];
+  const seen = new Set<NoteSpan>();
+  const walk = (p: NoteSpan | null, depth: number) => {
+    for (const n of children.get(p) ?? []) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      n.depth = depth;
+      out.push(n);
+      walk(n, depth + 1);
+    }
+  };
+  walk(null, 0);
+  for (const n of byStart) if (!seen.has(n)) out.push(n);
   return out;
 }
 
-/** The innermost note containing `pos`, if any. */
+/**
+ * The innermost note at `pos`, if any.
+ *
+ * Either end counts: the marker in the prose and the `#גוף_הערה` at the end of
+ * the file are two views of one note, and a right-click on either of them is
+ * pointing at the same thing.
+ */
 export function noteAt(doc: string, pos: number): NoteSpan | null {
   let best: NoteSpan | null = null;
   for (const n of notesIn(doc)) {
-    if (n.from <= pos && pos <= n.to && (!best || n.from > best.from)) best = n;
+    const here =
+      (n.from <= pos && pos <= n.to) ||
+      (n.hasBody && n.bodyFrom <= pos && pos <= n.bodyTo) ||
+      (!!n.deferred && n.deferred.defFrom >= 0 && n.deferred.defFrom <= pos && pos <= n.deferred.defTo);
+    if (here && (!best || n.depth > best.depth || (n.depth === best.depth && n.from > best.from))) {
+      best = n;
+    }
   }
   return best;
 }
@@ -541,9 +667,18 @@ export function noteAt(doc: string, pos: number): NoteSpan | null {
  * apparatuses (`#מדור_*`, `#מדף_*`) collect their own markers and cannot adopt a
  * native footnote without printing it twice. For those, converting the note in
  * place beats retyping it.
+ *
+ * For a deferred note the prose does not move: what changes is the marker's
+ * `סוג`, because that is the whole of where a deferred note prints. Rewriting
+ * the `#גוף_הערה` instead would have produced a document with two notes in it.
  */
 export function convertNote(doc: string, note: NoteSpan, command: string): { text: string; caret: number } {
-  const body = doc.slice(note.bodyFrom, note.to - 1);
+  if (note.deferred) {
+    const ref = scanDeferred(doc).refs.find((r) => r.from === note.from);
+    if (!ref) return { text: doc, caret: note.from };
+    return retargetRef(doc, ref, command);
+  }
+  const body = doc.slice(note.bodyFrom, note.bodyTo);
   const replacement = `#${command}[${body}]`;
   return {
     text: doc.slice(0, note.from) + replacement + doc.slice(note.to),
@@ -551,8 +686,21 @@ export function convertNote(doc: string, note: NoteSpan, command: string): { tex
   };
 }
 
-/** Delete a note and its marker, leaving the surrounding prose joined up. */
+/**
+ * Delete a note and its marker, leaving the surrounding prose joined up.
+ *
+ * A deferred note is deleted from both ends. Taking the marker alone would
+ * leave the prose behind as an orphan — a paragraph at the end of the file that
+ * prints nowhere — which is a worse document than the one the writer asked to
+ * be rid of.
+ */
 export function deleteNote(doc: string, note: NoteSpan): { text: string; caret: number } {
+  if (note.deferred) {
+    const { refs, defs } = scanDeferred(doc);
+    const ref = refs.find((r) => r.from === note.from);
+    if (!ref) return { text: doc, caret: note.from };
+    return removePair(doc, ref, defs.find((d) => d.name === ref.name) ?? null);
+  }
   return { text: doc.slice(0, note.from) + doc.slice(note.to), caret: note.from };
 }
 

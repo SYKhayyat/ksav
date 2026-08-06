@@ -26,6 +26,7 @@
 // automatically. Guessing that they behaved alike would have produced four
 // false warnings.
 
+import { scan as scanDeferred } from "./deferred";
 import { BAND_FAMILY } from "./note-commands";
 import { scan as scanSpans, type Node } from "./spans";
 
@@ -85,11 +86,54 @@ function occurrences(doc: string, names: string[]): Node[] {
   return scanSpans(doc).nodes.filter((n) => n.hash && names.includes(n.name));
 }
 
+/** One place a collecting note is written, in either spelling. */
+interface Site {
+  from: number;
+  /** Where the warning underlines to. */
+  to: number;
+  /** The collecting command, whether it was called or named. */
+  command: string;
+  /** The argument text that could carry a stream. */
+  args: string;
+}
+
+/**
+ * Every place one of these commands collects — called, or named as a value.
+ *
+ * A deferred note names its layout as a *value*: `#הערה_בשם("1", סוג: הערתסיום)`
+ * has no `#הערתסיום` anywhere in it, so a scan for calls finds nothing, and the
+ * quietest failure in the product went back to being silent the moment a writer
+ * turned on "note bodies at the end of the file". Verified against the
+ * compiler, both spellings: with no dump call, the marker prints and the prose
+ * does not — the same page, byte for byte, either way.
+ *
+ * The engine had already learned this once. `lib.rs`'s
+ * `apparatus_is_named_as_kind` exists so that a document of deferred page-bands
+ * still reserves room at the foot of the page; this is the same fact, on the
+ * editor's side of the wire.
+ */
+function sites(doc: string, collectors: string[]): Site[] {
+  const out: Site[] = occurrences(doc, collectors).map((n) => ({
+    from: n.from,
+    // The command name alone: the writer's eye needs to land on the word.
+    to: n.nameTo,
+    command: n.name,
+    args: n.args ? doc.slice(n.args.from, n.args.to) : "",
+  }));
+  for (const r of scanDeferred(doc).refs) {
+    if (!r.kind || !collectors.includes(r.kind)) continue;
+    // The whole marker, because `#הערה_בשם` is not the name of the problem —
+    // the `סוג:` inside it is, and underlining the two together is what makes
+    // the message about `#הערתסיום` legible on a line that never says it.
+    out.push({ from: r.from, to: r.to, command: r.kind, args: r.rest });
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
 /** The stream named in a call's arguments, if it names one. */
-function streamOf(doc: string, n: Node): string | undefined {
+function streamOf(site: Site): string | undefined {
   // `#הערתסיום(זרם: "מקורות")[…]` — only a parenthesised argument list can carry it.
-  if (!n.args) return undefined;
-  const m = /(?:זרם|stream)\s*:\s*"([^"]*)"/u.exec(doc.slice(n.args.from, n.args.to));
+  const m = /(?:זרם|stream)\s*:\s*"([^"]*)"/u.exec(site.args);
   return m ? m[1] : undefined;
 }
 
@@ -117,26 +161,16 @@ const DEFAULT_STREAM = "הערות";
 export function unrendered(doc: string): Unrendered[] {
   const out: Unrendered[] = [];
   for (const rule of RULES) {
+    // A dump call is never deferred: it takes no note body, so there is nothing
+    // to exile and `#הערה_בשם` cannot stand for one.
     const dumps = occurrences(doc, rule.dumps);
-    if (dumps.length === 0) {
-      for (const c of occurrences(doc, rule.collectors)) {
-        out.push({
-          from: c.from,
-          to: c.nameTo,
-          command: c.name,
-          fix: rule.fix,
-          stream: rule.streamed ? (streamOf(doc, c) ?? DEFAULT_STREAM) : undefined,
-        });
-      }
-      continue;
-    }
-    for (const c of occurrences(doc, rule.collectors)) {
-      const stream = rule.streamed ? (streamOf(doc, c) ?? DEFAULT_STREAM) : undefined;
+    for (const c of sites(doc, rule.collectors)) {
+      const stream = rule.streamed ? (streamOf(c) ?? DEFAULT_STREAM) : undefined;
       const covered = dumps.some(
         (d) => d.from > c.from && (stream === undefined || dumpCovers(doc, d, stream)),
       );
       if (!covered) {
-        out.push({ from: c.from, to: c.nameTo, command: c.name, fix: rule.fix, stream });
+        out.push({ from: c.from, to: c.to, command: c.command, fix: rule.fix, stream });
       }
     }
   }

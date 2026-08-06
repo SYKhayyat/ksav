@@ -11,7 +11,12 @@ import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
-import { TIERS, TIER_FAMILY } from "./note-commands";
+import {
+  DEFER_BODY_COMMANDS,
+  DEFER_REF_COMMANDS,
+  TIERS,
+  TIER_FAMILY,
+} from "./note-commands";
 import { scan, type Group, type ListKind, type Node, type Scan } from "./spans";
 
 // ---- shared scanning -------------------------------------------------------
@@ -340,8 +345,11 @@ const FOOTNOTE_NAMES = new Set(Object.keys(NOTE_KINDS));
 // and the definitions region reads as a numbered list rather than as markup. Left
 // untreated, the one view whose whole promise is "it looks like the page" would
 // show a wall of `#גוף_הערה("1")[` at the bottom of every document that uses this.
-const DEFER_REF_NAMES = new Set(["הערה_בשם", "note_named"]);
-const DEFER_BODY_NAMES = new Set(["גוף_הערה", "note_body"]);
+// The names come from `note-commands.ts`, which is where every other "which
+// command is this" answer lives. They were written out here as well, which is
+// the third copy of a two-element list and the reason its head is worth reading.
+const DEFER_REF_NAMES = new Set(DEFER_REF_COMMANDS);
+const DEFER_BODY_NAMES = new Set(DEFER_BODY_COMMANDS);
 
 /**
  * The name, and the layout, in a deferred marker's argument list.

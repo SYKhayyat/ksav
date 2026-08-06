@@ -68,6 +68,13 @@ not written yet it writes the line and puts you in it. You never type a name.
 end; **`Ctrl+Alt+R`** brings it back. The notes chooser has both, and a button
 that moves every note in the document at once.
 
+Nothing else in the editor treats these as second-class. The notes pane lists
+them where they print and takes you to their words; `⁑` inside one writes a note
+*on* it, not beside it; right-click converts one to another layout or deletes
+both halves at once; and the warning about notes that were collected and never
+printed sees them too. In an English document the pair is written
+`#note_named` / `#note_body`.
+
 Hovering a marker shows its text without going anywhere. A marker whose words
 were never written is marked in the editor and prints a red `?` — the one thing
 worse than an unwritten note is an invisible one.

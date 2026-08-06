@@ -65,6 +65,17 @@ export async function run() {
   // The same prohibition by shape rather than by name, because the next one
   // will not be called `matchBracket`. A depth counter next to a bracket
   // literal is what all ten of them looked like.
+  //
+  // The window was fourteen lines and that was not enough: `notes.notesIn` was
+  // the fourteenth scanner of this markup and swept clean, because its `depth`
+  // counter and its first bracket literal were fifty-five lines apart. Eighty
+  // covers it and still flags nothing that is here today — measured, not
+  // guessed. It looks forward only, so the one shape it cannot see is a
+  // backwards walk: `mode.ts`'s `nameBefore` is one, it is genuinely wrong on
+  // `#הערה("א)ב")[גוף]` (verified — `enclosing` answers `[]` there and
+  // `["הערה"]` without the paren), and it is a finding rather than an
+  // exemption. Widening the window in that direction should come with the fix.
+  const WINDOW = 80;
   const DEPTH = /\b(?:let|var)\s+depth\s*=/;
   const BRACKET_LITERAL = /["'](?:\[|\(|\{|\]|\)|\})["']|0x5[bd]|0x2[89]|0x7[bd]/;
   const counters = [];
@@ -79,7 +90,7 @@ export async function run() {
     const lines = body.split("\n");
     lines.forEach((line, i) => {
       if (isComment(line) || !DEPTH.test(line)) return;
-      const window = lines.slice(i, i + 14).filter((l) => !isComment(l)).join("\n");
+      const window = lines.slice(i, i + WINDOW).filter((l) => !isComment(l)).join("\n");
       if (BRACKET_LITERAL.test(window)) counters.push(`${f}:${i + 1}`);
     });
   }

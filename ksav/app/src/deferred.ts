@@ -24,17 +24,27 @@
 // and for the same reason: it can be tested without a browser. The CodeMirror
 // wiring is in `deferred-lint.ts`.
 
-import { matchGroup, scan as scanSpans, splitArgsRaw } from "./spans";
-import { NOTE_BODY_COMMANDS } from "./note-commands";
+import { langOf, matchGroup, scan as scanSpans, splitArgsRaw } from "./spans";
+import {
+  DEFAULT_NOTE_KIND,
+  DEFER_BODY_COMMANDS,
+  DEFER_REF_COMMANDS,
+  DEFER_REGION_COMMANDS,
+  NOTE_BODY_COMMANDS,
+} from "./note-commands";
 
 // ---------------------------------------------------------------- the commands
+//
+// The three name lists live in `note-commands.ts` with every other answer to
+// "which commands are what", because prose mode kept a second copy of these
+// two and the notes pane kept none at all.
 
 /** `#הערה_בשם(…)` — a marker whose body is defined elsewhere. */
-const REF_NAMES = ["הערה_בשם", "note_named"];
+const REF_NAMES = DEFER_REF_COMMANDS;
 /** `#גוף_הערה(שם)[…]` — the body of a deferred note. */
-const DEF_NAMES = ["גוף_הערה", "note_body"];
+const DEF_NAMES = DEFER_BODY_COMMANDS;
 /** `#גופי_הערות[…]` — the optional region the bodies are filed in. */
-const REGION_NAMES = ["גופי_הערות", "note_bodies"];
+const REGION_NAMES = DEFER_REGION_COMMANDS;
 
 /**
  * The note commands an inline body can be exiled *from*.
@@ -52,7 +62,39 @@ const REGION_NAMES = ["גופי_הערות", "note_bodies"];
 export const NOTE_COMMANDS: readonly string[] = NOTE_BODY_COMMANDS;
 
 /** The command a bare `#הערה_בשם("א")` stands for — its `סוג` default. */
-const DEFAULT_KIND = "הערה";
+const DEFAULT_KIND = DEFAULT_NOTE_KIND;
+
+/**
+ * A deferred pair is written in the language of the note it stands for.
+ *
+ * Every rewrite here used to emit `#הערה_בשם` and `#גוף_הערה` whatever it was
+ * handed, so exiling a `#fnote` out of an English document wrote two Hebrew
+ * commands into it and recalling it brought back `#הערה`. The page is
+ * identical — the prelude aliases both — and that is exactly what makes it the
+ * quiet kind of wrong: the document the writer reads stops being the language
+ * they chose. Same rule as `tierCommand` and `setStyleArgs`, for the same
+ * reason.
+ */
+type Lang = "he" | "en";
+
+/**
+ * The two spellings of one command, from the list rather than typed again.
+ *
+ * Written out here first, and `deferrednotes.test.mjs` turned red on the spot —
+ * which is the whole argument for a prohibition that sweeps source rather than
+ * a comment asking nicely.
+ */
+function byLang(names: readonly string[]): Record<Lang, string> {
+  return {
+    he: names.find((n) => langOf(n) === "he") ?? names[0],
+    en: names.find((n) => langOf(n) === "en") ?? names[0],
+  };
+}
+
+const REF_WORD = byLang(DEFER_REF_COMMANDS);
+const DEF_WORD = byLang(DEFER_BODY_COMMANDS);
+/** `סוג:` / `kind:` — the app's half of the prelude's `_en_params` table. */
+const KIND_ARG: Record<Lang, string> = { he: "סוג", en: "kind" };
 
 const NAME_CH = /[A-Za-z0-9֐-׿_]/;
 
@@ -71,6 +113,8 @@ export interface Ref {
   kind: string | null;
   /** Everything in the argument list except the name and `סוג:`, verbatim. */
   rest: string;
+  /** Which spelling the marker was written in, so a rewrite keeps it. */
+  lang: Lang;
 }
 
 /** A `#גוף_הערה(שם)[…]` definition. */
@@ -83,6 +127,8 @@ export interface Def {
   /** The body group's contents (excluding its brackets). */
   bodyFrom: number;
   bodyTo: number;
+  /** Which spelling the definition was written in. */
+  lang: Lang;
 }
 
 export interface Scan {
@@ -169,6 +215,7 @@ export function scan(text: string): Scan {
   for (const start of callsOf(text, REF_NAMES, isComment)) {
     let j = start + 1;
     while (j < text.length && NAME_CH.test(text[j])) j++;
+    const lang = langOf(text.slice(start + 1, j));
     const open = skipSpace(text, j);
     const ch = text[open];
     if (ch !== "(" && ch !== "[") continue;
@@ -186,6 +233,7 @@ export function scan(text: string): Scan {
         nameTo: close,
         kind: null,
         rest: "",
+        lang,
       });
       continue;
     }
@@ -222,12 +270,14 @@ export function scan(text: string): Scan {
       nameTo: nameArg.at + lead + bare.length,
       kind,
       rest: rest.join(", "),
+      lang,
     });
   }
 
   for (const start of callsOf(text, DEF_NAMES, isComment)) {
     let j = start + 1;
     while (j < text.length && NAME_CH.test(text[j])) j++;
+    const lang = langOf(text.slice(start + 1, j));
     const open = skipSpace(text, j);
     if (text[open] !== "(" && text[open] !== "[") continue;
     const close = matchGroup(text, open);
@@ -248,6 +298,7 @@ export function scan(text: string): Scan {
       nameTo: open + 1 + lead + bare.length,
       bodyFrom: bodyOpen + 1,
       bodyTo: bodyClose,
+      lang,
     });
   }
 
@@ -408,17 +459,17 @@ export function fileNewBody(text: string, entry: string): { text: string; at: nu
   return { text: trimmed + insert, at: trimmed.length + 2 };
 }
 
-/** `#גוף_הערה("name")[body]` */
-function definitionText(name: string, body: string): string {
-  return `#גוף_הערה("${name}")[${body}]`;
+/** `#גוף_הערה("name")[body]` / `#note_body("name")[body]` */
+function definitionText(name: string, body: string, lang: Lang): string {
+  return `#${DEF_WORD[lang]}("${name}")[${body}]`;
 }
 
-/** `#הערה_בשם("name", סוג: kind, rest)` */
-function referenceText(name: string, kind: string | null, rest: string): string {
+/** `#הערה_בשם("name", סוג: kind, rest)` / `#note_named("name", kind: …)` */
+function referenceText(name: string, kind: string | null, rest: string, lang: Lang): string {
   const args = [`"${name}"`];
-  if (kind && kind !== DEFAULT_KIND) args.push(`סוג: ${kind}`);
+  if (kind && kind !== DEFAULT_KIND[lang]) args.push(`${KIND_ARG[lang]}: ${kind}`);
   if (rest) args.push(rest);
-  return `#הערה_בשם(${args.join(", ")})`;
+  return `#${REF_WORD[lang]}(${args.join(", ")})`;
 }
 
 /**
@@ -426,20 +477,34 @@ function referenceText(name: string, kind: string | null, rest: string): string 
  *
  * This is the create half of the jump: pressing the key on a marker that has no
  * prose yet does not report an error, it writes the line and takes you there.
+ * The body is spelled the way its marker is — the pair is one note.
  */
 export function createBody(text: string, name: string): Change {
-  const { text: out, at } = fileNewBody(text, definitionText(name, ""));
+  const lang = scan(text).refs.find((r) => r.name === name)?.lang ?? "he";
+  const entry = definitionText(name, "", lang);
+  const { text: out, at } = fileNewBody(text, entry);
   // Inside the body brackets: `#גוף_הערה("name")[` is the prefix.
-  return { text: out, caret: at + definitionText(name, "").length - 1 };
+  return { text: out, caret: at + entry.length - 1 };
 }
 
-/** Insert a fresh deferred note at `pos`: a marker here, its body at the end. */
-export function insertDeferred(text: string, pos: number, kind: string | null = null): Change {
+/**
+ * Insert a fresh deferred note at `pos`: a marker here, its body at the end.
+ *
+ * `lang` is the document's, not the interface's: there is no note here to take
+ * a spelling from, so this is the one case that has to be told.
+ */
+export function insertDeferred(
+  text: string,
+  pos: number,
+  kind: string | null = null,
+  lang: Lang = "he",
+): Change {
   const name = nextName(text);
-  const marker = referenceText(name, kind, "");
+  const marker = referenceText(name, kind, "", lang);
   const withMarker = text.slice(0, pos) + marker + text.slice(pos);
-  const { text: out, at } = fileNewBody(withMarker, definitionText(name, ""));
-  return { text: out, caret: at + definitionText(name, "").length - 1 };
+  const entry = definitionText(name, "", lang);
+  const { text: out, at } = fileNewBody(withMarker, entry);
+  return { text: out, caret: at + entry.length - 1 };
 }
 
 /**
@@ -459,6 +524,7 @@ export function deferSnippet(insert: string, name: string): { marker: string; bo
   const m = /^#([A-Za-z0-9֐-׿_]+)/.exec(insert.trim());
   if (!m || !NOTE_COMMANDS.includes(m[1])) return null;
   const cmd = m[1];
+  const lang = langOf(cmd);
   let i = m[0].length;
   let args = "";
   const s = insert.trim();
@@ -472,11 +538,16 @@ export function deferSnippet(insert: string, name: string): { marker: string; bo
   const close = matchGroup(s, i);
   if (close == null) return null;
   const inner = s.slice(i + 1, close).replace("|", "");
-  const kind = cmd === DEFAULT_KIND || cmd === "fnote" ? null : cmd;
+  const kind = isDefaultKind(cmd) ? null : cmd;
   return {
-    marker: referenceText(name, kind, args),
-    body: `#גוף_הערה("${name}")[${inner}|]`,
+    marker: referenceText(name, kind, args, lang),
+    body: definitionText(name, `${inner}|`, lang),
   };
+}
+
+/** Either spelling of the layout a marker gets for free. */
+function isDefaultKind(cmd: string): boolean {
+  return cmd === DEFAULT_KIND.he || cmd === DEFAULT_KIND.en;
 }
 
 /**
@@ -533,10 +604,11 @@ export function deferInlineNote(text: string, pos: number): Change | null {
   if (!note) return null;
   const name = nextName(text);
   const body = text.slice(note.bodyFrom, note.bodyTo);
-  const kind = note.cmd === DEFAULT_KIND || note.cmd === "fnote" ? null : note.cmd;
-  const marker = referenceText(name, kind, note.args);
+  const lang = langOf(note.cmd);
+  const kind = isDefaultKind(note.cmd) ? null : note.cmd;
+  const marker = referenceText(name, kind, note.args, lang);
   const withMarker = text.slice(0, note.from) + marker + text.slice(note.to);
-  const { text: out } = fileNewBody(withMarker, definitionText(name, body));
+  const { text: out } = fileNewBody(withMarker, definitionText(name, body, lang));
   // The caret stays where the note was — the writer is still writing the
   // sentence, not the note.
   return { text: out, caret: note.from + marker.length };
@@ -560,7 +632,7 @@ export function inlineDeferredNote(text: string, pos: number): Change | null {
   if (!def) return null;
 
   const body = text.slice(def.bodyFrom, def.bodyTo);
-  const cmd = ref.kind ?? DEFAULT_KIND;
+  const cmd = ref.kind ?? DEFAULT_KIND[ref.lang];
   const call = `#${cmd}${ref.rest ? `(${ref.rest})` : ""}[${body}]`;
 
   // Two edits at known offsets; apply the later one first so the earlier keeps
@@ -602,6 +674,46 @@ function lineEndIfAlone(text: string, from: number, to: number): number {
 }
 
 /**
+ * Point a marker at a different layout, leaving the prose where it is.
+ *
+ * The deferred spelling of "convert this note to an endnote". `סוג` is the
+ * whole of where a deferred note prints, so that argument is the entire edit —
+ * the name and any extra positional arguments ride along, which is what keeps a
+ * tier or a stream through the change.
+ */
+export function retargetRef(text: string, ref: Ref, command: string): Change {
+  const marker = referenceText(ref.name, command, ref.rest, ref.lang);
+  return {
+    text: text.slice(0, ref.from) + marker + text.slice(ref.to),
+    caret: ref.from + marker.length,
+  };
+}
+
+/**
+ * Delete a marker and the prose it points at, in one edit.
+ *
+ * Deleting the marker alone would leave a body nothing points at — the orphan
+ * the lint exists to report — so "delete this note" has to mean both halves, or
+ * it means "trade a note for a warning".
+ */
+export function removePair(text: string, ref: Ref, def: Def | null): Change {
+  const cut = def
+    ? { from: lineStartIfAlone(text, def.from, def.to), to: lineEndIfAlone(text, def.from, def.to) }
+    : null;
+  const edits = [{ from: ref.from, to: ref.to }];
+  if (cut) edits.push(cut);
+  // Later edit first, so the earlier one keeps its offsets.
+  edits.sort((a, b) => b.from - a.from);
+  let out = text;
+  for (const e of edits) out = out.slice(0, e.from) + out.slice(e.to);
+  // The last body taken away leaves the blank line that separated the region
+  // from the text; tidy it, as recalling one does.
+  if (cut && !scan(out).defs.length) out = out.replace(/\s*$/, "\n");
+  const caret = cut && cut.from < ref.from ? ref.from - (cut.to - cut.from) : ref.from;
+  return { text: out, caret: Math.min(Math.max(caret, 0), out.length) };
+}
+
+/**
  * Every deferred note put back inline, with the definitions removed.
  *
  * For anything downstream that has to *see* a note's body where the note is —
@@ -636,7 +748,7 @@ export function resolveDeferred(text: string): string {
     // A dangling marker and a cycle both come out as nothing: there is no note
     // to print, and an export has no way to say "this one is broken".
     if (body == null || depth >= MAX_DEPTH) return "";
-    const cmd = r.kind ?? DEFAULT_KIND;
+    const cmd = r.kind ?? DEFAULT_KIND[r.lang];
     return `#${cmd}${r.rest ? `(${r.rest})` : ""}[${expand(body, depth + 1)}]`;
   };
 
@@ -729,10 +841,11 @@ export function deferAllInlineNotes(text: string): { text: string; moved: number
   let cursor = 0;
   for (const s of top.sort((a, b) => a.from - b.from)) {
     const name = nameFor();
-    const kind = s.cmd === DEFAULT_KIND || s.cmd === "fnote" ? null : s.cmd;
-    out += text.slice(cursor, s.from) + referenceText(name, kind, s.args);
+    const lang = langOf(s.cmd);
+    const kind = isDefaultKind(s.cmd) ? null : s.cmd;
+    out += text.slice(cursor, s.from) + referenceText(name, kind, s.args, lang);
     cursor = s.to;
-    bodies.push(definitionText(name, s.body));
+    bodies.push(definitionText(name, s.body, lang));
   }
   out += text.slice(cursor);
 

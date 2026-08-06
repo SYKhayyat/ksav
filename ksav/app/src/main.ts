@@ -504,7 +504,7 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   // The manual override for when the automatic isolation does not reach.
   { id: "isolate", run: (v) => toggleIsolateSelection(v) },
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
-  { id: "deferHere", run: (v) => (deferHere(v), true) },
+  { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
 ];
 /**
@@ -1335,7 +1335,16 @@ async function dropIntoGirsa(phrase: string): Promise<void> {
  * follows the document, not the interface.
  */
 function tieredNoteHere(doc: string, pos: number): string {
-  return tieredNoteAt(doc, pos, docConfig().dir === "ltr" ? "en" : "he");
+  return tieredNoteAt(doc, pos, docLang());
+}
+
+/**
+ * The language a generated command is written in: the document's, never the
+ * interface's. Three surfaces asked this the same way and a fourth arrived with
+ * the deferred markers, so it is a function now.
+ */
+function docLang(): "he" | "en" {
+  return docConfig().dir === "ltr" ? "en" : "he";
 }
 
 /**
@@ -2638,7 +2647,10 @@ function renderNotesPane() {
         {
           class: "outline-item note-item",
           style: `padding-inline-start:${8 + n.depth * 14}px`,
-          title: t("noteJump"),
+          title: n.deferred ? t("noteJumpDeferred") : t("noteJump"),
+          // Wherever the prose actually is. For a deferred note that is the
+          // `#גוף_הערה` at the end of the file, which is the whole point of the
+          // row: the marker is easy to find and the prose is not.
           onClick: () => jumpTo(n.bodyFrom),
           onContextMenu: (e: Event) => {
             e.preventDefault();
@@ -2647,6 +2659,11 @@ function renderNotesPane() {
         },
         [
           el("span", { class: "note-item-n" }, [String(i + 1)]),
+          // The pair's name, for a note written the deferred way — it is what
+          // the two halves are called in the source, and reading a row without
+          // it means hunting for which marker this prose belongs to. Before the
+          // gist, so the gist keeps the `:last-child` ellipsis.
+          ...(n.deferred ? [el("span", { class: "note-item-def" }, [n.deferred.name])] : []),
           el("span", {}, [gist || "#" + n.command]),
         ],
       ),
@@ -2679,8 +2696,11 @@ function openNoteMenu(e: MouseEvent, at: number) {
         class: "menu-item",
         onClick: () => {
           closeSpellMenu();
-          runtime.view.dispatch({ selection: { anchor: note.to - 1 } });
-          insertSnippet(tieredNoteHere(doc, note.to - 1));
+          // At the end of the note's prose, which for a deferred note is not
+          // `to - 1` — the marker has no body to sit inside, and a sub-note
+          // written after it would have hung off the sentence, not the note.
+          runtime.view.dispatch({ selection: { anchor: note.bodyTo } });
+          insertSnippet(tieredNoteHere(doc, note.bodyTo));
         },
       },
       [el("b", {}, ["⁑ " + t("sc.tieredNote")])],
@@ -3836,7 +3856,7 @@ function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
  *  language it was already written in. */
 function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
   const doc = runtime.view.state.doc.toString();
-  const next = styles.setStyleArgs(doc, kind, changes, docConfig().dir === "ltr" ? "en" : "he");
+  const next = styles.setStyleArgs(doc, kind, changes, docLang());
   if (next === doc) return;
   runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
   scheduleCompile();

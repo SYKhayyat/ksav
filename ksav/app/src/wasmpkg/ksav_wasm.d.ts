@@ -4,52 +4,34 @@
 export function init(): void;
 
 /**
- * The command registry as JSON (same as the server's `/commands`).
+ * Call an engine service by name. JSON in, JSON out — the same contract as the
+ * server's route of the same name.
+ *
+ * An unknown name comes back as a failed-call JSON object rather than a panic:
+ * a panic in wasm poisons the module for the rest of the session, and the
+ * editor would lose its compiler over a typo in a call it should not have been
+ * able to make.
  */
-export function ksav_commands(): string;
+export function ksav_call(name: string, input_json: string): string;
 
 /**
- * Compile a document. Input/output JSON match the server's `/compile`.
+ * Every service this build can answer, as JSON — name, method, path, cost and
+ * whether it needs the installed application beside Girsa.
+ *
+ * Not used by the editor, which reads the generated TypeScript table at build
+ * time. It is here so the module can be *asked* what it holds: the smoke test
+ * in CI drives every service the engine claims rather than a list of names
+ * somebody typed into the test, which is the same mistake one layer up.
  */
-export function ksav_compile(input_json: string): string;
-
-/**
- * A click on the page, as a place in the source (same as the server's `/jump`).
- */
-export function ksav_jump(input_json: string): string;
-
-/**
- * The cursor, as a place on the page (same as the server's `/reveal`).
- */
-export function ksav_reveal(input_json: string): string;
-
-/**
- * Spell-check text (same as the server's `/spell`).
- */
-export function ksav_spell(input_json: string): string;
-
-/**
- * Suggestions for one word (same as the server's `/suggest`).
- */
-export function ksav_suggest(input_json: string): string;
-
-/**
- * The template registry as JSON (same as the server's `/templates`).
- */
-export function ksav_templates(): string;
+export function ksav_services(): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly init: () => void;
-    readonly ksav_commands: () => [number, number];
-    readonly ksav_compile: (a: number, b: number) => [number, number];
-    readonly ksav_jump: (a: number, b: number) => [number, number];
-    readonly ksav_reveal: (a: number, b: number) => [number, number];
-    readonly ksav_spell: (a: number, b: number) => [number, number];
-    readonly ksav_suggest: (a: number, b: number) => [number, number];
-    readonly ksav_templates: () => [number, number];
+    readonly ksav_call: (a: number, b: number, c: number, d: number) => [number, number];
+    readonly ksav_services: () => [number, number];
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

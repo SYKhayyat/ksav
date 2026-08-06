@@ -174,6 +174,63 @@ be a tree to mark as isolating.
 
 **Verdict: `rewrite`.**
 
+> ### ✅ Fixed — 5 August 2026
+>
+> Done as prescribed, from the registry outward rather than by patching the three
+> live symptoms. The finding below is kept verbatim; what follows is what
+> replaced it.
+>
+> **One registry.** `engine/src/services.rs` — eleven lines, one per service,
+> each carrying `name`, `method`, `path`, `Cost` (does it lay a document out) and
+> `Reach` (does it need the loopback to Girsa). `server.rs` routes by iterating
+> it; its twelve-arm `match`, its three `*_with_deadline` wrappers and its two
+> request parsers are gone. The wasm crate exports **one** function,
+> `ksav_call(name, input)`, instead of eight. The Tauri shell registers **one**
+> command, `ksav_call`, instead of thirteen — of which `ksav_girsa_presence` had
+> never had a caller, and `ksav_search_in_girsa` was a second command for what
+> the server had always answered as one flag on `/mekoros`.
+>
+> **One generated client.** `app/tools/emit-services.mjs` reads that table and
+> writes `app/src/services.gen.ts`. The Vite proxy is
+> `Object.fromEntries(SERVICES.map(…))`; the worker's `FNS` table is deleted;
+> `api.ts` forms no URL and names no Tauri command of its own; and
+> `WasmBackend.call(name: string, …)` — *"the ONLY enforced line"* was one line
+> away from the bug it could not see — is now `call(name: ServiceName, …)`.
+> `npm test` fails if the generated copy is stale.
+>
+> **The three live failures, at the root:**
+> - `sefarim` is reachable in the browser build because there is no table to
+>   forget it in. Verified by mutation: pointing `WasmBackend.sefarim` at another
+>   service turns three assertions red, one of them named *"citation autocomplete
+>   is reachable in the offline build"*.
+> - The dev proxy carries every route because it is the registry.
+> - The CSP is `ksav/policy/csp.txt`, one line, read by `vite.config.ts` and
+>   `include_str!`d by the engine. `app/src-tauri/build.rs` — the three lines
+>   that did nothing — now fails the desktop build with a diff when
+>   `tauri.conf.json` disagrees. Verified by mutation: removing
+>   `https://api.github.com` from Tauri's copy fails `cargo check` with both
+>   strings printed. Tauri's copy was also missing `worker-src` outright, which
+>   this finding did not catch either.
+>
+> **Fences, not comments** — the sentence `vite.config.ts:26` asserted is now
+> four things that fail: `emit-services.mjs --check` in `npm test`, `build.rs`,
+> three tests in `engine/src/policy.rs`, and `app/test/services.test.mjs` (96
+> assertions), which drives *every* method of all three backends through a stub
+> transport and asserts the name or path each one asks for is a service the
+> engine has. The wasm smoke test in CI now asks the module what it holds
+> (`ksav_services()`) and drives all of it, instead of calling seven exports it
+> had been told about — the same mistake one layer up, and the reason it could
+> not have caught `sefarim` by construction.
+>
+> **Not verified by launching.** The CSP intersection was read statically here
+> and is still read statically: what is proven is that the three copies are now
+> one string and that two builds fail if they stop being one. Nobody has watched
+> an installed Ksav report an update. That is §13's problem, not this one's.
+>
+> Cost: 11 files, +1 module, −13 Tauri commands, −7 wasm exports, −1 twelve-arm
+> `match`. `cargo test` 130 green in the engine lib, `npm test` 2,819 across 46
+> files, `tsc` clean, `cargo check` clean on engine and shell.
+
 Adding one engine function so it is reachable from all four delivery targets:
 
 ```
@@ -665,6 +722,14 @@ with the app. It was run once, by hand, on 4 August, and the output pasted into
 | "page setup **travels with the file**" | `ksav/README.md:110`, `start-here.md:160`, `from-word.md:43` | **False.** `serializeDoc` (`docs.ts:428-446`) writes `{format, version, title, body, assets, customCommands}`. `config: PageSetup` lives in IndexedDB and never leaves the machine |
 | "green across all **four** jobs" | `ksav/README.md:314` | `ci.yml` has five |
 
+> **Two rows corrected, 5 August 2026, and that is all.** Fixing §2 changed both
+> test counts, so `ksav/README.md`'s *"389 assertions"* and *"155 engine tests"*
+> now read 2,819 and 342 — true today, and still hand-written, which is the
+> finding. The eighty lines of test prescribed below were not written; they are
+> this item's work, not §2's. Three service paths in the same README *are* now
+> fenced (`services.test.mjs` asserts every route in the registry appears in the
+> API section), because that table was a fourth copy of the list §2 collapsed.
+
 `readme.test.mjs:1-14` argues, correctly, that *"documentation that names a key the
 application does not have is the same bug as a menu item that does nothing … and it
 is the easiest of all of them to ship, because prose compiles no matter what it
@@ -865,7 +930,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | # | Finding | Verdict | Cost to fix |
 |---|---|---|---|
 | 1 | Twelve markup scanners; six verified one-click contradictions | `rewrite` → one `spans.ts` | ~1 week, 10 call sites, no visible change |
-| 2 | Ten dispatch sites, one checked; `sefarim` dead in wasm, 6 proxy routes missing, CSP diverged so the update check is dead on both installer builds | `rewrite` → one registry + `build.rs` assertions | ~2 days |
+| 2 | ✅ **Fixed 5 Aug.** Ten dispatch sites, one checked; `sefarim` dead in wasm, 6 proxy routes missing, CSP diverged so the update check is dead on both installer builds | `rewrite` → one registry + `build.rs` assertions | ~2 days |
 | 3 | Nobody has written a document in it | `don't-build` the next wave | one kuntres |
 | 4 | 19 false/stale doc claims incl. two contradicting release-status statements and a false "page setup travels with the file" | `rewrite` → 80 lines of test | ~half a day |
 | 5 | `ksav.typ` writes the apparatus 3× and fixed one bug twice | `rewrite` → `_band_apparatus` | ~2 days, 350→135 lines |

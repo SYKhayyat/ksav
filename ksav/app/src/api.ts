@@ -1,6 +1,16 @@
-// Backend abstraction. Today: HttpBackend (talks to the Rust `ksav serve`).
-// M3 will add a WasmBackend with the identical interface so the app runs with
-// no server. The rest of the app depends only on this interface.
+// Backend abstraction: three transports, one contract.
+//
+// `HttpBackend` talks to the Rust `ksav serve` over HTTP, `WasmBackend` runs the
+// engine in the browser through a worker, `TauriBackend` calls it in-process in
+// the desktop app. The rest of the app depends only on the interface.
+//
+// What none of them do anymore is name the engine's services themselves. Routes
+// and command names come from `services.gen.ts`, which is generated from the
+// engine's own registry — because when they were spelled out here, the wasm one
+// spelled `sefarim` in a way the worker had never heard of and nothing but a
+// writer noticing could have found it.
+
+import { SERVICE_PATH, type ServiceName } from "./services.gen";
 
 export interface DocConfig {
   font: string;
@@ -570,76 +580,67 @@ export class HttpBackend implements Backend, Sources {
   private cache = new CompileCache();
   constructor(private base = "") {}
 
+  /** GET a service. The path is the registry's, not this file's opinion. */
+  private ask(service: ServiceName): Promise<Response> {
+    return fetch(this.base + SERVICE_PATH[service]);
+  }
+
+  /** POST a service, with its request body. */
+  private send(service: ServiceName, body: unknown): Promise<Response> {
+    return fetch(this.base + SERVICE_PATH[service], {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     return this.cache.compile(async (extra) => {
-      const res = await fetch(this.base + "/compile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, ...cfg, ...extra }),
-      });
+      const res = await this.send("compile", { body, ...cfg, ...extra });
       if (!res.ok) throw new Error(`compile ${res.status}`);
       return res.json();
     }, assets);
   }
 
   async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
-    const res = await fetch(this.base + "/jump", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, ...cfg, ...assets, ...at }),
-    });
+    const res = await this.send("jump", { body, ...cfg, ...assets, ...at });
     if (!res.ok) return null;
     return readSpot(await res.json());
   }
 
   async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
-    const res = await fetch(this.base + "/reveal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, ...cfg, ...assets, ...at }),
-    });
+    const res = await this.send("reveal", { body, ...cfg, ...assets, ...at });
     if (!res.ok) return [];
     return readPoints(await res.json());
   }
 
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    const res = await fetch(this.base + "/spell", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, user_words: userWords, suggest }),
-    });
+    const res = await this.send("spell", { text, user_words: userWords, suggest });
     if (!res.ok) throw new Error(`spell ${res.status}`);
     return res.json();
   }
 
   async suggest(word: string, userWords: string): Promise<string[]> {
-    const res = await fetch(this.base + "/suggest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ word, user_words: userWords }),
-    });
+    const res = await this.send("suggest", { word, user_words: userWords });
     if (!res.ok) throw new Error(`suggest ${res.status}`);
     return (await res.json()).suggestions ?? [];
   }
 
   async commands(): Promise<CommandDef[]> {
-    const res = await fetch(this.base + "/commands");
-    return res.json();
+    return (await this.ask("commands")).json();
   }
 
   async sefarim(): Promise<SeferDef[]> {
-    const res = await fetch(this.base + "/sefarim");
-    return (await res.json()).sefarim ?? [];
+    return (await (await this.ask("sefarim")).json()).sefarim ?? [];
   }
 
   async templates(): Promise<TemplateDef[]> {
-    const res = await fetch(this.base + "/templates");
-    return res.json();
+    return (await this.ask("templates")).json();
   }
 
   async inbox(): Promise<Arrival[]> {
     try {
-      const res = await fetch(this.base + "/inbox");
+      const res = await this.ask("inbox");
       return res.ok ? await res.json() : [];
     } catch {
       // The editor polls this every second; a server that went away is a
@@ -649,29 +650,17 @@ export class HttpBackend implements Backend, Sources {
   }
 
   async mekoros(phrase: string, except?: string): Promise<Mekoros> {
-    const res = await fetch(this.base + "/mekoros", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phrase, except: except ?? null }),
-    });
+    const res = await this.send("mekoros", { phrase, except: except ?? null });
     return res.json();
   }
 
+  /** The same service, asked to open Girsa's search instead of answering. */
   async searchInGirsa(phrase: string): Promise<void> {
-    await fetch(this.base + "/mekoros", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phrase, search: true }),
-    });
+    await this.send("mekoros", { phrase, search: true });
   }
 
   async linkify(text: string): Promise<string> {
-    const res = await fetch(this.base + "/linkify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    const out = await res.json();
+    const out = await (await this.send("linkify", { text })).json();
     if (out.error) throw new Error(out.error);
     return out.text ?? text;
   }
@@ -767,7 +756,17 @@ export class WasmBackend implements Backend {
     this.cache.reset();
   }
 
-  private async call(name: string, input: string, timeoutMs?: number): Promise<string> {
+  /**
+   * One call to the engine worker, by service name.
+   *
+   * `name` was a `string`, which is how `sefarim` came to be called on a worker
+   * that had never been told about it: the lookup on the other side produced
+   * `undefined`, the call threw, the caller swallowed it, and citation
+   * autocomplete was dead in this build with nothing anywhere reporting it.
+   * `ServiceName` is generated from the engine's registry, so the same mistake
+   * is now a compile error on this line.
+   */
+  private async call(name: ServiceName, input: string, timeoutMs?: number): Promise<string> {
     const w = await this.ensure();
     const id = this.nextId++;
     return new Promise<string>((resolve, reject) => {
@@ -888,6 +887,19 @@ export class TauriBackend implements Backend, Sources {
     }
     return this.invoke!;
   }
+
+  /**
+   * One call to the engine, by service name — the same name the HTTP build puts
+   * in a URL and the browser build passes to the wasm module.
+   *
+   * There were thirteen `ksav_*` commands here, each of which also had to be
+   * listed a second time in the shell's `generate_handler!`, where forgetting it
+   * is a runtime rejection rather than a compile error. There is one now, and
+   * `ServiceName` is generated from the registry it dispatches through.
+   */
+  private async call(service: ServiceName, input = ""): Promise<string> {
+    return (await this.inv())("ksav_call", { name: service, input });
+  }
   /**
    * The writer's dictionary as a file, and how to write it back (B29).
    *
@@ -918,12 +930,9 @@ export class TauriBackend implements Backend, Sources {
   }
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
-    const invoke = await this.inv();
     const run = this.cache.compile(
       async (extra) =>
-        JSON.parse(
-          await invoke("ksav_compile", { input: JSON.stringify({ body, ...cfg, ...extra }) }),
-        ) as CompileResult,
+        JSON.parse(await this.call("compile", JSON.stringify({ body, ...cfg, ...extra }))) as CompileResult,
       assets,
     );
     // Typst cannot be interrupted, and the in-process compile runs off the UI
@@ -953,10 +962,7 @@ export class TauriBackend implements Backend, Sources {
    */
   async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
     try {
-      const invoke = await this.inv();
-      return readSpot(
-        JSON.parse(await invoke("ksav_jump", { input: JSON.stringify({ body, ...cfg, ...assets, ...at }) })),
-      );
+      return readSpot(JSON.parse(await this.call("jump", JSON.stringify({ body, ...cfg, ...assets, ...at }))));
     } catch {
       return null;
     }
@@ -964,9 +970,8 @@ export class TauriBackend implements Backend, Sources {
 
   async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
     try {
-      const invoke = await this.inv();
       return readPoints(
-        JSON.parse(await invoke("ksav_reveal", { input: JSON.stringify({ body, ...cfg, ...assets, ...at }) })),
+        JSON.parse(await this.call("reveal", JSON.stringify({ body, ...cfg, ...assets, ...at }))),
       );
     } catch {
       return [];
@@ -974,40 +979,36 @@ export class TauriBackend implements Backend, Sources {
   }
 
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    const invoke = await this.inv();
-    return JSON.parse(
-      await invoke("ksav_spell", { input: JSON.stringify({ text, user_words: userWords, suggest }) }),
-    );
+    return JSON.parse(await this.call("spell", JSON.stringify({ text, user_words: userWords, suggest })));
   }
   async suggest(word: string, userWords: string): Promise<string[]> {
-    const invoke = await this.inv();
-    const out = JSON.parse(
-      await invoke("ksav_suggest", { input: JSON.stringify({ word, user_words: userWords }) }),
-    );
+    const out = JSON.parse(await this.call("suggest", JSON.stringify({ word, user_words: userWords })));
     return out.suggestions ?? [];
   }
   async commands(): Promise<CommandDef[]> {
-    return JSON.parse(await (await this.inv())("ksav_commands"));
+    return JSON.parse(await this.call("commands"));
   }
   async sefarim(): Promise<SeferDef[]> {
-    return JSON.parse(await (await this.inv())("ksav_sefarim")).sefarim ?? [];
+    return JSON.parse(await this.call("sefarim")).sefarim ?? [];
   }
   async templates(): Promise<TemplateDef[]> {
-    return JSON.parse(await (await this.inv())("ksav_templates"));
+    return JSON.parse(await this.call("templates"));
   }
   async inbox(): Promise<Arrival[]> {
-    return JSON.parse(await (await this.inv())("ksav_inbox"));
+    return JSON.parse(await this.call("inbox"));
   }
+  // The request bodies are the HTTP contract's, because there is one contract:
+  // these used to be Tauri-shaped argument lists, which is how the desktop build
+  // came to have a `ksav_search_in_girsa` command that the server answers as one
+  // flag on `/mekoros`.
   async mekoros(phrase: string, except?: string): Promise<Mekoros> {
-    return JSON.parse(
-      await (await this.inv())("ksav_mekoros", { phrase, except: except ?? null }),
-    );
+    return JSON.parse(await this.call("mekoros", JSON.stringify({ phrase, except: except ?? null })));
   }
   async searchInGirsa(phrase: string): Promise<void> {
-    await (await this.inv())("ksav_search_in_girsa", { phrase });
+    await this.call("mekoros", JSON.stringify({ phrase, search: true }));
   }
   async linkify(text: string): Promise<string> {
-    const out = JSON.parse(await (await this.inv())("ksav_linkify", { text }));
+    const out = JSON.parse(await this.call("linkify", JSON.stringify({ text })));
     if (out.error) throw new Error(out.error);
     return out.text ?? text;
   }
@@ -1024,7 +1025,8 @@ export async function createBackend(): Promise<Backend & Partial<Sources>> {
     return new TauriBackend();
   }
   try {
-    const res = await fetch("/commands", { signal: AbortSignal.timeout(800) });
+    // Any service would do as a knock; the command registry is the cheapest.
+    const res = await fetch(SERVICE_PATH.commands, { signal: AbortSignal.timeout(800) });
     if (res.ok) return new HttpBackend();
   } catch {
     /* no server — fall through to wasm if this build includes it */

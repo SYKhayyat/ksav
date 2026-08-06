@@ -23,9 +23,14 @@ pub mod jump;
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod post;
+/// The rules more than one build has to obey, read from `ksav/policy/`.
+pub mod policy;
 pub mod probe;
 /// The catalogue of sefarim, and the order a source index prints them in.
 pub mod sefarim;
+/// Every engine service, once — what `server.rs`, the wasm binding and the
+/// Tauri shell all dispatch through instead of each keeping its own list.
+pub mod services;
 pub mod source;
 pub mod spell;
 pub mod templates;

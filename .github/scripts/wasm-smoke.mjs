@@ -51,10 +51,36 @@ const check = (name, condition, detail = "") => {
   }
 };
 
+// Every service the module claims, driven through the one export the worker
+// uses. Asked rather than listed: this test used to call `engine.ksav_spell`
+// and friends directly, which is a *different door* from the one the editor
+// goes through — the worker had its own dispatch table, and the service it was
+// missing (`sefarim`) was therefore invisible here by construction. Now the
+// module says what it holds and this drives all of it, so a service the engine
+// has and the browser build cannot reach is a red build.
+const services = JSON.parse(engine.ksav_services());
+const call = (name, input = "") => JSON.parse(engine.ksav_call(name, input));
+check("the module reports its services", services.length > 5, `${services.length} services`);
+for (const s of services) {
+  if (s.nativeOnly) continue;
+  const out = call(s.name, s.method === "GET" ? "" : "{}");
+  // The shape differs per service; what must never happen is the dispatcher
+  // failing to find the name it just handed out.
+  check(
+    `${s.name} is answered by the module`,
+    !JSON.stringify(out).includes("no engine service named"),
+    JSON.stringify(out).slice(0, 120),
+  );
+}
+check(
+  "a name nothing answers is refused rather than crashing the module",
+  call("nonesuch").ok === false,
+);
+
 // The registries drive the toolbar, the palette and the menus. Empty ones are a
 // working editor with nothing in it, which is not a passing state.
-const commands = JSON.parse(engine.ksav_commands());
-const templates = JSON.parse(engine.ksav_templates());
+const commands = call("commands");
+const templates = call("templates");
 check("command registry is populated", commands.length > 50, `${commands.length} commands`);
 check("template registry is populated", templates.length > 0, `${templates.length} templates`);
 
@@ -65,7 +91,7 @@ for (const template of templates) {
     body: template.body,
     ...(template.lang === "en" ? { dir: "ltr", lang: "en" } : {}),
   };
-  const result = JSON.parse(engine.ksav_compile(JSON.stringify(request)));
+  const result = call("compile", JSON.stringify(request));
   const errors = (result.diagnostics ?? []).filter((d) => d.severity === "error");
   check(
     `template ${template.id} compiles`,
@@ -77,9 +103,7 @@ for (const template of templates) {
 // Both lexicons have to be present and separable: a wasm build that shipped one
 // of them would still answer, and would quietly stop checking half of a
 // bilingual document.
-const spell = JSON.parse(
-  engine.ksav_spell(JSON.stringify({ text: "שלום עולם helo wrold", user_words: "" })),
-);
+const spell = call("spell", JSON.stringify({ text: "שלום עולם helo wrold", user_words: "" }));
 const flagged = (spell.misspellings ?? []).map((m) => m.word);
 check("hebrew lexicon loaded", (spell.lexicon_sizes?.he ?? 0) > 1000, `${spell.lexicon_sizes?.he}`);
 check("english lexicon loaded", (spell.lexicon_sizes?.en ?? 0) > 1000, `${spell.lexicon_sizes?.en}`);
@@ -89,15 +113,13 @@ check(
   `flagged ${JSON.stringify(flagged)}`,
 );
 
-const suggestions = JSON.parse(
-  engine.ksav_suggest(JSON.stringify({ word: "wrold", user_words: "" })),
-).suggestions ?? [];
+const suggestions = call("suggest", JSON.stringify({ word: "wrold", user_words: "" })).suggestions ?? [];
 check("suggestions are offered", suggestions.includes("world"), JSON.stringify(suggestions.slice(0, 4)));
 
 // A malformed request must come back as a failed compile with a reason, not as
 // a blank page reported as success — the browser build shares that path with
 // the server, and it is worth pinning on both.
-const malformed = JSON.parse(engine.ksav_compile(JSON.stringify({ body: 12345 })));
+const malformed = call("compile", JSON.stringify({ body: 12345 }));
 check(
   "a request with no usable body is an error",
   malformed.ok === false && malformed.pages_svg.length === 0,

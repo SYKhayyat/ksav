@@ -48,6 +48,7 @@ const MODULES = [
   "review",
   "ruler",
   "sefarim",
+  "services.gen",
   "settings",
   "share",
   "styles",

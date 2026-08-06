@@ -1,8 +1,11 @@
 import { defineConfig } from "vite";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 
 const pkgVersion: string = createRequire(import.meta.url)("./package.json").version;
 import { fileURLToPath } from "node:url";
+
+import { SERVICES } from "./src/services.gen";
 
 // The Ksav engine (cargo run -- serve) runs on :7878 and exposes the compile +
 // registry endpoints. In dev we proxy to it; in production the Rust binary
@@ -21,24 +24,18 @@ const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 // `innerHTML` from per-page SVG, and the prose-mode table widget builds its own
 // markup — so the two builds that receive documents from other people (the
 // browser build and `ksav serve`) had no second line of defence, while only the
-// Tauri build carried a real CSP. This is the *same* policy Tauri already
-// enforces (see src-tauri/tauri.conf.json), so it is a no-op for the desktop
-// build and closes the gap for the other two: `wasm-unsafe-eval` lets the WASM
-// engine instantiate, `connect-src 'self'` lets the server build reach its own
-// API, and everything else is denied.
+// Tauri build carried a real CSP.
+//
+// This was a string here, and the comment beside it asserted that it was the
+// *same* policy Tauri already enforced. It was not: this copy was the only one
+// that allowed `https://api.github.com`, Tauri's was missing `worker-src`, and
+// because policies delivered to one document are **intersected** rather than
+// overridden, the narrowest copy silently won. See ksav/policy/README.md.
 //
 // It is injected only into the *built* HTML, never the dev server's: a strict
 // policy there would block Vite's inline HMR client and its eval, breaking
 // `npm run dev`. In production the bundle is external, same-origin scripts.
-const CSP =
-  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob:; font-src 'self' data:; " +
-  // `api.github.com` is the update check and nothing else. One named origin
-  // rather than a wildcard, and it is worth writing down what it buys: an
-  // installed Ksav has no other way to learn that a release exists, because the
-  // installers are downloaded from GitHub and nothing calls home.
-  "connect-src 'self' ipc: http://ipc.localhost https://api.github.com; " +
-  "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'";
+const CSP = readFileSync(here("../policy/csp.txt"), "utf8").trim();
 
 export default defineConfig({
   define: {
@@ -82,17 +79,17 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: {
-      "/compile": engine,
-      // The checker and its suggestions were missing here, so every spell check
-      // in `npm run dev` 404'd against Vite itself — the feature looked dead in
-      // the one place it is developed. Production is unaffected: there the Rust
-      // binary serves the SPA from its own origin.
-      "/spell": engine,
-      "/suggest": engine,
-      "/commands": engine,
-      "/templates": engine,
-    },
+    // Every route the engine answers, from the engine's own registry.
+    //
+    // This was a hand-written list, and it carried five of the twelve routes:
+    // `/jump`, `/reveal`, `/sefarim`, `/inbox`, `/mekoros` and `/linkify` all
+    // 404'd against Vite itself, so click-to-jump and citation autocomplete
+    // looked dead in the one place they are developed. A comment here used to
+    // congratulate itself for having fixed exactly that for `/spell` and
+    // `/suggest`, and left the other six behind. Production was never affected,
+    // which is why nobody noticed: there the Rust binary serves the SPA from its
+    // own origin, so the paths just work.
+    proxy: Object.fromEntries(SERVICES.map((s) => [s.path, engine])),
   },
   build: {
     outDir: "dist",

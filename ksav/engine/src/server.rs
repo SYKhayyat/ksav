@@ -1,8 +1,14 @@
 //! Minimal local HTTP API for the Ksav editor.
 //!
 //! - `GET  /`        → the two-panel web editor (bundled at build time)
-//! - `POST /compile` → JSON `{body, font, size_pt, margin_cm, dir}` in,
-//!   JSON `{ok, pages_svg, pdf_base64, diagnostics}` out.
+//! - every service in [`crate::services`], at its own path — `POST /compile`
+//!   takes JSON `{body, font, size_pt, margin_cm, dir}` and answers JSON
+//!   `{ok, pages_svg, pdf_base64, diagnostics}`, and the rest are listed there.
+//!
+//! This file used to carry its own copy of that list — a twelve-arm `match`,
+//! written out beside three other hand-maintained lists in three other builds.
+//! It carries none now: the routing below iterates the registry, so a service
+//! added there is served here without this file being touched at all.
 //!
 //! This is exactly the backend a Tauri or browser front end talks to; the
 //! native shell can be wrapped around it later without touching this contract.
@@ -12,6 +18,11 @@ use std::time::Duration;
 
 use tiny_http::{Header, Method, Response, Server};
 
+// `error_json` lives beside the registry: a refusal from the dispatcher and a
+// refusal from the service itself have to be indistinguishable to whoever reads
+// the answer, so there is one function that writes both.
+use crate::services::{self, error_json, Cost, Service};
+
 /// Fallback single-file editor, used when the `embed-ui` feature is off.
 const INDEX_HTML: &str = include_str!("../web/index.html");
 
@@ -19,14 +30,16 @@ const INDEX_HTML: &str = include_str!("../web/index.html");
 ///
 /// The engine's output becomes HTML in the browser (per-page SVG assigned to
 /// `innerHTML`), and `ksav serve` had no CSP at all — so a document arriving from
-/// someone else ran with no second line of defence. This is the same policy the
-/// Tauri build enforces and the built SPA carries as a `<meta>` tag; setting it as
-/// a header too covers the fallback single-file editor, which is not the built
-/// bundle. `wasm-unsafe-eval` is harmless here and kept so the one string matches.
+/// someone else ran with no second line of defence. Setting it as a header
+/// covers the fallback single-file editor, which is not the built bundle.
+///
+/// It is [`crate::policy::csp`] and not a string here, because this was one of
+/// three copies of that string and the comment above it used to claim all three
+/// were the same policy. They were not; see `ksav/policy/README.md`.
 #[cfg_attr(not(feature = "embed-ui"), allow(dead_code))]
-const CSP: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; \
-     img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; \
-     worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'";
+fn csp() -> &'static str {
+    crate::policy::csp()
+}
 
 /// The full built SPA (ksav/app/dist), embedded when `embed-ui` is enabled.
 #[cfg(feature = "embed-ui")]
@@ -70,7 +83,7 @@ fn serve_static(request: tiny_http::Request, url: &str) {
             // The document itself carries the policy; a header is ignored on the
             // other asset types, so attaching it only to HTML keeps it meaningful.
             if rel.ends_with(".html") {
-                resp = resp.with_header(header("Content-Security-Policy", CSP));
+                resp = resp.with_header(header("Content-Security-Policy", csp()));
             }
             let _ = request.respond(resp);
             return;
@@ -139,17 +152,6 @@ fn json_response(json: String) -> Response<std::io::Cursor<Vec<u8>>> {
         .with_header(header("Content-Type", "application/json; charset=utf-8"))
 }
 
-fn error_json(message: &str) -> String {
-    serde_json::json!({
-        "ok": false,
-        "pages_svg": [],
-        "pdf_base64": serde_json::Value::Null,
-        "diagnostics": [{ "severity": "error", "message": message }],
-        "typst_source": "",
-    })
-    .to_string()
-}
-
 /// Wall-clock ceiling for a single compile.
 ///
 /// Typst has no mid-compile cancellation, and it does not need malice to run
@@ -189,14 +191,9 @@ static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
 /// the timeout message says the compile was **abandoned and will finish in the
 /// background**, and a refusal at the cap names how many are in flight. Those two
 /// sentences and this paragraph have to agree, and for a while they did not.
-fn compile_with_deadline(body: &str) -> String {
-    run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
-        crate::compile_request(&b)
-    })
-}
-
-/// A jump costs a full layout, so it goes through the same door.
+/// Run one service, giving a layout the deadline and the cap it needs.
 ///
+/// A jump costs a full layout, so it goes through the same door as a compile.
 /// Both directions between the source and the page have to lay the document out
 /// to answer at all — that is what makes the answer exact instead of a guess —
 /// which means a document that takes eleven seconds to compile takes eleven
@@ -204,20 +201,22 @@ fn compile_with_deadline(body: &str) -> String {
 /// clicking repeatedly on a slow document could pile up unbounded layouts that
 /// the compile path is carefully arranged to prevent.
 ///
-/// A refusal or a timeout comes back as `error_json`, which carries no `line`
+/// A refusal or a timeout comes back as [`error_json`], which carries no `line`
 /// and no `points`, so the client reads it as "no answer" and leaves the cursor
 /// alone. That is the right behaviour for a busy server and also for a click on
 /// a page margin, which keeps the client from having to tell them apart.
-fn jump_with_deadline(body: &str) -> String {
-    run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
-        crate::jump::jump_request(&b)
-    })
-}
-
-fn reveal_with_deadline(body: &str) -> String {
-    run_bounded(body.to_string(), compile_deadline(), worker_count(), |b| {
-        crate::jump::reveal_request(&b)
-    })
+///
+/// Which services are layouts is [`Cost`] on the service, not a list here.
+/// Three of these wrappers used to exist, one per bounded route, and a fourth
+/// bounded route would have needed a fourth — written by whoever remembered.
+fn run_service(svc: &'static Service, body: String) -> String {
+    match svc.cost {
+        Cost::Layout => run_bounded(body, compile_deadline(), worker_count(), |b| (svc.call)(&b)),
+        // Everything else answers from a registry, a queue or the loopback, and
+        // the pool's own worker is the right place for it: capping a spell check
+        // behind a stuck compile is the failure the pool exists to prevent.
+        Cost::Work | Cost::Quick => (svc.call)(&body),
+    }
 }
 
 /// The deadline-and-cap machinery, with the actual work passed in.
@@ -277,89 +276,48 @@ where
     }
 }
 
+/// tiny_http's method, as the registry's — for the two the API answers.
+fn asked_method(method: &Method) -> Option<services::Method> {
+    match method {
+        Method::Get => Some(services::Method::Get),
+        Method::Post => Some(services::Method::Post),
+        _ => None,
+    }
+}
+
 /// Handle one request. Runs on a worker thread.
 fn handle(mut request: tiny_http::Request, addr_str: &str) {
     let method = request.method().clone();
     let url = request.url().to_string();
-    // A JSON endpoint that reads a body: check the size before doing any work.
-    let post = |request: &mut tiny_http::Request, f: fn(&str) -> String| match read_body(request) {
-        Ok(body) => f(&body),
-        Err(e) => error_json(&e),
-    };
-    match (method, url.as_str()) {
-        (Method::Post, "/compile") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, compile_with_deadline);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        // Inverse search: a click on the page, as a place in the source.
-        (Method::Post, "/jump") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, jump_with_deadline);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        // Forward search: the cursor, as a place on the page.
-        (Method::Post, "/reveal") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, reveal_with_deadline);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        (Method::Post, "/spell") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, crate::spell::spell_request);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        (Method::Post, "/suggest") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, crate::spell::suggest_request);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        (Method::Get, "/commands") => {
-            let cors = cors_header(&request, addr_str);
-            let resp = json_response(crate::commands::commands_json());
-            let _ = request.respond(with_cors(resp, cors));
-        }
-        // Sources that arrived from Girsa over the loopback and are waiting
-        // for a cursor. Drained, not read — see `crate::post`.
-        (Method::Get, "/inbox") => {
-            let cors = cors_header(&request, addr_str);
-            let resp = json_response(crate::post::drain_json());
-            let _ = request.respond(with_cors(resp, cors));
-        }
-        // Cite-on-selection (W18): the editor asks, this forwards to Girsa,
-        // and what comes back is Girsa's answer unchanged.
-        (Method::Post, "/mekoros") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, mekoros_request);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        // Linkify (W19): Girsa finds the citations, this rewrites them.
-        (Method::Post, "/linkify") => {
-            let cors = cors_header(&request, addr_str);
-            let json = post(&mut request, linkify_request);
-            let _ = request.respond(with_cors(json_response(json), cors));
-        }
-        // The sefer catalogue, for the editor's citation autocomplete. The same
-        // list the source index sorts by, so what the editor offers and what the
-        // index files it under can never be two different opinions.
-        (Method::Get, "/sefarim") => {
-            let cors = cors_header(&request, addr_str);
-            let resp = json_response(crate::sefarim::catalog_json());
-            let _ = request.respond(with_cors(resp, cors));
-        }
-        (Method::Get, "/templates") => {
-            let cors = cors_header(&request, addr_str);
-            let resp = json_response(crate::templates::templates_json());
-            let _ = request.respond(with_cors(resp, cors));
-        }
-        (Method::Options, _) => {
+
+    // The API is the registry. Every service is served here, with its own cost,
+    // and this file names none of them: the twelve-arm `match` that used to be
+    // here was the third of four hand-written copies of that list, and the copy
+    // in `vite.config.ts` had six routes missing for a month.
+    if let Some(svc) = asked_method(&method).and_then(|m| services::route(m, url.as_str())) {
+        let cors = cors_header(&request, addr_str);
+        // A JSON endpoint that reads a body: check the size before doing any
+        // work. A GET service is handed nothing, which is what it expects.
+        let json = match svc.method {
+            services::Method::Post => match read_body(&mut request) {
+                Ok(body) => run_service(svc, body),
+                Err(e) => error_json(&e),
+            },
+            services::Method::Get => run_service(svc, String::new()),
+        };
+        let _ = request.respond(with_cors(json_response(json), cors));
+        return;
+    }
+
+    match method {
+        Method::Options => {
             let cors = cors_header(&request, addr_str);
             let resp = Response::empty(204)
                 .with_header(header("Access-Control-Allow-Methods", "POST, GET, OPTIONS"))
                 .with_header(header("Access-Control-Allow-Headers", "Content-Type"));
             let _ = request.respond(with_cors(resp, cors));
         }
-        (Method::Get, _) => serve_static(request, &url),
+        Method::Get => serve_static(request, &url),
         _ => {
             let _ = request.respond(Response::from_string("not found").with_status_code(404));
         }
@@ -431,49 +389,6 @@ pub fn serve(addr: &str) {
     }
     for h in handles {
         let _ = h.join();
-    }
-}
-
-/// `{"phrase": "…", "except": null, "search": false}` → Girsa's answer.
-fn mekoros_request(body: &str) -> String {
-    #[derive(serde::Deserialize)]
-    struct Asked {
-        phrase: String,
-        #[serde(default)]
-        except: Option<String>,
-        /// Ask Girsa to open its search on this phrase instead of answering.
-        #[serde(default)]
-        search: bool,
-    }
-    let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-        return error_json(
-            "הבקשה אינה מכילה ביטוי לחיפוש · the request carries no phrase to look for",
-        );
-    };
-    if asked.search {
-        return match crate::post::search_in_girsa(&asked.phrase) {
-            Ok(()) => r#"{"opened":true}"#.to_string(),
-            Err(why) => error_json(&why),
-        };
-    }
-    match crate::post::where_from(&asked.phrase, asked.except.as_deref()) {
-        Ok(answer) => answer,
-        Err(why) => error_json(&why),
-    }
-}
-
-/// `{"text": "…"}` → `{"text": "…with the citations live…"}`.
-fn linkify_request(body: &str) -> String {
-    #[derive(serde::Deserialize)]
-    struct Asked {
-        text: String,
-    }
-    let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-        return error_json("הבקשה אינה מכילה טקסט לסימון · the request carries no text to mark up");
-    };
-    match crate::post::linkify(&asked.text) {
-        Ok(text) => serde_json::json!({ "text": text }).to_string(),
-        Err(why) => error_json(&why),
     }
 }
 

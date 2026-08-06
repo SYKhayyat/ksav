@@ -16,6 +16,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
+# `build.rs` reads tauri.conf.json to check its Content-Security-Policy against
+# ksav/policy/csp.txt — see the note at the top of that file for what the two
+# copies had already cost.
+serde_json = "1.0"
 
 [dependencies]
 serde_json = "1.0"

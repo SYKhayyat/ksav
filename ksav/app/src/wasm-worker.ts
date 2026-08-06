@@ -16,15 +16,24 @@
 
 import initWasm, * as engine from "./wasmpkg/ksav_wasm.js";
 import wasmUrl from "./wasmpkg/ksav_wasm_bg.wasm?url";
+import type { ServiceName } from "./services.gen";
 
-export type WorkerCall =
-  | "compile"
-  | "jump"
-  | "reveal"
-  | "spell"
-  | "suggest"
-  | "commands"
-  | "templates";
+// There is no table here anymore, and that is the point.
+//
+// This file used to carry a `WorkerCall` union and an `FNS` record mapping each
+// name to a `ksav_*` export, written by hand beside the wasm crate's list of
+// exports, written by hand beside the server's routes. `sefarim` was added to
+// the engine, to the wasm binding and to `WasmBackend.sefarim()` — and not to
+// the two lines here. `FNS["sefarim"]` was `undefined`, the call threw,
+// `sefarim.ts` caught it, and citation autocomplete was dead in the offline
+// build with nothing anywhere reporting it. `tsc` could not see it either,
+// because the caller's `call(name: string, …)` took a string.
+//
+// The module now has one export and the name is data. `ServiceName` comes from
+// `services.gen.ts`, which is generated from the engine's registry, so a service
+// the engine has is a service this worker can already answer, and a name the
+// engine does not have will not compile on the calling side.
+export type WorkerCall = ServiceName;
 
 export interface WorkerRequest {
   id: number;
@@ -36,16 +45,6 @@ export type WorkerResponse =
   | { id: number; ok: true; output: string }
   | { id: number; ok: false; error: string };
 
-const FNS: Record<WorkerCall, (input: string) => string> = {
-  compile: (i) => engine.ksav_compile(i),
-  jump: (i) => engine.ksav_jump(i),
-  reveal: (i) => engine.ksav_reveal(i),
-  spell: (i) => engine.ksav_spell(i),
-  suggest: (i) => engine.ksav_suggest(i),
-  commands: () => engine.ksav_commands(),
-  templates: () => engine.ksav_templates(),
-};
-
 // The module is ~23 MB, so instantiation is started at load and awaited per
 // call rather than repeated: the first compile pays for it, the rest do not.
 const ready = initWasm({ module_or_path: wasmUrl });
@@ -55,7 +54,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const reply = (r: WorkerResponse) => (self as unknown as Worker).postMessage(r);
   try {
     await ready;
-    reply({ id, ok: true, output: FNS[call](input) });
+    reply({ id, ok: true, output: engine.ksav_call(call, input) });
   } catch (err) {
     // A panic inside the engine must come back as a rejected call, not as an
     // unhandled worker error that leaves the page waiting forever.

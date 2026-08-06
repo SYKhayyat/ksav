@@ -304,7 +304,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 389 editor assertions, 155 engine
+- [x] **CI, running and green** — typecheck, 2,819 editor assertions, 342 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -351,16 +351,22 @@ run, the font sizes on it, and its text.
 # 1. Run the engine (HTTP API on :7878)
 cargo run --manifest-path engine/Cargo.toml -- serve
 
-# 2. Run the SPA dev server (proxies API to the engine)
+# 2. Run the SPA dev server (proxies every engine service to the engine)
 cd app && npm install && npm run dev        # http://localhost:5173
 ```
+
+The dev proxy is built from the engine's service registry, so every route the
+engine answers is forwarded. It was a hand-written list of five for a while, and
+`/jump`, `/reveal`, `/sefarim`, `/inbox`, `/mekoros` and `/linkify` all 404'd
+against Vite itself — features that worked in production and looked broken in the
+one place they are developed.
 
 ## Test
 
 ```sh
-cd app && npm test                          # 389 assertions across 9 files
+cd app && npm test                          # 2,819 assertions across 45 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 155 tests
+cargo test --manifest-path engine/Cargo.toml            # 342 tests, 22 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -483,26 +489,56 @@ cargo run --manifest-path engine/Cargo.toml -- engine/examples/sample.ksav out/
 cargo run --manifest-path engine/Cargo.toml -- serve      # http://127.0.0.1:7878
 ```
 
-## HTTP API (used by the editor)
+## The engine's services
 
-- `GET  /`          — the web editor
-- `POST /compile`   — `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}`
-                      → `{ok, pages_svg[], pdf_base64, diagnostics[], typst_source}`
-- `POST /jump`      — inverse search: `{body, page, x_pt, y_pt, …DocConfig}`
-                      → `{line, column}`, or `{}` for a point the writer did not
-                      type (a margin, a running head, a note-band rule)
-- `POST /reveal`    — forward search: `{body, line, column, …DocConfig}`
-                      → `{points: [{page, x_pt, y_pt}]}`, empty when it printed
-                      nowhere and several when it printed more than once
-- `GET  /commands`  — the command registry (JSON)
-- `GET  /templates` — the template registry (JSON, includes each body)
+Ksav ships four ways — `ksav serve`, the desktop app, the in-browser wasm build,
+and the Vite dev server proxying to a running engine. All four reach **one
+registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
+
+| Service | HTTP | In / out |
+|---|---|---|
+| `compile` | `POST /compile` | `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}` → `{ok, pages_svg[], pdf_base64, diagnostics[], typst_source}` |
+| `jump` | `POST /jump` | inverse search: `{body, page, x_pt, y_pt, …DocConfig}` → `{line, column}`, or `{}` for a point the writer did not type (a margin, a running head, a note-band rule) |
+| `reveal` | `POST /reveal` | forward search: `{body, line, column, …DocConfig}` → `{points: [{page, x_pt, y_pt}]}`, empty when it printed nowhere and several when it printed more than once |
+| `spell` | `POST /spell` | `{text, user_words, suggest}` → `{misspellings[], lexicon_sizes}` |
+| `suggest` | `POST /suggest` | `{word, user_words}` → `{suggestions[]}` |
+| `commands` | `GET /commands` | the command registry (JSON) |
+| `templates` | `GET /templates` | the template registry (JSON, includes each body) |
+| `sefarim` | `GET /sefarim` | the sefer catalogue, for citation autocomplete |
+| `inbox` | `GET /inbox` | sources Girsa handed over, drained not read |
+| `mekoros` | `POST /mekoros` | `{phrase, except, search}` → where the phrase is from, or `{opened:true}` when asked to open Girsa's search instead |
+| `linkify` | `POST /linkify` | `{text}` → `{text}` with the certain citations made live |
+
+`GET /` and everything else is the built editor, served as static files.
+
+The last three need the loopback to Girsa, so they exist in the browser build as
+a stated refusal rather than as a hole — `nativeOnly` in the generated table is
+why `WasmBackend` implements `Backend` and not `Sources`.
 
 Both jump directions lay the document out to answer, so they cost what a compile
-costs and go through the same deadline and concurrency cap. Coordinates are in
-Typst points, which is the unit each page's own SVG `viewBox` is written in —
-so a client converts with the drawn element's width and nothing else, and no
-zoom setting can put the two sides out of step. Lines are counted in the body
-that was sent, exactly as `diagnostics[].line` is.
+costs and go through the same deadline and concurrency cap — which is `Cost` on
+the service, not a rule each build writes down again. Coordinates are in Typst
+points, which is the unit each page's own SVG `viewBox` is written in — so a
+client converts with the drawn element's width and nothing else, and no zoom
+setting can put the two sides out of step. Lines are counted in the body that was
+sent, exactly as `diagnostics[].line` is.
+
+### Adding one
+
+One line in `engine/src/services.rs`, then `node tools/emit-services.mjs` in
+`app/`. That is the whole list. The HTTP route, the dev proxy entry, the wasm
+dispatch, the desktop command and the TypeScript name union all come from that
+table, and `npm test` fails if the generated copy is stale.
+
+It used to be eight files and eleven sites, of which exactly one was visible to a
+compiler. Four of the silent ten had already been forgotten by the time anybody
+counted: `sefarim` never reached the wasm worker's dispatch table, so citation
+autocomplete was dead in the offline build with nothing reporting it; the dev
+proxy carried five of twelve routes, so click-to-jump 404'd under `npm run dev`;
+and the Content-Security-Policy existed as three copies that had diverged, which
+killed the update check in both builds that ship an installer. That policy is now
+`policy/csp.txt` — see `policy/README.md` — and the desktop build fails rather
+than delivering a different one.
 
 ## Library API
 

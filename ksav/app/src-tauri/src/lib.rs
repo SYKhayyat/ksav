@@ -2,25 +2,46 @@
 //! commands in-process via `invoke` — the real Typst engine runs natively,
 //! with no HTTP server.
 //!
-//! # Why every expensive command is `async` and spawns
+//! # One command for the engine, and the rest for the machine
+//!
+//! There used to be thirteen `#[tauri::command]`s wrapping engine functions,
+//! each of which also had to be listed a second time in `generate_handler!` —
+//! where forgetting it is not a compile error, just a command that is never
+//! registered and an `invoke` that rejects at runtime. One of the thirteen,
+//! `ksav_girsa_presence`, had never been called by anything at all.
+//!
+//! They are one now: [`ksav_call`], which looks the name up in
+//! `ksav_engine::services` — the same registry the HTTP server routes from and
+//! the wasm binding exports through. A service added to that table is reachable
+//! from the desktop app without this file changing.
+//!
+//! The commands that remain are the ones that are genuinely *this shell's*:
+//! native dialogs, real files, and the writer's dictionary on disk. Those have
+//! no engine service behind them and could not have one — they are what having
+//! an installed application means.
+//!
+//! # Why expensive work is `async` and spawns
 //!
 //! Tauri runs a plain `#[tauri::command] fn` **on the main thread**, which is
-//! the thread that draws the window. `ksav_compile`, `ksav_spell` and
-//! `ksav_suggest` were declared that way while the two file dialogs beside them
-//! were correctly `async`, so the distinction had been understood and simply not
-//! applied to the calls that cost anything. Measured compile times are 0.4–2.9 s
-//! for 13–43 pages, and the editor compiles on every pause in typing — so the
-//! window froze for up to three seconds, repeatedly, in the build that ships as
-//! the flagship installer.
+//! the thread that draws the window. Compiling, spell-checking and suggesting
+//! were declared that way while the two file dialogs beside them were correctly
+//! `async`, so the distinction had been understood and simply not applied to the
+//! calls that cost anything. Measured compile times are 0.4–2.9 s for 13–43
+//! pages, and the editor compiles on every pause in typing — so the window froze
+//! for up to three seconds, repeatedly, in the build that ships as the flagship
+//! installer.
 //!
 //! `async fn` alone is not enough either: an async command runs on the async
 //! runtime, and Typst layout is CPU-bound work that would occupy a runtime
-//! worker for its whole duration. Each one hands off to `spawn_blocking`, which
-//! is what that pool is for.
+//! worker for its whole duration. It hands off to `spawn_blocking`, which is
+//! what that pool is for. Which calls need it is [`Cost`] on the service rather
+//! than a decision taken again per command — that is what got it wrong before.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+
+use ksav_engine::services::{self, Cost};
 
 /// Run CPU-bound engine work off both the UI thread and the async runtime.
 async fn offload<F, T>(f: F) -> Result<T, String>
@@ -95,84 +116,29 @@ fn ksav_dictionary_where(app: tauri::AppHandle) -> Result<String, String> {
     Ok(dictionary_path(&app)?.display().to_string())
 }
 
-/// Compile a document. Input/output JSON match the web `/compile` contract.
-#[tauri::command]
-async fn ksav_compile(input: String) -> Result<String, String> {
-    offload(move || ksav_engine::compile_request(&input)).await
-}
-
-/// A click on the page, as a place in the source. Matches the web `/jump`.
+/// Call an engine service by name — the whole engine, in one command.
 ///
-/// Offloaded like a compile, and for the same reason: answering means laying the
-/// document out, so running it on the main thread would freeze the window for
-/// exactly as long as a compile does.
-#[tauri::command]
-async fn ksav_jump(input: String) -> Result<String, String> {
-    offload(move || ksav_engine::jump::jump_request(&input)).await
-}
-
-/// The cursor, as a place on the page. Matches the web `/reveal`.
-#[tauri::command]
-async fn ksav_reveal(input: String) -> Result<String, String> {
-    offload(move || ksav_engine::jump::reveal_request(&input)).await
-}
-
-/// The command registry as JSON.
-/// Sources that arrived from Girsa while this window was open (spec.md §10.6).
+/// The name and the JSON are the same ones the HTTP build puts in a URL and a
+/// request body, and the same ones the browser build passes to the wasm export:
+/// three transports, one contract, one registry. `input` is empty for the
+/// services that take nothing, exactly as a `GET` carries no body.
 ///
-/// Polled by the editor, because the editor is where a cursor is: nothing on
-/// this side of the process knows where the writer is typing, and a helpful
-/// insertion at the end of the document is a source landing somewhere nobody
-/// asked for. Draining, so two windows cannot each insert the same quote.
+/// A name with no service behind it is a rejected `invoke` with the name in it,
+/// which is what the frontend can act on. It should be unreachable — the only
+/// thing that produces these strings is the generated table both sides read.
 #[tauri::command]
-fn ksav_inbox() -> String {
-    ksav_engine::post::drain_json()
-}
-
-/// Cite-on-selection (spec.md §10.4): ask Girsa where a phrase is from.
-///
-/// Forwarded, not answered: the question is about the corpus, and the corpus
-/// is the library's. What comes back is Girsa's own JSON, unchanged.
-#[tauri::command]
-async fn ksav_mekoros(phrase: String, except: Option<String>) -> Result<String, String> {
-    offload(move || {
-        ksav_engine::post::where_from(&phrase, except.as_deref())
-            .unwrap_or_else(|why| serde_json::json!({ "error": why }).to_string())
-    })
-    .await
-}
-
-/// Nothing fitted — put the phrase in Girsa's search and bring it up.
-#[tauri::command]
-async fn ksav_search_in_girsa(phrase: String) -> Result<String, String> {
-    offload(move || match ksav_engine::post::search_in_girsa(&phrase) {
-        Ok(()) => r#"{"opened":true}"#.to_string(),
-        Err(why) => serde_json::json!({ "error": why }).to_string(),
-    })
-    .await
-}
-
-/// Turn the citations in a piece of prose into live refs (spec.md §10.5).
-///
-/// Girsa finds them; `girsa-ksav` writes them. Only what is certain is touched.
-#[tauri::command]
-async fn ksav_linkify(text: String) -> Result<String, String> {
-    offload(move || match ksav_engine::post::linkify(&text) {
-        Ok(text) => serde_json::json!({ "text": text }).to_string(),
-        Err(why) => serde_json::json!({ "error": why }).to_string(),
-    })
-    .await
-}
-
-/// Whether the library is there, so nothing is offered that would fail.
-#[tauri::command]
-fn ksav_girsa_presence() -> String {
-    serde_json::to_string(&ksav_engine::post::girsa()).unwrap_or_else(|_| "{}".to_string())
-}
-
-#[tauri::command]
-fn ksav_commands() -> String {
-    ksav_engine::commands::commands_json()
+async fn ksav_call(name: String, input: String) -> Result<String, String> {
+    let Some(svc) = services::find(&name) else {
+        return Err(format!("no engine service named {name}"));
+    };
+    match svc.cost {
+        // Laying out a document, checking a page of Hebrew, waiting on the
+        // loopback: none of that belongs on the thread that draws the window.
+        Cost::Layout | Cost::Work => offload(move || (svc.call)(&input)).await,
+        // A registry read or a queue drain. Going through the blocking pool for
+        // these would cost more in scheduling than the work itself.
+        Cost::Quick => Ok((svc.call)(&input)),
+    }
 }
 
 /// A file's modification time (ms since the epoch) and size.
@@ -217,18 +183,6 @@ async fn ksav_read_file(
         ));
     }
     std::fs::read_to_string(&p).map_err(|e| e.to_string())
-}
-
-/// The sefer catalogue as JSON, for citation autocomplete.
-#[tauri::command]
-fn ksav_sefarim() -> String {
-    ksav_engine::sefarim::catalog_json()
-}
-
-/// The template registry as JSON.
-#[tauri::command]
-fn ksav_templates() -> String {
-    ksav_engine::templates::templates_json()
 }
 
 // ---------------------------------------------------------------- real files
@@ -356,18 +310,6 @@ async fn ksav_write_file(
     std::fs::write(&p, contents).map_err(|e| e.to_string())
 }
 
-/// Spell-check text. Input/output JSON match the web `/spell` contract.
-#[tauri::command]
-async fn ksav_spell(input: String) -> Result<String, String> {
-    offload(move || ksav_engine::spell::spell_request(&input)).await
-}
-
-/// Suggestions for one word. Matches the web `/suggest` contract.
-#[tauri::command]
-async fn ksav_suggest(input: String) -> Result<String, String> {
-    offload(move || ksav_engine::spell::suggest_request(&input)).await
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -417,25 +359,16 @@ pub fn run() {
             }
             Ok(())
         })
+        // Twenty-one entries, of which thirteen were engine services listed
+        // here by hand and one of those had no caller anywhere. What is left is
+        // the engine, once, and the things only an installed application can do.
         .invoke_handler(tauri::generate_handler![
-            ksav_compile,
-            ksav_jump,
-            ksav_reveal,
-            ksav_commands,
-            ksav_sefarim,
+            ksav_call,
             ksav_file_stamp,
             ksav_read_file,
-            ksav_templates,
             ksav_open_file,
             ksav_save_file,
             ksav_write_file,
-            ksav_spell,
-            ksav_suggest,
-            ksav_inbox,
-            ksav_mekoros,
-            ksav_search_in_girsa,
-            ksav_girsa_presence,
-            ksav_linkify,
             ksav_dictionary_read,
             ksav_dictionary_write,
             ksav_dictionary_where

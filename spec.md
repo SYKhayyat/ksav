@@ -771,6 +771,15 @@ thing that makes it reversible.
 14. **In-app update check** — one named CSP origin, no telemetry, no
     auto-download, and nothing on the request but the request.
 
+    > **Corrected, 5 August 2026.** "One named CSP origin" was true of *one of
+    > the three copies of the policy*. Vite's had `https://api.github.com`; the
+    > engine's and Tauri's did not, and a browser **intersects** the policies
+    > delivered to a document rather than letting the last one win — so the
+    > feature was dead in both builds that ship an installer, which are the only
+    > two that cannot update by pressing reload. The policy is now
+    > `ksav/policy/csp.txt`, read by all three, and the desktop build fails if
+    > `tauri.conf.json` disagrees with it.
+
 ## What this wave did not do
 
 - **Nobody has clicked any of it.** The headless browser on this machine cannot
@@ -780,6 +789,16 @@ thing that makes it reversible.
   mode in particular has never had a key pressed in it.
 - **The wasm module must be rebuilt** for `ksav_sefarim` to exist in the browser
   backend. The Rust is in; `wasm-pack build` is not part of a normal checkout.
+
+  > **Overtaken, 5 August 2026.** Worse than this bullet knew. The Rust was in
+  > and the *worker's dispatch table* was not, so rebuilding would not have
+  > helped: `FNS["sefarim"]` was `undefined`, the call threw, and `sefarim.ts`
+  > swallowed it. That is the whole of finding §2 in
+  > `lamdan/whole-repo-2026-08-05.md`, and the fix was to delete the four
+  > hand-written registries rather than to add a ninth export to one of them.
+  > There is now one table — `engine/src/services.rs` — and one wasm export,
+  > `ksav_call(name, input)`, so the browser build cannot be missing a service
+  > the engine has. See `ksav/README.md` § *The engine's services*.
 - **The `#כלול` directive rule is now written twice**, once in Rust and once in
   TypeScript. If the two disagree, the client never sends a chapter the engine
   then reports as missing. Both suites pin the same cases deliberately; that is a

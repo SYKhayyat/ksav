@@ -496,6 +496,117 @@ translates the same knob in Typst — two tables, two languages, one setting.
 **Verdict: `rewrite`.** This is in the product's centre of mass, which is why it
 matters more than any of the app-layer duplication.
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done as prescribed in substance: one implementation, three thin call sites,
+> the numbering convention in one array. The finding below is kept verbatim;
+> what follows is what replaced it, what the finding got wrong, and what it
+> missed.
+>
+> **The refactor could not be trusted without an oracle, so the oracle came
+> first.** `apparatus.rs` asserts *properties* of the page — this note is below
+> that one, this band is on page 2. Properties are the right shape for
+> describing intent and the wrong shape for proving a rewrite moved nothing: a
+> property test passes when the page is *plausible*, and only a comparison of
+> the whole layout passes exactly when the page is *the same*.
+> `engine/tests/apparatus_golden.rs` renders 41 documents — every knob of all
+> three apparatuses, including the ones nothing else reaches (fixed band
+> heights, multi-column bands, side-by-side streams, per-band labels, explicit
+> stream order, custom numbering, two sections, two pages, all three at once) —
+> and pins every run's page, x, y, size and text. Captured at HEAD before a line
+> changed, and **byte-identical after**. Verified by mutation first: putting the
+> numbering array back the wrong way round turns it red at `band/one-tier`,
+> naming the case and the run.
+>
+> **Five pieces, five differences.** The pieces: `_ap_pick` (what a knob is
+> worth for this group), `_ap_note` (the collector), `_ap_entries` (the
+> numbering rule), `_ap_group` (one band: entries, columns, fixed-height slot)
+> and `_ap_bands` (the rule, the groups, the dividers, the `_ksav_ap_*`
+> bracket). The differences the three apparatuses are now reduced to: which
+> state holds the config, which label the notes carry, whether a group is a tier
+> integer or a stream name, whether the numbering scope is the section or the
+> document, and what is printed around the bands. Nothing else.
+>
+> **The fence is a count, not a snapshot.** A pinned layout cannot see a *fourth*
+> copy being written — a new copy renders a new page and the golden is silent
+> about it, which is exactly how there came to be three. So the numbering array,
+> the apparatus rule, the divider, the force-registration and the fixed-height
+> slot may each appear **once** in `ksav.typ`, and all three collectors must go
+> through `_ap_note`. Verified by mutation from both directions: adding a
+> longhand fourth apparatus, and rewriting `#הערה_זרם` to collect its own way.
+>
+> **Three things this finding got wrong.**
+>
+> - **"three config dicts with identical keys" is false of the third.**
+>   `_sf_defaults` does not have the same keys or the same *shapes*:
+>   `טורים`/`גבהים`/`מספור` are dictionaries keyed by stream name where the two
+>   tiered apparatuses use arrays indexed by tier, and `גודל`/`סגנון`/`צבע` are
+>   scalars where the others are per-tier arrays. That is why `_sf_mark` and
+>   `_sf_wrap` are *not* "the same line, different `cfg`" — only `_md` and `_pp`
+>   are. The unification is therefore not "delete two copies": `_ap_pick`
+>   answers one question — what is this knob worth *here* — for all three
+>   shapes, dictionary, array and scalar, and that is what makes one renderer
+>   serve a named apparatus and two tiered ones.
+> - **"~350 lines down to ~135" is wrong, and wrong in a way worth stating
+>   plainly.** The 375-line region held 286 lines of code, not 350, and about 90
+>   of those are the three configuration dicts, the three config setters and
+>   thirty aliases — none of which is duplication and none of which can go. The
+>   duplicated *logic* — three mark/wrap pairs, three collectors, three
+>   renderers — measured **196 code lines**, and what replaced it is **183**: an
+>   80-line shared core and 103 lines of call site. Net across the whole file,
+>   **9 code lines.** The region is 91 lines *longer*, all of it the header
+>   explaining the five axes.
+>
+>   So the honest accounting is that this collapse saved essentially nothing in
+>   length, and that is fine, because length was never the defect. Three copies
+>   of a decision shipped a numbering scheme backwards and then took two edits
+>   to correct. One copy takes one. That is the whole return, and it does not
+>   show up in a line count — which is why the fence counts *homes for a
+>   decision* rather than lines.
+> - **`_band_apparatus(cfg_state, lbl, group_of, scope_of, opts)` does not
+>   work as a single function.** Three of the five differences are not values,
+>   they are *positions in the output* — a section title goes above the rule, a
+>   band label goes inside the columns, a stream heading goes outside them. An
+>   `opts` dict cannot say that; a callback that builds one group can. So it is
+>   `_ap_bands(cfg, groups, block_of, …)` with the caller supplying `block_of`,
+>   which is also what lets the side-by-side stream layout replace the stacking
+>   loop entirely instead of being a flag threaded through it.
+>
+> **Two it missed.**
+>
+> - **`_ap_wrap`'s inputs were written twice too.** `סגנון` and `צבע` are
+>   *byte-identical nine-element arrays* in `_md_defaults` and `_pp_defaults`,
+>   not just `מספור`. Only `גודל` genuinely differs between them, and for a
+>   reason worth keeping (the footer bands sit in the margin and run a shade
+>   smaller). Three shared arrays now, not one.
+> - **`lib.rs`'s `PAGE_APPARATUS_COMMANDS` was the ninth copy and the finding
+>   only asked for it to shrink.** It prescribed collapsing the eight strings
+>   and the two scanners into "does the body call anything in the
+>   footer-rendered family" — but the two scanners are load-bearing (one refuses
+>   a prose mention, the other catches `סוג: מדף_בדרגה`, where the command is a
+>   *value* with no bracket after it) and the eight strings are a legitimate
+>   prefix table. What was missing was not brevity, it was a check.
+>   `the_page_foot_reserve_list_matches_the_prelude` now derives the
+>   footer-rendered family **out of `ksav.typ`** — the `_ap_note` call sites
+>   carrying a footer label, plus every alias delegating to one, transitively,
+>   which finds all 22 — and compares it to the list in both directions. A new
+>   alias missing from the list fails; an entry naming nothing fails. Both
+>   verified by mutation. The bug it prevents is quiet: the page keeps its full
+>   text height and the apparatus runs off the bottom of the sheet.
+>
+> **The steelman held, entirely.** The query-and-rank design is untouched:
+> numbering is still `query(...).before(loc).filter(...).len()`, the footer still
+> only reads, `_ksav_real` still tells an original from a re-display by document
+> order rather than by content or coordinates. What was separable was separated —
+> *deciding* what a band contains is now one thing, and it was always one thing.
+>
+> Cost: two code files (the prelude and the engine lib), +1 test file, +1
+> fixture, four documents. `cargo test` 357 (+5: four in the new golden and
+> prohibition file, one in the engine lib), `npm test` 3,013 unchanged across 46
+> files — the app never touched a private prelude name, which is the check that
+> this was engine-internal. `cargo fmt --check` and
+> `cargo clippy --all-targets -D warnings` clean.
+
 `ksav.typ:162-189` already defines exactly the parameterisation needed —
 `_ksav_real`, `_ksav_rank(sel, loc, pred)`, `_ksav_between(sel, marker, loc)`.
 Scope is already a parameter. Grouping is already a predicate. Then lines 278–658
@@ -1104,7 +1215,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 2 | ✅ **Fixed 5 Aug.** Ten dispatch sites, one checked; `sefarim` dead in wasm, 6 proxy routes missing, CSP diverged so the update check is dead on both installer builds | `rewrite` → one registry + `build.rs` assertions | ~2 days |
 | 3 | Nobody has written a document in it | `don't-build` the next wave | one kuntres |
 | 4 | 19 false/stale doc claims incl. two contradicting release-status statements and a false "page setup travels with the file" | `rewrite` → 80 lines of test | ~half a day |
-| 5 | `ksav.typ` writes the apparatus 3× and fixed one bug twice | `rewrite` → `_band_apparatus` | ~2 days, 350→135 lines |
+| 5 | ✅ **Fixed 6 Aug.** `ksav.typ` wrote the apparatus 3× and fixed one bug twice; `PAGE_APPARATUS_COMMANDS` was a ninth unchecked copy | `rewrite` → one `_ap_*` core + a pinned layout + a count | ~half a day, 5 files; 41 documents byte-identical; −13 code lines, and three homes for a decision down to one |
 | 6 | Notes pane empty in every deferred document; `⁑` gives the wrong tier | `rewrite` → `notesIn` returns one `NoteSpan[]` | ~1 day, −180 lines |
 | 7 | Fresh clone does not build; not one doc mentions why | `rewrite` → submodule | ~1 hour, −8 CI steps |
 | 8 | `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test | `delete` | ~1 hour |

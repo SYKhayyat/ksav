@@ -320,7 +320,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 2,999 editor assertions, 352 engine
+- [x] **CI, running and green** — typecheck, 3,013 editor assertions, 357 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -380,9 +380,9 @@ one place they are developed.
 ## Test
 
 ```sh
-cd app && npm test                          # 2,999 assertions across 46 files
+cd app && npm test                          # 3,013 assertions across 46 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 352 tests, 23 binaries
+cargo test --manifest-path engine/Cargo.toml            # 357 tests, 24 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

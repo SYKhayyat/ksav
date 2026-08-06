@@ -140,6 +140,17 @@ pub struct DocConfig {
 
 /// Commands whose notes render into the page *footer* rather than expanding the
 /// text region — these are the ones that need a reserved region at the page foot.
+///
+/// These are prefixes: `מדף_` stands for `מדף_א`, `מדף_בדרגה` and the rest of
+/// that family. The list is a second statement of something `ksav.typ` already
+/// says — which apparatuses register through `_ap_note` with a footer label —
+/// and a second statement that nothing compares to the first is how a list goes
+/// stale. So `the_page_foot_reserve_list_matches_the_prelude` derives the family
+/// out of the prelude and checks this against it in both directions: a new
+/// footer-rendered alias that is missing here fails, and an entry here that no
+/// longer names anything fails too. The failure it prevents is quiet and ugly —
+/// the page keeps its full text height and the apparatus runs off the bottom
+/// edge of the sheet.
 const PAGE_APPARATUS_COMMANDS: &[&str] = &[
     "מדף_",
     "pageband",
@@ -1202,6 +1213,142 @@ mod tests {
         assert_eq!(auto_notes_region_cm("#הערה_זרם(זרם: \"א\")[טקסט]"), 3.0);
         // A document with no apparatus at all reserves nothing.
         assert_eq!(auto_notes_region_cm("סתם טקסט עם #הדגשה[מילה]"), 0.0);
+    }
+
+    /// Every command in the prelude that puts notes in the page footer, derived
+    /// from the prelude rather than remembered.
+    ///
+    /// Two of the apparatuses in `ksav.typ` render from the page footer, and
+    /// both say so the same way: they hand `_ap_note` the label their notes
+    /// carry. So the primitives are the `_ap_note` call sites carrying a footer
+    /// label, and the family is those plus every one-line alias that delegates
+    /// to a member of it, transitively — which is exactly how the aliases are
+    /// written (`#let מדף_א(body) = מדף_בדרגה(1, body)`, `#let pageband =
+    /// מדף_בדרגה`).
+    fn footer_note_commands() -> Vec<String> {
+        let mut fam: Vec<String> = Vec::new();
+
+        // The primitives: a `#let` whose body calls `_ap_note` with a label the
+        // page footer renders.
+        for (i, _) in PRELUDE.match_indices("_ap_note(") {
+            // The whole argument list, not up to the first `)` — the arguments
+            // contain calls of their own (`_pp_cfg.get()`).
+            let mut depth = 0i32;
+            let mut end = PRELUDE.len();
+            for (j, c) in PRELUDE[i..].char_indices() {
+                match c {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i + j;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let call = &PRELUDE[i..end];
+            if !(call.contains("_pp_label") || call.contains("_sf_label")) {
+                continue;
+            }
+            // Walk back to the `#let` this call belongs to.
+            let Some(l) = PRELUDE[..i].rfind("\n#let ") else {
+                continue;
+            };
+            let head = &PRELUDE[l + 6..];
+            let name: String = head
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !name.is_empty() && !fam.contains(&name) {
+                fam.push(name);
+            }
+        }
+        assert!(
+            fam.len() >= 2,
+            "no footer-rendered note primitives found in the prelude — either the \
+             apparatus stopped going through `_ap_note`, or this derivation is \
+             reading the wrong thing. Found: {fam:?}"
+        );
+
+        // The aliases: `#let X(..) = Y(..)` or `#let X = Y`, to a fixpoint.
+        loop {
+            let before = fam.len();
+            for line in PRELUDE.lines() {
+                let Some(rest) = line.strip_prefix("#let ") else {
+                    continue;
+                };
+                let Some((lhs, rhs)) = rest.split_once('=') else {
+                    continue;
+                };
+                let name: String = lhs
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                let target: String = rhs
+                    .trim_start()
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                if fam.contains(&target) && !fam.contains(&name) && !name.is_empty() {
+                    fam.push(name);
+                }
+            }
+            if fam.len() == before {
+                break;
+            }
+        }
+        fam
+    }
+
+    #[test]
+    fn the_page_foot_reserve_list_matches_the_prelude() {
+        let family = footer_note_commands();
+
+        // Direction 1: nothing the prelude renders into the footer is missing.
+        // A missing one means a document using it keeps its full text height and
+        // the apparatus runs off the bottom of the sheet.
+        for cmd in &family {
+            assert!(
+                PAGE_APPARATUS_COMMANDS.iter().any(|p| cmd.starts_with(p)),
+                "`{cmd}` renders into the page footer and no prefix in \
+                 PAGE_APPARATUS_COMMANDS covers it, so a document using it \
+                 reserves no room for its own apparatus.\n\
+                 The footer-rendered family, read out of ksav.typ: {family:?}"
+            );
+        }
+
+        // Direction 2: nothing in the list names something that no longer exists.
+        // A dead prefix is worse than useless — it reads as coverage.
+        for p in PAGE_APPARATUS_COMMANDS {
+            assert!(
+                family.iter().any(|c| c.starts_with(p)),
+                "PAGE_APPARATUS_COMMANDS lists {p:?}, which names no \
+                 footer-rendered command in ksav.typ.\n\
+                 The footer-rendered family, read out of ksav.typ: {family:?}"
+            );
+        }
+
+        // And the reserve really follows from membership, not from the prefix
+        // table happening to contain a string. Both ways a footer command can
+        // reach a page: called with a bracket, and handed to `#הערה_בשם` as the
+        // *value* of `סוג`, where there is no bracket for a scanner to find.
+        for cmd in &family {
+            assert_eq!(
+                auto_notes_region_cm(&format!("פתיחה#{cmd}[הערה] וסוף.")),
+                3.0,
+                "a document calling `#{cmd}` should reserve the page foot"
+            );
+            assert_eq!(
+                auto_notes_region_cm(&format!(
+                    "פתיחה#הערה_בשם(\"א\", סוג: {cmd})\n#גוף_הערה(\"א\")[הערה]\n"
+                )),
+                3.0,
+                "a deferred note printed through `{cmd}` should reserve the page \
+                 foot — the command is a value here, with no bracket after it"
+            );
+        }
     }
 
     #[test]

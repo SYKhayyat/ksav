@@ -105,6 +105,56 @@ Per-band fixed heights (`הגדרות_מדפים(גבהים:)`, `הגדרות_ז
 into the "fixed regions" layout: a band always occupies its slot, so a band that
 is empty on this page does not let the bands below it drift up.
 
+## The banded apparatus, and why there is only one of it
+
+Three of the collect-then-render apparatuses group their notes and print the
+groups as stacked bands: `#מדור_` (section bands, in the flow), `#מדף_` (per-page
+bands, in the footer) and `#הערה_זרם` (parallel streams, also in the footer).
+They were written out three times, and it cost exactly what duplication costs:
+the א,ב,ג-over-1,2,3 numbering convention shipped backwards, and the correction
+then had to be made **by hand in a second copy of the same array, months later**.
+One decision, two edits, and nothing anywhere that would have noticed if only one
+of them had been made. Two other things were quietly written twice and
+differently — the fixed-height slot (array-indexed for bands, dictionary-keyed
+for streams) and the per-group configuration lookup.
+
+They are now one implementation, `_ap_*` in `ksav.typ`, and the three differ in
+five arguments and nothing else:
+
+| | `#מדור_` section bands | `#מדף_` page bands | `#הערה_זרם` streams |
+|---|---|---|---|
+| a *group* is | a tier integer | a tier integer | a stream name |
+| config state | `_md_cfg` | `_pp_cfg` | `_sf_cfg` |
+| notes labelled | `ksav-md` | `ksav-pp` | `ksav-sf` |
+| numbered within | the section | the document | the document |
+| rendered | in the flow, at the dump call | the page footer | the page footer |
+| printed around | an optional title, a per-band label | — | per-stream headings; stacked **or** side by side |
+
+The pieces, all in `ksav.typ`:
+
+- **`_ap_pick(cfg, key, g, fb)`** — what a knob is worth *for this group*. A
+  dictionary is keyed by group name, an array is per-tier (1-based, falling back
+  outside its range), anything else is one value for every group. Those are not
+  three conventions bolted together; they are the three shapes an answer can take,
+  and each of the three apparatuses had only ever used one of them.
+- **`_ap_note(cfg, lbl, scope, g, body)`** — the collector. Registers in the main
+  flow, force-registers nested notes, prints a marker numbered by query.
+- **`_ap_entries(shown, scope, g)`** — the numbering rule, and the only place the
+  section-scoped apparatus differs from the two document-scoped ones: `shown` is
+  what a band prints, `scope` is what it counts against.
+- **`_ap_group`** — one group's block: entries, columns, fixed-height slot.
+- **`_ap_bands`** — the rule above the apparatus, the groups, the dividers, and
+  the `_ksav_ap_open`/`_ksav_ap_close` bracket.
+
+Two tests hold it, both in `engine/tests/apparatus_golden.rs`. One pins the
+laid-out page — every run's page, x, y, size and text — for 41 documents covering
+every knob of all three, so a change to the shared core that moves anything is a
+diff rather than a discovery. The other counts: the numbering array, the
+apparatus rule, the divider, the force-registration and the fixed-height slot may
+each appear **once** in `ksav.typ`, and all three collectors must go through
+`_ap_note`. A pinned layout cannot see a fourth copy being written — a new copy
+renders a new page and says nothing. Counting can.
+
 ## Where each option lives in `ksav.typ`
 
 | Option | Commands | Mechanism |

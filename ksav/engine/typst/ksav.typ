@@ -255,6 +255,176 @@
 #let tier7 = הערה_ז
 
 // ============================================================
+//  A banded apparatus, written once
+// ------------------------------------------------------------
+//  Three apparatuses below collect notes into named groups and print those
+//  groups as stacked bands: #מדור_ (section bands, rendered in the flow at a
+//  dump call), #מדף_ (per-page bands, rendered in the page footer) and
+//  #הערה_זרם (parallel streams, also in the footer).
+//
+//  They used to be written out three times. That is not merely long: the
+//  א,ב,ג-over-1,2,3 numbering convention shipped backwards, and the correction
+//  then had to be made by hand in a second copy of the same array, months later
+//  — one decision, two edits, and nothing that would have noticed if only one of
+//  them had been made. See `engine/tests/apparatus_golden.rs`, which pins the
+//  laid-out page of every one of these knobs, and `engine/tests/apparatus.rs`.
+//
+//  The three differ in exactly five things, and every one of them is an argument
+//  here:
+//
+//    · which state holds the configuration
+//    · which label the notes of this apparatus carry
+//    · what a *group* is — a tier integer (bands) or a stream name (streams)
+//    · what scope a note is numbered within — the surrounding section (in-flow
+//      bands) or the whole document (both footer apparatuses)
+//    · what is printed around the bands — a title, a per-band label, per-stream
+//      headings, stacked or side by side
+//
+//  Everything else — the marker, the per-group styling, the entry blocks, the
+//  columns, the fixed-height slots, the rules and the dividers — is this code
+//  and only this code.
+// ============================================================
+
+// The band numbering convention, in one place because it is one decision.
+// א,ב,ג for the primary band and 1,2,3 for the notes *on* it: the שער־הציון
+// arrangement these bands exist to set — the Mishnah Berurah's letters over the
+// Shaar HaTziyun's numbers. This is the array that shipped the other way round,
+// backwards against the convention and against the chooser card that described
+// it. Nothing in a coordinate dump shows it; it is obvious on the page.
+#let _ap_numbering = ("א", "1", "a", "i", "*", "א", "1", "a", "i")
+#let _ap_columns = (1, 1, 1, 1, 1, 1, 1, 1, 1)
+// A band is set apart from the one above it by slant and by grey, not by size
+// alone — size is the one axis the two tiered apparatuses genuinely differ on
+// (the footer bands run a shade smaller, because they live in the margin).
+#let _ap_styles = ("normal", "italic", "italic", "italic", "italic", "italic", "italic", "italic", "italic")
+#let _ap_fills = (luma(0), luma(50), luma(80), luma(100), luma(115), luma(115), luma(115), luma(115), luma(115))
+
+// What a knob's value is for THIS group. A dictionary is keyed by group name
+// (which is how a stream is identified); an array is per-tier, 1-based, falling
+// back outside its range (which is how a band is); anything else is one value
+// for every group. Those are not three conventions bolted together — they are
+// the three shapes a writer can reasonably answer the question in, and the two
+// tiered apparatuses and the named one each only ever used one of them.
+#let _ap_pick(cfg, key, g, fb) = {
+  let a = cfg.at(key, default: fb)
+  if type(a) == dictionary {
+    a.at(_as_string(g), default: fb)
+  } else if type(a) == array {
+    if type(g) == int { _fn_pick(a, g, fb) } else { fb }
+  } else {
+    a
+  }
+}
+#let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
+#let _ap_wrap(cfg, g, body) = text(
+  size: _ap_pick(cfg, "גודל", g, 0.85em),
+  style: _ap_pick(cfg, "סגנון", g, "normal"),
+  fill: _ap_pick(cfg, "צבע", g, luma(0)),
+  body,
+)
+
+// One banded note. Registers itself in the MAIN FLOW, where writes are legal;
+// the footer that later renders it only ever queries, which is what makes a
+// per-page apparatus converge at all.
+//
+//   cfg    — this apparatus's configuration, already read from its state
+//   lbl    — the label every note of this apparatus carries
+//   scope  — loc ⇒ the selector this note's number is counted within
+//   g      — the group: a tier integer, or a stream name
+#let _ap_note(cfg, lbl, scope, g, body) = {
+  [#metadata((group: g, body: body))#lbl]
+  // Force nested groups to register in this same pass, in a zero-size inline box
+  // so it can never break the line the marker sits on — including when a band
+  // re-displays this body and the machinery runs again inside it.
+  box(place(hide(body)))
+  // The marker's number is this note's rank among the *real* notes of its own
+  // group in `scope` — read out of a query, never a counter, so it converges and
+  // so an apparatus re-display cannot count itself.
+  context {
+    let loc = here()
+    super(_ap_mark(cfg, g, _ksav_rank(scope(loc), loc, e => e.value.group == g)))
+  }
+}
+
+// Every note of an apparatus that is a real note rather than an apparatus
+// re-display (see `_ksav_real`).
+#let _ap_all(lbl) = _ksav_real(query(lbl))
+
+// Number one group's entries. An entry's number is its position among the notes
+// of its own group *within the numbering scope*: `shown` is what this band
+// prints (this page, or this section), `scope` is what it counts against (the
+// whole document for the footer apparatuses, the section for the in-flow one).
+// Returns (number, body) pairs in document order.
+#let _ap_entries(shown, scope, g) = {
+  let mine = scope.filter(e => e.value.group == g)
+  shown
+    .filter(e => e.value.group == g)
+    .map(e => (mine.position(x => x.location() == e.location()) + 1, e.value.body))
+}
+
+// One group's block: the numbered entries, laid into columns and, if this
+// apparatus reserves fixed regions, into a slot of a fixed height that it
+// occupies whether or not it has anything in it this page.
+//
+// `lead` prints INSIDE the columns — a band's own small label belongs at the top
+// of its first column. `above` prints outside them — a stream's title spans them.
+#let _ap_group(cfg, g, entries, above: none, lead: none) = {
+  above
+  let inner = {
+    lead
+    for (num, body) in entries {
+      block(
+        spacing: cfg.at("ריווח_פריט", default: 0.3em),
+        _ap_wrap(cfg, g, [#super(_ap_mark(cfg, g, num)) #body]),
+      )
+    }
+  }
+  let cols = _ap_pick(cfg, "טורים", g, 1)
+  let filled = if cols > 1 { columns(cols, inner) } else { inner }
+  let h = _ap_pick(cfg, "גבהים", g, none)
+  if h != none { block(width: 100%, height: h, clip: true, filled) } else { filled }
+}
+
+// The apparatus block itself: the rule above it, the groups, and a short divider
+// between adjacent ones. Bracketed by the open/close markers that tell
+// `_ksav_real` a registration in here is a re-display and not a new note —
+// without which the raw query grows on every layout pass and nothing converges.
+#let _ap_bands(
+  cfg,
+  groups,
+  block_of,
+  head: none,
+  rule_gap: 0.25em,
+  divider: 35%,
+  side: false,
+) = {
+  _ksav_ap_open
+  head
+  if cfg.at("קו", default: true) {
+    line(length: 100%, stroke: 0.5pt + luma(140))
+    v(rule_gap)
+  }
+  if side {
+    // side by side: one equal column per group
+    grid(columns: groups.map(_ => 1fr), column-gutter: 1.2em, ..groups.map(block_of))
+  } else {
+    // stacked: one above the other, divided by a short rule
+    for (i, g) in groups.enumerate() {
+      block_of(g)
+      if i < groups.len() - 1 {
+        let gap = cfg.at("ריווח_בין", default: 0.4em)
+        v(gap)
+        if cfg.at("קו_בין", default: true) {
+          line(length: divider, stroke: 0.4pt + luma(185))
+          v(gap)
+        }
+      }
+    }
+  }
+  _ksav_ap_close
+}
+
+// ============================================================
 //  הערות מדורגות · fully regrouped stacked bands (end / section)
 // ------------------------------------------------------------
 //  The Gemara / critical-apparatus look: ALL tier-1 notes in one band, then
@@ -268,19 +438,12 @@
 //  render phase lets stored bodies re-display (showing child markers) without
 //  re-registering. Feed it at end of a section or the document.
 // ============================================================
-// מספור — א,ב,ג for the primary band and 1,2,3 for the notes *on* it, which is
-// the שער־הציון arrangement these bands exist to set: the Mishnah Berurah's
-// letters over the Shaar HaTziyun's numbers. It shipped the other way round for
-// a long time — Arabic numerals on top of Hebrew letters — backwards against
-// the convention and against the chooser card that described it. Nothing in a
-// coordinate dump shows this; it is obvious on the page, which is where it
-// should have been checked. See `engine/tests/apparatus_marks.rs`.
 #let _md_defaults = (
-  מספור: ("א", "1", "a", "i", "*", "א", "1", "a", "i"),  // per-tier numbering scheme
-  טורים: (1, 1, 1, 1, 1, 1, 1, 1, 1),                     // per-tier column count
+  מספור: _ap_numbering,   // per-tier numbering scheme
+  טורים: _ap_columns,     // per-tier column count
   גודל: (1em, 0.9em, 0.82em, 0.78em, 0.75em, 0.75em, 0.75em, 0.75em, 0.75em),
-  סגנון: ("normal", "italic", "italic", "italic", "italic", "italic", "italic", "italic", "italic"),
-  צבע: (luma(0), luma(50), luma(80), luma(100), luma(115), luma(115), luma(115), luma(115), luma(115)),
+  סגנון: _ap_styles,
+  צבע: _ap_fills,
   קו: true,             // rule above the whole apparatus
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.5em,     // gap between bands
@@ -293,77 +456,49 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
-#let _md_mark(cfg, tier, num) = numbering(_fn_pick(cfg.at("מספור", default: ()), tier, "1"), num)
-#let _md_wrap(cfg, tier, body) = text(
-  size: _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em),
-  style: _fn_pick(cfg.at("סגנון", default: ()), tier, "normal"),
-  fill: _fn_pick(cfg.at("צבע", default: ()), tier, luma(0)),
-  body,
-)
+#let _md_label = label("ksav-md")
 // Every #הערות_מדורגות call drops this marker, which delimits one "section":
 // a note belongs to the section that ends at the first dump after it.
 #let _md_dump_label = label("ksav-md-dump")
-// The מדור notes of the section surrounding `loc`, deduped, in document order.
-// This section's notes: everything labelled ksav-md between the surrounding pair
-// of dumps, minus the phantom re-registrations inside this section's own rendered
-// apparatus (identified by the apparatus marker it drops).
-#let _md_section_notes(loc) = _ksav_real(
-  query(_ksav_between(selector(label("ksav-md")), _md_dump_label, loc))
-)
+// This apparatus is the one that numbers per SECTION rather than per document —
+// so its notes are counted between the surrounding pair of dump markers. That is
+// what makes multiple sections work: there is no global phase flag to burn out
+// after the first section, and no counter to reset.
+#let _md_scope(loc) = _ksav_between(selector(_md_label), _md_dump_label, loc)
+// The מדור notes of the section surrounding `loc`, in document order, minus the
+// phantom re-registrations inside this section's own rendered apparatus.
+#let _md_section_notes(loc) = _ksav_real(query(_md_scope(loc)))
 
 // מדור_בדרגה(דרגה, body) — collect a section-band note in tier `דרגה`.
-//
-// Read-only rendering, exactly like the per-page bands: the note drops inline
-// metadata in the main flow, and its number is the *rank of its content key*
-// among same-tier notes in the same section — derived from a query, never from a
-// counter. That is what makes multiple sections work: there is no global phase
-// flag to burn out after the first section, and no counter to reset.
-#let מדור_בדרגה(דרגה, body) = context {
-  let cfg = _md_cfg.get()
-  [#metadata((tier: דרגה, body: body))#label("ksav-md")]
-  // Force nested tiers to register in this same pass, in a zero-size inline box
-  // so it can never break the line the marker sits on.
-  box(place(hide(body)))
-  context {
-    let loc = here()
-    super(_md_mark(cfg, דרגה, _ksav_rank(
-      _ksav_between(selector(label("ksav-md")), _md_dump_label, loc),
-      loc,
-      e => e.value.tier == דרגה,
-    )))
-  }
-}
+#let מדור_בדרגה(דרגה, body) = context _ap_note(
+  _md_cfg.get(), _md_label, _md_scope, דרגה, body,
+)
 // #הערות_מדורגות() — render this section's collected tiers as stacked bands, here.
 // Call it once per section (and/or at the end of the document); each call renders
 // only the notes written since the previous call.
 #let הערות_מדורגות(כותרת: none) = {
   context {
-    let notes = _md_section_notes(here()).map(m => m.value)
+    let notes = _md_section_notes(here())
     if notes.len() > 0 {
       let cfg = _md_cfg.get()
-      _ksav_ap_open
-      if כותרת != none { heading(level: 3, outlined: false, numbering: none, כותרת) }
-      if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.3em) }
-      let tiers = notes.map(v => v.tier).dedup().sorted()
-      for (bi, t) in tiers.enumerate() {
-        let ents = notes.filter(v => v.tier == t)
-        let cols = _fn_pick(cfg.at("טורים", default: ()), t, 1)
-        let band = {
-          if cfg.at("תוויות", default: false) {
-            block(spacing: 0.2em, text(size: 0.62em, fill: luma(160))[· #_md_mark(cfg, t, 1) ·])
-          }
-          for (i, v) in ents.enumerate() {
-            block(spacing: cfg.at("ריווח_פריט", default: 0.35em),
-              _md_wrap(cfg, t, [#super(_md_mark(cfg, t, i + 1)) #v.body]))
-          }
-        }
-        if cols > 1 { columns(cols, band) } else { band }
-        if bi < tiers.len() - 1 {
-          v(cfg.at("ריווח_בין", default: 0.5em))
-          if cfg.at("קו_בין", default: true) { line(length: 40%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.5em)) }
-        }
-      }
-      _ksav_ap_close
+      let tiers = notes.map(e => e.value.group).dedup().sorted()
+      _ap_bands(
+        cfg,
+        tiers,
+        // Printed in the flow and numbered within the section, so what the band
+        // shows and what it counts against are the same list.
+        t => _ap_group(
+          cfg,
+          t,
+          _ap_entries(notes, notes, t),
+          lead: if cfg.at("תוויות", default: false) {
+            block(spacing: 0.2em, text(size: 0.62em, fill: luma(160))[· #_ap_mark(cfg, t, 1) ·])
+          },
+        ),
+        head: if כותרת != none { heading(level: 3, outlined: false, numbering: none, כותרת) },
+        rule_gap: 0.3em,
+        divider: 40%,
+      )
     }
   }
   // The section boundary itself. Must come *after* the context above, so that
@@ -412,13 +547,15 @@
 //  margin room for heavy apparatus; and two notes with byte-identical body
 //  text in the same tier share a number (they collapse to one key).
 // ============================================================
-// Same order as the section bands, and for the same reason: א,ב,ג above 1,2,3.
+// Same convention as the section bands, and now literally the same array: א,ב,ג
+// above 1,2,3. Only the sizes differ, and deliberately — these bands sit in the
+// bottom margin, so they run a shade smaller than the in-flow ones.
 #let _pp_defaults = (
-  מספור: ("א", "1", "a", "i", "*", "א", "1", "a", "i"),  // per-tier numbering scheme
-  טורים: (1, 1, 1, 1, 1, 1, 1, 1, 1),                     // per-tier column count
+  מספור: _ap_numbering,   // per-tier numbering scheme
+  טורים: _ap_columns,     // per-tier column count
   גודל: (0.92em, 0.84em, 0.78em, 0.74em, 0.72em, 0.72em, 0.72em, 0.72em, 0.72em),
-  סגנון: ("normal", "italic", "italic", "italic", "italic", "italic", "italic", "italic", "italic"),
-  צבע: (luma(0), luma(50), luma(80), luma(100), luma(115), luma(115), luma(115), luma(115), luma(115)),
+  סגנון: _ap_styles,
+  צבע: _ap_fills,
   קו: true,             // rule above the whole apparatus
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.35em,    // gap between bands
@@ -434,31 +571,17 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
-#let _pp_mark(cfg, tier, num) = numbering(_fn_pick(cfg.at("מספור", default: ()), tier, "1"), num)
-#let _pp_wrap(cfg, tier, body) = text(
-  size: _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em),
-  style: _fn_pick(cfg.at("סגנון", default: ()), tier, "normal"),
-  fill: _fn_pick(cfg.at("צבע", default: ()), tier, luma(0)),
-  body,
-)
-// מדף_בדרגה(דרגה, body) — collect a per-page-band note in tier `דרגה`.
+#let _pp_label = label("ksav-pp")
 // Every מדף note registered outside an apparatus block — i.e. the real ones.
-#let _pp_all() = _ksav_real(query(label("ksav-pp")))
-#let מדף_בדרגה(דרגה, body) = context {
-  let cfg = _pp_cfg.get()
-  [#metadata((tier: דרגה, body: body))#label("ksav-pp")]
-  // Force nested tiers to register in this pass. Wrapped in a zero-size inline
-  // box so that when this body is later re-displayed inside a footer band, the
-  // hidden machinery can't break the line before the child's cross-ref marker.
-  box(place(hide(body)))
-  // marker number = how many same-tier notes run up to and including this one
-  context {
-    let loc = here()
-    super(_pp_mark(cfg, דרגה, _ksav_rank(
-      label("ksav-pp"), loc, e => e.value.tier == דרגה,
-    )))
-  }
-}
+#let _pp_all() = _ap_all(_pp_label)
+// Numbered document-wide: a per-page band shows this page's notes but numbers
+// them in one running sequence across the sefer, which is what a reader
+// following a marker from the text expects.
+#let _pp_scope(loc) = _pp_label
+// מדף_בדרגה(דרגה, body) — collect a per-page-band note in tier `דרגה`.
+#let מדף_בדרגה(דרגה, body) = context _ap_note(
+  _pp_cfg.get(), _pp_label, _pp_scope, דרגה, body,
+)
 // Read-only footer: render the bands for the CURRENT page. Called from the
 // wrapper's page footer. Renders nothing (and touches nothing) when the page
 // has no per-page-band notes, so it's free for documents that don't use them.
@@ -477,35 +600,15 @@
       let tiers = if type(heights) == array {
         range(1, heights.len() + 1)
       } else {
-        mine.map(e => e.value.tier).dedup().sorted()
+        mine.map(e => e.value.group).dedup().sorted()
       }
       set align(if text.dir == rtl { right } else { left })
-      block(width: 100%, {
-        _ksav_ap_open
-        if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
-        for (bi, t) in tiers.enumerate() {
-          let ents = mine.filter(e => e.value.tier == t)
-          let tier-all = all.filter(e => e.value.tier == t)   // for doc-wide numbering
-          let band = {
-            for e in ents {
-              let num = tier-all.position(x => x.location() == e.location()) + 1
-              block(spacing: cfg.at("ריווח_פריט", default: 0.25em),
-                _pp_wrap(cfg, t, [#super(_pp_mark(cfg, t, num)) #e.value.body]))
-            }
-          }
-          let cols = _fn_pick(cfg.at("טורים", default: ()), t, 1)
-          let filled = if cols > 1 { columns(cols, band) } else { band }
-          let h = _fn_pick(if type(heights) == array { heights } else { () }, t, none)
-          if h != none {
-            block(width: 100%, height: h, clip: true, filled)
-          } else { filled }
-          if bi < tiers.len() - 1 {
-            v(cfg.at("ריווח_בין", default: 0.35em))
-            if cfg.at("קו_בין", default: true) { line(length: 35%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.35em)) }
-          }
-        }
-        _ksav_ap_close
-      })
+      block(width: 100%, _ap_bands(
+        cfg,
+        tiers,
+        // Shows this page's notes; numbers them against the whole document.
+        t => _ap_group(cfg, t, _ap_entries(mine, all, t)),
+      ))
     }
   }
 }
@@ -563,28 +666,17 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
-#let _sf_scheme(cfg, stream) = cfg.at("מספור", default: (:)).at(stream, default: "1")
-#let _sf_mark(cfg, stream, num) = numbering(_sf_scheme(cfg, stream), num)
-#let _sf_wrap(cfg, body) = text(
-  size: cfg.at("גודל", default: 0.85em),
-  style: cfg.at("סגנון", default: "normal"),
-  fill: cfg.at("צבע", default: luma(20)),
-  body,
+#let _sf_label = label("ksav-sf")
+#let _sf_all() = _ap_all(_sf_label)
+// Numbered document-wide, like the per-page bands: a stream is one running
+// sequence across the sefer, independent of every other stream.
+#let _sf_scope(loc) = _sf_label
+// הערה_זרם(זרם, body) — a footnote in the named stream `זרם`. The group here is
+// a name rather than a tier integer, which is the whole of the difference
+// between this apparatus and the two banded ones.
+#let הערה_זרם(זרם, body) = context _ap_note(
+  _sf_cfg.get(), _sf_label, _sf_scope, _as_string(זרם), body,
 )
-// הערה_זרם(זרם, body) — a footnote in the named stream `זרם`.
-#let _sf_all() = _ksav_real(query(label("ksav-sf")))
-#let הערה_זרם(זרם, body) = context {
-  let זרם = _as_string(זרם)
-  let cfg = _sf_cfg.get()
-  [#metadata((stream: זרם, body: body))#label("ksav-sf")]
-  box(place(hide(body)))
-  context {
-    let loc = here()
-    super(_sf_mark(cfg, זרם, _ksav_rank(
-      label("ksav-sf"), loc, e => e.value.stream == זרם,
-    )))
-  }
-}
 // Ordered list of stream names actually present, honouring an explicit order.
 #let _sf_order(cfg, present) = {
   let explicit = cfg.at("זרמים", default: none)
@@ -600,53 +692,32 @@
     let pg = here().page()
     let mine = all.filter(e => e.location().page() == pg)
     if mine.len() > 0 {
-      let present = mine.map(e => e.value.stream).dedup()
+      let present = mine.map(e => e.value.group).dedup()
       // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
       // laid out on every apparatus page, even with nothing in it this page, so
       // a stream never drifts into another's place.
       let fixed = cfg.at("גבהים", default: (:)).keys()
       let streams = _sf_order(cfg, present + fixed.filter(s => not present.contains(s)))
       set align(if text.dir == rtl { right } else { left })
-      // one rendered block per stream (heading + numbered entries)
-      let render-stream(s) = {
-        let ents = mine.filter(e => e.value.stream == s)
-        let all-s = all.filter(e => e.value.stream == s)   // stream-wide numbering
-        let head = cfg.at("כותרות", default: (:)).at(s, default: none)
-        if head != none { block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head)) }
-        let entries = {
-          for e in ents {
-            let num = all-s.position(x => x.location() == e.location()) + 1
-            block(spacing: cfg.at("ריווח_פריט", default: 0.22em),
-              _sf_wrap(cfg, [#super(_sf_mark(cfg, s, num)) #e.value.body]))
-          }
-        }
-        let ncols = cfg.at("טורים", default: (:)).at(s, default: 1)
-        let filled = if ncols > 1 { columns(ncols, entries) } else { entries }
-        let h = cfg.at("גבהים", default: (:)).at(s, default: none)
-        if h != none { block(width: 100%, height: h, clip: true, filled) } else { filled }
-      }
-      block(width: 100%, {
-        _ksav_ap_open
-        if cfg.at("קו", default: true) { line(length: 100%, stroke: 0.5pt + luma(140)); v(0.25em) }
-        if cfg.at("פריסה", default: "מוערם") == "צד" {
-          // side by side: one equal column per stream
-          grid(
-            columns: streams.map(_ => 1fr),
-            column-gutter: 1.2em,
-            ..streams.map(s => render-stream(s)),
-          )
-        } else {
-          // stacked: streams one above the other, divided by a short rule
-          for (i, s) in streams.enumerate() {
-            render-stream(s)
-            if i < streams.len() - 1 {
-              v(cfg.at("ריווח_בין", default: 0.45em))
-              if cfg.at("קו_בין", default: true) { line(length: 30%, stroke: 0.4pt + luma(185)); v(cfg.at("ריווח_בין", default: 0.45em)) }
+      block(width: 100%, _ap_bands(
+        cfg,
+        streams,
+        // A stream title spans the stream's columns, so it goes `above` them
+        // rather than leading the first one.
+        s => _ap_group(
+          cfg,
+          s,
+          _ap_entries(mine, all, s),
+          above: {
+            let head = cfg.at("כותרות", default: (:)).at(s, default: none)
+            if head != none {
+              block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head))
             }
-          }
-        }
-        _ksav_ap_close
-      })
+          },
+        ),
+        divider: 30%,
+        side: cfg.at("פריסה", default: "מוערם") == "צד",
+      ))
     }
   }
 }

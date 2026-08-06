@@ -651,9 +651,11 @@ one range makes CodeMirror reject the whole decoration set and blank the editor.
 
 [tudborg/notes.typ](https://github.com/tudborg/notes.typ) was read for the same
 reason and yielded nothing. It is one file of about a hundred lines: a `state()`
-array, a `counter()`, and a render function. `typst/ksav.typ` is 1,701 lines of
-regrouped stacked bands, per-tier numbering, per-page `query` footers and
-section-scoped dedup. Its one idea Ksav lacks — reusing an index when two notes
+array, a `counter()`, and a render function. `typst/ksav.typ` is two thousand-odd
+lines of regrouped stacked bands, per-tier numbering, per-page `query` footers and
+section-scoped dedup. (Written as an order of magnitude on purpose: this document
+has quoted three different exact line counts for that file, every one of them
+stale within the month.) Its one idea Ksav lacks — reusing an index when two notes
 share identical text — Ksav had, tried, and **deliberately removed**
 (`ksav.typ:152`).
 

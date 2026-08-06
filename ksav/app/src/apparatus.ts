@@ -27,6 +27,7 @@
 // false warnings.
 
 import { BAND_FAMILY } from "./note-commands";
+import { scan as scanSpans, type Node } from "./spans";
 
 /** A collecting command, and the call that renders what it collected. */
 interface Rule {
@@ -69,53 +70,33 @@ export interface Unrendered {
   stream?: string;
 }
 
-const NAME_CH = /[A-Za-z0-9֐-׿_]/;
-
-/** Every `#name` occurrence of any of these names, at a real command position. */
-function occurrences(doc: string, names: string[]): { at: number; end: number; name: string }[] {
-  const out: { at: number; end: number; name: string }[] = [];
-  for (const name of names) {
-    for (let at = doc.indexOf("#" + name); at >= 0; at = doc.indexOf("#" + name, at + 1)) {
-      const end = at + 1 + name.length;
-      // Not a longer command that merely starts with this name.
-      if (NAME_CH.test(doc[end] ?? "")) continue;
-      if (inCommentOrString(doc, at)) continue;
-      out.push({ at, end, name });
-    }
-  }
-  return out.sort((a, b) => a.at - b.at);
-}
-
-/** A crude but adequate check: a `#` inside a comment is not a command. */
-function inCommentOrString(doc: string, at: number): boolean {
-  const lineStart = doc.lastIndexOf("\n", at - 1) + 1;
-  const line = doc.slice(lineStart, at);
-  if (line.includes("//")) return true;
-  // Inside a `/* … */` block.
-  const open = doc.lastIndexOf("/*", at);
-  if (open >= 0) {
-    const close = doc.indexOf("*/", open + 2);
-    if (close < 0 || close > at) return true;
-  }
-  return false;
+/**
+ * Every occurrence of any of these commands, as a scanned node.
+ *
+ * This used to be `doc.indexOf("#" + name)` in a loop with a hand-written
+ * "is that `#` inside a comment?" test that its own comment called *"a crude
+ * but adequate check"* — it looked for `//` earlier on the line and scanned
+ * backwards for an unterminated `/*`, so a `//` inside a string argument hid
+ * every command after it on that line. `spans.ts` does not emit nodes inside
+ * comments at all, and it knows what a string is, so crude is no longer on
+ * offer.
+ */
+function occurrences(doc: string, names: string[]): Node[] {
+  return scanSpans(doc).nodes.filter((n) => n.hash && names.includes(n.name));
 }
 
 /** The stream named in a call's arguments, if it names one. */
-function streamOf(doc: string, end: number): string | undefined {
+function streamOf(doc: string, n: Node): string | undefined {
   // `#הערתסיום(זרם: "מקורות")[…]` — only a parenthesised argument list can carry it.
-  if (doc[end] !== "(") return undefined;
-  const close = doc.indexOf(")", end);
-  if (close < 0) return undefined;
-  const m = /(?:זרם|stream)\s*:\s*"([^"]*)"/u.exec(doc.slice(end + 1, close));
+  if (!n.args) return undefined;
+  const m = /(?:זרם|stream)\s*:\s*"([^"]*)"/u.exec(doc.slice(n.args.from, n.args.to));
   return m ? m[1] : undefined;
 }
 
 /** Does this dump call render the given stream? */
-function dumpCovers(doc: string, end: number, stream: string): boolean {
-  if (doc[end] !== "(") return true; // `#הערות_בסוף` bare: the default stream
-  const close = matchParen(doc, end);
-  if (close < 0) return true;
-  const args = doc.slice(end + 1, close);
+function dumpCovers(doc: string, n: Node, stream: string): boolean {
+  if (!n.args) return true; // `#הערות_בסוף` bare: the default stream
+  const args = doc.slice(n.args.from, n.args.to);
   const named = /(?:זרם|stream)\s*:\s*"([^"]*)"/u.exec(args);
   if (named) return named[1] === stream;
   // `#הערות_בסוף_צד(זרמים: ("תוכן", "מקורות"))` — a list of streams.
@@ -125,23 +106,6 @@ function dumpCovers(doc: string, end: number, stream: string): boolean {
 }
 
 const DEFAULT_STREAM = "הערות";
-
-function matchParen(doc: string, open: number): number {
-  let depth = 0;
-  let inString = false;
-  for (let i = open; i < doc.length; i++) {
-    const c = doc[i];
-    if (inString) {
-      if (c === "\\") i++;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') inString = true;
-    else if (c === "(") depth++;
-    else if (c === ")" && --depth === 0) return i;
-  }
-  return -1;
-}
 
 /**
  * Every note in the document that is collected and never rendered.
@@ -157,22 +121,22 @@ export function unrendered(doc: string): Unrendered[] {
     if (dumps.length === 0) {
       for (const c of occurrences(doc, rule.collectors)) {
         out.push({
-          from: c.at,
-          to: c.end,
+          from: c.from,
+          to: c.nameTo,
           command: c.name,
           fix: rule.fix,
-          stream: rule.streamed ? (streamOf(doc, c.end) ?? DEFAULT_STREAM) : undefined,
+          stream: rule.streamed ? (streamOf(doc, c) ?? DEFAULT_STREAM) : undefined,
         });
       }
       continue;
     }
     for (const c of occurrences(doc, rule.collectors)) {
-      const stream = rule.streamed ? (streamOf(doc, c.end) ?? DEFAULT_STREAM) : undefined;
+      const stream = rule.streamed ? (streamOf(doc, c) ?? DEFAULT_STREAM) : undefined;
       const covered = dumps.some(
-        (d) => d.at > c.at && (stream === undefined || dumpCovers(doc, d.end, stream)),
+        (d) => d.from > c.from && (stream === undefined || dumpCovers(doc, d, stream)),
       );
       if (!covered) {
-        out.push({ from: c.at, to: c.end, command: c.name, fix: rule.fix, stream });
+        out.push({ from: c.from, to: c.nameTo, command: c.name, fix: rule.fix, stream });
       }
     }
   }

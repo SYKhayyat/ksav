@@ -18,6 +18,8 @@
 // every key it does not recognise verbatim**, so opening the panel can never
 // silently discard styling a writer typed by hand.
 
+import { scan, splitArgs, topLevelColon } from "./spans";
+
 export type StyleCommand = "headings" | "lists" | "tables" | "review" | "notes";
 
 const COMMAND_NAMES: Record<StyleCommand, string[]> = {
@@ -102,82 +104,33 @@ export interface StyleCall {
   lang: CommandLang;
 }
 
-/** Split a Typst argument list into `name: value` pairs, respecting nesting. */
-function splitArgs(src: string): Map<string, string> {
+/**
+ * Split a Typst argument list into `name: value` pairs, respecting nesting.
+ *
+ * Both halves come from `spans.ts`. The two loops that used to be here — and
+ * the third inside `findStyleCall`, and the fourth inside `readTuple` — each
+ * opened a string on any `"`, including inside a `[…]` body where Typst reads
+ * it as an ordinary character. Four scanners in one file, none of them counted
+ * by the survey that found the other ten.
+ */
+function splitStyleArgs(src: string): Map<string, string> {
   const out = new Map<string, string>();
-  let depth = 0;
-  let inString = false;
-  let start = 0;
-  const parts: string[] = [];
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i];
-    if (inString) {
-      if (c === "\\") i++;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') inString = true;
-    else if (c === "(" || c === "[" || c === "{") depth++;
-    else if (c === ")" || c === "]" || c === "}") depth--;
-    else if (c === "," && depth === 0) {
-      parts.push(src.slice(start, i));
-      start = i + 1;
-    }
-  }
-  parts.push(src.slice(start));
-  for (const part of parts) {
-    const t = part.trim();
-    if (!t) continue;
-    const colon = findTopLevelColon(t);
+  for (const g of splitArgs(src, 0, src.length)) {
+    const colon = topLevelColon(src, g.from, g.to);
     if (colon < 0) continue; // positional argument — not something we manage
-    out.set(t.slice(0, colon).trim(), t.slice(colon + 1).trim());
+    out.set(src.slice(g.from, colon).trim(), src.slice(colon + 1, g.to).trim());
   }
   return out;
-}
-
-function findTopLevelColon(s: string): number {
-  let depth = 0;
-  let inString = false;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (inString) {
-      if (c === "\\") i++;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') inString = true;
-    else if (c === "(" || c === "[" || c === "{") depth++;
-    else if (c === ")" || c === "]" || c === "}") depth--;
-    else if (c === ":" && depth === 0) return i;
-  }
-  return -1;
 }
 
 /** Find the document's `#הגדרות_*` call of this kind, if it has one. */
 export function findStyleCall(doc: string, kind: StyleCommand): StyleCall | null {
   for (const name of COMMAND_NAMES[kind]) {
-    const at = doc.indexOf("#" + name);
-    if (at < 0) continue;
-    const open = at + 1 + name.length;
-    if (doc[open] !== "(") continue;
-    let depth = 1;
-    let inString = false;
-    let i = open + 1;
-    for (; i < doc.length && depth > 0; i++) {
-      const c = doc[i];
-      if (inString) {
-        if (c === "\\") i++;
-        else if (c === '"') inString = false;
-        continue;
-      }
-      if (c === '"') inString = true;
-      else if (c === "(") depth++;
-      else if (c === ")") depth--;
-    }
-    if (depth !== 0) continue; // unbalanced — leave it alone
-    const raw = splitArgs(doc.slice(open + 1, i - 1));
+    const node = scan(doc).nodes.find((n) => n.hash && n.name === name && n.args);
+    if (!node) continue; // absent, or unbalanced — leave it alone
+    const raw = splitStyleArgs(doc.slice(node.args!.from, node.args!.to));
     const args = new Map([...raw].map(([k, v]) => [canonicalKey(k), v]));
-    return { from: at, to: i, args, lang: name === canonical(kind) ? "he" : "en" };
+    return { from: node.from, to: node.args!.to + 1, args, lang: name === canonical(kind) ? "he" : "en" };
   }
   return null;
 }
@@ -290,28 +243,7 @@ export function readTuple(src: string | undefined): string[] | null {
   if (!t.startsWith("(") || !t.endsWith(")")) return null;
   const inner = t.slice(1, -1).trim();
   if (!inner) return [];
-  const out: string[] = [];
-  let depth = 0;
-  let inString = false;
-  let start = 0;
-  for (let i = 0; i < inner.length; i++) {
-    const c = inner[i];
-    if (inString) {
-      if (c === "\\") i++;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') inString = true;
-    else if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(inner.slice(start, i).trim());
-      start = i + 1;
-    }
-  }
-  const last = inner.slice(start).trim();
-  if (last) out.push(last);
-  return out;
+  return splitArgs(inner, 0, inner.length).map((g) => inner.slice(g.from, g.to).trim());
 }
 
 /** The inverse. A one-element tuple keeps its trailing comma, as Typst wants. */

@@ -53,6 +53,112 @@ which the repo names in its own prose and then acts against.
 
 **Verdict: `rewrite`.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done as prescribed: one `spans.ts`, every consumer reading it, the edit
+> functions left alone as textual splices. The finding below is kept verbatim;
+> what follows is what replaced it, what the finding got wrong, and what it
+> missed.
+>
+> **The disagreement had a right answer, and it was not a compromise.** The
+> scanners split over `"` because each had picked a side of a real trade-off:
+> treat it as a string delimiter and a gershayim swallows the document, treat it
+> as an ordinary character and `#הערה_זרם("a)b")` never closes. Both were wrong,
+> because Typst does not have one rule — it has two, chosen by context, and not
+> one of the twelve tracked context. Inside `[…]` it is in content mode (`"` is a
+> character, `\` escapes); inside `(…)` and `{…}` it is in code mode (`"` opens a
+> string in which brackets are inert). Verified against the compiler rather than
+> reasoned about — `cargo run --example probe` on four documents:
+> `#רשימה(פריט[דברי רש"י],)` lays out two bullets, `#הערה_זרם("a)b")[גוף]` lays
+> out a footnote, `#הדגשה[סוגר \] בתוך]` prints a literal `]`, and
+> `#הדגשה[אלף // בית]` **fails to compile** because `//` eats the closing bracket
+> in content mode too. One context-tracked scanner is therefore strictly better
+> than every matcher it replaces.
+>
+> **What went.** Ten private delimiter matchers, eight command-name alternations,
+> `spell.ts`'s recursive bare-call walker, `markdown.ts`'s positional `BARE_RE`,
+> and — not counted by this finding — **four more argument scanners in
+> `styles.ts`**, every one of which opened a string on any `"` including inside a
+> `[…]` body. Fourteen, not twelve.
+>
+> **All six divergences are fixed at the root and asserted from both sides.**
+> `test/spans.test.mjs` is 180 assertions: a prohibition swept over `src/` (no
+> module but `spans.ts` may define a delimiter matcher *or* count bracket depth,
+> with `bidi.ts`'s viewport approximation named as the one argued exemption), the
+> six divergences each checked from both surfaces that disagreed, cross-surface
+> agreement over a twelve-document corpus, and the name table checked against
+> `ksav.typ` in **both** directions — every name the scanner knows must be a
+> command the engine defines, and every `heading()`-producing command in the
+> prelude must be one the scanner calls a heading. Verified by mutation: putting
+> a `matchBracket` back in `lists.ts`, restoring the old gershayim rule, deleting
+> `ממוספרת_עברית` from the table, and calling `#שער` a heading again each turn it
+> red.
+>
+> **Three things this finding got wrong.**
+>
+> - **The timing is mis-attributed.** *"21 ms per arrow keypress on a 41 KB
+>   document"* does not reproduce: `availableAt` on 40 KB of ordinary prose and
+>   tables costs 2.1 ms. The 21 ms is real but it is quadratic in **table size**,
+>   not document size — 200 rows is 19 ms and 600 rows is 93 ms, because
+>   `render()`'s `placementsIn` filters every cell once per row and
+>   `availableAt` renders the whole table eighteen times per caret move. The
+>   diagnosis (running eighteen operations to compute `enabled`) is right; the
+>   axis is wrong, and the argument it was supporting — that a `postMessage` is
+>   cheaper than the synchronous path — was not needed. Measured head-to-head in
+>   one process, the new scanner is **2.3–2.5× faster** than what it replaced at
+>   every size, because one memoised scan replaces the four-to-six each caret
+>   move used to pay for.
+> - **Divergence 5's repro does not compile.** `#סימן[א]` is `missing argument:
+>   כותרת` — the prelude signature is `סימן(מספר, כותרת)`. The finding is real
+>   and reproduces on `#סימן("א", [דיני תפילה])`, which is worth saying because
+>   an audit that cannot be re-run is a claim, not a finding.
+> - **`bidiIsolates()` is still not available.** The closing paragraph claims it
+>   comes free once there is "a tree to mark as isolating". It does not:
+>   `@codemirror/language`'s version reads a **Lezer** `NodeProp` off a Lezer
+>   parse tree, and a hand-rolled node list is not one. `isolateSpans` stays, now
+>   reading `spans.ts` — which does buy something real, just not that: a colour
+>   literal like `#b91c1c` inside `rgb("…")` is no longer isolated as a command,
+>   because the scanner knows it is inside a string.
+> - **`#סימן` cannot simply be handed the heading operations.** The prelude
+>   writes `heading(level: 1, …)` with the level *in the definition*, so there is
+>   no `#סימן` at level 2. Promote, demote and unwrap now refuse (the surfaces
+>   grey them); move and delete work, because those are text moves. Rewriting a
+>   siman into a `#כותרת2` would have silently dropped its number.
+>
+> **Four it missed, all of the same family.**
+>
+> - **`#שער` is in the outline and is not a heading.** It is
+>   `align(center, text(size: 2em, weight: "bold", …))` with no `heading()` in
+>   it, so it has never entered a compiled `#תוכן` — verified: a document of
+>   `#תוכן()`, `#שער[…]` and `#כותרת1[…]` prints exactly one contents entry. The
+>   outline pane listed it at level 1, so the two surfaces that display a
+>   document's structure disagreed about what the structure was, and folding it
+>   collapsed a section the document does not have. Every shipped template opens
+>   with one, so it stays in the pane as a level-0 *title* row and is no longer a
+>   section anywhere.
+> - **`brackets.ts` condemned valid documents and its one-click heal then broke
+>   them.** Its scanner skipped comments and nothing else, so on the three
+>   documents above that the compiler accepts, it reported a stray `)`, a stray
+>   `]` and an unclosed `[` — and the repair *deleted the real closing paren*,
+>   *deleted the real closing bracket*, and appended a bogus `]`. Worse than
+>   anything in the original six, because `compile.ts` compiles the healed copy
+>   speculatively, so the preview was rendering the corrupted text. It now takes
+>   its delimiter stream from `spans.delimiters()` and keeps only the balance
+>   judgement, which is the part that genuinely cannot come from a node tree.
+> - **`styles.ts`'s four scanners**, above.
+> - **`apparatus.ts`'s comment test** described itself as *"a crude but adequate
+>   check"*: it looked for `//` earlier on the line, so a `//` inside a string
+>   argument hid every command after it on that line.
+>
+> **The steelman held.** Structure editing is still synchronous, pure and
+> format-preserving; `table.ts` is still the only place that reprints; nothing
+> moved to the worker. What was separable was separated — deriving the spans is
+> now one thing, splicing the text is still eleven.
+>
+> Cost: 14 files, +1 module, −10 delimiter matchers, −8 name alternations,
+> −1 recursive walker. `npm test` 2,999 across 46 files (+180), `cargo test` 342,
+> `tsc` clean, `vite build` clean.
+
 `ksav/README.md:142` states the architectural centre of the project:
 
 > *"Because Typst itself parses the document, we never reimplement a parser — and
@@ -929,7 +1035,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 
 | # | Finding | Verdict | Cost to fix |
 |---|---|---|---|
-| 1 | Twelve markup scanners; six verified one-click contradictions | `rewrite` → one `spans.ts` | ~1 week, 10 call sites, no visible change |
+| 1 | ✅ **Fixed 6 Aug.** Fourteen markup scanners (twelve counted, four more in `styles.ts`); six verified one-click contradictions, plus `#שער` outlined as a section it is not and a bracket heal that corrupted valid documents | `rewrite` → one `spans.ts` | ~1 week, 14 files, no visible change except the bugs |
 | 2 | ✅ **Fixed 5 Aug.** Ten dispatch sites, one checked; `sefarim` dead in wasm, 6 proxy routes missing, CSP diverged so the update check is dead on both installer builds | `rewrite` → one registry + `build.rs` assertions | ~2 days |
 | 3 | Nobody has written a document in it | `don't-build` the next wave | one kuntres |
 | 4 | 19 false/stale doc claims incl. two contradicting release-status statements and a false "page setup travels with the file" | `rewrite` → 80 lines of test | ~half a day |

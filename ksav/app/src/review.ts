@@ -18,7 +18,7 @@
 //   reject a deletion    → unwrap it   (the text stays after all)
 //   resolve a comment    → delete it   (a comment is never part of the text)
 
-import { scanCommands } from "./ksav-lang";
+import { scan } from "./spans";
 
 export type MarkKind = "insert" | "delete" | "comment";
 export type Decision = "accept" | "reject";
@@ -46,16 +46,17 @@ export interface ReviewMark {
 /** Every review mark in the document, in document order (nested ones included). */
 export function scanMarks(doc: string): ReviewMark[] {
   const out: ReviewMark[] = [];
-  for (const s of scanCommands(doc)) {
-    const kind = KIND_OF[s.name];
-    if (!kind || s.open == null || s.close == null) continue;
-    const args = s.argOpen != null && s.argClose != null ? doc.slice(s.argOpen, s.argClose + 1) : "";
+  for (const n of scan(doc).nodes) {
+    const kind = KIND_OF[n.name];
+    const body = n.bodies[0];
+    if (!kind || !body) continue;
+    const args = n.args ? doc.slice(n.args.from, n.args.to) : "";
     const author = /(?:מאת|by)\s*:\s*"((?:[^"\\]|\\.)*)"/u.exec(args)?.[1] ?? null;
     out.push({
       kind,
-      from: s.cmdStart,
-      to: s.close + 1,
-      body: doc.slice(s.open + 1, s.close),
+      from: n.from,
+      to: n.to,
+      body: doc.slice(body.from, body.to),
       author: author ? author.replace(/\\(.)/g, "$1") : null,
     });
   }

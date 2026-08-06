@@ -31,6 +31,8 @@
 // It is deliberately dependency-free and pure (text in, findings out) so it can
 // be tested without a browser or a CodeMirror instance.
 
+import { callNameBefore, delimiters } from "./spans";
+
 export type Opener = "[" | "(" | "{";
 export type Closer = "]" | ")" | "}";
 
@@ -63,62 +65,18 @@ export interface Analysis {
  * Regions the bracket scanner must not look inside: `//` line comments and
  * `/* *\/` blocks. Brackets there are prose, not structure.
  *
- * Note this deliberately does NOT skip string literals. Hebrew abbreviations are
- * written with gershayim — רש"י, שו"ע, ע"ב — so treating `"` as a string
- * delimiter swallows everything between two unrelated abbreviations. The same
- * trade-off (and the bug it once caused) is documented on `matchGroup` in
- * ksav-lang.ts; the two scanners must agree or the lint would contradict the
- * renderer.
+ * From `spans.ts`, along with the answer to which brackets are structure at
+ * all — see `delimiters()` there for the three valid documents this file used
+ * to condemn, and then corrupt when the writer pressed the repair button.
  */
 export function commentRegions(text: string): { from: number; to: number; unterminated?: boolean }[] {
-  const out: { from: number; to: number; unterminated?: boolean }[] = [];
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] !== "/") continue;
-    // `://` is a URL, not a comment — matches scanComments in ksav-lang.ts.
-    if (text[i + 1] === "/" && text[i - 1] !== ":") {
-      const nl = text.indexOf("\n", i);
-      const to = nl < 0 ? text.length : nl;
-      out.push({ from: i, to });
-      i = to;
-    } else if (text[i + 1] === "*") {
-      const end = text.indexOf("*/", i + 2);
-      if (end < 0) {
-        out.push({ from: i, to: text.length, unterminated: true });
-        break;
-      }
-      out.push({ from: i, to: end + 2 });
-      i = end + 1;
-    }
-  }
-  return out;
+  return delimiters(text).comments;
 }
 
-const NAME_CH = /[A-Za-z0-9֐-׿_]/;
-
-/**
- * The `#command` an opener belongs to, for the lint message — "#הערה is never
- * closed" reads as an instruction; "unclosed [ at offset 8412" does not.
- *
- * Skips back over a complete `(...)` argument group first, so the body bracket of
- * `#כותרת(רמה: 2)[…]` still knows it belongs to #כותרת.
- */
-function cmdNameBefore(text: string, pos: number): string | null {
-  let i = pos - 1;
-  if (text[i] === ")") {
-    let depth = 1;
-    i--;
-    while (i >= 0 && depth > 0) {
-      if (text[i] === ")") depth++;
-      else if (text[i] === "(") depth--;
-      i--;
-    }
-    if (depth !== 0) return null;
-  }
-  const end = i + 1;
-  while (i >= 0 && NAME_CH.test(text[i])) i--;
-  if (i < 0 || text[i] !== "#" || i + 1 === end) return null;
-  return text.slice(i + 1, end);
-}
+// The `#command` an opener belongs to — for the lint message, because "#הערה is
+// never closed" reads as an instruction and "unclosed [ at offset 8412" does
+// not. It is a question about the markup, so it lives in `spans.ts` with every
+// other one.
 
 function lineStartOf(text: string, pos: number): number {
   const nl = text.lastIndexOf("\n", pos - 1);
@@ -187,41 +145,38 @@ function trimBack(text: string, pos: number): number {
  * and the rescued preview can never disagree about what is wrong.
  */
 export function analyze(text: string): Analysis {
-  const comments = commentRegions(text);
+  const { delims, comments } = delimiters(text);
   const problems: Problem[] = [];
 
   const unterminated = comments.find((c) => c.unterminated);
   if (unterminated) problems.push({ kind: "unterminatedComment", pos: unterminated.from });
 
-  // Ordered, non-overlapping — so one moving cursor is enough to skip them.
-  let ci = 0;
   const stack: { pos: number; ch: Opener }[] = [];
 
-  for (let i = 0; i < text.length; i++) {
-    while (ci < comments.length && comments[ci].to <= i) ci++;
-    if (ci < comments.length && i >= comments[ci].from) {
-      i = comments[ci].to - 1;
+  // Comments, string literals and escaped brackets have already been taken out
+  // by `delimiters()`, so this is purely the balance judgement — which is the
+  // part that genuinely belongs here and cannot come from a node tree, because
+  // a node tree only describes documents that balance.
+  for (const d of delims) {
+    if (d.opener) {
+      stack.push({ pos: d.pos, ch: d.ch as Opener });
       continue;
     }
-    const c = text[i];
-    if (c === "[" || c === "(" || c === "{") {
-      stack.push({ pos: i, ch: c });
-    } else if (c === "]" || c === ")" || c === "}") {
-      const want = OPENER_OF[c as Closer];
-      const top = stack[stack.length - 1];
-      if (top && top.ch === want) {
-        stack.pop();
-      } else if (top && stack.some((s) => s.ch === want)) {
-        // Closes something further down: everything above it was never closed.
-        // Report those, and let this closer match its real partner.
-        while (stack.length && stack[stack.length - 1].ch !== want) {
-          const orphan = stack.pop()!;
-          problems.push(mkUnclosed(text, orphan));
-        }
-        stack.pop();
-      } else {
-        problems.push({ kind: "stray", pos: i, ch: c as Closer });
+    const c = d.ch as Closer;
+    const want = OPENER_OF[c];
+    const top = stack[stack.length - 1];
+    if (top && top.ch === want) {
+      stack.pop();
+    } else if (top && stack.some((s) => s.ch === want)) {
+      // Closes something further down: everything above it was never closed.
+      // Report those, and let this closer match its real partner.
+      while (stack.length && stack[stack.length - 1].ch !== want) {
+        const orphan = stack.pop()!;
+        problems.push(mkUnclosed(text, orphan));
       }
+      stack.pop();
+    } else {
+      problems.push({ kind: "stray", pos: d.pos, ch: c });
     }
   }
   // Innermost first: a closer inserted for a deeper group must land before the
@@ -237,7 +192,7 @@ function mkUnclosed(text: string, o: { pos: number; ch: Opener }): Problem {
     pos: o.pos,
     ch: o.ch,
     closer: CLOSER_OF[o.ch],
-    cmd: cmdNameBefore(text, o.pos),
+    cmd: callNameBefore(text, o.pos),
     healAt: healPosition(text, o.pos),
   };
 }

@@ -12,87 +12,21 @@ import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
 import { TIERS, TIER_FAMILY } from "./note-commands";
+import { scan, type Group, type ListKind, type Node, type Scan } from "./spans";
 
 // ---- shared scanning -------------------------------------------------------
+//
+// There is one scanner and it is `spans.ts`. This file used to hold three of the
+// ten private delimiter matchers — `matchGroup`, `matchInText`, `matchDelim` —
+// plus eight command-name alternations that disagreed with the ones in
+// `headings.ts`, `lists.ts` and `table.ts` about which commands exist. Four of
+// the six reproduced one-click contradictions were that disagreement: pressing
+// `list.hebrew` ejected a list from prose mode because `LIST_OPEN_RE` had never
+// heard of `ממוספרת_עברית`; pressing `heading.demote` on `#h6` erased the
+// section from the outline because `HEAD_RE` had never heard of `hlevel`.
 
-const NAME = "[A-Za-z\\u0590-\\u05FF_][A-Za-z0-9\\u0590-\\u05FF_]*";
-const CMD_RE = new RegExp("#(" + NAME + ")", "g");
-
-export interface CmdSpan {
-  cmdStart: number; // position of '#'
-  nameEnd: number; // position just after the command name
-  name: string;
-  /** Position of '(' when the command takes arguments, else null. */
-  argOpen: number | null;
-  /** Position of the matching ')', else null. */
-  argClose: number | null;
-  open: number | null; // position of '['
-  close: number | null; // position of matching ']'
-}
-
-/**
- * Scan forward from `at` over a balanced group, returning the closer's index.
- *
- * Deliberately does NOT treat `"` as a string delimiter. Hebrew writes
- * abbreviations with gershayim — רש"י, שו"ע, רמב"ם, ע"ב — and a document is full
- * of them, so skipping from one `"` to the next swallows everything up to the
- * next abbreviation and the group never closes. (That bug ate whole tables:
- * `#טבלה(… תא[רש"י] …)` scanned to end-of-document and the table fell out of
- * prose mode and out of the Markdown export as raw markup.)
- *
- * The cost is a genuine but far rarer case: an unbalanced bracket inside a Typst
- * string literal, e.g. `#הערה_זרם("a)b")`. Hebrew quotes beat exotic strings.
- */
-function matchGroup(text: string, at: number, open: string, close: string): number | null {
-  let depth = 1;
-  for (let i = at + 1; i < text.length; i++) {
-    if (text[i] === open) depth++;
-    else if (text[i] === close) {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return null;
-}
-
-/**
- * Find every `#command`, its optional `(...)` arguments, and its `[...]` body.
- *
- * The argument group matters more than it looks: this used to recognise only
- * `#name[`, so every command that takes arguments — `#צבע(rgb("#b91c1c"))[…]`,
- * `#גודל_גופן(14pt)[…]`, `#הערה_זרם("מקורות")[…]`, `#כותרת(רמה: 4)[…]` — was
- * invisible to prose mode and showed up as literal markup in the middle of the
- * "looks like Word" view.
- */
-export function scanCommands(text: string): CmdSpan[] {
-  const spans: CmdSpan[] = [];
-  CMD_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = CMD_RE.exec(text))) {
-    const cmdStart = m.index;
-    const name = m[1];
-    const nameEnd = cmdStart + 1 + name.length;
-    let argOpen: number | null = null;
-    let argClose: number | null = null;
-    let bodyAt = nameEnd;
-    if (text[nameEnd] === "(") {
-      const end = matchGroup(text, nameEnd, "(", ")");
-      if (end != null) {
-        argOpen = nameEnd;
-        argClose = end;
-        bodyAt = end + 1;
-      }
-    }
-    let open: number | null = null;
-    let close: number | null = null;
-    if (text[bodyAt] === "[") {
-      open = bodyAt;
-      close = matchGroup(text, bodyAt, "[", "]");
-    }
-    spans.push({ cmdStart, nameEnd, name, argOpen, argClose, open, close });
-  }
-  return spans;
-}
+/** A comment's range, for a consumer that only cares where they are. */
+export type CommentSpan = Group;
 
 // ---- raw-mode syntax highlighting -----------------------------------------
 
@@ -100,35 +34,21 @@ const cmdMark = Decoration.mark({ class: "ksav-cmd" });
 const bracketMark = Decoration.mark({ class: "ksav-bracket" });
 const commentMark = Decoration.mark({ class: "ksav-comment" });
 
-// Comment spans in a chunk of text: /* block */ and // line (not part of ://).
-export function scanComments(text: string): { from: number; to: number }[] {
-  const spans: { from: number; to: number }[] = [];
-  for (const m of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
-    spans.push({ from: m.index!, to: m.index! + m[0].length });
-  }
-  for (const m of text.matchAll(/(^|[^:])(\/\/[^\n]*)/g)) {
-    const start = m.index! + m[1].length;
-    spans.push({ from: start, to: start + m[2].length });
-  }
-  return spans;
-}
-
 function highlightDecorations(view: EditorView): DecorationSet {
   const ranges: { from: number; to: number; deco: Decoration }[] = [];
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.doc.sliceString(from, to);
-    const comments = scanComments(text);
-    const inComment = (i: number) => comments.some((c) => i >= c.from && i < c.to);
-    for (const c of comments) {
+    const s = scan(text);
+    for (const c of s.comments) {
       ranges.push({ from: from + c.from, to: from + c.to, deco: commentMark });
     }
-    for (const s of scanCommands(text)) {
-      if (inComment(s.cmdStart)) continue; // don't colorize commands inside comments
-      ranges.push({ from: from + s.cmdStart, to: from + s.nameEnd, deco: cmdMark });
-      if (s.open != null)
-        ranges.push({ from: from + s.open, to: from + s.open + 1, deco: bracketMark });
-      if (s.close != null)
-        ranges.push({ from: from + s.close, to: from + s.close + 1, deco: bracketMark });
+    // Commands inside comments are not nodes at all, so there is nothing to skip.
+    for (const n of s.nodes) {
+      ranges.push({ from: from + n.from, to: from + n.nameTo, deco: cmdMark });
+      for (const b of n.bodies) {
+        ranges.push({ from: from + b.from - 1, to: from + b.from, deco: bracketMark });
+        ranges.push({ from: from + b.to, to: from + b.to + 1, deco: bracketMark });
+      }
     }
   }
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
@@ -174,21 +94,12 @@ const PROSE_STYLE: Record<string, string> = {
   title: "pm-title",
   תת_שער: "pm-subtitle",
   subtitle: "pm-subtitle",
-  כותרת1: "pm-h1",
-  h1: "pm-h1",
-  כותרת2: "pm-h2",
-  h2: "pm-h2",
-  כותרת3: "pm-h3",
-  h3: "pm-h3",
   מרכז: "pm-center",
   center_: "pm-center",
   ימין: "pm-right",
   right_: "pm-right",
   שמאל: "pm-left",
   left_: "pm-left",
-  כותרת4: "pm-h3",
-  כותרת5: "pm-h3",
-  כותרת6: "pm-h3",
   // A heading inside a note looks like a small heading and is not one — so in
   // prose mode it gets the small-heading look, and nothing in the outline.
   כותרת_בהערה: "pm-h3",
@@ -254,6 +165,27 @@ const PROSE_STYLE: Record<string, string> = {
   מחיקה: "pm-del",
   deleted: "pm-del",
 };
+
+/** Levels 1–3 look like themselves; deeper ones all look like a small heading. */
+const HEADING_CLASS = ["pm-h1", "pm-h2", "pm-h3"];
+
+/**
+ * The prose-mode class for a call.
+ *
+ * A heading answers from its **level**, not from an entry in `PROSE_STYLE`.
+ * That table listed `כותרת4/5/6` and stopped: it had no `h4`, no `h5`, no `h6`,
+ * no bare `#כותרת` and no `#hlevel` — so the entire English half of the heading
+ * commands, and the only spelling that reaches past level six, printed their own
+ * markup in the middle of the view whose one promise is that it looks like the
+ * page. Deriving the class from the role means a heading the scanner knows about
+ * cannot fail to be styled, in either language, at any level.
+ */
+function proseClass(n: Node): string | null {
+  if (n.role === "heading") {
+    return HEADING_CLASS[Math.min(n.level ?? 1, HEADING_CLASS.length) - 1];
+  }
+  return PROSE_STYLE[n.name] ?? null;
+}
 
 const hide = Decoration.replace({});
 
@@ -429,15 +361,25 @@ function deferArgs(args: string): { name: string; kind: string | null } {
 }
 
 /** The name a deferred marker or body carries, whichever form it was written in. */
-function deferNameOf(text: string, s: CmdSpan): string {
-  if (s.argOpen != null && s.argClose != null) {
-    return deferArgs(text.slice(s.argOpen + 1, s.argClose)).name;
-  }
+function deferNameOf(text: string, n: Node): string {
+  if (n.args) return deferArgs(text.slice(n.args.from, n.args.to)).name;
   // The bracket form: `#הערה_בשם[א]`, `#גוף_הערה[א][…]`.
-  return s.open != null && s.close != null ? text.slice(s.open + 1, s.close).trim() : "";
+  return n.bodies[0] ? text.slice(n.bodies[0].from, n.bodies[0].to).trim() : "";
 }
 
 const HEB_LETTERS = "אבגדהוזחטיכלמנסעפצקרשת".split("");
+
+/**
+ * An ordered list's marker for item `n`, in the scheme the engine will print.
+ *
+ * `#ממוספרת_עברית` is `enum(numbering: "א.")`, so a Hebrew-lettered list must
+ * show letters here. Prose mode could not have got this wrong before, because it
+ * did not render that list at all.
+ */
+function listLabel(kind: ListKind, n: number): string {
+  return kind === "hebrew" ? HEB_LETTERS[(n - 1) % HEB_LETTERS.length] : String(n);
+}
+
 /** Render `n` (1-based) in an apparatus's own numbering scheme. */
 function noteLabel(scheme: NoteScheme, n: number): string {
   if (scheme === "א") return HEB_LETTERS[(n - 1) % HEB_LETTERS.length];
@@ -445,32 +387,14 @@ function noteLabel(scheme: NoteScheme, n: number): string {
   return String(n);
 }
 
-// Match the delimiter (`[` or `(`) at `openPos` within a text string.
-function matchInText(text: string, openPos: number): number | null {
-  const open = text[openPos];
-  const close = open === "[" ? "]" : ")";
-  let depth = 1;
-  for (let i = openPos + 1; i < text.length; i++) {
-    if (text[i] === open) depth++;
-    else if (text[i] === close) {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return null;
-}
-
-const LIST_OPEN_RE = /#(רשימה|ממוספרת|bullets|numbered)\s*\(/gu;
-// Group 1 captures the character before the item name (or start-of-string) as a
-// word boundary: without it, a longer word ending in פריט (e.g. תפריט[…]) or
-// `subitem[…]` would be mistaken for a list item. A lookbehind would be cleaner
-// but isn't supported on Safari < 16.4, so we capture-and-offset instead.
-const ITEM_OPEN_RE = /(^|[^A-Za-z0-9֐-׿_])(פריט|item)\s*\[/gu;
-
 // ---- tables: rendered as a real grid in prose mode ----
-
-const TABLE_OPEN_RE = /#(טבלה|mktable)\s*\(/gu;
-const CELL_RE = /(כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*(?:\(\s*(\d+)\s*\))?\s*\[/gu;
+//
+// The list, item, table and cell alternations that used to live here are gone.
+// `LIST_OPEN_RE` knew four list commands where `lists.ts` knew six, so a
+// document written with `#ממוספרת_עברית` — or one that got there by pressing the
+// ribbon's own `list.hebrew` button — stopped rendering as a list in the mode
+// whose entire promise is that it looks like the page. There is one table now
+// and it is `spans.ts`'s.
 
 // A table cell rendered only bold/italic/underline/strike/code, so a cell using
 // anything else — a colour, a highlight, small caps — showed its raw markup
@@ -512,31 +436,32 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Render a cell's Ksav markup to safe HTML: known inline commands become tags,
-// unknown wrappers keep only their content, everything is HTML-escaped.
-function renderInline(text: string): string {
+/**
+ * Render a range of Ksav markup to safe HTML: known inline commands become
+ * tags, unknown wrappers keep only their content, everything is HTML-escaped.
+ *
+ * Walks the scan rather than re-matching, so a cell holding `רש"י` renders as
+ * `רש"י` instead of opening a string that swallows the rest of the table — and
+ * `#צבע(rgb("#b91c1c"))[…]` renders its content instead of printing its own
+ * arguments, which the old `(?:\([^()]*\))?` could only manage while the
+ * argument list held no nested parentheses of its own.
+ */
+function renderInline(s: Scan, from: number, to: number): string {
+  const text = s.text;
   let out = "";
-  let i = 0;
-  while (i < text.length) {
-    // `(?:\([^()]*\))?` skips a command's argument group, so `#צבע(rgb("…"))[…]`
-    // in a cell renders its content instead of printing its own arguments.
-    const m = text.slice(i).match(/#([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*(?:\([^()]*\))?\s*\[/u);
-    if (!m) {
-      out += escapeHtml(text.slice(i));
-      break;
+  let i = from;
+  while (i < to) {
+    const n = s.byStart.get(i);
+    if (!n || n.to > to || n.bodies.length === 0) {
+      out += escapeHtml(text[i]);
+      i++;
+      continue;
     }
-    const cmdIdx = i + m.index!;
-    out += escapeHtml(text.slice(i, cmdIdx));
-    const openBr = cmdIdx + m[0].length - 1;
-    const closeBr = matchInText(text, openBr);
-    if (closeBr == null) {
-      out += escapeHtml(text.slice(cmdIdx));
-      break;
-    }
-    const inner = renderInline(text.slice(openBr + 1, closeBr));
-    const tag = INLINE_TAG[m[1]];
+    const body = n.bodies[0];
+    const inner = renderInline(s, body.from, body.to);
+    const tag = INLINE_TAG[n.name];
     out += tag ? tag[0] + inner + tag[1] : inner;
-    i = closeBr + 1;
+    i = n.to;
   }
   return out;
 }
@@ -546,25 +471,28 @@ interface TableModel {
   cells: { html: string; header: boolean; span: number }[];
 }
 
-// Parse `#טבלה(עמודות: N, תא[…], כותרת_תא[…], מיזוג(k)[…], …)` into a grid model.
-function parseTable(text: string, openParen: number, closeParen: number): TableModel {
-  const inner = text.slice(openParen + 1, closeParen);
-  const colsMatch = inner.match(/(?:עמודות|columns)\s*:\s*(\d+)/);
-  const cols = Math.max(1, colsMatch ? parseInt(colsMatch[1], 10) : 2);
+/**
+ * A `#טבלה(…)` node as a grid model.
+ *
+ * The column count comes from the node, which understands both spellings Typst
+ * accepts. This function used to match `\d+` only, so a table declaring
+ * `עמודות: (2fr, 1fr, 1fr)` fell back to two columns and prose mode drew a
+ * three-column table as a two-column grid — while `table.ts`, the module that
+ * *writes* that track list, read it correctly. One document, two readers, one of
+ * them wrong, and the ribbon button that produced the disagreement was
+ * `table.widerColumn`.
+ */
+function parseTable(s: Scan, node: Node): TableModel {
   const cells: TableModel["cells"] = [];
-  CELL_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = CELL_RE.exec(inner))) {
-    const openBr = m.index + m[0].length - 1;
-    const closeBr = matchInText(inner, openBr);
-    if (closeBr == null) break;
-    const header = m[1] === "כותרת_תא" || m[1] === "headcell";
-    const merge = m[1] === "מיזוג" || m[1] === "colspan_";
-    const span = merge && m[2] ? Math.max(1, parseInt(m[2], 10)) : 1;
-    cells.push({ html: renderInline(inner.slice(openBr + 1, closeBr)), header, span });
-    CELL_RE.lastIndex = closeBr + 1; // skip nested cells (e.g. a table inside a cell)
+  for (const c of node.children) {
+    if (c.role !== "cell" || !c.bodies[0]) continue;
+    cells.push({
+      html: renderInline(s, c.bodies[0].from, c.bodies[0].to),
+      header: c.header === true,
+      span: c.span ?? 1,
+    });
   }
-  return { cols, cells };
+  return { cols: node.cols ?? 2, cells };
 }
 
 function tableHtml(model: TableModel): string {
@@ -659,10 +587,11 @@ function proseDecorations(state: EditorState): ProseValue {
   // so in prose mode we hide them too — the region's body then reads as plain
   // text with no visible collapse markers, matching the printed page. A marker
   // is revealed when the cursor touches it or Alt is held, so it stays editable.
-  const comments = scanComments(text);
-  const commentMask = new Uint8Array(text.length + 1);
-  for (const c of comments) paint(commentMask, c.from, c.to); // [from, to)
-  const inComment = (i: number) => commentMask[i] === 1;
+  const doc = scan(text);
+  const comments = doc.comments;
+  // Nothing needs an `inComment` predicate any more: a command inside a comment
+  // is not a node, so the four "skip this if it is commented out" guards that
+  // used to sit in this function have no case left to catch.
 
   // ---- footnote coverage ----
   // A footnote collapses to ONE numbered chip: a full-span `replace` over the
@@ -670,30 +599,26 @@ function proseDecorations(state: EditorState): ProseValue {
   // even a comment) must NOT emit its own decoration, or two `replace` ranges
   // overlap and CodeMirror throws ("Ran out of text content"). We compute the
   // outermost footnote spans up front and skip anything that falls inside one.
-  const allCmds = scanCommands(text);
-  const topFn: CmdSpan[] = [];
+  const allCmds = doc.nodes;
+  const topFn: Node[] = [];
   let fnCover = -1;
-  for (const s of allCmds) {
-    if (!FOOTNOTE_NAMES.has(s.name) || s.open == null || s.close == null) continue;
-    if (inComment(s.cmdStart) || s.cmdStart < fnCover) continue; // nested/commented
-    topFn.push(s);
-    fnCover = s.close + 1;
+  for (const n of allCmds) {
+    if (!FOOTNOTE_NAMES.has(n.name) || n.bodies.length === 0) continue;
+    if (n.from < fnCover) continue; // nested
+    topFn.push(n);
+    fnCover = n.to;
   }
   const fnMask = new Uint8Array(text.length + 1);
-  for (const s of topFn) paint(fnMask, s.cmdStart + 1, s.close! + 1); // (cmdStart, close]
+  for (const n of topFn) paint(fnMask, n.from + 1, n.to); // (from, to)
   const insideFootnote = (pos: number) => fnMask[pos] === 1;
 
   // ---- list coverage (outermost lists), used to keep a nested table raw ----
   const listSpans: { from: number; to: number }[] = [];
-  LIST_OPEN_RE.lastIndex = 0;
-  let ls: RegExpExecArray | null;
-  while ((ls = LIST_OPEN_RE.exec(text))) {
-    if (inComment(ls.index) || insideFootnote(ls.index)) continue;
-    const op = ls.index + ls[0].length - 1;
-    const cp = matchInText(text, op);
-    if (cp == null) continue;
-    if (ls.index < (listSpans[listSpans.length - 1]?.to ?? -1)) continue; // nested
-    listSpans.push({ from: ls.index, to: cp });
+  for (const n of doc.nodes) {
+    if (n.role !== "list" || !n.args) continue;
+    if (insideFootnote(n.from)) continue;
+    if (n.from < (listSpans[listSpans.length - 1]?.to ?? -1)) continue; // nested
+    listSpans.push({ from: n.from, to: n.args.to });
   }
   const listMask = new Uint8Array(text.length + 1);
   for (const s of listSpans) paint(listMask, s.from + 1, s.to + 1); // (from, to]
@@ -705,14 +630,11 @@ function proseDecorations(state: EditorState): ProseValue {
   // is rendered only when it stands on its own line(s) and isn't inside a
   // footnote/list/comment or under the cursor; otherwise it stays editable raw.
   const tableSpans: { from: number; to: number }[] = [];
-  TABLE_OPEN_RE.lastIndex = 0;
-  let tm: RegExpExecArray | null;
-  while ((tm = TABLE_OPEN_RE.exec(text))) {
-    const cmdStart = tm.index;
-    if (inComment(cmdStart) || insideFootnote(cmdStart) || insideList(cmdStart)) continue;
-    const openParen = cmdStart + tm[0].length - 1;
-    const closeParen = matchInText(text, openParen);
-    if (closeParen == null) continue;
+  for (const n of doc.nodes) {
+    if (n.role !== "table" || !n.args) continue;
+    const cmdStart = n.from;
+    if (insideFootnote(cmdStart) || insideList(cmdStart)) continue;
+    const closeParen = n.args.to;
     const startLine = state.doc.lineAt(cmdStart);
     const endLine = state.doc.lineAt(closeParen);
     // Block-eligible only if the markup owns whole lines (nothing else on them).
@@ -721,7 +643,7 @@ function proseDecorations(state: EditorState): ProseValue {
       text.slice(closeParen + 1, endLine.to).trim() === "";
     if (!clean) continue;
     if (touchedAt(startLine.from, endLine.to)) continue; // editing: show raw
-    const html = tableHtml(parseTable(text, openParen, closeParen));
+    const html = tableHtml(parseTable(doc, n));
     ranges.push({
       from: startLine.from,
       to: endLine.to,
@@ -754,33 +676,31 @@ function proseDecorations(state: EditorState): ProseValue {
   }
 
   // ---- lists: hide scaffolding, show bullets/numbers (WYSIWYG) ----
-  LIST_OPEN_RE.lastIndex = 0;
-  let lm: RegExpExecArray | null;
-  while ((lm = LIST_OPEN_RE.exec(text))) {
-    const cmdStart = lm.index;
-    if (inComment(cmdStart)) continue; // commented-out list: leave to the comment hider
+  // Every list kind, in both languages, because the names come from the same
+  // table `lists.ts` writes with. `#ממוספרת_עברית` used to render as raw markup
+  // here while the ribbon happily produced it.
+  for (const n of doc.nodes) {
+    if (n.role !== "list" || !n.args) continue;
+    const cmdStart = n.from;
     if (insideFootnote(cmdStart) || insideTable(cmdStart)) continue; // covered by another widget
-    const openParen = lm.index + lm[0].length - 1;
-    const closeParen = matchInText(text, openParen);
-    if (closeParen == null) continue;
+    const openParen = n.args.from - 1;
+    const closeParen = n.args.to;
     if (touchedAt(cmdStart, closeParen + 1)) continue;
-    const ordered = lm[1] === "ממוספרת" || lm[1] === "numbered";
+    const ordered = n.listKind === "numbered" || n.listKind === "hebrew";
     ranges.push({ from: cmdStart, to: openParen + 1, deco: hide, side: -1 });
     ranges.push({ from: closeParen, to: closeParen + 1, deco: hide, side: 1 });
-    // items directly inside this list. Start at the `(` so it can act as the
-    // boundary char (group 1) for an item that immediately follows it.
-    ITEM_OPEN_RE.lastIndex = openParen;
     let idx = 0;
-    let im: RegExpExecArray | null;
-    while ((im = ITEM_OPEN_RE.exec(text)) && im.index < closeParen) {
-      const itemNameStart = im.index + im[1].length; // skip the captured boundary char
-      const itemOpen = im.index + im[0].length - 1; // the `[`
-      const itemClose = matchInText(text, itemOpen);
-      if (itemClose == null || itemClose > closeParen) break;
+    for (const item of n.children) {
+      // Items directly inside *this* list; a nested list's items are decorated
+      // by their own list, which is what the containment tree gives for free.
+      if (item.role !== "item" || !item.bodies[0]) continue;
+      const itemOpen = item.bodies[0].from - 1;
+      const itemClose = item.bodies[0].to;
       idx++;
-      const bullet = ordered ? `${idx}. ` : "• ";
+      // A Hebrew-lettered list is lettered on the page, so it is lettered here.
+      const bullet = ordered ? `${listLabel(n.listKind!, idx)}. ` : "• ";
       ranges.push({
-        from: itemNameStart,
+        from: item.from,
         to: itemOpen + 1,
         deco: Decoration.replace({ widget: new LabelWidget(bullet) }),
         side: -1,
@@ -788,7 +708,6 @@ function proseDecorations(state: EditorState): ProseValue {
       ranges.push({ from: itemClose, to: itemClose + 1, deco: hide, side: 1 });
       if (text[itemClose + 1] === ",")
         ranges.push({ from: itemClose + 1, to: itemClose + 2, deco: hide, side: 1 });
-      ITEM_OPEN_RE.lastIndex = itemClose + 1; // skip nested items (handled by their own list)
     }
   }
 
@@ -799,21 +718,18 @@ function proseDecorations(state: EditorState): ProseValue {
   // a definition's number is its marker's number and a definition is allowed to
   // come first in the file.
   const deferBodies = new Map<string, string>();
-  const deferDefs: { s: CmdSpan; name: string; bodyOpen: number; bodyClose: number }[] = [];
+  const deferDefs: { s: Node; name: string; body: Group }[] = [];
   for (const s of allCmds) {
-    if (!DEFER_BODY_NAMES.has(s.name) || inComment(s.cmdStart)) continue;
-    // `#גוף_הערה("א")[…]` — the body follows the argument group. In the bracket
-    // form `#גוף_הערה[א][…]` the scanner captures only the first group, so the
-    // body is the group after it.
-    let bodyOpen: number | null = null;
-    if (s.argClose != null && text[s.argClose + 1] === "[") bodyOpen = s.argClose + 1;
-    else if (s.argOpen == null && s.close != null && text[s.close + 1] === "[") bodyOpen = s.close + 1;
-    if (bodyOpen == null) continue;
-    const bodyClose = matchInText(text, bodyOpen);
-    if (bodyClose == null) continue;
+    if (!DEFER_BODY_NAMES.has(s.name)) continue;
+    // `#גוף_הערה("א")[…]` puts its prose in the only body; the bracket form
+    // `#גוף_הערה[א][…]` puts the name in the first and the prose in the second.
+    // The scanner collects every trailing group, so this is an index rather than
+    // the two-branch reconstruction it used to be.
+    const body = s.args ? s.bodies[0] : s.bodies[1];
+    if (!body) continue;
     const name = deferNameOf(text, s);
-    if (!deferBodies.has(name)) deferBodies.set(name, text.slice(bodyOpen + 1, bodyClose));
-    deferDefs.push({ s, name, bodyOpen, bodyClose });
+    if (!deferBodies.has(name)) deferBodies.set(name, text.slice(body.from, body.to));
+    deferDefs.push({ s, name, body });
   }
   /** The chip a name's marker got, filled in as the main loop meets the markers. */
   const deferLabels = new Map<string, string>();
@@ -821,17 +737,16 @@ function proseDecorations(state: EditorState): ProseValue {
   // One counter per apparatus, not one for the whole document.
   const fnCounts: Record<string, number> = {};
   for (const s of allCmds) {
-    if (inComment(s.cmdStart)) continue; // commented-out command: hidden by the comment hider
-    if (insideFootnote(s.cmdStart) || insideTable(s.cmdStart)) continue; // covered by another widget
+    if (insideFootnote(s.from) || insideTable(s.from)) continue; // covered by another widget
+    if (!s.hash) continue; // a bare call is decorated by its container (a list, a table)
 
     // ---- commands with no body: shown as the thing they produce ----
     const block = SELF_CLOSING[s.name];
-    if (block && s.open == null) {
-      const to = s.argClose != null ? s.argClose + 1 : s.nameEnd;
-      if (!touchedAt(s.cmdStart, to)) {
+    if (block && s.bodies.length === 0) {
+      if (!touchedAt(s.from, s.to)) {
         ranges.push({
-          from: s.cmdStart,
-          to,
+          from: s.from,
+          to: s.to,
           deco: Decoration.replace({ widget: new MarkWidget(block.cls, block.text) }),
           side: 0,
         });
@@ -842,24 +757,20 @@ function proseDecorations(state: EditorState): ProseValue {
     // a deferred marker -> the same chip an inline note gets, numbered in the
     // same sequence, with the prose from the end of the file on hover
     if (DEFER_REF_NAMES.has(s.name)) {
-      const to = s.argClose != null ? s.argClose + 1 : s.close != null ? s.close + 1 : null;
-      if (to != null) {
+      if (s.args || s.bodies.length) {
         const name = deferNameOf(text, s);
-        const layout =
-          s.argOpen != null && s.argClose != null
-            ? deferArgs(text.slice(s.argOpen + 1, s.argClose)).kind
-            : null;
+        const layout = s.args ? deferArgs(text.slice(s.args.from, s.args.to)).kind : null;
         // `סוג` defaults to a plain footnote, so an unrecognised layout counts in
         // the native series rather than starting a sequence of its own.
         const k = (layout != null ? NOTE_KINDS[layout] : null) ?? NOTE_KINDS["הערה"];
         const n = (fnCounts[k.family] = (fnCounts[k.family] ?? 0) + 1);
         const label = noteLabel(k.scheme, n);
         deferLabels.set(name, label);
-        if (!touchedAt(s.cmdStart, to)) {
+        if (!touchedAt(s.from, s.to)) {
           const body = deferBodies.get(name);
           ranges.push({
-            from: s.cmdStart,
-            to,
+            from: s.from,
+            to: s.to,
             deco: Decoration.replace({
               widget: new FootnoteWidget(
                 label,
@@ -876,16 +787,17 @@ function proseDecorations(state: EditorState): ProseValue {
 
     // footnotes -> a numbered superscript chip (body hidden)
     const kind = NOTE_KINDS[s.name];
-    if (kind && s.open != null && s.close != null) {
+    const body = s.bodies[0];
+    if (kind && body) {
       const n = (fnCounts[kind.family] = (fnCounts[kind.family] ?? 0) + 1);
-      if (!touchedAt(s.cmdStart, s.close + 1)) {
+      if (!touchedAt(s.from, s.to)) {
         ranges.push({
-          from: s.cmdStart,
-          to: s.close + 1,
+          from: s.from,
+          to: s.to,
           deco: Decoration.replace({
             widget: new FootnoteWidget(
               noteLabel(kind.scheme, n),
-              text.slice(s.open + 1, s.close).replace(/#[^\[]*\[|[[\]]/g, " ").trim(),
+              text.slice(body.from, body.to).replace(/#[^\[]*\[|[[\]]/g, " ").trim(),
             ),
           }),
           side: 0,
@@ -893,24 +805,21 @@ function proseDecorations(state: EditorState): ProseValue {
       }
       continue;
     }
-    const cls = PROSE_STYLE[s.name];
-    if (cls == null || s.open == null || s.close == null) continue;
+    const cls = proseClass(s);
+    if (cls == null || !body) continue;
 
-    const spanFrom = s.cmdStart;
-    const spanTo = s.close + 1;
     // Reveal raw markup if Alt is held, or the cursor/selection touches it.
-    const touched = touchedAt(spanFrom, spanTo);
-    if (touched) continue;
+    if (touchedAt(s.from, s.to)) continue;
 
     // hide "#name(args)[" and the matching "]" — the argument group included, or
     // a coloured run would still read as `#צבע(rgb("#b91c1c"))` on the page.
-    ranges.push({ from: s.cmdStart, to: s.open + 1, deco: hide, side: -1 });
-    ranges.push({ from: s.close, to: s.close + 1, deco: hide, side: 1 });
+    ranges.push({ from: s.from, to: body.from, deco: hide, side: -1 });
+    ranges.push({ from: body.to, to: body.to + 1, deco: hide, side: 1 });
     // style the inner content
-    if (s.close > s.open + 1)
+    if (body.to > body.from)
       ranges.push({
-        from: s.open + 1,
-        to: s.close,
+        from: body.from,
+        to: body.to,
         deco: Decoration.mark({ class: cls }),
         side: 0,
       });
@@ -923,17 +832,17 @@ function proseDecorations(state: EditorState): ProseValue {
   // written before its marker. A body nothing points at keeps a `?` — invisible
   // would make it look filed when it is lost.
   for (const d of deferDefs) {
-    if (insideFootnote(d.s.cmdStart) || insideTable(d.s.cmdStart)) continue;
-    if (touchedAt(d.s.cmdStart, d.bodyClose + 1)) continue;
+    if (insideFootnote(d.s.from) || insideTable(d.s.from)) continue;
+    if (touchedAt(d.s.from, d.body.to + 1)) continue;
     ranges.push({
-      from: d.s.cmdStart,
-      to: d.bodyOpen + 1,
+      from: d.s.from,
+      to: d.body.from,
       deco: Decoration.replace({
         widget: new FootnoteWidget(deferLabels.get(d.name) ?? "?", d.name),
       }),
       side: -1,
     });
-    ranges.push({ from: d.bodyClose, to: d.bodyClose + 1, deco: hide, side: 1 });
+    ranges.push({ from: d.body.to, to: d.body.to + 1, deco: hide, side: 1 });
   }
 
   ranges.sort((a, b) => a.from - b.from || a.side - b.side);
@@ -946,58 +855,78 @@ function proseDecorations(state: EditorState): ProseValue {
 
 // ---- folding (org-mode style: headings + lists + any multi-line command) ----
 
-// Recognizes a heading line and returns its outline level, else null.
-// The trailing `(?![…])` is a word boundary: without it, `#כותרת_תא` (a table
-// header cell) and other `כותרת`-prefixed commands would be mistaken for a
-// heading, corrupting the outline and fold behavior.
-const HEAD_RE =
-  /^\s*#(שער|title|תת_שער|subtitle|סימן|siman|כותרת([1-6])?|h([1-6]))(?![A-Za-z0-9֐-׿_])(?:\s*\(\s*(?:רמה|level)\s*:\s*(\d+))?/u;
+/** A row of the outline pane. */
+export interface OutlineRow {
+  level: number;
+  title: string;
+  from: number;
+  /**
+   * Is this a *section* — something that numbers, folds and enters `#תוכן`?
+   *
+   * `#שער` is not. It is `align(center, text(size: 2em, weight: "bold", …))`
+   * with no `heading()` in it, so the compiled table of contents has never had
+   * an entry for it — and the outline pane listed it at level 1, so the two
+   * surfaces that show a document's structure disagreed about what its structure
+   * was. Every shipped template opens with one, which is why it stays in the
+   * pane as a level-0 title row: it is worth navigating to, it is not a section,
+   * and folding it would collapse a region the document does not have.
+   */
+  section: boolean;
+}
 
-/** Extract the document outline (headings with level, title, and position). */
-export function outline(text: string): { level: number; title: string; from: number }[] {
-  const res: { level: number; title: string; from: number }[] = [];
-  let pos = 0;
-  for (const line of text.split("\n")) {
-    const lvl = headingLevel(line);
-    if (lvl != null) {
-      const titles = [...line.matchAll(/\[([^[\]]*)\]/g)].map((m) => m[1]).join(" ").trim();
-      res.push({ level: lvl, title: titles || line.trim(), from: pos });
+/** The title a heading node shows in the outline. */
+function titleOf(text: string, n: Node): string {
+  const groups = n.titleGroups ?? n.bodies;
+  const joined = groups.map((g) => text.slice(g.from, g.to)).join(" ").trim();
+  return joined || text.slice(n.from, n.to).trim();
+}
+
+/**
+ * Extract the document outline.
+ *
+ * A heading is outlined only when it starts its own line, which is what keeps
+ * an inline `#כותרת3[…]` in the middle of a sentence out of the pane and out of
+ * the fold service — the same rule the old line-anchored regex enforced, now
+ * applied to a node the rest of the app agrees exists.
+ */
+export function outline(text: string): OutlineRow[] {
+  const res: OutlineRow[] = [];
+  for (const n of scan(text).nodes) {
+    if (!startsItsLine(text, n)) continue;
+    if (n.role === "heading") {
+      res.push({ level: n.level ?? 1, title: titleOf(text, n), from: lineStartOf(text, n.from), section: true });
+    } else if (n.name === "שער" || n.name === "title") {
+      res.push({ level: 0, title: titleOf(text, n), from: lineStartOf(text, n.from), section: false });
     }
-    pos += line.length + 1; // + newline
   }
   return res;
 }
 
-function headingLevel(text: string): number | null {
-  const m = HEAD_RE.exec(text);
-  if (!m) return null;
-  const name = m[1];
-  if (name === "תת_שער" || name === "subtitle") return null; // subtitle isn't a section
-  if (m[4]) return parseInt(m[4], 10); // explicit רמה: n / level: n
-  if (m[2]) return parseInt(m[2], 10); // כותרתN
-  if (m[3]) return parseInt(m[3], 10); // hN
-  return 1; // שער / title / סימן / bare כותרת
+function lineStartOf(text: string, pos: number): number {
+  return text.lastIndexOf("\n", pos - 1) + 1;
 }
 
-// Find the position of the delimiter matching the one at `openPos`.
-function matchDelim(state: EditorState, openPos: number): number | null {
-  const doc = state.doc;
-  const open = doc.sliceString(openPos, openPos + 1);
-  const close = open === "[" ? "]" : ")";
-  const text = doc.sliceString(openPos, doc.length);
-  let depth = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === open) depth++;
-    else if (c === close) {
-      depth--;
-      if (depth === 0) return openPos + i;
-    }
+/** Nothing but whitespace before this call on its line. */
+function startsItsLine(text: string, n: Node): boolean {
+  return text.slice(lineStartOf(text, n.from), n.from).trim() === "";
+}
+
+/**
+ * The section heading that starts the line at `lineFrom`, and its level.
+ *
+ * `#hlevel` used to be missing here while `headings.ts` wrote it: pressing
+ * "demote" on an `#h6` produced `#hlevel(level: 7)`, and the section vanished
+ * from the outline and stopped folding. One table now, so one answer.
+ */
+function sectionLevelAt(s: Scan, lineFrom: number, lineTo: number): number | null {
+  for (const n of s.nodes) {
+    if (n.from > lineTo) break;
+    if (n.from < lineFrom || n.role !== "heading") continue;
+    if (s.text.slice(lineFrom, n.from).trim() !== "") continue;
+    return n.level ?? 1;
   }
   return null;
 }
-
-const CMD_OPEN_RE = /#[A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*[[(]/gu;
 
 /**
  * Fold service:
@@ -1037,13 +966,15 @@ export const ksavFold = foldService.of((state, lineStart) => {
     }
   }
 
+  const s = scan(doc.toString());
+
   // 1) heading section fold
-  const lvl = headingLevel(text);
+  const lvl = sectionLevelAt(s, line.from, line.to);
   if (lvl != null) {
     let end = doc.length;
     for (let n = line.number + 1; n <= doc.lines; n++) {
       const l = doc.line(n);
-      const l2 = headingLevel(l.text);
+      const l2 = sectionLevelAt(s, l.from, l.to);
       if (l2 != null && l2 <= lvl) {
         end = l.from - 1;
         break;
@@ -1053,13 +984,14 @@ export const ksavFold = foldService.of((state, lineStart) => {
   }
 
   // 2) multi-line bracketed command fold (first such command on the line)
-  CMD_OPEN_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = CMD_OPEN_RE.exec(text))) {
-    const openPos = line.from + m.index + m[0].length - 1; // the [ or (
-    const close = matchDelim(state, openPos);
-    if (close != null && close > line.to) {
-      return { from: openPos + 1, to: close };
+  for (const n of s.nodes) {
+    if (n.from < line.from) continue;
+    if (n.from > line.to) break;
+    // The argument list first, then the body: `#רשימה(` folds its items and
+    // `#הערה[` folds its prose, and a call with both folds whichever opens first.
+    const opens = [n.args, ...n.bodies].filter(Boolean) as Group[];
+    for (const g of opens) {
+      if (g.from - 1 <= line.to && g.to > line.to) return { from: g.from, to: g.to };
     }
   }
   return null;
@@ -1069,13 +1001,15 @@ export const ksavFold = foldService.of((state, lineStart) => {
 // name, the heading title, or the command being folded. This is what makes a
 // collapsed block still readable — you see what you named it.
 function foldLabelText(state: EditorState, range: { from: number; to: number }): string {
-  const text = state.doc.lineAt(range.from).text;
+  const line = state.doc.lineAt(range.from);
+  const text = line.text;
   const region = text.match(/\/\/\{\s*(.*)$/); // //{ label
   if (region) return region[1].trim() || "…";
-  if (headingLevel(text) != null) {
-    const title = [...text.matchAll(/\[([^[\]]*)\]/g)].map((m) => m[1]).join(" ").trim();
-    return title || "…";
-  }
+  const s = scan(state.doc.toString());
+  const head = s.nodes.find(
+    (n) => n.role === "heading" && n.from >= line.from && n.from <= line.to,
+  );
+  if (head) return titleOf(s.text, head) || "…";
   const star = text.match(/\/\*\s*(.*)$/); // /* comment
   if (star) return (star[1].replace(/\*\/.*$/, "").trim() || "הערה") + " …";
   const cmd = text.match(/#([A-Za-z֐-׿_][\w֐-׿]*)/u);

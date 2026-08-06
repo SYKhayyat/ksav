@@ -49,6 +49,7 @@ const MODULES = [
   "ruler",
   "sefarim",
   "services.gen",
+  "spans",
   "settings",
   "share",
   "styles",

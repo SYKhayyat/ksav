@@ -57,10 +57,11 @@
 // being fixed: the text would look right and the cursor would lie.
 //
 // `bidiIsolates()` from `@codemirror/language` would do this for free, but it
-// works off Lezer nodes marked as isolating, and Ksav's highlighter is a regex
-// scanner with no grammar behind it (`ksav-lang.ts`). So the ranges are built
-// from the same scan the highlighter uses, which at least means the two cannot
-// disagree about where a command is.
+// works off Lezer nodes marked as isolating, and Ksav has no Lezer grammar. The
+// ranges therefore come from `spans.ts`, which is now a real containment tree
+// rather than a regex sweep — so the isolates, the highlighter, prose mode and
+// the structural editors all agree about where a command is by construction
+// rather than by everybody's private matcher happening to concur.
 //
 // Everything above the CodeMirror section is pure text in, answers out.
 
@@ -69,7 +70,7 @@ import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { Direction } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
-import { scanCommands, scanComments } from "./ksav-lang";
+import { scan } from "./spans";
 
 export type Dir = "rtl" | "ltr";
 
@@ -144,8 +145,11 @@ export function naturalDirection(text: string, limit = SCAN_LIMIT): Dir | null {
  * can do is make a blank line inherit from the wrong earlier line, in a document
  * where those two lines usually read the same way anyway.
  *
- * `brackets.ts` knows how to do this properly and is deliberately not used: it
- * scans a whole document, and this runs against a viewport on every scroll.
+ * `spans.ts` knows how to do this properly and is deliberately not used here:
+ * it scans a whole document, and this runs against a viewport on every scroll.
+ * It is the one bracket count in `src/` that is allowed to be approximate, and
+ * `spans.test.mjs` names it as the single exemption rather than leaving it to
+ * look like one more scanner nobody got round to.
  */
 export function resolveLineDirections(lines: string[], fallback: Dir, seed: Dir | null = null): Dir[] {
   const out: Dir[] = [];
@@ -185,20 +189,22 @@ export interface Isolate {
  * with its `(…)` arguments, but never its `[…]` body. The body is the writer's
  * prose and belongs to the paragraph; the head is machinery.
  *
- * The result is sorted and strictly non-overlapping. Nesting is real here —
- * `#צבע(rgb("#b91c1c"))` contains `#b91c1c`, which the command scanner sees as a
- * command because it cannot know it is inside a string — and an inner isolate
- * buys nothing once its container is isolated. Keeping only the outermost is
- * both simpler and the same answer.
+ * The result is sorted and strictly non-overlapping. Nesting is real —
+ * `#צבע(rgb("#b91c1c"))` contains a call inside its own argument list — and an
+ * inner isolate buys nothing once its container is isolated, so only the
+ * outermost is kept. (`#b91c1c` itself is no longer among them: the scanner
+ * tracks code-mode strings, so a colour literal is text rather than a command
+ * that happens to start with a hash.)
  */
 export function isolateSpans(text: string): Isolate[] {
   const spans: Isolate[] = [];
-  for (const c of scanComments(text)) {
+  const s = scan(text);
+  for (const c of s.comments) {
     spans.push({ from: c.from, to: c.to, dir: naturalDirection(text.slice(c.from, c.to)) });
   }
-  for (const s of scanCommands(text)) {
-    const to = s.argClose != null ? s.argClose + 1 : s.nameEnd;
-    spans.push({ from: s.cmdStart, to, dir: naturalDirection(text.slice(s.cmdStart, to)) });
+  for (const n of s.nodes) {
+    const to = n.args ? n.args.to + 1 : n.nameTo;
+    spans.push({ from: n.from, to, dir: naturalDirection(text.slice(n.from, to)) });
   }
   spans.sort((a, b) => a.from - b.from || b.to - a.to);
   const kept: Isolate[] = [];

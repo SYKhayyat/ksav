@@ -12,27 +12,12 @@
 // document plus where the caret goes. That is what lets the keys, the ribbon
 // and the menu all be the same code, and what lets the tests be real tests.
 
-/** A list command, in either language. */
-const LIST_NAMES = ["רשימה", "ממוספרת", "ממוספרת_עברית", "bullets", "numbered", "henum"];
-const ITEM_NAMES = ["פריט", "item"];
+import { SPELLING, childrenOfRole, scan, type ListKind, type Node } from "./spans";
 
-export type ListKind = "bullets" | "numbered" | "hebrew";
-
-const KIND_OF: Record<string, ListKind> = {
-  "רשימה": "bullets",
-  bullets: "bullets",
-  "ממוספרת": "numbered",
-  numbered: "numbered",
-  "ממוספרת_עברית": "hebrew",
-  henum: "hebrew",
-};
+export type { ListKind };
 
 /** The command each kind is written as, in each language. */
-const KIND_NAME: Record<ListKind, { he: string; en: string }> = {
-  bullets: { he: "רשימה", en: "bullets" },
-  numbered: { he: "ממוספרת", en: "numbered" },
-  hebrew: { he: "ממוספרת_עברית", en: "henum" },
-};
+const KIND_NAME = SPELLING.list;
 
 export interface ItemInfo {
   /** Range of the whole `פריט[…]` call. */
@@ -61,62 +46,55 @@ export interface ListInfo {
   indent: string;
 }
 
-function matchBracket(src: string, open: number): number | null {
-  const opener = src[open];
-  const closer = opener === "(" ? ")" : "]";
-  let depth = 1;
-  let inString = false;
-  for (let i = open + 1; i < src.length; i++) {
-    const c = src[i];
-    if (inString) {
-      if (c === "\\") i++;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === "\\") i++;
-    else if (c === '"' && opener === "(") inString = true;
-    else if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") {
-      if (c === closer && --depth === 0) return i;
-      if (c !== closer) depth--;
-    }
-  }
-  return null;
-}
-
-/** Every list call in the document, outermost first, in source order. */
+/**
+ * Every list call in the document, outermost first, in source order.
+ *
+ * **The gershayim bug lived here.** This file's own bracket matcher treated `"`
+ * as a string delimiter, so `#רשימה(פריט[דברי רש"י],)` scanned from the first
+ * gershayim to end of document, never closed, and `listAt` returned null — which
+ * is `structure.availableAt` returning *zero* operations. Every list button in
+ * the ribbon switched itself off the moment a writer typed רש״י, which is the
+ * most common word in a sefer. The identical text in a table cell worked, and
+ * the identical list without the gershayim offered all eleven.
+ *
+ * The matcher is gone and `spans.ts` answers instead, where `"` is a string only
+ * in code context — which is what Typst does, checked against the compiler
+ * rather than chosen: `#רשימה(פריט[דברי רש"י],)` lays out two bullets.
+ */
 function allLists(doc: string): ListInfo[] {
   const out: ListInfo[] = [];
-  const re = new RegExp(`(#?)(${LIST_NAMES.join("|")})\\s*\\(`, "gu");
-  for (const m of doc.matchAll(re)) {
-    const at = m.index;
-    // A name that is part of a longer identifier is not this command.
-    const before = doc[at - 1];
-    if (m[1] === "" && before && /[A-Za-z0-9֐-׿_]/.test(before)) continue;
-    const open = at + m[0].length - 1;
-    const close = matchBracket(doc, open);
-    if (close == null) continue;
-    const name = m[2];
-    out.push({
-      from: at,
-      to: close + 1,
-      argsFrom: open + 1,
-      argsTo: close,
-      kind: KIND_OF[name],
-      name,
-      lang: KIND_NAME[KIND_OF[name]].he === name ? "he" : "en",
-      items: itemsIn(doc, open + 1, close),
-      depth: 0,
-      indent: "  ",
-    });
-  }
-  // Depth and indentation are properties of where a list sits, so they are
-  // filled in once every list is known.
-  for (const l of out) {
-    l.depth = out.filter((o) => o !== l && o.from < l.from && o.to > l.to).length;
-    l.indent = indentOf(doc, l);
+  for (const n of scan(doc).nodes) {
+    if (n.role !== "list" || !n.args) continue;
+    out.push(fromNode(doc, n));
   }
   return out;
+}
+
+function fromNode(doc: string, n: Node): ListInfo {
+  const args = n.args!;
+  // Depth among *lists*, not among calls: an item is a call too, and counting
+  // it would make every list inside a list two levels deep instead of one.
+  let depth = 0;
+  for (let p = n.parent; p; p = p.parent) if (p.role === "list") depth++;
+  const info: ListInfo = {
+    from: n.from,
+    to: n.to,
+    argsFrom: args.from,
+    argsTo: args.to,
+    kind: n.listKind!,
+    name: n.name,
+    lang: n.lang,
+    items: childrenOfRole(n, "item").map((c) => ({
+      from: c.from,
+      to: c.to,
+      bodyFrom: c.bodies[0]?.from ?? c.to,
+      bodyTo: c.bodies[0]?.to ?? c.to,
+    })),
+    depth,
+    indent: "  ",
+  };
+  info.indent = indentOf(doc, info);
+  return info;
 }
 
 /** The whitespace a new item in this list should be written with. */
@@ -126,42 +104,6 @@ function indentOf(doc: string, l: ListInfo): string {
   const lineStart = doc.lastIndexOf("\n", first.from - 1) + 1;
   const lead = doc.slice(lineStart, first.from);
   return /^\s*$/.test(lead) ? lead : "  ".repeat(l.depth + 1);
-}
-
-/** The `פריט[…]` calls directly inside this argument range. */
-function itemsIn(doc: string, from: number, to: number): ItemInfo[] {
-  const out: ItemInfo[] = [];
-  const re = new RegExp(`(?:#?)(${ITEM_NAMES.join("|")})\\s*\\[`, "gu");
-  re.lastIndex = from;
-  for (let m = re.exec(doc); m && m.index < to; m = re.exec(doc)) {
-    const at = m.index;
-    const before = doc[at - 1];
-    if (before && /[A-Za-z0-9֐-׿_]/.test(before)) continue;
-    const open = at + m[0].length - 1;
-    const close = matchBracket(doc, open);
-    if (close == null || close > to) continue;
-    // Only items belonging to *this* list: one nested in an inner list has an
-    // enclosing bracket between it and our argument range.
-    if (!isDirectChild(doc, from, at)) {
-      re.lastIndex = close + 1;
-      continue;
-    }
-    out.push({ from: at, to: close + 1, bodyFrom: open + 1, bodyTo: close });
-    re.lastIndex = close + 1;
-  }
-  return out;
-}
-
-/** Is `at` at bracket depth zero relative to `from`? */
-function isDirectChild(doc: string, from: number, at: number): boolean {
-  let depth = 0;
-  for (let i = from; i < at; i++) {
-    const c = doc[i];
-    if (c === "\\") i++;
-    else if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") depth--;
-  }
-  return depth === 0;
 }
 
 /** The innermost list containing `pos`, if any. */

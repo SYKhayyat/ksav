@@ -472,9 +472,21 @@ about what is wrong.
       compile the *healed* copy so the page keeps rendering, with a banner saying
       the preview assumes a closer. A stray keystroke must never blank the page.
 
-The scanner must agree with `matchGroup` in `ksav-lang.ts` on the gershayim
-trade-off: `"` is **not** a string delimiter, because רש"י and שו"ע are everywhere
-and pairing quotes swallows whole tables.
+**Superseded, 6 August 2026.** This used to read: *"The scanner must agree with
+`matchGroup` in `ksav-lang.ts` on the gershayim trade-off: `"` is **not** a string
+delimiter, because רש"י and שו"ע are everywhere and pairing quotes swallows whole
+tables."* Two things were wrong with it. It was a rule asserted in prose between
+two scanners that could drift — and they did, in both directions: `lists.ts`
+paired quotes and switched every list operation off the moment a writer typed
+רש״י, while `brackets.ts` did not and therefore read the `)` inside
+`#הערה_זרם("a)b")` as a real closer, reported a valid document broken, and
+*deleted the real closing paren* when the writer pressed heal.
+
+And the trade-off was false. Typst has no single rule: `"` is an ordinary
+character in content mode (`[…]`) and a string delimiter in code mode (`(…)`,
+`{…}`), so tracking context gets both and gives up neither. There is now one
+scanner — `app/src/spans.ts` — every consumer reads it, and `test/spans.test.mjs`
+fails if a second one appears.
 
 ## 2. Word handoff  ✅
 

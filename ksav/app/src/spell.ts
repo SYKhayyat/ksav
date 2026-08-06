@@ -20,7 +20,7 @@
 import { EditorView, Decoration, ViewPlugin } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
-import { scanCommands } from "./ksav-lang";
+import { scan } from "./spans";
 
 export interface Misspelling {
   start: number;
@@ -113,133 +113,51 @@ function build(view: EditorView): DecorationSet {
  * Hebrew words the checker should have an opinion about. This returns the spans
  * that will actually print — command *contents*, and the plain text between
  * commands — with comments excluded, since those never print either.
- */
-/**
- * The `[…]` bodies of bare calls inside an argument list — `תא[…]`, `פריט[…]`,
- * `מיזוג(2)[…]`.
  *
- * Inside `(…)` Typst is already in code context, so a nested call needs no `#`
- * and `scanCommands` — which matches on `#` — never sees one. Double-quoted
- * strings are skipped so an argument like `כותרת: "תא[x]"` is not mistaken for a
- * call.
+ * **This used to carry a private recursive walker.** Inside `(…)` Typst is in
+ * code context, so a nested call is written without a `#` — `#טבלה(עמודות: 2,
+ * תא[רש"י])`, `#רשימה(פריט[א])` — and a scanner that matched on `#` could not
+ * see one. Blanking a head as one range from `#` to the closing paren therefore
+ * blanked every table cell and every list item along with it, and a large share
+ * of real prose (including the bulleted list in Ksav's own starter document) was
+ * silently exempt from the checker. The walker written to fix that had to know
+ * about strings, escapes and nesting — a fourth opinion about the markup, in the
+ * module least likely to be checked against the other three.
+ *
+ * `spans.ts` sees bare calls because it tracks context, so the walker is gone
+ * and the question is asked in its true form: prose is what sits in *content*
+ * mode and is not a command head or a comment. That is one line of definition
+ * and it also picks up content the walker never could — `#סימן("א", [דיני
+ * תפילה])` puts its title in a content argument belonging to no nested call.
  */
-const BARE_NAME = /[A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*/y;
-
-function bareCallBodies(
-  text: string,
-  from: number,
-  to: number,
-  out: { from: number; to: number }[] = [],
-): { from: number; to: number }[] {
-  for (let i = from; i < to; i++) {
-    if (text[i] === '"') {
-      // A string literal. Skipping it is what keeps `כותרת: "תא[x]"` from being
-      // read as a call — and the scan must *not* continue into a body, because
-      // inside a body Typst is in markup context where `"` is an ordinary
-      // character. Hebrew writes gershayim as `"`, so `תא[רש"י]` would otherwise
-      // open a string that swallowed everything up to the next citation.
-      for (i++; i < to; i++) {
-        if (text[i] === "\\") i++;
-        else if (text[i] === '"') break;
-      }
-      continue;
-    }
-    BARE_NAME.lastIndex = i;
-    const m = BARE_NAME.exec(text);
-    if (!m) continue;
-    let j = m.index + m[0].length;
-    // An optional argument list of its own — `מיזוג(2)[…]`, or a nested call
-    // whose arguments hold more bare calls.
-    let argFrom: number | null = null;
-    let argTo = 0;
-    if (text[j] === "(") {
-      const close = matchBracket(text, j, "(", ")", to);
-      if (close == null) {
-        i = j;
-        continue;
-      }
-      argFrom = j + 1;
-      argTo = close;
-      j = close + 1;
-    }
-    if (text[j] === "[") {
-      const close = matchBracket(text, j, "[", "]", to);
-      if (close != null) {
-        out.push({ from: j + 1, to: close });
-        if (argFrom != null) bareCallBodies(text, argFrom, argTo, out);
-        i = close; // past the body; its own contents are markup context
-        continue;
-      }
-    }
-    if (argFrom != null) {
-      // A nested call with no body of its own: its arguments are still an
-      // argument list, and may hold bare calls that do have bodies.
-      bareCallBodies(text, argFrom, argTo, out);
-      i = argTo;
-      continue;
-    }
-    i = j - 1; // a bare name, not a call; resume after it rather than inside it
-  }
-  return out;
-}
-
-function matchBracket(src: string, open: number, o: string, c: string, limit: number): number | null {
-  let depth = 1;
-  for (let i = open + 1; i < limit; i++) {
-    if (src[i] === o) depth++;
-    else if (src[i] === c && --depth === 0) return i;
-  }
-  return null;
-}
-
 export function proseRegions(text: string): { from: number; to: number }[] {
   // A mask rather than a list of ranges, because the regions genuinely nest and
   // interleave: a command head can contain a command body which can contain
-  // another head. Range arithmetic on that is where the bug below came from.
+  // another head. Range arithmetic on that is where the old bug came from.
   const prose = new Uint8Array(text.length).fill(1);
-  const blank = (from: number, to: number) => {
-    for (let i = Math.max(0, from); i < Math.min(text.length, to); i++) prose[i] = 0;
-  };
-  const expose = (from: number, to: number) => {
-    for (let i = Math.max(0, from); i < Math.min(text.length, to); i++) prose[i] = 1;
+  const paint = (from: number, to: number, v: number) => {
+    for (let i = Math.max(0, from); i < Math.min(text.length, to); i++) prose[i] = v;
   };
 
-  // Command heads (`#name` plus any `(arguments)`) are markup; command bodies
-  // (`[…]`) are prose.
-  //
-  // The subtlety, and a real bug this had: a command's *arguments* can contain
-  // whole nested calls with bodies of their own, and inside an argument list
-  // those are written **bare** — `#טבלה(עמודות: 2, תא[רש"י])`,
-  // `#רשימה(פריט[א])` — with no `#`, because they are already in code context.
-  // `scanCommands` only ever matches `#name`, so it does not see them, and
-  // blanking the head as one range from `#` to the closing paren blanked every
-  // table cell and every list item along with it. Tables and lists are two of
-  // the most common structures in the product, so a large share of real prose —
-  // including the bulleted list in Ksav's own starter document — was silently
-  // exempt from the checker.
-  //
-  // `scanCommands` yields spans in document order, which is outermost first, so
-  // blanking each head and then re-exposing the bodies inside it puts the
-  // nesting back in the right order: an inner head is blanked *after* the outer
-  // body that contains it has been exposed.
-  for (const s of scanCommands(text)) {
-    const headEnd = s.argClose != null ? s.argClose + 1 : s.nameEnd;
-    blank(s.cmdStart, headEnd);
-    if (s.argOpen != null && s.argClose != null) {
-      for (const r of bareCallBodies(text, s.argOpen + 1, s.argClose)) expose(r.from, r.to);
-    }
-    if (s.open != null && s.close != null) expose(s.open + 1, s.close);
+  const doc = scan(text);
+  // Heads blank, content exposes, applied strictly in document order — which is
+  // what puts the nesting back the right way round: a head inside a body is
+  // blanked *after* the body containing it was exposed.
+  const events: { at: number; to: number; markup: boolean }[] = [];
+  for (const n of doc.nodes) {
+    events.push({ at: n.from, to: n.args ? n.args.to + 1 : n.nameTo, markup: true });
   }
+  for (const g of doc.contentGroups) events.push({ at: g.from, to: g.to, markup: false });
+  // On a tie, expose before blank. A head and a content group share a start
+  // offset exactly when the head is the first thing inside the group —
+  // `תא[#הדגשה[…]]` — so the group is the container and must be applied first,
+  // or the command name it holds comes back out as prose.
+  events.sort((a, b) => a.at - b.at || Number(a.markup) - Number(b.markup));
+  for (const e of events) paint(e.at, e.to, e.markup ? 0 : 1);
 
   // Comments never reach the page — including ones inside a command body, which
   // is why this runs last.
-  for (const m of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
-    blank(m.index!, m.index! + m[0].length);
-  }
-  for (const m of text.matchAll(/(^|[^:])(\/\/[^\n]*)/g)) {
-    const start = m.index! + m[1].length;
-    blank(start, start + m[2].length);
-  }
+  for (const c of doc.comments) paint(c.from, c.to, 0);
 
   const out: { from: number; to: number }[] = [];
   let from = -1;

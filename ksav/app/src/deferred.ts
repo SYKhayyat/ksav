@@ -24,7 +24,7 @@
 // and for the same reason: it can be tested without a browser. The CodeMirror
 // wiring is in `deferred-lint.ts`.
 
-import { commentRegions } from "./brackets";
+import { matchGroup, scan as scanSpans, splitArgsRaw } from "./spans";
 import { NOTE_BODY_COMMANDS } from "./note-commands";
 
 // ---------------------------------------------------------------- the commands
@@ -94,32 +94,14 @@ export interface Scan {
 
 /** Positions inside a comment, so a scanner can skip them in one pass. */
 function inComment(text: string): (pos: number) => boolean {
-  const regions = commentRegions(text);
+  const regions = scanSpans(text).comments;
   return (pos) => regions.some((r) => pos >= r.from && pos < r.to);
 }
 
-/**
- * The end of the group opened at `at` (the index of the opener), or null.
- *
- * Deliberately blind to string literals, matching `brackets.ts` and the
- * highlighter: Hebrew abbreviations are written with gershayim — רש"י, שו"ע —
- * so treating `"` as a delimiter here would swallow everything between two
- * unrelated abbreviations. The cost is an unbalanced bracket inside a genuine
- * Typst string, which is far rarer than an abbreviation.
- */
-function matchGroup(text: string, at: number): number | null {
-  const open = text[at];
-  const close = open === "(" ? ")" : open === "[" ? "]" : "}";
-  let depth = 1;
-  for (let i = at + 1; i < text.length; i++) {
-    if (text[i] === open) depth++;
-    else if (text[i] === close) {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return null;
-}
+// `matchGroup` comes from `spans.ts`, which is context-aware: a gershayim
+// inside a `[…]` body is an ordinary character (רש"י, שו"ע) and a `"` inside
+// `(…)` opens a real string. The private matcher it replaces had to pick one
+// rule for both and picked the first, so `#הערה_בשם("א)ב")` could not be read.
 
 /** Skip spaces and tabs (not newlines: a call's groups sit on its own line). */
 function skipSpace(text: string, i: number): number {
@@ -128,39 +110,22 @@ function skipSpace(text: string, i: number): number {
 }
 
 /**
- * Split an argument list at top-level commas.
+ * Split an argument list at top-level commas, segments kept verbatim.
  *
- * Quotes count only where a *value* starts — right after `(`, `,` or `:` — so a
- * gershayim in prose (`עיין רש"י`) cannot swallow the rest of the list, while
- * `#הערה_בשם("א, ב")` still reads as one argument.
+ * This used to carry its own walk with a "quotes count only where a value
+ * starts" rule — a *third* answer about `"`, invented so that a gershayim in
+ * prose (`עיין רש"י`) could not swallow the rest of the list while
+ * `#הערה_בשם("א, ב")` still read as one argument. `spans.ts` gets both without
+ * the heuristic, because it knows whether it is in code or in content.
+ *
+ * The empty final segment a trailing comma produces is kept — the callers below
+ * index into these positions — except when it is the only one, which is what
+ * `#הערה_בשם()` looks like.
  */
 function splitArgs(inner: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  let valueStart = true;
-  for (let i = 0; i < inner.length; i++) {
-    const c = inner[i];
-    if (c === '"' && valueStart) {
-      let j = i + 1;
-      while (j < inner.length && inner[j] !== '"') j += inner[j] === "\\" ? 2 : 1;
-      i = j;
-      valueStart = false;
-      continue;
-    }
-    if (c === "(" || c === "[" || c === "{") depth++;
-    else if (c === ")" || c === "]" || c === "}") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(inner.slice(start, i));
-      start = i + 1;
-      valueStart = true;
-      continue;
-    }
-    if (!/\s/.test(c)) valueStart = c === ":";
-  }
-  const last = inner.slice(start);
-  if (last.trim() !== "" || out.length) out.push(last);
-  return out;
+  const groups = splitArgsRaw(inner, 0, inner.length);
+  if (groups.length === 1 && inner.slice(groups[0].from, groups[0].to).trim() === "") return [];
+  return groups.map((g) => inner.slice(g.from, g.to));
 }
 
 /** `"א"` → `א`; `[א]` → `א`; anything else → itself, trimmed. */

@@ -143,6 +143,22 @@ Because **Typst itself parses the document**, we never reimplement a parser — 
 arbitrary cross-nesting (a table inside a footnote inside a heading inside a list
 item) works for free.
 
+The editor still has to find things in the source — where this heading's section
+ends, which cells belong to this table, which run is a comment — and it cannot
+ask the engine, because the answer has to be synchronous, pure and available
+mid-keystroke. That is **`app/src/spans.ts`**, and the point is that there is
+exactly one of it. It is a scanner, not a parser: it locates calls and hands back
+ranges, and every structural edit remains a textual splice, so a writer's
+whitespace, comments and argument order survive editing untouched.
+
+It tracks Typst's two contexts, because that is the one thing ten separate
+matchers could not do and it is the whole reason they disagreed. Inside `[…]`
+Typst is in *content* mode, where `"` is an ordinary character — which is how
+Hebrew writes gershayim (רש״י, שו״ע) — and `\` escapes. Inside `(…)` and `{…}` it
+is in *code* mode, where `"` opens a string literal in which brackets are inert.
+Both halves were checked against the compiler rather than assumed; see the head
+of the file.
+
 ### Nesting depth
 
 Any structure can contain any other — lists in tables, headings in footnotes,
@@ -304,7 +320,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 2,819 editor assertions, 342 engine
+- [x] **CI, running and green** — typecheck, 2,999 editor assertions, 352 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -364,9 +380,9 @@ one place they are developed.
 ## Test
 
 ```sh
-cd app && npm test                          # 2,819 assertions across 45 files
+cd app && npm test                          # 2,999 assertions across 46 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 342 tests, 22 binaries
+cargo test --manifest-path engine/Cargo.toml            # 352 tests, 23 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

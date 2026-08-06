@@ -12,8 +12,7 @@
 // degrades to plain text rather than leaking `#command[…]`.
 
 import { resolveDeferred } from "./deferred";
-import { scanCommands } from "./ksav-lang";
-import type { CmdSpan } from "./ksav-lang";
+import { scan, type Node } from "./spans";
 
 /** Heading level per command name. */
 const HEADINGS: Record<string, number> = {
@@ -80,15 +79,11 @@ const NOTES = new Set([
   "pageband1", "pageband2", "pageband3", "pageband4", "pageband5", "pageband6", "pageband7",
 ]);
 
-/**
- * Items and cells are written without a leading `#` — `פריט[אלף]`, `תא[1]` — so
- * the `#command` scanner never sees them and a whole list or table would come
- * out as literal `פריט[אלף], פריט[בית]`. These are matched positionally instead.
- *
- * The leading group is a word boundary: without it a longer word ending in פריט
- * (or `subitem[…]`) would be mistaken for an item.
- */
-const BARE_RE = /(^|[^A-Za-z0-9\u0590-\u05FF_])(פריט|item|כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*(?:\(\s*\d+\s*\))?\s*\[/u;
+// Items and cells are written without a leading `#` — `פריט[אלף]`, `תא[1]` —
+// because inside an argument list Typst is already in code context. This file
+// carried a positional regex and a bracket matcher of its own to find them;
+// `spans.ts` reports them as ordinary calls, so both are gone and the walker
+// below meets an item the same way it meets any other command.
 
 const LISTS: Record<string, "bullet" | "number"> = {
   רשימה: "bullet", bullets: "bullet",
@@ -101,16 +96,6 @@ export interface MarkdownOptions {
   markup?: boolean;
 }
 
-/** Index of the `]` matching the `[` at `open`, or null. */
-function matchBracket(src: string, open: number, limit: number): number | null {
-  let depth = 1;
-  for (let i = open + 1; i < limit; i++) {
-    if (src[i] === "[") depth++;
-    else if (src[i] === "]" && --depth === 0) return i;
-  }
-  return null;
-}
-
 /**
  * A Ksav table as a Markdown table.
  *
@@ -119,29 +104,23 @@ function matchBracket(src: string, open: number, limit: number): number | null {
  * the reason the PDF stays the authority for anything that matters visually.
  */
 function tableToMarkdown(
-  src: string,
-  from: number,
-  to: number,
+  node: Node,
   markup: boolean,
   walk: (a: number, b: number) => string,
 ): string {
-  if (from < 0) return "";
-  const region = src.slice(from, to);
-  const colsMatch = /(?:עמודות|columns)\s*:\s*(\d+)/u.exec(region);
-  const cols = colsMatch ? Math.max(1, parseInt(colsMatch[1], 10)) : 2;
+  // The column count comes from the node, so a table declaring
+  // `עמודות: (2fr, 1fr, 1fr)` exports three columns. Matching `\d+` here gave
+  // two, and the cells were reflowed into the wrong rows in the export as well
+  // as in the preview.
+  const cols = node.cols ?? 2;
 
   const cells: { text: string; header: boolean }[] = [];
-  const re = new RegExp(BARE_RE.source, "gu");
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(region))) {
-    const open = from + m.index + m[0].length - 1;
-    const close = matchBracket(src, open, to);
-    if (close == null) break;
+  for (const c of node.children) {
+    if (c.role !== "cell" || !c.bodies[0]) continue;
     cells.push({
-      text: walk(open + 1, close).trim().replace(/\|/g, "\\|").replace(/\n+/g, " "),
-      header: m[2] === "כותרת_תא" || m[2] === "headcell",
+      text: walk(c.bodies[0].from, c.bodies[0].to).trim().replace(/\|/g, "\\|").replace(/\n+/g, " "),
+      header: c.header === true,
     });
-    re.lastIndex = close - from;
   }
   if (!cells.length) return "";
 
@@ -169,12 +148,8 @@ export function toMarkdown(source: string, opts: MarkdownOptions = {}): string {
   // convert to nothing and its prose would arrive as loose paragraphs after the
   // document — every note in the export silently detached from its sentence.
   const src = resolveDeferred(source);
-  const spans = scanCommands(src);
+  const { byStart } = scan(src);
   const notes: string[] = [];
-
-  // Index spans by their start so the walker can find the command at a position.
-  const byStart = new Map<number, CmdSpan>();
-  for (const s of spans) byStart.set(s.cmdStart, s);
 
   const walk = (from: number, to: number, listKind?: "bullet" | "number"): string => {
     let out = "";
@@ -192,39 +167,21 @@ export function toMarkdown(source: string, opts: MarkdownOptions = {}): string {
         i = end < 0 || end > to ? to : end + 2;
         continue;
       }
-      // A bare item or cell: `פריט[…]` with no hash in front of it.
-      if (listKind && (src[i] === "פ" || src[i] === "i")) {
-        const m = BARE_RE.exec(src.slice(Math.max(from, i - 1), to));
-        if (m && Math.max(from, i - 1) + m.index + m[1].length === i) {
-          const open = i + m[0].length - m[1].length - 1;
-          const close = matchBracket(src, open, to);
-          if (close != null) {
-            itemIndex++;
-            const bullet = listKind === "number" ? `${itemIndex}. ` : "- ";
-            out += (markup ? bullet : "• ") + walk(open + 1, close).trim() + "\n";
-            i = close + 1;
-            // Eat the separator and the whitespace after it, or the next item
-            // starts with a stray space and Markdown reads it as nesting.
-            if (src[i] === ",") i++;
-            while (i < to && /\s/.test(src[i])) i++;
-            continue;
-          }
-        }
-      }
-
-      const s = src[i] === "#" ? byStart.get(i) : undefined;
-      if (!s) {
+      // A bare `פריט[…]` is a node like any other, so the branch that used to
+      // re-match it positionally here is gone: `byStart` already holds it.
+      const s = byStart.get(i);
+      if (!s || s.to > to) {
         out += src[i];
         i++;
         continue;
       }
-      const end = s.close != null ? s.close + 1 : s.argClose != null ? s.argClose + 1 : s.nameEnd;
+      const end = s.to;
       // A command's content is its `[body]` when it has one — but the container
       // commands put theirs in the argument list instead: `#רשימה(פריט[…], …)`.
       // Descending only into brackets silently dropped every list.
-      const hasBody = s.open != null && s.close != null;
-      const bodyFrom = hasBody ? s.open! + 1 : s.argOpen != null ? s.argOpen + 1 : -1;
-      const bodyTo = hasBody ? s.close! : s.argClose ?? -1;
+      const hasBody = s.bodies.length > 0;
+      const bodyFrom = hasBody ? s.bodies[0].from : s.args ? s.args.from : -1;
+      const bodyTo = hasBody ? s.bodies[0].to : s.args ? s.args.to : -1;
       const inner = () => (bodyFrom >= 0 ? walk(bodyFrom, bodyTo) : "");
 
       if (DROPPED.has(s.name)) {
@@ -237,19 +194,20 @@ export function toMarkdown(source: string, opts: MarkdownOptions = {}): string {
         // A formula's source is a string argument, not a `[body]`: emitted as
         // TeX-ish `$…$` maths, which is what every Markdown flavour that renders
         // maths at all expects. Falling through would have printed the quotes.
-        const src_ = /"((?:[^"\\]|\\.)*)"/.exec(src.slice(s.argOpen ?? i, (s.argClose ?? i) + 1))?.[1] ?? "";
-        const math = src_.replace(/\\(.)/g, "$1");
+        const args = s.args ? src.slice(s.args.from, s.args.to) : "";
+        const math = (/"((?:[^"\\]|\\.)*)"/.exec(args)?.[1] ?? "").replace(/\\(.)/g, "$1");
         const display = s.name === "נוסחה" || s.name === "formula";
         out += markup ? (display ? `\n\n$$${math}$$\n\n` : `$${math}$`) : math;
       } else if (s.name === "תמונה" || s.name === "img") {
-        const name = /"([^"]*)"/.exec(src.slice(s.argOpen ?? i, (s.argClose ?? i) + 1))?.[1] ?? "";
+        const args = s.args ? src.slice(s.args.from, s.args.to) : "";
+        const name = /"([^"]*)"/.exec(args)?.[1] ?? "";
         out += markup ? `![](${name})` : name;
       } else if (HEADINGS[s.name] != null) {
         const level = HEADINGS[s.name];
         const text = inner().trim();
         out += markup ? `\n\n${"#".repeat(level)} ${text}\n\n` : `\n\n${text}\n\n`;
-      } else if (s.name === "טבלה" || s.name === "mktable") {
-        out += "\n\n" + tableToMarkdown(src, bodyFrom, bodyTo, markup, walk) + "\n\n";
+      } else if (s.role === "table") {
+        out += "\n\n" + tableToMarkdown(s, markup, walk) + "\n\n";
       } else if (LISTS[s.name] != null) {
         out += "\n" + walk(bodyFrom, bodyTo, LISTS[s.name]) + "\n";
       } else if ((s.name === "פריט" || s.name === "item") && listKind) {

@@ -1541,7 +1541,10 @@ function headingLevelSelect(): HTMLElement {
     if (want === 0) {
       const h = heads.headingAt(doc, pos);
       if (!h) return;
+      // Null for a heading whose level the prelude fixes (`#סימן`): unwrapping
+      // one would drop its number, which is the writer's text.
       const e = heads.unwrapHeading(doc, h);
+      if (!e) return;
       runtime.view.dispatch({
         changes: { from: 0, to: doc.length, insert: e.text },
         selection: { anchor: Math.min(e.caret, e.text.length) },

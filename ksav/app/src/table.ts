@@ -10,6 +10,8 @@
 // parsed AST because the table *is* text: the writer can always edit it by hand,
 // and an operation here has to survive whatever they typed.
 
+import { SPELLING, scan, type Node } from "./spans";
+
 export interface TableCell {
   /** Byte range of the whole `תא[…]` (or `כותרת_תא[…]`, `מיזוג(n)[…]`). */
   from: number;
@@ -57,123 +59,60 @@ export interface TableInfo {
   names: { table: string; cell: string; header: string; merge: string; cols: string };
 }
 
-const TABLE_NAMES = ["טבלה", "mktable"];
-const CELL_RE = /(כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*(?:\(\s*(\d+)\s*\))?\s*\[/gu;
-/** An argument that is a cell rather than a setting. */
-const CELL_HEAD = /^(?:כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*[([]/u;
-const COLS_ARG = /^(?:עמודות|columns)\s*:/u;
-
 /**
- * Split an argument list at its top-level commas.
+ * The table containing `pos`, if there is one.
  *
- * Depth-aware, because an argument's own value can hold commas — `יישור:
- * (left, right)` — and a cell body is full of them. A `"` only opens a string at
- * depth 0, where Typst is in code context; inside a `[…]` body it is an ordinary
- * character, which is how Hebrew writes gershayim.
+ * The cells, the column count and the track list all come from `spans.ts`, which
+ * is the fix for a divergence that had one ribbon button destroying a table:
+ * this file understood `עמודות: (2fr, 1fr, 1fr)` and prose mode's own parser
+ * matched `\d+` only, fell back to two columns, and drew a three-column table as
+ * a two-column grid. `table.widerColumn` is the control that *writes* a track
+ * list, so one click moved the two readers into disagreement and the writer saw
+ * their table reflow.
  */
-function topLevelArgs(args: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  let inString = false;
-  for (let i = 0; i < args.length; i++) {
-    const c = args[i];
-    if (inString) {
-      if (c === "\\") i++;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"' && depth === 0) inString = true;
-    else if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(args.slice(start, i));
-      start = i + 1;
-    }
-  }
-  out.push(args.slice(start));
-  return out.map((s) => s.trim()).filter(Boolean);
-}
-
-function matchBracket(src: string, open: number, close: string, limit: number): number | null {
-  const opener = src[open];
-  let depth = 1;
-  for (let i = open + 1; i < limit; i++) {
-    if (src[i] === opener) depth++;
-    else if (src[i] === close && --depth === 0) return i;
-  }
-  return null;
-}
-
-/** The table containing `pos`, if there is one. */
 export function tableAt(doc: string, pos: number): TableInfo | null {
-  for (const name of TABLE_NAMES) {
-    let at = -1;
-    // Scan every occurrence: a document can hold many tables, and only the one
-    // around the cursor is the one being edited.
-    while ((at = doc.indexOf("#" + name, at + 1)) >= 0) {
-      const open = at + 1 + name.length;
-      if (doc[open] !== "(") continue;
-      const close = matchBracket(doc, open, ")", doc.length);
-      if (close == null || pos < at || pos > close + 1) continue;
-
-      const argsFrom = open + 1;
-      const argsTo = close;
-      const args = doc.slice(argsFrom, argsTo);
-
-      const colsMatch = /(עמודות|columns)\s*:\s*(\(|\d+)/u.exec(args);
-      let widths: string[] | null = null;
-      let cols = 2;
-      if (colsMatch && colsMatch[2] === "(") {
-        // A track list. Its own commas are inside the parentheses, so it is
-        // split with the same depth-aware splitter the cells use.
-        const open = argsFrom + colsMatch.index + colsMatch[0].length - 1;
-        const shut = matchBracket(doc, open, ")", argsTo + 1);
-        if (shut != null) {
-          widths = topLevelArgs(doc.slice(open + 1, shut));
-          cols = Math.max(1, widths.length);
-        }
-      } else if (colsMatch) {
-        cols = Math.max(1, parseInt(colsMatch[2], 10));
-      }
-      const options = topLevelArgs(args).filter(
-        (a) => !CELL_HEAD.test(a) && !COLS_ARG.test(a),
-      );
-
-      const cells: TableCell[] = [];
-      const re = new RegExp(CELL_RE.source, "gu");
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(args))) {
-        const bracket = argsFrom + m.index + m[0].length - 1;
-        const end = matchBracket(doc, bracket, "]", argsTo + 1);
-        if (end == null) break;
-        cells.push({
-          from: argsFrom + m.index,
-          to: end + 1,
-          body: doc.slice(bracket + 1, end),
-          header: m[1] === "כותרת_תא" || m[1] === "headcell",
-          span: m[2] ? Math.max(1, parseInt(m[2], 10)) : 1,
-        });
-        re.lastIndex = end + 1 - argsFrom;
-      }
-
-      const hebrew = name === "טבלה";
-      return {
-        from: at,
-        to: close + 1,
-        argsFrom,
-        argsTo,
-        cols,
-        widths,
-        options,
-        cells,
-        names: hebrew
-          ? { table: "טבלה", cell: "תא", header: "כותרת_תא", merge: "מיזוג", cols: colsMatch?.[1] ?? "עמודות" }
-          : { table: "mktable", cell: "cell", header: "headcell", merge: "colspan_", cols: colsMatch?.[1] ?? "columns" },
-      };
-    }
+  let found: Node | null = null;
+  for (const n of scan(doc).nodes) {
+    if (n.role !== "table" || !n.args) continue;
+    if (pos < n.from || pos > n.to) continue;
+    // Innermost wins: a table inside a cell is the one being edited.
+    if (!found || n.depth > found.depth) found = n;
   }
-  return null;
+  if (!found) return null;
+
+  const args = found.args!;
+  // Both already computed, once, by the scan — see `Node.cells`.
+  const cells: TableCell[] = (found.cells ?? []).map((c) => ({
+    from: c.from,
+    to: c.to,
+    body: c.bodies[0] ? doc.slice(c.bodies[0].from, c.bodies[0].to) : "",
+    header: c.header === true,
+    span: c.span ?? 1,
+  }));
+  const options = found.options ?? [];
+
+  const en = found.lang === "en";
+  const s = SPELLING;
+  const written = found.colsArg ? doc.slice(found.colsArg.from, found.colsArg.to) : "";
+  const colsName = /^(עמודות|columns)/u.exec(written)?.[1] ?? (en ? s.cols.en : s.cols.he);
+
+  return {
+    from: found.from,
+    to: found.to,
+    argsFrom: args.from,
+    argsTo: args.to,
+    cols: found.cols ?? 2,
+    widths: found.widths ?? null,
+    options,
+    cells,
+    names: {
+      table: en ? s.table.en : s.table.he,
+      cell: en ? s.cell.en : s.cell.he,
+      header: en ? s.headcell.en : s.headcell.he,
+      merge: en ? s.merge.en : s.merge.he,
+      cols: colsName,
+    },
+  };
 }
 
 /** Which row and column `pos` sits in, or null if it is not in a cell. */

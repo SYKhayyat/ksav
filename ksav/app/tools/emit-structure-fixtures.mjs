@@ -10,11 +10,17 @@
 //   node tools/emit-structure-fixtures.mjs          # rewrite the fixture
 //   node tools/emit-structure-fixtures.mjs --check  # fail if it is stale
 
-import { execFileSync } from "node:child_process";
+// Through esbuild's JS API, not by running `node node_modules/esbuild/bin/esbuild`:
+// that path is a JavaScript shim on Windows and the **native executable** on Linux,
+// where npm's platform package overwrites it — so handing it to `node` threw
+// `SyntaxError: Invalid or unexpected token` and took the editor job in CI down on
+// every push, while working perfectly on the machine that wrote it. `card.mjs` and
+// `test/run.mjs` had always imported `build` from "esbuild"; this is the same thing.
+import { build } from "esbuild";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
@@ -24,19 +30,15 @@ async function load(name) {
   const dir = mkdtempSync(join(tmpdir(), "ksav-fx-"));
   try {
     const out = join(dir, `${name}.mjs`);
-    execFileSync(
-      process.execPath,
-      [
-        join(APP, "node_modules", "esbuild", "bin", "esbuild"),
-        join(APP, "src", `${name}.ts`),
-        "--bundle",
-        "--format=esm",
-        "--platform=node",
-        `--outfile=${out}`,
-      ],
-      { stdio: "pipe" },
-    );
-    return await import("file://" + out.replace(/\\/g, "/"));
+    await build({
+      entryPoints: [join(APP, "src", `${name}.ts`)],
+      outfile: out,
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      logLevel: "silent",
+    });
+    return await import(pathToFileURL(out).href);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

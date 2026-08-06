@@ -258,7 +258,13 @@ for (const [label, inline] of Object.entries(CORPUS)) {
 // written about. A regex can hold "there is one" perfectly.
 {
   const NAMES = /"(?:הערה_בשם|גוף_הערה|גופי_הערות|note_named|note_body|note_bodies)"/;
-  const allowed = new Set(["note-commands.ts"]);
+  // `engine.gen.ts` is the engine's registry, mirrored by a generator and
+  // checked stale by `npm test`. It names all 115 commands because that is what
+  // the registry says, and it is exactly *not* the thing this sweep is for: the
+  // failure it guards against is a second list somebody has to remember to
+  // update, and a generated file is the one kind of copy that cannot go stale
+  // without a red test.
+  const allowed = new Set(["note-commands.ts", "engine.gen.ts"]);
   const offenders = [];
   for (const f of (await readdir(SRC)).filter((f) => f.endsWith(".ts"))) {
     if (allowed.has(f)) continue;

@@ -73,9 +73,12 @@ rename the fonts. Ksav redistributes this font unmodified, so no rename applies.
 
 ## The lexicons
 
-### Hebrew
+### Ksav Hebrew lexicon
 
-- File: `ksav/engine/assets/lexicon-he.txt`
+- Files: `ksav/engine/assets/lexicon-he.txt`,
+  `ksav/engine/assets/lexicon-he-supplement.txt`
+- Built from Public Domain texts (Sefaria, Project Ben-Yehuda).
+- Licence: MIT OR Apache-2.0 — Ksav's own.
 - Built from Public Domain sources by `ksav/engine/tools/build_lexicon.py`,
   which documents the provenance of every corpus that went into it, including
   which ones were deliberately left out and why.
@@ -88,11 +91,11 @@ spelling dictionary in existence — is deliberately not included; see the modul
 comment at the top of `ksav/engine/src/spell/hebrew.rs` for the licence
 reasoning and for the measurements that ruled it out on quality grounds as well.
 
-### English
+### English Speller Database (SCOWL)
 
-- File: `ksav/engine/assets/lexicon-en.txt`
-- Copyright 2000–2026 by Kevin Atkinson; Australian English data copyright 2016
-  by Benjamin Titze.
+- Files: `ksav/engine/assets/lexicon-en.txt`,
+  `ksav/engine/assets/lexicon-en-supplement.txt`
+- Copyright 2000–2026 Kevin Atkinson; Australian data © 2016 Benjamin Titze
 - Licence: the English Speller Database licence — `licenses/ESDB.txt`
 - Upstream: https://wordlist.aspell.net
 

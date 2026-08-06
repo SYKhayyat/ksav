@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "Which lines are `#כלול` inclusion directives — the corpus both readers run.",
+    "",
+    "The rule exists twice: `engine/src/include.rs` splices the documents, and",
+    "`app/src/parts.ts` decides which ones to put on the compile request. They",
+    "decide different halves of one operation, so a line only one of them",
+    "recognises is a chapter the engine reports missing on a document that names",
+    "it correctly — and `parts.ts` had already written down, in prose, that",
+    "\"the two implementations have to agree\". This file is that sentence made",
+    "executable: `engine/tests/one_want.rs` and `app/test/parts.test.mjs`.",
+    "",
+    "`name` is null when the line is not a directive at all."
+  ],
+  "cases": [
+    { "line": "#כלול(\"פרק ג\")", "name": "פרק ג" },
+    { "line": "#include_part(\"Chapter 3\")", "name": "Chapter 3" },
+    { "line": "  #כלול(\"פרק ג\")  ", "name": "פרק ג" },
+    { "line": "#כלול( \"פרק ג\" )", "name": "פרק ג" },
+    { "line": "#כלול('פרק ג')", "name": "פרק ג" },
+    { "line": "#כלול(\"  פרק ג  \")", "name": "פרק ג" },
+    { "line": "#כלול(\"פרק (ג)\")", "name": "פרק (ג)", "why": "a paren in the name — the scan must not stop at the first one" },
+    { "line": "ראו #כלול(\"פרק ג\") לדוגמה", "name": null, "why": "prose about the command is not the command: whole lines only" },
+    { "line": "#כלול(\"פרק ג\") ועוד", "name": null },
+    { "line": "#כלול(\"פרק ג\"", "name": null },
+    { "line": "#כלול()", "name": null },
+    { "line": "#כלול", "name": null },
+    { "line": "#כלול (\"פרק ג\")", "name": null, "why": "a space before the paren is not the call syntax on either side" },
+    { "line": "#כלול(\"פרק ג')", "name": null, "why": "mismatched quotes" },
+    { "line": "", "name": null },
+    { "line": "שורה רגילה", "name": null },
+    { "line": "#כלול(\"\")", "name": null, "why": "an empty name names no document. Rust answered Some(\"\") and the app filtered it, so the engine asked for a chapter called nothing and reported it missing" },
+    { "line": "#כלול('')", "name": null },
+    { "line": "#כלול(\"   \")", "name": null }
+  ]
+}

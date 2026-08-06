@@ -13,8 +13,12 @@
 // second copy of the list, which is exactly the drift this arrangement exists to
 // prevent. What is tested is the matching, against a small stand-in.
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { check, ok, notOk } from "./harness.mjs";
 import { seferArgAt, suggest, fold, _reset } from "../.tmp-test/sefarim.mjs";
+
+const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 
 const SAMPLE = [
   { canonical: "בבא קמא", kind: "mishnah", order: 2301, aliases: ["ב\"ק"] },
@@ -25,7 +29,7 @@ const SAMPLE = [
   { canonical: "מועד קטן", kind: "mishnah", order: 2111, aliases: ["מו\"ק"] },
 ];
 
-export function run() {
+export async function run() {
   _reset(SAMPLE);
 
   // ------------------------------------------------------------ where it fires
@@ -101,13 +105,54 @@ export function run() {
 
   // ---------------------------------------------------------------- the fold
   //
-  // The same three rules as the engine's. They have to agree, or the editor
-  // offers a spelling the index then files somewhere else.
+  // The third implementation of one rule. Rust has it for the catalogue lookup,
+  // `ksav.typ` has `_ix_fold` for the source index, and this one is here so a
+  // writer typing three letters is offered the sefer they mean. None of the
+  // three can call either of the others, so the fence is a corpus all three are
+  // executed against — `engine/tests/fixtures/fold-cases.json`, run on this side
+  // here and on the other two by `engine/tests/one_want.rs`.
+  //
+  // It is not decoration. Running the three against one corpus is what found
+  // that the Typst copy iterated grapheme *clusters*, so a pointed letter was
+  // deleted along with its nikud and `שַׁבָּת` folded to the empty string — which
+  // does not merely fail to find the masechta, it makes every fully-pointed name
+  // collide with every other. Two implementations read carefully by hand had
+  // agreed with each other for as long as they had existed.
+  {
+    const { cases } = JSON.parse(
+      await readFile(
+        path.join(HERE, "..", "..", "engine", "tests", "fixtures", "fold-cases.json"),
+        "utf8",
+      ),
+    );
+    ok("the fold corpus was read", cases.length >= 25);
+    const wrong = cases
+      .filter((c) => fold(c.in) !== c.out)
+      .map((c) => `${JSON.stringify(c.in)} → ${JSON.stringify(fold(c.in))}, want ${JSON.stringify(c.out)}`);
+    check("this fold agrees with the corpus, case for case", wrong, []);
+
+    // And the property the rule exists for, from this side: the classes.
+    const collisions = [];
+    for (const a of cases) {
+      for (const b of cases) {
+        if ((fold(a.in) === fold(b.in)) !== (a.class === b.class)) collisions.push([a.in, b.in]);
+      }
+    }
+    check("spellings of one name fold together, and others apart", collisions, []);
+  }
+
+  // The cases above, spelled out, because a corpus in another directory is a
+  // poor advertisement for what the rule actually is.
   check("every gershayim spelling folds to one", fold("ב״ב"), 'ב"ב');
   check("…including a doubled geresh", fold("ב׳׳ב"), 'ב"ב');
   check("points are not part of the name", fold("בְּרָכוֹת"), "ברכות");
   check("a maqaf separates words", fold("ראש־השנה"), "ראש השנה");
   check("runs of space collapse", fold("  ראש   השנה "), "ראש השנה");
-  // …but a space between two words is not noise.
+  // …but a space between two words is not noise, and neither is one *beside* the
+  // mark: `ב ״ ב` stays three tokens and finds nothing. That is deliberate, and
+  // `sefarim.rs`'s comment used to claim the opposite — a geresh ending a word is
+  // legitimately followed by a space (`תוס׳ ד״ה` is two words), so closing the gap
+  // would fuse them.
   check("a real space survives", fold("שמואל א"), "שמואל א");
+  check("and a space beside the mark is not closed", fold("ב ״ ב"), 'ב " ב');
 }

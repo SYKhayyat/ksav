@@ -11,13 +11,22 @@ import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
+import { bothSpellings, withAliases } from "./engine.gen";
 import {
   DEFER_BODY_COMMANDS,
   DEFER_REF_COMMANDS,
   TIERS,
   TIER_FAMILY,
 } from "./note-commands";
-import { scan, type Group, type ListKind, type Node, type Scan } from "./spans";
+import {
+  plainText,
+  plainTextIn,
+  scan,
+  type Group,
+  type ListKind,
+  type Node,
+  type Scan,
+} from "./spans";
 
 // ---- shared scanning -------------------------------------------------------
 //
@@ -80,96 +89,56 @@ export const ksavHighlighter = ViewPlugin.fromClass(
 // ---- prose mode ------------------------------------------------------------
 
 // command name -> CSS class applied to its content when syntax is hidden
-const PROSE_STYLE: Record<string, string> = {
+const PROSE_STYLE: Record<string, string> = withAliases({
   הדגשה: "pm-bold",
-  bold: "pm-bold",
   נטוי: "pm-italic",
-  italic: "pm-italic",
   קו_תחתון: "pm-underline",
-  uline: "pm-underline",
   קו_חוצה: "pm-strike",
-  sthrough: "pm-strike",
   סימון: "pm-mark",
-  mark: "pm-mark",
   גדול: "pm-big",
-  big: "pm-big",
   קטן: "pm-small",
-  tiny: "pm-small",
   שער: "pm-title",
-  title: "pm-title",
   תת_שער: "pm-subtitle",
-  subtitle: "pm-subtitle",
   מרכז: "pm-center",
-  center_: "pm-center",
   ימין: "pm-right",
-  right_: "pm-right",
   שמאל: "pm-left",
-  left_: "pm-left",
   // A heading inside a note looks like a small heading and is not one — so in
   // prose mode it gets the small-heading look, and nothing in the outline.
   כותרת_בהערה: "pm-h3",
-  note_heading: "pm-h3",
   ציטוט: "pm-quote",
-  blockquote: "pm-quote",
   מקור: "pm-source",
-  cite_: "pm-source",
   קוד: "pm-code",
-  mono: "pm-code",
   הערת_צד: "pm-callout",
-  callout: "pm-callout",
   אזהרה: "pm-warn",
-  warnbox: "pm-warn",
   הצלחה: "pm-ok",
-  okbox: "pm-ok",
   תיבה: "pm-box",
-  framebox: "pm-box",
   דיבור_המתחיל: "pm-bold",
-  dh: "pm-bold",
   // These all take a `(...)` argument, which prose mode could not even see until
   // scanCommands learned to skip an argument group — so they used to appear as
   // literal `#צבע(rgb("#b91c1c"))[…]` in the middle of the "looks like Word" view.
   צבע: "pm-color",
-  color: "pm-color",
   רקע: "pm-mark",
-  bg: "pm-mark",
   גודל_גופן: "pm-big",
-  fsize: "pm-big",
   מרווח_אותיות: "pm-tracked",
-  track: "pm-tracked",
   גופן_שונה: "pm-otherfont",
-  usefont: "pm-otherfont",
   רברבתי: "pm-scaps",
-  scaps: "pm-scaps",
   עילי: "pm-sup",
-  sup: "pm-sup",
   תחתי: "pm-sub",
-  sub_: "pm-sub",
   הזחה: "pm-indent",
-  indent_: "pm-indent",
   מימין_לשמאל: "pm-rtl",
-  rtl_: "pm-rtl",
   משמאל_לימין: "pm-ltr",
-  ltr_: "pm-ltr",
   // Torah layer.
   סימן: "pm-h1",
-  siman: "pm-h1",
   סעיף: "pm-seif",
-  seif: "pm-seif",
   אות: "pm-bold",
-  osource: "pm-bold",
   פסוק: "pm-verse",
-  verse: "pm-verse",
   ציון: "pm-source",
-  refmark: "pm-source",
   גמרא: "pm-gemara",
-  gemara: "pm-gemara",
   // Review marks look, in prose mode, like what they mean: an insertion
   // underlined, a deletion struck through — the same shapes the page shows.
   הוספה: "pm-ins",
-  inserted: "pm-ins",
   מחיקה: "pm-del",
-  deleted: "pm-del",
-};
+});
 
 /** Levels 1–3 look like themselves; deeper ones all look like a small heading. */
 const HEADING_CLASS = ["pm-h1", "pm-h2", "pm-h3"];
@@ -199,22 +168,21 @@ const hide = Decoration.replace({});
  * should look like the thing they produce, not like their own name.
  */
 const SELF_CLOSING: Record<string, { cls: string; text: string }> = {
-  קו_מפריד: { cls: "pm-hr", text: "" },
-  hrule: { cls: "pm-hr", text: "" },
-  חסר: { cls: "pm-blank", text: "\u00a0\u00a0\u00a0\u00a0\u00a0" },
-  blank: { cls: "pm-blank", text: "\u00a0\u00a0\u00a0\u00a0\u00a0" },
-  מעבר_עמוד: { cls: "pm-pagebreak", text: "— — —" },
-  pbreak: { cls: "pm-pagebreak", text: "— — —" },
-  מעבר_טור: { cls: "pm-pagebreak", text: "⋮" },
-  cbreak: { cls: "pm-pagebreak", text: "⋮" },
-  תמונה: { cls: "pm-image", text: "🖼" },
-  img: { cls: "pm-image", text: "🖼" },
-  תוכן: { cls: "pm-toc", text: "⧉" },
-  toc: { cls: "pm-toc", text: "⧉" },
-  סמן: { cls: "pm-anchor", text: "⚑" },
-  anchor: { cls: "pm-anchor", text: "⚑" },
-  הפניה: { cls: "pm-xref", text: "↗" },
-  xref: { cls: "pm-xref", text: "↗" },
+  ...withAliases<{ cls: string; text: string }>({
+    קו_מפריד: { cls: "pm-hr", text: "" },
+    חסר: { cls: "pm-blank", text: "\u00a0\u00a0\u00a0\u00a0\u00a0" },
+    מעבר_עמוד: { cls: "pm-pagebreak", text: "— — —" },
+    מעבר_טור: { cls: "pm-pagebreak", text: "⋮" },
+    תמונה: { cls: "pm-image", text: "🖼" },
+    תוכן: { cls: "pm-toc", text: "⧉" },
+    סמן: { cls: "pm-anchor", text: "⚑" },
+    הפניה: { cls: "pm-xref", text: "↗" },
+  }),
+  // The three apparatus chips carry a *word*, so here — and only here — the
+  // two spellings deliberately differ: somebody who typed `#endnotes` is
+  // writing in English and should not get a Hebrew label handed back.
+  // Everything above is a glyph, which reads the same in both languages, so
+  // it is paired from the prelude rather than typed twice.
   הערות_בסוף: { cls: "pm-apparatus", text: "▤ הערות" },
   endnotes: { cls: "pm-apparatus", text: "▤ notes" },
   הערות_מדורגות: { cls: "pm-apparatus", text: "▤ מדורים" },
@@ -301,16 +269,22 @@ interface NoteKind {
   scheme: NoteScheme;
 }
 const NOTE_KINDS: Record<string, NoteKind> = {};
-const addNotes = (family: string, scheme: NoteScheme, names: string[]) => {
-  for (const n of names) NOTE_KINDS[n] = { family, scheme };
+/**
+ * File a family of notes under a scheme, by their **Hebrew** names.
+ *
+ * The English spelling of each comes from the prelude's own `#let`, so this
+ * table cannot be the thing that forgets one. It used to carry both by hand,
+ * which is how `notesIn` came to find no notes at all in an English document —
+ * see the head of `note-commands.ts` for that bug written out in full.
+ * `TIER_FAMILY` already arrives paired, so its names pass through unchanged.
+ */
+const addNotes = (family: string, scheme: NoteScheme, names: readonly string[]) => {
+  for (const n of names) for (const s of bothSpellings(n)) NOTE_KINDS[s] = { family, scheme };
 };
 
 // The one native page-foot series: plain footnotes, sub-notes, mekoros notes and
 // every tier of the layered notes all land in it, in one running sequence.
-addNotes("native", "1", [
-  "הערה", "fnote", "הערה_על_הערה", "subnote", "מראה_מקום", "sourcenote",
-  ...TIER_FAMILY,
-]);
+addNotes("native", "1", ["הערה", "הערה_על_הערה", "מראה_מקום", ...TIER_FAMILY]);
 // Section bands and per-page bands: one independent sequence per tier, and the
 // engine letters tiers 2 and 3 by default.
 // The tier letters come from `note-commands.ts` — this table says how each tier
@@ -318,23 +292,23 @@ addNotes("native", "1", [
 const BAND_SCHEMES: NoteScheme[] = ["1", "א", "a", "1", "א", "a", "1"];
 TIERS.forEach((letter, i) => {
   const scheme = BAND_SCHEMES[i];
-  addNotes(`band${i + 1}`, scheme, [`מדור_${letter}`, `band${i + 1}`]);
-  addNotes(`pageband${i + 1}`, scheme, [`מדף_${letter}`, `pageband${i + 1}`]);
+  addNotes(`band${i + 1}`, scheme, [`מדור_${letter}`]);
+  addNotes(`pageband${i + 1}`, scheme, [`מדף_${letter}`]);
 });
-addNotes("band1", "1", ["מדור_בדרגה", "band"]);
-addNotes("pageband1", "1", ["מדף_בדרגה", "pageband"]);
+addNotes("band1", "1", ["מדור_בדרגה"]);
+addNotes("pageband1", "1", ["מדף_בדרגה"]);
 // Independent per-page streams — the sources stream is lettered by convention.
-addNotes("stream-content", "1", ["הערת_תוכן", "contentnote"]);
-addNotes("stream-source", "א", ["הערת_מקור", "sourcenote_stream"]);
-addNotes("stream-other", "1", ["הערה_זרם", "stream_note"]);
+addNotes("stream-content", "1", ["הערת_תוכן"]);
+addNotes("stream-source", "א", ["הערת_מקור"]);
+addNotes("stream-other", "1", ["הערה_זרם"]);
 // Endnotes, and the margin apparatuses.
-addNotes("endnote", "1", ["הערתסיום", "endnote"]);
-addNotes("sidenote", "1", ["הערת_גיליון", "sidenote"]);
-addNotes("side-right", "1", ["הערת_ימין", "noteright"]);
-addNotes("side-left", "1", ["הערת_שמאל", "noteleft"]);
+addNotes("endnote", "1", ["הערתסיום"]);
+addNotes("sidenote", "1", ["הערת_גיליון"]);
+addNotes("side-right", "1", ["הערת_ימין"]);
+addNotes("side-left", "1", ["הערת_שמאל"]);
 // An editorial comment is a margin note in its own right, numbered by the same
 // sidenote engine — so it collapses to a chip like one, with its text on hover.
-addNotes("review", "1", ["הערת_עורך", "comment_"]);
+addNotes("review", "1", ["הערת_עורך"]);
 
 const FOOTNOTE_NAMES = new Set(Object.keys(NOTE_KINDS));
 
@@ -407,38 +381,23 @@ function noteLabel(scheme: NoteScheme, n: number): string {
 // A table cell rendered only bold/italic/underline/strike/code, so a cell using
 // anything else — a colour, a highlight, small caps — showed its raw markup
 // inside an otherwise WYSIWYG table. These are the same styles the body honours.
-const INLINE_TAG: Record<string, [string, string]> = {
+const INLINE_TAG: Record<string, [string, string]> = withAliases<[string, string]>({
   הדגשה: ["<strong>", "</strong>"],
-  bold: ["<strong>", "</strong>"],
   נטוי: ["<em>", "</em>"],
-  italic: ["<em>", "</em>"],
   קו_תחתון: ["<u>", "</u>"],
-  uline: ["<u>", "</u>"],
   קו_חוצה: ["<s>", "</s>"],
-  sthrough: ["<s>", "</s>"],
   קוד: ["<code>", "</code>"],
-  mono: ["<code>", "</code>"],
   סימון: ['<span class="pm-mark">', "</span>"],
-  mark: ['<span class="pm-mark">', "</span>"],
   רקע: ['<span class="pm-mark">', "</span>"],
-  bg: ['<span class="pm-mark">', "</span>"],
   צבע: ['<span class="pm-color">', "</span>"],
-  color: ['<span class="pm-color">', "</span>"],
   רברבתי: ['<span class="pm-scaps">', "</span>"],
-  scaps: ['<span class="pm-scaps">', "</span>"],
   עילי: ["<sup>", "</sup>"],
-  sup: ["<sup>", "</sup>"],
   תחתי: ["<sub>", "</sub>"],
-  sub_: ["<sub>", "</sub>"],
   גדול: ['<span class="pm-big">', "</span>"],
-  big: ['<span class="pm-big">', "</span>"],
   קטן: ['<span class="pm-small">', "</span>"],
-  tiny: ['<span class="pm-small">', "</span>"],
   דיבור_המתחיל: ["<strong>", "</strong>"],
-  dh: ["<strong>", "</strong>"],
   ציון: ['<span class="pm-source">', "</span>"],
-  refmark: ['<span class="pm-source">', "</span>"],
-};
+});
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -782,7 +741,7 @@ function proseDecorations(state: EditorState): ProseValue {
             deco: Decoration.replace({
               widget: new FootnoteWidget(
                 label,
-                body == null ? "?" : body.replace(/#[^[]*\[|[[\]]/g, " ").trim(),
+                body == null ? "?" : plainText(body),
               ),
             }),
             side: 0,
@@ -805,7 +764,7 @@ function proseDecorations(state: EditorState): ProseValue {
           deco: Decoration.replace({
             widget: new FootnoteWidget(
               noteLabel(kind.scheme, n),
-              text.slice(body.from, body.to).replace(/#[^\[]*\[|[[\]]/g, " ").trim(),
+              plainTextIn(doc, body.from, body.to),
             ),
           }),
           side: 0,

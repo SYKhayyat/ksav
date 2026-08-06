@@ -8,6 +8,7 @@
 // `store.ts` for why they are not here.)
 
 import type { DocConfig } from "./api";
+import { DOC_DEFAULTS } from "./engine.gen";
 import * as runtime from "./runtime";
 import type { Lang } from "./i18n";
 
@@ -67,10 +68,31 @@ export interface Settings extends Omit<DocConfig, "lang"> {
 }
 
 /** The font families the engine bundles. Anything else must be attached to the
- *  document (see `addFont`) — there is no system font access from wasm. */
-export const BUNDLED_FONTS = ["Frank Ruhl Hofshi", "David Libre", "Cascadia Mono"];
+ *  document (see `addFont`) — there is no system font access from wasm.
+ *
+ *  Re-exported from the generated table rather than listed: the font menu and
+ *  the licence notice are the same set of embedded files seen from two ends, and
+ *  the engine is the end that actually embeds them. */
+export { BUNDLED_FONTS } from "./engine.gen";
 
 export const DEFAULTS: Settings = {
+  // Everything that goes on the compile request, exactly as the engine's own
+  // `DocConfig::default()` states it.
+  //
+  // This used to be twenty-odd values typed out a second time, and the way that
+  // fails is quiet rather than loud: the Rust value always wins on the wire, so
+  // a default changed in one place leaves the app's sliders reading one number
+  // while the page is laid out to another. The four per-edge margins and the
+  // note region stay absent — absent means "follow margin_cm" and "decide from
+  // the document", which is a different instruction from any number, so moving
+  // the one margin slider still moves all four.
+  ...DOC_DEFAULTS,
+  // Copied, not aliased: `DOC_DEFAULTS` is frozen-by-convention and shared, and
+  // one document adding a PDF keyword must not add it to the defaults every
+  // other document is built from.
+  keywords: [...DOC_DEFAULTS.keywords],
+  // Two-sided is off, so a document that nobody binds is laid out symmetrically
+  // and every existing file opens exactly as it did.
   lang: "he",
   theme: "light",
   layout: "two",
@@ -84,37 +106,6 @@ export const DEFAULTS: Settings = {
   prose: true,
   zoom: 1,
   fitWidth: true,
-  font: "Frank Ruhl Hofshi",
-  size_pt: 12,
-  margin_cm: 2.5,
-  dir: "rtl",
-  numbering: true,
-  justify: true,
-  line_spacing_em: 0.75,
-  para_spacing_em: 1.2,
-  first_line_indent_em: 0,
-  columns: 1,
-  paper: "a4",
-  hebrew_numbering: false,
-  header: "",
-  footer: "",
-  // Two-sided is off, so a document that nobody binds is laid out symmetrically
-  // and every existing file opens exactly as it did. The four per-edge margins
-  // are deliberately absent rather than set to 2.5: absent means "follow
-  // margin_cm", so moving the one margin slider still moves all four.
-  gutter_cm: 0,
-  two_sided: false,
-  header_even: "",
-  header_odd: "",
-  footer_even: "",
-  footer_odd: "",
-  head_align: "center",
-  title: "",
-  author: "",
-  keywords: [],
-  pdf_standard: "",
-  pdf_tagged: true,
-  prevent_orphans: false,
   editingMode: "default",
   focusMode: false,
   typewriter: false,

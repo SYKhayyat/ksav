@@ -92,6 +92,8 @@ import {
   panelHead,
   overlayPanel,
 } from "./panels";
+import { BUNDLED_NOTICES } from "./engine.gen";
+import { plainText } from "./spans";
 import {
   settings,
   saveSettings,
@@ -972,15 +974,12 @@ function makeEditor(): EditorView {
 //
 // This used to count the raw document string, so `#הדגשה[...]`, `//` comments and
 // every command name inflated the number the writer watches. Strip the markup
-// first: comments, then command heads (`#צבע(rgb("#..."))` and the like), then the
-// brackets that wrapped their content, leaving the words that will actually print.
+// first with four regexes of its own — and `\([^()]*\)` stops at the first inner
+// `)`, so `#צבע(rgb("#b91c1c"))[…]` left a stray paren in the number a writer
+// watches. One question, asked of the scanner that already knows the answer:
+// `spans.ts` tells a string from a bracket, which is what all six askers lacked.
 export function countableText(src: string): string {
-  return src
-    .replace(/\/\/[^\n]*/g, " ") // line comments
-    .replace(/\/\*[\s\S]*?\*\//g, " ") // block comments
-    .replace(/#[A-Za-z_\u0590-\u05FF][\w\u0590-\u05FF]*(\s*\([^()]*\))?/g, " ") // #command(args)
-    .replace(/[[\]]/g, " ") // the brackets around command bodies
-    .replace(/^\s*=+\s/gm, " "); // heading markers
+  return plainText(src);
 }
 function countNow() {
   const el = document.getElementById("wordcount");
@@ -2464,39 +2463,21 @@ function buildSettingsDrawer(): HTMLElement {
 /**
  * The licence notice, in the app.
  *
- * Not decoration and not a nicety. Six fonts are compiled into the engine, so
- * every way Ksav is distributed — the installers, the server binary, and the
+ * Not decoration and not a nicety. Six font files are compiled into the engine,
+ * so every way Ksav is distributed — the installers, the server binary, and the
  * ~23 MB wasm module the browser build downloads — is a redistribution of them.
  * Both the SIL OFL and the GUST licence require their notice to accompany a
  * redistribution, and a web build has no installer to put a text file beside.
  * So the notice lives where the software is.
+ *
+ * The facts themselves come from `engine/src/notices.rs`, which sits beside the
+ * `include_bytes!` lines that create the obligation and is tied to them by a
+ * test in both directions. This was the fourth hand-kept copy of them — after
+ * the Markdown, the licence texts and the font list — and the failure mode of a
+ * fourth copy of a licence notice is a licence violation on every download,
+ * arriving quietly, with a green test suite.
  */
-const BUNDLED_FONT_NOTICES: { name: string; copyright: string; licence: string; url: string }[] = [
-  {
-    name: "Frank Ruhl Hofshi",
-    copyright: "Copyright 2015 The Frank Ruhl Hofshi Project Authors",
-    licence: "SIL Open Font License 1.1",
-    url: "https://openfontlicense.org",
-  },
-  {
-    name: "David Libre",
-    copyright: "Copyright (c) 2003–2016 The David Libre Project Authors",
-    licence: "SIL Open Font License 1.1",
-    url: "https://openfontlicense.org",
-  },
-  {
-    name: "Cascadia Mono",
-    copyright: "Copyright (c) 2020 Microsoft Corporation",
-    licence: "SIL Open Font License 1.1",
-    url: "https://github.com/microsoft/cascadia-code",
-  },
-  {
-    name: "New Computer Modern Math",
-    copyright: "Copyright (C) 2019–2026 Antonis Tsolomitis",
-    licence: "GUST Font License 1.0 (LPPL 1.3c)",
-    url: "https://tug.org/fonts/licenses/GUST-FONT-LICENSE.txt",
-  },
-];
+const BUNDLED_FONT_NOTICES = BUNDLED_NOTICES.filter((n) => n.kind === "font");
 
 /**
  * The lexicon notices, for the same reason as the fonts.
@@ -2509,20 +2490,7 @@ const BUNDLED_FONT_NOTICES: { name: string; copyright: string; licence: string; 
  * it is named here anyway, because "which dictionaries is this thing using" is a
  * fair question and the answer should not be half an answer.
  */
-const BUNDLED_LEXICON_NOTICES: { name: string; copyright: string; licence: string; url: string }[] = [
-  {
-    name: "English Speller Database (SCOWL)",
-    copyright: "Copyright 2000–2026 Kevin Atkinson; Australian data © 2016 Benjamin Titze",
-    licence: "ESDB licence",
-    url: "https://wordlist.aspell.net",
-  },
-  {
-    name: "Ksav Hebrew lexicon",
-    copyright: "Built from Public Domain texts (Sefaria, Project Ben-Yehuda)",
-    licence: "MIT OR Apache-2.0",
-    url: "https://github.com/SYKhayyat/ksav",
-  },
-];
+const BUNDLED_LEXICON_NOTICES = BUNDLED_NOTICES.filter((n) => n.kind === "lexicon");
 
 function buildAboutSection(): Node[] {
   return [
@@ -2640,7 +2608,7 @@ function renderNotesPane() {
   items.forEach((n, i) => {
     // The note's own first words, flattened: a list of "#הערה" twelve times
     // over is a list of nothing.
-    const gist = n.text.replace(/#[A-Za-z0-9֐-׿_]+|[\[\]]/g, " ").replace(/\s+/g, " ").trim();
+    const gist = plainText(n.text);
     host.append(
       el(
         "button",
@@ -4504,15 +4472,7 @@ async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
   // 700 characters lands in the middle of a bracket about as often as not, and
   // a preview that silently never appears because the excerpt would not compile
   // is worse than an honest sketch. So: strip the commands, keep the prose.
-  const own = runtime.view.state.doc
-    .toString()
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/\/\/.*/g, " ")
-    .replace(/#[A-Za-z0-9֐-׿_]+(\([^()]*\))?/g, " ")
-    .replace(/[[\]|]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 700);
+  const own = plainText(runtime.view.state.doc.toString()).slice(0, 700);
   const filler = Array.from({ length: 18 }, (_, i) => t("notePreviewLine") + " " + (i + 1)).join(
     "\n\n",
   );

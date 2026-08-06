@@ -11,13 +11,47 @@
 // a `#כלול` line, this side never sends a chapter the engine then asks for. The
 // cases below are chosen to pin the rule, not merely to exercise it.
 
-import { check, notOk } from "./harness.mjs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { check, notOk, ok } from "./harness.mjs";
 import { referenced, collect } from "../.tmp-test/parts.mjs";
+
+const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 
 /** A library, as a lookup by title. */
 const from = (pairs) => (name) => (name in pairs ? pairs[name] : null);
 
-export function run() {
+export async function run() {
+  // ------------------------------------------------- the rule, as both sides read it
+  //
+  // The corpus is `engine/tests/fixtures/include-cases.json` and
+  // `engine/tests/one_want.rs` runs the engine's `directive()` against the very
+  // same file. The header above names the risk; this is the part that can
+  // actually catch it, because a divergence is now a failing test on one side or
+  // the other rather than a chapter that goes quietly missing.
+  //
+  // It found one on its first run: `#כלול("")` was `Some("")` in Rust and
+  // filtered here, so the engine asked for a document called nothing and
+  // reported it missing, on a file this side had seen nothing wrong with.
+  {
+    const { cases } = JSON.parse(
+      await readFile(
+        path.join(HERE, "..", "..", "engine", "tests", "fixtures", "include-cases.json"),
+        "utf8",
+      ),
+    );
+    ok("the include corpus was read", cases.length >= 15);
+    const wrong = [];
+    for (const c of cases) {
+      const want = c.name === null ? [] : [c.name];
+      const got = referenced(c.line);
+      if (JSON.stringify(got) !== JSON.stringify(want)) {
+        wrong.push(`${JSON.stringify(c.line)} → ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+      }
+    }
+    check("this side reads the directive as the corpus says", wrong, []);
+  }
+
   // -------------------------------------------------------- what is a directive
   check("a whole line is a directive", referenced('#כלול("פרק ג")'), ["פרק ג"]);
   check("…with whitespace around it", referenced('   #כלול("פרק ג")   '), ["פרק ג"]);

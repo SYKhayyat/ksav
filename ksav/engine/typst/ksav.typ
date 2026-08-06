@@ -1849,9 +1849,13 @@
   "ס": 60, "ע": 70, "פ": 80, "ף": 80, "צ": 90, "ץ": 90,
   "ק": 100, "ר": 200, "ש": 300, "ת": 400,
 )
+// Codepoints, not clusters — see `_ix_fold` below for why the difference is not
+// academic. A pointed `בּ` is one *cluster* and two codepoints, and the table is
+// keyed by the bare letter, so iterating clusters scored every pointed letter
+// zero and a pointed abbreviation sorted as if it were worth nothing.
 #let _ix_gematria(s) = {
   let n = 0
-  for c in s.clusters() { n += _ix_gem.at(c, default: 0) }
+  for c in str(s).codepoints() { n += _ix_gem.at(c, default: 0) }
   n
 }
 
@@ -1860,14 +1864,23 @@
 #let _ix_finals = ("ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ")
 
 // The same folding the engine applied when it generated `_ix_sefarim`: nikud
-// away, every gershayim spelling to one, runs of space collapsed. The two
-// implementations have to agree, and `tests/index.rs` asserts they do by
-// rendering the spellings people actually type and looking for the canonical
-// name on the page.
+// away, every gershayim spelling to one, runs of space collapsed.
+//
+// **Codepoints, not clusters.** This iterated `clusters()` and was wrong in a
+// way nothing could see from inside Typst: a pointed letter is *one* grapheme
+// cluster carrying its base letter and its nikud together, and
+// `c.match(regex("[\u{0591}-\u{05C7}]"))` matches anywhere in the string it is
+// given — so the whole cluster matched and `continue` threw the letter away
+// with the point. `רֹאשׁ הַשָּׁנָה` folded to `א ה` and `שַׁבָּת` folded to the
+// empty string, which does not merely fail to find the masechta: it makes every
+// fully-pointed name collide with every other. Rust iterates `chars()` and
+// never had it, which is precisely why three implementations of one rule need
+// an oracle and not three careful readings. `tests/one_want.rs` now runs all
+// three against `tests/fixtures/fold-cases.json`.
 #let _ix_fold(s) = {
   let out = ""
   let last_space = true
-  for c in str(s).clusters() {
+  for c in str(s).codepoints() {
     // The maqaf separates words and must be tested *before* the points range,
     // because U+05BE sits inside it — matched there, ראש־השנה folds to
     // ראשהשנה, which is nothing at all.
@@ -1885,10 +1898,12 @@
   out.replace("''", "\"").trim()
 }
 
-// A term as it sorts: finals folded, points and marks dropped.
+// A term as it sorts: finals folded, points and marks dropped. Codepoints for
+// the same reason as `_ix_fold` — on clusters, every pointed term sorted under
+// the empty string, which is to say all of them sorted together at the top.
 #let _ix_sortkey(s) = {
   let out = ""
-  for c in str(s).clusters() {
+  for c in str(s).codepoints() {
     if c.match(regex("[\u{0591}-\u{05C7}\u{05F3}\u{05F4}\"']")) != none { continue }
     out += _ix_finals.at(c, default: c)
   }

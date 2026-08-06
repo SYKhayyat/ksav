@@ -243,7 +243,21 @@ pub const UNKNOWN_ORDER: u32 = 9000;
 /// change which sefer it is: the nikud (rare but real in a title), which of the
 /// four gershayim characters got typed (״ ” " and a doubled ׳ all mean the same
 /// mark), and how much whitespace ended up between the words. Folding all three
-/// away is the whole of why `ב״ב`, `ב"ב` and `ב ״ ב` find the same masechta.
+/// away is the whole of why `ב״ב`, `ב"ב` and `ראש־השנה` find the masechta.
+///
+/// What it does **not** do — this comment used to claim otherwise — is close a
+/// gap *around* the mark. `ב ״ ב` folds to `ב " ב` and finds nothing, because
+/// runs of whitespace collapse to one space rather than disappearing. That is
+/// deliberate now rather than merely true: a geresh ending a word is legitimately
+/// followed by a space (`תוס׳ ד״ה` is two words), so deleting the space next to
+/// the mark would fuse them into one. Two spellings of one mark are the same
+/// name; two spellings with different spacing are not necessarily.
+///
+/// This rule exists three times — here, in `ksav.typ`'s `_ix_fold` and in
+/// `app/src/sefarim.ts` — because a Typst prelude cannot call Rust and a browser
+/// tab cannot call either. All three are executed against one corpus by
+/// `tests/one_want.rs`; edit `tests/fixtures/fold-cases.json`, not one of the
+/// three, when the rule changes.
 pub fn fold(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut last_space = true; // leading space is already "collapsed"

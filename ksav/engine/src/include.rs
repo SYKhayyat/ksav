@@ -100,7 +100,17 @@ pub fn directive(line: &str) -> Option<&str> {
                 .strip_prefix('"')
                 .and_then(|s| s.strip_suffix('"'))
                 .or_else(|| inner.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))?;
-            return Some(name.trim());
+            let name = name.trim();
+            // An empty name names no document. This used to answer `Some("")`,
+            // while `app/src/parts.ts` — which decides which chapters go on the
+            // request — filtered it out: so `#כלול("")` made the engine ask for
+            // a document called nothing and report it missing, on a file the app
+            // had seen nothing wrong with. `tests/one_want.rs` holds the two
+            // readings to one corpus now.
+            if name.is_empty() {
+                return None;
+            }
+            return Some(name);
         }
     }
     None

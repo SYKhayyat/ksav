@@ -21,6 +21,9 @@ pub mod include;
 pub mod jump;
 /// The rules more than one build has to obey, read from `ksav/policy/`.
 pub mod policy;
+/// What the engine embeds and the notice each embedding owes — one table, tied
+/// to the `include_bytes!` lines below and to `THIRD-PARTY-NOTICES.md`.
+pub mod notices;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
@@ -479,7 +482,15 @@ impl DocConfig {
 /// becomes centred rather than being passed through, since this value reaches
 /// the prelude as a string literal and an unknown one would silently pick a
 /// branch nobody asked for.
-fn sanitize_head_align(a: &str) -> String {
+///
+/// The prelude states the same four-spellings-each table in `יישור_כותרת`'s two
+/// `in (…)` tuples, and it has to: this narrows to three canonical values before
+/// the source is assembled, but the prelude is also published for hand-written
+/// use, where nothing has narrowed anything. Public so that
+/// `tests/one_want.rs` can hold the two tables to each other — a spelling one
+/// side accepts and the other does not falls through to centred, which is a
+/// running head in the wrong place and no error anywhere.
+pub fn sanitize_head_align(a: &str) -> String {
     match a.trim() {
         "outside" | "outer" | "חוץ" | "חיצוני" => "outside",
         "inside" | "inner" | "פנים" | "פנימי" => "inside",

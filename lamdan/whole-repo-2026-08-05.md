@@ -474,6 +474,115 @@ compares them, and `build.rs` is sitting there doing nothing.
 
 **Verdict: `rewrite`, incrementally.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done, all eight, in one pass rather than incrementally — because the eight are
+> not eight problems. The finding below is kept verbatim; what follows is what
+> replaced it, what it got wrong, what it missed, and the two bugs that fell out
+> of running the copies against each other for the first time.
+>
+> **The verdict "incrementally, ~1 day each" was wrong, and wrong in a way worth
+> naming.** Eight concepts × a day each is the estimate you get from reading the
+> table as eight independent duplications. They are one duplication with eight
+> instances, and the question that decides every one of them is the same: *is a
+> language boundary genuinely in the way?* Answer it once and the eight sort
+> themselves into two piles.
+>
+> - **Six were not blocked by anything** and are fixed by deletion.
+>   `app/src/engine.gen.ts` is generated from `lib.rs`, `commands.rs`,
+>   `notices.rs` and `ksav.typ` by `app/tools/emit-engine.mjs`, with the
+>   `--check` form in `npm test` — which is not a new idea, it is exactly the
+>   §2 cure applied to the disease §2 did not know it shared.
+> - **Two are genuinely blocked** — a Typst prelude cannot call Rust, a browser
+>   tab cannot call either — and get an executed oracle instead: one corpus,
+>   every implementation run against it.
+>
+> **What went.** ~200 hand-written Hebrew/English pairs across four modules:
+> `markdown.ts`'s six tables, `ksav-lang.ts`'s `PROSE_STYLE` (44 pairs),
+> `SELF_CLOSING`, `INLINE_TAG` and its `addNotes` calls, and — not counted by
+> this finding — **`spans.ts`'s eight name tables and four regex alternations**,
+> which is the file §1 created to be the one authority and which then stated the
+> *names* twice. Plus `settings.ts`'s twenty-odd re-typed defaults, the About
+> panel's fourth copy of the licence notices, and five of the six markup-strippers.
+>
+> **The pairing is read from `ksav.typ`, not from `commands.rs`.** The finding
+> says "the engine already ships the registry to the app as JSON", and that is
+> true and not sufficient: the registry is deliberately a *subset* — it stops at
+> tier ג, on the stated argument that a chooser card with seven tiers is
+> unreadable, while the prelude defines all seven per family and an export has to
+> meet a document that used one. The hand-written list in `markdown.ts` had all
+> twenty-one, which means it knew something neither engine table said out loud
+> and the only reason it was right is that somebody typed twenty-one names
+> carefully once. The `#let` lines are what *make* the pairing, so they are what
+> is read; the registry is unioned in for the four commands defined
+> independently rather than aliased (`#let hlevel(body, level: 1)` is `#כותרת`
+> under an English parameter name), and the generator fails if the two disagree
+> or if the registry advertises an English name the prelude never bound.
+>
+> **Two real bugs, both found by running copies against each other.**
+>
+> - **`_ix_fold` deleted pointed letters, not points.** Typst's `.clusters()`
+>   yields grapheme clusters, so a pointed letter arrives as one string
+>   containing its base letter *and* its nikud; `c.match(regex("[\u{0591}-\u{05C7}]"))`
+>   matches anywhere in it, and `continue` threw the letter away with the point.
+>   Verified in the compiler: `רֹאשׁ הַשָּׁנָה` folded to `א ה` and `שַׁבָּת` folded to
+>   **the empty string**. That is not a failure to find a masechta — it makes
+>   every fully-pointed name collide with every other, in the source index, in
+>   `_ix_sortkey` (so pointed terms all sorted together under nothing) and in
+>   `_ix_gematria` (so a pointed abbreviation scored zero). Rust iterates
+>   `chars()` and never had it. Two implementations read carefully by hand had
+>   agreed with each other for as long as they existed; three implementations run
+>   against one corpus disagreed on the first execution.
+> - **`#כלול("")` was a directive in Rust and not in TypeScript.** The finding
+>   names this one and is right about it. The engine asked for a document called
+>   nothing and reported it missing, on a file the app had seen nothing wrong
+>   with. `directive()` now returns `None`, and both readers run
+>   `tests/fixtures/include-cases.json`.
+>
+> **One claim in the finding is false, and it was false in the source too.**
+> `fold`'s own doc comment — quoted by the finding's framing — says `ב״ב`, `ב"ב`
+> and `ב ״ ב` all find the same masechta. The third does not, in any of the three
+> implementations: runs of whitespace collapse to one space, they do not vanish,
+> so `ב ״ ב` folds to `ב " ב` and `lookup` returns `None`. Making it vanish is
+> the wrong fix — a geresh ending a word is legitimately followed by a space
+> (`תוס׳ ד״ה` is two words), so closing the gap would fuse them — so the comment
+> was corrected and the case is pinned as its own equivalence class.
+>
+> **`_en_params` is not a second head-alignment table.** The finding's closing
+> line pairs `sanitize_head_align` with `_en_params`; those are different things
+> (one translates a value, the other a parameter *name*). The duplication is
+> real and is one line further down: `ksav.typ:963-964` states the same
+> four-spellings-each table in two `in (…)` tuples. Fenced now.
+>
+> **The fences, and that they fail.** `engine/src/notices.rs` ties the licence
+> facts to the `include_bytes!` lines in both directions and to
+> `THIRD-PARTY-NOTICES.md` (which was carrying a differently-worded copyright
+> line — the test found it on its first run). `engine/tests/one_want.rs` holds
+> the fold, the include rule, the head alignment and `מסמך`'s defaults against
+> `DocConfig::default()`. `app/test/enginefacts.test.mjs` holds the generated
+> file, the defaults, and two prohibitions: no module but the generated one may
+> write a Hebrew command name beside its English twin, and no module but
+> `spans.ts` may strip markup with a regex. Verified by mutation — eight of them,
+> each turning a test red: a private strip regex restored to `review.ts`, the
+> pairing hand-written back into `markdown.ts`, a stale `engine.gen.ts`,
+> `_ix_fold` reverted to `.clusters()`, the `#כלול("")` divergence restored, a
+> notice detached from its font, `מסמך`'s size default changed, and a head
+> alignment spelling dropped from the prelude.
+>
+> **What was left alone, with reasons.** `note-commands.ts` keeps its own list
+> and its header already argues why the registry cannot supply it. The three
+> apparatus chips in `SELF_CLOSING` keep both spellings deliberately: they carry
+> a *word*, and somebody who typed `#endnotes` should not get a Hebrew label
+> handed back. `SPELLING`'s last three entries stay written out — `עמודות` and
+> `רמה` are parameter names, and `כותרת`/`h` is a prefix, not a command.
+> `ONLY_AT_TOP` is §7's finding, not this one.
+>
+> Cost: 20 files changed, 7 added (+1 generated module, +1 Rust module,
+> +1 generator, +2 corpora, +2 test files). `npm test` 3,528 across 49 files
+> (+54), `cargo test` 367 (+10), `tsc` clean, `vite build` clean. No document
+> renders differently: the engine's behaviour changes in exactly two places, and
+> both are the bugs above.
+
 | Concept | Copies |
 |---|---|
 | `fold()` — the Hebrew name normaliser | `engine/src/sefarim.rs:247-285` (Rust), `engine/typst/ksav.typ:1796-1815` (`_ix_fold`, Typst), `app/src/sefarim.ts:117-126` (TS). Same maqaf-exclusion, same four gershayim spellings, same doubled-geresh rule, fixed by hand in all three. `sefarim.rs:15-16` claims *"exactly one list and it is this one"* — true of the list, false of the algorithm that indexes it. |
@@ -1468,7 +1577,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 8 | `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test | `delete` | ~1 hour |
 | 9 | ✅ **Fixed 6 Aug.** `chrome.test.mjs` credited surfaces to each other by local-variable name and its Escape block survived the handler being deleted; the hydra had no Escape once its own buttons had focus, and two of the sixteen "surfaces" were phantoms | `rewrite` → one `panels.ts` registry + 13 mutations | ~1 day, 5 files; `main.ts` −18 lines, not −250 |
 | 10 | Print silently prints the healed document; Word export claims a fallback it doesn't do | fix in place | ~1 hour |
-| 11 | `fold()`, defaults, note taxonomy, font notices — each 3× in 3 languages | `rewrite`, incrementally | ~1 day each |
+| 11 | ✅ **Fixed 6 Aug.** `fold()`, defaults, the command pairing, font notices, `#כלול`, head alignment, "strip the markup" — each 2–3× in 2–3 languages; `spans.ts` was a ninth site the finding missed. Two real bugs fell out: `_ix_fold` folded `שַׁבָּת` to the empty string (grapheme clusters, so a pointed letter went with its point) and `#כלול("")` was a directive in Rust and not in TS | `rewrite` → one generated `engine.gen.ts` + two executed corpora | ~1 day, not 8: the eight are one question asked eight times. 20 files, 7 added, ~200 hand-written name pairs deleted, 8 mutations red |
 | 12 | Vim/emacs, hydra, macros, share, PWA, `engine/web/index.html`, prototypes source, history+Myers, tracked changes | `delete` | ~9,000 lines out |
 | 13 | `run.mjs` cannot build 43% of `src/`; ~890 assertions measure table shape | fix + prune | ~2 hours |
 | 14 | `main.ts` at 5,653 lines as such | `wrong-but-keep` | — |

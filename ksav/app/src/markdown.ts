@@ -12,72 +12,90 @@
 // degrades to plain text rather than leaking `#command[…]`.
 
 import { resolveDeferred } from "./deferred";
+import { withAliases } from "./engine.gen";
 import { scan, type Node } from "./spans";
 
+// Every table below is keyed by the **Hebrew** name alone and expanded through
+// `withAliases`, which reads the pairing out of the prelude's own `#let` lines.
+//
+// They used to carry both spellings by hand — about a hundred pairs of them —
+// and that is a copy of something the engine already states, with the failure
+// mode all such copies have: rename a command in `ksav.typ` and the export
+// silently stopped recognising it under its new name, while every test here went
+// on passing because every test here was written in Hebrew. The tiers are the
+// sharper case: the prelude defines seven per family and the palette registry
+// advertises three, so the hand-written list had to know something *neither*
+// engine table said out loud, and the only reason it was right is that somebody
+// typed twenty-one names carefully once.
+
 /** Heading level per command name. */
-const HEADINGS: Record<string, number> = {
-  שער: 1, title: 1,
-  תת_שער: 2, subtitle: 2,
-  כותרת1: 1, h1: 1,
-  כותרת2: 2, h2: 2,
-  כותרת3: 3, h3: 3,
-  כותרת4: 4, h4: 4,
-  כותרת5: 5, h5: 5,
-  כותרת6: 6, h6: 6,
-  סימן: 1, siman: 1,
-};
+const HEADINGS: Record<string, number> = withAliases({
+  שער: 1,
+  תת_שער: 2,
+  כותרת1: 1,
+  כותרת2: 2,
+  כותרת3: 3,
+  כותרת4: 4,
+  כותרת5: 5,
+  כותרת6: 6,
+  סימן: 1,
+});
 
 /** Inline emphasis: the Markdown that wraps the command's content. */
-const EMPHASIS: Record<string, [string, string]> = {
-  הדגשה: ["**", "**"], bold: ["**", "**"],
-  דיבור_המתחיל: ["**", "**"], dh: ["**", "**"],
-  אות: ["**", "**"], osource: ["**", "**"],
-  נטוי: ["*", "*"], italic: ["*", "*"],
-  פסוק: ["*", "*"], verse: ["*", "*"],
-  גמרא: ["*", "*"], gemara: ["*", "*"],
-  קו_חוצה: ["~~", "~~"], sthrough: ["~~", "~~"],
-  קוד: ["`", "`"], mono: ["`", "`"],
-  סימון: ["==", "=="], mark: ["==", "=="],
-};
+const EMPHASIS: Record<string, [string, string]> = withAliases<[string, string]>({
+  הדגשה: ["**", "**"],
+  דיבור_המתחיל: ["**", "**"],
+  אות: ["**", "**"],
+  נטוי: ["*", "*"],
+  פסוק: ["*", "*"],
+  גמרא: ["*", "*"],
+  קו_חוצה: ["~~", "~~"],
+  קוד: ["`", "`"],
+  סימון: ["==", "=="],
+});
 
 /** Body-less commands and what they become. */
-const ATOMS: Record<string, string> = {
-  קו_מפריד: "\n\n---\n\n", hrule: "\n\n---\n\n",
-  מעבר_עמוד: "\n\n---\n\n", pbreak: "\n\n---\n\n",
-  מעבר_שורה: "  \n", lbreak: "  \n",
-  מעבר_טור: "\n\n", cbreak: "\n\n",
-  חסר: "______", blank: "______",
-  מרווח: "\n\n", vspace: "\n\n",
-  רווח_אופקי: " ", hspace: " ",
-};
+const ATOMS: Record<string, string> = withAliases({
+  קו_מפריד: "\n\n---\n\n",
+  מעבר_עמוד: "\n\n---\n\n",
+  מעבר_שורה: "  \n",
+  מעבר_טור: "\n\n",
+  חסר: "______",
+  מרווח: "\n\n",
+  רווח_אופקי: " ",
+});
 
 /** Commands whose entire call is dropped (apparatus plumbing, config, layout). */
-const DROPPED = new Set([
-  "הערות_בסוף", "endnotes", "הערות_בסוף_צד", "endnotes_side",
-  "הערות_מדורגות", "banded_notes", "תוכן", "toc", "סמן", "anchor",
-  "הגדרות_הערות", "footnote_config", "הגדרות_מדורגות", "banded_config",
-  "הגדרות_מדפים", "pagebands_config", "הגדרות_זרמים", "streams_config",
-  "הגדרות_כותרות", "headings_config", "הגדרות_רשימות", "lists_config",
-  "הגדרות_טבלאות", "tables_config", "הגדרות_הערות_צד", "sidenotes_config",
-  // Review: an export is the document, not the review of it, so it reads as if
-  // every change were accepted — the deleted text and the comments are gone,
-  // the inserted text (which falls through below) stays.
-  "הגדרות_סקירה", "review_config", "מחיקה", "deleted", "הערת_עורך", "comment_",
-]);
+const DROPPED = new Set(
+  Object.keys(
+    withAliases({
+      הערות_בסוף: 0, הערות_בסוף_צד: 0, הערות_מדורגות: 0, תוכן: 0, סמן: 0,
+      הגדרות_הערות: 0, הגדרות_מדורגות: 0, הגדרות_מדפים: 0, הגדרות_זרמים: 0,
+      הגדרות_כותרות: 0, הגדרות_רשימות: 0, הגדרות_טבלאות: 0, הגדרות_הערות_צד: 0,
+      // Review: an export is the document, not the review of it, so it reads as
+      // if every change were accepted — the deleted text and the comments are
+      // gone, the inserted text (which falls through below) stays.
+      הגדרות_סקירה: 0, מחיקה: 0, הערת_עורך: 0,
+    }),
+  ),
+);
+
+/** The three tiered-note families, א through ז, as the prelude defines them. */
+const TIERS = ["א", "ב", "ג", "ד", "ה", "ו", "ז"];
+const tiered = (stem: string) => Object.fromEntries(TIERS.map((t) => [`${stem}_${t}`, 0]));
 
 /** Note commands: their body becomes a footnote, their site a marker. */
-const NOTES = new Set([
-  "הערה", "fnote", "הערה_על_הערה", "subnote", "מראה_מקום", "sourcenote",
-  "הערתסיום", "endnote", "הערת_גיליון", "sidenote", "הערת_ימין", "noteright",
-  "הערת_שמאל", "noteleft", "הערת_תוכן", "contentnote", "הערת_מקור",
-  "sourcenote_stream", "הערה_זרם", "stream_note",
-  "הערה_א", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז",
-  "tier1", "tier2", "tier3", "tier4", "tier5", "tier6", "tier7",
-  "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה", "מדור_ו", "מדור_ז",
-  "band1", "band2", "band3", "band4", "band5", "band6", "band7",
-  "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז",
-  "pageband1", "pageband2", "pageband3", "pageband4", "pageband5", "pageband6", "pageband7",
-]);
+const NOTES = new Set(
+  Object.keys(
+    withAliases({
+      הערה: 0, הערה_על_הערה: 0, מראה_מקום: 0, הערתסיום: 0, הערת_גיליון: 0,
+      הערת_ימין: 0, הערת_שמאל: 0, הערת_תוכן: 0, הערת_מקור: 0, הערה_זרם: 0,
+      ...tiered("הערה"),
+      ...tiered("מדור"),
+      ...tiered("מדף"),
+    }),
+  ),
+);
 
 // Items and cells are written without a leading `#` — `פריט[אלף]`, `תא[1]` —
 // because inside an argument list Typst is already in code context. This file
@@ -85,11 +103,11 @@ const NOTES = new Set([
 // `spans.ts` reports them as ordinary calls, so both are gone and the walker
 // below meets an item the same way it meets any other command.
 
-const LISTS: Record<string, "bullet" | "number"> = {
-  רשימה: "bullet", bullets: "bullet",
-  ממוספרת: "number", numbered: "number",
-  ממוספרת_עברית: "number", henum: "number",
-};
+const LISTS: Record<string, "bullet" | "number"> = withAliases<"bullet" | "number">({
+  רשימה: "bullet",
+  ממוספרת: "number",
+  ממוספרת_עברית: "number",
+});
 
 export interface MarkdownOptions {
   /** false → plain text: no `#`, `**`, `[^1]`; notes become parentheticals. */

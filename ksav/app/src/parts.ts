@@ -24,6 +24,12 @@ export interface Part {
  * command. The two implementations have to agree, and the cost of them not
  * agreeing is a chapter that the client never sends and the engine then reports
  * as missing.
+ *
+ * That sentence used to be the whole of the guarantee, and it was not true:
+ * `#כלול("")` was a directive naming `""` in Rust and no directive at all here.
+ * The corpus is now `engine/tests/fixtures/include-cases.json`, run against this
+ * function by `test/parts.test.mjs` and against `include::directive` by
+ * `engine/tests/one_want.rs`. Change the corpus, then both readers.
  */
 export function referenced(body: string): string[] {
   const out: string[] = [];

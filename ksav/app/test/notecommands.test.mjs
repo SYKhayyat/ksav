@@ -189,9 +189,22 @@ ok("ksav-lang spreads the shared tier family", LANG_TS.includes("...TIER_FAMILY"
   "TIER_FAMILY is not spread into addNotes — the highlighter has its own tier table again");
 ok("and loops the shared tier letters", /TIERS\.forEach/.test(LANG_TS), () =>
   "the band loop no longer reads TIERS — a tier can drift between the two files again");
+
+// `addNotes` is called with **Hebrew** names and pairs each one through the
+// prelude's own `#let`, so only the Hebrew half is a literal to be scraped. That
+// is the point rather than an obstacle: the English half used to be ten more
+// literals somebody had to type correctly, and this fence used to check that
+// they had — which is checking that a copy is accurate instead of checking that
+// there is no copy. So the scrape covers the Hebrew, and one assertion covers
+// every English spelling at once by naming the mechanism.
+ok("and pairs each name through the prelude", /bothSpellings\(/.test(LANG_TS), () =>
+  "addNotes no longer expands its names — the English spellings are back to being " +
+    "a hand-written list, and the one that gets forgotten goes unpainted");
 const byFamily = new Set([...TIER_FAMILY, ...BAND_FAMILY, ...PAGEBAND_FAMILY]);
 for (const name of NOTE_BODY_COMMANDS) {
   if (byFamily.has(name)) continue;
+  // Hebrew-named entries only; their English twins are the mechanism's job.
+  if (!/^[֐-׿]/u.test(name)) continue;
   ok(`the highlighter paints #${name}`, painted.has(name), () =>
     `#${name} is in no addNotes() call — it would compile and go unpainted`);
 }

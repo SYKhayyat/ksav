@@ -29,6 +29,7 @@ const MODULES = [
   "diagview",
   "docs",
   "docx",
+  "engine.gen",
   "focus",
   "headings",
   "help",

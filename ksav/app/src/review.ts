@@ -18,7 +18,7 @@
 //   reject a deletion    → unwrap it   (the text stays after all)
 //   resolve a comment    → delete it   (a comment is never part of the text)
 
-import { scan } from "./spans";
+import { plainText, scan } from "./spans";
 
 export type MarkKind = "insert" | "delete" | "comment";
 export type Decision = "accept" | "reject";
@@ -106,12 +106,16 @@ export function decideAll(doc: string, decision: Decision, kinds?: MarkKind[]): 
   return text;
 }
 
-/** A one-line preview of a mark's text for the review list. */
+/**
+ * A one-line preview of a mark's text for the review list.
+ *
+ * The flattening is `spans.ts`'s, not a fourth private regex: this one used
+ * `\([^()]*\)` for an argument list, which stops at the first inner `)`, so a
+ * deleted `#צבע(rgb("#b91c1c"))[…]` showed up in the review panel as a stray
+ * paren and a colour literal.
+ */
 export function excerpt(body: string, max = 60): string {
-  const flat = body.replace(/#[A-Za-z֐-׿_][\w֐-׿]*(\([^()]*\))?/gu, " ")
-    .replace(/[[\]]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const flat = plainText(body);
   return flat.length > max ? flat.slice(0, max - 1) + "…" : flat;
 }
 

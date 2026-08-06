@@ -190,6 +190,47 @@ remembered. `panels.test.mjs` builds every declared surface against a DOM and
 clicks its way out of each one; `chrome.test.mjs` sweeps `src/` for anyone
 spelling those things by hand.
 
+### One authority per fact
+
+The third instance of the same shape, and the widest. Eight things this
+repository knows were written down two or three times, in two or three
+languages, with nothing comparing the copies: the document defaults (Rust,
+Typst, TypeScript), the Hebrew↔English command pairing (the prelude's `#let`
+lines, the registry, and ~200 pairs re-typed by hand across four modules), the
+licence notices for the six embedded fonts and four word lists (the Markdown,
+`licenses/`, and a fourth copy in the About panel), the `#כלול` directive rule,
+the Hebrew name normaliser, the running head's alignment table, and "strip the
+markup, leave the words" — asked in six places, answered six ways.
+
+Every one of them had already been corrected by hand in every copy at least
+once, which is the tell. There are two answers, and which applies is decided by
+whether a language boundary is genuinely in the way:
+
+- **Generate it.** `app/src/engine.gen.ts` is written from `engine/src/lib.rs`,
+  `engine/src/commands.rs`, `engine/src/notices.rs` and `engine/typst/ksav.typ`
+  by `app/tools/emit-engine.mjs`; `npm test` runs the `--check` form, so a
+  default changed in Rust and not regenerated is a red test rather than sliders
+  that disagree with the page. The command tables in `markdown.ts`, `spans.ts`
+  and `ksav-lang.ts` are now keyed by the Hebrew name alone and expanded through
+  the prelude's own pairing — which also gets them the four tiers per note
+  family that the palette registry deliberately stops short of.
+- **Execute an oracle.** A Typst prelude cannot call Rust and a browser tab
+  cannot call either, so `fold` — which spellings of a sefer's name are the same
+  name — exists three times of necessity. It is fenced by a corpus every
+  implementation is run against (`engine/tests/fixtures/fold-cases.json`,
+  `engine/tests/one_want.rs`, `app/test/sefarim.test.mjs`), and the Typst half is
+  asserted *inside the compiler*, so a disagreement arrives as a diagnostic
+  naming the case. The first run found that the Typst copy iterated grapheme
+  **clusters**, so a pointed letter was deleted along with its nikud: `שַׁבָּת`
+  folded to the empty string, which does not merely fail to find the masechta —
+  it makes every fully-pointed name collide with every other. Two
+  implementations read carefully by hand had agreed with each other for as long
+  as they had existed.
+
+`app/test/enginefacts.test.mjs` holds the prohibitions: no module but the
+generated one may write a Hebrew command name beside its English twin, and no
+module but `spans.ts` may strip markup with a regex.
+
 ### Nesting depth
 
 Any structure can contain any other — lists in tables, headings in footnotes,

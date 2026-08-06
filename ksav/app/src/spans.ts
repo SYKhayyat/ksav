@@ -68,8 +68,15 @@
 // This file only answers *where things are*, which is the half that was
 // duplicated.
 //
-// It is also deliberately dependency-free and pure (text in, spans out), so it
-// tests without a browser, a CodeMirror instance or a compiler.
+// It is also deliberately pure (text in, spans out), so it tests without a
+// browser, a CodeMirror instance or a compiler. Its one import is
+// `engine.gen.ts` — a generated table of literals with no imports of its own,
+// carrying the Hebrew↔English pairing that the *engine's* prelude makes. That is
+// a dependency on data rather than on machinery, and it is the difference
+// between this file knowing what the engine defines and this file having a
+// second opinion about it.
+
+import { COMMAND_EN, bothSpellings, withAliases } from "./engine.gen";
 
 // ---------------------------------------------------------------- characters
 
@@ -230,18 +237,24 @@ export interface Scan {
 // command the engine actually defines, and `test/names.test.mjs`, which asserts
 // the engine defines no structural command this table has forgotten.
 
+// Every table below is keyed by the **Hebrew** name and paired through
+// `engine.gen.ts`, which reads the prelude's own `#let` lines. The English half
+// used to be typed beside each entry, and it is the same duplication this file
+// was written to end, one level up: §1 replaced fourteen scanners of the markup
+// with one, and left the *names* the one scanner recognises stated twice.
+
 /** `#כותרתN` / `#hN` — the level is in the name. */
-const NAMED_HEADINGS: Record<string, number> = {
-  "כותרת1": 1, h1: 1,
-  "כותרת2": 2, h2: 2,
-  "כותרת3": 3, h3: 3,
-  "כותרת4": 4, h4: 4,
-  "כותרת5": 5, h5: 5,
-  "כותרת6": 6, h6: 6,
-};
+const NAMED_HEADINGS: Record<string, number> = withAliases({
+  "כותרת1": 1,
+  "כותרת2": 2,
+  "כותרת3": 3,
+  "כותרת4": 4,
+  "כותרת5": 5,
+  "כותרת6": 6,
+});
 
 /** The generic form, which is the only way past level 6. */
-const GENERIC_HEADINGS = new Set(["כותרת", "hlevel"]);
+const GENERIC_HEADINGS = new Set(bothSpellings("כותרת"));
 
 /**
  * Headings whose level the prelude fixes.
@@ -250,7 +263,7 @@ const GENERIC_HEADINGS = new Set(["כותרת", "hlevel"]);
  * is a heading — it numbers, it folds, and it enters `#תוכן` — so leaving it out
  * of the outline would be wrong, and so would offering to demote it.
  */
-const FIXED_HEADINGS: Record<string, number> = { "סימן": 1, siman: 1 };
+const FIXED_HEADINGS: Record<string, number> = withAliases({ "סימן": 1 });
 
 /**
  * Commands that look like headings and are not.
@@ -264,35 +277,50 @@ const FIXED_HEADINGS: Record<string, number> = { "סימן": 1, siman: 1 };
  *
  * Named rather than merely omitted, because "not a heading" is the finding.
  */
-export const NOT_HEADINGS = new Set(["שער", "title", "תת_שער", "subtitle"]);
+export const NOT_HEADINGS = new Set([...bothSpellings("שער"), ...bothSpellings("תת_שער")]);
+
+/**
+ * A `(a|b|…)` alternation over names, longest first.
+ *
+ * Longest first because `תא` is a prefix of nothing but `cell` is a suffix of
+ * `headcell`: an alternation that offered `cell` before `headcell` would match
+ * the tail of the wrong command. Building these from the tables rather than
+ * writing them out is the whole point — the four regexes below used to spell
+ * both languages by hand, which is the same list a fourth and fifth time.
+ */
+const alt = (names: Iterable<string>) =>
+  [...names].sort((a, b) => b.length - a.length).join("|");
+
+/** Parameter names, which the prelude translates through `_en` rather than `#let`. */
+const PARAM = { level: "רמה|level", cols: "עמודות|columns" };
 
 /** The argument that carries a generic heading's level. */
-const LEVEL_ARG = /(?:^|,)\s*(?:רמה|level)\s*:\s*(\d+)/u;
+const LEVEL_ARG = new RegExp(`(?:^|,)\\s*(?:${PARAM.level})\\s*:\\s*(\\d+)`, "u");
 
-const LIST_KINDS: Record<string, ListKind> = {
-  "רשימה": "bullets", bullets: "bullets",
-  "ממוספרת": "numbered", numbered: "numbered",
-  "ממוספרת_עברית": "hebrew", henum: "hebrew",
-};
+const LIST_KINDS: Record<string, ListKind> = withAliases<ListKind>({
+  "רשימה": "bullets",
+  "ממוספרת": "numbered",
+  "ממוספרת_עברית": "hebrew",
+});
 
-const ITEM_NAMES = new Set(["פריט", "item"]);
-const TABLE_NAMES = new Set(["טבלה", "mktable"]);
+const ITEM_NAMES = new Set(bothSpellings("פריט"));
+const TABLE_NAMES = new Set(bothSpellings("טבלה"));
 
 /** Cell commands, and what each one means. */
-const CELL_KINDS: Record<string, { header: boolean; merge: boolean }> = {
+const CELL_KINDS: Record<string, { header: boolean; merge: boolean }> = withAliases<{
+  header: boolean;
+  merge: boolean;
+}>({
   "תא": { header: false, merge: false },
-  cell: { header: false, merge: false },
   "כותרת_תא": { header: true, merge: false },
-  headcell: { header: true, merge: false },
   "מיזוג": { header: false, merge: true },
-  colspan_: { header: false, merge: true },
-};
+});
 
 /** The declared column count or track list. */
-const COLS_ARG = /(?:^|,)\s*(?:עמודות|columns)\s*:\s*/u;
+const COLS_ARG = new RegExp(`(?:^|,)\\s*(?:${PARAM.cols})\\s*:\\s*`, "u");
 /** An argument that is a cell rather than a setting. */
-const CELL_ARG = /^(?:כותרת_תא|headcell|תא|cell|מיזוג|colspan_)\s*[([]/u;
-const COLS_ARG_HEAD = /^(?:עמודות|columns)\s*:/u;
+const CELL_ARG = new RegExp(`^(?:${alt(Object.keys(CELL_KINDS))})\\s*[([]`, "u");
+const COLS_ARG_HEAD = new RegExp(`^(?:${PARAM.cols})\\s*:`, "u");
 
 /**
  * The command each concept is written as, in each language.
@@ -300,20 +328,27 @@ const COLS_ARG_HEAD = /^(?:עמודות|columns)\s*:/u;
  * The write side of the same table: `lists.ts` and `headings.ts` rebuild calls
  * and must not turn an English document Hebrew on a ribbon click.
  */
+const spelt = (he: string) => ({ he, en: COMMAND_EN[he] ?? he }) as const;
+
 export const SPELLING = {
   list: {
-    bullets: { he: "רשימה", en: "bullets" },
-    numbered: { he: "ממוספרת", en: "numbered" },
-    hebrew: { he: "ממוספרת_עברית", en: "henum" },
+    bullets: spelt("רשימה"),
+    numbered: spelt("ממוספרת"),
+    hebrew: spelt("ממוספרת_עברית"),
   },
-  item: { he: "פריט", en: "item" },
-  table: { he: "טבלה", en: "mktable" },
-  cell: { he: "תא", en: "cell" },
-  headcell: { he: "כותרת_תא", en: "headcell" },
-  merge: { he: "מיזוג", en: "colspan_" },
+  item: spelt("פריט"),
+  table: spelt("טבלה"),
+  cell: spelt("תא"),
+  headcell: spelt("כותרת_תא"),
+  merge: spelt("מיזוג"),
+  headingGeneric: spelt("כותרת"),
+  // The last three are not commands, so the prelude's `#let` table has nothing
+  // to say about them and they stay written out. `עמודות`/`רמה` are *parameter*
+  // names, translated by the prelude's `_en` wrapper rather than aliased; and
+  // `כותרת`/`h` is a **prefix** — the command is `#כותרת3`, and there is no
+  // `#h` to pair with anything.
   cols: { he: "עמודות", en: "columns" },
   headingLevel: { he: "רמה", en: "level" },
-  headingGeneric: { he: "כותרת", en: "hlevel" },
   headingNamed: { he: "כותרת", en: "h" },
 } as const;
 
@@ -1040,6 +1075,102 @@ export function bodyAt(scan: Scan, pos: number): Group | null {
     }
   }
   return best;
+}
+
+// ------------------------------------------------------------------ prose
+//
+// "Strip the markup, leave the words" was asked in four places and answered
+// four different ways: `countableText` (the word count), the notes pane's gist,
+// the note-chooser's live preview, `review.ts`'s excerpt, and two more inside
+// the highlighter's footnote widgets. Six regexes, one question — and each was
+// wrong in its own direction. Two never removed comments, so `// עוד מעט` was
+// counted as three words a writer had not written. Three used `\([^()]*\)` to
+// eat an argument list, which stops at the first inner `)` — so
+// `#צבע(rgb("#b91c1c"))[…]` left a stray `)` in the count and in the preview.
+// One removed `|` from the document because a *snippet* format uses it. And
+// none of them knew a string from a bracket, which is the whole finding of §1
+// arriving one level up: the scanner was unified and the questions asked *of*
+// the scanner were not.
+
+/** Ranges of `text` that are markup rather than words, merged and sorted. */
+function markupRanges(scan: Scan, from: number, to: number): [number, number][] {
+  const out: [number, number][] = [];
+  const add = (a: number, b: number) => {
+    const lo = Math.max(a, from);
+    const hi = Math.min(b, to);
+    if (hi > lo) out.push([lo, hi]);
+  };
+  for (const c of scan.comments) add(c.from, c.to);
+  for (const n of scan.nodes) {
+    // The `#` and the name. A bare call inside an argument list has no `#`,
+    // and `from` is already its first letter.
+    add(n.from, n.nameTo);
+    // The argument list, brackets and all: it carries settings, colours, stream
+    // names and daf numbers, none of which are the document's prose. A `[…]`
+    // *inside* it is content and is left alone — `#סימן("א", [דיני תפילה])`
+    // prints those words — so the argument list is masked from its opening
+    // paren up to the first content group inside it, and the rest is left to
+    // the loop below.
+    if (n.args) {
+      const inner = scan.contentGroups
+        .filter((g) => g.from > n.args!.from && g.to <= n.args!.to)
+        .sort((a, b) => a.from - b.from);
+      let at = n.args.from - 1;
+      for (const g of inner) {
+        add(at, g.from);
+        at = g.to;
+      }
+      add(at, n.args.to + 1);
+    }
+  }
+  // The brackets around every content group, but not what is inside them.
+  for (const g of scan.contentGroups) {
+    add(g.from - 1, g.from);
+    add(g.to, g.to + 1);
+  }
+  out.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const r of out) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+  return merged;
+}
+
+/**
+ * The words a range of the document would print, with the markup taken out.
+ *
+ * Everything that is not prose becomes a single space — never nothing — because
+ * `#הדגשה[א]#הדגשה[ב]` is two words and deleting the markup outright would
+ * make it one. Runs of whitespace then collapse, which is what Typst does to
+ * them on the page anyway.
+ *
+ * `scan` is taken rather than made so a caller that already has one does not pay
+ * for a second: the highlighter asks this of every visible footnote body on
+ * every viewport change.
+ */
+export function plainTextIn(scan: Scan, from: number, to: number): string {
+  let out = "";
+  let at = from;
+  for (const [a, b] of markupRanges(scan, from, to)) {
+    out += scan.text.slice(at, a) + " ";
+    at = Math.max(at, b);
+  }
+  out += scan.text.slice(at, to);
+  return (
+    out
+      // Typst's own native heading markers, which are markup in every sense a
+      // reader cares about even though they are not calls.
+      .replace(/^\s*=+\s/gm, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+/** The words a document would print, with the markup taken out. */
+export function plainText(text: string): string {
+  return plainTextIn(scan(text), 0, text.length);
 }
 
 export { NAME_CH, NAME_START };

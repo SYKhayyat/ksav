@@ -829,6 +829,114 @@ the command language gets the coverage the Hebrew half has.
 
 **Verdict: `rewrite`.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done as prescribed: one exported array, `openPanel`/`closePanel` in place of
+> the hand-written pairs, the Escape handler derived from the list, and the test
+> importing the array instead of grepping a 5,653-line string. The finding below
+> is kept verbatim; what follows is what replaced it, what the finding got
+> wrong, and what it missed.
+>
+> **The finding's own claim was checked before it was acted on, and it is
+> overstated by one.** *"Delete the real Escape handler and all six assertions
+> still pass"* — five do. `dismissOnboard` fails, and only by luck: its
+> *definition* sits 104 lines past `e.key === "Alt"`, which is where the slice
+> happens to end. That is not a defence of the test, it is a worse indictment,
+> and the mutation that shows it is one line: with the handler deleted, adding
+> a **comment** that merely says the word `dismissOnboard` anywhere inside the
+> 3,967-line window turns the sixth assertion green again. So the honest
+> statement is that **the application can answer Escape nowhere at all and the
+> guard is 59/59**, bought with a comment. Verified, both halves.
+>
+> **The `overlay` collision is worse than "the guard stays green".** Renaming
+> two unrelated locals — `overlay` → `pal` in `openPalette`, `overlay` →
+> `chooser` in `openNotesChooser`, a pure refactor touching neither surface —
+> makes `welcome` **disappear from the guard entirely**. Assertions drop 59 → 56
+> and the welcome overlay's only exit can then be deleted with the suite green.
+> A surface the reachability test cannot see is a surface with no reachability
+> test, which is the failure this file's own header names.
+>
+> **Three things this finding got wrong.**
+>
+> - **`palette-list` is not a surface**, and it was carrying an *exemption* —
+>   `NO_CLOSE_NEEDED`, with evidence, checked in both directions — excusing a
+>   plain `<div>` from a rule it was never subject to. It never touches the
+>   `open` class; `renderPaletteList` binds a local called `list`, and so does
+>   `lazyMenu` forty lines away. The best idea in the file was being spent on a
+>   phantom. `welcome` is the same error: it is born `class="overlay open"` and
+>   dies by `.remove()`, so the class scan never saw it either. Two of the
+>   sixteen "surfaces" the guard found were name collisions.
+> - **The real dropdown menus were invisible to it.** `.menu-list` elements do
+>   take the `open` class — in `lazyMenu` and in `runtime.ts`'s `closeMenus`,
+>   both through locals rather than `getElementById`, so neither was ever
+>   scanned. The one family of surfaces that opens on every session was outside
+>   the guard.
+> - **"~250 lines out of `main.ts`" is wrong, and in the same direction as §4's
+>   line count.** `main.ts` went 5,662 → 5,644: **eighteen lines**. About 120
+>   lines of mechanism left (twelve open/close pairs, ten hand-built heads, five
+>   scrims, the twelve-call Escape list) and about 100 came back, because the
+>   side effects that used to be one-liners inside twelve close functions —
+>   `modalOk = null`, `openHydraState = null`, the persisted-drawer writes,
+>   `view.focus()` — have to be *written down* to be shared. That is the whole
+>   trade and it is worth stating plainly: this bought no brevity. It bought one
+>   home for a decision, and a guard that fails when the decision is broken.
+>
+> **Two it missed, and one of them was live.**
+>
+> - **The hydra had no Escape at all once its own buttons had focus.** It is not
+>   in the twelve-call list; it answers Escape only through a CodeMirror keymap
+>   at `Prec.highest`, which fires while the *editor* has focus. Click a hydra
+>   button that does not close it and the keyboard-owning panel is unreachable
+>   by the key everyone tries first. §11 predicted this exactly — *"a thirteenth
+>   panel silently doesn't get Escape"* — and did not notice it had already
+>   happened. It is in the sweep now by being declared, and the registry refuses
+>   `escape: false` for anything that is not a saved preference or caret-driven,
+>   so it cannot fall back out.
+> - **A derived sweep is weaker than the list it replaces unless it carries the
+>   side effects.** The twelve calls were not class-strippers: `closeModal`
+>   dropped a pending callback, `closeHydra` dropped the operation set it was
+>   driving, `closePalette` handed focus back. `closePanel` runs the panel's
+>   hooks and — new, and load-bearing — **does nothing at all when the panel was
+>   not open**, which is the guard `dismissOnboard` used to carry by hand with
+>   its reasoning in a comment. Escape is pressed constantly; without it the
+>   sweep marks a reader onboarded every time they dismiss a completion.
+>
+> **The fence is thirteen mutations, and every one was run.** Eleven must go red
+> and two must not: deleting the global Escape call, deleting a panel's `×`,
+> opening a surface by hand outside the registry, building a `×` by hand, the
+> hydra opting out of Escape, `panelHead` emitting no `×`, `closePanel` skipping
+> its hooks, `closePanel` firing hooks for something already closed, the
+> backdrop swallowing clicks on the panel's own contents, the two anchored menus
+> becoming indistinguishable, a surface dropped from the registry while still in
+> use, and the nikud bar's CSS starting to cover the document. The two that must
+> stay green: the local-renaming refactor that used to blind the old guard, and
+> the suite at rest. 13/13 as expected.
+>
+> **Verified in a browser, not only in `node`.** Built, served, and driven: the
+> settings drawer and the help panel opened together, **one Escape closed both**
+> and left the nikud bar and outline pane — the two persisted surfaces — alone;
+> the outline drawer's `×` closed it *and* flipped `settings.outline` true →
+> false, which is the hook doing the work that a `×` bypassing persistence would
+> have silently skipped. The hydra's Escape was not reachable this way (it needs
+> a live engine to put a table under the caret) and rests on the unit test and
+> its mutation. One unrelated thing turned up: `maybeOnboard()` is called only
+> after the command registry resolves, so with no engine reachable the welcome
+> overlay never appears at all — defensible in the shipped builds, where the
+> registry comes from wasm, and noted rather than changed.
+>
+> **The steelman held.** `main.ts` is still one file and still the exhaust; no
+> framework arrived; the panels' *contents* did not move, because a settings
+> drawer is two hundred lines about this application. Only the frame moved —
+> which is what `ACTIONS` and `STRUCTURE_ACTIONS` already do in the same file,
+> and what `bindings.ts` did for the keys. The bindings escaped; now the panels
+> have.
+>
+> Cost: 5 files, +1 module (`panels.ts`, 528 lines, two thirds of it the
+> argument), +1 test file, −4 close wrappers, −12 hand-built heads and scrims,
+> −1 twelve-call Escape list. `npm test` 3,183 across 47 files (+170), `tsc`
+> clean, `vite build` clean; `cargo test` untouched at 357, the engine having no
+> idea any of this happened.
+
 **Steelman, and it is strong.** The target is exactly right: *"a surface gains an
 opener and never gains a closer"* is the real failure family, no other test opens a
 panel, and the `NO_CLOSE_NEEDED` design (`:25-58`) — where an exemption is a *claim
@@ -1080,6 +1188,21 @@ keeps honest. Keep `README-notes.md` entire — I would not cut a line.
 
 **Verdict: `wrong-but-keep` as a file; `rewrite` for the one abstraction inside it.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> The abstraction is named: `app/src/panels.ts`, seventeen surfaces, one
+> declaration each. The full account is in §7, including the one thing this
+> section got right and did not follow through on — *"a thirteenth panel
+> silently doesn't get Escape"* had already happened, to the hydra.
+>
+> The prediction that did not survive is the size of it. `main.ts` is 5,644
+> lines, down eighteen. The panel *mechanism* left; the panel *side effects*
+> had to be written down to be shared, and that is nearly the same number of
+> lines. This section was right that the file is exhaust and right that the
+> panel was the one real abstraction in it — and wrong that naming it would take
+> 250 lines out. It took eighteen, and made twelve places where a decision lived
+> into one.
+
 **Steelman, and it is coherent.** One author, one machine, no second chrome planned,
 and a deliberate decision that the boundary worth defending is *pure logic vs. DOM
 glue* rather than *feature vs. feature*. Under that reading the file is not a
@@ -1219,7 +1342,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 6 | Notes pane empty in every deferred document; `⁑` gives the wrong tier | `rewrite` → `notesIn` returns one `NoteSpan[]` | ~1 day, −180 lines |
 | 7 | Fresh clone does not build; not one doc mentions why | `rewrite` → submodule | ~1 hour, −8 CI steps |
 | 8 | `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test | `delete` | ~1 hour |
-| 9 | `chrome.test.mjs` cannot see which surface a closer belongs to; the Escape block asserts nothing | `rewrite` → `PANELS` array | ~1 day, −250 lines from `main.ts` |
+| 9 | ✅ **Fixed 6 Aug.** `chrome.test.mjs` credited surfaces to each other by local-variable name and its Escape block survived the handler being deleted; the hydra had no Escape once its own buttons had focus, and two of the sixteen "surfaces" were phantoms | `rewrite` → one `panels.ts` registry + 13 mutations | ~1 day, 5 files; `main.ts` −18 lines, not −250 |
 | 10 | Print silently prints the healed document; Word export claims a fallback it doesn't do | fix in place | ~1 hour |
 | 11 | `fold()`, defaults, note taxonomy, font notices — each 3× in 3 languages | `rewrite`, incrementally | ~1 day each |
 | 12 | Vim/emacs, hydra, macros, share, PWA, `engine/web/index.html`, prototypes source, history+Myers, tracked changes | `delete` | ~9,000 lines out |

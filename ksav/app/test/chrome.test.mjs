@@ -1,203 +1,176 @@
 import { ok, check } from "./harness.mjs";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-// Can you get back out of it?
+import { PANELS, hasExit } from "../.tmp-test/panels.mjs";
+
+// Does the chrome go *through* the registry, or around it?
 //
-// The settings drawer shipped with an open and no close. Not a subtle bug: the
-// ⚙ chip toggled it, and that was the entire exit. Below 720px a drawer is the
-// full viewport width, so on a phone the chip was *underneath the drawer* and
-// there was no way out of Settings at all. The outline drawer had the same
-// shape. Both survived two audits, because nothing in the test suite ever
-// opened a panel — the tests cover the pure modules, and the chrome is the one
-// place a person actually touches.
+// `panels.test.mjs` proves the mechanism: every declared surface has a way out,
+// the × closes the panel it belongs to, Escape reaches everything that says it
+// should. All of that is worth nothing if `main.ts` can still put the `open`
+// class on an element by hand, because then a surface can exist without being
+// declared — and a surface the guard cannot see is a surface with no guard,
+// which is the failure this file has spent its whole life being an example of.
 //
-// A DOM test would need CodeMirror and a browser. This is cheaper and catches
-// the thing that actually goes wrong: a surface gains an opener and never gains
-// a closer. It reads main.ts as text and asks, for every element that gets
-// `open` put on it, whether the code can also take it off and whether a person
-// can reach that from inside the surface itself.
+// # What this file used to be, and why it could not work
+//
+// It read `main.ts` as text and matched shapes in it. Three properties of a
+// 5,600-line string defeated that, and each was verified by mutation against
+// HEAD rather than argued:
+//
+//   - It identified surfaces by the *name of the local* they were fetched into,
+//     tested against the whole file. Three panels had bound one called
+//     `overlay` and two had bound one called `list`, so the welcome overlay was
+//     credited with the command palette's opener and the palette's inner div
+//     was credited with a header dropdown's. Renaming two locals — a pure
+//     refactor — made the welcome overlay vanish from the guard, after which
+//     deleting its only exit was green.
+//   - Its Escape check sliced from the first `e.key === "Escape"` to the first
+//     `e.key === "Alt"`: 3,967 lines, 70% of the file. The five names it looked
+//     for matched their own function *definitions*. Deleting the entire global
+//     Escape handler left five of six assertions passing, and one comment
+//     naming `dismissOnboard` bought back the sixth.
+//   - Its × check passed a panel if `styles-close` appeared within 3,000
+//     characters of a `getElementById`. `styles-close` occurred ten times.
+//
+// So it is not reading for shapes any more. It reads for **absence** — the one
+// thing a regex over source does perfectly, and the thing `sources.test.mjs`
+// already does for the rest of `src/`. A prohibition cannot be fooled by a
+// coincidence of naming, because it is not looking for a coincidence.
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
-const SRC = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
-const CSS = readFileSync(path.join(HERE, "..", "src", "styles.css"), "utf8");
+const SRCDIR = path.join(HERE, "..", "src");
+const FILES = readdirSync(SRCDIR).filter((f) => f.endsWith(".ts"));
+const SOURCES = new Map(FILES.map((f) => [f, readFileSync(path.join(SRCDIR, f), "utf8")]));
+const MAIN = SOURCES.get("main.ts");
 
-/**
- * Surfaces that legitimately need no close control of their own — and the
- * **evidence** for it, which this file then checks.
- *
- * A prose reason is not enough, and that is not a hypothetical. The welcome
- * overlay was exempted here with the reason *"every control on it dismisses
- * it"*, which was false: it had no ×, ignored Escape, and its only exits were
- * template buttons that replaced whatever was in the buffer. A writer who
- * opened it by accident was trapped. This file exists precisely to catch "a
- * surface with no exit", and it had been told to look away from the one surface
- * that had none.
- *
- * So an exemption is now a claim with a test attached:
- *
- *   inline  — the CSS says it does not cover anything: no `position: fixed`,
- *             no `position: absolute`, no `inset: 0`. An inline strip cannot
- *             hide the control that toggles it, at any width.
- *   inside  — main.ts builds it within another surface, which owns dismissal
- *             and is itself held to the full standard.
- *
- * If the evidence stops holding, the exemption fails and the surface has to
- * earn its own way out.
- */
-const NO_CLOSE_NEEDED = {
-  // A strip above the editor, not a covering surface.
-  "nikud-bar": { kind: "inline", selector: ".nikud-bar" },
-  // The contextual ribbon: an inline strip under the toolbar that appears and
-  // disappears with the caret. It covers nothing, captures no keys, and has no
-  // state to be stuck in — closing it means moving the caret out of the table.
-  "context-bar": { kind: "inline", selector: ".context-bar" },
-  // The inner list of the command palette. The palette overlay around it is the
-  // surface, and it has the scrim and the Escape.
-  "palette-list": { kind: "inside", parent: "palette" },
-};
-
-/** The declarations of the first CSS rule whose selector list mentions `sel`. */
-function cssRule(sel) {
-  const re = new RegExp(`(^|[,}])\\s*${sel.replace(/[.#]/g, "\\$&")}[^{}]*\\{([^}]*)\\}`, "m");
-  return re.exec(CSS)?.[2] ?? null;
+/** Every file but `panels.ts`, which is where all of this is allowed to live. */
+function elsewhere(re) {
+  const hits = [];
+  for (const [name, src] of SOURCES) {
+    if (name === "panels.ts") continue;
+    for (const line of src.split("\n")) if (re.test(line)) hits.push(`${name}: ${line.trim()}`);
+  }
+  return hits;
 }
 
 export async function run() {
 
-// ---------------------------------------------------------------- the scan
-
-/**
- * Every id this file puts the `open` class on.
- *
- * Two spellings, and the second one matters more than it looks. A panel is often
- * fetched into a local (`const panel = document.getElementById("hydra")!`) and
- * opened forty lines later, past any fixed-size window — the first version of
- * this scan used a 200-character lookahead and therefore did not see the hydra
- * at all. A surface the reachability test cannot see is a surface with no
- * reachability test, which is the whole failure being guarded against, reproduced
- * inside the guard.
- */
-function openedIds() {
-  const ids = new Set();
-  const direct = /getElementById\("([\w-]+)"\)!?\??\.classList\.(?:add|toggle)\("open"/g;
-  for (const m of SRC.matchAll(direct)) ids.add(m[1]);
-  // `const NAME = document.getElementById("ID")` … anywhere later, `NAME.classList.add("open")`
-  const bound = /(?:const|let)\s+(\w+)\s*=\s*document\.getElementById\("([\w-]+)"\)/g;
-  for (const m of SRC.matchAll(bound)) {
-    const [, name, id] = m;
-    if (new RegExp(`\\b${name}\\.classList\\.(?:add|toggle)\\("open"`).test(SRC)) ids.add(id);
-  }
-  return [...ids];
-}
-
-const opened = openedIds();
-ok("the scan found the app's surfaces at all", opened.length >= 8);
-
-// ---------------------------------------------------------------- 1. a closer exists
-
-for (const id of opened) {
-  // Both spellings again: fetched-and-closed inline, or fetched into a local and
-  // closed later. Checking only the first form failed the contextual ribbon,
-  // which does close itself — through a variable.
-  const inline =
-    SRC.includes(`getElementById("${id}")!.classList.remove("open")`) ||
-    SRC.includes(`getElementById("${id}")?.classList.remove("open")`) ||
-    SRC.includes(`getElementById("${id}")!.classList.toggle("open"`) ||
-    // Taking the element out of the document is a stronger exit than taking a
-    // class off it, and it is what a one-shot overlay should do. The welcome
-    // screen does this and was failing a test that only knew about the class.
-    SRC.includes(`getElementById("${id}")?.remove()`) ||
-    SRC.includes(`getElementById("${id}")!.remove()`);
-  let viaLocal = false;
-  const bound = new RegExp(
-    `(?:const|let)\\s+(\\w+)\\s*=\\s*document\\.getElementById\\("${id}"\\)`,
-    "g",
-  );
-  for (const m of SRC.matchAll(bound)) {
-    if (
-      new RegExp(`\\b${m[1]}\\.classList\\.(?:remove|toggle)\\("open"`).test(SRC) ||
-      new RegExp(`\\b${m[1]}\\.remove\\(\\)`).test(SRC)
-    ) {
-      viaLocal = true;
-    }
-  }
-  ok(`${id}: something can take the open class off again`, inline || viaLocal);
-}
-
-// ---------------------------------------------------------------- 2. a way out from inside
+// ---------------------------------------------------------------- 1. prohibitions
 //
-// A toggle chip in the header is not an exit: at phone widths the surface is
-// the whole viewport and the chip is behind it. The surface has to carry its
-// own dismiss control, or be one of the documented exemptions.
+// One module owns the `open` class, the `×`, and the backdrop. Not by
+// convention — by there being no second place they are written.
 
-// ------------------------------------------------- 2a. the exemptions prove it
+const openClass = elsewhere(/classList\s*\.\s*(add|remove|toggle|contains)\(\s*"open"/);
+check(`nothing outside panels.ts touches the "open" class`, openClass, []);
 
-for (const [id, ev] of Object.entries(NO_CLOSE_NEEDED)) {
-  ok(`exemption ${id}: is still a surface this file sees`, opened.includes(id));
-  if (ev.kind === "inline") {
-    const rule = cssRule(ev.selector);
-    ok(`exemption ${id}: ${ev.selector} has a rule to read`, rule !== null);
+const closers = elsewhere(/"styles-close"/);
+check("nothing outside panels.ts builds a × ", closers, []);
+
+const scrims = elsewhere(/class:\s*"overlay"/);
+check("nothing outside panels.ts builds a dismissing backdrop", scrims, []);
+
+// The `open` class is how a surface becomes visible, so this is what makes
+// "every surface is in PANELS" true by construction rather than by inspection:
+// there is no way to show one without naming it to `openPanel` or `mountPanel`,
+// and both refuse a name that is not in the registry.
+ok("...so a surface cannot appear without being declared", true);
+
+// ---------------------------------------------------- 2. every name is a surface
+
+const NAMED_BY = /\b(openPanel|closePanel|togglePanel|isPanelOpen|mountPanel|wirePanel|panelHead|overlayPanel|panelOf)\(\s*"([\w-]+)"/g;
+const ids = new Set(PANELS.map((p) => p.id));
+const used = new Set();
+const strangers = [];
+for (const [name, src] of SOURCES) {
+  if (name === "panels.ts") continue;
+  for (const m of src.matchAll(NAMED_BY)) {
+    used.add(m[2]);
+    if (!ids.has(m[2])) strangers.push(`${name}: ${m[1]}("${m[2]}")`);
+  }
+}
+// Belt and braces: the functions throw on an unknown name at runtime, but a
+// panel opened on one code path nobody exercises would throw in front of a
+// writer rather than in front of this file.
+check("every panel name in src/ is a declared surface", strangers, []);
+
+// ------------------------------------------------- 3. every surface is real chrome
+//
+// The other direction, and the one that retires `palette-list`. That entry sat
+// in this file's exemption table with written evidence for a *div* — it never
+// took the `open` class at all, and was only ever detected because a header
+// dropdown had bound a local called `list`. An id in the registry now has to be
+// something `main.ts` actually builds.
+
+/** Is this text anywhere in `src/`? The nikud bar is built by `nikud.ts`. */
+const somewhere = (needle) => [...SOURCES].some(([, src]) => src.includes(needle));
+
+for (const p of PANELS) {
+  ok(`${p.id}: something in the chrome opens or closes it`, used.has(p.id));
+  if (p.presence === "class") {
     ok(
-      `exemption ${id}: claims to be inline, and the CSS agrees (nothing covering)`,
-      !!rule && !/position:\s*(fixed|absolute)/.test(rule) && !/inset:\s*0/.test(rule),
+      `${p.id}: is an element the chrome builds`,
+      somewhere(`id: "${p.id}"`) || somewhere(`overlayPanel("${p.id}"`),
     );
-  } else if (ev.kind === "inside") {
-    // *Every* occurrence, not the first: `id: "palette"` is an action in the
-    // keybinding registry as well as an element, and the registry entry comes
-    // first in the file. This test already learned that lesson once, three
-    // sections down, and then this check was written the other way.
-    const sites = [];
-    for (let at = SRC.indexOf(`id: "${ev.parent}"`); at >= 0; at = SRC.indexOf(`id: "${ev.parent}"`, at + 1)) {
-      sites.push(SRC.slice(at, at + 2000));
-    }
-    ok(`exemption ${id}: the parent ${ev.parent} is built in main.ts`, sites.length > 0);
-    ok(
-      `exemption ${id}: is built inside ${ev.parent}, which owns dismissal`,
-      sites.some((block) => block.includes(`id: "${id}"`)),
-    );
-    ok(`exemption ${id}: and ${ev.parent} is not itself exempt`, !NO_CLOSE_NEEDED[ev.parent]);
   } else {
-    ok(`exemption ${id}: carries a kind of evidence this test knows how to check`, false);
+    ok(`${p.id}: is mounted when it is shown`, somewhere(`mountPanel("${p.id}"`));
+  }
+  // A claimed exit has to be a built one. The welcome overlay was exempted from
+  // this check for its whole life with a reason that was false.
+  if (hasExit(p, "head")) {
+    ok(`${p.id}: its × is built through panelHead`, somewhere(`panelHead("${p.id}"`));
+  }
+  if (hasExit(p, "scrim")) {
+    ok(`${p.id}: its backdrop is built through overlayPanel`, somewhere(`overlayPanel("${p.id}"`));
   }
 }
 
-for (const id of opened) {
-  if (NO_CLOSE_NEEDED[id]) continue;
-  // `id: "x"` appears in the keybinding registry as well as on the element, so
-  // every occurrence gets looked at rather than the first — the first version of
-  // this test failed the command palette on the strength of an action id.
-  const sites = [];
-  for (let at = SRC.indexOf(`id: "${id}"`); at >= 0; at = SRC.indexOf(`id: "${id}"`, at + 1)) {
-    sites.push(SRC.slice(at, at + 1400));
-  }
-  ok(`${id}: is built in main.ts`, sites.length > 0);
-  // A panel built empty and filled in later carries its × in the render
-  // function rather than at the construction site, so the whole file is the
-  // haystack for those.
-  const rendered = new RegExp(
-    `getElementById\\("${id}"\\)[\\s\\S]{0,3000}?styles-close`,
-  );
-  const hasClose =
-    sites.some(
-      (block) =>
-        block.includes("styles-close") || // the × every panel carries
-        block.includes('class: "overlay"'), // an overlay dismisses on its scrim click
-    ) || rendered.test(SRC);
-  ok(`${id}: carries its own way out (× or a dismissing scrim)`, hasClose);
-}
-
-// ---------------------------------------------------------------- 3. Escape
+// ---------------------------------------------------------------- 4. Escape
 //
-// Every *modal* surface — one that takes the keyboard — must answer Escape.
-// Drawers are exempt by design: the outline pane is a persisted layout choice,
-// and Escape throwing it away would be its own bug.
+// A narrow assertion, deliberately. `closeOnEscape` is exported from one module
+// and called from one place, so "is it wired" is a question about a single
+// token rather than about a slice of the file — which is the whole difference
+// between this and the version that survived the handler being deleted.
 
-const esc = SRC.slice(SRC.indexOf('e.key === "Escape"'), SRC.indexOf('e.key === "Alt"'));
-for (const fn of ["closePalette", "closeNotesChooser", "closeModal", "closeSettings", "dismissOnboard"]) {
-  ok(`Escape reaches ${fn}`, esc.includes(fn));
-}
+const escapes = [...MAIN.matchAll(/e\.key === "Escape"/g)].map((m) => m.index);
+ok("main.ts handles Escape somewhere", escapes.length > 0);
+const wired = escapes.some((at) => MAIN.slice(at, at + 600).includes("closeOnEscape()"));
+ok("the Escape key reaches the panel sweep", wired);
+check(
+  "and the sweep is called exactly once — there is no second, partial list",
+  [...MAIN.matchAll(/closeOnEscape\(\)/g)].length,
+  1,
+);
 
-check("the Escape branch was actually found", esc.length > 40, true);
+// The thing the old file was trying to say. Every panel's closer is derived
+// from `PANELS`, so no named close call belongs in the global branch at all: a
+// list of them is exactly the shape that left the hydra out.
+//
+// Scoped to the branch that calls the sweep, not to every `Escape` in the file.
+// The citation list runs its own key handler while it has focus — Tab moves,
+// Enter takes, Escape gives up — and a widget answering its own keys is not the
+// failure being guarded against.
+const branch = MAIN.slice(MAIN.indexOf("closeOnEscape()") - 600, MAIN.indexOf("closeOnEscape()") + 600);
+const handList = [...branch.matchAll(/\bclose[A-Z]\w*\(\)/g)]
+  .map((m) => m[0])
+  .filter((c) => c !== "closeOnEscape()");
+check("Escape closes surfaces through the registry, not a hand-written list", handList, []);
+
+// ---------------------------------------------------------------- 5. outside clicks
+
+ok(
+  "a click outside an anchored menu is offered to the registry",
+  /addEventListener\("click"[\s\S]{0,300}?closeOnOutsideClick\(/.test(MAIN),
+);
+
+// ---------------------------------------------------------------- 6. coverage
+
+ok("the registry describes the whole chrome", PANELS.length >= 15);
+check(
+  "and every declared surface is used by the application",
+  PANELS.filter((p) => !used.has(p.id)).map((p) => p.id),
+  [],
+);
 
 }

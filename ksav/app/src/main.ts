@@ -80,6 +80,19 @@ import {
 import * as runtime from "./runtime";
 import { setStatus, closeMenus, jumpTo } from "./runtime";
 import {
+  openPanel,
+  closePanel,
+  togglePanel,
+  isPanelOpen,
+  mountPanel,
+  wirePanel,
+  closeOnEscape,
+  closeOnOutsideClick,
+  toggleMenu,
+  panelHead,
+  overlayPanel,
+} from "./panels";
+import {
   settings,
   saveSettings,
   BUNDLED_FONTS,
@@ -701,12 +714,11 @@ function clearSpellCheck() {
 
 /** The suggestion menu for the squiggle at `pos`, anchored at the pointer. */
 async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
-  closeSpellMenu();
   const box = el("div", { class: "spell-menu", style: `left:${x}px; top:${y}px` }, [
     el("div", { class: "spell-word" }, [m.word]),
     el("div", { class: "spell-loading" }, ["…"]),
   ]);
-  document.body.append(box);
+  mountPanel("spell-menu", box, document.body);
 
   let suggestions: string[] = [];
   try {
@@ -745,7 +757,7 @@ async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
 }
 
 function closeSpellMenu() {
-  document.querySelectorAll(".spell-menu").forEach((n) => n.remove());
+  closePanel("spell-menu");
 }
 
 function autoExtension() {
@@ -1161,12 +1173,8 @@ async function linkifySelection(): Promise<void> {
   }
 }
 
-/** The open list, so Tab can move through it and Escape can close it. */
-let mekorosBox: HTMLElement | null = null;
-
 function closeMekoros(): void {
-  mekorosBox?.remove();
-  mekorosBox = null;
+  closePanel("mekoros");
 }
 
 async function askForMekor(): Promise<void> {
@@ -1205,10 +1213,8 @@ async function askForMekor(): Promise<void> {
 }
 
 function showMekoros(at: number, phrase: string, answer: Mekoros): void {
-  closeMekoros();
   const box = el("div", { class: "spell-menu mekoros" }, []);
-  document.body.append(box);
-  mekorosBox = box;
+  mountPanel("mekoros", box, document.body);
 
   // Placed under the caret, which is where the reader is looking.
   const where = runtime.view.coordsAtPos(at);
@@ -1274,7 +1280,11 @@ function showMekoros(at: number, phrase: string, answer: Mekoros): void {
   box.addEventListener("keydown", (e) => onMekorosKey(e, move, () => rows[chosen]?.click()));
   window.addEventListener("keydown", mekorosKeys, true);
   function mekorosKeys(e: KeyboardEvent): void {
-    if (!mekorosBox) {
+    // Asking the registry rather than a module-level handle to the node: the
+    // list can now be dismissed by Escape, by a click outside it, or by another
+    // popup opening over it, and a stale local would keep this listener alive
+    // through all three.
+    if (!isPanelOpen("mekoros")) {
       window.removeEventListener("keydown", mekorosKeys, true);
       return;
     }
@@ -1473,30 +1483,24 @@ function applySkin(name: string) {
   // rerenderChrome rebuilds the whole chrome, which drops the panel's contents
   // and its open state — so restore both, or applying a preset from inside the
   // panel closes the panel and hides the undo it just made available.
-  const wasOpen = document.getElementById("styles-panel")?.classList.contains("open");
+  const wasOpen = isPanelOpen("styles-panel");
   rerenderChrome();
-  if (wasOpen) {
-    renderStylesPanel();
-    document.getElementById("styles-panel")?.classList.add("open");
-  }
+  if (wasOpen) openPanel("styles-panel");
   setStatus(tf("presetApplied", t("skin." + name)), "ok");
 }
 
 function undoSkin() {
   if (!undoPreset(setPageSetup)) return;
   scheduleCompile();
-  const wasOpen = document.getElementById("styles-panel")?.classList.contains("open");
+  const wasOpen = isPanelOpen("styles-panel");
   rerenderChrome();
-  if (wasOpen) {
-    renderStylesPanel();
-    document.getElementById("styles-panel")?.classList.add("open");
-  }
+  if (wasOpen) openPanel("styles-panel");
 }
 
 function toggleNikud() {
   settings.nikud = !settings.nikud;
   saveSettings();
-  document.getElementById("nikud-bar")!.classList.toggle("open", settings.nikud);
+  togglePanel("nikud-bar", settings.nikud);
   reconfigureShortcuts();
   rerenderChrome();
 }
@@ -1935,18 +1939,10 @@ function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
     "aria-expanded": "false",
     onClick: (e: Event) => {
       e.stopPropagation();
-      document.querySelectorAll(".menu-list.open").forEach((m) => {
-        if (m !== list) {
-          m.classList.remove("open");
-          m.previousElementSibling?.setAttribute("aria-expanded", "false");
-        }
-      });
-      if (!list.classList.contains("open")) {
+      toggleMenu(list, btn, () => {
         list.replaceChildren();
         list.append(...build().map((n) => (typeof n === "string" ? document.createTextNode(n) : n)));
-      }
-      const open = list.classList.toggle("open");
-      btn.setAttribute("aria-expanded", String(open));
+      });
     },
   }, [label]);
   return el("div", { class: "menu" }, [btn, list]);
@@ -2348,10 +2344,7 @@ function buildSettingsDrawer(): HTMLElement {
     // to close only by finding the ⚙ chip again — and below 720px the drawer is
     // the full viewport width, so that chip is *underneath it*. There was
     // literally no way out of Settings on a phone.
-    el("div", { class: "styles-head" }, [
-      el("h3", {}, [t("settings")]),
-      el("button", { class: "styles-close", title: t("close"), onClick: closeSettings }, ["×"]),
-    ]),
+    panelHead("settings-drawer", t("settings"), { level: "h3" }),
     // B26. The fourteen fields below this line belong to the **open document** and
     // travel with it; everything under `fitWidthLabel` is about the person at the
     // desk. Saying which is which is the whole point — a writer who does not know
@@ -2602,25 +2595,15 @@ function resetShortcuts() {
   rerenderChrome();
 }
 function toggleSettings() {
-  document.getElementById("settings-drawer")!.classList.toggle("open");
-}
-function closeSettings() {
-  document.getElementById("settings-drawer")?.classList.remove("open");
-  runtime.view?.focus();
+  togglePanel("settings-drawer");
 }
 
 // ---- outline / document map ----
 function toggleOutline() {
   settings.outline = !settings.outline;
   saveSettings();
-  document.getElementById("outline-drawer")!.classList.toggle("open", settings.outline);
-  if (settings.outline) renderOutline();
+  togglePanel("outline-drawer", settings.outline);
   rerenderChrome();
-}
-function closeOutline() {
-  if (!settings.outline) return;
-  toggleOutline();
-  runtime.view?.focus();
 }
 
 // ---- the notes pane ----
@@ -2632,17 +2615,7 @@ function closeOutline() {
 // which in a sefer is the larger half of the document.
 
 function toggleNotesPane() {
-  settings.notesPane = !settings.notesPane;
-  saveSettings();
-  document.getElementById("notes-drawer")!.classList.toggle("open", !!settings.notesPane);
-  if (settings.notesPane) renderNotesPane();
-  rerenderChrome();
-}
-
-function closeNotesPane() {
-  if (!settings.notesPane) return;
-  toggleNotesPane();
-  runtime.view?.focus();
+  togglePanel("notes-drawer");
 }
 
 function renderNotesPane() {
@@ -2799,9 +2772,7 @@ async function takeSnapshot(force = false): Promise<boolean> {
       // Nothing changed since the last snapshot: the point is already kept.
       setStatus(t("snapshotUnchanged"), "");
     }
-    if (document.getElementById("history-modal")?.classList.contains("open")) {
-      await renderHistory();
-    }
+    if (isPanelOpen("history-modal")) await renderHistory();
     if (stored) await refreshBaseline();
     return stored;
   } catch (e) {
@@ -2820,11 +2791,10 @@ async function restoreSnapshot(s: docs.Snapshot) {
 }
 
 function openHistory() {
-  document.getElementById("history-modal")!.classList.add("open");
-  void renderHistory();
+  openPanel("history-modal");
 }
 function closeHistory() {
-  document.getElementById("history-modal")!.classList.remove("open");
+  closePanel("history-modal");
 }
 
 async function renderHistory() {
@@ -2853,16 +2823,10 @@ async function renderHistory() {
 
 // ---------------------------------------------------------------- command palette
 function openPalette() {
-  const overlay = document.getElementById("palette")!;
-  overlay.classList.add("open");
-  const input = document.getElementById("palette-input") as HTMLInputElement;
-  input.value = "";
-  renderPaletteList("");
-  input.focus();
+  openPanel("palette");
 }
 function closePalette() {
-  document.getElementById("palette")!.classList.remove("open");
-  runtime.view.focus();
+  closePanel("palette");
 }
 /**
  * Move the palette selection, and run the selected command.
@@ -3459,7 +3423,7 @@ function updateContextBar() {
   const near = structure.structureNear(doc, pos)?.pos ?? pos;
   const here = structure.availableAt(doc, near);
   if (here.length === 0) {
-    bar.classList.remove("open");
+    closePanel("context-bar");
     bar.replaceChildren();
     return;
   }
@@ -3504,7 +3468,7 @@ function updateContextBar() {
     );
   }
   bar.replaceChildren(...children);
-  bar.classList.add("open");
+  openPanel("context-bar");
 }
 
 /**
@@ -3539,15 +3503,9 @@ const structureCompartment = new Compartment();
 
 function openHelp() {
   closeMenus();
-  document.getElementById("help-panel")!.classList.add("open");
-  renderHelp("");
-  (document.getElementById("help-search") as HTMLInputElement | null)?.focus();
+  openPanel("help-panel");
 }
 
-function closeHelp() {
-  document.getElementById("help-panel")!.classList.remove("open");
-  runtime.view?.focus();
-}
 
 function renderHelp(query: string) {
   const box = document.getElementById("help-body")!;
@@ -3588,10 +3546,7 @@ function buildHelpPanel(): HTMLElement {
   }) as HTMLInputElement;
   input.addEventListener("input", () => renderHelp(input.value));
   return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help") }, [
-    el("div", { class: "styles-head" }, [
-      el("h2", {}, [t("helpTitle")]),
-      el("button", { class: "styles-close", title: t("close"), onClick: closeHelp }, ["×"]),
-    ]),
+    panelHead("help-panel", t("helpTitle")),
     el("p", { class: "help-lede" }, [t("helpLede")]),
     input,
     el("div", { id: "help-body" }),
@@ -3727,9 +3682,7 @@ function openHydra() {
 }
 
 function closeHydra() {
-  openHydraState = null;
-  document.getElementById("hydra")!.classList.remove("open");
-  runtime.view?.focus();
+  closePanel("hydra");
 }
 
 function renderHydra() {
@@ -3763,20 +3716,18 @@ function renderHydra() {
       ]),
     );
   }
-  panel.replaceChildren(
-    el("div", { class: "hydra-head" }, [
-      el("b", {}, [t("structure." + h.structure)]),
-      el("span", {}, [t("hydraHint")]),
-      el("div", { class: "spacer" }),
-      // A visible exit as well as Escape and `q`. The rule this codebase learned
-      // the hard way: a surface that takes over the keyboard and can only be
-      // dismissed by a key you have to already know is a surface people get
-      // stuck in.
-      el("button", { class: "styles-close", title: t("close"), onClick: closeHydra }, ["×"]),
-    ]),
-    el("div", { class: "hydra-keys" }, cells),
-  );
-  panel.classList.add("open");
+  // A visible exit as well as Escape and `q`. The rule this codebase learned the
+  // hard way: a surface that takes over the keyboard and can only be dismissed
+  // by a key you have to already know is a surface people get stuck in. The head
+  // is built by `panelHead` like every other, which is also what put the hydra
+  // into the Escape sweep it had been missing from.
+  const head = panelHead("hydra", t("structure." + h.structure), {
+    level: "h3",
+    cls: "hydra-head",
+    extra: [el("span", {}, [t("hydraHint")]), el("div", { class: "spacer" })],
+  });
+  panel.replaceChildren(head, el("div", { class: "hydra-keys" }, cells));
+  openPanel("hydra");
 }
 
 function runHydraEntry(entry: hydra.HydraEntry) {
@@ -3867,13 +3818,9 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
 
 function openStyles() {
   closeMenus();
-  renderStylesPanel();
-  document.getElementById("styles-panel")!.classList.add("open");
+  openPanel("styles-panel");
 }
 
-function closeStyles() {
-  document.getElementById("styles-panel")!.classList.remove("open");
-}
 
 /** Read the document's current value for one styling argument. */
 function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
@@ -4106,10 +4053,7 @@ function renderStylesPanel() {
   ];
 
   box.replaceChildren(
-    el("div", { class: "styles-head" }, [
-      el("h2", {}, [t("stylesTitle")]),
-      el("button", { class: "styles-close", title: t("close"), onClick: closeStyles }, ["×"]),
-    ]),
+    panelHead("styles-panel", t("stylesTitle")),
     el("p", { class: "styles-lede" }, [t("stylesLede")]),
 
     el("h3", {}, [t("stylePresets")]),
@@ -4149,10 +4093,7 @@ function openModal(title: string, lede: string, rows: (Node | string)[], onOk: (
   modalOk = onOk;
   const box = document.getElementById("form-modal-body")!;
   box.replaceChildren(
-    el("div", { class: "styles-head" }, [
-      el("h2", {}, [title]),
-      el("button", { class: "styles-close", title: t("close"), onClick: closeModal }, ["×"]),
-    ]),
+    panelHead("form-modal", title),
     el("p", { class: "styles-lede" }, [lede]),
     ...rows,
     el("div", { class: "modal-actions" }, [
@@ -4162,12 +4103,11 @@ function openModal(title: string, lede: string, rows: (Node | string)[], onOk: (
       el("button", { class: "sc-key", onClick: closeModal }, [t("cancel")]),
     ]),
   );
-  document.getElementById("form-modal")!.classList.add("open");
+  openPanel("form-modal");
 }
 
 function closeModal() {
-  modalOk = null;
-  document.getElementById("form-modal")!.classList.remove("open");
+  closePanel("form-modal");
 }
 
 // ---------------------------------------------------------------- review
@@ -4207,18 +4147,14 @@ function addComment() {
 }
 
 function isReviewOpen(): boolean {
-  return document.getElementById("review-panel")?.classList.contains("open") ?? false;
+  return isPanelOpen("review-panel");
 }
 
 function openReview() {
   closeMenus();
-  renderReviewPanel();
-  document.getElementById("review-panel")!.classList.add("open");
+  openPanel("review-panel");
 }
 
-function closeReview() {
-  document.getElementById("review-panel")!.classList.remove("open");
-}
 
 /** Replace the whole document text (a decision rewrites the source). */
 function replaceDoc(next: string) {
@@ -4311,10 +4247,7 @@ function renderReviewPanel() {
     ]);
 
   box.replaceChildren(
-    el("div", { class: "styles-head" }, [
-      el("h2", {}, [t("reviewTitle")]),
-      el("button", { class: "styles-close", title: t("close"), onClick: closeReview }, ["×"]),
-    ]),
+    panelHead("review-panel", t("reviewTitle")),
     el("p", { class: "styles-lede" }, [t("reviewLede")]),
 
     el("h3", {}, [t("reviewView")]),
@@ -4477,14 +4410,11 @@ function openFormula() {
 
 function openNotesChooser() {
   closeMenus();
-  const overlay = document.getElementById("notes-chooser")!;
-  renderNotesChooser();
-  overlay.classList.add("open");
+  openPanel("notes-chooser");
 }
 
 function closeNotesChooser() {
-  document.getElementById("notes-chooser")!.classList.remove("open");
-  runtime.view.focus();
+  closePanel("notes-chooser");
 }
 
 /**
@@ -4745,10 +4675,7 @@ function renderNotesChooser() {
   const box = document.getElementById("notes-chooser-body")!;
   const picked = notesCell ? choiceAt(notesCell.where, notesCell.how) : null;
   box.replaceChildren(
-    el("div", { class: "styles-head" }, [
-      el("h2", {}, [t("notesChooserTitle")]),
-      el("button", { class: "styles-close", title: t("close"), onClick: closeNotesChooser }, ["×"]),
-    ]),
+    panelHead("notes-chooser", t("notesChooserTitle")),
     el("p", { class: "notes-lede" }, [t("notesChooserLede")]),
     el("p", { class: "notes-mix" }, [t("notesMix")]),
     el("h3", {}, [t("notesCommon")]),
@@ -5044,20 +4971,7 @@ function cycleLayout() {
 }
 
 function openPreviewOverlay() {
-  const body = document.getElementById("preview-modal-body")!;
-  // Drawn from the pages themselves, not copied out of the other pane. It used
-  // to be `body.innerHTML = preview.innerHTML`, which serialises ten megabytes
-  // of SVG the browser has already parsed and then parses all of it again — and
-  // it would now copy the *windowing* too, so every page the reader had not
-  // scrolled past would arrive in the full-screen view as an empty box.
-  drawCurrentInto(body);
-  document.getElementById("preview-modal")!.classList.add("open");
-  // The modal is a second pane over the same pages, so it needs the same
-  // direction and the same page width. One call, both panes.
-  applyPreview();
-}
-function closePreviewOverlay() {
-  document.getElementById("preview-modal")!.classList.remove("open");
+  openPanel("preview-modal");
 }
 function applyUiDir() {
   document.documentElement.lang = getLang();
@@ -5069,10 +4983,9 @@ function rerenderChrome() {
   const app = document.getElementById("app")!;
   app.querySelector("header")?.replaceWith(buildHeader());
   // settings drawer keeps open state
-  const drawerOpen = document.getElementById("settings-drawer")?.classList.contains("open");
-  const newDrawer = buildSettingsDrawer();
-  if (drawerOpen) newDrawer.classList.add("open");
-  document.getElementById("settings-drawer")!.replaceWith(newDrawer);
+  const drawerOpen = isPanelOpen("settings-drawer");
+  document.getElementById("settings-drawer")!.replaceWith(buildSettingsDrawer());
+  if (drawerOpen) openPanel("settings-drawer");
   // localize any remaining static labels (pane heads, etc.)
   document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((e) => {
     e.textContent = t(e.dataset.i18n!);
@@ -5125,18 +5038,12 @@ function render() {
       // Its own close control, for the same reason the settings drawer needed
       // one: below 720px a drawer is the full viewport, so the chip that opened
       // it is underneath it and cannot be the only way back out.
-      el("div", { class: "styles-head" }, [
-        el("h3", {}, [t("outline")]),
-        el("button", { class: "styles-close", title: t("close"), onClick: closeOutline }, ["×"]),
-      ]),
+      panelHead("outline-drawer", t("outline"), { level: "h3" }),
       el("div", { id: "outline-list" }),
     ]),
     // The notes pane, beside the outline: the two halves of a sefer's structure.
     el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane") }, [
-      el("div", { class: "styles-head" }, [
-        el("h3", {}, [t("notesPane")]),
-        el("button", { class: "styles-close", title: t("close"), onClick: closeNotesPane }, ["×"]),
-      ]),
+      panelHead("notes-drawer", t("notesPane"), { level: "h3" }),
       el("div", { id: "notes-list" }),
     ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
@@ -5149,22 +5056,15 @@ function render() {
       el("div", { id: "review-body" }),
     ]),
     // a shared form modal (section page setup, formulas)
-    el("div", { id: "form-modal", class: "overlay", onClick: (e: Event) => {
-      if ((e.target as HTMLElement).id === "form-modal") closeModal();
-    } }, [el("div", { class: "palette-box form-modal-box" }, [el("div", { id: "form-modal-body" })])]),
+    overlayPanel("form-modal", "palette-box form-modal-box", [el("div", { id: "form-modal-body" })]),
     buildHelpPanel(),
     // the hydra panel — a strip, not an overlay: the document must stay visible
     // and the caret must stay where it is while operations fire against it
     el("div", { id: "hydra", class: "hydra" }),
     // notes chooser overlay
-    el("div", { id: "notes-chooser", class: "overlay", onClick: (e: Event) => {
-      if ((e.target as HTMLElement).id === "notes-chooser") closeNotesChooser();
-    } }, [el("div", { class: "notes-chooser-box" }, [el("div", { id: "notes-chooser-body" })])]),
+    overlayPanel("notes-chooser", "notes-chooser-box", [el("div", { id: "notes-chooser-body" })]),
     // command palette overlay
-    el("div", { id: "palette", class: "overlay", onClick: (e: Event) => {
-      if ((e.target as HTMLElement).id === "palette") closePalette();
-    } }, [
-      el("div", { class: "palette-box" }, [
+    overlayPanel("palette", "palette-box", [
         el("input", {
           id: "palette-input",
           placeholder: t("searchCommands"),
@@ -5176,8 +5076,7 @@ function render() {
             }
           },
         }),
-        el("div", { id: "palette-list" }),
-      ]),
+      el("div", { id: "palette-list" }),
     ]),
     // floating preview (page mode): a button + a modal showing the rendered pages
     el("button", {
@@ -5186,22 +5085,16 @@ function render() {
       title: t("preview"),
       onClick: openPreviewOverlay,
     }, ["📄"]),
-    el("div", { id: "preview-modal", class: "overlay", onClick: (e: Event) => {
-      if ((e.target as HTMLElement).id === "preview-modal") closePreviewOverlay();
-    } }, [el("div", { class: "preview-modal-box" }, [el("div", { id: "preview-modal-body" })])]),
+    overlayPanel("preview-modal", "preview-modal-box", [el("div", { id: "preview-modal-body" })]),
     // version history modal
-    el("div", { id: "history-modal", class: "overlay", onClick: (e: Event) => {
-      if ((e.target as HTMLElement).id === "history-modal") closeHistory();
-    } }, [
-      el("div", { class: "palette-box" }, [
-        el("div", { class: "history-head" }, [
-          el("b", {}, [t("history")]),
-          el("button", { class: "sc-key", onClick: () => void takeSnapshot(true) }, [
-            t("snapshotNow"),
-          ]),
+    overlayPanel("history-modal", "palette-box", [
+      el("div", { class: "history-head" }, [
+        el("b", {}, [t("history")]),
+        el("button", { class: "sc-key", onClick: () => void takeSnapshot(true) }, [
+          t("snapshotNow"),
         ]),
-        el("div", { id: "history-list" }),
       ]),
+      el("div", { id: "history-list" }),
     ]),
   );
 
@@ -5222,15 +5115,13 @@ function render() {
   applyUiDir();
   applyPreview();
   updateCounts();
-  if (settings.nikud) document.getElementById("nikud-bar")!.classList.add("open");
-  if (settings.outline) {
-    document.getElementById("outline-drawer")!.classList.add("open");
-    renderOutline();
-  }
-  if (settings.notesPane) {
-    document.getElementById("notes-drawer")!.classList.add("open");
-    renderNotesPane();
-  }
+  // The three surfaces whose open state is a saved preference rather than a
+  // thing the writer just did. `togglePanel(id, false)` on a panel that is
+  // already closed does nothing at all — including running its close hook — so
+  // this restores what was on without announcing anything about what was off.
+  togglePanel("nikud-bar", settings.nikud);
+  togglePanel("outline-drawer", settings.outline);
+  togglePanel("notes-drawer", !!settings.notesPane);
 }
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
@@ -5245,24 +5136,18 @@ function wireKeys() {
       e.preventDefault();
       void askForMekor();
     } else if (e.key === "Escape") {
-      closeMekoros();
-      closePalette();
-      closePreviewOverlay();
-      closeHistory();
-      closeNotesChooser();
-      closeSpellMenu();
-      closeStyles();
-      closeReview();
-      closeSettings();
-      closeHelp();
-      closeModal();
-      // The first-run overlay. It had no × and ignored Escape, so its only exits
-      // were the template buttons — a writer who opened it by accident with a
-      // document already in the buffer had no move that did not replace their
-      // work. Worse, it was an explicit exemption in the reachability test, with
-      // a written reason ("every control on it dismisses it") that was false.
-      // An exemption is an assertion, and that one was never checked.
-      dismissOnboard();
+      // Every surface that says Escape closes it, and nothing else. This used to
+      // be twelve close calls written out by hand, which meant the answer to
+      // "does Escape reach this panel?" was "did somebody remember" — and for
+      // the hydra, the one surface here that takes over the keyboard, the answer
+      // was no. `closeOnEscape` reads `PANELS`, so a new modal is covered by
+      // being declared.
+      closeOnEscape();
+      // Escape has always also meant "put me back in the text", whether or not
+      // anything was open — the close functions each ended with a `focus()` and
+      // so did this. Said once now, and unconditionally, because the panels
+      // themselves no longer run their side effects when they were not open.
+      runtime.view?.focus();
     } else if (e.key === "Alt" && settings.prose) {
       runtime.view.dispatch({ effects: setRevealAll.of(true) });
     }
@@ -5272,7 +5157,7 @@ function wireKeys() {
   });
   window.addEventListener("click", (e) => {
     closeMenus();
-    if (!(e.target as HTMLElement).closest(".spell-menu")) closeSpellMenu();
+    closeOnOutsideClick(e.target as Element | null);
   });
 }
 
@@ -5307,21 +5192,13 @@ function maybeOnboard() {
   const rest = all.filter((tpl) => tpl.lang !== "he" && tpl.lang !== "en");
   if (rest.length) groups.push({ lang: "", items: rest });
 
-  const overlay = el(
-    "div",
-    {
-      id: "welcome",
-      class: "overlay open",
-      onClick: (e: Event) => {
-        if ((e.target as HTMLElement).id === "welcome") dismissOnboard();
-      },
-    },
-    [
-    el("div", { class: "palette-box welcome-box" }, [
-      el("div", { class: "styles-head" }, [
-        el("h2", {}, [t("welcomeTitle")]),
-        el("button", { class: "styles-close", title: t("close"), onClick: dismissOnboard }, ["×"]),
-      ]),
+  // Built through the same two constructors as every other modal, which is what
+  // gives it the × and the dismissing backdrop it shipped without. It is
+  // `mounted` rather than class-toggled — there is no welcome element in the
+  // document until there is a reader to welcome — and `mountPanel` is what puts
+  // the `open` class on it.
+  const overlay = overlayPanel("welcome", "palette-box welcome-box", [
+      panelHead("welcome", t("welcomeTitle")),
       el("p", {}, [t("welcomeBody")]),
       ...groups.flatMap((g) => [
         el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),
@@ -5355,23 +5232,20 @@ function maybeOnboard() {
         },
         [t("welcomeStart")],
       ),
-    ]),
-    ],
-  );
-  document.getElementById("app")!.append(overlay);
+  ]);
+  mountPanel("welcome", overlay, document.getElementById("app")!);
 }
+
 /**
  * Close the welcome overlay, however the writer chose to leave it.
  *
- * A no-op when it is not on screen, because Escape now reaches it and Escape is
- * pressed constantly: marking someone onboarded because they dismissed a
+ * The "was it actually on screen" check that used to guard this by hand is now
+ * `closePanel`'s, for every surface: Escape reaches all of them and Escape is
+ * pressed constantly, so marking someone onboarded because they dismissed a
  * completion popup would be a lie told by a keystroke.
  */
 function dismissOnboard() {
-  const overlay = document.getElementById("welcome");
-  if (!overlay) return;
-  localStorage.setItem("ksav.onboarded", "1");
-  overlay.remove();
+  closePanel("welcome");
 }
 
 /**
@@ -5383,7 +5257,115 @@ function dismissOnboard() {
  * would only hide it. Registered before anything is drawn, so no code path can
  * fire one of them while it is still the default no-op.
  */
+/**
+ * What each surface does beyond appearing and disappearing.
+ *
+ * This is the half of the panel registry that makes it safe to derive the Escape
+ * sweep. `PANELS` says a surface exists and how a person gets out of it; this
+ * says what opening it has to fill in and what closing it has to put back — the
+ * pending callback the form modal is holding, the operation set the hydra is
+ * driving, the preference the outline pane's visibility *is*. A sweep that only
+ * stripped a class would leave the application holding all three, so it would
+ * have been a weaker Escape than the twelve hand-written calls it replaced.
+ *
+ * Focus is the exception and is handled at the keydown site: Escape means "put
+ * me back in the text" whether or not anything was open, and a close hook by
+ * definition only runs when something was.
+ */
+function wirePanels() {
+  // Drawers whose open state *is* a saved preference. The × closes them through
+  // `closePanel` like every other ×, so persisting has to happen here — a close
+  // control that hid the pane and left the setting saying "shown" would put it
+  // back on the next launch, which is the same class of lie as a menu item that
+  // does nothing.
+  wirePanel("outline-drawer", {
+    open: () => {
+      settings.outline = true;
+      saveSettings();
+      renderOutline();
+      rerenderChrome();
+    },
+    close: () => {
+      settings.outline = false;
+      saveSettings();
+      rerenderChrome();
+      runtime.view?.focus();
+    },
+  });
+  wirePanel("notes-drawer", {
+    open: () => {
+      settings.notesPane = true;
+      saveSettings();
+      renderNotesPane();
+      rerenderChrome();
+    },
+    close: () => {
+      settings.notesPane = false;
+      saveSettings();
+      rerenderChrome();
+      runtime.view?.focus();
+    },
+  });
+
+  wirePanel("settings-drawer", { close: () => runtime.view?.focus() });
+  wirePanel("help-panel", {
+    open: () => {
+      renderHelp("");
+      (document.getElementById("help-search") as HTMLInputElement | null)?.focus();
+    },
+    close: () => runtime.view?.focus(),
+  });
+  wirePanel("styles-panel", { open: renderStylesPanel });
+  wirePanel("review-panel", { open: renderReviewPanel });
+
+  wirePanel("palette", {
+    open: () => {
+      const input = document.getElementById("palette-input") as HTMLInputElement;
+      input.value = "";
+      renderPaletteList("");
+      // Which is why the class goes on before this runs: `focus()` on a
+      // `display: none` input does nothing, and a command palette that opens
+      // with the caret still in the document is a command palette nobody uses.
+      input.focus();
+    },
+    close: () => runtime.view.focus(),
+  });
+  wirePanel("notes-chooser", {
+    open: renderNotesChooser,
+    close: () => runtime.view.focus(),
+  });
+  wirePanel("history-modal", { open: () => void renderHistory() });
+  wirePanel("preview-modal", {
+    open: () => {
+      // Drawn from the pages themselves, not copied out of the other pane. It
+      // used to be `body.innerHTML = preview.innerHTML`, which serialises ten
+      // megabytes of SVG the browser has already parsed and then parses all of
+      // it again — and it would now copy the *windowing* too, so every page the
+      // reader had not scrolled past would arrive in the full-screen view as an
+      // empty box.
+      drawCurrentInto(document.getElementById("preview-modal-body")!);
+      // The modal is a second pane over the same pages, so it needs the same
+      // direction and the same page width. One call, both panes.
+      applyPreview();
+    },
+  });
+  // The pending callback is the reason this hook exists: a form modal dismissed
+  // by Escape must not leave an "insert" waiting to fire at whatever opens next.
+  wirePanel("form-modal", { close: () => (modalOk = null) });
+  // Likewise the operation set. The hydra reads the caret's structure once and
+  // drives keys against it; outliving that structure is how it came to eat
+  // keystrokes aimed at ordinary prose.
+  wirePanel("hydra", {
+    close: () => {
+      openHydraState = null;
+      runtime.view?.focus();
+    },
+  });
+  wirePanel("welcome", { close: () => localStorage.setItem("ksav.onboarded", "1") });
+}
+
 function installHooks() {
+  wirePanels();
   runtime.onRerenderChrome(rerenderChrome);
   runtime.onOpenDoc(openDoc);
   save.onUpdateTitleBar(updateTitleBar);

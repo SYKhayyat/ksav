@@ -114,12 +114,12 @@ export function setStatus(msg: string, cls = "", detail = "") {
   else status.removeAttribute("title");
 }
 
-export function closeMenus() {
-  document.querySelectorAll(".menu-list.open").forEach((m) => {
-    m.classList.remove("open");
-    m.previousElementSibling?.setAttribute("aria-expanded", "false");
-  });
-}
+// The header's dropdowns are the other user of the `open` class, and `panels.ts`
+// owns that class outright — otherwise the prohibition that keeps every surface
+// in the registry would need an exemption, and an exemption is where this family
+// of bugs lives. Re-exported rather than moved at every call site: nine modules
+// close the menus before doing something else, and none of them is about panels.
+export { closeMenus } from "./panels";
 
 // Hooks the shell installs at boot. Default to no-ops so a module that fires one
 // before `main.ts` has booted does nothing rather than throwing.

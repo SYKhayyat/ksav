@@ -43,6 +43,7 @@ const MODULES = [
   "mode",
   "note-commands",
   "notes",
+  "panels",
   "parts",
   "preview",
   "review",

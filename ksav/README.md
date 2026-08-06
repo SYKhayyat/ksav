@@ -159,6 +159,28 @@ is in *code* mode, where `"` opens a string literal in which brackets are inert.
 Both halves were checked against the compiler rather than assumed; see the head
 of the file.
 
+### One registry of surfaces
+
+The chrome has the same shape of problem and the same shape of answer. Seventeen
+panels — drawers, modals, the command palette, the contextual ribbon, the
+pointer-anchored menus — each used to fetch an element by id, put the class
+`open` on it, hand-build its own `×`, and add its own line to a list of close
+calls in the global Escape handler. Four hand-maintained pairings per surface,
+and each one right on its own is not the same as all of them agreeing: the
+settings drawer shipped with an opener and no closer, the welcome overlay with
+no way out at all, and the hydra — the one panel that takes over the keyboard —
+was never added to the Escape list.
+
+**`app/src/panels.ts`** declares each surface once: what kind it is, whether
+Escape closes it, and how a person gets out of it from inside. It is then the
+only module in `src/` that spells the `open` class, the only one that builds a
+`×`, and the only one that wires a dismissing backdrop — so a surface cannot
+appear on screen without being declared, `panelHead(id)` cannot be given the
+wrong panel's closer, and the Escape sweep is derived from the list rather than
+remembered. `panels.test.mjs` builds every declared surface against a DOM and
+clicks its way out of each one; `chrome.test.mjs` sweeps `src/` for anyone
+spelling those things by hand.
+
 ### Nesting depth
 
 Any structure can contain any other — lists in tables, headings in footnotes,
@@ -320,7 +342,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,013 editor assertions, 357 engine
+- [x] **CI, running and green** — typecheck, 3,183 editor assertions, 357 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -380,7 +402,7 @@ one place they are developed.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,013 assertions across 46 files
+cd app && npm test                          # 3,183 assertions across 47 files
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 357 tests, 24 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings

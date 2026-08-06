@@ -871,6 +871,124 @@ under the `cfg(not(target_arch = "wasm32"))` block beside `girsa-post`.
 
 **Verdicts: mixed — `delete` for four named blocks, `rewrite` for one, keep the rest.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done as prescribed for the runner and for `ONLY_AT_TOP`, and in one place
+> deliberately not as prescribed, because the prescription would have asserted a
+> path no writer can reach. The finding below is kept verbatim; what follows is
+> what replaced it, what it got wrong, what it missed, and the mutation for each.
+>
+> **The headline number is right and the diagnosis under it is wrong.** *"19
+> modules / 9,207 lines cannot be built by the test runner at all"* — the count
+> is right (19 modules, 9,081 lines today) and "cannot be built" is not. Sixty-one
+> of the 62 modules build with the runner's own esbuild settings, and all but
+> `main.ts` import cleanly in node; only `wasm-worker.ts` genuinely cannot, because
+> its `?url` wasm import is a Vite resolution. The hole was never technical. It was
+> that `MODULES` was a hand-written array and **nothing in the repository compared
+> it to the directory**, so it stopped growing and nobody could see that it had.
+> The honest statement is stronger than the finding's: **not one test file imported
+> any of the nineteen.** Not `exports.ts`, not `save.ts`, not `compile.ts`, not
+> `files.ts`, not `ksav-lang.ts`.
+>
+> **"Ten lines of `readdirSync` would close it" closes the symptom.** The list is
+> read off `src/` now, and what keeps it honest is `runner.test.mjs`: every module
+> is built or declared unbuildable *with a reason that file executes*; every
+> buildable module is **imported by at least one test** or declared un-importable
+> with a reason; and no test may bundle its own private copy of a module, which is
+> the workaround the hole produced last time and the way it would hide again.
+> `test/modules.mjs` holds the two exemptions and both are claims, not names —
+> `chrome.test.mjs`'s `NO_CLOSE_NEEDED` idea, pointed at the runner.
+>
+> **Two things the finding could not have seen, both found by acting on it.**
+>
+> - **The test build gave every entry point its own copy of every module.** No
+>   code splitting, so `.tmp-test/exports.mjs` and `.tmp-test/runtime.mjs` held
+>   *two different* `runtime` singletons — and `runtime.ts` is the module whose
+>   entire purpose is that there is exactly one of each. `setView` in a test landed
+>   on a copy the module under test could not see, silently: the call succeeds and
+>   changes nothing. **Every cross-module fact in the application was untestable,
+>   and would have failed closed**, which is the worst way for a harness to be
+>   wrong. `splitting: true`, and the test build agrees with the shipped one.
+> - **`brackets.ts` broke an invariant two other modules rest on.** `compile.ts`
+>   and `diagview.ts` both state that healing never inserts or removes a newline,
+>   which is the only reason an engine line number can be mapped onto the writer's
+>   own text — and the unterminated-comment repair appended `\n*/`. One document
+>   shape where the invariant was false, silently. Worse, `bracket-lint.ts` spelled
+>   the same repair *again* and the two had drifted, so healing one problem and
+>   healing all of them produced different documents. One spelling now, taken from
+>   `analyze`, and the invariant is asserted rather than commented.
+>
+> **The two live bugs in §9b were exactly where the hole predicted.** `exports.ts`
+> was one of the nineteen. Print never called `warnIfHealed` and put closers the
+> writer never typed onto paper; it warns in the status bar *and* in the print
+> window itself now, behind `@media print { display: none }`, because the status
+> bar is behind whatever the browser just opened over it. `reflowableHtml`
+> announced its *caller's* outcome — "exporting page images instead" — which was
+> true of `exportHtml` and false of `exportWord` and `copyForWord`, the two that
+> produce nothing: the one route where no file appeared was the route that
+> announced an export. It reports a reason now and each caller says what it did.
+>
+> **`ONLY_AT_TOP` is gone, and the finding's arithmetic on it holds exactly.** Six
+> of the nine are `legal: true` in `note-body`, `list-in-item` and `table-in-cell`
+> in `insertions.json`, verified against the fixture before anything was deleted.
+> `registry.rs` is deleted; both survivors moved into `insertion.rs`, where the
+> grid they belong to already lives. What replaces the skip list is
+> `the_grid_exempts_nothing`: commands × contexts with no holes, every one of the
+> nine present in all nine contexts, and every refusal carrying a reason — because
+> the way a skip list comes back is not somebody re-adding the constant, it is a
+> `continue` inside a sweep.
+>
+> **One prescription was tried and is wrong: widening the grid to English.** It
+> was built. It fails, and the failures are about the fixture rather than the
+> product — because **the Insert menu, the toolbar and the palette all write
+> `c.insert` verbatim**, so the app never writes an English registry name into
+> anything. An English writer who picks Footnote gets `#הערה[]` in their English
+> document. A grid of English insertions therefore asserts a path no writer can
+> reach, and its failures — a Hebrew parameter name left inside an English call —
+> are artefacts of the name swap. The English forms the app *does* write (lists,
+> headings, tables, tiered notes) are already compiled, twelve English documents
+> of them, in `structure-edits.json`. The name check is what is honestly
+> assertable here and it is stated as exactly that, with the reasoning left in the
+> source. **The real finding underneath is a product one and is not fixed: the
+> Insert menu writes Hebrew markup into English documents**, which is §9a's defect
+> family on a surface §9a did not touch.
+>
+> **The hollow assertions went, and the count went down.** `help.test.mjs` 309 →
+> 28: a loop of 285 restating one fact, now three `filter`s that name every
+> offender at once instead of stopping at whichever one the loop reached first.
+> `coverage.test.mjs` 145 → 47: `inInsertMenu = (c) => !c.deprecated` asked the
+> registry a question about the registry and agreed with itself, in a file whose
+> stated purpose is "reachable from a surface a pointer can touch" and which
+> **never looked at a surface**. It reads `main.ts`'s menu builder now and asserts
+> that `!deprecated` is still the only thing dropped — which is what makes the
+> claim true rather than a definition of itself. `registry.rs`'s empty `if` went
+> with the file.
+>
+> **The suite is smaller and covers more, which is the point.** 3,482 assertions
+> across 58 files, from 3,595 across 50: **+8 files, +16 modules with a test,
+> −382 assertions.** What got cut is the finding's own honest split — the 33%
+> asserting registry shape and the 11% reading source as text.
+>
+> **Eight mutations, every one run.** A false unbuildable claim; the genuine
+> exemption dropped; the runner given a second hand-written list; the heal
+> restored to adding a line (red in two files); a test bundling its own module; a
+> test importing `main.ts`; a new module landing in `src/` with no test; and a
+> command dropped from the grid. All eight red. The sixth also exposed a defect in
+> the guard itself — it fired on a *commented-out* import, which is
+> `chrome.test.mjs`'s old failure in the safe direction — so the sweeps read code
+> and not prose now, and that mutation was re-run against a real import.
+>
+> **What was not touched.** `probe.rs`, `assert_same_page`, `apparatus_marks.rs`,
+> the generated-fixture pipeline and `sources.test.mjs` are named right in the
+> finding and are untouched. The `npm run fixtures` papercut is fixed: it
+> regenerates the insertion fixtures now, which was the one command a developer
+> runs when `npm test` says "stale".
+>
+> Cost: 24 files, +9 test files, +1 module, −1 engine test binary. `npm test`
+> 3,482 across 58 files, `cargo test` 366 across 23 binaries, `tsc` clean,
+> `vite build` clean.
+
+
 ### What is right, and should be named
 
 - **`probe.rs` (155 lines).** Reads the *laid-out* document — y, leftmost x, font
@@ -1295,6 +1413,28 @@ was empty in every English document") fixed, reproduced on the deferred axis **b
 the file written to fix it**, whose own header diagnoses the family precisely as
 *"a hand-maintained array that only one language ever walked."*
 
+> ### ✅ (b) Fixed — 6 August 2026
+>
+> Both halves, and both were verified in source before being touched. The finding
+> is exactly right and it undersells its own second half: `reflowableHtml` did not
+> merely fail to fall back, it had *already set the status line* to "exporting page
+> images instead" on its way to returning null — so the two routes that produced
+> nothing were the two routes that announced an export. The sentence was true of
+> `exportHtml`, the one caller that does fall back, and a shared layer cannot know
+> what its callers will do about a refusal. It reports a reason now; each caller
+> says what it did.
+>
+> Print warns in the status bar like every other route, **and** in the print window
+> itself, behind `@media print { display: none }` — because the status bar is
+> behind whatever the browser just opened over it, which is the same objection
+> `warnIfHealed`'s own comment raises about a line that may have scrolled past.
+>
+> Both are in `exports.ts`, which was one of §7's nineteen unreachable modules.
+> That is not a coincidence and it is the reason the two findings were fixed
+> together: `test/exports.test.mjs` is 26 assertions and could not have existed
+> before the runner could see the module. Mutations: print stops warning (4 red),
+> the Word routes go silent again (4 red).
+
 **b) Print puts closers the writer never typed onto paper.**
 `doPrint` (`exports.ts:223-233`) renders `runtime.lastResult.pages_svg`, which is
 the *preview* result, compiled from the **healed** copy (`compile.ts:105-110`).
@@ -1712,12 +1852,12 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 5 | ✅ **Fixed 6 Aug.** `ksav.typ` wrote the apparatus 3× and fixed one bug twice; `PAGE_APPARATUS_COMMANDS` was a ninth unchecked copy | `rewrite` → one `_ap_*` core + a pinned layout + a count | ~half a day, 5 files; 41 documents byte-identical; −13 code lines, and three homes for a decision down to one |
 | 6 | ✅ **Fixed 6 Aug.** Notes pane empty in every deferred document and `⁑` gave the wrong tier; the collected-and-never-rendered lint was blind to deferred notes too, and deferring in an English document wrote Hebrew into it | `rewrite` → one `notesIn` over both spellings + an equivalence oracle | ~1 day, 8 files; +98 code lines, not −180; 9 mutations red, 2 controls green |
 | 7 | Fresh clone does not build; not one doc mentions why | `rewrite` → submodule | ~1 hour, −8 CI steps |
-| 8 | `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test | `delete` | ~1 hour |
+| 8 | ✅ **Fixed 6 Aug.** `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test — verified against the fixture before deleting | `delete` → the file is gone, both survivors moved into `insertion.rs`, and `the_grid_exempts_nothing` replaces the skip list | ~1 hour; the English widening the finding also asked for was built, is wrong, and is argued down in the source |
 | 9 | ✅ **Fixed 6 Aug.** `chrome.test.mjs` credited surfaces to each other by local-variable name and its Escape block survived the handler being deleted; the hydra had no Escape once its own buttons had focus, and two of the sixteen "surfaces" were phantoms | `rewrite` → one `panels.ts` registry + 13 mutations | ~1 day, 5 files; `main.ts` −18 lines, not −250 |
-| 10 | Print silently prints the healed document; Word export claims a fallback it doesn't do | fix in place | ~1 hour |
+| 10 | ✅ **Fixed 6 Aug.** Print silently printed the healed document; the Word routes produced no file under a status line announcing one. Both live in `exports.ts`, which was one of #13's nineteen — the hole and the bugs were the same finding | fix in place → a non-printing banner in the print window, and `reflowableHtml` reporting a reason instead of its caller's outcome | ~1 hour |
 | 11 | ✅ **Fixed 6 Aug.** `fold()`, defaults, the command pairing, font notices, `#כלול`, head alignment, "strip the markup" — each 2–3× in 2–3 languages; `spans.ts` was a ninth site the finding missed. Two real bugs fell out: `_ix_fold` folded `שַׁבָּת` to the empty string (grapheme clusters, so a pointed letter went with its point) and `#כלול("")` was a directive in Rust and not in TS | `rewrite` → one generated `engine.gen.ts` + two executed corpora | ~1 day, not 8: the eight are one question asked eight times. 20 files, 7 added, ~200 hand-written name pairs deleted, 8 mutations red |
 | 12 | Vim/emacs, hydra, macros, share, PWA, `engine/web/index.html`, prototypes source, history+Myers, tracked changes | `delete` | ~9,000 lines out |
-| 13 | `run.mjs` cannot build 43% of `src/`; ~890 assertions measure table shape | fix + prune | ~2 hours |
+| 13 | ✅ **Fixed 6 Aug.** `run.mjs` listed 43 of 62 modules and **not one test imported the other nineteen**; "cannot build" was wrong (61 of 62 build) — nothing compared the list to the directory. The build also gave every entry its own `runtime` singleton, so every cross-module fact failed closed, and `brackets.ts` broke the no-new-line invariant `compile.ts` rests on | fix + prune → the list read off `src/`, `runner.test.mjs`, 16 modules tested, `help`/`coverage` pruned | not 2 hours: 24 files, +9 test files; 3,482 assertions across 58 files — **+8 files, −382 assertions**, 8 mutations red |
 | 14 | `main.ts` at 5,653 lines as such | `wrong-but-keep` | — |
 | 15 | Concatenated prelude and the coordinate-correction régime | `wrong-but-keep`; extract `assemble_source` through wasm | ~1 hour for the extraction |
 

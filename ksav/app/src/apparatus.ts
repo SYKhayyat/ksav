@@ -16,9 +16,10 @@
 // found `#הערתסיום` in the Insert menu — where it is listed, described, and
 // perfectly reachable — lost every note they wrote with it.
 //
-// A test caught it (`engine/tests/registry.rs`, "a command given text shows that
-// text"). This is the fix: see it in the source, say so on the line, and offer
-// the missing call.
+// A test caught it ("a command given text shows that text", now in
+// `engine/tests/insertion.rs`). This is the fix: see it in the source, say so on
+// the line, and offer the missing call — and `app/test/lints.test.mjs` holds the
+// button that does it, which is what that test's own comment said was owed.
 //
 // The five other collect-then-render commands (`מדף_*`, `הערה_זרם`,
 // `הערת_תוכן`, `הערת_מקור`, `הערת_גיליון`, `הערת_ימין`/`שמאל`) were checked by

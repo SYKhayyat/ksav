@@ -113,21 +113,28 @@ export function commands() {
 
 export async function buildFixture() {
   const { insertionAt, legalAt } = await load("mode");
+  const all = commands();
   const cases = [];
   for (const [ctx, tpl] of Object.entries(CONTEXTS)) {
     const at = tpl.indexOf("@");
     const doc = tpl.replace("@", "");
-    for (const c of commands()) {
+    for (const c of all) {
       const snippet = insertionAt(doc, at, c.insert);
       const body = SAMPLE[c.he] ?? "";
       const clean = snippet.replace("|", body);
       const legality = legalAt(doc, at, c.he);
+      const source = doc.slice(0, at) + clean + doc.slice(at);
       cases.push({
         ctx,
         cmd: c.he,
+        // The English pair, carried so `insertion.rs` can check both spellings
+        // resolve. `registry.rs` used to hold that check and a skip list beside
+        // it; the skip list is gone and the check moved here, where the grid it
+        // belongs to already is.
+        en: c.en,
         legal: legality.ok,
         reason: legality.reason ?? null,
-        source: doc.slice(0, at) + clean + doc.slice(at),
+        source,
       });
     }
   }

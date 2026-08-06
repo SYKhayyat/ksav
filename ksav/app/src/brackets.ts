@@ -212,7 +212,22 @@ function repair(text: string, problems: Problem[]): { edits: Edit[]; healed: str
     } else if (p.kind === "stray") {
       edits.push({ from: p.pos, to: p.pos + 1, insert: "" });
     } else {
-      edits.push({ from: text.length, to: text.length, insert: "\n*/" });
+      // `*/` and not `\n*/`, which is what this used to be.
+      //
+      // The heal is not only a button — `compile.ts` compiles the healed copy
+      // speculatively on every keystroke, and everything that maps a diagnostic
+      // back onto the writer's text rests on one invariant, stated in
+      // `compile.ts` and in `diagview.ts`: *healing never inserts or removes a
+      // newline, so a line the engine reports about the healed copy is the same
+      // line in what the writer typed.* Every other repair here honours it —
+      // a closer is one character, a stray deletion is one character. This one
+      // did not, so an unterminated `/*` was the one document shape where that
+      // invariant was false, and it was false silently.
+      //
+      // Appending the bare `*/` closes the comment and leaves the line count
+      // exactly as the writer left it, because a document ending in a newline
+      // already has the empty final line for it to go on.
+      edits.push({ from: text.length, to: text.length, insert: "*/" });
     }
   }
   for (const [at, s] of inserts) edits.push({ from: at, to: at, insert: s });

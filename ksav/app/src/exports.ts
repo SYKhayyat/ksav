@@ -26,7 +26,7 @@ import { flushSaves } from "./save";
  * Export.
  */
 function warnIfHealed() {
-  const n = analyze(runtime.docText()).problems.length;
+  const n = healedCount();
   if (n) runtime.setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
 }
 
@@ -77,14 +77,22 @@ export async function exportTypst() {
  * fallback for the web export when Typst's HTML backend cannot handle a
  * document. It is not reflowable and is not what "Export HTML" should mean.
  */
-function pageImageHtml(): string {
+function pageImageHtml(banner = ""): string {
   const pages = (runtime.lastResult?.pages_svg || [])
     .map((s) => `<div class="page">${s}</div>`)
     .join("\n");
   return `<!doctype html><html dir="${docConfig().dir}"><head><meta charset="utf-8">
 <title>${escapeAttr(runtime.currentDoc?.title ?? "Ksav")}</title><style>body{background:#e5e7eb;margin:0;padding:24px}
 .page{background:#fff;max-width:820px;margin:0 auto 24px;box-shadow:0 2px 12px rgba(0,0,0,.15)}
-.page svg{width:100%;height:auto;display:block}</style></head><body>${pages}</body></html>`;
+.page svg{width:100%;height:auto;display:block}
+.healed{background:#fef3c7;border:1px solid #d97706;color:#78350f;max-width:820px;
+  margin:0 auto 24px;padding:10px 14px;border-radius:6px;font:14px system-ui,sans-serif}
+@media print{.healed{display:none}}</style></head><body>${banner}${pages}</body></html>`;
+}
+
+/** How many closers the preview is holding that the writer never typed. */
+function healedCount(): number {
+  return analyze(runtime.docText()).problems.length;
 }
 
 /**
@@ -97,11 +105,16 @@ function pageImageHtml(): string {
  */
 export async function exportHtml() {
   runtime.closeMenus();
-  const html = await reflowableHtml();
+  const { html, why } = await reflowableHtml();
   download(
     runtime.fileStem() + ".html",
     new Blob([html ?? pageImageHtml()], { type: "text/html;charset=utf-8" }),
   );
+  // This is the one route the fallback sentence is true of, so this is where it
+  // is said. A file *was* produced; it is pictures rather than text, and that is
+  // worth a line because it is not what "Export HTML" implies.
+  if (!html) runtime.setStatus(t("htmlFellBack") + (why ? ` — ${why}` : ""), "warn");
+  else warnIfHealed();
 }
 
 // ---------------------------------------------------------------- Word handoff
@@ -168,10 +181,23 @@ function splitHtml(html: string): { inner: string; styles: string } {
   return { inner: body ? body[1] : html, styles };
 }
 
+/**
+ * Say that the Word handoff produced nothing, and why.
+ *
+ * Both Word routes used to `return` here in silence, on top of a status line
+ * `reflowableHtml` had already set to "exporting page images instead" — so the
+ * writer was told an export had happened, in a shape they did not ask for, when
+ * in fact no file existed and nothing was on the clipboard. Refusing is correct;
+ * refusing quietly under somebody else's announcement is not.
+ */
+function wordUnavailable(why: string) {
+  runtime.setStatus(`✗ ${t("wordNoHtml")}${why ? ` — ${why}` : ""}`, "err", why);
+}
+
 export async function exportWord() {
   runtime.closeMenus();
-  const html = await reflowableHtml();
-  if (!html) return;
+  const { html, why } = await reflowableHtml();
+  if (!html) return wordUnavailable(why);
   const { inner, styles } = splitHtml(html);
   // `.doc` (not `.docx`): Word opens HTML under this extension and converts it,
   // and the writer can then Save As a genuine .docx from inside Word.
@@ -185,8 +211,8 @@ export async function exportWord() {
 /** The same content onto the clipboard, for pasting into an already-open Word. */
 export async function copyForWord() {
   runtime.closeMenus();
-  const html = await reflowableHtml();
-  if (!html) return;
+  const { html, why } = await reflowableHtml();
+  if (!html) return wordUnavailable(why);
   const { inner, styles } = splitHtml(html);
   const full = wordEnvelope(inner, styles);
   try {
@@ -226,8 +252,26 @@ export function doPrint() {
   if (!w) return;
   // Printing wants the page images: what comes out of the printer must look
   // exactly like the PDF, which reflowable HTML would not.
-  w.document.write(pageImageHtml());
+  //
+  // Those images come from `lastResult`, which is the *preview* compile — and
+  // the preview is compiled from the speculatively healed copy. So on a document
+  // with an unbalanced bracket this is the one route that puts closers the
+  // writer never typed onto paper, and it was the one route that said nothing:
+  // Export PDF refuses with a compile error and every other route calls
+  // `warnIfHealed`. Two answers about one document, and the silent one was the
+  // irreversible one.
+  //
+  // The warning goes in the print window as well as the status bar, because the
+  // status bar is behind whatever the browser just opened over it — and the
+  // banner carries `@media print { display: none }`, so it is on the screen the
+  // writer is looking at and never on the paper.
+  const healed = healedCount();
+  const banner = healed
+    ? `<div class="healed">⚠ ${escapeAttr(tf("previewHealed", healed))}</div>`
+    : "";
+  w.document.write(pageImageHtml(banner));
   w.document.close();
   w.focus();
+  warnIfHealed();
   setTimeout(() => w.print(), 300);
 }

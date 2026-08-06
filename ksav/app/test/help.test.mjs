@@ -30,13 +30,32 @@ export async function run() {
 
 {
   // Nothing may reach the reader as a raw i18n key.
-  for (const s of helpSections(base)) {
-    ok(`${s.title}: has a translated title`, !!DICTS.en[s.title] || s.title.includes("."));
-    for (const e of s.entries) {
-      ok(`${s.title}: "${e.what}" is not a raw key`, !/^[a-z]+\.[a-zA-Z]+$/.test(e.what));
-      ok(`${s.title}: "${e.what}" has a way to do it`, e.how.length > 0);
-    }
-  }
+  //
+  // Three assertions, not 285. This was a loop over 5 sections × 140 entries
+  // asserting the same two predicates one entry at a time, which is 92% of this
+  // file's assertion count and one fact: *no entry is untranslated*. A `filter`
+  // says it once and says it better, because when it fails it names every
+  // offender at once instead of stopping at whichever one the loop reached
+  // first. Assertion counts are not coverage, and this file was the clearest
+  // case of the two being confused in the suite.
+  const sections = helpSections(base);
+  check(
+    "every section title is translated",
+    sections.filter((s) => !DICTS.en[s.title] && !s.title.includes(".")).map((s) => s.title),
+    [],
+  );
+  const entries = sections.flatMap((s) => s.entries.map((e) => ({ ...e, section: s.title })));
+  ok("there are entries to check", entries.length > 100);
+  check(
+    "no entry reaches the reader as a raw i18n key",
+    entries.filter((e) => /^[a-z]+\.[a-zA-Z]+$/.test(e.what)).map((e) => `${e.section}: ${e.what}`),
+    [],
+  );
+  check(
+    "and every entry says how to do the thing",
+    entries.filter((e) => !e.how.length).map((e) => `${e.section}: ${e.what}`),
+    [],
+  );
 }
 
 // ---------------------------------------------------------------- it tells the truth

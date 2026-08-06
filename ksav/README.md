@@ -271,8 +271,11 @@ pages must be exactly the tracked set, so a new `.md` is fenced by arriving; and
 a log must be exempted *from something*, so a clean page cannot be quietly
 excused. That last rule exists because the first version of this fence did not
 have it, and adding a living page to the log list with a plausible sentence
-turned its sweep off with the suite green — `registry.rs`'s `ONLY_AT_TOP`,
-rebuilt inside the check written against it.
+turned its sweep off with the suite green — `ONLY_AT_TOP`, rebuilt inside the
+check written against it. (That constant is gone: it exempted nine commands from
+`registry.rs`'s nesting sweep, six of them were being compiled in those exact
+nestings by `insertion.rs` at the same time, and both tests were green. The file
+is deleted and `the_grid_exempts_nothing` asserts the grid has no holes instead.)
 
 Two facts live in `test/run.mjs` instead: how many assertions the suite runs and
 across how many files. Nothing knows those without running, and a test that
@@ -439,7 +442,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,595 editor assertions, 367 engine
+- [x] **CI, running and green** — typecheck, 3,482 editor assertions, 366 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -500,9 +503,9 @@ one place they are developed.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,595 assertions across 50 files
+cd app && npm test                          # 3,482 assertions across 58 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 367 tests, 24 binaries
+cargo test --manifest-path engine/Cargo.toml            # 366 tests, 23 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -514,13 +517,27 @@ lexicons answered). The built package is git-ignored and produced locally, so
 without that job the entire no-server build could break and every other check
 would still be green.
 
-The editor's runner (`app/test/run.mjs`) builds the modules listed in `MODULES`
-and executes every `app/test/*.test.mjs`, so **adding a test is adding a file** —
-that friction is how a suite ends up with one file in it, which is where this one
-started. `app/test/harness.mjs` installs `localStorage` and IndexedDB shims, and
-its `localStorage.quota` is settable, because the bug most of these tests exist to
+The editor's runner (`app/test/run.mjs`) builds **every module in `app/src`** and
+executes every `app/test/*.test.mjs`, so **adding a test is adding a file** — that
+friction is how a suite ends up with one file in it, which is where this one
+started.
+
+The module list is read off the directory, and that is a fix rather than a
+convenience: it used to be a hand-written array, nothing compared it to `src/`, it
+had stopped growing at 43 of 62 names, and **no test imported any of the other
+nineteen** — `exports.ts`, `compile.ts`, `save.ts`, `files.ts` and `ksav-lang.ts`
+among them. `app/test/runner.test.mjs` is what keeps it honest: every module is
+built or declared unbuildable in `app/test/modules.mjs` *with a reason that file
+executes*, every module is imported by at least one test, and no test may bundle
+its own private copy of a module — which was the visible symptom last time. A
+module added to `src/` with no test turns the suite red, by name.
+
+`app/test/harness.mjs` installs `localStorage` and IndexedDB shims — its
+`localStorage.quota` is settable, because the bug most of these tests exist to
 prevent is what happens *at* the quota and waiting for a real 4.5 MB to fill is
-not a test, it is a delay.
+not a test, it is a delay — plus `fakeView`, a real `EditorState` behind a fake
+screen, and `installChrome`, which is how a test reads the status bar. The status
+bar is where most of this product's bugs are visible.
 
 ## Rebuild the lexicons
 

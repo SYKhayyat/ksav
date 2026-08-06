@@ -227,24 +227,31 @@ export async function compileForExport(
 }
 
 /**
- * Ask the engine for reflowable HTML. Returns null (having said why) when
- * Typst's HTML backend cannot handle this document — page images are useless
- * for the Word handoff, because a picture is exactly what Word cannot edit.
+ * Ask the engine for reflowable HTML. Returns null when Typst's HTML backend
+ * cannot handle this document — page images are useless for the Word handoff,
+ * because a picture is exactly what Word cannot edit.
+ *
+ * It reports the *reason* and not the outcome, which is the correction. It used
+ * to set the status line itself, to "Typst's HTML export failed — exporting page
+ * images instead" — a sentence describing what its caller was going to do next.
+ * That was true of `exportHtml`, which does fall back, and false of `exportWord`
+ * and `copyForWord`, which return without producing anything. So the one route
+ * where nothing at all happened was the route that announced a successful export
+ * of page images. A layer that knows how a document failed does not know what
+ * its caller will do about it; each caller says what it did.
  */
-export async function reflowableHtml(): Promise<string | null> {
+export async function reflowableHtml(): Promise<{ html: string | null; why: string }> {
   const backend = runtime.backend;
-  if (!backend) return null;
+  if (!backend) return { html: null, why: "" };
   try {
     const res = (await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
       parts: await includedParts(withPreamble(runtime.docText()).body),
       format: "html",
     })) as unknown as { ok: boolean; html?: string; diagnostics?: { message: string }[] };
-    if (res.ok && res.html) return res.html;
-    const why = res.diagnostics?.[0]?.message ?? "";
-    runtime.setStatus(t("htmlFellBack") + (why ? ` — ${why}` : ""), "warn");
-  } catch {
-    runtime.setStatus(t("htmlFellBack"), "warn");
+    if (res.ok && res.html) return { html: res.html, why: "" };
+    return { html: null, why: res.diagnostics?.[0]?.message ?? "" };
+  } catch (e) {
+    return { html: null, why: troubleSaid(e, "compile").said };
   }
-  return null;
 }

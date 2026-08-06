@@ -375,6 +375,7 @@ const HE: Dict = {
   copyForWord: "העתקה ל‑Word",
   copiedForWord: "הועתק — הדביקו בתוך Word.",
   copyFailed: "ההעתקה נכשלה — נסו \"ייצוא ל‑Word\" במקום.",
+  wordNoHtml: "ייצוא ל‑Word דורש HTML זורם, והמסמך הזה אינו מתקמפל אליו. לא נוצר קובץ.",
   wordFlattenNote:
     "מנגנון ההערות המורכב (זרמים, מדפים, הערות צד) משתטח ב‑Word. טקסט, כותרות, הדגשות, רשימות, טבלאות והערות שוליים רגילות עוברים.",
   // bracket healing
@@ -976,6 +977,7 @@ const EN: Dict = {
   copyForWord: "Copy for Word",
   copiedForWord: "Copied — paste into Word.",
   copyFailed: "Copy failed — use \"Word (.doc)\" instead.",
+  wordNoHtml: "The Word handoff needs reflowable HTML, and this document does not compile to it. No file was produced.",
   wordFlattenNote:
     "The multi-layer apparatus (streams, bands, side notes) flattens in Word. Text, headings, emphasis, lists, tables and plain footnotes carry across.",
   lintUnclosedCmd: "#{0} is opened here and never closed.",

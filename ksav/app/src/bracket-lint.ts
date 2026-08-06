@@ -36,8 +36,15 @@ function healOne(view: EditorView, p: Problem) {
   } else if (fresh.kind === "stray") {
     view.dispatch({ changes: { from: fresh.pos, to: fresh.pos + 1, insert: "" } });
   } else {
+    // Taken from `analyze` rather than spelled again here. These were two
+    // copies of one repair and they had drifted: this one appended `\n*/` and
+    // the batch repair appended `*/`, so healing one problem and healing all of
+    // them produced different documents — and only one of them kept the line
+    // count the diagnostic mapping depends on. Two spellings of one decision is
+    // the defect family this repository is named for; there is one now.
     const end = view.state.doc.length;
-    view.dispatch({ changes: { from: end, to: end, insert: "\n*/" } });
+    const edit = analyze(text).edits.find((e) => e.from === text.length);
+    view.dispatch({ changes: { from: end, to: end, insert: edit?.insert ?? "*/" } });
   }
 }
 

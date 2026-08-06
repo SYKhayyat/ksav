@@ -1,7 +1,11 @@
 //! Every command, at every kind of caret position, compiled.
 //!
-//! `registry.rs` compiles each snippet standalone and in three fixed nestings.
-//! That is not where the writer is. The writer is *between two list items*, and
+//! `registry.rs` used to compile each snippet standalone and in three fixed
+//! nestings — and that is not where the writer is. It is gone now and its two
+//! surviving tests are at the bottom of this file; the reason it is gone is
+//! written out there.
+//!
+//! The writer is *between two list items*, and
 //! there the editor wrote markup that would not compile — for every command in
 //! the registry, without exception, in three separate positions. 384 of 1,026
 //! documents failed the first time this grid was swept, and every test in the
@@ -26,6 +30,7 @@ const FIXTURE: &str = include_str!("fixtures/insertions.json");
 struct Case {
     ctx: String,
     cmd: String,
+    en: String,
     legal: bool,
     reason: Option<String>,
     source: String,
@@ -40,6 +45,7 @@ fn cases() -> Vec<Case> {
         .map(|c| Case {
             ctx: c["ctx"].as_str().unwrap().to_string(),
             cmd: c["cmd"].as_str().unwrap().to_string(),
+            en: c["en"].as_str().unwrap().to_string(),
             legal: c["legal"].as_bool().unwrap(),
             reason: c["reason"].as_str().map(str::to_string),
             source: c["source"].as_str().unwrap().to_string(),
@@ -108,4 +114,220 @@ fn every_refused_insertion_would_really_have_failed() {
         "nothing is refused anywhere — is `legalAt` wired up?"
     );
     assert!(wrong.is_empty(), "over-refusal:\n{}", wrong.join("\n"));
+}
+
+// ---------------------------------------------------------------- both languages
+//
+// Both survivors of `registry.rs`, which is gone.
+//
+// `registry.rs` held `ONLY_AT_TOP`: nine commands exempted from its nesting
+// sweep, each with a written reason, and `continue`d past. An entry there was
+// **unfalsifiable by construction** — a listed command could never make the test
+// red no matter what it did — and six of the nine were wrong. `תוכן`,
+// `הערות_בסוף`, `הערות_בסוף_צד`, `הערות_מדורגות`, `מפתח_ענינים` and
+// `מפתח_מקורות` are all `legal: true` in `note-body`, `list-in-item` and
+// `table-in-cell` in this very fixture, and were being compiled there, and
+// passing. So one test asserted they nest and another skipped them for not
+// being able to, and both were green: two surfaces, one lying, nothing to catch
+// it — reproduced inside the suite that exists to detect exactly that.
+//
+// The grid has no skip list. Where a command may go is stated once, by
+// `mode.ts`'s `legalAt`, where the UI reads it, and it is checked in *both*
+// directions above: a legal case must compile, and a refused case must really
+// fail. A wrong exemption cannot hide in that, because there are no exemptions
+// — only claims the compiler settles.
+//
+// **On widening this grid to English, which was tried and is wrong.** The
+// obvious next step is to compile every case again with the command names
+// swapped for their English pair, so the English half of the language gets the
+// 1,035 compiled documents the Hebrew half has. It was built, and it fails, and
+// the failures are about the fixture rather than the product: the Insert menu,
+// the toolbar and the palette all write `c.insert` **verbatim**, so the app
+// never writes an English registry name into anything. An English writer who
+// picks Footnote gets `#הערה[]` in their English document. So a grid of English
+// insertions asserts a path no writer can reach, and its failures — a Hebrew
+// parameter name left inside an English call — are artefacts of the swap.
+//
+// What the English half really needs is not this. It is either the product
+// change (translate the insertion by the document's language, the way
+// `lists.ts`, `headings.ts`, `table.ts` and `note-commands.ts` already do) or
+// nothing; and the English forms the app *does* write are already compiled, in
+// `structure-edits.json`, twelve English documents of them. The name check
+// below is what is honestly assertable here, and it is stated as exactly that.
+
+/// Every registry name resolves to something in the prelude, in both languages.
+///
+/// Moved from `registry.rs`. A command offered by name that the compiler has
+/// never heard of is the purest form of the product lying to the writer — and
+/// unlike the sweeps above, this one covers the commands whose *body* cannot be
+/// filled in usefully, so it stays as its own statement rather than being
+/// implied by them.
+#[test]
+fn every_command_exists_in_both_languages() {
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for c in cases() {
+        if !seen.iter().any(|(h, _)| *h == c.cmd) {
+            seen.push((c.cmd.clone(), c.en.clone()));
+        }
+    }
+    assert!(
+        seen.len() > 90,
+        "the registry collapsed to {} commands",
+        seen.len()
+    );
+    let mut missing = Vec::new();
+    for (he, en) in &seen {
+        for name in [he, en] {
+            if compiles(&format!("#{{ let _ = {name} }}\n")).is_err() {
+                missing.push(format!("{name} (from #{he})"));
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "{} registry name(s) do not exist in the prelude:\n{}",
+        missing.len(),
+        missing.join("\n"),
+    );
+}
+
+/// A command given text puts that text on the page.
+///
+/// Moved from `registry.rs`, and the other half of "does it work": the sweeps
+/// above prove a snippet *compiles*, and a command that compiles to nothing at
+/// all is the failure the chooser and `coverage.test.mjs` exist against.
+///
+/// `RENDERS_ELSEWHERE` is a narrowing of one assertion rather than a skip list.
+/// The difference is the whole reason `ONLY_AT_TOP` is gone: an entry here
+/// excuses a command from *this* claim only, and every one of these commands is
+/// still compiled in nine contexts, in two languages, above. An entry in
+/// `ONLY_AT_TOP` removed a command from every assertion in its file.
+///
+/// Two very different things are in it, and the difference is worth writing out.
+/// Most are correct by design: a marker prints nothing, a reference prints a
+/// number rather than its own name, an index entry prints in the index, and
+/// maths reaches the page as math italics rather than the ASCII that was typed.
+/// The `מדור_*` bands and `הערתסיום` are correct only in the sense that a loaded
+/// gun is correct — they collect their text and print nothing until a matching
+/// dump call exists somewhere. The old file's comment ended "until that exists
+/// this comment is the record that it is owed." It exists: `apparatus.ts` finds
+/// them, `apparatus-lint.ts` offers the dump call, and `lints.test.mjs` holds it.
+#[test]
+fn a_command_given_text_shows_that_text() {
+    const RENDERS_ELSEWHERE: &[(&str, &str)] = &[
+        ("מדור_א", "collected; prints where #הערות_מדורגות() is called"),
+        ("מדור_ב", "collected; prints where #הערות_מדורגות() is called"),
+        ("מדור_ג", "collected; prints where #הערות_מדורגות() is called"),
+        ("מדור_בדרגה", "collected; prints where #הערות_מדורגות() is called"),
+        ("הערתסיום", "collected; prints where #הערות_בסוף() is called"),
+        ("גוף_הערה", "a deferred body: prints at its marker, not its definition"),
+        ("ערך", "an index entry: its text prints in the generated index"),
+        ("נוסחה", "maths: reaches the page as math italics, not as the ASCII typed"),
+        ("נוסחה_בשורה", "maths, inline: the same"),
+        ("סימניה", "a marker: prints nothing by design"),
+        ("הפניה", "a reference: prints a number, not its own name"),
+        ("כלול", "includes another document; there is no other document here"),
+        ("הערת_עורך", "an editorial comment: renders in review mode and never prints"),
+    ];
+    const MARK: &str = "טקסטמיוחד";
+
+    let mut swallowed = Vec::new();
+    let mut checked = 0;
+    // The `prose` row is the plain case — one command in a paragraph, which is
+    // where "did it print" has an unambiguous answer.
+    for c in cases().iter().filter(|c| c.ctx == "prose" && c.legal) {
+        if c.cmd.starts_with("הגדרות") || RENDERS_ELSEWHERE.iter().any(|(n, _)| *n == c.cmd) {
+            continue;
+        }
+        // Only a snippet with an empty slot has somewhere to put the text.
+        if !c.source.contains("[]") {
+            continue;
+        }
+        let src = c.source.replacen("[]", &format!("[{MARK}]"), 1);
+        let Ok(doc) = probe::layout(&src, &DocConfig::default()) else {
+            continue; // owned by the compile sweep above
+        };
+        checked += 1;
+        let page: String = probe::text_runs(&doc)
+            .iter()
+            .map(|r| r.text.as_str())
+            .collect();
+        if !page.contains(MARK) {
+            swallowed.push(format!("#{} → {}", c.cmd, src.replace('\n', "⏎")));
+        }
+    }
+    assert!(
+        checked > 30,
+        "only {checked} commands had a text slot — has the fixture changed shape?"
+    );
+    assert!(
+        swallowed.is_empty(),
+        "{} command(s) were given text and did not print it:\n{}",
+        swallowed.len(),
+        swallowed.join("\n"),
+    );
+}
+
+/// No command is exempt from the grid, and the nine that used to be are in it.
+///
+/// This is the fence over the deletion. `ONLY_AT_TOP` listed nine commands that
+/// `registry.rs` skipped, and six of them were being compiled in exactly the
+/// contexts it claimed they could not appear in — by this file, passing, at the
+/// same time. The way that comes back is not somebody re-adding the constant; it
+/// is a `continue` inside one of the sweeps above, or a command quietly dropping
+/// out of the fixture. So the shape of the grid is asserted rather than assumed:
+/// every command × every context, no gaps, and a judgement recorded for each.
+#[test]
+fn the_grid_exempts_nothing() {
+    let all = cases();
+    let mut commands: Vec<&str> = all.iter().map(|c| c.cmd.as_str()).collect();
+    commands.sort_unstable();
+    commands.dedup();
+    let mut contexts: Vec<&str> = all.iter().map(|c| c.ctx.as_str()).collect();
+    contexts.sort_unstable();
+    contexts.dedup();
+
+    assert_eq!(
+        all.len(),
+        commands.len() * contexts.len(),
+        "the grid has holes: {} commands × {} contexts should be {} cases, not {}",
+        commands.len(),
+        contexts.len(),
+        commands.len() * contexts.len(),
+        all.len(),
+    );
+
+    // The nine, by name. Six of them were exempted from nesting while being
+    // compiled nested here; two are genuinely top-level and the grid says so
+    // itself, by refusing them — which is a claim `every_refused_insertion`
+    // above then has to make good on against the compiler.
+    const FORMERLY_EXEMPT: &[&str] = &[
+        "מקטע_עמוד",
+        "מעבר_עמוד",
+        "תוכן",
+        "הערות_בסוף",
+        "הערות_בסוף_צד",
+        "הערות_מדורגות",
+        "מפתח_ענינים",
+        "מפתח_מקורות",
+    ];
+    for name in FORMERLY_EXEMPT {
+        let rows: Vec<&Case> = all.iter().filter(|c| c.cmd == *name).collect();
+        assert_eq!(
+            rows.len(),
+            contexts.len(),
+            "#{name} is missing from {} of the {} contexts — it is being skipped again",
+            contexts.len() - rows.len(),
+            contexts.len(),
+        );
+        // And every refusal carries a reason. An exemption with no reason is how
+        // the old list started.
+        for r in rows.iter().filter(|r| !r.legal) {
+            assert!(
+                r.reason.as_deref().is_some_and(|s| s.len() > 3),
+                "#{name} is refused in {} with no reason given",
+                r.ctx
+            );
+        }
+    }
 }

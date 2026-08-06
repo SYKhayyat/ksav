@@ -10,57 +10,22 @@ import { build } from "esbuild";
 import { readdir, rm, readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
+import { buildableModules } from "./modules.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const APP = path.resolve(HERE, "..");
 const OUT = path.join(APP, ".tmp-test");
 
-/** The modules a test may import. Bundled, so their own imports come along. */
-const MODULES = [
-  "api",
-  "apparatus",
-  "bidi",
-  "bindings",
-  "brackets",
-  "commands",
-  "deferred",
-  "diff",
-  "diagnostics",
-  "diagview",
-  "docs",
-  "docx",
-  "engine.gen",
-  "focus",
-  "headings",
-  "help",
-  "hydra",
-  "i18n",
-  "jump",
-  "lists",
-  "store",
-  "structure",
-  "macros",
-  "markdown",
-  "mode",
-  "note-commands",
-  "notes",
-  "panels",
-  "parts",
-  "preview",
-  "review",
-  "ruler",
-  "sefarim",
-  "services.gen",
-  "spans",
-  "settings",
-  "share",
-  "styles",
-  "table",
-  "spell",
-  "typst-escape",
-  "update",
-  "watch",
-];
+/**
+ * The modules a test may import. Bundled, so their own imports come along.
+ *
+ * Read off `src/` rather than written out, because a hand-written list is a
+ * second statement of what the application consists of and it drifted: it named
+ * 43 of 62 modules, and the nineteen it left out had no test between them.
+ * `test/modules.mjs` holds the two exemptions and `runner.test.mjs` checks both
+ * of them against reality.
+ */
+const MODULES = buildableModules(path.join(APP, "src"));
 
 await rm(OUT, { recursive: true, force: true });
 
@@ -70,6 +35,17 @@ await build({
   outExtension: { ".js": ".mjs" },
   format: "esm",
   bundle: true,
+  // One copy of each module across the whole build, not one per entry point.
+  //
+  // Without this esbuild inlines a private copy of every dependency into every
+  // entry, so `.tmp-test/exports.mjs` and `.tmp-test/runtime.mjs` held two
+  // different `runtime` singletons and a test could not put a document in front
+  // of the module it was testing. Every cross-module fact in the application —
+  // the editor, the backend, the last compile, the open document, all of which
+  // live in exactly one place at runtime — was therefore untestable, silently:
+  // the calls succeed, they just land on a different copy. Code splitting makes
+  // the test build agree with the shipped one, where there is one of each.
+  splitting: true,
   platform: "neutral",
   // Nothing under test imports these, and pulling them in would make a unit
   // test of a data module depend on the whole editor.

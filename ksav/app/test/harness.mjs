@@ -11,6 +11,7 @@
 // this import first is enough.
 
 import "fake-indexeddb/auto";
+import { EditorState } from "@codemirror/state";
 
 // ---------------------------------------------------------------- globals
 
@@ -184,6 +185,112 @@ export async function resetStorage() {
     tx.onerror = tx.onabort = () => reject(tx.error);
   });
   db.close();
+}
+
+// ---------------------------------------------------------------- the chrome
+
+/**
+ * The smallest `document` the status bar can be read off, installed for the
+ * duration of one test file.
+ *
+ * Almost everything a writer does ends in a sentence in the status bar, and for
+ * the whole family of bugs this repository is named for that sentence *is* the
+ * bug — a note moved and nothing said so, a Word export that produced no file
+ * and announced page images. So a test that cannot read the status bar cannot
+ * assert the thing that was wrong.
+ *
+ * Installed and removed rather than left in place, for the reason at the top of
+ * this file: a `document` on `globalThis` convinces `@codemirror/view` it is in
+ * a browser, and the next test file is imported *after* this one has run.
+ * `extra` is merged in for the few tests that need more of a DOM than this.
+ */
+export function installChrome(extra = {}) {
+  const names = ["document", "window", "URL", "navigator", "ClipboardItem"];
+  const saved = Object.fromEntries(
+    names.map((k) => [k, Object.getOwnPropertyDescriptor(globalThis, k)]),
+  );
+  const set = (k, v) =>
+    Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+
+  const nodes = {
+    status: { textContent: "", className: "", title: "", removeAttribute() { this.title = ""; } },
+    diagnostics: { textContent: "", title: "", className: "" },
+  };
+
+  set("document", {
+    getElementById: (id) => nodes[id] ?? null,
+    // `closeMenus` sweeps the header dropdowns on the way out of most actions.
+    querySelectorAll: () => [],
+    createElement: (tag) => ({
+      tagName: String(tag).toUpperCase(),
+      className: "",
+      children: [],
+      setAttribute(k, v) { this[k] = v; },
+      addEventListener() {},
+      append(...c) { this.children.push(...c); },
+      click() {},
+    }),
+    body: { append() {} },
+    ...extra.document,
+  });
+  set("window", { setTimeout: (fn) => fn, addEventListener() {}, removeEventListener() {}, ...extra.window });
+
+  return {
+    /** What the writer would read, right now. */
+    status: () => nodes.status.textContent,
+    /** And which colour it is in: "", "ok", "warn" or "err". */
+    statusClass: () => nodes.status.className,
+    clear: () => {
+      nodes.status.textContent = "";
+      nodes.status.className = "";
+    },
+    nodes,
+    set,
+    restore() {
+      for (const k of names) {
+        if (saved[k]) Object.defineProperty(globalThis, k, saved[k]);
+        else delete globalThis[k];
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------- the editor
+
+/**
+ * An editor made of a *real* `EditorState` and nothing else.
+ *
+ * Eleven modules take an `EditorView`, read `view.state`, and write through
+ * `view.dispatch` — the lints and their one-click repairs, the deferred-note
+ * key, the nikud bar, the error and change gutters. Every one of them was
+ * untestable until now, and the reason was never CodeMirror: it was that none of
+ * them was on `run.mjs`'s module list, so there was nothing to import.
+ *
+ * The state is genuine, so a `changes` spec is applied by the same code that
+ * applies it in the browser and a wrong offset produces a wrong document here
+ * exactly as it would there. What is faked is only what a view adds on top of a
+ * state — a screen. `@codemirror/view` is deliberately not imported: it reads a
+ * DOM at module scope, which is the note at the top of this file.
+ */
+export function fakeView(doc, pos = 0, extensions = []) {
+  let state = EditorState.create({ doc, selection: { anchor: Math.min(pos, doc.length) }, extensions });
+  return {
+    get state() {
+      return state;
+    },
+    dispatch(spec) {
+      state = state.update(spec).state;
+    },
+    /** What the writer would be looking at. */
+    text() {
+      return state.doc.toString();
+    },
+    caret() {
+      return state.selection.main.head;
+    },
+    focus() {},
+    scrollDOM: { scrollTop: 0 },
+  };
 }
 
 // ---------------------------------------------------------------- assertions

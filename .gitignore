@@ -46,6 +46,7 @@ ksav/engine/tools/.corpus-cache/
 
 # Front-end test scratch
 /ksav/app/.tmp-test/
+/ksav/app/.tmp-test-probe/
 
 # Locally built Linux installers
 /ksav/packaging/out/

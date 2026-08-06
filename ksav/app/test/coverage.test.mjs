@@ -78,17 +78,51 @@ const MAIN = read("main.ts");
 const commands = registry();
 ok("the registry was parsed at all", commands.length > 90);
 
-// A command is offered if the Insert menu can write it. That menu is generated
-// from the registry, so the test is really about what the generator excludes:
-// anything filtered out there has to be accounted for below.
+// A command is offered if the Insert menu can write it.
+//
+// This used to be `const inInsertMenu = (c) => !c.deprecated`, asserted once per
+// command — about a hundred assertions restating their own premise. The file's
+// stated purpose is "every command is reachable from a surface a pointer can
+// touch", and **it never looked at a surface**: it asked the registry a question
+// about the registry and agreed with itself, which is the exact failure it was
+// written to catch, one layer up.
+//
+// So the surface is read. `main.ts` builds the Insert menu by walking the
+// registry and dropping exactly one thing, and that is what makes `!deprecated`
+// a true statement about reachability rather than a definition of it. If the
+// generator ever grows a second filter, this goes red and the ~100 per-command
+// claims below stop being true all at once — which is why they can now be one
+// `filter` instead of a hundred `ok`s.
+{
+  const build = MAIN.slice(MAIN.indexOf("const cats: string[] = []"));
+  const loop = build.slice(0, build.indexOf("\n  }\n"));
+  ok("the Insert menu is built from the registry, not a list", /for \(const c of runtime\.commandsReg/.test(loop));
+  ok("its categories come from the registry too", /for \(const c of runtime\.commandsReg\) if \(!cats\.includes/.test(build));
+  ok("it writes the registry's own snippet", /insertSnippet\(c\.insert\)/.test(loop));
+  const filter = /commandsReg\.filter\(\(x\) => ([^)]*)\)/.exec(loop);
+  ok("the menu's filter was found", !!filter);
+  check(
+    "and the only command it drops is a deprecated one",
+    filter[1].replace(/x\.category === cat && ?/, "").trim(),
+    "!x.deprecated",
+  );
+  // Greyed, not hidden: a command that is illegal where the caret is stays in
+  // the menu with the reason on it. That is what keeps "offered" and "usable
+  // here" two different questions, and it is the reason this file can talk
+  // about reachability without knowing where the caret is.
+  ok("an illegal command is greyed rather than dropped", /disabled: legality\.ok \? null/.test(loop));
+}
+
 const inInsertMenu = (c) => !c.deprecated;
+check(
+  "every command with no written exemption is offered in the chrome",
+  commands.filter((c) => !NOT_OFFERED[c.he] && !inInsertMenu(c)).map((c) => c.he),
+  [],
+);
 
 for (const c of commands) {
   const exempt = NOT_OFFERED[c.he];
-  if (!exempt) {
-    ok(`#${c.he} is offered somewhere in the chrome`, inInsertMenu(c));
-    continue;
-  }
+  if (!exempt) continue;
   switch (exempt.kind) {
     case "deprecated":
       ok(`#${c.he}: exempt as deprecated, and the registry agrees`, c.deprecated);

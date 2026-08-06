@@ -7,6 +7,7 @@
 
 import { check, ok, notOk, rejects, resetStorage } from "./harness.mjs";
 import * as docs from "../.tmp-test/docs.mjs";
+import * as settings from "../.tmp-test/settings.mjs";
 import { StorageFullError } from "../.tmp-test/store.mjs";
 
 export async function run() {
@@ -216,6 +217,83 @@ export async function run() {
       // A document's own commands win over the fallback and are kept on re-save.
       const owned = docs.serializeDoc({ ...doc, customCommands: "#let own() = []" }, "#let other() = []");
       check("the document's own commands are what serialise", docs.parseDoc(owned, "F").customCommands, "#let own() = []");
+    }
+
+    // ------------------------------------------- page setup travels with the file
+    //
+    // Three pages of documentation said it did for as long as `serializeDoc`
+    // dropped it: `ksav/README.md` ("These travel with the file, so a sefer opens
+    // the same way on someone else's machine"), `docs/start-here.md` ("your
+    // words, your markup, and this document's page setup") and `docs/from-word.md`
+    // ("your document's own settings"). `config` lived in IndexedDB and never left
+    // the machine, so the promise was false on every route out of the app: Save,
+    // Save As, the crash-recovery backup, and duplicating a document.
+    //
+    // The oracle is the round trip, not a list of fields. What a document is laid
+    // out like is `pageSetup(own, defaults)` — so the property that matters is
+    // that reading a file back gives the *same laid-out document*, whatever it
+    // said. A field added to `PAGE_FIELDS` next year is covered by construction.
+    {
+      const laidOut = (own) => settings.pageSetup(own, settings.defaultPageSetup());
+      const roundTrip = (own) =>
+        settings.pageSetup(
+          docs.parseDoc(docs.serializeDoc({ title: "T", body: "גוף", assets: [], config: own }), "F")
+            .config,
+          settings.defaultPageSetup(),
+        );
+
+      const shipped = settings.defaultPageSetup();
+      const CORPUS = [
+        ["says nothing", {}],
+        ["one field", { paper: "letter" }],
+        ["the whole shipped setup, restated", { ...shipped }],
+        ["a two-sided sefer", { two_sided: true, margin_inner_cm: 3, margin_outer_cm: 1.5, gutter_cm: 0.5 }],
+        ["an English document", { dir: "ltr", font: "EB Garamond", size_pt: 11 }],
+        ["empty strings, which are answers", { header: "", footer: "", header_odd: "" }],
+        ["a zero, which is also an answer", { first_line_indent_em: 0, margin_cm: 0 }],
+        ["falsehood, which is an answer too", { justify: false, numbering: false, pdf_tagged: false }],
+        ["the one array", { keywords: ["הלכה", "שבת"] }],
+        ["metadata", { title: "ספר הזכרון", author: "פלוני", pdf_standard: "a-3b" }],
+      ];
+      for (const [what, own] of CORPUS) {
+        check(`page setup survives the file: ${what}`, JSON.stringify(roundTrip(own)), JSON.stringify(laidOut(own)));
+      }
+
+      // The other half of the promise: a document laid out the shipped way is
+      // still a text file somebody can `cat`, which is what `docs/from-word.md`
+      // sells `.ksav` on. Writing the setup unconditionally would have cost that.
+      check(
+        "a document laid out the shipped way is still plain text",
+        docs.serializeDoc({ title: "T", body: "גוף", assets: [], config: { ...shipped } }),
+        "גוף",
+      );
+      ok(
+        "…and one that says something is not",
+        docs
+          .serializeDoc({ title: "T", body: "גוף", assets: [], config: { paper: "letter" } })
+          .includes('"paper": "letter"'),
+      );
+      check(
+        "only what the defaults do not already say is written",
+        Object.keys(JSON.parse(docs.serializeDoc({ title: "T", body: "b", assets: [], config: { ...shipped, paper: "letter" } })).config),
+        ["paper"],
+      );
+
+      // The file is somebody else's JSON, and this field goes on to a compile
+      // request. A hand-edited one must not be able to put a shape the engine
+      // cannot read into it — and must not cost the writer the keys beside it.
+      // Written as raw JSON, not built from an object literal: `__proto__` in a
+      // literal sets a prototype instead of a key, which would test nothing.
+      const hostile =
+        '{"format":"ksav-document","version":1,"title":"T","body":"b","assets":[],' +
+        '"config":{"paper":{},"size_pt":"big","dir":"rtl","keywords":[1,2],' +
+        '"nonsense":7,"__proto__":{"polluted":true}}}';
+      const read = docs.parseDoc(hostile, "F").config;
+      check("a hand-edited file cannot smuggle a shape in", JSON.stringify(read), JSON.stringify({ dir: "rtl" }));
+      check("…and a config that is not an object is simply absent", docs.parseDoc(
+        JSON.stringify({ format: "ksav-document", version: 1, title: "T", body: "b", assets: [], config: "letter" }),
+        "F",
+      ).config, undefined);
     }
 
     check("plain text parses as a body", docs.parseDoc("just text", "F").body, "just text");

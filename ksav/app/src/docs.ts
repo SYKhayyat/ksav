@@ -25,7 +25,7 @@
 // a cache, and `init` rebuilds it from IndexedDB whenever it goes missing or
 // disagrees, so it can never become the authority on what exists.
 
-import { settingsPageSetup } from "./settings";
+import { settingsPageSetup, ownPageSetup, readPageSetup } from "./settings";
 import type { PageSetup } from "./settings";
 import * as store from "./store";
 import { DOCS, HISTORY, StorageFullError } from "./store";
@@ -236,14 +236,22 @@ export async function createDoc(
   body = "",
   assets: DocAsset[] = [],
   customCommands?: string,
+  config?: PageSetup,
 ): Promise<KsavDoc> {
   const doc: KsavDoc = { id: newId(), title, body, assets, updated: Date.now() };
   if (customCommands?.trim()) doc.customCommands = customCommands;
-  // A new document starts laid out the way this writer has said new documents
+  // A *new* document starts laid out the way this writer has said new documents
   // should be (B26) — `settingsPageSetup`, which is what *set as default* writes.
   // Carried on the document from birth rather than left absent, so that changing
   // the default later does not re-lay-out every sefer already written.
-  doc.config = settingsPageSetup();
+  //
+  // A document that came from somewhere — a file, a duplicate, an import — is
+  // handed the setup it arrived with, and an **empty** setup is a real answer
+  // rather than a missing one: it means *this document says nothing*, which
+  // `docConfig` lays out with the shipped defaults. That is the difference
+  // between a `.ksav` opening the same way on two machines and opening the way
+  // whoever opened it happens to like new documents.
+  doc.config = config ?? settingsPageSetup();
   await putDoc(doc);
   return doc;
 }
@@ -430,7 +438,14 @@ export function serializeDoc(doc: KsavDoc, fallbackCustom = ""): string {
   // compiles for whoever opens it, not only its author. `fallbackCustom` is the
   // app-wide set, embedded for a local document that never carried its own.
   const custom = (doc.customCommands ?? fallbackCustom).trim();
-  if (!doc.assets.length && !custom) return doc.body; // plain text stays the common case
+  // And so does its page setup — which three pages of documentation promised for
+  // as long as this function did not do it, and which is the whole of B26 seen
+  // from outside: a sefer that opens the same way on someone else's machine.
+  // `ownPageSetup` writes only what the shipped defaults do not already say, so
+  // a document laid out the shipped way still leaves here as plain text.
+  const config = ownPageSetup(doc.config);
+  const hasConfig = Object.keys(config).length > 0;
+  if (!doc.assets.length && !custom && !hasConfig) return doc.body; // the common case stays text
   return JSON.stringify(
     {
       format: FILE_MAGIC,
@@ -439,6 +454,7 @@ export function serializeDoc(doc: KsavDoc, fallbackCustom = ""): string {
       body: doc.body,
       assets: doc.assets,
       ...(custom ? { customCommands: custom } : {}),
+      ...(hasConfig ? { config } : {}),
     },
     null,
     2,
@@ -448,7 +464,13 @@ export function serializeDoc(doc: KsavDoc, fallbackCustom = ""): string {
 export function parseDoc(
   text: string,
   fallbackTitle: string,
-): { title: string; body: string; assets: DocAsset[]; customCommands?: string } {
+): {
+  title: string;
+  body: string;
+  assets: DocAsset[];
+  customCommands?: string;
+  config?: PageSetup;
+} {
   const trimmed = text.trimStart();
   if (trimmed.startsWith("{")) {
     try {
@@ -459,6 +481,10 @@ export function parseDoc(
           body: typeof v.body === "string" ? v.body : "",
           assets: Array.isArray(v.assets) ? (v.assets as DocAsset[]) : [],
           customCommands: typeof v.customCommands === "string" ? v.customCommands : undefined,
+          // Read through `readPageSetup` rather than cast: this is the one field
+          // that goes on to a compile request, and the file it came from is one
+          // somebody could have hand-edited.
+          config: readPageSetup(v.config),
         };
       }
     } catch {

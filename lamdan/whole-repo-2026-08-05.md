@@ -1315,6 +1315,144 @@ and the status bar says page images were exported.**
 
 **Verdict: `rewrite`.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done as prescribed in substance — the card is diffed, the counts are measured,
+> the links are checked — and in three places deliberately not as prescribed,
+> because the prescription would have documented a bug, exempted the wrong
+> files, and missed the one link check that mattered. The finding below is kept
+> verbatim; what follows is what replaced it, what it got wrong, what it missed,
+> and the mutation that caught the fence reproducing the disease.
+>
+> **Every row was re-verified before anything was changed, and the table holds.**
+> `docs/shortcuts.md` really was seventeen rows short and three rows wrong;
+> `ksav/README.md` really said 104 commands where `grep -c '^\s*cmd!('` says
+> **116**, and four CI jobs where `ci.yml` has **five** (`app`, `engine`, `fmt`,
+> `wasm`, `desktop`). The bindings are **52**, not 29 or 30. The Hebrew lexicon
+> is **269,357** entries, not 269,385 — and the finding's own correction was
+> right. Only the release-status row needed adjudicating rather than counting,
+> and it is settled below.
+>
+> **The claim that was a product bug, not a prose bug.** *"Page setup travels
+> with the file"* is listed here as a false claim, which reads as: correct the
+> prose. Corrected prose would have been a bug written down. `serializeDoc`
+> (`docs.ts:428`) wrote `{format, version, title, body, assets, customCommands}`
+> and `config: PageSetup` lived in IndexedDB, so the promise was false on
+> **every** route out of the application — Save, Save As, the crash-recovery
+> backup — and on one this finding does not mention: **duplicating a document**,
+> which copied the body and handed the copy the writer's *new-document* default,
+> so duplicating a Letter-sized sefer produced an A4 one.
+>
+> It is the serializer that is wrong, and the whole UX argues so: `docConfig`
+> lays a document out as *its own setup over the shipped defaults*, and
+> `ksav/README.md:120` calls page setup a fact about the sefer in as many words.
+> So `ownPageSetup` writes only what the shipped defaults do not already say —
+> which makes the round trip exact by construction, and keeps the other promise
+> the same three pages make, that *"a `.ksav` is text … somebody can read it with
+> `cat` in ten years"*: a document laid out the shipped way still leaves as plain
+> text rather than JSON. `readPageSetup` reads it back through `PAGE_FIELDS` with
+> a type check per key, because this is the one field that goes on to a compile
+> request out of a file somebody could have hand-edited.
+>
+> One behaviour changed on purpose. A `.ksav` carrying no page setup now opens
+> under the **shipped** defaults rather than the reader's new-document
+> preference, because a file that says nothing has said it is laid out the
+> shipped way, and "opens the same way on someone else's machine" is false
+> otherwise. *Set as default* still governs documents you start.
+>
+> **Three things this finding got wrong.**
+>
+> - **"in any tracked `.md`" is the wrong set, and this section's own closing
+>   argument says why.** Three of the fourteen tracked pages are append-only
+>   logs, and a dated entry reading "2,276 assertions" was true on its date;
+>   asserting over them would demand rewriting the record to satisfy a test. The
+>   sweep runs over *living* pages, and the log list is default-deny — the union
+>   of logs and living pages must be exactly the tracked set, so a new `.md` is
+>   fenced by arriving rather than by somebody remembering it.
+> - **Renaming `docs.test.mjs` costs more than the name.** The audit asks for it
+>   because that file tests `src/docs.ts` and "squats the obvious name". It does,
+>   and the project's one reliable convention is one test file per module;
+>   breaking it to free a filename trades a real invariant for a tidy one. The
+>   new file is `documentation.test.mjs`.
+> - **`LICENSE:24` is not a link, and a link check would never have caught it.**
+>   The finding offers it as evidence for item 3. It is a bare path in a
+>   sentence, wrapped across a line break (`engine/src/` / `spell.rs`), so the
+>   markdown-link sweep passes straight over it. It needs a second sweep over
+>   paths in prose — which, run over the living pages with fenced code blocks
+>   excluded, flags **exactly one** thing in the entire repository, and it is
+>   that one. (The real path is `engine/src/spell/hebrew.rs`, and the sentence's
+>   claim about it is true.)
+>
+> Item 4 of the prescription — the font notices — was already built by §3's fix
+> (`engine/src/notices.rs` ties them to the `include_bytes!` lines and to
+> `THIRD-PARTY-NOTICES.md` in both directions), so this was three items, not
+> four. **And "about eighty lines" is wrong in the same direction as §4, §7 and
+> §9's estimates and for the same reason**: it is ~430 across two files, most of
+> it the backward sweep and the argument for the partition. Brevity was not the
+> defect.
+>
+> **The release-status contradiction, adjudicated.** The finding says *"One is
+> false"* and does not say which. Asked of GitHub rather than reasoned about:
+> `v0.1.0` is `"draft": false` with nine assets on it. The root `README.md` was
+> right and `ksav/README.md` was carrying the stale half in two places — an open
+> checkbox reading *"the release is still a draft, so nothing is downloadable"*
+> and a paragraph in the packaging section saying the same. Both corrected.
+>
+> **Four it missed.**
+>
+> - **The card printed ten bare action ids**, in both languages —
+>   `` `list.indent` ``, `` `heading.promote` ``, eight more. Not a stale number:
+>   rows nobody had named. Except they *were* named. `STRUCTURE_ACTIONS` carries
+>   the i18n key the ribbon, the palette and the hydra all label them with; the
+>   generator simply did not look there, and inventing a second set of names
+>   would have been this repository's own bug family in a new place. It reads
+>   the actions now.
+> - **The Girsa links are fixable, and the finding says they are not.**
+>   *"Regenerating the card will not fix it"* is true and stops one question
+>   early: `SYKhayyat/girsa` is a **public repository**, so the link was pointing
+>   into an untracked sibling directory for no reason at all. All five sites —
+>   four pages and the hardcoded one in `card.mjs:109` — are now an absolute URL
+>   that resolves for every reader.
+> - **The lexicon header is a fourth copy nobody compared.** `lexicon-he.txt`'s
+>   generator writes `# 269357 entries` into its own header, and the docs quote
+>   the header. Nothing checked the header against the file it heads. It does
+>   now, and a stale header fails before it can become the authority.
+> - **`ksav/README.md` states the assertion count twice**, in two different
+>   sentences, and the finding counts it once.
+>
+> **The fence reproduced the disease, and the mutation is the reason this
+> paragraph exists.** The log-exemption list was written explicitly against
+> `registry.rs`'s `ONLY_AT_TOP` — checked for existence, for tracking, for a
+> stated reason, and for totality against the tracked set. Then: add
+> `docs/start-here.md` to it with a plausible sentence, and the backward sweep
+> switches off for a living page **with the suite green**. That is `ONLY_AT_TOP`
+> exactly, rebuilt inside the fence written to avoid it, and four honest-looking
+> checks did not see it. An exemption must now be *load-bearing* — a page may
+> only be a log if the sweep would actually have failed on it — so a clean page
+> cannot be excused from nothing.
+>
+> **Verified by mutation, nine ways, every one run.** A stale command count
+> restored; a *new* undeclared number written into `docs/`; the card edited by
+> hand; the `Ctrl+Alt+D` row put back to "Mark as deleted"; the Girsa link
+> returned to `../../Girsa/`; the `LICENSE` path returned to `spell.rs`; a log
+> dropped from the exemption list; a clean living page added to it; and a binding
+> label deleted so the card prints a bare id. Nine red. Two controls green: the
+> suite at rest, and the whole thing run again after each revert. Plus three on
+> the page-setup fix — the serializer dropping `config` again, `ownPageSetup`
+> ceasing to subtract, and `readPageSetup` trusting the file — all red.
+>
+> **Where each check lives, and the one split.** `documentation.test.mjs` owns
+> the card diff, the counted claims in both directions, both link sweeps and the
+> partition. Two facts are checked in `run.mjs` instead, after the tally: how
+> many assertions the suite runs and across how many files. Nothing can know
+> those without running, and a test that counted itself would be a number that
+> never settles — so the check lives where the answer is. It caught the README on
+> its first execution.
+>
+> Cost: 12 files, +2 test modules, +1 product fix. `npm test` 3,595 across 50
+> files (+67), `cargo test` 367 unchanged — the engine has no idea any of this
+> happened — `tsc` clean, `vite build` clean, `cargo clippy -D warnings` clean.
+
 `card.mjs:40-46` contains the complete diagnosis, in its own comment:
 
 > *"The card said '104 of them' for as long as there were 104, and then for a while
@@ -1570,7 +1708,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 1 | ✅ **Fixed 6 Aug.** Fourteen markup scanners (twelve counted, four more in `styles.ts`); six verified one-click contradictions, plus `#שער` outlined as a section it is not and a bracket heal that corrupted valid documents | `rewrite` → one `spans.ts` | ~1 week, 14 files, no visible change except the bugs |
 | 2 | ✅ **Fixed 5 Aug.** Ten dispatch sites, one checked; `sefarim` dead in wasm, 6 proxy routes missing, CSP diverged so the update check is dead on both installer builds | `rewrite` → one registry + `build.rs` assertions | ~2 days |
 | 3 | Nobody has written a document in it | `don't-build` the next wave | one kuntres |
-| 4 | 19 false/stale doc claims incl. two contradicting release-status statements and a false "page setup travels with the file" | `rewrite` → 80 lines of test | ~half a day |
+| 4 | ✅ **Fixed 6 Aug.** 19 false/stale doc claims; the release-status contradiction was `ksav/README.md`'s half (`v0.1.0` is published, verified against GitHub), and "page setup travels with the file" was a **product** bug — `serializeDoc` dropped `config` on every route out of the app, including duplicating a document. The card printed ten bare action ids; the Girsa links pointed into an untracked sibling of a public repository | `rewrite` → a card diff, a two-way count sweep, two link sweeps, a load-bearing exemption list | ~430 lines, not 80; 12 files, 9 mutations red — one of which caught the exemption list reproducing `ONLY_AT_TOP` |
 | 5 | ✅ **Fixed 6 Aug.** `ksav.typ` wrote the apparatus 3× and fixed one bug twice; `PAGE_APPARATUS_COMMANDS` was a ninth unchecked copy | `rewrite` → one `_ap_*` core + a pinned layout + a count | ~half a day, 5 files; 41 documents byte-identical; −13 code lines, and three homes for a decision down to one |
 | 6 | ✅ **Fixed 6 Aug.** Notes pane empty in every deferred document and `⁑` gave the wrong tier; the collected-and-never-rendered lint was blind to deferred notes too, and deferring in an English document wrote Hebrew into it | `rewrite` → one `notesIn` over both spellings + an equivalence oracle | ~1 day, 8 files; +98 code lines, not −180; 9 mutations red, 2 controls green |
 | 7 | Fresh clone does not build; not one doc mentions why | `rewrite` → submodule | ~1 hour, −8 CI steps |

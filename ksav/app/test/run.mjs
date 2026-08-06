@@ -7,7 +7,7 @@
 // exists, so adding a test is adding a file.
 
 import { build } from "esbuild";
-import { readdir, rm } from "node:fs/promises";
+import { readdir, rm, readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 
@@ -102,4 +102,48 @@ for (const f of files) {
 
 const { pass, fail } = counts();
 console.log(`\n${files.length} files · ${pass} passed, ${fail} failed`);
+
+// ------------------------------------------- the two numbers only this knows
+//
+// `ksav/README.md` tells a developer what to expect from `npm test`, and told
+// them "389 assertions across 9 files" for as long as there were 2,723 across
+// 44. Every other counted claim is fenced by `documentation.test.mjs`, which
+// cannot fence these two: how many assertions the suite runs is knowable only
+// once it has run, and that file runs *inside* it. So the check lives where the
+// answer is, after the tally — and deliberately outside it, because an assertion
+// that counts itself is a number that can never settle.
+//
+// Skipped when something already failed: a red suite has a better thing to say.
+if (!fail) {
+  const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, ROOT } = await import(
+    pathToFileURL(path.join(HERE, "docfacts.mjs")).href
+  );
+  const measured = { appAssertions: pass + fail, appTestFiles: files.length };
+  const wrong = [];
+  // Forward: each declared claim must be spelled with the number this run got.
+  for (const [file, factName, text] of CLAIMS) {
+    if (!RUNTIME.includes(factName)) continue;
+    const want = text(measured[factName]);
+    const body = await readFile(path.join(ROOT, file), "utf8");
+    if (!body.includes(want)) wrong.push(`${file} does not say "${want}"`);
+  }
+  // Backward: and no living page may state a *different* one somewhere else.
+  // `documentation.test.mjs`'s sweep has to wave these two through — it cannot
+  // know what the right answer is — so the second sentence in `ksav/README.md`
+  // that quotes an assertion count is checked here or nowhere.
+  for (const file of livingPages()) {
+    const body = await readFile(path.join(ROOT, file), "utf8");
+    for (const c of numericClaimsIn(body)) {
+      if (!RUNTIME.includes(c.fact)) continue;
+      if (c.number !== measured[c.fact]) wrong.push(`${file}: "${c.said}" — it was ${group(measured[c.fact])}`);
+    }
+  }
+  if (wrong.length) {
+    console.log(`\n✗ the documentation disagrees with this run:`);
+    for (const w of wrong) console.log(`  ${w}`);
+    console.log(`  (${group(measured.appAssertions)} assertions across ${measured.appTestFiles} files)`);
+    process.exit(1);
+  }
+}
+
 process.exit(fail ? 1 : 0);

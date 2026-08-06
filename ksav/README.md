@@ -231,6 +231,53 @@ whether a language boundary is genuinely in the way:
 generated one may write a Hebrew command name beside its English twin, and no
 module but `spans.ts` may strip markup with a regex.
 
+### The documentation, checked the way the application is
+
+The fourth instance, and the one nothing had ever asserted. Prose compiles no
+matter what it says, so the pages describing Ksav drifted exactly as the code
+copies did and with nothing to notice: nineteen false claims across five pages,
+including a command count short by a dozen, a binding count short by twenty-two,
+one CI job unaccounted for, and `docs/shortcuts.md` seventeen rows short with
+`Ctrl+Alt+D` printed as "Mark as deleted" long after the application had rebound
+it to **Endnote**. Every one of those survived a green suite.
+
+`app/test/documentation.test.mjs` and `app/test/docfacts.mjs` close it, and the
+shape is two sweeps in opposite directions, because a hand-written list of
+claims fails by omission and a regex over prose fails by leaking:
+
+- **Forward** — every counted claim in a living page must equal what measures
+  it, at its home: `cmd!(` in the registry, `DEFAULT_KEYS` in the bindings the
+  editor installs, `.ksav` files in `engine/templates`, `#[test]` in the engine,
+  non-comment lines in each lexicon (checked against the count the generator
+  writes into its own header), jobs in `ci.yml`.
+- **Backward** — a number standing beside one of those nouns in a living page
+  must be a *declared* claim. Inventing a fresh count in `docs/` fails the suite
+  until somebody declares it, which is the half that is still true a year from
+  now. It caught this section while it was being written, twice.
+
+`docs/shortcuts.md` is diffed against `node tools/card.mjs`, which reads
+`bindings.ts` and `i18n.ts` through the same esbuild path the runner uses — the
+card was always unable to disagree with the application and was simply never
+re-run. Relative links must resolve to tracked paths, and so must file paths
+named in prose, which is a separate sweep because the ones that rot mostly are
+not links: `LICENSE` argued its whole case on the behaviour of the Hebrew spell
+checker and named a path that stopped existing when that module became a
+directory — a sentence, not a link, and wrapped across a line break besides.
+
+The append-only logs — `spec.md`, `fixes.md`, `plan-notes-and-ui.md` and the
+audit — are exempt, because a dated entry was true on its date. The exemption is
+the dangerous part and it is checked from both ends: the union of logs and living
+pages must be exactly the tracked set, so a new `.md` is fenced by arriving; and
+a log must be exempted *from something*, so a clean page cannot be quietly
+excused. That last rule exists because the first version of this fence did not
+have it, and adding a living page to the log list with a plausible sentence
+turned its sweep off with the suite green — `registry.rs`'s `ONLY_AT_TOP`,
+rebuilt inside the check written against it.
+
+Two facts live in `test/run.mjs` instead: how many assertions the suite runs and
+across how many files. Nothing knows those without running, and a test that
+counted itself would never settle.
+
 ### Nesting depth
 
 Any structure can contain any other — lists in tables, headings in footnotes,
@@ -249,7 +296,7 @@ nests past a handful.
 
 ## Features (engine)
 
-- **104 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **116 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -282,7 +329,7 @@ nests past a handful.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 104 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 116 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -392,29 +439,30 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,474 editor assertions, 357 engine
+- [x] **CI, running and green** — typecheck, 3,595 editor assertions, 367 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
 Done since, and worth stating because these were the longest-standing gaps:
 
 - [x] **A git remote, and CI that actually runs.** `ci.yml` runs on every push and
-      is green across all four jobs — editor, engine, desktop shell, browser
-      engine.
+      is green across all five jobs — editor, engine, formatting and clippy,
+      browser (wasm) engine, desktop shell.
 - [x] **The release matrix has run, on every platform.** `v0.1.0` drove
       `release.yml` to success on `windows-latest`, `ubuntu-22.04` and *both*
       macOS architectures, so the `.msi`, `.exe`, `.deb`, `.AppImage` and both
       `.dmg`s have all genuinely been produced by a runner.
 
+- [x] **The release is published.** `release.yml` sets `releaseDraft: true`
+      deliberately, so a release is reviewed before it is public — and the
+      `v0.1.0` draft then sat unpublished, which three consecutive audits called
+      the single most consequential open item, because `/releases/latest`
+      returned 404 and the Download link in the root README led to an empty
+      page. The button has been pressed: nine installers are on it and the tag
+      resolves.
+
 Not done:
 
-- [ ] **The release is still a draft, so nothing is downloadable.** This is the
-      one to fix first, and it is a button rather than a task. `release.yml` sets
-      `releaseDraft: true` — deliberately, so a release is reviewed before it is
-      public — and the draft from `v0.1.0` was never published. Until it is,
-      `/releases/latest` returns 404 and anyone following the Download link in the
-      root README finds an empty page. Every installer already exists; no one can
-      reach them.
 - [ ] **Code signing.** Unsigned, Windows SmartScreen says "unrecognized app" and
       macOS says "unidentified developer". The fix is a certificate ($99/yr Apple,
       ~$200–400/yr Windows OV), not a workaround; `release.yml` names the secrets.
@@ -452,9 +500,9 @@ one place they are developed.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,474 assertions across 48 files
+cd app && npm test                          # 3,595 assertions across 50 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 357 tests, 24 binaries
+cargo test --manifest-path engine/Cargo.toml            # 367 tests, 24 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -555,10 +603,11 @@ targets on tag push and attaches them to a **draft** release. It has run: the
 macOS architectures, so every installer this project ships has now been produced
 by a runner.
 
-The draft is still a draft, though, and that is the thing to do next. Nothing is
-downloadable until someone opens the release and presses publish — `releaseDraft:
-true` is the right default, but a draft nobody publishes is the same as no
-release at all.
+`releaseDraft: true` is the right default and the wrong resting place:
+`v0.1.0` sat as an unpublished draft for long enough that `/releases/latest`
+returned 404 while every installer already existed, which is the same as having
+no release at all. It has been published. Cutting the next one means pressing
+the button as well as pushing the tag.
 
 > **The installers are unsigned.** Windows SmartScreen will say "unrecognized
 > app" and macOS will say "unidentified developer". That is a genuine adoption

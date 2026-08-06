@@ -23,12 +23,17 @@ const APP = path.resolve(HERE, "..");
 const OUT = await mkdtemp(path.join(tmpdir(), "ksav-card-"));
 
 await build({
-  entryPoints: [path.join(APP, "src", "bindings.ts"), path.join(APP, "src", "i18n.ts")],
+  entryPoints: [
+    path.join(APP, "src", "bindings.ts"),
+    path.join(APP, "src", "i18n.ts"),
+    path.join(APP, "src", "structure.ts"),
+  ],
   outdir: OUT,
   outExtension: { ".js": ".mjs" },
   bundle: true,
   format: "esm",
   platform: "neutral",
+  external: ["@codemirror/*", "@lezer/*", "@tauri-apps/*"],
   logLevel: "silent",
 });
 
@@ -36,6 +41,31 @@ const { DEFAULT_KEYS, KEY_ALIASES, readable } = await import(
   pathToFileURL(path.join(OUT, "bindings.mjs")).href
 );
 const i18n = await import(pathToFileURL(path.join(OUT, "i18n.mjs")).href);
+const { STRUCTURE_ACTIONS } = await import(pathToFileURL(path.join(OUT, "structure.mjs")).href);
+
+/**
+ * The i18n key a structure action is already named under.
+ *
+ * Ten of the bindings are structure operations — `Tab` indents a list item,
+ * `Alt+Shift+←` promotes a section — and they had no `sc.` string, so the card
+ * printed `list.indent` at ten readers in two languages. They are not unnamed:
+ * `STRUCTURE_ACTIONS` carries the key the ribbon, the palette and the hydra all
+ * label them with. Reading it is the difference between the card knowing a name
+ * and the project owning a second set of names for the same ten operations.
+ */
+const STRUCTURE_LABEL = Object.fromEntries(STRUCTURE_ACTIONS.map((a) => [a.id, a.label]));
+
+/**
+ * Girsa's own documentation, as an absolute URL.
+ *
+ * It was `../../Girsa/docs/start-here.md` — a path out of this repository and
+ * into an untracked sibling directory, which resolves on exactly one machine in
+ * the world and 404s for everybody who follows it on GitHub. The same link is in
+ * three hand-written pages; `documentation.test.mjs` now refuses a relative link
+ * that does not resolve to a tracked file, which is what makes this the only
+ * spelling available.
+ */
+const GIRSA_START_HERE = "https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md";
 
 /**
  * How many commands the registry holds.
@@ -57,10 +87,18 @@ async function commandCount() {
 function label(id, lang) {
   i18n.setLang(lang);
   const said = i18n.t("sc." + id);
+  if (said !== "sc." + id) return said;
+  // No `sc.` string. If it is a structure operation, it is already named where
+  // every other surface reads its name from.
+  const key = STRUCTURE_LABEL[id];
+  if (key) {
+    const from = i18n.t(key);
+    if (from !== key) return from;
+  }
   // `t` hands back the key when there is no string for it, which is exactly the
   // case worth showing rather than hiding: an unnamed action on a printed card is
   // a row somebody has to go and name.
-  return said === "sc." + id ? `\`${id}\`` : said;
+  return `\`${id}\``;
 }
 
 const lines = [];
@@ -106,7 +144,7 @@ lines.push("where it is implemented.");
 lines.push("");
 lines.push("**Ctrl+Shift+C in Girsa**, not here: that is what puts a mekor into whatever you");
 lines.push("are writing, and it is the one shortcut that spans both applications. See");
-lines.push("[`Girsa/docs/start-here.md`](../../Girsa/docs/start-here.md).");
+lines.push("[Girsa's own start-here](" + GIRSA_START_HERE + ").");
 
 console.log(lines.join("\n"));
 await rm(OUT, { recursive: true, force: true });

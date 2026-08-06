@@ -1,0 +1,248 @@
+// The documentation, checked the way the application is.
+//
+// `readme.test.mjs` opens by arguing that *"documentation that names a key the
+// application does not have is the same bug as a menu item that does nothing …
+// and it is the easiest of all of them to ship, because prose compiles no matter
+// what it says."* It is right, and it then asserts twelve key names and two
+// phrases over **one** of nine prose files, and zero numbers — which is how
+// nineteen false claims survived forty-five green assertions.
+//
+// This file is the rest of that argument. Four fences, in the order they fail:
+//
+//   1. The shortcut card is what its generator produces, byte for byte.
+//   2. Every counted claim in a living page equals what measures it, and every
+//      number beside a fenced noun is a declared claim.
+//   3. Every relative link in a tracked page resolves to a tracked file.
+//   4. The living/log partition covers every tracked `.md` exactly once.
+//
+// Deliberately **not** named `docs.test.mjs`, which the audit asked for: that
+// name belongs to `src/docs.ts`, and this project's one reliable convention is
+// one test file per module. Breaking it to free a name would cost more than the
+// name is worth.
+
+import { ok, check } from "./harness.mjs";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import {
+  facts,
+  CLAIMS,
+  LOGS,
+  RUNTIME,
+  NOUNS,
+  numericClaimsIn,
+  trackedMarkdown,
+  APP,
+  ROOT,
+} from "./docfacts.mjs";
+
+export async function run() {
+  const tracked = trackedMarkdown();
+  const living = tracked.filter((f) => !(f in LOGS));
+  const F = facts();
+
+  // ------------------------------------------------------------- the card
+  //
+  // `card.mjs` reads `bindings.ts` and `i18n.ts` through the same esbuild path
+  // the runner uses, so the card *cannot* disagree with the application — a
+  // genuinely good design that was run once, by hand, on 4 August, and never
+  // again. By 6 August `docs/shortcuts.md` was seventeen rows short and three
+  // rows wrong, and the wrong ones were the dangerous kind: `Ctrl+Alt+D` was
+  // printed as "Mark as deleted" while the application had rebound it to
+  // **Endnote**. A generator nothing re-runs is a hand-written file with extra
+  // steps.
+  {
+    const generated = execFileSync(process.execPath, [path.join(APP, "tools", "card.mjs")], {
+      cwd: APP,
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    const onDisk = readFileSync(path.join(ROOT, "docs/shortcuts.md"), "utf8");
+    const norm = (s) => s.replace(/\r\n/g, "\n").trimEnd();
+    check(
+      "docs/shortcuts.md is what `node tools/card.mjs` prints (rerun it)",
+      norm(onDisk),
+      norm(generated),
+    );
+    // The generator's value is that it cannot invent a name. Ten of the bindings
+    // are structure operations with no `sc.` string; they are named where every
+    // other surface reads their names from, and the card now looks there. A row
+    // printing a bare id is a row nobody has named in either language.
+    const unnamed = [...onDisk.matchAll(/^\| .+ \| `([\w.]+)` \|/gmu)].map((m) => m[1]);
+    check("every binding on the card is named in both languages", unnamed, []);
+  }
+
+  // ------------------------------------------------------------ the numbers
+  //
+  // Forward: every declared claim must appear, spelled with the measured number.
+  {
+    for (const [file, factName, text] of CLAIMS) {
+      if (RUNTIME.includes(factName)) continue; // `run.mjs` owns these two
+      const n = F[factName];
+      ok(
+        `${factName} is a fact something measures`,
+        typeof n === "number" && Number.isFinite(n) && n > 0,
+      );
+      const want = text(n);
+      const body = readFileSync(path.join(ROOT, file), "utf8");
+      ok(`${file} says "${want}"`, body.includes(want));
+    }
+  }
+
+  // Backward: a number standing beside a fenced noun in a living page must be
+  // one of the declarations above. This is the half that survives a year — a new
+  // sentence saying "142 commands" fails until somebody declares it, so the fence
+  // cannot be outgrown by prose the way a hand-written list silently is.
+  {
+    const declared = new Set();
+    for (const [file, factName, text] of CLAIMS) {
+      const n = RUNTIME.includes(factName) ? null : F[factName];
+      declared.add(`${file}::${factName}::${n}`);
+    }
+    const stray = [];
+    for (const file of living) {
+      const body = readFileSync(path.join(ROOT, file), "utf8");
+      for (const c of numericClaimsIn(body)) {
+        const runtime = RUNTIME.includes(c.fact);
+        const key = `${file}::${c.fact}::${runtime ? null : c.number}`;
+        if (!declared.has(key)) stray.push(`${file}: "${c.said}"`);
+      }
+    }
+    check("no living page states a fenced count that nothing checks", stray, []);
+  }
+
+  // The two nouns whose counts only a finished run knows are still swept for, so
+  // a *wrong* one is caught here even though the right one is checked elsewhere.
+  ok(
+    "the runtime facts are claimed somewhere, so `run.mjs` has something to check",
+    RUNTIME.every((f) => CLAIMS.some(([, name]) => name === f)),
+  );
+
+  // -------------------------------------------------------------- the links
+  //
+  // Four links to `Girsa/docs/start-here.md` pointed at `../../Girsa/...` — a
+  // path out of this repository into an untracked sibling directory, which
+  // resolves on exactly one machine on earth and 404s for every reader on
+  // GitHub. One of them was hardcoded inside `card.mjs`, so regenerating the
+  // card would have written it back. The same sweep catches `LICENSE`, which
+  // named `engine/src/spell.rs` — a file that has not existed since the spell
+  // checker became a directory.
+  {
+    const broken = [];
+    // Tracked, plus untracked files git would accept — `--others
+    // --exclude-standard` is exactly "everything but the ignored". Tracked alone
+    // is the tighter rule and the wrong one in practice: it fails a page the
+    // moment it names a file added in the same change and not yet staged, which
+    // is a fence that punishes writing the documentation at the same time as the
+    // code. What it must still refuse is `dist/`, `pkg/` and the untracked
+    // sibling directory — and it does, because those are ignored.
+    const targets = new Set(
+      execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
+        cwd: ROOT,
+        encoding: "utf8",
+      })
+        .split("\n")
+        .filter(Boolean)
+        .map((p) => p.replace(/\\/g, "/")),
+    );
+    for (const file of [...tracked, "LICENSE"]) {
+      const body = readFileSync(path.join(ROOT, file), "utf8");
+      const dir = path.posix.dirname(file);
+      for (const m of body.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/gu)) {
+        const href = m[1];
+        if (/^(?:https?:|mailto:|#)/u.test(href)) continue;
+        const [rel] = href.split("#");
+        if (!rel) continue;
+        const resolved = path.posix.normalize(path.posix.join(dir, decodeURI(rel)));
+        const full = path.join(ROOT, resolved);
+        const isDir = existsSync(full) && statSync(full).isDirectory();
+        // A directory is a legitimate target on GitHub; a file has to be tracked,
+        // because an untracked one is exactly the link that works for its author
+        // and nobody else.
+        if (!targets.has(resolved) && !isDir) broken.push(`${file} → ${href}`);
+      }
+    }
+    check("every relative link in a tracked page resolves to a tracked path", broken, []);
+
+    // The same question asked of paths that are not links, because the ones that
+    // go wrong mostly are not. `LICENSE` argued its whole case on the behaviour
+    // of `engine/src/spell.rs` — a file that stopped existing when the spell
+    // checker became a directory — and no link check would ever have seen it,
+    // because it is a sentence, not a link.
+    //
+    // Fenced code blocks are skipped: `cp pkg/ksav_wasm.d.ts …` is an
+    // instruction about a build output, not a reference to a file in the tree,
+    // and treating the two the same would make this fence noise within a week.
+    // Living pages only, unlike the link sweep above. A dated log entry naming
+    // `spell.rs` was telling the truth in June; a page a reader is sent to today
+    // is not.
+    const missing = [];
+    for (const file of [...living, "LICENSE"]) {
+      const body = readFileSync(path.join(ROOT, file), "utf8")
+        .replace(/^```[\s\S]*?^```/gmu, "")
+        // A path wrapped across a line still names one file.
+        .replace(/\/\n\s*/gu, "/");
+      const dir = path.posix.dirname(file);
+      for (const m of body.matchAll(
+        /(?:^|[\s`([])([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.*{},-]+)+)(?=[\s`)\].,;:]|$)/gmu,
+      )) {
+        const p = m[1];
+        if (!/\.(?:rs|ts|mjs|typ|json|toml|yml|html|css|ksav|py)$/u.test(p)) continue;
+        if (/[*{]/u.test(p)) continue; // a glob names a family, not a file
+        // Tried from the repository root and from the two crate roots the prose
+        // writes paths relative to, which is how these pages are actually read.
+        const tries = [p, `ksav/${p}`, `ksav/app/${p}`, `ksav/engine/${p}`, path.posix.join(dir, p)];
+        if (!tries.some((c) => targets.has(path.posix.normalize(c)))) missing.push(`${file}: ${p}`);
+      }
+    }
+    check("every source path a page names in prose exists", missing, []);
+  }
+
+  // --------------------------------------------------------- the partition
+  //
+  // The exemption list, checked from both ends.
+  //
+  // `registry.rs`'s `ONLY_AT_TOP` is what this is written against: nine commands
+  // exempted from a sweep, six of them provably wrong, and not one able to make
+  // the test red no matter what it did — unfalsifiable by construction. An
+  // exemption is only safe when leaving something out is as loud as putting
+  // something in.
+  {
+    const idle = [];
+    for (const [file, why] of Object.entries(LOGS)) {
+      ok(`the log ${file} exists`, existsSync(path.join(ROOT, file)));
+      ok(`…and says why it is exempt`, typeof why === "string" && why.length > 20);
+      ok(`…and is tracked, so a rename cannot orphan the exemption`, tracked.includes(file));
+      // And — the part that stops this being a skip list — it must be excusing
+      // something. A log qualifies because it states counts that were true on
+      // their date and are false now; if the sweep would pass over it anyway,
+      // the entry is buying nothing and its only effect is to switch the sweep
+      // off for a page that did not need it.
+      //
+      // Found by mutation, and the mutation is the reason this exists: adding
+      // `docs/start-here.md` here with a plausible-sounding sentence turned the
+      // backward sweep off for a living page and the suite stayed green — which
+      // is `ONLY_AT_TOP` exactly, reproduced inside the fence written against it.
+      const body = readFileSync(path.join(ROOT, file), "utf8");
+      const stale = numericClaimsIn(body).filter((c) => {
+        if (RUNTIME.includes(c.fact)) return true;
+        return c.number !== F[c.fact];
+      });
+      if (!stale.length) idle.push(file);
+    }
+    check(
+      "every exempted log is exempted from something (drop the ones that are clean)",
+      idle,
+      [],
+    );
+    // Default-deny: the union is the whole tracked set, so a new `.md` is fenced
+    // by arriving rather than by somebody remembering to add it.
+    check(
+      "every tracked .md is either a living page or a declared log",
+      [...living, ...Object.keys(LOGS)].sort(),
+      [...tracked].sort(),
+    );
+    ok("there are living pages to check", living.length > 0);
+    ok("and the fenced nouns are actually a list", NOUNS.length > 0);
+  }
+}

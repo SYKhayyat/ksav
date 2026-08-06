@@ -295,7 +295,17 @@ async function newNamedDoc() {
 async function duplicateDoc(id: string) {
   const src = await docs.getDoc(id);
   if (!src) return;
-  const copy = await docs.createDoc(src.title + " ‏(2)", src.body, src.assets);
+  // A duplicate is the same sefer, which includes how it is laid out. Copying
+  // the body and leaving the page setup behind gave the copy this writer's
+  // *new-document* default, so duplicating a Letter-sized document produced an
+  // A4 one — the same fact going missing that `serializeDoc` used to drop.
+  const copy = await docs.createDoc(
+    src.title + " ‏(2)",
+    src.body,
+    src.assets,
+    src.customCommands,
+    src.config ?? {},
+  );
   await openDoc(copy.id);
 }
 
@@ -3043,7 +3053,17 @@ async function openFile() {
   }
   const stripExt = opened.binding.name.replace(/\.[^.]+$/, "");
   const parsed = docs.parseDoc(opened.text, stripExt || t("untitled"));
-  const doc = await docs.createDoc(parsed.title, parsed.body, parsed.assets, parsed.customCommands);
+  // `?? {}` and not `?? undefined`: a `.ksav` that carries no page setup has
+  // *said* it is laid out the shipped way, and a file has to open the same way
+  // on every machine. Leaving it absent would hand it the reader's own
+  // new-document default, which is the thing B26 exists to stop.
+  const doc = await docs.createDoc(
+    parsed.title,
+    parsed.body,
+    parsed.assets,
+    parsed.customCommands,
+    parsed.config ?? {},
+  );
   await docs.setFileName(doc.id, opened.binding.name);
   await files.rememberBinding(doc.id, opened.binding);
   await openDoc(doc.id);

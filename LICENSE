@@ -21,9 +21,9 @@ WHY THIS MATTERS FOR KSAV
 There was no licence here at all until now, which under copyright law means
 all rights reserved: nobody could legally use, fork or redistribute the work,
 and the open-sourcing that spec.md names as the answer to the bus factor was
-foreclosed. A permissive licence is also the consistent choice — engine/src/
-spell.rs rejects Hspell partly *because* it is AGPL, and it would be strange to
-refuse a copyleft dependency and then ship one.
+foreclosed. A permissive licence is also the consistent choice —
+engine/src/spell/hebrew.rs rejects Hspell partly *because* it is AGPL, and it
+would be strange to refuse a copyleft dependency and then ship one.
 
 
 THE BUNDLED FONTS ARE SEPARATELY LICENSED

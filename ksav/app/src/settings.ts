@@ -250,6 +250,71 @@ export function settingsPageSetup(): DocConfig {
 }
 
 /**
+ * What a document says about itself that the shipped defaults do not already say.
+ *
+ * This is the half of a page setup that has to be **written to the file**, and it
+ * is a subtraction rather than a copy for one reason: `docConfig` lays a document
+ * out as its own setup *over the shipped defaults*, so a field equal to the
+ * default carries no information — writing it changes nothing on the page and
+ * costs the file its plain-text form. A sefer laid out the shipped way therefore
+ * comes back as `{}`, and `serializeDoc` keeps it as text somebody can `cat`.
+ *
+ * The subtraction is exact, which is what makes it safe: `pageSetup(own, d)` and
+ * `pageSetup(ownPageSetup(own), d)` are the same object for every `own`, because
+ * every key this drops was about to be overwritten with the value it already had.
+ */
+export function ownPageSetup(own: PageSetup | undefined): PageSetup {
+  const out: Record<string, unknown> = {};
+  if (!own) return out as PageSetup;
+  const shipped = defaultPageSetup() as unknown as Record<string, unknown>;
+  for (const key of PAGE_FIELDS) {
+    const value = (own as Record<string, unknown>)[key];
+    if (value === undefined) continue;
+    // Compared through JSON so `keywords: []` — the one array in the set — is
+    // judged by its contents rather than by being a different array object.
+    if (JSON.stringify(value) === JSON.stringify(shipped[key])) continue;
+    out[key] = value;
+  }
+  return out as PageSetup;
+}
+
+/**
+ * A page setup read back out of a `.ksav` file, which is to say out of somebody
+ * else's JSON.
+ *
+ * Keys are taken only if `PAGE_FIELDS` names them and the value is of the type
+ * the shipped default is, so a hand-edited file cannot put `paper: {}` into a
+ * compile request or add a key `pageSetup` would carry forward without anything
+ * ever having validated it. A field that fails is dropped rather than defaulting
+ * the whole document: one bad key must not cost a writer the other twenty.
+ *
+ * The four per-edge margins and the note region are **absent** from the shipped
+ * defaults — absent means "follow the uniform margin", which is a different
+ * instruction from any number — so there is no default to compare their type
+ * against and they are checked against what JSON can carry instead.
+ */
+export function readPageSetup(raw: unknown): PageSetup | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const src = raw as Record<string, unknown>;
+  const shipped = defaultPageSetup() as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of PAGE_FIELDS) {
+    const value = src[key];
+    if (value === undefined) continue;
+    const want = shipped[key];
+    const strings = (v: unknown) => Array.isArray(v) && v.every((x) => typeof x === "string");
+    const ok =
+      want === undefined
+        ? typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        : Array.isArray(want)
+          ? strings(value)
+          : typeof value === typeof want && !Array.isArray(value) && value !== null;
+    if (ok) out[key] = value;
+  }
+  return Object.keys(out).length ? (out as PageSetup) : undefined;
+}
+
+/**
  * Which page setup a document is compiled with.
  *
  * Its own, over the **shipped defaults** — not over whatever the app's settings

@@ -59,7 +59,7 @@ reference and not a string that looks like one.
 
 There is nothing in Word, or in anything built on Word, that does this. It is the
 entire reason these two applications exist. See
-[`Girsa/docs/start-here.md`](../../Girsa/docs/start-here.md).
+[Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md).
 
 ---
 
@@ -79,7 +79,7 @@ not a workflow — the footnotes and the multi-stream apparatus flatten, and the
 says so when you do it rather than letting you find out from your printer.
 
 And the last row is the one that should decide it. Ksav compiles, spell-checks
-Hebrew and English, has 107 bilingual commands and ten templates that all build.
+Hebrew and English, has 116 bilingual commands and ten templates that all build.
 Nobody has written a sefer in it. Everything here is a promise that has been tested
 by its author and not by its use.
 

@@ -5,7 +5,7 @@ kuntres. It compiles to PDF through Typst, it spell-checks Hebrew and English, a
 it has one feature nothing else has: **a citation that opens the source it names.**
 
 If you have five minutes, read
-[`Girsa/docs/start-here.md`](../../Girsa/docs/start-here.md) instead. That page
+[Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) instead. That page
 walks the loop across both applications and it is the actual argument for either of
 them. This page is Ksav on its own.
 
@@ -41,7 +41,7 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 107 of them. `#` in the editor offers all of them with what each one
+There are 116 commands. `#` in the editor offers all of them with what each one
 does, so none is worth memorising.
 
 ## Notes whose text lives at the end
@@ -181,10 +181,17 @@ which, with a heading between them.
 
 When you have one looking right: **set as default for new documents**.
 
+The setup goes into the `.ksav`, so the sefer opens laid out the same way on
+somebody else's machine — and only what you actually changed goes in, which is why
+a document you have not restyled is still a plain text file rather than JSON.
+*Set as default* applies to the next document you start, not to one you open: a
+file that says nothing about its layout is laid out the shipped way, on every
+machine, rather than the way the person opening it likes new documents.
+
 ## Spell-check
 
 Hebrew and English, both at once, in one document. It knows which script a word is
-in and checks it against the right lexicon — 269,385 Hebrew entries and 96,184
+in and checks it against the right lexicon — 269,357 Hebrew entries and 96,184 English
 English ones.
 
 It will underline your rebbe's name. Right-click → add, and it is in your
@@ -207,8 +214,8 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 30 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 52 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
-- [`Girsa/docs/start-here.md`](../../Girsa/docs/start-here.md) — the loop, which is
+- [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is
   the point.

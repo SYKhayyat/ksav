@@ -119,6 +119,50 @@ export function itemAt(list: ListInfo, pos: number): { item: ItemInfo; index: nu
   return i < 0 ? null : { item: list.items[i], index: i };
 }
 
+/** Where the caret is, as every operation below needs it. */
+export type Here = { item: ItemInfo; index: number } | null;
+type OnItem = NonNullable<Here>;
+
+// ---------------------------------------------------------------- can it act?
+//
+// The questions the ribbon, the menus and the hydra ask about every operation on
+// every caret move. They take the resolved item rather than a position, so that
+// asking eleven of them costs one `itemAt` and not eleven — and each operation
+// asks its own before doing anything, so an enabled control and an operation that
+// acts are the same sentence rather than two that can drift apart.
+
+/** Always: an item can be added to a list wherever the caret is inside it. */
+export function canAddItem(): boolean {
+  return true;
+}
+
+/** Also always: a line break can go anywhere inside a list. */
+export function canBreakInItem(): boolean {
+  return true;
+}
+
+export function canDeleteItem(here: Here): here is OnItem {
+  return here !== null;
+}
+
+/** Nested inside the item *above*, so the first item has nowhere to go. */
+export function canIndentItem(here: Here): here is OnItem {
+  return here !== null && here.index > 0;
+}
+
+/** Only out of a list that is itself inside one. */
+export function canOutdentItem(doc: string, list: ListInfo, here: Here): here is OnItem {
+  return here !== null && listAt(doc, list.from - 1) !== null;
+}
+
+export function canMoveItem(list: ListInfo, here: Here, by: -1 | 1): here is OnItem {
+  return here !== null && !!list.items[here.index + by];
+}
+
+export function canSetKind(list: ListInfo, kind: ListKind): boolean {
+  return list.kind !== kind;
+}
+
 export interface Edit {
   text: string;
   caret: number;
@@ -198,7 +242,7 @@ export function breakInItem(doc: string, pos: number): Edit {
  */
 export function indentItem(doc: string, list: ListInfo, pos: number): Edit | null {
   const here = itemAt(list, pos);
-  if (!here || here.index === 0) return null;
+  if (!canIndentItem(here)) return null;
   const prev = list.items[here.index - 1];
   const body = doc.slice(here.item.bodyFrom, here.item.bodyTo);
 
@@ -246,9 +290,8 @@ export function indentItem(doc: string, list: ListInfo, pos: number): Edit | nul
  */
 export function outdentItem(doc: string, list: ListInfo, pos: number): Edit | null {
   const here = itemAt(list, pos);
-  if (!here) return null;
-  const outer = listAt(doc, list.from - 1);
-  if (!outer) return null;
+  if (!canOutdentItem(doc, list, here)) return null;
+  const outer = listAt(doc, list.from - 1)!;
   const body = doc.slice(here.item.bodyFrom, here.item.bodyTo);
 
   // Take it out of the inner list, and drop the inner list too if that empties it.
@@ -278,7 +321,7 @@ export function outdentItem(doc: string, list: ListInfo, pos: number): Edit | nu
 /** Delete the item at `pos`, comma and all. */
 export function deleteItem(doc: string, list: ListInfo, pos: number): Edit | null {
   const here = itemAt(list, pos);
-  if (!here) return null;
+  if (!canDeleteItem(here)) return null;
   let cut = here.item.to;
   while (cut < list.argsTo && (doc[cut] === "," || doc[cut] === " ")) cut++;
   if (doc[cut] === "\n") cut++;
@@ -289,7 +332,7 @@ export function deleteItem(doc: string, list: ListInfo, pos: number): Edit | nul
 
 /** Turn this list into bullets / numbers / Hebrew letters, keeping every item. */
 export function setKind(doc: string, list: ListInfo, kind: ListKind): Edit {
-  if (kind === list.kind) return { text: doc, caret: list.from };
+  if (!canSetKind(list, kind)) return { text: doc, caret: list.from };
   const name = list.lang === "en" ? KIND_NAME[kind].en : KIND_NAME[kind].he;
   const hash = doc[list.from] === "#" ? "#" : "";
   const nameFrom = list.from + hash.length;
@@ -301,9 +344,8 @@ export function setKind(doc: string, list: ListInfo, kind: ListKind): Edit {
 /** Move the item at `pos` one place up or down within its list. */
 export function moveItem(doc: string, list: ListInfo, pos: number, by: -1 | 1): Edit | null {
   const here = itemAt(list, pos);
-  if (!here) return null;
+  if (!canMoveItem(list, here, by)) return null;
   const other = list.items[here.index + by];
-  if (!other) return null;
   const a = here.index < here.index + by ? here.item : other;
   const b = here.index < here.index + by ? other : here.item;
   const text =

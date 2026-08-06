@@ -1,7 +1,11 @@
 import { check, ok, notOk } from "./harness.mjs";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   STRUCTURE_ACTIONS,
   actionById,
+  contextAt,
+  isEnabled,
   structureAt,
   availableAt,
   whereAmI,
@@ -13,6 +17,26 @@ import {
 
 const L = `#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n`;
 const T = `#טבלה(עמודות: 2, פסים: true,\n  כותרת_תא[א], כותרת_תא[ב],\n  תא[ג], תא[ד],\n)\n`;
+
+const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const SRC = path.resolve(HERE, "..", "src");
+
+/** A table of `rows` rows and three columns, for the questions about cost. */
+function bigTable(rows) {
+  const body = Array.from(
+    { length: rows },
+    (_, r) => `  תא[א${r}], תא[ב${r}], תא[ג${r}],`,
+  ).join("\n");
+  return `#טבלה(עמודות: 3, פסים: true,\n${body}\n)\n`;
+}
+
+/** Milliseconds per call, averaged, with the caret moving between two places. */
+function perCall(n, f) {
+  f(0);
+  const t0 = performance.now();
+  for (let i = 0; i < n; i++) f(i % 2);
+  return (performance.now() - t0) / n;
+}
 
 export async function run() {
 
@@ -139,6 +163,156 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   notOk("a lone row cannot move up", byId["table.rowUp"]);
   ok("but a row can always be added", byId["table.rowBelow"]);
   ok("and the whole table can go", byId["table.delete"]);
+}
+
+// ---------------------------------------------------------------- asking is not doing
+//
+// `enabled` used to be answered by *running* the operation and looking at what
+// came back: eighteen table layouts, eighteen re-renders and eighteen copies of
+// the document, on every caret move, to decide the colour of some arrows. That
+// is the shape this section fences off — first structurally, so the idiom cannot
+// come back by hand, then by the property that made splitting the two dangerous:
+// an operation and its own predicate must never disagree.
+
+{
+  // A regex enforces "any line of this shape is a bug" perfectly, which is the
+  // guarantee wanted: the cost was never one slow function, it was that asking
+  // by doing was the shortest thing to type.
+  const names = (await readdir(SRC)).filter((f) => f.endsWith(".ts"));
+  check("there is source to check", names.length > 15, true);
+
+  /** An operation performed in order to find out whether it applies. */
+  const RUN_TO_ASK = /\.run\([^;]*\)\s*(?:!==|===)\s*null/;
+  /** The same thing spelled out over two names. */
+  const ASK_BY_DOING = /\b(?:enabled|disabled|available|applies)\b[^;]*=[^;]*\.run\(/;
+  const offenders = [];
+  for (const f of names) {
+    const body = await readFile(path.join(SRC, f), "utf8");
+    body.split("\n").forEach((line, i) => {
+      const s = line.trim();
+      if (s.startsWith("//") || s.startsWith("*") || s.startsWith("/*")) return;
+      if (RUN_TO_ASK.test(line) || ASK_BY_DOING.test(line)) offenders.push(`${f}:${i + 1}`);
+    });
+  }
+  check("no surface decides `enabled` by running the operation", offenders, []);
+}
+
+{
+  // The property that lets the two exist separately at all. Every action, at
+  // every caret position of a corpus that covers what the operations disagree
+  // about: nesting, merges, header rows, declared track widths, a pinned
+  // heading level, a document that already has its contents.
+  const CORPUS = [
+    ["prose", "סתם טקסט בלי שום מבנה בכלל.\n"],
+    ["list", L],
+    ["inline list", `#רשימה(פריט[א], פריט[ב],)\n`],
+    ["one-item list", `#רשימה(\n  פריט[יחיד],\n)\n`],
+    ["nested list", `#רשימה(\n  פריט[חיצוני\n    #רשימה(פריט[פנימי],)],\n  פריט[אחרון],\n)\n`],
+    ["numbered list", `#ממוספרת(\n  פריט[אחד],\n  פריט[שתיים],\n)\n`],
+    ["gershayim list", `#רשימה(\n  פריט[דברי רש"י],\n  פריט[שני],\n)\n`],
+    ["english list", `#bullets(\n  item[one],\n  item[two],\n)\n`],
+    ["table", T],
+    ["1×1 table", `#טבלה(עמודות: 1,\n  תא[א],\n)\n`],
+    ["merged table", `#טבלה(עמודות: 2,\n  מיזוג(2)[רחב],\n  תא[א], תא[ב],\n)\n`],
+    ["full-width merge", `#טבלה(עמודות: 2,\n  מיזוג(2)[א],\n  מיזוג(2)[ב],\n)\n`],
+    ["sized table", `#טבלה(עמודות: (2fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
+    ["equal table", `#טבלה(עמודות: (1fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
+    ["narrow table", `#טבלה(עמודות: (0.25fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
+    ["ragged table", `#טבלה(עמודות: 3,\n  תא[א], תא[ב],\n)\n`],
+    ["english table", `#mktable(columns: 2,\n  headcell[Posek], cell[Ruling],\n)\n`],
+    ["headings", `#כותרת1[ראשי]\n\nגוף.\n\n#כותרת2[משנה]\n\nעוד גוף.\n\n#כותרת2[אחרון]\n\nסוף.\n`],
+    ["deepest heading", `#כותרת(רמה: 9)[עמוק]\n\nגוף.\n`],
+    ["pinned level", `#סימן("א", [דיני תפילה])\n\nגוף הסימן.\n`],
+    ["with contents", `#תוכן()\n\n#כותרת1[ראשי]\n\nגוף.\n`],
+    ["list in a cell", `#טבלה(עמודות: 1,\n  תא[#רשימה(פריט[פנימי],)],\n)\n`],
+    ["table in a section", `#כותרת1[פרק]\n\n#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n)\n`],
+  ];
+
+  const disagree = [];
+  const idle = [];
+  let asked = 0;
+  for (const [name, doc] of CORPUS) {
+    for (let pos = 0; pos <= doc.length; pos++) {
+      const ctx = contextAt(doc, pos);
+      for (const action of STRUCTURE_ACTIONS) {
+        const said = action.enabled(ctx);
+        const did = action.run(doc, pos);
+        asked++;
+        if (said !== (did !== null)) {
+          disagree.push(`${name}@${pos} ${action.id}: enabled=${said} run=${did !== null}`);
+        }
+        // An enabled control that cannot change the document is the lie this
+        // whole registry exists to stop telling. The one honest exception is a
+        // move between two rows that are already identical, which the corpus
+        // above deliberately does not contain.
+        if (said && did && did.text === doc) idle.push(`${name}@${pos} ${action.id}`);
+      }
+    }
+  }
+  ok(`the sweep actually asked something (${asked})`, asked > 20000);
+  check("`enabled` and `run` never disagree", disagree.slice(0, 8), []);
+  check("nothing is offered that cannot change the document", idle.slice(0, 8), []);
+}
+
+{
+  // The exception, stated out loud rather than left to be discovered: moving a
+  // row past one identical to it applies — there is a row above — and produces
+  // the same source. The control stays live, and `runStructureAction` declines
+  // to push an empty step onto the undo stack.
+  const twins = `#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n  תא[א], תא[ב],\n)`;
+  const at = twins.lastIndexOf("א");
+  const up = actionById("table.rowUp");
+  ok("a row above an identical one can still move", isEnabled(up, twins, at));
+  check("…and moving it is a no-op the caret can see through", up.run(twins, at).text, twins);
+}
+
+{
+  // Every surface asks the same question of the same registry, so the menu and
+  // the hydra (which hold a document and a position, not a context) must get
+  // exactly what the ribbon gets.
+  const mismatched = availableAt(T, T.indexOf("ג")).filter(
+    (x) => x.enabled !== isEnabled(x.action, T, T.indexOf("ג")),
+  );
+  check("`isEnabled` answers what the ribbon was told", mismatched, []);
+}
+
+{
+  // The resolved caret is memoised, which is only safe while it is keyed on the
+  // document as well as the position. A cache that forgot the text would answer
+  // for the previous document at the same offset — the caret would be told it is
+  // in a table that the writer had just deleted.
+  const before = `#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n)\n`;
+  const pos = before.indexOf("א");
+  check("in the table", structureAt(before, pos), "table");
+  const after = "סתם טקסט בלי מבנה, באותו האורך בדיוק כאן.\n";
+  check("and out of it once the document changes", structureAt(after, pos), null);
+  check("and back again", structureAt(before, pos), "table");
+}
+
+// ---------------------------------------------------------------- what it costs
+//
+// A ratio rather than a stopwatch: the machine's speed cancels, and what is left
+// is the shape. If `enabled` ever goes back to running the operations the two
+// sides converge on 1, whatever the hardware.
+
+{
+  const doc = bigTable(600);
+  const at = doc.indexOf("ב300");
+  const table = STRUCTURE_ACTIONS.filter((a) => a.structure === "table");
+  check("all eighteen are under test", table.length, 18);
+
+  const asking = perCall(60, (i) => availableAt(doc, at + i));
+  const doing = perCall(10, (i) => table.forEach((a) => a.run(doc, at + i)));
+  // The floor is 1.0 — that is what the ratio was when `enabled` *was* `run`,
+  // on any hardware, and no threshold above it can be met by accident.
+  ok(
+    `asking is far cheaper than doing (×${(doing / asking).toFixed(0)})`,
+    doing / asking > 8,
+  );
+  // And in absolute terms, on the size that made this visible: a six-hundred-row
+  // table used to cost ~93 ms per arrow key, which is the caret falling behind
+  // the keyboard in the one place a writer holds an arrow key down.
+  ok(`a six-hundred-row table stays interactive (${asking.toFixed(2)} ms)`, asking < 20);
 }
 
 }

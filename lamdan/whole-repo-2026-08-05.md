@@ -158,6 +158,71 @@ which the repo names in its own prose and then acts against.
 > Cost: 14 files, +1 module, −10 delimiter matchers, −8 name alternations,
 > −1 recursive walker. `npm test` 2,999 across 46 files (+180), `cargo test` 342,
 > `tsc` clean, `vite build` clean.
+>
+> ### ✅ Follow-up — the shape behind the timing, 6 August 2026
+>
+> The scan was the wrong fix for the right complaint. One memoised scan made the
+> ribbon 2.3–2.5× faster and left the *shape* exactly as the finding described
+> it: `availableAt` still decided which of the eighteen table controls were
+> enabled by **running all eighteen** on every caret move, and each run laid the
+> table out, re-rendered the whole call to a string and built a fresh copy of the
+> document — to choose the colour of some arrows. Made 2.5× cheaper is not the
+> same as fixed, and the axis the original finding got wrong (table size, not
+> document size) is precisely the axis a sefer grows along.
+>
+> **Asking is now a different operation from doing.** Every action carries
+> `enabled(ctx)` beside `run`, answered from a `StructureContext` that resolves
+> the caret's list, table geometry and heading list **once** and hands the same
+> answers to all eighteen. No rendering, no second copy of the document, no
+> string comparison anywhere in the path.
+>
+> The obvious hazard in splitting a predicate off an operation is that the two
+> drift, and then a control is grey over an operation that works — which is this
+> repository's own bug family, told from the other end. Two things stop it.
+> Every predicate lives beside the operation it guards (`lists.canIndentItem`,
+> `table.canMergeRight`, `headings.canMoveSection`) and **the operation calls
+> it** before doing anything, so there is one decision with two callers rather
+> than two decisions. And `test/structure.test.mjs` sweeps all 44 actions over
+> every caret position of a 23-document corpus — 45,144 pairs of answers —
+> asserting that `enabled` and `run` agree at every one of them, and that nothing
+> enabled leaves the document unchanged, plus a source-level prohibition
+> so `run(doc, pos) !== null` cannot come back as an enabled test anywhere in
+> `src/`.
+>
+> **The second half was `render` itself.** It found each row by filtering the
+> whole cell list, once per row, so printing a table was quadratic in it —
+> 360,000 comparisons at six hundred rows — and that cost sat under *every*
+> table edit, not only under the ribbon. The layout now buckets its placements
+> by row as it builds them, which is where every one of the six per-row loops in
+> `table.ts` was paying for it.
+>
+> Measured head-to-head in one process, `tools/bench-structure.mjs`, per caret
+> move:
+>
+> | | before | after |
+> |---|---|---|
+> | table, 20 rows | 0.54 ms | 0.07 ms |
+> | table, 100 rows | 2.71 ms | 0.16 ms |
+> | table, 200 rows | 6.47 ms | 0.25 ms |
+> | **table, 600 rows** | **115.9 ms** | **0.62 ms** |
+> | list, 600 items | 0.53 ms | 0.15 ms |
+> | 300 sections | 0.79 ms | 0.12 ms |
+>
+> Two behaviours changed, both deliberately. An operation now applies when it is
+> *structurally* possible, not when the re-rendered text happens to differ: "make
+> the columns equal" used to grey out on an already-equal table whose source was
+> formatted by hand, and light up on one that only needed reformatting — the
+> answer depended on the writer's whitespace. And "toggle header row" is greyed
+> on a row made only of merges, because `מיזוג` has no header spelling and the
+> button provably could not have changed anything. The one case where an applying
+> operation leaves the source identical — moving a row past one identical to it —
+> is asserted as such, and `runStructureAction` declines to push an empty step
+> onto the undo stack for it.
+>
+> Cost: 6 files, +1 tool. `npm test` 3,013 (+14), `cargo test` 352 — the engine
+> is untouched and `structure-edits.json` re-emits byte-identical, which is the
+> check that the eighteen operations still produce the same source they did.
+> `tsc` clean, `vite build` clean.
 
 `ksav/README.md:142` states the architectural centre of the project:
 

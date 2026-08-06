@@ -16,6 +16,24 @@
 //
 // Everything here is pure: (document, caret) in, (document, caret) out. The
 // tests are real tests, and `engine/tests/structure.rs` compiles the output.
+//
+// **Two questions, not one.** Every surface asks each operation two things:
+// *can you act here* (to grey the control) and *act* (when it is pressed). The
+// first used to be answered with the second — `run(doc, pos) !== null` — so
+// standing in a table laid it out eighteen times, re-rendered it eighteen times
+// and built eighteen copies of the whole document on **every caret move**, to
+// decide the colour of some arrows. On a six-hundred-row table that was 93 ms
+// per arrow key: the caret visibly lagging behind the keyboard, in a table, which
+// is precisely where a writer is holding an arrow key down.
+//
+// So an action carries `enabled(ctx)` beside `run`, answered from a context that
+// resolves the caret's list, table geometry and heading **once** and hands the
+// same answer to all of them. The two are not allowed to drift: every predicate
+// lives next to the operation it guards, in `lists.ts`, `table.ts` and
+// `headings.ts`, and each operation asks its own before doing anything — so
+// "the control is enabled" and "the operation acts" are one sentence. What keeps
+// them honest is `test/structure.test.mjs`, which sweeps every action over every
+// caret position of a corpus and fails if `enabled` and `run` ever disagree.
 
 import * as heads from "./headings";
 import * as lists from "./lists";
@@ -49,23 +67,170 @@ export interface StructureAction {
    */
   primary?: boolean;
   /**
-   * Do it. Returns null when the operation does not apply here — the last item
-   * cannot move down, the first cannot indent — which is what the surfaces use
-   * to disable a control rather than letting it silently do nothing.
+   * Can it act where this context points?
+   *
+   * What every surface uses to disable a control rather than offering one that
+   * silently does nothing — and the *only* thing they should use, because it
+   * costs a comparison or two against an already-resolved caret. `isEnabled`
+   * below is the one-shot form for a surface that has a document and a position
+   * rather than a context.
+   */
+  enabled(ctx: StructureContext): boolean;
+  /**
+   * Do it. Returns null exactly when `enabled` says no — the last item cannot
+   * move down, the first cannot indent — so a surface that ignores `enabled` and
+   * just calls this still cannot be lied to.
    */
   run(doc: string, pos: number): Edit | null;
+}
+
+// ---------------------------------------------------------------- the context
+//
+// One caret position, resolved once and shared by everything that asks about it.
+
+/**
+ * Everything the operations need to know about one (document, caret), computed
+ * on demand and at most once each.
+ *
+ * Lazy rather than eager, because the ribbon in a list must not pay to lay out a
+ * table it is not in, and the fields differ wildly in price: `item()` is a scan
+ * of one list's items, `geometry()` lays out every cell in the table, `headings()`
+ * walks every node in the document. Lazy also means this stays cheap to
+ * construct, which is what lets `run` build one for a single click without
+ * anybody having to thread a context through the call.
+ */
+export interface StructureContext {
+  readonly doc: string;
+  readonly pos: number;
+  /** The innermost list containing the caret. */
+  list(): lists.ListInfo | null;
+  /** The item of that list the caret is in, and its index. */
+  item(): lists.Here;
+  /** The innermost table containing the caret. */
+  table(): tables.TableInfo | null;
+  /** That table laid out — cells padded to a rectangle, rows indexed. */
+  geometry(): tables.TableGeometry | null;
+  /**
+   * The grid cell the table operations act on.
+   *
+   * With the caret between cells rather than in one, that is the last row and
+   * column instead of nothing: "add a row" should always mean something while
+   * the caret is inside a table.
+   */
+  cursor(): { row: number; col: number };
+  /** Every heading in the document, in source order. */
+  headings(): heads.HeadingInfo[];
+  /** The heading whose section contains the caret — the one at or above it. */
+  section(): heads.HeadingInfo | null;
+  /** The heading the caret is *on*, which is a different question. */
+  headingHere(): heads.HeadingInfo | null;
+  /** The line the caret is on, trimmed. */
+  line(): string;
+}
+
+/** Compute once, on first ask. */
+function once<T>(compute: () => T): () => T {
+  let done = false;
+  let value: T;
+  return () => {
+    if (!done) {
+      value = compute();
+      done = true;
+    }
+    return value;
+  };
+}
+
+function makeContext(doc: string, pos: number): StructureContext {
+  const list = once(() => lists.listAt(doc, pos));
+  const item = once(() => {
+    const l = list();
+    return l ? lists.itemAt(l, pos) : null;
+  });
+  const table = once(() => tables.tableAt(doc, pos));
+  const geometry = once(() => {
+    const t = table();
+    return t ? tables.geometry(t) : null;
+  });
+  const cursor = once(() => {
+    const t = table();
+    const g = geometry();
+    if (!t || !g) return { row: 0, col: 0 };
+    const idx = tables.cellIndexAt(t, pos);
+    const p = idx == null ? undefined : g.grid[idx];
+    return p
+      ? { row: p.row, col: p.col }
+      : { row: Math.max(0, g.rows - 1), col: Math.max(0, g.cols - 1) };
+  });
+  const all = once(() => heads.headings(doc));
+  return {
+    doc,
+    pos,
+    list,
+    item,
+    table,
+    geometry,
+    cursor,
+    headings: all,
+    section: once(() => heads.sectionAt(doc, pos, all())),
+    headingHere: once(() => heads.headingAt(doc, pos, all())),
+    line: once(() => heads.lineAt(doc, pos).line),
+  };
+}
+
+// One entry, because the callers all ask about the same caret in a burst: the
+// ribbon asks `availableAt` and then `whereAmI`, the menu asks eighteen
+// operations in a loop, and the click that follows asks one of them to act. A
+// context is a pure function of (doc, pos), so handing the same one back is
+// never wrong — only cheaper.
+let last: StructureContext | null = null;
+
+/** The resolved caret, shared by every question asked about this position. */
+export function contextAt(doc: string, pos: number): StructureContext {
+  if (last && last.pos === pos && last.doc === doc) return last;
+  last = makeContext(doc, pos);
+  return last;
+}
+
+/** Can this operation act here? For a surface holding a document, not a context. */
+export function isEnabled(action: StructureAction, doc: string, pos: number): boolean {
+  return action.enabled(contextAt(doc, pos));
+}
+
+/**
+ * One decision, two callers.
+ *
+ * `can` is the authority: `run` performs the edit only when `can` agrees, so an
+ * operation cannot act where its control is greyed out, and a control cannot be
+ * live where the operation would do nothing.
+ */
+function op(
+  can: (ctx: StructureContext) => boolean,
+  edit: (ctx: StructureContext) => Edit | null,
+): Pick<StructureAction, "enabled" | "run"> {
+  return {
+    enabled: can,
+    run(doc, pos) {
+      const ctx = contextAt(doc, pos);
+      return can(ctx) ? edit(ctx) : null;
+    },
+  };
 }
 
 // ---------------------------------------------------------------- lists
 
 /** Wrap a list operation so it finds its own list and reports inapplicability. */
 function onList(
+  can: (list: lists.ListInfo, here: lists.Here) => boolean,
   fn: (doc: string, list: lists.ListInfo, pos: number) => Edit | null,
-): (doc: string, pos: number) => Edit | null {
-  return (doc, pos) => {
-    const list = lists.listAt(doc, pos);
-    return list ? fn(doc, list, pos) : null;
-  };
+): Pick<StructureAction, "enabled" | "run"> {
+  return op(
+    (ctx) => {
+      const list = ctx.list();
+      return list !== null && can(list, ctx.item());
+    },
+    (ctx) => fn(ctx.doc, ctx.list()!, ctx.pos),
+  );
 }
 
 const LIST_ACTIONS: StructureAction[] = [
@@ -76,7 +241,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "items",
     glyph: "＋",
     label: "listAddItem",
-    run: onList((doc, list, pos) => lists.addItem(doc, list, pos)),
+    ...onList(
+      () => lists.canAddItem(),
+      (doc, list, pos) => lists.addItem(doc, list, pos),
+    ),
   },
   {
     id: "list.splitItem",
@@ -85,7 +253,11 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "items",
     glyph: "⤶",
     label: "listSplitItem",
-    run: onList((doc, list, pos) => lists.splitItem(doc, list, pos)),
+    // Splitting outside an item is adding one at the end, which always applies.
+    ...onList(
+      () => lists.canAddItem(),
+      (doc, list, pos) => lists.splitItem(doc, list, pos),
+    ),
   },
   {
     id: "list.breakInItem",
@@ -94,7 +266,10 @@ const LIST_ACTIONS: StructureAction[] = [
     glyph: "↵",
     label: "listBreakInItem",
     // The one the writer asked for by name: a newline *inside* a bullet.
-    run: (doc, pos) => (lists.listAt(doc, pos) ? lists.breakInItem(doc, pos) : null),
+    ...onList(
+      () => lists.canBreakInItem(),
+      (doc, _list, pos) => lists.breakInItem(doc, pos),
+    ),
   },
   {
     id: "list.deleteItem",
@@ -102,7 +277,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "items",
     glyph: "✕",
     label: "listDeleteItem",
-    run: onList((doc, list, pos) => lists.deleteItem(doc, list, pos)),
+    ...onList(
+      (_list, here) => lists.canDeleteItem(here),
+      (doc, list, pos) => lists.deleteItem(doc, list, pos),
+    ),
   },
   {
     id: "list.indent",
@@ -111,7 +289,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "level",
     glyph: "⇥",
     label: "listIndentItem",
-    run: onList((doc, list, pos) => lists.indentItem(doc, list, pos)),
+    ...onList(
+      (_list, here) => lists.canIndentItem(here),
+      (doc, list, pos) => lists.indentItem(doc, list, pos),
+    ),
   },
   {
     id: "list.outdent",
@@ -119,7 +300,13 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "level",
     glyph: "⇤",
     label: "listOutdentItem",
-    run: onList((doc, list, pos) => lists.outdentItem(doc, list, pos)),
+    ...op(
+      (ctx) => {
+        const list = ctx.list();
+        return list !== null && lists.canOutdentItem(ctx.doc, list, ctx.item());
+      },
+      (ctx) => lists.outdentItem(ctx.doc, ctx.list()!, ctx.pos),
+    ),
   },
   {
     id: "list.moveUp",
@@ -127,7 +314,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "order",
     glyph: "▲",
     label: "listMoveUp",
-    run: onList((doc, list, pos) => lists.moveItem(doc, list, pos, -1)),
+    ...onList(
+      (list, here) => lists.canMoveItem(list, here, -1),
+      (doc, list, pos) => lists.moveItem(doc, list, pos, -1),
+    ),
   },
   {
     id: "list.moveDown",
@@ -135,7 +325,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "order",
     glyph: "▼",
     label: "listMoveDown",
-    run: onList((doc, list, pos) => lists.moveItem(doc, list, pos, 1)),
+    ...onList(
+      (list, here) => lists.canMoveItem(list, here, 1),
+      (doc, list, pos) => lists.moveItem(doc, list, pos, 1),
+    ),
   },
   {
     id: "list.bullets",
@@ -143,7 +336,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "kind",
     glyph: "•",
     label: "listAsBullets",
-    run: onList((doc, list) => (list.kind === "bullets" ? null : lists.setKind(doc, list, "bullets"))),
+    ...onList(
+      (list) => lists.canSetKind(list, "bullets"),
+      (doc, list) => lists.setKind(doc, list, "bullets"),
+    ),
   },
   {
     id: "list.numbered",
@@ -151,8 +347,9 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "kind",
     glyph: "1.",
     label: "listAsNumbered",
-    run: onList((doc, list) =>
-      list.kind === "numbered" ? null : lists.setKind(doc, list, "numbered"),
+    ...onList(
+      (list) => lists.canSetKind(list, "numbered"),
+      (doc, list) => lists.setKind(doc, list, "numbered"),
     ),
   },
   {
@@ -161,7 +358,10 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "kind",
     glyph: "א.",
     label: "listAsHebrew",
-    run: onList((doc, list) => (list.kind === "hebrew" ? null : lists.setKind(doc, list, "hebrew"))),
+    ...onList(
+      (list) => lists.canSetKind(list, "hebrew"),
+      (doc, list) => lists.setKind(doc, list, "hebrew"),
+    ),
   },
 ];
 
@@ -170,24 +370,33 @@ const LIST_ACTIONS: StructureAction[] = [
 /**
  * Wrap a table operation.
  *
- * With the caret between cells rather than in one, the operation acts on the
- * last row and column instead of refusing: "add a row" should always mean
- * something while the caret is inside a table.
+ * Both halves work from the geometry the context laid out once — the question
+ * eighteen times per caret move, the edit once per click — and the operations in
+ * `table.ts` ask the same `can*` before they touch anything, so neither half can
+ * be right while the other is wrong.
  */
 function onTable(
+  can: (
+    t: tables.TableInfo,
+    g: tables.TableGeometry,
+    row: number,
+    col: number,
+  ) => boolean,
   fn: (doc: string, t: tables.TableInfo, row: number, col: number) => string,
-): (doc: string, pos: number) => Edit | null {
-  return (doc, pos) => {
-    const t = tables.tableAt(doc, pos);
-    if (!t) return null;
-    const idx = tables.cellIndexAt(t, pos);
-    const row = idx == null ? tables.rowCount(t) - 1 : tables.rowOf(t, idx);
-    const col = idx == null ? t.cols - 1 : tables.colOf(t, idx);
-    const text = fn(doc, t, row, col);
-    // An operation that changed nothing did not apply — the surfaces grey it out
-    // rather than offering a button that does nothing when pressed.
-    return text === doc ? null : { text, caret: Math.min(pos, text.length) };
-  };
+): Pick<StructureAction, "enabled" | "run"> {
+  return op(
+    (ctx) => {
+      const g = ctx.geometry();
+      if (!g) return false;
+      const { row, col } = ctx.cursor();
+      return can(ctx.table()!, g, row, col);
+    },
+    (ctx) => {
+      const { row, col } = ctx.cursor();
+      const text = fn(ctx.doc, ctx.table()!, row, col);
+      return { text, caret: Math.min(ctx.pos, text.length) };
+    },
+  );
 }
 
 /**
@@ -214,7 +423,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "rows",
     glyph: "↑＋",
     label: "insertRowAbove",
-    run: onTable((doc, t, row) => tables.insertRow(doc, t, row - 1)),
+    ...onTable(
+      () => tables.canInsertRow(),
+      (doc, t, row) => tables.insertRow(doc, t, row - 1),
+    ),
   },
   {
     id: "table.rowBelow",
@@ -223,7 +435,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "rows",
     glyph: "↓＋",
     label: "insertRowBelow",
-    run: onTable((doc, t, row) => tables.insertRow(doc, t, row)),
+    ...onTable(
+      () => tables.canInsertRow(),
+      (doc, t, row) => tables.insertRow(doc, t, row),
+    ),
   },
   {
     id: "table.rowUp",
@@ -231,7 +446,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "rows",
     glyph: "▲",
     label: "moveRowUp",
-    run: onTable((doc, t, row) => tables.moveRow(doc, t, row, -1)),
+    ...onTable(
+      (_t, g, row) => tables.canMoveRow(g, row, -1),
+      (doc, t, row) => tables.moveRow(doc, t, row, -1),
+    ),
   },
   {
     id: "table.rowDown",
@@ -239,7 +457,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "rows",
     glyph: "▼",
     label: "moveRowDown",
-    run: onTable((doc, t, row) => tables.moveRow(doc, t, row, 1)),
+    ...onTable(
+      (_t, g, row) => tables.canMoveRow(g, row, 1),
+      (doc, t, row) => tables.moveRow(doc, t, row, 1),
+    ),
   },
   {
     id: "table.rowDelete",
@@ -247,7 +468,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "rows",
     glyph: "⊖",
     label: "deleteRow",
-    run: onTable((doc, t, row) => tables.deleteRow(doc, t, row)),
+    ...onTable(
+      (_t, g) => tables.canDeleteRow(g),
+      (doc, t, row) => tables.deleteRow(doc, t, row),
+    ),
   },
   {
     id: "table.colBefore",
@@ -255,7 +479,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cols",
     glyph: "＋←",
     label: "insertColBefore",
-    run: onTable((doc, t, _row, col) => tables.insertColumn(doc, t, col - 1)),
+    ...onTable(
+      () => tables.canInsertColumn(),
+      (doc, t, _row, col) => tables.insertColumn(doc, t, col - 1),
+    ),
   },
   {
     id: "table.colAfter",
@@ -264,7 +491,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cols",
     glyph: "→＋",
     label: "insertColAfter",
-    run: onTable((doc, t, _row, col) => tables.insertColumn(doc, t, col)),
+    ...onTable(
+      () => tables.canInsertColumn(),
+      (doc, t, _row, col) => tables.insertColumn(doc, t, col),
+    ),
   },
   {
     id: "table.colStart",
@@ -272,7 +502,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cols",
     glyph: "◀",
     label: "moveColStart",
-    run: onTable((doc, t, _row, col) => tables.moveColumn(doc, t, col, -1)),
+    ...onTable(
+      (_t, g, _row, col) => tables.canMoveColumn(g, col, -1),
+      (doc, t, _row, col) => tables.moveColumn(doc, t, col, -1),
+    ),
   },
   {
     id: "table.colEnd",
@@ -280,7 +513,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cols",
     glyph: "▶",
     label: "moveColEnd",
-    run: onTable((doc, t, _row, col) => tables.moveColumn(doc, t, col, 1)),
+    ...onTable(
+      (_t, g, _row, col) => tables.canMoveColumn(g, col, 1),
+      (doc, t, _row, col) => tables.moveColumn(doc, t, col, 1),
+    ),
   },
   {
     id: "table.colDelete",
@@ -288,7 +524,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cols",
     glyph: "⊗",
     label: "deleteCol",
-    run: onTable((doc, t, _row, col) => tables.deleteColumn(doc, t, col)),
+    ...onTable(
+      (_t, g) => tables.canDeleteColumn(g),
+      (doc, t, _row, col) => tables.deleteColumn(doc, t, col),
+    ),
   },
   {
     id: "table.mergeRight",
@@ -296,7 +535,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cells",
     glyph: "⇥⇤",
     label: "mergeRight",
-    run: onTable((doc, t, row, col) => tables.mergeRight(doc, t, row, col)),
+    ...onTable(
+      (_t, g, row, col) => tables.canMergeRight(g, row, col),
+      (doc, t, row, col) => tables.mergeRight(doc, t, row, col),
+    ),
   },
   {
     id: "table.splitCell",
@@ -304,7 +546,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "cells",
     glyph: "⇤⇥",
     label: "splitCell",
-    run: onTable((doc, t, row, col) => tables.splitCell(doc, t, row, col)),
+    ...onTable(
+      (_t, g, row, col) => tables.canSplitCell(g, row, col),
+      (doc, t, row, col) => tables.splitCell(doc, t, row, col),
+    ),
   },
   {
     id: "table.widerColumn",
@@ -312,7 +557,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "width",
     glyph: "↔＋",
     label: "widerColumn",
-    run: onTable((doc, t, _row, col) => tables.setColumnWidth(doc, t, col, stepWidth(t, col, 1))),
+    ...onTable(
+      (t, g, _row, col) => tables.canSetColumnWidth(t, g, col, stepWidth(t, col, 1)),
+      (doc, t, _row, col) => tables.setColumnWidth(doc, t, col, stepWidth(t, col, 1)),
+    ),
   },
   {
     id: "table.narrowerColumn",
@@ -320,7 +568,12 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "width",
     glyph: "↔－",
     label: "narrowerColumn",
-    run: onTable((doc, t, _row, col) => tables.setColumnWidth(doc, t, col, stepWidth(t, col, -1))),
+    // Greyed at the floor rather than clamping silently: a quarter-width column
+    // pressed narrower again would look like the button had stopped working.
+    ...onTable(
+      (t, g, _row, col) => tables.canSetColumnWidth(t, g, col, stepWidth(t, col, -1)),
+      (doc, t, _row, col) => tables.setColumnWidth(doc, t, col, stepWidth(t, col, -1)),
+    ),
   },
   {
     id: "table.equalColumns",
@@ -328,7 +581,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "width",
     glyph: "≡",
     label: "equalColumns",
-    run: onTable((doc, t) => tables.equalColumns(doc, t)),
+    ...onTable(
+      (t, g) => tables.canEqualColumns(t, g),
+      (doc, t) => tables.equalColumns(doc, t),
+    ),
   },
   {
     id: "table.autoColumns",
@@ -336,7 +592,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "width",
     glyph: "⤢",
     label: "autoColumns",
-    run: onTable((doc, t) => tables.autoColumns(doc, t)),
+    ...onTable(
+      (t, g) => tables.canAutoColumns(t, g),
+      (doc, t) => tables.autoColumns(doc, t),
+    ),
   },
   {
     id: "table.headerRow",
@@ -345,7 +604,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "whole",
     glyph: "H",
     label: "toggleHeaderRow",
-    run: onTable((doc, t, row) => tables.toggleHeaderRow(doc, t, row)),
+    ...onTable(
+      (_t, g, row) => tables.canToggleHeaderRow(g, row),
+      (doc, t, row) => tables.toggleHeaderRow(doc, t, row),
+    ),
   },
   {
     id: "table.delete",
@@ -353,7 +615,10 @@ const TABLE_ACTIONS: StructureAction[] = [
     group: "whole",
     glyph: "🗑",
     label: "deleteTable",
-    run: onTable((doc, t) => tables.deleteTable(doc, t)),
+    ...onTable(
+      () => tables.canDeleteTable(),
+      (doc, t) => tables.deleteTable(doc, t),
+    ),
   },
 ];
 
@@ -367,12 +632,16 @@ const TABLE_ACTIONS: StructureAction[] = [
  * make the operation useless exactly when it is wanted.
  */
 function onHeading(
+  can: (h: heads.HeadingInfo, ctx: StructureContext) => boolean,
   fn: (doc: string, h: heads.HeadingInfo) => Edit | null,
-): (doc: string, pos: number) => Edit | null {
-  return (doc, pos) => {
-    const h = heads.sectionAt(doc, pos);
-    return h ? fn(doc, h) : null;
-  };
+): Pick<StructureAction, "enabled" | "run"> {
+  return op(
+    (ctx) => {
+      const h = ctx.section();
+      return h !== null && can(h, ctx);
+    },
+    (ctx) => fn(ctx.doc, ctx.section()!),
+  );
 }
 
 const HEADING_ACTIONS: StructureAction[] = [
@@ -383,7 +652,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     group: "level",
     glyph: "⇤",
     label: "headingPromote",
-    run: onHeading((doc, h) => heads.promote(doc, h)),
+    ...onHeading(
+      (h) => heads.canPromote(h),
+      (doc, h) => heads.promote(doc, h),
+    ),
   },
   {
     id: "heading.demote",
@@ -392,7 +664,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     group: "level",
     glyph: "⇥",
     label: "headingDemote",
-    run: onHeading((doc, h) => heads.demote(doc, h)),
+    ...onHeading(
+      (h) => heads.canDemote(h),
+      (doc, h) => heads.demote(doc, h),
+    ),
   },
   ...Array.from({ length: heads.MAX_LEVEL }, (_, i) => ({
     // All nine, because the engine has always had all nine and the toolbar
@@ -406,7 +681,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     // Not `onHeading`: this one applies to the line in hand, exactly as a style
     // button does in a word processor. Wrapped in `sectionAt` it would restyle
     // the heading *above* the caret while the writer looked at their paragraph.
-    run: (doc: string, pos: number) => heads.makeHeading(doc, pos, i + 1),
+    ...op(
+      (ctx) => heads.canMakeHeading(ctx.headingHere(), ctx.line(), i + 1),
+      (ctx) => heads.makeHeading(ctx.doc, ctx.pos, i + 1),
+    ),
   })),
   {
     id: "heading.moveUp",
@@ -414,7 +692,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     group: "order",
     glyph: "▲",
     label: "headingMoveUp",
-    run: onHeading((doc, h) => heads.moveSection(doc, h, -1)),
+    ...onHeading(
+      (h, ctx) => heads.canMoveSection(ctx.doc, h, -1, ctx.headings()),
+      (doc, h) => heads.moveSection(doc, h, -1),
+    ),
   },
   {
     id: "heading.moveDown",
@@ -422,7 +703,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     group: "order",
     glyph: "▼",
     label: "headingMoveDown",
-    run: onHeading((doc, h) => heads.moveSection(doc, h, 1)),
+    ...onHeading(
+      (h, ctx) => heads.canMoveSection(ctx.doc, h, 1, ctx.headings()),
+      (doc, h) => heads.moveSection(doc, h, 1),
+    ),
   },
   {
     id: "heading.delete",
@@ -430,7 +714,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     group: "whole",
     glyph: "🗑",
     label: "headingDelete",
-    run: onHeading((doc, h) => heads.deleteSection(doc, h)),
+    ...onHeading(
+      () => heads.canDeleteSection(),
+      (doc, h) => heads.deleteSection(doc, h),
+    ),
   },
   {
     id: "heading.contents",
@@ -438,7 +725,10 @@ const HEADING_ACTIONS: StructureAction[] = [
     group: "whole",
     glyph: "☰",
     label: "headingContents",
-    run: (doc, pos) => (heads.sectionAt(doc, pos) ? heads.addContents(doc) : null),
+    ...onHeading(
+      (_h, ctx) => heads.canAddContents(ctx.doc),
+      (doc) => heads.addContents(doc),
+    ),
   },
 ];
 
@@ -460,15 +750,19 @@ export function actionById(id: string): StructureAction | undefined {
  * the writer is typing into.
  */
 export function structureAt(doc: string, pos: number): Structure | null {
-  const list = lists.listAt(doc, pos);
-  const table = tables.tableAt(doc, pos);
+  return structureOf(contextAt(doc, pos));
+}
+
+function structureOf(ctx: StructureContext): Structure | null {
+  const list = ctx.list();
+  const table = ctx.table();
   if (list && table) return list.from > table.from ? "list" : "table";
   if (list) return "list";
   if (table) return "table";
   // A heading last, and deliberately so: every position after the first heading
   // is inside *some* section, so it would otherwise claim the caret everywhere
   // and no list or table would ever get the ribbon.
-  if (heads.sectionAt(doc, pos)) return "heading";
+  if (ctx.section()) return "heading";
   return null;
 }
 
@@ -500,16 +794,22 @@ export function structureNear(doc: string, pos: number): { structure: Structure;
   return null;
 }
 
-/** The operations offered here, each marked with whether it can act. */
+/**
+ * The operations offered here, each marked with whether it can act.
+ *
+ * One context for all of them — see the note at the top of this file about what
+ * this used to cost.
+ */
 export function availableAt(
   doc: string,
   pos: number,
 ): { action: StructureAction; enabled: boolean }[] {
-  const structure = structureAt(doc, pos);
+  const ctx = contextAt(doc, pos);
+  const structure = structureOf(ctx);
   if (!structure) return [];
   return STRUCTURE_ACTIONS.filter((a) => a.structure === structure).map((action) => ({
     action,
-    enabled: action.run(doc, pos) !== null,
+    enabled: action.enabled(ctx),
   }));
 }
 
@@ -518,10 +818,11 @@ export function whereAmI(
   doc: string,
   pos: number,
 ): { structure: Structure; row: number; rows: number; col: number; cols: number } | null {
-  const structure = structureAt(doc, pos);
+  const ctx = contextAt(doc, pos);
+  const structure = structureOf(ctx);
   if (structure === "list") {
-    const list = lists.listAt(doc, pos)!;
-    const here = lists.itemAt(list, pos);
+    const list = ctx.list()!;
+    const here = ctx.item();
     return {
       structure,
       row: (here?.index ?? list.items.length - 1) + 1,
@@ -531,8 +832,8 @@ export function whereAmI(
     };
   }
   if (structure === "heading") {
-    const h = heads.sectionAt(doc, pos)!;
-    const all = heads.headings(doc);
+    const h = ctx.section()!;
+    const all = ctx.headings();
     return {
       structure,
       row: all.findIndex((o) => o.from === h.from) + 1,
@@ -542,14 +843,14 @@ export function whereAmI(
     };
   }
   if (structure === "table") {
-    const t = tables.tableAt(doc, pos)!;
-    const idx = tables.cellIndexAt(t, pos);
+    const g = ctx.geometry()!;
+    const { row, col } = ctx.cursor();
     return {
       structure,
-      row: (idx == null ? tables.rowCount(t) - 1 : tables.rowOf(t, idx)) + 1,
-      rows: tables.rowCount(t),
-      col: (idx == null ? t.cols - 1 : tables.colOf(t, idx)) + 1,
-      cols: t.cols,
+      row: row + 1,
+      rows: Math.max(1, g.rows),
+      col: col + 1,
+      cols: g.cols,
     };
   }
   return null;

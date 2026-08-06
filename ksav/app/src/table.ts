@@ -129,7 +129,7 @@ export function cellIndexAt(t: TableInfo, pos: number): number | null {
  * expressed against this grid rather than against `index / cols`, which was the
  * arithmetic that silently reflowed a merged table on any edit.
  */
-interface Placement {
+export interface Placement {
   cell: TableCell;
   /** Index into the cell list this placement came from. */
   index: number;
@@ -141,6 +141,13 @@ interface Placement {
   span: number;
 }
 
+interface Layout {
+  grid: Placement[];
+  /** The same placements indexed by row — `byRow[r]` is row `r`, left to right. */
+  byRow: Placement[][];
+  rows: number;
+}
+
 /**
  * Lay the cell list out into a grid of `cols` columns, honouring spans.
  *
@@ -148,9 +155,16 @@ interface Placement {
  * current row wraps to the next, exactly as Typst's own auto-placement does. A
  * span wider than the table is clamped, so a stray `מיזוג(9)` in a 2-column
  * table can never make a row that no operation can reason about.
+ *
+ * The rows are **bucketed here**, once, rather than found by filtering the whole
+ * cell list per row. Every loop below walks the table row by row, so a filter
+ * per row made each of them quadratic in the table: `render` alone was
+ * 360 000 comparisons on a six-hundred-row table, and the ribbon used to pay for
+ * eighteen of those per caret move.
  */
-function layout(cells: TableCell[], cols: number): { grid: Placement[]; rows: number } {
+function layout(cells: TableCell[], cols: number): Layout {
   const grid: Placement[] = [];
+  const byRow: Placement[][] = [];
   let row = 0;
   let col = 0;
   cells.forEach((cell, index) => {
@@ -159,7 +173,9 @@ function layout(cells: TableCell[], cols: number): { grid: Placement[]; rows: nu
       row++;
       col = 0;
     }
-    grid.push({ cell, index, row, col, span });
+    const p = { cell, index, row, col, span };
+    grid.push(p);
+    (byRow[row] ??= []).push(p);
     col += span;
     if (col >= cols) {
       row++;
@@ -167,11 +183,44 @@ function layout(cells: TableCell[], cols: number): { grid: Placement[]; rows: nu
     }
   });
   const rows = col === 0 ? row : row + 1;
-  return { grid, rows };
+  return { grid, byRow, rows };
 }
 
-function placementsIn(grid: Placement[], row: number): Placement[] {
-  return grid.filter((p) => p.row === row);
+function placementsIn(l: Layout, row: number): Placement[] {
+  return l.byRow[row] ?? [];
+}
+
+/**
+ * The table laid out, once: cells padded to a full rectangle, every cell's grid
+ * position, and the rows indexed.
+ *
+ * Every operation below needs exactly this, and so does every question about
+ * whether an operation *applies*. `structure.ts` computes it once per caret move
+ * and asks all eighteen table controls; asking used to mean **running** all
+ * eighteen — eighteen layouts, eighteen re-renders of the table and eighteen
+ * copies of the whole document, per arrow key.
+ */
+export interface TableGeometry {
+  /** The cells, padded so the final grid row is full. */
+  cells: TableCell[];
+  cols: number;
+  /** Grid rows after padding; 0 only for a table with no cells at all. */
+  rows: number;
+  /** One placement per cell, in cell order. */
+  grid: Placement[];
+  /** The placements indexed by row. */
+  byRow: Placement[][];
+}
+
+export function geometry(t: TableInfo): TableGeometry {
+  const cells = rectangular(t.cells, t.cols);
+  const { grid, byRow, rows } = layout(cells, t.cols);
+  return { cells, cols: t.cols, rows, grid, byRow };
+}
+
+/** The placement covering a grid position — the cell a merge spans over, too. */
+function placementAt(g: TableGeometry, row: number, col: number): Placement | undefined {
+  return placementsIn(g, row).find((p) => col >= p.col && col < p.col + p.span);
 }
 
 export function rowOf(t: TableInfo, cellIndex: number): number {
@@ -202,12 +251,12 @@ function render(
   cols: number,
   widths: string[] | null = t.widths,
 ): string {
-  const { grid, rows } = layout(cells, cols);
+  const l = layout(cells, cols);
   const lines: string[] = [];
-  for (let r = 0; r < rows; r++) {
+  for (let r = 0; r < l.rows; r++) {
     lines.push(
       "  " +
-        placementsIn(grid, r)
+        placementsIn(l, r)
           .map((p) => cellSource(t, p.cell))
           .join(", ") +
         ",",
@@ -239,10 +288,10 @@ function blank(header: boolean): TableCell {
  * problem to auto-fill, not ours to reshape.
  */
 function rectangular(cells: TableCell[], cols: number): TableCell[] {
-  const { grid, rows } = layout(cells, cols);
+  const l = layout(cells, cols);
   const out = cells.slice();
-  if (rows === 0) return out;
-  const last = placementsIn(grid, rows - 1);
+  if (l.rows === 0) return out;
+  const last = placementsIn(l, l.rows - 1);
   const filled = last.reduce((n, p) => n + p.span, 0);
   const header = last.length > 0 && last.every((p) => p.cell.header);
   for (let c = filled; c < cols; c++) out.push(blank(header));
@@ -255,31 +304,161 @@ function rowStartIndex(grid: Placement[], row: number, count: number): number {
   return first ? first.index : count;
 }
 
+// ---------------------------------------------------------------- can it act?
+//
+// One question per operation, answered from the geometry alone: no rendering, no
+// second copy of the document, no string comparison. These are what the ribbon,
+// the menus and the hydra ask eighteen times per caret move, and each operation
+// below asks its own before it does anything — so "the control is enabled" and
+// "the operation acts" are the same sentence, and cannot drift into disagreeing.
+//
+// The rule they follow: an operation applies when it is *structurally* possible
+// here. That is not always the same as "the resulting text differs" — swapping
+// two identical rows applies and produces identical source — and the old test
+// (render it, compare it to the document) got the difference wrong in both
+// directions. It greyed out "make the columns equal" on a table whose columns
+// were already equal but whose source was formatted by hand, and enabled it on
+// one that only needed reformatting.
+
+/** A row can always be added; there is always somewhere to put it. */
+export function canInsertRow(): boolean {
+  return true;
+}
+
+/** Never the last one: a table with no rows cannot be edited back into one. */
+export function canDeleteRow(g: TableGeometry): boolean {
+  return g.rows > 1;
+}
+
+export function canMoveRow(g: TableGeometry, row: number, by: -1 | 1): boolean {
+  const other = row + by;
+  return row >= 0 && row < g.rows && other >= 0 && other < g.rows;
+}
+
+export function canInsertColumn(): boolean {
+  return true;
+}
+
+export function canDeleteColumn(g: TableGeometry): boolean {
+  return g.cols > 1;
+}
+
+/**
+ * Refused when either column is crossed by a merge: there is no honest way to
+ * reorder half of a spanning cell, and silently splitting one would lose the
+ * writer's layout.
+ */
+export function canMoveColumn(g: TableGeometry, col: number, by: -1 | 1): boolean {
+  const other = col + by;
+  if (col < 0 || col >= g.cols || other < 0 || other >= g.cols) return false;
+  return !g.grid.some(
+    (p) => p.span > 1 && [col, other].some((c) => c > p.col && c < p.col + p.span),
+  );
+}
+
+export function canMergeRight(g: TableGeometry, row: number, col: number): boolean {
+  const here = placementAt(g, row, col);
+  if (!here) return false;
+  const next = placementsIn(g, row).find((p) => p.col === here.col + here.span);
+  return !!next && here.col + here.span + next.span <= g.cols;
+}
+
+export function canSplitCell(g: TableGeometry, row: number, col: number): boolean {
+  const here = placementAt(g, row, col);
+  return !!here && here.span > 1;
+}
+
+/**
+ * A header row toggles when at least one *single* cell in it would change.
+ *
+ * Not merely "the row exists": `cellSource` has no spanning-header form, so a
+ * row made only of merges renders identically whichever way the flag goes, and
+ * offering a button that provably cannot change the document is the exact lie
+ * this file is trying to stop telling.
+ */
+export function canToggleHeaderRow(g: TableGeometry, row: number): boolean {
+  const slice = placementsIn(g, row);
+  if (slice.length === 0) return false;
+  const makeHeader = !slice.every((p) => p.cell.header);
+  return slice.some((p) => p.span === 1 && p.cell.header !== makeHeader);
+}
+
+export function canDeleteTable(): boolean {
+  return true;
+}
+
+/**
+ * The track list this table *renders* with — null when it renders a bare count.
+ *
+ * `render` only writes a track list when it has one per column, so a list of the
+ * wrong length is already invisible; the width questions below all compare what
+ * would be written against what is written now.
+ */
+function tracksNow(t: TableInfo, g: TableGeometry): string[] | null {
+  return t.widths && t.widths.length === g.cols ? t.widths : null;
+}
+
+function sameTracks(a: string[] | null, b: string[] | null): boolean {
+  if (!a || !b) return a === b;
+  return a.length === b.length && a.every((w, i) => w === b[i]);
+}
+
+/** The tracks this table would declare once one column is set to `width`. */
+function tracksWith(t: TableInfo, g: TableGeometry, col: number, width: string): string[] | null {
+  const widths = tracksNow(t, g)?.slice() ?? Array.from({ length: g.cols }, () => "auto");
+  widths[col] = width.trim() || "auto";
+  // Every track `auto` says exactly what the bare count says, so drop back to
+  // the count rather than leaving noise in the writer's source.
+  return widths.every((w) => w === "auto") ? null : widths;
+}
+
+export function canSetColumnWidth(
+  t: TableInfo,
+  g: TableGeometry,
+  col: number,
+  width: string,
+): boolean {
+  if (col < 0 || col >= g.cols) return false;
+  return !sameTracks(tracksNow(t, g), tracksWith(t, g, col, width));
+}
+
+export function canEqualColumns(t: TableInfo, g: TableGeometry): boolean {
+  return !sameTracks(tracksNow(t, g), equalTracks(g));
+}
+
+export function canAutoColumns(t: TableInfo, g: TableGeometry): boolean {
+  return tracksNow(t, g) !== null;
+}
+
+function equalTracks(g: TableGeometry): string[] {
+  return Array.from({ length: g.cols }, () => "1fr");
+}
+
+// ---------------------------------------------------------------- the operations
+
 export function insertRow(doc: string, t: TableInfo, afterRow: number): string {
-  const cells = rectangular(t.cells, t.cols);
-  const { grid, rows } = layout(cells, t.cols);
-  const target = Math.min(Math.max(afterRow + 1, 0), rows);
-  const at = rowStartIndex(grid, target, cells.length);
+  const g = geometry(t);
+  const cells = g.cells.slice();
+  const target = Math.min(Math.max(afterRow + 1, 0), g.rows);
+  const at = rowStartIndex(g.grid, target, cells.length);
   const fresh = Array.from({ length: t.cols }, () => blank(false));
   cells.splice(at, 0, ...fresh);
   return replace(doc, t, render(t, cells, t.cols));
 }
 
 export function deleteRow(doc: string, t: TableInfo, row: number): string {
-  const cells = rectangular(t.cells, t.cols);
-  const { grid, rows } = layout(cells, t.cols);
-  if (rows <= 1) return doc; // never delete the last row
-  const keep = cells.filter((_, i) => grid[i].row !== row);
+  const g = geometry(t);
+  if (!canDeleteRow(g)) return doc; // never delete the last row
+  const keep = g.cells.filter((_, i) => g.grid[i].row !== row);
   return replace(doc, t, render(t, keep, t.cols));
 }
 
 export function insertColumn(doc: string, t: TableInfo, afterCol: number): string {
-  const cells = rectangular(t.cells, t.cols);
-  const { grid, rows } = layout(cells, t.cols);
+  const g = geometry(t);
   const at = Math.min(Math.max(afterCol + 1, 0), t.cols);
   const out: TableCell[] = [];
-  for (let r = 0; r < rows; r++) {
-    const rowCells = placementsIn(grid, r);
+  for (let r = 0; r < g.rows; r++) {
+    const rowCells = placementsIn(g, r);
     const header = rowCells.length > 0 && rowCells.every((p) => p.cell.header);
     let placed = false;
     for (const p of rowCells) {
@@ -310,12 +489,11 @@ export function insertColumn(doc: string, t: TableInfo, afterCol: number): strin
 }
 
 export function deleteColumn(doc: string, t: TableInfo, col: number): string {
-  if (t.cols <= 1) return doc; // never delete the last column
-  const cells = rectangular(t.cells, t.cols);
-  const { grid, rows } = layout(cells, t.cols);
+  const g = geometry(t);
+  if (!canDeleteColumn(g)) return doc; // never delete the last column
   const out: TableCell[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (const p of placementsIn(grid, r)) {
+  for (let r = 0; r < g.rows; r++) {
+    for (const p of placementsIn(g, r)) {
       const covers = col >= p.col && col < p.col + p.span;
       if (covers) {
         // A merge over the deleted column narrows by one; a single cell in it
@@ -332,9 +510,10 @@ export function deleteColumn(doc: string, t: TableInfo, col: number): string {
 
 /** Turn the row into header cells, or back into ordinary ones. */
 export function toggleHeaderRow(doc: string, t: TableInfo, row: number): string {
-  const cells = rectangular(t.cells, t.cols).map((c) => ({ ...c }));
-  const { grid } = layout(cells, t.cols);
-  const slice = placementsIn(grid, row);
+  const g = geometry(t);
+  if (!canToggleHeaderRow(g, row)) return doc;
+  const cells = g.cells.map((c) => ({ ...c }));
+  const slice = placementsIn(g, row);
   const makeHeader = !slice.every((p) => p.cell.header);
   for (const p of slice) cells[p.index].header = makeHeader;
   return replace(doc, t, render(t, cells, t.cols));
@@ -348,15 +527,14 @@ export function toggleHeaderRow(doc: string, t: TableInfo, row: number): string 
  * inside it travel intact.
  */
 export function moveRow(doc: string, t: TableInfo, row: number, by: -1 | 1): string {
-  const cells = rectangular(t.cells, t.cols);
-  const { grid, rows } = layout(cells, t.cols);
+  const g = geometry(t);
+  if (!canMoveRow(g, row, by)) return doc;
   const other = row + by;
-  if (row < 0 || row >= rows || other < 0 || other >= rows) return doc;
-  const slice = (r: number) => placementsIn(grid, r).map((p) => cells[p.index]);
+  const slice = (r: number) => placementsIn(g, r).map((p) => g.cells[p.index]);
   const a = Math.min(row, other);
   const b = Math.max(row, other);
   const out: TableCell[] = [];
-  for (let r = 0; r < rows; r++) {
+  for (let r = 0; r < g.rows; r++) {
     if (r === a) out.push(...slice(b));
     else if (r === b) out.push(...slice(a));
     else out.push(...slice(r));
@@ -372,19 +550,14 @@ export function moveRow(doc: string, t: TableInfo, row: number, by: -1 | 1): str
  * writer's layout. Doing nothing is the truthful answer.
  */
 export function moveColumn(doc: string, t: TableInfo, col: number, by: -1 | 1): string {
+  const g = geometry(t);
+  if (!canMoveColumn(g, col, by)) return doc;
   const other = col + by;
-  if (col < 0 || col >= t.cols || other < 0 || other >= t.cols) return doc;
-  const cells = rectangular(t.cells, t.cols);
-  const { grid, rows } = layout(cells, t.cols);
-  const crossed = grid.some(
-    (p) => p.span > 1 && [col, other].some((c) => c > p.col && c < p.col + p.span),
-  );
-  if (crossed) return doc;
 
   const out: TableCell[] = [];
-  for (let r = 0; r < rows; r++) {
+  for (let r = 0; r < g.rows; r++) {
     const byCol = new Map<number, Placement>();
-    for (const p of placementsIn(grid, r)) byCol.set(p.col, p);
+    for (const p of placementsIn(g, r)) byCol.set(p.col, p);
     for (let c = 0; c < t.cols; ) {
       const want = c === col ? other : c === other ? col : c;
       const p = byCol.get(want);
@@ -413,27 +586,23 @@ export function moveColumn(doc: string, t: TableInfo, col: number, by: -1 | 1): 
  * size a single column without saying something about the others.
  */
 export function setColumnWidth(doc: string, t: TableInfo, col: number, width: string): string {
-  if (col < 0 || col >= t.cols) return doc;
-  const widths = t.widths
-    ? t.widths.slice()
-    : Array.from({ length: t.cols }, () => "auto");
-  widths[col] = width.trim() || "auto";
-  // Every track `auto` says exactly what the bare count says, so drop back to
-  // the count rather than leaving noise in the writer's source.
-  const next = widths.every((w) => w === "auto") ? null : widths;
-  return replace(doc, t, render(t, rectangular(t.cells, t.cols), t.cols, next));
+  const g = geometry(t);
+  if (!canSetColumnWidth(t, g, col, width)) return doc;
+  return replace(doc, t, render(t, g.cells, t.cols, tracksWith(t, g, col, width)));
 }
 
 /** Give every column an equal share of the width. */
 export function equalColumns(doc: string, t: TableInfo): string {
-  const widths = Array.from({ length: t.cols }, () => "1fr");
-  return replace(doc, t, render(t, rectangular(t.cells, t.cols), t.cols, widths));
+  const g = geometry(t);
+  if (!canEqualColumns(t, g)) return doc;
+  return replace(doc, t, render(t, g.cells, t.cols, equalTracks(g)));
 }
 
 /** Let every column size itself to its contents — Typst's default. */
 export function autoColumns(doc: string, t: TableInfo): string {
-  if (!t.widths) return doc;
-  return replace(doc, t, render(t, rectangular(t.cells, t.cols), t.cols, null));
+  const g = geometry(t);
+  if (!canAutoColumns(t, g)) return doc;
+  return replace(doc, t, render(t, g.cells, t.cols, null));
 }
 
 /**
@@ -444,13 +613,11 @@ export function autoColumns(doc: string, t: TableInfo): string {
  * quiet kind of damage this file exists to avoid.
  */
 export function mergeRight(doc: string, t: TableInfo, row: number, col: number): string {
-  const cells = rectangular(t.cells, t.cols);
-  const { grid } = layout(cells, t.cols);
-  const here = grid.find((p) => p.row === row && col >= p.col && col < p.col + p.span);
-  if (!here) return doc;
-  const next = grid.find((p) => p.row === row && p.col === here.col + here.span);
-  if (!next) return doc; // nothing to the right in this row
-  if (here.col + here.span + next.span > t.cols) return doc;
+  const g = geometry(t);
+  if (!canMergeRight(g, row, col)) return doc;
+  const grid = g.grid;
+  const here = placementAt(g, row, col)!;
+  const next = placementsIn(g, row).find((p) => p.col === here.col + here.span)!;
 
   const merged: TableCell = {
     ...here.cell,
@@ -465,12 +632,11 @@ export function mergeRight(doc: string, t: TableInfo, row: number, col: number):
 
 /** Split a merged cell back into single cells, its text staying in the first. */
 export function splitCell(doc: string, t: TableInfo, row: number, col: number): string {
-  const cells = rectangular(t.cells, t.cols);
-  const { grid } = layout(cells, t.cols);
-  const here = grid.find((p) => p.row === row && col >= p.col && col < p.col + p.span);
-  if (!here || here.span < 2) return doc;
+  const g = geometry(t);
+  if (!canSplitCell(g, row, col)) return doc;
+  const here = placementAt(g, row, col)!;
   const out: TableCell[] = [];
-  for (const p of grid) {
+  for (const p of g.grid) {
     if (p.index !== here.index) {
       out.push({ ...p.cell, span: p.span });
       continue;

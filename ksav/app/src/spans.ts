@@ -174,11 +174,12 @@ export interface Node {
    * `table`: this table's own cells, and every argument that is not one.
    *
    * Computed once per scan rather than per question, and that is not
-   * micro-optimisation — `structure.availableAt` decides which of the eighteen
-   * table controls are enabled by *running* all eighteen on every caret move,
-   * so anything a single `tableAt` does gets done eighteen times per keypress.
-   * Splitting the argument list there cost 1.5 ms on a six-hundred-row table;
-   * splitting it here costs it once and the memo hands it back.
+   * micro-optimisation — `tableAt` is on the path of every caret move, and
+   * splitting the argument list there cost 1.5 ms on a six-hundred-row table.
+   * Splitting it here costs it once and the memo hands it back. (It used to be
+   * eighteen times worse still: `structure.availableAt` decided which of the
+   * eighteen table controls were enabled by *running* all eighteen. It asks
+   * them now — see the note at the top of `structure.ts`.)
    */
   cells?: Node[];
   /** `table`: every named argument that is not a cell and not `עמודות`. */
@@ -769,7 +770,7 @@ function readColumns(text: string, node: Node, closes: Map<number, number>): voi
  *
  * Memoised, and that is not an optimisation detail — it is what makes "one
  * scan" true at runtime rather than only in the source. Prose mode, the notes
- * pane, the ribbon's eighteen table operations and the spell checker all answer
+ * pane, the ribbon's eighteen table controls and the spell checker all answer
  * questions about the same document within one keystroke; each calling `scan`
  * for itself would be the old duplication with a nicer spelling and a bigger
  * bill. A handful of entries covers a keystroke and the speculative healed copy

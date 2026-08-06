@@ -1706,8 +1706,9 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
       if (group && action.group !== group) items.push(el("div", { class: "menu-sep" }));
       group = action.group;
       // Computed against the live document, so the menu tells the truth about
-      // this caret rather than about tables in general.
-      const enabled = action.run(doc, pos) !== null;
+      // this caret rather than about tables in general — and *asked*, not found
+      // out by running the operation and looking at the wreckage.
+      const enabled = structure.isEnabled(action, doc, pos);
       const key = kb[action.id];
       items.push(
         el(
@@ -3745,7 +3746,7 @@ function renderHydra() {
     group = entry.action.group;
     // Greyed rather than hidden, for the same reason the menus grey: a hydra
     // whose contents shuffle between openings is one nobody memorises.
-    const enabled = entry.action.run(doc, pos) !== null;
+    const enabled = structure.isEnabled(entry.action, doc, pos);
     cells.push(
       el("button", {
         class: "hydra-key" + (enabled ? "" : " disabled"),
@@ -3841,12 +3842,17 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
   const pos = sticky ? (structure.structureNear(doc, caret)?.pos ?? caret) : caret;
   const edit = action.run(doc, pos);
   if (!edit) return false;
+  // An operation can apply and still produce the same source — swapping two
+  // identical rows is a real edit with no visible result. Dispatching the
+  // document over itself would push an empty step onto the undo stack and
+  // recompile for nothing, so only the caret moves.
+  const changed = edit.text !== doc;
   runtime.view.dispatch({
-    changes: { from: 0, to: doc.length, insert: edit.text },
+    changes: changed ? { from: 0, to: doc.length, insert: edit.text } : undefined,
     selection: { anchor: Math.min(edit.caret, edit.text.length) },
     scrollIntoView: true,
   });
-  scheduleCompile();
+  if (changed) scheduleCompile();
   requestAnimationFrame(updateContextBar);
   return true;
 }

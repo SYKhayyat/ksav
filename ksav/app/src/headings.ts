@@ -82,8 +82,8 @@ export function headings(doc: string): HeadingInfo[] {
 }
 
 /** The heading `pos` sits on, if any. */
-export function headingAt(doc: string, pos: number): HeadingInfo | null {
-  return headings(doc).find((h) => pos >= h.from && pos <= h.to) ?? null;
+export function headingAt(doc: string, pos: number, all: HeadingInfo[] = headings(doc)): HeadingInfo | null {
+  return all.find((h) => pos >= h.from && pos <= h.to) ?? null;
 }
 
 /**
@@ -92,8 +92,7 @@ export function headingAt(doc: string, pos: number): HeadingInfo | null {
  * This is what "move this section" and "fold this section" mean when the caret
  * is in the body text rather than on the heading line itself.
  */
-export function sectionAt(doc: string, pos: number): HeadingInfo | null {
-  const all = headings(doc);
+export function sectionAt(doc: string, pos: number, all: HeadingInfo[] = headings(doc)): HeadingInfo | null {
   let found: HeadingInfo | null = null;
   for (const h of all) {
     if (h.from > pos) break;
@@ -109,8 +108,7 @@ export function sectionAt(doc: string, pos: number): HeadingInfo | null {
  * A *deeper* heading is part of this section, which is what makes "move the
  * section" carry its subsections with it rather than tearing them off.
  */
-export function sectionEnd(doc: string, h: HeadingInfo): number {
-  const all = headings(doc);
+export function sectionEnd(doc: string, h: HeadingInfo, all: HeadingInfo[] = headings(doc)): number {
   const next = all.find((o) => o.from > h.from && o.level <= h.level);
   return next ? next.from : doc.length;
 }
@@ -142,22 +140,20 @@ function open(h: HeadingInfo, level: number): string {
  * answer and the surfaces render it as a disabled control.
  */
 export function setLevel(doc: string, h: HeadingInfo, level: number): Edit | null {
-  if (h.levelFixed) return null;
-  const want = Math.min(Math.max(1, level), MAX_LEVEL);
-  if (want === h.level) return null;
-  const head = open(h, want);
+  if (!canSetLevel(h, level)) return null;
+  const head = open(h, Math.min(Math.max(1, level), MAX_LEVEL));
   const text = doc.slice(0, h.from) + head + doc.slice(h.bodyFrom - 1);
   return { text, caret: h.from + head.length + 1 };
 }
 
 /** One level shallower — Shift+Tab on a heading, in every outliner. */
 export function promote(doc: string, h: HeadingInfo): Edit | null {
-  return h.level <= 1 ? null : setLevel(doc, h, h.level - 1);
+  return canPromote(h) ? setLevel(doc, h, h.level - 1) : null;
 }
 
 /** One level deeper. */
 export function demote(doc: string, h: HeadingInfo): Edit | null {
-  return h.level >= MAX_LEVEL ? null : setLevel(doc, h, h.level + 1);
+  return canDemote(h) ? setLevel(doc, h, h.level + 1) : null;
 }
 
 /**
@@ -169,18 +165,10 @@ export function demote(doc: string, h: HeadingInfo): Edit | null {
  * writer misjudges.
  */
 export function moveSection(doc: string, h: HeadingInfo, by: -1 | 1): Edit | null {
-  const all = headings(doc);
-  const siblings = all.filter((o) => o.level === h.level);
-  const i = siblings.findIndex((o) => o.from === h.from);
-  if (i < 0) return null;
-
-  const mine = { from: h.from, to: sectionEnd(doc, h) };
+  const swap = sectionSwap(doc, h, by);
+  if (!swap) return null;
+  const { mine, theirs } = swap;
   if (by === 1) {
-    const next = siblings[i + 1];
-    // Only a sibling that is the very next section can be swapped with: one
-    // further down would mean jumping over a section at a different level.
-    if (!next || next.from !== mine.to) return null;
-    const theirs = { from: next.from, to: sectionEnd(doc, next) };
     const text =
       doc.slice(0, mine.from) +
       doc.slice(theirs.from, theirs.to) +
@@ -188,16 +176,90 @@ export function moveSection(doc: string, h: HeadingInfo, by: -1 | 1): Edit | nul
       doc.slice(theirs.to);
     return { text, caret: mine.from + (theirs.to - theirs.from) };
   }
-
-  const prev = siblings[i - 1];
-  if (!prev || sectionEnd(doc, prev) !== mine.from) return null;
-  const theirs = { from: prev.from, to: mine.from };
   const text =
     doc.slice(0, theirs.from) +
     doc.slice(mine.from, mine.to) +
     doc.slice(theirs.from, theirs.to) +
     doc.slice(mine.to);
   return { text, caret: theirs.from };
+}
+
+interface Span {
+  from: number;
+  to: number;
+}
+
+/**
+ * The two spans a move would exchange, or null when there is nothing to
+ * exchange with.
+ *
+ * The whole decision lives here so that asking "can this section move?" and
+ * moving it are the same code. Asking used to mean *performing* the move and
+ * looking at the result — three copies of the document to find out whether a
+ * toolbar arrow should be grey.
+ */
+function sectionSwap(
+  doc: string,
+  h: HeadingInfo,
+  by: -1 | 1,
+  all: HeadingInfo[] = headings(doc),
+): { mine: Span; theirs: Span } | null {
+  const siblings = all.filter((o) => o.level === h.level);
+  const i = siblings.findIndex((o) => o.from === h.from);
+  if (i < 0) return null;
+
+  const mine = { from: h.from, to: sectionEnd(doc, h, all) };
+  if (by === 1) {
+    const next = siblings[i + 1];
+    // Only a sibling that is the very next section can be swapped with: one
+    // further down would mean jumping over a section at a different level.
+    if (!next || next.from !== mine.to) return null;
+    return { mine, theirs: { from: next.from, to: sectionEnd(doc, next, all) } };
+  }
+  const prev = siblings[i - 1];
+  if (!prev || sectionEnd(doc, prev, all) !== mine.from) return null;
+  return { mine, theirs: { from: prev.from, to: mine.from } };
+}
+
+// ---------------------------------------------------------------- can it act?
+//
+// What the ribbon, the menus and the hydra ask about every heading operation on
+// every caret move. Each takes what has already been resolved — the heading, the
+// heading list, the line — so fourteen questions cost one scan between them, and
+// each operation above asks its own before it writes anything.
+
+/**
+ * A heading whose level the prelude pins cannot be re-levelled at all, and one
+ * already at the level asked for has nothing to do.
+ */
+export function canSetLevel(h: HeadingInfo, level: number): boolean {
+  return !h.levelFixed && Math.min(Math.max(1, level), MAX_LEVEL) !== h.level;
+}
+
+export function canPromote(h: HeadingInfo): boolean {
+  return h.level > 1 && canSetLevel(h, h.level - 1);
+}
+
+export function canDemote(h: HeadingInfo): boolean {
+  return h.level < MAX_LEVEL && canSetLevel(h, h.level + 1);
+}
+
+export function canMoveSection(
+  doc: string,
+  h: HeadingInfo,
+  by: -1 | 1,
+  all?: HeadingInfo[],
+): boolean {
+  return sectionSwap(doc, h, by, all ?? headings(doc)) !== null;
+}
+
+/** Deleting a section always applies: there is always a section to delete. */
+export function canDeleteSection(): boolean {
+  return true;
+}
+
+export function canUnwrapHeading(h: HeadingInfo): boolean {
+  return !h.levelFixed;
 }
 
 /** Delete the heading and everything under it. */
@@ -216,7 +278,7 @@ export function deleteSection(doc: string, h: HeadingInfo): Edit {
  * that says no.
  */
 export function unwrapHeading(doc: string, h: HeadingInfo): Edit | null {
-  if (h.levelFixed) return null;
+  if (!canUnwrapHeading(h)) return null;
   const title = doc.slice(h.bodyFrom, h.bodyTo);
   return { text: doc.slice(0, h.from) + title + doc.slice(h.to), caret: h.from + title.length };
 }
@@ -235,13 +297,8 @@ export function makeHeading(doc: string, pos: number, level: number): Edit | nul
   const on = headingAt(doc, pos);
   if (on) return setLevel(doc, on, level);
 
-  const from = doc.lastIndexOf("\n", Math.max(0, pos - 1)) + 1;
-  const nl = doc.indexOf("\n", pos);
-  const to = nl < 0 ? doc.length : nl;
-  const line = doc.slice(from, to).trim();
-  // A line that is already some other command is left alone: wrapping
-  // `#רשימה(…)` in a heading is not what anybody meant by pressing this.
-  if (line.startsWith("#")) return null;
+  const { from, to, line } = lineAt(doc, pos);
+  if (!canMakeHeading(null, line, level)) return null;
 
   const en = /^[\x00-\x7F]*$/.test(line) && line.length > 0;
   const s = SPELLING;
@@ -255,14 +312,41 @@ export function makeHeading(doc: string, pos: number, level: number): Edit | nul
 
 /** Insert a table of contents at the top of the document, once. */
 export function addContents(doc: string, lang: "he" | "en" = "he"): Edit | null {
-  // Read through the scanner rather than a regex, which is also how the trap
-  // below stopped being possible: `#תוכן\b(` never matches, because JavaScript's
-  // word boundary is defined on `[A-Za-z0-9_]` and the position between `ן` and
-  // `(` is not one — so this guard answered "no contents yet" for a document
-  // that already had one, forever.
-  const has = scan(doc).nodes.some((n) => n.name === "תוכן" || n.name === "toc");
-  if (has) return null;
+  if (!canAddContents(doc)) return null;
   const call = lang === "en" ? "#toc()" : "#תוכן()";
   const text = `${call}\n\n${doc.replace(/^\s*/, "")}`;
   return { text, caret: call.length };
+}
+
+/**
+ * Only once per document.
+ *
+ * Read through the scanner rather than a regex, which is also how the trap below
+ * stopped being possible: `#תוכן\b(` never matches, because JavaScript's word
+ * boundary is defined on `[A-Za-z0-9_]` and the position between `ן` and `(` is
+ * not one — so this guard answered "no contents yet" for a document that already
+ * had one, forever.
+ */
+export function canAddContents(doc: string): boolean {
+  return !scan(doc).nodes.some((n) => n.name === "תוכן" || n.name === "toc");
+}
+
+/** The line `pos` is on: its range, and its text with the edges trimmed. */
+export function lineAt(doc: string, pos: number): { from: number; to: number; line: string } {
+  const from = doc.lastIndexOf("\n", Math.max(0, pos - 1)) + 1;
+  const nl = doc.indexOf("\n", pos);
+  const to = nl < 0 ? doc.length : nl;
+  return { from, to, line: doc.slice(from, to).trim() };
+}
+
+/**
+ * Can this line become a heading at `level`?
+ *
+ * `on` is the heading the caret is *on*, if any — this is a paragraph-style
+ * button, so it re-levels the heading in hand and otherwise wraps the line. A
+ * line that is already some other command is left alone: wrapping `#רשימה(…)` in
+ * a heading is not what anybody meant by pressing this.
+ */
+export function canMakeHeading(on: HeadingInfo | null, line: string, level: number): boolean {
+  return on ? canSetLevel(on, level) : !line.startsWith("#");
 }

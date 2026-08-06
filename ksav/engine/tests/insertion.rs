@@ -215,19 +215,49 @@ fn every_command_exists_in_both_languages() {
 #[test]
 fn a_command_given_text_shows_that_text() {
     const RENDERS_ELSEWHERE: &[(&str, &str)] = &[
-        ("מדור_א", "collected; prints where #הערות_מדורגות() is called"),
-        ("מדור_ב", "collected; prints where #הערות_מדורגות() is called"),
-        ("מדור_ג", "collected; prints where #הערות_מדורגות() is called"),
-        ("מדור_בדרגה", "collected; prints where #הערות_מדורגות() is called"),
-        ("הערתסיום", "collected; prints where #הערות_בסוף() is called"),
-        ("גוף_הערה", "a deferred body: prints at its marker, not its definition"),
-        ("ערך", "an index entry: its text prints in the generated index"),
-        ("נוסחה", "maths: reaches the page as math italics, not as the ASCII typed"),
+        (
+            "מדור_א",
+            "collected; prints where #הערות_מדורגות() is called",
+        ),
+        (
+            "מדור_ב",
+            "collected; prints where #הערות_מדורגות() is called",
+        ),
+        (
+            "מדור_ג",
+            "collected; prints where #הערות_מדורגות() is called",
+        ),
+        (
+            "מדור_בדרגה",
+            "collected; prints where #הערות_מדורגות() is called",
+        ),
+        (
+            "הערתסיום",
+            "collected; prints where #הערות_בסוף() is called",
+        ),
+        (
+            "גוף_הערה",
+            "a deferred body: prints at its marker, not its definition",
+        ),
+        (
+            "ערך",
+            "an index entry: its text prints in the generated index",
+        ),
+        (
+            "נוסחה",
+            "maths: reaches the page as math italics, not as the ASCII typed",
+        ),
         ("נוסחה_בשורה", "maths, inline: the same"),
         ("סימניה", "a marker: prints nothing by design"),
         ("הפניה", "a reference: prints a number, not its own name"),
-        ("כלול", "includes another document; there is no other document here"),
-        ("הערת_עורך", "an editorial comment: renders in review mode and never prints"),
+        (
+            "כלול",
+            "includes another document; there is no other document here",
+        ),
+        (
+            "הערת_עורך",
+            "an editorial comment: renders in review mode and never prints",
+        ),
     ];
     const MARK: &str = "טקסטמיוחד";
 

@@ -19,11 +19,11 @@ pub mod diagnostics;
 pub mod include;
 /// Both directions between a place in the source and a place on the page.
 pub mod jump;
-/// The rules more than one build has to obey, read from `ksav/policy/`.
-pub mod policy;
 /// What the engine embeds and the notice each embedding owes — one table, tied
 /// to the `include_bytes!` lines below and to `THIRD-PARTY-NOTICES.md`.
 pub mod notices;
+/// The rules more than one build has to obey, read from `ksav/policy/`.
+pub mod policy;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
@@ -34,6 +34,13 @@ pub mod sefarim;
 /// Every engine service, once — what `server.rs`, the wasm binding and the
 /// Tauri shell all dispatch through instead of each keeping its own list.
 pub mod services;
+/// Receiving a Source Packet from Girsa. Native only, and for the same reason
+/// `post` is: this module *is* the receiving end of the loopback, `post.rs` is
+/// its only caller, and its two dependencies — `girsa-source`, `girsa-ksav` —
+/// are the packet schema and the citation writer. Compiled unconditionally,
+/// the browser build paid for both to talk to an application that cannot be
+/// running beside it.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod source;
 pub mod spell;
 pub mod templates;

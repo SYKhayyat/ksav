@@ -82,9 +82,19 @@ nothing.
   in-process.
 
 ```sh
-cd ksav/engine
+cd ksav/app && npm install && npm run build        # the editor, into app/dist
+cd ../engine
 cargo run --release --features embed-ui -- serve   # then open the printed URL
 ```
+
+Those two steps are both of them: a clone builds. That was not true until 6
+August 2026 — the shared `girsa-*` crates were reached through a *sibling*
+checkout of a second repository, so `cargo build` failed inside `cargo metadata`
+before any compiler ran, `--features embed-ui` needed an editor nobody had told
+you to build, and no page here mentioned either. See
+[**The shared crates**](ksav/README.md#the-shared-crates) for what Ksav borrows
+from [`sefer-crates`](https://github.com/SYKhayyat/sefer-crates), how it is
+pinned, and how to edit both halves at once.
 
 See [`ksav/README.md`](ksav/README.md) for the browser, desktop, and development
 builds, the command reference, and the architecture.

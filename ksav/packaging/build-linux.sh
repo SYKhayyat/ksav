@@ -18,10 +18,19 @@ echo "==> Building installers"
 # A named volume for the Rust target directory: without it every run recompiles
 # the whole Typst compiler from cold, which is the difference between a two
 # minute rebuild and a twenty minute one.
+#
+# `/root/.cargo/git` is cached beside the registry because the shared `girsa-*`
+# crates are a git dependency (see ksav/engine/Cargo.toml). Only this repository
+# is mounted, at /work — so while those crates were `path =
+# "../../../../sefer-crates/…"` they resolved to `/sefer-crates`, which is not
+# in the container and never was. This script's whole job could not have
+# succeeded. CI papered over the same hole with a second checkout in every Rust
+# job; here there was nothing to paper over it with, and nothing said so.
 docker run --rm \
   -v "$REPO:/work" \
   -v ksav-linux-cargo-target:/work/ksav/app/src-tauri/target \
   -v ksav-linux-cargo-registry:/root/.cargo/registry \
+  -v ksav-linux-cargo-git:/root/.cargo/git \
   -v ksav-linux-node-modules:/work/ksav/app/node_modules \
   "$IMAGE"
 

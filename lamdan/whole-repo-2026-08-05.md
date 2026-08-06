@@ -809,6 +809,127 @@ costs a `format!` instead of a compile.
 
 **Verdict: `rewrite`.**
 
+> ### ✅ Fixed — 6 August 2026
+>
+> The finding is right in every particular that was checked, and it under-counted
+> the damage. Below: what replaced it, why the prescription was not taken, and
+> the consumer nobody had noticed was broken.
+>
+> **A git dependency pinned by SHA, not a submodule.** The finding's two
+> separable halves — *share the code* (good) and *a relative path with no
+> fallback* (bad) — are the right cut. Its prescription, a submodule at
+> `vendor/sefer-crates`, is not, for two reasons that only show up when you try
+> to write the instructions:
+>
+> - **A submodule reproduces the failure it is fixing.** `git clone` without
+>   `--recursive` gives you an empty directory and `cargo metadata` fails on a
+>   path that does not resolve — the same error, one flag away, and the flag is
+>   the single most forgotten in git. A git dependency has no flag: cargo fetches
+>   it exactly as it fetches typst and serde, and there is no state a reader can
+>   be in where the clone is present and the dependency is not.
+> - **It would put a second `sefer-crates` on the desk.** There is one working
+>   copy and Girsa reaches the same one (`Girsa/Cargo.toml:51-56`, still by
+>   sibling path). A submodule inside Ksav is a *different checkout*, so the
+>   paired edit the steelman is built on — change what a quote block is, see it
+>   on both sides — would silently stop working, which is trading the good half
+>   away to fix the bad one.
+>
+> So: `{ version = "=0.5.0", git = "…/sefer-crates", rev = "5a589af…" }` in both
+> manifests, and `.cargo/config.toml.example` — git-ignored once copied — puts
+> the sibling checkout back for the days you are moving the seam. The finding's
+> own alternative was half-right: an override needs no crates.io publication,
+> `[patch]` works against a git source directly. It is a `paths` override rather
+> than `[patch]` for a reason found by trying both — **`[patch]` rewrites
+> `Cargo.lock` and erases the pin from it**, five entries to zero on the first
+> `cargo metadata`, so a week of paired work ends one `git add -A` away from
+> committing a lock file with no pin. `paths` leaves it byte-identical.
+>
+> **Point 3 of the finding is the one that mattered most and it is now literally
+> true.** `= 0.5.0` was a pin that could not fail; the rev is one that can. All
+> three lock files record it (five crates each — `girsa-ref` and `girsa-hebrew`
+> arrive transitively), which is the first time this repository has recorded
+> *which* sefer-crates it was built against.
+>
+> **Point 4 done as written.** `girsa-source` and `girsa-ksav` moved under
+> `cfg(not(target_arch = "wasm32"))` beside `girsa-post`, and `src/source.rs`
+> with them — it is their only consumer here and `post.rs` is its only caller, so
+> the browser build had been compiling the packet schema and the citation writer
+> for an application that cannot be running beside it.
+>
+> **What the finding missed: a ninth consumer, with no workaround at all.** It
+> counted eight `actions/checkout` steps across two workflows as proof the
+> workaround was load-bearing, which is right as far as it goes. But
+> `packaging/build-linux.sh` bind-mounts **only this repository**, at `/work`, so
+> the desktop shell's `girsa-post` resolved to `/sefer-crates` — a directory that
+> was never in the image and never could be. The documented way to build the
+> Linux `.deb` and `.AppImage` could not have produced one, and unlike CI there
+> was nothing there to hide it: no second checkout, no error anyone had seen, and
+> not a word in the README. The workflows were the loud half of the finding; this
+> was the silent half.
+>
+> **And the first command in the root README failed for a second, unrelated
+> reason.** `cargo run --release --features embed-ui -- serve` embeds
+> `app/dist`, which is git-ignored build output, so even with the crates
+> resolving a clone died inside `include_dir!`. That is the same finding —
+> *this repository does not build from a clone, and nothing says why* — arriving
+> through a different door. `engine/build.rs` now turns it into the two-line
+> instruction it always was, and the README gives both steps.
+>
+> **The fence caught itself first.** Seven mutations, one control. Restoring a
+> sibling `path` dependency turns two red; bumping the rev in one manifest only,
+> one; bumping both and leaving the lock files behind, one; deleting the override
+> example, one; adding an uncounted fourth shared crate, one; and dropping the
+> git URL out of the README's example, one. The seventh — **renaming the README
+> section** — came back **green**, because the assertion matched the phrase *the
+> shared crates* and the phrase also occurs in two cross-references elsewhere on
+> the same page, both of which this change had written. That is §7's
+> `chrome.test.mjs` defect — a fence crediting a surface by a name that is not
+> the thing it guards — reproduced inside the test written to keep these findings
+> from coming back, on the same day, by the same hand. It matches the heading
+> now, and the mutation is red.
+>
+> **The fence: `engine/tests/manifests.rs`.** Five tests. No path dependency in
+> any manifest resolves outside the repository; every `girsa-*` dependency is a
+> git dependency on sefer-crates; all four of them name one rev and one exact
+> version; every lock file records that rev; and the README still documents the
+> arrangement. The middle one is not ceremony — the desktop binary links the
+> engine and the Tauri shell into one process, so two revs would put two
+> `girsa-post`s in it, the loopback desk and the deep-link parser disagreeing
+> about the wire between them. That failure did not exist while the dependency
+> was a path, and it is the bill for the pin.
+>
+> **Cost, against the estimate.** *"~1 hour, −8 CI steps"*: five checkout steps
+> removed (four of nine in `ci.yml`, one of two in `release.yml`), and with them
+> the `path: Ksav` prefix on every `working-directory`, `workspaces`,
+> `cache-dependency-path` and `projectPath` in both files. Twelve files edited
+> (`+233 −92`) and three added — `manifests.rs` (352), the override example (70),
+> `build.rs` (45). The hour was the four dependency lines. The other 467 are the
+> sentence nobody had written, in the three places a reader can hit the wall.
+>
+> **What the pin costs, said out loud.** The steelman's safety property is that
+> *"Girsa's CI already builds Ksav against every proposed change, so the coupling
+> is verified from the end that moves."* That is `sefer-crates`'
+> `tools/check-dependents.sh`, and it builds each sibling checkout **against its
+> working tree** — which worked because the sibling *was* the dependency. Ksav
+> now builds against the pin, so the Ksav half of that check would compile old
+> code and pass whatever the change broke. Silently: a green check that has
+> stopped checking, which is the disease this whole report is about, and it would
+> have been introduced by a fix for a different case of it. It needs one flag on
+> one line, in the repository where the change is being made
+> (`--config "paths=[…]"`, verified); `ksav/README.md` carries it under *What the
+> pin costs the other repository*. Girsa is unaffected — it still reaches
+> `sefer-crates` by path, and has the fresh-clone problem this finding describes,
+> unfixed, at `Girsa/Cargo.toml:51-56`.
+>
+> **Verified, not inferred.** The tree copied to a directory with no
+> `sefer-crates` anywhere above it: `cargo metadata` resolves in all three Rust
+> trees, where the same copy would have failed before a compiler ran. The wasm
+> build compiled `ksav-engine` and `ksav-wasm` and **not one girsa crate**, which
+> is point 4 measured rather than argued. `build.rs` exercised both ways: silent
+> without the feature, and with `embed-ui` and no `app/dist` it prints the two
+> lines and stops. `paths` versus `[patch]` run head to head against the lock
+> file. Engine suite and editor suite green.
+
 `engine/Cargo.toml:35, 38, 53` and `src-tauri/Cargo.toml:30` point at
 `../../../sefer-crates/crates/…` — resolved from `ksav/engine/`, a *sibling of the
 Ksav checkout root*. No submodules, no `[patch]`, no vendoring, no
@@ -1851,7 +1972,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 4 | ✅ **Fixed 6 Aug.** 19 false/stale doc claims; the release-status contradiction was `ksav/README.md`'s half (`v0.1.0` is published, verified against GitHub), and "page setup travels with the file" was a **product** bug — `serializeDoc` dropped `config` on every route out of the app, including duplicating a document. The card printed ten bare action ids; the Girsa links pointed into an untracked sibling of a public repository | `rewrite` → a card diff, a two-way count sweep, two link sweeps, a load-bearing exemption list | ~430 lines, not 80; 12 files, 9 mutations red — one of which caught the exemption list reproducing `ONLY_AT_TOP` |
 | 5 | ✅ **Fixed 6 Aug.** `ksav.typ` wrote the apparatus 3× and fixed one bug twice; `PAGE_APPARATUS_COMMANDS` was a ninth unchecked copy | `rewrite` → one `_ap_*` core + a pinned layout + a count | ~half a day, 5 files; 41 documents byte-identical; −13 code lines, and three homes for a decision down to one |
 | 6 | ✅ **Fixed 6 Aug.** Notes pane empty in every deferred document and `⁑` gave the wrong tier; the collected-and-never-rendered lint was blind to deferred notes too, and deferring in an English document wrote Hebrew into it | `rewrite` → one `notesIn` over both spellings + an equivalence oracle | ~1 day, 8 files; +98 code lines, not −180; 9 mutations red, 2 controls green |
-| 7 | Fresh clone does not build; not one doc mentions why | `rewrite` → submodule | ~1 hour, −8 CI steps |
+| 7 | ✅ **Fixed 6 Aug.** Fresh clone does not build; not one doc mentions why. The eight `actions/checkout` steps were the loud half — `packaging/build-linux.sh` mounts only this repository, so the documented Linux installer build resolved `girsa-post` to `/sefer-crates` and could not have produced an installer, with no workaround and no error anyone had seen. `--features embed-ui` was a second fresh-clone failure, through `app/dist` | `rewrite` → a git dependency pinned by SHA, **not** the submodule prescribed: `--recursive` reproduces the bug one forgotten flag away, and a second checkout silently kills the paired edit the steelman rests on. Plus `.cargo/config.toml.example` (a `paths` override — `[patch]` erases the pin from `Cargo.lock`), a `build.rs`, and `engine/tests/manifests.rs` | 5 checkout steps and the `Ksav/` prefix out of both workflows; 12 files, 2 added; the hour was the manifests, the rest was the sentence nobody had written |
 | 8 | ✅ **Fixed 6 Aug.** `registry.rs`'s `ONLY_AT_TOP`: 6 of 9 exemptions disproved by a green sibling test — verified against the fixture before deleting | `delete` → the file is gone, both survivors moved into `insertion.rs`, and `the_grid_exempts_nothing` replaces the skip list | ~1 hour; the English widening the finding also asked for was built, is wrong, and is argued down in the source |
 | 9 | ✅ **Fixed 6 Aug.** `chrome.test.mjs` credited surfaces to each other by local-variable name and its Escape block survived the handler being deleted; the hydra had no Escape once its own buttons had focus, and two of the sixteen "surfaces" were phantoms | `rewrite` → one `panels.ts` registry + 13 mutations | ~1 day, 5 files; `main.ts` −18 lines, not −250 |
 | 10 | ✅ **Fixed 6 Aug.** Print silently printed the healed document; the Word routes produced no file under a status line announcing one. Both live in `exports.ts`, which was one of #13's nineteen — the hole and the bugs were the same finding | fix in place → a non-printing banner in the print window, and `reflowableHtml` reporting a reason instead of its caller's outcome | ~1 hour |

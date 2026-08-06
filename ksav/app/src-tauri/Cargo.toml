@@ -30,8 +30,11 @@ tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 ksav-engine = { path = "../../engine" }
 # The deep link parser, and the loopback types. The same crate the engine's
-# desk is built on, so the two ends of `ksav://insert` cannot disagree.
-girsa-post = { version = "=0.5.0", path = "../../../../sefer-crates/crates/girsa-post" }
+# desk is built on, so the two ends of `ksav://insert` cannot disagree — which
+# is why the rev below has to be the one `engine/Cargo.toml` names, and why
+# `engine/tests/manifests.rs` fails when it is not. See that file for why this
+# is a git dependency pinned by SHA rather than the sibling path it was.
+girsa-post = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
 tauri-plugin-deep-link = "2.4.9"
 
 # The desktop binary compiles Typst in-process, so it wants the same treatment

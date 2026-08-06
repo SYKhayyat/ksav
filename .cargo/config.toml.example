@@ -1,0 +1,70 @@
+# Working on Ksav and sefer-crates at the same time.
+#
+# Copy this file to `.cargo/config.toml` (beside it, git-ignored) and every
+# `girsa-*` crate resolves to a local checkout instead of the pinned commit.
+# Cargo discovers config by walking up from the directory it was invoked in, so
+# one copy at the repository root covers `ksav/engine`, `ksav/wasm` and
+# `ksav/app/src-tauri` alike. Delete it and the pin is back; nothing else in the
+# repository knows the difference.
+#
+# # Why this exists
+#
+# The shared crates used to be `path = "../../../sefer-crates/crates/…"`, a
+# sibling of the checkout root. That bought exactly one thing and it is a real
+# thing: Girsa and Ksav are two halves of one product, and a change to what a
+# quote block *is* has to be visible on both sides as one edit, not as a
+# release. What it cost was that `git clone ksav && cargo build` failed at
+# `cargo metadata` — before a compiler ran, naming a directory the reader had
+# never heard of, with no documentation anywhere saying why.
+#
+# Those are separable, and this file is the separation. The manifests pin a
+# commit, so a clone builds. This file, when you make it, restores the sibling
+# checkout for the days you are moving the seam.
+#
+# # Path overrides, not `[patch]`
+#
+# Both work; they were tried side by side, and the difference is what they do to
+# `Cargo.lock`. `[patch]` re-resolves, so cargo rewrites the lock and **the git
+# pin disappears from it** — measured, not assumed: five `sefer-crates` entries
+# to zero on the first `cargo metadata`. A week of paired work would leave that
+# dirty in every diff, and one distracted `git add -A` would commit a lock file
+# with no pin in it, which is the fresh-clone build broken again by the fix for
+# it. (`engine/tests/manifests.rs` would catch that, and being caught by a test
+# is worse than not doing it.) A `paths` override leaves the lock byte-identical,
+# because it substitutes sources for crates already resolved and cannot change a
+# version or a dependency list.
+#
+# The price is a warning on every invocation:
+#
+#   warning: path override for crate `girsa-ksav` has altered the original list
+#   of dependencies; the dependency on `girsa-source` was either added or
+#   modified to not match the previously resolved version
+#
+# That is expected and harmless *here*: `girsa-ksav` reaches `girsa-source`
+# through the workspace instead of through git, and every crate in the chain is
+# overridden together, so the graph stays consistent. Cargo cannot see that from
+# one crate at a time. If you ever override some and not others, believe the
+# warning.
+#
+# # The layout this assumes
+#
+#   Videos/
+#     Ksav/            <- this repository (the path below is relative to here)
+#     sefer-crates/    <- git clone https://github.com/SYKhayyat/sefer-crates
+#     Girsa/           <- the other half, which reaches the same checkout
+#
+# Adjust the paths if yours differs. They are relative to the *parent* of the
+# directory holding this file — that is, to the repository root, not to
+# `.cargo/`. Cargo says so if you get it wrong, and says it loudly: a path
+# override that does not resolve is a hard error naming the config file, not a
+# silent fall-through to the pin. Which is the right failure — an override that
+# quietly stopped applying would be a day of wondering why an edit next door
+# changed nothing.
+
+paths = [
+    "../sefer-crates/crates/girsa-source",
+    "../sefer-crates/crates/girsa-ksav",
+    "../sefer-crates/crates/girsa-post",
+    "../sefer-crates/crates/girsa-ref",
+    "../sefer-crates/crates/girsa-hebrew",
+]

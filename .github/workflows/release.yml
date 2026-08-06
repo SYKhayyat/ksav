@@ -39,22 +39,16 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
-      # Two checkouts, side by side, exactly as they sit on a desk.
-      #
-      # Ksav reaches the shared crates as `../../../sefer-crates/crates/…`, so a
-      # lone checkout of this repository cannot resolve `girsa-post`,
-      # `girsa-source` or `girsa-ksav` — `cargo metadata` fails before any
-      # compiler runs. This file checked out one of the two, which meant the next
-      # tag pushed would have produced no installers on any of the four targets.
-      # `ci.yml` had the same hole and hit it first. Nothing had noticed because
-      # neither had ever run.
+      # One checkout. There were two, side by side, because Ksav reached the
+      # shared crates as `../../../sefer-crates/crates/…` and a lone checkout of
+      # this repository could not resolve `girsa-post`, `girsa-source` or
+      # `girsa-ksav` — `cargo metadata` failed before any compiler ran. This file
+      # checked out one of the two, which meant the next tag pushed would have
+      # produced no installers on any of the four targets; `ci.yml` had the same
+      # hole and hit it first, and nothing had noticed because neither had ever
+      # run. The manifests now pin those crates by commit, so cargo fetches them
+      # like any other dependency. See `ksav/engine/Cargo.toml`.
       - uses: actions/checkout@v4
-        with:
-          path: Ksav
-      - uses: actions/checkout@v4
-        with:
-          repository: SYKhayyat/sefer-crates
-          path: sefer-crates
 
       # webkit2gtk is the webview Tauri renders into on Linux; the ayatana
       # appindicator and librsvg are what the .deb and .AppImage bundlers link
@@ -76,27 +70,27 @@ jobs:
       # compiler, which is not a quick compile from cold.
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./Ksav/ksav/app/src-tauri -> target"
+          workspaces: "./ksav/app/src-tauri -> target"
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install front-end dependencies
-        working-directory: ./Ksav/ksav/app
+        working-directory: ./ksav/app
         run: npm ci
 
       # Cheap, and it fails the build before a 20-minute Rust compile if the
       # editor code is broken.
       - name: Test and typecheck
-        working-directory: ./Ksav/ksav/app
+        working-directory: ./ksav/app
         run: |
           npm test
           npx tsc --noEmit
 
       - name: Engine tests
         if: matrix.platform == 'ubuntu-22.04'
-        working-directory: ./Ksav/ksav/engine
+        working-directory: ./ksav/engine
         run: cargo test --release
 
       - uses: tauri-apps/tauri-action@v0
@@ -115,7 +109,7 @@ jobs:
           # deciding whether to spend the money can see what it buys without
           # reading a workflow file.
         with:
-          projectPath: ./Ksav/ksav/app
+          projectPath: ./ksav/app
           tagName: ${{ github.ref_name }}
           releaseName: "Ksav ${{ github.ref_name }}"
           # The installers are unsigned, so every operating system shows a scary

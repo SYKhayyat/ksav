@@ -500,12 +500,110 @@ engine answers is forwarded. It was a hand-written list of five for a while, and
 against Vite itself — features that worked in production and looked broken in the
 one place they are developed.
 
+## The shared crates
+
+Every command above works from a plain `git clone`, with nothing set up first.
+That sentence is new, and it is the whole point of this section.
+
+Ksav compiles five crates from a second repository,
+[`sefer-crates`](https://github.com/SYKhayyat/sefer-crates):
+
+| Crate | What Ksav uses it for |
+| --- | --- |
+| `girsa-source` | the Source Packet — the wire shape a source arrives in from Girsa |
+| `girsa-ksav` | the markup writer, so Girsa's Ksav buffer emits the commands this engine compiles |
+| `girsa-post` | the token-gated localhost loopback, and the `ksav://insert` deep link |
+| `girsa-ref`, `girsa-hebrew` | transitively, under the three above |
+
+They are not a library Ksav happens to use. Girsa is the library and Ksav is the
+pen; the crates are the **seam between two halves of one product**, so that a
+change to what a quote block *is* lands on both sides as one edit rather than as
+an agreement in prose between two repositories that drifts until a sefer is
+printed (spec.md §10.3).
+
+They are pinned by commit:
+
+```toml
+girsa-source = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589af…" }
+```
+
+**This used to be `path = "../../../sefer-crates/crates/…"`** — a sibling of the
+checkout root, so `git clone ksav && cargo build` failed inside `cargo metadata`,
+before any compiler ran, naming a directory the reader had never heard of. No
+submodule, no `[patch]`, nothing vendored, and **no page in this repository
+mentioned it**, including this one, which handed you a `cargo run` that could not
+work. CI worked around it with a second checkout in four of five jobs and in the
+release matrix, and `ci.yml`'s first run is the record of what happens without
+that. `= 0.5.0` beside a path read as a pin and was not one: with a path
+dependency the path always wins and there is no version to fall back to. A commit
+SHA is the pin it was pretending to be.
+
+### Working on Ksav and sefer-crates at the same time
+
+That is what the path dependency actually bought, and it is kept. Copy the
+example override and a local checkout wins over the pinned commit:
+
+```sh
+cp .cargo/config.toml.example .cargo/config.toml     # at the repository root
+```
+
+It expects `sefer-crates` beside this repository (`Videos/Ksav`,
+`Videos/sefer-crates`, `Videos/Girsa`); edit the paths if yours differ — they
+resolve from the repository root, not from `.cargo/`. Cargo finds the file by
+walking up from wherever you invoked it, so one copy at the root covers
+`engine`, `wasm` and `app/src-tauri` alike, and deleting it puts the pin back.
+
+It is a `paths` override and not `[patch]` on purpose: `[patch]` re-resolves and
+rewrites `Cargo.lock`, which erases the pin from it — five entries to zero on
+the first `cargo metadata`, measured both ways — and a lock file committed in
+that state is the fresh-clone build broken again by the fix for it. `paths`
+leaves the lock byte-identical. It does print a warning about an altered
+dependency list on every invocation, which is expected while all five crates are
+overridden together; the example file says why.
+
+### What the pin costs the other repository
+
+One thing, and it needs fixing there rather than here. `sefer-crates` runs
+`tools/check-dependents.sh` — *"a break shows up in this repository's PR, not
+weeks later inside an app"* — by building each sibling checkout against its
+working tree. That worked because the sibling *was* the dependency. Now Ksav
+builds against the pinned commit, so the Ksav half of that check would compile
+old code and pass no matter what the change broke. Girsa is unaffected; it still
+reaches `sefer-crates` by path.
+
+The check keeps its meaning with one flag on the Ksav build, no state and no
+file to clean up:
+
+```sh
+cargo build --manifest-path "$siblings/Ksav/ksav/engine/Cargo.toml" --all-targets \
+  --config "paths=['$siblings/sefer-crates/crates/girsa-source', …]"
+```
+
+Worth being plain about which way this trades. Before, a change next door could
+turn this repository red with no commit landing anywhere near it; now it cannot,
+and the price is that the other repository has to opt back in to finding out.
+The opt-in is one line and it lives where the change is being made, which is the
+right end for it.
+
+### Bumping the pin
+
+Push to `sefer-crates`, then edit the `rev` in **both** `engine/Cargo.toml` and
+`app/src-tauri/Cargo.toml`, and run `cargo metadata` (or any build) in each of
+`engine`, `wasm` and `app/src-tauri` so all three lock files record the new
+commit. Both manifests, because the desktop binary links the engine and the
+Tauri shell into one
+process: two revs would put two `girsa-post`s in it, the loopback desk and the
+deep-link parser disagreeing about the wire between them. `engine/tests/manifests.rs`
+fails by name if they diverge, if a lock file falls behind, if a path dependency
+is ever reintroduced that points outside the repository, or if this section stops
+existing.
+
 ## Test
 
 ```sh
 cd app && npm test                          # 3,482 assertions across 58 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 366 tests, 23 binaries
+cargo test --manifest-path engine/Cargo.toml            # 371 tests, 24 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -541,8 +639,10 @@ bar is where most of this product's bugs are visible.
 
 ## Rebuild the lexicons
 
-Both generated word lists are committed, so a normal build never touches the
-network. Rebuild them only to change a source or a size:
+Both generated word lists are committed, so no build ever fetches a corpus —
+cargo's own dependency fetch, [the shared crates](#the-shared-crates) among
+them, is the only network a build wants, and only until the cache is warm.
+Rebuild the lexicons only to change a source or a size:
 
 ```sh
 cd engine
@@ -612,6 +712,14 @@ where one built on 24.04 would silently exclude older distros. `node_modules` an
 the cargo target directory live in named volumes, so the Linux build never
 overwrites the host's Windows-native `node_modules` and never recompiles Typst
 from cold twice. Installers are copied out to `ksav/packaging/out/`.
+
+Only this repository is mounted into the container, at `/work`, which is the
+right thing and used to be fatal: while the shared crates were reached through a
+sibling checkout, the desktop shell's `girsa-post` resolved to `/sefer-crates`,
+a directory that was never in the image. This script could not have produced an
+installer. The two CI workflows hid the same hole behind a second checkout; here
+there was nothing to hide it with, and nothing tried. See
+[The shared crates](#the-shared-crates).
 
 **macOS cannot be cross-built at all** — a `.dmg` only comes from a macOS
 machine, which is the whole reason `release.yml` exists. It builds all four

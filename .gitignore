@@ -1,6 +1,13 @@
 # Rust
 target/
 
+# The local override that points the shared `girsa-*` crates at a sibling
+# `sefer-crates` checkout instead of the pinned commit. Ignored on purpose: it
+# names a directory layout that exists on one machine, and committing it would
+# put the fresh-clone build back where it was. `.cargo/config.toml.example` is
+# tracked and says what to copy.
+/.cargo/config.toml
+
 # Node / front-end
 node_modules/
 build/

@@ -239,7 +239,8 @@ fn both_languages_accept_the_same_head_alignments() {
             "{spelling:?} should fall through to centred"
         );
         assert!(
-            !outside.contains(&format!("\"{spelling}\"")) && !inside.contains(&format!("\"{spelling}\"")),
+            !outside.contains(&format!("\"{spelling}\""))
+                && !inside.contains(&format!("\"{spelling}\"")),
             "the prelude treats {spelling:?} as an edge alignment and lib.rs does not"
         );
     }
@@ -283,7 +284,10 @@ fn the_prelude_and_the_engine_agree_about_a_default_page() {
         ("מניעת_יתומים", cfg.prevent_orphans.to_string()),
         ("ריווח_שורות", format!("{}em", cfg.line_spacing_em)),
         ("ריווח_פסקאות", format!("{}em", cfg.para_spacing_em)),
-        ("הזחה_ראשונה", format!("{}em", cfg.first_line_indent_em as i64)),
+        (
+            "הזחה_ראשונה",
+            format!("{}em", cfg.first_line_indent_em as i64),
+        ),
         ("טורים", cfg.columns.to_string()),
     ] {
         assert_eq!(
@@ -306,7 +310,11 @@ fn the_prelude_and_the_engine_agree_about_a_default_page() {
         "שוליים_חיצוני",
         "אזור_הערות",
     ] {
-        assert_eq!(param(typst_name), "none", "{typst_name} must default to none");
+        assert_eq!(
+            param(typst_name),
+            "none",
+            "{typst_name} must default to none"
+        );
     }
     assert!(cfg.margin_top_cm.is_none() && cfg.notes_region_cm.is_none());
 

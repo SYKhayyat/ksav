@@ -28,14 +28,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 
-# The Source Packet -- the contract with Girsa, the library half of the pair.
-# Pinned exactly: sefer-crates is a separate repository, so taking a new
-# version has to be a deliberate act on this side. Its CI builds this crate
-# against every proposed change, so a break shows up there rather than here.
-girsa-source = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-source" }
-# The markup writer, shared so that Girsa's Ksav buffer writes the same
-# commands this engine compiles (spec.md §10.3).
-girsa-ksav = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-ksav" }
 include_dir = { version = "0.7", optional = true }
 # Typst's own editor-support crate, for `src/jump.rs`. It is what turns a click
 # on the page into a place in the source and back, by walking the laid-out frames
@@ -47,14 +39,59 @@ typst-ide = "0.15"
 # The HTTP server (net + threads) is native-only; wasm builds skip it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tiny_http = "0.12"
-# The loopback to Girsa: token-gated, localhost only. Native-only for the same
-# reason as the server above — a browser build has no listener and nothing to
-# be handed a source by.
-girsa-post = { version = "=0.5.0", path = "../../../sefer-crates/crates/girsa-post" }
+
+# --- the shared crates, from the sefer-crates repository --------------------
+#
+# Girsa is the library; Ksav is the pen. `sefer-crates` is not a library either
+# of them merely uses — it is the seam between the two halves of one product,
+# so that a change to what a quote block *is* lands on both sides as one edit
+# instead of an agreement in prose between two repositories (spec.md §10.3).
+#
+# **A git dependency and not a path.** These were `path =
+# "../../../sefer-crates/crates/…"` — resolved from `ksav/engine/`, that is a
+# sibling of the *checkout root*, so `git clone ksav && cargo build` failed at
+# `cargo metadata`, before a compiler ran, with a message naming a directory
+# the reader had never heard of. Not one `.md` in the repository said so. Four
+# of `ci.yml`'s five jobs and the release matrix carried a second
+# `actions/checkout` purely to fake the desk layout, which is what a
+# load-bearing workaround looks like, and `ci.yml`'s own first run is the record
+# of it. `packaging/build-linux.sh` had no such workaround and could not have
+# produced an installer: it mounts this repository alone, so `girsa-post`
+# resolved to `/sefer-crates` inside the container.
+#
+# **`rev` and not `version` is the pin.** `= 0.5.0` beside a path read as a pin
+# and was not one: with a path dependency the path always wins and there is no
+# version to fall back to. A commit SHA is the pin that `= 0.5.0` was
+# pretending to be, and the exact-version requirement is kept beside it so that
+# a rev whose manifests say something else is a resolution error rather than a
+# surprise. Bumping is deliberate, which was the original intent: edit the rev
+# here and in `app/src-tauri/Cargo.toml`, and `tests/manifests.rs` fails if the
+# two ever disagree — one product must not compile two sefer-crates.
+#
+# **Editing both halves at once.** That is what the path dependency really
+# bought, and it is kept: copy `.cargo/config.toml.example` to
+# `.cargo/config.toml` at the repository root and a local `sefer-crates`
+# checkout overrides the git one for every crate here. See `ksav/README.md`,
+# "The shared crates".
+#
+# **Native-only.** `girsa-post` is the token-gated localhost loopback to Girsa;
+# a browser build has no listener and nothing to be handed a source by.
+# `girsa-source` and `girsa-ksav` sat in the unconditional block, so the
+# offline browser build compiled the packet schema and the citation writer for
+# an application that is not there — `src/source.rs`, their only consumer here,
+# is reached exclusively through `post.rs` and is gated with them.
+girsa-source = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
+girsa-ksav = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
+girsa-post = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
 
 [features]
 # Embed the built SPA (ksav/app/dist) into the binary. Build the app first
-# (`npm run build` in ksav/app), then `cargo build --features embed-ui`.
+# (`npm run build` in ksav/app), then `cargo build --features embed-ui`. That
+# order is not advice: `dist/` is git-ignored, so on a clone the embedding fails
+# inside `include_dir!` with a message about a directory rather than about the
+# step that was skipped — which made the first command in the root README the
+# second way this repository did not build from a clone. `build.rs` says so in
+# words now.
 embed-ui = ["dep:include_dir"]
 
 [profile.dev]

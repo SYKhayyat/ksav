@@ -281,7 +281,13 @@ mod tests {
         // on line 3 of the assembled body means nothing to somebody looking at a
         // chapter; "perek-3, line 2" means everything.
         let out = expand("א\n#כלול(\"ב\")\nג", &parts(&[("ב", "x\ny")]));
-        assert_eq!(out.origin_of(1), Some(&Origin { file: None, line: 1 }));
+        assert_eq!(
+            out.origin_of(1),
+            Some(&Origin {
+                file: None,
+                line: 1
+            })
+        );
         assert_eq!(
             out.origin_of(2),
             Some(&Origin {
@@ -298,7 +304,13 @@ mod tests {
         );
         // …and the line after the inclusion is back in the main body, at its own
         // line number — not at the number it ended up with.
-        assert_eq!(out.origin_of(4), Some(&Origin { file: None, line: 3 }));
+        assert_eq!(
+            out.origin_of(4),
+            Some(&Origin {
+                file: None,
+                line: 3
+            })
+        );
     }
 
     #[test]
@@ -323,8 +335,14 @@ mod tests {
             "#כלול(\"א\")",
             &parts(&[("א", "ראש\n#כלול(\"ב\")"), ("ב", "#כלול(\"א\")")]),
         );
-        assert!(out.text.contains("ראש"), "the part before the loop still prints");
-        assert!(out.text.contains("מעגל"), "and the loop is marked on the page");
+        assert!(
+            out.text.contains("ראש"),
+            "the part before the loop still prints"
+        );
+        assert!(
+            out.text.contains("מעגל"),
+            "and the loop is marked on the page"
+        );
         assert_eq!(out.problems.len(), 1);
         assert!(out.problems[0].contains('א'));
     }
@@ -334,10 +352,7 @@ mod tests {
         // Only a part open *above* this one is a cycle. Including the same
         // boilerplate at the top of two chapters is completely ordinary, and an
         // over-eager check would refuse it.
-        let out = expand(
-            "#כלול(\"ב\")\n#כלול(\"ב\")",
-            &parts(&[("ב", "שלום")]),
-        );
+        let out = expand("#כלול(\"ב\")\n#כלול(\"ב\")", &parts(&[("ב", "שלום")]));
         assert_eq!(out.text, "שלום\nשלום");
         assert!(out.problems.is_empty());
     }

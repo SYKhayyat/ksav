@@ -19,12 +19,12 @@ pub mod diagnostics;
 pub mod include;
 /// Both directions between a place in the source and a place on the page.
 pub mod jump;
+/// The rules more than one build has to obey, read from `ksav/policy/`.
+pub mod policy;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod post;
-/// The rules more than one build has to obey, read from `ksav/policy/`.
-pub mod policy;
 pub mod probe;
 /// The catalogue of sefarim, and the order a source index prints them in.
 pub mod sefarim;
@@ -485,7 +485,12 @@ fn sanitize_head_align(a: &str) -> String {
 /// still produces the pages the writer *did* name, where refusing produces no
 /// PDF at all over a typo in one field.
 fn parse_page_ranges(spec: &str) -> Vec<std::ops::RangeInclusive<Option<std::num::NonZeroUsize>>> {
-    let num = |s: &str| s.trim().parse::<usize>().ok().and_then(std::num::NonZeroUsize::new);
+    let num = |s: &str| {
+        s.trim()
+            .parse::<usize>()
+            .ok()
+            .and_then(std::num::NonZeroUsize::new)
+    };
     spec.split(',')
         .filter_map(|part| {
             let part = part.trim();
@@ -1071,7 +1076,11 @@ pub fn compile_request(input_json: &str) -> String {
         .and_then(|x| x.as_array())
         .map(|a| a.iter().filter_map(|h| h.as_str()).collect())
         .unwrap_or_default();
-    let fingerprints: Vec<String> = result.pages_svg.iter().map(|s| page_fingerprint(s)).collect();
+    let fingerprints: Vec<String> = result
+        .pages_svg
+        .iter()
+        .map(|s| page_fingerprint(s))
+        .collect();
     let pages: Vec<serde_json::Value> = result
         .pages_svg
         .iter()
@@ -1377,7 +1386,13 @@ mod tests {
     fn success_is_reported_even_when_no_pdf_was_asked_for() {
         // `ok` used to mean `pdf.is_some()`, which would report every successful
         // preview as a failure the moment previews stopped rendering a PDF.
-        let out = compile_parts("שלום", &DocConfig::default(), &Assets::default(), false, false);
+        let out = compile_parts(
+            "שלום",
+            &DocConfig::default(),
+            &Assets::default(),
+            false,
+            false,
+        );
         assert!(out.ok());
         assert!(out.pdf.is_none());
         assert!(!out.pages_svg.is_empty());
@@ -1758,14 +1773,20 @@ mod tests {
         assert_eq!(ranges("5-"), vec![(Some(5), None)]);
         assert_eq!(ranges("-9"), vec![(None, Some(9))]);
         // Spaces are a keystroke, not an intention.
-        assert_eq!(ranges(" 2 , 4 - 6 "), vec![(Some(2), Some(2)), (Some(4), Some(6))]);
+        assert_eq!(
+            ranges(" 2 , 4 - 6 "),
+            vec![(Some(2), Some(2)), (Some(4), Some(6))]
+        );
     }
 
     #[test]
     fn a_malformed_page_range_costs_only_itself() {
         // Dropping the bad part and exporting the rest beats refusing to produce
         // any PDF at all over a typo in one field.
-        assert_eq!(ranges("2,oops,4"), vec![(Some(2), Some(2)), (Some(4), Some(4))]);
+        assert_eq!(
+            ranges("2,oops,4"),
+            vec![(Some(2), Some(2)), (Some(4), Some(4))]
+        );
         // A bare dash names nothing. Read as "every page" it would silently
         // swallow whatever else the writer asked for.
         assert_eq!(ranges("-"), vec![]);

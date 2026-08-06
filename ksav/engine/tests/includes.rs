@@ -41,8 +41,14 @@ fn a_mistake_in_a_chapter_is_reported_at_that_chapters_line() {
         .iter()
         .find(|d| d["severity"] == "error")
         .unwrap_or_else(|| panic!("expected an error, got {diags:?}"));
-    assert_eq!(bad["file"], "פרק ב", "the error should name the chapter: {bad:?}");
-    assert_eq!(bad["line"], 2, "…at its own line 2, not the assembled line 4");
+    assert_eq!(
+        bad["file"], "פרק ב",
+        "the error should name the chapter: {bad:?}"
+    );
+    assert_eq!(
+        bad["line"], 2,
+        "…at its own line 2, not the assembled line 4"
+    );
 }
 
 #[test]
@@ -53,7 +59,10 @@ fn an_error_in_the_main_body_still_names_no_file() {
     }));
     let diags = diagnostics(&out);
     let bad = diags.iter().find(|d| d["severity"] == "error").unwrap();
-    assert!(bad["file"].is_null(), "the main body is not a chapter: {bad:?}");
+    assert!(
+        bad["file"].is_null(),
+        "the main body is not a chapter: {bad:?}"
+    );
     assert_eq!(bad["line"], 1);
 }
 
@@ -69,7 +78,11 @@ fn a_missing_chapter_is_reported_and_the_rest_still_renders() {
     let said = diagnostics(&out)
         .iter()
         .any(|d| d["message"].as_str().unwrap_or("").contains("אין כזה"));
-    assert!(said, "the missing name should be reported: {:?}", diagnostics(&out));
+    assert!(
+        said,
+        "the missing name should be reported: {:?}",
+        diagnostics(&out)
+    );
 }
 
 #[test]

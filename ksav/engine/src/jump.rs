@@ -34,9 +34,9 @@
 
 use crate::assets::Assets;
 use crate::{DocConfig, PagedDocument};
-use typst::World;
 use typst::introspection::PagedPosition;
 use typst::layout::{Abs, Point};
+use typst::World;
 
 /// A point on a rendered page, in Typst points — the unit the SVG's own
 /// `viewBox` is written in, so the client converts with its element's width and
@@ -81,13 +81,19 @@ impl World for IdeShim<'_> {
     fn source(&self, id: typst::syntax::FileId) -> typst::diag::FileResult<typst::syntax::Source> {
         self.0.source(id)
     }
-    fn file(&self, id: typst::syntax::FileId) -> typst::diag::FileResult<typst::foundations::Bytes> {
+    fn file(
+        &self,
+        id: typst::syntax::FileId,
+    ) -> typst::diag::FileResult<typst::foundations::Bytes> {
         self.0.file(id)
     }
     fn font(&self, index: usize) -> Option<typst::text::Font> {
         self.0.font(index)
     }
-    fn today(&self, offset: Option<typst::foundations::Duration>) -> Option<typst::foundations::Datetime> {
+    fn today(
+        &self,
+        offset: Option<typst::foundations::Duration>,
+    ) -> Option<typst::foundations::Datetime> {
         self.0.today(offset)
     }
 }
@@ -131,12 +137,7 @@ fn with_layout<R>(
 /// that resolves into some other file. All of those are places with no line to
 /// go to, and each is far more common in this document shape than in a plain
 /// one — the whole apparatus is prelude-generated.
-pub fn to_source(
-    body: &str,
-    cfg: &DocConfig,
-    assets: &Assets,
-    at: PagePoint,
-) -> Option<BodySpot> {
+pub fn to_source(body: &str, cfg: &DocConfig, assets: &Assets, at: PagePoint) -> Option<BodySpot> {
     let offset = crate::diagnostics::body_offset(cfg);
     with_layout(body, cfg, assets, |world, doc, main| {
         let page = std::num::NonZeroUsize::new(at.page.checked_add(1)?)?;
@@ -161,12 +162,7 @@ pub fn to_source(
 /// whose body is set both in the band and in an endnote list appears twice, and
 /// text in a repeated header appears on every page. The caller shows the first
 /// and is free to offer the rest.
-pub fn from_cursor(
-    body: &str,
-    cfg: &DocConfig,
-    assets: &Assets,
-    at: BodySpot,
-) -> Vec<PagePoint> {
+pub fn from_cursor(body: &str, cfg: &DocConfig, assets: &Assets, at: BodySpot) -> Vec<PagePoint> {
     let offset = crate::diagnostics::body_offset(cfg);
     with_layout(body, cfg, assets, |_, doc, main| {
         let cursor = byte_of(main.text(), offset, at)?;
@@ -215,10 +211,7 @@ fn byte_of(text: &str, offset: usize, at: BodySpot) -> Option<usize> {
     let line = body.split('\n').nth(at.line.checked_sub(1)?)?;
     let line_start = offset + (line.as_ptr() as usize - body.as_ptr() as usize);
     let col = at.column.saturating_sub(1);
-    let within = line
-        .char_indices()
-        .nth(col)
-        .map_or(line.len(), |(i, _)| i);
+    let within = line.char_indices().nth(col).map_or(line.len(), |(i, _)| i);
     Some(line_start + within)
 }
 
@@ -304,7 +297,10 @@ mod tests {
         let source = typst::syntax::Source::detached(assembled.clone());
         for (i, line) in body.split('\n').enumerate() {
             for col in 1..=line.chars().count() + 1 {
-                let at = BodySpot { line: i + 1, column: col };
+                let at = BodySpot {
+                    line: i + 1,
+                    column: col,
+                };
                 let byte = byte_of(&assembled, offset, at).expect("a place in the body");
                 assert_eq!(spot(&source, byte, offset), Some(at), "at {at:?}");
             }
@@ -318,7 +314,10 @@ mod tests {
         let cfg = cfg();
         let assembled = crate::assemble_source("שלום", &cfg);
         let source = typst::syntax::Source::detached(assembled);
-        assert_eq!(spot(&source, 0, crate::diagnostics::body_offset(&cfg)), None);
+        assert_eq!(
+            spot(&source, 0, crate::diagnostics::body_offset(&cfg)),
+            None
+        );
     }
 
     /// The two directions are each other's inverse *through the layout*, which
@@ -352,7 +351,11 @@ mod tests {
                         body,
                         &cfg,
                         &Assets::default(),
-                        PagePoint { page: p.page, x_pt: p.x_pt + dx, y_pt: p.y_pt + dy },
+                        PagePoint {
+                            page: p.page,
+                            x_pt: p.x_pt + dx,
+                            y_pt: p.y_pt + dy,
+                        },
                     )
                 });
             assert_eq!(
@@ -370,7 +373,11 @@ mod tests {
     #[test]
     fn a_click_on_the_margin_goes_nowhere() {
         let cfg = cfg();
-        let at = PagePoint { page: 0, x_pt: 2.0, y_pt: 2.0 };
+        let at = PagePoint {
+            page: 0,
+            x_pt: 2.0,
+            y_pt: 2.0,
+        };
         assert_eq!(to_source("שורה ראשונה", &cfg, &Assets::default(), at), None);
     }
 
@@ -380,9 +387,22 @@ mod tests {
     fn cursor_finds_its_place_on_the_page() {
         let cfg = cfg();
         let body = "שורה ראשונה\n\nשורה שלישית";
-        let first = from_cursor(body, &cfg, &Assets::default(), BodySpot { line: 1, column: 1 });
-        let third = from_cursor(body, &cfg, &Assets::default(), BodySpot { line: 3, column: 1 });
-        assert!(!first.is_empty() && !third.is_empty(), "{first:?} {third:?}");
+        let first = from_cursor(
+            body,
+            &cfg,
+            &Assets::default(),
+            BodySpot { line: 1, column: 1 },
+        );
+        let third = from_cursor(
+            body,
+            &cfg,
+            &Assets::default(),
+            BodySpot { line: 3, column: 1 },
+        );
+        assert!(
+            !first.is_empty() && !third.is_empty(),
+            "{first:?} {third:?}"
+        );
         assert_eq!(first[0].page, 0);
         assert_eq!(third[0].page, 0);
         assert!(
@@ -396,25 +416,41 @@ mod tests {
     #[test]
     fn a_broken_document_answers_nothing() {
         let cfg = cfg();
-        let at = PagePoint { page: 0, x_pt: 100.0, y_pt: 100.0 };
-        assert_eq!(to_source("#אין_פקודה_כזו[", &cfg, &Assets::default(), at), None);
-        assert!(from_cursor("#אין_פקודה_כזו[", &cfg, &Assets::default(), BodySpot { line: 1, column: 1 }).is_empty());
+        let at = PagePoint {
+            page: 0,
+            x_pt: 100.0,
+            y_pt: 100.0,
+        };
+        assert_eq!(
+            to_source("#אין_פקודה_כזו[", &cfg, &Assets::default(), at),
+            None
+        );
+        assert!(from_cursor(
+            "#אין_פקודה_כזו[",
+            &cfg,
+            &Assets::default(),
+            BodySpot { line: 1, column: 1 }
+        )
+        .is_empty());
     }
 
     /// The wire shape, both ways, including what a request nobody can read gets.
     #[test]
     fn the_wire_answers_in_shape() {
-        let ask = serde_json::json!({ "body": "שלום עולם", "page": 0, "x_pt": 100.0, "y_pt": 100.0 });
+        let ask =
+            serde_json::json!({ "body": "שלום עולם", "page": 0, "x_pt": 100.0, "y_pt": 100.0 });
         let out: serde_json::Value = serde_json::from_str(&jump_request(&ask.to_string())).unwrap();
         assert!(out.is_object());
 
         let ask = serde_json::json!({ "body": "שלום עולם", "line": 1, "column": 1 });
-        let out: serde_json::Value = serde_json::from_str(&reveal_request(&ask.to_string())).unwrap();
+        let out: serde_json::Value =
+            serde_json::from_str(&reveal_request(&ask.to_string())).unwrap();
         assert!(out["points"].is_array());
 
         assert_eq!(jump_request("not json"), "{}");
         assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&reveal_request("not json")).unwrap()["points"]
+            serde_json::from_str::<serde_json::Value>(&reveal_request("not json")).unwrap()
+                ["points"]
                 .as_array()
                 .map(|a| a.len()),
             Some(0)

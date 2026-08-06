@@ -67,7 +67,12 @@ fn every_offered_insertion_compiles_where_it_is_offered() {
     for c in all.iter().filter(|c| c.legal) {
         if let Err(e) = compiles(&c.source) {
             let first = e.lines().next().unwrap_or("").to_string();
-            broken.push(format!("  {}/{}  {first}\n     {}", c.ctx, c.cmd, c.source.replace('\n', "⏎")));
+            broken.push(format!(
+                "  {}/{}  {first}\n     {}",
+                c.ctx,
+                c.cmd,
+                c.source.replace('\n', "⏎")
+            ));
         }
     }
     assert!(
@@ -98,6 +103,9 @@ fn every_refused_insertion_would_really_have_failed() {
             ));
         }
     }
-    assert!(refused > 0, "nothing is refused anywhere — is `legalAt` wired up?");
+    assert!(
+        refused > 0,
+        "nothing is refused anywhere — is `legalAt` wired up?"
+    );
     assert!(wrong.is_empty(), "over-refusal:\n{}", wrong.join("\n"));
 }

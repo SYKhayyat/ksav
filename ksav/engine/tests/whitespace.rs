@@ -82,7 +82,9 @@ fn the_hidden_break_leaves_one_line() {
     assert!(
         body.iter().all(|r| (r.y - first).abs() < 0.01),
         "the halves landed on different lines: {:?}",
-        body.iter().map(|r| (r.text.clone(), r.y)).collect::<Vec<_>>(),
+        body.iter()
+            .map(|r| (r.text.clone(), r.y))
+            .collect::<Vec<_>>(),
     );
 }
 

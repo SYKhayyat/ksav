@@ -81,8 +81,7 @@ impl Lexicon {
             // is scored against — ם and מ have to look like the same letter here
             // for the same reason they do in the distance.
             let folded: Vec<char> = word.chars().map(fold_final).collect();
-            self.words
-                .insert(&word, folded.len(), letter_mask(&folded));
+            self.words.insert(&word, folded.len(), letter_mask(&folded));
         }
     }
 

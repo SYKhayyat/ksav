@@ -43,8 +43,7 @@ fn heading_ladder(dir: &str) -> Vec<(f64, f64)> {
                 dir: dir.to_string(),
                 ..Default::default()
             };
-            let doc =
-                probe::layout(&src, &cfg).unwrap_or_else(|d| panic!("compile failed: {d:?}"));
+            let doc = probe::layout(&src, &cfg).unwrap_or_else(|d| panic!("compile failed: {d:?}"));
             let runs = probe::text_runs(&doc);
             let lines = probe::lines(&runs, 1.0);
             let l = lines

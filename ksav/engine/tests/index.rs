@@ -98,12 +98,21 @@ fn a_topic_index_prints_its_terms_with_their_pages() {
     let text = all_text(&runs);
     // The marked words print where they were written — the writer does not type
     // the term twice.
-    assert!(text.contains("מלאכת בורר"), "the marked phrase should print: {text}");
-    assert!(text.contains("מפתח הענינים"), "the index heading should print");
+    assert!(
+        text.contains("מלאכת בורר"),
+        "the marked phrase should print: {text}"
+    );
+    assert!(
+        text.contains("מפתח הענינים"),
+        "the index heading should print"
+    );
     // שבת was marked on pages 1 and 3, תפילין only on 2.
     let idx = index_text(&runs, "מפתח הענינים");
     assert!(idx.contains("שבת"), "שבת should be in the index: {idx}");
-    assert!(idx.contains("תפילין"), "תפילין should be in the index: {idx}");
+    assert!(
+        idx.contains("תפילין"),
+        "תפילין should be in the index: {idx}"
+    );
     assert!(
         idx.contains("1, 3") || idx.contains("3, 1"),
         "שבת was marked on pages 1 and 3 and should say so: {idx}"
@@ -210,7 +219,10 @@ fn the_index_follows_the_documents_own_page_numbering() {
         idx.contains("גמרא ב") || idx.ends_with("ב"),
         "page 2 of a Hebrew-numbered sefer is ב, not 2: {idx}"
     );
-    assert!(!idx.contains("2"), "an Arabic 2 has no business here: {idx}");
+    assert!(
+        !idx.contains("2"),
+        "an Arabic 2 has no business here: {idx}"
+    );
 }
 
 // ── the source index ─────────────────────────────────────────────────────────
@@ -221,8 +233,14 @@ fn a_citation_prints_in_one_spelling_however_it_was_typed() {
     // בבא בתרא on another are one masechta and print as one name.
     let runs = render("#ציון_מקור(\"ב״ב\", מקום: \"ג.\") ו#ציון_מקור(\"בבא בתרא\", מקום: \"ד:\")");
     let text = all_text(&runs);
-    assert!(text.contains("בבא בתרא ג."), "expected the canonical name: {text}");
-    assert!(!text.contains("ב״ב "), "the abbreviation should not print: {text}");
+    assert!(
+        text.contains("בבא בתרא ג."),
+        "expected the canonical name: {text}"
+    );
+    assert!(
+        !text.contains("ב״ב "),
+        "the abbreviation should not print: {text}"
+    );
 }
 
 #[test]
@@ -273,7 +291,10 @@ fn dapim_sort_by_gematria_and_then_by_amud() {
     let idx = index_text(&runs, "מפתח המקורות");
     let order: Vec<usize> = ["ב.", "ב:", "ג.", "קיג."]
         .iter()
-        .map(|p| idx.find(p).unwrap_or_else(|| panic!("{p} missing from {idx}")))
+        .map(|p| {
+            idx.find(p)
+                .unwrap_or_else(|| panic!("{p} missing from {idx}"))
+        })
         .collect();
     assert!(
         order.windows(2).all(|w| w[0] < w[1]),
@@ -295,7 +316,10 @@ fn a_sefer_the_catalogue_never_heard_of_still_gets_indexed() {
     let text = all_text(&runs);
     assert!(text.contains("נודע ביהודה"), "it must appear: {text}");
     // After everything the catalogue does know, where a reader will look for it.
-    assert_order(&index_text(&runs, "מפתח המקורות"), &["ברכות", "נודע ביהודה"]);
+    assert_order(
+        &index_text(&runs, "מפתח המקורות"),
+        &["ברכות", "נודע ביהודה"],
+    );
 }
 
 #[test]

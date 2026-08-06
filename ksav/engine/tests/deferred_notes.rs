@@ -97,7 +97,11 @@ fn layout_cases() -> Vec<(&'static str, String, String)> {
     // `tail` is the scaffolding the layout needs (a dump call); it belongs to
     // both forms, since it is not what is under test.
     let case = |label: &'static str, inline: String, refs: String, tail: &str| {
-        (label, format!("{inline}{tail}"), format!("{refs}{tail}{defs}"))
+        (
+            label,
+            format!("{inline}{tail}"),
+            format!("{refs}{tail}{defs}"),
+        )
     };
 
     // 1. native footnote
@@ -219,7 +223,9 @@ fn a_long_run_of_definitions_does_not_push_a_blank_page() {
     // nothing.
     let mut src = String::from("שלום עולם.\n#גופי_הערות[\n");
     for i in 0..30 {
-        src.push_str(&format!("#גוף_הערה(\"n{i}\")[גוף הערה מספר {i} עם עוד קצת טקסט]\n"));
+        src.push_str(&format!(
+            "#גוף_הערה(\"n{i}\")[גוף הערה מספר {i} עם עוד קצת טקסט]\n"
+        ));
     }
     src.push_str("]\n");
     let doc = probe::layout(&src, &DocConfig::default()).expect("compile failed");
@@ -320,7 +326,10 @@ fn a_deferred_body_carries_rich_content() {
     );
     let text = page_text(&runs);
     for needle in ["מודגש", "אלף", "בית", "גימל", "דלת"] {
-        assert!(text.contains(needle), "{needle:?} was lost in the deferred body");
+        assert!(
+            text.contains(needle),
+            "{needle:?} was lost in the deferred body"
+        );
     }
 }
 
@@ -328,9 +337,8 @@ fn a_deferred_body_carries_rich_content() {
 fn the_same_body_may_be_referenced_twice() {
     // Two markers, one definition — a note the writer wants repeated. Both
     // markers get their own entry rather than one silently swallowing the other.
-    let runs = render(
-        "ראש#הערה_בשם(\"א\") אמצע#הערה_בשם(\"א\") סוף.\n#גוף_הערה(\"א\")[הביאור החוזר]",
-    );
+    let runs =
+        render("ראש#הערה_בשם(\"א\") אמצע#הערה_בשם(\"א\") סוף.\n#גוף_הערה(\"א\")[הביאור החוזר]");
     let hits = runs
         .iter()
         .filter(|r| r.text.contains("הביאור החוזר"))
@@ -344,9 +352,13 @@ fn the_same_body_may_be_referenced_twice() {
 fn a_dangling_reference_is_loud_and_does_not_break_the_document() {
     // An invisible failure here is the worst one available: a note the writer
     // believes they wrote and the reader never sees.
-    let runs = render("ראש#הערה_בשם(\"חסר\") אמצע#הערה_בשם(\"קיים\") סוף.\n#גוף_הערה(\"קיים\")[הביאור]");
+    let runs =
+        render("ראש#הערה_בשם(\"חסר\") אמצע#הערה_בשם(\"קיים\") סוף.\n#גוף_הערה(\"קיים\")[הביאור]");
     let text = page_text(&runs);
-    assert!(text.contains("סוף"), "the document stopped at the bad reference");
+    assert!(
+        text.contains("סוף"),
+        "the document stopped at the bad reference"
+    );
     assert!(text.contains("הביאור"), "the good note was lost too");
     assert!(
         text.contains("חסר"),
@@ -368,7 +380,10 @@ fn a_duplicate_definition_takes_the_first_and_renders_once() {
     );
     let text = page_text(&runs);
     assert!(text.contains("הראשון"), "the first definition did not win");
-    assert!(!text.contains("השני"), "the shadowed definition rendered too");
+    assert!(
+        !text.contains("השני"),
+        "the shadowed definition rendered too"
+    );
 }
 
 // ── the name argument ────────────────────────────────────────────────────────
@@ -415,7 +430,10 @@ fn the_english_aliases_and_parameter_names_work() {
     );
     let text = page_text(&runs);
     for needle in ["the first gloss", "the second gloss", "Notes"] {
-        assert!(text.contains(needle), "{needle:?} missing from the English page");
+        assert!(
+            text.contains(needle),
+            "{needle:?} missing from the English page"
+        );
     }
 }
 
@@ -496,7 +514,12 @@ fn deferred_and_inline_notes_interleave_in_one_sequence() {
             .position(|r| r.text.contains(needle))
             .unwrap_or_else(|| panic!("{needle:?} not rendered"))
     };
-    for (n, body) in [("1", "ראשונה"), ("2", "שנייה"), ("3", "שלישית"), ("4", "רביעית")] {
+    for (n, body) in [
+        ("1", "ראשונה"),
+        ("2", "שנייה"),
+        ("3", "שלישית"),
+        ("4", "רביעית"),
+    ] {
         assert_eq!(
             runs[i(body) - 1].text.trim(),
             n,
@@ -528,7 +551,13 @@ fn section_scoped_endnotes_still_scope_when_the_bodies_are_deferred() {
     assert!(head_a < head_b);
     for note in ["על אלף", "על בית"] {
         let ny = y(note);
-        assert!(ny > head_a && ny < head_b, "{note:?} is not inside chapter א");
+        assert!(
+            ny > head_a && ny < head_b,
+            "{note:?} is not inside chapter א"
+        );
     }
-    assert!(y("על גימל") > head_b, "chapter ב's note is not in chapter ב");
+    assert!(
+        y("על גימל") > head_b,
+        "chapter ב's note is not in chapter ב"
+    );
 }

@@ -74,10 +74,13 @@ fn assert_marks(runs: &[TextRun], want: &[&str], what: &str) {
 /// The shipped tiers read א,ב,ג over 1,2,3 — the שער־הציון order.
 #[test]
 fn section_bands_letter_the_first_tier_and_number_the_second() {
-    let runs = render(
-        "אלף#מדור_א[הפירוש #מדור_ב[ההערה עליו]] בית#מדור_א[עוד פירוש].\n#הערות_מדורגות()",
+    let runs =
+        render("אלף#מדור_א[הפירוש #מדור_ב[ההערה עליו]] בית#מדור_א[עוד פירוש].\n#הערות_מדורגות()");
+    assert_marks(
+        &runs,
+        &["א", "ב"],
+        "the primary band must be lettered א,ב,ג",
     );
-    assert_marks(&runs, &["א", "ב"], "the primary band must be lettered א,ב,ג");
     assert!(
         flat(&runs).contains("ההערה עליו"),
         "the sub-band never rendered: {}",
@@ -89,7 +92,11 @@ fn section_bands_letter_the_first_tier_and_number_the_second() {
 #[test]
 fn page_bands_letter_the_first_tier_and_number_the_second() {
     let runs = render("אלף#מדף_א[הפירוש #מדף_ב[ההערה עליו]] בית#מדף_א[עוד פירוש].");
-    assert_marks(&runs, &["א", "ב"], "the primary page-band must be lettered א,ב,ג");
+    assert_marks(
+        &runs,
+        &["א", "ב"],
+        "the primary page-band must be lettered א,ב,ג",
+    );
     assert!(
         flat(&runs).contains("ההערה עליו"),
         "the sub page-band never rendered: {}",
@@ -108,7 +115,11 @@ fn tiered_footnotes_letter_the_first_tier_and_number_the_second() {
         "#הגדרות_הערות(מספור: (\"א\", \"1\"), הזחה: (0em, 1.4em))\n\n\
          אלף#הערה_א[הפירוש #הערה_ב[ההערה עליו]] בית#הערה_א[עוד פירוש].",
     );
-    assert_marks(&runs, &["א", "ב"], "tier 1 must be lettered when a scheme asks for it");
+    assert_marks(
+        &runs,
+        &["א", "ב"],
+        "tier 1 must be lettered when a scheme asks for it",
+    );
     assert!(
         flat(&runs).contains("ההערה עליו"),
         "tier 2 never rendered: {}",
@@ -128,7 +139,11 @@ fn a_subnote_hangs_off_an_ordinary_footnote() {
         "#הגדרות_הערות(מספור: (\"א\", \"1\"))\n\n\
          אלף#הערה[הפירוש #הערה_ב[ההערה עליו]] בית#הערה[עוד פירוש].",
     );
-    assert_marks(&runs, &["א", "ב"], "an ordinary #הערה must number as tier 1");
+    assert_marks(
+        &runs,
+        &["א", "ב"],
+        "an ordinary #הערה must number as tier 1",
+    );
     assert!(
         flat(&runs).contains("ההערה עליו"),
         "the sub-note's text never reached the page: {}",
@@ -143,7 +158,11 @@ fn a_subnote_hangs_off_an_ordinary_footnote() {
 #[test]
 fn an_ordinary_footnote_is_unchanged_by_being_tier_one() {
     let runs = render("אלף#הערה[הפירוש] בית#הערה[עוד פירוש] גימל.");
-    assert_marks(&runs, &["1", "2"], "an ordinary footnote's markers must stay 1,2,3");
+    assert_marks(
+        &runs,
+        &["1", "2"],
+        "an ordinary footnote's markers must stay 1,2,3",
+    );
     // Body and entry number at one size, exactly as a plain footnote entry has
     // always set: tier 1 is 1em, so `_fn_wrap` hands the body back untouched
     // rather than wrapping it in a `text()` that forces normal and black.

@@ -576,13 +576,33 @@ fn per_tier_numbering_gives_each_tier_its_own_marker_and_count() {
     let lines = probe::lines(&runs, 4.0);
     let entry = |body: &str| -> String { line_with(&lines, body).text() };
     // Tier 1 counts 1, 2 — not 1, 4.
-    assert!(entry("ראשונה").contains('1'), "tier-1 #1: {:?}", entry("ראשונה"));
-    assert!(entry("רביעית").contains('2'), "tier-1 #2: {:?}", entry("רביעית"));
+    assert!(
+        entry("ראשונה").contains('1'),
+        "tier-1 #1: {:?}",
+        entry("ראשונה")
+    );
+    assert!(
+        entry("רביעית").contains('2'),
+        "tier-1 #2: {:?}",
+        entry("רביעית")
+    );
     // Tier 2 counts א, ב in Hebrew letters — its own scheme and its own count.
-    assert!(entry("שנייה").contains('א'), "tier-2 #1: {:?}", entry("שנייה"));
-    assert!(entry("חמישית").contains('ב'), "tier-2 #2: {:?}", entry("חמישית"));
+    assert!(
+        entry("שנייה").contains('א'),
+        "tier-2 #1: {:?}",
+        entry("שנייה")
+    );
+    assert!(
+        entry("חמישית").contains('ב'),
+        "tier-2 #2: {:?}",
+        entry("חמישית")
+    );
     // Tier 3 counts in roman.
-    assert!(entry("שלישית").contains('i'), "tier-3 #1: {:?}", entry("שלישית"));
+    assert!(
+        entry("שלישית").contains('i'),
+        "tier-3 #1: {:?}",
+        entry("שלישית")
+    );
 }
 
 // ── A heading inside a note is not a heading ─────────────────────────────────

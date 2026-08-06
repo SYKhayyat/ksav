@@ -290,9 +290,9 @@ pub fn lookup(name: &str) -> Option<&'static Sefer> {
     if want.is_empty() {
         return None;
     }
-    SEFARIM.iter().find(|s| {
-        fold(s.canonical) == want || s.aliases.iter().any(|a| fold(a) == want)
-    })
+    SEFARIM
+        .iter()
+        .find(|s| fold(s.canonical) == want || s.aliases.iter().any(|a| fold(a) == want))
 }
 
 /// The name a source index should print for whatever the writer typed.
@@ -452,6 +452,9 @@ mod tests {
                 s.canonical
             );
         }
-        assert!(table.contains("\"ב\\\"ב\""), "the folded alias should be a key");
+        assert!(
+            table.contains("\"ב\\\"ב\""),
+            "the folded alias should be a key"
+        );
     }
 }

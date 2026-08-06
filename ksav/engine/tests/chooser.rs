@@ -120,7 +120,9 @@ fn an_apparatus_prints_where_the_chooser_says_it_does() {
     let tail = last_body();
     let mut checked = 0;
     for c in cases() {
-        let Some(place) = c.place.as_deref() else { continue };
+        let Some(place) = c.place.as_deref() else {
+            continue;
+        };
         let doc = probe::layout(&c.source, &DocConfig::default())
             .unwrap_or_else(|d| panic!("{}/{}: compile failed: {d:?}", c.id, c.which));
         let runs = probe::text_runs(&doc);
@@ -165,7 +167,10 @@ fn an_apparatus_prints_where_the_chooser_says_it_does() {
             checked += 1;
         }
     }
-    assert!(checked >= 8, "only {checked} placements asserted — is `place` being emitted?");
+    assert!(
+        checked >= 8,
+        "only {checked} placements asserted — is `place` being emitted?"
+    );
 }
 
 /// A layout's configuration line reaches the pages it is meant to configure.
@@ -179,7 +184,9 @@ fn an_apparatus_prints_where_the_chooser_says_it_does() {
 #[test]
 fn a_layouts_configuration_is_written_where_it_takes_effect() {
     for c in cases() {
-        let Some(head) = c.head.as_deref() else { continue };
+        let Some(head) = c.head.as_deref() else {
+            continue;
+        };
         assert!(
             c.source.starts_with(head),
             "{}/{}: the configuration line is not at the top of the file",
@@ -213,7 +220,12 @@ fn a_layouts_configuration_is_written_where_it_takes_effect() {
                         .into_iter()
                         .find(|l| l.contains(body))
                         .map(|l| {
-                            (l.page, (l.y * 10.0).round(), (l.runs[0].x * 10.0).round(), l.text())
+                            (
+                                l.page,
+                                (l.y * 10.0).round(),
+                                (l.runs[0].x * 10.0).round(),
+                                l.text(),
+                            )
                         })
                         .unwrap_or_else(|| {
                             panic!("{}/{}: {body:?} missing at {label}", c.id, c.which)

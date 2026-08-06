@@ -227,15 +227,11 @@ impl Lexicon {
         let shape = Shape::of(&written);
         let mut fold = [' '; super::FOLD_BUF];
         let mut out = Vec::new();
-        let candidates = self
-            .lower
-            .near(tc.len())
-            .map(|(w, m)| (w, m, 0))
-            .chain(
-                self.cased
-                    .near(tc.len())
-                    .map(|(w, m)| (w, m, usize::from(shape == Shape::Lower))),
-            );
+        let candidates = self.lower.near(tc.len()).map(|(w, m)| (w, m, 0)).chain(
+            self.cased
+                .near(tc.len())
+                .map(|(w, m)| (w, m, usize::from(shape == Shape::Lower))),
+        );
         for (w, mask, penalty) in candidates {
             // One edit moves at most two letters in or out of a word, so anything
             // further apart than that is not a candidate and never gets read.

@@ -188,9 +188,18 @@ fn verso_and_recto_carry_different_running_heads() {
     let runs = render(&long_body(), &cfg);
     let p1 = page_text(&runs, 1);
     let p2 = page_text(&runs, 2);
-    assert!(p1.contains("פרק"), "page 1 should carry the recto head: {p1}");
-    assert!(!p1.contains("ברכות"), "page 1 must not carry the verso head");
-    assert!(p2.contains("ברכות"), "page 2 should carry the verso head: {p2}");
+    assert!(
+        p1.contains("פרק"),
+        "page 1 should carry the recto head: {p1}"
+    );
+    assert!(
+        !p1.contains("ברכות"),
+        "page 1 must not carry the verso head"
+    );
+    assert!(
+        p2.contains("ברכות"),
+        "page 2 should carry the verso head: {p2}"
+    );
     assert!(!p2.contains("פרק ראשון") || p2.matches("פרק").count() == 0);
 }
 
@@ -225,14 +234,20 @@ fn an_outside_aligned_page_number_changes_edge_with_the_leaf() {
             .fold(f64::INFINITY, f64::min)
     };
     let (p1, p2) = (num_x(1), num_x(2));
-    assert!(p1.is_finite() && p2.is_finite(), "expected a page number on both pages");
+    assert!(
+        p1.is_finite() && p2.is_finite(),
+        "expected a page number on both pages"
+    );
     assert!(
         (p1 - p2).abs() > 100.0,
         "an outside-aligned number should sit on opposite edges of facing pages, \
          but landed at {p1:.1}pt and {p2:.1}pt"
     );
     // Odd page binds on the right for Hebrew, so its outside edge is the left one.
-    assert!(p1 < p2, "the recto number belongs on the left for a right-bound sefer");
+    assert!(
+        p1 < p2,
+        "the recto number belongs on the left for a right-bound sefer"
+    );
 }
 
 #[test]
@@ -265,7 +280,13 @@ fn head_alignment_is_accepted_in_either_language() {
 // ── PDF export options ───────────────────────────────────────────────────────
 
 fn pdf_of(cfg: &DocConfig) -> ksav_engine::Compiled {
-    compile_parts(&long_body(), cfg, &ksav_engine::assets::Assets::default(), true, false)
+    compile_parts(
+        &long_body(),
+        cfg,
+        &ksav_engine::assets::Assets::default(),
+        true,
+        false,
+    )
 }
 
 #[test]
@@ -478,5 +499,8 @@ fn rashi_script_falls_back_rather_than_failing() {
     assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     let runs = render("#כתב_רשי[ופירש רש״י שם]", &DocConfig::default());
     let text: String = runs.iter().map(|r| r.text.as_str()).collect();
-    assert!(text.contains("רש״י"), "the commentary should still print: {text}");
+    assert!(
+        text.contains("רש״י"),
+        "the commentary should still print: {text}"
+    );
 }

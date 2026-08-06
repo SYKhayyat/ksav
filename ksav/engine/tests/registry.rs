@@ -54,14 +54,32 @@ fn filled(he: &str, insert: &str, fallback: &str) -> String {
 /// Commands that are legitimately not usable inside another element, and why.
 const ONLY_AT_TOP: &[(&str, &str)] = &[
     ("מסמך", "the document wrapper itself; the engine applies it"),
-    ("מקטע_עמוד", "starts a page section, which cannot begin inside a paragraph"),
+    (
+        "מקטע_עמוד",
+        "starts a page section, which cannot begin inside a paragraph",
+    ),
     ("מעבר_עמוד", "a page break has no meaning inside a line"),
     ("תוכן", "the table of contents is a block of its own"),
-    ("הערות_בסוף", "renders a collected block; not an inline element"),
-    ("הערות_בסוף_צד", "renders a collected block; not an inline element"),
-    ("הערות_מדורגות", "renders a collected block; not an inline element"),
-    ("מפתח_ענינים", "renders a generated index; a block of its own"),
-    ("מפתח_מקורות", "renders a generated index; a block of its own"),
+    (
+        "הערות_בסוף",
+        "renders a collected block; not an inline element",
+    ),
+    (
+        "הערות_בסוף_צד",
+        "renders a collected block; not an inline element",
+    ),
+    (
+        "הערות_מדורגות",
+        "renders a collected block; not an inline element",
+    ),
+    (
+        "מפתח_ענינים",
+        "renders a generated index; a block of its own",
+    ),
+    (
+        "מפתח_מקורות",
+        "renders a generated index; a block of its own",
+    ),
 ];
 
 fn only_at_top(he: &str) -> Option<&'static str> {
@@ -122,7 +140,10 @@ fn every_offered_snippet_compiles_where_writers_put_it() {
 
         let contexts: [(&str, String); 3] = [
             ("in a paragraph", format!("לפני {snip} אחרי.\n")),
-            ("in a list item", format!("#רשימה(\n  פריט[לפני {snip} אחרי],\n)\n")),
+            (
+                "in a list item",
+                format!("#רשימה(\n  פריט[לפני {snip} אחרי],\n)\n"),
+            ),
             (
                 "in a table cell",
                 format!("#טבלה(עמודות: 1,\n  תא[לפני {snip} אחרי],\n)\n"),
@@ -207,17 +228,50 @@ fn every_command_exists_in_both_languages() {
 /// and offers the dump call. Until that exists this comment is the record that
 /// it is owed.
 const RENDERS_ELSEWHERE: &[(&str, &str)] = &[
-    ("מדור_א", "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT"),
-    ("מדור_ב", "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT"),
-    ("מדור_ג", "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT"),
-    ("מדור_בדרגה", "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT"),
-    ("הערתסיום", "collected; prints only where #הערות_בסוף() is called — NEEDS A LINT"),
-    ("גוף_הערה", "a deferred body: prints at its marker, not at its definition"),
-    ("ערך", "an index entry: its text prints in the generated index"),
-    ("נוסחה", "maths reaches the page as math italics, not as the ASCII typed"),
-    ("נוסחה_בשורה", "maths reaches the page as math italics, not as the ASCII typed"),
-    ("סמן", "an anchor: it prints nothing, which is what an anchor is"),
-    ("הפניה", "a reference: it prints its target's number, not its own name"),
+    (
+        "מדור_א",
+        "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT",
+    ),
+    (
+        "מדור_ב",
+        "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT",
+    ),
+    (
+        "מדור_ג",
+        "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT",
+    ),
+    (
+        "מדור_בדרגה",
+        "collected; prints only where #הערות_מדורגות() is called — NEEDS A LINT",
+    ),
+    (
+        "הערתסיום",
+        "collected; prints only where #הערות_בסוף() is called — NEEDS A LINT",
+    ),
+    (
+        "גוף_הערה",
+        "a deferred body: prints at its marker, not at its definition",
+    ),
+    (
+        "ערך",
+        "an index entry: its text prints in the generated index",
+    ),
+    (
+        "נוסחה",
+        "maths reaches the page as math italics, not as the ASCII typed",
+    ),
+    (
+        "נוסחה_בשורה",
+        "maths reaches the page as math italics, not as the ASCII typed",
+    ),
+    (
+        "סמן",
+        "an anchor: it prints nothing, which is what an anchor is",
+    ),
+    (
+        "הפניה",
+        "a reference: it prints its target's number, not its own name",
+    ),
 ];
 
 /// A command given text puts that text on the page.

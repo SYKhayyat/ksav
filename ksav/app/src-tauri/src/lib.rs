@@ -152,7 +152,10 @@ async fn ksav_call(name: String, input: String) -> Result<String, String> {
 /// but "does /etc/shadow exist and how big is it" is still a question a web view
 /// has no business asking, and the gate costs one line.
 #[tauri::command]
-fn ksav_file_stamp(allowed: tauri::State<'_, AllowedPaths>, path: String) -> Option<serde_json::Value> {
+fn ksav_file_stamp(
+    allowed: tauri::State<'_, AllowedPaths>,
+    path: String,
+) -> Option<serde_json::Value> {
     let p = PathBuf::from(&path);
     if !allowed.permits(&p) {
         return None;

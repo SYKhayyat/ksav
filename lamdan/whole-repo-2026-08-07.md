@@ -109,6 +109,69 @@ equivalent fence, and that is exactly where this sweep found the corpses.
 
 ## 1. The development process is the artifact, and it is missing its most valuable half
 
+> ### ✅ Built — 7 August 2026
+>
+> `.github/scripts/acceptance.mjs`, `npm run accept`, and a sixth CI job. It
+> boots `ksav serve` with the real SPA embedded in it — not `vite preview`, not
+> the fallback editor, which it refuses by name with the two commands that fix it
+> — and drives Chrome through the seven paths: a sefer from the ספר template, a
+> heading, a bulleted list, a table and a row inside it, a footnote containing
+> `(רש"י)`, an endnote, Export → PDF. 44 checks.
+>
+> **The estimate was a day and the finding was right about what it would buy.
+> Three live bugs, on the first run, in a repository that was green.**
+>
+> **The service worker has never installed under `ksav serve`.** It is registered
+> as `sw.js?v=${CURRENT_VERSION}` deliberately, so a release cannot serve itself
+> the previous release's cache. `serve_static` handed `include_dir` the whole
+> URL, query and all, which matches no file; `content_type_for` rsplit
+> `sw.js?v=0.1.0` on `.` and got `js?v=0`, so even finding it would have served a
+> module as `application/octet-stream`, which a browser refuses. And
+> `registerServiceWorker` catches the failure on purpose, because offline support
+> is a bonus not worth interrupting a writer over. Three correct decisions with a
+> 404 between them. The whole offline path was dead on one line, and every
+> asset this project ever cache-busts would have been.
+>
+> **The Girsa inbox was disconnected, with both ends working.** `/inbox` moved to
+> POST in the engine for the reason §15 states — as a GET it was drainable by
+> `<img src="http://localhost:7878/inbox">`, which sends no `Origin`, so no CORS
+> check could have refused it. `api.ts` took the *path* from the registry and the
+> *verb* from which of two private helpers a call site happened to use, so it went
+> on GETting it. 404, `inbox()` swallows a failed poll by design, silence. The
+> fence that existed — `services.test.mjs`, "every HTTP call goes to a service the
+> engine serves" — asserted the URL and had never once asserted the method. One
+> registry, half-consulted.
+>
+> **The built HTML shipped a CSP directive browsers discard.** `frame-ancestors`
+> is header-only by specification; in a `<meta>` it is ignored and Chrome says so
+> once per page load. It had been saying so for the life of the tag.
+> `ksav/policy/meta.mjs` now drops the header-only set in the open, and the fence
+> checks both directions — that `frame-ancestors` goes and that *nothing else*
+> does, since a filter quietly eating `object-src` would pass the obvious test.
+>
+> **What it asserts on.** Status *transitions*, never pixels. "`#status` says ok
+> afterwards" is nearly worthless — it said ok before, so a button wired to
+> nothing passes — so a recorder installed on boot watches the class blank itself
+> at the start of every compile and each step insists on a compile that began
+> after it did. Plus zero console errors, zero uncaught exceptions, zero 4xx, and
+> the exported PDF's first five bytes.
+>
+> **A departure and an addition.** The finding said forty lines of YAML over the
+> `.gstack/` harness. `.gstack/` is a desk tool, not a dependency this repository
+> can declare, so it is `playwright-core` — 14 MB, no browser download, driving
+> the Chrome the runner already has — against `playwright`'s ~150 MB on every
+> install of a project with seven devDependencies. And the chrome needed
+> identities to be clickable at all: every control here is a glyph with a
+> translated tooltip, so `data-command`, `data-action`, `data-template`,
+> `data-export` and `data-menu` name what a thing *is*, in the vocabularies the
+> app already had. `lazyMenu` requires a name now, for the same reason `iconBtn`
+> requires an accessible one.
+>
+> **The rule is in `ksav/README.md`, under "Use it", and no script enforces it:**
+> a feature is not done until it has been used once, by a person, in the assembled
+> application. Seven paths cannot rot now. Everything else is still on the
+> honour system.
+
 **Verdict: `don't-build` the tenth audit wave. Build the acceptance path.**
 
 Ten waves of reading have produced a codebase whose *mechanisms* are, genuinely, better than most.
@@ -1318,7 +1381,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 |---|---|---|---|---|---|
 | 1 | ✅ **Fixed 7 Aug.** `(רש"י)` in a body corrupted the source model, the lint, the heal and the preview — the gershayim bug, alive. The proposed rule was itself one case short (`ראה(רש"י)` is prose too — the hash opens an argument list, not the name) and needed `#let` statements carved out or it would have read a writer's own definitions as prose. | 6 | 2 | `rewrite` | ~40 lines net; 6 scanners → 1; `mode.ts` and `callNameBefore` hold none; +74 assertions, 7 red under mutation |
 | 2 | ✅ **Fixed 7 Aug.** Hebrew suggestions were unranked below the transposition step; the corpus counts were computed and discarded one line later. Now **20.2% → 55.2%** first and **59.0% → 94.8%** in the menu, measured on 400 substitution typos of the 6,000 commonest words. Two of the finding's facts were wrong: the corpus cache is gitignored, not committed (so the bands ship in the asset, +140 KB), and hand-picked typo pairs turned out to test the design rather than the bug. | 11 | 3 | `rewrite` | ~90 lines + a shared sampler in `spell::measure` |
-| 3 | **No process ever runs the application.** One CI job + one rule. | 1 | 1 | `don't-build` the next audit | 1 day |
+| 3 | ✅ **Built 7 Aug.** `.github/scripts/acceptance.mjs` boots the assembled app and drives Chrome through seven paths; `npm run accept`, and a sixth CI job. **It found three live bugs on its first run** — the service worker had never installed under `ksav serve` (a query string on a static path was a 404), `api.ts` GET the POST-only `/inbox` so the Girsa handoff was dead with both ends correct, and the meta CSP shipped a directive browsers discard. Each is fixed with a fence that goes red on it. | 1 | 1 | `don't-build` the next audit | 1 day |
 | 4 | ✅ **Fixed 7 Aug.** `runAction(id)` is the one door; the keymap, the palette and the toolbar all go through it. The recorder gained a third step kind — a command from the toolbar or the palette has no action id, and recording it as text would replay `#הדגשה[\|]` as literal characters. `iconBtn` sets the real `disabled`. Both new fences were checked by mutation, and the first one **failed that check**: it matched only the *call* `.run(v)`, and the original bug passed `a.run` as a value. | 7 | 2 | `rewrite` | ~90 lines, +1 test file, +26 assertions |
 | 5 | ✅ **Fixed 7 Aug.** `openFile` compares the text it just read against the stored copy and asks. It needed one thing the finding did not name: a third `watch.ts` state. `forget` cannot stand in for "known to differ", because no stamp is reported as `unknown` and `unknown` is treated as safe *on purpose* — so `markConflicted` was added, and the next save asks. | 10 | 2 | `rewrite` | ~50 lines, +4 assertions |
 | 6 | ✅ **Fixed 7 Aug.** `ACTIONS` is generated from one table (`actions.ts`) of action-id → command name, and `insertCommand` reads the snippet off the registry. `openNoteMenu` derives its targets from `NOTE_CHOICES` and runs the scaffolding; the Mekoros panel goes through `insertSnippet`; `notepaths.test.mjs` derives its markers from `NOTE_BODY_COMMANDS`. **One `cmd!` parser** (`tools/commands.mjs`) replaces four, and the count in five prose pages goes 116 → **115**. | 8 | 2 | `rewrite` | ~200 lines, +1 module, +1 test file, −3 parsers |
@@ -1330,7 +1393,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | 12 | The apparatus has no template; ten templates show 8 of 115 commands. | 3 | 1 | `wrong-but-keep` | 2 days |
 | 13 | `_en_params` collisions: `justify`→alignment, `title` unreachable, 12 params English-less. | 10 | 2 | `rewrite` | ~1 day |
 | 14 | "Eleven, and nothing else" — two greyed cells are false; the fence counts the prose. | 4 | 1 | `wrong-but-keep` | ~40 lines |
-| 15 | ✅ **Fixed 7 Aug.** `/inbox` is a POST — draining is a write, and as a GET it was forgeable by `<img src>`, which sends no `Origin` and so could not have been stopped by any CORS rule. A cross-origin caller is now **refused** rather than served and denied the reply, which is the distinction that matters when the damage is done by the request. | 10 | 2 | `rewrite` | ~40 lines |
+| 15 | ✅ **Fixed 7 Aug.** `/inbox` is a POST — draining is a write, and as a GET it was forgeable by `<img src>`, which sends no `Origin` and so could not have been stopped by any CORS rule. A cross-origin caller is now **refused** rather than served and denied the reply, which is the distinction that matters when the damage is done by the request. **The client half was left behind and nothing noticed for a day** — `api.ts` kept GETting it, the server answered 404, and the poll swallows a failure by design. Found by §1's acceptance run; the verb now comes from the registry like the path, and the fence that checked the URL checks the method too. | 10 | 2 | `rewrite` | ~40 lines |
 | 16 | ✅ **Fixed 7 Aug.** `compile_html` calls `engine_for` instead of carrying a copy of its body that had lost one line. | 10 | 3 | `rewrite` | 4 lines |
 | 17 | `docs/start-here.md:67` names the wrong key; the fence counts and the failures are qualitative. | 14 | 3 | `rewrite` | 6 chars + 25 lines |
 | 18 | Undebounced full-document work per arrow key; the fold service is O(lines × nodes). | 13 | 3 | `rewrite` | ~70 lines |

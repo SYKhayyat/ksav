@@ -102,13 +102,33 @@ fn with_policy(
     resp
 }
 
-/// Serve a static asset for a GET request. Returns true if it was handled.
-fn serve_static(request: tiny_http::Request, url: &str) {
-    let rel = if url == "/" || url == "/index.html" {
+/// The file part of a request URL: no leading slash, no query, no fragment.
+///
+/// The query used to stay on. `rel` became `sw.js?v=0.1.0`, `include_dir` has no
+/// such file, `content_type_for` rsplit it to `js?v=0` and answered with the
+/// default type, and the request fell through to a 404 — so **the service worker
+/// has never installed under `ksav serve`**. It is registered as
+/// `sw.js?v=${CURRENT_VERSION}` on purpose, precisely so a release cannot reuse
+/// the previous release's cache, and `registerServiceWorker` catches the failure
+/// on purpose, because offline support is a bonus and not worth interrupting a
+/// writer over. Two deliberate decisions, each correct, with a 404 between them
+/// that nothing was watching. The whole offline build was dead on this line.
+///
+/// A fragment never reaches a server, but `#doc=` is how this app opens a shared
+/// document, so a stray one in a hand-typed URL is likelier here than most
+/// places and costs nothing to ignore.
+fn asset_path(url: &str) -> &str {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    if path.is_empty() || path == "/" || path == "/index.html" {
         "index.html"
     } else {
-        url.trim_start_matches('/')
-    };
+        path.trim_start_matches('/')
+    }
+}
+
+/// Serve a static asset for a GET request. Returns true if it was handled.
+fn serve_static(request: tiny_http::Request, url: &str) {
+    let rel = asset_path(url);
 
     #[cfg(feature = "embed-ui")]
     {
@@ -327,7 +347,12 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
     // and this file names none of them: the twelve-arm `match` that used to be
     // here was the third of four hand-written copies of that list, and the copy
     // in `vite.config.ts` had six routes missing for a month.
-    if let Some(svc) = asked_method(&method).and_then(|m| services::route(m, url.as_str())) {
+    // Routed on the path alone. `services::route` is an exact match by design —
+    // a prefix match would swallow the asset tree — and an exact match against a
+    // string with `?v=1` on the end silently becomes "no such service", which is
+    // the same failure the static branch had.
+    let route_path = url.split(['?', '#']).next().unwrap_or(&url);
+    if let Some(svc) = asked_method(&method).and_then(|m| services::route(m, route_path)) {
         // A cross-origin caller is refused, not merely denied the CORS header.
         //
         // Withholding `Access-Control-Allow-Origin` stops the *page* reading the
@@ -515,8 +540,8 @@ fn header(key: &str, value: &str) -> Header {
 #[cfg(test)]
 mod tests {
     use super::{
-        allowed_origin, compile_deadline, content_type_for, csp, policy_for, run_bounded,
-        EDITOR_JS, INDEX_HTML,
+        allowed_origin, asset_path, compile_deadline, content_type_for, csp, policy_for,
+        run_bounded, EDITOR_JS, INDEX_HTML,
     };
     use std::time::Duration;
 
@@ -644,6 +669,44 @@ mod tests {
         // And the absent-header case stays allowed, which is what keeps `curl`,
         // the Tauri shell and every same-origin read working.
         assert!(allowed_origin("http://127.0.0.1:7878", addr));
+    }
+
+    /// A cache-busted asset is the asset.
+    ///
+    /// `registerServiceWorker` asks for `sw.js?v=${CURRENT_VERSION}`, deliberately,
+    /// so a release cannot serve itself the previous release's cache. This
+    /// function used to hand `include_dir` the whole string, query and all,
+    /// which matches no file — so the worker 404'd on every load, the
+    /// registration's `.catch` swallowed it because offline support is a bonus,
+    /// and **the PWA had never once installed under `ksav serve`**. Two correct
+    /// decisions with a 404 between them, found by pointing a browser at the
+    /// product and reading its console.
+    #[test]
+    fn an_asset_asked_for_with_a_query_is_still_that_asset() {
+        assert_eq!(asset_path("/sw.js?v=0.1.0"), "sw.js");
+        assert_eq!(asset_path("/assets/index-abc123.js?t=1"), "assets/index-abc123.js");
+        assert_eq!(asset_path("/sw.js"), "sw.js");
+        // The root, however it is spelled, is the document.
+        assert_eq!(asset_path("/"), "index.html");
+        assert_eq!(asset_path("/?doc=1"), "index.html");
+        assert_eq!(asset_path("/index.html"), "index.html");
+        assert_eq!(asset_path("/index.html?v=2"), "index.html");
+        // A fragment never reaches a server, but `#doc=` is how this app opens a
+        // shared document, so a hand-typed one costs nothing to ignore.
+        assert_eq!(asset_path("/icons/icon-128.png#x"), "icons/icon-128.png");
+    }
+
+    /// And the content type is read off the *file*, not off the query.
+    ///
+    /// The same bug had a second half: `content_type_for("sw.js?v=0.1.0")`
+    /// rsplits on `.` and gets `js?v=0`, which matches no arm, so even a server
+    /// that had found the file would have served the module as
+    /// `application/octet-stream` — and a service worker with the wrong type is
+    /// refused by the browser rather than run.
+    #[test]
+    fn the_content_type_comes_from_the_file_and_not_the_query() {
+        assert_eq!(content_type_for(asset_path("/sw.js?v=0.1.0")), content_type_for("sw.js"));
+        assert!(content_type_for(asset_path("/sw.js?v=0.1.0")).starts_with("text/javascript"));
     }
 
     #[test]

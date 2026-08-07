@@ -126,6 +126,15 @@ export function facts() {
     // Top-level jobs in the CI workflow: a two-space key at the top level of
     // `jobs:`, which is the only place they can be.
     ciJobs: ciJobs(),
+    // Documents in the differential parse oracle's corpus, counted off the
+    // fixture the generator writes — one JSON object per line, so the corpus
+    // grows whenever a template, a note layout or an insertion is added and this
+    // number moves without anybody deciding to move it. That is the whole reason
+    // it is measured: the README used to say "twelve hundred documents" because
+    // an exact number would have been a lie within a week.
+    oracleDocuments: (read("ksav/engine/tests/fixtures/scan-oracle.json").match(
+      /^\s*\{"id":/gmu,
+    ) ?? []).length,
   };
 }
 
@@ -246,6 +255,7 @@ export const CLAIMS = [
   ["ksav/README.md", "appTestFiles", (n) => `across ${n} files`],
   ["ksav/README.md", "engineTests", (n) => `${n} tests`],
   ["ksav/README.md", "engineBinaries", (n) => `${n} binaries`],
+  ["ksav/README.md", "oracleDocuments", (n) => `over ${group(n)} documents`],
   ["docs/start-here.md", "commands", (n) => `There are ${n} commands`],
   ["docs/start-here.md", "hebrewEntries", (n) => `${group(n)} Hebrew entries`],
   ["docs/start-here.md", "englishEntries", (n) => `${group(n)} English`],
@@ -288,6 +298,14 @@ export const NOUNS = [
   ["engine tests?", "engineTests"],
   ["binaries", "engineBinaries"],
   ["Hebrew entries", "hebrewEntries"],
+  // "documents" is deliberately **not** here, though `oracleDocuments` is a
+  // measured fact with a declared claim. The word is too common to fence: it
+  // matched "10 document templates" and "41 documents" in `README-notes.md`,
+  // neither of which is a corpus size, and a sweep that reports two false
+  // positives to catch one truth is a sweep people learn to silence. The
+  // forward claim is the fence that matters here — the corpus grows whenever a
+  // template or an insertion is added, and the README stops containing the
+  // sentence the moment it does.
 ];
 
 /** Every `.md` git tracks, which is the set a reader can actually reach. */
@@ -316,8 +334,19 @@ export function numericClaimsIn(text) {
     // Written as `[\d,]*` it swallowed the one in "CodeMirror 6, command palette"
     // and reported a claim that six commands exist — the sweep's first catch was
     // itself, which is the right order for a sweep to fail in.
+    // A space inside a *noun* is a line wrap waiting to happen.
+    //
+    // The gap between the number and the noun was already `\s+`, so it crossed a
+    // wrapped line fine. The space inside `engine tests` was a literal one, and
+    // `ksav/README.md` had "397 engine\n      tests" in it — a number that had
+    // been wrong by nineteen for some time, standing beside a fenced noun, in a
+    // living page, invisible to the sweep written to catch exactly that, because
+    // a paragraph reflow had put a newline in the middle of the phrase.
+    //
+    // The sweep's job is to read prose, and prose does not know where its lines
+    // end. Every space in a pattern is `\s+`.
     const re = new RegExp(
-      String.raw`\b(\d{1,3}(?:,\d{3})+|\d+)\s+(?:[\w'’-]+\s+){0,2}(${pattern})\b`,
+      String.raw`\b(\d{1,3}(?:,\d{3})+|\d+)\s+(?:[\w'’-]+\s+){0,2}(${pattern.replace(/ /gu, String.raw`\s+`)})\b`,
       "gu",
     );
     for (const m of flat.matchAll(re)) {

@@ -178,6 +178,56 @@ jobs:
         working-directory: ./ksav/app
         run: node ../../.github/scripts/wasm-smoke.mjs
 
+  # The half of the process that was missing.
+  #
+  # Every job above this one checks a part. This one boots the product — the
+  # real SPA embedded in the real server — and drives a real Chrome through the
+  # first ten minutes of using it: a sefer from the ספר template, a heading, a
+  # bulleted list, a table and a row in it, a footnote with a gershayim inside
+  # parentheses, an endnote, and a PDF out the other end.
+  #
+  # It is the slowest job here and that is inherent: `embed-ui` needs the app
+  # built first, and the server is a release build of the Typst compiler. The
+  # cache is shared with the `engine` job's workspace, so the dependencies are
+  # warm and only the final crate relinks.
+  #
+  # No browser is downloaded. `playwright-core` drives the Chrome the runner
+  # already has, which is why the app's devDependencies grew by 14 MB and not by
+  # 150 — see the header of the script.
+  acceptance:
+    name: the assembled app
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+
+      - name: Install
+        working-directory: ./ksav/app
+        run: npm ci
+
+      # `dist/` is git-ignored and `include_dir!` reads it at compile time, so
+      # this order is a hard dependency and not a preference: building the server
+      # first fails inside a proc macro with a message about a missing directory.
+      - name: Build the app
+        working-directory: ./ksav/app
+        run: npm run build
+
+      - name: Build the server with the app inside it
+        working-directory: ./ksav/engine
+        run: cargo build --release --features embed-ui
+
+      - name: Use it
+        working-directory: ./ksav/app
+        run: npm run accept
+
   desktop:
     name: desktop shell
     runs-on: ubuntu-22.04

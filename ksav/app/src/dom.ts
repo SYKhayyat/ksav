@@ -64,7 +64,23 @@ export function noticeHost(): HTMLElement {
  * `aria-hidden` because the button already carries the same meaning as its
  * label — otherwise a reader says "dagger, Footnote".
  */
-export function iconBtn(label: string, title: string, onClick: () => void, cls = ""): HTMLElement {
+export function iconBtn(
+  label: string,
+  title: string,
+  onClick: () => void,
+  cls = "",
+  // What this button *is*, for anything that has to find it without reading it.
+  //
+  // Every control in this chrome is a glyph with a localised tooltip, so until
+  // now the only way to identify one from outside was `title*="…"` — a string
+  // that changes when the interface language changes, which is a selector that
+  // works in Hebrew and silently matches nothing in English. `data-command` (the
+  // Hebrew registry name it inserts) and `data-action` (the `ACTIONS` id it
+  // runs) are the two vocabularies this app already has; neither is new, and
+  // both are stable across languages. `.github/scripts/acceptance.mjs` is the
+  // caller, and it fails loudly rather than skipping when one is missing.
+  data: Record<string, string> = {},
+): HTMLElement {
   // `disabled` in the class list means disabled.
   //
   // It did not. `previewSideToggle` passed `"chip disabled"`, `styles.css` gave
@@ -89,6 +105,7 @@ export function iconBtn(label: string, title: string, onClick: () => void, cls =
       title,
       "aria-label": title,
       type: "button",
+      ...data,
       ...(off ? { disabled: "", "aria-disabled": "true" } : {}),
       onClick: off ? () => {} : onClick,
     },

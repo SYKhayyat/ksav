@@ -473,15 +473,16 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,755 editor assertions, 397 engine
-      tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
-      of the browser (wasm) engine, on every push. See [Test](#test).
+- [x] **CI, running and green** — typecheck, 3,774 editor assertions, 418 engine
+      tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
+      the browser (wasm) engine, and a run of the assembled application in a real
+      browser, on every push. See [Test](#test) and [Use it](#use-it).
 
 Done since, and worth stating because these were the longest-standing gaps:
 
 - [x] **A git remote, and CI that actually runs.** `ci.yml` runs on every push and
-      is green across all five jobs — editor, engine, formatting and clippy,
-      browser (wasm) engine, desktop shell.
+      is green across all six jobs — editor, engine, formatting and clippy,
+      browser (wasm) engine, the assembled application, desktop shell.
 - [x] **The release matrix has run, on every platform.** `v0.1.0` drove
       `release.yml` to success on `windows-latest`, `ubuntu-22.04` and *both*
       macOS architectures, so the `.msi`, `.exe`, `.deb`, `.AppImage` and both
@@ -649,10 +650,10 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,755 assertions across 62 files
+cd app && npm test                          # 3,774 assertions across 62 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 416 tests, 27 binaries
+cargo test --manifest-path engine/Cargo.toml            # 418 tests, 27 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -663,11 +664,12 @@ checked against the documentation would fail every single-file run, which is the
 fastest way to teach everybody to ignore the one fence that catches a stale count.
 
 `.github/workflows/ci.yml` runs all of these on every push and pull request, plus
-one more that cannot run from a plain checkout: it builds the wasm engine and
-then *runs* it (`.github/scripts/wasm-smoke.mjs` — every template compiled, both
-lexicons answered). The built package is git-ignored and produced locally, so
+two that cannot run from a plain checkout. It builds the wasm engine and then
+*runs* it (`.github/scripts/wasm-smoke.mjs` — every template compiled, both
+lexicons answered); the built package is git-ignored and produced locally, so
 without that job the entire no-server build could break and every other check
-would still be green.
+would still be green. And it builds the app, embeds it in the server, and
+[uses it](#use-it).
 
 The editor's runner (`app/test/run.mjs`) builds **every module in `app/src`** and
 executes every `app/test/*.test.mjs`, so **adding a test is adding a file** — that
@@ -690,6 +692,51 @@ prevent is what happens *at* the quota and waiting for a real 4.5 MB to fill is
 not a test, it is a delay — plus `fakeView`, a real `EditorState` behind a fake
 screen, and `installChrome`, which is how a test reads the status bar. The status
 bar is where most of this product's bugs are visible.
+
+## Use it
+
+Everything above this line reads. It reads extremely well — an insertion grid
+that compiles every legal insertion the UI can produce, an oracle that checks the
+editor's scanner against Typst's own parser over 1,231 documents, a fence that
+fails when a number in this file stops being true. All of it is *about parts*.
+
+Nothing had ever booted the product and used it. One hour of clicking on 6 August
+found three bugs on a day the whole suite was green, because the bugs a reader
+cannot find are the ones in the seams — a button wired to nothing, a menu item
+that throws, a template that loads into an editor that cannot compile it — and a
+seam is only observable when both sides are present.
+
+```sh
+cd app && npm run build                     # dist/, which the server embeds
+cd engine && cargo build --release --features embed-ui
+cd app && npm run accept                    # boot it, use it, export a PDF
+```
+
+`.github/scripts/acceptance.mjs` starts `ksav serve`, drives a real Chrome
+through the first ten minutes — a sefer from the ספר template, a heading, a
+bulleted list, a table and a row inside it, a footnote containing `(רש"י)`, an
+endnote, Export → PDF — and holds every step to three things: the compile
+finished without an error, pages are on screen, and the page said nothing to the
+console. `--headed` watches it; `--keep` leaves the browser open on a failure;
+`--url` drives a server you started yourself.
+
+It asserts on **status transitions, never on pixels**. A browser test that
+compares rendering cries wolf on a font update, and the tolerance here for that
+is zero. But the weaker version — "`#status` says ok afterwards" — is nearly
+worthless, because it said ok before too, so a button doing nothing at all would
+pass. A recorder installed on boot watches `#status` blank itself at the start of
+every compile, and each step insists on a compile that began after it did.
+
+The dependency is `playwright-core`, not `playwright`: the full package downloads
+a ~150 MB browser on every install, and this drives the Chrome already on the
+machine. 14 MB, no postinstall.
+
+**And the rule, which is the other half and the half no script enforces: a
+feature is not done until it has been used once, by a person, in the assembled
+application.** Ten waves of reading produced mechanisms better than most
+codebases have and a set of surfaces nobody had ever touched. The seven paths
+above are the ones that now cannot rot; every other one is still on the honour
+system.
 
 ## Rebuild the lexicons
 

@@ -22,7 +22,8 @@
 
 import { check, ok } from "./harness.mjs";
 import { HttpBackend, TauriBackend, WasmBackend } from "../.tmp-test/api.mjs";
-import { SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
+import { SERVICE, SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
+import { HEADER_ONLY, metaPolicy } from "../../policy/meta.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -75,8 +76,8 @@ export async function run() {
     const asked = [];
     const realFetch = globalThis.fetch;
     for (const [service, drive, body] of CALLS) {
-      globalThis.fetch = async (url) => {
-        asked.push({ service, url });
+      globalThis.fetch = async (url, init) => {
+        asked.push({ service, url, method: init?.method ?? "GET" });
         return answer(body);
       };
       try {
@@ -89,6 +90,20 @@ export async function run() {
     check("every HTTP call goes to a service the engine serves", asked.length, CALLS.length);
     for (const { service, url } of asked) {
       check(`http ${service} → ${SERVICE_PATH[service]}`, url, SERVICE_PATH[service]);
+    }
+    // And the **verb**, which this block asserted nothing about for as long as
+    // it existed.
+    //
+    // "One registry" was true of the path and false of the method: `api.ts` took
+    // the path from `SERVICE_PATH` and the verb from which of two private
+    // helpers a call site happened to use — `ask` was hard-coded GET, `send` was
+    // hard-coded POST. So `/inbox` moved to POST in `services.rs` for a stated
+    // security reason, this file kept GETting it, and the check above went on
+    // passing because the URL was still right. The server answered 404, the poll
+    // swallows a failure by design, and the Girsa handoff was dead with both
+    // ends correct. Found by a browser, in a console, at the first attempt.
+    for (const { service, method } of asked) {
+      check(`http ${service} is a ${SERVICE[service].method}`, method, SERVICE[service].method);
     }
   }
 
@@ -295,6 +310,40 @@ export async function run() {
       await readFile(path.join(APP, "src-tauri", "tauri.conf.json"), "utf8"),
     );
     check("the desktop app delivers that policy", conf.app.security.csp, policy);
+
+    // The third delivery, and the one that cannot carry everything.
+    //
+    // A `<meta>` CSP discards `frame-ancestors` — header-only by specification —
+    // and Chrome prints a warning about it on every page load. The built HTML
+    // carried it anyway for the life of the tag, so the app shipped a console
+    // warning that was never false and never read. `metaPolicy` drops it here,
+    // deliberately and in one place, instead of leaving the browser to do it
+    // silently.
+    //
+    // Asserted from both ends: what is dropped is exactly the header-only set,
+    // and what is kept is byte-for-byte the rest of the same policy. A filter
+    // that quietly dropped `object-src` would pass a check that only looked for
+    // the absence of `frame-ancestors`.
+    const meta = metaPolicy(policy);
+    const directives = (s) => s.split(";").map((d) => d.trim()).filter(Boolean);
+    ok("the meta policy drops frame-ancestors", !meta.includes("frame-ancestors"));
+    check(
+      "…and drops nothing else",
+      directives(policy).filter((d) => !directives(meta).includes(d)),
+      directives(policy).filter((d) => HEADER_ONLY.some((n) => d.startsWith(n))),
+    );
+    ok(
+      "the header still says it — this is a delivery limit, not a weaker policy",
+      policy.includes("frame-ancestors 'none'"),
+    );
+    // The whole reason the list is a list: adding a header-only directive to
+    // `csp.txt` must not silently start being dropped from two of three
+    // deliveries without anybody deciding that.
+    check("the header-only set is the documented one", HEADER_ONLY, [
+      "frame-ancestors",
+      "report-uri",
+      "sandbox",
+    ]);
   }
 
   // ------------------------------------------- and every door is in the list

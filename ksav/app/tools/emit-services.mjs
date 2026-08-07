@@ -109,6 +109,22 @@ ${rows}
 export const SERVICE_PATH: Readonly<Record<ServiceName, string>> = Object.fromEntries(
   SERVICES.map((s) => [s.name, s.path]),
 ) as Record<ServiceName, string>;
+
+/**
+ * The whole definition, by name — which is what an HTTP caller actually needs.
+ *
+ * \`SERVICE_PATH\` alone was half the answer, and the missing half cost a working
+ * feature: \`api.ts\` took the path from here and the *verb* from which of its two
+ * private helpers a call site happened to use. \`/inbox\` was moved to POST in the
+ * engine for a real reason — as a GET it was drainable by
+ * \`<img src="http://localhost:7878/inbox">\`, which sends no Origin, so no CORS
+ * check anywhere could have refused it — and the client kept asking for it with
+ * GET. The server answered 404, the poll swallowed it, and the Girsa handoff was
+ * dead on a path where both ends were correct.
+ */
+export const SERVICE: Readonly<Record<ServiceName, ServiceDef>> = Object.fromEntries(
+  SERVICES.map((s) => [s.name, s]),
+) as Record<ServiceName, ServiceDef>;
 `;
 }
 

@@ -6,6 +6,9 @@ const pkgVersion: string = createRequire(import.meta.url)("./package.json").vers
 import { fileURLToPath } from "node:url";
 
 import { SERVICES } from "./src/services.gen";
+// @ts-expect-error — plain JS beside `csp.txt`, which is where the rule about
+// how that file may be delivered belongs. No types, and nothing to type.
+import { metaPolicy } from "../policy/meta.mjs";
 
 // The Ksav engine (cargo run -- serve) runs on :7878 and exposes the compile +
 // registry endpoints. In dev we proxy to it; in production the Rust binary
@@ -36,6 +39,13 @@ const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 // policy there would block Vite's inline HMR client and its eval, breaking
 // `npm run dev`. In production the bundle is external, same-origin scripts.
 const CSP = readFileSync(here("../policy/csp.txt"), "utf8").trim();
+
+// What a `<meta>` element is allowed to say — see `ksav/policy/meta.mjs`, which
+// is the one statement of that rule and is what the fence in
+// `app/test/services.test.mjs` reads. In short: `frame-ancestors` is header-only
+// by specification, a browser discards it here and prints a console warning per
+// page load, and it had been doing so for the whole life of this tag.
+const META_ONLY_CSP = metaPolicy(CSP);
 
 // Where the built app will actually be reachable from, if anywhere.
 //
@@ -74,7 +84,7 @@ export default defineConfig({
           tags: [
             {
               tag: "meta",
-              attrs: { "http-equiv": "Content-Security-Policy", content: CSP },
+              attrs: { "http-equiv": "Content-Security-Policy", content: META_ONLY_CSP },
               injectTo: "head-prepend",
             },
           ],

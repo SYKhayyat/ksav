@@ -10,7 +10,7 @@
 // spelled `sefarim` in a way the worker had never heard of and nothing but a
 // writer noticing could have found it.
 
-import { SERVICE_PATH, type ServiceName } from "./services.gen";
+import { SERVICE, SERVICE_PATH, type ServiceName } from "./services.gen";
 
 export interface DocConfig {
   font: string;
@@ -614,18 +614,45 @@ export class HttpBackend implements Backend, Sources {
   private cache = new CompileCache();
   constructor(private base = "") {}
 
-  /** GET a service. The path is the registry's, not this file's opinion. */
-  private ask(service: ServiceName): Promise<Response> {
-    return fetch(this.base + SERVICE_PATH[service]);
-  }
-
-  /** POST a service, with its request body. */
-  private send(service: ServiceName, body: unknown): Promise<Response> {
-    return fetch(this.base + SERVICE_PATH[service], {
+  /**
+   * Reach a service. The path **and the method** are the registry's.
+   *
+   * They were not. The path came from `SERVICE_PATH` and the verb came from
+   * which of two private helpers a call site picked — `ask` was hard-coded GET,
+   * `send` was hard-coded POST — so half of one fact lived in the registry and
+   * the other half lived in a naming convention.
+   *
+   * `/inbox` is what that cost. It moved to POST in the engine for a stated
+   * reason (`services.rs:148` — as a GET it was drainable by
+   * `<img src="http://localhost:7878/inbox">`, which sends no `Origin`, so no
+   * CORS check could have caught it), this file went on GETting it, the server
+   * answered 404, and `inbox()` catches a failed poll on purpose because a
+   * server that went away should not shout. So the Girsa handoff was dead, on
+   * both sides working, and nothing said a word. Found by the first run of
+   * `.github/scripts/acceptance.mjs`, in the console, where it had been printing
+   * once a second the whole time.
+   *
+   * One function now, and there is no verb left to choose.
+   */
+  private call(service: ServiceName, body?: unknown): Promise<Response> {
+    const def = SERVICE[service];
+    const url = this.base + def.path;
+    if (def.method === "GET") return fetch(url);
+    return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
+  }
+
+  /** A service that takes no request of its own. */
+  private ask(service: ServiceName): Promise<Response> {
+    return this.call(service);
+  }
+
+  /** A service called with a request body. */
+  private send(service: ServiceName, body: unknown): Promise<Response> {
+    return this.call(service, body);
   }
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {

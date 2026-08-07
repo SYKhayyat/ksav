@@ -1641,10 +1641,16 @@ function headingLevelSelect(): HTMLElement {
 function noteBtn(action: string, glyph: string, snippet: string | null): HTMLElement {
   const key = keybindings()[action];
   const title = t("sc." + action) + (key ? ` · ${readable(key)}` : "");
-  return iconBtn(glyph, title, () => {
-    const st = runtime.view.state;
-    insertSnippet(snippet ?? tieredNoteHere(st.doc.toString(), st.selection.main.from));
-  });
+  return iconBtn(
+    glyph,
+    title,
+    () => {
+      const st = runtime.view.state;
+      insertSnippet(snippet ?? tieredNoteHere(st.doc.toString(), st.selection.main.from));
+    },
+    "",
+    { "data-action": action },
+  );
 }
 
 function buildToolbar(): HTMLElement {
@@ -1654,7 +1660,9 @@ function buildToolbar(): HTMLElement {
     const c = byName(he);
     if (!c) return el("span");
     const title = lang === "he" ? c.desc_he : c.desc_en;
-    return iconBtn(label, `${title} · #${c.he}`, () => insertSnippet(c.insert));
+    return iconBtn(label, `${title} · #${c.he}`, () => insertSnippet(c.insert), "", {
+      "data-command": c.he,
+    });
   };
 
   return el("div", { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") }, [
@@ -1700,7 +1708,7 @@ function buildToolbar(): HTMLElement {
 // category, so nothing requires knowing the markup.
 /** The Documents menu: every document in the library, newest first. */
 function buildDocsMenu(): HTMLElement {
-  return lazyMenu("🗂 " + t("documents"), docsMenuItems);
+  return lazyMenu("documents", "🗂 " + t("documents"), docsMenuItems);
 }
 
 /** Rebuilt on every open, so it never shows a stale library. */
@@ -1813,7 +1821,7 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
  * will not run.
  */
 function buildMacroMenu(): HTMLElement {
-  return lazyMenu("⏺ " + t("macros"), () => {
+  return lazyMenu("macros", "⏺ " + t("macros"), () => {
     const kb = keybindings();
     const items: (Node | string)[] = [
       el("button", { class: "menu-item", onClick: () => (closeMenus(), toggleRecording()) }, [
@@ -1871,11 +1879,11 @@ function buildMacroMenu(): HTMLElement {
 }
 
 function buildFormatMenu(): HTMLElement {
-  return lazyMenu("¶ " + t("format"), () => structureMenuItems(["heading", "list"]));
+  return lazyMenu("format", "¶ " + t("format"), () => structureMenuItems(["heading", "list"]));
 }
 
 function buildTableMenu(): HTMLElement {
-  return lazyMenu("▦ " + t("tableMenu"), () => [
+  return lazyMenu("table", "▦ " + t("tableMenu"), () => [
     el("button", {
       class: "menu-item",
       onClick: () => {
@@ -1906,7 +1914,7 @@ function buildTableMenu(): HTMLElement {
  * perfectly correct in a screenshot of the source.
  */
 function buildInsertMenu(): HTMLElement {
-  return lazyMenu("➕ " + t("insert"), insertMenuItems);
+  return lazyMenu("insert", "➕ " + t("insert"), insertMenuItems);
 }
 
 function insertMenuItems(): (Node | string)[] {
@@ -1989,8 +1997,8 @@ function insertMenuItems(): (Node | string)[] {
   return items;
 }
 
-function menu(label: string, items: (Node | string)[]): HTMLElement {
-  return lazyMenu(label, () => items);
+function menu(name: string, label: string, items: (Node | string)[]): HTMLElement {
+  return lazyMenu(name, label, () => items);
 }
 
 /**
@@ -2000,7 +2008,21 @@ function menu(label: string, items: (Node | string)[]): HTMLElement {
  * looked like at boot — the document library would still say "Untitled" long
  * after the document had been titled. Building on open keeps it honest.
  */
-function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
+/**
+ * A menubar menu.
+ *
+ * `name` is required for the same reason `iconBtn` requires an accessible name:
+ * every label here is an emoji plus a translated word, so the menubar had no
+ * identity that survived switching the interface to English. `data-menu` is that
+ * identity, and it is the only way anything outside this file — the acceptance
+ * run in `.github/scripts/acceptance.mjs`, today — can say *which* menu it means.
+ *
+ * The items are built on open, so the menu has to be opened before its contents
+ * exist in the document at all. That is deliberate and worth knowing about: a
+ * selector for a menu item that never clicks the button first finds nothing, and
+ * will report it as a missing feature.
+ */
+function lazyMenu(name: string, label: string, build: () => (Node | string)[]): HTMLElement {
   const list = el("div", { class: "menu-list", role: "menu", "aria-label": label });
   const btn = el("button", {
     class: "menu-btn",
@@ -2015,7 +2037,7 @@ function lazyMenu(label: string, build: () => (Node | string)[]): HTMLElement {
       });
     },
   }, [label]);
-  return el("div", { class: "menu" }, [btn, list]);
+  return el("div", { class: "menu", "data-menu": name }, [btn, list]);
 }
 
 function buildHeader(): HTMLElement {
@@ -2043,13 +2065,13 @@ function buildHeader(): HTMLElement {
       }, ["×"]),
     ]),
   );
-  const templatesMenu = menu("📄 " + t("templates"), [
+  const templatesMenu = menu("templates", "📄 " + t("templates"), [
     ...builtinItems,
     ...(users.length ? [el("div", { class: "menu-sep" })] : []),
     ...userItems,
   ]);
 
-  const fileMenu = menu("📁 " + t("file"), [
+  const fileMenu = menu("file", "📁 " + t("file"), [
     el("button", { class: "menu-item", onClick: newDoc }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: openFile }, [t("open")]),
     el("button", { class: "menu-item", onClick: saveFile }, [t("save")]),
@@ -2065,16 +2087,26 @@ function buildHeader(): HTMLElement {
   // The Skins menu is gone: presets now live inside the Styles panel, next to
   // the settings they overwrite, where the relationship is visible.
 
-  const exportMenu = menu("⬇ " + t("export"), [
-    el("button", { class: "menu-item", onClick: () => void exports.exportPdf() }, [t("exportPdf")]),
-    el("button", { class: "menu-item", onClick: () => void exports.exportPdfPages() }, [t("exportPdfPages")]),
-    el("button", { class: "menu-item", onClick: () => void exports.exportWord() }, [t("exportWord")]),
-    el("button", { class: "menu-item", onClick: () => void exports.copyForWord() }, [t("copyForWord")]),
-    el("button", { class: "menu-item", onClick: () => void exports.exportHtml() }, [t("exportHtml")]),
-    el("button", { class: "menu-item", onClick: exports.exportMarkdown }, [t("exportMarkdown")]),
-    el("button", { class: "menu-item", onClick: exports.exportText }, [t("exportText")]),
-    el("button", { class: "menu-item", onClick: () => void exports.exportTypst() }, [t("exportTypst")]),
-    el("button", { class: "menu-item", onClick: exports.doPrint }, [t("print")]),
+  // `data-export` is the i18n key, which is already this item's identifier — the
+  // label is `t()` of it. No second vocabulary was invented for this: the point
+  // is only that a menu of nine localised strings is otherwise unaddressable
+  // from outside, and `.github/scripts/acceptance.mjs` has to click one of them
+  // in whichever language the interface happens to be in.
+  //
+  // Nine, not one. A menu where only the item under test can be found is a menu
+  // that will grow a tenth item nothing can reach.
+  const exp = (key: string, run: () => void) =>
+    el("button", { class: "menu-item", "data-export": key, onClick: run }, [t(key)]);
+  const exportMenu = menu("export", "⬇ " + t("export"), [
+    exp("exportPdf", () => void exports.exportPdf()),
+    exp("exportPdfPages", () => void exports.exportPdfPages()),
+    exp("exportWord", () => void exports.exportWord()),
+    exp("copyForWord", () => void exports.copyForWord()),
+    exp("exportHtml", () => void exports.exportHtml()),
+    exp("exportMarkdown", exports.exportMarkdown),
+    exp("exportText", exports.exportText),
+    exp("exportTypst", () => void exports.exportTypst()),
+    exp("print", exports.doPrint),
   ]);
 
   const langToggle = iconBtn(
@@ -2995,6 +3027,7 @@ function renderPaletteList(q: string) {
       "button",
       {
         class: "pal-item" + (n === 0 ? " sel" : ""),
+        "data-action": a.id,
         onMouseEnter: (e: Event) => {
           list.querySelectorAll(".pal-item.sel").forEach((r) => r.classList.remove("sel"));
           (e.currentTarget as HTMLElement).classList.add("sel");
@@ -5509,6 +5542,10 @@ function maybeOnboard() {
               {
                 class: "welcome-tpl",
                 lang: tpl.lang,
+                // The label is the template's name in whichever language the
+                // interface is in; the id is what it *is*. The acceptance run
+                // starts from `sefer` and has to find it in either.
+                "data-template": tpl.id,
                 onClick: () => {
                   dismissOnboard();
                   loadTemplate(tpl);

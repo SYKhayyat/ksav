@@ -22,6 +22,10 @@ pub mod jump;
 /// What the engine embeds and the notice each embedding owes — one table, tied
 /// to the `include_bytes!` lines below and to `THIRD-PARTY-NOTICES.md`.
 pub mod notices;
+/// What Typst's own parser says a document is made of — the authority the
+/// editor's hand-written scanner is checked against offline, since it cannot
+/// ask for the answer mid-keystroke.
+pub mod parse;
 /// The rules more than one build has to obey, read from `ksav/policy/`.
 pub mod policy;
 /// The loopback to Girsa. Native only, like the server: a browser build has no

@@ -337,6 +337,32 @@ export async function run() {
     check("the bracket linter finds nothing wrong", brackets.analyze(def).problems.length, 0);
   }
   {
+    // The same question asked where the answer is not masked, which is why the
+    // line above passed for as long as it did: `גוף` sits inside `#הדגשה[…]`,
+    // and that content frame gives the right answer whatever the statement's
+    // frame claims. Ask about bare prose after the statement and the mask is
+    // gone.
+    //
+    // It was wrong. The statement pushed a frame with `close: text.length` and
+    // restored the running `ctx` at the newline without ever closing it — so
+    // `ctxAt`, and therefore `modeAt`, `legalAt` and `insertionAt`, called every
+    // character after the first `#let` or `#set` in the document code mode.
+    // `engine/tests/scan_oracle.rs` found it against Typst's own parser on its
+    // first sweep; nothing in this file had asked.
+    const doc = `#let ר = [רבי]\n#ר יוחנן אמר (בגמרא) כך.\n`;
+    const s = spans.scan(doc);
+    check("prose after a #let is prose", spans.ctxAt(s, doc.indexOf("יוחנן")), "content");
+    check("…including after a parenthesis in it", spans.ctxAt(s, doc.indexOf("כך")), "content");
+    check("and the statement's frame closes at its newline", spans.framesAt(s, doc.indexOf("יוחנן")).length, 0);
+    check("a bare paren after it opens no string", s.strings.length, 0);
+    // A statement inside a group ends when the group does, with no newline in
+    // sight — the second way that frame can close.
+    const inner = `#הדגשה[#let x = 1] ואחר כך (עיין שם) עוד.`;
+    const si = spans.scan(inner);
+    check("a statement inside a body ends with the body", spans.ctxAt(si, inner.indexOf("ואחר")), "content");
+    check("…and nothing after it opens a string", si.strings.length, 0);
+  }
+  {
     // The document `mode.ts`'s backwards walk got wrong, now that there is only
     // one walk. A `)` inside a string is not a group to skip back over.
     const doc = `#הערה("א)ב")[גוף]`;

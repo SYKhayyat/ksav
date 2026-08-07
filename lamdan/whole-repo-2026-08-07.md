@@ -499,6 +499,59 @@ exist.** It has never existed. The line reads as a guarantee and is a reference 
 
 ### What I got wrong about "it cannot ask the engine"
 
+> ### ✅ Built — 7 August 2026
+>
+> `engine/src/parse.rs` and `engine/tests/scan_oracle.rs`. The corpus is
+> `app/tools/emit-scan-oracle.mjs`: the ten templates, both starter documents,
+> the Girsa buffer, every note layout and structural edit the app generates, the
+> whole legal insertion grid, and ten regression documents. **1,231 documents.**
+> `npm test` fails when the fixture is stale, so changing the scanner forces the
+> regeneration, and the next `cargo test` compares the *new* beliefs.
+>
+> **It found a second bug on its first sweep**, and this is the entire argument
+> for the mechanism: a `#let`/`#set`/`#show` line pushed a frame with
+> `close: text.length` and restored the running `ctx` at the newline **without
+> ever closing the frame**. `frames` is what `ctxAt`, `framesAt`, `modeAt`,
+> `legalAt` and `insertionAt` read — so in any document containing a `#set`,
+> every surface downstream believed the prose after that line was code mode.
+> Nothing in `spans.test.mjs` had asked: the one test that came close checked
+> `ctxAt` at a position inside a `#הדגשה[…]`, where the content frame gives the
+> right answer no matter what the statement's frame claims. Fixed, with the
+> question now asked where the mask is gone.
+>
+> **What is compared, and what is not.** Not "the two agree at every offset" —
+> they do not and should not. `#הדגשה[…]` puts `הדגשה` in a Typst `Ident` under
+> code while the scanner keeps it in content, and both are right about their own
+> job; a per-offset assertion would drown in correct disagreements. Four claims
+> where any disagreement is a bug: every character Typst lexed as markup `Text`
+> is content to the scanner; string literals **both directions**; comments both
+> directions; every `ContentBlock` Typst found is a group the scanner found (one
+> direction — a bare `[` in prose is `Text` to Typst and a harmless group to the
+> scanner). Ranges touching `$…$` are excluded and said to be excluded: the
+> scanner has no math mode, and pretending it agrees there would be a fifth
+> claim nobody is making.
+>
+> **Every one of the four was mutation-tested**, and each mutation went red on
+> exactly the claim it was aimed at. Reverting the `(` rule turns the prose
+> assertion red on eight documents including the shipped bentcher and get
+> templates, naming the sentence in each. Making a `"` in content stop opening a
+> string kills the string claim — and takes the content-block claim with it,
+> since an unterminated string swallows the brackets after it. Restricting
+> comment scanning to code mode kills the comment claim. And gating
+> `contentGroups` on `stack.length === 1` kills the content-block claim — that
+> last mutation is `ONLY_AT_TOP` written on purpose, to prove the assertion
+> sweeps nested bodies and not just top-level ones, which is the failure this
+> repository has now produced four times by accident.
+>
+> **Not a service, and this is a departure from the recommendation.** The report
+> asked for a `parse` service (`Cost::Quick`) as the vehicle. There is no client
+> for one: every runtime caller of the scanner is on a path that cannot await —
+> which the report itself establishes two paragraphs later — and the engine is
+> tree-shaken out of the browser build entirely. A registry entry that only a
+> test dispatches through is precisely the half-wired surface §7 is about. The
+> function is public, the oracle calls it directly, and `services.rs` is four
+> lines away if a caller that can await ever appears.
+
 The README says the editor *"cannot ask the engine, because the answer has to be synchronous, pure
 and available mid-keystroke."* That is **true of the compiler and false of the parser**, and the
 repository conflated them.

@@ -44,6 +44,7 @@ const GENERATORS = [
   ["note fixtures", "emit-note-fixtures.mjs"],
   ["structure fixtures", "emit-structure-fixtures.mjs"],
   ["insertion fixtures", "emit-insertion-fixtures.mjs"],
+  ["scan oracle", "emit-scan-oracle.mjs"],
 ];
 
 /**

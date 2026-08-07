@@ -24,23 +24,13 @@
 //
 // `npm test` runs the --check form; `cargo test --test insertion` compiles it.
 
-// Through esbuild's JS API, not by running `node node_modules/esbuild/bin/esbuild`:
-// that path is a JavaScript shim on Windows and the **native executable** on Linux,
-// where npm's platform package overwrites it — so handing it to `node` threw
-// `SyntaxError: Invalid or unexpected token` and took the editor job in CI down on
-// every push, while working perfectly on the machine that wrote it. `card.mjs` and
-// `test/run.mjs` had always imported `build` from "esbuild"; this is the same thing.
-import { build } from "esbuild";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join } from "node:path";
 import { runAsScript } from "./generated.mjs";
+import { load } from "./load.mjs";
+import { ENGINE } from "./paths.mjs";
 import { commands } from "./commands.mjs";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const APP = join(here, "..");
-const OUT = join(APP, "..", "engine", "tests", "fixtures", "insertions.json");
+const OUT = join(ENGINE, "tests", "fixtures", "insertions.json");
 
 /**
  * Every kind of place a caret can be, with `@` marking it.
@@ -76,28 +66,6 @@ const SAMPLE = {
   נוסחה_בשורה: "x^2 + 1",
   כלול: "",
 };
-
-/** Build a `src/*.ts` module to something node can import. */
-async function load(name) {
-  const dir = mkdtempSync(join(tmpdir(), "ksav-fixtures-"));
-  try {
-    const out = join(dir, name + ".mjs");
-    await build({
-      entryPoints: [join(APP, "src", name + ".ts")],
-      outfile: out,
-      bundle: true,
-      format: "esm",
-      platform: "node",
-      logLevel: "silent",
-    });
-    return await import(pathToFileURL(out).href);
-  } finally {
-    // The import above is async and the directory is read synchronously by it;
-    // deleting here is safe because esbuild has already written the file and
-    // node has it open.
-    setTimeout(() => rmSync(dir, { recursive: true, force: true }), 2000).unref?.();
-  }
-}
 
 /**
  * The registry, read from the engine source rather than a running server.

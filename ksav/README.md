@@ -170,6 +170,26 @@ is in *code* mode, where `"` opens a string literal in which brackets are inert.
 Both halves were checked against the compiler rather than assumed; see the head
 of the file.
 
+"It cannot ask the engine" is true of the **compiler** and false of the
+**parser**, and the difference is worth a test. A compile is 14–30 ms for one
+page and 5.6 s at 170; `typst::syntax::Source::detached` parses with no world,
+no fonts and no layout. So the scanner stays exactly as it is at runtime — and
+offline, **`engine/tests/scan_oracle.rs`** sweeps every document in the
+repository and asks Typst's own parser whether the scanner was right about it:
+the ten templates, both starter documents, every note layout and structural edit
+the app produces, and the whole insertion grid. Twelve hundred documents, and
+the point of the grid is that nobody chose them.
+
+It is the only check here that does not depend on somebody thinking of the case.
+The scanner's own fourteen unit tests were all green while a bare `(` in prose
+opened code mode, because each was written by somebody who held the wrong rule.
+On its first sweep the oracle found a second one nobody had asked about: a
+`#let` line pushed a frame that was never closed, so every surface reading the
+scan believed the prose after the first `#set` in a document was code.
+`app/tools/emit-scan-oracle.mjs` writes what the scanner believes and `npm test`
+fails if it is stale, which is what makes changing the scanner force the
+comparison.
+
 ### One registry of surfaces
 
 The chrome has the same shape of problem and the same shape of answer. Seventeen
@@ -453,7 +473,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,749 editor assertions, 397 engine
+- [x] **CI, running and green** — typecheck, 3,755 editor assertions, 397 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -629,10 +649,10 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,749 assertions across 62 files
+cd app && npm test                          # 3,755 assertions across 62 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 399 tests, 26 binaries
+cargo test --manifest-path engine/Cargo.toml            # 416 tests, 27 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

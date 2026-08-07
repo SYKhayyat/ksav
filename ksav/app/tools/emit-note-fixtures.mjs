@@ -16,41 +16,12 @@
 //
 // `npm test` runs the --check form; `cargo test --test chooser` renders it.
 
-// Through esbuild's JS API, not by running `node node_modules/esbuild/bin/esbuild`:
-// that path is a JavaScript shim on Windows and the **native executable** on Linux,
-// where npm's platform package overwrites it — so handing it to `node` threw
-// `SyntaxError: Invalid or unexpected token` and took the editor job in CI down on
-// every push, while working perfectly on the machine that wrote it. `card.mjs` and
-// `test/run.mjs` had always imported `build` from "esbuild"; this is the same thing.
-import { build } from "esbuild";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join } from "node:path";
 import { runAsScript } from "./generated.mjs";
+import { load } from "./load.mjs";
+import { ENGINE } from "./paths.mjs";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const APP = join(here, "..");
-const OUT = join(APP, "..", "engine", "tests", "fixtures", "note-layouts.json");
-
-/** Build `notes.ts` to something node can import, the way `test/run.mjs` does. */
-async function loadNotes() {
-  const dir = mkdtempSync(join(tmpdir(), "ksav-fixtures-"));
-  try {
-    const out = join(dir, "notes.mjs");
-    await build({
-      entryPoints: [join(APP, "src", "notes.ts")],
-      outfile: out,
-      bundle: true,
-      format: "esm",
-      platform: "node",
-      logLevel: "silent",
-    });
-    return await import(pathToFileURL(out).href);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+const OUT = join(ENGINE, "tests", "fixtures", "note-layouts.json");
 
 // Long enough to break over at least two pages: the whole point of several of
 // these layouts is per-page geometry, and a one-page document cannot show a
@@ -79,7 +50,7 @@ const BODY_1 = "טקסטהערהאחת";
 const BODY_2 = "טקסטהערהשתים";
 
 export async function buildFixture() {
-  const { NOTE_CHOICES, applyChoice } = await loadNotes();
+  const { NOTE_CHOICES, applyChoice } = await load("notes");
   const cases = [];
   for (const c of NOTE_CHOICES) {
     // "both" matters more than it looks: a two-layer layout's settings are what

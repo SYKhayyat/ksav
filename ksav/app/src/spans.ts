@@ -592,7 +592,17 @@ function lexCore(
   // An open `#let`/`#set`/`#show` statement: code mode until the first newline
   // at the bracket depth it started on, so a definition whose value spans a
   // `{…}` or a `(…)` still ends where the statement does.
-  let codeLine: { depth: number; restore: Ctx } | null = null;
+  //
+  // The frame is carried along so it can be *closed*. It used to be pushed with
+  // `close: n` and left there, and the running `ctx` was restored at the newline
+  // while the frame it belonged to still claimed the rest of the document. That
+  // is not an internal detail: `frames` is what `ctxAt`, `framesAt`, `modeAt`,
+  // `legalAt` and `insertionAt` read, so in any document with a `#set` or a
+  // `#let` in it — which is any document that configures anything — every
+  // surface downstream of the scan believed the prose after that line was code
+  // mode. Found by `engine/tests/scan_oracle.rs` on its first sweep, in
+  // `#let ר = [רבי]` followed by an ordinary Hebrew sentence.
+  let codeLine: { depth: number; restore: Ctx; frame: Frame } | null = null;
 
   const n = text.length;
   for (let i = 0; i < n; i++) {
@@ -601,6 +611,7 @@ function lexCore(
     if (c === 0x0a /* \n */) {
       if (codeLine && stack.length === codeLine.depth) {
         ctx = codeLine.restore;
+        codeLine.frame.close = i;
         codeLine = null;
       }
       continue;
@@ -700,7 +711,13 @@ function lexCore(
       // Without `recover`, a closer with nothing open or of the wrong kind is
       // left alone: this scan describes a document, and `brackets.ts` is the one
       // that judges it.
-      if (codeLine && stack.length < codeLine.depth) codeLine = null;
+      // `#הדגשה[#let x = 1]` — the group the statement was written inside
+      // closed before its newline arrived, so the statement ends here, and its
+      // frame has to end here too.
+      if (codeLine && stack.length < codeLine.depth) {
+        codeLine.frame.close = i;
+        codeLine = null;
+      }
       continue;
     }
 
@@ -723,9 +740,10 @@ function lexCore(
           k <= 0x7a /* z */ &&
           CODE_KEYWORDS.has(text.slice(s, e))
         ) {
-          codeLine = { depth: stack.length, restore: ctx };
+          const frame: Frame = { open: i, close: n, ctx: "code", name: "" };
+          codeLine = { depth: stack.length, restore: ctx, frame };
           ctx = "code";
-          frames.push({ open: i, close: n, ctx: "code", name: "" });
+          frames.push(frame);
         }
         i = e - 1;
         continue;

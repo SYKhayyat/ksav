@@ -12,37 +12,14 @@
 // and a hand-written second list of them would be the same problem with one more
 // copy to forget about.
 
-import { build } from "esbuild";
-import { readFile, rm, mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { pathToFileURL } from "node:url";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { commands } from "./commands.mjs";
+import { loadMany } from "./load.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
-const APP = path.resolve(HERE, "..");
-const OUT = await mkdtemp(path.join(tmpdir(), "ksav-card-"));
-
-await build({
-  entryPoints: [
-    path.join(APP, "src", "bindings.ts"),
-    path.join(APP, "src", "i18n.ts"),
-    path.join(APP, "src", "structure.ts"),
-  ],
-  outdir: OUT,
-  outExtension: { ".js": ".mjs" },
-  bundle: true,
-  format: "esm",
-  platform: "neutral",
-  external: ["@codemirror/*", "@lezer/*", "@tauri-apps/*"],
-  logLevel: "silent",
-});
-
-const { DEFAULT_KEYS, KEY_ALIASES, readable } = await import(
-  pathToFileURL(path.join(OUT, "bindings.mjs")).href
-);
-const i18n = await import(pathToFileURL(path.join(OUT, "i18n.mjs")).href);
-const { STRUCTURE_ACTIONS } = await import(pathToFileURL(path.join(OUT, "structure.mjs")).href);
+const mods = await loadMany(["bindings", "i18n", "structure"]);
+const { DEFAULT_KEYS, KEY_ALIASES, readable } = mods.bindings;
+const i18n = mods.i18n;
+const { STRUCTURE_ACTIONS } = mods.structure;
 
 /**
  * The i18n key a structure action is already named under.
@@ -150,4 +127,3 @@ lines.push("are writing, and it is the one shortcut that spans both applications
 lines.push("[Girsa's own start-here](" + GIRSA_START_HERE + ").");
 
 console.log(lines.join("\n"));
-await rm(OUT, { recursive: true, force: true });

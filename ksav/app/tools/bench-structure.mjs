@@ -12,31 +12,7 @@
 // Run it against a commit and against its parent to compare; the shape to watch
 // for is the cost growing faster than the table.
 
-import { build } from "esbuild";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-const APP = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-async function load(name) {
-  const dir = mkdtempSync(join(tmpdir(), "ksav-bench-"));
-  try {
-    const out = join(dir, `${name}.mjs`);
-    await build({
-      entryPoints: [join(APP, "src", `${name}.ts`)],
-      outfile: out,
-      bundle: true,
-      format: "esm",
-      platform: "node",
-      logLevel: "silent",
-    });
-    return await import(pathToFileURL(out).href);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+import { load } from "./load.mjs";
 
 const structure = await load("structure");
 

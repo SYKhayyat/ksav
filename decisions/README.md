@@ -60,6 +60,7 @@ something in.
 | [2026-08-04 · Borrowed wave](2026-08-04-borrowed-wave.md) | What Katvan already knew — click-to-jump, mixed-direction source, invisible characters |
 | [2026-08-04 · Borrowed wave II](2026-08-04-borrowed-wave-ii.md) | typstify, and the fourteen features around it |
 | [2026-08-04 · Notes and the UI around them](2026-08-04-notes-and-ui.md) | The plan, the browser sweep, and the post-mortem on why 2,276 green assertions had not caught any of it |
+| [2026-08-07 · Writing a kuntres in it](2026-08-07-writing-a-kuntres.md) | The first hour of actually using it, and the three bugs that were green in 3,556 assertions |
 
 One dated record is deliberately **not** here:
 [`lamdan/whole-repo-2026-08-05.md`](../lamdan/whole-repo-2026-08-05.md), the

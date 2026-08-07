@@ -453,7 +453,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,566 editor assertions, 383 engine
+- [x] **CI, running and green** — typecheck, 3,630 editor assertions, 389 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -480,8 +480,15 @@ Not done:
 - [ ] **Code signing.** Unsigned, Windows SmartScreen says "unrecognized app" and
       macOS says "unidentified developer". The fix is a certificate ($99/yr Apple,
       ~$200–400/yr Windows OV), not a workaround; `release.yml` names the secrets.
-- [ ] **Nobody has written a real document in it yet.** The most important line
-      here. Nothing above substitutes for it.
+- [ ] **Nobody has written a real *sefer* in it yet.** The most important line
+      here. Nothing above substitutes for it, and an hour of it on 7 August
+      2026 found three bugs that the whole suite was green over — a sefer
+      numbered by the toolbar came out **סימן א׳** three times,
+      a gershayim (the key you press for רש״י) produced Typst's raw
+      `unclosed string`, and the Mekoros panel dropped the ref that is the
+      whole argument for the Girsa pairing. All three fixed; see
+      [`decisions/2026-08-07-writing-a-kuntres.md`](../decisions/2026-08-07-writing-a-kuntres.md).
+      Most of a siman is not a sefer, so the box stays open.
 
 ## Checking how something renders
 
@@ -612,9 +619,9 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,566 assertions across 58 files
+cd app && npm test                          # 3,630 assertions across 60 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 383 tests, 25 binaries
+cargo test --manifest-path engine/Cargo.toml            # 389 tests, 26 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

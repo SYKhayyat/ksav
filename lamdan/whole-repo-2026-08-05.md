@@ -2210,6 +2210,62 @@ Not a compliment quota. A critic who never loses has stopped evaluating.
 
 ## 13. The want with no edge
 
+> ### ✅ Done — 7 August 2026
+>
+> The verdict is accepted and it was right. A kuntres was written in the
+> application: `ksav serve` on 7878, Vite on 5173, a headless Chromium driving
+> the real chrome, the shipped **ספר** template, and the product's own
+> invitations — the toolbar for structure, the Notes chooser for the apparatus,
+> the ribbon for the list and the table, the export menu at the end. The full
+> account is [`decisions/2026-08-07-writing-a-kuntres.md`](../decisions/2026-08-07-writing-a-kuntres.md).
+>
+> **Three bugs, and the section's claim about them holds exactly.** Every one
+> was green in 3,556 assertions and 383 engine tests, and not one was a gap in
+> coverage.
+>
+> - **A sefer numbered by the toolbar came out unnumbered.** Press § three
+>   times: סימן א׳, סימן א׳, סימן א׳. The registry's snippet is `#סימן[א׳][|]`
+>   and the caret is in the *title* — past the number — so the writer never
+>   visits the field that is wrong, and the outline pane lists all three as `א׳`
+>   without a word. Fixed at `insertSnippet`, which is the one insertion path,
+>   which needed a gematria **writer** — the prelude has only a reader, for
+>   sorting. Written as a sum first, and the test caught that instantly:
+>   `#סימן[פתיחה]` sums to 504 and would have been "continued" to `#סימן[תקד]`.
+>   Every Hebrew word has a gematria; almost none is a numeral.
+> - **A gershayim got Typst's English.** `"` is the key you press for רש״י, and
+>   inside `(…)` it opens a string — so the commonest punctuation mark in the
+>   language produced `unclosed string`, verbatim, at a writer who has never
+>   heard of one. Six families were reaching the reader as `message == raw`,
+>   including `missing argument: כותרת` from `#סימן[א׳]`. The reason nothing
+>   caught it is this repository's own bug family in the module whose *whole
+>   job* is the sentence a writer reads: `every_rephrasing_is_bilingual` walked
+>   a list of six raw strings the rephraser already handled, so it could not go
+>   red for one it did not. `tests/diagnostics_corpus.rs` is twenty-five
+>   documents that really fail, compiled for real.
+> - **The citation did not keep its place.** The Mekoros panel wrote
+>   `#מראה_מקום[${place.display}]` — one line under a comment saying *"the ref
+>   travels with it, because that is what makes it re-printable later (spec.md
+>   §10.2)."* `place.ref` was read by nothing, so the source index, the PDF
+>   link and the entire argument for the Girsa pairing were dead for every
+>   citation the editor could insert by itself. The *other* door — a packet
+>   handed over by Girsa — writes `מקור:` and has an engine test.
+>
+> **The prediction that did not hold: "shorter and more expensive."** Three
+> bugs, not six, and they were cheap — 8 files and two new modules. What made
+> them worth the hour is not their cost, it is that no amount of reading was
+> going to produce them. Each one is a *surface* that is silent about a
+> *mechanism* that already works, which is the shape a reader has to be lucky
+> to see and a writer cannot miss.
+>
+> **Three suspicions were cleared by checking**, and they are recorded because
+> each would have been a plausible finding to file: `#שער` really is a level-0
+> title row and not a section; רש״י in a list item really does light the whole
+> ribbon; and deferring a mareh makom really does write `סוג: מראה_מקום`, which
+> was read as a bug from the bodies before the markers were looked at.
+>
+> This does not close the item. Most of a siman is not a sefer, and the next
+> hour will find three more.
+
 Twelve commits landed on 2026-08-04. Fourteen features in one day: vim, emacs, a
 hydra, macros, a PWA, share-by-URL, tracked changes, an overview ruler, a file
 watcher, a Word importer, two indexes, two-sided page setup.
@@ -2260,7 +2316,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 |---|---|---|---|
 | 1 | ✅ **Fixed 6 Aug.** Fourteen markup scanners (twelve counted, four more in `styles.ts`); six verified one-click contradictions, plus `#שער` outlined as a section it is not and a bracket heal that corrupted valid documents | `rewrite` → one `spans.ts` | ~1 week, 14 files, no visible change except the bugs |
 | 2 | ✅ **Fixed 5 Aug.** Ten dispatch sites, one checked; `sefarim` dead in wasm, 6 proxy routes missing, CSP diverged so the update check is dead on both installer builds | `rewrite` → one registry + `build.rs` assertions | ~2 days |
-| 3 | Nobody has written a document in it | `don't-build` the next wave | one kuntres |
+| 3 | ✅ **Done 7 Aug.** Nobody has written a document in it. Somebody has now — the real app, the shipped ספר template, the toolbar and the chooser and the ribbon. Three bugs, all green in 3,556 assertions, none a gap in coverage: a sefer numbered by the toolbar came out **סימן א׳ three times** (the caret is placed past the number, so the writer never sees the field that is wrong); a **gershayim** — the key you press for רש״י — produced `unclosed string` verbatim, one of six families reaching the writer as `message == raw`, under a test that walked a list of strings the rephraser already handled; and the Mekoros panel dropped `place.ref`, killing the source index and the PDF link for every citation the editor inserts, one line under a comment saying the ref travelled | `don't-build` the next wave → **one kuntres, written** | 8 files, +2 modules, +2 test files, +1 engine corpus. "Shorter and more expensive" was half right: three, and cheap. What made it worth the hour is that no amount of reading produces them — each is a silent surface over a mechanism that already works |
 | 4 | ✅ **Fixed 6 Aug.** 19 false/stale doc claims; the release-status contradiction was `ksav/README.md`'s half (`v0.1.0` is published, verified against GitHub), and "page setup travels with the file" was a **product** bug — `serializeDoc` dropped `config` on every route out of the app, including duplicating a document. The card printed ten bare action ids; the Girsa links pointed into an untracked sibling of a public repository | `rewrite` → a card diff, a two-way count sweep, two link sweeps, a load-bearing exemption list | ~430 lines, not 80; 12 files, 9 mutations red — one of which caught the exemption list reproducing `ONLY_AT_TOP` |
 | 5 | ✅ **Fixed 6 Aug.** `ksav.typ` wrote the apparatus 3× and fixed one bug twice; `PAGE_APPARATUS_COMMANDS` was a ninth unchecked copy | `rewrite` → one `_ap_*` core + a pinned layout + a count | ~half a day, 5 files; 41 documents byte-identical; −13 code lines, and three homes for a decision down to one |
 | 6 | ✅ **Fixed 6 Aug.** Notes pane empty in every deferred document and `⁑` gave the wrong tier; the collected-and-never-rendered lint was blind to deferred notes too, and deferring in an English document wrote Hebrew into it | `rewrite` → one `notesIn` over both spellings + an equivalence oracle | ~1 day, 8 files; +98 code lines, not −180; 9 mutations red, 2 controls green |

@@ -58,6 +58,7 @@ import * as spell from "./spell";
 import * as styles from "./styles";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
+import { citationMarkup } from "./citation";
 import type { NoteChoice } from "./notes";
 
 // The modules `main.ts` was split into. What is left here is the shell: the
@@ -128,6 +129,7 @@ import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
 import { insertionAt, legalAt } from "./mode";
+import { continueSeries } from "./numbering";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as hydra from "./hydra";
@@ -1243,8 +1245,11 @@ function showMekoros(at: number, phrase: string, answer: Mekoros): void {
 
   const take = (place: Mekor): void => {
     // The citation goes in as a mekor footnote — the ref travels with it,
-    // because that is what makes it re-printable later (spec.md §10.2).
-    const markup = `#מראה_מקום[${place.display}]`;
+    // because that is what makes it re-printable later (spec.md §10.2). The
+    // markup is `citation.ts`'s, which is also where the account lives of how
+    // long that sentence was false: this was `#מראה_מקום[${place.display}]`,
+    // and `place.ref` was read by nothing.
+    const markup = citationMarkup(place);
     runtime.view.dispatch({
       changes: { from: at, insert: markup },
       selection: { anchor: at + markup.length },
@@ -1379,11 +1384,17 @@ function docLang(): "he" | "en" {
  *    the chooser's own producer, so the scaffolding a layout needs is written
  *    and `deferNoteBodies` is honoured — from the toolbar, the palette, the
  *    keyboard and the modal alike, because there is one producer and not four.
+ *  - **numbering** (`continueSeries`): a siman's number is a *value* in the
+ *    snippet, not a placeholder, and the registry's copy is `א׳` forever. A
+ *    sefer written the way the toolbar invites you to write one came out
+ *    numbered א׳, א׳, א׳ — the caret is placed past the number, in the title,
+ *    so the writer never visits the field that is wrong.
  */
 function insertSnippet(rawSnippet: string) {
   const sel = runtime.view.state.selection.main;
   const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
   const doc = runtime.view.state.doc.toString();
+  rawSnippet = continueSeries(doc, sel.from, rawSnippet);
 
   // A note is a layout, not a string: it may need a dump call at the end of the
   // file, a wrapper around the section, a configuration line at the top, and its

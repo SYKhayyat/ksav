@@ -456,6 +456,56 @@ fn expected_found(raw: &str) -> Option<(Vec<String>, String)> {
     Some((wanted, found.trim().to_string()))
 }
 
+/// The Hebrew name of a parameter, for a message that has to name one.
+///
+/// Read out of `ksav.typ`'s **own** `_en_params` table — the one `_en` uses to
+/// let a Hebrew-named command take English argument names — rather than a
+/// second copy here. A diagnostic that called a parameter something the engine
+/// does not accept would be worse than the English name it replaced.
+///
+/// `body` is the one addition, and it is the reason this exists at all:
+/// `#סימן[א]` reports *"missing argument: כותרת"* and `#סעיף[א]` reports
+/// *"missing argument: body"*, because `body` is the only English parameter
+/// name left in the prelude — on 89 commands, all of them positional, so it is
+/// invisible to a writer everywhere except in the one message that says it out
+/// loud. Renaming it in `ksav.typ` would mean rewriting the variable through 89
+/// function bodies that also pass `body:` as a *metadata key* read elsewhere;
+/// naming it properly here costs one line and reaches the same reader.
+fn hebrew_param(name: &str) -> Option<String> {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static TABLE: OnceLock<HashMap<String, String>> = OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        let mut map = HashMap::new();
+        map.insert(
+            "body".to_string(),
+            "גוף (הטקסט שבסוגריים המרובעים)".to_string(),
+        );
+        // `#let _en_params = (` … `)`, one `english: "עברית",` per entry.
+        if let Some(rest) = crate::PRELUDE
+            .split_once("#let _en_params = (")
+            .map(|(_, r)| r)
+        {
+            let table_text = rest.split_once("\n)").map_or(rest, |(t, _)| t);
+            for entry in table_text.split(',') {
+                let Some((k, v)) = entry.split_once(':') else {
+                    continue;
+                };
+                let k = k.trim().trim_start_matches("//").trim();
+                let v = v.trim();
+                if k.is_empty() || k.contains(char::is_whitespace) {
+                    continue;
+                }
+                if let Some(heb) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+                    map.entry(k.to_string()).or_insert_with(|| heb.to_string());
+                }
+            }
+        }
+        map
+    });
+    table.get(name).cloned()
+}
+
 /// Both halves of a rephrasing: what the writer reads, and what it is about.
 struct Said {
     message: String,
@@ -546,8 +596,89 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
         }
     }
 
+    // ------------------------------------------------- a missing argument
+    //
+    // Before the generic `expected` catch-all, and named rather than generic,
+    // because Typst says exactly which parameter is missing and that is the
+    // most useful sentence available. `#סימן[א׳]` is the case: one bracket
+    // where the command takes two, which is what somebody typing a kuntres
+    // does the first time they write a siman by hand.
+    if let Some(param) = raw.strip_prefix("missing argument: ") {
+        let param = param.trim();
+        let he_param = hebrew_param(param).unwrap_or_else(|| param.to_string());
+        let (he_which, en_which) = match about.as_deref() {
+            Some(c) => (format!("לפקודה {c}"), c.to_string()),
+            None => ("לפקודה כאן".into(), "the command here".into()),
+        };
+        return Said {
+            message: format!(
+                "{he_which} חסר ארגומנט: {he_param} — הוסיפו אותו בסוגריים מרובעים אחרי מה שכבר כתוב · \
+                 {en_which} is missing an argument: {param} — add it in square brackets after what is already there"
+            ),
+            about,
+            did_you_mean,
+        };
+    }
+
     // ------------------------------------------------------------- the families
-    let message = if lower.contains("unclosed delimiter") {
+    let message = if lower.contains("unclosed string") {
+        // **The Hebrew failure.** `"` is the gershayim key: רש״י, שו״ע, רמב״ם.
+        // Inside `[…]` it is an ordinary character; inside `(…)` Typst is in
+        // code mode and it opens a *string*, which then swallows the rest of
+        // the document. So the writer sees an error for a punctuation mark they
+        // use in every other word, and *"unclosed string"* — which is what
+        // reached them until this branch existed — names a concept they have
+        // never used and gives them nothing to do about it.
+        "מרכאות נפתחו ולא נסגרו — בתוך סוגריים עגולים ( ) מרכאות פותחות מחרוזת. \
+         לגרשיים בתוך טקסט (רש״י, שו״ע) השתמשו ב־״ או כתבו את הטקסט בתוך סוגריים מרובעים [ ] · \
+         A quote mark was opened and never closed — inside round brackets ( ) a \" starts a string. \
+         For gershayim inside text (רש״י, שו״ע) use ״ or put the text in square brackets [ ]"
+            .to_string()
+    } else if lower.starts_with("label `") && lower.contains("does not exist") {
+        // A ref pointing at a marker nobody wrote. Name it: the content of the
+        // message is *which* label, and Typst already says it.
+        let name = raw
+            .split('`')
+            .nth(1)
+            .map(|s| s.trim_matches(|c| c == '<' || c == '>').to_string())
+            .unwrap_or_default();
+        format!(
+            "ההפניה @{name} מצביעה על תווית שאינה קיימת במסמך — הוסיפו <{name}> במקום שאליו ההפניה מכוונת, או תקנו את האיות · \
+             The reference @{name} points at a label that is not in the document — add <{name}> where it should point, or fix the spelling"
+        )
+    } else if lower.starts_with("module `") && lower.contains("does not contain") {
+        let mut ticks = raw.split('`').skip(1).step_by(2);
+        let module = ticks.next().unwrap_or("").to_string();
+        let member = ticks.next().unwrap_or("").to_string();
+        format!(
+            "אין {member} בתוך {module} — בדקו את האיות, או השתמשו בפקודה עברית במקומו · \
+             There is no {member} in {module} — check the spelling, or use a Ksav command instead"
+        )
+    } else if lower.contains("index out of bounds") {
+        "ביקשתם איבר שאינו קיים ברשימה — הרשימה קצרה מהמספר שנתתם · \
+         You asked for an item that is not in the list — the list is shorter than the number you gave"
+            .to_string()
+    } else if lower.starts_with("cannot ") {
+        // `cannot add function and integer`, `cannot compare …`. Typst names
+        // its own types on both sides; `type_said` already knows how to say
+        // those, and the verb is legible either way. Typst's sentence is
+        // carried in the tail rather than dropped, because this family is the
+        // one where the writer is genuinely in code and the original helps.
+        let named: Vec<String> = raw
+            .split_whitespace()
+            .filter_map(|w| type_said(w.trim_matches(|c: char| !c.is_ascii_alphabetic())))
+            .map(|(he, _)| he.to_string())
+            .collect();
+        let he_kinds = if named.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", named.join(" ו"))
+        };
+        format!(
+            "לא ניתן לבצע את הפעולה הזאת על הערכים שנתתם{he_kinds} — בדקו מה מוצב כאן · \
+             That operation cannot be done on these values — check what is being put here ({raw})"
+        )
+    } else if lower.contains("unclosed delimiter") {
         "יש סוגר שלא נסגר — ודאו שלכל [ יש ] ולכל ( יש ) · \
          A bracket isn't closed — make sure every [ has a ] and every ( has a )"
             .to_string()
@@ -787,11 +918,35 @@ mod tests {
         assert_eq!(enclosing_command("#א(1) then", 8), None);
     }
 
+    /// A unit test of the table, and **not the fence** — the distinction cost
+    /// six families.
+    ///
+    /// This walks a hand-written list of raw strings, every one of which the
+    /// rephraser already handles, so it cannot go red for a message the
+    /// rephraser does *not* handle: such a message is not in the list. It was
+    /// green while `unclosed string`, `missing argument: …`, `label … does not
+    /// exist`, `array index out of bounds`, `cannot add …` and `module … does
+    /// not contain …` all reached the writer in Typst's own English — the first
+    /// of them produced by typing רש״י inside round brackets, which is a
+    /// gershayim, which is the key a Hebrew writer presses in every other word.
+    ///
+    /// The fence is `tests/diagnostics_corpus.rs`: twenty-five documents that
+    /// really fail, compiled by the real engine, asserting that what the writer
+    /// reads is bilingual and is never Typst's own sentence. Keep this one — it
+    /// is cheap and it localises a break in the table itself — but do not
+    /// mistake it for coverage.
     #[test]
     fn every_rephrasing_is_bilingual() {
         let raws = [
             "unknown variable: הדגשא",
             "unclosed delimiter",
+            "unclosed string",
+            "missing argument: כותרת",
+            "missing argument: body",
+            "label `<אין_כזה>` does not exist in the document",
+            "module `calc` does not contain `div`",
+            "array index out of bounds (index: 9, len: 2)",
+            "cannot add function and integer",
             "maximum grouping depth exceeded",
             "expected string, found content",
             "unknown font family: Nope",

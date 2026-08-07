@@ -552,10 +552,17 @@ apart. The table snippet is written out three times (`commands.rs:102`, `main.ts
 - **The fence's marker list is six Hebrew literals** (`notepaths.test.mjs:95`) — no English
   spellings, no side/stream/margin command, not `#מראה_מקום`. The hole is exactly the shape of
   what was not being fixed the day it was written.
-- **Five parsers of `commands.rs`** inside the test tooling alone (`emit-engine.mjs:165`,
-  `emit-insertion-fixtures.mjs:101`, `coverage.test.mjs:31`, `docfacts.mjs:91`, `card.mjs:78`),
-  two of which are regex-based and therefore silently wrong today on any snippet with an escaped
-  quote — such as `"#צבע(rgb(\"#b91c1c\"))[|]"`, which the fifth parser has a comment about.
+- **Seven readers of `commands.rs`**, four distinct implementations, and they *already disagree
+  about how many commands exist.* `coverage.test.mjs:37` and `notecommands.test.mjs:51` are
+  **byte-identical** 200-character regexes. `emit-insertion-fixtures.mjs:106` is the same regex
+  minus one group. `docfacts.mjs:91` and `card.mjs:83` are both the naive `/^\s*cmd!\(/gmu` — and
+  that one counts **`commands.rs:39`, the macro's own recursive expansion**, as a command. So the
+  structured parsers see **115** and the counters see **116**, and since `docfacts.mjs` is the
+  fence that guards counted claims, the wrong number is the enforced one:
+  `ksav/README.md:313`, `ksav/README.md:346` and `docs/start-here.md:44` all say **116 commands**.
+  There are 115. *(Correction to an earlier draft of this report: the structured regexes handle
+  escaped quotes correctly — all 24 rows containing `\"` match. The divergence runs the other way,
+  and it is in the naive counters.)*
 
 **The change.** `ACTIONS` entries that insert a registry command carry `command: "רשימה"` instead
 of a snippet string, and `run` becomes `insertSnippet(runtime.commandByName(id)!.insert)` — a
@@ -719,12 +726,19 @@ sits inside `if (!fail)`. `coverage.test.mjs:102-108` does `ok(…, !!filter)` a
 Then the mirror. This region contains the best "one want, satisfied once" enforcement in the
 repository — `enginefacts.test.mjs`'s prohibition sweep, `runner.test.mjs`'s *executed* exemptions
 (it builds `wasm-worker.ts` and fails if it **succeeds**), `chrome.test.mjs`'s absence-only
-regexes. It applies none of them to itself: five parsers of `commands.rs`, four copies of one
-esbuild helper, three hand-rolled DOMs, one comment paragraph copy-pasted verbatim into three
-generators, and **23 copies of a path expression sitting beside `SRC_DIR` — an export written to
-prevent exactly that, which nothing imports.** The hand-rolled version doesn't decode
-percent-escapes, so a checkout under a path with a space breaks all 23. The sweeps read `src/`.
-They have never looked in `test/`.
+regexes. It applies none of them to itself: seven readers of `commands.rs` in four
+implementations, two of them byte-identical; four copies of one esbuild helper; three hand-rolled
+DOMs; one comment paragraph copy-pasted verbatim into three generators; and **24 copies of a path
+expression against 6 correct uses of `fileURLToPath`, sitting beside `SRC_DIR` — an export written
+to prevent exactly that, which nothing imports.** The hand-rolled version doesn't decode
+percent-escapes, so a checkout under a path with a space breaks all 24.
+
+**And this is not a hygiene complaint — one of those duplications is wrong on a user-facing page
+right now.** See §8: the two naive `cmd!` counters include the macro's own recursion, so the
+enforced command count is 116 and the registry holds 115.
+
+The sweeps read `src/`. They have never looked in `test/` or `tools/`, which is precisely where
+the duplication that survived is living.
 
 **Cheap wins, ranked:** fold the six spawns into one process (~40 lines, halves the inner loop);
 `process.argv` filter (~6 lines, makes single-file runs possible at all); `try/catch` around

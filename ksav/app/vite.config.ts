@@ -37,12 +37,32 @@ const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 // `npm run dev`. In production the bundle is external, same-origin scripts.
 const CSP = readFileSync(here("../policy/csp.txt"), "utf8").trim();
 
+// Where the built app will actually be reachable from, if anywhere.
+//
+// Empty by default, and that is the honest default: for most of this project's
+// life there was no host at all — no `gh-pages`, no Netlify, no deploy job —
+// while `main.ts` handed out share links naming `https://ksav.app/`, a domain
+// that appears nowhere else in this repository. A "link copied" toast over a
+// link to nothing is worse than a refusal, so an unset base now *is* a refusal,
+// in words, in both languages.
+//
+// `deploy.yml` sets it to the Pages URL it is publishing to, which is also
+// where `base` below has to point: a project Pages site lives under `/ksav/`,
+// so every asset URL in the built HTML needs that prefix or the page loads a
+// blank body and a fistful of 404s.
+const publicBase = (process.env.VITE_PUBLIC_BASE ?? "").trim();
+const assetBase = publicBase ? new URL(publicBase).pathname : "/";
+
 export default defineConfig({
+  base: assetBase,
   define: {
     __WASM__: JSON.stringify(wasm),
     // Baked from package.json so there is one version number in the repository
     // and the running app can compare itself against a release.
     __APP_VERSION__: JSON.stringify(pkgVersion),
+    // The absolute URL a share link should name, or "" when nothing hosts this
+    // build. See `copyShareLink`.
+    __PUBLIC_BASE__: JSON.stringify(publicBase),
   },
   plugins: [
     {

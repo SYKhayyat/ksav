@@ -18,13 +18,34 @@
 // is what makes the browser treat this as a new worker at all, so taking the
 // cache name from the same place means a release can never reuse the previous
 // release's cache.
+//
+// A **module** worker, registered with `{ type: "module" }`, so the rule for
+// what may be cached can live in `sw-cache.js` and be imported by a test rather
+// than only by a browser. That is not tidiness: the bug this file used to have
+// — caching `/inbox`, a draining queue polled once a second, and replaying the
+// same arrival into the document forever — was invisible precisely because
+// nothing here could be run outside a browser. See `sw-cache.js`.
+
+import { isCacheable, withinScope } from "./sw-cache.js";
 
 const VERSION = new URL(self.location).searchParams.get("v") || "dev";
 const CACHE = `ksav-${VERSION}`;
 
+/**
+ * Where this worker lives, as a path — `/` under `ksav serve`, `/ksav/` when
+ * the app is published to GitHub Pages out of a repository of that name.
+ *
+ * Everything below is written relative to it. The shell used to be three rooted
+ * literals, which is correct on exactly one of the two hosts Ksav has: on a
+ * project Pages site `/index.html` is somebody else's index, and the install
+ * would have cached a 404 as the offline shell.
+ */
+const SCOPE = new URL(self.registration.scope).pathname;
+const at = (rel) => new URL(rel, self.registration.scope).pathname;
+
 // The shell, fetched on install so the very first offline load has something to
 // open. Everything else arrives through `fetch` below as it is used.
-const SHELL = ["/", "/index.html", "/manifest.webmanifest"];
+const SHELL = [at("."), at("index.html"), at("manifest.webmanifest")];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -70,15 +91,23 @@ self.addEventListener("fetch", (event) => {
         try {
           const fresh = await fetch(request);
           const cache = await caches.open(CACHE);
-          cache.put("/index.html", fresh.clone());
+          cache.put(at("index.html"), fresh.clone());
           return fresh;
         } catch {
-          return (await caches.match("/index.html")) ?? Response.error();
+          return (await caches.match(at("index.html"))) ?? Response.error();
         }
       })(),
     );
     return;
   }
+
+  // An engine service is not an asset. Left entirely alone — not cached, not
+  // read from the cache, not even wrapped — so `/inbox` and its siblings behave
+  // exactly as they do with no worker installed at all. Anything the worker
+  // cannot prove is a static file goes the same way; see `sw-cache.js` for why
+  // the rule is stated as "what an asset looks like" rather than as a list of
+  // things to skip.
+  if (!isCacheable(withinScope(url.pathname, SCOPE))) return;
 
   // Everything else is cache-first. Vite's assets carry a content hash in their
   // name, so a hit is by construction the right bytes — and the 9 MB wasm chunk

@@ -180,6 +180,94 @@ export async function run() {
     check("no policy is spelled out in the config", vite.includes("default-src"), false);
   }
 
+  // ------------------------------------ nor does the offline cache guess
+  //
+  // The fourth transport, and the one nobody counted: a service worker sitting
+  // in front of all of them. It was cache-first for every same-origin GET that
+  // was not a navigation, and `HttpBackend.ask` is a plain `fetch` GET — so on
+  // `ksav serve` the worker cached `/inbox`, which is a queue that *drains when
+  // it is read*. The first poll carrying a source from Girsa was replayed on
+  // every poll after it, once a second, each one inserting that source into the
+  // open document again.
+  //
+  // It is asserted here rather than in a file of its own because the bug was
+  // not a caching bug. It was the same drift this whole file is the fence for:
+  // a fifth place that had to know what a service is, and did not.
+  {
+    const { isCacheable, withinScope } = await import("../public/sw-cache.js");
+
+    // Two hosts, one rule. `ksav serve` puts the engine at the origin root; a
+    // project Pages site puts the whole app under `/ksav/`. The registry is
+    // written in rooted paths, so a comparison that skipped this step would be
+    // asking about the wrong string on one of the two — and it is the *Pages*
+    // one where a worker is installed at all.
+    check("at the root, a path is itself", withinScope("/inbox", "/"), "/inbox");
+    check("under a subpath, the prefix comes off", withinScope("/ksav/inbox", "/ksav/"), "/inbox");
+    check("assets too", withinScope("/ksav/assets/a.js", "/ksav/"), "/assets/a.js");
+    check("the scope root is the app root", withinScope("/ksav/", "/ksav/"), "/");
+    // A scope GitHub hands over without its trailing slash must not eat a
+    // character off the path it is stripped from.
+    check("a scope without its slash still works", withinScope("/ksav/inbox", "/ksav"), "/inbox");
+    // And the composition, which is the thing that actually has to hold.
+    check(
+      "a service under a subpath is still refused",
+      isCacheable(withinScope("/ksav/inbox", "/ksav/")),
+      false,
+    );
+    ok(
+      "an asset under a subpath is still cached",
+      isCacheable(withinScope("/ksav/assets/index-a1b2.js", "/ksav/")),
+    );
+
+    // The bug, stated as a test. Every service, not just the one that hurt.
+    for (const s of SERVICES) {
+      check(`the cache refuses ${s.path}`, isCacheable(s.path), false);
+    }
+    // And the one that hurt, named, so a regression reads as itself.
+    check("a drained queue is never replayed from cache", isCacheable("/inbox"), false);
+
+    // The rule is closed by default: a service added to `services.rs` tomorrow
+    // is refused before anybody edits the worker. This is that claim, driven
+    // with a path that is in no registry anywhere.
+    check("an unknown bare path is refused too", isCacheable("/not-a-service-yet"), false);
+    check("a dot in a directory is not an extension", isCacheable("/v1.2/inbox"), false);
+
+    // The second lock, driven on its own. Every path in the registry today is
+    // a bare word, so the shape rule above refuses all of them and the registry
+    // check never fires — verified by disabling it, which left every assertion
+    // in this block green. So the registry is injected here, holding the one
+    // shape that would slip past the shape rule: a service that looks like a
+    // file. If the engine is ever given `/state.json`, this is what refuses it.
+    check(
+      "a service that looks like a file is refused by the registry",
+      isCacheable("/state.json", new Set(["/state.json"])),
+      false,
+    );
+    ok(
+      "and the same path is cacheable when it is not a service",
+      isCacheable("/state.json", new Set()),
+    );
+
+    // Which would be a worthless rule if it refused the assets as well — the
+    // 9 MB wasm chunk is the entire reason there is a worker.
+    ok("hashed assets are still cached", isCacheable("/assets/index-a1b2c3.js"));
+    ok("the wasm module is still cached", isCacheable("/assets/ksav_wasm_bg-9f8e.wasm"));
+    ok("the icon is still cached", isCacheable("/icons/icon-128.png"));
+    ok("the manifest is still cached", isCacheable("/manifest.webmanifest"));
+
+    // The worker's copy of the registry is generated, like the app's. A
+    // hand-written list here would be the sixth place to forget a service.
+    const sw = await readFile(path.join(APP, "public", "sw.js"), "utf8");
+    ok("the worker imports the rule rather than restating it", sw.includes("./sw-cache.js"));
+    check("the worker spells no service path of its own", /"\/(?:inbox|compile|spell)"/.test(sw), false);
+    const rule = await readFile(path.join(APP, "public", "sw-cache.js"), "utf8");
+    ok("the rule reads the generated registry", rule.includes("./sw-services.gen.js"));
+    // A module worker, or the import above is a syntax error in the browser and
+    // the whole worker fails to install.
+    const mainTs = await readFile(path.join(APP, "src", "main.ts"), "utf8");
+    ok("it is registered as a module worker", /register\([^)]*\{\s*type:\s*"module"\s*\}/s.test(mainTs));
+  }
+
   // ------------------------------------------------- and neither do the docs
   //
   // The README's API section was a fourth copy of the list, and it had the same

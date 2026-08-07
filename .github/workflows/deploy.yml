@@ -1,0 +1,132 @@
+# Publish the in-browser build, so that there is somewhere for it to be.
+#
+# Ksav ships four ways, and one of them — the wasm build, the whole no-server,
+# no-account, works-on-the-bus path — had no host. Not "the host was down":
+# there was no `gh-pages` branch, no Netlify, no Vercel, no deploy job at all.
+# `.github/workflows/` was `ci.yml` and `release.yml`.
+#
+# Two things were built against that host anyway and could not have worked:
+#
+#   - the service worker and the manifest, which are the entire difference
+#     between a web page and an installable app, and which only a hosted origin
+#     can ever register; and
+#   - share-by-URL, where a desktop build's link named `https://ksav.app/`, a
+#     domain that appears nowhere else in this repository.
+#
+# So this file is the missing half of both. `VITE_PUBLIC_BASE` is the URL being
+# published to and it reaches the app twice: as Vite's `base`, so the asset URLs
+# in the built HTML carry the `/ksav/` prefix a project Pages site serves under,
+# and as `__PUBLIC_BASE__`, which is what a share link names. One value, so a
+# link can never point somewhere the app is not.
+#
+# # Why tags and not every push
+#
+# A share link carries a *document*, and it opens in whatever app is at the far
+# end. Publishing on every push to main would mean a link sent on Tuesday opens
+# in Thursday's half-finished editor. Tags are already the explicit act of
+# saying "this one is fit to hand to somebody", which is exactly the same
+# judgement, so the hosted copy tracks releases and `workflow_dispatch` is there
+# for when you want to push a fix out without cutting one.
+#
+# # Before the first run
+#
+# GitHub Pages must be enabled for the repository with **Source: GitHub
+# Actions** (Settings → Pages). This job deliberately does not enable it for
+# you: turning a private-by-default repository's contents into a public website
+# is not a thing a build script should decide, and `actions/configure-pages`
+# will fail here with a clear message until somebody has decided it.
+
+name: deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Least privilege, and the three Pages needs. `contents: read` is the default
+# for everything else in this repository and stays that way.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one in flight: a half-published site is
+# a broken site, which is not true of a half-run test job.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build the offline bundle
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the URL being published to
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/wasm -> target"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      - uses: jetli/wasm-pack-action@v0.4.0
+
+      # The same build `ci.yml` already proves works, published rather than
+      # discarded. If this step ever diverges from that one, the site is not the
+      # thing that was tested.
+      - name: Build the wasm engine
+        working-directory: ./ksav/wasm
+        run: wasm-pack build --target web --release --out-dir pkg
+
+      - name: Install
+        working-directory: ./ksav/app
+        run: npm ci
+
+      - name: Bundle
+        working-directory: ./ksav/app
+        env:
+          VITE_PUBLIC_BASE: ${{ steps.pages.outputs.base_url }}
+        run: |
+          mkdir -p src/wasmpkg
+          cp ../wasm/pkg/ksav_wasm.js ../wasm/pkg/ksav_wasm.d.ts src/wasmpkg/
+          cp ../wasm/pkg/ksav_wasm_bg.wasm ../wasm/pkg/ksav_wasm_bg.wasm.d.ts src/wasmpkg/
+          npm run build:wasm
+
+      # Pages has no rewrite rules, so a reload on any path that is not a real
+      # file 404s. Ksav puts the whole document in the fragment and never routes
+      # on the path, so this is only reached by a mistyped URL — but a copy of
+      # index.html under that name is what turns it into the app saying "no such
+      # document" instead of GitHub saying "no such page".
+      - name: Fall back to the app for unknown paths
+        working-directory: ./ksav/app
+        run: cp dist/index.html dist/404.html
+
+      # `.nojekyll`, or Pages silently drops every directory beginning with an
+      # underscore. Vite does not emit one today; a dependency that does would
+      # break the site in a way that is very hard to see from here.
+      - name: Disable Jekyll
+        run: touch ./ksav/app/dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./ksav/app/dist
+
+  deploy:
+    name: publish
+    needs: build
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

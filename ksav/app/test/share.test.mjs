@@ -94,9 +94,49 @@ export function run() {
         for (const b of chunk) noise += String.fromCharCode(32 + (b % 95));
       }
       const huge = { title: "t", body: noise };
-      const link = await shareLink("https://ksav.app/", huge);
+      const link = await shareLink("https://example.invalid/", huge);
       ok(`an enormous document is refused (${link.length} chars)`, link.tooLong);
       ok("…and the limit is the stated one", link.length > TOO_LONG);
+    }
+
+    // -------------------------------------------------- and a base that exists
+    //
+    // This module was never the problem: it takes the base as an argument
+    // precisely so it cannot invent one. Its caller invented one. `main.ts`
+    // read `"https://ksav.app/"` for every desktop and `file:` build — a domain
+    // with no deploy job, no workflow and no mention anywhere else in this
+    // repository — and reported "Link copied" over it.
+    //
+    // The base now comes from `__PUBLIC_BASE__`, which `deploy.yml` sets to the
+    // URL it actually published to, and an empty one is a refusal rather than a
+    // guess. These are the assertions that stop a literal creeping back: a host
+    // named in source is not checkable by anything else, which is exactly how
+    // the last one survived.
+    {
+      const { readFile } = await import("node:fs/promises");
+      const pathMod = await import("node:path");
+      const HERE = pathMod.dirname(
+        new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
+      );
+      const main = await readFile(pathMod.join(HERE, "..", "src", "main.ts"), "utf8");
+      const shareFn = main.slice(main.indexOf("async function copyShareLink"));
+      const body = shareFn.slice(0, shareFn.indexOf("\n}\n"));
+      check(
+        "the share link names no host of its own",
+        /(?<!\/\/[^\n]*)https?:\/\/[a-z]/.test(body.replace(/^\s*\/\/.*$/gm, "")),
+        false,
+      );
+      ok("it reads the base the build was published to", body.includes("__PUBLIC_BASE__"));
+      ok("and refuses when there is not one", body.includes("shareNoHost"));
+
+      // The other half: a build with no host must still be buildable, so the
+      // constant has to be defined unconditionally rather than only in CI.
+      const vite = await readFile(pathMod.join(HERE, "..", "vite.config.ts"), "utf8");
+      ok("the build always defines it", vite.includes("__PUBLIC_BASE__"));
+      ok("it comes from the environment", vite.includes("VITE_PUBLIC_BASE"));
+      // And it is the *same* value the assets are built against, or a link can
+      // point at a copy of the app that is not there.
+      ok("the asset base is derived from it", vite.includes("new URL(publicBase).pathname"));
     }
   })();
 }

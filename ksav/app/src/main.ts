@@ -3266,13 +3266,24 @@ async function importWord() {
  * rides on the URL because a *changed URL* is what makes a browser treat this as
  * a new worker at all — and the worker takes its cache name from the same place,
  * so a release can never reuse the previous release's cache.
+ *
+ * `type: "module"` because the worker imports its caching rule and the engine's
+ * generated service paths. That import is the fix for the worst bug this file
+ * ever had: the worker was cache-first for every same-origin GET, `/inbox` is a
+ * queue that drains when it is read, and the first arrival it cached was the
+ * same arrival inserted into the document once a second thereafter. A worker
+ * that cannot tell an engine service from a stylesheet should not be deciding
+ * what to keep, so now it is told, from the one registry in `services.rs`.
  */
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (runtime.backend?.kind === "desktop") return;
   if (!import.meta.env.PROD) return;
   void navigator.serviceWorker
-    .register(`/sw.js?v=${update.CURRENT_VERSION}`)
+    // `BASE_URL`, not `/`: on a project Pages site the app is served from
+    // `/ksav/`, and a worker registered at the origin root would be refused —
+    // a worker's scope cannot be broader than its own URL's directory.
+    .register(`${import.meta.env.BASE_URL}sw.js?v=${update.CURRENT_VERSION}`, { type: "module" })
     .catch(() => {
       // Offline support is a bonus; failing to install it is not something to
       // interrupt a writer over, and every other consequence of a broken
@@ -3311,12 +3322,24 @@ async function openSharedIfLinked() {
 async function copyShareLink(forReview: boolean) {
   closeMenus();
   await flushSaves();
-  // A desktop build has no useful URL of its own, so the link names the hosted
-  // copy rather than a `tauri://localhost` that works on one machine.
-  const base =
-    runtime.backend?.kind === "desktop" || location.protocol === "file:"
-      ? "https://ksav.app/"
-      : location.href;
+  // A desktop build has no useful URL of its own — `tauri://localhost` works on
+  // precisely one machine — so the link has to name the hosted copy. Which
+  // means there has to *be* one. This read `"https://ksav.app/"`, a literal
+  // that appeared nowhere else in the repository: no deploy job, no workflow,
+  // no DNS, nothing. Every reviewer link a desktop build ever produced pointed
+  // at a host that has never existed, under a status line saying "Link copied".
+  //
+  // `__PUBLIC_BASE__` is what `deploy.yml` actually published to, or empty.
+  // Empty is a refusal, not a fallback: a link that nearly works is the failure
+  // mode this whole feature was written to avoid (see `share.TOO_LONG`), and a
+  // link to a dead host does not even nearly work.
+  const hosted = __PUBLIC_BASE__;
+  const local = runtime.backend?.kind === "desktop" || location.protocol === "file:";
+  if (local && !hosted) {
+    setStatus(t("shareNoHost"), "err");
+    return;
+  }
+  const base = local ? hosted : location.href;
   const link = await share.shareLink(base, {
     title: runtime.currentDoc?.title ?? "",
     body: runtime.docText(),

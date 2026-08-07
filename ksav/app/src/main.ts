@@ -853,6 +853,15 @@ function makeEditor(): EditorView {
       // swallows whole tables.
       EditorState.languageData.of(() => [{ closeBrackets: { brackets: ["(", "[", "{", "$"] } }]),
       search({ top: true }),
+      // The hydra is *not* here, and that is the fix rather than an omission.
+      // It was `Prec.highest(keymap.of(hydraKeymap()))` a dozen lines below,
+      // under a comment claiming it was "ahead of everything, including the
+      // mode keymaps". It was not, and no position in this array could have
+      // made it so: `@replit/codemirror-vim` handles keys from a **ViewPlugin
+      // event handler** (`vimPlugin`, `keydown`), and a plugin's DOM handlers
+      // run before the `keymap` facet regardless of precedence. See
+      // `captureHydraKeys`, which owns the keyboard by actually being first.
+      //
       // Vim / Emacs, when one is chosen. Deliberately *before* the shortcut
       // keymap: both are Prec.highest and CodeMirror breaks that tie by array
       // order, so the mode gets first refusal on every key. See `keymodes.ts`
@@ -868,9 +877,6 @@ function makeEditor(): EditorView {
       // bullet and Tab indents it, exactly as in Word and every outliner. They
       // fall through untouched everywhere else, so Enter is still Enter in
       // ordinary prose.
-      // Ahead of everything, including the mode keymaps: while a hydra is up it
-      // owns the keyboard.
-      Prec.highest(keymap.of(hydraKeymap())),
       structureCompartment.of(Prec.high(keymap.of(structureKeymap()))),
       keymap.of([
         ...closeBracketsKeymap,
@@ -3709,6 +3715,12 @@ function openHydra() {
     return;
   }
   openHydraState = hydra.hydraFor(kind, settings.hydraKeys ?? {});
+  // Capture phase, on `window`, so the hydra genuinely gets the key before the
+  // vim and emacs plugins do. See `captureHydraKeys` for why no arrangement of
+  // the editor's extensions could achieve that. Removed by the panel's own
+  // `close` hook, which is the one path every way of closing goes through —
+  // the ×, the backdrop, Escape, and `closePanel` alike.
+  window.addEventListener("keydown", captureHydraKeys, true);
   renderHydra();
 }
 
@@ -3777,31 +3789,56 @@ function runHydraEntry(entry: hydra.HydraEntry) {
 }
 
 /**
- * The hydra's keys, while it is open.
+ * The hydra's keys, while it is open — on `window`, in the capture phase.
  *
- * At the very front of the keymap and swallowing every plain letter, because a
- * transient keymap that let `r` through to the document would type an `r` into
- * the table it was meant to add a row to.
+ * Swallowing every plain letter, because a transient keymap that let `r`
+ * through to the document would type an `r` into the table it was meant to add
+ * a row to. That much was always true. What was not true was *where* it sat.
+ *
+ * This was a `Prec.highest(keymap.of(…))` entry in the editor's extensions,
+ * under a comment saying it was ahead of the vim and emacs keymaps. Driven in a
+ * browser with vim mode on, it was not: open a list hydra, press the `a` its own
+ * legend offers for "new item", and vim goes to INSERT instead. Press `b` and
+ * the caret moves back a word, leaves the list, and the structure watch closes
+ * the panel — eleven operations on screen with their keys beside them, and not
+ * one of them doing what it said. Escape did not close it either; vim took that
+ * to leave visual mode.
+ *
+ * No place in that array would have fixed it. `@replit/codemirror-vim` handles
+ * keys from a **ViewPlugin event handler** (`vimPlugin`'s `keydown`), and a
+ * plugin's DOM handlers run ahead of the whole `keymap` facet whatever its
+ * precedence. Precedence orders facet inputs against each other; it does not
+ * order a facet against a plugin.
+ *
+ * So the listener goes where being first is a property of the DOM rather than a
+ * hope about a library: `window`, capture phase, above the content element every
+ * one of those handlers is attached to. Installed when a hydra opens and removed
+ * when it closes, so there is nothing listening the rest of the time — which
+ * also means a mode gets every key exactly as it did before, because this is not
+ * there to be got past.
  */
-function hydraKeymap(): KeyBinding[] {
-  return [
-    {
-      any: (_view, event) => {
-        if (!openHydraState) return false;
-        if (event.key === "Escape" || event.key === "q") {
-          closeHydra();
-          return true;
-        }
-        // Let modified keys through: Mod-S while a hydra is up should still save.
-        if (event.ctrlKey || event.metaKey || event.altKey) return false;
-        if (event.key.length !== 1) return false;
-        const entry = hydra.entryFor(openHydraState, event.key);
-        if (!entry) return true; // swallowed: an unbound letter must not be typed
-        runHydraEntry(entry);
-        return true;
-      },
-    },
-  ];
+function captureHydraKeys(event: KeyboardEvent) {
+  if (!openHydraState) return;
+  const stop = () => {
+    event.preventDefault();
+    event.stopPropagation();
+    // `stopImmediatePropagation` as well: the point is that nothing else on the
+    // way down or back up sees this key, and vim's handler is on a descendant.
+    event.stopImmediatePropagation();
+  };
+  if (event.key === "Escape" || event.key === "q") {
+    stop();
+    closeHydra();
+    return;
+  }
+  // Let modified keys through: Mod-S while a hydra is up should still save.
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  // Tab, Enter, the arrows: not hydra keys, and swallowing them would trap the
+  // keyboard in a panel whose own × is reachable by Tab.
+  if (event.key.length !== 1) return;
+  const entry = hydra.entryFor(openHydraState, event.key);
+  stop(); // swallowed either way: an unbound letter must not be typed
+  if (entry) runHydraEntry(entry);
 }
 
 /** Perform one structural operation, wherever the caret is. */
@@ -5381,6 +5418,12 @@ function wirePanels() {
   wirePanel("hydra", {
     close: () => {
       openHydraState = null;
+      // Paired with `openHydra`'s `addEventListener`, and deliberately here
+      // rather than in `closeHydra`: this hook is what *every* way of closing
+      // the panel runs through — the ×, the backdrop, the Escape sweep and
+      // `closePanel` — so a capture listener on `window` cannot outlive the
+      // panel that installed it down some path nobody thought about.
+      window.removeEventListener("keydown", captureHydraKeys, true);
       runtime.view?.focus();
     },
   });

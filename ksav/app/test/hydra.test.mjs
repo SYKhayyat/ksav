@@ -115,4 +115,83 @@ export async function run() {
   notOk("nor does adding an item", closesAfter(byId["list.addItem"]));
 }
 
+// ------------------------------------------------- who actually gets the key
+//
+// Everything above tests that the keys are *generated* correctly. None of it
+// could have caught what was wrong, which is that in vim or emacs mode not one
+// of them did anything.
+//
+// The keys were a `Prec.highest(keymap.of(hydraKeymap()))` entry in the
+// editor's extensions, under a comment stating it was "ahead of everything,
+// including the mode keymaps". Driven in a browser with vim on: open a list
+// hydra, press the `a` the panel offers for "new item", and vim goes to INSERT.
+// Press `b` and the caret moves back a word, leaves the list, and the structure
+// watch closes the panel. Escape did not close it either — vim took that to
+// leave visual mode. Eleven operations on screen with their keys beside them,
+// and every one of them a lie.
+//
+// No position in that array could have fixed it: `@replit/codemirror-vim`
+// handles keys from a ViewPlugin event handler, and a plugin's DOM handlers run
+// ahead of the whole `keymap` facet whatever its precedence. Precedence orders
+// facet inputs against one another; it does not order a facet against a plugin.
+//
+// So these assertions are about *placement*, which is the thing that was wrong,
+// and they are read off the source because the alternative — importing
+// `main.ts` — boots the application (see `test/modules.mjs`).
+{
+  const { readFile } = await import("node:fs/promises");
+  const pathMod = await import("node:path");
+  const HERE = pathMod.dirname(
+    new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
+  );
+  const main = await readFile(pathMod.join(HERE, "..", "src", "main.ts"), "utf8");
+  // Comments stripped before the prohibition sweep, or the paragraph in
+  // `main.ts` explaining what the old arrangement was trips the test that
+  // forbids it. Every source-level prohibition in this suite has to do this;
+  // the one that did not was this one, on its first run.
+  const code = main.replace(/^\s*(?:\/\/|\*|\/\*).*$/gm, "");
+
+  // The bug, stated as a prohibition. A keymap entry cannot outrank a plugin,
+  // so putting the hydra back in one puts every key back to doing nothing.
+  check(
+    "the hydra's keys are not a keymap entry",
+    /keymap\.of\(\s*hydraKeymap\(\)\s*\)/.test(code),
+    false,
+  );
+  check("and `hydraKeymap` is gone entirely", code.includes("function hydraKeymap"), false);
+
+  // Where they are instead: `window`, capture phase — above the content element
+  // every one of those plugin handlers is attached to, so being first is a fact
+  // about the DOM rather than a hope about a library's internals.
+  ok(
+    "they are a capture-phase listener on window",
+    /window\.addEventListener\(\s*"keydown",\s*captureHydraKeys,\s*true\s*\)/.test(main),
+  );
+  ok(
+    "and it is removed again",
+    /window\.removeEventListener\(\s*"keydown",\s*captureHydraKeys,\s*true\s*\)/.test(main),
+  );
+
+  // The pairing is the part that rots. A capture listener on `window` that
+  // outlives its panel eats every keystroke in the application, so it must come
+  // off through the path *every* way of closing goes through — the ×, the
+  // backdrop, the Escape sweep and `closePanel` alike — which is the panel
+  // registry's own `close` hook, not `closeHydra`.
+  const wiring = main.slice(main.indexOf('wirePanel("hydra"'));
+  const hook = wiring.slice(0, wiring.indexOf("\n  });"));
+  ok("removed by the panel registry's close hook", hook.includes("removeEventListener"));
+  ok("beside the state it is paired with", hook.includes("openHydraState = null"));
+
+  // Modified keys are handed on rather than swallowed, or Mod-S stops saving
+  // the moment a panel is up.
+  const handler = main.slice(main.indexOf("function captureHydraKeys"));
+  const body = handler.slice(0, handler.indexOf("\n}\n"));
+  ok("modified keys are let through", /ctrlKey \|\| .*metaKey \|\| .*altKey\) return/.test(body));
+  ok("Escape closes the panel here, before a mode can take it", body.includes('"Escape"'));
+  // Keys with a name rather than a character — Tab, Enter, the arrows — are not
+  // hydra keys, and swallowing them would trap the keyboard in a panel whose
+  // own × is reachable by Tab.
+  ok("named keys are not swallowed", body.includes("event.key.length !== 1"));
+}
+
 }

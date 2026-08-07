@@ -802,6 +802,33 @@ thing that makes it reversible.
   -D warnings`, `tsc`, `cargo check` on the Tauri crate, and a production build —
   which covers the arithmetic and the wire and does not cover the pixels. Vim
   mode in particular has never had a key pressed in it.
+
+  > **Overtaken, 6 August 2026.** Both halves were wrong, and the second one was
+  > hiding a bug. The headless browser *does* reach loopback — as `localhost`,
+  > not `127.0.0.1` — so this bullet's premise had expired. And a key has now
+  > been pressed in vim mode. It found this: with vim or emacs on, **none of the
+  > hydra's keys did anything**. Press the `a` the panel offers for "new item"
+  > and vim went to INSERT; press `b` and the caret moved back a word, left the
+  > list, and the structure watch closed the panel. Escape did not close it
+  > either — vim took that to leave visual mode. Eleven operations on screen,
+  > each with its key printed beside it, and not one of them connected.
+  >
+  > The keys were a `Prec.highest` keymap entry under a comment claiming it sat
+  > "ahead of everything, including the mode keymaps". No position in that array
+  > could have made that true: `@replit/codemirror-vim` handles keys from a
+  > **ViewPlugin event handler**, and a plugin's DOM handlers run ahead of the
+  > whole `keymap` facet whatever its precedence. Precedence orders facet inputs
+  > against one another; it does not order a facet against a plugin. The keys
+  > are a capture-phase listener on `window` now, installed when a hydra opens
+  > and removed by the panel registry's own close hook — first by a fact about
+  > the DOM rather than by a hope about a library.
+  >
+  > Verified afterwards in a browser, both modes: `a` adds an item and vim stays
+  > in NORMAL, `a a a` adds three because staying open is the point, Escape
+  > closes the panel and not the mode, `Mod-S` still reaches the save, and with
+  > the panel shut vim gets every key back exactly as before. Which is the whole
+  > argument for `plan-notes-and-ui.md:165` restated: an hour of use beat three
+  > audits by six to nothing, and one keypress beat 3,528 assertions by one.
 - **The wasm module must be rebuilt** for `ksav_sefarim` to exist in the browser
   backend. The Rust is in; `wasm-pack build` is not part of a normal checkout.
 

@@ -34,6 +34,23 @@ export interface SharedDoc {
   dir?: "rtl" | "ltr";
   /** Set when the sender asked for comments back rather than for a read. */
   review?: boolean;
+  /**
+   * The writer's own `#let` definitions, and the page they set the document on.
+   *
+   * These carried in the `.ksav` file and not in the link, which is the whole
+   * defect: a document with one custom command produced **"Link copied ✓"** at
+   * this end and a compile error at the other, and a sefer set in two columns on
+   * B5 arrived as one column on A4 — silently, because a document that lays out
+   * differently still lays out.
+   *
+   * There are five definitions of "a document" in this application — the store
+   * record, the `.ksav` file, this link, the crash rescue and the library index —
+   * and the `.ksav` codec learned about these two (`docs.ts`) while the link did
+   * not. `shareTest` in `test/share.test.mjs` now holds them to the same list, so
+   * the next field to be added to one has to be added to both or go red.
+   */
+  customCommands?: string;
+  config?: Record<string, unknown>;
 }
 
 /** base64url — the URL-safe alphabet, and no padding to waste characters. */
@@ -76,11 +93,17 @@ async function inflate(bytes: Uint8Array): Promise<string> {
  * between a link that can be sent and one that cannot.
  */
 export async function encodeShare(doc: SharedDoc): Promise<string> {
+  // Single letters because every byte is a character of URL that a chat client
+  // may wrap. `c` and `s` are omitted entirely when absent rather than sent as
+  // `null`, which is what keeps a plain document's link exactly as short as it
+  // was before these two were carried at all.
   const json = JSON.stringify({
     t: doc.title,
     b: doc.body,
     d: doc.dir,
     r: doc.review ? 1 : undefined,
+    c: doc.customCommands?.trim() ? doc.customCommands : undefined,
+    s: doc.config && Object.keys(doc.config).length ? doc.config : undefined,
   });
   return "ksav=" + toBase64Url(await deflate(json));
 }
@@ -97,13 +120,25 @@ export async function decodeShare(fragment: string): Promise<SharedDoc | null> {
   if (!raw.startsWith("ksav=")) return null;
   try {
     const json = await inflate(fromBase64Url(raw.slice(5)));
-    const value = JSON.parse(json) as { t?: string; b?: string; d?: string; r?: number };
+    const value = JSON.parse(json) as {
+      t?: string;
+      b?: string;
+      d?: string;
+      r?: number;
+      c?: string;
+      s?: Record<string, unknown>;
+    };
     if (typeof value?.b !== "string") return null;
     return {
       title: typeof value.t === "string" ? value.t : "",
       body: value.b,
       dir: value.d === "ltr" ? "ltr" : "rtl",
       review: value.r === 1,
+      // Absent stays absent. A link made before these were carried must open as
+      // a document with no custom commands, not as one with an empty string of
+      // them — `""` and "none" are different instructions to the assembler.
+      ...(typeof value.c === "string" && value.c ? { customCommands: value.c } : {}),
+      ...(value.s && typeof value.s === "object" ? { config: value.s } : {}),
     };
   } catch {
     return null;

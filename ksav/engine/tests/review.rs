@@ -6,7 +6,7 @@
 //! on the paper in which view*.
 
 mod common;
-use common::{render, text};
+use common::text;
 
 use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;

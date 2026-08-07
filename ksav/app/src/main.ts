@@ -108,6 +108,7 @@ import {
   pendingUndo,
   PAGE_FIELDS,
   docConfig,
+  ownPageSetup,
 } from "./settings";
 import type { Settings, Layout, PreviewSide, PageSetup } from "./settings";
 import * as save from "./save";
@@ -3540,8 +3541,19 @@ async function openSharedIfLinked() {
   // `window.history`, not `history`: CodeMirror's undo extension is imported
   // under that name and shadows the global here.
   window.history.replaceState(null, "", location.pathname + location.search);
-  const doc = await docs.createDoc(shared.title || t("untitled"), shared.body);
-  if (shared.dir) await docs.rememberConfig(doc.id, { dir: shared.dir });
+  // The writer's own commands travel with the document, or the link produces a
+  // compile error at the far end for a document that compiles perfectly at this
+  // one. Same for the page it was set on: `docs.createDoc` takes both, and this
+  // was the one of the five definitions of "a document" that had not learned it.
+  const doc = await docs.createDoc(
+    shared.title || t("untitled"),
+    shared.body,
+    [],
+    shared.customCommands,
+    shared.config as never,
+  );
+  const setup = { ...(shared.config ?? {}), ...(shared.dir ? { dir: shared.dir } : {}) };
+  if (Object.keys(setup).length) await docs.rememberConfig(doc.id, setup as never);
   await openDoc(doc.id);
   setStatus(shared.review ? t("openedForReview") : t("openedFromLink"), "ok");
 }
@@ -3581,6 +3593,11 @@ async function copyShareLink(forReview: boolean) {
     body: runtime.docText(),
     dir: docConfig().dir,
     review: forReview,
+    // Everything a `.ksav` file carries, because a link is a document and the
+    // two had drifted: a `#let` of the writer's own, and the page setup this
+    // document was written on rather than whatever the reader's settings say.
+    customCommands: runtime.currentDoc?.customCommands ?? settings.customCommands,
+    config: ownPageSetup(runtime.currentDoc?.config) as unknown as Record<string, unknown>,
   });
   if (link.tooLong) {
     setStatus(tf("shareTooLong", Math.round(link.length / 1000)), "err");

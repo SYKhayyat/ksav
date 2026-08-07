@@ -39,6 +39,50 @@ export function run() {
       ok("the fragment is URL-safe", /^ksav=[A-Za-z0-9_-]+$/.test(fragment));
     }
 
+    // ------------------------------------------- everything a document is made of
+    //
+    // There are five definitions of "a document" in this application — the store
+    // record, the `.ksav` file, this link, the crash rescue and the library
+    // index — and they drift one field at a time. The `.ksav` codec learned that
+    // custom commands and page setup have to travel; the link did not. So a
+    // document with one `#let` of the writer's own produced **"Link copied ✓"**
+    // at one end and a compile error at the other, and a sefer set in two
+    // columns on B5 arrived as one column on A4 — silently, because a document
+    // that lays out differently still lays out.
+    {
+      const doc = {
+        title: "קונטרס",
+        body: "#שלי[א]",
+        dir: "rtl",
+        customCommands: "#let שלי(body) = strong(body)",
+        config: { columns: 2, paper: "b5", size_pt: 11 },
+      };
+      const back = await decodeShare("#" + (await encodeShare(doc)));
+      check("the writer's own commands travel", back.customCommands, doc.customCommands);
+      check("the page it was set on travels", back.config, doc.config);
+    }
+    {
+      // Absent stays absent. `""` and "no custom commands" are different
+      // instructions to the assembler, and a link made before these were carried
+      // must open as a document with none rather than one with an empty string
+      // of them.
+      const back = await decodeShare("#" + (await encodeShare({ title: "t", body: "ב" })));
+      check("a plain document carries no commands", back.customCommands, undefined);
+      check("…and no page setup", back.config, undefined);
+    }
+    {
+      // And they cost nothing when they are not there — the length limit is what
+      // this whole feature is fenced by, so a plain link must not have grown.
+      const plain = await encodeShare({ title: "t", body: "ב".repeat(2000) });
+      const withOwn = await encodeShare({
+        title: "t",
+        body: "ב".repeat(2000),
+        customCommands: "#let a = 1",
+      });
+      ok("carrying them is opt-in", withOwn.length > plain.length, `${plain.length} vs ${withOwn.length}`);
+      ok("…and a plain link is not paying for them", plain.length < 200, `${plain.length}`);
+    }
+
     // ------------------------------------------------------- what is not a link
     check("plain text is not a link", await decodeShare("#hello"), null);
     check("an empty fragment is not a link", await decodeShare(""), null);

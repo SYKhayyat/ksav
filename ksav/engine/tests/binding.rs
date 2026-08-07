@@ -286,6 +286,7 @@ fn pdf_of(cfg: &DocConfig) -> ksav_engine::Compiled {
         &ksav_engine::assets::Assets::default(),
         true,
         false,
+        &Default::default(),
     )
 }
 
@@ -495,6 +496,7 @@ fn rashi_script_falls_back_rather_than_failing() {
         &ksav_engine::assets::Assets::default(),
         false,
         false,
+        &Default::default(),
     );
     assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
     let runs = render("#כתב_רשי[ופירש רש״י שם]", &DocConfig::default());

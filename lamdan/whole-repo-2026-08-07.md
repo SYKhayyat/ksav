@@ -1143,6 +1143,89 @@ not something to rebuild per keystroke."* Four lines.
 
 ## 13. The hot paths nobody has walked
 
+> ### ✅ Fixed — 7 August 2026
+>
+> **The root under most of this list is one line: thirty-five call sites in
+> `src/` each did their own `doc.toString()`.** That is the obvious cost — a
+> dozen allocations and copies of a 200 KB document per keystroke — and it is not
+> the expensive half. `scan`'s four-slot cache and `structure.contextAt`'s single
+> slot both decide a hit with `===` on the text, and two strings with identical
+> content and different identities compare equal only after walking them. So a
+> dozen independent `toString()`s per keystroke turned **every memo probe in the
+> application** into a 200 KB `memcmp`. `spans.docTextOf` keys the string on
+> CodeMirror's immutable `Text`, so every probe is now a pointer compare.
+>
+> Item by item, in the order the section makes them:
+>
+> **`updateContextBar`.** `headings()` is memoised per scan, so `headingAt(doc,
+> pos)`'s default third argument is a lookup rather than a filter-and-map over
+> every node to set the value of a `<select>`. `keybindings()` is hoisted out of
+> the per-action loop — seventeen rebuilds of the whole map per caret move in a
+> table. And the ribbon is not rebuilt at all unless it would come out different:
+> a signature of the structure, the position readout and each action's enabled
+> state, which most caret moves do not change. Not debounced, deliberately — a
+> ribbon that arrives a fifth of a second after the caret is a worse product than
+> one that costs a little; it is cheap now instead of late.
+>
+> **The per-keystroke panes.** Outline, notes and review move to the same 200 ms
+> beat as the word count. `renderReviewPanel` destroying the focused
+> reviewer-name input on every keystroke was never a performance bug.
+>
+> **The whole-document replace.** `diff.minimalChange` gives the smallest
+> replacement that produces the new text, and six operations dispatch that
+> instead of `{from: 0, to: doc.length}`. The finding suggested returning
+> `{changes: […]}` from the producer; a prefix/suffix diff is better, because the
+> producers stay pure string→string — which is why they are testable — and it
+> fixes all six sites rather than the one. Loading a document still replaces
+> everything, which is correct: the folds *should* reset.
+>
+> **The fold service.** Walks the headings instead of the lines, via a per-scan
+> index of the headings that open one. **Folding had no test at all**, which is
+> how it came to be O(lines × nodes) unnoticed, so `test/fold.test.mjs` is new and
+> covers the behaviour as well: sections, nested regions, block comments, command
+> folds, and the mid-line heading that opens no section. Mutation-checked — the
+> original algorithm turns the cost assertion red at 83×.
+>
+> **Storage.** Asset bytes move to their own store keyed by content hash
+> (`DB_VERSION` 3), so autosave writes a document record of a few hundred bytes
+> instead of 5.5 MB of base64 that did not change; blobs are written before the
+> record that references them, and swept when a document is deleted. `rebuildIndex`
+> and the sweep read through a cursor rather than `getAll`, so producing a list of
+> titles no longer materialises every body and every image at once — on the
+> recovery path, which runs when the library is largest. `docBoundTo` reads every
+> binding in one transaction instead of one per library entry on every Open.
+>
+> **The apparatus.** `_ksav_is_real` ran two `.before()` queries per element and
+> `_ksav_real` called it per element. Both are gone: one query for the elements
+> *and* both bracket markers together — `query` returns them in document order —
+> walked once with a depth counter. Same rule, computed by counting instead of by
+> asking, and `_ksav_rank` is one query where it was `1 + 2k`. And
+> `מראה_מקומות` deduplicates through a dictionary rather than `x in array`, which
+> is what the source index twenty lines below it was already doing.
+>
+> **The benchmark that could not see any of it.** `bench-structure.mjs` is
+> rebuilt rather than deleted, and the two things that blinded it are worth
+> stating because they are general: 18 KB is one twenty-eighth of a real
+> document, and a benchmark that holds `doc` fixed measures memo *hits* forever
+> and never once measures typing. It now types into 9/37/148 KB seforim and
+> reports scan, the asks after it, the memo probe, the caret move and the fold at
+> the end of the document. Writing it turned up two ways a benchmark lies:
+> without a warm-up the **first row** reported a keystroke at 92 ms against a true
+> 30 ms, and `a + ch + b` on a long string builds a V8 cons string, so
+> concatenating measured the flattening as part of the scan and overstated the
+> keystroke by 40%. CodeMirror hands the scanner a flat string; the benchmark
+> uses `join`.
+>
+> **One correction to the section.** Its memo-probe measurement is right about
+> the mechanism and its own reproduction would have understated it: priming the
+> cache with an *insertion* gives strings of different lengths, and `===` on
+> those is a length check that returns immediately. It has to be a substitution.
+>
+> And a second copy of a schema fell out of this: `test/harness.mjs` opened the
+> database at a hard-coded version with a hard-coded list of stores, so adding one
+> failed every storage test with a `VersionError` about the harness. `store.ts`
+> exports `SCHEMA` now, and there is one statement of it.
+
 **Per arrow key, inside a table**, `updateContextBar` (`main.ts:3446`):
 
 1. `doc.toString()` — a fresh 200 KB string allocation and copy.
@@ -1396,7 +1479,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | 15 | ✅ **Fixed 7 Aug.** `/inbox` is a POST — draining is a write, and as a GET it was forgeable by `<img src>`, which sends no `Origin` and so could not have been stopped by any CORS rule. A cross-origin caller is now **refused** rather than served and denied the reply, which is the distinction that matters when the damage is done by the request. **The client half was left behind and nothing noticed for a day** — `api.ts` kept GETting it, the server answered 404, and the poll swallows a failure by design. Found by §1's acceptance run; the verb now comes from the registry like the path, and the fence that checked the URL checks the method too. | 10 | 2 | `rewrite` | ~40 lines |
 | 16 | ✅ **Fixed 7 Aug.** `compile_html` calls `engine_for` instead of carrying a copy of its body that had lost one line. | 10 | 3 | `rewrite` | 4 lines |
 | 17 | `docs/start-here.md:67` names the wrong key; the fence counts and the failures are qualitative. | 14 | 3 | `rewrite` | 6 chars + 25 lines |
-| 18 | Undebounced full-document work per arrow key; the fold service is O(lines × nodes). | 13 | 3 | `rewrite` | ~70 lines |
+| 18 | ✅ **Fixed 7 Aug.** One `doc.toString()` per document version instead of thirty-five call sites' worth, which is what turned every memo probe in the app into a 200 KB `memcmp`. Headings memoised per scan; `keybindings()` hoisted; the ribbon rebuilt only when it would differ; the three panes debounced; six whole-document dispatches replaced by a minimal change so a footnote stops discarding every open fold; the fold service walks headings, not lines. Asset bytes out of the document record, cursors instead of `getAll`, one transaction instead of one per library entry. The apparatus is one ordered query rather than `1 + 2k`. **Folding had no test at all** — that is how it stayed quadratic — and the rebuilt benchmark found two ways benchmarks lie. | 13 | 3 | `rewrite` | ~70 lines |
 | 19 | ✅ **Fixed 7 Aug.** One process instead of six, **14.2 s → 3.0 s** warm; `npm test -- panels`; a thrown file is contained and counted instead of killing the other sixty-one. `spell_en.rs` gets the `OnceLock` it was thirty lines from, 2.54 s → 1.0 s. No watch mode, deliberately. | 12 | 3 | `rewrite` | ~50 lines |
 | 20 | The prelude is a string; 76% of a compile is world construction. | 9 | 2 | `wrong-but-keep` | 1 week |
 | 21 | `logical_text` lies in the shipping library; `COMMAND_CATEGORY`, `bench-structure`, `readme.test` are dead. | 5 | 1 | `delete` | ~250 lines out |

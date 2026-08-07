@@ -473,7 +473,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,808 editor assertions, 418 engine
+- [x] **CI, running and green** — typecheck, 3,809 editor assertions, 420 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -650,10 +650,10 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,808 assertions across 63 files
+cd app && npm test                          # 3,809 assertions across 63 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 418 tests, 27 binaries
+cargo test --manifest-path engine/Cargo.toml            # 420 tests, 27 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -737,6 +737,32 @@ application.** Ten waves of reading produced mechanisms better than most
 codebases have and a set of surfaces nobody had ever touched. The seven paths
 above are the ones that now cannot rot; every other one is still on the honour
 system.
+
+## Measure it
+
+```sh
+cd app && npm run bench
+```
+
+`tools/bench-structure.mjs` types into seforim of 9, 37 and 148 KB and reports
+what one keystroke costs: the scan, everything the editor asks after it, the memo
+probe, one caret move, and a fold query at the *last* heading in the document.
+
+It used to measure one operation on documents up to 18 KB with `doc` held fixed,
+and both of those made it blind. 18 KB is one twenty-eighth of a real sefer. And
+a fixed document means `scan()` is a memo *hit* in every iteration after the
+first — so the benchmark never once measured typing, which is the only thing the
+per-keystroke costs are paid against.
+
+Two things it taught while being rewritten, both general: without a warm-up the
+**first row of the table** reported a keystroke at three times its true cost,
+because the first measured loop pays for V8 compiling everything under it. And
+`a + ch + b` on a long string builds a cons string, flattened later by whoever
+walks it — so a benchmark that concatenates charges the flattening to the scan
+and overstates a keystroke by 40%. CodeMirror hands the scanner a flat string.
+
+Read down a column, not across a row: the shape to watch for is a number growing
+faster than the document does.
 
 ## Rebuild the lexicons
 
@@ -897,10 +923,24 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `inbox` | `POST /inbox` | sources Girsa handed over, drained not read — a POST because draining is a *write*, and as a GET it was reachable from any open page by `<img src>` |
 | `mekoros` | `POST /mekoros` | `{phrase, except, search}` → where the phrase is from, or `{opened:true}` when asked to open Girsa's search instead |
 | `linkify` | `POST /linkify` | `{text}` → `{text}` with the certain citations made live |
+| `refresh` | `POST /refresh` | `{markup, style, nikud}` → one row per citation in the document, as the library has it now |
 
 `GET /` and everything else is the built editor, served as static files.
 
-The last three need the loopback to Girsa, so they exist in the browser build as
+`refresh` is spec.md §10.2's promise about a **document** rather than about a
+place: forty citations at once, in the order they appear, each re-read against
+the corpus as it stands. A citation naming a sefer that shelf does not have
+comes back as a row with a reason in it — the other thirty-nine still refresh,
+and that decision is made once, in Girsa, rather than forty times here. What
+comes back is rows and not a rewritten file: a correction somebody else made
+silently changing the words in the sefer you are writing is the one surprise
+this arrangement exists to avoid, so the writer sees what moved and says yes.
+
+It is also the errand that pays for the loopback. Everything Girsa *hands* Ksav
+could travel on the clipboard — push, one direction, Ctrl+V. A question sized by
+the document, whose answer has to come back into the document, cannot.
+
+The last four need the loopback to Girsa, so they exist in the browser build as
 a stated refusal rather than as a hole — `nativeOnly` in the generated table is
 why `WasmBackend` implements `Backend` and not `Sources`.
 
@@ -951,6 +991,17 @@ landed inside the compile path where nothing caught it, so the editor said
 "rendering…" forever and every keystroke after that was lost. IndexedDB is
 asynchronous, is measured in hundreds of megabytes, and reports failure as a
 rejected promise the writer can actually be shown.
+
+**Asset bytes live in their own bucket, keyed by content hash.** IndexedDB
+structured-clones a record whole on every write, and autosave runs 600 ms after
+a pause in typing — so a sefer with one 4 MB photo in it wrote 5.5 MB of base64
+per pause, for a change of one character. The document record carries hashes;
+the blobs are written once, shared between documents that use the same image,
+and swept when nothing refers to them any more. Blobs are written *before* the
+record that names them, so a failed write leaves the previous version intact.
+Documents stored before this still carry their bytes inline and are read exactly
+as they are — a schema change that has to rewrite everybody's documents to be
+correct is a schema change that can lose them.
 
 A write resolves on transaction *commit* rather than request success, so "saved"
 means saved. The library index stays in `localStorage` because menus need it

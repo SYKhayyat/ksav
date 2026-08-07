@@ -163,19 +163,66 @@
 #let _ksav_ap1 = label("ksav-ap1")
 #let _ksav_ap_open = [#metadata(none)#_ksav_ap0]
 #let _ksav_ap_close = [#metadata(none)#_ksav_ap1]
-#let _ksav_is_real(e) = {
-  let l = e.location()
-  query(selector(_ksav_ap0).before(l)).len() == query(selector(_ksav_ap1).before(l)).len()
+//
+// # One query, walked in order
+//
+// The test above is a bracket-depth test, and it used to be answered *per
+// element*: `_ksav_is_real(e)` ran two `.before()` queries, and `_ksav_real`
+// called it once for every element it was filtering. So the cost of deciding
+// which notes are real was two full document queries per note — Θ(n²) per
+// apparatus per layout pass, and the page-band apparatus re-derives the same
+// document-global set inside the page *footer*, which page breaking runs several
+// times per page. A 300-page sefer with 2,000 band notes came to millions of
+// queries to compute one set, hundreds of times.
+//
+// The set can be had in one query. Ask for the elements *and both markers*
+// together — `query` returns them in document order — and walk the result once,
+// carrying the depth. An element is real exactly when the depth is zero where it
+// stands, which is the same rule, computed by counting instead of by asking.
+//
+// The markers are told apart by their label rather than by their type, and read
+// with `at(..., default: none)` because most elements have no label field at all.
+#let _ksav_depth_step(e, depth) = {
+  let lb = e.at("label", default: none)
+  if lb == _ksav_ap0 { depth + 1 } else if lb == _ksav_ap1 { depth - 1 } else { depth }
 }
-#let _ksav_real(elems) = elems.filter(_ksav_is_real)
+#let _ksav_is_marker(e) = {
+  let lb = e.at("label", default: none)
+  lb == _ksav_ap0 or lb == _ksav_ap1
+}
+// Every element matching `sel` that is a real note rather than an apparatus
+// re-display, in document order.
+#let _ksav_real_of(sel) = {
+  let depth = 0
+  let out = ()
+  for e in query(selector(sel).or(_ksav_ap0).or(_ksav_ap1)) {
+    if _ksav_is_marker(e) {
+      depth = _ksav_depth_step(e, depth)
+    } else if depth <= 0 {
+      out.push(e)
+    }
+  }
+  out
+}
 // How many elements matching `sel` (that are real, not apparatus re-displays)
 // run from the start of the scope up to and including the caller. Document order,
 // via `.before()` — coordinates cannot be used, because several notes can sit on
 // one line and would then all count each other.
-#let _ksav_rank(sel, loc, pred) = calc.max(
-  _ksav_real(query(selector(sel).before(loc))).filter(pred).len(),
-  1,
-)
+//
+// `.before(loc)` is inclusive, which is what makes this the caller's own rank
+// rather than the count in front of it.
+#let _ksav_rank(sel, loc, pred) = {
+  let depth = 0
+  let n = 0
+  for e in query(selector(sel).or(_ksav_ap0).or(_ksav_ap1).before(loc)) {
+    if _ksav_is_marker(e) {
+      depth = _ksav_depth_step(e, depth)
+    } else if depth <= 0 and pred(e) {
+      n += 1
+    }
+  }
+  calc.max(n, 1)
+}
 // Restrict a selector to the span between the surrounding pair of `marker`
 // elements — i.e. "the current section". `loc` is the caller's own location.
 // Used so a per-section apparatus sees only its own section's notes.
@@ -225,7 +272,7 @@
     // tier. The number is instead this note's *rank among the real notes of its
     // own tier*, read out of a query, exactly as the collect-then-render
     // apparatus does it; the callback then ignores the argument it was given.
-    // Read-only, so it converges, and `_ksav_real` keeps a body that an
+    // Read-only, so it converges, and `_ksav_real_of` keeps a body that an
     // apparatus re-displays from being counted twice.
     [#metadata(דרגה)#label("ksav-fnt")]
     context {
@@ -347,8 +394,8 @@
 }
 
 // Every note of an apparatus that is a real note rather than an apparatus
-// re-display (see `_ksav_real`).
-#let _ap_all(lbl) = _ksav_real(query(lbl))
+// re-display (see `_ksav_real_of`).
+#let _ap_all(lbl) = _ksav_real_of(lbl)
 
 // Number one group's entries. An entry's number is its position among the notes
 // of its own group *within the numbering scope*: `shown` is what this band
@@ -387,7 +434,7 @@
 
 // The apparatus block itself: the rule above it, the groups, and a short divider
 // between adjacent ones. Bracketed by the open/close markers that tell
-// `_ksav_real` a registration in here is a re-display and not a new note —
+// `_ksav_real_of` a registration in here is a re-display and not a new note —
 // without which the raw query grows on every layout pass and nothing converges.
 #let _ap_bands(
   cfg,
@@ -467,7 +514,7 @@
 #let _md_scope(loc) = _ksav_between(selector(_md_label), _md_dump_label, loc)
 // The מדור notes of the section surrounding `loc`, in document order, minus the
 // phantom re-registrations inside this section's own rendered apparatus.
-#let _md_section_notes(loc) = _ksav_real(query(_md_scope(loc)))
+#let _md_section_notes(loc) = _ksav_real_of(_md_scope(loc))
 
 // מדור_בדרגה(דרגה, body) — collect a section-band note in tier `דרגה`.
 #let מדור_בדרגה(דרגה, body) = context _ap_note(
@@ -1323,8 +1370,8 @@
 #let _es_scheme() = _es_cfg.get().at("מספור", default: "1")
 #let _en_label(זרם) = label("ksav-en-" + זרם)
 #let _en_dump_label(זרם) = label("ksav-end-" + זרם)
-#let _en_section(זרם, loc) = _ksav_real(
-  query(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc))
+#let _en_section(זרם, loc) = _ksav_real_of(
+  _ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc)
 )
 #let הערתסיום(body, זרם: "הערות") = {
   [#metadata((body: body))#_en_label(זרם)]
@@ -1817,11 +1864,17 @@
   let notes = query(_ksav_mekor_label)
   if notes.len() == 0 { return }
   if כותרת != none { heading(level: 2, outlined: false, numbering: none, כותרת) }
-  let seen = ()
+  // A dictionary, not an array. `x in array` is a linear scan, so deduplicating
+  // this way was quadratic in the number of citations in the sefer — and the
+  // source index twenty lines below already does the same job with `by.at(...)`
+  // in linear time. On a 300-page sefer with a few thousand מראי מקומות that is
+  // the difference between a print and a wait.
+  let seen = (:)
   for note in notes {
     let m = note.value
-    if m.ref in seen { continue }
-    seen.push(m.ref)
+    let key = str(m.ref)
+    if key in seen { continue }
+    seen.insert(key, true)
     block(above: 0.4em, below: 0.4em)[#m.printed]
   }
 }

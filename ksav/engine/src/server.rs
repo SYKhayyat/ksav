@@ -684,7 +684,10 @@ mod tests {
     #[test]
     fn an_asset_asked_for_with_a_query_is_still_that_asset() {
         assert_eq!(asset_path("/sw.js?v=0.1.0"), "sw.js");
-        assert_eq!(asset_path("/assets/index-abc123.js?t=1"), "assets/index-abc123.js");
+        assert_eq!(
+            asset_path("/assets/index-abc123.js?t=1"),
+            "assets/index-abc123.js"
+        );
         assert_eq!(asset_path("/sw.js"), "sw.js");
         // The root, however it is spelled, is the document.
         assert_eq!(asset_path("/"), "index.html");
@@ -705,7 +708,10 @@ mod tests {
     /// refused by the browser rather than run.
     #[test]
     fn the_content_type_comes_from_the_file_and_not_the_query() {
-        assert_eq!(content_type_for(asset_path("/sw.js?v=0.1.0")), content_type_for("sw.js"));
+        assert_eq!(
+            content_type_for(asset_path("/sw.js?v=0.1.0")),
+            content_type_for("sw.js")
+        );
         assert!(content_type_for(asset_path("/sw.js?v=0.1.0")).starts_with("text/javascript"));
     }
 

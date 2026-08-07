@@ -24,4 +24,5 @@ export const SERVICE_PATHS = [
   "/inbox",
   "/mekoros",
   "/linkify",
+  "/refresh",
 ];

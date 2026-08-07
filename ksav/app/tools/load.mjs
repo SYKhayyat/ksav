@@ -22,10 +22,9 @@
 
 import { build } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { SRC } from "./paths.mjs";
+import { APP, SRC } from "./paths.mjs";
 
 /**
  * Bundle `src/<name>.ts` and import it.
@@ -46,7 +45,17 @@ export async function load(name) {
  * hold two different singletons.
  */
 export async function loadMany(names) {
-  const dir = mkdtempSync(join(tmpdir(), "ksav-load-"));
+  // Inside the app, not in the system temp directory.
+  //
+  // The editor packages are left `external` below, so the built module still
+  // carries bare `@codemirror/view` specifiers — and node resolves those
+  // relative to the *importing file*. From `%TEMP%` there is no `node_modules`
+  // above it, so importing any module that reaches the editor died with
+  // `ERR_MODULE_NOT_FOUND`, naming a package that is installed. All four
+  // original copies had this, and none of them had ever loaded such a module;
+  // `test/run.mjs` builds into `.tmp-test/` for exactly this reason and the
+  // reason had not travelled with the code.
+  const dir = mkdtempSync(join(APP, ".tmp-load-"));
   await build({
     entryPoints: names.map((n) => join(SRC, `${n}.ts`)),
     outdir: dir,

@@ -166,12 +166,16 @@ globalThis.IntersectionObserver = FakeIntersectionObserver;
 export async function resetStorage() {
   localStorage.clear();
   localStorage.quota = Infinity;
+  // The schema comes from `store.ts`, not from a copy of it here. This used to
+  // name version 2 and three stores; adding one to the module turned every
+  // storage test red with a `VersionError` about the *harness*.
+  const { SCHEMA } = await import("../.tmp-test/store.mjs");
   const db = await new Promise((resolve, reject) => {
-    const req = globalThis.indexedDB.open("ksav-files", 2);
-    // Mirrors store.ts, so a reset before the first import still produces the
-    // schema the modules expect.
+    const req = globalThis.indexedDB.open("ksav-files", SCHEMA.version);
+    // So a reset before the first import still produces the schema the modules
+    // expect.
     req.onupgradeneeded = () => {
-      for (const name of ["docs", "history", "handles"]) {
+      for (const name of SCHEMA.stores) {
         if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name);
       }
     };
@@ -179,8 +183,8 @@ export async function resetStorage() {
     req.onerror = () => reject(req.error);
   });
   await new Promise((resolve, reject) => {
-    const tx = db.transaction(["docs", "history", "handles"], "readwrite");
-    for (const name of ["docs", "history", "handles"]) tx.objectStore(name).clear();
+    const tx = db.transaction([...SCHEMA.stores], "readwrite");
+    for (const name of SCHEMA.stores) tx.objectStore(name).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = tx.onabort = () => reject(tx.error);
   });

@@ -152,6 +152,7 @@ pub const SERVICES: &[Service] = &[
     svc("inbox", Post, "/inbox", Quick, Native, girsa::inbox),
     svc("mekoros", Post, "/mekoros", Work, Native, girsa::mekoros),
     svc("linkify", Post, "/linkify", Work, Native, girsa::linkify),
+    svc("refresh", Post, "/refresh", Work, Native, girsa::refresh),
 ];
 
 /// The service with this name, if there is one.
@@ -301,6 +302,40 @@ mod girsa {
         }
     }
 
+    /// `{"markup": "…", "style": null, "nikud": null}` → one row per citation,
+    /// as the library has it now.
+    ///
+    /// spec.md §10.2's promise about a **document** rather than about a place.
+    /// The rows come back to the editor unchanged and the editor asks the
+    /// writer: a correction somebody else made silently rewriting the words in
+    /// a sefer being written is the one surprise the whole arrangement is built
+    /// to avoid.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn refresh(body: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Asked {
+            markup: String,
+            #[serde(default)]
+            style: Option<String>,
+            #[serde(default)]
+            nikud: Option<bool>,
+        }
+        let Ok(asked) = serde_json::from_str::<Asked>(body) else {
+            return super::error_json(
+                "הבקשה אינה מכילה מסמך לרענון · the request carries no document to refresh",
+            );
+        };
+        match crate::post::refresh(&asked.markup, asked.style.as_deref(), asked.nikud) {
+            Ok(quotes) => serde_json::json!({
+                "quotes": quotes,
+                "total": quotes.len(),
+                "trouble": quotes.iter().filter(|q| q.trouble.is_some()).count(),
+            })
+            .to_string(),
+            Err(why) => super::error_json(&why),
+        }
+    }
+
     /// One sentence per language, and the name of the thing in each — not one
     /// sentence with a bilingual name spliced into it twice, which is what the
     /// first draft of this did and which reads as neither language.
@@ -325,6 +360,11 @@ mod girsa {
     #[cfg(target_arch = "wasm32")]
     pub fn linkify(_: &str) -> String {
         no_library("סימון ציטוטים", "marking up citations")
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn refresh(_: &str) -> String {
+        no_library("רענון המקורות", "refreshing a document's sources")
     }
 }
 
@@ -400,10 +440,11 @@ mod tests {
             "inbox",
             "mekoros",
             "linkify",
+            "refresh",
         ] {
             assert!(find(name).is_some(), "{name} is missing from the registry");
         }
-        assert_eq!(SERVICES.len(), 12, "add the new service to this list too");
+        assert_eq!(SERVICES.len(), 13, "add the new service to this list too");
     }
 
     /// A layout is the only thing that needs the server's deadline and the
@@ -426,7 +467,7 @@ mod tests {
             .filter(|s| s.reach == Native)
             .map(|s| s.name)
             .collect();
-        assert_eq!(native, ["inbox", "mekoros", "linkify"]);
+        assert_eq!(native, ["inbox", "mekoros", "linkify", "refresh"]);
     }
 
     /// A request with no phrase in it is a refusal with a reason, not a panic

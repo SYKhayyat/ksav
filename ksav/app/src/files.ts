@@ -290,6 +290,29 @@ export async function recallBinding(docId: string): Promise<FileBinding | null> 
 }
 
 /**
+ * Every remembered binding, in **one** transaction.
+ *
+ * `docBoundTo` — the check that stops opening the same sefer twice from filling
+ * the library with duplicates of it — called `recallBinding` in a loop over the
+ * whole library, and each call opens its own IndexedDB transaction and waits for
+ * it to commit. That is one round trip per document, serially, on every Open, to
+ * answer a question about a handful of bytes.
+ */
+export async function recallBindings(docIds: string[]): Promise<Map<string, FileBinding>> {
+  const out = new Map<string, FileBinding>();
+  try {
+    const all = await store.getMany<FileBinding>(store.HANDLES, docIds);
+    docIds.forEach((id, i) => {
+      const b = all[i];
+      if (b) out.set(id, b);
+    });
+  } catch {
+    /* no bindings readable is the same answer as no bindings */
+  }
+  return out;
+}
+
+/**
  * Re-ask for permission on a recalled handle. Browsers drop write permission
  * across sessions, so a handle that looks fine can still refuse to be written
  * until the user confirms — check before promising the writer a real save.

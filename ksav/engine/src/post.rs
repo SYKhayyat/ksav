@@ -355,6 +355,79 @@ pub fn linkify(prose: &str) -> Result<String, String> {
     Ok(chars.into_iter().collect())
 }
 
+/// The errand body for [`refresh`], on its own so it can be asserted on.
+fn refresh_errand(markup: &str, style: Option<&str>, nikud: Option<bool>) -> String {
+    let mut errand = serde_json::Map::new();
+    errand.insert("markup".into(), markup.into());
+    // Absent rather than null: Girsa reads absence as *the reader's own
+    // setting*, and a document refreshed in the background should not quietly
+    // re-point somebody else's library.
+    if let Some(style) = style {
+        errand.insert("style".into(), style.into());
+    }
+    if let Some(nikud) = nikud {
+        errand.insert("nikud".into(), nikud.into());
+    }
+    serde_json::Value::Object(errand).to_string()
+}
+
+/// One citation in a document, as the corpus stands now.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Refreshed {
+    /// The place.
+    #[serde(rename = "ref")]
+    pub reference: String,
+    /// The citation as it prints today.
+    pub display: String,
+    /// The words today.
+    pub text: String,
+    /// Why this one could not be refreshed, if it could not.
+    #[serde(default)]
+    pub trouble: Option<String>,
+}
+
+/// Ask the library for every citation in this document again (spec.md §10.2).
+///
+/// *Regenerate every quote against a corrected edition* is a promise about a
+/// **document**, and this is the errand that performs it: one call, one row per
+/// citation, in the order they appear. A citation Girsa cannot look up comes
+/// back with a reason in it rather than failing the other thirty-nine — that
+/// decision is made once, in the library, and not forty times here.
+///
+/// # Why the rows come back instead of a rewritten document
+///
+/// Rewriting is not the hard part; **asking** is. A correction in somebody
+/// else's library silently changing the words in a sefer somebody is writing is
+/// exactly the surprise spec.md §7.1 exists to avoid — a correction is a claim
+/// somebody made, not a fact about the sefer. So the writer sees what moved and
+/// says yes, and the editor does the replacing, the same way [`where_from`]
+/// hands over candidates rather than picking one.
+///
+/// The rows line up with `girsa_ksav::cited_in` on this buffer, position by
+/// position: one scanner, compiled by both applications, so nothing here has to
+/// match a ref by string.
+///
+/// # Errors
+///
+/// If Girsa is not running, or refuses, or answers something unreadable — all
+/// with the reason, because *no library* and *no such sefer* are different
+/// things to a writer.
+pub fn refresh(
+    markup: &str,
+    style: Option<&str>,
+    nikud: Option<bool>,
+) -> Result<Vec<Refreshed>, String> {
+    #[derive(serde::Deserialize)]
+    struct Answer {
+        quotes: Vec<Refreshed>,
+    }
+    let errand = refresh_errand(markup, style, nikud);
+    let answer =
+        girsa_post::send(App::Girsa, "/refresh", Some(&errand)).map_err(|e| e.to_string())?;
+    let answer: Answer = serde_json::from_str(&answer).map_err(|e| e.to_string())?;
+    Ok(answer.quotes)
+}
+
 /// Whether the library is there, for an affordance that would otherwise fail.
 #[must_use]
 pub fn girsa() -> girsa_post::Presence {
@@ -382,6 +455,33 @@ mod tests {
     use super::*;
 
     const PACKET: &str = include_str!("../tests/fixtures/girsa-packet.json");
+
+    #[test]
+    fn a_refresh_errand_says_nothing_it_was_not_told() {
+        // The two optional fields are optional in the wire sense: absent, not
+        // null. Girsa reads absence as *the reader's own setting*, and a `null`
+        // that deserialized to `Some(None)` on the other side would be this
+        // editor quietly re-pointing somebody else's library.
+        let plain = refresh_errand("#כותרת1[סוגיא]", None, None);
+        assert!(!plain.contains("style"), "{plain}");
+        assert!(!plain.contains("nikud"), "{plain}");
+        assert!(plain.contains("markup"), "{plain}");
+
+        let asked = refresh_errand("x", Some("hebrew-short"), Some(true));
+        assert!(asked.contains("\"style\":\"hebrew-short\""), "{asked}");
+        assert!(asked.contains("\"nikud\":true"), "{asked}");
+    }
+
+    #[test]
+    fn a_document_full_of_markup_travels_as_one_string() {
+        // The whole document, escaped as JSON — quote marks and backslashes in
+        // a `מקור:` argument included. A body assembled with `format!` would
+        // have looked fine until the first citation carrying a gershayim.
+        let markup = girsa_ksav::mekor("שו\"ע או\"ח א', א'", Some("girsa:x/1:1"), None);
+        let errand = refresh_errand(&markup, None, None);
+        let read: serde_json::Value = serde_json::from_str(&errand).expect("it is json");
+        assert_eq!(read["markup"], markup);
+    }
 
     /// There is one inbox per process — which is right, since there is one
     /// editor — so the tests that use it take turns rather than each seeing

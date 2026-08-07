@@ -3243,8 +3243,12 @@ function deleteUserTemplate(id: string) {
  */
 async function docBoundTo(binding: files.FileBinding): Promise<string | null> {
   if (binding.kind === "download") return null;
+  // Every binding in one transaction rather than one transaction per library
+  // entry — this runs on every Open, and the loop below used to wait for a
+  // separate IndexedDB round trip per document in the library.
+  const bindings = await files.recallBindings(docs.library().map((e) => e.id));
   for (const entry of docs.library()) {
-    const other = await files.recallBinding(entry.id);
+    const other = bindings.get(entry.id);
     if (!other || other.kind !== binding.kind) continue;
     if (binding.kind === "tauri" && binding.path && other.path === binding.path) return entry.id;
     if (binding.kind === "handle" && binding.handle && other.handle) {

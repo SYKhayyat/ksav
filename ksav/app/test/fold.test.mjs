@@ -118,47 +118,47 @@ export async function run() {
 
   // ------------------------------------------------------- and the cost
   //
-  // The assertion the rewrite exists for, and the one no correctness check
-  // above can make. It is written as a *ratio between two queries in the same
-  // document*, not as a millisecond budget: absolute timings on a shared CI
-  // runner are how a suite learns to cry wolf, but "the last heading costs
-  // roughly what the first one costs" is a claim about the algorithm and holds
-  // on any machine.
+  // The assertion the rewrite exists for, and the one no correctness check above
+  // can make.
   //
-  // Under the old implementation this ratio was ~100×. The threshold is 10×,
-  // which is loose enough to absorb a noisy runner and tight enough that
-  // reintroducing a per-line walk fails it outright.
+  // It compares the *same* query — a fold on the last heading, which is the worst
+  // case — across two documents, one four times the size of the other. That is
+  // deliberate: the obvious version (first heading versus last, inside one
+  // document) divides two sub-microsecond numbers by each other and is noise
+  // wearing a measurement's clothes.
+  //
+  // The old implementation asked every line from the query to the end of the
+  // document what heading level it was, and each answer restarted a walk over
+  // every node, so quadrupling the document multiplied this by ~16. The rewrite
+  // walks the headings, so it should be flat. The threshold is 5x: loose enough
+  // for a shared CI runner, tight enough that a per-line walk cannot pass.
   {
-    const chapters = [];
-    for (let i = 0; i < 400; i++) {
-      chapters.push(`#כותרת1[פרק ${i}]`);
-      for (let k = 0; k < 25; k++) chapters.push(`שורה ${k} עם #הדגשה[טקסט] ועוד מלים כאן.`);
-    }
-    const big = chapters.join("\n");
-    const state = EditorState.create({ doc: big, extensions: [ksavFold] });
-    const service = state.facet(foldService)[0];
-    const query = (pos) => {
-      const line = state.doc.lineAt(pos);
-      return service(state, line.from, line.to);
+    const build = (chapters) => {
+      const out = [];
+      for (let i = 0; i < chapters; i++) {
+        out.push(`#כותרת1[פרק ${i}]`);
+        for (let k = 0; k < 25; k++) out.push(`שורה ${k} עם #הדגשה[טקסט] ועוד מלים כאן.`);
+      }
+      return out.join("\n");
     };
-    const first = big.indexOf("#כותרת1[פרק 1]");
-    const last = big.lastIndexOf("#כותרת1[פרק 399]");
-    ok("the big document folds at both ends", !!query(first) && !!query(last));
-
-    const time = (pos) => {
-      // Warm first: the scan and the heading index are memoised per document,
-      // and the point of measurement is the *query*, not the one-off scan.
-      query(pos);
+    const lastFoldCost = (doc) => {
+      const state = EditorState.create({ doc, extensions: [ksavFold] });
+      const service = state.facet(foldService)[0];
+      const line = state.doc.lineAt(doc.lastIndexOf("#כותרת1[פרק "));
+      const query = () => service(state, line.from, line.to);
+      ok("the last heading folds", !!query());
+      for (let i = 0; i < 200; i++) query(); // warm: the first loop pays for V8
       const t0 = performance.now();
-      for (let i = 0; i < 50; i++) query(pos);
-      return performance.now() - t0;
+      for (let i = 0; i < 500; i++) query();
+      return (performance.now() - t0) / 500;
     };
-    const early = Math.max(time(first), 0.0001);
-    const late = time(last);
+    const small = lastFoldCost(build(100));
+    const big = lastFoldCost(build(400));
+    const grew = big / Math.max(small, 1e-6);
     ok(
-      `folding the last section costs about what the first does (${(late / early).toFixed(1)}×)`,
-      late / early < 10,
-      `first ${early.toFixed(2)}ms, last ${late.toFixed(2)}ms over 50 queries`,
+      `four times the document does not cost four times the fold query (${grew.toFixed(1)}x)`,
+      grew < 5,
+      `100 chapters ${small.toFixed(4)}ms, 400 chapters ${big.toFixed(4)}ms`,
     );
   }
 }

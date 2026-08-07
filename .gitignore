@@ -54,6 +54,9 @@ ksav/engine/tools/.corpus-cache/
 # Front-end test scratch
 /ksav/app/.tmp-test/
 /ksav/app/.tmp-test-probe/
+# tools/load.mjs builds here rather than in the system temp directory, so that
+# the editor packages it leaves external still resolve from node_modules.
+/ksav/app/.tmp-load-*/
 
 # Locally built Linux installers
 /ksav/packaging/out/

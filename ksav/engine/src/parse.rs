@@ -208,12 +208,9 @@ impl Partition {
 
     /// The comment ranges, both spellings, in document order.
     pub fn comments(&self) -> impl Iterator<Item = &Leaf> {
-        self.leaves.iter().filter(|l| {
-            matches!(
-                l.kind,
-                SyntaxKind::LineComment | SyntaxKind::BlockComment
-            )
-        })
+        self.leaves
+            .iter()
+            .filter(|l| matches!(l.kind, SyntaxKind::LineComment | SyntaxKind::BlockComment))
     }
 
     /// Whether any byte of `[from, to)` lies inside a `$…$`.

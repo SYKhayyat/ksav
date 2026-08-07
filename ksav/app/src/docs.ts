@@ -28,16 +28,28 @@
 import { settingsPageSetup, ownPageSetup, readPageSetup } from "./settings";
 import type { PageSetup } from "./settings";
 import * as store from "./store";
-import { DOCS, HISTORY, StorageFullError } from "./store";
+import { ASSETS, DOCS, HISTORY, StorageFullError } from "./store";
 
 export { StorageFullError };
 
 export interface DocAsset {
   /** The name the document refers to, e.g. "logo.png". */
   name: string;
-  /** base64, optionally with a `data:` URL prefix. */
+  /**
+   * base64, optionally with a `data:` URL prefix.
+   *
+   * Always present in memory and on a `.ksav` file. **Absent in the stored
+   * record**, where the bytes live in the `assets` store under `hash` — see
+   * `fileAssets`. Empty here means the blob has gone missing, which is a
+   * diagnostic rather than a reason to drop the asset.
+   */
   data: string;
   kind: "image" | "font";
+  /**
+   * The content hash the bytes are filed under. Written by `fileAssets`, read
+   * by `hydrateAssets`, and absent from anything a v2 record ever stored.
+   */
+  hash?: string;
 }
 
 export interface KsavDoc {
@@ -186,7 +198,75 @@ export async function getDoc(id: string): Promise<KsavDoc | null> {
   const d = await store.get<KsavDoc>(DOCS, id);
   if (!d) return null;
   // Documents written before assets existed have no `assets` array.
-  return { ...d, assets: d.assets ?? [] };
+  return { ...d, assets: await hydrateAssets(d.assets ?? []) };
+}
+
+/**
+ * Put the bytes back on a document's assets.
+ *
+ * Everything above this file sees a `DocAsset` with its `data` on it — the
+ * compile request, the export, the `.ksav` file — and that stays true. Only the
+ * *stored* record is thin.
+ *
+ * A record written before v3 carries its bytes inline, so an asset that already
+ * has `data` is left exactly as it is. That is what makes the schema change
+ * costless and safe: nothing has to be rewritten to be readable, and a document
+ * that is never opened again is never touched.
+ */
+/** What a document record actually holds: the asset, minus its bytes. */
+interface StoredAsset {
+  name: string;
+  kind: DocAsset["kind"];
+  hash: string;
+}
+
+async function hydrateAssets(assets: DocAsset[]): Promise<DocAsset[]> {
+  const wanted = assets.filter((a) => !a.data && a.hash);
+  if (!wanted.length) return assets;
+  const blobs = await store.getMany<{ data: string }>(
+    ASSETS,
+    wanted.map((a) => a.hash!),
+  );
+  const byHash = new Map<string, string>();
+  wanted.forEach((a, i) => {
+    if (blobs[i]?.data) byHash.set(a.hash!, blobs[i]!.data);
+  });
+  return assets.map((a) =>
+    // An asset whose blob has gone is kept as an entry with no bytes rather than
+    // dropped: the document still refers to it by name, and a missing image is a
+    // diagnostic the writer can act on. Silently removing it would leave
+    // `#תמונה("logo.png")` pointing at nothing with no trace of why.
+    a.data || !a.hash ? a : { ...a, data: byHash.get(a.hash) ?? "" },
+  );
+}
+
+/**
+ * Write a document's asset bytes, and give back the thin records to store.
+ *
+ * Assets first, document second, and that order is the whole safety argument: if
+ * the blob write fails, the document record still points at the previous version
+ * of itself and nothing has been lost. The reverse order would commit a document
+ * whose images are not there yet.
+ *
+ * A blob already under its hash is not rewritten. That is the point — the hash
+ * is of the content, so the same image attached to nine chapters is one write,
+ * and an autosave 600 ms after a pause in typing writes a few hundred bytes of
+ * document instead of 5.5 MB of base64 that did not change.
+ */
+async function fileAssets(assets: DocAsset[]): Promise<StoredAsset[]> {
+  if (!assets.length) return [];
+  const thin = assets.map((a) => ({ name: a.name, kind: a.kind, hash: assetHash(a) }));
+  const have = new Set(await store.keys(ASSETS));
+  const writes: [string, unknown][] = [];
+  const seen = new Set<string>();
+  assets.forEach((a, i) => {
+    const hash = thin[i].hash;
+    if (have.has(hash) || seen.has(hash) || !a.data) return;
+    seen.add(hash);
+    writes.push([hash, { data: a.data }]);
+  });
+  await store.putMany(ASSETS, writes);
+  return thin;
 }
 
 /**
@@ -197,12 +277,14 @@ export async function getDoc(id: string): Promise<KsavDoc | null> {
  * what makes "saved" mean saved. Rejects with `StorageFullError` when the
  * browser refuses — callers must surface that, never swallow it.
  */
-export function putDoc(doc: KsavDoc): Promise<void> {
+export async function putDoc(doc: KsavDoc): Promise<void> {
   const saved: KsavDoc = { ...doc, assets: doc.assets ?? [], updated: Date.now() };
   doc.updated = saved.updated;
   const existing = index.find((e) => e.id === saved.id);
   upsert(entryFor(saved, existing?.fileName));
-  return store.put(DOCS, saved.id, saved);
+  // The stored record carries hashes, not megabytes. See `fileAssets`.
+  const thin = await fileAssets(saved.assets);
+  return store.put(DOCS, saved.id, { ...saved, assets: thin });
 }
 
 export async function setFileName(id: string, fileName: string | undefined): Promise<void> {
@@ -217,6 +299,11 @@ export async function deleteDoc(id: string): Promise<void> {
   writeIndex();
   if (currentId() === id) localStorage.removeItem(CURRENT_KEY);
   await Promise.all([store.del(DOCS, id), store.del(HISTORY, id)]);
+  // After the document is gone, never before: a sweep that ran first would see
+  // this document's blobs as still referenced.
+  await collectAssets().catch(() => {
+    /* an uncollected blob costs space and nothing else; the delete succeeded */
+  });
 }
 
 export function currentId(): string | null {
@@ -310,16 +397,45 @@ export async function pushSnapshot(docId: string, body: string): Promise<boolean
  * work had been lost.
  */
 async function rebuildIndex(): Promise<void> {
-  const all = await store.getAll<KsavDoc>(DOCS);
   const byId = new Map(index.map((e) => [e.id, e]));
-  index = all.map((d) => ({
-    id: d.id,
-    title: d.title,
-    updated: d.updated ?? 0,
-    // A rebuild must not throw away the file binding names it can still see.
-    fileName: byId.get(d.id)?.fileName,
-  }));
+  const rebuilt: LibraryEntry[] = [];
+  // A cursor, not `getAll`. This produces a list of *titles*, and `getAll`
+  // materialises every document body and (before v3) every base64 image in the
+  // library simultaneously to do it — on the recovery path, which runs precisely
+  // when the library is largest and the browser has just thrown away the cache.
+  // Each record is now read, reduced to four fields, and dropped.
+  await store.forEach<KsavDoc>(DOCS, (d) => {
+    rebuilt.push({
+      id: d.id,
+      title: d.title,
+      updated: d.updated ?? 0,
+      // A rebuild must not throw away the file binding names it can still see.
+      fileName: byId.get(d.id)?.fileName,
+    });
+  });
+  index = rebuilt;
   writeIndex();
+}
+
+/**
+ * Drop asset blobs no document refers to any more.
+ *
+ * Blobs are keyed by content hash and shared, so deleting a document cannot
+ * delete its images — another document may be using the same one. Sweeping
+ * instead of reference-counting is the safer shape: a count that drifts loses
+ * somebody's picture, whereas a sweep that runs late merely keeps a few
+ * megabytes longer than it needed to.
+ *
+ * Called after a delete, which is rare and asked for by a person. Reads through
+ * a cursor for the same reason `rebuildIndex` does.
+ */
+async function collectAssets(): Promise<void> {
+  const referenced = new Set<string>();
+  await store.forEach<KsavDoc>(DOCS, (d) => {
+    for (const a of d.assets ?? []) if (a.hash) referenced.add(a.hash);
+  });
+  const stored = await store.keys(ASSETS);
+  await Promise.all(stored.filter((h) => !referenced.has(h)).map((h) => store.del(ASSETS, h)));
 }
 
 /**

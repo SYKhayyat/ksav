@@ -134,12 +134,21 @@ fn covered(ranges: &[(usize, usize)], from: usize, to: usize) -> bool {
 /// A snippet of `text` around `[from, to)`, for a failure message somebody has
 /// to read at two in the morning.
 fn around(text: &str, from: usize, to: usize) -> String {
-    let lo = text[..from].char_indices().rev().nth(30).map_or(0, |(i, _)| i);
+    let lo = text[..from]
+        .char_indices()
+        .rev()
+        .nth(30)
+        .map_or(0, |(i, _)| i);
     let hi = text[to..]
         .char_indices()
         .nth(30)
         .map_or(text.len(), |(i, _)| to + i);
-    format!("…{}«{}»{}…", &text[lo..from], &text[from..to], &text[to..hi])
+    format!(
+        "…{}«{}»{}…",
+        &text[lo..from],
+        &text[from..to],
+        &text[to..hi]
+    )
 }
 
 /// Documents Typst could not parse cleanly are not an oracle for anything.
@@ -279,7 +288,10 @@ fn a_comment_is_one_to_both_of_them() {
                     .iter()
                     .map(|&(a, b)| &d.text[a..b])
                     .collect::<Vec<_>>(),
-                theirs.iter().map(|&(a, b)| &d.text[a..b]).collect::<Vec<_>>(),
+                theirs
+                    .iter()
+                    .map(|&(a, b)| &d.text[a..b])
+                    .collect::<Vec<_>>(),
             ));
         }
     });

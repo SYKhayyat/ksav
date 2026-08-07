@@ -328,6 +328,25 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
     // here was the third of four hand-written copies of that list, and the copy
     // in `vite.config.ts` had six routes missing for a month.
     if let Some(svc) = asked_method(&method).and_then(|m| services::route(m, url.as_str())) {
+        // A cross-origin caller is refused, not merely denied the CORS header.
+        //
+        // Withholding `Access-Control-Allow-Origin` stops the *page* reading the
+        // reply. It does not stop the request happening, and for a service that
+        // changes state that is the whole of the damage: `/inbox` drains the
+        // waiting quotations — empties the list and truncates the file — so any
+        // page open in the writer's browser could destroy a source Girsa had
+        // handed over, and the fact that it could not read the reply was no
+        // consolation at all. Deleted is deleted.
+        //
+        // The comment further down about this server binding to loopback and
+        // holding no secrets was written before `/inbox` existed. It is also not
+        // quite true any more: `ksav serve [addr]` takes any bind address.
+        if !origin_allowed(&request, addr_str) {
+            let _ = request.respond(
+                Response::from_string("cross-origin request refused").with_status_code(403),
+            );
+            return;
+        }
         let cors = cors_header(&request, addr_str);
         // A JSON endpoint that reads a body: check the size before doing any
         // work. A GET service is handed nothing, which is what it expects.
@@ -453,14 +472,32 @@ fn allowed_origin(origin: &str, addr: &str) -> bool {
 /// A same-origin fetch sends no `Origin` at all, so a missing header is fine and
 /// simply needs no CORS response.
 fn cors_header(request: &tiny_http::Request, addr: &str) -> Option<Header> {
-    let origin = request
-        .headers()
-        .iter()
-        .find(|h| h.field.equiv("Origin"))?
-        .value
-        .as_str()
-        .to_string();
+    let origin = origin_of(request)?;
     allowed_origin(&origin, addr).then(|| header("Access-Control-Allow-Origin", &origin))
+}
+
+/// The `Origin` header, if the caller sent one.
+fn origin_of(request: &tiny_http::Request) -> Option<String> {
+    Some(
+        request
+            .headers()
+            .iter()
+            .find(|h| h.field.equiv("Origin"))?
+            .value
+            .as_str()
+            .to_string(),
+    )
+}
+
+/// May this caller reach a service at all?
+///
+/// A browser sends `Origin` on every cross-origin request and on same-origin
+/// *writes*; `curl` and the Tauri shell send none. So an absent header is a
+/// local tool and is allowed, and a present-but-foreign one is a page on some
+/// other site driving this server — which is refused outright rather than being
+/// served and then denied the reply.
+fn origin_allowed(request: &tiny_http::Request, addr: &str) -> bool {
+    origin_of(request).is_none_or(|o| allowed_origin(&o, addr))
 }
 
 /// Attach the CORS header when there is one to attach.
@@ -571,6 +608,42 @@ mod tests {
             json.contains("/0 compiles in flight") && json.contains("/0 הידורים באוויר"),
             "the refusal names the slots: {json}"
         );
+    }
+
+    /// A state-changing service must not be reachable by a plain browser load.
+    ///
+    /// `/inbox` **drains**: it empties the waiting quotations and truncates the
+    /// file behind them, so two windows asking do not each insert the same
+    /// source. As a `GET` that made it forgeable by
+    /// `<img src="http://localhost:7878/inbox">` on any page the writer had
+    /// open — and an image load sends no `Origin`, so no CORS rule anywhere
+    /// could have stopped it. The reply being unreadable was no consolation:
+    /// the source was gone from disk either way.
+    ///
+    /// Asserted against the registry rather than against a running server,
+    /// because the method *is* the fix and the registry is where it is declared.
+    #[test]
+    fn a_service_that_destroys_state_is_not_a_get() {
+        let inbox = crate::services::find("inbox").expect("the inbox service exists");
+        assert_eq!(
+            inbox.method,
+            crate::services::Method::Post,
+            "draining the inbox is a write and must not be reachable as a GET"
+        );
+    }
+
+    /// Refused, not merely denied the reply.
+    ///
+    /// Withholding `Access-Control-Allow-Origin` stops the *page* reading the
+    /// answer and does nothing about the request having happened, which for
+    /// anything that changes state is the whole of the damage.
+    #[test]
+    fn a_foreign_origin_is_refused_outright() {
+        let addr = "127.0.0.1:7878";
+        assert!(!allowed_origin("https://evil.example", addr));
+        // And the absent-header case stays allowed, which is what keeps `curl`,
+        // the Tauri shell and every same-origin read working.
+        assert!(allowed_origin("http://127.0.0.1:7878", addr));
     }
 
     #[test]

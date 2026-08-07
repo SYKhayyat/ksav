@@ -811,7 +811,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `commands` | `GET /commands` | the command registry (JSON) |
 | `templates` | `GET /templates` | the template registry (JSON, includes each body) |
 | `sefarim` | `GET /sefarim` | the sefer catalogue, for citation autocomplete |
-| `inbox` | `GET /inbox` | sources Girsa handed over, drained not read |
+| `inbox` | `POST /inbox` | sources Girsa handed over, drained not read — a POST because draining is a *write*, and as a GET it was reachable from any open page by `<img src>` |
 | `mekoros` | `POST /mekoros` | `{phrase, except, search}` → where the phrase is from, or `{opened:true}` when asked to open Girsa's search instead |
 | `linkify` | `POST /linkify` | `{text}` → `{text}` with the certain citations made live |
 

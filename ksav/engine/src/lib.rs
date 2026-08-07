@@ -1237,25 +1237,21 @@ pub fn compile_html(
 ) -> Result<String, Vec<Diagnostic>> {
     let source = assemble_source(body, cfg);
     let located = Located::of(&source, body);
-    let mut fonts: Vec<&[u8]> = vec![
-        FONT_FRANK_REG,
-        FONT_FRANK_BOLD,
-        FONT_DAVID_REG,
-        FONT_DAVID_BOLD,
-        FONT_CASCADIA,
-        FONT_NEWCM_MATH,
-    ];
-    fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
-    let files: Vec<(&str, &[u8])> = assets
-        .files
-        .iter()
-        .map(|a| (a.name.as_str(), a.bytes.as_slice()))
-        .collect();
-    let engine = TypstEngine::builder()
-        .main_file(source)
-        .fonts(fonts)
-        .with_static_file_resolver(files)
-        .build();
+    // `engine_for`, not a second copy of its body.
+    //
+    // This *was* a copy, and it had lost exactly one line: the
+    // `comemo_evict_max_age(Some(10))` that keeps Typst's memoisation cache
+    // alive between compiles. `typst-as-lib` defaults it to `Some(0)`, which
+    // evicts **everything, globally** — comemo's cache is process-wide, not
+    // per-engine, which is the property `layout_source` relies on to survive
+    // being run on a fresh thread per compile.
+    //
+    // So one click on **Export Word** flushed the entire cache and the writer's
+    // next keystroke was a cold compile: fonts reloaded, glyphs reshaped, every
+    // unchanged region laid out again. That defeated a nine-line comment five
+    // hundred lines above explaining why the cache must survive — from a
+    // function whose only difference is which document type it asks for.
+    let engine = engine_for(source, assets);
     let Warned { output, warnings } = engine.compile::<typst_html::HtmlDocument>();
     match output {
         Ok(doc) => match typst_html::html(&doc, &typst_html::HtmlOptions::default()) {

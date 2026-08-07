@@ -142,7 +142,14 @@ pub const SERVICES: &[Service] = &[
     svc("commands", Get, "/commands", Quick, All, commands),
     svc("templates", Get, "/templates", Quick, All, templates),
     svc("sefarim", Get, "/sefarim", Quick, All, sefarim),
-    svc("inbox", Get, "/inbox", Quick, Native, girsa::inbox),
+    // A POST, and it looks like a read. It is not one: `inbox` **drains** —
+    // it empties the waiting list and truncates the file behind it, because two
+    // windows asking would otherwise each insert the same source. That makes it
+    // a write wearing a read's clothes, and as a `GET` it was reachable by
+    // `<img src="http://localhost:7878/inbox">` on any page the writer had
+    // open. An image load sends no `Origin`, so no CORS check anywhere could
+    // have caught it; the method is what makes the request unforgeable.
+    svc("inbox", Post, "/inbox", Quick, Native, girsa::inbox),
     svc("mekoros", Post, "/mekoros", Work, Native, girsa::mekoros),
     svc("linkify", Post, "/linkify", Work, Native, girsa::linkify),
 ];

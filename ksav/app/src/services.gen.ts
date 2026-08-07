@@ -32,7 +32,7 @@ export const SERVICES: readonly ServiceDef[] = [
   { name: "commands", method: "GET", path: "/commands", cost: "quick", nativeOnly: false },
   { name: "templates", method: "GET", path: "/templates", cost: "quick", nativeOnly: false },
   { name: "sefarim", method: "GET", path: "/sefarim", cost: "quick", nativeOnly: false },
-  { name: "inbox", method: "GET", path: "/inbox", cost: "quick", nativeOnly: true },
+  { name: "inbox", method: "POST", path: "/inbox", cost: "quick", nativeOnly: true },
   { name: "mekoros", method: "POST", path: "/mekoros", cost: "work", nativeOnly: true },
   { name: "linkify", method: "POST", path: "/linkify", cost: "work", nativeOnly: true },
 ];

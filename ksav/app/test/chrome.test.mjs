@@ -173,4 +173,91 @@ check(
   [],
 );
 
+// ------------------------------------------- 7. actions go through one door
+//
+// The same prohibition shape, for the same reason, one layer in. `noteAction`
+// had exactly one caller — inside `runStructureAction` — so the macro recorder
+// saw the 43 structural operations and none of the ~30 shell ones. Press F3,
+// Ctrl+B, F4 and the answer was "Nothing was recorded": bold, italic, footnote,
+// endnote, the headings, bullets, tables, alignment, the three review marks and
+// all three defer operations are first-class `ACTIONS` entries with shipped key
+// bindings, and every one of them was invisible.
+//
+// The cause is not that somebody forgot a call. It is that there was **no one
+// place** to put it: the keymap invoked `a.run` directly, so recording meant
+// remembering at every invocation site, which is the same distributed-duty
+// failure `panels.ts` was built to end for the `open` class. `runAction(id)` is
+// that place, and this is the fence that keeps it the only one.
+//
+// Absence, not shape — and the *reference* as well as the call. The first
+// version of this fence matched only `.run(runtime.view)` and `.run(v)`, which
+// would not have caught the bug it was written for: the keymap did not call
+// `a.run`, it passed it (`{ key, run: a.run }`) and CodeMirror called it later.
+// A fence aimed one construct to the left of the live bug is this repository's
+// signature failure, so it is aimed at both.
+//
+// `runStructureAction` is allowed its own `action.run(doc, pos)` — that is
+// `StructureAction.run`, a pure function of text and position, and a different
+// thing wearing the same name.
+{
+  // Blanked, not stripped, so every offset still points at the line it came
+  // from. Matching over the comments finds this file's own prose about the bug
+  // and reports the explanation as the offence — which it did, on the first run.
+  const CODE = MAIN.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) =>
+    m.replace(/[^\n]/g, " "),
+  );
+  const CALLS = /\b(?:a|action)\s*\??\.run\b|\)\s*\??\.run\b/g;
+  const lines = CODE.split("\n");
+  const at = (index) => CODE.slice(0, index).split("\n").length - 1;
+  /** The nearest enclosing top-level `function name(` above a line. */
+  const enclosing = (line) => {
+    for (let i = line; i >= 0; i--) {
+      const m = /^function\s+(\w+)/.exec(lines[i]);
+      if (m) return m[1];
+    }
+    return "(top level)";
+  };
+  const invocations = [...CODE.matchAll(CALLS)].map((m) => enclosing(at(m.index)));
+  // `playMacro` is the one documented exception and says why in place: replaying
+  // a macro must not record its own steps, so it deliberately does not go
+  // through `runAction`.
+  const stray = invocations.filter(
+    (f) => f !== "runAction" && f !== "playMacro" && f !== "runStructureAction",
+  );
+  check("an action is only ever reached through runAction", stray, []);
+  ok("…and runAction is where it happens", invocations.includes("runAction"));
+  ok(
+    "runAction notes the action for the recorder",
+    /function runAction[\s\S]{0,600}?noteAction\(/.test(MAIN),
+  );
+  // The other half: the recorder has to see a command that arrives with no
+  // action behind it — the toolbar, the Insert menu and the palette all call
+  // `insertSnippet` with a registry command directly.
+  ok(
+    "a command inserted with no action behind it is recorded too",
+    /function insertSnippet[\s\S]{0,400}?noteSnippet\(/.test(MAIN),
+  );
+}
+
+// ------------------------------------- 8. the palette holds operations at all
+//
+// It read `commands.available(runtime.commandsReg)` — the engine's *content*
+// registry — and nothing else, so typing "table" into Ctrl+K offered `#טבלה`
+// and could not offer "insert row below", "save", "export PDF" or "record
+// macro". The one surface in the product labelled Commands was a symbol picker.
+{
+  const body = MAIN.slice(MAIN.indexOf("function renderPaletteList"));
+  const list = body.slice(0, body.indexOf("\n}\n") + 3);
+  ok("the palette offers operations", /paletteActions\(\)/.test(list));
+  ok("…and runs them through the one door", /runAction\(/.test(list));
+  ok("it still offers commands", /commands\.available\(/.test(list));
+  // Structural operations are filtered to where the caret actually is, the same
+  // rule the ribbon and the hydra use. Offering "delete row" outside a table and
+  // silently doing nothing is how a palette teaches people not to trust it.
+  ok(
+    "structural operations are filtered to the caret",
+    /function paletteActions[\s\S]{0,700}?availableAt\(/.test(MAIN),
+  );
+}
+
 }

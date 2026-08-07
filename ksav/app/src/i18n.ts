@@ -447,6 +447,10 @@ const HE: Dict = {
   // palette
   searchCommands: "חיפוש פקודה…",
   // categories
+  // Not a registry category: the palette's label for an *operation* as opposed
+  // to a command, which is the distinction it could not previously make because
+  // it offered no operations at all.
+  "cat.action": "פעולה",
   "cat.style": "עיצוב",
   "cat.heading": "כותרות",
   "cat.align": "יישור",
@@ -1043,6 +1047,7 @@ const EN: Dict = {
   registriesGaveUp:
     "The command list did not load — the toolbar and menus will stay empty. Reload the page.",
   searchCommands: "Search commands…",
+  "cat.action": "Action",
   "cat.style": "Style",
   "cat.heading": "Headings",
   "cat.align": "Alignment",

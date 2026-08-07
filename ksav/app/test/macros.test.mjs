@@ -111,4 +111,56 @@ export async function run() {
   check("and the good one survived", mixed[0].steps[0].id, "a");
 }
 
+// ------------------------------------------------- a command with no action
+//
+// The third kind of step, and it exists because there are three ways a writer
+// changes a document and the recorder used to model two. The toolbar, the
+// Insert menu and the palette insert a *registry command* — there is no action
+// id behind it, and recording it as text would replay `#הדגשה[|]` including the
+// caret marker as eight literal characters.
+
+{
+  const m = {
+    id: "m",
+    name: "x",
+    steps: [
+      { kind: "snippet", snippet: "#הדגשה[|]" },
+      { kind: "text", text: "רש\"י" },
+      { kind: "action", id: "list.addItem" },
+    ],
+  };
+  check("a snippet step reads back", parseAll([m])[0].steps.length, 3);
+  check(
+    "…and keeps its snippet verbatim, caret marker and all",
+    parseAll([m])[0].steps[0].snippet,
+    "#הדגשה[|]",
+  );
+  check(
+    "it describes itself by the command, not by the scaffolding",
+    describe(m, (id) => id),
+    '#הדגשה → "רש\\"י" → list.addItem',
+  );
+  // A snippet refers to nothing that can be renamed away, so unlike an action
+  // step it never goes stale. If the command it names stops existing the
+  // compiler says so, in the document, which is where that belongs.
+  check(
+    "an unknown action is dropped and the snippet is not",
+    validate(m, () => false).steps.map((s) => s.kind),
+    ["snippet", "text"],
+  );
+  // Two snippets in a row are two operations, not one string to be glued.
+  const pair = compact([
+    { kind: "snippet", snippet: "#הדגשה[|]" },
+    { kind: "snippet", snippet: "#נטוי[|]" },
+  ]);
+  check("consecutive snippets stay separate steps", pair.length, 2);
+}
+
+{
+  const bad = parseAll([
+    { id: "m", name: "x", steps: [{ kind: "snippet" }, { kind: "snippet", snippet: "#א[]" }] },
+  ]);
+  check("a snippet step with no snippet is dropped", bad[0].steps.length, 1);
+}
+
 }

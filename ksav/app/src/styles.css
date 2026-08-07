@@ -174,7 +174,11 @@ main[data-side="right"] .source-pane, main[data-side="bottom"] .source-pane { or
 main[data-side="left"] .splitter, main[data-side="right"] .splitter { cursor: col-resize; }
 main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: row-resize; }
 .splitter:hover { background: var(--accent); }
-.chip.disabled { opacity: .4; }
+/* A greyed control must also be an unclickable one. `opacity: .4` alone said
+   "you cannot press this" and let you press it — see `iconBtn`, which now sets
+   the real attribute. `[disabled]` covers every button in the app, not only the
+   chips, so the two conventions are one. */
+.chip.disabled, .tb-btn[disabled] { opacity: .4; pointer-events: none; }
 
 /* ---- Page mode: a single centered page you type on, like Word ---- */
 #app[data-layout="page"] .source-pane { border: none; }

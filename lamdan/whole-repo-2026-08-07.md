@@ -567,6 +567,49 @@ the one file no test can see.
 `main.ts` is the only module in `src/` with no unit test. `bindings.ts:8-12` already says why:
 *"every module that got extracted got tested, and the god module didn't."*
 
+> ### ✅ Fixed — 7 August 2026 (the three corpses; the extraction is §22)
+>
+> All three, plus the family each belongs to. The `main.ts` split itself is
+> separate and still open.
+>
+> **`runAction(id)` is the one door.** The diagnosis is exactly right and the
+> cause is worth restating: nobody forgot a call, there was **no one place to put
+> it**. The keymap invoked `a.run` directly, so recording meant remembering at
+> every invocation site — the same distributed-duty failure `panels.ts` was built
+> to end for the `open` class. The keymap, the palette and the hydra now go
+> through `runAction`, which notes and then runs.
+>
+> **The recorder needed a third step kind, which the finding did not name.** The
+> toolbar, the Insert menu and the palette insert a *registry command* directly
+> through `insertSnippet` — there is no action id to record, and recording it as
+> `text` would replay `#הדגשה[|]` including the caret marker as eight literal
+> characters. So `Step` gains `snippet`, and `insertSnippet` records it unless an
+> action is already recording itself. A `replaying` flag stops a macro that plays
+> another macro from recording the inner one's steps.
+>
+> **The palette lists operations, filtered to the caret** — the same rule the
+> ribbon and the hydra use, because offering "delete row" outside a table and
+> silently doing nothing is how a palette teaches people not to trust it.
+>
+> **`iconBtn` reads `disabled` off the class list** rather than taking a new
+> parameter, because that is the spelling a dozen call sites already use and a
+> parameter would have left every one of them still lying.
+>
+> **Two things went wrong while fixing it, and both are the point.**
+>
+> The first fence would not have caught the bug it was written for. It matched
+> `.run(runtime.view)` and `.run(v)` — but the keymap never *called* `a.run`, it
+> passed it as a value and CodeMirror called it later. A fence aimed one
+> construct to the left of the live bug is this repository's signature failure,
+> found here by mutation before it shipped rather than by the next report.
+>
+> And the first `iconBtn` used `/\bdisabled\b/`, which matches
+> `is-disabled-looking`, because a regex word boundary sits either side of a
+> hyphen. The new `dom.test.mjs` caught it on its first run. `dom.ts` is the
+> layer every other module builds its chrome out of and it had **no test file at
+> all**, which is how a greyed control that still worked shipped in the first
+> place.
+
 **And that is where the corpses are.** Not by coincidence — by construction:
 
 - **The macro recorder does not record.** `noteAction` has exactly one caller (`main.ts:3869`,
@@ -1129,7 +1172,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | 1 | ✅ **Fixed 7 Aug.** `(רש"י)` in a body corrupted the source model, the lint, the heal and the preview — the gershayim bug, alive. The proposed rule was itself one case short (`ראה(רש"י)` is prose too — the hash opens an argument list, not the name) and needed `#let` statements carved out or it would have read a writer's own definitions as prose. | 6 | 2 | `rewrite` | ~40 lines net; 6 scanners → 1; `mode.ts` and `callNameBefore` hold none; +74 assertions, 7 red under mutation |
 | 2 | ✅ **Fixed 7 Aug.** Hebrew suggestions were unranked below the transposition step; the corpus counts were computed and discarded one line later. Now **20.2% → 55.2%** first and **59.0% → 94.8%** in the menu, measured on 400 substitution typos of the 6,000 commonest words. Two of the finding's facts were wrong: the corpus cache is gitignored, not committed (so the bands ship in the asset, +140 KB), and hand-picked typo pairs turned out to test the design rather than the bug. | 11 | 3 | `rewrite` | ~90 lines + a shared sampler in `spell::measure` |
 | 3 | **No process ever runs the application.** One CI job + one rule. | 1 | 1 | `don't-build` the next audit | 1 day |
-| 4 | The macro recorder records nothing; the palette holds no commands; the greyed chip is live. | 7 | 2 | `rewrite` | ~60 lines |
+| 4 | ✅ **Fixed 7 Aug.** `runAction(id)` is the one door; the keymap, the palette and the toolbar all go through it. The recorder gained a third step kind — a command from the toolbar or the palette has no action id, and recording it as text would replay `#הדגשה[\|]` as literal characters. `iconBtn` sets the real `disabled`. Both new fences were checked by mutation, and the first one **failed that check**: it matched only the *call* `.run(v)`, and the original bug passed `a.run` as a value. | 7 | 2 | `rewrite` | ~90 lines, +1 test file, +26 assertions |
 | 5 | `openFile` erases the conflict `watch.ts` exists to detect. Silent data loss. | 10 | 2 | `rewrite` | **10 lines** |
 | 6 | `ACTIONS` hand-copies the registry — the bullet list differs by how you ask for it. | 8 | 2 | `rewrite` | ~40 lines |
 | 7 | Every feature is half in a tested module and half in the untested god-file. | 7 | 2 | `rewrite` | 1 week |

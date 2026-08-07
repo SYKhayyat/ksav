@@ -544,9 +544,14 @@ function buildShortcutKeymap(): KeyBinding[] {
     // ran — fine for Mod-Alt-b, fatal for Enter and Tab, which must reach the
     // editor untouched the moment the caret leaves a list.
     if (structure.actionById(a.id)) continue;
-    if (kb[a.id]) bindings.push({ key: kb[a.id], run: a.run, preventDefault: true });
+    // Through `runAction`, not `a.run`. This binding is the path the macro
+    // recorder is *for* — "I just did this fiddly thing eleven times" is done
+    // with the keyboard — and calling `run` directly is what made every one of
+    // these operations invisible to it.
+    const press = (v: EditorView) => runAction(a.id, v);
+    if (kb[a.id]) bindings.push({ key: kb[a.id], run: press, preventDefault: true });
     for (const alias of aliases[a.id] ?? []) {
-      bindings.push({ key: alias, run: a.run, preventDefault: true });
+      bindings.push({ key: alias, run: press, preventDefault: true });
     }
   }
   return bindings;
@@ -1391,6 +1396,11 @@ function docLang(): "he" | "en" {
  *    so the writer never visits the field that is wrong.
  */
 function insertSnippet(rawSnippet: string) {
+  // Recorded here rather than at each of the toolbar's, the Insert menu's and
+  // the palette's call sites, because "a command reached the document" is one
+  // event and three places to remember it is how it came to be recorded in
+  // none. An action inserting a snippet is already recorded as the action.
+  if (!inAction) noteSnippet(rawSnippet);
   const sel = runtime.view.state.selection.main;
   const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
   const doc = runtime.view.state.doc.toString();
@@ -2899,16 +2909,79 @@ function paletteKey(e: KeyboardEvent): boolean {
   }
 }
 
+/**
+ * The operations the palette offers, with the key that also runs them.
+ *
+ * **The palette used to contain no commands.** It read
+ * `commands.available(runtime.commandsReg)` — the engine's *content* registry —
+ * so typing "table" into Ctrl+K offered `#טבלה` and nothing else. Not "insert
+ * row below", not "save", not "export PDF", not "record macro": none of the ~30
+ * shell actions and none of the 43 structural operations appeared. The one
+ * surface in the product labelled **Commands** was a symbol picker.
+ *
+ * Structural operations are filtered to the ones that apply where the caret is,
+ * the same rule the ribbon and the hydra use. Offering "delete row" outside a
+ * table and having it silently do nothing is how a palette teaches people not to
+ * trust it.
+ */
+function paletteActions(): { id: string; label: string; key: string }[] {
+  const kb = keybindings();
+  const doc = runtime.view.state.doc.toString();
+  const here = new Set(
+    structure
+      .availableAt(doc, runtime.view.state.selection.main.head)
+      .filter((a) => a.enabled)
+      .map((a) => a.action.id),
+  );
+  return ACTIONS.filter((a) => !structure.actionById(a.id) || here.has(a.id)).map((a) => ({
+    id: a.id,
+    label: macroName(a.id),
+    key: kb[a.id] ?? "",
+  }));
+}
+
 function renderPaletteList(q: string) {
   const list = document.getElementById("palette-list")!;
   const lang = getLang();
   const query = q.trim().toLowerCase();
+  list.innerHTML = "";
+  let n = 0;
+
+  // Operations first. They are what the word "command" means to somebody who
+  // opened this looking for one, and they are the half that was missing.
+  const acts = paletteActions().filter(
+    (a) => !query || a.label.toLowerCase().includes(query) || a.id.toLowerCase().includes(query),
+  );
+  for (const a of acts.slice(0, 30)) {
+    const row = el(
+      "button",
+      {
+        class: "pal-item" + (n === 0 ? " sel" : ""),
+        onMouseEnter: (e: Event) => {
+          list.querySelectorAll(".pal-item.sel").forEach((r) => r.classList.remove("sel"));
+          (e.currentTarget as HTMLElement).classList.add("sel");
+        },
+        onClick: () => {
+          closePalette();
+          runAction(a.id);
+        },
+      },
+      [
+        el("span", { class: "pal-cat" }, [t("cat.action")]),
+        el("b", {}, [a.label]),
+        el("code", {}, [a.key || a.id]),
+      ],
+    );
+    list.append(row);
+    n++;
+  }
+
   // The same list the completions use. The palette never called `userCommandNames`
   // at all, so a user-defined command was invisible here in every case — yours and
   // the document's alike (B27).
   const items = commands.available(runtime.commandsReg).filter((c) => commands.matches(c, query));
-  list.innerHTML = "";
-  items.slice(0, 60).forEach((c, i) => {
+  items.slice(0, 60).forEach((c) => {
+    const i = n++;
     const row = el(
       "button",
       {
@@ -3622,14 +3695,28 @@ function macroName(id: string): string {
   return mac ? mac.name : t("sc." + id);
 }
 
-/** Note an action for the recorder. Called by every action runner. */
+/**
+ * Set while a macro is replaying, so its steps are not recorded again.
+ *
+ * A macro can play another macro — `macroPlay` is an action like any other — and
+ * recording a replay would turn one step into all of the inner macro's, which
+ * then diverge the moment the inner one is edited. The outer action is the step.
+ */
+let replaying = false;
+
+/** Note an action for the recorder. Called by `runAction`, and by nothing else. */
 function noteAction(id: string) {
-  if (recording) recording.push({ kind: "action", id });
+  if (recording && !replaying) recording.push({ kind: "action", id });
 }
 
 /** Note typed text for the recorder. */
 function noteTyped(text: string) {
-  if (recording && text) recording.push({ kind: "text", text });
+  if (recording && !replaying && text) recording.push({ kind: "text", text });
+}
+
+/** Note a command inserted with no action behind it — the toolbar, the palette. */
+function noteSnippet(snippet: string) {
+  if (recording && !replaying && snippet) recording.push({ kind: "snippet", snippet });
 }
 
 function toggleRecording() {
@@ -3676,6 +3763,9 @@ function playMacro(macro: macros.Macro, times = 1) {
     // is a macro whose next result will surprise somebody.
     setStatus(tf("macroStepsDropped", macro.name), "");
   }
+  const wasReplaying = replaying;
+  replaying = true;
+  try {
   for (let i = 0; i < times; i++) {
     for (const step of valid.steps) {
       if (step.kind === "text") {
@@ -3684,11 +3774,18 @@ function playMacro(macro: macros.Macro, times = 1) {
           changes: { from: sel.from, to: sel.to, insert: step.text },
           selection: { anchor: sel.from + step.text.length },
         });
+      } else if (step.kind === "snippet") {
+        insertSnippet(step.snippet);
       } else {
-        const action = actionById(step.id);
-        action?.run(runtime.view);
+        // `run` rather than `runAction`: replaying a macro must not record its
+        // own steps if the writer is recording a macro that plays another one.
+        // The outer `macroPlay` is the step, and it is already noted.
+        actionById(step.id)?.run(runtime.view);
       }
     }
+  }
+  } finally {
+    replaying = wasReplaying;
   }
   scheduleCompile();
   runtime.view.focus();
@@ -3698,6 +3795,49 @@ function playMacro(macro: macros.Macro, times = 1) {
 function actionById(id: string): { id: string; run: (v: EditorView) => boolean } | undefined {
   return ACTIONS.find((a) => a.id === id);
 }
+
+/**
+ * Run an action by id. **The only way an action should be invoked.**
+ *
+ * This did not exist, and its absence was the macro recorder's whole bug.
+ * `noteAction` had exactly one caller — inside `runStructureAction` — so the
+ * recorder saw the forty-three structural operations and nothing else. Press
+ * F3, Ctrl+B, F4 and the answer was *"Nothing was recorded."* Bold, italic,
+ * footnote, endnote, the headings, bullets, tables, alignment, the three review
+ * marks and all three defer operations are first-class `ACTIONS` entries with
+ * shipped key bindings, and every one of them was invisible — because the keymap
+ * called `a.run` directly and there was no one place in between.
+ *
+ * It also gives the palette something to run: a surface labelled **Commands**
+ * that could not reach "insert row below", "save" or "record macro" was a symbol
+ * picker with the wrong sign on it.
+ */
+function runAction(id: string, v: EditorView = runtime.view): boolean {
+  const action = actionById(id);
+  if (!action) return false;
+  // Structural operations note themselves inside `runStructureAction`, which
+  // the ribbon and the hydra also reach directly with `sticky` on. Noting here
+  // as well would record every one of them twice.
+  if (!structure.actionById(id)) noteAction(id);
+  inAction++;
+  try {
+    return action.run(v);
+  } finally {
+    inAction--;
+  }
+}
+
+/**
+ * Depth of `runAction`, so `insertSnippet` can tell a command arriving from the
+ * toolbar apart from one an action is inserting on its own account.
+ *
+ * The toolbar, the Insert menu and the palette all call `insertSnippet`
+ * directly with a registry command — there is no action id to record — so the
+ * snippet itself is the step. An action that inserts a snippet must not be
+ * recorded twice, and replaying the action is the better of the two: it is the
+ * one that survives the registry snippet changing under it.
+ */
+let inAction = 0;
 
 function deleteMacro(id: string) {
   settings.macros = savedMacros().filter((m) => m.id !== id);

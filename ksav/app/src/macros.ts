@@ -21,10 +21,20 @@
 // with everything else in the registry — and, because a saved macro registers as
 // an action itself, it can be bound to a key like anything else.
 
-/** One recorded step. */
+/**
+ * One recorded step.
+ *
+ * Three kinds and not two, because there are three ways a writer changes a
+ * document and the recorder used to see one of them. `action` is a named
+ * operation from the registry — a heading, a table row, a review mark. `text` is
+ * typing. `snippet` is a command arriving from the toolbar, the Insert menu or
+ * the palette, which is neither: it has no action id, and recording it as text
+ * would replay `#הדגשה[|]` including the caret marker as literal characters.
+ */
 export type Step =
   | { kind: "action"; id: string }
-  | { kind: "text"; text: string };
+  | { kind: "text"; text: string }
+  | { kind: "snippet"; snippet: string };
 
 export interface Macro {
   id: string;
@@ -58,8 +68,24 @@ export function compact(steps: Step[]): Step[] {
 /** A short human description, for the menu and the shortcut list. */
 export function describe(macro: Macro, nameOf: (id: string) => string): string {
   return macro.steps
-    .map((s) => (s.kind === "text" ? JSON.stringify(s.text) : nameOf(s.id)))
+    .map((s) =>
+      s.kind === "text"
+        ? JSON.stringify(s.text)
+        : s.kind === "snippet"
+          ? commandIn(s.snippet)
+          : nameOf(s.id),
+    )
     .join(" → ");
+}
+
+/**
+ * The command a snippet inserts, for the description — `#הדגשה[|]` reads as
+ * `#הדגשה`. The rest of a snippet is scaffolding the writer did not type and
+ * would not recognise in a list of steps.
+ */
+function commandIn(snippet: string): string {
+  const m = /^#?([A-Za-z0-9֐-׿_]+)/u.exec(snippet.trim());
+  return m ? "#" + m[1] : JSON.stringify(snippet.slice(0, 12));
 }
 
 /**
@@ -72,7 +98,14 @@ export function describe(macro: Macro, nameOf: (id: string) => string): string {
  * on step three is a corrupted document plus a stack trace.
  */
 export function validate(macro: Macro, known: (id: string) => boolean): Macro {
-  return { ...macro, steps: macro.steps.filter((s) => s.kind === "text" || known(s.id)) };
+  // A snippet carries its own text and refers to nothing that can be renamed
+  // away, so it never goes stale the way an action id can. If the *command* it
+  // names stops existing the compiler will say so, in the document, which is
+  // where that belongs.
+  return {
+    ...macro,
+    steps: macro.steps.filter((s) => s.kind !== "action" || known(s.id)),
+  };
 }
 
 /** Is this macro worth saving? */
@@ -120,6 +153,8 @@ export function parseAll(raw: unknown): Macro[] {
       if (!s || typeof s !== "object") continue;
       if (s.kind === "text" && typeof s.text === "string") clean.push({ kind: "text", text: s.text });
       else if (s.kind === "action" && typeof s.id === "string") clean.push({ kind: "action", id: s.id });
+      else if (s.kind === "snippet" && typeof s.snippet === "string")
+        clean.push({ kind: "snippet", snippet: s.snippet });
     }
     out.push({ id, name: typeof name === "string" && name ? name : id, steps: clean });
   }

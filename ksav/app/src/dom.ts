@@ -65,9 +65,33 @@ export function noticeHost(): HTMLElement {
  * label — otherwise a reader says "dagger, Footnote".
  */
 export function iconBtn(label: string, title: string, onClick: () => void, cls = ""): HTMLElement {
+  // `disabled` in the class list means disabled.
+  //
+  // It did not. `previewSideToggle` passed `"chip disabled"`, `styles.css` gave
+  // `.chip.disabled` an `opacity: .4` and no `pointer-events`, and this
+  // constructor had no notion of the state at all — so the control looked greyed,
+  // clicked, saved a setting, fired a full chrome rebuild, and announced itself
+  // to a screen reader as enabled. The ribbon, the menus and the hydra all set
+  // the real attribute; two conventions lived in one file and the cosmetic one
+  // was in the constructor every header chip goes through.
+  //
+  // Read off the class rather than added as a parameter because that is the
+  // spelling twelve call sites already use, and a parameter would have left them
+  // all still lying.
+  // Split, not `\bdisabled\b`: a regex word boundary sits either side of a
+  // hyphen, so `is-disabled-looking` would have counted. A class list is a list
+  // of tokens and has to be read as one.
+  const off = cls.split(/\s+/).includes("disabled");
   return el(
     "button",
-    { class: `tb-btn ${cls}`, title, "aria-label": title, type: "button", onClick },
+    {
+      class: `tb-btn ${cls}`,
+      title,
+      "aria-label": title,
+      type: "button",
+      ...(off ? { disabled: "", "aria-disabled": "true" } : {}),
+      onClick: off ? () => {} : onClick,
+    },
     [el("span", { "aria-hidden": "true" }, [label])],
   );
 }

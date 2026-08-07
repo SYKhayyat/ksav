@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, ArrowLeft, Check, Copy, RefreshCw, FileText, Eraser, Plus } from 'lucide-react';
+import { Sparkles, Send, X, Check, Copy, Plus } from 'lucide-react';
 
 interface AIAssistantProps {
   onClose: () => void;
@@ -20,35 +20,17 @@ export default function AIAssistant({ onClose, editorText, onApplyText }: AIAssi
     },
   ]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingPhrase, setLoadingPhrase] = useState('מתחבר למוח המלאכותי...');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const loadingPhrases = [
-    'מנתח את מבנה המסמך...',
-    'מעבד סגנונות כתיבה בעברית...',
-    'מדייק את פקודות העימוד...',
-    'רושם כותרות והערות שוליים...',
-    'מלביש את הטקסט במחלצות עימוד...',
-  ];
-
-  // Rotate loading phrases for high-quality UX
-  useEffect(() => {
-    let interval: any;
-    if (isLoading) {
-      let idx = 0;
-      interval = setInterval(() => {
-        setLoadingPhrase(loadingPhrases[idx % loadingPhrases.length]);
-        idx++;
-      }, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [isLoading]);
+  // The rotating "מתחבר למוח המלאכותי…" phrases that used to live here are gone
+  // with the request they were covering for. A spinner that can never resolve,
+  // over a fetch to an endpoint that was deleted, is the most expensive kind of
+  // lie a UI can tell: it looks like it is working.
 
   // Scroll to bottom on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages]);
 
   const presetPrompts = [
     { label: 'נסח דברי תורה', prompt: 'כתוב דבר תורה קצר ומרגש על פרשת השבוע הנוכחית. השתמש בפקודות עימוד של קסב כמו #כותרת1, #הדגשה, והערות שוליים עם #הערה להסברים תורניים.' },
@@ -57,39 +39,38 @@ export default function AIAssistant({ onClose, editorText, onApplyText }: AIAssi
     { label: 'צור מכתב פנייה', prompt: 'צור תבנית של מכתב פנייה רשמי יפה המיושר לימין (#ימין), עם כותרת מודגשת, רשימה מסודרת של נקודות, והערת שוליים אחת.' },
   ];
 
-  const handleSend = async (customPrompt?: string) => {
+  // What this panel says instead of calling a backend.
+  //
+  // It used to `fetch('/api/gemini/assistant')`, an endpoint that was deleted on
+  // 24 July together with the Express server behind it — an open, unmetered,
+  // unauthenticated proxy holding the owner's Gemini key, which is a trap for
+  // whoever clones a public repository first (see ../../README.md). So the call
+  // failed, and the failure was reported as *`אנא ודא שמפתח ה-API מוגדר כראוי`* —
+  // "check your API key is configured" — which sent the reader to
+  // `.env.example`, which offered them a `GEMINI_API_KEY` slot to fill in for a
+  // route that does not exist. Three artifacts pointing at each other and at
+  // nothing.
+  //
+  // Restoring the proxy is not the fix; it is the vulnerability. What is left is
+  // the honest thing an archived mock can do: say so, and hand the prompt back
+  // so it can be pasted into whatever assistant the reader actually uses. The
+  // panel still demonstrates the interaction it was built to demonstrate, which
+  // is the whole reason this directory is kept.
+  const ARCHIVED_NOTE =
+    'הפרוטוטייפ הזה נשמר לצורכי היסטוריה בלבד ואין מאחוריו שרת. ' +
+    'שרת ה-Gemini המקורי הוסר במכוון (ראו prototypes/README.md). ' +
+    'הנה הבקשה שהייתה נשלחת — אפשר להעתיק אותה לכל עוזר כתיבה:';
+
+  const handleSend = (customPrompt?: string) => {
     const promptToSend = customPrompt || input;
     if (!promptToSend.trim()) return;
 
-    // Add user message
-    setMessages((prev) => [...prev, { role: 'user', text: promptToSend }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text: promptToSend },
+      { role: 'model', text: `${ARCHIVED_NOTE}\n\n${promptToSend}` },
+    ]);
     if (!customPrompt) setInput('');
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/gemini/assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: promptToSend,
-          editorText: editorText,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('שגיאה בתקשורת עם השרת');
-      }
-
-      const data = await response.json();
-      setMessages((prev) => [...prev, { role: 'model', text: data.result }]);
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'model', text: `סליחה, אירעה שגיאה בעיבוד הבקשה: ${err.message || 'אנא ודא שמפתח ה-API מוגדר כראוי.'}` },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   // Extract code block or take full response text
@@ -173,32 +154,21 @@ export default function AIAssistant({ onClose, editorText, onApplyText }: AIAssi
           </div>
         ))}
 
-        {/* Loading Bubble */}
-        {isLoading && (
-          <div className="flex flex-col max-w-[85%] ml-auto items-end">
-            <div className="p-3.5 bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-tr-none shadow-sm flex items-center gap-2.5">
-              <RefreshCw size={12} className="animate-spin text-indigo-600" />
-              <span className="text-xs font-sans font-medium">{loadingPhrase}</span>
-            </div>
-          </div>
-        )}
         <div ref={chatEndRef} />
       </div>
 
-      {/* Preset Suggestions (Shown when input is empty and not loading) */}
-      {!isLoading && (
-        <div className="px-4 py-2 border-t border-gray-100 bg-white flex flex-wrap gap-1.5 overflow-x-auto max-h-24">
-          {presetPrompts.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => handleSend(p.prompt)}
-              className="px-2 py-1 bg-gray-50 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 rounded-full text-[10px] text-gray-600 font-sans transition-all whitespace-nowrap shadow-sm"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Preset Suggestions */}
+      <div className="px-4 py-2 border-t border-gray-100 bg-white flex flex-wrap gap-1.5 overflow-x-auto max-h-24">
+        {presetPrompts.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => handleSend(p.prompt)}
+            className="px-2 py-1 bg-gray-50 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 rounded-full text-[10px] text-gray-600 font-sans transition-all whitespace-nowrap shadow-sm"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       {/* Input Form Footer */}
       <form
@@ -213,12 +183,11 @@ export default function AIAssistant({ onClose, editorText, onApplyText }: AIAssi
           placeholder="שאל אותי משהו, בקש עימוד, או דבר תורה..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading}
           className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all font-sans"
         />
         <button
           type="submit"
-          disabled={isLoading || !input.trim()}
+          disabled={!input.trim()}
           className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-100 disabled:text-gray-400 text-white rounded-xl shadow-md transition-all flex items-center justify-center"
         >
           <Send size={14} className="transform rotate-180" />

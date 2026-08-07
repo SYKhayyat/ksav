@@ -1,6 +1,6 @@
 {
-  "name": "Ksav",
-  "description": "A Hebrew-First typesetting and writing system powered by Typst concepts and Hebrew command aliases.",
+  "name": "Ksav (archived prototype)",
+  "description": "The original AI Studio mock that predates the real Ksav. It renders an HTML approximation of Hebrew typesetting and never invoked Typst. The product is in ../../ksav.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

@@ -3176,7 +3176,7 @@ async function openFile() {
   // open, switch to it instead of cloning it.
   const existing = await docBoundTo(opened.binding);
   if (existing) {
-    await openDoc(existing);
+    await openBound(existing, opened);
     return;
   }
   const stripExt = opened.binding.name.replace(/\.[^.]+$/, "");
@@ -3195,6 +3195,55 @@ async function openFile() {
   await docs.setFileName(doc.id, opened.binding.name);
   await files.rememberBinding(doc.id, opened.binding);
   await openDoc(doc.id);
+}
+
+/**
+ * Open a document already bound to the file the writer just picked.
+ *
+ * **This is where the conflict was not missed but *erased*.** The old path read
+ * the file, found the library entry bound to that path, **discarded the text it
+ * had just read**, opened the IndexedDB copy, and — inside `openDoc` — called
+ * `watch.markInSync`, stamping the file's *current* mtime as agreed. So the one
+ * moment Ksav was holding both versions in its hands was the moment it threw
+ * one away and recorded that they matched.
+ *
+ * `watch.ts:5-9` names Dropbox syncing an older copy down, a second Ksav window,
+ * a text editor open on the same file and `git checkout` as the reason it
+ * exists. Every one of them reaches the writer through Open, and after Open the
+ * thirty-second autosave overwrote the file with no error, no prompt and
+ * nothing in the log.
+ *
+ * The stamp cannot answer this question, and that is why the comparison is on
+ * content: `known` is a per-session map, so on a fresh launch there is no stamp
+ * to compare against and `checkFile` correctly says `unknown`. Here there is
+ * something better than a stamp — both texts.
+ */
+async function openBound(id: string, opened: { text: string; binding: files.FileBinding }) {
+  const stored = await docs.getDoc(id);
+  const onDisk = docs.parseDoc(opened.text, "");
+  if (stored && stored.body !== onDisk.body) {
+    if (confirm(tf("fileChangedSinceOpen", opened.binding.name))) {
+      // Take the file. The library entry keeps its identity, its history and its
+      // binding — this is the same document, with what is actually on disk in it.
+      await docs.putDoc({
+        ...stored,
+        body: onDisk.body,
+        assets: onDisk.assets,
+        customCommands: onDisk.customCommands,
+        ...(onDisk.config ? { config: onDisk.config } : {}),
+      });
+      await openDoc(id);
+      setStatus(t("loadedFromDisk"), "ok");
+      return;
+    }
+    // Keep Ksav's copy — but the two are known to differ, and the next save has
+    // to say so rather than silently winning.
+    await openDoc(id);
+    watch.markConflicted(id);
+    setStatus(t("keptEditorCopy"), "warn");
+    return;
+  }
+  await openDoc(id);
 }
 
 async function fileText(): Promise<string> {

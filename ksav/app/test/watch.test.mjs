@@ -14,7 +14,7 @@
 // the impression the problem is handled.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { sameStamp, checkFile, markInSync, forget, believedStamp } from "../.tmp-test/watch.mjs";
+import { sameStamp, checkFile, markInSync, markConflicted, forget, believedStamp } from "../.tmp-test/watch.mjs";
 
 export function run() {
   // ------------------------------------------------------------ the comparison
@@ -86,5 +86,39 @@ export function run() {
     };
     await markInSync("doc4", gone);
     check("a file that has vanished is not a conflict", await checkFile("doc4", gone), "unknown");
+
+    // ------------------------------------------- a conflict Ksav has *seen*
+    //
+    // The state that was missing, and its absence was silent data loss.
+    //
+    // `openFile` on an already-bound path read the file, found the library
+    // entry, **discarded the text it had just read**, opened the IndexedDB copy
+    // and called `markInSync` — stamping the file's current mtime as agreed. The
+    // one moment Ksav held both versions was the moment it threw one away and
+    // recorded that they matched. The conflict was not missed; it was erased,
+    // and the next autosave overwrote the file with no prompt.
+    //
+    // `forget` cannot stand in for this. A forgotten document has no stamp, no
+    // stamp is `unknown`, and `unknown` is treated as safe *on purpose* — right
+    // for a document never synchronised, wrong for one just watched diverge.
+    disk = { lastModified: 9000, size: 42 };
+    markConflicted("doc5");
+    check(
+      "a document known to differ says so",
+      await checkFile("doc5", binding),
+      "changed",
+    );
+    // Even against the file exactly as it stands right now, which is the whole
+    // point: content diverged, and the mtime is no longer evidence of anything.
+    check(
+      "…and keeps saying so while the file sits still",
+      await checkFile("doc5", binding),
+      "changed",
+    );
+    forget("doc5");
+    check("forgetting it is a different state", await checkFile("doc5", binding), "unknown");
+    markConflicted("doc5");
+    await markInSync("doc5", binding);
+    check("and agreeing again clears it", await checkFile("doc5", binding), "unchanged");
   })();
 }

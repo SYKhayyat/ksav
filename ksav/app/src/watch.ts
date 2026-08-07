@@ -61,6 +61,32 @@ export function forget(docId: string): void {
   known.delete(docId);
 }
 
+/**
+ * The stamp of a file Ksav has *seen* disagree with what it holds.
+ *
+ * Never equal to any real stamp — mtimes and sizes are not negative — so
+ * `checkFile` answers `changed` until something marks the document in sync
+ * again.
+ */
+const CONFLICTED: FileStamp = { mtime: -1, size: -1 };
+
+/**
+ * Record that the file and the open document are known to differ.
+ *
+ * `forget` is not the same thing and cannot stand in for it. A forgotten
+ * document has *no* stamp, and no stamp is reported as `unknown`, which the
+ * caller treats as safe — deliberately, see `sameStamp`. That is right for a
+ * document Ksav has never synchronised and wrong for one it has just watched
+ * diverge, so the two states have to be distinguishable.
+ *
+ * The case: `openFile` on a path some other program has changed. The writer
+ * chose to keep Ksav's copy; the next save must still ask before overwriting
+ * theirs.
+ */
+export function markConflicted(docId: string): void {
+  known.set(docId, CONFLICTED);
+}
+
 /** What Ksav believes the file looks like. Exposed for tests. */
 export function believedStamp(docId: string): FileStamp | null | undefined {
   return known.get(docId);

@@ -183,7 +183,7 @@ export const RUNTIME = ["appAssertions", "appTestFiles"];
 // that quietly grows and whose entries are unfalsifiable by construction.
 export const LOGS = {
   "decisions/": "The dated record — nine waves, audits and resolutions, each true on its date and never edited afterwards. See decisions/README.md.",
-  "lamdan/whole-repo-2026-08-05.md": "An audit report, kept verbatim so its fixes are legible beside it.",
+  "lamdan/": "Audit reports, each dated and kept verbatim so its fixes are legible beside it.",
 };
 
 /** Does this exemption cover that page? A trailing `/` means the directory. */

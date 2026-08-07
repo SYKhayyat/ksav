@@ -703,6 +703,62 @@ This is the change to schedule, not the one to start this afternoon.
 
 ## 11. The Hebrew suggestion menu is 4% useful, and the fix is computed and thrown away
 
+> ### ✅ Fixed — 7 August 2026
+>
+> Done as prescribed, and the finding below is kept verbatim. Two of its facts
+> were wrong and both changed the work.
+>
+> **The mechanism.** `build_lexicon.py` now bands each kept word by its **rank
+> position** within a corpus, and the band travels in the generated lexicon as an
+> optional tab-separated field. `add_words` parses it, `ByLength` stores it beside
+> the letter mask, and `suggest_scored` adds it under the transposition step so a
+> common word can never beat a closer one. English moved onto the same field in
+> passing — it was calling `common::band()` inside the scoring loop, a
+> `to_lowercase()` allocation and a hash lookup per surviving candidate.
+>
+> **Measured, and the numbers are better than the projection.** On four hundred
+> substitution typos of the six thousand commonest words in the corpus:
+>
+> | | first | in the five-item menu |
+> |---|---|---|
+> | bands stripped | 81/400 (20.2%) | 236/400 (59.0%) |
+> | as shipped | **221/400 (55.2%)** | **379/400 (94.8%)** |
+>
+> 304 of 400 rank higher, 7 lower. Of the 21 that still miss the menu, **0 are
+> absent from the lexicon** — every remaining failure is ranking, not coverage,
+> which is the distinction an `!is_empty()` assertion could never have drawn.
+>
+> **Correction 1: the corpus cache is not committed.** The finding says *"the raw
+> corpus is still sitting in `engine/tools/.corpus-cache/`… committed"* and *"the
+> corpus cache is committed, so `--offline` suffices"*. It is in
+> `.gitignore:52`, and it is 78 MB for the Ben-Yehuda counts alone. Nobody else
+> can reproduce the bands, which is exactly why they had to be **baked into the
+> shipped lexicon** rather than computed at load. +140 KB on a 3.45 MB asset,
+> against the ~20 KB the finding estimated.
+>
+> **Correction 2: hand-picked typo pairs are the wrong instrument, and writing
+> them first proved it.** Ten pairs were listed by hand in the style of the
+> English tests; six failed, and the failures were the *design working*. `הלכח`
+> transposes to `הכלח`, a real word, and a transposition outranks a substitution
+> at the same distance on purpose. A list of pairs that pass is indistinguishable
+> from a list of pairs that flatter. So the fence is a **floor over a
+> deterministic sample** — 45% first, 88% in the menu, well under what is
+> measured — plus a second test that scores the same sample against the same
+> words with the bands stripped and requires that column to be markedly worse.
+> The floor alone would still pass if the bands were ignored and the lexicon
+> merely got smaller.
+>
+> **The sampler is in the library, beside `probe`.** `spell::measure` is shared by
+> `tests/spell.rs` and by `examples/suggestrate.rs`, for the reason `probe.rs` is
+> in the shipping library: a claim about what the product does has to be checkable
+> by something that runs. A test whose sample differs from the tool's is a test
+> measuring something nobody looked at.
+>
+> **What the finding got exactly right, and it is the whole thing:** the
+> `common.rs` paragraph declining to rank Hebrew was intellectually honest and
+> factually wrong about its own repository. That paragraph now says so, quoting
+> itself.
+
 **This is the best finding in the report, and it is in the one place the product cannot afford one.**
 
 R3 replicated `hebrew.rs::suggest_scored` exactly against the shipped 269,390-entry lexicon — same
@@ -1048,7 +1104,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | # | Finding | § | Lens | Verdict | Effort |
 |---|---|---|---|---|---|
 | 1 | ✅ **Fixed 7 Aug.** `(רש"י)` in a body corrupted the source model, the lint, the heal and the preview — the gershayim bug, alive. The proposed rule was itself one case short (`ראה(רש"י)` is prose too — the hash opens an argument list, not the name) and needed `#let` statements carved out or it would have read a writer's own definitions as prose. | 6 | 2 | `rewrite` | ~40 lines net; 6 scanners → 1; `mode.ts` and `callNameBefore` hold none; +74 assertions, 7 red under mutation |
-| 2 | **Hebrew suggestions are 4% top-1**; the fix is computed and discarded in-repo. | 11 | 3 | `rewrite` | **~20 lines** |
+| 2 | ✅ **Fixed 7 Aug.** Hebrew suggestions were unranked below the transposition step; the corpus counts were computed and discarded one line later. Now **20.2% → 55.2%** first and **59.0% → 94.8%** in the menu, measured on 400 substitution typos of the 6,000 commonest words. Two of the finding's facts were wrong: the corpus cache is gitignored, not committed (so the bands ship in the asset, +140 KB), and hand-picked typo pairs turned out to test the design rather than the bug. | 11 | 3 | `rewrite` | ~90 lines + a shared sampler in `spell::measure` |
 | 3 | **No process ever runs the application.** One CI job + one rule. | 1 | 1 | `don't-build` the next audit | 1 day |
 | 4 | The macro recorder records nothing; the palette holds no commands; the greyed chip is live. | 7 | 2 | `rewrite` | ~60 lines |
 | 5 | `openFile` erases the conflict `watch.ts` exists to detect. Silent data loss. | 10 | 2 | `rewrite` | **10 lines** |

@@ -27,6 +27,22 @@
 //! `english.rs`, where an excellent general dictionary does exist and the one
 //! thing it does not know is transliterated Hebrew.
 //!
+//! # The menu is ranked, and for a while it was not
+//!
+//! A one-edit lexicon returns candidates that are all, by construction, one edit
+//! away — so distance separates none of them, and transposition separates only
+//! the transposed ones. What was left underneath was **alphabetical order**, and
+//! it showed: `הלכח` ranked `הלכה` twelfth, `ברכח` ranked `ברכה` thirteenth,
+//! `שבתת` ranked `שבת` sixteenth, in a menu that shows five.
+//!
+//! Entries therefore carry a frequency band from the corpus the lexicon was
+//! built from, and [`suggest_scored`](Lexicon::suggest_scored) adds it under the
+//! transposition step so a common word can never beat a closer one. Measured on
+//! four hundred substitution typos of the six thousand commonest words: first
+//! place 20% → **55%**, in the menu 59% → **95%**. Re-measure any time with
+//! `cargo run --release --example suggestrate`, which reports the same sample
+//! against a lexicon with the bands stripped.
+//!
 //! # What it deliberately does not check
 //!
 //! **Pointed text.** The lexicon holds no nikud, and neither does any Hebrew
@@ -41,6 +57,10 @@ use super::{edit_distance, is_transposition, letter_mask, rank, ByLength, Dict, 
 const LEXICON: &str = include_str!("../../assets/lexicon-he.txt");
 /// Hand-curated Talmudic vocabulary and the citation apparatus.
 const SUPPLEMENT: &str = include_str!("../../assets/lexicon-he-supplement.txt");
+
+/// A word carrying no frequency band. **Unranked, not rare** — that is most of
+/// the lexicon, and none of it is being called uncommon.
+const UNRANKED: u8 = (super::common::BANDS - 1) as u8;
 
 /// The Hebrew words the checker accepts.
 ///
@@ -67,13 +87,44 @@ impl Lexicon {
         l
     }
 
+    /// The two bundled lists as text, in the order [`bundled`] adds them.
+    ///
+    /// Exposed for one caller and it earns its keep: `examples/suggestrate.rs`
+    /// rebuilds the lexicon with the frequency bands stripped, so the value of
+    /// the bands is measured against the same words rather than asserted. A
+    /// claim about ranking that cannot be re-run is a claim that goes stale
+    /// silently, which is how the 4%-useful menu shipped for a month.
+    pub fn bundled_sources() -> [&'static str; 2] {
+        [LEXICON, SUPPLEMENT]
+    }
+
     /// Add words from a newline-separated list. `#` comments and blanks are
     /// ignored, and every entry is normalized the same way lookups are, so a
     /// list written with Hebrew gershayim still matches text typed with them.
+    ///
+    /// A line may carry an optional tab-separated **band** — `שבת\t0` — saying
+    /// how common the word is in the corpus the lexicon was built from. It is
+    /// optional because this is also the API for the writer's own dictionary and
+    /// for a user-installed Hspell pack, neither of which has counts; a line
+    /// without one is *unranked*, which is not the same as rare.
     pub fn add_words(&mut self, list: &str) {
         for line in list.lines() {
-            let w = line.trim();
-            if w.is_empty() || w.starts_with('#') {
+            let line = line.trim_end_matches(['\r', '\n']);
+            if line.trim().is_empty() || line.trim_start().starts_with('#') {
+                continue;
+            }
+            let (w, band) = match line.split_once('\t') {
+                Some((w, b)) => (
+                    w.trim(),
+                    b.trim()
+                        .parse::<u8>()
+                        .ok()
+                        .filter(|b| usize::from(*b) < super::common::BANDS)
+                        .unwrap_or(UNRANKED),
+                ),
+                None => (line.trim(), UNRANKED),
+            };
+            if w.is_empty() {
                 continue;
             }
             let word = normalize(w);
@@ -81,7 +132,8 @@ impl Lexicon {
             // is scored against — ם and מ have to look like the same letter here
             // for the same reason they do in the distance.
             let folded: Vec<char> = word.chars().map(fold_final).collect();
-            self.words.insert(&word, folded.len(), letter_mask(&folded));
+            self.words
+                .insert(&word, folded.len(), letter_mask(&folded), band);
         }
     }
 
@@ -159,15 +211,31 @@ impl Lexicon {
         let tmask = letter_mask(&tc);
         let mut fold = [' '; super::FOLD_BUF];
         let mut out = Vec::new();
-        for (w, mask) in self.words.near(tc.len()) {
-            if (mask ^ tmask).count_ones() > 2 {
+        for (w, e) in self.words.near(tc.len()) {
+            if (e.mask ^ tmask).count_ones() > 2 {
                 continue;
             }
             let Some(cand) = super::fold_into(&mut fold, w.chars().map(fold_final)) else {
                 continue; // longer than anything a suggestion could be one edit from
             };
             if let Some(d) = edit_distance(&tc, cand, 1) {
-                out.push((rank(d, is_transposition(&tc, cand)), w.to_string()));
+                // Distance, then transposition, then **how common the word is**.
+                // The third term is the one that was missing, and it is the whole
+                // difference between a menu and a list: every candidate here is
+                // one edit away by construction, so distance separates none of
+                // them, and what was left was alphabetical order. `הלכח` ranked
+                // `הלכה` twelfth, `ברכח` ranked `ברכה` thirteenth, `שבתת` ranked
+                // `שבת` sixteenth — and the menu shows five.
+                //
+                // It fits inside one edit's worth of scale (see `spell::rank`),
+                // so a common word never beats a closer one and never beats a
+                // transposition at the same distance. The cost of a wrong band is
+                // one place; the cost of the wrong scale would be `שבת` offered
+                // for `שבתו`.
+                out.push((
+                    rank(d, is_transposition(&tc, cand)) + usize::from(e.band),
+                    w.to_string(),
+                ));
             }
         }
         out

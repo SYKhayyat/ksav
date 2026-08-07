@@ -99,10 +99,15 @@ impl Lexicon {
             let key = w.to_lowercase();
             let chars: Vec<char> = key.chars().collect();
             let (n, mask) = (chars.len(), letter_mask(&chars));
+            // How common the word is, resolved once here rather than on every
+            // surviving candidate of every suggestion. It used to be a
+            // `to_lowercase()` allocation plus a hash lookup inside the scoring
+            // loop; the entry carries it now, the same field Hebrew reads.
+            let band = crate::spell::common::band(&key) as u8;
             if w == key {
-                self.lower.insert(&w, n, mask);
+                self.lower.insert(&w, n, mask, band);
             } else {
-                self.cased.insert(&w, n, mask);
+                self.cased.insert(&w, n, mask, band);
                 self.cased_keys.insert(key);
             }
         }
@@ -227,15 +232,15 @@ impl Lexicon {
         let shape = Shape::of(&written);
         let mut fold = [' '; super::FOLD_BUF];
         let mut out = Vec::new();
-        let candidates = self.lower.near(tc.len()).map(|(w, m)| (w, m, 0)).chain(
+        let candidates = self.lower.near(tc.len()).map(|(w, e)| (w, e, 0)).chain(
             self.cased
                 .near(tc.len())
-                .map(|(w, m)| (w, m, usize::from(shape == Shape::Lower))),
+                .map(|(w, e)| (w, e, usize::from(shape == Shape::Lower))),
         );
-        for (w, mask, penalty) in candidates {
+        for (w, entry, penalty) in candidates {
             // One edit moves at most two letters in or out of a word, so anything
             // further apart than that is not a candidate and never gets read.
-            if (mask ^ tmask).count_ones() > 2 {
+            if (entry.mask ^ tmask).count_ones() > 2 {
                 continue;
             }
             let Some(cand) = super::fold_into(&mut fold, w.chars().flat_map(char::to_lowercase))
@@ -253,7 +258,7 @@ impl Lexicon {
                 // and what was left was the order the lexicon happened to be in:
                 // `teh` came back `eh, meh, tea, tech, ted, tee` and `the` fell
                 // off the end.
-                let common = crate::spell::common::band(w);
+                let common = usize::from(entry.band);
                 out.push((
                     rank(d, is_transposition(&tc, cand)) + common + rank(penalty, true),
                     shape.apply(w),

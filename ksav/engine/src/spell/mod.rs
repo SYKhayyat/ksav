@@ -41,6 +41,7 @@
 pub(crate) mod common;
 pub mod english;
 pub mod hebrew;
+pub mod measure;
 
 // ------------------------------------------------------------------ languages
 
@@ -569,8 +570,23 @@ pub(crate) fn fold_into(
     Some(&buf[..n])
 }
 
-/// Entries of one length: the word as stored, and its [`letter_mask`].
-pub(crate) type Bucket = std::collections::HashMap<Box<str>, u32>;
+/// What the sieve and the ranking need about an entry, beside the word itself.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Entry {
+    /// Which letters it contains — see [`letter_mask`].
+    pub(crate) mask: u32,
+    /// How ordinary the word is; [`common::BANDS`] − 1 for one nobody ranked.
+    ///
+    /// Stored rather than computed per candidate, because both languages need it
+    /// and they were getting it two different ways: English called
+    /// `common::band()` inside the scoring loop (a `to_lowercase()` allocation
+    /// and a hash lookup per surviving candidate) and Hebrew had no frequency
+    /// layer at all. One field, filled at insert, answers both.
+    pub(crate) band: u8,
+}
+
+/// Entries of one length, keyed by the word as stored.
+pub(crate) type Bucket = std::collections::HashMap<Box<str>, Entry>;
 
 /// Words bucketed by character length. Index `n` holds every entry of `n`
 /// characters; short indices are simply empty.
@@ -581,12 +597,22 @@ pub(crate) struct ByLength {
 }
 
 impl ByLength {
-    /// Add a word of `n` characters with mask `mask`. Returns whether it was new.
-    pub(crate) fn insert(&mut self, word: &str, n: usize, mask: u32) -> bool {
+    /// Add a word of `n` characters. Returns whether it was new.
+    ///
+    /// A word arriving twice keeps the **lower** band, which is the one case
+    /// that matters in practice: `שו"ע` is in the generated lexicon with a band
+    /// off the corpus counts *and* in the hand-curated supplement with none, and
+    /// the supplement is added second. Overwriting would have quietly demoted
+    /// every word both files know — the commonest words in the language, since
+    /// that is what the supplement is for.
+    pub(crate) fn insert(&mut self, word: &str, n: usize, mask: u32, band: u8) -> bool {
         if self.buckets.len() <= n {
             self.buckets.resize_with(n + 1, Bucket::new);
         }
-        let fresh = self.buckets[n].insert(word.into(), mask).is_none();
+        let slot = self.buckets[n].entry(word.into());
+        let fresh = matches!(slot, std::collections::hash_map::Entry::Vacant(_));
+        let e = slot.or_insert(Entry { mask, band });
+        e.band = e.band.min(band);
         if fresh {
             self.count += 1;
         }
@@ -604,7 +630,7 @@ impl ByLength {
     /// Every entry within one character of `n` — the only ones that can be within
     /// one edit. This is the length filter, applied by not looking rather than by
     /// counting the characters of a quarter of a million words.
-    pub(crate) fn near(&self, n: usize) -> impl Iterator<Item = (&Box<str>, &u32)> {
+    pub(crate) fn near(&self, n: usize) -> impl Iterator<Item = (&Box<str>, &Entry)> {
         let lo = n.saturating_sub(1);
         (lo..=n + 1)
             .filter_map(move |k| self.buckets.get(k))

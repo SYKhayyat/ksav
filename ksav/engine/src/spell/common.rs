@@ -38,12 +38,32 @@
 //! scale wrong would be `the` offered for `then`, which is why the bands do not
 //! overlap.
 //!
-//! # Not Hebrew
+//! # Hebrew ranks itself, and this paragraph used to say it could not
 //!
-//! Hebrew gets nothing here. A frequency order for Hebrew that covered seforim
-//! rather than newspapers is a real piece of work and guessing at one would be
-//! the invented-evidence problem above, in the language this project is actually
-//! for. `hebrew.rs` still ranks by distance and transposition, and says so.
+//! What stood here was: *"Hebrew gets nothing here. A frequency order for Hebrew
+//! that covered seforim rather than newspapers is a real piece of work and
+//! guessing at one would be the invented-evidence problem above, in the language
+//! this project is actually for."*
+//!
+//! The principle was right and the paragraph was wrong about its own repository.
+//! `tools/build_lexicon.py` counted every word of every Sefaria segment and every
+//! Ben-Yehuda work on every run — and then reduced both counters to sets on a
+//! threshold and wrote the result alphabetically. The evidence was being computed
+//! and thrown away one line later. Ranking off those counts is not guessing; it
+//! is *better* provenance than the two-hundred-word list above, which was typed
+//! by hand.
+//!
+//! The cost of the omission was measurable and large. Across four hundred
+//! substitution typos of the six thousand commonest words in the corpus, the
+//! word the writer meant came first **20%** of the time and reached the
+//! five-item menu **59%** of the time. With the bands: **55%** and **95%**.
+//!
+//! So the mechanism is the same in both languages and the *source* of the
+//! ordering differs, which is the honest split: English has no corpus here and
+//! uses a short list somebody can argue with by eye; Hebrew has one, and uses
+//! it. Hebrew's bands travel in the generated lexicon as a tab-separated field
+//! rather than living in this file, because they are data and there are seventy
+//! thousand of them — see `hebrew.rs` and `assign_bands()` in the builder.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;

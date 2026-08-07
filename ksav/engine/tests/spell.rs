@@ -7,7 +7,7 @@
 //! The English half lives in `spell_en.rs`, and the tokenizer that decides which
 //! of the two a word belongs to is tested in both.
 
-use ksav_engine::spell::{self, hebrew::Lexicon, Checker};
+use ksav_engine::spell::{self, hebrew::Lexicon, measure, Checker};
 
 fn bundled() -> Lexicon {
     Lexicon::bundled()
@@ -186,6 +186,195 @@ fn suggestions_are_offered_for_a_near_miss() {
     assert!(
         !suggestions.is_empty(),
         "no suggestions for a one-edit typo"
+    );
+}
+
+// ------------------------------------------------------------------- ordering
+//
+// **The assertion above is why this section exists.** `!is_empty()` was the only
+// thing either Hebrew suggestion test claimed, and it cannot fail for the thing
+// that was wrong: the menu did contain suggestions, and the word the writer
+// meant was sixteenth in it. Measured across four hundred substitution typos of
+// the six thousand commonest words in the corpus, the intended word came first
+// **20% of the time** and reached the five-item menu **59%** of the time.
+//
+// Every candidate a one-edit lexicon returns is one edit away by construction,
+// so distance separates none of them and transposition separates only the
+// transposed ones. What was left as the tie-breaker was alphabetical order.
+// English had a frequency layer and five tests of it; Hebrew — the language this
+// product is for — had neither. These are those five tests, in Hebrew, plus the
+// two safety properties that say what the ranking must *not* do.
+//
+// The band data is not invented. It is the corpus counts `build_lexicon.py`
+// computes and used to throw away, over the very texts the lexicon is built
+// from. Re-measure with `cargo run --release --example suggestrate`, which
+// rebuilds the lexicon with the bands stripped and reports both columns.
+
+/// The floors, well under what is measured, because this is a regression fence
+/// and not a target. Measured at the time of writing, on four hundred cases:
+/// **55.2% first and 94.8% in the menu**, against 20.2% / 59.0% with the bands
+/// stripped. A drop back through these numbers means the generated lexicon lost
+/// its bands or the ranking stopped reading them.
+const FLOOR_TOP1: f64 = 45.0;
+const FLOOR_TOP5: f64 = 88.0;
+
+/// The number the fence is really about: what the same sample scored before.
+const BEFORE_TOP1: f64 = 25.0;
+
+#[test]
+fn the_hebrew_word_a_writer_meant_leads_the_menu() {
+    // A floor over a deterministic sample, not a hand-picked list of pairs.
+    //
+    // The hand-picked list was written first and it was the wrong instrument.
+    // Half of its "typos" turned out to be transpositions of *other* real words
+    // — `הלכח` transposes to `הכלח` — which the ranking prefers deliberately and
+    // correctly, so the test was asserting against the design rather than
+    // against the bug. Cherry-picking pairs that pass is then indistinguishable
+    // from cherry-picking pairs that flatter, which is how a suite ends up
+    // agreeing with itself.
+    let l = bundled();
+    let cases = measure::substitution_typos(measure::COMMON_BANDS, 400, measure::SEED);
+    assert_eq!(
+        cases.len(),
+        400,
+        "the sample did not fill — is the lexicon banded?"
+    );
+    let rate = measure::Rate::of(&measure::places(&l, &cases));
+    assert!(
+        rate.top1_pct() >= FLOOR_TOP1 && rate.top5_pct() >= FLOOR_TOP5,
+        "the menu regressed: {rate} (floors {FLOOR_TOP1}% / {FLOOR_TOP5}%)"
+    );
+}
+
+#[test]
+fn the_bands_are_what_is_doing_it() {
+    // The other half, and the one that makes the test above mean something. A
+    // floor alone would still pass if the bands were ignored and the lexicon
+    // simply got smaller — so the same sample is scored against the same words
+    // with the bands stripped, and that column has to be markedly worse.
+    //
+    // This is the assertion the original `!suggestions.is_empty()` should have
+    // been: it fails if the thing under test stops working, rather than if the
+    // thing under test disappears.
+    let cases = measure::substitution_typos(measure::COMMON_BANDS, 400, measure::SEED);
+    let with = measure::places(&bundled(), &cases);
+    let without = measure::places(&measure::without_bands(), &cases);
+    let (a, b) = (measure::Rate::of(&with), measure::Rate::of(&without));
+    assert!(
+        b.top1_pct() < BEFORE_TOP1,
+        "the unbanded column scored {b}, which is better than the ranking it replaced — \
+         the bands are probably not being stripped"
+    );
+    assert!(
+        a.top1_pct() > b.top1_pct() * 2.0,
+        "banded {a} vs unbanded {b}: the bands stopped earning their place"
+    );
+    let regressed = with.iter().zip(&without).filter(|(x, y)| x > y).count();
+    // Some cases do get worse — a tie-breaker moves ties in both directions —
+    // and the honest fence is that it is a small minority, not zero.
+    assert!(
+        regressed * 10 < cases.len(),
+        "{regressed} of {} cases rank *lower* with the bands",
+        cases.len()
+    );
+}
+
+#[test]
+fn a_common_hebrew_word_never_beats_a_closer_one() {
+    // The safety property, and the reason the bands are scaled the way they are.
+    // A frequency tie-breaker that could reach into the next distance would
+    // offer שבת as the correction for a correctly spelled שבתות, which is worse
+    // than offering nothing at all.
+    let mut l = Lexicon::empty();
+    // שבת banded commonest, שבתות unranked. The typed word is one substitution
+    // from שבתות and two edits from שבת, so distance must decide and the band
+    // must not be able to reach across it.
+    l.add_words("שבת\t0\nשבתות");
+    let offered = l.suggest("שבתזת", 8);
+    assert_eq!(
+        offered.first().map(String::as_str),
+        Some("שבתות"),
+        "a commoner word outranked a nearer one: {offered:?}"
+    );
+}
+
+#[test]
+fn a_hebrew_transposition_still_beats_a_substitution_however_common() {
+    // The order the ranks are in: distance, then transposition, then frequency.
+    // `ארמ` transposes to `אמר` and substitutes to `ארץ`; the transposition wins
+    // even with the substitution banded commonest and the transposition
+    // unranked, which is the strongest form of the claim.
+    let mut l = Lexicon::empty();
+    l.add_words("ארץ\t0\nאמר");
+    let offered = l.suggest("ארמ", 8);
+    assert_eq!(
+        offered.first().map(String::as_str),
+        Some("אמר"),
+        "{offered:?}"
+    );
+}
+
+#[test]
+fn a_band_demotes_a_candidate_and_never_drops_it() {
+    // The same claim English makes: the other candidates are demoted, not
+    // removed. A ranking that shortened the menu would trade one failure for
+    // another, and the writer who meant the rare word would have no way back.
+    let mut l = Lexicon::empty();
+    l.add_words("שבת\t0\nשבח\nשבס");
+    let offered = l.suggest("שבב", 12);
+    assert_eq!(offered.first().map(String::as_str), Some("שבת"));
+    assert_eq!(
+        offered.len(),
+        3,
+        "the demoted candidates were dropped instead: {offered:?}"
+    );
+}
+
+#[test]
+fn a_word_with_no_band_is_unranked_and_not_rare() {
+    // Most of the lexicon carries no band, and none of it is being called
+    // uncommon: an unbanded word sorts after every banded one and before
+    // nothing. This is also the contract for the writer's own dictionary and for
+    // a user-installed Hspell pack, neither of which has counts.
+    let mut l = Lexicon::empty();
+    l.add_words("כתב\nכתד\t0");
+    assert_eq!(l.suggest("כתת", 4).first().map(String::as_str), Some("כתד"));
+    assert!(
+        l.suggest("כתת", 4).contains(&"כתב".to_string()),
+        "an unbanded word fell off the list"
+    );
+}
+
+#[test]
+fn the_supplement_cannot_demote_a_word_the_corpus_ranked() {
+    // `add_words` is called twice — the generated lexicon, then the hand-curated
+    // supplement — and the supplement carries no bands. A plain overwrite would
+    // have silently unranked every word both files know, which is precisely the
+    // everyday citation apparatus the supplement exists for.
+    let mut l = Lexicon::empty();
+    l.add_words("שבת\t0");
+    l.add_words("שבת"); // the supplement, with no band
+    l.add_words("שבח");
+    assert_eq!(
+        l.suggest("שבב", 4).first().map(String::as_str),
+        Some("שבת"),
+        "the supplement demoted a word the corpus had ranked"
+    );
+}
+
+#[test]
+fn the_bundled_lexicon_actually_carries_bands() {
+    // The fence for the generated asset. Every assertion above would still pass
+    // against a lexicon whose bands were all missing, because they build their
+    // own — so one of them has to check that the shipped file was regenerated.
+    let banded = Lexicon::bundled_sources()
+        .iter()
+        .flat_map(|s| s.lines())
+        .filter(|l| !l.starts_with('#') && l.contains('\t'))
+        .count();
+    assert!(
+        banded > 50_000,
+        "only {banded} entries carry a frequency band — rerun tools/build_lexicon.py"
     );
 }
 

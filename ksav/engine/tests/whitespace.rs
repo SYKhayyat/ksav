@@ -19,14 +19,11 @@
 //! Typst's behaviour rather than Ksav's, which is precisely why they are pinned
 //! here: nothing in this repository would otherwise notice the day they change.
 
+mod common;
+use common::{render};
+
 use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;
-
-fn render(body: &str) -> Vec<TextRun> {
-    let doc = probe::layout(body, &DocConfig::default())
-        .unwrap_or_else(|d| panic!("compile failed: {d:?}"));
-    probe::text_runs(&doc)
-}
 
 /// Everything that printed, in layout order, as one string.
 fn page_text(body: &str) -> String {

@@ -29,11 +29,12 @@
 import { check, ok } from "./harness.mjs";
 import { build } from "esbuild";
 import { readdir, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { UNBUILDABLE, NOT_IMPORTABLE, sourceModules, buildableModules } from "./modules.mjs";
+import { dirOf, TEST, TOOLS } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const APP = path.resolve(HERE, "..");
 const SRC = path.join(APP, "src");
 const OUT = path.join(APP, ".tmp-test");
@@ -177,5 +178,68 @@ export async function run() {
       "and does not carry a second one",
       !/const MODULES = \[/.test(runner),
     );
+  }
+
+  nothingIsCopiedBackIn();
+}
+
+// The sweeps have never looked where the duplication actually lives.
+//
+// `spans.test.mjs` and `enginefacts.test.mjs` read `src/`. `test/` and `tools/`
+// are 60-odd files that nothing sweeps at all — and that is precisely where the
+// appendix of the 7 August report found the copies that survived: one path
+// expression in 22 files, an esbuild loader in ten, four parsers of one Rust
+// table.
+//
+// Each of these is a *prohibition*, not a count: the extracted helper exists, so
+// writing the copy again is the failure. Comments are stripped first, because
+// every paragraph in this suite that explains what the old arrangement was would
+// otherwise trip the test that forbids it.
+export function nothingIsCopiedBackIn() {
+  const strip = (s) =>
+    s.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+
+  const files = [];
+  for (const dir of [TEST, TOOLS]) {
+    for (const name of readdirSync(dir)) {
+      // This file states each forbidden pattern as a string literal in order to
+      // look for it, which is the one exemption every prohibition sweep in this
+      // suite needs and the only one any of them has.
+      if (!name.endsWith(".mjs") || name === "runner.test.mjs") continue;
+      files.push([path.join(dir, name), strip(readFileSync(path.join(dir, name), "utf8"))]);
+    }
+  }
+  ok("the sweep found the helper directories", files.length > 50, `${files.length} files`);
+
+  // `.pathname` on a `file://` URL is still percent-encoded, so a checkout under
+  // `C:\Users\Some One\Ksav` resolves to `Some%20One` and every one of these
+  // fails to find `src/` — the whole suite dying at import time with a path
+  // nobody can read. `fileURLToPath` decodes. `tools/paths.mjs` is the one place
+  // that knows this.
+  {
+    const guilty = files
+      .filter(([f]) => path.basename(f) !== "paths.mjs")
+      .filter(([, s]) => s.includes("import.meta.url).pathname"))
+      .map(([f]) => path.basename(f));
+    check("nothing hand-rolls a path from import.meta.url", guilty, []);
+  }
+
+  // Ten copies of a `build()` from esbuild, three of which disagreed about when
+  // to delete the directory they had just imported out of.
+  {
+    const guilty = files
+      .filter(([f]) => !["load.mjs", "run.mjs"].includes(path.basename(f)))
+      .filter(([, s]) => s.includes('from "esbuild"'))
+      .map(([f]) => path.basename(f));
+    check("only tools/load.mjs and test/run.mjs invoke esbuild", guilty, []);
+  }
+
+  // Four parsers of `commands.rs`, two of them byte-identical.
+  {
+    const guilty = files
+      .filter(([f]) => path.basename(f) !== "commands.mjs")
+      .filter(([, s]) => s.includes("cmd!("))
+      .map(([f]) => path.basename(f));
+    check("only tools/commands.mjs parses the command macro", guilty, []);
   }
 }

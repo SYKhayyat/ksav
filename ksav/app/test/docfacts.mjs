@@ -32,8 +32,9 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
 import { commandCount } from "../tools/commands.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 export const APP = path.resolve(HERE, "..");
 export const ROOT = path.resolve(APP, "..", "..");
 

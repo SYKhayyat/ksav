@@ -15,6 +15,7 @@
 
 import { check, ok } from "./harness.mjs";
 import { gematria, hebrewNumeral, continueSeries } from "../.tmp-test/numbering.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
 const SIMAN = "#סימן[א׳][|]";
 const SEIF = "#סעיף[א][|]";
@@ -138,7 +139,7 @@ export async function run() {
     // that broke the shape would be silent. Read it rather than assumed.
     const { readFile } = await import("node:fs/promises");
     const path = await import("node:path");
-    const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+    const HERE = dirOf(import.meta.url);
     const rs = await readFile(path.resolve(HERE, "..", "..", "engine", "src", "commands.rs"), "utf8");
     for (const [name, snippet] of [["סימן", "#סימן[א׳][|]"], ["סעיף", "#סעיף[א][|]"]]) {
       ok(`the registry still ships ${name} as ${snippet}`, rs.includes(`"${snippet}"`));

@@ -45,8 +45,9 @@ import {
 import { DEFAULTS } from "../.tmp-test/settings.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.resolve(HERE, "..", "src");
 const ENGINE = path.resolve(HERE, "..", "..", "engine");
 const PRELUDE = path.join(ENGINE, "typst", "ksav.typ");

@@ -47,7 +47,6 @@ import {
   convertNote,
   deleteNote,
   noteAt,
-  noteFor,
   scaffold,
   notesIn,
   tieredNoteAt,
@@ -133,12 +132,12 @@ import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
 import { insertionAt, legalAt } from "./mode";
-import { continueSeries } from "./numbering";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as hydra from "./hydra";
 import * as macros from "./macros";
 import * as help from "./help";
+import { plan as planInsertion, regionAround } from "./insert";
 
 // ---------------------------------------------------------------- editor
 //
@@ -1459,73 +1458,37 @@ function insertSnippet(rawSnippet: string) {
   const sel = runtime.view.state.selection.main;
   const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
   const doc = docTextOf(runtime.view.state.doc);
-  rawSnippet = continueSeries(doc, sel.from, rawSnippet);
 
-  // A note is a layout, not a string: it may need a dump call at the end of the
-  // file, a wrapper around the section, a configuration line at the top, and its
-  // prose may belong at the end of the document rather than at the caret.
-  const note = noteFor(rawSnippet);
-  if (note) {
-    applyNoteChoice(note.choice, note.which, { to: sel.to, text: selText, marker: note.marker });
+  // Every decision is `insert.plan`, which is a pure function and therefore
+  // testable; what is left here is performing it. See `insert.ts`.
+  const plan = planInsertion(doc, sel.from, sel.to, selText, rawSnippet);
+  if (plan.kind === "refuse") {
+    setStatus(t(plan.reason), "warn");
     return;
   }
-
-  const command = commandOf(rawSnippet);
-  if (command) {
-    const legality = legalAt(doc, sel.from, command);
-    if (!legality.ok) {
-      setStatus(t(legality.reason!), "warn");
-      return;
-    }
-  }
-
-  // `sel.to` as well as `sel.from`: with a selection the neighbour on the right
-  // is what comes after the text being replaced, not the first character of it.
-  const snippet = insertionAt(doc, sel.from, rawSnippet, sel.to);
-  const pipe = snippet.indexOf("|");
-  let text = snippet;
-  let cursor = snippet.length;
-  if (pipe >= 0) {
-    if (selText) {
-      text = snippet.slice(0, pipe) + selText + snippet.slice(pipe + 1);
-      cursor = pipe + selText.length;
-    } else {
-      text = snippet.slice(0, pipe) + snippet.slice(pipe + 1);
-      cursor = pipe;
-    }
+  if (plan.kind === "note") {
+    applyNoteChoice(plan.choice, plan.which, { to: sel.to, text: selText, marker: plan.marker });
+    return;
   }
   runtime.view.dispatch({
-    changes: { from: sel.from, to: sel.to, insert: text },
-    selection: { anchor: sel.from + cursor },
+    changes: { from: sel.from, to: sel.to, insert: plan.text },
+    selection: { anchor: sel.from + plan.cursor },
   });
   runtime.view.focus();
 }
 
-/** The command a snippet writes, for the legality check. `""` if it is not one. */
-function commandOf(snippet: string): string {
-  return /^#?([A-Za-z0-9֐-׿_]+)/.exec(snippet.trim())?.[1] ?? "";
-}
-
-// Wrap the selection in a foldable comment region (//{ … //}). The markers are
-// comments, so they never render — they just create a collapsible, labelled block.
 function insertRegion() {
   const sel = runtime.view.state.selection.main;
-  const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
-  const label = t("region");
-  // The `//{` marker must start its own line, or the fold service (which keys on
-  // a line beginning with `//{`) won't recognize the region. Prepend a newline
-  // when the selection doesn't already start at the beginning of a line.
-  const atLineStart = sel.from === 0 || runtime.view.state.sliceDoc(sel.from - 1, sel.from) === "\n";
-  const lead = atLineStart ? "" : "\n";
-  const text = `${lead}//{ ${label}\n${selText}\n//}\n`;
-  const cursor = sel.from + lead.length + 4; // start of the label, so it can be renamed
+  const doc = docTextOf(runtime.view.state.doc);
+  const r = regionAround(doc, sel.from, sel.to, t("region"));
   runtime.view.dispatch({
-    changes: { from: sel.from, to: sel.to, insert: text },
-    selection: { anchor: cursor, head: cursor + label.length },
+    changes: { from: r.from, to: r.to, insert: r.text },
+    selection: { anchor: r.select[0], head: r.select[1] },
   });
   runtime.view.focus();
   scheduleCompile();
 }
+
 
 // Wrap the selection in a block comment (/* … */): foldable, styled, and NOT
 // rendered — a collapsible editor comment.

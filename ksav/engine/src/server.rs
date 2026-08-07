@@ -563,7 +563,7 @@ fn header(key: &str, value: &str) -> Header {
 mod tests {
     use super::{
         allowed_origin, asset_path, compile_deadline, content_type_for, csp, policy_for,
-        run_bounded,
+        run_bounded, NO_UI_HTML,
     };
     use std::time::Duration;
 

@@ -18,6 +18,9 @@
 //! And it asserts the page rather than the compile. Every apparatus bug this
 //! project has had compiled cleanly and was wrong on the page.
 
+mod common;
+use common::{render};
+
 use girsa_source::SourcePacket;
 use ksav_engine::probe::{self, Line, TextRun};
 use ksav_engine::source::{insert, CitationPlacement};
@@ -35,12 +38,6 @@ const PACKET: &str = include_str!("fixtures/girsa-packet.json");
 /// Copied here byte for byte. **No conversion step exists** — that is the
 /// claim, and this is what checks it.
 const BUFFER: &str = include_str!("fixtures/girsa-buffer.ksav");
-
-fn render(body: &str) -> Vec<TextRun> {
-    let doc = probe::layout(body, &DocConfig::default())
-        .unwrap_or_else(|d| panic!("compile failed: {d:?}"));
-    probe::text_runs(&doc)
-}
 
 fn on_the_page(needle: &str, lines: &[Line]) -> bool {
     lines.iter().any(|l| l.contains(needle))

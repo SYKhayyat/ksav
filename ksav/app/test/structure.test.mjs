@@ -1,4 +1,5 @@
 import { check, ok, notOk } from "./harness.mjs";
+import { dirOf } from "../tools/paths.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -18,7 +19,7 @@ import {
 const L = `#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n`;
 const T = `#טבלה(עמודות: 2, פסים: true,\n  כותרת_תא[א], כותרת_תא[ב],\n  תא[ג], תא[ד],\n)\n`;
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.resolve(HERE, "..", "src");
 
 /** A table of `rows` rows and three columns, for the questions about cost. */

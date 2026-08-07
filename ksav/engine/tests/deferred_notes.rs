@@ -12,17 +12,11 @@
 //! Nothing here asserts `ok()`. Every apparatus bug this project has had
 //! compiled cleanly and was wrong on the page.
 
+mod common;
+use common::{render, render_with, text};
+
 use ksav_engine::probe::{self, Line, TextRun};
 use ksav_engine::DocConfig;
-
-fn render_with(body: &str, cfg: &DocConfig) -> Vec<TextRun> {
-    let doc = probe::layout(body, cfg).unwrap_or_else(|d| panic!("compile failed: {d:?}"));
-    probe::text_runs(&doc)
-}
-
-fn render(body: &str) -> Vec<TextRun> {
-    render_with(body, &DocConfig::default())
-}
 
 fn visual_lines(runs: &[TextRun]) -> Vec<Line> {
     probe::lines(runs, 1.0)
@@ -38,10 +32,6 @@ fn line_with<'a>(lines: &'a [Line], needle: &str) -> &'a Line {
         hits.iter().map(|l| l.text()).collect::<Vec<_>>()
     );
     hits[0]
-}
-
-fn page_text(runs: &[TextRun]) -> String {
-    runs.iter().map(|r| r.text.as_str()).collect()
 }
 
 /// Every text run in the document as a comparable tuple.
@@ -236,7 +226,7 @@ fn a_long_run_of_definitions_does_not_push_a_blank_page() {
     );
     let runs = probe::text_runs(&doc);
     assert!(
-        !page_text(&runs).contains("גוף הערה מספר"),
+        !text(&runs).contains("גוף הערה מספר"),
         "an undefined-but-unreferenced body was printed"
     );
 }
@@ -324,7 +314,7 @@ fn a_deferred_body_carries_rich_content() {
         "ראש#הערה_בשם(\"א\") סוף.\n\
          #גוף_הערה(\"א\")[#הדגשה[מודגש] ואז #רשימה(פריט[אלף], פריט[בית]) וטבלה #טבלה(עמודות: 2, תא[גימל], תא[דלת])]",
     );
-    let text = page_text(&runs);
+    let text = text(&runs);
     for needle in ["מודגש", "אלף", "בית", "גימל", "דלת"] {
         assert!(
             text.contains(needle),
@@ -354,7 +344,7 @@ fn a_dangling_reference_is_loud_and_does_not_break_the_document() {
     // believes they wrote and the reader never sees.
     let runs =
         render("ראש#הערה_בשם(\"חסר\") אמצע#הערה_בשם(\"קיים\") סוף.\n#גוף_הערה(\"קיים\")[הביאור]");
-    let text = page_text(&runs);
+    let text = text(&runs);
     assert!(
         text.contains("סוף"),
         "the document stopped at the bad reference"
@@ -378,7 +368,7 @@ fn a_duplicate_definition_takes_the_first_and_renders_once() {
          #גוף_הערה(\"א\")[הראשון]\n\
          #גוף_הערה(\"א\")[השני]",
     );
-    let text = page_text(&runs);
+    let text = text(&runs);
     assert!(text.contains("הראשון"), "the first definition did not win");
     assert!(
         !text.contains("השני"),
@@ -407,7 +397,7 @@ fn hebrew_and_latin_and_numeric_names_all_work() {
             "ראש#הערה_בשם(\"{name}\") סוף.\n#גוף_הערה(\"{name}\")[הביאור]"
         ));
         assert!(
-            page_text(&runs).contains("הביאור"),
+            text(&runs).contains("הביאור"),
             "the name {name:?} did not resolve"
         );
     }
@@ -428,7 +418,7 @@ fn the_english_aliases_and_parameter_names_work() {
          #note_body(\"b\")[the second gloss]\n",
         &cfg,
     );
-    let text = page_text(&runs);
+    let text = text(&runs);
     for needle in ["the first gloss", "the second gloss", "Notes"] {
         assert!(
             text.contains(needle),

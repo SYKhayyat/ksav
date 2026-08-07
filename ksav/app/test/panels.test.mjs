@@ -1,4 +1,5 @@
 import { ok, check, notOk } from "./harness.mjs";
+import { dirOf } from "../tools/paths.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -47,7 +48,7 @@ import {
   toggleMenu,
 } from "../.tmp-test/panels.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const CSS = readFileSync(path.join(HERE, "..", "src", "styles.css"), "utf8");
 
 // ---------------------------------------------------------------- a small DOM

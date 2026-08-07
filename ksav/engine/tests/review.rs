@@ -5,6 +5,9 @@
 //! useful claim about a tracked change — the whole feature is *which words are
 //! on the paper in which view*.
 
+mod common;
+use common::{render, text};
+
 use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;
 
@@ -15,9 +18,6 @@ fn render(body: &str) -> (Vec<TextRun>, Vec<(f64, f64)>) {
 }
 
 /// Every word on every page, joined — enough for "is this text on the paper".
-fn all_text(runs: &[TextRun]) -> String {
-    runs.iter().map(|r| r.text.as_str()).collect()
-}
 
 const TRACKED: &str = "כתב #הוספה[מוסיף] וגם #מחיקה[מוחק] סוף.";
 
@@ -26,7 +26,7 @@ const TRACKED: &str = "כתב #הוספה[מוסיף] וגם #מחיקה[מוח�
 #[test]
 fn markup_view_shows_both_the_insertion_and_the_deletion() {
     let (runs, _) = render(TRACKED);
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(text.contains("מוסיף"), "insertion missing: {text}");
     assert!(text.contains("מוחק"), "deletion missing: {text}");
 }
@@ -34,7 +34,7 @@ fn markup_view_shows_both_the_insertion_and_the_deletion() {
 #[test]
 fn final_view_keeps_the_insertion_and_drops_the_deletion() {
     let (runs, _) = render(&format!("#הגדרות_סקירה(תצוגה: \"סופי\")\n{TRACKED}"));
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(
         text.contains("מוסיף"),
         "an accepted insertion must remain: {text}"
@@ -48,7 +48,7 @@ fn final_view_keeps_the_insertion_and_drops_the_deletion() {
 #[test]
 fn original_view_keeps_the_deletion_and_drops_the_insertion() {
     let (runs, _) = render(&format!("#הגדרות_סקירה(תצוגה: \"מקורי\")\n{TRACKED}"));
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(
         text.contains("מוחק"),
         "the original text must remain: {text}"
@@ -66,13 +66,13 @@ fn a_comment_is_never_part_of_the_document() {
     let body = "טקסט#הערת_עורך(מאת: \"עורך\")[לשקול שוב] המשך.";
     let (runs, _) = render(body);
     assert!(
-        all_text(&runs).contains("לשקול"),
+        text(&runs).contains("לשקול"),
         "comment missing from the markup view"
     );
 
     for view in ["סופי", "מקורי"] {
         let (runs, _) = render(&format!("#הגדרות_סקירה(תצוגה: \"{view}\")\n{body}"));
-        let text = all_text(&runs);
+        let text = text(&runs);
         assert!(
             !text.contains("לשקול"),
             "{view} view still shows the comment: {text}"
@@ -228,7 +228,7 @@ fn a_displayed_formula_stands_on_its_own_line_and_can_be_numbered() {
         line_of("המשך") > line_of(MATH_X),
         "the formula did not stand on its own line"
     );
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(
         text.contains("(1)"),
         "the equation number is missing: {text}"

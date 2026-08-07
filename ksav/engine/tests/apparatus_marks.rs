@@ -18,14 +18,11 @@
 //! two apparatuses apart, since a footnote `¹` and an endnote `¹` on one page
 //! are identical in every measurement except the one that matters.
 
+mod common;
+use common::{render};
+
 use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;
-
-fn render(body: &str) -> Vec<TextRun> {
-    let doc = probe::layout(body, &DocConfig::default())
-        .unwrap_or_else(|d| panic!("compile failed: {d:?}"));
-    probe::text_runs(&doc)
-}
 
 /// Everything on the page, in one string — for the failure messages.
 fn flat(runs: &[TextRun]) -> String {

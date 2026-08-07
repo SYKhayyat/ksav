@@ -29,8 +29,9 @@ import * as structure from "../.tmp-test/structure.mjs";
 import * as markdown from "../.tmp-test/markdown.mjs";
 import * as spell from "../.tmp-test/spell.mjs";
 import * as brackets from "../.tmp-test/brackets.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.resolve(HERE, "..", "src");
 const PRELUDE = path.resolve(HERE, "..", "..", "engine", "typst", "ksav.typ");
 

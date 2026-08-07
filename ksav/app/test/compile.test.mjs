@@ -27,8 +27,9 @@ import { analyze } from "../.tmp-test/brackets.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.resolve(HERE, "..", "src");
 
 const lines = (s) => s.split(String.fromCharCode(10)).length;

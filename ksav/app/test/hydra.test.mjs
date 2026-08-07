@@ -1,6 +1,7 @@
 import { check, ok, notOk } from "./harness.mjs";
 import { assignKeys, hydraFor, allHydras, entryFor, closesAfter } from "../.tmp-test/hydra.mjs";
 import { STRUCTURE_ACTIONS } from "../.tmp-test/structure.mjs";
+import { SRC } from "../tools/paths.mjs";
 
 // A hydra's keys are generated, never hand-listed. A hand-written table would be
 // a second place to forget an operation — which is the exact failure this
@@ -140,11 +141,8 @@ export async function run() {
 // `main.ts` — boots the application (see `test/modules.mjs`).
 {
   const { readFile } = await import("node:fs/promises");
-  const pathMod = await import("node:path");
-  const HERE = pathMod.dirname(
-    new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
-  );
-  const main = await readFile(pathMod.join(HERE, "..", "src", "main.ts"), "utf8");
+  const { join } = await import("node:path");
+  const main = await readFile(join(SRC, "main.ts"), "utf8");
   // Comments stripped before the prohibition sweep, or the paragraph in
   // `main.ts` explaining what the old arrangement was trips the test that
   // forbids it. Every source-level prohibition in this suite has to do this;

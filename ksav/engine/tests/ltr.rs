@@ -12,6 +12,9 @@
 //! None of that shows up in a compile check — every one of those documents
 //! compiled cleanly. These assertions read the laid-out page.
 
+mod common;
+use common::{render, text};
+
 use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;
 
@@ -28,15 +31,12 @@ fn render(body: &str, cfg: &DocConfig) -> Vec<TextRun> {
 }
 
 /// Everything on the page as one string, in layout order.
-fn page_text(runs: &[TextRun]) -> String {
-    runs.iter().map(|r| r.text.as_str()).collect()
-}
 
 // ── quotation marks ──────────────────────────────────────────────────────────
 
 #[test]
 fn english_gets_english_quotation_marks() {
-    let text = page_text(&render("He said \"hello\" and 'goodbye'.", &cfg("ltr")));
+    let text = text(&render("He said \"hello\" and 'goodbye'.", &cfg("ltr")));
     assert!(
         text.contains('\u{201C}') && text.contains('\u{201D}'),
         "expected “…” around the English quotation, got: {text}"
@@ -55,7 +55,7 @@ fn english_gets_english_quotation_marks() {
 #[test]
 fn hebrew_keeps_hebrew_quotation_marks() {
     // The Hebrew default must not move: it was never the thing that was wrong.
-    let text = page_text(&render("אמר \"שלום\" ויצא.", &cfg("rtl")));
+    let text = text(&render("אמר \"שלום\" ויצא.", &cfg("rtl")));
     assert!(
         text.contains('\u{201D}'),
         "Hebrew lost its quotation marks: {text}"
@@ -77,7 +77,7 @@ fn justified_english_is_hyphenated() {
     let body = "The incomprehensibility of administrative responsibilities, \
                 notwithstanding the counterrevolutionary establishmentarianism of \
                 it all, remains extraordinarily disproportionate.";
-    let text = page_text(&render(body, &cfg("ltr")));
+    let text = text(&render(body, &cfg("ltr")));
     assert!(
         text.contains('\u{00AD}') || text.contains('-'),
         "no hyphenation in justified English: {text}"
@@ -88,7 +88,7 @@ fn justified_english_is_hyphenated() {
 
 #[test]
 fn contents_heading_follows_the_document_language() {
-    let english = page_text(&render("= A Chapter\n\n#תוכן()\n", &cfg("ltr")));
+    let english = text(&render("= A Chapter\n\n#תוכן()\n", &cfg("ltr")));
     assert!(
         english.contains("Contents"),
         "English document has no English contents heading: {english}"
@@ -98,7 +98,7 @@ fn contents_heading_follows_the_document_language() {
         "English document still carries the Hebrew contents heading: {english}"
     );
 
-    let hebrew = page_text(&render("= פרק א\n\n#תוכן()\n", &cfg("rtl")));
+    let hebrew = text(&render("= פרק א\n\n#תוכן()\n", &cfg("rtl")));
     assert!(
         hebrew.contains("תוכן העניינים"),
         "Hebrew document lost its contents heading: {hebrew}"
@@ -107,7 +107,7 @@ fn contents_heading_follows_the_document_language() {
 
 #[test]
 fn an_explicit_contents_title_still_wins() {
-    let text = page_text(&render(
+    let text = text(&render(
         "= A Chapter\n\n#תוכן(כותרת: [Table of Contents])\n",
         &cfg("ltr"),
     ));
@@ -128,7 +128,7 @@ fn an_explicit_language_overrides_the_direction() {
     c.lang = "de".to_string();
     assert_eq!(ksav_engine::effective_lang(&c), "de");
 
-    let text = page_text(&render("Er sagte \"hallo\".", &c));
+    let text = text(&render("Er sagte \"hallo\".", &c));
     // German opens its quotation low — nothing else in Ksav produces that mark,
     // so its presence proves the tag reached the compiler.
     assert!(
@@ -161,7 +161,7 @@ fn an_impossible_language_tag_is_refused_not_forwarded() {
             c.lang
         );
         assert_eq!(ksav_engine::effective_lang(&c), "en");
-        let text = page_text(&render("Hello.", &c));
+        let text = text(&render("Hello.", &c));
         assert!(text.contains("Hello"), "{hostile:?} broke the document");
     }
     // A region subtag is legitimate and keeps its language rather than being

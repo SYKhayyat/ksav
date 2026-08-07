@@ -1877,16 +1877,53 @@ mod tests {
         );
     }
 
+    /// Same page, two requests: same name. Different page: different name. This
+    /// is the whole contract the client's cache rests on — and it is now checked
+    /// through a *compile*, because the fingerprint is of the laid-out page
+    /// rather than of its SVG. That is the point of the change: the fingerprint
+    /// has to be knowable before the serialisation, or the cache saves bandwidth
+    /// by doing all of the work first (310 ms of 343 on a 28-page document).
     #[test]
     fn a_fingerprint_follows_the_page_and_not_the_request() {
-        // Same page, two requests: same name. Different page: different name.
-        // This is the whole contract the client's cache rests on.
-        let a = page_fingerprint("<svg>one</svg>");
-        let b = page_fingerprint("<svg>one</svg>");
-        let c = page_fingerprint("<svg>two</svg>");
-        assert_eq!(a, b);
-        assert_ne!(a, c);
-        assert_eq!(a.len(), 16, "sixteen hex digits, stable across builds");
+        let hashes = |body: &str| {
+            compile_parts(
+                body,
+                &DocConfig::default(),
+                &Assets::default(),
+                false,
+                false,
+                &Default::default(),
+            )
+            .pages_hash
+        };
+        let a = hashes("שלום");
+        let b = hashes("שלום");
+        let c = hashes("טקסט אחר לגמרי");
+        assert_eq!(a, b, "the same document fingerprinted differently twice");
+        assert_ne!(a, c, "two different pages share a fingerprint");
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].len(), 32, "thirty-two hex digits of a 128-bit hash");
+    }
+
+    /// A page the caller already holds is never serialised.
+    ///
+    /// The assertion the whole change exists for, and it is about *work* rather
+    /// than about the answer: the response is identical either way, so nothing
+    /// downstream can tell. What tells is that `pages_svg` is empty for a page
+    /// whose fingerprint was on the request.
+    #[test]
+    fn a_page_the_caller_holds_is_not_serialised() {
+        let cfg = DocConfig::default();
+        let first = compile_parts("שלום", &cfg, &Assets::default(), false, false, &Default::default());
+        assert!(!first.pages_svg[0].is_empty(), "the first ask must send the page");
+
+        let have: std::collections::HashSet<String> = first.pages_hash.iter().cloned().collect();
+        let again = compile_parts("שלום", &cfg, &Assets::default(), false, false, &have);
+        assert_eq!(again.pages_hash, first.pages_hash, "the fingerprint moved");
+        assert!(
+            again.pages_svg[0].is_empty(),
+            "a page the caller already holds was serialised anyway"
+        );
     }
 
     #[test]

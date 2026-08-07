@@ -15,8 +15,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { check, notOk, ok } from "./harness.mjs";
 import { referenced, collect } from "../.tmp-test/parts.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 
 /** A library, as a lookup by title. */
 const from = (pairs) => (name) => (name in pairs ? pairs[name] : null);

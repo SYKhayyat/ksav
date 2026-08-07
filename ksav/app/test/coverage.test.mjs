@@ -2,6 +2,7 @@ import { ok, check } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { commands } from "../tools/commands.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
 // Is it reachable from the chrome at all?
 //
@@ -24,7 +25,7 @@ import { commands } from "../tools/commands.mjs";
 // deprecated in the registry, a command that only a generated panel writes must
 // actually appear in that panel's source.
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.join(HERE, "..", "src");
 const read = (f) => readFileSync(path.join(SRC, f), "utf8");
 

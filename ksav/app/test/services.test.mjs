@@ -26,8 +26,9 @@ import { SERVICE, SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
 import { HEADER_ONLY, metaPolicy } from "../../policy/meta.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const APP = path.resolve(HERE, "..");
 
 const NAMES = new Set(SERVICES.map((s) => s.name));

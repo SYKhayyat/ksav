@@ -177,7 +177,7 @@ page and 5.6 s at 170; `typst::syntax::Source::detached` parses with no world,
 no fonts and no layout. So the scanner stays exactly as it is at runtime — and
 offline, **`engine/tests/scan_oracle.rs`** sweeps every document in the
 repository and asks Typst's own parser whether the scanner was right about it:
-the ten templates, both starter documents, every note layout and structural edit
+the twelve templates, both starter documents, every note layout and structural edit
 the app produces, and the whole insertion grid. Twelve hundred documents, and
 the point of the grid is that nobody chose them.
 
@@ -207,7 +207,7 @@ the reasoning, not the reference, and this file is long enough.
   **mathematics** (`נוסחה`), per-section page setup (`מקטע_עמוד`), and a
   dedicated **Torah/yeshiva layer**: `סימן`, `סעיף`, `פסוק`, `מראה_מקום`
   (mekoros footnotes), `ציון`, `גמרא`, `דיבור_המתחיל`.
-- **10 document templates**: letter, article, sefer, divrei-torah, siddur,
+- **12 document templates**: letter, article, sefer, divrei-torah, gemara, peirush, siddur,
   bentcher, kesubah, get — real Hebrew content with nikud and authentic mekoros —
   plus an English letter and an English article, written as documents of their
   own rather than translations. Each carries its `lang`, so loading one puts the
@@ -285,7 +285,7 @@ browser on any OS.
 
 - [x] Real Typst 0.15 compilation (embedded via `typst-as-lib`)
 - [x] Bilingual command layer + Torah/yeshiva commands
-- [x] 10 templates (all compile)
+- [x] 12 templates (all compile)
 - [x] Command + template registries (JSON)
 - [x] PDF / SVG / Typst-source export, live diagnostics
 - [x] **Full SPA** — CodeMirror 6, command palette, prose mode, bilingual UI,
@@ -343,7 +343,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,809 editor assertions, 420 engine
+- [x] **CI, running and green** — typecheck, 3,842 editor assertions, 429 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -422,7 +422,7 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 cd app && npm test                          # 3,809 assertions across 63 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 420 tests, 27 binaries
+cargo test --manifest-path engine/Cargo.toml            # 429 tests, 28 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -466,7 +466,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over 1,231 documents, a fence that
+editor's scanner against Typst's own parser over 1,236 documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

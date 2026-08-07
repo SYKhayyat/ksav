@@ -24,8 +24,9 @@ import { createEngineWorker } from "../.tmp-test/wasm-worker-host.stub.mjs";
 import * as realHost from "../.tmp-test/wasm-worker-host.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.resolve(HERE, "..", "src");
 
 export async function run() {

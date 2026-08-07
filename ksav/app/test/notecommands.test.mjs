@@ -13,6 +13,7 @@ import {
 } from "../.tmp-test/note-commands.mjs";
 import { noteDepthAt, tieredNoteAt, notesIn } from "../.tmp-test/notes.mjs";
 import { NOTE_COMMANDS as DEFERRED_COMMANDS } from "../.tmp-test/deferred.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
 // Which commands open a note body?
 //
@@ -35,7 +36,7 @@ import { NOTE_COMMANDS as DEFERRED_COMMANDS } from "../.tmp-test/deferred.mjs";
 
 export function run() {
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const PRELUDE = readFileSync(
   path.join(HERE, "..", "..", "engine", "typst", "ksav.typ"),
   "utf8",

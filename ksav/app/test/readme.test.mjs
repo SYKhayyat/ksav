@@ -2,6 +2,7 @@ import { ok, check } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_KEYS, KEY_ALIASES, readable } from "../.tmp-test/bindings.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
 // The README names keys. Documentation that names a key the application does not
 // have is the same bug as a menu item that does nothing — a promise the product
@@ -11,7 +12,7 @@ import { DEFAULT_KEYS, KEY_ALIASES, readable } from "../.tmp-test/bindings.mjs";
 // The in-app help avoids this by being generated. A README cannot be, so it gets
 // a test instead.
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const README = readFileSync(path.join(HERE, "..", "..", "README.md"), "utf8");
 
 export async function run() {
@@ -60,7 +61,10 @@ check("in both directions", DEFAULT_KEYS["heading.moveDown"], "Alt-Shift-ArrowDo
 
 // Claims about scale, which are the other kind of thing prose gets wrong.
 {
-  ok("the README claims eleven note layouts", README.includes("eleven note layouts"));
+  // Thirteen, and counted from `NOTE_CHOICES` rather than from prose — see
+  // `docfacts.mjs`. "Eleven options" was a claim about a taxonomy that the
+  // documentation fence had to choose its evidence to defend.
+  ok("the README claims thirteen note layouts", README.includes("thirteen note layouts"));
   ok("and nine heading levels", /nine levels/.test(README));
 }
 

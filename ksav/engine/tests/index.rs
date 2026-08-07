@@ -15,31 +15,22 @@
 //!   · A masechta must sort where it sits in Shas. Alphabetically בבא בתרא
 //!     comes before בבא מציעא; in Shas it comes after.
 
+mod common;
+use common::{render, render_with, text};
+
 use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;
-
-fn render(body: &str) -> Vec<TextRun> {
-    render_with(body, &DocConfig::default())
-}
-
-fn render_with(body: &str, cfg: &DocConfig) -> Vec<TextRun> {
-    let doc = probe::layout(body, cfg).unwrap_or_else(|d| panic!("compile failed: {d:?}"));
-    probe::text_runs(&doc)
-}
 
 /// Everything printed, in layout order, as one string.
 ///
 /// Runs are joined without separators because Typst breaks a line into runs at
 /// shaping boundaries — a page number and its entry can arrive as three runs —
 /// and any separator would break the `contains` assertions that matter.
-fn all_text(runs: &[TextRun]) -> String {
-    runs.iter().map(|r| r.text.as_str()).collect()
-}
 
 /// Where `needle` first appears in the printed order, for asserting that one
 /// entry comes before another.
 fn position_of(runs: &[TextRun], needle: &str) -> usize {
-    let text = all_text(runs);
+    let text = text(runs);
     text.find(needle)
         .unwrap_or_else(|| panic!("{needle:?} was never printed. Page reads: {text}"))
 }
@@ -52,7 +43,7 @@ fn position_of(runs: &[TextRun], needle: &str) -> usize {
 /// the back, and every ordering test then passes or fails on the order the
 /// writer happened to cite things in.
 fn index_text(runs: &[TextRun], heading: &str) -> String {
-    all_text(runs)[position_of(runs, heading)..].to_string()
+    text(runs)[position_of(runs, heading)..].to_string()
 }
 
 fn assert_order(index: &str, entries: &[&str]) {
@@ -95,7 +86,7 @@ fn a_topic_index_prints_its_terms_with_their_pages() {
         "#מפתח_ענינים(טורים: 1)",
     );
     let runs = render(&body);
-    let text = all_text(&runs);
+    let text = text(&runs);
     // The marked words print where they were written — the writer does not type
     // the term twice.
     assert!(
@@ -175,7 +166,7 @@ fn sub_entries_sit_under_their_term() {
 #מפתח_ענינים(טורים: 1)";
     let runs = render(body);
     // One heading, two sub-entries under it, alphabetical: אופה before בורר.
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert_eq!(
         text.matches("שבת").count(),
         1,
@@ -189,7 +180,7 @@ fn an_index_of_nothing_prints_nothing() {
     // Not an empty heading over an empty list. A sefer with no marked terms
     // should not grow a page that says "Index" and stops.
     let runs = render("סתם טקסט בלי שום ערך.\n\n#מפתח_ענינים()");
-    assert!(!all_text(&runs).contains("מפתח הענינים"));
+    assert!(!text(&runs).contains("מפתח הענינים"));
 }
 
 #[test]
@@ -232,7 +223,7 @@ fn a_citation_prints_in_one_spelling_however_it_was_typed() {
     // The copy-editing pass nobody has time for: ב״ב on one page and
     // בבא בתרא on another are one masechta and print as one name.
     let runs = render("#ציון_מקור(\"ב״ב\", מקום: \"ג.\") ו#ציון_מקור(\"בבא בתרא\", מקום: \"ד:\")");
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(
         text.contains("בבא בתרא ג."),
         "expected the canonical name: {text}"
@@ -313,7 +304,7 @@ fn a_sefer_the_catalogue_never_heard_of_still_gets_indexed() {
 
 #מפתח_מקורות(טורים: 1)";
     let runs = render(body);
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(text.contains("נודע ביהודה"), "it must appear: {text}");
     // After everything the catalogue does know, where a reader will look for it.
     assert_order(
@@ -344,7 +335,7 @@ fn one_masechta_gathers_all_its_dapim_under_one_heading() {
 #[test]
 fn an_empty_source_index_prints_nothing() {
     let runs = render("טקסט בלי מקורות.\n\n#מפתח_מקורות()");
-    assert!(!all_text(&runs).contains("מפתח המקורות"));
+    assert!(!text(&runs).contains("מפתח המקורות"));
 }
 
 #[test]
@@ -356,7 +347,7 @@ fn both_indexes_can_stand_in_one_document() {
 #מפתח_ענינים(טורים: 1)
 #מפתח_מקורות(טורים: 1)";
     let runs = render(body);
-    let text = all_text(&runs);
+    let text = text(&runs);
     assert!(text.contains("מפתח הענינים") && text.contains("מפתח המקורות"));
     let topics = &text[position_of(&runs, "מפתח הענינים")..position_of(&runs, "מפתח המקורות")];
     assert!(topics.contains("עירוב"), "the topic belongs here: {topics}");
@@ -382,7 +373,7 @@ fn the_prelude_folds_a_name_the_way_the_engine_did() {
         // test that cannot express the case is not testing it.
         let escaped = spelling.replace('"', "\\\"");
         let runs = render(&format!("#ציון_מקור(\"{escaped}\", מקום: \"ג.\")"));
-        let text = all_text(&runs);
+        let text = text(&runs);
         assert!(
             text.contains("בבא בתרא"),
             "{spelling:?} should resolve to בבא בתרא, printed: {text}"
@@ -391,5 +382,5 @@ fn the_prelude_folds_a_name_the_way_the_engine_did() {
     // And a maqaf where a space would do — the fold that U+05BE being inside the
     // Hebrew points range quietly broke.
     let runs = render("#ציון_מקור(\"ראש־השנה\", מקום: \"ב.\")");
-    assert!(all_text(&runs).contains("ראש השנה"));
+    assert!(text(&runs).contains("ראש השנה"));
 }

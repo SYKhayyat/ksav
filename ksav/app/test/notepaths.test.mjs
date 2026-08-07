@@ -1,4 +1,5 @@
 import { ok, check } from "./harness.mjs";
+import { dirOf } from "../tools/paths.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -36,7 +37,7 @@ import {
 // file holds that property, from both ends: the recogniser knows every marker,
 // and `main.ts` has no second way to write one.
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 
 export async function run() {

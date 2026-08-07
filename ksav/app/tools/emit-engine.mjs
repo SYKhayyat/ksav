@@ -37,6 +37,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript } from "./generated.mjs";
+import { commands as sharedCommands, readString } from "./commands.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
@@ -61,60 +62,6 @@ const NOT_A_SETTING = {
 };
 
 // ---------------------------------------------------------------- Rust reading
-
-/**
- * Read one Rust string literal starting at `i` (which must be the opening `"`).
- *
- * Hand-rolled rather than regexed because the `insert:` snippets in
- * `commands.rs` carry escaped quotes — `"#צבע(rgb(\"#b91c1c\"))[|]"` — and a
- * regex that stops at the first `"` cuts them in half. Returns the decoded
- * value and the index just past the closing quote.
- */
-function readString(src, i) {
-  if (src[i] !== '"') return null;
-  let out = "";
-  for (let j = i + 1; j < src.length; j++) {
-    const c = src[j];
-    if (c === "\\") {
-      const n = src[j + 1];
-      out += n === "n" ? "\n" : n === "t" ? "\t" : n;
-      j++;
-      continue;
-    }
-    if (c === '"') return { value: out, end: j + 1 };
-    out += c;
-  }
-  return null;
-}
-
-/** The `cmd!(…)` arguments of one macro call, as decoded strings/booleans. */
-function readCmdArgs(src, from) {
-  const args = [];
-  let i = from;
-  for (;;) {
-    while (i < src.length && /[\s,]/.test(src[i])) i++;
-    if (src[i] === ")") return { args, end: i + 1 };
-    if (src[i] === '"') {
-      const s = readString(src, i);
-      if (!s) return null;
-      args.push(s.value);
-      i = s.end;
-      continue;
-    }
-    // The only non-string argument the macro takes is the `deprecated` flag.
-    if (src.startsWith("true", i)) {
-      args.push(true);
-      i += 4;
-      continue;
-    }
-    if (src.startsWith("false", i)) {
-      args.push(false);
-      i += 5;
-      continue;
-    }
-    return null;
-  }
-}
 
 /**
  * The Hebrew↔English pairing, as the prelude *makes* it.
@@ -162,25 +109,22 @@ function preludeNames() {
   return out;
 }
 
-/** Every command in the registry: the pairing and the two flags on it. */
+/**
+ * Every command in the registry: the pairing and the two flags on it.
+ *
+ * Through `tools/commands.mjs`, which is the one parser. This file had its own —
+ * the fifth reader of `commands.rs`, and byte-identical to the one in
+ * `commands.mjs` down to the comment explaining the slice. Four of those readers
+ * were reconciled when the count went 116 to 115; this one was not, because
+ * nothing swept `tools/`.
+ */
 function readCommands() {
-  const src = readFileSync(join(ENGINE, "commands.rs"), "utf8");
-  const table = src.slice(src.indexOf("pub static COMMANDS"));
-  const out = [];
-  let i = 0;
-  for (;;) {
-    const at = table.indexOf("cmd!(", i);
-    if (at < 0) break;
-    i = at + 5;
-    // The macro's own two arms are `macro_rules!` bodies, not entries — they are
-    // above `pub static COMMANDS` and so already sliced away.
-    const parsed = readCmdArgs(table, i);
-    if (!parsed || parsed.args.length < 6) continue;
-    const [he, en, category, , , , deprecated] = parsed.args;
-    out.push({ he, en, category, deprecated: deprecated === true });
-    i = parsed.end;
-  }
-  return out;
+  return sharedCommands().map((c) => ({
+    he: c.he,
+    en: c.en,
+    category: c.category,
+    deprecated: c.deprecated,
+  }));
 }
 
 /** `impl Default for DocConfig` as plain values. */

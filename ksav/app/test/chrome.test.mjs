@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { PANELS, hasExit } from "../.tmp-test/panels.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
 // Does the chrome go *through* the registry, or around it?
 //
@@ -39,7 +40,7 @@ import { PANELS, hasExit } from "../.tmp-test/panels.mjs";
 // already does for the rest of `src/`. A prohibition cannot be fooled by a
 // coincidence of naming, because it is not looking for a coincidence.
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRCDIR = path.join(HERE, "..", "src");
 const FILES = readdirSync(SRCDIR).filter((f) => f.endsWith(".ts"));
 const SOURCES = new Map(FILES.map((f) => [f, readFileSync(path.join(SRCDIR, f), "utf8")]));

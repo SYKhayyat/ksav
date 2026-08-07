@@ -16,6 +16,7 @@ import {
   scan,
 } from "../.tmp-test/deferred.mjs";
 import { unrendered } from "../.tmp-test/apparatus.mjs";
+import { dirOf } from "../tools/paths.mjs";
 
 // Where a note's words sit in the file must not change what the editor knows
 // about it.
@@ -59,7 +60,7 @@ import { unrendered } from "../.tmp-test/apparatus.mjs";
 // that learns about one spelling and not the other fails here by construction,
 // which is the only thing that would have caught the original.
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const HERE = dirOf(import.meta.url);
 const SRC = path.join(HERE, "..", "src");
 
 /** The corpus. Every one of these is deferred in bulk and asked twice. */

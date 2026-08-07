@@ -8,6 +8,7 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { encodeShare, decodeShare, shareLink, TOO_LONG } from "../.tmp-test/share.mjs";
+import { APP, SRC } from "../tools/paths.mjs";
 
 export function run() {
   return (async () => {
@@ -114,11 +115,8 @@ export function run() {
     // the last one survived.
     {
       const { readFile } = await import("node:fs/promises");
-      const pathMod = await import("node:path");
-      const HERE = pathMod.dirname(
-        new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
-      );
-      const main = await readFile(pathMod.join(HERE, "..", "src", "main.ts"), "utf8");
+      const { join } = await import("node:path");
+      const main = await readFile(join(SRC, "main.ts"), "utf8");
       const shareFn = main.slice(main.indexOf("async function copyShareLink"));
       const body = shareFn.slice(0, shareFn.indexOf("\n}\n"));
       check(
@@ -131,7 +129,7 @@ export function run() {
 
       // The other half: a build with no host must still be buildable, so the
       // constant has to be defined unconditionally rather than only in CI.
-      const vite = await readFile(pathMod.join(HERE, "..", "vite.config.ts"), "utf8");
+      const vite = await readFile(join(APP, "vite.config.ts"), "utf8");
       ok("the build always defines it", vite.includes("__PUBLIC_BASE__"));
       ok("it comes from the environment", vite.includes("VITE_PUBLIC_BASE"));
       // And it is the *same* value the assets are built against, or a link can

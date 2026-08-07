@@ -5,6 +5,7 @@ import {
   addItem,
   splitItem,
   breakInItem,
+  canBreakInItem,
   indentItem,
   outdentItem,
   deleteItem,
@@ -119,10 +120,34 @@ export async function run() {
 
 {
   const at = L.indexOf("שני") + 3;
-  const r = breakInItem(L, at);
+  const r = breakInItem(L, listAt(L, at), at);
   legal("break", r.text);
   check("break: still three items", listAt(r.text, r.caret).items.length, 3);
   ok("break: a Typst line break was written", r.text.includes("שני \\\n"));
+}
+
+// A `\` is content markup: inside `פריט[…]` it breaks the line, and in the
+// list's *argument list* it is a syntax error. This took only a position and
+// spliced unconditionally, with a predicate that returned `true` for every
+// caret — so pressing Shift+Enter between two items, or on the `#רשימה(` line,
+// or on the closing `)`, wrote ` \` where Typst answers "the character `\` is
+// not valid in code". Found by driving the list hydra in a browser, where the
+// panel offered it ungreyed at a caret where delete, indent, outdent and both
+// moves were all correctly greyed.
+{
+  const list = listAt(L, L.indexOf("שני"));
+  const between = L.indexOf("],") + 2;
+  const onOpen = L.indexOf("(") + 1;
+  const onClose = L.lastIndexOf(")");
+  for (const [name, pos] of [
+    ["between two items", between],
+    ["on the opening line", onOpen],
+    ["on the closing paren", onClose],
+  ]) {
+    notOk(`break: refuses ${name}`, canBreakInItem(itemAt(list, pos)));
+    check(`break: and does nothing there — ${name}`, breakInItem(L, list, pos), null);
+  }
+  ok("break: still applies inside an item", canBreakInItem(itemAt(list, L.indexOf("שני") + 1)));
 }
 
 // ---------------------------------------------------------------- indent

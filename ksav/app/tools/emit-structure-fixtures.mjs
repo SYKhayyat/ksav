@@ -92,7 +92,7 @@ export async function buildFixture() {
     const addL = (n, src) => add(n, src, W3);
     addL(`${tag}/add`, L.addItem(doc, list, pos).text);
     addL(`${tag}/split`, L.splitItem(doc, list, pos + 1).text);
-    addL(`${tag}/break`, L.breakInItem(doc, pos + at.length).text);
+    addL(`${tag}/break`, L.breakInItem(doc, list, pos + at.length).text);
     addL(`${tag}/delete`, L.deleteItem(doc, list, pos).text);
     addL(`${tag}/moveUp`, L.moveItem(doc, list, pos, -1).text);
     for (const kind of ["bullets", "numbered", "hebrew"]) {
@@ -116,6 +116,55 @@ export async function buildFixture() {
       // Add an item while nested: the nested list's own comma rules apply.
       const nested = L.listAt(one.text, back);
       addL(`${tag}/add-nested`, L.addItem(one.text, nested, back).text);
+    }
+
+    // ------------------------------------------------ every caret, not one
+    //
+    // Everything above drives each operation at a single position, always
+    // inside an item. That is the hole `list.breakInItem` lived in: it spliced
+    // a ` \` at the caret without asking whether the caret was in an item body,
+    // so between two items — or on the `#רשימה(` line, or on the closing `)` —
+    // it wrote content markup into the list's *argument list*. The compiler
+    // answers "Invalid syntax here", the fixture never asked at those
+    // positions, and the app-side sweep that does visit every position only
+    // checks that `enabled` and `run` agree, never that the result compiles.
+    // Balanced brackets are not legal Typst; only the compiler knows.
+    //
+    // So: every position in the list, every operation, and whatever comes back
+    // gets compiled. Deduplicated by resulting source, because most positions
+    // inside one item's body produce the same document and there is no value in
+    // compiling it eighty times.
+    {
+      const seen = new Set();
+      const ops = [
+        ["add", (d, l, p) => L.addItem(d, l, p)],
+        ["split", (d, l, p) => L.splitItem(d, l, p)],
+        ["break", (d, l, p) => L.breakInItem(d, l, p)],
+        ["delete", (d, l, p) => L.deleteItem(d, l, p)],
+        ["indent", (d, l, p) => L.indentItem(d, l, p)],
+        ["outdent", (d, l, p) => L.outdentItem(d, l, p)],
+        ["moveUp", (d, l, p) => L.moveItem(d, l, p, -1)],
+        ["moveDown", (d, l, p) => L.moveItem(d, l, p, 1)],
+      ];
+      const span = L.listAt(doc, pos);
+      for (let p = span.from; p <= span.to; p++) {
+        const here = L.listAt(doc, p);
+        if (!here) continue;
+        for (const [op, run] of ops) {
+          let edit = null;
+          try {
+            edit = run(doc, here, p);
+          } catch {
+            // A throw is itself a finding, but it is the app suite's to report;
+            // this generator's job is to hand the compiler what a writer would
+            // actually end up with.
+            continue;
+          }
+          if (!edit || seen.has(edit.text)) continue;
+          seen.add(edit.text);
+          addL(`${tag}/sweep-${op}@${p - span.from}`, edit.text);
+        }
+      }
     }
   }
 

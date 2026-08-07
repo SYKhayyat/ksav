@@ -265,10 +265,13 @@ const LIST_ACTIONS: StructureAction[] = [
     group: "items",
     glyph: "↵",
     label: "listBreakInItem",
-    // The one the writer asked for by name: a newline *inside* a bullet.
+    // The one the writer asked for by name: a newline *inside* a bullet — and
+    // only inside one. `\` is content markup, so in the list's argument list it
+    // is a syntax error rather than a line break; this used to be `() => true`
+    // and wrote it there. See `lists.canBreakInItem`.
     ...onList(
-      () => lists.canBreakInItem(),
-      (doc, _list, pos) => lists.breakInItem(doc, pos),
+      (_list, here) => lists.canBreakInItem(here),
+      (doc, list, pos) => lists.breakInItem(doc, list, pos),
     ),
   },
   {

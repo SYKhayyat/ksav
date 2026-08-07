@@ -110,6 +110,339 @@
       ]
     },
     {
+      "name": "he/sweep-add@7",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n  פריט[],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-add@15",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@15",
+      "source": "#רשימה(\n  פריט[],\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@15",
+      "source": "#רשימה(\n  פריט[ \\\nראשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-delete@15",
+      "source": "#רשימה(\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-moveDown@15",
+      "source": "#רשימה(\n  פריט[שני],\n  פריט[ראשון],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@16",
+      "source": "#רשימה(\n  פריט[ר],\n  פריט[אשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@16",
+      "source": "#רשימה(\n  פריט[ר \\\nאשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@17",
+      "source": "#רשימה(\n  פריט[רא],\n  פריט[שון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@17",
+      "source": "#רשימה(\n  פריט[רא \\\nשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@18",
+      "source": "#רשימה(\n  פריט[ראש],\n  פריט[ון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@18",
+      "source": "#רשימה(\n  פריט[ראש \\\nון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@19",
+      "source": "#רשימה(\n  פריט[ראשו],\n  פריט[ן],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@19",
+      "source": "#רשימה(\n  פריט[ראשו \\\nן],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@20",
+      "source": "#רשימה(\n  פריט[ראשון \\\n],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-add@30",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@30",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[ \\\nשני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-delete@30",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-indent@30",
+      "source": "#רשימה(\n  פריט[ראשון\n    #רשימה(פריט[שני],)],\n    פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-moveDown@30",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שלישי],\n  פריט[שני],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@31",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[ש],\n  פריט[ני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@31",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[ש \\\nני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@32",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שנ],\n  פריט[י],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@32",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שנ \\\nי],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@33",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני \\\n],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@43",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[ \\\nשלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-delete@43",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-indent@43",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני\n    #רשימה(פריט[שלישי],)],\n  )\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@44",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[ש],\n  פריט[לישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@44",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[ש \\\nלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@45",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[של],\n  פריט[ישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@45",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[של \\\nישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@46",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלי],\n  פריט[שי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@46",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלי \\\nשי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-split@47",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שליש],\n  פריט[י],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@47",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שליש \\\nי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-break@48",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי \\\n],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
       "name": "en/add",
       "source": "#bullets(\n  item[one],\n  item[two],\n  item[],\n  item[three],\n)\n\nAfter the list.\n",
       "words": [
@@ -218,6 +551,303 @@
       ]
     },
     {
+      "name": "en/sweep-add@9",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[three],\n  item[],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-add@17",
+      "source": "#bullets(\n  item[one],\n  item[],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@17",
+      "source": "#bullets(\n  item[],\n  item[one],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@17",
+      "source": "#bullets(\n  item[ \\\none],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-delete@17",
+      "source": "#bullets(\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-moveDown@17",
+      "source": "#bullets(\n  item[two],\n  item[one],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@18",
+      "source": "#bullets(\n  item[o],\n  item[ne],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@18",
+      "source": "#bullets(\n  item[o \\\nne],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@19",
+      "source": "#bullets(\n  item[on],\n  item[e],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@19",
+      "source": "#bullets(\n  item[on \\\ne],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@20",
+      "source": "#bullets(\n  item[one \\\n],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-add@30",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@30",
+      "source": "#bullets(\n  item[one],\n  item[ \\\ntwo],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-delete@30",
+      "source": "#bullets(\n  item[one],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-indent@30",
+      "source": "#bullets(\n  item[one\n    #bullets(item[two],)],\n    item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-moveDown@30",
+      "source": "#bullets(\n  item[one],\n  item[three],\n  item[two],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@31",
+      "source": "#bullets(\n  item[one],\n  item[t],\n  item[wo],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@31",
+      "source": "#bullets(\n  item[one],\n  item[t \\\nwo],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@32",
+      "source": "#bullets(\n  item[one],\n  item[tw],\n  item[o],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@32",
+      "source": "#bullets(\n  item[one],\n  item[tw \\\no],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@33",
+      "source": "#bullets(\n  item[one],\n  item[two \\\n],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@43",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[ \\\nthree],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-delete@43",
+      "source": "#bullets(\n  item[one],\n  item[two],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-indent@43",
+      "source": "#bullets(\n  item[one],\n  item[two\n    #bullets(item[three],)],\n  )\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@44",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[t],\n  item[hree],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@44",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[t \\\nhree],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@45",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[th],\n  item[ree],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@45",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[th \\\nree],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@46",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[thr],\n  item[ee],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@46",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[thr \\\nee],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-split@47",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[thre],\n  item[e],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@47",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[thre \\\ne],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-break@48",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[three \\\n],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
       "name": "inline/add",
       "source": "#ממוספרת(פריט[א], פריט[ב], פריט[],)\n",
       "words": [
@@ -300,6 +930,94 @@
     {
       "name": "inline/add-nested",
       "source": "#ממוספרת(פריט[א\n    #ממוספרת(פריט[ב], פריט[],)], )\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-add@9",
+      "source": "#ממוספרת(פריט[א], פריט[ב], פריט[],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-add@14",
+      "source": "#ממוספרת(פריט[א], פריט[], פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-split@14",
+      "source": "#ממוספרת(פריט[], פריט[א], פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-break@14",
+      "source": "#ממוספרת(פריט[ \\\nא], פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-delete@14",
+      "source": "#ממוספרת(פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-moveDown@14",
+      "source": "#ממוספרת(פריט[ב], פריט[א],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-break@15",
+      "source": "#ממוספרת(פריט[א \\\n], פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-break@23",
+      "source": "#ממוספרת(פריט[א], פריט[ \\\nב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-delete@23",
+      "source": "#ממוספרת(פריט[א],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-indent@23",
+      "source": "#ממוספרת(פריט[א\n    #ממוספרת(פריט[ב],)], )\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-break@24",
+      "source": "#ממוספרת(פריט[א], פריט[ב \\\n],)\n",
       "words": [
         "א",
         "ב"

@@ -136,9 +136,31 @@ export function canAddItem(): boolean {
   return true;
 }
 
-/** Also always: a line break can go anywhere inside a list. */
-export function canBreakInItem(): boolean {
-  return true;
+/**
+ * Only inside an item's body — a `\` anywhere else in a list is a syntax error.
+ *
+ * This said `return true` and the comment beside it said *"a line break can go
+ * anywhere inside a list"*, which is the false premise the whole bug rests on.
+ * A trailing backslash is Typst **content** markup. Inside `פריט[…]` it breaks
+ * the line, which is what the writer asked for. In the list's *argument list* —
+ * between two items, on the `#רשימה(` line, on the closing `)` — it is not
+ * markup at all, and `breakInItem` spliced it in there without asking, because
+ * a predicate that is constantly `true` is not a predicate.
+ *
+ * Found by driving the list hydra in a browser: the panel offered this
+ * operation, ungreyed, at a caret where delete, indent, outdent and both moves
+ * were all correctly greyed — because those ask `here !== null` and this asked
+ * nothing. The result was ` \` sitting on its own between two items, and the
+ * compiler answering *"Invalid syntax here — check brackets, commas, and the
+ * command structure"*, which is not a sentence anybody can act on when the
+ * thing they did was press Shift+Enter.
+ *
+ * `itemAt` is non-null exactly when the caret is within some item's
+ * `[bodyFrom, bodyTo]`, so this is the same question `canDeleteItem` asks, and
+ * it is the right one.
+ */
+export function canBreakInItem(here: Here): here is OnItem {
+  return here !== null;
 }
 
 export function canDeleteItem(here: Here): here is OnItem {
@@ -226,8 +248,15 @@ export function splitItem(doc: string, list: ListInfo, pos: number): Edit {
  * Typst breaks a line on a trailing backslash and a paragraph on a blank line.
  * The backslash is the one that keeps the text in the same bullet, which is
  * what "a newline in this item" means to the person asking for it.
+ *
+ * Takes the list and asks `canBreakInItem` first, like every other operation in
+ * this file. It used to take only a position and splice unconditionally, which
+ * is how it came to write a bare ` \` into a list's argument list — see
+ * `canBreakInItem` for what that produced and how it was found.
  */
-export function breakInItem(doc: string, pos: number): Edit {
+export function breakInItem(doc: string, list: ListInfo, pos: number): Edit | null {
+  const here = itemAt(list, pos);
+  if (!canBreakInItem(here)) return null;
   const snippet = " \\\n";
   return { text: doc.slice(0, pos) + snippet + doc.slice(pos), caret: pos + snippet.length };
 }

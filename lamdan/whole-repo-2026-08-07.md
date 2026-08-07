@@ -653,6 +653,37 @@ a `#` *inside the same click handler that dispatches the edit*. Neither can awai
 
 ## 7. Every feature is built twice, across a boundary drawn on the wrong axis
 
+> ### 🟡 Started — 7 August 2026. Not finished, and the estimate was right.
+>
+> A week is a week. What was done is two pieces, both chosen because the seam
+> ran straight through a place bugs had already been found:
+>
+> `actions.ts` (§7a) took **which command each shell action inserts**, after the
+> toolbar's `•` and `Ctrl+Shift+8` were found to produce different lists.
+>
+> `insert.ts` takes **what an insertion becomes**: refuse with a reason, or a
+> note layout with its scaffolding, or text and a caret. That decision was in
+> `main.ts`, so the insertion grid could compile 1,026 strings against the real
+> Typst compiler while nothing at all checked the function that chooses between
+> them — which is this section's thesis in one sentence. It is a pure function of
+> `(doc, from, to, selection, snippet)` now, with 27 assertions on it, including
+> the pair that makes a refusal falsifiable rather than a blanket ban:
+> `#מעבר_עמוד` inside a container is refused **and** at the top level it is not.
+>
+> **What is not done.** `main.ts` is still ~5,900 lines. `header.ts` and the
+> panel renderers are untouched, and so is the largest single thing in the file —
+> the chrome construction. The three modules the report names as the plan are
+> one-and-a-half of three.
+>
+> One thing worth recording for whoever does the rest: the extractions that
+> worked were the ones where a *decision* could be lifted out and the *effect*
+> left behind. `insertSnippet` is six lines of dispatch in `main.ts` now and
+> every judgement it makes is somewhere a test can reach. Lifting the effects
+> too — the dispatch, the focus call, the status line — would have needed a fake
+> view in every test and bought nothing.
+
+
+
 **This is the structural claim, and it explains why naming `main.ts`'s size did not work.**
 
 The previous report said `main.ts` was 5,653 lines. It is now **5,721**. Naming a file's size is not

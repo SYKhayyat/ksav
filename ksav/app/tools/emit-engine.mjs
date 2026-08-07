@@ -262,9 +262,6 @@ function emit(aliases, commands, defaults, notices) {
   const aliasRows = [...aliases]
     .map(([he, en]) => `  ${q(he)}: ${q(en)},`)
     .join("\n");
-  const catRows = commands
-    .map((c) => `  ${q(c.he)}: ${q(c.category)},`)
-    .join("\n");
   const noticeRows = notices
     .map(
       (n) =>
@@ -302,11 +299,6 @@ ${defaultRows}
  */
 export const COMMAND_EN: Readonly<Record<string, string>> = {
 ${aliasRows}
-};
-
-/** The category key of every registry command, keyed by its Hebrew name. */
-export const COMMAND_CATEGORY: Readonly<Record<string, string>> = {
-${catRows}
 };
 
 /** Both spellings of a command, for a table that must accept either. */

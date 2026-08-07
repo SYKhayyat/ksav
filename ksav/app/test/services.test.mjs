@@ -32,11 +32,20 @@ const APP = path.resolve(HERE, "..");
 
 const NAMES = new Set(SERVICES.map((s) => s.name));
 
-/** A response object shaped like the one each method reads back. */
+/**
+ * A response object shaped like the one each method reads back.
+ *
+ * `text()` as well as `json()`, because the HTTP backend reads the body as text
+ * and parses it once — the same shape the wasm and desktop transports have
+ * always had, which is what let the three of them collapse onto one client. A
+ * fake that models a narrower `Response` than the code uses is a fake that fails
+ * a correct refactor.
+ */
 const answer = (body) => ({
   ok: true,
   status: 200,
   json: async () => body,
+  text: async () => JSON.stringify(body),
 });
 
 /**

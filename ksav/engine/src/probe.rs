@@ -80,14 +80,6 @@ pub fn page_sizes(doc: &PagedDocument) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// All text on a page, joined in layout order — for "does this word appear at all".
-pub fn page_text(runs: &[TextRun], page: usize) -> String {
-    runs.iter()
-        .filter(|r| r.page == page)
-        .map(|r| r.text.as_str())
-        .collect()
-}
-
 /// Runs grouped into visual lines: same page, y within `tol` points.
 /// Returns each line's text joined in x order appropriate to the run order.
 pub fn lines(runs: &[TextRun], tol: f64) -> Vec<Line> {
@@ -133,15 +125,17 @@ pub struct Line {
 
 impl Line {
     /// The line's text, in x order (so RTL reads reversed — match on substrings).
+    ///
+    /// There used to be a `logical_text` beside this, documented as giving "the
+    /// line's text in layout (logical) order, which is what a reader of the
+    /// source expects". It sorted the runs by `x` — which is what this already
+    /// does, because `runs` is built in x order — so the two returned the same
+    /// string for every input, in a *shipping library*, with a doc comment
+    /// claiming otherwise. Nothing called it. A `page_text` went with it, also
+    /// uncalled: the `page_text(&runs)` in the tests is each test file's own
+    /// local helper and always was.
     pub fn text(&self) -> String {
         self.runs.iter().map(|r| r.text.as_str()).collect()
-    }
-    /// The line's text in layout (logical) order, which is what a reader of the
-    /// source expects for a single-direction line.
-    pub fn logical_text(&self) -> String {
-        let mut rs = self.runs.clone();
-        rs.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
-        rs.iter().map(|r| r.text.as_str()).collect()
     }
     pub fn contains(&self, needle: &str) -> bool {
         self.runs.iter().any(|r| r.text.contains(needle))

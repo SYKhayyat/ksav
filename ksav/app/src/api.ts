@@ -609,10 +609,112 @@ function readPoints(v: unknown): PagePoint[] {
   );
 }
 
-export class HttpBackend implements Backend, Sources {
+/**
+ * Every service a backend answers the same way, over one door.
+ *
+ * # The finding
+ *
+ * Three transport classes held 312 of this file's 582 code lines between them,
+ * and **ten of their twelve methods differed only in how they spelled one
+ * call**: `(await this.send(name, obj)).json()` against
+ * `JSON.parse(await this.call(name, JSON.stringify(obj)))`. Every layer *below*
+ * this file had already collapsed to `(ServiceName, string) => Promise<string>`
+ * — the engine routes HTTP from the registry, the wasm module dispatches its
+ * single `ksav_call` export from it, and the desktop shell has one Tauri command
+ * that looks names up in it. The registry unified the dispatch and left the
+ * façade triplicated.
+ *
+ * That is not only length. It is three places to add a service and three places
+ * to forget one — and the last time this file was triplicated, the wasm backend
+ * spelled `sefarim` in a way the worker had never heard of, which nothing but a
+ * writer noticing could have found.
+ *
+ * # What stays per-transport
+ *
+ * `call`, and `compile`. The transports genuinely differ about *failure*: HTTP
+ * has a status code, the wasm worker can be killed mid-compile and has to answer
+ * with a diagnostic rather than leave a promise hanging, and the desktop shell
+ * has neither problem. Nothing else does — a spell check is a spell check.
+ */
+abstract class ServiceClient {
+  /**
+   * The one door. `input` is the JSON request body, or `""` for a service that
+   * takes none; the answer is the JSON response as text.
+   */
+  protected abstract call(service: ServiceName, input?: string): Promise<string>;
+
+  /** A service, its request, and its answer parsed. */
+  protected async ask<T>(service: ServiceName, req?: unknown): Promise<T> {
+    return JSON.parse(await this.call(service, req === undefined ? "" : JSON.stringify(req))) as T;
+  }
+
+  /** No timeout anywhere below: none of these lays a document out. */
+  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
+    return this.ask("assemble", assembleRequest(body, cfg, assets));
+  }
+
+  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
+    return this.ask("spell", { text, user_words: userWords, suggest });
+  }
+
+  async suggest(word: string, userWords: string): Promise<string[]> {
+    const out = await this.ask<{ suggestions?: string[] }>("suggest", {
+      word,
+      user_words: userWords,
+    });
+    return out.suggestions ?? [];
+  }
+
+  async commands(): Promise<CommandDef[]> {
+    return this.ask("commands");
+  }
+
+  async sefarim(): Promise<SeferDef[]> {
+    return (await this.ask<{ sefarim?: SeferDef[] }>("sefarim")).sefarim ?? [];
+  }
+
+  async templates(): Promise<TemplateDef[]> {
+    return this.ask("templates");
+  }
+
+  async inbox(): Promise<Arrival[]> {
+    try {
+      return await this.ask("inbox");
+    } catch {
+      // The editor polls this every second; a build with no Girsa half, or a
+      // server that went away, is a thing to stop asking about quietly rather
+      // than to shout about in the console.
+      return [];
+    }
+  }
+
+  // The request bodies are the HTTP contract's, because there is one contract:
+  // these used to be Tauri-shaped argument lists, which is how the desktop build
+  // came to have a `ksav_search_in_girsa` command that the server answers as one
+  // flag on `/mekoros`.
+  async mekoros(phrase: string, except?: string): Promise<Mekoros> {
+    return this.ask("mekoros", { phrase, except: except ?? null });
+  }
+
+  /** The same service, asked to open Girsa's search instead of answering. */
+  async searchInGirsa(phrase: string): Promise<void> {
+    await this.ask("mekoros", { phrase, search: true });
+  }
+
+  async linkify(text: string): Promise<string> {
+    const out = await this.ask<{ error?: string; text?: string }>("linkify", { text });
+    if (out.error) throw new Error(out.error);
+    return out.text ?? text;
+  }
+}
+
+
+export class HttpBackend extends ServiceClient implements Backend, Sources {
   readonly kind = "server";
   private cache = new CompileCache();
-  constructor(private base = "") {}
+  constructor(private base = "") {
+    super();
+  }
 
   /**
    * Reach a service. The path **and the method** are the registry's.
@@ -631,107 +733,52 @@ export class HttpBackend implements Backend, Sources {
    * both sides working, and nothing said a word. Found by the first run of
    * `.github/scripts/acceptance.mjs`, in the console, where it had been printing
    * once a second the whole time.
-   *
-   * One function now, and there is no verb left to choose.
    */
-  private call(service: ServiceName, body?: unknown): Promise<Response> {
+  private fetchService(service: ServiceName, input: string): Promise<Response> {
     const def = SERVICE[service];
     const url = this.base + def.path;
     if (def.method === "GET") return fetch(url);
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body ?? {}),
+      body: input || "{}",
     });
   }
 
-  /** A service that takes no request of its own. */
-  private ask(service: ServiceName): Promise<Response> {
-    return this.call(service);
-  }
-
-  /** A service called with a request body. */
-  private send(service: ServiceName, body: unknown): Promise<Response> {
-    return this.call(service, body);
+  protected async call(service: ServiceName, input = ""): Promise<string> {
+    const res = await this.fetchService(service, input);
+    // A refusal is an error here rather than a parsed empty answer, which is
+    // what lets `inbox()` above swallow one deliberately and everything else
+    // report it.
+    if (!res.ok) throw new Error(`${service} ${res.status}`);
+    return res.text();
   }
 
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     return this.cache.compile(async (extra) => {
-      const res = await this.send("compile", { body, ...cfg, ...extra });
+      const res = await this.fetchService("compile", JSON.stringify({ body, ...cfg, ...extra }));
       if (!res.ok) throw new Error(`compile ${res.status}`);
       return res.json();
     }, assets);
   }
 
-  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
-    const res = await this.send("assemble", assembleRequest(body, cfg, assets));
-    if (!res.ok) throw new Error(`assemble ${res.status}`);
-    return res.json();
-  }
-
   async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
-    const res = await this.send("jump", { body, ...cfg, ...assets, ...at });
-    if (!res.ok) return null;
-    return readSpot(await res.json());
-  }
-
-  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
-    const res = await this.send("reveal", { body, ...cfg, ...assets, ...at });
-    if (!res.ok) return [];
-    return readPoints(await res.json());
-  }
-
-  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    const res = await this.send("spell", { text, user_words: userWords, suggest });
-    if (!res.ok) throw new Error(`spell ${res.status}`);
-    return res.json();
-  }
-
-  async suggest(word: string, userWords: string): Promise<string[]> {
-    const res = await this.send("suggest", { word, user_words: userWords });
-    if (!res.ok) throw new Error(`suggest ${res.status}`);
-    return (await res.json()).suggestions ?? [];
-  }
-
-  async commands(): Promise<CommandDef[]> {
-    return (await this.ask("commands")).json();
-  }
-
-  async sefarim(): Promise<SeferDef[]> {
-    return (await (await this.ask("sefarim")).json()).sefarim ?? [];
-  }
-
-  async templates(): Promise<TemplateDef[]> {
-    return (await this.ask("templates")).json();
-  }
-
-  async inbox(): Promise<Arrival[]> {
     try {
-      const res = await this.ask("inbox");
-      return res.ok ? await res.json() : [];
+      return readSpot(await this.ask("jump", { body, ...cfg, ...assets, ...at }));
     } catch {
-      // The editor polls this every second; a server that went away is a
-      // thing to stop asking about quietly, not to shout in the console.
-      return [];
+      return null;
     }
   }
 
-  async mekoros(phrase: string, except?: string): Promise<Mekoros> {
-    const res = await this.send("mekoros", { phrase, except: except ?? null });
-    return res.json();
-  }
-
-  /** The same service, asked to open Girsa's search instead of answering. */
-  async searchInGirsa(phrase: string): Promise<void> {
-    await this.send("mekoros", { phrase, search: true });
-  }
-
-  async linkify(text: string): Promise<string> {
-    const out = await (await this.send("linkify", { text })).json();
-    if (out.error) throw new Error(out.error);
-    return out.text ?? text;
+  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
+    try {
+      return readPoints(await this.ask("reveal", { body, ...cfg, ...assets, ...at }));
+    } catch {
+      return [];
+    }
   }
 }
+
 
 /**
  * Runs the real Typst engine entirely in the browser via WebAssembly — in a
@@ -763,7 +810,7 @@ interface Pending {
   timer?: ReturnType<typeof setTimeout>;
 }
 
-export class WasmBackend implements Backend {
+export class WasmBackend extends ServiceClient implements Backend {
   readonly kind = "wasm";
   private worker: Worker | null = null;
   private booting: Promise<Worker> | null = null;
@@ -833,7 +880,7 @@ export class WasmBackend implements Backend {
    * `ServiceName` is generated from the engine's registry, so the same mistake
    * is now a compile error on this line.
    */
-  private async call(name: ServiceName, input: string, timeoutMs?: number): Promise<string> {
+  protected async call(name: ServiceName, input = "", timeoutMs?: number): Promise<string> {
     const w = await this.ensure();
     const id = this.nextId++;
     return new Promise<string>((resolve, reject) => {
@@ -882,10 +929,6 @@ export class WasmBackend implements Backend {
   }
   /** No timeout: this one cannot run away. It lays nothing out — it is the
    *  `format!` a compile does before the layout starts. */
-  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
-    return JSON.parse(await this.call("assemble", JSON.stringify(assembleRequest(body, cfg, assets))));
-  }
-
   /** Bounded by the same timeout a compile gets, because it *is* a compile: a
    *  runaway document must not pin the one engine worker just because somebody
    *  clicked on it. A killed worker surfaces here as "no answer". */
@@ -912,43 +955,10 @@ export class WasmBackend implements Backend {
       return [];
     }
   }
-
-  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    return JSON.parse(
-      await this.call("spell", JSON.stringify({ text, user_words: userWords, suggest })),
-    );
-  }
-  async suggest(word: string, userWords: string): Promise<string[]> {
-    const out = JSON.parse(
-      await this.call("suggest", JSON.stringify({ word, user_words: userWords })),
-    );
-    return out.suggestions ?? [];
-  }
-  async commands(): Promise<CommandDef[]> {
-    return JSON.parse(await this.call("commands", ""));
-  }
-  async sefarim(): Promise<SeferDef[]> {
-    return JSON.parse(await this.call("sefarim", "")).sefarim ?? [];
-  }
-  async templates(): Promise<TemplateDef[]> {
-    return JSON.parse(await this.call("templates", ""));
-  }
-
-  // No `Sources` half. A tab has no listener for Girsa to hand a source to, and
-  // cannot reach its loopback — the token lives in a file only the two installed
-  // applications can read. The clipboard still works: one Ctrl+C in Girsa puts
-  // the packet down and this build reads the plain and HTML flavours like
-  // anything else would.
-  //
-  // These were four stubs until the interface was split. They were honest, but
-  // they were honest in the wrong module: a transport that returns a sentence
-  // for a reader has taken a decision that belongs to the surface, and the one
-  // it returned went out in Hebrew regardless of the document. Absent is a
-  // better answer than polite, and it is the one the type system can see.
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
-export class TauriBackend implements Backend, Sources {
+export class TauriBackend extends ServiceClient implements Backend, Sources {
   readonly kind = "desktop";
   private cache = new CompileCache();
   private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<string>) | null = null;
@@ -970,7 +980,7 @@ export class TauriBackend implements Backend, Sources {
    * is a runtime rejection rather than a compile error. There is one now, and
    * `ServiceName` is generated from the registry it dispatches through.
    */
-  private async call(service: ServiceName, input = ""): Promise<string> {
+  protected async call(service: ServiceName, input = ""): Promise<string> {
     return (await this.inv())("ksav_call", { name: service, input });
   }
   /**
@@ -1023,23 +1033,9 @@ export class TauriBackend implements Backend, Sources {
       clearTimeout(timer!);
     }
   }
-  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
-    return JSON.parse(await this.call("assemble", JSON.stringify(assembleRequest(body, cfg, assets))));
-  }
-
-  /**
-   * Both directions carry their assets' bytes rather than only their hashes.
-   *
-   * A compile negotiates that down through [`CompileCache`] because it happens on
-   * every pause in typing; a jump happens when somebody clicks. Paying for the
-   * bytes buys the guarantee that matters here — the layout being asked about is
-   * the layout on screen. An image whose bytes the engine turned out not to hold
-   * would lay the page out at a different height, and the answer would be off by
-   * exactly the amount nobody could see.
-   */
   async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
     try {
-      return readSpot(JSON.parse(await this.call("jump", JSON.stringify({ body, ...cfg, ...assets, ...at }))));
+      return readSpot(await this.ask("jump", { body, ...cfg, ...assets, ...at }));
     } catch {
       return null;
     }
@@ -1047,47 +1043,10 @@ export class TauriBackend implements Backend, Sources {
 
   async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
     try {
-      return readPoints(
-        JSON.parse(await this.call("reveal", JSON.stringify({ body, ...cfg, ...assets, ...at }))),
-      );
+      return readPoints(await this.ask("reveal", { body, ...cfg, ...assets, ...at }));
     } catch {
       return [];
     }
-  }
-
-  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    return JSON.parse(await this.call("spell", JSON.stringify({ text, user_words: userWords, suggest })));
-  }
-  async suggest(word: string, userWords: string): Promise<string[]> {
-    const out = JSON.parse(await this.call("suggest", JSON.stringify({ word, user_words: userWords })));
-    return out.suggestions ?? [];
-  }
-  async commands(): Promise<CommandDef[]> {
-    return JSON.parse(await this.call("commands"));
-  }
-  async sefarim(): Promise<SeferDef[]> {
-    return JSON.parse(await this.call("sefarim")).sefarim ?? [];
-  }
-  async templates(): Promise<TemplateDef[]> {
-    return JSON.parse(await this.call("templates"));
-  }
-  async inbox(): Promise<Arrival[]> {
-    return JSON.parse(await this.call("inbox"));
-  }
-  // The request bodies are the HTTP contract's, because there is one contract:
-  // these used to be Tauri-shaped argument lists, which is how the desktop build
-  // came to have a `ksav_search_in_girsa` command that the server answers as one
-  // flag on `/mekoros`.
-  async mekoros(phrase: string, except?: string): Promise<Mekoros> {
-    return JSON.parse(await this.call("mekoros", JSON.stringify({ phrase, except: except ?? null })));
-  }
-  async searchInGirsa(phrase: string): Promise<void> {
-    await this.call("mekoros", JSON.stringify({ phrase, search: true }));
-  }
-  async linkify(text: string): Promise<string> {
-    const out = JSON.parse(await this.call("linkify", JSON.stringify({ text })));
-    if (out.error) throw new Error(out.error);
-    return out.text ?? text;
   }
 }
 

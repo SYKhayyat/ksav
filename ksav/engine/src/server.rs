@@ -23,18 +23,6 @@ use tiny_http::{Header, Method, Response, Server};
 // the answer, so there is one function that writes both.
 use crate::services::{self, error_json, Cost, Service};
 
-/// Fallback editor, used when the `embed-ui` feature is off.
-///
-/// Two files, and it used to be one. The script was inline, and an inline
-/// `<script>` cannot run under `script-src 'self'` — so this page was served
-/// with **no** `Content-Security-Policy` header at all, deliberately, and said
-/// so in a comment. That is a hole in a live policy bought by a `<script>` tag
-/// being in the wrong place, in the build that receives documents written by
-/// other people. The script is `web/editor.js` now and this page is answered
-/// like every other: with the policy.
-const INDEX_HTML: &str = include_str!("../web/index.html");
-const EDITOR_JS: &str = include_str!("../web/editor.js");
-
 /// Content-Security-Policy for the served editor.
 ///
 /// The engine's output becomes HTML in the browser (per-page SVG assigned to
@@ -139,25 +127,59 @@ fn serve_static(request: tiny_http::Request, url: &str) {
         }
     }
 
-    // Fallback: the bundled editor at the root, for builds without `embed-ui`.
+    // No app here, and a page that says how to get one.
     //
-    // It carries the same policy as everything else, through the same function.
-    // It used to carry none, on purpose, because its script was inline and
-    // `script-src 'self'` blocks that. The script is `web/editor.js` now, so
-    // `'self'` covers it and there is no exception left to justify.
+    // `ksav/engine/web/` used to answer this: a complete second editor — its own
+    // starter document, its own toolbar of ten commands, its own debounced
+    // compile loop, its own PDF download, 232 lines — touched twice in the
+    // project's history while `main.ts` took 79 commits. It was not merely
+    // redundant, it was *wrong*: its table insertion carried the bare
+    // `עמודות: 2` that `commands.rs:97-102` documents as the defect it fixed
+    // (Typst sizes each column to its contents, so an empty new table rendered
+    // as a thumbnail shoved against the margin). The fix landed in the registry
+    // and not there, because there was invisible to `emit-insertion-fixtures.mjs`
+    // — which reads the engine registry and the app's insertion path and has
+    // never heard of `data-insert=` attributes inside an `include_str!`ed HTML
+    // file. **The repository's most expensive lesson — 384 broken insertions —
+    // had a blind spot exactly the shape of that file.**
+    //
+    // The argument for keeping it was that `cargo run -- serve` on a fresh clone
+    // must answer *something* at `/`. It must, and this is it: a bare 404 is a
+    // worse first five minutes than a stripped editor, and both are worse than
+    // the two commands that produce the real one.
     if rel == "index.html" {
-        let resp = with_policy(Response::from_string(INDEX_HTML), content_type_for(rel));
-        let _ = request.respond(resp);
-        return;
-    }
-    if rel == "editor.js" {
-        let resp = with_policy(Response::from_string(EDITOR_JS), content_type_for(rel));
+        let resp = with_policy(
+            Response::from_string(NO_UI_HTML).with_status_code(404),
+            content_type_for("index.html"),
+        );
         let _ = request.respond(resp);
         return;
     }
 
     let _ = request.respond(Response::from_string("not found").with_status_code(404));
 }
+
+/// What `/` says when the binary was built without `--features embed-ui`.
+///
+/// No inline script and no inline style, so it is served under the same policy
+/// as everything else rather than needing an exception — which is the mistake
+/// the page it replaces made, and had a comment explaining.
+const NO_UI_HTML: &str = r#"<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Ksav — the app is not in this binary</title></head>
+<body>
+<h1>Ksav is running. The editor is not in this binary.</h1>
+<p>The engine is answering — its services are on this same origin, and
+<code>POST /compile</code> works right now. What is missing is the editor, which is
+built separately and embedded at compile time.</p>
+<pre>cd ksav/app    &amp;&amp; npm install &amp;&amp; npm run build
+cd ksav/engine &amp;&amp; cargo build --release --features embed-ui</pre>
+<p>Then run <code>ksav serve</code> again. The order matters: <code>app/dist</code> is
+git-ignored, so building the server first fails inside <code>include_dir!</code> with a
+message about a missing directory rather than about the step that was skipped.</p>
+</body>
+</html>
+"#;
 
 /// The largest request body the API will read.
 ///
@@ -541,7 +563,7 @@ fn header(key: &str, value: &str) -> Header {
 mod tests {
     use super::{
         allowed_origin, asset_path, compile_deadline, content_type_for, csp, policy_for,
-        run_bounded, EDITOR_JS, INDEX_HTML,
+        run_bounded,
     };
     use std::time::Duration;
 
@@ -790,38 +812,22 @@ mod tests {
         }
     }
 
+    /// The no-UI page needs nothing the policy refuses.
+    ///
+    /// It replaces a 232-line second editor (see `serve_static`), and it keeps
+    /// the one property that page was tested for: `script-src 'self'` and
+    /// `style-src 'self'` block an inline `<script>` or `<style>` outright, and
+    /// the previous version of this page was served with **no policy at all**
+    /// to work around exactly that. A page with nothing to execute cannot
+    /// reintroduce the exemption.
     #[test]
-    fn the_fallback_editor_has_no_inline_script() {
-        // `script-src 'self'` blocks an inline `<script>` outright, so an inline
-        // one here would either break the page or bring back the exemption that
-        // let the page be served with no policy at all. Every `<script` in it
-        // must name a file.
-        for (i, tag) in INDEX_HTML.match_indices("<script") {
-            let rest = &INDEX_HTML[i..];
-            let end = rest.find('>').expect("an unterminated <script tag");
-            assert!(
-                rest[..end].contains("src="),
-                "inline <script> at byte {i} ({tag}) — move it to web/editor.js, \
-                 or `script-src 'self'` blocks it and the policy gets carved out again"
-            );
-        }
-        // And the file it names is actually served, or the editor is a blank
-        // page with a 404 in the console.
-        assert!(INDEX_HTML.contains("src=\"editor.js\""));
-        assert!(!EDITOR_JS.is_empty());
+    fn the_no_ui_page_has_nothing_to_execute() {
+        assert!(!NO_UI_HTML.contains("<script"), "the no-UI page must not script");
+        assert!(!NO_UI_HTML.contains("<style"), "the no-UI page must not style");
+        assert!(!NO_UI_HTML.contains("javascript:"));
+        // It is worth its bytes only if it says what to do about it.
+        assert!(NO_UI_HTML.contains("npm run build"));
+        assert!(NO_UI_HTML.contains("--features embed-ui"));
     }
 
-    #[test]
-    fn the_fallback_editor_needs_nothing_the_policy_refuses() {
-        // `connect-src 'self'` — the editor talks to the engine that served it
-        // and to nowhere else. A fetch to another origin would fail silently at
-        // runtime, which is the worst way to find out.
-        for origin in ["http://", "https://"] {
-            assert!(
-                !EDITOR_JS.contains(&format!("fetch(\"{origin}")),
-                "the fallback editor may only reach its own origin"
-            );
-            assert!(!EDITOR_JS.contains(&format!("fetch('{origin}")));
-        }
-    }
 }

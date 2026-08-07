@@ -37,7 +37,6 @@ import { check, ok } from "./harness.mjs";
 import {
   BUNDLED_FONTS,
   BUNDLED_NOTICES,
-  COMMAND_CATEGORY,
   COMMAND_EN,
   DOC_DEFAULTS,
   bothSpellings,
@@ -88,12 +87,6 @@ export async function run() {
       "withAliases expands a Hebrew-keyed table",
       withAliases({ כותרת1: 1 }),
       { "כותרת1": 1, h1: 1 },
-    );
-
-    ok("the categories cover the palette registry", Object.keys(COMMAND_CATEGORY).length >= 110);
-    ok(
-      "every categorised command is one the prelude defines",
-      Object.keys(COMMAND_CATEGORY).every((he) => defined.has(he)),
     );
   }
 

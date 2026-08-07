@@ -27,6 +27,13 @@ pub mod notices;
 /// ask for the answer mid-keystroke.
 pub mod parse;
 /// The rules more than one build has to obey, read from `ksav/policy/`.
+///
+/// Native only. Its one runtime caller is `server::csp`, which is
+/// `#[cfg(not(target_arch = "wasm32"))]` — so the wasm module was carrying a
+/// Content-Security-Policy for a server it does not contain. That is exactly the
+/// finding the comment three lines below is proud of having made about
+/// `girsa-source`, uncaught one module away.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod policy;
 /// The loopback to Girsa. Native only, like the server: a browser build has no
 /// listener and nothing to hand it a source.
@@ -185,14 +192,85 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
 /// nothing at all otherwise (native footnotes expand the text region themselves
 /// and must not lose page height to a reserve they never use).
 pub fn auto_notes_region_cm(body: &str) -> f64 {
+    // Comments first, and this is the eleventh scanner in this repository.
+    //
+    // `spans.ts` opens with a monument to ten client-side matchers disagreeing
+    // about `"`, `\`, `//` and `{}`; that ruling stopped at the wire. This one
+    // was a naive `find` with no string or comment tracking, so a **commented-out**
+    // `// #מדף_א[…]` — the ordinary way somebody parks an apparatus while they
+    // decide about it — reserved 3 cm at the foot of every page in the document.
+    // The existing test covered the prose case (`the מדף_ command`) and stopped
+    // one case short.
+    let visible = code_only(body);
     if PAGE_APPARATUS_COMMANDS
         .iter()
-        .any(|c| apparatus_is_called(body, c) || apparatus_is_named_as_kind(body, c))
+        .any(|c| apparatus_is_called(&visible, c) || apparatus_is_named_as_kind(&visible, c))
     {
         3.0
     } else {
         0.0
     }
+}
+
+/// `body` with its comments and string literals blanked out, offsets preserved.
+///
+/// Blanked rather than removed so that anything reading positions from the
+/// result still agrees with the original, and so a comment cannot join the two
+/// halves of an identifier it sat between.
+///
+/// String literals go too: `#כותרת_עליונה("ראה #מדף_א[…]")` is a page header
+/// whose *text* mentions an apparatus, not a document that has one. This is the
+/// same rule `spans.ts` applies and, deliberately, not the same implementation —
+/// a Typst body is not a Ksav editor buffer, and the shared thing worth having
+/// is the corpus of documents that must come out the same way, not the code.
+fn code_only(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut chars = body.chars().peekable();
+    let mut in_string = false;
+    // Blank a character, keeping newlines so line numbers and line starts stay
+    // exactly where they were.
+    let blank = |c: char| if c == '\n' { '\n' } else { ' ' };
+    while let Some(c) = chars.next() {
+        if in_string {
+            out.push(blank(c));
+            if c == '\\' {
+                if let Some(n) = chars.next() {
+                    out.push(blank(n));
+                }
+            } else if c == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => {
+                in_string = true;
+                out.push(' ');
+            }
+            '/' if chars.peek() == Some(&'/') => {
+                out.push(' ');
+                for n in chars.by_ref() {
+                    out.push(blank(n));
+                    if n == '\n' {
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                out.push(' ');
+                let mut star = false;
+                for n in chars.by_ref() {
+                    out.push(blank(n));
+                    if star && n == '/' {
+                        break;
+                    }
+                    star = n == '*';
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// Whether `name` (a command, or the common prefix of a family of them) appears
@@ -1362,6 +1440,51 @@ mod tests {
         assert_eq!(auto_notes_region_cm("#הערה_זרם(זרם: \"א\")[טקסט]"), 3.0);
         // A document with no apparatus at all reserves nothing.
         assert_eq!(auto_notes_region_cm("סתם טקסט עם #הדגשה[מילה]"), 0.0);
+    }
+
+    /// A commented-out apparatus is not an apparatus.
+    ///
+    /// The case the test above stopped one short of. Parking a band while you
+    /// decide about it — `// #מדף_א[…]`, which is what the editor's own
+    /// "comment out" command writes — reserved 3 cm at the foot of **every page
+    /// in the document**, and the writer's only symptom is that their text block
+    /// got shorter for no reason they can see.
+    #[test]
+    fn a_commented_out_apparatus_reserves_nothing() {
+        assert_eq!(auto_notes_region_cm("שלום
+// #מדף_א[הערה]
+עולם"), 0.0);
+        assert_eq!(auto_notes_region_cm("שלום /* #מדף_א[הערה] */ עולם"), 0.0);
+        assert_eq!(
+            auto_notes_region_cm("שלום
+// אולי #הערה_זרם(זרם: \"א\")[טקסט]
+עולם"),
+            0.0
+        );
+        // And a string is text, not a call: a running head that *mentions* an
+        // apparatus is a header, not a document that has one.
+        assert_eq!(auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")"), 0.0);
+        // The apparatus still counts when it is real and a comment is merely
+        // nearby — the fix must not blank the wrong half of the line.
+        assert_eq!(auto_notes_region_cm("// הערה
+#מדף_א[הערה]"), 3.0);
+        assert_eq!(auto_notes_region_cm("#מדף_א[הערה] // הערה"), 3.0);
+    }
+
+    /// Blanking preserves offsets and never joins two identifiers.
+    #[test]
+    fn blanking_a_comment_keeps_the_document_the_same_length() {
+        for doc in [
+            "אלף // בית
+גימל",
+            "אלף /* בית */ גימל",
+            "אלף \"בית\" גימל",
+            "#מדף_א[א] // #מדף_ב[ב]",
+        ] {
+            assert_eq!(code_only(doc).chars().count(), doc.chars().count(), "{doc:?}");
+        }
+        // A comment between two halves of a name must not let them meet.
+        assert!(!code_only("מד/* x */ף_א[הערה]").contains("מדף_א"));
     }
 
     /// Every command in the prelude that puts notes in the page footer, derived

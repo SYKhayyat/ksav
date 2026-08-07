@@ -1238,6 +1238,20 @@ under the `cfg(not(target_arch = "wasm32"))` block beside `girsa-post`.
 
 ### `registry.rs:55-65` — a skip list dressed as documentation
 
+> ### ✅ Fixed — 6 August 2026
+>
+> Done, and recorded in the ranked table as row 8 rather than here, which is the
+> only reason this block exists: a reader of §7 should not have to cross-check
+> the summary to learn that its verdict was carried out. `registry.rs` is gone,
+> both survivors moved into `insertion.rs`, and `the_grid_exempts_nothing`
+> replaces the skip list. The six exemptions were disproved against the fixture
+> before anything was deleted. The English widening asked for below **was**
+> built, is wrong, and is argued down in the source.
+>
+> `ONLY_AT_TOP` has outlived its own file as the name for this shape: §10's
+> documentation fence caught itself rebuilding it, and §13's diagnostics corpus
+> replaced a third instance in `every_rephrasing_is_bilingual`. Three now.
+
 **Verdict: `delete`.** `ONLY_AT_TOP` lists nine commands exempted from the "does it
 compile here" sweep. `registry.rs:114` `continue`s past them, so an entry is
 **unfalsifiable by construction** — a listed command can never make the test red no
@@ -1420,6 +1434,26 @@ this reason and says so — *"it is the one module in `src` without a test file,
 the grade calls the tell."* **The bindings escaped. The panels didn't.**
 
 ### Assertions that measure nothing
+
+> ### ✅ Fixed — 6 August 2026
+>
+> Recorded in the ranked table as row 13; marked here for the same reason as the
+> block above. All four are gone, and one of them was fixed *upward* rather than
+> deleted:
+>
+> - `help.test.mjs`'s 285-assertion loop is three `filter`s, which say the same
+>   thing and say it better — a failure now names every offender at once instead
+>   of stopping at whichever one the loop reached first.
+> - `coverage.test.mjs` **reads the surface now.** `!c.deprecated` was the file
+>   asking the registry a question about the registry and agreeing with itself;
+>   it reads `main.ts`'s Insert-menu builder, and `!deprecated` is a *true
+>   statement about reachability* rather than a definition of it — which is what
+>   lets the ~100 per-command claims collapse into one `filter` without losing
+>   anything.
+> - `registry.rs:138-143` went with the file.
+> - The runner's hole was wider and narrower than stated: `run.mjs` listed 43 of
+>   62 modules, and "cannot build" was wrong — 61 of the 62 build. The list is
+>   read off `src/` now, with `runner.test.mjs` over it.
 
 **Verdict: `delete`.**
 
@@ -2327,7 +2361,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 11 | ✅ **Fixed 6 Aug.** `fold()`, defaults, the command pairing, font notices, `#כלול`, head alignment, "strip the markup" — each 2–3× in 2–3 languages; `spans.ts` was a ninth site the finding missed. Two real bugs fell out: `_ix_fold` folded `שַׁבָּת` to the empty string (grapheme clusters, so a pointed letter went with its point) and `#כלול("")` was a directive in Rust and not in TS | `rewrite` → one generated `engine.gen.ts` + two executed corpora | ~1 day, not 8: the eight are one question asked eight times. 20 files, 7 added, ~200 hand-written name pairs deleted, 8 mutations red |
 | 12 | ✅ **Answered 6 Aug — verdict refused.** Every diagnosis held; the conclusion did not. Six of the nine were dead for a small, nameable reason — no host, no base URL, an inline `<script>`, a `keydown` listener that could never be first, no generated service list, an error message blaming a missing API key — and "delete it" and "finish it" are indistinguishable from the evidence gathered here. The `/inbox` cache poisoning was worse than stated: a drained queue replayed once a second is a document eater, not a stale bundle. Rows 8 and 9 are factually wrong — `refreshBaseline` feeds the change gutter from the newest snapshot and `ruler.ts`'s fourth mark is `change`, so deleting the history darkens a surface this section leaves standing; and `changes.ts` is that gutter, not tracked changes | `delete` → **build**: `deploy.yml`, `__PUBLIC_BASE__`, `sw-cache.js` + a generated `sw-services.gen.js`, `web/editor.js` + one `policy_for`, an honest archived-mock panel | 5 commits, 21 files, +3; 8 mutations red; 3 further bugs found by *using* it — the hydra's eleven keys all dead under vim, `canBreakInItem` constantly true, and the fixture that compiled one caret while the sweep visited every one |
 | 13 | ✅ **Fixed 6 Aug.** `run.mjs` listed 43 of 62 modules and **not one test imported the other nineteen**; "cannot build" was wrong (61 of 62 build) — nothing compared the list to the directory. The build also gave every entry its own `runtime` singleton, so every cross-module fact failed closed, and `brackets.ts` broke the no-new-line invariant `compile.ts` rests on | fix + prune → the list read off `src/`, `runner.test.mjs`, 16 modules tested, `help`/`coverage` pruned | not 2 hours: 24 files, +9 test files; 3,482 assertions across 58 files — **+8 files, −382 assertions**, 8 mutations red |
-| 14 | `main.ts` at 5,653 lines as such | `wrong-but-keep` | — |
+| 14 | ✅ **Kept 6 Aug, deliberately.** `main.ts` at 5,653 lines as such. The steelman is right and the verdict is accepted unchanged: every reusable, testable idea has already been lifted out, and splitting on feature lines would make twelve files importing the same three globals. §11's own narrower claim — the panel, twelve times, unnamed — is the part that was real and it is `panels.ts` now. The file is 5,644 lines, down eighteen, because the mechanism left and the side effects had to be written down to be shared | `wrong-but-keep` | — |
 | 15 | ✅ **Fixed 7 Aug.** Concatenated prelude and the coordinate-correction régime. The prelude stays concatenated — that half is accepted. Everything the section says should happen regardless is done, and the extraction was the smallest of the three: `body_offset` was assembling 111 KB with an empty body to learn one integer, once per compile and twice per jump, when every caller already held both strings; and `enclosing_let`'s "flat list of `#let`" was a spelling habit over 2,324 lines with nothing testing it. Sweeping all 360 bindings found seventeen that reported a **truncated command name** — `#let pageband1` as `#pageband` — which is rule 4's own prohibition inside the function written to obey it | `wrong-but-keep`; extract `assemble_source` through wasm → a twelfth service, one `read_document` shared with `compile`, and a byte-identity oracle | not 1 hour: 13 files, +2 test files. Export .typ 18–79× faster and flat in document size; `services.test.mjs`'s "one row per method" was `ONLY_AT_TOP` in a second file and is now checked |
 
 ---

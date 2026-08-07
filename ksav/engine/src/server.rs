@@ -23,20 +23,27 @@ use tiny_http::{Header, Method, Response, Server};
 // the answer, so there is one function that writes both.
 use crate::services::{self, error_json, Cost, Service};
 
-/// Fallback single-file editor, used when the `embed-ui` feature is off.
+/// Fallback editor, used when the `embed-ui` feature is off.
+///
+/// Two files, and it used to be one. The script was inline, and an inline
+/// `<script>` cannot run under `script-src 'self'` — so this page was served
+/// with **no** `Content-Security-Policy` header at all, deliberately, and said
+/// so in a comment. That is a hole in a live policy bought by a `<script>` tag
+/// being in the wrong place, in the build that receives documents written by
+/// other people. The script is `web/editor.js` now and this page is answered
+/// like every other: with the policy.
 const INDEX_HTML: &str = include_str!("../web/index.html");
+const EDITOR_JS: &str = include_str!("../web/editor.js");
 
 /// Content-Security-Policy for the served editor.
 ///
 /// The engine's output becomes HTML in the browser (per-page SVG assigned to
 /// `innerHTML`), and `ksav serve` had no CSP at all — so a document arriving from
-/// someone else ran with no second line of defence. Setting it as a header
-/// covers the fallback single-file editor, which is not the built bundle.
+/// someone else ran with no second line of defence.
 ///
 /// It is [`crate::policy::csp`] and not a string here, because this was one of
 /// three copies of that string and the comment above it used to claim all three
 /// were the same policy. They were not; see `ksav/policy/README.md`.
-#[cfg_attr(not(feature = "embed-ui"), allow(dead_code))]
 fn csp() -> &'static str {
     crate::policy::csp()
 }
@@ -45,7 +52,6 @@ fn csp() -> &'static str {
 #[cfg(feature = "embed-ui")]
 static UI: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../app/dist");
 
-#[cfg_attr(not(feature = "embed-ui"), allow(dead_code))]
 fn content_type_for(path: &str) -> &'static str {
     match path.rsplit('.').next() {
         Some("html") => "text/html; charset=utf-8",
@@ -67,6 +73,35 @@ fn content_type_for(path: &str) -> &'static str {
     }
 }
 
+/// The policy a static response of this content type must carry, if any.
+///
+/// One function rather than an `if` at each site, because it was an `if` at
+/// each site and the two sites disagreed: the embedded-SPA branch attached the
+/// policy to HTML, and the fallback branch attached nothing to anything, with a
+/// comment explaining why that was fine. It was not fine — it was the only
+/// response the engine emitted with no policy on it, in the build that receives
+/// documents written by other people.
+///
+/// `None` for everything else is deliberate and is not a gap: a
+/// `Content-Security-Policy` header on a stylesheet or a font governs nothing,
+/// and attaching it where it does nothing is how a policy stops being read as a
+/// statement about anything. HTML is where a document executes.
+fn policy_for(content_type: &str) -> Option<&'static str> {
+    content_type.starts_with("text/html").then(csp)
+}
+
+/// Attach the content type, and the policy if the type calls for one.
+fn with_policy(
+    resp: Response<impl std::io::Read>,
+    content_type: &str,
+) -> Response<impl std::io::Read> {
+    let mut resp = resp.with_header(header("Content-Type", content_type));
+    if let Some(policy) = policy_for(content_type) {
+        resp = resp.with_header(header("Content-Security-Policy", policy));
+    }
+    resp
+}
+
 /// Serve a static asset for a GET request. Returns true if it was handled.
 fn serve_static(request: tiny_http::Request, url: &str) {
     let rel = if url == "/" || url == "/index.html" {
@@ -78,27 +113,25 @@ fn serve_static(request: tiny_http::Request, url: &str) {
     #[cfg(feature = "embed-ui")]
     {
         if let Some(file) = UI.get_file(rel) {
-            let mut resp = Response::from_data(file.contents())
-                .with_header(header("Content-Type", content_type_for(rel)));
-            // The document itself carries the policy; a header is ignored on the
-            // other asset types, so attaching it only to HTML keeps it meaningful.
-            if rel.ends_with(".html") {
-                resp = resp.with_header(header("Content-Security-Policy", csp()));
-            }
+            let resp = with_policy(Response::from_data(file.contents()), content_type_for(rel));
             let _ = request.respond(resp);
             return;
         }
     }
 
-    // Fallback: the bundled single-file editor at the root.
+    // Fallback: the bundled editor at the root, for builds without `embed-ui`.
     //
-    // No CSP header here on purpose: this minimal editor is a single self-contained
-    // file with an inline <script>, which `script-src 'self'` would block outright.
-    // It exists only when the `embed-ui` feature is off — a lean dev build, not the
-    // shipping server, which embeds the built SPA and gets the policy above.
+    // It carries the same policy as everything else, through the same function.
+    // It used to carry none, on purpose, because its script was inline and
+    // `script-src 'self'` blocks that. The script is `web/editor.js` now, so
+    // `'self'` covers it and there is no exception left to justify.
     if rel == "index.html" {
-        let resp = Response::from_string(INDEX_HTML)
-            .with_header(header("Content-Type", "text/html; charset=utf-8"));
+        let resp = with_policy(Response::from_string(INDEX_HTML), content_type_for(rel));
+        let _ = request.respond(resp);
+        return;
+    }
+    if rel == "editor.js" {
+        let resp = with_policy(Response::from_string(EDITOR_JS), content_type_for(rel));
         let _ = request.respond(resp);
         return;
     }
@@ -444,7 +477,10 @@ fn header(key: &str, value: &str) -> Header {
 
 #[cfg(test)]
 mod tests {
-    use super::{allowed_origin, compile_deadline, run_bounded};
+    use super::{
+        allowed_origin, compile_deadline, content_type_for, csp, policy_for, run_bounded,
+        EDITOR_JS, INDEX_HTML,
+    };
     use std::time::Duration;
 
     #[test]
@@ -571,5 +607,79 @@ mod tests {
     fn the_allowed_origin_follows_the_port_the_server_bound() {
         assert!(allowed_origin("http://127.0.0.1:9000", "127.0.0.1:9000"));
         assert!(!allowed_origin("http://127.0.0.1:7878", "127.0.0.1:9000"));
+    }
+
+    // ------------------------------------------------ every page gets the policy
+    //
+    // The carve-out these replace: `serve_static` answered the fallback editor
+    // with no `Content-Security-Policy` header, on purpose, because that page's
+    // script was inline and `script-src 'self'` blocks inline script. So the one
+    // build that serves documents written by other people had one response with
+    // no policy on it, and a comment explaining that this was fine.
+    //
+    // It is a pair of facts, and both are asserted, because fixing either alone
+    // puts it straight back: the page must have no inline script, and the
+    // response for a page must carry the policy.
+
+    #[test]
+    fn every_html_response_carries_the_policy() {
+        assert_eq!(policy_for(content_type_for("index.html")), Some(csp()));
+        assert_eq!(policy_for(content_type_for("anything.html")), Some(csp()));
+    }
+
+    #[test]
+    fn the_policy_goes_only_where_it_governs_something() {
+        // Not tidiness. A header that governs nothing, attached everywhere, is
+        // how the three copies of this policy got to disagree without anybody
+        // noticing which one was doing any work.
+        for asset in [
+            "editor.js",
+            "a.css",
+            "a.svg",
+            "a.woff2",
+            "a.png",
+            "a.webmanifest",
+        ] {
+            assert_eq!(
+                policy_for(content_type_for(asset)),
+                None,
+                "{asset} is not a document and a policy on it governs nothing"
+            );
+        }
+    }
+
+    #[test]
+    fn the_fallback_editor_has_no_inline_script() {
+        // `script-src 'self'` blocks an inline `<script>` outright, so an inline
+        // one here would either break the page or bring back the exemption that
+        // let the page be served with no policy at all. Every `<script` in it
+        // must name a file.
+        for (i, tag) in INDEX_HTML.match_indices("<script") {
+            let rest = &INDEX_HTML[i..];
+            let end = rest.find('>').expect("an unterminated <script tag");
+            assert!(
+                rest[..end].contains("src="),
+                "inline <script> at byte {i} ({tag}) — move it to web/editor.js, \
+                 or `script-src 'self'` blocks it and the policy gets carved out again"
+            );
+        }
+        // And the file it names is actually served, or the editor is a blank
+        // page with a 404 in the console.
+        assert!(INDEX_HTML.contains("src=\"editor.js\""));
+        assert!(!EDITOR_JS.is_empty());
+    }
+
+    #[test]
+    fn the_fallback_editor_needs_nothing_the_policy_refuses() {
+        // `connect-src 'self'` — the editor talks to the engine that served it
+        // and to nowhere else. A fetch to another origin would fail silently at
+        // runtime, which is the worst way to find out.
+        for origin in ["http://", "https://"] {
+            assert!(
+                !EDITOR_JS.contains(&format!("fetch(\"{origin}")),
+                "the fallback editor may only reach its own origin"
+            );
+            assert!(!EDITOR_JS.contains(&format!("fetch('{origin}")));
+        }
     }
 }

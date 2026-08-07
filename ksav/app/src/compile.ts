@@ -16,7 +16,7 @@ import { t, tf } from "./i18n";
 import { applyPreview, drawPages } from "./preview";
 import { docConfig } from "./settings";
 import * as runtime from "./runtime";
-import type { CompileResult, DocConfig } from "./api";
+import type { AssembledSource, CompileResult, DocConfig } from "./api";
 
 /** Called after a compile lands, so the shell can refresh what depends on it. */
 let afterCompile: () => void = () => {};
@@ -200,6 +200,33 @@ async function includedParts(body: string): Promise<{ name: string; body: string
     byTitle.set(entry.title, doc.body);
   }
   return parts.collect(body, (name) => byTitle.get(name) ?? null);
+}
+
+/**
+ * The document as Typst source, for "export .typ" — with no compile behind it.
+ *
+ * This used to be `compileForExport()` called with `want_pdf` and
+ * `want_source`, whose PDF was decoded by nobody and whose layout was the only
+ * thing the writer waited for. `assemble_source` runs *before* Typst is
+ * invoked; asking for it directly is the difference between a `format!` and a
+ * render of a whole sefer. The custom-command preamble and the chapters are
+ * resolved exactly as `compileForExport` resolves them, because a `.typ` that
+ * opens differently from the document it came out of is not an export.
+ */
+export async function sourceForExport(): Promise<AssembledSource | null> {
+  const backend = runtime.backend;
+  if (!backend) return null;
+  const body = withPreamble(runtime.docText()).body;
+  try {
+    return await backend.assemble(body, docConfig(), {
+      ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
+      parts: await includedParts(body),
+    });
+  } catch (e) {
+    const bad = troubleSaid(e, "compile");
+    runtime.setStatus(`${t("networkError")} — ${bad.said}`, "err", bad.detail);
+    return null;
+  }
 }
 
 export async function compileForExport(

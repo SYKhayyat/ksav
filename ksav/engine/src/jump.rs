@@ -23,8 +23,10 @@
 //!     *assembled* source: the 1,700-line prelude, then the `#show` wrapper,
 //!     then the writer's text. A line number counted in that is not a line
 //!     anybody can be sent to, so both directions convert through
-//!     `diagnostics::body_offset` — the same value the diagnostics use, for the
-//!     same reason, and deliberately not a second copy of the arithmetic.
+//!     `diagnostics::body_offset_of` — the same value the diagnostics use, for
+//!     the same reason, and deliberately not a second copy of the arithmetic.
+//!     It is read off the assembly this module already built rather than
+//!     measured by assembling a second one.
 //!
 //! A jump that lands anywhere other than the writer's own text — inside the
 //! prelude, in another file, on a URL — is reported as *no answer* rather than
@@ -138,8 +140,12 @@ fn with_layout<R>(
 /// go to, and each is far more common in this document shape than in a plain
 /// one — the whole apparatus is prelude-generated.
 pub fn to_source(body: &str, cfg: &DocConfig, assets: &Assets, at: PagePoint) -> Option<BodySpot> {
-    let offset = crate::diagnostics::body_offset(cfg);
     with_layout(body, cfg, assets, |world, doc, main| {
+        // Read off the assembly `with_layout` just built, not by assembling the
+        // prelude a second time with an empty body to measure it — which is
+        // what this cost until the two calls in this file were noticed to be
+        // the same 111 KB `format!` the compile had already done.
+        let offset = crate::diagnostics::body_offset_of(main.text(), body);
         let page = std::num::NonZeroUsize::new(at.page.checked_add(1)?)?;
         let position = PagedPosition {
             page,
@@ -163,8 +169,8 @@ pub fn to_source(body: &str, cfg: &DocConfig, assets: &Assets, at: PagePoint) ->
 /// text in a repeated header appears on every page. The caller shows the first
 /// and is free to offer the rest.
 pub fn from_cursor(body: &str, cfg: &DocConfig, assets: &Assets, at: BodySpot) -> Vec<PagePoint> {
-    let offset = crate::diagnostics::body_offset(cfg);
     with_layout(body, cfg, assets, |_, doc, main| {
+        let offset = crate::diagnostics::body_offset_of(main.text(), body);
         let cursor = byte_of(main.text(), offset, at)?;
         Some(
             typst_ide::jump_from_cursor(doc, main, cursor)

@@ -8,7 +8,7 @@
 // service reaches all four builds by being added once, in Rust.
 
 /** Every service the engine can be asked for. A typo here is a `tsc` error. */
-export type ServiceName = "compile" | "jump" | "reveal" | "spell" | "suggest" | "commands" | "templates" | "sefarim" | "inbox" | "mekoros" | "linkify";
+export type ServiceName = "compile" | "assemble" | "jump" | "reveal" | "spell" | "suggest" | "commands" | "templates" | "sefarim" | "inbox" | "mekoros" | "linkify";
 
 export interface ServiceDef {
   readonly name: ServiceName;
@@ -24,6 +24,7 @@ export interface ServiceDef {
 
 export const SERVICES: readonly ServiceDef[] = [
   { name: "compile", method: "POST", path: "/compile", cost: "layout", nativeOnly: false },
+  { name: "assemble", method: "POST", path: "/assemble", cost: "quick", nativeOnly: false },
   { name: "jump", method: "POST", path: "/jump", cost: "layout", nativeOnly: false },
   { name: "reveal", method: "POST", path: "/reveal", cost: "layout", nativeOnly: false },
   { name: "spell", method: "POST", path: "/spell", cost: "work", nativeOnly: false },

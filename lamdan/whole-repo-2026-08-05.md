@@ -764,6 +764,97 @@ paid knowingly. Keep the mechanism. Write it once.
 
 **Verdict: `wrong-but-keep`, with one cheap extraction.**
 
+> ### ✅ Fixed — 7 August 2026
+>
+> The `wrong-but-keep` half is accepted and unchanged: the prelude is still
+> concatenated, the coordinate corrections still exist, and no consumer of a
+> corrected coordinate was revisited. What is answered is everything this
+> section says *should happen regardless* — and the extraction turned out to be
+> the smallest of the three things wrong here.
+>
+> **The extraction, as prescribed.** `assemble` is a twelfth service in
+> `engine/src/services.rs`, so it reaches all four builds by being one line in
+> Rust: the HTTP route, the dev proxy, the wasm export and the desktop command
+> are all generated from that table. `exportTypst` asks for it instead of
+> running a full render with the PDF and reading one field off the response.
+> Measured head to head in one process, `cargo run --release --example
+> bench-export`:
+>
+> | | compile + PDF | assemble | |
+> |---|---|---|---|
+> | 1 siman | 12.5 ms | 0.70 ms | 18× |
+> | 10 simanim | 17.3 ms | 0.46 ms | 38× |
+> | 40 simanim | 45.8 ms | 0.58 ms | 79× |
+>
+> The ratio grows because only one of the two columns is a function of the
+> document; assembling 111 KB of prelude costs the same half-millisecond
+> whatever is after it.
+>
+> **They are one path, not two.** The obvious way to lose here is for export and
+> compile to produce different files — a different `#כלול` expansion, a page
+> setup read one way in one place. Both services now read the request through
+> one `read_document` (body, includes, config) and hand the same two values to
+> the same `assemble_source`, and `engine/tests/assemble.rs` asserts the two
+> routes are **byte-identical** over nine requests chosen to exercise every
+> field that reaches the wrapper — full page setup, per-edge margins, two-sided,
+> quotes and backslashes in the strings, English/LTR, an included chapter, and a
+> chapter that does not exist.
+>
+> One behaviour changed on purpose: a `#כלול` naming a document the library no
+> longer holds now **stops the export and says which chapter**, where before the
+> hole travelled out inside the file. It is the one problem this service can
+> still report without laying anything out.
+>
+> **`body_offset` was the expensive half, and the finding files it as a symptom
+> rather than as the cost.** It is quoted here as *"measures the prelude by
+> assembling the whole thing again with an empty body and subtracting one, per
+> compile and twice per jump"* — which is exactly right, and it is 111 KB of
+> `format!` to learn one integer. Every caller already holds both strings it
+> needs, and `assemble_source` ends in `{body}\n`, so the answer is
+> `assembled.len() - body.len() - 1`: exact, free, and derived from the same
+> format string the slow one is. `Located::of` takes the body instead of the
+> config now, and `jump.rs` reads it off the assembly `with_layout` had already
+> built rather than building a second one twice per click.
+> `the_cheap_offset_is_the_same_offset` sweeps the two against each other over
+> ten configs × four bodies, the configs chosen for the fields that change the
+> wrapper's *length*.
+>
+> **The `#let` convention is no longer a convention.** The finding is right that
+> `enclosing_let` rests on `rfind("#let ")` assuming a flat list, and right that
+> the assumption holds today only by a spelling habit — the census is now 360
+> column-0 `#let` and 187 indented `let` written without the hash, over 2,324
+> lines, with nothing testing it. It is anchored to column 0, so the habit no
+> longer has to hold, and `every_top_level_let_names_itself` sweeps all 360 of
+> them: a point in the middle of each definition must resolve to that
+> definition's own name.
+>
+> **The sweep found a bug the finding did not, and would not have.** Reading the
+> name out of the *truncated* prefix meant a span landing inside the name itself
+> returned a truncated one — `#let pageband1` reported as `#pageband`, `#let
+> anchor` as `#ancho`, `#let blockquote` as `#blockquot`. Seventeen of the 360.
+> That is a wrong command name handed to a writer, which is rule 4's own
+> prohibition, in the function written to obey it. The name is read from the
+> whole prelude now.
+>
+> **One more, in the fence rather than the product.** `services.test.mjs` says
+> in its own prose *"one row per method of `Backend` and `Sources` — if a method
+> is added and not listed here, the count assertion at the end fails."* The
+> count assertion was `asked.length === CALLS.length`, which compares a list to
+> itself and is true of any list, including one covering half the interface —
+> `ONLY_AT_TOP` rebuilt in a second file. The two interface declarations are now
+> read out of `api.ts` and compared with the methods the rows actually drive, in
+> both directions, so the sentence is checked rather than asserted.
+>
+> **Not done, and deliberately.** `with_static_file_resolver` is still not used
+> for the prelude. The finding's own reason stands — every consumer of a
+> corrected coordinate would need revisiting, and the corrections are
+> individually tested — and the two costs it was carrying (the export compile
+> and the per-call re-assembly) are the ones that are gone.
+>
+> Cost: 13 files, +2 test files, +1 example, +1 service. `npm test` 3,556 across
+> 58 files (+10), `cargo test` 383 across 25 binaries (+8), `tsc` clean,
+> `vite build` clean, `cargo clippy -D warnings` clean.
+
 `assemble_source` (`lib.rs:584-655`) prepends the generated sefarim table, the
 2,238-line prelude and a `#show` wrapper as **text** into the user's document.
 
@@ -2123,7 +2214,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 12 | ✅ **Answered 6 Aug — verdict refused.** Every diagnosis held; the conclusion did not. Six of the nine were dead for a small, nameable reason — no host, no base URL, an inline `<script>`, a `keydown` listener that could never be first, no generated service list, an error message blaming a missing API key — and "delete it" and "finish it" are indistinguishable from the evidence gathered here. The `/inbox` cache poisoning was worse than stated: a drained queue replayed once a second is a document eater, not a stale bundle. Rows 8 and 9 are factually wrong — `refreshBaseline` feeds the change gutter from the newest snapshot and `ruler.ts`'s fourth mark is `change`, so deleting the history darkens a surface this section leaves standing; and `changes.ts` is that gutter, not tracked changes | `delete` → **build**: `deploy.yml`, `__PUBLIC_BASE__`, `sw-cache.js` + a generated `sw-services.gen.js`, `web/editor.js` + one `policy_for`, an honest archived-mock panel | 5 commits, 21 files, +3; 8 mutations red; 3 further bugs found by *using* it — the hydra's eleven keys all dead under vim, `canBreakInItem` constantly true, and the fixture that compiled one caret while the sweep visited every one |
 | 13 | ✅ **Fixed 6 Aug.** `run.mjs` listed 43 of 62 modules and **not one test imported the other nineteen**; "cannot build" was wrong (61 of 62 build) — nothing compared the list to the directory. The build also gave every entry its own `runtime` singleton, so every cross-module fact failed closed, and `brackets.ts` broke the no-new-line invariant `compile.ts` rests on | fix + prune → the list read off `src/`, `runner.test.mjs`, 16 modules tested, `help`/`coverage` pruned | not 2 hours: 24 files, +9 test files; 3,482 assertions across 58 files — **+8 files, −382 assertions**, 8 mutations red |
 | 14 | `main.ts` at 5,653 lines as such | `wrong-but-keep` | — |
-| 15 | Concatenated prelude and the coordinate-correction régime | `wrong-but-keep`; extract `assemble_source` through wasm | ~1 hour for the extraction |
+| 15 | ✅ **Fixed 7 Aug.** Concatenated prelude and the coordinate-correction régime. The prelude stays concatenated — that half is accepted. Everything the section says should happen regardless is done, and the extraction was the smallest of the three: `body_offset` was assembling 111 KB with an empty body to learn one integer, once per compile and twice per jump, when every caller already held both strings; and `enclosing_let`'s "flat list of `#let`" was a spelling habit over 2,324 lines with nothing testing it. Sweeping all 360 bindings found seventeen that reported a **truncated command name** — `#let pageband1` as `#pageband` — which is rule 4's own prohibition inside the function written to obey it | `wrong-but-keep`; extract `assemble_source` through wasm → a twelfth service, one `read_document` shared with `compile`, and a byte-identity oracle | not 1 hour: 13 files, +2 test files. Export .typ 18–79× faster and flat in document size; `services.test.mjs`'s "one row per method" was `ONLY_AT_TOP` in a second file and is now checked |
 
 ---
 

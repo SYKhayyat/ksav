@@ -41,12 +41,18 @@ const answer = (body) => ({
 /**
  * Every call each backend makes, with what the engine would have answered.
  *
- * One row per method of `Backend` and `Sources` — if a method is added and not
- * listed here, the count assertion at the end fails, because the point of this
- * file is *every* door and not the ones somebody remembered.
+ * One row per method of `Backend` and `Sources`, and *"every door and not the
+ * ones somebody remembered"* is now something this file checks rather than
+ * something it says. It used to rest on `asked.length === CALLS.length`, which
+ * compares the list to itself: it is true for any list, including one missing
+ * half the interface. `every_backend_method_is_driven` at the end reads the two
+ * interface declarations out of `api.ts` and asserts set equality with the
+ * methods these rows actually call — so a method added and not listed here goes
+ * red, which is what the paragraph above claimed for as long as it was wrong.
  */
 const CALLS = [
   ["compile", (b) => b.compile("שלום", {}), { ok: true, pages_svg: [], diagnostics: [] }],
+  ["assemble", (b) => b.assemble("שלום", {}), { ok: true, typst_source: "#let", diagnostics: [] }],
   ["jump", (b) => b.jump("שלום", {}, { page: 0, x_pt: 1, y_pt: 1 }), { line: 1 }],
   ["reveal", (b) => b.reveal("שלום", {}, { line: 1 }), { points: [] }],
   ["spell", (b) => b.spell("שלום", ""), { misspellings: [] }],
@@ -289,5 +295,45 @@ export async function run() {
       await readFile(path.join(APP, "src-tauri", "tauri.conf.json"), "utf8"),
     );
     check("the desktop app delivers that policy", conf.app.security.csp, policy);
+  }
+
+  // ------------------------------------------- and every door is in the list
+  //
+  // The claim `CALLS` makes about itself, made checkable.
+  //
+  // For as long as this file existed, "one row per method" rested on
+  // `asked.length === CALLS.length` — a list compared to itself, which is true
+  // of any list, including one that has quietly stopped covering half the
+  // interface. That is `ONLY_AT_TOP` in a different file: a check that cannot
+  // fail for the reason it is written under. `Backend` and `Sources` are the
+  // contract, so they are what the rows are compared against.
+  //
+  // Read out of the declaration rather than off a prototype, because a
+  // prototype also carries `send`, `ask`, `call`, `ensure`, `spawn` and
+  // `failAll` — and telling those from the real methods would need an exemption
+  // list, which is the mistake this assertion exists to stop.
+  {
+    const api = await readFile(path.join(APP, "src", "api.ts"), "utf8");
+    const declared = new Set();
+    for (const name of ["Backend", "Sources"]) {
+      const at = api.indexOf(`export interface ${name} {`);
+      ok(`interface ${name} was found`, at >= 0);
+      const block = api.slice(at, api.indexOf("\n}", at));
+      for (const m of block.matchAll(/^ {2}(\w+)\(/gm)) declared.add(m[1]);
+    }
+    // What the rows actually call, taken from the rows themselves: each driver
+    // is `(b) => b.method(…)`, so the method is in its own source.
+    const driven = new Set(CALLS.map(([, drive]) => /\bb\.(\w+)\(/.exec(String(drive))?.[1]));
+    check(
+      "every method of Backend and Sources is driven here",
+      [...declared].filter((m) => !driven.has(m)),
+      [],
+    );
+    check(
+      "and nothing is driven that the interfaces do not declare",
+      [...driven].filter((m) => !declared.has(m)),
+      [],
+    );
+    ok("the interfaces were really read", declared.size > 10);
   }
 }

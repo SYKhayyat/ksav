@@ -13,6 +13,7 @@
 
 export const SERVICE_PATHS = [
   "/compile",
+  "/assemble",
   "/jump",
   "/reveal",
   "/spell",

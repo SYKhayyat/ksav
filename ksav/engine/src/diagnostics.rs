@@ -98,14 +98,37 @@ impl Diagnostic {
     }
 }
 
-/// Where the writer's own text starts inside an assembled source.
+/// Where the writer's own text starts inside an assembled source — **the
+/// definition**, and the slow one.
 ///
 /// Assembling with an empty body gives prelude + wrapper + the trailing newline
 /// that `assemble_source`'s format string puts after `{body}`. Both come off the
 /// same format string, so this cannot drift out of step with it — which is the
 /// whole reason it is computed rather than counted by hand.
+///
+/// It is also 111 KB of `format!` to learn one integer, and it was being paid
+/// once per compile and *twice* per jump. Nothing on a hot path calls it any
+/// more; [`body_offset_of`] is what they call, and
+/// `the_cheap_offset_is_the_same_offset` sweeps the two over every shape of
+/// config there is so that the cheap one cannot quietly stop being this one.
 pub fn body_offset(cfg: &crate::DocConfig) -> usize {
     crate::assemble_source("", cfg).len().saturating_sub(1)
+}
+
+/// The same offset, read off an assembly that already exists.
+///
+/// `assemble_source`'s format string ends in `{body}\n`, so everything before
+/// the writer's text is exactly `assembled.len() - body.len() - 1`. Every
+/// caller already holds both strings — the assembly it is locating spans in,
+/// and the body it assembled — so the prelude never has to be built a second
+/// time to be measured.
+///
+/// `saturating_sub` rather than an assertion: the arithmetic is only wrong if
+/// the two strings did not come from one `assemble_source` call, and the
+/// honest answer to that is the same one every other coordinate correction
+/// gives — no line, rather than a wrong one.
+pub fn body_offset_of(assembled: &str, body: &str) -> usize {
+    assembled.len().saturating_sub(body.len() + 1)
 }
 
 /// 1-based line and character column of a byte offset inside `text`.
@@ -213,14 +236,38 @@ fn where_it_happened(
     (at, named)
 }
 
-/// The name of the `#let` binding a byte offset falls inside.
+/// The name of the top-level `#let` binding a byte offset falls inside.
 ///
-/// Scans back for the nearest `#let <name>(` — the prelude is a flat list of
-/// them, so the nearest one before an offset is the one that contains it.
+/// Scans back for the nearest **column-0** `#let <name>` — the prelude is a
+/// flat list of them, so the nearest one before an offset is the one that
+/// contains it.
+///
+/// Column 0 is the whole correctness argument, and it used to be missing. A
+/// bare `rfind("#let ")` finds whichever binding is textually nearest, which
+/// for an offset inside a helper defined *within* a command is the helper, not
+/// the command — and the writer would be told their error was in a name they
+/// have never typed. `ksav.typ` happens to spell every nested binding as an
+/// indented `let` with no hash (360 at column 0, 187 indented, none of them
+/// hashed), so nothing had gone wrong yet; that is a convention, held by
+/// habit, in a file 2,324 lines long. Anchoring here means the convention no
+/// longer has to hold — and `every_top_level_let_names_itself` in
+/// `engine/tests/prelude.rs` sweeps all 360 of them so that this scan is
+/// checked against the prelude it scans rather than against a paragraph.
 fn enclosing_let(prelude: &str, byte: usize) -> Option<String> {
     let upto = &prelude[..byte.min(prelude.len())];
-    let at = upto.rfind("#let ")?;
-    let rest = &upto[at + "#let ".len()..];
+    let at = match upto.rfind("\n#let ") {
+        Some(nl) => nl + 1,
+        // The assembled source opens with the sefarim table's own `#let`, so
+        // there is one binding with no newline in front of it.
+        None if upto.starts_with("#let ") => 0,
+        None => return None,
+    };
+    // Read the name out of the *whole* prelude, not out of `upto`. Taken from
+    // the truncated copy, a span that landed inside the name itself returned a
+    // truncated name — `#let pageband1` reported as `#pageband`, `#let anchor`
+    // as `#ancho` — which is a wrong command name, and rule 4 says a wrong ref
+    // is worse than none. Found by the sweep below, not by reading this.
+    let rest = &prelude[at + "#let ".len()..];
     let name: String = rest
         .chars()
         .take_while(|c| c.is_alphanumeric() || *c == '_')
@@ -554,10 +601,16 @@ impl Located {
     /// builds, and `Source::new` numberizes the parse tree deterministically, so
     /// the span numbers Typst reports resolve against this copy. That is the whole
     /// trick: no access to Typst's `World` is needed, only the same bytes.
-    pub fn of(assembled: &str, cfg: &crate::DocConfig) -> Self {
+    ///
+    /// Takes the *body* rather than the config, because the offset is the
+    /// difference between the two strings the caller already has. It used to
+    /// take the config and re-assemble the whole 111 KB prelude with an empty
+    /// body to measure it — on every compile that produced so much as a
+    /// warning.
+    pub fn of(assembled: &str, body: &str) -> Self {
         Self {
             source: Source::detached(assembled.to_string()),
-            body_offset: body_offset(cfg),
+            body_offset: body_offset_of(assembled, body),
         }
     }
 
@@ -780,6 +833,164 @@ mod tests {
         assert_eq!(wanted, vec!["string"]);
         assert_eq!(found, "content");
         assert!(expected_found("unclosed delimiter").is_none());
+    }
+
+    /// Every top-level `#let` in the real prelude is the name `enclosing_let`
+    /// gives for a span inside it — all 360 of them, swept.
+    ///
+    /// This is the fence under the §5 finding. `enclosing_let` is the last
+    /// resort of the argument-type family: when Typst spans the prelude and
+    /// records no call frame, the name of the binding the span fell inside is
+    /// the only thing left that can tell the writer which of their commands
+    /// this was about. It found the nearest `#let ` anywhere, which is right
+    /// only for as long as `ksav.typ` writes every nested binding as an
+    /// indented `let` with no hash — a spelling convention, held by habit,
+    /// tested by nothing, over 2,324 lines. One indented `#let` and every
+    /// diagnostic in the family starts naming a private helper.
+    ///
+    /// Now it is anchored to column 0, and this asserts the anchor against the
+    /// prelude rather than against a paragraph: for each top-level binding,
+    /// a point in the middle of its text must resolve to its own name.
+    #[test]
+    fn every_top_level_let_names_itself() {
+        let cfg = crate::DocConfig::default();
+        let assembled = crate::assemble_source("", &cfg);
+        let prefix = &assembled[..body_offset(&cfg)];
+
+        // Every column-0 `#let`, with the byte it starts at.
+        let mut tops: Vec<(usize, String)> = Vec::new();
+        for (at, line) in line_starts(prefix) {
+            if let Some(rest) = line.strip_prefix("#let ") {
+                let name: String = rest
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                if !name.is_empty() {
+                    tops.push((at, name));
+                }
+            }
+        }
+        assert!(
+            tops.len() > 300,
+            "the prelude should be a few hundred bindings, found {}",
+            tops.len()
+        );
+
+        let mut wrong = Vec::new();
+        for (i, (at, name)) in tops.iter().enumerate() {
+            let end = tops.get(i + 1).map_or(prefix.len(), |(next, _)| *next);
+            // A point inside the definition, not at either edge of it — which is
+            // where a span into a *nested* binding would land.
+            let mut mid = at + (end - at) / 2;
+            while mid > *at && !prefix.is_char_boundary(mid) {
+                mid -= 1;
+            }
+            let got = enclosing_let(prefix, mid);
+            if got.as_deref() != Some(&format!("#{name}")) {
+                wrong.push(format!("#{name} → {got:?}"));
+            }
+        }
+        assert!(wrong.is_empty(), "bindings named wrong: {wrong:?}");
+    }
+
+    /// The mutation the sweep above cannot make: a nested binding *written with
+    /// a hash*, which is what the convention forbids and nothing enforced.
+    #[test]
+    fn a_nested_binding_does_not_steal_the_name() {
+        let prelude = "#let קודם() = 1\n#let מסגרת(גוף) = {\n  #let פנימי = 3\n  גוף\n}\n";
+        let inside = prelude.find("גוף\n}").unwrap();
+        assert_eq!(
+            enclosing_let(prelude, inside),
+            Some("#מסגרת".to_string()),
+            "a span inside `מסגרת` must name `מסגרת`, not the helper it defines"
+        );
+        // And the first binding in the file still has a name, though nothing
+        // precedes it — the assembled source opens with the sefarim table's own.
+        assert_eq!(
+            enclosing_let(prelude, prelude.find("= 1").unwrap()),
+            Some("#קודם".to_string()),
+            "the binding at byte 0 has no newline in front of it"
+        );
+        // A span that lands inside the name itself still gets the whole name.
+        assert_eq!(
+            enclosing_let(prelude, prelude.find("ודם").unwrap()),
+            Some("#קודם".to_string()),
+            "a truncated command name is a wrong command name"
+        );
+    }
+
+    /// The cheap offset is the same offset, over every shape of config.
+    ///
+    /// `body_offset` is the definition and costs a 111 KB `format!`;
+    /// `body_offset_of` is subtraction. Everything on a hot path calls the
+    /// second one, so this is what stops it becoming a different number:
+    /// the config fields that change the wrapper's *length* — every string in
+    /// it, and the two that switch a `none` for a value — are swept.
+    #[test]
+    fn the_cheap_offset_is_the_same_offset() {
+        /// One way to make the wrapper a different length.
+        type Vary = fn(&mut crate::DocConfig);
+
+        let mut configs = vec![crate::DocConfig::default()];
+        let vary: [Vary; 9] = [
+            |c| c.dir = "ltr".into(),
+            |c| c.title = "קונטרס בעניני שבת".into(),
+            |c| c.author = "A. Writer".into(),
+            |c| c.keywords = vec!["שבת".into(), "מלאכה".into()],
+            |c| {
+                c.header_even = "verso".into();
+                c.header_odd = "recto".into();
+                c.footer_even = "".into();
+                c.footer_odd = "ארוך הרבה יותר".into();
+            },
+            |c| {
+                c.margin_top_cm = Some(2.5);
+                c.margin_outer_cm = Some(1.25);
+            },
+            |c| c.two_sided = true,
+            |c| c.font = "Frank \"Ruehl\"".into(),
+            |c| c.header = "a\\b".into(),
+        ];
+        for apply in vary {
+            let mut c = crate::DocConfig::default();
+            apply(&mut c);
+            configs.push(c);
+        }
+        // And one with all of them at once, because lengths add.
+        let mut all = crate::DocConfig::default();
+        for apply in vary {
+            apply(&mut all);
+        }
+        configs.push(all);
+
+        for cfg in &configs {
+            for body in ["", "א", "שורה\nושתיים\n", &"מילה ".repeat(500)] {
+                let assembled = crate::assemble_source(body, cfg);
+                assert_eq!(
+                    body_offset_of(&assembled, body),
+                    body_offset(cfg),
+                    "body of {} bytes, dir {}",
+                    body.len(),
+                    cfg.dir
+                );
+                // And it really is where the body starts.
+                assert_eq!(
+                    &assembled[body_offset_of(&assembled, body)..],
+                    format!("{body}\n")
+                );
+            }
+        }
+    }
+
+    /// `(byte offset, text)` for every line of `s`, the offsets being into `s`.
+    fn line_starts(s: &str) -> Vec<(usize, &str)> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        for line in s.split('\n') {
+            out.push((at, line));
+            at += line.len() + 1;
+        }
+        out
     }
 }
 

@@ -60,7 +60,10 @@ pub enum Method {
 /// - `Work` is real CPU that is not a layout — spell-checking a document,
 ///   waiting on Girsa over the loopback. Offloaded in the desktop app, not
 ///   capped on the server.
-/// - `Quick` returns a registry or drains a queue. Straight through.
+/// - `Quick` returns a registry, drains a queue, or builds a string. Straight
+///   through. `assemble` is here rather than under `Layout` because that is the
+///   entire point of it: it is the `format!` that a compile does *before* the
+///   seconds of layout, and export used to pay for the layout to get at it.
 ///
 /// This is the one axis on which the four targets legitimately differ, so it is
 /// data on the service rather than a rule written out per target.
@@ -131,6 +134,7 @@ const fn svc(
 #[rustfmt::skip]
 pub const SERVICES: &[Service] = &[
     svc("compile", Post, "/compile", Layout, All, crate::compile_request),
+    svc("assemble", Post, "/assemble", Quick, All, crate::assemble_request),
     svc("jump", Post, "/jump", Layout, All, crate::jump::jump_request),
     svc("reveal", Post, "/reveal", Layout, All, crate::jump::reveal_request),
     svc("spell", Post, "/spell", Work, All, crate::spell::spell_request),
@@ -150,7 +154,7 @@ pub fn find(name: &str) -> Option<&'static Service> {
 
 /// The service this request addresses, if any.
 ///
-/// Exact paths only. The engine answers eleven URLs and serves a static file
+/// Exact paths only. The engine answers a dozen URLs and serves a static file
 /// tree under everything else, so a prefix match here would swallow assets.
 pub fn route(method: Method, path: &str) -> Option<&'static Service> {
     SERVICES
@@ -378,6 +382,7 @@ mod tests {
     fn the_registry_holds_the_services_the_editor_depends_on() {
         for name in [
             "compile",
+            "assemble",
             "jump",
             "reveal",
             "spell",
@@ -391,7 +396,7 @@ mod tests {
         ] {
             assert!(find(name).is_some(), "{name} is missing from the registry");
         }
-        assert_eq!(SERVICES.len(), 11, "add the new service to this list too");
+        assert_eq!(SERVICES.len(), 12, "add the new service to this list too");
     }
 
     /// A layout is the only thing that needs the server's deadline and the

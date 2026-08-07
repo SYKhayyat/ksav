@@ -444,7 +444,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,535 editor assertions, 375 engine
+- [x] **CI, running and green** — typecheck, 3,556 editor assertions, 383 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -603,9 +603,9 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,535 assertions across 58 files
+cd app && npm test                          # 3,556 assertions across 58 files
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 375 tests, 24 binaries
+cargo test --manifest-path engine/Cargo.toml            # 383 tests, 25 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -787,6 +787,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | Service | HTTP | In / out |
 |---|---|---|
 | `compile` | `POST /compile` | `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}` → `{ok, pages_svg[], pdf_base64, diagnostics[], typst_source}` |
+| `assemble` | `POST /assemble` | `{body, parts, …DocConfig}` → `{ok, typst_source, diagnostics[]}` — the same source a compile would carry, without the compile. "Export .typ" used to ask for a full render *with the PDF* and read one field off it |
 | `jump` | `POST /jump` | inverse search: `{body, page, x_pt, y_pt, …DocConfig}` → `{line, column}`, or `{}` for a point the writer did not type (a margin, a running head, a note-band rule) |
 | `reveal` | `POST /reveal` | forward search: `{body, line, column, …DocConfig}` → `{points: [{page, x_pt, y_pt}]}`, empty when it printed nowhere and several when it printed more than once |
 | `spell` | `POST /spell` | `{text, user_words, suggest}` → `{misspellings[], lexicon_sizes}` |

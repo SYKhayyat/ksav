@@ -8,7 +8,7 @@
 // neither and go straight from the source.
 
 import { analyze } from "./brackets";
-import { compileForExport, reflowableHtml } from "./compile";
+import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { download, escapeAttr } from "./dom";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
@@ -64,8 +64,20 @@ export async function exportPdfPages() {
 export async function exportTypst() {
   runtime.closeMenus();
   await flushSaves();
-  const res = await compileForExport();
+  // No compile. The .typ *is* what a compile is handed, so asking for the
+  // render to read one field off the response was paying for the layout of the
+  // whole sefer — plus a base64 PDF — to obtain a string the engine builds in
+  // microseconds before Typst is invoked at all.
+  const res = await sourceForExport();
   if (!res) return;
+  // A chapter that could not be resolved is a hole in the file. It is the one
+  // thing that can go wrong here, so it is said before the file lands rather
+  // than discovered by whoever opens it.
+  const why = res.diagnostics?.find((d) => d.severity === "error")?.message;
+  if (why) {
+    runtime.setStatus(`${t("compileError")} — ${why}`, "err");
+    return;
+  }
   download(runtime.fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
   warnIfHealed();
 }

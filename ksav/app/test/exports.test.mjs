@@ -56,10 +56,21 @@ function installDom() {
     // `runtime.closeMenus` sweeps the header dropdowns on the way out of every
     // export. There are none here; what matters is that it is called.
     querySelectorAll: () => [],
-    body: { appendChild() {}, removeChild() {} },
+    body: { appendChild() {}, removeChild() {}, append() {} },
     createElement: (tag) => ({
       tagName: String(tag).toUpperCase(),
       setAttribute(k, v) { this[k] = v; },
+      // Every route out of the app flushes pending saves first, and there is no
+      // document store here, so the save fails and `reportSaveFailure` builds a
+      // banner. That is the *right* behaviour — an export must not silently
+      // carry unsaved text out — and the fake has to be able to survive it, or
+      // the only route that could not be tested would be the one that saves.
+      append() {},
+      appendChild() {},
+      addEventListener() {},
+      classList: { add() {}, remove() {}, toggle() {} },
+      style: {},
+      remove() {},
       // `dom.download` builds an `<a href download>` and clicks it. That click
       // is the moment a file reaches the writer, so it is what gets recorded.
       click() {
@@ -266,6 +277,64 @@ export async function run() {
         captured.downloads.map((d) => d.name.slice(d.name.lastIndexOf("."))),
         [".md", ".txt"],
       );
+    }
+
+    // ------------------------------------------------ 5. the .typ, uncompiled
+
+    {
+      // Export .typ used to be a full render — PDF and all — asked for so that
+      // one field of the response could be read. The `.typ` *is* the input to a
+      // compile, so the compile was pure cost: seconds on a sefer, to obtain a
+      // `format!` the engine does before Typst is invoked at all. That it no
+      // longer happens is the claim, so it is what is asserted: the route is
+      // driven and the compile counter has to stay at zero.
+      // Nothing open to save. Every route out of the app flushes first, and a
+      // flush with a document but no store behind it records a *real* storage
+      // failure — which is right, and which would then be the state the next
+      // test file starts in, because the modules are one graph across the
+      // suite. So this block says what it means: there is nothing pending.
+      runtime.setCurrentDoc?.(null);
+      withDoc(BALANCED);
+      let compiles = 0;
+      let assembles = 0;
+      runtime.setBackend({
+        async compile() {
+          compiles++;
+          return { ok: true, pages_svg: [], diagnostics: [], pdf_base64: "", typst_source: "src" };
+        },
+        async assemble() {
+          assembles++;
+          return { ok: true, typst_source: "#let ...\nפתיחה\n", diagnostics: [] };
+        },
+      });
+      captured.downloads.length = 0;
+      await exports_.exportTypst();
+      check("the .typ comes out", captured.downloads.length, 1);
+      ok("with the right extension", captured.downloads[0].name.endsWith(".typ"));
+      check("assembled once", assembles, 1);
+      check("and nothing was compiled to get it", compiles, 0);
+    }
+
+    {
+      // The one thing that can still go wrong without a layout: a chapter the
+      // library no longer holds. That is a hole in the file, so the file does
+      // not go out and the writer is told which chapter — rather than finding
+      // out from whoever opens it.
+      withDoc(BALANCED);
+      runtime.setBackend({
+        async assemble() {
+          return {
+            ok: false,
+            typst_source: "",
+            diagnostics: [{ severity: "error", message: "אין מסמך בשם \"פרק ג\"" }],
+          };
+        },
+      });
+      captured.downloads.length = 0;
+      await exports_.exportTypst();
+      check("nothing is downloaded", captured.downloads.length, 0);
+      ok("and the reason names the chapter", statusText().includes("פרק ג"));
+      check("as an error", statusClass(), "err");
     }
   } finally {
     restore();

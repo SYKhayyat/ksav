@@ -771,7 +771,7 @@ pub fn compile_doc_with(
             // The same text Typst just parsed, parsed again here so spans can be
             // turned into lines — but only now that there is a diagnostic to
             // locate. See `compile_parts` for why this is not done up front.
-            let located = Located::of(&text, cfg);
+            let located = Located::of(&text, body);
             let mut diagnostics = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {
@@ -831,7 +831,7 @@ pub fn compile_parts(
         if diags.is_empty() {
             Vec::new()
         } else {
-            Located::of(&source, cfg).all(diags, severity)
+            Located::of(&source, body).all(diags, severity)
         }
     };
 
@@ -868,7 +868,7 @@ pub fn compile_parts(
         }
         Err(err) => {
             // Something went wrong, so the second parse is worth its cost here.
-            let located = Located::of(&source, cfg);
+            let located = Located::of(&source, body);
             let mut diagnostics = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {
@@ -999,8 +999,36 @@ fn malformed_request(reason_he: &str, reason_en: &str) -> String {
     .to_string()
 }
 
-pub fn compile_request(input_json: &str) -> String {
-    use base64::Engine as _;
+/// Why a request could not be read at all, in both languages.
+///
+/// Carried rather than formatted, because the two services that read a request
+/// answer in different shapes — a compile answers with a failed compile, an
+/// assembly answers with no source — and neither should be describing the
+/// other's response.
+struct Unreadable {
+    he: String,
+    en: String,
+}
+
+/// The document a request describes, and nothing about what to do with it.
+///
+/// Two services need exactly this: `compile`, which lays it out, and
+/// `assemble`, which wants only the Typst that would have been laid out. They
+/// read it here rather than parsing the same JSON twice, because "export .typ"
+/// has to produce the bytes the compile would have produced — and two readers
+/// of one request that agree only by inspection is this repository's own bug
+/// family with a different noun.
+struct DocumentRequest {
+    /// The request itself, for the fields that are about the *call* rather than
+    /// about the document: `want_pdf`, `have_pages`, `format`.
+    v: serde_json::Value,
+    /// The body with `#כלול` resolved, and the line map back to each chapter.
+    expanded: include::Expanded,
+    cfg: DocConfig,
+}
+
+/// Read the document out of a request, or say why it could not be read.
+fn read_document(input_json: &str) -> Result<DocumentRequest, Unreadable> {
     // A request that does not parse is not an empty document.
     //
     // This used to fall back to `Value::Null`, which reads every field as absent:
@@ -1009,17 +1037,10 @@ pub fn compile_request(input_json: &str) -> String {
     // blanked the writer's preview and said nothing about why. The real client
     // always sends valid JSON, so reaching this means something went wrong on the
     // wire, and the honest answer is to say so.
-    let v: serde_json::Value = match serde_json::from_str(input_json) {
-        Ok(v) => v,
-        Err(e) => {
-            return malformed_request(
-                &format!("הבקשה לא נקראה — ייתכן שההעברה נקטעה ({e})"),
-                &format!(
-                    "the request could not be read — the transfer may have been truncated ({e})"
-                ),
-            );
-        }
-    };
+    let v: serde_json::Value = serde_json::from_str(input_json).map_err(|e| Unreadable {
+        he: format!("הבקשה לא נקראה — ייתכן שההעברה נקטעה ({e})"),
+        en: format!("the request could not be read — the transfer may have been truncated ({e})"),
+    })?;
     // …and neither is a request whose `body` is missing or is not text.
     //
     // The check above caught JSON that fails to parse, but stopped there: JSON
@@ -1032,17 +1053,18 @@ pub fn compile_request(input_json: &str) -> String {
         Some(b) => match b.as_str() {
             Some(s) => s,
             None => {
-                return malformed_request(
-                    "הבקשה לא נקראה — שדה הטקסט של המסמך אינו טקסט",
-                    "the request could not be read — the document's body field is not text",
-                );
+                return Err(Unreadable {
+                    he: "הבקשה לא נקראה — שדה הטקסט של המסמך אינו טקסט".into(),
+                    en: "the request could not be read — the document's body field is not text"
+                        .into(),
+                })
             }
         },
         None => {
-            return malformed_request(
-                "הבקשה לא נקראה — אין במסמך שדה טקסט",
-                "the request could not be read — it carries no document body",
-            );
+            return Err(Unreadable {
+                he: "הבקשה לא נקראה — אין במסמך שדה טקסט".into(),
+                en: "the request could not be read — it carries no document body".into(),
+            })
         }
     };
     let cfg = DocConfig::from_json(&v);
@@ -1052,6 +1074,57 @@ pub fn compile_request(input_json: &str) -> String {
     // exists nowhere. A request with no `parts` expands to itself, at no cost.
     let parts = include::from_request(&v);
     let expanded = include::expand(body, &parts);
+    Ok(DocumentRequest { v, expanded, cfg })
+}
+
+/// The assembled Typst source for a document, with no compile behind it.
+///
+/// "Export .typ" used to be a full render — PDF encoded and all — thrown away
+/// except for the one string the response happened to carry. `assemble_source`
+/// is pure and takes microseconds; the layout it was hiding behind takes
+/// seconds on a sefer. Same bytes, same includes, same page setup, because both
+/// services read the request through [`read_document`] and hand the same body
+/// and config to the same function.
+///
+/// Input: a compile request. Output: `{ok, typst_source, diagnostics}` — the
+/// diagnostics being the ones `#כלול` can produce on its own, since a chapter
+/// that does not exist is a hole in the exported file and the writer should be
+/// told before they send it to a printer.
+pub fn assemble_request(input_json: &str) -> String {
+    let d = match read_document(input_json) {
+        Ok(d) => d,
+        Err(why) => {
+            return serde_json::json!({
+                "ok": false,
+                "typst_source": "",
+                "diagnostics": [{
+                    "severity": "error",
+                    "message": format!("{} · {}", why.he, why.en),
+                }],
+            })
+            .to_string()
+        }
+    };
+    let diagnostics: Vec<Diagnostic> = d
+        .expanded
+        .problems
+        .iter()
+        .map(|p| Diagnostic::ours("error", p.clone()))
+        .collect();
+    serde_json::json!({
+        "ok": diagnostics.is_empty(),
+        "typst_source": assemble_source(&d.expanded.text, &d.cfg),
+        "diagnostics": diagnostics,
+    })
+    .to_string()
+}
+
+pub fn compile_request(input_json: &str) -> String {
+    use base64::Engine as _;
+    let DocumentRequest { v, expanded, cfg } = match read_document(input_json) {
+        Ok(d) => d,
+        Err(why) => return malformed_request(&why.he, &why.en),
+    };
     let body: &str = &expanded.text;
     // Assets resolve from a per-process cache keyed by content hash, so an
     // unchanged image is not re-sent and re-decoded on every keystroke. Any hash
@@ -1163,7 +1236,7 @@ pub fn compile_html(
     assets: &Assets,
 ) -> Result<String, Vec<Diagnostic>> {
     let source = assemble_source(body, cfg);
-    let located = Located::of(&source, cfg);
+    let located = Located::of(&source, body);
     let mut fonts: Vec<&[u8]> = vec![
         FONT_FRANK_REG,
         FONT_FRANK_BOLD,

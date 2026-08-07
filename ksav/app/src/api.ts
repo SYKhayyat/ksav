@@ -477,9 +477,29 @@ export interface BodySpot {
   column: number;
 }
 
+/** What `assemble` answers: the document as Typst, and anything `#כלול` could
+ *  not resolve. No pages, because nothing was laid out. */
+export interface AssembledSource {
+  ok: boolean;
+  typst_source: string;
+  diagnostics: Diagnostic[];
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
+  /**
+   * The document as Typst source — prelude, page setup, chapters expanded —
+   * without compiling it.
+   *
+   * "Export .typ" used to call `compile` with `want_pdf` **and** `want_source`
+   * and throw everything away but the string: a full layout and a base64 PDF,
+   * seconds of it on a sefer, to obtain a `format!` the engine does before it
+   * lays anything out. Same bytes: the engine's two services read the request
+   * through one reader and assemble through one function, and
+   * `engine/tests/assemble.rs` asserts the two agree byte for byte.
+   */
+  assemble(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<AssembledSource>;
   /**
    * Inverse search: what did the writer type, that printed here?
    *
@@ -566,6 +586,20 @@ function readSpot(v: unknown): BodySpot | null {
   return { line: o.line, column: typeof o.column === "number" ? o.column : 1 };
 }
 
+/**
+ * What `assemble` is sent, in one place for all three backends.
+ *
+ * The chapters and nothing else. Images and fonts never appear in the source
+ * text — the document refers to them by name — so sending their bytes would be
+ * paying a megabyte to be ignored, and this is the one request in the app whose
+ * whole reason to exist is that it is cheap. `parts` has to go: `#כלול` is
+ * expanded *before* assembly, and an export that dropped a chapter would be a
+ * hole in a file somebody sent to a printer.
+ */
+function assembleRequest(body: string, cfg: DocConfig, assets: RequestAssets) {
+  return { body, ...cfg, parts: assets.parts };
+}
+
 function readPoints(v: unknown): PagePoint[] {
   const list = (v as { points?: unknown } | null)?.points;
   if (!Array.isArray(list)) return [];
@@ -600,6 +634,12 @@ export class HttpBackend implements Backend, Sources {
       if (!res.ok) throw new Error(`compile ${res.status}`);
       return res.json();
     }, assets);
+  }
+
+  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
+    const res = await this.send("assemble", assembleRequest(body, cfg, assets));
+    if (!res.ok) throw new Error(`assemble ${res.status}`);
+    return res.json();
   }
 
   async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
@@ -813,6 +853,12 @@ export class WasmBackend implements Backend {
       );
     }
   }
+  /** No timeout: this one cannot run away. It lays nothing out — it is the
+   *  `format!` a compile does before the layout starts. */
+  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
+    return JSON.parse(await this.call("assemble", JSON.stringify(assembleRequest(body, cfg, assets))));
+  }
+
   /** Bounded by the same timeout a compile gets, because it *is* a compile: a
    *  runaway document must not pin the one engine worker just because somebody
    *  clicked on it. A killed worker surfaces here as "no answer". */
@@ -950,6 +996,10 @@ export class TauriBackend implements Backend, Sources {
       clearTimeout(timer!);
     }
   }
+  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
+    return JSON.parse(await this.call("assemble", JSON.stringify(assembleRequest(body, cfg, assets))));
+  }
+
   /**
    * Both directions carry their assets' bytes rather than only their hashes.
    *

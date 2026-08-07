@@ -34,7 +34,13 @@
   weight: "משקל", paper: "נייר", margin: "שוליים", lang: "שפה", dir: "כיוון",
   landscape: "לרוחב", watermark: "סימן_מים", header: "כותרת_עליונה",
   footer: "כותרת_תחתונה", numbering: "מספור", hebrew_numbering: "מספור_עברי",
-  justify: "יישור", leading: "ריווח_שורות", para_spacing: "ריווח_פסקאות",
+  // `justify` is **not** here, and `align` is. Both used to be, both mapping to
+  // יישור — so `#headings_config(justify: center)` silently set heading
+  // *alignment*, because a flat table applied to every alias cannot tell the two
+  // readings of one Hebrew word apart. יישור is a boolean on מסמך (justify
+  // the text) and an alignment everywhere else, so `justify` belongs to מסמך's
+  // own `extra` and nowhere else.
+  leading: "ריווח_שורות", para_spacing: "ריווח_פסקאות",
   first_indent: "הזחה_ראשונה", columns: "עמודות", notes_region: "אזור_הערות",
   // structure
   level: "רמה", title: "כותרת", titles: "כותרות", names: "שמות", by: "מאת",
@@ -1115,7 +1121,50 @@
     laid
   }
 }
-#let document = _en(מסמך, extra: (columns: "טורים", table_columns: "עמודות"))
+// Every parameter מסמך takes, in English.
+//
+// Fifteen of these had no English spelling at all, and they were not a random
+// fifteen: the per-edge margins, the binding gutter, two-sided printing, the
+// verso/recto running heads and their alignment — **the entire set of knobs an
+// English writer reaches for when actually binding a book**, in a program whose
+// README opens by saying it works equally for left-to-right English documents.
+// The PDF metadata was in the same state, which is worse than cosmetic: PDF/A
+// refuses to validate a file with no title.
+//
+// The spellings are `DocConfig`'s own field names minus their units, because
+// that struct is already the English name of every one of these and inventing a
+// second set here is how two vocabularies for one document start.
+//
+// `title` and `justify` are overrides rather than additions. `title` means
+// כותרת in the shared table — a heading's text — and מסמך's PDF title is
+// כותרת_מסמך, so `#document(title: "…")` used to be an error naming a
+// parameter that does not exist. A later key wins in a Typst dictionary sum, so
+// `extra` is exactly the right shape for both.
+#let document = _en(מסמך, extra: (
+  columns: "טורים",
+  table_columns: "עמודות",
+  justify: "יישור",
+  title: "כותרת_מסמך",
+  // per-edge margins and the binding
+  margin_top: "שוליים_עליון",
+  margin_bottom: "שוליים_תחתון",
+  margin_inner: "שוליים_פנימי",
+  margin_outer: "שוליים_חיצוני",
+  gutter: "שולי_כריכה",
+  two_sided: "דו_צדדי",
+  // running heads, verso and recto
+  header_even: "כותרת_זוגי",
+  header_odd: "כותרת_אי_זוגי",
+  footer_even: "תחתונה_זוגי",
+  footer_odd: "תחתונה_אי_זוגי",
+  head_align: "יישור_כותרת",
+  // PDF metadata
+  author: "מחבר",
+  keywords: "מילות_מפתח",
+  // typesetting
+  prevent_orphans: "מניעת_יתומים",
+  note_spacing: "ריווח_הערות",
+))
 
 // כתב_רשי — commentary set in Rashi script.
 //

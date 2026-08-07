@@ -19,7 +19,52 @@ on:
   workflow_dispatch: # so the matrix can be exercised without cutting a release
 
 jobs:
+  # Nothing was checked before the installers were built.
+  #
+  # `ci.yml` skipped tags on the stated grounds that "tags are release.yml's
+  # job", and release.yml ran no tests at all — so the one commit in this
+  # repository that is handed to other people, as four signed installers and a
+  # published website, was the only commit nothing had ever tested. Every
+  # ordinary push was.
+  #
+  # `ci.yml` runs on tags now as well, and this job is still worth its two
+  # minutes: it is a *gate*, on this checkout, and the matrix below does not
+  # start until it passes. Without it a red CI run and a successful release race
+  # each other, and the release usually wins.
+  #
+  # One platform and the fast half of the suite, deliberately. This is here to
+  # stop an obviously broken tag, not to re-run the whole of CI in a second file.
+  check:
+    name: check before shipping
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      - name: Install
+        working-directory: ./ksav/app
+        run: npm ci
+      - name: Typecheck
+        working-directory: ./ksav/app
+        run: npx tsc --noEmit
+      - name: Test
+        working-directory: ./ksav/app
+        run: npm test
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+      # The engine, in release, because that is what the installers carry and a
+      # debug-only pass would not be the same binary.
+      - name: Engine
+        working-directory: ./ksav/engine
+        run: cargo test --release
+
   build:
+    needs: check
     permissions:
       contents: write # to create the release and upload the installers
     strategy:

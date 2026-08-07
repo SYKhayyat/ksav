@@ -98,6 +98,40 @@ pub static TEMPLATES: &[Template] = &[
         desc_en: "A dvar Torah on the parsha with sources",
         body: include_str!("../templates/divrei-torah.ksav"),
     },
+    // The two the apparatus never had.
+    //
+    // Ten templates demonstrated eight of 115 commands between them, and zero
+    // used any note arrangement past the plain footnote — so the one thing this
+    // product does that Word cannot was reachable from no starting point at all.
+    // A bochur who picked "ספר" got footnotes and a horizontal rule.
+    //
+    // These two are the arrangements a Torah writer actually recognises on
+    // sight: the Gemara look (fixed bands at the foot of the page, so an empty
+    // band holds its slot instead of letting the others drift) and a peirush
+    // with its mareh mekomos in a second, independently numbered stream beside
+    // it. Both exercise `auto_notes_region_cm`, which is the point — a template
+    // that reserves no note region is a template whose apparatus grows off the
+    // bottom of the paper.
+    Template {
+        id: "gemara",
+        he: "דף גמרא",
+        en: "Gemara page",
+        category: "torah",
+        lang: "he",
+        desc_he: "פנים ופירוש באזורים קבועים בתחתית העמוד",
+        desc_en: "Text with commentary in fixed regions at the foot of the page",
+        body: include_str!("../templates/gemara.ksav"),
+    },
+    Template {
+        id: "peirush",
+        he: "פירוש עם מראי מקומות",
+        en: "Commentary with sources",
+        category: "torah",
+        lang: "he",
+        desc_he: "שני זרמי הערות במקביל — ביאורים ומראי מקומות",
+        desc_en: "Two parallel note streams — commentary and mareh mekomos",
+        body: include_str!("../templates/peirush.ksav"),
+    },
     Template {
         id: "siddur",
         he: "סידור",

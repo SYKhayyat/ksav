@@ -91,6 +91,29 @@ jobs:
         working-directory: ./ksav/app
         run: npm ci
 
+      # Test what is about to be published, in this job, against these bytes.
+      #
+      # This file used to publish whatever was at the tag without running
+      # anything, and `ci.yml` deliberately skipped tags — so the build that goes
+      # to actual readers was the only build in the repository nothing checked.
+      # `ci.yml` runs on tags now, but that is a *different* workflow on a
+      # different checkout: it can be green while this one publishes a bundle
+      # that was never assembled successfully. The site is what this job builds,
+      # so the gate belongs here.
+      #
+      # The suite, not a subset: it takes three seconds.
+      - name: Test
+        working-directory: ./ksav/app
+        run: npm test
+
+      # And the engine that will be inside the published page. `wasm-pack`
+      # succeeding proves the crate compiled for wasm32; it does not prove the
+      # module instantiates or can lay out a document. Publishing a site whose
+      # engine panics on first use is the failure this catches.
+      - name: Run the wasm engine
+        working-directory: ./ksav/app
+        run: node ../../.github/scripts/wasm-smoke.mjs
+
       - name: Bundle
         working-directory: ./ksav/app
         env:

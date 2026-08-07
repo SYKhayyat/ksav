@@ -481,13 +481,24 @@ fn hebrew_param(name: &str) -> Option<String> {
             "body".to_string(),
             "גוף (הטקסט שבסוגריים המרובעים)".to_string(),
         );
-        // `#let _en_params = (` … `)`, one `english: "עברית",` per entry.
-        if let Some(rest) = crate::PRELUDE
-            .split_once("#let _en_params = (")
-            .map(|(_, r)| r)
-        {
-            let table_text = rest.split_once("\n)").map_or(rest, |(t, _)| t);
-            for entry in table_text.split(',') {
+        // Every `english: "..."` pair the prelude states, wherever it states it.
+        //
+        // This used to read `#let _en_params = (` and nothing else. That was the
+        // whole vocabulary when there was one flat table; it stopped being so the
+        // moment a parameter needed a *per-function* name, which is what
+        // `_en(f, extra: (...))` is for and what `document` now carries fifteen
+        // of. A message that names an English parameter the writer just typed and
+        // cannot say its Hebrew equivalent is the failure this map exists to
+        // prevent, so it reads the `extra` tables too.
+        //
+        // Still string-parsing a `.typ` file, which is fragile and worth saying
+        // out loud: reflow the prelude's parameter tables onto one line and this
+        // quietly gets less useful. It cannot be *wrong* - a missing entry means a
+        // message falls back to the English name - and `tests/english_commands.rs`
+        // asserts the vocabulary is complete for the command where the omissions
+        // actually were.
+        for table in en_param_tables(crate::PRELUDE) {
+            for entry in table.split(',') {
                 let Some((k, v)) = entry.split_once(':') else {
                     continue;
                 };
@@ -1295,4 +1306,49 @@ mod end_to_end {
             out.diagnostics
         );
     }
+}
+
+/// Every parameter-name table in the prelude: the shared one, and each
+/// `_en(f, extra: (…))`.
+///
+/// Returns the text *inside* the parentheses of each, for the caller to split on
+/// commas. Balanced-paren scanning rather than "find the next `)`", because an
+/// `extra` table's values are string literals and one of them could hold a
+/// parenthesis; and because the shared table ends on a line of its own while an
+/// `extra` ends mid-expression, so there is no single closing token to look for.
+pub fn en_param_tables(prelude: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    for opener in ["#let _en_params = (", "extra: ("] {
+        let mut from = 0;
+        while let Some(at) = prelude[from..].find(opener) {
+            let start = from + at + opener.len();
+            if let Some(end) = balanced_close(prelude, start) {
+                out.push(&prelude[start..end]);
+                from = end;
+            } else {
+                from = start;
+            }
+        }
+    }
+    out
+}
+
+/// The index of the `)` closing a group opened just before `start`.
+fn balanced_close(text: &str, start: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut in_string = false;
+    for (i, c) in text[start..].char_indices() {
+        match c {
+            '"' => in_string = !in_string,
+            '(' if !in_string => depth += 1,
+            ')' if !in_string => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(start + i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }

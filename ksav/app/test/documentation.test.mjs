@@ -33,6 +33,7 @@ import {
   numericClaimsIn,
   trackedMarkdown,
   livingPages,
+  isLog,
   coveredBy,
   logDate,
   APP,
@@ -292,4 +293,87 @@ export async function run() {
       ok("and spec.md is a living page again", living.includes("spec.md"));
     }
   }
+
+  everyProseChordIsTheRightOne(tracked);
+}
+
+// ------------------------------------------------- and the keys, by name
+//
+// Every fenced number in these pages was checked and **no word in them was**,
+// which is the shape of every documentation failure this repository has actually
+// shipped. `docs/start-here.md` — the page the root README hands a new reader —
+// said `Ctrl+Alt+F` "takes a note you already wrote inline and sends its prose
+// to the end". `Ctrl+Alt+F` inserts a footnote. The chord moved on 4 August and
+// the sentence did not, and it then survived the commit that *built this fence*
+// and swept that exact file for numbers, with the wrong key one line away.
+//
+// So: every `Ctrl+…` written in prose must be on the generated card, and the
+// sentence around it must name what the card says that key does. The first half
+// alone would not have caught it — `Ctrl+Alt+F` is on the card, bound to
+// something else. It is the second half that reads the sentence.
+//
+// `docs/shortcuts.md` is exempt because it *is* the card. It is generated from
+// `bindings.ts` and `i18n.ts`, and is checked against them above.
+function everyProseChordIsTheRightOne(tracked) {
+  const card = readFileSync(path.join(ROOT, "docs/shortcuts.md"), "utf8");
+  // `| `Ctrl+B` · `Ctrl+Shift+B` | Bold | מודגש |` → each chord, and the label.
+  const rows = [];
+  for (const line of card.split("\n")) {
+    const m = /^\|\s*(`[^|]+`)\s*\|\s*([^|]+?)\s*\|/.exec(line);
+    if (!m || m[2] === "What it does") continue;
+    const chords = [...m[1].matchAll(/`([^`]+)`/g)].map((c) => c[1]);
+    for (const chord of chords) rows.push({ chord, label: m[2] });
+  }
+  ok("the card was parsed", rows.length > 30, `${rows.length} rows`);
+
+  // Words worth matching on: the label's own, minus the ones that carry no
+  // meaning. "Insert a footnote" and "Footnote" both have to match a sentence
+  // about footnotes.
+  const STOP = new Set(["the", "a", "an", "and", "or", "to", "of", "in", "at", "on", "as", "for"]);
+  // Singular and plural are the same word for this purpose: the card says
+  // "Commands" and the prose says "the command palette".
+  const stem = (w) => (w.endsWith("s") ? w.slice(0, -1) : w);
+  const meaningful = (label) =>
+    label
+      .toLowerCase()
+      .split(/[^a-z']+/u)
+      .filter((w) => w.length > 2 && !STOP.has(w))
+      .map(stem);
+
+  const pages = tracked.filter(
+    (f) => !isLog(f) && f !== "docs/shortcuts.md" && f.endsWith(".md"),
+  );
+  const wrong = [];
+  const unknown = [];
+  for (const page of pages) {
+    const text = readFileSync(path.join(ROOT, page), "utf8");
+    // The paragraph, not the sentence. Prose here wraps, a table row is one line,
+    // and what a key does is regularly said in the clause *before* the one the
+    // chord sits in — splitting on full stops rejected three sentences that were
+    // perfectly correct, which is how a fence teaches everybody to widen its
+    // exemption list instead of reading its failures.
+    for (const sentence of text.split(/\n[ \t]*\n/u)) {
+      for (const m of sentence.matchAll(/`(Ctrl\+[A-Za-z0-9+]+)`/g)) {
+        const chord = m[1];
+        const candidates = rows.filter((r) => r.chord === chord);
+        if (!candidates.length) {
+          unknown.push(`${page}: ${chord}`);
+          continue;
+        }
+        const said = sentence.toLowerCase().split(/[^a-z']+/u).map(stem).join(" ");
+        const fits = candidates.some((r) => {
+          const words = meaningful(r.label);
+          return words.length === 0 || words.some((w) => said.includes(w));
+        });
+        if (!fits) {
+          wrong.push(
+            `${page}: ${chord} is ${candidates.map((c) => JSON.stringify(c.label)).join(" / ")} — ` +
+              `${JSON.stringify(sentence.trim().slice(0, 90))}`,
+          );
+        }
+      }
+    }
+  }
+  check("every chord in prose is a chord the app has", unknown, []);
+  check("and the sentence around it says what that chord does", wrong, []);
 }

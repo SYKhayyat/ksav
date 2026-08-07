@@ -282,7 +282,13 @@ export const NOTE_CHOICES: NoteChoice[] = [
   },
   {
     id: "endnotes-with-footnotes",
-    where: ["document"],
+    // `section` as well as `document`. `spec.md` has always said this option is
+    // "back matter, **or** section-end", and the grid greyed `section` × `split`
+    // with "needs two places" — a reason that was false against the engine and
+    // against the spec at the same time. `#הערות_בסוף` dumps wherever it is
+    // called, so calling it at the end of each siman is the section reading of
+    // exactly this arrangement.
+    where: ["document", "section"],
     how: "split",
     layers: "two",
     he: "פירוש בסוף + הערות מאוזנות עליו",
@@ -298,6 +304,33 @@ export const NOTE_CHOICES: NoteChoice[] = [
     head: '#הגדרות_הערות_סיום(מספור: "א")',
     noteHe: "הפירוש אינו לצד הטקסט אלא בסוף — מתאים לכרך פירוש.",
     noteEn: "The commentary is not beside the main text but at the back — right for a commentary volume.",
+  },
+  {
+    // The thirteenth card, and it was not new code.
+    //
+    // `#הערות_בסוף_צד` has shipped since the streams work, is parsed by
+    // `apparatus.ts`, has an English alias, and renders parallel columns of
+    // collected notes at the end of the document — and the only UI that offers
+    // layouts greyed this cell with "parallel streams side by side need the
+    // page's width." A built, tested, aliased arrangement, unreachable from the
+    // chooser because a five-line if-chain said it could not exist.
+    id: "side-streams",
+    where: ["document"],
+    how: "parallel",
+    layers: "one",
+    he: "שני זרמים במקביל בסוף",
+    en: "Two streams side by side at the back",
+    descHe:
+      "שני זרמי הערות עצמאיים, נאספים לסוף המסמך ומודפסים זה לצד זה בשני טורים — פירוש ומראי מקומות.",
+    descEn:
+      "Two independent note streams, collected to the end of the document and printed side by side in two columns — a peirush and mareh mekomos.",
+    sketch: ["▤▤▤▤▤▤", "", "בסוף:", "¹▪▪ │ א▪▪"],
+    insert: "#הערת_תוכן[|]",
+    insert2: "#הערת_מקור[|]",
+    head: '#הגדרות_זרמים(זרמים: ("תוכן", "מקורות"), מספור: ("מקורות": "א"))',
+    tail: '#הערות_בסוף_צד(זרמים: ("תוכן", "מקורות"))',
+    noteHe: "שני הזרמים נאספים לסוף ומודפסים יחד — לא בתחתית כל עמוד.",
+    noteEn: "Both streams are collected to the back and printed together — not at the foot of each page.",
   },
   {
     id: "companion",
@@ -324,6 +357,21 @@ export function choiceAt(where: NoteWhere, how: NoteHow): NoteChoice | undefined
   return NOTE_CHOICES.find((c) => c.where.includes(where) && c.how === how);
 }
 
+export const BLOCKED: { where: NoteWhere; how: NoteHow; why: string }[] = [
+  // A second layer either spends the one native series or leaves the live page
+  // foot. That is the ground rule, and every entry here is an instance of it.
+  { where: "section", how: "parallel", why: "whyParallelNeedsPageOrMargin" },
+  { where: "section", how: "fixed", why: "whyFixedNeedsPage" },
+  { where: "document", how: "fixed", why: "whyFixedNeedsPage" },
+  { where: "margin", how: "stacked", why: "whyMarginIsOneColumn" },
+  { where: "margin", how: "fixed", why: "whyFixedNeedsPage" },
+  { where: "margin", how: "split", why: "whyMarginIsOneColumn" },
+  { where: "volume", how: "one", why: "whyVolumeIsSplit" },
+  { where: "volume", how: "stacked", why: "whyVolumeIsSplit" },
+  { where: "volume", how: "parallel", why: "whyVolumeIsSplit" },
+  { where: "volume", how: "fixed", why: "whyVolumeIsSplit" },
+];
+
 /**
  * Why a cell is empty — an i18n key, never silence.
  *
@@ -331,15 +379,20 @@ export function choiceAt(where: NoteWhere, how: NoteHow): NoteChoice | undefined
  * because a writer who cannot see that "fixed regions at the end of the
  * document" was considered has no way to know whether they asked the wrong
  * question or found a gap in the product.
+ *
+ * **A table, not a fallthrough chain.** It was five `if`s over axis values, and
+ * a chain answers for cells nobody ever considered — which is how two cells came
+ * to be greyed for reasons that were false against the shipped engine.
+ * `document` × `parallel` said "parallel streams need the page's width" about an
+ * arrangement `#הערות_בסוף_צד` has rendered since it was written; `section` ×
+ * `split` said "needs two places" about the one `spec.md` describes as "back
+ * matter, or section-end". Both are cards now. With a table, a cell that is
+ * neither filled nor listed here has no answer at all, and
+ * `notepaths.test.mjs` fails on it by name.
  */
 export function whyNot(where: NoteWhere, how: NoteHow): string {
   if (choiceAt(where, how)) return "";
-  if (how === "fixed") return "whyFixedNeedsPage";
-  if (where === "volume") return "whyVolumeIsSplit";
-  if (how === "parallel") return "whyParallelNeedsPageOrMargin";
-  if (where === "margin") return "whyMarginIsOneColumn";
-  if (how === "split") return "whySplitNeedsTwoPlaces";
-  return "whyNoSuchArrangement";
+  return BLOCKED.find((b) => b.where === where && b.how === how)?.why ?? "whyNoSuchArrangement";
 }
 
 // ---------------------------------------------------------------- one path in

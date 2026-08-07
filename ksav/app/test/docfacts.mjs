@@ -109,13 +109,22 @@ export function facts() {
     templates: readdirSync(path.join(ROOT, "ksav/engine/templates")).filter((f) =>
       f.endsWith(".ksav"),
     ).length,
-    // The note options. Counted from `spec.md`'s status table, which is the
-    // document that *defines* them — "These are THE note options. There are
-    // eleven, and nothing else." `NOTE_CHOICES` is deliberately not the
-    // authority: it holds twelve records because one option ships as two
-    // chooser cards (sidenotes down one margin and down both), so counting it
-    // would replace a true number with a false one.
-    noteLayouts: (read("spec.md").match(/^\| \d+ \| .+ \| (?:one|two|one×N) \|/gmu) ?? []).length,
+    // The note layouts, counted from `NOTE_CHOICES` — the cards the chooser
+    // offers.
+    //
+    // This used to count rows in `spec.md`'s status table, on the stated grounds
+    // that `NOTE_CHOICES` "is deliberately not the authority: it holds twelve
+    // records because one option ships as two chooser cards". That reasoning was
+    // the tell. The claim being defended was *"there are eleven note options and
+    // nothing else"*, and the fence guarding this repository's counted claims
+    // had to pick which artifact to count in order to get the answer the prose
+    // wanted. When a fence has to choose its evidence, the prose is wrong.
+    //
+    // So the claim changed rather than the counting. "Eleven options" was a
+    // statement about a taxonomy nobody can check; **thirteen cards** is a
+    // statement about the chooser, which is what a writer actually meets, and it
+    // is counted from the thing that renders it. See §4 of the 7 August report.
+    noteLayouts: (read("ksav/app/src/notes.ts").match(/^\s{4}id: "/gmu) ?? []).length,
     // Lexicon entries: every line that is not a comment. The generator writes
     // its own count into the header, so the header is checked against the file
     // too — a stale header would otherwise become the authority for the docs.

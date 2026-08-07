@@ -49,7 +49,7 @@ somebody can read it with `cat`.
 
 **A citation that opens the source.**
 
-You are writing about a sugya. In Girsa you find the mekor, press `Ctrl+Shift+C`,
+You are writing about a sugya. In Girsa you find the mekor, press Girsa's copy key,
 and it lands in your Ksav document with the mareh makom under it. You compile.
 **In the PDF, that citation is a link, and clicking it opens Girsa at that line.**
 

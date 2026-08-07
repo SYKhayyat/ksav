@@ -58,14 +58,14 @@ marker where the note belongs and the words at the end of the file:
 This is the org-mode arrangement, and it exists because a sefer whose notes
 outweigh its text becomes unreadable *as a source* long before it becomes
 unreadable as a page. It changes nothing about the printed result — the page
-comes out identical, in any of the eleven note layouts — so it is a choice about
+comes out identical, in any of the thirteen note layouts — so it is a choice about
 your file, not about your sefer.
 
 **`Ctrl+Alt+J`** is the whole workflow: on a marker it takes you to the words, on
 the words it takes you back to the marker, and on a marker whose words you have
 not written yet it writes the line and puts you in it. You never type a name.
-**`Ctrl+Alt+F`** takes a note you already wrote inline and sends its prose to the
-end; **`Ctrl+Alt+R`** brings it back. The notes chooser has both, and a button
+**`Ctrl+Alt+Shift+F`** takes a note you already wrote inline and sends its prose
+to the end; **`Ctrl+Alt+R`** brings it back. The notes chooser has both, and a button
 that moves every note in the document at once.
 
 Nothing else in the editor treats these as second-class. The notes pane lists
@@ -127,7 +127,7 @@ nothing, because you did not type those.
 
 **`Ctrl+Alt+P` does the reverse**: it finds where the text under your cursor
 printed, scrolls the preview there and rings it. Useful when the note you are
-writing is one of eleven on the page and you want to see which. If your words
+writing is one of several on the page and you want to see which. If your words
 printed in more than one place — a note set in both a band and an endnote list —
 it says so and marks the first.
 
@@ -160,7 +160,7 @@ the line settles.
 
 ## Saving
 
-`Ctrl+S` writes the file. It also saves itself as you type, into the browser's own
+`Ctrl+S` saves the file. It also saves itself as you type, into the browser's own
 store, and closing the tab asks first if there is anything unsaved.
 
 A `.ksav` is **text**: your words, your markup, and this document's page setup, in
@@ -192,7 +192,7 @@ machine, rather than the way the person opening it likes new documents.
 
 Hebrew and English, both at once, in one document. It knows which script a word is
 in and checks it against the right lexicon — 269,357 Hebrew entries and 96,184 English
-English ones.
+ones.
 
 It will underline your rebbe's name. Right-click → add, and it is in your
 dictionary — which on the desktop app is **a file you own**, so it survives a

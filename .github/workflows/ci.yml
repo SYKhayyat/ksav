@@ -35,7 +35,13 @@ name: ci
 on:
   push:
     branches: ["**"]
-    tags-ignore: ["v*"] # tags are release.yml's job
+    # Tags too, and this used to say `tags-ignore: ["v*"] # tags are
+    # release.yml's job`. That was true and it was the wrong conclusion:
+    # `release.yml` builds installers and `deploy.yml` publishes the site, and
+    # **neither ran a single test**. So the one commit in this repository that
+    # gets handed to other people was the one commit nothing checked. Every
+    # other push was tested; a release was not.
+    tags: ["**"]
   pull_request:
   workflow_dispatch:
 

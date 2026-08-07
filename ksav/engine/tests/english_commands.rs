@@ -271,3 +271,106 @@ fn every_english_alias_in_the_registry_exists_in_the_prelude() {
         "registry names with no definition: {missing:?}"
     );
 }
+
+/// Every parameter `#מסמך` takes can be given in English.
+///
+/// Fifteen of them could not, and they were not a random fifteen: the per-edge
+/// margins, the binding gutter, `דו_צדדי`, the verso/recto running heads and
+/// their alignment, and the PDF metadata — the whole set of knobs somebody
+/// reaches for when actually binding a book, in a program whose README opens by
+/// saying it works equally for English documents. `#document(title: …)` was not
+/// merely absent but *wrong*: `title` meant `כותרת` from the shared table, and
+/// `מסמך`'s PDF title is `כותרת_מסמך`, so it named a parameter that does not
+/// exist.
+///
+/// The check is against the *signature*, read out of the prelude, so adding a
+/// parameter to `מסמך` and forgetting its English name is a failing test rather
+/// than a feature an English writer cannot reach.
+#[test]
+fn every_document_parameter_has_an_english_name() {
+    let prelude = include_str!("../typst/ksav.typ");
+    let hebrew: Vec<String> = document_parameters(prelude);
+    assert!(
+        hebrew.len() > 25,
+        "only {} parameters parsed out of `#let מסמך(` — the parser is wrong, \
+         not the prelude",
+        hebrew.len()
+    );
+
+    // Every Hebrew name reachable through the shared table plus `document`'s own.
+    let english: std::collections::HashSet<&str> = ksav_engine::diagnostics::en_param_tables(prelude)
+        .iter()
+        .flat_map(|t| t.split(','))
+        .filter_map(|e| e.split_once(':'))
+        .filter_map(|(_, v)| {
+            v.trim()
+                .strip_prefix('"')
+                .and_then(|s| s.split('"').next())
+        })
+        .collect();
+
+    let unreachable: Vec<&String> = hebrew
+        .iter()
+        .filter(|h| !english.contains(h.as_str()))
+        .collect();
+    assert!(
+        unreachable.is_empty(),
+        "מסמך parameters with no English spelling: {unreachable:?}"
+    );
+}
+
+/// The named parameters of `#let מסמך(`, in order, minus the positional `body`.
+fn document_parameters(prelude: &str) -> Vec<String> {
+    let start = prelude
+        .find("#let מסמך(")
+        .expect("the prelude defines מסמך")
+        + "#let מסמך(".len();
+    let mut depth = 1usize;
+    let mut end = start;
+    for (i, c) in prelude[start..].char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = start + i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let mut name = String::new();
+    let mut seen_colon = false;
+    for line in prelude[start..end].lines() {
+        let line = line.trim();
+        if line.starts_with("//") {
+            continue;
+        }
+        for c in line.chars() {
+            match c {
+                '(' | '[' => depth += 1,
+                ')' | ']' => depth = depth.saturating_sub(1),
+                ':' if depth == 0 && !seen_colon => {
+                    seen_colon = true;
+                    let n = name.trim().to_string();
+                    if !n.is_empty() {
+                        out.push(n);
+                    }
+                }
+                ',' if depth == 0 => {
+                    name.clear();
+                    seen_colon = false;
+                }
+                _ if !seen_colon => name.push(c),
+                _ => {}
+            }
+        }
+        if !seen_colon {
+            name.push(' ');
+        }
+    }
+    out
+}

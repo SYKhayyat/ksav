@@ -120,7 +120,7 @@ builds, the command reference, and the architecture.
 | --- | --- |
 | [`ksav/`](ksav) | **The product.** The Rust Typst engine, the CodeMirror SPA (`ksav/app`), the WASM crate (`ksav/wasm`), the Tauri desktop shell (`ksav/app/src-tauri`), and packaging. Start here. |
 | [`spec.md`](spec.md) | The note options — eleven, and the ground rule that produces exactly eleven. A living document. |
-| [`decisions/`](decisions/README.md) | **The record.** Nine dated waves, audits and resolutions, each true on its date and never edited afterwards. Kept apart from the documentation on purpose: a spec is edited in place, a log is written once, and every stale number in this repository used to live where the two had been merged. |
+| [`decisions/`](decisions/README.md) | **The record.** Every dated wave, audit and resolution, each true on its date and never edited afterwards. Kept apart from the documentation on purpose: a spec is edited in place, a log is written once, and every stale number in this repository used to live where the two had been merged. |
 | [`prototypes/`](prototypes) | The two original Gemini-authored **mocks**, archived for history — a React web app and a Flutter + Rust app. Neither ever invoked Typst. See [`prototypes/README.md`](prototypes/README.md). |
 | `assets/` (per-crate), `licenses/`, `THIRD-PARTY-NOTICES.md` | Bundled fonts and lexicons live under `ksav/engine/assets`; third-party license texts and notices are at the repo root. |
 

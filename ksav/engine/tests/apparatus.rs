@@ -675,3 +675,54 @@ fn a_note_heading_leaves_the_document_outline_alone() {
         .count();
     assert_eq!(toc_hits, 0, "the note heading was listed in #תוכן");
 }
+
+/// The thirteenth card: two streams collected to the back, printed side by side.
+///
+/// `#הערות_בסוף_צד` has shipped since the streams work, has an English alias and
+/// is parsed by the editor — and the note chooser greyed this cell out with
+/// *"parallel streams side by side need the page's width"*, which is a statement
+/// about the page apparatus and simply not true of this one. It was a built,
+/// aliased, unreachable feature, and the only thing it had never had is this:
+/// somebody rendering it and looking at where the words landed.
+#[test]
+fn streams_collected_to_the_back_print_side_by_side() {
+    let runs = render(
+        "#הגדרות_זרמים(זרמים: (\"תוכן\", \"מקורות\"), מספור: (\"מקורות\": \"א\"))
+         ראש#הערת_תוכן[ביאור ראשון]#הערת_מקור[רמבם] אמצע.
+         #הערות_בסוף_צד(זרמים: (\"תוכן\", \"מקורות\"))",
+    );
+    let at = |needle: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle:?} not rendered"))
+    };
+    let body = at("אמצע");
+    let content = at("ביאור ראשון");
+    let source = at("רמבם");
+
+    // Collected, not at the foot of the page the marker is on: both entries are
+    // below the body text they were anchored in.
+    assert!(
+        content.y > body.y,
+        "the collected stream printed above the text that cites it ({} vs {})",
+        content.y,
+        body.y
+    );
+
+    // Side by side, which is the whole difference between this card and the
+    // plain endnote one: the two streams' first entries share a baseline and sit
+    // in different columns.
+    assert_eq!(content.page, source.page, "the two streams landed on different pages");
+    assert!(
+        (content.y - source.y).abs() < 1.0,
+        "the streams are stacked, not side by side ({} vs {})",
+        content.y,
+        source.y
+    );
+    assert!(
+        (content.x - source.x).abs() > 20.0,
+        "the streams are in one column ({} vs {})",
+        content.x,
+        source.x
+    );
+}

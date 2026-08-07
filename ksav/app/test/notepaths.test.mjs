@@ -1,4 +1,5 @@
 import { ok, check } from "./harness.mjs";
+import { DICTS } from "../.tmp-test/i18n.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { NOTE_BODY_COMMANDS } from "../.tmp-test/note-commands.mjs";
@@ -13,6 +14,7 @@ import {
   tieredNoteAt,
   choiceAt,
   whyNot,
+  BLOCKED,
   NOTE_WHERE,
   NOTE_HOW,
 } from "../.tmp-test/notes.mjs";
@@ -231,4 +233,38 @@ for (const c of NOTE_CHOICES) {
   check("noteAt is null in plain prose", noteAt("שלום עולם", 3), null);
 }
 
+
+  everyGridCellIsAnswered();
+}
+
+// Every cell of the where x how grid is either a card or a stated refusal.
+//
+// The greying used to be a five-`if` fallthrough over axis values, which always
+// has an answer and therefore never fails -- so two cells were greyed with
+// reasons that were false against the shipped engine and nothing could notice.
+// A table can be incomplete, and this is what makes an incomplete one a red
+// test rather than a plausible sentence in the UI.
+function everyGridCellIsAnswered() {
+  const unexplained = [];
+  const doubled = [];
+  for (const where of NOTE_WHERE) {
+    for (const how of NOTE_HOW) {
+      const filled = !!choiceAt(where, how);
+      const blocked = BLOCKED.find((b) => b.where === where && b.how === how);
+      if (!filled && !blocked) unexplained.push(`${where} x ${how}`);
+      if (filled && blocked) doubled.push(`${where} x ${how}`);
+    }
+  }
+  check("every empty cell says why it is empty", unexplained, []);
+  check("and no cell is both offered and refused", doubled, []);
+  // The two the report caught, by name, so a regression is legible rather than
+  // a count going down by one.
+  ok("a second stream at the back is offered", !!choiceAt("document", "parallel"));
+  ok("section-end split is offered", !!choiceAt("section", "split"));
+  // Each refusal names a string both languages have. A greyed cell whose reason
+  // renders as `whyFixedNeedsPage` is worse than one with no reason at all.
+  for (const b of BLOCKED) {
+    ok(`${b.where} x ${b.how} has a reason in Hebrew`, !!DICTS.he[b.why], b.why);
+    ok(`${b.where} x ${b.how} has a reason in English`, !!DICTS.en[b.why], b.why);
+  }
 }

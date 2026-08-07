@@ -1,16 +1,30 @@
 # Ksav — The Note Options
 
-**These are THE note options. There are eleven, and nothing else.**
+**The ground rule: a second layer of notes either spends the one native series or
+leaves the live page foot.**
+
+That is the sentence this document is really about, and it used to open with a
+count instead — *"These are THE note options. There are eleven, and nothing
+else."* A count is not a property of a system; it is a property of a list, and
+the list turned out to be a chooser's. The fence that guards every counted claim
+in this repository had to decline to count the code in order to reach eleven, and
+said so in its own comment. When a fence has to pick which artifact to count, the
+prose is what is wrong. See §4 of `lamdan/whole-repo-2026-08-07.md`.
+
+The rule below is checkable, and everything here is an instance of it. The
+**thirteen cards** the note chooser offers are counted from `NOTE_CHOICES`, which
+is what renders them; the grid's empty cells are a table of stated refusals, and
+a cell that is neither offered nor refused fails the suite.
 
 Every earlier mechanism (tiered footnotes, per-page bands, streams, styled sub-notes,
 source-notes, two-sided margins) either duplicates one of these or is a broken attempt at
-one of these. This document is the whole surface: eleven options, grouped by whether they
-give you **one layer of notes** or **notes on your notes**.
+one of these. This document is the whole surface, grouped by whether an arrangement
+gives you **one layer of notes** or **notes on your notes**.
 
 **Legend:** ✅ works today · 🧪 works in principle, needs one confirming render · 🔨 needs a
 bounded build · ⚠️ renders but flawed, needs rework
 
-> **Status as of the current build: all eleven work.** Each is covered by a
+> **Status as of the current build: all thirteen work.** Each is covered by a
 > rendered-output test in `ksav/engine/tests/apparatus.rs`, which reads the laid-out
 > document through `ksav_engine::probe` and asserts *where things landed on the page*
 > — not merely that the document compiled.
@@ -21,8 +35,7 @@ series is the *only* thing that truly floats at the live page foot. A **second**
 independent page-foot series is not possible. So every option that wants a second layer
 either (a) spends the one series and sends the second layer somewhere else, or (b) puts
 both layers somewhere other than the live page foot (section/document end, a fixed region,
-a companion document). Nothing here fights that rule; that's why these eleven are the whole
-set.
+a companion document). Nothing here fights that rule, and nothing here is exempt from it.
 
 ---
 
@@ -148,13 +161,13 @@ the one thing no option here delivers).
 **The one thing none of these do:** primary commentary *beside* the main text on the same
 page **and** balanced sub-notes below it. That needs either a LaTeX/reledmac backend
 (heavy toolchain, opt-in) or a custom paginator (multi-month build). Everything achievable
-without that is one of the eleven above.
+without that is one of the arrangements above.
 
-**All eleven proofs have been run** and are held by `tests/apparatus.rs`. The
-presentation question that used to sit on this line — whether the eleven reach a writer
+**All thirteen proofs have been run** and are held by `tests/apparatus.rs`. The
+presentation question that used to sit on this line — whether they reach a writer
 as an intent-based chooser or as a list of raw command names to pick through — is
 settled: the Notes panel asks *where does it print* and *how are the layers arranged*,
-and the eleven are the cells of that grid, each rendered from the writer's own text. The
+and the cards are the cells of that grid, each rendered from the writer's own text. The
 argument for it is item C1 of the
 [product audit](decisions/2026-07-20-product-audit.md).
 
@@ -177,15 +190,15 @@ between note blocks. The document is readable; the *source* is not.
 #גוף_הערה("1")[עיין רש״י שם, ובמה שכתב הרמב״ן.]
 ```
 
-`#הערה_בשם(שם, סוג:)` reaches all eleven — `סוג` is the note command itself, and
+`#הערה_בשם(שם, סוג:)` reaches all of them — `סוג` is the note command itself, and
 every note command in the prelude takes its body as the last positional argument,
 so a layout's own arguments pass through ahead of it. A layout written tomorrow is
 reachable the day it is written.
 
 | | |
 |---|---|
-| **Equivalence** | `tests/deferred_notes.rs` lays out each of the eleven twice, inline and deferred, and asserts every text run landed on the same page at the same coordinates at the same size. |
-| **The editing model** | `Ctrl+Alt+J` jumps marker ⇄ prose and writes the prose when there is none — org-mode's `C-c C-c`. `Ctrl+Alt+F` exiles an inline note; `Ctrl+Alt+R` recalls it; the chooser moves the whole document at once. Names are generated; nobody types one. |
+| **Equivalence** | `tests/deferred_notes.rs` lays out each of them twice, inline and deferred, and asserts every text run landed on the same page at the same coordinates at the same size. |
+| **The editing model** | `Ctrl+Alt+J` jumps marker ⇄ prose and writes the prose when there is none — org-mode's `C-c C-c`. `Ctrl+Alt+Shift+F` exiles an inline note; `Ctrl+Alt+R` recalls it; the chooser moves the whole document at once. Names are generated; nobody types one. |
 | **New failure modes** | Exactly two, both silent on the page: a marker with no body (prints a red `?`, an editor error), and a body no marker points at (prints nothing, an editor warning). Both are linted with a one-click fix. |
 | **The rest of the editor** | A third failure mode was found later and was not in the source at all: every note surface asked "is this a command that opens a note body", `#הערה_בשם` is not one, and so turning this preference on emptied the notes pane, made `⁑` write tier א inside a note, and blinded the collected-and-never-rendered warning. `notes.notesIn` returns one list over both spellings and `app/test/deferrednotes.test.mjs` is the equivalence oracle for it — the app-side `assert_same_page`. |
 
@@ -203,6 +216,6 @@ explains why: a spec is edited in place and is always current, a record is
 written once and is true on its date, and the two had been merged into three
 files with every stale number sitting at the seam.
 
-What is above this line is the spec — the eleven options, the ground rule that
-produces exactly eleven, and where a note's prose lives. It is a living
+What is above this line is the spec — the ground rule, the arrangements it
+produces, and where a note's prose lives. It is a living
 document, checked by `app/test/documentation.test.mjs` like the rest of them.

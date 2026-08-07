@@ -56,6 +56,26 @@
 // engine-side placeholder, so a path nobody supplied is a visible box and not a
 // blanked document.
 
+// ---------------------------------------------------------------------------
+//
+// **This module used to contain the second half of the answer, and the two
+// halves disagreed.** It had its own document walker with its own bracket stack,
+// and it was the one that got `(` right: *"a bare parenthesis in prose
+// (`"(ועיין שם)"`) is text, and must not put the rest of the sentence into code
+// mode."* `spans.ts` — the file named for the job, the one every other surface
+// reads — opened code mode on every `(`, so `(רש"י)` inside a body made the
+// source model eat the rest of the document while this file, twelve hundred
+// lines away, quietly knew better.
+//
+// Two walkers cannot disagree if there is one walker. The rule moved into
+// `spans.ts`'s lexer, which is where the string, comment and escape handling
+// already lived, and this module reads the frame stack off the same memoised
+// scan every other surface reads. It also got faster in passing: the walk here
+// was O(characters before the caret) and ran again for each of `modeAt`,
+// `enclosing` and `legalAt`.
+
+import { ctxAt, framesAt, scan } from "./spans";
+
 export type Mode = "code" | "content";
 
 const NAME_CH = /[A-Za-z0-9֐-׿_]/;
@@ -63,129 +83,11 @@ const NAME_CH = /[A-Za-z0-9֐-׿_]/;
 /**
  * Which mode the position `pos` is in.
  *
- * Walks the document once, keeping the bracket stack. A `(` entered from a
- * command name opens code mode; a `[` always opens content mode. Strings,
- * comments and escapes are skipped, because a bracket inside them opens
- * nothing.
- *
  * Top level is content: a `.ksav` document is markup, the same as the body of
  * a `[…]`.
  */
 export function modeAt(doc: string, pos: number): Mode {
-  return mode(scan(doc, pos).map((f) => f.mode));
-}
-
-/**
- * The bracket the caret is inside, and the command that opened it.
- *
- * `modeAt` needed only the mode; a legality rule needs the *name*, because
- * "a table of contents inside a heading" is a fact about which commands are
- * open, not about which bracket. One walker answers both.
- */
-interface Frame {
-  mode: Mode;
-  /** The command whose argument list or body this is, `""` for a bare group. */
-  name: string;
-}
-
-function scan(doc: string, pos: number): Frame[] {
-  const stack: Frame[] = [];
-  let i = 0;
-  const end = Math.min(pos, doc.length);
-  while (i < end) {
-    const c = doc[i];
-
-    // `\x` escapes the next character, whatever it is.
-    if (c === "\\") {
-      i += 2;
-      continue;
-    }
-
-    // A string literal, but only in code mode — in content, `"` is just a quote
-    // mark, and treating it as a string swallows half the sentence.
-    if (c === '"' && stack[stack.length - 1]?.mode === "code") {
-      i++;
-      while (i < end && doc[i] !== '"') i += doc[i] === "\\" ? 2 : 1;
-      i++;
-      continue;
-    }
-
-    if (c === "/" && doc[i + 1] === "/") {
-      while (i < end && doc[i] !== "\n") i++;
-      continue;
-    }
-    if (c === "/" && doc[i + 1] === "*") {
-      const close = doc.indexOf("*/", i + 2);
-      i = close < 0 ? end : close + 2;
-      continue;
-    }
-
-    if (c === "[") {
-      // The body of the command whose name (or whose argument list) ends here:
-      // `#הערה[` and `#כותרת(רמה: 2)[` are both "inside הערה / כותרת".
-      stack.push({ mode: "content", name: nameBefore(doc, i) });
-      i++;
-      continue;
-    }
-    if (c === "]") {
-      if (stack[stack.length - 1]?.mode === "content") stack.pop();
-      i++;
-      continue;
-    }
-    if (c === "(") {
-      // A `(` opens code mode when it is a call — that is, when a command name
-      // runs up to it. A bare parenthesis in prose ("(ועיין שם)") is text, and
-      // must not put the rest of the sentence into code mode.
-      const name = nameBefore(doc, i);
-      stack.push(
-        name ? { mode: "code", name } : { mode: mode(stack.map((f) => f.mode)), name: "" },
-      );
-      i++;
-      continue;
-    }
-    if (c === ")") {
-      if (stack.length > 0) stack.pop();
-      i++;
-      continue;
-    }
-    i++;
-  }
-  return stack;
-}
-
-function mode(stack: Mode[]): Mode {
-  return stack.length === 0 ? "content" : stack[stack.length - 1];
-}
-
-/**
- * The command name running up to the bracket at `i`, or `""`.
- *
- * A `(` with no name before it is a bare group — "(ועיין שם)" in prose — and a
- * `[` with no name before it is a plain content block. Either way there is no
- * command, so nothing is enclosing.
- *
- * A closing `)` counts as a name for a `[`: the body of `#כותרת(רמה: 2)[…]`
- * belongs to כותרת, and the argument list is only in the way.
- */
-function nameBefore(doc: string, i: number): string {
-  let j = i - 1;
-  // Skip back over any balanced groups already written — an argument list, or
-  // the earlier bodies of a two-bracket command like `#גמרא[ברכות][ב.]`, whose
-  // second bracket still belongs to גמרא.
-  while (doc[j] === ")" || doc[j] === "]") {
-    const close = doc[j];
-    const open = close === ")" ? "(" : "[";
-    let depth = 0;
-    while (j >= 0) {
-      if (doc[j] === close) depth++;
-      else if (doc[j] === open && --depth === 0) break;
-      j--;
-    }
-    j--;
-  }
-  const to = j;
-  while (j >= 0 && NAME_CH.test(doc[j])) j--;
-  return j === to ? "" : doc.slice(j + 1, to + 1);
+  return ctxAt(scan(doc), pos);
 }
 
 /**
@@ -196,7 +98,7 @@ function nameBefore(doc: string, i: number): string {
  * document into a blank page.
  */
 export function enclosing(doc: string, pos: number): string[] {
-  return scan(doc, pos)
+  return framesAt(scan(doc), pos)
     .map((f) => f.name)
     .filter(Boolean);
 }
@@ -335,7 +237,7 @@ const LEGAL = { ok: true } as const;
  * the command and the same command reaches the document through five surfaces.
  */
 export function legalAt(doc: string, pos: number, command: string): Legality {
-  const frames = scan(doc, pos);
+  const frames = framesAt(scan(doc), pos);
   const enc = frames.map((f) => f.name).filter(Boolean);
   if (PAGE_LEVEL.includes(command)) {
     // `#מקטע_עמוד` sets up a page — margins, columns, its own header — and
@@ -358,7 +260,7 @@ export function legalAt(doc: string, pos: number, command: string): Legality {
     // for writing a merge into a cell you are composing, so that is where it
     // stays offered.
     const inner = frames[frames.length - 1];
-    return inner && inner.mode === "code" && TABLES.includes(inner.name)
+    return inner && inner.ctx === "code" && TABLES.includes(inner.name)
       ? { ok: false, reason: "illegalMergeBetweenCells" }
       : LEGAL;
   }

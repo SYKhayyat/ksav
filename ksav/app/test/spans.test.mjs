@@ -71,10 +71,13 @@ export async function run() {
   // counter and its first bracket literal were fifty-five lines apart. Eighty
   // covers it and still flags nothing that is here today — measured, not
   // guessed. It looks forward only, so the one shape it cannot see is a
-  // backwards walk: `mode.ts`'s `nameBefore` is one, it is genuinely wrong on
-  // `#הערה("א)ב")[גוף]` (verified — `enclosing` answers `[]` there and
-  // `["הערה"]` without the paren), and it is a finding rather than an
-  // exemption. Widening the window in that direction should come with the fix.
+  // backwards walk. `mode.ts`'s `nameBefore` was one, it was genuinely wrong on
+  // `#הערה("א)ב")[גוף]`, and this comment recorded it as a finding rather than
+  // an exemption. **It is gone** — `mode.ts` holds no scanner at all now and
+  // reads the frame stack off `spans.scan()` — so the finding is closed from
+  // both ends: §2b asserts the document it was wrong about, and the only
+  // backwards walk left (`headBefore`) is inside `spans.ts`, where it reads the
+  // lexer's own opener map and therefore cannot see into a string.
   const WINDOW = 80;
   const DEPTH = /\b(?:let|var)\s+depth\s*=/;
   const BRACKET_LITERAL = /["'](?:\[|\(|\{|\]|\)|\})["']|0x5[bd]|0x2[89]|0x7[bd]/;
@@ -189,6 +192,103 @@ export async function run() {
     check("after widening a column it is still three columns", tables.tableAt(wider.text, wider.text.indexOf("תא") + 1).cols, 3);
   }
 
+  // ------------------------------ 2b. a parenthesis inside a content body
+  //
+  // The seventh divergence, and the fence above was loaded with the case that
+  // already worked. Both documents in §2(1) put their only `(` where the call's
+  // own argument list goes — where opening code mode is *correct* — so the
+  // gershayim rule was tested one character to the left of the bug that was
+  // live: this file's scanner opened code mode on **every** `(`, and
+  // `(רש"י)` inside a body therefore ate the rest of the document.
+  //
+  // Verified against the compiler before being asserted here, because the whole
+  // point is that the scanner has to agree with Typst and not with itself:
+  //
+  //   #הדגשה[ראה (רש"י) כאן]   lays out `ראה (רש”י) כאן`
+  //   #הדגשה[ראה(רש"י) כאן]    lays out `ראה(רש”י) כאן`  ← not a call either
+  //   #let זוג = ("אלף","בית")  … #זוג.at(0) prints `אלף` ← this one *is* code
+  {
+    const paren = `#הדגשה[ראה (רש"י) כאן]\n#כותרת1[פרק ב]\n`;
+    const s = spans.scan(paren);
+
+    // The symptom the writer sees: the second heading vanishes from the outline
+    // and the emphasis loses its body.
+    check("a parenthesis in a body does not eat the document", s.nodes.length, 2);
+    check("the heading after it is still a heading", markdownOutlineLevels(paren), [1]);
+    check("nothing became a string literal", s.strings.length, 0);
+    check("both bodies are still content", s.contentGroups.length, 2);
+    check(
+      "and the words inside the parentheses are prose",
+      spans.plainText(paren).includes(`(רש"י)`),
+      true,
+    );
+
+    // The four surfaces that went blind, each asserted from its own side.
+    check("the bracket linter finds nothing wrong", brackets.analyze(paren).problems.length, 0);
+    check("so the speculative heal is a no-op", brackets.analyze(paren).healed, paren);
+    ok("the spell checker can still see the prose", spell.checkableText(paren).includes("כאן"));
+    ok("and the export keeps it", markdown.toPlainText(paren).includes("פרק ב"));
+  }
+  {
+    // The ribbon. This is verbatim the failure the top of `spans.ts` names as
+    // the worst of the fourteen old matchers, narrowed by exactly one character.
+    const withParen = `#רשימה(\n  פריט[דברי (רש"י) כאן],\n  פריט[שני],\n)`;
+    const plain = `#רשימה(\n  פריט[דברי רשי כאן],\n  פריט[שני],\n)`;
+    const at = withParen.indexOf("דברי") + 2;
+    ok("a list survives a parenthetical citation", lists.listAt(withParen, at) !== null);
+    // Read through `?.` deliberately, and the reason is worth recording. When
+    // this assertion was run against the pre-fix scanner to check that it went
+    // red, it did not merely fail — it *threw*, because `listAt` returned null.
+    // A test that throws is not contained: it unwinds into an unhandled
+    // rejection, takes the other fifty-nine files with it, and skips the
+    // documentation fence that runs after the tally. So the assertion reports
+    // instead. (The containment hole in the runner is a separate finding and a
+    // separate fix; this is a test not relying on it.)
+    check("both items are found", lists.listAt(withParen, at)?.items.length, 2);
+    check(
+      "and the ribbon offers exactly what it offers without one",
+      structure.availableAt(withParen, at).length,
+      structure.availableAt(plain, plain.indexOf("דברי") + 2).length,
+    );
+    // `splitArgs` walks the argument list separately (`walkArgs`), so it had the
+    // same bug in its own copy: the string opened by the gershayim swallowed the
+    // comma that separates the two items.
+    const list = spans.scan(withParen).nodes.find((n) => n.role === "list");
+    check("the argument split still sees two arguments", spans.splitArgs(withParen, list.args.from, list.args.to).length, 2);
+  }
+  {
+    // A table cell, which is a content body reached through an argument list.
+    const tbl = `#טבלה(עמודות: 2,\n  תא[ראה (שו"ע סי' ב') שם], תא[שני],\n)`;
+    check("a table cell reads it the same way", tables.tableAt(tbl, tbl.indexOf("ראה")).cells.length, 2);
+    check("and the column count is untouched", tables.tableAt(tbl, tbl.indexOf("ראה")).cols, 2);
+  }
+  {
+    // Top level, with no call around it at all.
+    const bare = `כתוב כאן (ועיין שם) ואחר כך #הדגשה[טקסט]\n`;
+    const s = spans.scan(bare);
+    check("a bare parenthesis at top level opens nothing", s.strings.length, 0);
+    check("the call after it is still found", s.nodes.length, 1);
+    check("the bracket linter agrees", brackets.analyze(bare).problems.length, 0);
+  }
+  {
+    // The one place a `(` in content mode *does* open code: the writer's own
+    // definitions. Without this the rule above would read `#let` values as prose
+    // and their quotes would stop being string delimiters.
+    const def = `#let זוג = ("אלף", "בית")\n#הדגשה[גוף]\n`;
+    const s = spans.scan(def);
+    check("a #let statement's array is code", s.strings.length, 2);
+    check("…and the strings are its two elements", s.strings.map((g) => def.slice(g.from, g.to)), ["אלף", "בית"]);
+    check("the statement ends at its newline", spans.ctxAt(s, def.indexOf("גוף")), "content");
+    check("the bracket linter finds nothing wrong", brackets.analyze(def).problems.length, 0);
+  }
+  {
+    // The document `mode.ts`'s backwards walk got wrong, now that there is only
+    // one walk. A `)` inside a string is not a group to skip back over.
+    const doc = `#הערה("א)ב")[גוף]`;
+    check("a paren inside a string does not confuse the body's owner", spans.scan(doc).nodes[0].bodies.length, 1);
+    check("and the body belongs to the note", spans.framesAt(spans.scan(doc), doc.indexOf("גוף")).map((f) => f.name), ["הערה"]);
+  }
+
   // ------------------------------------------- 3. agreement over a corpus
   //
   // The six above are the ones somebody found. This is the shape that catches
@@ -207,6 +307,15 @@ export async function run() {
     `// #הערה[מוסתרת]\n#הדגשה[גלויה]`,
     `#רשימה(פריט[חיצוני #רשימה(פריט[פנימי],)],)`,
     `#צבע(rgb("#b91c1c"))[אדום]`,
+    // A parenthesis in prose, in every position it reaches the corpus from.
+    // These are the documents §2b is about; they belong in the sweep too,
+    // because the sweep is the shape that catches the *next* one.
+    `#הדגשה[ראה (רש"י) כאן]`,
+    `#רשימה(פריט[דברי (רש"י) כאן], פריט[שני],)`,
+    `#טבלה(עמודות: 2,\n  תא[ראה (שו"ע סי' ב') שם], תא[שני],\n)`,
+    `כתוב כאן (ועיין שם) ואחר כך #הדגשה[טקסט]`,
+    `#כותרת1[פרק (ב)]\n\nגוף (ועיין שם)`,
+    `#let זוג = ("אלף", "בית")\n#הדגשה[גוף]`,
   ];
   for (const doc of CORPUS) {
     const s = spans.scan(doc);

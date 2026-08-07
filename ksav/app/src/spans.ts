@@ -59,6 +59,34 @@
 // single-rule scanner could do. The disagreements are not arbitrated, they are
 // made unrepresentable.
 //
+// # The correction, and it is the same bug one level down
+//
+// The paragraph above was right about `"` and wrong about `(`. This file used to
+// open code mode on **every** `(`, which meant the gershayim rule it was written
+// to enforce switched itself back off the moment a writer put a parenthesis in
+// front of one — and `(רש"י)`, `(שו"ע סי' ב')`, `(ע"ב)` are not an edge case in a
+// sefer, they are the register. `#הדגשה[ראה (רש"י) כאן]` lost its body, ate the
+// rest of the document as a string literal, reported two `unclosed` problems in a
+// document the compiler accepts, and `analyze()` spliced `)]` into it — which
+// `compile.ts` then compiled speculatively, so the preview showed a page built
+// from text nobody typed.
+//
+// Typst's rule, checked against the compiler rather than reasoned about:
+//
+//   - `#הדגשה[ראה (רש"י) כאן]`  lays out `ראה (רש”י) כאן` — a bare `(` in markup
+//     is a character, no more meaningful than `ג`;
+//   - `#הדגשה[ראה(רש"י) כאן]`  lays out `ראה(רש”י) כאן` **too**, so not even a
+//     name running up to a `(` makes a call in content mode. The `#` does;
+//   - `#let זוג = ("אלף", "בית")` … `#זוג.at(0)` prints `אלף`, so a `#let`
+//     statement really is code and its quotes really are string delimiters.
+//
+// Hence the two rules `lex()` now applies: `(` and `{` open code when the `#` is
+// there or when we are already in code, and `#let`/`#set`/`#show`/… put the rest
+// of their line in code mode. `mode.ts` had the first half right and this file
+// did not, which is how the app ended up with two context walkers disagreeing
+// about the commonest construction in the language. There is one now, here, and
+// `mode.ts` reads its frame stack off this scan.
+//
 // # What it does not do
 //
 // It does not reprint anything. Every structural edit in the app is still a
@@ -204,6 +232,29 @@ export interface Comment {
   unterminated?: boolean;
 }
 
+/**
+ * A region with a mode of its own, and the command that opened it.
+ *
+ * The frame stack `mode.ts` used to walk the document character-by-character to
+ * rebuild. Three of them are brackets — `[…]`, `(…)`, `{…}` — and the fourth is
+ * a `#let`/`#set`/`#show` statement, which has no closing delimiter and ends at
+ * the newline it started on.
+ *
+ * `close` is `text.length` for a group that never closes, which is not a
+ * degenerate case to be tolerated: half of `#רשימה(` is the normal state of a
+ * document being written, and the insertion path has to answer *while* it is.
+ */
+export interface Frame {
+  /** The opening delimiter, or the `#` of a statement. */
+  open: number;
+  /** The closing delimiter, or `text.length` when nothing closes it. */
+  close: number;
+  /** The mode **inside** this frame. */
+  ctx: Ctx;
+  /** The command whose argument list or body this is; `""` for a bare group. */
+  name: string;
+}
+
 export interface Scan {
   /** Every call, in document order — which is outermost-first. */
   nodes: Node[];
@@ -226,6 +277,14 @@ export interface Scan {
   byStart: Map<number, Node>;
   /** Opener index → closer index, for every delimiter that closes. */
   closes: Map<number, number>;
+  /**
+   * Every mode-bearing region, in document order — which is outermost-first.
+   *
+   * This is what makes "one scanner" true of *context* and not only of
+   * delimiters. `mode.ts` had its own walker for exactly this, the two
+   * disagreed about `(`, and the disagreement was the worst bug in the app.
+   */
+  frames: Frame[];
   /** The text that was scanned, so a consumer can slice without carrying it. */
   text: string;
 }
@@ -233,9 +292,15 @@ export interface Scan {
 // ------------------------------------------------------------ the name table
 //
 // One table, read by every surface. The alternations it replaces disagreed six
-// ways; the fence for it is `spans.test.mjs`, which asserts every name here is a
-// command the engine actually defines, and `test/names.test.mjs`, which asserts
-// the engine defines no structural command this table has forgotten.
+// ways; the fence for it is `spans.test.mjs` §4, which checks it in **both**
+// directions — every name here is a command the engine defines, and every
+// `heading()`-producing command in the prelude is one this table classifies as a
+// heading, which is the direction that actually rots.
+//
+// (This paragraph used to name a second fence, `test/names.test.mjs`, for the
+// second direction. That file has never existed. The check it described is real
+// and is the one above; the citation was a guarantee pointing at nothing, which
+// is a worse failure than a missing test because it stops anybody looking.)
 
 // Every table below is keyed by the **Hebrew** name and paired through
 // `engine.gen.ts`, which reads the prelude's own `#let` lines. The English half
@@ -392,32 +457,154 @@ interface Head {
   ctx: Ctx;
 }
 
+/** A structural bracket: one that Typst would read as a delimiter. */
+export interface Delimiter {
+  pos: number;
+  ch: "[" | "(" | "{" | "]" | ")" | "}";
+  opener: boolean;
+  /**
+   * The command this opener belongs to, `""` for a bare group and for closers.
+   *
+   * Carried out of the scan because `brackets.ts` wants it for a lint message —
+   * *"#הערה נפתח כאן ואינו נסגר"* reads as an instruction and *"unclosed [ at
+   * offset 8412"* does not — and answering it separately is what made
+   * `callNameBefore` a fourth context walker that knew nothing about strings,
+   * escapes or comments.
+   */
+  name: string;
+}
+
+const DELIM_CH: Record<number, Delimiter["ch"]> = {
+  0x5b: "[", 0x28: "(", 0x7b: "{",
+  0x5d: "]", 0x29: ")", 0x7d: "}",
+};
+
 /**
- * One left-to-right pass: comments, strings, matched delimiters, and the
- * positions where a call begins.
+ * Keywords after which Typst is in code mode for the rest of the statement.
+ *
+ * `#let זוג = ("אלף", "בית")` is code, so its parentheses are an array and its
+ * quotes are string delimiters — verified by compiling it and reading `אלף` off
+ * the page. Without this the `(` rule below would read a writer's own command
+ * definitions as prose, which is the one construct Ksav explicitly invites them
+ * to write (Settings ▸ "Your commands").
+ *
+ * All lower-case ASCII and at most seven characters, which is what lets the hot
+ * loop reject every Hebrew command on its first character without slicing.
+ */
+const CODE_KEYWORDS = new Set([
+  "let", "set", "show", "import", "include", "context",
+  "return", "if", "else", "for", "while",
+]);
+
+/** Nothing runs up to this bracket. */
+const NO_HEAD = { name: "", hash: false } as const;
+
+/**
+ * The command whose argument list or body opens at `i`, and whether it was
+ * written with the hash.
+ *
+ * Skips back over complete groups already written, so the second bracket of
+ * `#כותרת(רמה: 2)[…]` and of `#גמרא[ברכות][ב.]` still knows whose it is.
+ * `openerOf` makes that a map lookup rather than a backwards bracket walk, so
+ * the whole routine stays bounded by identifier length on the hot path.
+ *
+ * The hash is the half `mode.ts` did not have and needs. In **content** mode a
+ * name running up to a `(` is still prose — `#הדגשה[ראה(רש"י) כאן]` lays out as
+ * the four words it looks like — so it is the `#`, not the name, that opens an
+ * argument list. `#(1, 2)` and `#{ … }` have no name at all and are code.
+ */
+function headBefore(
+  text: string,
+  i: number,
+  openerOf: Map<number, number>,
+): { name: string; hash: boolean } {
+  let j = i - 1;
+  for (;;) {
+    if (j < 0) return NO_HEAD;
+    const c = text.charCodeAt(j);
+    if (c !== 0x29 /* ) */ && c !== 0x5d /* ] */) break;
+    const open = openerOf.get(j);
+    if (open == null) return NO_HEAD;
+    j = open - 1;
+  }
+  if (!isNameCh(text.charCodeAt(j))) {
+    return text.charCodeAt(j) === 0x23 /* # */ ? { name: "", hash: true } : NO_HEAD;
+  }
+  const end = j + 1;
+  while (j >= 0 && isNameCh(text.charCodeAt(j))) j--;
+  const start = j + 1;
+  // `רמה: 2(x)` is a number, not a call. A name has to start like one.
+  if (!isNameStart(text.charCodeAt(start))) return NO_HEAD;
+  return { name: text.slice(start, end), hash: j >= 0 && text.charCodeAt(j) === 0x23 };
+}
+
+interface LexOpts {
+  /**
+   * Pop on any closer, matching or not.
+   *
+   * The one place `lex()` and `delimiters()` genuinely differed, and they
+   * differed silently: on `#f(] "רש"י ) עוד` the two produced different context
+   * states over the same sixteen characters, breaking the invariant this file
+   * quotes `brackets.ts` for — *"the two scanners must agree or the lint would
+   * contradict the renderer"*. It is a parameter now, so the divergence has to
+   * be asked for.
+   *
+   * `false` describes a document; `true` keeps the rest of an **unbalanced** one
+   * being read in a plausible context instead of the one an unclosed group left
+   * behind, which is the only honest thing available to a lint.
+   */
+  recover: boolean;
+  /** Collect every structural bracket. Only `delimiters()` wants the array. */
+  delims: boolean;
+}
+
+/**
+ * One left-to-right pass: comments, strings, matched delimiters, the mode of
+ * every region, and the positions where a call begins.
  *
  * Everything downstream is assembly over what this produces, so there is exactly
- * one place in the app that decides what a `"` means.
+ * one place in the app that decides what a `"` means — and, since the correction
+ * at the top of this file, exactly one that decides what a `(` means.
  */
-function lex(text: string): {
+function lexCore(
+  text: string,
+  opts: LexOpts,
+): {
   comments: Comment[];
   strings: Group[];
   contentGroups: Group[];
   /** Opener index → closer index, for every delimiter that closes. */
   closes: Map<number, number>;
   heads: Head[];
+  frames: Frame[];
+  delims: Delimiter[];
 } {
   const comments: Comment[] = [];
   const strings: Group[] = [];
   const contentGroups: Group[] = [];
   const closes = new Map<number, number>();
+  const openerOf = new Map<number, number>();
   const heads: Head[] = [];
-  const stack: { pos: number; code: number; ctx: Ctx }[] = [];
+  const frames: Frame[] = [];
+  const delims: Delimiter[] = [];
+  const stack: { pos: number; code: number; ctx: Ctx; frame: Frame }[] = [];
   let ctx: Ctx = "content";
+  // An open `#let`/`#set`/`#show` statement: code mode until the first newline
+  // at the bracket depth it started on, so a definition whose value spans a
+  // `{…}` or a `(…)` still ends where the statement does.
+  let codeLine: { depth: number; restore: Ctx } | null = null;
 
   const n = text.length;
   for (let i = 0; i < n; i++) {
     const c = text.charCodeAt(i);
+
+    if (c === 0x0a /* \n */) {
+      if (codeLine && stack.length === codeLine.depth) {
+        ctx = codeLine.restore;
+        codeLine = null;
+      }
+      continue;
+    }
 
     // ---- comments, in both contexts ----
     // Verified: `#הדגשה[אלף // בית]` does not compile, because the `//` eats the
@@ -472,21 +659,48 @@ function lex(text: string): {
 
     // ---- delimiters ----
     if (c === 0x5b /* [ */ || c === 0x28 /* ( */ || c === 0x7b /* { */) {
-      stack.push({ pos: i, code: c, ctx });
-      ctx = c === 0x5b ? "content" : "code";
+      const head = headBefore(text, i, openerOf);
+      // `[` is always content. `(` and `{` open code when the `#` is there, or
+      // when we are already in code and they are an array, a block or a nested
+      // argument list. **A bare `(` in markup is a character** — see the
+      // correction at the top of this file, and the three compiled documents
+      // that settle it.
+      const inner: Ctx =
+        c === 0x5b ? "content" : ctx === "code" || head.hash ? "code" : ctx;
+      const frame: Frame = { open: i, close: n, ctx: inner, name: head.name };
+      frames.push(frame);
+      stack.push({ pos: i, code: c, ctx, frame });
+      if (opts.delims) delims.push({ pos: i, ch: DELIM_CH[c], opener: true, name: head.name });
+      ctx = inner;
       continue;
     }
     if (c === 0x5d /* ] */ || c === 0x29 /* ) */ || c === 0x7d /* } */) {
+      if (opts.delims) delims.push({ pos: i, ch: DELIM_CH[c], opener: false, name: "" });
       const want = c === 0x5d ? 0x5b : c === 0x29 ? 0x28 : 0x7b;
       const top = stack[stack.length - 1];
       if (top && top.code === want) {
         closes.set(top.pos, i);
+        openerOf.set(i, top.pos);
+        top.frame.close = i;
         if (want === 0x5b) contentGroups.push({ from: top.pos + 1, to: i });
         stack.pop();
         ctx = top.ctx;
+      } else if (opts.recover) {
+        // Whatever the closer was, unwind one level. On a balanced document this
+        // is exactly the branch above; on an unbalanced one it is what keeps the
+        // lint reading the rest of the text the way the renderer will.
+        if (top) {
+          top.frame.close = i;
+          stack.pop();
+          ctx = top.ctx;
+        } else {
+          ctx = "content";
+        }
       }
-      // A closer with nothing open, or the wrong kind, is left alone: this scan
-      // describes a document, and `brackets.ts` is the one that judges it.
+      // Without `recover`, a closer with nothing open or of the wrong kind is
+      // left alone: this scan describes a document, and `brackets.ts` is the one
+      // that judges it.
+      if (codeLine && stack.length < codeLine.depth) codeLine = null;
       continue;
     }
 
@@ -497,6 +711,22 @@ function lex(text: string): {
         let e = s + 1;
         while (e < n && isNameCh(text.charCodeAt(e))) e++;
         heads.push({ from: i, nameFrom: s, nameTo: e, hash: true, ctx });
+        // A keyword puts the rest of the line in code mode. The two cheap tests
+        // in front of the slice reject every Hebrew command — and every command
+        // longer than `include` — without allocating.
+        const k = text.charCodeAt(s);
+        if (
+          !codeLine &&
+          ctx === "content" &&
+          e - s <= 7 &&
+          k >= 0x61 /* a */ &&
+          k <= 0x7a /* z */ &&
+          CODE_KEYWORDS.has(text.slice(s, e))
+        ) {
+          codeLine = { depth: stack.length, restore: ctx };
+          ctx = "code";
+          frames.push({ open: i, close: n, ctx: "code", name: "" });
+        }
         i = e - 1;
         continue;
       }
@@ -523,11 +753,17 @@ function lex(text: string): {
     }
   }
 
+  // A statement that runs to the end of the text closes there; `close` is
+  // already `n` for every frame that never closed, so nothing to do.
+
   // Pushed as each group closes, so the list arrives innermost-first; document
   // order is what every consumer wants, and it is what makes "blank the head,
   // then expose the content inside it" come out right by iteration alone.
   contentGroups.sort((a, b) => a.from - b.from);
-  return { comments, strings, contentGroups, closes, heads };
+  // `frames` is already in document order: a frame is pushed at its opener, and
+  // openers arrive left to right. Nested frames therefore run outermost-first,
+  // which is the order `framesAt` hands back.
+  return { comments, strings, contentGroups, closes, heads, frames, delims };
 }
 
 // ----------------------------------------------------------------- assembly
@@ -608,6 +844,11 @@ function walkArgs(
   let depth = 0;
   let ctx: Ctx = "code";
   const stack: Ctx[] = [];
+  // Local, because this walk starts mid-document: a `)` here may close a group
+  // that opened before `from`, and then there is no opener to skip back over.
+  // `headBefore` answers `NO_HEAD` for that, which in code mode changes nothing.
+  const openerOf = new Map<number, number>();
+  const opens: number[] = [];
   for (let i = from; i < to; i++) {
     const c = text[i];
     if (c === "/" && (text[i + 1] === "/" || text[i + 1] === "*")) {
@@ -634,51 +875,30 @@ function walkArgs(
     }
     if (c === "(" || c === "[" || c === "{") {
       stack.push(ctx);
-      ctx = c === "[" ? "content" : "code";
+      // The same `(` rule the lexer applies, for the same reason: an argument
+      // list holding `פריט[דברי (רש"י) כאן]` used to put everything after the
+      // parenthesis into code mode, where the gershayim opened a string and the
+      // commas inside it stopped separating arguments — so `splitArgs` merged
+      // two list items into one.
+      ctx =
+        c === "["
+          ? "content"
+          : ctx === "code" || headBefore(text, i, openerOf).hash
+            ? "code"
+            : ctx;
+      opens.push(i);
       depth++;
     } else if (c === ")" || c === "]" || c === "}") {
       if (depth > 0) {
         depth--;
         ctx = stack.pop() ?? "code";
+        const open = opens.pop();
+        if (open != null) openerOf.set(i, open);
       }
     } else if (depth === 0) {
       if (visit(i, c)) return;
     }
   }
-}
-
-/**
- * The `#command` an opener belongs to, or null.
- *
- * Lives here rather than in `brackets.ts` because it is a question about the
- * markup, and answering it means skipping back over a complete `(…)` argument
- * group so that the body bracket of `#כותרת(רמה: 2)[…]` still knows whose it
- * is. `brackets.ts` needs it for a lint message on a document that does not
- * balance, which is why it is a backwards walk rather than a node lookup.
- */
-export function callNameBefore(text: string, pos: number): string | null {
-  let i = pos - 1;
-  if (text[i] === ")") {
-    let open = -1;
-    let level = 0;
-    for (let j = i; j >= 0; j--) {
-      const c = text[j];
-      if (c === ")") level++;
-      else if (c === "(") {
-        level--;
-        if (level === 0) {
-          open = j;
-          break;
-        }
-      }
-    }
-    if (open < 0) return null;
-    i = open - 1;
-  }
-  const end = i + 1;
-  while (i >= 0 && NAME_CH.test(text[i])) i--;
-  if (i < 0 || text[i] !== "#" || i + 1 === end) return null;
-  return text.slice(i + 1, end);
 }
 
 /** Trim a range down to the text inside it, whitespace excluded. */
@@ -835,7 +1055,10 @@ export function clearScanCache(): void {
 }
 
 function scanUncached(text: string): Scan {
-  const { comments, strings, contentGroups, closes, heads } = lex(text);
+  const { comments, strings, contentGroups, closes, heads, frames } = lexCore(text, {
+    recover: false,
+    delims: false,
+  });
   const nodes: Node[] = [];
   const byStart = new Map<number, Node>();
 
@@ -911,7 +1134,40 @@ function scanUncached(text: string): Scan {
       .filter((a) => !CELL_ARG.test(a) && !COLS_ARG_HEAD.test(a));
   }
 
-  return { nodes, roots, comments, strings, contentGroups, byStart, closes, text };
+  return { nodes, roots, comments, strings, contentGroups, byStart, closes, frames, text };
+}
+
+// ------------------------------------------------------------------- context
+//
+// `mode.ts` used to answer these by walking the document from character zero on
+// every call — its own scanner, its own `(` rule, and the two disagreed. They
+// are lookups over the frame list now, so the answer costs O(frames before pos)
+// on a memo hit rather than O(characters before pos) on a fresh walk, and there
+// is no second opinion left to diverge.
+
+/**
+ * The frames containing `pos`, outermost first.
+ *
+ * Half-open the way an editor needs it: a caret *at* a closer is still inside
+ * the group, and a caret one past it is not.
+ */
+export function framesAt(scan: Scan, pos: number): Frame[] {
+  const out: Frame[] = [];
+  for (const f of scan.frames) {
+    if (f.open >= pos) break; // opens ascend, so nothing later can contain `pos`
+    if (f.close >= pos) out.push(f);
+  }
+  return out;
+}
+
+/** Which of Typst's two worlds `pos` sits in. Top level is content. */
+export function ctxAt(scan: Scan, pos: number): Ctx {
+  let ctx: Ctx = "content";
+  for (const f of scan.frames) {
+    if (f.open >= pos) break;
+    if (f.close >= pos) ctx = f.ctx; // the last one that contains `pos` is the innermost
+  }
+  return ctx;
 }
 
 // ------------------------------------------------------------------ helpers
@@ -927,18 +1183,6 @@ function scanUncached(text: string): Scan {
 export function matchGroup(text: string, at: number): number | null {
   return scan(text).closes.get(at) ?? null;
 }
-
-/** A structural bracket: one that Typst would read as a delimiter. */
-export interface Delimiter {
-  pos: number;
-  ch: "[" | "(" | "{" | "]" | ")" | "}";
-  opener: boolean;
-}
-
-const DELIM_CH: Record<number, Delimiter["ch"]> = {
-  0x5b: "[", 0x28: "(", 0x7b: "{",
-  0x5d: "]", 0x29: ")", 0x7d: "}",
-};
 
 /**
  * Every bracket in `text` that is structure rather than prose, in order.
@@ -961,71 +1205,14 @@ const DELIM_CH: Record<number, Delimiter["ch"]> = {
  * In each case a correct document was marked broken and the repair broke it,
  * and because `compile.ts` compiles the *healed* copy speculatively, the
  * preview was rendering the corrupted text.
+ *
+ * It is the same loop as the scan, with `recover` on — see `LexOpts`. It used to
+ * be a second copy of it, and the copy had drifted: this one popped on any
+ * closer and the scan ignored a mismatched one, so on `#f(] "רש"י ) עוד` the
+ * lint and the renderer read the same sixteen characters in different modes.
  */
 export function delimiters(text: string): { delims: Delimiter[]; comments: Comment[] } {
-  const comments: Comment[] = [];
-  const delims: Delimiter[] = [];
-  const stack: { code: number; ctx: Ctx }[] = [];
-  let ctx: Ctx = "content";
-  const n = text.length;
-
-  for (let i = 0; i < n; i++) {
-    const c = text.charCodeAt(i);
-
-    if (c === 0x2f /* / */) {
-      const next = text.charCodeAt(i + 1);
-      if (next === 0x2f && text.charCodeAt(i - 1) !== 0x3a) {
-        const nl = text.indexOf("\n", i);
-        const to = nl < 0 ? n : nl;
-        comments.push({ from: i, to });
-        i = to - 1;
-        continue;
-      }
-      if (next === 0x2a /* * */) {
-        const end = text.indexOf("*/", i + 2);
-        if (end < 0) {
-          comments.push({ from: i, to: n, unterminated: true });
-          break;
-        }
-        comments.push({ from: i, to: end + 2 });
-        i = end + 1;
-        continue;
-      }
-    }
-
-    if (ctx === "content") {
-      if (c === 0x5c /* \ */) {
-        i++;
-        continue;
-      }
-    } else if (c === 0x22 /* " */) {
-      let j = i + 1;
-      while (j < n) {
-        const s = text.charCodeAt(j);
-        if (s === 0x5c) j += 2;
-        else if (s === 0x22) break;
-        else j++;
-      }
-      i = Math.min(j, n);
-      continue;
-    }
-
-    const ch = DELIM_CH[c];
-    if (!ch) continue;
-    const opener = c === 0x5b || c === 0x28 || c === 0x7b;
-    delims.push({ pos: i, ch, opener });
-    if (opener) {
-      stack.push({ code: c, ctx });
-      ctx = c === 0x5b ? "content" : "code";
-    } else {
-      // Unwind one level whatever the closer was. On a balanced document this
-      // is exactly the lexer's own bookkeeping; on an unbalanced one it keeps
-      // the rest of the text being read in a plausible context instead of in
-      // the one an unclosed group left behind — which is the only honest thing
-      // available, and it is what `brackets.ts` is about to report on.
-      ctx = stack.pop()?.ctx ?? "content";
-    }
-  }
+  const { delims, comments } = lexCore(text, { recover: true, delims: true });
   return { delims, comments };
 }
 

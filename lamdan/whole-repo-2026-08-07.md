@@ -295,6 +295,64 @@ fiction the test suite routed around; this pays the debt.
 
 ## 6. `spans.ts` models what Ksav documents usually contain, not what Typst does — and a parenthesis in Hebrew prose corrupts the editor
 
+> ### ✅ Fixed — 7 August 2026
+>
+> Done as prescribed, and the finding below is kept verbatim. What follows is
+> what replaced it, plus the two things the finding did not know.
+>
+> **The rule.** `lex()`'s delimiter branch now opens code mode on `(` and `{`
+> only when the `#` is there or when it is already in code. `[` is unchanged. The
+> backwards walk that answers "is there a call here" (`headBefore`) reads the
+> lexer's own opener map, so skipping back over `#כותרת(רמה: 2)[…]` and
+> `#גמרא[ברכות][ב.]` is a map lookup and the whole routine stays bounded by
+> identifier length on the hot path.
+>
+> **The report was right about `(` and understated it by one case.** It proposed
+> "a name or a closing `)`/`]` runs up to it", which is `mode.ts`'s rule. Probing
+> the compiler for the fix found that rule is *also* wrong, just less so:
+> `#הדגשה[ראה(רש"י) כאן]` — no space — lays out as the four words it looks like.
+> In content mode a name running up to a `(` is still prose. It is the hash that
+> opens an argument list, and `mode.ts` was the better of two wrong answers
+> rather than the right one.
+>
+> **And the fix had a regression in it that the report did not predict.**
+> `#let זוג = ("אלף", "בית")` really is code — verified, `#זוג.at(0)` prints
+> `אלף` — so a rule keyed only on the hash would have read a writer's own command
+> definitions as prose and stopped their quotes being string delimiters. That is
+> the one construct Ksav explicitly invites (Settings ▸ "Your commands"). So
+> `#let`/`#set`/`#show`/… now open code mode for the rest of the *statement*,
+> which ends at the first newline at the bracket depth it started on. Four
+> frames, one of which has no closing delimiter.
+>
+> **`delimiters()` is the same loop.** It was a second copy, and the copy had
+> drifted exactly as the finding says: `lex()` ignored a mismatched closer and
+> `delimiters()` popped unconditionally. That is a `recover` parameter now — one
+> loop, ~70 lines deleted, and the divergence has to be asked for.
+>
+> **`mode.ts` holds no scanner at all.** `scan()` and `nameBefore()` are gone;
+> `modeAt`, `enclosing` and `legalAt` read a frame stack off `spans.scan()`. It
+> got faster in passing — the walk was O(characters before the caret) and ran
+> again for each of the three. `callNameBefore` is gone too (scanner #4): the
+> command name for an unclosed bracket comes off the `Delimiter` the scan already
+> produced, so `brackets.ts`'s lint message can no longer be named by a `#`
+> inside a string literal.
+>
+> **Six of the table's rows are now one function.** Rows 1, 2, 3 and 4 were
+> `lex`, `delimiters`, `walkArgs` and `callNameBefore`; row 5 was `mode.ts`.
+> `walkArgs` had the `(` bug in its own copy, which is why `splitArgs` merged two
+> list items when one of them held `(רש"י)` — a consequence the finding did not
+> name. Row 6 (`bidi.ts`) stands, and still declares itself the one exemption.
+>
+> **The fence was checked by mutation, not by going green.** Restoring the one
+> line (`c === 0x5b ? "content" : "code"`) turns seven of the new assertions red
+> across four surfaces. It also made `spans.test.mjs` *throw*, which took the
+> other fifty-nine files down with it and skipped the documentation fence —
+> §12's containment hole, reproduced by accident while proving this one.
+>
+> **`test/names.test.mjs` did not exist and the check it named does.** It is
+> `spans.test.mjs` §4, in both directions. The citation was corrected rather than
+> the file created.
+
 **This is the worst thing in the repository, and it is six lines.**
 
 ```js
@@ -989,7 +1047,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 
 | # | Finding | § | Lens | Verdict | Effort |
 |---|---|---|---|---|---|
-| 1 | **`(רש"י)` in a body corrupts the source model, the lint, the heal and the preview.** The gershayim bug, alive. | 6 | 2 | `rewrite` | **~6 lines** + oracle |
+| 1 | ✅ **Fixed 7 Aug.** `(רש"י)` in a body corrupted the source model, the lint, the heal and the preview — the gershayim bug, alive. The proposed rule was itself one case short (`ראה(רש"י)` is prose too — the hash opens an argument list, not the name) and needed `#let` statements carved out or it would have read a writer's own definitions as prose. | 6 | 2 | `rewrite` | ~40 lines net; 6 scanners → 1; `mode.ts` and `callNameBefore` hold none; +74 assertions, 7 red under mutation |
 | 2 | **Hebrew suggestions are 4% top-1**; the fix is computed and discarded in-repo. | 11 | 3 | `rewrite` | **~20 lines** |
 | 3 | **No process ever runs the application.** One CI job + one rule. | 1 | 1 | `don't-build` the next audit | 1 day |
 | 4 | The macro recorder records nothing; the palette holds no commands; the greyed chip is live. | 7 | 2 | `rewrite` | ~60 lines |

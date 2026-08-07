@@ -31,7 +31,7 @@
 // It is deliberately dependency-free and pure (text in, findings out) so it can
 // be tested without a browser or a CodeMirror instance.
 
-import { callNameBefore, delimiters } from "./spans";
+import { delimiters } from "./spans";
 
 export type Opener = "[" | "(" | "{";
 export type Closer = "]" | ")" | "}";
@@ -75,8 +75,12 @@ export function commentRegions(text: string): { from: number; to: number; unterm
 
 // The `#command` an opener belongs to — for the lint message, because "#הערה is
 // never closed" reads as an instruction and "unclosed [ at offset 8412" does
-// not. It is a question about the markup, so it lives in `spans.ts` with every
-// other one.
+// not. It is a question about the markup, so it comes off the delimiter that
+// `spans.ts` already produced. It used to be a separate backwards walk
+// (`callNameBefore`), which made it a fourth context walker in an app whose
+// entire §1 was about having too many — and one that knew nothing about
+// strings, escapes or comments, so a `#` inside a quoted string could name the
+// unclosed bracket.
 
 function lineStartOf(text: string, pos: number): number {
   const nl = text.lastIndexOf("\n", pos - 1);
@@ -151,7 +155,7 @@ export function analyze(text: string): Analysis {
   const unterminated = comments.find((c) => c.unterminated);
   if (unterminated) problems.push({ kind: "unterminatedComment", pos: unterminated.from });
 
-  const stack: { pos: number; ch: Opener }[] = [];
+  const stack: { pos: number; ch: Opener; name: string }[] = [];
 
   // Comments, string literals and escaped brackets have already been taken out
   // by `delimiters()`, so this is purely the balance judgement — which is the
@@ -159,7 +163,7 @@ export function analyze(text: string): Analysis {
   // a node tree only describes documents that balance.
   for (const d of delims) {
     if (d.opener) {
-      stack.push({ pos: d.pos, ch: d.ch as Opener });
+      stack.push({ pos: d.pos, ch: d.ch as Opener, name: d.name });
       continue;
     }
     const c = d.ch as Closer;
@@ -186,13 +190,13 @@ export function analyze(text: string): Analysis {
   return { problems, ...repair(text, problems) };
 }
 
-function mkUnclosed(text: string, o: { pos: number; ch: Opener }): Problem {
+function mkUnclosed(text: string, o: { pos: number; ch: Opener; name: string }): Problem {
   return {
     kind: "unclosed",
     pos: o.pos,
     ch: o.ch,
     closer: CLOSER_OF[o.ch],
-    cmd: callNameBefore(text, o.pos),
+    cmd: o.name || null,
     healAt: healPosition(text, o.pos),
   };
 }

@@ -1099,6 +1099,47 @@ export function scanOf(key: object, text: () => string): Scan {
   return fresh;
 }
 
+/**
+ * The document as a string — **once per version of it**.
+ *
+ * `doc.toString()` walks a rope and allocates. Thirty-five call sites in `src/`
+ * each did their own, so one keystroke in a 200 KB sefer allocated and copied it
+ * a dozen times over: the context bar, the three lints, the notes pane, the
+ * outline, the review panel, the compile, the save. That is the obvious half of
+ * the cost.
+ *
+ * The half that is not obvious is what it does to every *memo* downstream. Both
+ * `scan`'s four-slot cache and `structure.contextAt`'s single slot decide a hit
+ * with `===` on the text. Two strings with identical content and different
+ * identities are `===` — after a full character-by-character comparison, because
+ * a length check cannot separate them and there is no pointer to match. So a
+ * dozen independent `toString()`s per keystroke turned every cache probe in the
+ * application into a 200 KB `memcmp`. Hand every caller the *same* string and
+ * each of those probes is a pointer compare that succeeds immediately.
+ *
+ * Keyed on the `Text` itself, which CodeMirror shares between states that did
+ * not change it, so same object always means same content. Two `Text` objects
+ * holding identical text are simply two entries — never a wrong answer.
+ *
+ * Duck-typed rather than importing `Text`, for the same reason `scanOf` takes a
+ * bare `object`: this module is the one every other module depends on, and it
+ * depends on nothing.
+ */
+const TEXTS = new WeakMap<object, string>();
+
+export function docTextOf(doc: { toString(): string }): string {
+  const hit = TEXTS.get(doc);
+  if (hit !== undefined) return hit;
+  const fresh = doc.toString();
+  TEXTS.set(doc, fresh);
+  return fresh;
+}
+
+/** The scan of a CodeMirror document, paying for its text at most once. */
+export function scanDoc(doc: { toString(): string }): Scan {
+  return scanOf(doc, () => docTextOf(doc));
+}
+
 /** Drop the memo. Only tests need this — a scan is a pure function of its text. */
 export function clearScanCache(): void {
   CACHE.length = 0;

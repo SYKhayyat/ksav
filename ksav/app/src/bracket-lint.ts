@@ -6,6 +6,7 @@
 // the document, nowhere near the mistake. This marks the opener that never
 // closes, names its command, and offers to close it — before any compile runs.
 
+import { docTextOf } from "./spans";
 import { linter, lintGutter } from "@codemirror/lint";
 import type { Diagnostic } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
@@ -23,7 +24,7 @@ function message(p: Problem): string {
 
 /** Repair one problem, leaving the rest of the document alone. */
 function healOne(view: EditorView, p: Problem) {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   // Recompute against the current text: the writer may have typed since the
   // lint ran, which moves every position after the edit.
   const fresh = analyze(text).problems.find((q) => q.kind === p.kind && q.pos === p.pos) ?? p;
@@ -50,7 +51,7 @@ function healOne(view: EditorView, p: Problem) {
 
 /** Repair everything at once. Returns how many problems it closed. */
 export function healAll(view: EditorView): number {
-  const { problems, edits } = analyze(view.state.doc.toString());
+  const { problems, edits } = analyze(docTextOf(view.state.doc));
   if (!edits.length) return 0;
   view.dispatch({ changes: edits });
   return problems.length;
@@ -58,7 +59,7 @@ export function healAll(view: EditorView): number {
 
 const bracketLinter = linter(
   (view) => {
-    const text = view.state.doc.toString();
+    const text = docTextOf(view.state.doc);
     const { problems } = analyze(text);
     if (!problems.length) return [];
     return problems.map((p): Diagnostic => {

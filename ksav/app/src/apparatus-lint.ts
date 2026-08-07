@@ -8,6 +8,7 @@
 // the notes before the block that renders them. What must not happen is finishing
 // the document, exporting the PDF, and finding the prose was never on the page.
 
+import { docTextOf } from "./spans";
 import { linter } from "@codemirror/lint";
 import type { Diagnostic } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
@@ -17,7 +18,7 @@ import { t, tf } from "./i18n";
 
 /** Write the missing dump call, recomputed against the current text. */
 function fixOne(view: EditorView, p: Unrendered) {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   // The writer may have typed since the lint ran, so the recorded offsets are
   // stale; find the same problem again rather than trusting them.
   const fresh = unrendered(text).find((q) => q.fix === p.fix && q.stream === p.stream) ?? p;
@@ -31,7 +32,7 @@ function fixOne(view: EditorView, p: Unrendered) {
 
 /** Write every missing dump call. Returns how many it added. */
 export function renderAllNotes(view: EditorView): number {
-  let text = view.state.doc.toString();
+  let text = docTextOf(view.state.doc);
   let added = 0;
   // One at a time, re-scanning between: adding one dump can satisfy several
   // markers at once, and writing one call per marker would pile up duplicates.
@@ -49,7 +50,7 @@ export function renderAllNotes(view: EditorView): number {
 
 const apparatusLinter = linter(
   (view) => {
-    const text = view.state.doc.toString();
+    const text = docTextOf(view.state.doc);
     const problems = unrendered(text);
     if (!problems.length) return [];
     return problems.map((p): Diagnostic => {

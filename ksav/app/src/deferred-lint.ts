@@ -7,6 +7,7 @@
 // body was never written prints a red `?`; a body no marker points at prints
 // nothing at all, which is worse).
 
+import { docTextOf } from "./spans";
 import { linter } from "@codemirror/lint";
 import type { Diagnostic } from "@codemirror/lint";
 import { EditorView, hoverTooltip } from "@codemirror/view";
@@ -49,7 +50,7 @@ function goTo(view: EditorView, pos: number) {
  * entire reason anybody tolerates writing footnotes that way.
  */
 export function jumpDeferred(view: EditorView): boolean {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   const j = jump(text, view.state.selection.main.head);
   if (!j) {
     setStatus(t("deferNothingHere"), "");
@@ -80,7 +81,7 @@ export function jumpDeferred(view: EditorView): boolean {
  * always the same: leave a marker here and put me where the prose goes.
  */
 export function deferHere(view: EditorView, lang: "he" | "en" = "he"): boolean {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   const pos = view.state.selection.main.head;
   const note = inlineNoteAt(text, pos);
   if (note) {
@@ -100,7 +101,7 @@ export function deferHere(view: EditorView, lang: "he" | "en" = "he"): boolean {
 
 /** Bring the deferred note under the caret back inline. */
 export function recallHere(view: EditorView): boolean {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   const c = inlineDeferredNote(text, view.state.selection.main.head);
   if (!c) {
     setStatus(t("deferCannotRecall"), "warn");
@@ -113,7 +114,7 @@ export function recallHere(view: EditorView): boolean {
 
 /** Send every inline note in the document to the end. */
 export function deferAll(view: EditorView): boolean {
-  const { text, moved } = deferAllInlineNotes(view.state.doc.toString());
+  const { text, moved } = deferAllInlineNotes(docTextOf(view.state.doc));
   if (!moved) {
     setStatus(t("deferNothingToMove"), "");
     return false;
@@ -133,7 +134,7 @@ function message(p: Problem): string {
 
 /** Remove a body, recomputing its span first — the writer may have typed since. */
 function deleteBody(view: EditorView, name: string, which: "first" | "last") {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   const all = scan(text).defs.filter((d) => d.name === name);
   const d = which === "first" ? all[0] : all[all.length - 1];
   if (!d) return;
@@ -152,7 +153,7 @@ function deleteBody(view: EditorView, name: string, which: "first" | "last") {
 
 const deferredLinter = linter(
   (view) => {
-    const text = view.state.doc.toString();
+    const text = docTextOf(view.state.doc);
     return problems(text).map((p): Diagnostic => {
       const actions =
         p.kind === "dangling"
@@ -160,7 +161,7 @@ const deferredLinter = linter(
               {
                 name: t("deferWriteBodyAction"),
                 apply: (v: EditorView) => {
-                  const c = createBody(v.state.doc.toString(), p.name);
+                  const c = createBody(docTextOf(v.state.doc), p.name);
                   apply(v, c.text, c.caret);
                 },
               },
@@ -206,7 +207,7 @@ function excerpt(s: string): string {
  * the two seconds it takes to check, which is most of what the jump is used for.
  */
 const deferredHover = hoverTooltip((view, pos) => {
-  const text = view.state.doc.toString();
+  const text = docTextOf(view.state.doc);
   const ref = scan(text)
     .refs.filter((r) => pos >= r.from && pos <= r.to)
     .sort((a, b) => b.from - a.from)[0];

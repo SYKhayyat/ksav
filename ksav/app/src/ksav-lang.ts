@@ -22,11 +22,12 @@ import {
   plainText,
   plainTextIn,
   scan,
-  scanOf,
   type Group,
   type ListKind,
   type Node,
   type Scan,
+  docTextOf,
+  scanDoc,
 } from "./spans";
 
 // ---- shared scanning -------------------------------------------------------
@@ -63,7 +64,7 @@ function highlightDecorations(view: EditorView): DecorationSet {
   // scanned this exact document in this frame, so this is a memo hit keyed on
   // the doc object, and the slice allocation per visible range is gone.
   const ranges: { from: number; to: number; deco: Decoration }[] = [];
-  const s = scanOf(view.state.doc, () => view.state.doc.toString());
+  const s = scanDoc(view.state.doc);
   const visible = view.visibleRanges;
   const onScreen = (from: number, to: number) =>
     visible.some((v) => from <= v.to && to >= v.from);
@@ -554,7 +555,7 @@ function proseDecorations(state: EditorState): ProseValue {
   const sel = state.selection;
   const ranges: { from: number; to: number; deco: Decoration; side: number }[] = [];
   const touch: { from: number; to: number }[] = [];
-  const text = state.doc.toString();
+  const text = docTextOf(state.doc);
   const touchedAt = (from: number, to: number) => {
     // Every span asked about here is one a cursor move could reveal or hide;
     // recording them lets the field decide, on the next selection change,
@@ -899,14 +900,73 @@ function startsItsLine(text: string, n: Node): boolean {
  * "demote" on an `#h6` produced `#hlevel(level: 7)`, and the section vanished
  * from the outline and stopped folding. One table now, so one answer.
  */
-function sectionLevelAt(s: Scan, lineFrom: number, lineTo: number): number | null {
+/**
+ * Every heading that *opens* a line, in document order, with the offset of the
+ * line it opens.
+ *
+ * Computed once per scan, and that is the whole of the fold service's cost
+ * problem. `sectionLevelAt` used to walk `s.nodes` from index 0 on every call,
+ * breaking only once it passed the line it was asked about — so a query near the
+ * end of a document walked every node in it. The section fold then called it
+ * *once per line to the end of the document* looking for where the section
+ * stops. On 420 KB / 10,400 lines / 8,800 nodes that is O(lines × nodes):
+ * **4.26 ms for a fold query on the last heading against 0.04 ms on the first**,
+ * which is exactly backwards, because the end of the document is where somebody
+ * writing a sefer actually is.
+ *
+ * A section ends at the next heading of the same level or shallower. That is a
+ * question about *headings*, and there are a few hundred of those against tens
+ * of thousands of lines — so the loop walks this list instead and the whole
+ * query is O(headings).
+ *
+ * "Opens a line" is the same rule the old code enforced with
+ * `s.text.slice(lineFrom, n.from).trim() !== ""`: a heading with prose in front
+ * of it on the same line is not a section. The line start is found in `s.text`
+ * rather than through CodeMirror's rope, so this stays a pure function of the
+ * scan and can be shared by anything holding one.
+ */
+interface LineHead {
+  /** Offset of the heading command. */
+  from: number;
+  /** Offset of the start of the line it opens. */
+  lineFrom: number;
+  level: number;
+}
+
+const LINE_HEADS = new WeakMap<object, LineHead[]>();
+
+function lineHeads(s: Scan): LineHead[] {
+  const hit = LINE_HEADS.get(s);
+  if (hit) return hit;
+  const out: LineHead[] = [];
   for (const n of s.nodes) {
-    if (n.from > lineTo) break;
-    if (n.from < lineFrom || n.role !== "heading") continue;
+    if (n.role !== "heading") continue;
+    const lineFrom = s.text.lastIndexOf("\n", n.from - 1) + 1;
     if (s.text.slice(lineFrom, n.from).trim() !== "") continue;
-    return n.level ?? 1;
+    // One section per line: a second heading on the same line is not a section
+    // opener, which is what the old scan-from-zero also concluded by returning
+    // the first match.
+    if (out.length && out[out.length - 1].lineFrom === lineFrom) continue;
+    out.push({ from: n.from, lineFrom, level: n.level ?? 1 });
   }
-  return null;
+  LINE_HEADS.set(s, out);
+  return out;
+}
+
+/** Index of the heading opening the line `[lineFrom, lineTo]`, or -1. */
+function headOpening(s: Scan, lineFrom: number, lineTo: number): number {
+  const all = lineHeads(s);
+  // Binary search on `lineFrom`, which is sorted: the list is built in document
+  // order and every entry names the start of its own line.
+  let lo = 0;
+  let hi = all.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (all[mid].lineFrom < lineFrom) lo = mid + 1;
+    else if (all[mid].lineFrom > lineFrom) hi = mid - 1;
+    else return all[mid].from <= lineTo ? mid : -1;
+  }
+  return -1;
 }
 
 /**
@@ -947,17 +1007,21 @@ export const ksavFold = foldService.of((state, lineStart) => {
     }
   }
 
-  const s = scanOf(doc, () => doc.toString());
+  const s = scanDoc(doc);
 
   // 1) heading section fold
-  const lvl = sectionLevelAt(s, line.from, line.to);
-  if (lvl != null) {
+  //
+  // Walks the headings rather than the lines. The old loop asked every line from
+  // here to the end of the document what level it was, and each answer restarted
+  // a walk over every node — see `lineHeads`.
+  const at = headOpening(s, line.from, line.to);
+  if (at >= 0) {
+    const all = lineHeads(s);
+    const lvl = all[at].level;
     let end = doc.length;
-    for (let n = line.number + 1; n <= doc.lines; n++) {
-      const l = doc.line(n);
-      const l2 = sectionLevelAt(s, l.from, l.to);
-      if (l2 != null && l2 <= lvl) {
-        end = l.from - 1;
+    for (let k = at + 1; k < all.length; k++) {
+      if (all[k].level <= lvl) {
+        end = all[k].lineFrom - 1;
         break;
       }
     }
@@ -986,7 +1050,7 @@ function foldLabelText(state: EditorState, range: { from: number; to: number }):
   const text = line.text;
   const region = text.match(/\/\/\{\s*(.*)$/); // //{ label
   if (region) return region[1].trim() || "…";
-  const s = scanOf(state.doc, () => state.doc.toString());
+  const s = scanDoc(state.doc);
   const head = s.nodes.find(
     (n) => n.role === "heading" && n.from >= line.from && n.from <= line.to,
   );

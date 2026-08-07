@@ -9,6 +9,7 @@
 // That is not a compromise: "what did I change since Shabbos" is the question a
 // bochur actually asks, and the snapshots are already being taken.
 
+import { docTextOf } from "./spans";
 import { Decoration, EditorView, ViewPlugin, gutter, GutterMarker } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { StateEffect, StateField, RangeSet } from "@codemirror/state";
@@ -34,7 +35,7 @@ export const changes = StateField.define<ChangeState>({
       if (e.is(setBaseline)) {
         return e.value === null
           ? EMPTY
-          : { baseline: e.value, hunks: lineHunks(e.value, tr.state.doc.toString()) };
+          : { baseline: e.value, hunks: lineHunks(e.value, docTextOf(tr.state.doc)) };
       }
     }
     // Recomputed on every document change rather than mapped through it. A hunk
@@ -43,7 +44,7 @@ export const changes = StateField.define<ChangeState>({
     // the truth with every keystroke, and the recomputation is a prefix/suffix
     // trim over two strings — cheap enough that being right is affordable.
     if (tr.docChanged && value.baseline !== null) {
-      return { baseline: value.baseline, hunks: lineHunks(value.baseline, tr.state.doc.toString()) };
+      return { baseline: value.baseline, hunks: lineHunks(value.baseline, docTextOf(tr.state.doc)) };
     }
     return value;
   },

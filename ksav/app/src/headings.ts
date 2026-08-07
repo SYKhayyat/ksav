@@ -76,9 +76,37 @@ function info(n: Node): HeadingInfo {
   };
 }
 
-/** Every heading in the document, in source order. */
+/**
+ * Every heading in the document, in source order.
+ *
+ * Memoised on the *scan*, not on the text, because the scan is already the thing
+ * that is memoised per document version and this is a pure function of it. The
+ * filter-and-map is O(nodes) and allocates a fresh array of every heading in the
+ * document: 8,800 nodes on a 235-page sefer.
+ *
+ * That mattered in two places, both hot and neither obvious.
+ *
+ * `updateContextBar` runs on every arrow key and called `headingAt(doc, pos)`
+ * with two arguments, so the default parameter fired this — to set the value of
+ * a `<select>` — and threw the array away. The `StructureContext` built three
+ * lines later computes the same list and caches it properly.
+ *
+ * And the fold service calls `sectionLevelAt` in a loop to the end of the
+ * document, once per fold query, each call restarting from node 0. Sharing one
+ * array turns that from O(lines × nodes) into O(lines × headings).
+ *
+ * The array is shared, so nothing may sort or splice it. Nothing does; if
+ * something needs to, it copies.
+ */
+const CACHED = new WeakMap<object, HeadingInfo[]>();
+
 export function headings(doc: string): HeadingInfo[] {
-  return scan(doc).nodes.filter((n) => n.role === "heading").map(info);
+  const s = scan(doc);
+  const hit = CACHED.get(s);
+  if (hit) return hit;
+  const all = s.nodes.filter((n) => n.role === "heading").map(info);
+  CACHED.set(s, all);
+  return all;
 }
 
 /** The heading `pos` sits on, if any. */

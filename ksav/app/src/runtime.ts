@@ -14,6 +14,7 @@
 // chrome" without depending on the module that draws it; a hook says that
 // dependency is deliberate, where a circular import would only hide it.
 
+import { docTextOf } from "./spans";
 import type { EditorView } from "@codemirror/view";
 import type { Backend, CommandDef, CompileResult, TemplateDef } from "./api";
 import type { KsavDoc } from "./docs";
@@ -29,7 +30,7 @@ export function setView(v: EditorView) {
 
 /** The document text as it stands right now. */
 export function docText(): string {
-  return view ? view.state.doc.toString() : "";
+  return view ? docTextOf(view.state.doc) : "";
 }
 
 /** Replace the whole document — what a template, a restore or a decision does. */

@@ -217,3 +217,68 @@ export function changedLines(hunks: Hunk[]): number[] {
   }
   return [...lines].sort((a, b) => a - b);
 }
+
+/**
+ * The smallest single replacement that turns `prev` into `next`.
+ *
+ * Every producer in this app that rewrites a document returns the **whole new
+ * text**, and that is the right shape for a pure function: `applyChoice`,
+ * `promote`, `moveSection`, `healAll` and the rest are testable precisely
+ * because they take a string and give a string back. The mistake was dispatching
+ * it as `{from: 0, to: doc.length}`.
+ *
+ * CodeMirror treats that as "every character in the document was replaced", so
+ * it throws away the syntax tree, every decoration, every lint mark and **every
+ * open fold** — including the `//{ … //}` regions the app itself invites you to
+ * make. On a 500 KB sefer that happened on every `†`. The document ends up
+ * identical and the writer's screen does not: everything they had collapsed is
+ * open again, and the caret is the only thing that survived.
+ *
+ * A common prefix and a common suffix is enough to fix it and cannot be wrong:
+ * whatever the two strings share at each end is text that did not move, so
+ * replacing only the middle produces exactly `next` while leaving the state
+ * either side of it addressed by unchanged positions.
+ *
+ * Deliberately one span rather than a real diff. A note insertion changes one
+ * place, and this finds it exactly. A layout that also writes a configuration
+ * line at the top and a dump call at the bottom changes three, and this returns
+ * one span covering all of them — which is no worse than what it replaces, and
+ * happens once per document per layout rather than once per note.
+ *
+ * `from === to` with an empty insert means the strings are equal; callers use
+ * that to skip the dispatch entirely rather than pushing an empty transaction
+ * into the history.
+ */
+export interface Replacement {
+  from: number;
+  to: number;
+  insert: string;
+}
+
+export function minimalChange(prev: string, next: string): Replacement {
+  if (prev === next) return { from: 0, to: 0, insert: "" };
+  const max = Math.min(prev.length, next.length);
+  let head = 0;
+  while (head < max && prev.charCodeAt(head) === next.charCodeAt(head)) head++;
+  // Do not split a surrogate pair: a common prefix ending between the two halves
+  // of an astral character would hand CodeMirror a position that is not a
+  // character boundary. Hebrew is in the BMP, but a document can hold an emoji
+  // in a heading and this must not be the thing that breaks it.
+  if (head > 0 && head < max && isLowSurrogate(next.charCodeAt(head))) head--;
+
+  let tail = 0;
+  const limit = max - head;
+  while (
+    tail < limit &&
+    prev.charCodeAt(prev.length - 1 - tail) === next.charCodeAt(next.length - 1 - tail)
+  ) {
+    tail++;
+  }
+  if (tail > 0 && tail < limit && isLowSurrogate(next.charCodeAt(next.length - tail))) tail--;
+
+  return { from: head, to: prev.length - tail, insert: next.slice(head, next.length - tail) };
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff;
+}

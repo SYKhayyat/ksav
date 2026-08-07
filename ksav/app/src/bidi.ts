@@ -70,7 +70,7 @@ import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { Direction } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
-import { scan, scanOf, type Scan } from "./spans";
+import { scan, scanDoc, type Scan } from "./spans";
 
 export type Dir = "rtl" | "ltr";
 
@@ -285,7 +285,7 @@ function isolateDecorations(view: EditorView): DecorationSet {
   // `isolateSpans` reads the memoised scan, which `proseMode` has already taken
   // for this document in this frame, so scanning more text costs less work than
   // slicing it did.
-  const s = scanOf(view.state.doc, () => view.state.doc.toString());
+  const s = scanDoc(view.state.doc);
   const visible = view.visibleRanges;
   const ranges = isolateSpans(s.text, s)
     .filter((s) => visible.some((v) => s.from <= v.to && s.to >= v.from))

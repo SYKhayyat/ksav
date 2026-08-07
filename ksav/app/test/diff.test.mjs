@@ -8,7 +8,7 @@
 // as well as against the cases worth naming.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { lineHunks, changedLines } from "../.tmp-test/diff.mjs";
+import { lineHunks, changedLines, minimalChange } from "../.tmp-test/diff.mjs";
 
 /** Every line number a hunk covers. */
 const covered = (base, cur) => changedLines(lineHunks(base, cur));
@@ -137,4 +137,72 @@ export function run() {
 
   // A newline at the end is a line, and losing it is a change like any other.
   notOk("a trailing newline is not invisible", lineHunks("a\nb", "a\nb\n").length === 0);
+
+  minimalChangeCases();
 }
+
+// `minimalChange` — the smallest replacement that turns one document into
+// another, which is what stops a note insertion from throwing away every open
+// fold in a 500 KB sefer.
+//
+// Two properties, and only the second is interesting. It must *produce* `next`,
+// which is easy and is asserted on every case below by reconstruction rather
+// than by eye. And it must touch as little as possible, which is the whole
+// point: a change spanning the whole document is a correct answer and a useless
+// one, so the spans are pinned.
+function minimalChangeCases() {
+  const apply = (prev, c) => prev.slice(0, c.from) + c.insert + prev.slice(c.to);
+  const round = (prev, next) => apply(prev, minimalChange(prev, next));
+
+  {
+    const prev = "אלף בית גימל דלת";
+    const next = "אלף בית#הערה[] גימל דלת";
+    const c = minimalChange(prev, next);
+    check("an insertion in the middle reconstructs", round(prev, next), next);
+    check("…and touches only the insertion point", c.from, "אלף בית".length);
+    check("…replacing nothing", c.to, c.from);
+    check("…with just the note", c.insert, "#הערה[]");
+  }
+  {
+    const prev = "אלף בית גימל";
+    const next = "אלף גימל";
+    const c = minimalChange(prev, next);
+    check("a deletion reconstructs", round(prev, next), next);
+    ok("…and spans only what went", c.to - c.from <= " בית".length + 1, `${c.from}..${c.to}`);
+  }
+  {
+    // Equal documents: `from === to` and nothing inserted, which is the signal
+    // callers use to skip the dispatch rather than push an empty undo step.
+    const c = minimalChange("שווה", "שווה");
+    check("equal documents are an empty change", [c.from, c.to, c.insert], [0, 0, ""]);
+  }
+  {
+    check("appending only touches the end", minimalChange("אב", "אבג").from, 2);
+    check("prepending only touches the start", minimalChange("בג", "אבג").to, 0);
+    check("an empty document filling up reconstructs", round("", "טקסט"), "טקסט");
+    check("a document emptying reconstructs", round("טקסט", ""), "");
+  }
+  {
+    // Repetition is where a naive prefix/suffix scan overlaps itself: the two
+    // runs must not claim the same characters, or the reconstruction gains or
+    // loses one.
+    check("a run of the same character reconstructs", round("אאאא", "אאאאא"), "אאאאא");
+    check("…and shrinking one does too", round("אאאאא", "אאאא"), "אאאא");
+    check("a repeated word reconstructs", round("שם שם שם", "שם שם"), "שם שם");
+  }
+  {
+    // Astral characters. Hebrew is in the BMP, but a heading can hold an emoji,
+    // and a prefix that ends between the halves of a surrogate pair hands
+    // CodeMirror a position that is not a character boundary.
+    const prev = "כותרת 😀 סוף";
+    const next = "כותרת 😀😀 סוף";
+    const c = minimalChange(prev, next);
+    check("an astral character reconstructs", round(prev, next), next);
+    ok("…and the change starts on a character boundary",
+      !isLow(prev.charCodeAt(c.from)), `code ${prev.charCodeAt(c.from).toString(16)}`);
+    ok("…and ends on one", c.to >= prev.length || !isLow(prev.charCodeAt(c.to)),
+      `code ${prev.charCodeAt(c.to).toString(16)}`);
+  }
+}
+
+const isLow = (c) => c >= 0xdc00 && c <= 0xdfff;

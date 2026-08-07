@@ -97,7 +97,8 @@ import {
   overlayPanel,
 } from "./panels";
 import { BUNDLED_NOTICES } from "./engine.gen";
-import { plainText } from "./spans";
+import { docTextOf, plainText } from "./spans";
+import { minimalChange } from "./diff";
 import {
   settings,
   saveSettings,
@@ -205,7 +206,7 @@ function starterDoc(): string {
  * no undo across a document swap.
  */
 function swapUntouchedStarter() {
-  const body = runtime.view.state.doc.toString();
+  const body = docTextOf(runtime.view.state.doc);
   const want = starterDoc();
   if (body === want || (body !== STARTER_HE && body !== STARTER_EN)) return;
   const dir = getLang() === "en" ? "ltr" : "rtl";
@@ -446,7 +447,7 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
     id: "tieredNote",
     run: () => {
       const st = runtime.view.state;
-      insertSnippet(tieredNoteHere(st.doc.toString(), st.selection.main.from));
+      insertSnippet(tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
       return true;
     },
   },
@@ -626,7 +627,7 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
       // The completion fired because a `#` was typed — but inside an argument
       // list that `#` is itself the error, so the completion replaces it with
       // the bare call rather than completing a mistake into a longer mistake.
-      const snip = insertionAt(v.state.doc.toString(), from, raw, to);
+      const snip = insertionAt(docTextOf(v.state.doc), from, raw, to);
       const pipe = snip.indexOf("|");
       const text = pipe >= 0 ? snip.slice(0, pipe) + snip.slice(pipe + 1) : snip;
       const cursor = pipe >= 0 ? from + pipe : from + text.length;
@@ -656,7 +657,7 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
  * called without anyone doing a copy-editing pass.
  */
 function sefarimCompletions(context: CompletionContext): CompletionResult | null {
-  const arg = sefarim.seferArgAt(context.state.doc.toString(), context.pos);
+  const arg = sefarim.seferArgAt(docTextOf(context.state.doc), context.pos);
   if (!arg) return null;
   if (arg.query === "" && !context.explicit) return null;
   const hits = sefarim.suggest(arg.query);
@@ -699,7 +700,7 @@ async function runSpellCheck() {
   if (!runtime.backend || !settings.spellcheck || !runtime.view) return;
   // Only the text that will actually print: command names are not misspellings,
   // and underlining them would make the feature useless on its first document.
-  const text = spell.checkableText(runtime.view.state.doc.toString());
+  const text = spell.checkableText(docTextOf(runtime.view.state.doc));
   try {
     const res = await runtime.backend.spell(text, spell.userWordsText(), false);
     spellFailed = false;
@@ -968,7 +969,7 @@ function makeEditor(): EditorView {
           // Right-click on a note: convert it, delete it with its marker, or
           // hang another note off it. The operations existed as commands and
           // nowhere a pointer could reach them.
-          if (noteAt(v.state.doc.toString(), pos)) {
+          if (noteAt(docTextOf(v.state.doc), pos)) {
             e.preventDefault();
             openNoteMenu(e, pos);
             return true;
@@ -999,11 +1000,7 @@ function makeEditor(): EditorView {
           scheduleSave();
           scheduleCompile();
           updateCounts();
-          // The review list is a runtime.view of the document's own marks, so an edit
-          // anywhere — not only a decision taken in the panel — must refresh it.
-          if (isReviewOpen()) renderReviewPanel();
-          if (settings.outline) renderOutline();
-          if (settings.notesPane) renderNotesPane();
+          refreshPanes();
         }
       }),
     ],
@@ -1024,7 +1021,7 @@ export function countableText(src: string): string {
 function countNow() {
   const el = document.getElementById("wordcount");
   if (!el || !runtime.view) return;
-  const text = countableText(runtime.view.state.doc.toString());
+  const text = countableText(docTextOf(runtime.view.state.doc));
   const words = (text.match(/[^\s]+/g) || []).length;
   const chars = text.replace(/\s+/g, " ").trim().length;
   el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
@@ -1040,6 +1037,42 @@ function countNow() {
  * sixty frames a second; a fifth of a second late it is still the same number,
  * and the keystroke it is late for is the one being typed.
  */
+/**
+ * The three side panes, on the same beat as the word count.
+ *
+ * These were called synchronously from the update listener, on **every
+ * keystroke**, and they are not cheap:
+ *
+ *   - `renderOutline()` scans the document and rebuilds the list.
+ *   - `renderNotesPane()` scans it, then calls `plainText()` once per note — on
+ *     a sefer with 200 notes that is 200 more scanner invocations and ~600 DOM
+ *     nodes, per character typed.
+ *   - `renderReviewPanel()` scans, rebuilds, and in doing so **destroys the
+ *     reviewer-name input** — including while somebody is typing into it. That
+ *     one is not a performance bug at all; it is why the field could not be
+ *     filled in on a document that was also being edited.
+ *
+ * And these are precisely the two panes a writer keeps open *while writing*, so
+ * the cost lands on the person the feature is for.
+ *
+ * The same 200 ms as the count, and for the same reason: nobody reads an outline
+ * at sixty frames a second, and a fifth of a second later it is the same list.
+ * The panes still refresh immediately when they are *opened* — `renderOutline`
+ * and friends are called directly there — so only the typing path is delayed.
+ */
+let paneTimer: number | undefined;
+function refreshPanes() {
+  clearTimeout(paneTimer);
+  paneTimer = window.setTimeout(() => {
+    // The review list is a view of the document's own marks, so an edit
+    // anywhere — not only a decision taken in the panel — must refresh it.
+    if (isReviewOpen()) renderReviewPanel();
+    if (settings.outline) renderOutline();
+    if (settings.notesPane) renderNotesPane();
+  }, PANE_DEBOUNCE_MS);
+}
+const PANE_DEBOUNCE_MS = 200;
+
 let countTimer: number | undefined;
 const COUNT_DEBOUNCE_MS = 200;
 function updateCounts() {
@@ -1425,7 +1458,7 @@ function insertSnippet(rawSnippet: string) {
   if (!inAction) noteSnippet(rawSnippet);
   const sel = runtime.view.state.selection.main;
   const selText = runtime.view.state.sliceDoc(sel.from, sel.to);
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   rawSnippet = continueSeries(doc, sel.from, rawSnippet);
 
   // A note is a layout, not a string: it may need a dump call at the end of the
@@ -1607,7 +1640,7 @@ function headingLevelSelect(): HTMLElement {
   }
   sel.addEventListener("change", () => {
     const want = parseInt(sel.value, 10);
-    const doc = runtime.view.state.doc.toString();
+    const doc = docTextOf(runtime.view.state.doc);
     const pos = runtime.view.state.selection.main.head;
     if (want === 0) {
       const h = heads.headingAt(doc, pos);
@@ -1616,10 +1649,7 @@ function headingLevelSelect(): HTMLElement {
       // one would drop its number, which is the writer's text.
       const e = heads.unwrapHeading(doc, h);
       if (!e) return;
-      runtime.view.dispatch({
-        changes: { from: 0, to: doc.length, insert: e.text },
-        selection: { anchor: Math.min(e.caret, e.text.length) },
-      });
+      editDoc(e.text, e.caret);
       scheduleCompile();
       runtime.view.focus();
       return;
@@ -1646,7 +1676,7 @@ function noteBtn(action: string, glyph: string, snippet: string | null): HTMLEle
     title,
     () => {
       const st = runtime.view.state;
-      insertSnippet(snippet ?? tieredNoteHere(st.doc.toString(), st.selection.main.from));
+      insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
     },
     "",
     { "data-action": action },
@@ -1770,7 +1800,7 @@ function docsMenuItems(): (Node | string)[] {
  * no shortcut.
  */
 function structureMenuItems(structures: structure.Structure[]): (Node | string)[] {
-  const doc = runtime.view?.state.doc.toString() ?? "";
+  const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";
   const caret = runtime.view?.state.selection.main.head ?? 0;
   const pos = structure.structureNear(doc, caret)?.pos ?? caret;
   const kb = keybindings();
@@ -1931,7 +1961,7 @@ function insertMenuItems(): (Node | string)[] {
         onClick: () => {
           closeMenus();
           const st = runtime.view.state;
-          insertSnippet(snippet ?? tieredNoteHere(st.doc.toString(), st.selection.main.from));
+          insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
         },
       },
       [
@@ -1968,7 +1998,7 @@ function insertMenuItems(): (Node | string)[] {
     ]),
     el("div", { class: "menu-sep" }),
   ];
-  const doc = runtime.view?.state.doc.toString() ?? "";
+  const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";
   const pos = runtime.view?.state.selection.main.from ?? 0;
   for (const cat of cats) {
     items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
@@ -2692,7 +2722,7 @@ function toggleNotesPane() {
 function renderNotesPane() {
   const host = document.getElementById("notes-list");
   if (!host || !runtime.view) return;
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const items = notesIn(doc);
   host.innerHTML = "";
   if (!items.length) {
@@ -2744,7 +2774,7 @@ function renderNotesPane() {
  */
 function openNoteMenu(e: MouseEvent, at: number) {
   closeSpellMenu();
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const note = noteAt(doc, at);
   if (!note) return;
   // Derived from the chooser, not hand-listed. This was six Hebrew literals out
@@ -2779,7 +2809,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
           class: "menu-item menu-cmd",
           onClick: () => {
             closeSpellMenu();
-            const e2 = convertNote(runtime.view.state.doc.toString(), note, command);
+            const e2 = convertNote(docTextOf(runtime.view.state.doc), note, command);
             // …and then the scaffolding the new layout needs, which is what
             // `applyNoteChoice` — docstringed *"The only place that does"* —
             // has always done for an inserted note. `convertNote` writes
@@ -2803,7 +2833,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
         class: "menu-item",
         onClick: () => {
           closeSpellMenu();
-          const e2 = deleteNote(runtime.view.state.doc.toString(), note);
+          const e2 = deleteNote(docTextOf(runtime.view.state.doc), note);
           replaceAll(e2.text, e2.caret);
           setStatus(t("noteDeleted"), "ok");
         },
@@ -2817,19 +2847,48 @@ function openNoteMenu(e: MouseEvent, at: number) {
   document.body.append(menu);
 }
 
+/**
+ * Apply a rewritten document as the smallest change that produces it.
+ *
+ * Every producer here returns whole text, which is the right shape for a pure
+ * function and the wrong thing to dispatch. `{from: 0, to: doc.length}` tells
+ * CodeMirror that every character was replaced, so it discards the syntax tree,
+ * the decorations, the lint marks and **every open fold** — including the
+ * `//{ … //}` regions this app invites the writer to make. On a 500 KB sefer
+ * that happened on every `†`: the document came out identical and the screen
+ * did not, because everything the writer had collapsed was open again.
+ *
+ * `minimalChange` finds the span that actually differs, so the state either side
+ * of it stays addressed by positions that did not move. See `diff.ts`.
+ *
+ * Not for *loading* a document — `openDoc`, `loadBody` and an arriving source
+ * really do replace everything, and resetting the folds is correct there. This
+ * is for the operations that edit the document the writer is already in.
+ */
+function editDoc(next: string, caret?: number, extra: { scrollIntoView?: boolean } = {}) {
+  const change = minimalChange(docTextOf(runtime.view.state.doc), next);
+  const unchanged = change.from === change.to && change.insert === "";
+  runtime.view.dispatch({
+    // An operation can apply and still produce the same source — swapping two
+    // identical rows is a real edit with no visible result. Dispatching the
+    // document over itself would push an empty step onto the undo stack and
+    // recompile for nothing, so only the caret moves.
+    changes: unchanged ? undefined : change,
+    ...(caret == null ? {} : { selection: { anchor: Math.min(caret, next.length) } }),
+    ...extra,
+  });
+}
+
 /** Swap the whole document and put the caret somewhere sensible. */
 function replaceAll(text: string, caret: number) {
-  runtime.view.dispatch({
-    changes: { from: 0, to: runtime.view.state.doc.length, insert: text },
-    selection: { anchor: Math.min(caret, text.length) },
-  });
+  editDoc(text, caret);
   scheduleCompile();
   runtime.view.focus();
 }
 function renderOutline() {
   const host = document.getElementById("outline-list");
   if (!host || !runtime.view) return;
-  const items = outline(runtime.view.state.doc.toString());
+  const items = outline(docTextOf(runtime.view.state.doc));
   host.innerHTML = "";
   if (!items.length) {
     host.append(el("div", { class: "outline-empty" }, [t("noHeadings")]));
@@ -2860,7 +2919,7 @@ function renderOutline() {
 
 async function takeSnapshot(force = false): Promise<boolean> {
   if (!runtime.view || !runtime.currentDoc) return false;
-  const body = runtime.view.state.doc.toString();
+  const body = docTextOf(runtime.view.state.doc);
   try {
     const stored = await docs.pushSnapshot(runtime.currentDoc.id, body);
     if (!stored && force) {
@@ -2996,7 +3055,7 @@ function paletteKey(e: KeyboardEvent): boolean {
  */
 function paletteActions(): { id: string; label: string; key: string }[] {
   const kb = keybindings();
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const here = new Set(
     structure
       .availableAt(doc, runtime.view.state.selection.main.head)
@@ -3168,7 +3227,7 @@ function saveAsTemplate() {
   const name = prompt(t("templateName"));
   if (!name) return;
   const list = userTemplates();
-  list.push({ id: "u" + performance.now().toString(36), name, body: runtime.view.state.doc.toString() });
+  list.push({ id: "u" + performance.now().toString(36), name, body: docTextOf(runtime.view.state.doc) });
   if (saveUserTemplates(list)) rerenderChrome();
 }
 function deleteUserTemplate(id: string) {
@@ -3639,7 +3698,7 @@ function contextBar(): HTMLElement {
 function updateContextBar() {
   const bar = document.getElementById("context-bar");
   if (!bar || !runtime.view) return;
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const pos = runtime.view.state.selection.main.head;
   // A hydra owns the keyboard, so it must not outlive the thing it operates on.
   // Clicking into ordinary prose and then typing would otherwise have every
@@ -3651,10 +3710,20 @@ function updateContextBar() {
 
   // The paragraph-style readout follows the caret whether or not the ribbon has
   // anything to show, so it is updated before the early return below.
+  //
+  // `headingAt(doc, pos)` with two arguments fires its default third — the whole
+  // heading list — to set the value of a `<select>`, on every arrow key. It is
+  // memoised per scan now (`headings.ts`), so this is a lookup rather than a
+  // filter-and-map over every node in the document, and it is the same array the
+  // `StructureContext` below shares.
   const levelSel = document.getElementById("heading-level") as HTMLSelectElement | null;
   if (levelSel) {
     const on = heads.headingAt(doc, pos);
-    levelSel.value = String(on ? on.level : 0);
+    const want = String(on ? on.level : 0);
+    // Assigning `value` on a `<select>` is not free and fires no change event,
+    // but it does invalidate style and can close a native dropdown the writer
+    // has open. Most caret moves do not change the answer.
+    if (levelSel.value !== want) levelSel.value = want;
   }
 
   // Sticky by one character: see `structureNear`. Finishing a list left the
@@ -3666,9 +3735,45 @@ function updateContextBar() {
   if (here.length === 0) {
     closePanel("context-bar");
     bar.replaceChildren();
+    delete bar.dataset.signature;
     return;
   }
   const at = structure.whereAmI(doc, near)!;
+
+  // Rebuild only when the ribbon would come out different.
+  //
+  // `replaceChildren` destroys and rebuilds the whole strip — up to eighteen
+  // buttons and their listeners — and this function runs on **every arrow key**.
+  // Moving the caret within one table cell produced identical markup and threw
+  // the previous copy away anyway, so a writer holding the down arrow generated
+  // a few hundred buttons a second for the collector, and any native tooltip or
+  // focus on a ribbon button died under them.
+  //
+  // The signature is everything the render reads: which structure, the position
+  // readout, and each action's id and enabled state in order. Not a hash — a
+  // string, compared once, of a few hundred characters. Language and keybindings
+  // are in it because the strip is rebuilt from scratch when either changes and
+  // this must not out-vote that.
+  const signature = [
+    getLang(),
+    at.structure,
+    at.row,
+    at.col,
+    at.rows,
+    at.cols,
+    here.map(({ action, enabled }) => `${action.id}${enabled ? "+" : "-"}`).join(","),
+  ].join("|");
+  if (bar.dataset.signature === signature && bar.childElementCount) {
+    openPanel("context-bar");
+    return;
+  }
+  bar.dataset.signature = signature;
+
+  // Hoisted. It was read inside the loop below — seventeen times in a table,
+  // and `keybindings()` rebuilds the whole map from settings on each call, so a
+  // caret move in a table cost ~850 property copies for a value that cannot
+  // change mid-loop. `structureMenuItems` in this same file already hoists it.
+  const keys = keybindings();
 
   const children: Node[] = [
     el("span", { class: "context-bar-label" }, [
@@ -3686,7 +3791,7 @@ function updateContextBar() {
     // read as three things rather than one wall of glyphs.
     if (group && action.group !== group) children.push(el("span", { class: "tb-sep" }));
     group = action.group;
-    const key = keybindings()[action.id];
+    const key = keys[action.id];
     const name = t(action.label);
     children.push(
       el(
@@ -3978,7 +4083,7 @@ let openHydraState: hydra.Hydra | null = null;
 /** Whatever the caret is in, opened as a hydra. */
 function openHydra() {
   if (!runtime.view) return;
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const pos = runtime.view.state.selection.main.head;
   const kind = structure.structureAt(doc, pos);
   if (!kind) {
@@ -4003,7 +4108,7 @@ function renderHydra() {
   const panel = document.getElementById("hydra")!;
   const h = openHydraState;
   if (!h) return;
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const pos = runtime.view.state.selection.main.head;
 
   let group = "";
@@ -4127,7 +4232,7 @@ function captureHydraKeys(event: KeyboardEvent) {
 function runStructureAction(action: structure.StructureAction, sticky = false): boolean {
   if (!runtime.view) return false;
   noteAction(action.id);
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const caret = runtime.view.state.selection.main.head;
   const pos = sticky ? (structure.structureNear(doc, caret)?.pos ?? caret) : caret;
   const edit = action.run(doc, pos);
@@ -4137,11 +4242,7 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
   // document over itself would push an empty step onto the undo stack and
   // recompile for nothing, so only the caret moves.
   const changed = edit.text !== doc;
-  runtime.view.dispatch({
-    changes: changed ? { from: 0, to: doc.length, insert: edit.text } : undefined,
-    selection: { anchor: Math.min(edit.caret, edit.text.length) },
-    scrollIntoView: true,
-  });
+  editDoc(edit.text, edit.caret, { scrollIntoView: true });
   if (changed) scheduleCompile();
   requestAnimationFrame(updateContextBar);
   return true;
@@ -4163,7 +4264,7 @@ function openStyles() {
 
 /** Read the document's current value for one styling argument. */
 function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
-  const call = styles.findStyleCall(runtime.view.state.doc.toString(), kind);
+  const call = styles.findStyleCall(docTextOf(runtime.view.state.doc), kind);
   return call?.args.get(key);
 }
 
@@ -4174,10 +4275,10 @@ function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
  *  does not drop a Hebrew command into it. An existing call keeps whatever
  *  language it was already written in. */
 function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const next = styles.setStyleArgs(doc, kind, changes, docLang());
   if (next === doc) return;
-  runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+  editDoc(next);
   scheduleCompile();
   renderStylesPanel();
 }
@@ -4497,30 +4598,30 @@ function openReview() {
 
 /** Replace the whole document text (a decision rewrites the source). */
 function replaceDoc(next: string) {
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   if (next === doc) return;
-  runtime.view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+  editDoc(next);
   scheduleCompile();
   renderReviewPanel();
 }
 
 function decideMark(mark: review.ReviewMark, decision: review.Decision) {
-  replaceDoc(review.decide(runtime.view.state.doc.toString(), mark, decision));
+  replaceDoc(review.decide(docTextOf(runtime.view.state.doc), mark, decision));
 }
 
 function decideEverything(decision: review.Decision) {
   if (!confirm(t(decision === "accept" ? "confirmAcceptAll" : "confirmRejectAll"))) return;
-  replaceDoc(review.decideAll(runtime.view.state.doc.toString(), decision));
+  replaceDoc(review.decideAll(docTextOf(runtime.view.state.doc), decision));
 }
 
 /** Which review runtime.view the document currently reads in. */
 function reviewView(): review.ReviewView {
-  const raw = styles.findStyleCall(runtime.view.state.doc.toString(), "review")?.args.get("תצוגה");
+  const raw = styles.findStyleCall(docTextOf(runtime.view.state.doc), "review")?.args.get("תצוגה");
   return review.viewFromValue(styles.readString(raw));
 }
 
 function setReviewView(v: review.ReviewView) {
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   // The markup runtime.view is the default, so it is written as *no* command at all
   // rather than as a redundant one sitting at the top of every reviewed file.
   const next = styles.setStyleArgs(doc, "review", {
@@ -4534,7 +4635,7 @@ const MARK_ICON: Record<review.MarkKind, string> = { insert: "＋", delete: "－
 function renderReviewPanel() {
   const box = document.getElementById("review-body");
   if (!box || !runtime.view) return;
-  const doc = runtime.view.state.doc.toString();
+  const doc = docTextOf(runtime.view.state.doc);
   const marks = review.scanMarks(doc);
   const changes = marks.filter((m) => m.kind !== "comment").length;
   const view0 = reviewView();
@@ -4785,17 +4886,14 @@ function applyNoteChoice(
 ) {
   const from = runtime.view.state.selection.main.from;
   const { text, caret } = applyChoice(
-    runtime.view.state.doc.toString(),
+    docTextOf(runtime.view.state.doc),
     from,
     choice,
     which,
     deferBodies(),
     sel,
   );
-  runtime.view.dispatch({
-    changes: { from: 0, to: runtime.view.state.doc.length, insert: text },
-    selection: { anchor: caret },
-  });
+  editDoc(text, caret);
   scheduleCompile();
 }
 
@@ -4823,7 +4921,7 @@ async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
   // 700 characters lands in the middle of a bracket about as often as not, and
   // a preview that silently never appears because the excerpt would not compile
   // is worse than an honest sketch. So: strip the commands, keep the prose.
-  const own = plainText(runtime.view.state.doc.toString()).slice(0, 700);
+  const own = plainText(docTextOf(runtime.view.state.doc)).slice(0, 700);
   const filler = Array.from({ length: 18 }, (_, i) => t("notePreviewLine") + " " + (i + 1)).join(
     "\n\n",
   );

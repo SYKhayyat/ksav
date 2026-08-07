@@ -99,6 +99,61 @@ export async function run() {
   }
   check("no module but spans.ts counts bracket depth", counters, []);
 
+  // The third shape, and it is not a duplicate scanner — it is the *right*
+  // scanner fed the wrong text. `ksav-lang.ts` and `bidi.ts` both handed
+  // `doc.sliceString(from, to)` — the viewport — to `scan()`, which `spans.ts`
+  // says outright cannot work: *"a `"` two lines up decides whether the bracket
+  // in hand is structure or prose."* So the highlighter coloured the same
+  // character differently depending on where the writer had scrolled to, and
+  // `bidi.ts` isolated a different set of ranges — and an isolate feeds
+  // CodeMirror's caret measurement, which `bidi.ts:55-57` calls "a worse bug
+  // than the one being fixed: the text would look right and the cursor would
+  // lie."
+  //
+  // Scan the whole document and filter to `visibleRanges` in position space.
+  // The scan is memoised per document, so it is also *less* work.
+  const SLICE_ASSIGN = /\b(?:const|let|var)\s+(\w+)\s*=\s*[^;]*\bsliceString\s*\(/;
+  const fed = [];
+  for (const f of names) {
+    const lines = (await readFile(path.join(SRC, f), "utf8")).split("\n");
+    lines.forEach((line, i) => {
+      const m = !isComment(line) && SLICE_ASSIGN.exec(line);
+      if (!m) return;
+      // A slice handed to the scanner within a few lines of being taken. The
+      // window is small on purpose: the point is the value flowing straight
+      // through, not any `sliceString` in the neighbourhood — `ksav-lang.ts`
+      // legitimately slices to find a block comment's close and scans the whole
+      // document ten lines later.
+      const near = lines.slice(i + 1, i + 5).filter((l) => !isComment(l)).join("\n");
+      const call = new RegExp(`\\b(?:scan|scanOf|isolateSpans)\\s*\\(\\s*${m[1]}\\b`);
+      if (call.test(near) || call.test(line)) fed.push(`${f}:${i + 1}`);
+    });
+  }
+  check("no module hands the scanner a viewport slice", fed, []);
+
+  // And the behaviour the fence is standing in for, from the scanner's side: a
+  // slice really does answer differently, so "scan the whole document" is a
+  // correctness requirement and not a preference.
+  {
+    const doc = `#הערה_זרם("a)b")[גוף]\n#הדגשה[עוד]\n`;
+    const cut = doc.indexOf("\n") + 1;
+    const whole = spans.scan(doc);
+    const tail = spans.scan(doc.slice(cut));
+    check("scanned whole, the string is closed and both calls are found", whole.nodes.length, 2);
+    check("…and there is exactly one string in it", whole.strings.length, 1);
+    // The slice begins after the `("a)b")` — nothing is unbalanced in it — so
+    // the two agree here. The disagreement is the *other* way round and is what
+    // §2b's corpus covers; what this pins is that the tail is a different
+    // document, which is the whole reason position space is the only sound
+    // place to filter.
+    check("scanned from the second line, it is a different document", tail.nodes.length, 1);
+    check(
+      "…whose positions do not line up with the real ones",
+      tail.nodes[0].from + cut,
+      whole.nodes[1].from,
+    );
+  }
+
   // ------------------------------------------ 2. the six, from both surfaces
 
   // (1) A gershayim used to switch off every list operation, because this

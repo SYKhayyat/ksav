@@ -462,6 +462,29 @@ outright (*"the two scanners must agree or the lint would contradict the rendere
 `spans.ts:27` quotes approvingly as the reason the file exists. **Fix:** one loop with a `recover`
 parameter; ~60 lines deleted.
 
+> ### ✅ Fixed — 7 August 2026
+>
+> Both call sites scan the whole document and filter to `visibleRanges` in
+> position space, which is what the finding prescribed and which does reduce
+> work. The fence is structural — a value taken from `sliceString` and handed to
+> `scan`/`scanOf`/`isolateSpans` within a few lines is a failing test — and it
+> was checked against both original bugs *and* against the one legitimate
+> `sliceString` in `ksav-lang.ts` (the fold service looking for a block comment's
+> close), which it correctly leaves alone.
+>
+> The **memo** half took a different answer than the one proposed. "Compare
+> length and a cheap fingerprint before `===`" cannot work: while typing, the
+> four cached documents have the *same length* and differ by one character, so
+> any fingerprint cheap enough to be worth computing can miss the edit — and a
+> memo that returns a stale scan is a far worse bug than a slow one. Instead
+> `scanOf(key, () => text)` keys on CodeMirror's `Text`, which is immutable and
+> shared between states that did not change it. That is O(1) on a hit *and*
+> skips the `doc.toString()` allocation, which was itself a second pass over the
+> document that the finding did not count. Two `Text` objects with identical
+> content are two misses, never a wrong answer.
+>
+> `main.ts`'s hot callers are converted with §18.
+
 And `ksav-lang.ts:53-56` and `bidi.ts:275-277` both feed `scan()` a **viewport slice** —
 `doc.sliceString(from, to)` — when `spans.ts:926-928` is emphatic that this cannot work: *"a `"` two
 lines up decides whether the bracket in hand is structure or prose."* So the highlighter colours
@@ -1113,7 +1136,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | 8 | 310 ms/keystroke re-rendering pages the client already has. | 10 | 3 | `rewrite` | ~80 lines |
 | 9 | CI does not run on release tags; `deploy.yml` runs no tests. | 10 | 2 | `rewrite` | ~40 lines YAML |
 | 10 | `ksav/engine/web/` — a second, drifted editor invisible to the insertion fence. | 2 | 1 | `delete` | ~250 lines out |
-| 11 | Viewport slices fed to `scan()`; the caret can lie. Memo lookup 200× slower while typing. | 6, 13 | 3 | `rewrite` | **~9 lines** |
+| 11 | ✅ **Fixed 7 Aug.** Viewport slices fed to `scan()`; the caret could lie. Both call sites now scan the whole document and filter to `visibleRanges` in position space. The memo answer is different from the one proposed — there is no safe cheap *string* test, so `scanOf` keys on CodeMirror's immutable `Text` and takes the text as a thunk, which skips the `toString()` allocation too. Fenced structurally: a `sliceString` result reaching `scan`/`isolateSpans` is now a failing test, checked against both original bugs and against the one legitimate slice. `main.ts`'s callers move over with §18. | 6, 13 | 3 | `rewrite` | ~30 lines, and it removes work |
 | 12 | The apparatus has no template; ten templates show 8 of 115 commands. | 3 | 1 | `wrong-but-keep` | 2 days |
 | 13 | `_en_params` collisions: `justify`→alignment, `title` unreachable, 12 params English-less. | 10 | 2 | `rewrite` | ~1 day |
 | 14 | "Eleven, and nothing else" — two greyed cells are false; the fence counts the prose. | 4 | 1 | `wrong-but-keep` | ~40 lines |

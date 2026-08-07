@@ -70,7 +70,7 @@ import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { Direction } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
-import { scan } from "./spans";
+import { scan, scanOf, type Scan } from "./spans";
 
 export type Dir = "rtl" | "ltr";
 
@@ -195,10 +195,13 @@ export interface Isolate {
  * outermost is kept. (`#b91c1c` itself is no longer among them: the scanner
  * tracks code-mode strings, so a colour literal is text rather than a command
  * that happens to start with a hash.)
+ *
+ * `s` defaults to scanning `text`, and is passed in by the CodeMirror layer so
+ * that a caller which already holds this document's scan does not pay a memo
+ * probe — which is O(document) while typing, for the reason `scanOf` gives.
  */
-export function isolateSpans(text: string): Isolate[] {
+export function isolateSpans(text: string, s: Scan = scan(text)): Isolate[] {
   const spans: Isolate[] = [];
-  const s = scan(text);
   for (const c of s.comments) {
     spans.push({ from: c.from, to: c.to, dir: naturalDirection(text.slice(c.from, c.to)) });
   }
@@ -271,17 +274,26 @@ const ISOLATE_DECO = {
 };
 
 function isolateDecorations(view: EditorView): DecorationSet {
-  const ranges: { from: number; deco: Decoration; to: number }[] = [];
-  for (const { from, to } of view.visibleRanges) {
-    const text = view.state.doc.sliceString(from, to);
-    for (const s of isolateSpans(text)) {
-      ranges.push({
-        from: from + s.from,
-        to: from + s.to,
-        deco: s.dir ? ISOLATE_DECO[s.dir] : ISOLATE_DECO.auto,
-      });
-    }
-  }
+  // Isolates are decided over the **whole document** and then filtered to what
+  // is on screen, and here that is a correctness rule rather than a tidiness
+  // one. This used to run `isolateSpans` over `doc.sliceString(from, to)`, so
+  // the set of isolated runs changed as the writer scrolled — and an isolate
+  // feeds CodeMirror's caret measurement. The comment at the top of this file
+  // names that exact outcome as *"a worse bug than the one being fixed: the text
+  // would look right and the cursor would lie."*
+  //
+  // `isolateSpans` reads the memoised scan, which `proseMode` has already taken
+  // for this document in this frame, so scanning more text costs less work than
+  // slicing it did.
+  const s = scanOf(view.state.doc, () => view.state.doc.toString());
+  const visible = view.visibleRanges;
+  const ranges = isolateSpans(s.text, s)
+    .filter((s) => visible.some((v) => s.from <= v.to && s.to >= v.from))
+    .map((s) => ({
+      from: s.from,
+      to: s.to,
+      deco: s.dir ? ISOLATE_DECO[s.dir] : ISOLATE_DECO.auto,
+    }));
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
   return Decoration.set(ranges.map((r) => r.deco.range(r.from, r.to)), true);
 }

@@ -22,6 +22,7 @@ import {
   plainText,
   plainTextIn,
   scan,
+  scanOf,
   type Group,
   type ListKind,
   type Node,
@@ -49,20 +50,33 @@ const bracketMark = Decoration.mark({ class: "ksav-bracket" });
 const commentMark = Decoration.mark({ class: "ksav-comment" });
 
 function highlightDecorations(view: EditorView): DecorationSet {
+  // Scan the **whole document**, then filter to what is on screen.
+  //
+  // This used to scan `doc.sliceString(from, to)` — the viewport — and
+  // `spans.ts` is emphatic that a scanner cannot work that way: *"a `"` two
+  // lines up decides whether the bracket in hand is structure or prose."* So the
+  // same character was coloured differently depending on where the writer had
+  // scrolled to, and a `#הערה_זרם("a)b")` whose string opened above the fold
+  // took the rest of the screen with it.
+  //
+  // It also *reduces* work rather than adding it: `proseMode` has already
+  // scanned this exact document in this frame, so this is a memo hit keyed on
+  // the doc object, and the slice allocation per visible range is gone.
   const ranges: { from: number; to: number; deco: Decoration }[] = [];
-  for (const { from, to } of view.visibleRanges) {
-    const text = view.state.doc.sliceString(from, to);
-    const s = scan(text);
-    for (const c of s.comments) {
-      ranges.push({ from: from + c.from, to: from + c.to, deco: commentMark });
-    }
-    // Commands inside comments are not nodes at all, so there is nothing to skip.
-    for (const n of s.nodes) {
-      ranges.push({ from: from + n.from, to: from + n.nameTo, deco: cmdMark });
-      for (const b of n.bodies) {
-        ranges.push({ from: from + b.from - 1, to: from + b.from, deco: bracketMark });
-        ranges.push({ from: from + b.to, to: from + b.to + 1, deco: bracketMark });
-      }
+  const s = scanOf(view.state.doc, () => view.state.doc.toString());
+  const visible = view.visibleRanges;
+  const onScreen = (from: number, to: number) =>
+    visible.some((v) => from <= v.to && to >= v.from);
+  const add = (from: number, to: number, deco: Decoration) => {
+    if (onScreen(from, to)) ranges.push({ from, to, deco });
+  };
+  for (const c of s.comments) add(c.from, c.to, commentMark);
+  // Commands inside comments are not nodes at all, so there is nothing to skip.
+  for (const n of s.nodes) {
+    add(n.from, n.nameTo, cmdMark);
+    for (const b of n.bodies) {
+      add(b.from - 1, b.from, bracketMark);
+      add(b.to, b.to + 1, bracketMark);
     }
   }
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
@@ -933,7 +947,7 @@ export const ksavFold = foldService.of((state, lineStart) => {
     }
   }
 
-  const s = scan(doc.toString());
+  const s = scanOf(doc, () => doc.toString());
 
   // 1) heading section fold
   const lvl = sectionLevelAt(s, line.from, line.to);
@@ -972,7 +986,7 @@ function foldLabelText(state: EditorState, range: { from: number; to: number }):
   const text = line.text;
   const region = text.match(/\/\/\{\s*(.*)$/); // //{ label
   if (region) return region[1].trim() || "…";
-  const s = scan(state.doc.toString());
+  const s = scanOf(state.doc, () => state.doc.toString());
   const head = s.nodes.find(
     (n) => n.role === "heading" && n.from >= line.from && n.from <= line.to,
   );

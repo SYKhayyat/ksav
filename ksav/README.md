@@ -453,7 +453,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,705 editor assertions, 397 engine
+- [x] **CI, running and green** — typecheck, 3,710 editor assertions, 397 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -619,7 +619,7 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,705 assertions across 60 files
+cd app && npm test                          # 3,710 assertions across 60 files
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 397 tests, 26 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings

@@ -918,6 +918,73 @@ Not a compliment quota. Five places where I built the alternative and it lost.
 
 ---
 
+## 16. Appendix: the duplication, sorted by what it actually costs
+
+Added 7 Aug after the question *"is there really duplicated code here?"* — because the answer is
+yes, no, and it depends, and the useful axis turns out to be **caller count**, not similarity.
+
+The tempting split is "exact copies have no purpose, delete them; partial copies have a purpose,
+compact them." That breaks on the middle case, which is most of the volume: `coverage.test.mjs:37`
+and `notecommands.test.mjs:51` hold a **byte-identical** 200-character regex, and both files
+genuinely need a parser. The *duplication* has no purpose; both *uses* do. There is nothing to
+delete — there is one module to extract.
+
+### Bucket 1 — zero callers. This is the only place "delete" is literally right.
+
+| | callers | out |
+|---|---|---|
+| `probe.rs:141` `Line::logical_text` | **0**, and behaviourally identical to `Line::text` while its doc comment claims the opposite | ~6 |
+| `probe.rs:84` `probe::page_text` | **0** (the `page_text(&runs)` call sites are test-local helpers — bucket 2) | ~6 |
+| `engine.gen.ts:194` `COMMAND_CATEGORY` | **0 in `src/`**; only `enginefacts.test.mjs`, the test asserting it exists | 117 |
+| `tools/bench-structure.mjs` | **0** — no npm script, no CI job | 113 |
+
+The last one is the standing rule's edge, and it does not survive a bare delete: its *want* —
+measuring the keystroke path at sefer scale — is real and unserved by anything. Move the
+growth-shape assertion into `structure.test.mjs` first, then remove the tool.
+
+### Bucket 2 — live callers, one idea copied N times. Extract; never delete.
+
+| | copies | into |
+|---|---|---|
+| Parsers of `commands.rs` | **7 files, 4 implementations**, two byte-identical | `tools/commands.mjs` |
+| The esbuild `load()` helper | **10** (5 in `tools/`, 5 in `test/`) | `tools/load.mjs` |
+| `dirname(new URL(import.meta.url).pathname…)` | **24**, against 6 correct `fileURLToPath` uses, beside an unused `SRC_DIR` written to prevent it | `node:url`, and `SRC_DIR` finally gets an importer |
+| `fn render` in `engine/tests/` | **13** | `engine/tests/common/mod.rs` |
+| join-every-run helper | **8, under 4 names** (`page_text` ×4, `all_text` ×2, `flat`, `rendered`) | same |
+| Hand-rolled DOM | **3** (`harness.mjs`, `panels.test.mjs`, `exports.test.mjs`) | `harness.mjs` |
+
+### Bucket 3 — live callers that **disagree**. Pick a winner; delete the loser.
+
+Neither deletion nor symmetric compaction. One implementation is correct and the others are bugs:
+the `(` rule (`mode.ts` right, `spans.ts` wrong, §6); the bullets snippet (`commands.rs` right,
+`main.ts:427` wrong, §8); `web/index.html:71`'s table button (§2); and the `cmd!` counters, where
+the naive pair reports 116 against the registry's 115 and three user-facing lines carry the wrong
+number (§8).
+
+### The point of the ordering
+
+**Bucket 2 is the mechanism that prevents bucket 3.** If there were one `cmd!` parser there could
+not be a 116/115 disagreement, and `ksav/README.md:313`, `:346` and `docs/start-here.md:44` would
+be right without anyone editing them. Bucket 1 is ~250 lines of tidying with no behavioural effect;
+bucket 3 is what is wrong today; bucket 2 is what stops bucket 3 recurring. Do 3, then 2, and let 1
+ride along.
+
+### And the calibration, because it cuts both ways
+
+Five suspected duplications were checked and **cleared**: "twelve parsers of one markup" is
+genuinely fixed (`ksav-lang.ts` has no grammar; six consumer modules have no scanning code);
+`engine/src/jump.rs` and `app/src/jump.ts` are different things sharing a name; `diff`/`changes`/
+`review` is a clean pure/UI split over two different wants; `spell.ts`'s prose mask and
+`spell/mod.rs::is_command` are deliberate, documented from both ends, 3 lines against 40 with the
+cheap one a strict subset; and the three `fold` implementations are all executed against one
+committed corpus with a floor assertion so it cannot shrink.
+
+The duplication that got *named* is gone. What survives lives where no fence looks:
+`enginefacts.test.mjs`'s prohibition sweep reads `src/*.ts`, and `engine/tests/` has no
+`common/mod.rs`. `src/` is clean; the tooling that polices `src/` is not.
+
+---
+
 ## Ranked, by wrongness × cost of leaving it
 
 | # | Finding | § | Lens | Verdict | Effort |

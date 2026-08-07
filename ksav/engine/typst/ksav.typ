@@ -1778,10 +1778,18 @@
 // that keeps only the printed string can do neither.
 //
 // It is also what `#מראה_מקומות()` collects into a source list at the back.
+//
+// `תווים:` is which characters of that place were actually quoted — `"4-19"`,
+// half-open, counted in the text as the reader was shown it, and `"4-"` for
+// *to the end*. It is absent on a citation of the whole place, which is what
+// every document written before this argument existed says, and why they are
+// all still right. Without it the ref alone says *this se'if*, and regenerating
+// against a corrected edition hands back the whole se'if to a writer who
+// quoted half of one.
 #let _ksav_mekor_label = label("ksav-mekor")
-#let מראה_מקום(body, מקור: none) = {
+#let מראה_מקום(body, מקור: none, תווים: none) = {
   if מקור != none {
-    [#metadata((ref: מקור, printed: body))#_ksav_mekor_label]
+    [#metadata((ref: מקור, chars: תווים, printed: body))#_ksav_mekor_label]
   }
   footnote(text(size: 0.92em, body))
 }

@@ -80,9 +80,9 @@ tiny_http = "0.12"
 # offline browser build compiled the packet schema and the citation writer for
 # an application that is not there — `src/source.rs`, their only consumer here,
 # is reached exclusively through `post.rs` and is gated with them.
-girsa-source = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
-girsa-ksav = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
-girsa-post = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589afdd17281bda52fc168e0a37177058971fd" }
+girsa-source = { version = "=0.5.1", git = "https://github.com/SYKhayyat/sefer-crates", rev = "c8edeaa9511507310759440dc076af1489ea7172" }
+girsa-ksav = { version = "=0.5.1", git = "https://github.com/SYKhayyat/sefer-crates", rev = "c8edeaa9511507310759440dc076af1489ea7172" }
+girsa-post = { version = "=0.5.1", git = "https://github.com/SYKhayyat/sefer-crates", rev = "c8edeaa9511507310759440dc076af1489ea7172" }
 
 [features]
 # Embed the built SPA (ksav/app/dist) into the binary. Build the app first

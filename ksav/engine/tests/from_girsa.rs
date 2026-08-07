@@ -99,6 +99,55 @@ fn the_document_keeps_the_place_and_not_only_the_printed_string() {
 }
 
 #[test]
+fn half_a_se_if_says_which_half_and_the_page_does_not_show_it() {
+    // The range is stored, not printed — the same bargain the ref makes. A
+    // reader sees the citation; the document knows which characters of the
+    // place were quoted, so regenerating against a corrected edition hands
+    // back the half that was quoted and not the se'if around it.
+    //
+    // Only this side can check the half that matters: that `תווים:` is an
+    // argument the **real Typst engine** accepts. `girsa-ksav` can assert it
+    // wrote the string; a template that never learned the argument would fail
+    // here, in the writer's preview, on every quote.
+    let mut packet = SourcePacket::from_json(PACKET).expect("a packet");
+    packet.range = Some(girsa_source::Range {
+        from: 0,
+        to: Some(9),
+    });
+    let json = packet.to_json().expect("serializes");
+    let markup = insert(&json, CitationPlacement::Mekor).expect("Ksav reads it");
+    assert!(
+        markup.contains("תווים: \"0-9\""),
+        "the range is not in the markup: {markup}"
+    );
+
+    let lines = probe::lines(&render(&markup), 1.0);
+    assert!(
+        on_the_page("שולחן ערוך", &lines),
+        "the citation is not on the page: {:?}",
+        lines.iter().map(Line::text).collect::<Vec<_>>()
+    );
+    // And the offsets are not. A document that printed `0-9` at the reader
+    // would be showing them a number they never asked for.
+    assert!(
+        !on_the_page("0-9", &lines),
+        "the range is being printed: {:?}",
+        lines.iter().map(Line::text).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_whole_se_if_is_still_written_the_way_it_always_was() {
+    // Every document already on disk. If the whole-place case grew an
+    // argument, every one of them would be a different string from what this
+    // version writes, and `cited_in` would be reading two spellings.
+    let packet = SourcePacket::from_json(PACKET).expect("a packet");
+    assert!(packet.range.is_none() || packet.range.expect("some").is_all());
+    let markup = insert(PACKET, CitationPlacement::Mekor).expect("Ksav reads it");
+    assert!(!markup.contains("תווים"), "{markup}");
+}
+
+#[test]
 fn what_the_library_says_about_the_edition_is_still_here_when_it_is_printed() {
     // spec.md §13 — provenance costs nothing to carry and is the only thing
     // preserving the option to distribute publicly later.

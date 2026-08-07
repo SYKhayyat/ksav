@@ -1621,24 +1621,24 @@ dependencies = [
 
 [[package]]
 name = "girsa-hebrew"
-version = "0.5.0"
-source = "git+https://github.com/SYKhayyat/sefer-crates?rev=5a589afdd17281bda52fc168e0a37177058971fd#5a589afdd17281bda52fc168e0a37177058971fd"
+version = "0.5.1"
+source = "git+https://github.com/SYKhayyat/sefer-crates?rev=c8edeaa9511507310759440dc076af1489ea7172#c8edeaa9511507310759440dc076af1489ea7172"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "girsa-ksav"
-version = "0.5.0"
-source = "git+https://github.com/SYKhayyat/sefer-crates?rev=5a589afdd17281bda52fc168e0a37177058971fd#5a589afdd17281bda52fc168e0a37177058971fd"
+version = "0.5.1"
+source = "git+https://github.com/SYKhayyat/sefer-crates?rev=c8edeaa9511507310759440dc076af1489ea7172#c8edeaa9511507310759440dc076af1489ea7172"
 dependencies = [
  "girsa-source",
 ]
 
 [[package]]
 name = "girsa-post"
-version = "0.5.0"
-source = "git+https://github.com/SYKhayyat/sefer-crates?rev=5a589afdd17281bda52fc168e0a37177058971fd#5a589afdd17281bda52fc168e0a37177058971fd"
+version = "0.5.1"
+source = "git+https://github.com/SYKhayyat/sefer-crates?rev=c8edeaa9511507310759440dc076af1489ea7172#c8edeaa9511507310759440dc076af1489ea7172"
 dependencies = [
  "getrandom 0.3.4",
  "serde",
@@ -1649,8 +1649,8 @@ dependencies = [
 
 [[package]]
 name = "girsa-ref"
-version = "0.5.0"
-source = "git+https://github.com/SYKhayyat/sefer-crates?rev=5a589afdd17281bda52fc168e0a37177058971fd#5a589afdd17281bda52fc168e0a37177058971fd"
+version = "0.5.1"
+source = "git+https://github.com/SYKhayyat/sefer-crates?rev=c8edeaa9511507310759440dc076af1489ea7172#c8edeaa9511507310759440dc076af1489ea7172"
 dependencies = [
  "girsa-hebrew",
  "serde",
@@ -1659,8 +1659,8 @@ dependencies = [
 
 [[package]]
 name = "girsa-source"
-version = "0.5.0"
-source = "git+https://github.com/SYKhayyat/sefer-crates?rev=5a589afdd17281bda52fc168e0a37177058971fd#5a589afdd17281bda52fc168e0a37177058971fd"
+version = "0.5.1"
+source = "git+https://github.com/SYKhayyat/sefer-crates?rev=c8edeaa9511507310759440dc076af1489ea7172#c8edeaa9511507310759440dc076af1489ea7172"
 dependencies = [
  "girsa-ref",
  "serde",

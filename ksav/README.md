@@ -539,10 +539,20 @@ change to what a quote block *is* lands on both sides as one edit rather than as
 an agreement in prose between two repositories that drifts until a sefer is
 printed (spec.md §10.3).
 
+The 0.5.1 bump is what that looks like in practice. A ref names *places*, so a
+reader who quoted half a se'if in Girsa had a document that said *this se'if* —
+and regenerating it against a corrected edition would have handed back the
+whole se'if, which is the one thing the pairing exists to make impossible. The
+packet grew an optional `range`, `#מראה_מקום` grew a `תווים:` argument to
+keep it in the document, and `typst/ksav.typ` learned to accept it. Three
+repositories, one change, and the test that proves it is here: only this side
+can put a partial quote through the **real Typst engine**. Absent means the
+whole place, so every document already written is untouched.
+
 They are pinned by commit:
 
 ```toml
-girsa-source = { version = "=0.5.0", git = "https://github.com/SYKhayyat/sefer-crates", rev = "5a589af…" }
+girsa-source = { version = "=0.5.1", git = "https://github.com/SYKhayyat/sefer-crates", rev = "c8edeaa…" }
 ```
 
 **This used to be `path = "../../../sefer-crates/crates/…"`** — a sibling of the

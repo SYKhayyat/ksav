@@ -32,13 +32,16 @@ import {
   NOUNS,
   numericClaimsIn,
   trackedMarkdown,
+  livingPages,
+  coveredBy,
+  logDate,
   APP,
   ROOT,
 } from "./docfacts.mjs";
 
 export async function run() {
   const tracked = trackedMarkdown();
-  const living = tracked.filter((f) => !(f in LOGS));
+  const living = livingPages(tracked);
   const F = facts();
 
   // ------------------------------------------------------------- the card
@@ -208,41 +211,85 @@ export async function run() {
   // exemption is only safe when leaving something out is as loud as putting
   // something in.
   {
+    /** Every counted claim in a page that is no longer true. */
+    const staleIn = (file) =>
+      numericClaimsIn(readFileSync(path.join(ROOT, file), "utf8")).filter((c) =>
+        RUNTIME.includes(c.fact) ? true : c.number !== F[c.fact],
+      );
+
     const idle = [];
-    for (const [file, why] of Object.entries(LOGS)) {
-      ok(`the log ${file} exists`, existsSync(path.join(ROOT, file)));
+    const undated = [];
+    for (const [entry, why] of Object.entries(LOGS)) {
+      const pages = coveredBy(entry, tracked);
+      ok(`the log ${entry} covers a tracked page`, pages.length > 0);
       ok(`…and says why it is exempt`, typeof why === "string" && why.length > 20);
-      ok(`…and is tracked, so a rename cannot orphan the exemption`, tracked.includes(file));
-      // And — the part that stops this being a skip list — it must be excusing
-      // something. A log qualifies because it states counts that were true on
-      // their date and are false now; if the sweep would pass over it anyway,
-      // the entry is buying nothing and its only effect is to switch the sweep
-      // off for a page that did not need it.
+      for (const page of pages) {
+        ok(`${page} is on disk`, existsSync(path.join(ROOT, page)));
+        // The lifecycle, checked rather than asserted. A record is exempt
+        // because it was true on a *date*, so it has to carry one — which is
+        // why `decisions/` names its files `YYYY-MM-DD-slug.md` and why a
+        // living page cannot be moved in there without looking like what it is.
+        if (!logDate(page)) undated.push(page);
+      }
+      // And — the part that stops this being a skip list — the exemption must be
+      // excusing something. A log qualifies because it states counts that were
+      // true on their date and are false now; if the sweep would pass over
+      // everything it covers anyway, the entry is buying nothing and its only
+      // effect is to switch the sweep off for pages that did not need it.
       //
       // Found by mutation, and the mutation is the reason this exists: adding
       // `docs/start-here.md` here with a plausible-sounding sentence turned the
       // backward sweep off for a living page and the suite stayed green — which
       // is `ONLY_AT_TOP` exactly, reproduced inside the fence written against it.
-      const body = readFileSync(path.join(ROOT, file), "utf8");
-      const stale = numericClaimsIn(body).filter((c) => {
-        if (RUNTIME.includes(c.fact)) return true;
-        return c.number !== F[c.fact];
-      });
-      if (!stale.length) idle.push(file);
+      if (!pages.some((p) => staleIn(p).length)) idle.push(entry);
     }
     check(
       "every exempted log is exempted from something (drop the ones that are clean)",
       idle,
       [],
     );
-    // Default-deny: the union is the whole tracked set, so a new `.md` is fenced
-    // by arriving rather than by somebody remembering to add it.
+    check("and every page it covers is a dated record", undated, []);
+
+    // Default-deny is arithmetic on this list — every tracked `.md` that is not
+    // covered is swept — so asserting the two sets add up to the tracked set
+    // would be asserting subtraction. What can actually go wrong is an entry
+    // that is too *wide*: `docs/` here would switch the sweep off for three
+    // living pages at once and every count above would still balance. So the
+    // pages that are documentation by definition are named, and an exemption
+    // that reaches one of them is red.
     check(
-      "every tracked .md is either a living page or a declared log",
-      [...living, ...Object.keys(LOGS)].sort(),
-      [...tracked].sort(),
+      "no exemption reaches a page that is documentation",
+      ["README.md", "ksav/README.md", "spec.md", ...tracked.filter((f) => f.startsWith("docs/"))]
+        .filter((f) => !living.includes(f)),
+      [],
     );
     ok("there are living pages to check", living.length > 0);
+    ok("and there are records being kept apart from them", living.length < tracked.length);
     ok("and the fenced nouns are actually a list", NOUNS.length > 0);
+
+    // The split itself, stated as a test.
+    //
+    // Nine dated units lived inside three root files that were also live
+    // documentation, and every stale number in the repository sat at that seam.
+    // What stops it re-forming is not a rule anybody remembers: it is that the
+    // record has an address. So the address is asserted — `decisions/` holds
+    // dated files and an index that explains the contract, and the three root
+    // files it came out of are not there to be edited back into.
+    {
+      const records = coveredBy("decisions/", tracked).filter((f) => !f.endsWith("README.md"));
+      ok("the record is a directory of dated files", records.length >= 9);
+      check(
+        "every one of them is named by its date",
+        records.filter((f) => !/^decisions\/\d{4}-\d{2}-\d{2}-[\w-]+\.md$/.test(f)),
+        [],
+      );
+      ok("and the directory explains its own contract", tracked.includes("decisions/README.md"));
+      check(
+        "the merged files are gone rather than left to drift",
+        tracked.filter((f) => f === "fixes.md" || f === "plan-notes-and-ui.md"),
+        [],
+      );
+      ok("and spec.md is a living page again", living.includes("spec.md"));
+    }
   }
 }

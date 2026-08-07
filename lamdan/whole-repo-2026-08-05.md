@@ -2012,6 +2012,64 @@ assertions.
 
 ### The audit prose itself
 
+> #### ✅ Split — 7 August 2026
+>
+> Done as prescribed, and the honest accounting above is what made it doable:
+> the three files really were a *spec* and a *log* bolted together, and the seam
+> is exactly where the split went.
+>
+> **Nine dated units, nine files, one directory.** `decisions/YYYY-MM-DD-slug.md`
+> — the product audit, the adoption wave, the production-readiness list, the
+> second audit, its resolution, the third audit, both borrowed waves, and the
+> notes/UI plan with its post-mortem. Verbatim: a line-by-line comparison of the
+> nine files against `git show HEAD:` of the three originals reports **identical
+> content** for all three, ignoring only the `---`/`---` rules that used to
+> separate the documents inside a file. `README-notes.md` was not touched, as
+> asked. The finding says "ten"; it is nine files, because
+> `plan-notes-and-ui.md`'s Resolution is an `##` inside the plan's own outline
+> and splitting it out would have fractured a document to hit a number.
+>
+> **`spec.md` is a living page now**, which is the half of this that has teeth:
+> it holds the eleven note options, the ground rule that produces exactly
+> eleven, and where a note's prose lives — and it is swept by the same fence
+> that keeps `README.md` and `docs/` honest. It had one claim that no longer
+> resolved (*"~25 raw command names"*, describing a chooser that has since been
+> built) and it is now a sentence about what the panel does, with the audit item
+> that argued for it linked rather than cited by letter.
+>
+> **The exemption is an address, not a list.** This is the part worth arguing
+> about. A list of exempted files is a thing somebody maintains, and the
+> mutation that broke the last version of this fence was adding one line to it.
+> A directory is a thing you have to *move a file into*, and the move is the
+> review. So `LOGS` carries `decisions/` and the checks moved with it: the entry
+> must be excusing something real (at least one page under it would fail the
+> sweep), and **every page it covers must carry its date in its name** — which
+> makes the lifecycle a fact about the filename rather than a claim in a
+> sentence. The `docs/start-here.md` mutation now fails twice.
+>
+> One check was deleted for being arithmetic. *"The union of logs and living
+> pages is exactly the tracked set"* is true of any partition of a set by a
+> predicate — it was asserting subtraction. What can actually go wrong is an
+> entry that is too **wide**: `docs/` in that list would switch the sweep off
+> for three living pages and every count would still balance. So the pages that
+> are documentation by definition are named, and an exemption that reaches one
+> of them is red.
+>
+> **Seven mutations, every one run, every one red.** A living page added to the
+> list; `docs/` added as a directory; an undated file put in `decisions/`; the
+> index renamed away; `fixes.md` recreated at the root; `spec.md` declared a log
+> again; and a stale count written into `spec.md` — which is the one that proves
+> the split bought something, because that page was exempt from that sweep an
+> hour earlier. Two controls green, before and after.
+>
+> Not done: `lamdan/whole-repo-2026-08-05.md` stays in `lamdan/`, where the tool
+> that produces these writes. It is a declared log for the same reason
+> everything in `decisions/` is, and `decisions/README.md` says so rather than
+> leaving a reader to notice the exception.
+>
+> Cost: 14 files, 9 of them moves. `npm test` 3,566 across 58 files (+10), `tsc`
+> clean, `vite build` clean; the engine is untouched.
+
 **Verdict: `wrong-but-keep`, then split.** The pre-reading suspicion — that the
 audit genre had become a performance — is about **one-third right**, and the honest
 accounting matters:

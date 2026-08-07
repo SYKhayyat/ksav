@@ -151,26 +151,69 @@ export const RUNTIME = ["appAssertions", "appTestFiles"];
 
 // ---------------------------------------------------------------- the pages
 //
-// Default-deny: every tracked `.md` is fenced unless it is named here as a log.
+// Default-deny: every tracked `.md` is fenced unless it is covered here as a log.
 //
 // The distinction is a lifecycle, not a quality judgement, and it is the one
 // §10 of the audit identified as the real defect — three files merged a *spec*
 // (edited in place, always current) with a *log* (append-only, never edited),
-// and every stale number lives at that seam. A dated entry saying "2,276
+// and every stale number lived at that seam. A dated entry saying "2,276
 // assertions" was true on its date; rewriting it would destroy the record. A
 // sentence in `docs/start-here.md` saying "there are 107 commands" is simply
 // false today.
 //
-// The list is checked in both directions — each file must exist, and the union
-// of logs and living pages must be exactly the tracked set — so it cannot become
-// what `registry.rs`'s `ONLY_AT_TOP` was: a skip list that quietly grows and
-// whose entries are unfalsifiable by construction.
+// **The seam is now a directory.** The nine dated units that lived inside those
+// three files are `decisions/YYYY-MM-DD-*.md`, one each, and `spec.md` is a
+// living page again. That turns the exemption from a list of files somebody
+// maintains into a property of where a file *is* — which is the difference
+// between an exemption you can be talked into and one you have to perform a
+// visible rename to obtain.
+//
+// It also lets the lifecycle be checked rather than asserted. A log is exempt
+// because it is a record of a day, so every page an entry covers must **carry
+// its date in its name**. That is a stronger fence than the one it replaces:
+// the mutation that forced this rule into existence — adding
+// `docs/start-here.md` to the list with a plausible sentence, which switched the
+// sweep off for a living page with the suite green — now fails twice, on the
+// date and on the load-bearing check below.
+//
+// Everything is checked from both ends: each entry must cover a tracked page,
+// each covered page must be dated, the exemption must be excusing something
+// real, and the union of logs and living pages must be exactly the tracked set.
+// So this cannot become what `registry.rs`'s `ONLY_AT_TOP` was: a skip list
+// that quietly grows and whose entries are unfalsifiable by construction.
 export const LOGS = {
-  "spec.md": "The specification and its ten dated waves. Also the authority for how many note options exist.",
-  "fixes.md": "An append-only log of fix waves, each true on its date.",
-  "plan-notes-and-ui.md": "The notes/UI plan and its own post-mortem.",
+  "decisions/": "The dated record — nine waves, audits and resolutions, each true on its date and never edited afterwards. See decisions/README.md.",
   "lamdan/whole-repo-2026-08-05.md": "An audit report, kept verbatim so its fixes are legible beside it.",
 };
+
+/** Does this exemption cover that page? A trailing `/` means the directory. */
+export function covers(entry, file) {
+  return entry.endsWith("/") ? file.startsWith(entry) : file === entry;
+}
+
+/**
+ * The pages an exemption covers, in tracked order.
+ *
+ * A directory entry covers what is *tracked* under it rather than what is on
+ * disk, so an untracked scratch file cannot quietly join the record.
+ */
+export function coveredBy(entry, tracked = trackedMarkdown()) {
+  return tracked.filter((f) => covers(entry, f));
+}
+
+/**
+ * A log's date, read off its name — `decisions/2026-08-04-borrowed-wave.md`.
+ *
+ * `null` for a page with no date in it, which is what the partition check
+ * refuses. The index page of a log directory is the one thing that is *not* a
+ * record and is exempted by name here, because a directory that cannot explain
+ * itself is worse than one file that has to be named twice.
+ */
+export function logDate(file) {
+  if (file.endsWith("/README.md")) return "index";
+  const m = /(\d{4}-\d{2}-\d{2})[^/]*\.md$/.exec(file) ?? /(\d{4}-\d{2}-\d{2})\.md$/.exec(file);
+  return m ? m[1] : null;
+}
 
 // ---------------------------------------------------------------- the claims
 //
@@ -242,9 +285,14 @@ export function trackedMarkdown() {
     .map((p) => p.replace(/\\/g, "/"));
 }
 
+/** Is this page a record rather than documentation? */
+export function isLog(file) {
+  return Object.keys(LOGS).some((entry) => covers(entry, file));
+}
+
 /** The tracked pages that are documentation rather than record. */
-export function livingPages() {
-  return trackedMarkdown().filter((f) => !(f in LOGS));
+export function livingPages(tracked = trackedMarkdown()) {
+  return tracked.filter((f) => !isLog(f));
 }
 
 export function numericClaimsIn(text) {

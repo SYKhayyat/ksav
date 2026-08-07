@@ -266,15 +266,24 @@ not links: `LICENSE` argued its whole case on the behaviour of the Hebrew spell
 checker and named a path that stopped existing when that module became a
 directory — a sentence, not a link, and wrapped across a line break besides.
 
-The append-only logs — `spec.md`, `fixes.md`, `plan-notes-and-ui.md` and the
-audit — are exempt, because a dated entry was true on its date. The exemption is
-the dangerous part and it is checked from both ends: the union of logs and living
-pages must be exactly the tracked set, so a new `.md` is fenced by arriving; and
-a log must be exempted *from something*, so a clean page cannot be quietly
-excused. That last rule exists because the first version of this fence did not
-have it, and adding a living page to the log list with a plausible sentence
-turned its sweep off with the suite green — `ONLY_AT_TOP`, rebuilt inside the
-check written against it. (That constant is gone: it exempted nine commands from
+The append-only record is exempt, because a dated entry was true on its date —
+and the record now has an **address** rather than a list. `spec.md`, `fixes.md`
+and `plan-notes-and-ui.md` were each two documents with opposite lifecycles
+bolted together, a spec edited in place and a log written once, and every stale
+number in the repository lived at that seam. The nine dated waves, audits and
+resolutions are [`decisions/YYYY-MM-DD-*.md`](../decisions/README.md), one file
+each; `spec.md` kept the part that is a specification and is swept like any
+other page.
+
+The exemption is the dangerous part and it is checked from every end: the
+directory must be excusing something real, every page it covers must carry its
+date in its name — which is what makes the lifecycle a fact rather than a claim
+— and no exemption may reach a page that is documentation by definition. A new
+`.md` is fenced by arriving, since anything not covered is swept. The
+load-bearing rule exists because the first version of this fence did not have
+it, and adding a living page to the log list with a plausible sentence turned
+its sweep off with the suite green — `ONLY_AT_TOP`, rebuilt inside the check
+written against it. (That constant is gone: it exempted nine commands from
 `registry.rs`'s nesting sweep, six of them were being compiled in those exact
 nestings by `insertion.rs` at the same time, and both tests were green. The file
 is deleted and `the_grid_exempts_nothing` asserts the grid has no holes instead.)
@@ -444,7 +453,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,556 editor assertions, 383 engine
+- [x] **CI, running and green** — typecheck, 3,566 editor assertions, 383 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -603,7 +612,7 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,556 assertions across 58 files
+cd app && npm test                          # 3,566 assertions across 58 files
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 383 tests, 25 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings

@@ -1,0 +1,78 @@
+# decisions/ — the record, and why it is kept apart
+
+Every file in this directory was true on its date and is not edited afterwards.
+That is the whole contract, and it is the reason the directory exists.
+
+## The seam this fixes
+
+Until now there were three files at the repository root — `spec.md`, `fixes.md`
+and `plan-notes-and-ui.md` — and each of them was **two documents with opposite
+lifecycles bolted together**: a spec, which is edited in place and is always
+current, and a log, which is written once and is a record of a day. Nine dated
+wave/audit/resolution units lived inside them.
+
+Every stale number in the repository lived at that seam. `fixes.md` opened with
+a status paragraph carrying **three stacked "Superseded" notices** — one per
+later audit — because its own rule (findings kept verbatim, so a fix is legible
+beside the thing it fixed) is right for a log and makes a file that can only
+grow, which is wrong for a status. `spec.md` said `ksav.typ` was 1,701 lines
+when it was 2,324, and stated an assertion count that was wrong by 426 one line
+above the paragraph explaining that assertion counts are not evidence.
+
+Neither file was wrong to have been written. They were wrong to have been one
+file.
+
+So: the record moved here, verbatim, one file per dated unit, named by its date.
+`spec.md` kept the part that is a specification — the eleven note options, the
+ground rule that produces exactly eleven, and where a note's prose lives — and
+is now a living document, swept by `app/test/documentation.test.mjs` like
+`README.md` and `docs/` are.
+
+## The rules, both of which a test enforces
+
+1. **A file here is named `YYYY-MM-DD-slug.md`.** The date is the lifecycle
+   marker: it is what says *this was true then*, and it is what the partition
+   check in `app/test/documentation.test.mjs` reads. A file here without one is
+   a red suite.
+2. **A file here is not edited to make it current.** Correct a typo; do not
+   correct a number. If something in here is now false, the answer is a new
+   entry, or an edit to the living document that supersedes it — never a
+   rewrite of the record.
+
+The counted-claim sweep does not run over this directory, and the exemption is
+checked from both ends: the directory as a whole has to be excusing something
+real (at least one file here would fail the sweep), and every tracked `.md` in
+the repository has to be either a living page or a declared log. That is
+deliberately the same shape as `registry.rs`'s `ONLY_AT_TOP`, inverted — an
+exemption is only safe when leaving something out is as loud as putting
+something in.
+
+## What is here
+
+| | |
+|---|---|
+| [2026-07-20 · Product audit](2026-07-20-product-audit.md) | The first full read-through: *"replace Word, for Hebrew."* Errors, half-implementations, redundancy, UX, and what a Word user looks for and does not find |
+| [2026-07-21 · Adoption wave](2026-07-21-adoption-wave.md) | *"Why a bochur still wouldn't switch"* — bracket healing, the Word handoff, installers |
+| [2026-07-23 · Production readiness](2026-07-23-production-readiness.md) | The first list, and the standard of work the whole project has been built to, which is stated at the top of it |
+| [2026-07-23 · Second audit](2026-07-23-second-audit.md) | The one that judged at the size and shape of a real sefer, and said *not ready* |
+| [2026-07-24 · Resolution](2026-07-24-resolution.md) | What the second audit's blockers turned out to be |
+| [2026-07-24 · Third audit](2026-07-24-third-audit.md) | The first audit that judged by *running* it rather than by reading it |
+| [2026-08-04 · Borrowed wave](2026-08-04-borrowed-wave.md) | What Katvan already knew — click-to-jump, mixed-direction source, invisible characters |
+| [2026-08-04 · Borrowed wave II](2026-08-04-borrowed-wave-ii.md) | typstify, and the fourteen features around it |
+| [2026-08-04 · Notes and the UI around them](2026-08-04-notes-and-ui.md) | The plan, the browser sweep, and the post-mortem on why 2,276 green assertions had not caught any of it |
+
+One dated record is deliberately **not** here:
+[`lamdan/whole-repo-2026-08-05.md`](../lamdan/whole-repo-2026-08-05.md), the
+whole-repository audit, which lives where the tool that produced it writes. It
+is a declared log for the same reason everything here is, and it is answered
+section by section in place rather than appended to.
+
+## What is not a decision
+
+The design reasoning that is *not* dated and *is* still load-bearing stayed
+where it was, because it is not a record of a day:
+[`ksav/engine/README-notes.md`](../ksav/engine/README-notes.md) — the note
+apparatus, including the two note-identity designs that were tried and
+abandoned, and the four ways of separating a note number from its text that
+were each measured and rejected. Negative results are the one artifact git
+cannot reconstruct. Not a line of it was cut.

@@ -1,6 +1,7 @@
 import { ok, check } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { commands } from "../tools/commands.mjs";
 import {
   NOTE_BODY_COMMANDS,
   TIERS,
@@ -39,23 +40,18 @@ const PRELUDE = readFileSync(
   path.join(HERE, "..", "..", "engine", "typst", "ksav.typ"),
   "utf8",
 );
-const REGISTRY_RS = readFileSync(
-  path.join(HERE, "..", "..", "engine", "src", "commands.rs"),
-  "utf8",
-);
 const LANG_TS = readFileSync(path.join(HERE, "..", "src", "ksav-lang.ts"), "utf8");
 
-/** The registry, read from the engine's own source (as `coverage.test.mjs` does). */
-function registry() {
-  const re =
-    /cmd!\(\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*(,\s*(true|false)\s*)?\)/g;
-  return [...REGISTRY_RS.matchAll(re)].map((m) => ({
-    he: JSON.parse(m[1]),
-    en: JSON.parse(m[2]),
-    category: JSON.parse(m[3]),
-    insert: JSON.parse(m[6]),
-  }));
-}
+/**
+ * The registry, read from the engine's own source.
+ *
+ * The comment this replaces said "(as `coverage.test.mjs` does)" and it was
+ * literally true: the two files held the same 200-character regex, byte for
+ * byte, with no import between them. It is one module now — `tools/commands.mjs`
+ * — which is what makes the two files unable to disagree rather than merely
+ * unlikely to.
+ */
+const registry = commands;
 
 // ---------------------------------------------------------------- the bug itself
 

@@ -97,19 +97,16 @@ async function load(name) {
   }
 }
 
-/** The registry, read from the engine source rather than a running server. */
-export function commands() {
-  const rs = readFileSync(join(APP, "..", "engine", "src", "commands.rs"), "utf8");
-  const out = [];
-  // `cmd!("he", "en", "cat", "desc", "desc", "insert"[, deprecated])` — the
-  // insert string is the sixth argument and may contain escaped quotes.
-  const re = /cmd!\(\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")/g;
-  for (const m of rs.matchAll(re)) {
-    const [he, en, category, , , insert] = m.slice(1).map((s) => JSON.parse(s));
-    out.push({ he, en, category, insert });
-  }
-  return out;
-}
+/**
+ * The registry, read from the engine source rather than a running server.
+ *
+ * Re-exported from `tools/commands.mjs`. This used to be a fourth
+ * implementation of the same read — the two test files' regex minus one group —
+ * and the whole point of this generator is that a registry command and the
+ * insertion path must not be able to disagree. Two readers of the registry is
+ * that disagreement one level up.
+ */
+export { commands } from "./commands.mjs";
 
 export async function buildFixture() {
   const { insertionAt, legalAt } = await load("mode");

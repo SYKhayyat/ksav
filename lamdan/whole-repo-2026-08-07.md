@@ -644,6 +644,48 @@ feature added to `main.ts` is added to a file no test can see, and this report i
 
 ## 8. One registry, and a hand-written second copy in the file the fence can't reach
 
+> ### ✅ Fixed — 7 August 2026
+>
+> All five shapes, and the count.
+>
+> **`ACTIONS` is generated.** `src/actions.ts` holds one table of action id →
+> Hebrew command name; `insertCommand` reads the snippet off the registry
+> through `runtime.commandByName`, which was exported for exactly this and had
+> no callers. Fifteen hand-written entries became one `Object.entries` map. The
+> null guard the finding predicted is there and is strictly more honest than the
+> silent fallback to a stale string it replaces.
+>
+> **The table is a module and not a constant in `main.ts`, and the reason is a
+> fence firing.** Putting fifteen Hebrew command names into `main.ts` tripped
+> `enginefacts.test.mjs`'s prohibition on a module holding a Hebrew name beside
+> its English twin — because `main.ts` already contains `"bold"`, `"table"`,
+> `"toc"` and the rest as *action ids*, and eight of those ids are spelled
+> exactly like the English command they invoke. The sweep could not tell an
+> action id from a command name and was right not to try. The cure was that the
+> two lists stop living in one file, which is also §22's first slice.
+>
+> **`openNoteMenu` no longer bypasses the producer.** Its targets are derived
+> from `NOTE_CHOICES` — it hand-listed six of eighteen, so twelve layouts were
+> unreachable and the English spellings unreachable from anywhere — and the
+> scaffolding step is extracted out of `applyChoice` as `scaffold()` and run
+> after a conversion. Converting a footnote to `#הערתסיום` now writes the
+> `#הערות_בסוף()` it needs.
+>
+> **The Mekoros panel goes through `insertSnippet`**, so `deferNoteBodies` is
+> honoured by the most sefer-specific note in the product.
+>
+> **`notepaths.test.mjs` derives its markers from `NOTE_BODY_COMMANDS`.**
+>
+> **And the count.** `tools/commands.mjs` is now the only reader of the
+> registry: it replaces two byte-identical 200-character regexes, one regex
+> minus a group, and two naive counters. The naive pair counted
+> `commands.rs:39` — the six-argument arm of `macro_rules! cmd` delegating to
+> the seven-argument arm — so the fence that guards counted claims *enforced*
+> 116 onto the prose. Five pages now say 115, and `docs/shortcuts.md` was
+> regenerated. `card.mjs`'s own comment about the card saying "104 of them" for
+> as long as there were 104 has been extended with the sequel, because counting
+> was the fix and it was still wrong: there has to be one thing that counts.
+
 The previous report found ten registration sites. The fix — one registry plus a fence — was the
 right fix and it worked *where it was applied*. What it could not do is reach `main.ts`, so the
 repo now has one source of truth **and** a hand-typed copy beside it.
@@ -1174,7 +1216,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | 3 | **No process ever runs the application.** One CI job + one rule. | 1 | 1 | `don't-build` the next audit | 1 day |
 | 4 | ✅ **Fixed 7 Aug.** `runAction(id)` is the one door; the keymap, the palette and the toolbar all go through it. The recorder gained a third step kind — a command from the toolbar or the palette has no action id, and recording it as text would replay `#הדגשה[\|]` as literal characters. `iconBtn` sets the real `disabled`. Both new fences were checked by mutation, and the first one **failed that check**: it matched only the *call* `.run(v)`, and the original bug passed `a.run` as a value. | 7 | 2 | `rewrite` | ~90 lines, +1 test file, +26 assertions |
 | 5 | `openFile` erases the conflict `watch.ts` exists to detect. Silent data loss. | 10 | 2 | `rewrite` | **10 lines** |
-| 6 | `ACTIONS` hand-copies the registry — the bullet list differs by how you ask for it. | 8 | 2 | `rewrite` | ~40 lines |
+| 6 | ✅ **Fixed 7 Aug.** `ACTIONS` is generated from one table (`actions.ts`) of action-id → command name, and `insertCommand` reads the snippet off the registry. `openNoteMenu` derives its targets from `NOTE_CHOICES` and runs the scaffolding; the Mekoros panel goes through `insertSnippet`; `notepaths.test.mjs` derives its markers from `NOTE_BODY_COMMANDS`. **One `cmd!` parser** (`tools/commands.mjs`) replaces four, and the count in five prose pages goes 116 → **115**. | 8 | 2 | `rewrite` | ~200 lines, +1 module, +1 test file, −3 parsers |
 | 7 | Every feature is half in a tested module and half in the untested god-file. | 7 | 2 | `rewrite` | 1 week |
 | 8 | 310 ms/keystroke re-rendering pages the client already has. | 10 | 3 | `rewrite` | ~80 lines |
 | 9 | CI does not run on release tags; `deploy.yml` runs no tests. | 10 | 2 | `rewrite` | ~40 lines YAML |

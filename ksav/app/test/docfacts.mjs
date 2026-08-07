@@ -31,6 +31,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
+import { commandCount } from "../tools/commands.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 export const APP = path.resolve(HERE, "..");
@@ -87,8 +88,20 @@ export function facts() {
   ).length;
 
   return {
-    // The command registry. One `cmd!(` per command, bilingual, in one file.
-    commands: count("ksav/engine/src/commands.rs", /^\s*cmd!\(/gmu),
+    // The command registry, through the one parser.
+    //
+    // It was `count("…/commands.rs", /^\s*cmd!\(/gmu)`, and that regex counts
+    // **the macro's own recursive expansion** — `commands.rs:39` is the
+    // six-argument arm of `macro_rules! cmd` delegating to the seven-argument
+    // arm, a `cmd!(` at the start of a line that is not a command. So this file
+    // said 116 while every structured reader in the repository said 115, and
+    // because this file is the fence that guards counted claims, **the wrong
+    // number was the enforced one**: `ksav/README.md` twice and
+    // `docs/start-here.md` once told the reader there are 116 commands.
+    //
+    // A counter that cannot see what it is counting is worth less than no
+    // counter, because it is believed.
+    commands: commandCount(),
     // Keyboard bindings the application ships with, from the object the editor
     // itself installs — which is what makes the card unable to disagree with it.
     bindings: Object.keys(DEFAULT_KEYS).length,

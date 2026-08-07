@@ -1,6 +1,7 @@
 import { ok, check } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { NOTE_BODY_COMMANDS } from "../.tmp-test/note-commands.mjs";
 import {
   NOTE_CHOICES,
   applyChoice,
@@ -107,7 +108,20 @@ for (const deferred of [false, true]) {
 // an argument to `insertSnippet`, which routes it. A `view.dispatch` that
 // inserts `#הערה[` is the bug this file exists to prevent, and it would be
 // invisible to every other test in the suite.
-const MARKERS = ["#הערה[", "#הערתסיום[", "#הערה_א[", "#הערה_ב[", "#מדור_א[", "#מדף_א["];
+//
+// Derived, not listed. It was six Hebrew literals — and the hole was exactly
+// the shape of what was not being fixed the day it was written: **no English
+// spellings**, so `#fnote[` and `#endnote[` could be spliced directly and this
+// file would say nothing; **no side, stream or margin command**; and not
+// `#מראה_מקום`, which is the most sefer-specific note in the product and was in
+// fact the one being spliced raw by the Mekoros panel.
+//
+// `NOTE_BODY_COMMANDS` is the list every module on the note path already reads,
+// in both languages, and `notecommands.test.mjs` fences *it* against the prelude
+// and the registry from both ends. Deriving from it means a new note command
+// arrives here for free, which is the only version of this check that is still
+// true a year from now.
+const MARKERS = [...NOTE_BODY_COMMANDS].map((c) => `#${c}[`);
 for (const marker of MARKERS) {
   for (let at = MAIN.indexOf(marker); at >= 0; at = MAIN.indexOf(marker, at + 1)) {
     const line = MAIN.slice(MAIN.lastIndexOf("\n", at) + 1, MAIN.indexOf("\n", at));

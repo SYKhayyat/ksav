@@ -711,12 +711,67 @@ export function hasLine(doc: string, line: string): boolean {
 }
 
 /**
+ * Add whatever scaffolding a layout needs, if the document has not got it.
+ *
+ * The dump call at the end, the wrapper around the section, the configuration
+ * line at the top — forgetting any of them is the single most common way these
+ * layouts "don't work": the notes are collected and then never rendered.
+ *
+ * Separate from `applyChoice` because **inserting a note is not the only way a
+ * document acquires one.** Right-clicking a footnote and converting it to
+ * `#הערתסיום` produced an endnote with no `#הערות_בסוף()` — the "collected and
+ * never printed" failure, performed by the product and then reported back to
+ * the writer as a lint. `convertNote`'s caller runs this now, so there is one
+ * answer to "what does this layout need" rather than one per entry point.
+ */
+export function scaffold(
+  doc: string,
+  caret: number,
+  choice: NoteChoice,
+): { text: string; caret: number } {
+  let text = doc;
+  if (choice.wrap && !text.includes(choice.wrap.open.trim())) {
+    // Wrap the whole document: the note has to live inside the wrapper or it has
+    // no column to land in.
+    const before = text.length;
+    text = choice.wrap.open + text + choice.wrap.close;
+    caret += text.length - before - choice.wrap.close.length;
+  }
+
+  if (choice.head && !hasLine(text, choice.head)) {
+    // First line of the file, before any wrapper: the apparatus reads this state
+    // from the page footer, so anything it sits after is a page it never reaches.
+    const line = choice.head + "\n\n";
+    text = line + text;
+    caret += line.length;
+  }
+
+  if (choice.tail && !hasLine(text, choice.tail)) {
+    text = text.replace(/\s*$/, "") + "\n\n" + choice.tail + "\n";
+  }
+  return { text, caret };
+}
+
+/**
+ * The layout a note command belongs to, or null.
+ *
+ * Matched on the command the layout's own marker writes, so the mapping is the
+ * chooser's rather than a second list. `openNoteMenu` used to hand-list six of
+ * the eighteen note commands, which is how three of them lost their scaffolding
+ * and the other twelve were unreachable from the menu at all.
+ */
+export function choiceForCommand(command: string): NoteChoice | null {
+  const named = (s: string | undefined) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1];
+  for (const c of NOTE_CHOICES) {
+    if (named(c.insert) === command || named(c.insert2) === command) return c;
+  }
+  return null;
+}
+
+/**
  * Apply a choice to a document.
  *
- * Returns the new text plus where the caret should land. The chooser does the
- * scaffolding a layout needs — the dump call at the end, the wrapper around the
- * section — because forgetting it is the single most common way these layouts
- * "don't work": the notes are collected and then never rendered.
+ * Returns the new text plus where the caret should land.
  */
 export function applyChoice(
   doc: string,
@@ -756,25 +811,7 @@ export function applyChoice(
   let text = doc.slice(0, selectionFrom) + clean + doc.slice(to);
   let caret = selectionFrom + (caretInSnippet < 0 ? clean.length : caretInSnippet);
 
-  if (choice.wrap && !doc.includes(choice.wrap.open.trim())) {
-    // Wrap the whole document: the note has to live inside the wrapper or it has
-    // no column to land in.
-    const before = text.length;
-    text = choice.wrap.open + text + choice.wrap.close;
-    caret += text.length - before - choice.wrap.close.length;
-  }
-
-  if (choice.head && !hasLine(text, choice.head)) {
-    // First line of the file, before any wrapper: the apparatus reads this state
-    // from the page footer, so anything it sits after is a page it never reaches.
-    const line = choice.head + "\n\n";
-    text = line + text;
-    caret += line.length;
-  }
-
-  if (choice.tail && !hasLine(text, choice.tail)) {
-    text = text.replace(/\s*$/, "") + "\n\n" + choice.tail + "\n";
-  }
+  ({ text, caret } = scaffold(text, caret, choice));
 
   // The body last, so it is filed *after* the layout's own scaffolding rather
   // than being pushed below it — and the caret follows the writer to it, since

@@ -34,6 +34,7 @@ import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import type { DocAsset } from "./docs";
+import { ACTION_COMMAND } from "./actions";
 import * as store from "./store";
 import * as files from "./files";
 import {
@@ -42,10 +43,12 @@ import {
   NOTE_WHERE,
   applyChoice,
   choiceAt,
+  choiceForCommand,
   convertNote,
   deleteNote,
   noteAt,
   noteFor,
+  scaffold,
   notesIn,
   tieredNoteAt,
   whyNot,
@@ -397,17 +400,48 @@ const snippetTab = {
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
 // strings ("Mod-b" etc.; Mod = Ctrl on Win/Linux, Cmd on macOS) and are user-
 // overridable, persisted in settings.keybindings.
+/**
+ * Insert a registry command by name — never by a snippet typed out here.
+ *
+ * **The registry was the single source of truth and `ACTIONS` held a
+ * hand-written second copy beside it.** They had already drifted:
+ *
+ *     commands.rs:89   cmd!("רשימה", …, "#רשימה(\n  פריט[|],\n  פריט[],\n)")
+ *     main.ts:427      { id: "bullets", run: () => insertSnippet("#רשימה(\n  פריט[|],\n)") }
+ *
+ * Clicking the toolbar's • gave you a two-item list. Pressing Ctrl+Shift+8 gave
+ * you a one-item list. Same operation, same product, two documents — and
+ * `buildToolbar` twenty lines away was already doing it the right way
+ * (`byName("הדגשה")` → `c.insert`), so both conventions lived in one file.
+ *
+ * The table snippet was written out three times and the three happened to agree,
+ * which is luck rather than a property.
+ *
+ * `runtime.commandByName` was exported for exactly this and had no callers.
+ *
+ * The null guard is the cost the report named, and it is strictly more honest
+ * than the silent fallback to a stale string it replaces: if the registry has
+ * not loaded, the writer is told, rather than being given a snippet nobody has
+ * checked against the engine since it was typed.
+ */
+function insertCommand(he: string): boolean {
+  const c = runtime.commandByName(he);
+  if (!c) {
+    setStatus(t("registryMissing"), "warn");
+    return true;
+  }
+  insertSnippet(c.insert);
+  return true;
+}
+
 const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
-  { id: "bold", run: () => (insertSnippet("#הדגשה[|]"), true) },
-  { id: "italic", run: () => (insertSnippet("#נטוי[|]"), true) },
-  { id: "underline", run: () => (insertSnippet("#קו_תחתון[|]"), true) },
-  { id: "footnote", run: () => (insertSnippet("#הערה[|]"), true) },
-  // Both of these went through `insertSnippet`, which routes a note snippet to
-  // the layout producer — so they arrive with their scaffolding (the endnote's
-  // `#הערות_בסוף()` dump, without which every endnote in the document is
-  // silently collected and never printed) and they honour "note bodies at the
-  // end of the file" like every other way in.
-  { id: "endnote", run: () => (insertSnippet("#הערתסיום[|]"), true) },
+  // Every action that inserts a registry command, generated from the one table
+  // that says which. Hand-listing them here is what let the bullet list come out
+  // two different ways depending on how you asked for it — see `actions.ts`.
+  ...Object.entries(ACTION_COMMAND).map(([id, he]) => ({
+    id,
+    run: () => insertCommand(he),
+  })),
   {
     id: "tieredNote",
     run: () => {
@@ -421,23 +455,6 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
-  { id: "h1", run: () => (insertSnippet("#כותרת1[|]"), true) },
-  { id: "h2", run: () => (insertSnippet("#כותרת2[|]"), true) },
-  { id: "h3", run: () => (insertSnippet("#כותרת3[|]"), true) },
-  { id: "bullets", run: () => (insertSnippet("#רשימה(\n  פריט[|],\n)"), true) },
-  { id: "numbered", run: () => (insertSnippet("#ממוספרת(\n  פריט[|],\n)"), true) },
-  {
-    id: "table",
-    run: () =>
-      (insertSnippet(
-        "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n  תא[], תא[],\n)",
-      ),
-      true),
-  },
-  { id: "toc", run: () => (insertSnippet("#תוכן()"), true) },
-  { id: "center", run: () => (insertSnippet("#מרכז[|]"), true) },
-  { id: "right", run: () => (insertSnippet("#ימין[|]"), true) },
-  { id: "left", run: () => (insertSnippet("#שמאל[|]"), true) },
   { id: "palette", run: () => (openPalette(), true) },
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
@@ -1254,11 +1271,16 @@ function showMekoros(at: number, phrase: string, answer: Mekoros): void {
     // markup is `citation.ts`'s, which is also where the account lives of how
     // long that sentence was false: this was `#מראה_מקום[${place.display}]`,
     // and `place.ref` was read by nothing.
-    const markup = citationMarkup(place);
-    runtime.view.dispatch({
-      changes: { from: at, insert: markup },
-      selection: { anchor: at + markup.length },
-    });
+    //
+    // **Through `insertSnippet`, not a raw dispatch.** `citation.ts` is a single
+    // producer for the *markup* — its own test sweeps `src/*.ts` to keep it the
+    // only one — and it then handed its output to the one insertion path the app
+    // is forbidden to use. So `deferNoteBodies`, honoured by the toolbar, the
+    // palette, the keyboard and the modal, was not honoured by the source
+    // citation panel: the most sefer-specific note in the product was the one
+    // that ignored the preference.
+    runtime.view.dispatch({ selection: { anchor: at } });
+    insertSnippet(citationMarkup(place));
     closeMekoros();
     runtime.view.focus();
     setStatus(place.display, "ok");
@@ -1858,9 +1880,12 @@ function buildTableMenu(): HTMLElement {
       class: "menu-item",
       onClick: () => {
         closeMenus();
-        insertSnippet(
-          "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n  תא[], תא[],\n)",
-        );
+        // The third hand-written copy of this snippet. The three agreed, which
+        // was luck: `commands.rs:97-102` records that a bare `עמודות: 2` lets
+        // Typst size each column to its contents, so an empty new table renders
+        // as a thumbnail shoved against the margin — a fix that landed in the
+        // registry and would have had to be remembered here twice more.
+        insertCommand(ACTION_COMMAND.table);
       },
     }, [el("b", {}, ["▦  " + t("insertTable")])]),
     el("div", { class: "menu-sep" }),
@@ -2690,9 +2715,13 @@ function openNoteMenu(e: MouseEvent, at: number) {
   const doc = runtime.view.state.doc.toString();
   const note = noteAt(doc, at);
   if (!note) return;
-  const targets = ["הערה", "הערתסיום", "הערה_א", "מדור_א", "מדף_א", "הערת_גיליון"].filter(
-    (c) => c !== note.command,
-  );
+  // Derived from the chooser, not hand-listed. This was six Hebrew literals out
+  // of eighteen note commands — so twelve layouts were unreachable from the
+  // menu, and the English spellings were unreachable from anywhere.
+  const targets = NOTE_CHOICES.flatMap((c) => [c.insert, c.insert2])
+    .map((s) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1])
+    .filter((c): c is string => !!c && c !== note.command)
+    .filter((c, i, all) => all.indexOf(c) === i);
   const menu = el("div", { class: "spell-menu note-menu" }, [
     el("div", { class: "menu-cat" }, ["#" + note.command]),
     el(
@@ -2719,7 +2748,16 @@ function openNoteMenu(e: MouseEvent, at: number) {
           onClick: () => {
             closeSpellMenu();
             const e2 = convertNote(runtime.view.state.doc.toString(), note, command);
-            replaceAll(e2.text, e2.caret);
+            // …and then the scaffolding the new layout needs, which is what
+            // `applyNoteChoice` — docstringed *"The only place that does"* —
+            // has always done for an inserted note. `convertNote` writes
+            // `#${command}[${body}]` and nothing else, so converting a footnote
+            // to an endnote produced an endnote with no `#הערות_בסוף()`: the
+            // "collected and never printed" failure, performed by the product
+            // and then reported back to the writer as a lint.
+            const choice = choiceForCommand(command);
+            const done = choice ? scaffold(e2.text, e2.caret, choice) : e2;
+            replaceAll(done.text, done.caret ?? e2.caret);
             setStatus(tf("noteConverted", command), "ok");
           },
         },

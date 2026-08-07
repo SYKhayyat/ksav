@@ -310,7 +310,7 @@ nests past a handful.
 
 ## Features (engine)
 
-- **116 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **115 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -343,7 +343,7 @@ nests past a handful.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 116 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 115 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -453,7 +453,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,737 editor assertions, 397 engine
+- [x] **CI, running and green** — typecheck, 3,745 editor assertions, 397 engine
       tests, `clippy -D warnings`, the desktop shell, and a build-and-run check
       of the browser (wasm) engine, on every push. See [Test](#test).
 
@@ -619,7 +619,7 @@ existing.
 ## Test
 
 ```sh
-cd app && npm test                          # 3,737 assertions across 61 files
+cd app && npm test                          # 3,745 assertions across 62 files
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 397 tests, 26 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings

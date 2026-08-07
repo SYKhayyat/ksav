@@ -17,6 +17,7 @@ import { readFile, rm, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
+import { commands } from "./commands.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const APP = path.resolve(HERE, "..");
@@ -74,14 +75,16 @@ const GIRSA_START_HERE = "https://github.com/SYKhayyat/girsa/blob/main/docs/star
  * and then for a while after there weren't — which is the exact failure this
  * generator exists to prevent, reproduced one paragraph below the table that
  * prevents it.
+ *
+ * **And then it happened again, one level down.** Counting *was* the fix and it
+ * was still wrong, because this file counted with `/^\s*cmd!\(/gmu` — which
+ * matches the macro's own recursive expansion at `commands.rs:39`. So the card
+ * printed 116 against a registry of 115, and `docfacts.mjs` counted the same
+ * way and therefore *enforced* the wrong number onto three more pages. Counting
+ * is not enough; there has to be one thing that counts. That is
+ * `tools/commands.mjs`, and it is the only reader of this table left.
  */
-async function commandCount() {
-  const src = await readFile(
-    path.resolve(APP, "..", "engine", "src", "commands.rs"),
-    "utf8",
-  );
-  return (src.match(/^\s*cmd!\(/gmu) ?? []).length;
-}
+const commandCount = () => commands().length;
 
 /** A label in one language, or the action's id if nobody named it. */
 function label(id, lang) {

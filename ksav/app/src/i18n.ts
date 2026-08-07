@@ -443,6 +443,7 @@ const HE: Dict = {
   networkError: "שגיאת רשת",
   noErrors: "אין שגיאות",
   registriesFailed: "רשימת הפקודות לא נטענה — הסרגל והתפריטים ריקים; מנסה שוב…",
+  registryMissing: "הפקודה אינה זמינה — רשימת הפקודות עדיין לא נטענה.",
   registriesGaveUp: "רשימת הפקודות לא נטענה — הסרגל והתפריטים יישארו ריקים. רעננו את הדף.",
   // palette
   searchCommands: "חיפוש פקודה…",
@@ -1043,6 +1044,7 @@ const EN: Dict = {
   compileError: "Compilation error",
   networkError: "Network error",
   noErrors: "No errors",
+  registryMissing: "That command is not available — the command list has not loaded yet.",
   registriesFailed: "The command list did not load — the toolbar and menus are empty; retrying…",
   registriesGaveUp:
     "The command list did not load — the toolbar and menus will stay empty. Reload the page.",

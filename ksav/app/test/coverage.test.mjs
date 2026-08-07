@@ -1,6 +1,7 @@
 import { ok, check } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { commands } from "../tools/commands.mjs";
 
 // Is it reachable from the chrome at all?
 //
@@ -27,22 +28,16 @@ const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z
 const SRC = path.join(HERE, "..", "src");
 const read = (f) => readFileSync(path.join(SRC, f), "utf8");
 
-/** The registry, read from the engine's own source. */
-function registry() {
-  const rs = readFileSync(
-    path.join(HERE, "..", "..", "engine", "src", "commands.rs"),
-    "utf8",
-  );
-  const re =
-    /cmd!\(\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*,\s*("(?:[^"\\]|\\.)*")\s*(,\s*(true|false)\s*)?\)/g;
-  return [...rs.matchAll(re)].map((m) => ({
-    he: JSON.parse(m[1]),
-    en: JSON.parse(m[2]),
-    category: JSON.parse(m[3]),
-    insert: JSON.parse(m[6]),
-    deprecated: m[8] === "true",
-  }));
-}
+/**
+ * The registry, read from the engine's own source — by `tools/commands.mjs`.
+ *
+ * This used to be a 200-character regex, byte-identical to the one in
+ * `notecommands.test.mjs`, with no import between them. Seven files read this
+ * registry in four implementations and they disagreed about how many commands
+ * exist; see the module comment there for the 116-against-115 that reached three
+ * user-facing lines because of it.
+ */
+const registry = commands;
 
 /**
  * Commands that legitimately reach no *dedicated* control, and the evidence.

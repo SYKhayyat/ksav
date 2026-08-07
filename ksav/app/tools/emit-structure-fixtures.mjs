@@ -21,6 +21,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runAsScript } from "./generated.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
@@ -285,23 +286,7 @@ export async function buildFixture() {
   );
 }
 
-const built = await buildFixture();
-if (process.argv.includes("--check")) {
-  let have = null;
-  try {
-    have = readFileSync(OUT, "utf8");
-  } catch {
-    /* missing counts as stale */
-  }
-  if (have !== built) {
-    console.error(
-      "structure-edits.json is stale — a structural edit changed but the engine's copy did not.\n" +
-        "Run: node tools/emit-structure-fixtures.mjs",
-    );
-    process.exit(1);
-  }
-  console.log("structure fixtures up to date");
-} else {
-  writeFileSync(OUT, built);
-  console.log("wrote " + OUT);
-}
+/** Every generated output, as `[path, wanted, label]`. */
+export const OUTPUTS = [[OUT, await buildFixture(), "structure-edits.json"]];
+
+runAsScript(import.meta.url, OUTPUTS, "structure fixtures", "node tools/emit-structure-fixtures.mjs");

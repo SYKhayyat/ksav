@@ -36,6 +36,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runAsScript } from "./generated.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
@@ -417,22 +418,7 @@ if (notices.some((n) => !n.name || !n.copyright)) {
 
 const built = emit(aliases, commands, defaults, notices);
 
-if (process.argv.includes("--check")) {
-  let have = null;
-  try {
-    have = readFileSync(OUT, "utf8");
-  } catch {
-    /* missing counts as stale */
-  }
-  if (have !== built) {
-    console.error(
-      "src/engine.gen.ts is stale — the engine's defaults, registry or notices " +
-        "changed and the client's copy did not.\nRun: node tools/emit-engine.mjs",
-    );
-    process.exit(1);
-  }
-  console.log("engine facts up to date");
-} else {
-  writeFileSync(OUT, built);
-  console.log("wrote " + OUT);
-}
+/** Every generated output, as `[path, wanted, label]`. */
+export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];
+
+runAsScript(import.meta.url, OUTPUTS, "engine facts", "node tools/emit-engine.mjs");

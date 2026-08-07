@@ -924,6 +924,58 @@ value-per-line change in the entire repository.**
 
 ## 12. What I got wrong about the tests, and what is actually wrong with them
 
+> ### ✅ Fixed — 7 August 2026 (the runner; the duplication sweep is §22)
+>
+> **The inner loop went from 14.2 s warm to 3.0 s**, and the 7.8 s of process
+> spawn is gone entirely rather than reduced. `package.json:8` no longer chains
+> six `node` invocations with `&&`; `npm test` is one process. The five
+> generators each export `OUTPUTS` — `[path, wanted, label]` — and `run.mjs`
+> imports all five and compares in-process. Each keeps a footer so
+> `node tools/emit-engine.mjs` still rewrites by hand, which is the only thing
+> the `&&` chain was buying.
+>
+> The shared block that made this possible is `tools/generated.mjs`:
+> `isMain`, `staleOutputs`, `writeOutputs`, `runAsScript`. It is the twenty-line
+> read-compare-exit-else-write that was pasted into five files, and one comment
+> paragraph verbatim into three of them.
+>
+> **`npm test -- panels` exists.** Substring, not exact, because `panels`,
+> `panels.test` and `panels.test.mjs` are all what somebody means. A filter
+> narrows the *run*, so the two whole-suite numbers — the assertion tally and
+> the documentation fence over it — are skipped and the run says so. A partial
+> tally checked against the documentation would fail every single-file run and
+> teach everybody to ignore the one fence that catches a stale count.
+>
+> **A throw is one file's problem now.** `await mod.run()` is inside a
+> `try`/`catch`; the file is counted as failed, named in the tail, and the other
+> sixty-one still report. This was not hypothetical and it was not rare — it
+> happened twice while this report was being answered, both times from a test
+> written to check that a fix worked, and both times the suite died with a stack
+> trace and no failure count. The last one cost an hour: the summary line that
+> got grepped was the *previous* run's, so a mutation test appeared to pass.
+>
+> **`tools/paths.mjs`** is the fourth item, and the report undercounted it: the
+> hand-rolled
+> `dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"))`
+> appears **22** times, not 24, against 7 correct uses of `fileURLToPath` — and
+> the portability bug is real, `.pathname` hands back a percent-encoded path so
+> a checkout under `C:\Users\Some One\Ksav` breaks all 22 at import time.
+> `run.mjs` and the generators are converted; the remaining files and the
+> extension of the `src/` sweeps into `test/` and `tools/` are §22, where the
+> rest of the bucket-2 extraction lives.
+>
+> **The engine half.** `spell_en.rs` now holds the `OnceLock` that
+> `spell/mod.rs:623` has thirty lines from the constructor. **2.54 s → 1.0 s**
+> for that one binary, which is a rounder number than the report's "~88 times"
+> deserved — `bundled()` is a fresh parse of 96,184 entries and `check()` called
+> it, so the count was however many assertions there are. The three call sites
+> that had `Some(&l)` now pass the `&'static` through.
+>
+> **Not done, and named:** no watch mode. `--watch` is the one cheap win from
+> the list that was not taken, because with the loop at 3 s the thing it saves
+> is a keystroke, and a file watcher is a new failure mode (missed events,
+> doubled runs, a stale build the developer trusts) traded for it.
+
 **Conceded.** The hand-rolled fakes are not a worse jsdom. Three of the four are *instruments*
 measuring things jsdom cannot express: `FakeElement.writes` counts `innerHTML` assignments (the
 entire thesis of the page cache — "an unchanged page must not be rewritten with the same string");
@@ -1229,7 +1281,7 @@ The duplication that got *named* is gone. What survives lives where no fence loo
 | 16 | ✅ **Fixed 7 Aug.** `compile_html` calls `engine_for` instead of carrying a copy of its body that had lost one line. | 10 | 3 | `rewrite` | 4 lines |
 | 17 | `docs/start-here.md:67` names the wrong key; the fence counts and the failures are qualitative. | 14 | 3 | `rewrite` | 6 chars + 25 lines |
 | 18 | Undebounced full-document work per arrow key; the fold service is O(lines × nodes). | 13 | 3 | `rewrite` | ~70 lines |
-| 19 | Test runner: no filter, no watch, no failure containment, 55% process spawn. | 12 | 3 | `rewrite` | ~50 lines |
+| 19 | ✅ **Fixed 7 Aug.** One process instead of six, **14.2 s → 3.0 s** warm; `npm test -- panels`; a thrown file is contained and counted instead of killing the other sixty-one. `spell_en.rs` gets the `OnceLock` it was thirty lines from, 2.54 s → 1.0 s. No watch mode, deliberately. | 12 | 3 | `rewrite` | ~50 lines |
 | 20 | The prelude is a string; 76% of a compile is world construction. | 9 | 2 | `wrong-but-keep` | 1 week |
 | 21 | `logical_text` lies in the shipping library; `COMMAND_CATEGORY`, `bench-structure`, `readme.test` are dead. | 5 | 1 | `delete` | ~250 lines out |
 

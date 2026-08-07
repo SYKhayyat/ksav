@@ -25,6 +25,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runAsScript } from "./generated.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
@@ -137,32 +138,10 @@ const services = read();
 const built = emit(services);
 const builtWorker = emitWorker(services);
 
-/** Every generated output, as `[path, wanted]`. */
-const OUTPUTS = [
+/** Every generated output, as `[path, wanted, label]`. */
+export const OUTPUTS = [
   [OUT, built, "src/services.gen.ts"],
   [SW_OUT, builtWorker, "public/sw-services.gen.js"],
 ];
 
-if (process.argv.includes("--check")) {
-  for (const [file, wanted, name] of OUTPUTS) {
-    let have = null;
-    try {
-      have = readFileSync(file, "utf8");
-    } catch {
-      /* missing counts as stale */
-    }
-    if (have !== wanted) {
-      console.error(
-        `${name} is stale — the engine's service registry changed and this copy did not.\n` +
-          "Run: node tools/emit-services.mjs",
-      );
-      process.exit(1);
-    }
-  }
-  console.log("services up to date");
-} else {
-  for (const [file, wanted] of OUTPUTS) {
-    writeFileSync(file, wanted);
-    console.log("wrote " + file);
-  }
-}
+runAsScript(import.meta.url, OUTPUTS, "services", "node tools/emit-services.mjs");

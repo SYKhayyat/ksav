@@ -11,10 +11,40 @@ import { readdir, rm, readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { buildableModules } from "./modules.mjs";
+import { APP, TEST as HERE, SRC, TMP_TEST as OUT } from "../tools/paths.mjs";
+import { staleOutputs } from "../tools/generated.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
-const APP = path.resolve(HERE, "..");
-const OUT = path.join(APP, ".tmp-test");
+/**
+ * Which test files to run — `npm test -- panels` runs `panels.test.mjs`.
+ *
+ * There was no way to do this at all. The inner loop was the whole suite,
+ * always, which is a real tax on the one activity a suite exists to support:
+ * changing one module and asking whether it still works. Substring match rather
+ * than exact, because `panels`, `panels.test` and `panels.test.mjs` are all what
+ * somebody means.
+ *
+ * A filter narrows the *run*, so the two things that describe the whole suite —
+ * the assertion tally and the documentation fence over it — are skipped and say
+ * so. A partial run reporting a total would be a worse number than none.
+ */
+const FILTER = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+
+/**
+ * The generated files, checked in this process.
+ *
+ * `package.json` used to chain five `node tools/emit-*.mjs --check` calls in
+ * front of the suite with `&&`. Six process spawns, and on Windows they cost
+ * **~7.8 s of the 14.2 s warm inner loop — 55% of it** — to do work that is a
+ * string comparison. They are imports now; each generator exports its `OUTPUTS`
+ * and keeps a footer so `node tools/emit-engine.mjs` still rewrites by hand.
+ */
+const GENERATORS = [
+  ["services", "emit-services.mjs"],
+  ["engine facts", "emit-engine.mjs"],
+  ["note fixtures", "emit-note-fixtures.mjs"],
+  ["structure fixtures", "emit-structure-fixtures.mjs"],
+  ["insertion fixtures", "emit-insertion-fixtures.mjs"],
+];
 
 /**
  * The modules a test may import. Bundled, so their own imports come along.
@@ -25,7 +55,23 @@ const OUT = path.join(APP, ".tmp-test");
  * `test/modules.mjs` holds the two exemptions and `runner.test.mjs` checks both
  * of them against reality.
  */
-const MODULES = buildableModules(path.join(APP, "src"));
+const MODULES = buildableModules(SRC);
+
+// Before anything else, because a stale generated file makes every downstream
+// failure a mystery: the suite is testing a copy of the engine's facts that the
+// engine has stopped agreeing with.
+{
+  const stale = [];
+  for (const [what, file] of GENERATORS) {
+    const { OUTPUTS } = await import(pathToFileURL(path.join(APP, "tools", file)).href);
+    for (const label of staleOutputs(OUTPUTS)) stale.push([label, file, what]);
+  }
+  if (stale.length) {
+    console.log("✗ generated files are stale:");
+    for (const [label, file] of stale) console.log(`  ${label} — run: node tools/${file}`);
+    process.exit(1);
+  }
+}
 
 await rm(OUT, { recursive: true, force: true });
 
@@ -53,11 +99,19 @@ await build({
   logLevel: "warning",
 });
 
-const files = (await readdir(HERE)).filter((f) => f.endsWith(".test.mjs")).sort();
+const all = (await readdir(HERE)).filter((f) => f.endsWith(".test.mjs")).sort();
+const files = FILTER.length ? all.filter((f) => FILTER.some((q) => f.includes(q))) : all;
+if (FILTER.length && !files.length) {
+  console.log(`no test file matches ${FILTER.join(" ")} — of ${all.length}`);
+  process.exit(1);
+}
 
 // The harness keeps one running tally across every file, so a test that forgets
 // to report cannot hide a failure.
 const { counts, resetStorage } = await import(pathToFileURL(path.join(HERE, "harness.mjs")).href);
+
+/** Files whose `run()` threw rather than reporting. */
+const thrown = [];
 
 for (const f of files) {
   const mod = await import(pathToFileURL(path.join(HERE, f)).href);
@@ -67,17 +121,42 @@ for (const f of files) {
   }
   const before = counts();
   await resetStorage();
-  await mod.run();
+  // Contained.
+  //
+  // This was a bare `await mod.run()`, and a *thrown* test — not a failed
+  // assertion, a `TypeError` — unwound into an unhandled rejection, killed all
+  // sixty files, and skipped the documentation fence below because that sits
+  // inside `if (!fail)`. It is not hypothetical: `coverage.test.mjs:102-108`
+  // does `ok(…, !!filter)` and then immediately `filter[1].replace(…)`, so
+  // renaming a local in `main.ts` takes the whole suite down with a stack trace
+  // instead of one named failure. It happened twice while this report was being
+  // answered, both times from a test written to check that a fix worked.
+  //
+  // A throw is now one file's problem, counted as a failure, with the other
+  // fifty-nine still reported.
+  let threw = null;
+  try {
+    await mod.run();
+  } catch (e) {
+    threw = e;
+    thrown.push(f);
+  }
   const after = counts();
-  const failed = after.fail - before.fail;
+  const failed = after.fail - before.fail + (threw ? 1 : 0);
   console.log(
     `${failed ? "✗" : "✓"} ${f.padEnd(24)} ${after.pass - before.pass} passed` +
       (failed ? `, ${failed} FAILED` : ""),
   );
+  if (threw) console.log(`  threw: ${threw?.stack ?? threw}`);
 }
 
 const { pass, fail } = counts();
-console.log(`\n${files.length} files · ${pass} passed, ${fail} failed`);
+const broke = thrown.length;
+console.log(
+  `\n${files.length} files · ${pass} passed, ${fail} failed` +
+    (broke ? `, ${broke} threw` : ""),
+);
+if (broke) console.log(`  threw: ${thrown.join(", ")}`);
 
 // ------------------------------------------- the two numbers only this knows
 //
@@ -90,7 +169,11 @@ console.log(`\n${files.length} files · ${pass} passed, ${fail} failed`);
 // that counts itself is a number that can never settle.
 //
 // Skipped when something already failed: a red suite has a better thing to say.
-if (!fail) {
+// Skipped on a filtered run too, and this is not a convenience — the numbers
+// describe *the whole suite*, and checking a partial tally against the
+// documentation would fail every single-file run and teach everybody to ignore
+// the one fence that catches a stale count.
+if (!fail && !broke && !FILTER.length) {
   const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, ROOT } = await import(
     pathToFileURL(path.join(HERE, "docfacts.mjs")).href
   );
@@ -122,4 +205,8 @@ if (!fail) {
   }
 }
 
-process.exit(fail ? 1 : 0);
+if (FILTER.length) {
+  console.log(`(filtered to ${FILTER.join(" ")} — the documentation fence needs a full run)`);
+}
+
+process.exit(fail || broke ? 1 : 0);

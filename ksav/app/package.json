@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "node tools/emit-services.mjs --check && node tools/emit-engine.mjs --check && node tools/emit-note-fixtures.mjs --check && node tools/emit-structure-fixtures.mjs --check && node tools/emit-insertion-fixtures.mjs --check && node test/run.mjs",
+    "test": "node test/run.mjs",
     "fixtures": "node tools/emit-services.mjs && node tools/emit-engine.mjs && node tools/emit-note-fixtures.mjs && node tools/emit-structure-fixtures.mjs && node tools/emit-insertion-fixtures.mjs",
     "build:wasm": "tsc --noEmit && cross-env VITE_WASM=1 vite build",
     "preview": "vite preview",

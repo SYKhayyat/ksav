@@ -620,11 +620,17 @@ existing.
 
 ```sh
 cd app && npm test                          # 3,749 assertions across 62 files
+cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 397 tests, 26 binaries
+cargo test --manifest-path engine/Cargo.toml            # 399 tests, 26 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
+
+A filtered run says so and skips the two checks that describe the whole suite —
+the assertion tally above and the documentation fence over it. A partial tally
+checked against the documentation would fail every single-file run, which is the
+fastest way to teach everybody to ignore the one fence that catches a stale count.
 
 `.github/workflows/ci.yml` runs all of these on every push and pull request, plus
 one more that cannot run from a plain checkout: it builds the wasm engine and

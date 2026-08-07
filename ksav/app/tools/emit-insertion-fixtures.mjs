@@ -35,6 +35,8 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runAsScript } from "./generated.mjs";
+import { commands } from "./commands.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
@@ -100,13 +102,16 @@ async function load(name) {
 /**
  * The registry, read from the engine source rather than a running server.
  *
- * Re-exported from `tools/commands.mjs`. This used to be a fourth
- * implementation of the same read — the two test files' regex minus one group —
- * and the whole point of this generator is that a registry command and the
- * insertion path must not be able to disagree. Two readers of the registry is
- * that disagreement one level up.
+ * From `tools/commands.mjs`. This used to be a fourth implementation of the
+ * same read — the two test files' regex minus one group — and the whole point
+ * of this generator is that a registry command and the insertion path must not
+ * be able to disagree. Two readers of the registry is that disagreement one
+ * level up.
+ *
+ * Imported *and* re-exported: `export … from` creates no local binding, so
+ * `buildFixture` below would not have seen it.
  */
-export { commands } from "./commands.mjs";
+export { commands };
 
 export async function buildFixture() {
   const { insertionAt, legalAt } = await load("mode");
@@ -142,25 +147,7 @@ export async function buildFixture() {
   );
 }
 
-if (process.argv[1] && process.argv[1].endsWith("emit-insertion-fixtures.mjs")) {
-  const built = await buildFixture();
-  if (process.argv.includes("--check")) {
-    let have = null;
-    try {
-      have = readFileSync(OUT, "utf8");
-    } catch {
-      /* missing counts as stale */
-    }
-    if (have !== built) {
-      console.error(
-        "insertions.json is stale — the registry or the insertion path changed but the\n" +
-          "engine's copy did not. Run: node tools/emit-insertion-fixtures.mjs",
-      );
-      process.exit(1);
-    }
-    console.log("insertion fixtures up to date");
-  } else {
-    writeFileSync(OUT, built);
-    console.log("wrote " + OUT);
-  }
-}
+/** Every generated output, as `[path, wanted, label]`. */
+export const OUTPUTS = [[OUT, await buildFixture(), "insertions.json"]];
+
+runAsScript(import.meta.url, OUTPUTS, "insertion fixtures", "node tools/emit-insertion-fixtures.mjs");

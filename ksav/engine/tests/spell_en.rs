@@ -15,13 +15,21 @@
 
 use ksav_engine::spell::{self, english, hebrew, Checker, Language};
 
-fn en() -> english::Lexicon {
-    english::Lexicon::bundled()
+/// The bundled English lexicon, parsed **once** for the whole binary.
+///
+/// It was `english::Lexicon::bundled()` — a fresh parse of 96,184 entries — and
+/// twenty call sites plus every `check()` came through it, so this file rebuilt
+/// the lexicon on the order of ninety times per run. `spell/mod.rs:623-632`
+/// already had this exact fix thirty lines from the constructor, under the
+/// comment *"A quarter of a million entries is not something to rebuild per
+/// keystroke."* The same sentence is true of a test suite.
+fn en() -> &'static english::Lexicon {
+    static SHARED: std::sync::OnceLock<english::Lexicon> = std::sync::OnceLock::new();
+    SHARED.get_or_init(english::Lexicon::bundled)
 }
 
 fn check(text: &str) -> Vec<spell::Misspelling> {
-    let l = en();
-    Checker::new(None, Some(&l)).check(text)
+    Checker::new(None, Some(en())).check(text)
 }
 
 fn flagged(text: &str) -> Vec<String> {
@@ -167,7 +175,7 @@ fn neither_starter_document_opens_covered_in_squiggles() {
     let source = include_str!("../../app/src/main.ts");
     let he = hebrew::Lexicon::bundled();
     let english = en();
-    let checker = Checker::new(Some(&he), Some(&english));
+    let checker = Checker::new(Some(&he), Some(english));
     for name in ["STARTER_HE", "STARTER_EN"] {
         let body = starter(source, name);
         let flagged: Vec<String> = checker.check(&body).into_iter().map(|m| m.word).collect();
@@ -481,7 +489,7 @@ fn a_bilingual_sentence_is_checked_in_both_languages() {
     // unchecked in exactly the writing this product exists for.
     let he = hebrew::Lexicon::bundled();
     let en = en();
-    let checker = Checker::new(Some(&he), Some(&en));
+    let checker = Checker::new(Some(&he), Some(en));
     let text = "The Rambam writes כשכשכשכש about this entirley.";
     let found = checker.check(text);
     let words: Vec<(&str, &str)> = found
@@ -505,7 +513,7 @@ fn neither_lexicon_answers_for_the_others_words() {
         "a Hebrew-only checker had an opinion about English"
     );
     let l = en();
-    let english_only = Checker::new(None, Some(&l));
+    let english_only = Checker::new(None, Some(l));
     assert!(
         english_only.check("כשכשכשכש").is_empty(),
         "an English-only checker had an opinion about Hebrew"

@@ -1363,6 +1363,149 @@ close it.
 
 **Verdict: `delete`.**
 
+> ### ✅ Answered — 6 August 2026, and the verdict is refused
+>
+> Not done as prescribed, and the refusal is the finding. The nine rows were
+> taken one at a time and **every diagnosis below held**; what did not hold is
+> the conclusion drawn from them. A feature reachable from a menu that does
+> nothing is not evidence that nobody wants it. It is evidence that nobody
+> finished it, and the distinction decides what you do next.
+>
+> This section is kept verbatim. What follows is what was built instead, the two
+> rows that are factually wrong about what they would delete, and the three bugs
+> that came out of taking "make it work" as the instruction.
+>
+> **The one live bug, and it was worse than the row that names it.** The PWA row
+> is right that `sw.js` registers on `ksav serve` and calls it *actively harmful*
+> — and then understates it. `HttpBackend.ask` is a plain `fetch` GET;
+> `/inbox` is a queue that **drains when it is read**, polled once a second; the
+> worker was cache-first for every same-origin GET that was not a navigation. So
+> the first poll carrying a source from Girsa was cached and replayed on every
+> poll after it, inserting that source into the open document again, once a
+> second, until the tab was closed. The row calls this "the first response
+> replays forever", which is right and sounds like a stale-bundle annoyance. It
+> is a sefer with the same paragraph in it four thousand times.
+>
+> The fix is not deletion, because the worker's problem was never its policy: it
+> could not tell an engine service from a stylesheet, and nothing had ever told
+> it. It is told now, from the one registry in `services.rs` —
+> `emit-services.mjs` writes a second generated file and `npm test` fails when
+> either copy is stale. The rule is closed by default: it says what an asset
+> looks like rather than listing what to skip, so a service added tomorrow is
+> uncacheable the moment it exists. `sw.js` is a module worker so the rule lives
+> where a test can drive it, which is the actual reason this survived — nothing
+> in that file could be run outside a browser.
+>
+> **"No host exists" was the true half of four rows, and it is a thing you can
+> build.** There was no `gh-pages`, no Netlify, no deploy job; `.github/workflows`
+> was `ci.yml` and `release.yml`. Two features were built against that host and
+> could not have worked. `deploy.yml` publishes the wasm bundle to Pages on a
+> tag, and `VITE_PUBLIC_BASE` reaches the app twice — as Vite's `base`, so the
+> assets carry the `/ksav/` prefix a project site serves under, and as
+> `__PUBLIC_BASE__`, which is what a share link names. One value, so a link
+> cannot point where the app is not.
+>
+> **The share row is right and did not go far enough.** *"The link went through
+> WhatsApp"* is a fair answer to `share.ts`'s privacy claim. But `share.ts` takes
+> its base as an argument precisely so it cannot invent one, and its **caller**
+> invented one: `main.ts` read `"https://ksav.app/"` for every desktop and
+> `file:` build — a domain with no deploy job, no workflow and no mention
+> anywhere else in this repository — and reported "Link copied" over it. That is
+> not a feature with no user. That is a button that has never once worked, in the
+> build that ships an installer. It reads `__PUBLIC_BASE__` now, and no host
+> configured is a refusal in both languages rather than a guess.
+>
+> **The `engine/web/index.html` row is right about the cost and wrong about what
+> to do with it.** *"A dead UI buys a carve-out in the live security policy"* —
+> yes, and the carve-out was bought by a `<script>` tag being in the wrong file.
+> `script-src 'self'` blocks inline script, so that page was answered with no
+> `Content-Security-Policy` header at all, in the one build that receives
+> documents written by other people. The script is `web/editor.js` now, external,
+> and the page is answered like every other. The two response sites had disagreed
+> because each carried its own `if`; there is one `policy_for(content_type)` now
+> and both call it. Verified against a running server and then driven in a
+> browser: the fallback editor compiles in 17 ms with no console errors and no
+> CSP violations, which is the first time anything here has confirmed it runs at
+> all.
+>
+> **The prototypes row is right about the artifacts and wrong that the fix is
+> deletion.** `AIAssistant.tsx` still POSTed to `/api/gemini/assistant`, gone on
+> 24 July with the proxy behind it — so every send failed, and the failure said
+> *"check your API key is configured"*, which sent the reader to `.env.example`,
+> which offered them a `GEMINI_API_KEY` slot to fill in for a route that does not
+> exist. Three artifacts pointing at each other and at nothing, and the one thing
+> they did successfully was ask a stranger to paste a real credential into a
+> mock. Restoring the proxy is not the fix; it *is* the vulnerability the README
+> documents removing. The panel says so and hands the prompt back, `.env.example`
+> asks for nothing, and `metadata.json` no longer declares a capability nothing
+> here has.
+>
+> **Two rows are factually wrong about what they would delete.**
+>
+> - **Row 8 (version history + Myers diff) would silently kill two features it
+>   does not name.** `refreshBaseline` feeds the change gutter from the newest
+>   snapshot, and `ruler.ts`'s fourth mark kind is `change`. Delete the history
+>   and the gutter has no baseline ever again and one of the overview ruler's
+>   four marks goes dark — a feature this section leaves standing and §12 does
+>   not defend either. Which is this report's own bug family told from the other
+>   end: remove the mechanism, leave the surface. *"`git init` is a better
+>   version history"* is also a developer's answer to a bochur's problem; the
+>   whole of §13 is that nobody has written a document in this thing, and the
+>   person who hasn't is not going to `git init` their kuntres.
+> - **Row 9 files `changes.ts` under "tracked changes".** `changes.ts` is the
+>   change gutter — a CodeMirror state field over `diff.ts`, 121 lines, whose
+>   only inbound relationship is to `ruler.ts`. It has nothing to do with
+>   `review.ts`. The row's line count and its "nothing else depends on it" both
+>   rest on that mistake, and rows 8 and 9 would each have deleted half of one
+>   working feature without either one saying so.
+>
+> **Three bugs came out of building rather than deleting, and none of them is in
+> this section.**
+>
+> - **`spec.md:804` conceded that "Vim mode in particular has never had a key
+>   pressed in it."** A key has now been pressed in it. With vim or emacs on,
+>   **none of the hydra's keys did anything**: press the `a` the panel offers for
+>   "new item" and vim goes to INSERT; press `b` and the caret moves back a word,
+>   leaves the list, and the structure watch closes the panel. Escape did not
+>   close it either. Eleven operations on screen with their keys printed beside
+>   them, and not one connected — in the surface built specifically so that an
+>   operation could not be unreachable. The keys sat in a `Prec.highest` keymap
+>   entry under a comment claiming it was ahead of the mode keymaps. Moving it
+>   earlier was the obvious fix and it was wrong: `@replit/codemirror-vim`
+>   handles keys from a **ViewPlugin event handler**, and a plugin's DOM handlers
+>   run ahead of the whole `keymap` facet whatever its precedence. Precedence
+>   orders facet inputs against one another; it does not order a facet against a
+>   plugin. They are a capture-phase listener on `window` now.
+> - **`canBreakInItem()` returned `true` for every caret**, and `breakInItem`
+>   spliced a ` \` at the position without asking. A trailing backslash is Typst
+>   *content* markup, so between two items it is "the character `\` is not valid
+>   in code". Found by driving the hydra once its keys worked — the panel offered
+>   it ungreyed at a caret where delete, indent, outdent and both moves were all
+>   correctly greyed.
+> - **And the reason nothing caught that one is a gap in the shape of §7's
+>   argument.** `structure.test.mjs` visits every caret position of 23 documents
+>   and checks `enabled` and `run` agree — they did, both saying yes.
+>   `emit-structure-fixtures.mjs` compiles what the operations produce, which is
+>   the only check that tells legal Typst from merely balanced brackets — and it
+>   drove each operation at exactly one caret, always inside an item. One sweep
+>   had every position and no compiler; the other had the compiler and one
+>   position. The fixture sweeps both now, +81 cases.
+>
+> **What this says about the section.** Nine features were called dead. Six of
+> them were, and in each case the missing piece was small and nameable: a host, a
+> base URL, an external `<script>`, a `keydown` listener in the right place, a
+> generated list of service paths, an honest error message. None of the six was
+> dead because nobody wanted it. They were dead because the last ten per cent was
+> never done, and "delete it" and "finish it" are indistinguishable from the
+> evidence this section gathers. The evidence supports "nobody has run this",
+> which is §13, and §13 is right.
+>
+> Cost: 5 commits, 21 files, 3 added. `npm test` 3,535 across 58 files (+16),
+> `cargo test --lib` 129 (+4), the structure fixture 165 cases (+81), `tsc`
+> clean, `vite build` clean at both bases, clippy and `cargo fmt` clean. Eight
+> mutations red across the four fences. Two features driven in a real browser
+> that had never been opened in one.
+
 | Feature | Lines | Evidence |
 |---|---|---|
 | **Vim + Emacs modes** (`keymodes.ts` + `main.ts:836, 4937-4939, 5559, 5592-5594` + `settings.ts:59` + 8 i18n keys ×2 + 2 npm deps) | ~124 + wiring | `spec.md:779-780`: *"Vim mode in particular has never had a key pressed in it."* `settings.ts:57-59` argues the mode *"must not put them into vim"* — the file is arguing with the feature. No request in `spec.md`, `fixes.md`, `plan-notes-and-ui.md` or `docs/`. |
@@ -1977,7 +2120,7 @@ writes itself, and it will be shorter and more expensive than the fourteen.
 | 9 | ✅ **Fixed 6 Aug.** `chrome.test.mjs` credited surfaces to each other by local-variable name and its Escape block survived the handler being deleted; the hydra had no Escape once its own buttons had focus, and two of the sixteen "surfaces" were phantoms | `rewrite` → one `panels.ts` registry + 13 mutations | ~1 day, 5 files; `main.ts` −18 lines, not −250 |
 | 10 | ✅ **Fixed 6 Aug.** Print silently printed the healed document; the Word routes produced no file under a status line announcing one. Both live in `exports.ts`, which was one of #13's nineteen — the hole and the bugs were the same finding | fix in place → a non-printing banner in the print window, and `reflowableHtml` reporting a reason instead of its caller's outcome | ~1 hour |
 | 11 | ✅ **Fixed 6 Aug.** `fold()`, defaults, the command pairing, font notices, `#כלול`, head alignment, "strip the markup" — each 2–3× in 2–3 languages; `spans.ts` was a ninth site the finding missed. Two real bugs fell out: `_ix_fold` folded `שַׁבָּת` to the empty string (grapheme clusters, so a pointed letter went with its point) and `#כלול("")` was a directive in Rust and not in TS | `rewrite` → one generated `engine.gen.ts` + two executed corpora | ~1 day, not 8: the eight are one question asked eight times. 20 files, 7 added, ~200 hand-written name pairs deleted, 8 mutations red |
-| 12 | Vim/emacs, hydra, macros, share, PWA, `engine/web/index.html`, prototypes source, history+Myers, tracked changes | `delete` | ~9,000 lines out |
+| 12 | ✅ **Answered 6 Aug — verdict refused.** Every diagnosis held; the conclusion did not. Six of the nine were dead for a small, nameable reason — no host, no base URL, an inline `<script>`, a `keydown` listener that could never be first, no generated service list, an error message blaming a missing API key — and "delete it" and "finish it" are indistinguishable from the evidence gathered here. The `/inbox` cache poisoning was worse than stated: a drained queue replayed once a second is a document eater, not a stale bundle. Rows 8 and 9 are factually wrong — `refreshBaseline` feeds the change gutter from the newest snapshot and `ruler.ts`'s fourth mark is `change`, so deleting the history darkens a surface this section leaves standing; and `changes.ts` is that gutter, not tracked changes | `delete` → **build**: `deploy.yml`, `__PUBLIC_BASE__`, `sw-cache.js` + a generated `sw-services.gen.js`, `web/editor.js` + one `policy_for`, an honest archived-mock panel | 5 commits, 21 files, +3; 8 mutations red; 3 further bugs found by *using* it — the hydra's eleven keys all dead under vim, `canBreakInItem` constantly true, and the fixture that compiled one caret while the sweep visited every one |
 | 13 | ✅ **Fixed 6 Aug.** `run.mjs` listed 43 of 62 modules and **not one test imported the other nineteen**; "cannot build" was wrong (61 of 62 build) — nothing compared the list to the directory. The build also gave every entry its own `runtime` singleton, so every cross-module fact failed closed, and `brackets.ts` broke the no-new-line invariant `compile.ts` rests on | fix + prune → the list read off `src/`, `runner.test.mjs`, 16 modules tested, `help`/`coverage` pruned | not 2 hours: 24 files, +9 test files; 3,482 assertions across 58 files — **+8 files, −382 assertions**, 8 mutations red |
 | 14 | `main.ts` at 5,653 lines as such | `wrong-but-keep` | — |
 | 15 | Concatenated prelude and the coordinate-correction régime | `wrong-but-keep`; extract `assemble_source` through wasm | ~1 hour for the extraction |

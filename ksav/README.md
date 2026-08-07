@@ -104,7 +104,9 @@ commentary lettered and the he'aros on it numbered.
 
 - **`Ctrl+Alt+K`** — a *hydra*: a panel listing every operation available where
   the caret is, one letter each, staying open so five rows is `r r r r r`.
-  `Esc` or `q` to leave.
+  `Esc` or `q` to leave. While it is open it owns the keyboard, including in Vim
+  and Emacs modes — modified keys still pass through, so `Ctrl+S` saves from
+  inside it.
 - **`F3` / `F4`** — record a macro and replay it. Macros record *actions*, not
   keystrokes and not cursor positions, so they replay correctly from anywhere.
   Save one and it becomes bindable to a key like anything else.
@@ -673,6 +675,31 @@ cp pkg/ksav_wasm.js pkg/ksav_wasm.d.ts pkg/ksav_wasm_bg.wasm* ../app/src/wasmpkg
 cd ../app && npm run build:wasm              # app/dist runs with no server
 # serve app/dist on any static host
 ```
+
+### Where it is published
+
+`.github/workflows/deploy.yml` builds exactly the bundle above and publishes it
+to GitHub Pages, on a **tag** and on `workflow_dispatch`. Tags rather than every
+push to `main`, because a share link carries a document and opens in whatever
+app is at the far end: publishing on every push means a link sent on Tuesday
+opens in Thursday's half-finished editor.
+
+**Before the first deploy**, GitHub Pages has to be enabled for the repository
+with *Source: GitHub Actions* (Settings → Pages). The job does not enable it for
+you — turning a repository's contents into a public website is not a build
+script's decision — so `actions/configure-pages` fails with a clear message
+until somebody has made it.
+
+`VITE_PUBLIC_BASE` is the URL being published to, and it reaches the app twice:
+
+- as Vite's `base`, so the asset URLs in the built HTML carry the `/ksav/`
+  prefix a *project* Pages site serves under, and
+- as `__PUBLIC_BASE__`, which is the base a **share link** names.
+
+One value for both, so a link can never point at a copy of the app that is not
+there. Unset — which is every local build — the assets are rooted at `/` and
+"copy a link" refuses in words rather than guessing a host. It used to guess
+`https://ksav.app/`, a domain that appears nowhere else in this repository.
 
 ## Desktop app (Tauri)
 

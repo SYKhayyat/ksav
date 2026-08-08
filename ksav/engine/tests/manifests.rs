@@ -314,22 +314,37 @@ fn the_dependency_is_documented() {
     // could not work, and no page anywhere named the reason.
     let readme = root.join("ksav").join("README.md");
     let text = fs::read_to_string(&readme).expect("ksav/README.md exists");
-    // `## The shared crates` and not `The shared crates`: the bare phrase also
-    // appears in two cross-references elsewhere on the page, so the loose form
-    // passed with the section renamed out from under it — caught by mutation,
-    // and it is the same defect §7 of the audit found in `chrome.test.mjs`,
-    // which credited a surface by a name that was not the thing it guarded.
-    for claim in [
-        "## The shared crates",
-        "sefer-crates",
-        ".cargo/config.toml.example",
-        "git = \"https://github.com/SYKhayyat/sefer-crates\"",
-    ] {
+    let design_text =
+        fs::read_to_string(root.join("ksav").join("DESIGN.md")).expect("ksav/DESIGN.md exists");
+
+    // The README must say there is a second repository, and say where the rest of
+    // the story is. The detail moved to `DESIGN.md` when the README was split
+    // (903 lines, two to one against the reader who came to use the thing), and
+    // this assertion followed it rather than being relaxed: the finding was never
+    // "these four strings are in this file", it was that the build depends on a
+    // second repository *and nothing said so*.
+    //
+    // `## The shared crates` and not the bare phrase: that also appears in
+    // cross-references, so the loose form passed with the section renamed out
+    // from under it — caught by mutation.
+    for claim in ["## The shared crates", "sefer-crates", "DESIGN.md"] {
         assert!(
             text.contains(claim),
             "ksav/README.md no longer mentions `{claim}`. The build depends on a \n\
              second repository; a reader who does not know that finds out from a \n\
              cargo error message.",
+        );
+    }
+    // And the page it sends them to carries what they have to do about it.
+    for claim in [
+        "## The shared crates",
+        ".cargo/config.toml.example",
+        "git = \"https://github.com/SYKhayyat/sefer-crates\"",
+    ] {
+        assert!(
+            design_text.contains(claim),
+            "ksav/DESIGN.md no longer mentions `{claim}`. The README sends the \n\
+             reader here for exactly that.",
         );
     }
 

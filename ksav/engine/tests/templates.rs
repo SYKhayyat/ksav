@@ -22,10 +22,22 @@ use ksav_engine::templates::template_body;
 use ksav_engine::DocConfig;
 
 fn render(id: &str) -> Vec<TextRun> {
+    laid_out(id).0
+}
+
+/// The runs **and** the page sizes from **one** layout.
+///
+/// One, and that matters: laying the same template out twice and reading runs
+/// from the first and sizes from the second gave a run on page 1 against a
+/// one-page document. Two compiles of one apparatus document are not guaranteed
+/// to agree — convergence is a property this apparatus works hard for and does
+/// not get for free — so anything comparing a position to a page reads both from
+/// the same layout.
+fn laid_out(id: &str) -> (Vec<TextRun>, Vec<(f64, f64)>) {
     let body = template_body(id).unwrap_or_else(|| panic!("no template {id:?}"));
     let doc = probe::layout(body, &DocConfig::default())
         .unwrap_or_else(|d| panic!("template {id:?} does not compile: {d:?}"));
-    probe::text_runs(&doc)
+    (probe::text_runs(&doc), probe::page_sizes(&doc))
 }
 
 fn find<'a>(runs: &'a [TextRun], needle: &str) -> &'a TextRun {
@@ -105,7 +117,7 @@ fn the_divrei_torah_template_puts_its_notes_in_the_margin() {
 /// The Gemara look: fixed regions at the foot, which hold their slot.
 #[test]
 fn the_gemara_template_lays_out_two_fixed_bands() {
-    let runs = render("gemara");
+    let (runs, sizes) = laid_out("gemara");
     let body = find(&runs, "כֵּיצַד");
     let first = find(&runs, "כל פרי הגדל באילן");
     let second = find(&runs, "ועיין במה שדנו");
@@ -117,16 +129,17 @@ fn the_gemara_template_lays_out_two_fixed_bands() {
         first.y,
         second.y
     );
-    // Both bands are on the paper. A fixed-height apparatus with no reserved
-    // note region grows straight off the bottom of the page, taking the page
-    // number with it — which is exactly what `auto_notes_region_cm` is for, and
-    // this template is the first thing in the repository that exercises it.
-    let (_, sizes) = {
-        let body_src = template_body("gemara").unwrap();
-        let doc = probe::layout(body_src, &DocConfig::default()).unwrap();
-        (probe::text_runs(&doc), probe::page_sizes(&doc))
-    };
-    let height = sizes[second.page].1;
+    // Both bands are on the paper.
+    //
+    // This is the first thing in the repository to exercise the note reserve, and
+    // it found that `auto_notes_region_cm` returns a flat **3 cm** for any
+    // document with a page-foot apparatus in it — it never reads the `גבהים` the
+    // document configured. The template asked for 3.5 + 2.5 cm and the second
+    // band rendered 51pt below the bottom edge of A4, with the page number under
+    // it. The template's heights now fit the reserve; making the reserve read the
+    // heights is a real fix and is not this one.
+    // `TextRun.page` is 1-based (`probe.rs` walks `enumerate()` and stores `i + 1`).
+    let height = sizes[second.page - 1].1;
     assert!(
         second.y < height,
         "the second band ran off the bottom of the paper ({} of {})",
@@ -139,8 +152,23 @@ fn the_gemara_template_lays_out_two_fixed_bands() {
 #[test]
 fn the_peirush_template_runs_two_streams_in_parallel() {
     let runs = render("peirush");
-    let content = find(&runs, "והטעם, שכל הנהנה");
-    let source = find(&runs, "ל״ה ע״א");
+    // The two column *headings*, which is the visible claim of this card and the
+    // one thing in it that is unambiguous: an entry's text can repeat elsewhere
+    // on the page (a canonical sefer name prints again in the source index), and
+    // a test that matches the wrong run compares a heading to a body line and
+    // reports "stacked" about a layout that is not.
+    // The two column *headings*, matched exactly. `contains` found the page's
+    // own subtitle first — "ביאורים ומראי מקומות זה לצד זה" holds both words —
+    // and comparing a subtitle to a heading reported "stacked" about a layout
+    // that is side by side. A substring match on a document that talks about
+    // itself is a trap, and this template talks about itself in its subtitle.
+    let exact = |needle: &str| {
+        runs.iter()
+            .find(|r| r.text.trim() == needle)
+            .unwrap_or_else(|| panic!("no run is exactly {needle:?}"))
+    };
+    let content = exact("ביאורים");
+    let source = exact("מראי מקומות");
 
     assert_eq!(
         content.page, source.page,

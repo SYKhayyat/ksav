@@ -325,10 +325,14 @@ export const NOTE_CHOICES: NoteChoice[] = [
     descEn:
       "Two independent note streams, collected to the end of the document and printed side by side in two columns — a peirush and mareh mekomos.",
     sketch: ["▤▤▤▤▤▤", "", "בסוף:", "¹▪▪ │ א▪▪"],
-    insert: "#הערת_תוכן[|]",
-    insert2: "#הערת_מקור[|]",
-    head: '#הגדרות_זרמים(זרמים: ("תוכן", "מקורות"), מספור: ("מקורות": "א"))',
-    tail: '#הערות_בסוף_צד(זרמים: ("תוכן", "מקורות"))',
+    // `#הערתסיום(זרם: …)`, not `#הערת_תוכן`/`#הערת_מקור`. Those are the
+    // *page-foot* streams and register under a different label; this card is the
+    // endnote streams, which is what `#הערות_בסוף_צד` collects. Written the
+    // other way it renders one column with both sets stacked in it — caught by
+    // `apparatus.rs`, invisible to any check that a document merely compiles.
+    insert: '#הערתסיום(זרם: "תוכן")[|]',
+    insert2: '#הערתסיום(זרם: "מקורות")[|]',
+    tail: '#הערות_בסוף_צד(זרמים: ("תוכן", "מקורות"), כותרות: ("תוכן": [ביאורים], "מקורות": [מראי מקומות]))',
     noteHe: "שני הזרמים נאספים לסוף ומודפסים יחד — לא בתחתית כל עמוד.",
     noteEn: "Both streams are collected to the back and printed together — not at the foot of each page.",
   },

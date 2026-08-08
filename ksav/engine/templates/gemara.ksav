@@ -1,4 +1,11 @@
-#הגדרות_מדפים(גבהים: (3.5cm, 2.5cm), גודל: (0.85em, 0.8em))
+// The two heights must total no more than the note region the engine reserves.
+// These are the heights the note chooser itself writes for this layout
+// (`NOTE_CHOICES`, id `bands`), and using the product's own numbers is not
+// laziness here: `auto_notes_region_cm` reserves a flat 3 cm for any document
+// with a page-foot apparatus in it and never reads `גבהים`, so a template that
+// invents its own heights can put a band off the bottom of the paper. 3.5 + 2.5
+// put the second band 51pt below the edge of A4 with the page number under it.
+#הגדרות_מדפים(גבהים: (1.5cm, 1cm), גודל: (0.85em, 0.8em))
 
 #שער[מסכת ברכות — דף ל״ה ע״א]
 #תת_שער[עם פירוש ובאורים בשולי העמוד]

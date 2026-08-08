@@ -254,6 +254,37 @@ which are about `policy_for` and survive. **Cost:** 232 lines of HTML/JS, ~20 of
 
 ## 3. The templates demonstrate eight of 115 commands, and the apparatus has no template at all
 
+> ### ✅ Fixed — 7 August 2026, and the probe earned its keep twice
+>
+> `sefer` gets `#הגדרות_מדורגות` with `#מדור_א`/`#מדור_ב` and its dumps,
+> `#ציון_מקור` on every citation and both indexes at the back; `divrei-torah`
+> gets `#עם_הערות_צד` and marginal notes beside a footnote, so the two mechanisms
+> are shown to be independent. `gemara` (fixed bands) and `peirush` (two endnote
+> streams side by side) are new. `tests/templates.rs` probes all four.
+>
+> **The report insisted these be probed and not `ok()`ed, and it was right twice
+> over — both times against me.**
+>
+> **The thirteenth card was written with the wrong mechanism.** `#הערת_תוכן` and
+> `#הערת_מקור` are the *page-foot* streams (`#הגדרות_זרמים`) and register under a
+> different label; `#הערות_בסוף_צד` collects *endnote* streams
+> (`#הערתסיום(זרם: …)`). Written the other way it compiles perfectly and renders
+> **one column with both sets of notes stacked in it** — which is the exact
+> failure `README-notes.md` opens by warning about, committed while adding a card
+> to demonstrate that the apparatus works.
+>
+> **And `auto_notes_region_cm` reserves a flat 3 cm** for any document with a
+> page-foot apparatus in it. It never reads the `גבהים` the document configured.
+> The gemara template asked for 3.5 + 2.5 cm and the second band rendered 51pt
+> **below the bottom edge of A4**, with the page number underneath it. The
+> template now uses the heights the note chooser itself writes (1.5 + 1 cm), and
+> that is a workaround: reading `גבהים` is the real fix and is not done. This is
+> the first thing in the repository ever to exercise the reserve, which the
+> report predicted in the sentence *"the new ones will exercise
+> `auto_notes_region_cm`, which is the point."*
+
+
+
 **Verdict: `wrong-but-keep` — unfinished, and this is the 90%.**
 
 | template | features used |

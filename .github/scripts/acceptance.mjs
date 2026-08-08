@@ -1,8 +1,8 @@
 // Does the assembled application work?
 //
-// Every other check in this repository reads. 3,755 editor assertions, 416
-// engine tests, a 1,231-document parse oracle, an insertion grid that compiles
-// every legal UI insertion — all of them excellent, all of them *about* parts.
+// Every other check in this repository reads. 3,894 editor assertions, 429
+// engine tests, a parse oracle over every document the app can generate, an
+// insertion grid that compiles every legal UI insertion — all of them excellent, all of them *about* parts.
 // Nothing had ever booted the product and used it.
 //
 // That is not a hypothetical gap. The whole-repo report puts it first, and names
@@ -111,11 +111,11 @@ function ksavBinary() {
 // The fallback editor is not the product.
 //
 // `embed-ui` is an optional feature, and a binary built without it answers `/`
-// with `engine/web/index.html` — a separate, much smaller editor that has its
-// own toolbar and none of this. It returns 200 and looks like an editor, so a
-// run against it would fail eleven checks with eleven confusing messages instead
-// of one clear one. The SPA's `index.html` links a web manifest and the fallback
-// does not, which is the cheapest thing that tells them apart.
+// with a page saying so — `engine/web/` used to hold a whole second editor
+// there, which returned 200 and looked like an editor, so a run against it
+// failed eleven checks with eleven confusing messages instead of one clear one.
+// The SPA's `index.html` links a web manifest and that page does not, which is
+// the cheapest thing that tells them apart.
 function assertRealApp(html) {
   if (html.includes('rel="manifest"')) return;
   console.error(
@@ -323,7 +323,22 @@ async function main() {
   await page.waitForSelector("#app .toolbar", { timeout: 30_000 });
   const boot = await settled(0);
   check("the first document compiles", boot.cls !== "err", `${boot.text} — ${boot.diagnostics}`);
-  check("a page is rendered", boot.pages > 0, `${boot.pages} pages`);
+  // Waited for, not sampled.
+  //
+  // This read the page count at the instant the first compile finished and was
+  // **flaky**: boot has more than one compile in it — the welcome document, then
+  // whatever the writer had open — and `settled(0)` returns on the first of them,
+  // which can finish before a page node is in the document. It passed on one run
+  // and failed on the next with `0 pages`.
+  //
+  // A check that is right most of the time is worse than no check: this suite's
+  // whole claim is that a red run means something. So the boot step waits for the
+  // page the way a person does, and only the 30-second timeout can fail it.
+  await page
+    .waitForSelector("#preview .page", { timeout: 30_000 })
+    .catch(() => {});
+  const pages = await page.locator("#preview .page").count();
+  check("a page is rendered", pages > 0, `${pages} pages`);
   check(
     "it is talking to the server engine",
     (await page.locator("#engine-badge").textContent())?.includes("server"),

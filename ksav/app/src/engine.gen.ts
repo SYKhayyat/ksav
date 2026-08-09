@@ -384,6 +384,45 @@ export const CONTAINERS: readonly string[] = [
   "הערת_עורך",
 ];
 
+/**
+ * Which Hebrew characters are marks, which separate words, which fold to what.
+ *
+ * From `girsa-hebrew` by way of `engine/facts.gen.json`, because a browser tab
+ * cannot call a Rust crate. `sefarim.ts`'s `fold` wrote these out by hand and
+ * had **one** of the four word-breaking characters — maqaf. Paseq ׀, sof
+ * pasuq ׃ and nun hafukha ׆ sit in the same block, separate words the
+ * same way, and were being deleted, so `בן׃איש` folded to `בןאיש` and found
+ * nothing. Its geresh list was also missing `U+2018`, so a name pasted with a
+ * left curly quote folded differently from the same name with a right one.
+ *
+ * Both were true of the Rust and Typst copies as well. Three implementations of
+ * one rule need an oracle, not three careful readings — `engine/tests/one_want.rs`
+ * and `test/sefarim.test.mjs` are that oracle — and the *tables* underneath the
+ * rule need not be written three times at all.
+ */
+export const HEBREW = {
+  /** ־ maqaf, ׀ paseq, ׃ sof pasuq, ׆ nun hafukha. */
+  wordBreaking: "־׀׃׆",
+  /** The combining-mark block, inclusive. Everything in it but the four above. */
+  markRange: ["֑", "ׇ"] as const,
+  /** Every spelling of a geresh, then the one character they fold to. */
+  geresh: ["׳'‘’", "'"] as const,
+  /** Every spelling of gershayim, then the one they fold to. */
+  gershayim: ["״\"“”", "\""] as const,
+  /** The letters Hebrew attaches to the front of a word, `ד` included. */
+  prefixLetters: "בדהוכלמש",
+} as const;
+
+/** A character class matching every Hebrew combining mark but not the four. */
+export function markPattern(flags = "gu"): RegExp {
+  const cls = [...HEBREW.wordBreaking].map((c) => `\\u{${c.codePointAt(0).toString(16)}}`);
+  const [lo, hi] = HEBREW.markRange;
+  const range = `\\u{${lo.codePointAt(0).toString(16)}}-\\u{${hi.codePointAt(0).toString(16)}}`;
+  // A negated lookahead rather than a hand-split range: splitting the block
+  // around four holes is how `sefarim.ts` came to have one of them.
+  return new RegExp(`(?!${cls.join("|")})[${range}]`, flags);
+}
+
 /** Both spellings of a command, for a table that must accept either. */
 export function bothSpellings(he: string): readonly string[] {
   const en = COMMAND_EN[he];

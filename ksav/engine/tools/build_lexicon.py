@@ -61,6 +61,27 @@ OUT = os.path.join(ENGINE, "assets", "lexicon-he.txt")
 # ships.
 BY_COUNTS = os.path.join(CACHE, "benyehuda-counts.json")
 
+# Which version of `normalize` a cached word-count file was written by.
+#
+# Bump this whenever `normalize` changes what a word looks like. A cache is
+# **derived data with no source beside it** — the 246 MB dump is not kept — so a
+# cache written by an older rule is a corpus nobody can re-derive, and using it
+# silently ships words the current rule would never have produced.
+#
+# That is not hypothetical. Version 1 deleted maqaf, paseq and sof pasuq instead
+# of breaking on them, so `אֶת־הַשָּׁמַיִם` was counted as the word `אתהשמים` — and
+# because the Sefaria half of the corpus happens to contain no word-breaking
+# punctuation at all, fixing `normalize` and re-running changed the output by
+# **zero bytes**. The whole of the damage was sitting in a cache the script
+# loaded without a word.
+#
+# Mirrors `girsa_hebrew::NORMALIZER_VERSION`, which exists for the same reason
+# one layer down: a tantivy index built under an older marker has to be rebuilt.
+NORMALIZER_VERSION = 2
+
+# Set from `--stale-cache-anyway` in main(). Default: refuse.
+STALE_CACHE_ANYWAY = False
+
 API = "https://www.sefaria.org/api/v3/texts/"
 
 # Every source here is a Public Domain version, verified through Sefaria's own
@@ -103,7 +124,45 @@ SOURCES = [
     ("Rashi_on_Deuteronomy", "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934", "Rashi"),
 ]
 
-NIKUD = re.compile(r"[֑-ׇ]")
+# Which characters are marks, which break words, which fold to what — read from
+# the engine as **values**, not written out here.
+#
+# This table used to live in this file, and it was wrong in the way that
+# mattered: `NIKUD = re.compile(r"[֑-ׇ]")` is the whole combining-mark block,
+# and four characters in that block are punctuation that *separates* words —
+# ־ maqaf, ׀ paseq, ׃ sof pasuq, ׆ nun hafukha. Deleting them glues the words on
+# either side together, so `אֶת־הַשָּׁמַיִם` was counted as the single word
+# `אתהשמים` and the shipped lexicon carried it, `ואתהארץ`, `יראתהשמים` and
+# eighty-odd more as vocabulary the checker then accepted.
+#
+# `spell/hebrew.rs` had made the identical omission, so the two agreed and
+# neither looked wrong. Two wrong copies agreeing is not agreement, and
+# `girsa-hebrew` — which had the right answer, and which is compiled into Ksav —
+# was reachable from neither.
+#
+# So the seam is crossed the way `engine/facts.gen.json` crosses every other
+# one: the Rust value is serialised by `src/facts.rs` and read here. Nothing in
+# this file decides what a Hebrew mark is any more.
+#
+# The file is committed, so a clone that has never built the engine can still
+# build a lexicon. `cargo test --test facts` fails when it is stale.
+FACTS = os.path.join(ENGINE, "facts.gen.json")
+
+
+def hebrew_facts():
+    with open(FACTS, encoding="utf8") as f:
+        h = json.load(f)["hebrew"]
+    lo, hi = h["mark_range"]
+    return (
+        "".join(h["word_breaking"]),
+        re.compile(f"[{re.escape(lo)}-{re.escape(hi)}]"),
+        # Every spelling of a quote mark, paired with the one it folds to.
+        [(c, h["geresh"][1]) for c in h["geresh"][0]]
+        + [(c, h["gershayim"][1]) for c in h["gershayim"][0]],
+    )
+
+
+WORD_BREAKING, NIKUD, QUOTE_FOLDS = hebrew_facts()
 TAGS = re.compile(r"<[^>]+>")
 # A "word" for our purposes: Hebrew letters, optionally carrying gershayim or a
 # geresh, which is how every abbreviation and many acronyms are written.
@@ -116,10 +175,17 @@ def normalize(s):
     The checker normalizes exactly the same way, so the lexicon must be stored
     normalized or nothing would ever match: a writer typing גרשיים as U+05F4
     must hit an entry stored with `"`.
+
+    Word-breaking punctuation becomes a **space** rather than nothing. It is not
+    a decoration on the letter before it; it is the end of that word.
     """
     s = unicodedata.normalize("NFC", s)
+    for c in WORD_BREAKING:
+        s = s.replace(c, " ")
     s = NIKUD.sub("", s)
-    return s.replace("״", '"').replace("׳", "'").replace("”", '"').replace("’", "'")
+    for spelling, canonical in QUOTE_FOLDS:
+        s = s.replace(spelling, canonical)
+    return s
 
 
 def fetch(ref, version):
@@ -162,11 +228,35 @@ def load_benyehuda(zip_path):
         counts = scan_benyehuda(zip_path)
         os.makedirs(CACHE, exist_ok=True)
         with open(BY_COUNTS, "w", encoding="utf8") as f:
-            json.dump(counts, f)
+            json.dump({"normalizer": NORMALIZER_VERSION, "counts": counts}, f)
         return counts
     if os.path.exists(BY_COUNTS):
         with open(BY_COUNTS, encoding="utf8") as f:
-            return collections.Counter(json.load(f))
+            cached = json.load(f)
+        # Version 1 wrote the counts at the top level with no stamp beside them.
+        # An unstamped file is by definition older than the first stamp.
+        version = cached.get("normalizer", 1) if isinstance(cached, dict) else 1
+        counts = cached.get("counts", cached) if isinstance(cached, dict) else cached
+        if version != NORMALIZER_VERSION:
+            print(
+                f"  Ben-Yehuda: the cache was written by normalizer v{version} and this\n"
+                f"  script is v{NORMALIZER_VERSION}. Those are different words — v1 deleted maqaf and\n"
+                "  sof pasuq instead of breaking on them, so its counts contain glued\n"
+                "  non-words (אתהשמים, ואתהארץ, יראתהשמים …) that the current rule cannot\n"
+                "  produce and cannot un-glue either: the dump is the only thing that\n"
+                "  knows where the joins were.\n"
+                "\n"
+                "  Re-scan it:\n"
+                "    python tools/build_lexicon.py --benyehuda path/to/txt_stripped.zip\n"
+                "  from https://github.com/projectbenyehuda/public_domain_dump/releases\n"
+                "\n"
+                "  Refusing rather than shipping them. Pass --stale-cache-anyway to\n"
+                "  build a lexicon you already know is wrong.",
+                file=sys.stderr,
+            )
+            if not STALE_CACHE_ANYWAY:
+                sys.exit(1)
+        return collections.Counter(counts)
     print("  Ben-Yehuda: no dump given and no cache — general Hebrew will be thin",
           file=sys.stderr)
     return collections.Counter()
@@ -269,7 +359,13 @@ def main():
                          "across 26,000 works (default 10). This is the size/quality "
                          "dial: 3 gives 1.5%% missed words at 7.8 MB, 10 gives 2.9%% "
                          "at 3.5 MB, 50 gives 6.3%% at 1.4 MB.")
+    ap.add_argument("--stale-cache-anyway", action="store_true",
+                    help="build from a Ben-Yehuda cache written by an older "
+                         "normalizer. It contains words the current rule would "
+                         "never produce; there is no good reason to pass this.")
     args = ap.parse_args()
+    global STALE_CACHE_ANYWAY  # noqa: PLW0603 - one flag, read once, deep in the call
+    STALE_CACHE_ANYWAY = args.stale_cache_anyway
 
     counts = {}
     used = []

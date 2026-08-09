@@ -148,6 +148,14 @@ export async function run() {
   check("…including a doubled geresh", fold("ב׳׳ב"), 'ב"ב');
   check("points are not part of the name", fold("בְּרָכוֹת"), "ברכות");
   check("a maqaf separates words", fold("ראש־השנה"), "ראש השנה");
+  // …and so do its three siblings, which sit in the same block and were being
+  // deleted. The range here was `[֑-ֽֿ-ׇ]` — the mark block split around exactly
+  // one hole, because maqaf was the one that got found. Splitting a range by
+  // hand is how you get one of four.
+  check("…and so does a paseq", fold("בן׀איש"), "בן איש");
+  check("…and a sof pasuq, which ends every verse", fold("בן׃איש"), "בן איש");
+  check("…and a nun hafukha", fold("בן׆איש"), "בן איש");
+  check("a left curly quote is a geresh too", fold("תוס‘"), "תוס'");
   check("runs of space collapse", fold("  ראש   השנה "), "ראש השנה");
   // …but a space between two words is not noise, and neither is one *beside* the
   // mark: `ב ״ ב` stays three tokens and finds nothing. That is deliberate, and

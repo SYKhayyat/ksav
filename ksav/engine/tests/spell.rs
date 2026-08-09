@@ -178,6 +178,77 @@ fn an_opening_quote_does_not_glue_to_the_next_word() {
     );
 }
 
+/// Maqaf joins two words; it does not make them one.
+///
+/// The bug this fences was silent in both directions at once. The tokenizer
+/// treated every character in `U+0591–U+05C7` as a mark that belongs inside a
+/// word, so `אֶת־הַשָּׁמַיִם` never split — and `normalize` stripped the maqaf, so
+/// what reached the lexicon was `אתהשמים`, one token, present in the shipped
+/// dictionary because `build_lexicon.py` had made the same omission over the
+/// same corpus. Both halves agreed, so nothing looked wrong from either side.
+///
+/// Four characters in that block are punctuation: maqaf ־, paseq ׀, sof pasuq ׃
+/// and nun hafukha ׆. Sof pasuq ends every verse, which is why this took the
+/// checker off **every unpointed pasuk** rather than off an edge case.
+#[test]
+fn word_breaking_punctuation_breaks_words() {
+    // The shipped release example, in both spellings. The ASCII hyphen always
+    // worked; the correct Hebrew typography produced nothing at all.
+    for joiner in ['-', '\u{05BE}'] {
+        let text = format!("כשכשכשכש{joiner}זזזזזז");
+        let words: Vec<&str> = spell::words(&text)
+            .into_iter()
+            .filter(spell::Token::checkable)
+            .map(|t| t.text)
+            .collect();
+        assert_eq!(
+            words,
+            vec!["כשכשכשכש", "זזזזזז"],
+            "U+{:04X} did not break the word",
+            joiner as u32
+        );
+    }
+
+    // A pasuk, which is where this actually lives: two maqafs and a sof pasuq.
+    let words: Vec<&str> = spell::words("בראשית ברא אלהים את\u{05BE}השמים ואת\u{05BE}הארץ\u{05C3}")
+        .into_iter()
+        .filter(spell::Token::checkable)
+        .map(|t| t.text)
+        .collect();
+    assert_eq!(
+        words,
+        vec!["בראשית", "ברא", "אלהים", "את", "השמים", "ואת", "הארץ"],
+        "a pasuk did not tokenize"
+    );
+
+    // And the glue is not in the dictionary any more, which is the other half:
+    // a checker that splits correctly still says nothing if the corpus taught
+    // it the joined form as a word.
+    let l = bundled();
+    for glued in ["אתהשמים", "ואתהארץ", "יראתהשמים", "אתהאלהים"] {
+        assert!(
+            !spell::Dict::contains(&l, glued),
+            "{glued} is still in the lexicon — regenerate with tools/build_lexicon.py"
+        );
+    }
+}
+
+/// `ד` is a prefix letter, and the English half of this module already knew.
+///
+/// `english.rs` lists `"d"` and `spell_en.rs` asserts `d'rabbanan` passes. In
+/// Hebrew it was missing from `is_prefix_letter`, so every Aramaic `ד` word had
+/// to be in the lexicon whole or be flagged.
+#[test]
+fn the_aramaic_prefix_is_peeled_like_every_other_one() {
+    assert!(
+        girsa_hebrew::PREFIX_LETTERS.contains(&'ד'),
+        "ד is not a prefix letter"
+    );
+    let l = bundled();
+    let found = Checker::hebrew_only(&l).check("דרבנן ודאורייתא");
+    assert!(found.is_empty(), "flagged Aramaic prefixes: {found:?}");
+}
+
 #[test]
 fn suggestions_are_offered_for_a_near_miss() {
     let l = bundled();

@@ -323,3 +323,134 @@ fn the_prelude_and_the_engine_agree_about_a_default_page() {
     assert_eq!(cfg.head_align, "center");
     assert_eq!(param("יישור_כותרת"), "\"מרכז\"");
 }
+
+// ------------------------------------------- 5. what a Hebrew word boundary is
+
+/// The rule five things in this product were deciding separately.
+///
+/// `sefarim.rs:256-260` already named it: *"This rule exists three times — here,
+/// in `ksav.typ`'s `_ix_fold` and in `app/src/sefarim.ts`… All three are
+/// executed against one corpus by `tests/one_want.rs`; edit
+/// `tests/fixtures/fold-cases.json`, not one of the three."* That comment is
+/// right and its scope was wrong. There were **five**, and the two outside its
+/// count were the two that were broken:
+///
+///   4. `spell/hebrew.rs`'s `is_hebrew_mark` — the whole block `U+0591–U+05C7`
+///      with nothing excluded, used by both the tokenizer and `normalize`.
+///   5. `tools/build_lexicon.py`'s `NIKUD` — the same omission in Python.
+///
+/// Maqaf, paseq, sof pasuq and nun hafukha live in that block and separate
+/// words. Stripping them turned `אֶת־הַשָּׁמַיִם` into `אתהשמים`; the tokenizer never
+/// split there, so the checker asked the lexicon about the glued form, and the
+/// lexicon — built by the other broken copy over the same rule — had it. Both
+/// halves agreed, so nothing looked wrong from either side, and sof pasuq ends
+/// every verse, which took the checker off **every unpointed pasuk**.
+///
+/// Copies four and five are gone: the speller calls `girsa-hebrew`, and the
+/// Python reads `facts.gen.json`. What is left is this — the assertion that they
+/// really did go, rather than moving.
+mod hebrew_word_boundaries {
+    use super::{DocConfig, probe};
+
+    /// The four characters, and nothing else in the block.
+    #[test]
+    fn the_crate_and_the_engine_agree_about_every_character_in_the_block() {
+        for c in '\u{0591}'..='\u{05C7}' {
+            let breaking = girsa_hebrew::is_word_breaking_punctuation(c);
+            assert_eq!(
+                girsa_hebrew::is_mark(c),
+                !breaking,
+                "U+{:04X} is neither a mark nor word-breaking, which is not a \
+                 third thing the block has",
+                c as u32
+            );
+            // The speller's own predicate, from the other side: a character
+            // that breaks words is not part of one.
+            assert_eq!(
+                ksav_engine::spell::hebrew::is_part_of_a_word(c),
+                !breaking,
+                "the speller and girsa-hebrew disagree about U+{:04X}",
+                c as u32
+            );
+        }
+    }
+
+    /// The Typst copy, asked the same question.
+    ///
+    /// `_ix_fold` is the source index's normaliser and it cannot call Rust. The
+    /// fold corpus covers it on names; this covers it on the character rule, in
+    /// the compiler, where a disagreement arrives as a diagnostic rather than as
+    /// an index entry nobody can find.
+    #[test]
+    fn the_prelude_breaks_words_on_the_same_four_characters() {
+        let mut body = String::new();
+        for c in ['\u{05BE}', '\u{05C0}', '\u{05C3}', '\u{05C6}'] {
+            body.push_str(&format!(
+                "#assert.eq(_ix_fold(\"בן{c}איש\"), \"בן איש\", \
+                 message: \"U+{:04X} did not break a word in _ix_fold\")\n",
+                c as u32
+            ));
+        }
+        // …and a nikud point still vanishes, or "breaks words" would be
+        // satisfied by breaking on everything.
+        body.push_str(
+            "#assert.eq(_ix_fold(\"בֵּן\"), \"בן\", message: \"a nikud point survived _ix_fold\")\n",
+        );
+        if let Err(diags) = probe::layout(&body, &DocConfig::default()) {
+            let said: Vec<String> = diags.iter().map(|d| d.message.clone()).collect();
+            panic!("ksav.typ's `_ix_fold`:\n{}", said.join("\n"));
+        }
+    }
+
+    /// The Python copy is gone, and stays gone.
+    ///
+    /// `build_lexicon.py` builds the shipped dictionary and runs on a clone with
+    /// no Rust toolchain, so it reads `facts.gen.json` — the same arrangement
+    /// `engine.gen.ts` has, for the same reason. This is a text check of a
+    /// Python file and that is deliberate: what it forbids is a *literal*, and a
+    /// literal is exactly the thing that cannot be caught any other way. It can
+    /// only ever produce a loud refusal, never a wrong value.
+    #[test]
+    fn the_lexicon_builder_keeps_no_character_table_of_its_own() {
+        let src = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tools/build_lexicon.py"
+        ))
+        .expect("read build_lexicon.py");
+        assert!(
+            src.contains("facts.gen.json"),
+            "build_lexicon.py no longer reads the engine's facts"
+        );
+        // The character class it used to carry, in the spellings Python writes
+        // it. Comments are stripped first — the file *explains* the old class at
+        // length, and a check that forbade naming the bug would forbid recording
+        // it.
+        let code: String = src
+            .lines()
+            .map(|l| l.split_once('#').map_or(l, |(before, _)| before))
+            .collect::<Vec<_>>()
+            .join("
+");
+        for forbidden in ["[֑-ׇ]", r"֑-ׇ", r"֑-ׇ"] {
+            assert!(
+                !code.contains(forbidden),
+                "build_lexicon.py has written the mark block out again ({forbidden}). \
+                 It comes from facts.gen.json — see src/facts.rs."
+            );
+        }
+    }
+
+    /// And the corpus that fences the three name-folders knows about it too.
+    #[test]
+    fn the_fold_corpus_covers_every_word_breaking_character() {
+        let raw = include_str!("fixtures/fold-cases.json");
+        for c in ['\u{05BE}', '\u{05C0}', '\u{05C3}', '\u{05C6}'] {
+            assert!(
+                raw.contains(c),
+                "no case in fold-cases.json contains U+{:04X}, so none of the \
+                 three implementations is being asked about it",
+                c as u32
+            );
+        }
+    }
+}

@@ -276,7 +276,7 @@ function readNotices() {
 
 // ---------------------------------------------------------------- emitting
 
-function emit(aliases, params, containers, commands, defaults, notices) {
+function emit(aliases, params, containers, commands, defaults, notices, hebrew) {
   const q = (v) => JSON.stringify(v);
   const settable = defaults.filter((d) => !(d.name in NOT_A_SETTING) && !d.absent);
   const omitted = defaults.filter((d) => d.absent).map((d) => d.name);
@@ -389,6 +389,45 @@ export const CONTAINERS: readonly string[] = [
 ${containerRows}
 ];
 
+/**
+ * Which Hebrew characters are marks, which separate words, which fold to what.
+ *
+ * From \`girsa-hebrew\` by way of \`engine/facts.gen.json\`, because a browser tab
+ * cannot call a Rust crate. \`sefarim.ts\`'s \`fold\` wrote these out by hand and
+ * had **one** of the four word-breaking characters — maqaf. Paseq ׀, sof
+ * pasuq ׃ and nun hafukha ׆ sit in the same block, separate words the
+ * same way, and were being deleted, so \`בן׃איש\` folded to \`בןאיש\` and found
+ * nothing. Its geresh list was also missing \`U+2018\`, so a name pasted with a
+ * left curly quote folded differently from the same name with a right one.
+ *
+ * Both were true of the Rust and Typst copies as well. Three implementations of
+ * one rule need an oracle, not three careful readings — \`engine/tests/one_want.rs\`
+ * and \`test/sefarim.test.mjs\` are that oracle — and the *tables* underneath the
+ * rule need not be written three times at all.
+ */
+export const HEBREW = {
+  /** ־ maqaf, ׀ paseq, ׃ sof pasuq, ׆ nun hafukha. */
+  wordBreaking: ${q(hebrew.word_breaking.join(""))},
+  /** The combining-mark block, inclusive. Everything in it but the four above. */
+  markRange: [${q(hebrew.mark_range[0])}, ${q(hebrew.mark_range[1])}] as const,
+  /** Every spelling of a geresh, then the one character they fold to. */
+  geresh: [${q(hebrew.geresh[0].join(""))}, ${q(hebrew.geresh[1])}] as const,
+  /** Every spelling of gershayim, then the one they fold to. */
+  gershayim: [${q(hebrew.gershayim[0].join(""))}, ${q(hebrew.gershayim[1])}] as const,
+  /** The letters Hebrew attaches to the front of a word, \`ד\` included. */
+  prefixLetters: ${q(hebrew.prefix_letters.join(""))},
+} as const;
+
+/** A character class matching every Hebrew combining mark but not the four. */
+export function markPattern(flags = "gu"): RegExp {
+  const cls = [...HEBREW.wordBreaking].map((c) => \`\\\\u{\${c.codePointAt(0).toString(16)}}\`);
+  const [lo, hi] = HEBREW.markRange;
+  const range = \`\\\\u{\${lo.codePointAt(0).toString(16)}}-\\\\u{\${hi.codePointAt(0).toString(16)}}\`;
+  // A negated lookahead rather than a hand-split range: splitting the block
+  // around four holes is how \`sefarim.ts\` came to have one of them.
+  return new RegExp(\`(?!\${cls.join("|")})[\${range}]\`, flags);
+}
+
 /** Both spellings of a command, for a table that must accept either. */
 export function bothSpellings(he: string): readonly string[] {
   const en = COMMAND_EN[he];
@@ -439,6 +478,9 @@ const containers = readContainers();
 const commands = readCommands();
 const defaults = readDefaults();
 const notices = readNotices();
+// `girsa-hebrew`'s character rules, measured by `src/facts.rs` and serialised
+// with the rest. Nothing here interprets them; they cross as values.
+const hebrew = facts().hebrew;
 
 // The registry and the prelude have to agree about the pairing, and until now
 // nothing said so. The registry's `en` field is what the palette shows, what the
@@ -487,6 +529,7 @@ for (const [what, rows, least] of [
   ["commands (engine/facts.gen.json)", commands, 100],
   ["document defaults (engine/facts.gen.json)", defaults, 25],
   ["notices (engine/facts.gen.json)", notices, 4],
+  ["Hebrew prefix letters (engine/facts.gen.json)", hebrew.prefix_letters, 8],
 ]) {
   const count = rows.length ?? rows.size;
   if (count < least) {
@@ -503,7 +546,7 @@ if (notices.some((n) => !n.name || !n.copyright)) {
   process.exit(1);
 }
 
-const built = emit(aliases, params, containers, commands, defaults, notices);
+const built = emit(aliases, params, containers, commands, defaults, notices, hebrew);
 
 /** Every generated output, as `[path, wanted, label]`. */
 export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];

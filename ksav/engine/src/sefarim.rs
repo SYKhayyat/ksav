@@ -258,39 +258,38 @@ pub const UNKNOWN_ORDER: u32 = 9000;
 /// tab cannot call either. All three are executed against one corpus by
 /// `tests/one_want.rs`; edit `tests/fixtures/fold-cases.json`, not one of the
 /// three, when the rule changes.
+///
+/// The *character* tables underneath it are no longer written out here. They
+/// were, and being written out is what let this copy fall behind the other four
+/// in two places at once: it separated on maqaf and on nothing else (paseq, sof
+/// pasuq and nun hafukha sit in the same block, separate words the same way, and
+/// were being deleted), and its geresh arm was missing `U+2018`, so a name
+/// pasted from a word processor with a left curly quote folded differently from
+/// the same name with a right one. Both are `girsa-hebrew`'s answer now.
 pub fn fold(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut last_space = true; // leading space is already "collapsed"
     for ch in name.chars() {
-        match ch {
-            // The maqaf is a *word separator* and must be tested before the
-            // points range, because U+05BE sits inside it: matched there it was
-            // deleted rather than spaced, and ראש־השנה folded to ראשהשנה, which
-            // matches nothing.
-            '־' | '-' => {
-                if !last_space {
-                    out.push(' ');
-                }
-                last_space = true;
-                continue;
+        // A word separator, and it has to be tested *before* the mark block
+        // because all four of them sit inside it: matched there they were
+        // deleted rather than spaced, and ראש־השנה folded to ראשהשנה, which
+        // matches nothing.
+        if ch == '-' || ch.is_whitespace() || girsa_hebrew::is_word_breaking_punctuation(ch) {
+            if !last_space {
+                out.push(' ');
             }
-            // Hebrew points and cantillation: never part of the identity, and
-            // they do not break a run of spaces either — `continue` rather than
-            // falling through to the `last_space = false` below.
-            '\u{0591}'..='\u{05C7}' => continue,
-            // Every gershayim and geresh spelling folds to the ASCII pair, so
-            // that a doubled geresh (׳׳) and a real gershayim (״) compare equal.
-            '\u{05F4}' | '\u{201C}' | '\u{201D}' | '"' => out.push('"'),
-            '\u{05F3}' | '\u{2019}' | '\'' => out.push('\''),
-            c if c.is_whitespace() => {
-                if !last_space {
-                    out.push(' ');
-                }
-                last_space = true;
-                continue;
-            }
-            c => out.push(c),
+            last_space = true;
+            continue;
         }
+        // Hebrew points and cantillation: never part of the identity, and they
+        // do not break a run of spaces either — `continue` rather than falling
+        // through to the `last_space = false` below.
+        if girsa_hebrew::is_mark(ch) {
+            continue;
+        }
+        // Every gershayim and geresh spelling folds to the ASCII pair, so that a
+        // doubled geresh (׳׳) and a real gershayim (״) compare equal.
+        out.push(girsa_hebrew::fold_quote_mark(ch).unwrap_or(ch));
         last_space = false;
     }
     // A doubled geresh is how a keyboard without ״ types it.

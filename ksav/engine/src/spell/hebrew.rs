@@ -264,37 +264,68 @@ impl Learn for Lexicon {
 }
 
 // ---------------------------------------------------------------- the alphabet
-
-/// Hebrew combining marks: nikud, te'amim and the meteg/rafe family.
-fn is_hebrew_mark(c: char) -> bool {
-    matches!(c, '\u{0591}'..='\u{05C7}')
-}
-
-fn is_hebrew_letter(c: char) -> bool {
-    matches!(c, '\u{05D0}'..='\u{05EA}')
-}
+//
+// Every predicate below used to be written out here, and two of them were
+// wrong in the same way.
+//
+// `is_hebrew_mark` was `'\u{0591}'..='\u{05C7}'` — the whole block, with
+// nothing excluded. Four characters in that block are **punctuation that
+// separates words**: maqaf ־ (a hyphen), paseq ׀, sof pasuq ׃ (a full stop) and
+// nun hafukha ׆. Stripping them glues the words on either side together, so
+// `אֶת־הַשָּׁמַיִם` arrived at the lexicon as the single token `אתהשמים` — and since
+// `is_part` was built on the same predicate, the tokenizer never split there in
+// the first place. Measured on the shipped release example:
+//
+//     כשכשכשכש-זזזזזז   (ASCII hyphen)   → 2 checkable words, 2 flagged
+//     כשכשכשכש־זזזזזז   (maqaf U+05BE)   → 0 checkable words
+//
+// The checker checked the *wrong* spelling and silently refused the correct
+// Hebrew typography. Sof pasuq ends every verse, so **every unpointed pasuk
+// went unchecked** — and `tools/build_lexicon.py` had the same omission in
+// Python, so the corpus absorbed the glue as vocabulary and the shipped
+// dictionary carried `אתהשמים`, `ואתהארץ`, `יראתהשמים` and eighty-odd more as
+// words.
+//
+// The correct rule was already **inside this binary**: `girsa-hebrew` resolved
+// through `girsa-source` → `girsa-ref`, and nothing here referenced it. It is
+// the same rule `sefarim.rs` names as existing three times, and the comment
+// there says all three are held by one oracle — the speller was copy four and
+// the lexicon builder copy five, both outside that fence, and both wrong.
+//
+// So the tables are gone and the crate is the authority. What stays local is
+// Ksav's *placement* decisions, which are about spell-checking and not about
+// Hebrew: which marks a token keeps (`joins`), where the final fold applies
+// (scoring only — folding it into `normalize` would accept `שלומ`), and what is
+// too short to be worth checking.
+use girsa_hebrew::{is_geresh, is_gershayim, is_hebrew_letter, is_mark as is_hebrew_mark};
 
 /// A character that is part of a Hebrew word on its own account, with no need to
 /// look at what surrounds it.
+///
+/// Maqaf, paseq, sof pasuq and nun hafukha are **not** — they end the word and
+/// begin the next one, which is the whole of the fix above.
 pub(crate) fn is_part(c: char) -> bool {
     is_hebrew_letter(c) || is_hebrew_mark(c)
 }
 
+/// [`is_part`], for `tests/one_want.rs`.
+///
+/// Exported under a name that says what it means rather than what it is called
+/// here, because the oracle's whole business is comparing this answer with four
+/// other implementations' and the comparison should read as a sentence.
+#[must_use]
+pub fn is_part_of_a_word(c: char) -> bool {
+    is_part(c)
+}
+
 /// The letters Hebrew attaches to the front of a word: ו (and), ה (the),
-/// ב (in), כ (like), ל (to), מ (from), ש (that).
+/// ב (in), כ (like), ל (to), מ (from), ש (that), ד (of, in Aramaic).
+///
+/// `ד` was missing, and this module's own English half already had it:
+/// `english.rs` lists `"d"` and `spell_en.rs` asserts `d'rabbanan` passes. In
+/// Hebrew, `דרבנן` and `דאורייתא` are on every page a bochur writes.
 fn is_prefix_letter(c: char) -> bool {
-    matches!(c, 'ו' | 'ה' | 'ב' | 'כ' | 'ל' | 'מ' | 'ש')
-}
-
-/// Gershayim (double) — used *between* letters in an acronym: שו"ע, ע"ב.
-fn is_gershayim(c: char) -> bool {
-    matches!(c, '"' | '\u{05F4}' | '\u{201C}' | '\u{201D}')
-}
-
-/// Geresh (single) — used between letters *and* as a trailing abbreviation
-/// marker: תוס', סי', וגו'.
-fn is_geresh(c: char) -> bool {
-    matches!(c, '\'' | '\u{05F3}' | '\u{2018}' | '\u{2019}')
+    girsa_hebrew::PREFIX_LETTERS.contains(&c)
 }
 
 /// How many Hebrew letters begin `s`, ignoring the marks that hang off them.
@@ -341,26 +372,18 @@ pub(crate) fn joins(c: char, rest: &str) -> bool {
 pub fn normalize(word: &str) -> String {
     word.chars()
         .filter(|c| !is_hebrew_mark(*c))
-        .map(|c| match c {
-            '\u{05F4}' | '\u{201C}' | '\u{201D}' => '"',
-            '\u{05F3}' | '\u{2018}' | '\u{2019}' => '\'',
-            other => other,
-        })
+        .map(|c| girsa_hebrew::fold_quote_mark(c).unwrap_or(c))
         .collect()
 }
 
-/// Hebrew final letters map onto their medial forms for scoring only. Typing מ
-/// where ם belongs is the commonest Hebrew typo, and it must rank as a near miss
-/// rather than falling outside the edit budget.
+/// Hebrew final letters map onto their medial forms **for scoring only**. Typing
+/// מ where ם belongs is the commonest Hebrew typo, and it must rank as a near
+/// miss rather than falling outside the edit budget.
+///
+/// Deliberately not folded into [`normalize`]: the lexicon stores the real
+/// spelling, and folding at lookup time would make `שלומ` a word.
 fn fold_final(c: char) -> char {
-    match c {
-        'ך' => 'כ',
-        'ם' => 'מ',
-        'ן' => 'נ',
-        'ף' => 'פ',
-        'ץ' => 'צ',
-        other => other,
-    }
+    girsa_hebrew::fold_final(c)
 }
 
 /// Does this word carry nikud?

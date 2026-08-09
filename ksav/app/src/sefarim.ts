@@ -12,6 +12,7 @@
 // them testable without an editor.
 
 import type { Backend, SeferDef } from "./api";
+import { HEBREW, markPattern } from "./engine.gen";
 
 /**
  * The commands whose first argument is a sefer name.
@@ -113,13 +114,30 @@ export function seferArgAt(text: string, pos: number): SeferArg | null {
  * The same three rules as the engine's `fold` — points away, every gershayim
  * spelling to one, runs of space collapsed — because a writer typing ב"ב should
  * be offered בבא בתרא whichever quote character their keyboard produced.
+ *
+ * **The character tables are not written here any more.** They were, as
+ * `/[֑-ֽֿ-ׇ]/` — the combining-mark block split around exactly one hole, U+05BE,
+ * because maqaf had been found separating words and fixed. Three of its siblings
+ * live in the same block and do the same thing (paseq ׀, sof pasuq ׃, nun
+ * hafukha ׆) and this went on deleting them, so `בן׃איש` folded to `בןאיש` and
+ * found nothing. The geresh list was missing `U+2018` as well, so a name pasted
+ * from a word processor with a left curly quote folded differently from the same
+ * name with a right one.
+ *
+ * All three of those were true of the Rust and Typst copies too — which is what
+ * a hand-split range does. They come from `girsa-hebrew` through
+ * `engine/facts.gen.json` now; `markPattern()` builds the class with a negated
+ * lookahead so there is no range to split.
  */
 export function fold(name: string): string {
+  const [gereshForms, gereshTo] = HEBREW.geresh;
+  const [gershayimForms, gershayimTo] = HEBREW.gershayim;
+  const cls = (chars: string) => new RegExp(`[${chars.replace(/[\\\]^-]/g, "\\$&")}]`, "gu");
   return name
-    .replace(/[֑-ֽֿ-ׇ]/gu, "")
-    .replace(/[־-]/gu, " ")
-    .replace(/[״“”]/gu, '"')
-    .replace(/[׳’]/gu, "'")
+    .replace(markPattern(), "")
+    .replace(cls(`${HEBREW.wordBreaking}-`), " ")
+    .replace(cls(gershayimForms), gershayimTo)
+    .replace(cls(gereshForms), gereshTo)
     .replace(/''/gu, '"')
     .replace(/\s+/gu, " ")
     .trim();

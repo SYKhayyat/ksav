@@ -53,10 +53,13 @@
     { "class": "empty", "in": "ְֱֲֳִֵֶַָ", "out": "" },
     { "class": "berakhot", "in": "ברכות", "out": "ברכות" },
     { "class": "berakhot", "in": "בְּרָכוֹת", "out": "ברכות" },
+    { "class": "word-breaking-in-points-range", "in": "בן־איש", "out": "בן איש" },
+    { "class": "word-breaking-in-points-range", "in": "בן׀איש", "out": "בן איש" },
+    { "class": "word-breaking-in-points-range", "in": "בן׃איש", "out": "בן איש" },
+    { "class": "word-breaking-in-points-range", "in": "בן׆איש", "out": "בן איש" },
     { "class": "shabbat-cantillated", "in": "שַׁבָּת֙", "out": "שבת" },
     { "class": "english", "in": "Bava Batra", "out": "Bava Batra" },
     { "class": "english", "in": "Bava  Batra", "out": "Bava Batra" },
-    { "class": "mixed", "in": "תוס׳ ד״ה", "out": "תוס' ד\"ה" },
-    { "class": "maqaf-in-points-range", "in": "בן־איש", "out": "בן איש" }
+    { "class": "mixed", "in": "תוס׳ ד״ה", "out": "תוס' ד\"ה" }
   ]
 }

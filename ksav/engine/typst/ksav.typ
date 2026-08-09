@@ -2002,21 +2002,33 @@
 // never had it, which is precisely why three implementations of one rule need
 // an oracle and not three careful readings. `tests/one_want.rs` now runs all
 // three against `tests/fixtures/fold-cases.json`.
+// Four characters in the points range separate words rather than decorating
+// one, and this had **one** of them. `ראש־השנה` was fixed the day it was found;
+// paseq ׀, sof pasuq ׃ and nun hafukha ׆ sit in the same range, do the same
+// thing, and went on being deleted — so `בן׃איש` folded to `בןאיש`. The class
+// was named in the comment above and the sweep never ran, which is the habit
+// this whole file is being read for.
+#let _ix_breaks = ("־", "-", "\u{05C0}", "\u{05C3}", "\u{05C6}")
+#let _ix_gershayim = ("\u{05F4}", "\u{201C}", "\u{201D}", "\"")
+// `\u{2018}` was missing here and in Rust, and present in `girsa-hebrew`: a name
+// pasted from a word processor with a left curly quote folded differently from
+// the same name with a right one.
+#let _ix_geresh = ("\u{05F3}", "\u{2018}", "\u{2019}", "'")
+
 #let _ix_fold(s) = {
   let out = ""
   let last_space = true
   for c in str(s).codepoints() {
-    // The maqaf separates words and must be tested *before* the points range,
-    // because U+05BE sits inside it — matched there, ראש־השנה folds to
-    // ראשהשנה, which is nothing at all.
-    if c == "־" or c == "-" or c.match(regex("\s")) != none {
+    // Tested *before* the points range, because all four sit inside it —
+    // matched there, ראש־השנה folds to ראשהשנה, which is nothing at all.
+    if c in _ix_breaks or c.match(regex("\s")) != none {
       if not last_space { out += " " }
       last_space = true
       continue
     }
     if c.match(regex("[\u{0591}-\u{05C7}]")) != none { continue }
-    if c in ("\u{05F4}", "\u{201C}", "\u{201D}", "\"") { out += "\"" }
-    else if c in ("\u{05F3}", "\u{2019}", "'") { out += "'" }
+    if c in _ix_gershayim { out += "\"" }
+    else if c in _ix_geresh { out += "'" }
     else { out += c }
     last_space = false
   }

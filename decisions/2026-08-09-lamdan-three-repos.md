@@ -150,3 +150,121 @@ that was. Two identical one-liners agree until one of them is edited. Now
 - A half-translated command cannot reach a fixture.
 - Two repositories share one table of Ksav's structural names, and the pairing
   is a build failure rather than a sefer that quietly lost its shape.
+
+---
+
+## §8.2 / dup §1.1 — what a Hebrew word boundary is, in five places
+
+**The finding.** `spell/hebrew.rs` said a Hebrew mark is `'\u{0591}'..='\u{05C7}'`
+— the whole combining-mark block, nothing excluded. Four characters in that
+block are **punctuation that separates words**:
+
+| | | |
+|---|---|---|
+| `U+05BE` | ־ maqaf | joins two words, like a hyphen |
+| `U+05C0` | ׀ paseq | a divider between words |
+| `U+05C3` | ׃ sof pasuq | ends a verse, like a full stop |
+| `U+05C6` | ׆ nun hafukha | a scribal bracket |
+
+Stripping them glues the words on either side together. Measured on the shipped
+release example:
+
+```
+כשכשכשכש-זזזזזז   (ASCII hyphen)   → 2 checkable words, 2 flagged
+כשכשכשכש־זזזזזז   (maqaf U+05BE)   → 0 checkable words
+```
+
+The checker checked the *wrong* spelling and silently refused the correct Hebrew
+typography. Sof pasuq ends every verse, so **every unpointed pasuk went
+unchecked**.
+
+**Why it was invisible.** `is_part` — the tokenizer's *is this character inside a
+word* — was built on the same predicate, so the tokenizer never split at a maqaf
+in the first place, and `normalize` then deleted it. What reached the lexicon was
+one glued token. And `tools/build_lexicon.py` had the identical omission in
+Python (`NIKUD = re.compile(r"[֑-ׇ]")`), so the corpus absorbed the glue as
+vocabulary: `lexicon-he.txt` shipped `אתהשמים`, `ואתהארץ`, `יראתהשמים`,
+`אלהאלהים`, `אתהאלהים`, `אלההיכל`, `אחריהצהריים` and eighty-odd more.
+
+Both halves agreed, so nothing looked wrong from either side. Two wrong copies
+agreeing is not agreement.
+
+**The correct copy was inside the binary.** `girsa-hebrew` was already resolved
+in `Cargo.lock` through `girsa-source` → `girsa-ref`, and `grep -r girsa_hebrew
+ksav/` returned nothing. Adding it to `engine/Cargo.toml` was one line and no new
+supply chain — in the **unconditional** block, unlike the other three, because
+the speller runs in the browser build and this crate is pure character tables.
+
+### Five copies, and where each one went
+
+`sefarim.rs:256-260` already named the class: *"This rule exists three times —
+here, in `ksav.typ`'s `_ix_fold` and in `app/src/sefarim.ts`… All three are
+executed against one corpus by `tests/one_want.rs`."* That comment is right and
+its **scope was wrong**: there were five, and the two outside its count were the
+two that were broken. Which is this report's whole thesis, stated by the
+repository about itself, one function above the bug.
+
+1. **`sefarim.rs`'s `fold`** — the oracle's own first implementation. It
+   separated on maqaf and on nothing else, and its geresh arm was missing
+   `U+2018`, so a name pasted from a word processor with a left curly quote
+   folded differently from the same name with a right one. Now calls the crate.
+2. **`ksav.typ`'s `_ix_fold`** — same two faults. A Typst prelude cannot call
+   Rust, so its three tables are named constants (`_ix_breaks`, `_ix_geresh`,
+   `_ix_gershayim`) and the corpus covers them.
+3. **`app/src/sefarim.ts`'s `fold`** — the range was written `[֑-ֽֿ-ׇ]`: the block
+   split around **exactly one hole**, U+05BE, because maqaf was the one that had
+   been found. Splitting a range by hand is how you get one of four. Now built
+   from `HEBREW`/`markPattern()` with a negated lookahead, so there is no range
+   to split.
+4. **`spell/hebrew.rs`** — gone. `is_hebrew_mark`, `is_hebrew_letter`,
+   `is_gershayim`, `is_geresh` and `fold_final` are the crate's. What stayed is
+   Ksav's *placement* decisions, which are about spell-checking and not about
+   Hebrew: which marks a token keeps (`joins`), and that the final fold applies
+   to **scoring only** — folding it into `normalize` would make `שלומ` a word.
+5. **`tools/build_lexicon.py`** — gone, and this is the one that needed a new
+   mechanism. Python cannot call a Rust crate, so the table crosses the seam
+   **as a value**: `src/facts.rs` serialises `girsa-hebrew`'s answer into
+   `engine/facts.gen.json` and the script reads it. Exactly the arrangement
+   `engine.gen.ts` already has, and for the same reason.
+
+Also fixed while the table was open: `ד` was missing from `is_prefix_letter`,
+and this module's own English half already had it — `english.rs` lists `"d"`
+and `spell_en.rs` asserts `d'rabbanan` passes. `דרבנן` and `דאורייתא` are on
+every page a bochur writes.
+
+### The cache with no provenance, which is where the damage actually was
+
+Fixing `normalize` and re-running `build_lexicon.py` changed the output by
+**zero bytes**. The Sefaria half of the corpus contains no word-breaking
+punctuation at all; every glued word came from `benyehuda-counts.json`, a 78 MB
+derived cache built by the old normalizer, loaded without a word, and not
+re-derivable — the 246 MB dump it came from is not kept.
+
+So the cache is stamped. `NORMALIZER_VERSION = 2` is written into it and checked
+on load; a cache written by an older rule is **refused**, with a message naming
+the dump to re-scan, rather than silently shipping words the current rule would
+never have produced. (An unstamped file is by definition older than the first
+stamp.) That mirrors `girsa_hebrew::NORMALIZER_VERSION`, which exists for the
+same reason one layer down.
+
+**Not yet done, and named rather than glossed:** the lexicon still contains the
+eighty-odd glued entries. Removing them needs a re-scan of the Ben-Yehuda dump,
+which is a 246 MB download this session could not make. `tests/spell.rs`'s
+`word_breaking_punctuation_breaks_words` asserts they are gone and is red until
+that scan runs. A fence for work that is finished except for the download is
+better than a green suite over a dictionary that still has `אתהשמים` in it.
+
+### The fence
+
+`one_want.rs` gained a fifth section, `hebrew_word_boundaries`:
+
+- every character in `U+0591–U+05C7` is a mark **or** word-breaking and not a
+  third thing, and the speller's `is_part_of_a_word` agrees with the crate on
+  every one of them;
+- `_ix_fold` breaks on all four, asserted inside the compiler, and still deletes
+  a nikud point — or "breaks words" would be satisfied by breaking on
+  everything;
+- `build_lexicon.py` contains no character class of its own (comments stripped
+  first, so the file can still *explain* the bug it no longer has);
+- `fold-cases.json` contains a case for each of the four, or none of the three
+  name-folders is being asked about them.

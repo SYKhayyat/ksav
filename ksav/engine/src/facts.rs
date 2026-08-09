@@ -102,6 +102,71 @@ impl ServiceFact {
     }
 }
 
+/// The Hebrew character rules, for the generators that are not Rust.
+///
+/// `girsa-hebrew` is the authority and every Rust caller simply calls it. Two
+/// things in this repository cannot: `engine/typst/ksav.typ`, which is a Typst
+/// prelude, and `tools/build_lexicon.py`, which is Python. Both had written the
+/// tables out by hand, and the Python one was **wrong in the way that
+/// mattered** — it deleted maqaf, paseq and sof pasuq instead of breaking on
+/// them, so the corpus it built absorbed `אֶת־הַשָּׁמַיִם` as the single word
+/// `אתהשמים` and the shipped dictionary carried eighty-odd non-words.
+///
+/// It agreed with the checker, which had made the identical omission. Two wrong
+/// copies agreeing is the failure mode this whole file exists against, and the
+/// answer is the same one: the value crosses the seam **as a value**.
+#[derive(Serialize)]
+pub struct HebrewFacts {
+    /// Hebrew punctuation that lives inside the combining-mark block and
+    /// separates words rather than decorating one: ־ maqaf, ׀ paseq, ׃ sof
+    /// pasuq, ׆ nun hafukha. A reader that strips these glues two words into
+    /// one; a reader that keeps them inside a token never splits at all.
+    pub word_breaking: Vec<char>,
+    /// The first and last code point of the combining-mark block, inclusive.
+    /// Everything in it except `word_breaking` is stripped.
+    pub mark_range: (char, char),
+    /// The letters Hebrew attaches to the front of a word, `ד` included.
+    pub prefix_letters: Vec<char>,
+    /// Every spelling of a geresh, and the one character they fold to.
+    pub geresh: (Vec<char>, char),
+    /// Every spelling of gershayim, and the one character they fold to.
+    pub gershayim: (Vec<char>, char),
+}
+
+/// Measured off `girsa-hebrew`'s own predicates rather than re-listed here.
+///
+/// Sweeping the range and asking is what makes this a *reading* of the crate
+/// instead of a sixth copy of the table with an extra step. A predicate that
+/// changes shows up here on the next `KSAV_BLESS=1`.
+fn hebrew_facts() -> HebrewFacts {
+    let block: Vec<char> = ('\u{0591}'..='\u{05C7}').collect();
+    let letters: Vec<char> = ('\u{05D0}'..='\u{05EA}').collect();
+    let quotes: Vec<char> = ['\u{05F3}', '\'', '\u{2018}', '\u{2019}', '\u{05F4}', '"',
+                             '\u{201C}', '\u{201D}']
+        .into_iter()
+        .collect();
+    HebrewFacts {
+        word_breaking: block
+            .iter()
+            .copied()
+            .filter(|c| girsa_hebrew::is_word_breaking_punctuation(*c))
+            .collect(),
+        mark_range: ('\u{0591}', '\u{05C7}'),
+        prefix_letters: letters
+            .into_iter()
+            .filter(|c| girsa_hebrew::PREFIX_LETTERS.contains(c))
+            .collect(),
+        geresh: (
+            quotes.iter().copied().filter(|c| girsa_hebrew::is_geresh(*c)).collect(),
+            girsa_hebrew::CANONICAL_GERESH,
+        ),
+        gershayim: (
+            quotes.iter().copied().filter(|c| girsa_hebrew::is_gershayim(*c)).collect(),
+            girsa_hebrew::CANONICAL_GERSHAYIM,
+        ),
+    }
+}
+
 /// The four tables the app generates from, as one document.
 #[derive(Serialize)]
 pub struct Facts {
@@ -113,6 +178,9 @@ pub struct Facts {
     pub commands: &'static [Command],
     pub notices: &'static [Notice],
     pub services: Vec<ServiceFact>,
+    /// Read by `tools/build_lexicon.py`, which has no other way to reach
+    /// `girsa-hebrew`.
+    pub hebrew: HebrewFacts,
 }
 
 /// Everything, gathered.
@@ -122,6 +190,7 @@ pub fn facts() -> Facts {
         commands: COMMANDS,
         notices: NOTICES,
         services: SERVICES.iter().map(ServiceFact::of).collect(),
+        hebrew: hebrew_facts(),
     }
 }
 

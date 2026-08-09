@@ -191,11 +191,20 @@ fn every_girsa_dependency_is_accounted_for() {
     let found = girsa_lines(&root);
     let names: BTreeSet<_> = found.iter().map(|(_, n, _)| n.clone()).collect();
 
-    // engine: source, ksav, post. src-tauri: post. Four lines, three crates.
+    // engine: hebrew, source, ksav, post. src-tauri: post. Five lines, four
+    // crates.
+    //
+    // `girsa-hebrew` is the newest and the only one in the **unconditional**
+    // block: the other three are the loopback to Girsa and are gated to native
+    // builds, while this one is character tables the speller needs in a browser
+    // tab as much as on a desktop. It was already resolved in `Cargo.lock`
+    // through `girsa-source` → `girsa-ref` before it was ever named here, which
+    // is how `spell/hebrew.rs` came to hand-write a rule that was compiled into
+    // the same binary and wrong.
     assert_eq!(
         found.len(),
-        4,
-        "expected four girsa dependency lines, found {}: {:?}.\n\
+        5,
+        "expected five girsa dependency lines, found {}: {:?}.\n\
          If a shared crate was added, removed, or rewritten as a \n\
          `[dependencies.girsa-…]` table (which the scan in this file cannot see), \n\
          update this count deliberately — silence here is what let the last one \n\
@@ -208,7 +217,7 @@ fn every_girsa_dependency_is_accounted_for() {
     );
     assert_eq!(
         names,
-        ["girsa-ksav", "girsa-post", "girsa-source"]
+        ["girsa-hebrew", "girsa-ksav", "girsa-post", "girsa-source"]
             .iter()
             .map(|s| s.to_string())
             .collect::<BTreeSet<_>>(),

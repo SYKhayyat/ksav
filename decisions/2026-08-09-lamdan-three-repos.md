@@ -1622,3 +1622,139 @@ happens. That is the next commit in this row, and it is not in this one.
 
 What was not done is one row of six, it is named here, and nothing in the tree
 claims otherwise.
+
+## §1 #11 and #17 — the half of the name supply that was never asked for
+
+Two rows of §1's table, and both turn out to be the same shape: a discipline
+written down correctly, applied to one of the two places it governs.
+
+### #11 — `taken`, and the caller that was not consulting it
+
+> `taken`, the set that exists *"so no name is ever handed to different
+> words."* `mod.rs:383` mints cut children with `id.split(pieces.len())` and
+> never consults it. Change `best_cut`'s boundary preference and `#32.2`
+> silently names different words, no redirect row.
+
+The report's sentence is right and the failure is worse than the one it names.
+`standing.rs` opens by explaining that `Ordinal::child` has two callers meaning
+opposite things by a dotted name — the cutter carving `#7`, and `mint_between`
+naming a se'if upstream inserted after `#7` — and that only *"a cut deletes its
+parent"* tells them apart. That paragraph is about **reading** a name. Nobody
+wrote down that only one of the two callers was asking permission to **hand one
+out**, and two failures follow from it:
+
+**A duplicate id in one file.** A se'if inserted after `#7` is minted at `#7.1`
+and is live. Two releases later `#7` grows past 10,000 characters, and the
+cutter writes a second record called `#7.1`. Two records, one name, nothing to
+notice.
+
+**A name handed to different words, silently.** `places_of` folds `#7.1 #7.2
+#7.3` back into one place called `#7` — which is right, and is how the
+alignment compares a whole se'if to a whole se'if — so `taken`, seeded from the
+places, never heard of the three names those words are actually on disk under.
+While the se'if is over-long that costs nothing, because the cut claims them
+back. Shorten it and they are free: the next insertion after `#7` is minted at
+`#7.1`, which was three-quarters of a page in the release a reader wrote their
+anchor against. That anchor resolves. To different words. Which is the failure
+spec.md §3 exists to prevent, in its silent form.
+
+The fix is one sentence: **the cut is decided before anything is named.**
+`oversized::cuts` returns byte offsets, which own nothing and can be held across
+the naming pass while `pieces_at` slices afterwards; the piece count reaches
+`name_them`, which claims each place's children out of the same `taken` every
+other name comes from. Asking twice would not have been free either —
+`cuts` reads up to `NAMES_A_PLACE + 1` characters of every one of five million
+segments to answer *is this long*, and that is the expensive half of the cutter.
+
+Two details in `claim_children` are load-bearing and easy to remove by accident:
+
+- **`mine`** is the names this same place was on disk as last run. Without it,
+  seeding `taken` with the previous children renames every cut child on every
+  import — the fix arriving as the bug.
+- **the ceiling** keeps the pieces in reading order. When an earlier run's
+  insertion is sitting at `#7.1`, there is no arrangement of `#7.k` that both
+  avoids it and reads correctly, because the insertion is *inside* the range the
+  pieces need. So the pieces go where an insertion would, under `#7.0`:
+  `#7.0`, `#7.0.1`, `#7.0.1.1`, all sorting below `#7.1`. Odd to read, and in
+  the right order, which is the property that matters.
+
+And a name a place gives up now says where the words went. A se'if cut into
+three and now into two sheds `#7.3`; one that has stopped being over-long sheds
+every child it had. Both went to disk as nothing at all, so an anchor on `#7.3`
+walked up to a parent that is not live and resolved to silence — which
+`Why::Gone`'s own comment reserves for a place upstream does not have, *"not the
+same as an id nobody ever minted"*. This importer minted it. The rows are
+`Resegmented` and deliberately not `Cut`, because `places_of` reads `Cut` rows
+to reassemble places and a `Cut` row from a shed child would invent a place next
+run at a name that never held one.
+
+Each half has a test, and each test was checked by ablating the half it proves
+and watching it go red. That is not ceremony here: the first version of the
+insertion test passed against the unfixed code, because it compared **printed
+ids** and the collision is in the **ordinal** — `1:1#7.1` and `1:2#7.1` are two
+strings and one name, and `SegmentId`'s own `Ord` ignores the path for exactly
+that reason. A test that cannot fail is the thing this whole report is about.
+
+One existing test had to be argued with rather than kept.
+`a_stale_redirect_file_is_taken_away_rather_than_left_to_lie` asserted
+`redirects.is_empty()` after a cut se'if was shortened, and its prose argues
+something narrower and correct: *a `cut` row for a name that is live again sends
+a reader to records that do not exist*. That is about the row for `#7`. The
+children are the opposite case, and the assertion was the wrong width. It now
+says the sharper thing, and the file-removal path it was covering has its own
+test through the case that still reaches it — a shelf that will not parse, where
+`Previous` reads as nothing and the run beneath writes no rows at all.
+
+### #17 — the reverse direction, and the fifteen commands it found
+
+> `every_measurement_is_claimed_somewhere`, whose subject is the reverse
+> direction: *"a measurement nobody cites is a check that runs, passes, and
+> guards nothing."* Forty lines away,
+> `the_documentation_names_things_that_exist.rs:148-165` runs docs→bins only,
+> so a binary no document names passes.
+
+The report names two: `girsa-read` and `girsa-companions`. There are **fifteen**
+— seven binaries and eight examples that no document tells a reader to run,
+including the whole OCR loop on a terminal and `why-dropped`, which prints the
+rows rather than the count and is the difference between *4,102 links were
+dropped* and *here is one, and here is why*.
+
+A binary nobody is told to run is not a smaller problem than a binary that does
+not exist. It is the same reader, unable to reach the same thing, arriving from
+the other side — and it is the quieter one, because building a tool feels like
+shipping it.
+
+So `docs/tools.md`, grouped by what somebody wants rather than by crate:
+building the shelf, reading the same data without a window, measuring a claim,
+looking at one thing that went wrong. Two targets are excused, each with the
+reason beside it, and a second test refuses an excuse for a target that is not
+in the tree or a reason under forty characters — an exemption list is a
+hand-written list and decays the way they all do.
+
+### The line the report quoted, which was worse than it looked
+
+> `linksview.ts:134` tells the reader, in Hebrew, *"הרץ girsa-companions"*: a
+> reading application instructing its reader to go run a cargo binary.
+
+The smell is real. The bug underneath it is not the one the sentence describes.
+
+`incoming_unknown` is `!girsa_link::inbound::built(root)` — the **inbound**
+cache, which `girsa-link-types` writes. `girsa-companions` writes
+`companions.jsonl`, the shelf's neighbour list, and has nothing to do with it. A
+reader who did as they were told sat through a four-million-edge walk and came
+back to the same sentence. Four files away, `search.ts` reports the same cold
+cache and names it correctly — so one of the two was provably wrong without
+running either, and had been for as long as both existed.
+
+The message names the right tool now. What it does **not** do is grow a button,
+and that is a decision rather than an omission: `girsa-link-types` is a
+three-minute batch over 665 MB and it is step four of the documented setup. A
+panel that offers to start it offers a three-minute spinner with no progress,
+which is a worse product than a sentence naming a step. The dishonest thing was
+never the cargo command; it was naming the wrong one.
+
+The fence that follows is the general form: **the window is a document too.**
+Every `girsa-…` command a shipped string names must be a target in this
+workspace that some document explains how to run. A checker cannot know which
+cache a Hebrew sentence is about, and it can refuse to let the window name
+something a reader cannot act on.

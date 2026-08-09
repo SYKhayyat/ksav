@@ -19,12 +19,11 @@
 //! project has had compiled cleanly and was wrong on the page.
 
 mod common;
-use common::{render};
+use common::render;
 
 use girsa_source::SourcePacket;
-use ksav_engine::probe::{self, Line, TextRun};
+use ksav_engine::probe::{self, Line};
 use ksav_engine::source::{insert, CitationPlacement};
-use ksav_engine::DocConfig;
 
 /// Verbatim off Girsa's clipboard. See the module note.
 const PACKET: &str = include_str!("fixtures/girsa-packet.json");
@@ -292,11 +291,7 @@ fn bound(prelude: &str, name: &str) -> bool {
     prelude
         .lines()
         .filter_map(|l| l.strip_prefix("#let "))
-        .any(|rest| {
-            rest.starts_with(name)
-                && rest[name.len()..]
-                    .starts_with(|c: char| c == ' ' || c == '(' || c == '=')
-        })
+        .any(|rest| rest.starts_with(name) && rest[name.len()..].starts_with([' ', '(', '=']))
 }
 
 /// Girsa reads a Ksav document with Ksav's own names, in both spellings.
@@ -334,7 +329,9 @@ fn every_name_girsa_reads_is_a_name_the_prelude_binds() {
         let plain = format!("#let {en} = {he}\n");
         let wrapped = format!("#let {en} = _en({he}");
         if !prelude.contains(&plain) && !prelude.contains(&wrapped) {
-            missing.push(format!("#let {en} = … {he} — the pair is not in the prelude"));
+            missing.push(format!(
+                "#let {en} = … {he} — the pair is not in the prelude"
+            ));
         }
     }
     // The parameter names are a different table in the prelude — one dictionary

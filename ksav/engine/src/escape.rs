@@ -108,7 +108,10 @@ mod tests {
     /// a `display` string that goes straight into a `[…]` body.
     #[test]
     fn the_five_the_client_used_to_miss_are_escaped() {
-        assert_eq!(content("*Rashi* on _Genesis_"), "\\*Rashi\\* on \\_Genesis\\_");
+        assert_eq!(
+            content("*Rashi* on _Genesis_"),
+            "\\*Rashi\\* on \\_Genesis\\_"
+        );
         assert_eq!(content("<tag> @ref"), "\\<tag\\> \\@ref");
     }
 }

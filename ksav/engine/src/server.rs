@@ -822,12 +822,17 @@ mod tests {
     /// reintroduce the exemption.
     #[test]
     fn the_no_ui_page_has_nothing_to_execute() {
-        assert!(!NO_UI_HTML.contains("<script"), "the no-UI page must not script");
-        assert!(!NO_UI_HTML.contains("<style"), "the no-UI page must not style");
+        assert!(
+            !NO_UI_HTML.contains("<script"),
+            "the no-UI page must not script"
+        );
+        assert!(
+            !NO_UI_HTML.contains("<style"),
+            "the no-UI page must not style"
+        );
         assert!(!NO_UI_HTML.contains("javascript:"));
         // It is worth its bytes only if it says what to do about it.
         assert!(NO_UI_HTML.contains("npm run build"));
         assert!(NO_UI_HTML.contains("--features embed-ui"));
     }
-
 }

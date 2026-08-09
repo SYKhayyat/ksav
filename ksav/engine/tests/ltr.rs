@@ -15,7 +15,6 @@
 mod common;
 use common::{render_with, text};
 
-use ksav_engine::probe::{self, TextRun};
 use ksav_engine::DocConfig;
 
 fn cfg(dir: &str) -> DocConfig {
@@ -25,14 +24,16 @@ fn cfg(dir: &str) -> DocConfig {
     }
 }
 
-
 /// Everything on the page as one string, in layout order.
 
 // ── quotation marks ──────────────────────────────────────────────────────────
 
 #[test]
 fn english_gets_english_quotation_marks() {
-    let text = text(&render_with("He said \"hello\" and 'goodbye'.", &cfg("ltr")));
+    let text = text(&render_with(
+        "He said \"hello\" and 'goodbye'.",
+        &cfg("ltr"),
+    ));
     assert!(
         text.contains('\u{201C}') && text.contains('\u{201D}'),
         "expected “…” around the English quotation, got: {text}"

@@ -17,8 +17,6 @@ fn render(body: &str) -> (Vec<TextRun>, Vec<(f64, f64)>) {
     (probe::text_runs(&doc), probe::page_sizes(&doc))
 }
 
-/// Every word on every page, joined — enough for "is this text on the paper".
-
 const TRACKED: &str = "כתב #הוספה[מוסיף] וגם #מחיקה[מוחק] סוף.";
 
 // ── tracked changes: the three views differ on the page ──────────────────────

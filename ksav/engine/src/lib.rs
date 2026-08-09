@@ -1681,23 +1681,38 @@ mod tests {
     /// got shorter for no reason they can see.
     #[test]
     fn a_commented_out_apparatus_reserves_nothing() {
-        assert_eq!(auto_notes_region_cm("שלום
+        assert_eq!(
+            auto_notes_region_cm(
+                "שלום
 // #מדף_א[הערה]
-עולם"), 0.0);
+עולם"
+            ),
+            0.0
+        );
         assert_eq!(auto_notes_region_cm("שלום /* #מדף_א[הערה] */ עולם"), 0.0);
         assert_eq!(
-            auto_notes_region_cm("שלום
+            auto_notes_region_cm(
+                "שלום
 // אולי #הערה_זרם(זרם: \"א\")[טקסט]
-עולם"),
+עולם"
+            ),
             0.0
         );
         // And a string is text, not a call: a running head that *mentions* an
         // apparatus is a header, not a document that has one.
-        assert_eq!(auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")"), 0.0);
+        assert_eq!(
+            auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")"),
+            0.0
+        );
         // The apparatus still counts when it is real and a comment is merely
         // nearby — the fix must not blank the wrong half of the line.
-        assert_eq!(auto_notes_region_cm("// הערה
-#מדף_א[הערה]"), 3.0);
+        assert_eq!(
+            auto_notes_region_cm(
+                "// הערה
+#מדף_א[הערה]"
+            ),
+            3.0
+        );
         assert_eq!(auto_notes_region_cm("#מדף_א[הערה] // הערה"), 3.0);
     }
 
@@ -1711,7 +1726,11 @@ mod tests {
             "אלף \"בית\" גימל",
             "#מדף_א[א] // #מדף_ב[ב]",
         ] {
-            assert_eq!(code_only(doc).chars().count(), doc.chars().count(), "{doc:?}");
+            assert_eq!(
+                code_only(doc).chars().count(),
+                doc.chars().count(),
+                "{doc:?}"
+            );
         }
         // A comment between two halves of a name must not let them meet.
         assert!(!code_only("מד/* x */ף_א[הערה]").contains("מדף_א"));
@@ -2144,8 +2163,18 @@ mod tests {
     #[test]
     fn a_page_the_caller_holds_is_not_serialised() {
         let cfg = DocConfig::default();
-        let first = compile_parts("שלום", &cfg, &Assets::default(), false, false, &Default::default());
-        assert!(!first.pages_svg[0].is_empty(), "the first ask must send the page");
+        let first = compile_parts(
+            "שלום",
+            &cfg,
+            &Assets::default(),
+            false,
+            false,
+            &Default::default(),
+        );
+        assert!(
+            !first.pages_svg[0].is_empty(),
+            "the first ask must send the page"
+        );
 
         let have: std::collections::HashSet<String> = first.pages_hash.iter().cloned().collect();
         let again = compile_parts("שלום", &cfg, &Assets::default(), false, false, &have);

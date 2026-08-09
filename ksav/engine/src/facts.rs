@@ -141,10 +141,11 @@ pub struct HebrewFacts {
 fn hebrew_facts() -> HebrewFacts {
     let block: Vec<char> = ('\u{0591}'..='\u{05C7}').collect();
     let letters: Vec<char> = ('\u{05D0}'..='\u{05EA}').collect();
-    let quotes: Vec<char> = ['\u{05F3}', '\'', '\u{2018}', '\u{2019}', '\u{05F4}', '"',
-                             '\u{201C}', '\u{201D}']
-        .into_iter()
-        .collect();
+    let quotes: Vec<char> = [
+        '\u{05F3}', '\'', '\u{2018}', '\u{2019}', '\u{05F4}', '"', '\u{201C}', '\u{201D}',
+    ]
+    .into_iter()
+    .collect();
     HebrewFacts {
         word_breaking: block
             .iter()
@@ -157,11 +158,19 @@ fn hebrew_facts() -> HebrewFacts {
             .filter(|c| girsa_hebrew::PREFIX_LETTERS.contains(c))
             .collect(),
         geresh: (
-            quotes.iter().copied().filter(|c| girsa_hebrew::is_geresh(*c)).collect(),
+            quotes
+                .iter()
+                .copied()
+                .filter(|c| girsa_hebrew::is_geresh(*c))
+                .collect(),
             girsa_hebrew::CANONICAL_GERESH,
         ),
         gershayim: (
-            quotes.iter().copied().filter(|c| girsa_hebrew::is_gershayim(*c)).collect(),
+            quotes
+                .iter()
+                .copied()
+                .filter(|c| girsa_hebrew::is_gershayim(*c))
+                .collect(),
             girsa_hebrew::CANONICAL_GERSHAYIM,
         ),
     }

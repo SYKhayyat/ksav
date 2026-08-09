@@ -423,9 +423,7 @@ mod girsa {
             forget: bool,
         }
         let Ok(saved) = serde_json::from_str::<Saved>(body) else {
-            return super::error_json(
-                "הבקשה אינה מכילה נתיב · the request carries no path",
-            );
+            return super::error_json("הבקשה אינה מכילה נתיב · the request carries no path");
         };
         let told = crate::post::document(&saved.path, saved.name.as_deref(), saved.forget).is_ok();
         serde_json::json!({ "told": told }).to_string()

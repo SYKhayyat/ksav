@@ -180,7 +180,10 @@ pub fn prelude() -> String {
 fn main() {
     let (yes, no, skip) = measure(&prelude());
     let text = render(&yes, no.len(), &skip);
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/containers.json");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/containers.json"
+    );
     std::fs::write(path, &text).expect("write the fixture");
     println!(
         "wrote containers.json — {} containers, {} transparent, {} with no content body",

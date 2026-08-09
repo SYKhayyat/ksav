@@ -1525,10 +1525,9 @@ fn collect_pairs(node: &LinkedNode, inside: bool, out: &mut Vec<(String, String)
         } else {
             // `extra: (…)` on an `_en` wrapper — the per-command overrides.
             child.kind() == SyntaxKind::Named
-                && child
-                    .children()
-                    .next()
-                    .is_some_and(|n| n.kind() == SyntaxKind::Ident && n.get().leaf_text() == "extra")
+                && child.children().next().is_some_and(|n| {
+                    n.kind() == SyntaxKind::Ident && n.get().leaf_text() == "extra"
+                })
         };
         if inside && child.kind() == SyntaxKind::Named {
             if let Some(pair) = named_pair(&child) {
@@ -1561,4 +1560,3 @@ fn named_pair(node: &LinkedNode) -> Option<(String, String)> {
     }
     Some((name.get().leaf_text().to_string(), hebrew.to_string()))
 }
-

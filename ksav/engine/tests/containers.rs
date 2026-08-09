@@ -104,7 +104,14 @@ fn a_page_break_fails_in_a_container_and_works_outside_one() {
             "#{name} should be a container"
         );
     }
-    for name in ["שער", "title", "הדגשה", "bold", "כותרת_בהערה", "note_heading"] {
+    for name in [
+        "שער",
+        "title",
+        "הדגשה",
+        "bold",
+        "כותרת_בהערה",
+        "note_heading",
+    ] {
         assert_eq!(
             emit::probe_one(name),
             Some(false),

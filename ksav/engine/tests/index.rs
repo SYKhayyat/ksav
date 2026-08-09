@@ -18,14 +18,8 @@
 mod common;
 use common::{render, render_with, text};
 
-use ksav_engine::probe::{self, TextRun};
+use ksav_engine::probe::TextRun;
 use ksav_engine::DocConfig;
-
-/// Everything printed, in layout order, as one string.
-///
-/// Runs are joined without separators because Typst breaks a line into runs at
-/// shaping boundaries — a page number and its entry can arrive as three runs —
-/// and any separator would break the `contains` assertions that matter.
 
 /// Where `needle` first appears in the printed order, for asserting that one
 /// entry comes before another.

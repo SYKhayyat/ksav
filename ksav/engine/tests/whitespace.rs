@@ -20,10 +20,9 @@
 //! here: nothing in this repository would otherwise notice the day they change.
 
 mod common;
-use common::{render};
+use common::render;
 
-use ksav_engine::probe::{self, TextRun};
-use ksav_engine::DocConfig;
+use ksav_engine::probe::TextRun;
 
 /// Everything that printed, in layout order, as one string.
 fn page_text(body: &str) -> String {

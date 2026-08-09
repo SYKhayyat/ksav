@@ -356,7 +356,7 @@ fn the_prelude_and_the_engine_agree_about_a_default_page() {
 /// Python reads `facts.gen.json`. What is left is this — the assertion that they
 /// really did go, rather than moving.
 mod hebrew_word_boundaries {
-    use super::{DocConfig, probe};
+    use super::{probe, DocConfig};
 
     /// The four characters, and nothing else in the block.
     #[test]
@@ -435,8 +435,10 @@ mod hebrew_word_boundaries {
             .lines()
             .map(|l| l.split_once('#').map_or(l, |(before, _)| before))
             .collect::<Vec<_>>()
-            .join("
-");
+            .join(
+                "
+",
+            );
         for forbidden in ["[֑-ׇ]", r"֑-ׇ", r"֑-ׇ"] {
             assert!(
                 !code.contains(forbidden),

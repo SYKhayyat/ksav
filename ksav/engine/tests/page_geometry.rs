@@ -27,8 +27,12 @@ const PER_CM: f64 = 72.0 / 2.54;
 
 /// The first page's size, in centimetres.
 fn size_cm(cfg: &DocConfig) -> (f64, f64) {
-    let doc = probe::layout("#כותרת1[קונטרס]\n\nגוף המסמך.\n", cfg)
-        .unwrap_or_else(|d| panic!("it lays out: {:?}", d.iter().map(|x| &x.message).collect::<Vec<_>>()));
+    let doc = probe::layout("#כותרת1[קונטרס]\n\nגוף המסמך.\n", cfg).unwrap_or_else(|d| {
+        panic!(
+            "it lays out: {:?}",
+            d.iter().map(|x| &x.message).collect::<Vec<_>>()
+        )
+    });
     let page = doc.pages().first().expect("a page");
     (
         page.frame.width().to_pt() / PER_CM,
@@ -43,14 +47,20 @@ fn about(got: f64, want: f64) -> bool {
 #[test]
 fn a_named_paper_is_the_size_it_names() {
     let (w, h) = size_cm(&DocConfig::default());
-    assert!(about(w, 21.0) && about(h, 29.7), "A4 came out {w:.2}×{h:.2}");
+    assert!(
+        about(w, 21.0) && about(h, 29.7),
+        "A4 came out {w:.2}×{h:.2}"
+    );
 
     let a5 = DocConfig {
         paper: "a5".into(),
         ..Default::default()
     };
     let (w, h) = size_cm(&a5);
-    assert!(about(w, 14.8) && about(h, 21.0), "A5 came out {w:.2}×{h:.2}");
+    assert!(
+        about(w, 14.8) && about(h, 21.0),
+        "A5 came out {w:.2}×{h:.2}"
+    );
 }
 
 #[test]

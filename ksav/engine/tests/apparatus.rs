@@ -715,7 +715,10 @@ fn streams_collected_to_the_back_print_side_by_side() {
 
     // Side by side, which is the whole difference between this card and the
     // plain endnote one: same page, same baseline, different columns.
-    assert_eq!(content.page, source.page, "the two streams landed on different pages");
+    assert_eq!(
+        content.page, source.page,
+        "the two streams landed on different pages"
+    );
     assert!(
         (content.y - source.y).abs() < 1.0,
         "the streams are stacked, not side by side ({} vs {})",

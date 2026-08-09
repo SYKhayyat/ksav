@@ -19,10 +19,9 @@
 //! are identical in every measurement except the one that matters.
 
 mod common;
-use common::{render};
+use common::render;
 
 use ksav_engine::probe::{self, TextRun};
-use ksav_engine::DocConfig;
 
 /// Everything on the page, in one string — for the failure messages.
 fn flat(runs: &[TextRun]) -> String {

@@ -632,6 +632,27 @@ export interface Sources {
    * library, rather than forty times here.
    */
   refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshed[]>;
+  /**
+   * Tell Girsa this document was saved here (spec.md §10.4).
+   *
+   * The other half of *standing on a passage, see which of your own documents
+   * cite it*. Girsa's registry, its query and its tests were all built and
+   * nothing ever sent it a path — so the query walked `personal/ksav/`, the
+   * documents written in Girsa's **own toy editor**, and a `.ksav` written in
+   * the real Ksav answered *nothing cites this*.
+   *
+   * There is nowhere for Girsa to walk instead: a reader's documents live
+   * wherever they keep documents, and a library application has no business
+   * enumerating a disk. So the pen tells it.
+   *
+   * A path and a name — never the text. Girsa reads the file itself and caches
+   * the refs against its modification time; sending the body would be a second
+   * copy of one document with no owner between them.
+   *
+   * `false` means the library is not open, which is **not** an error: a save
+   * must never fail because the sibling application is closed.
+   */
+  savedHere(path: string, name?: string, forget?: boolean): Promise<boolean>;
 }
 
 /** One citation, as the library has it now. */
@@ -805,6 +826,16 @@ abstract class ServiceClient {
     });
     if (out.error) throw new Error(out.error);
     return out.quotes ?? [];
+  }
+
+  async savedHere(path: string, name?: string, forget?: boolean): Promise<boolean> {
+    const out = await this.ask<{ told?: boolean; error?: string }>("saved-here", {
+      path,
+      ...(name === undefined ? {} : { name }),
+      ...(forget ? { forget: true } : {}),
+    });
+    if (out.error) throw new Error(out.error);
+    return out.told ?? false;
   }
 
   async clipboardSource(): Promise<string | null> {

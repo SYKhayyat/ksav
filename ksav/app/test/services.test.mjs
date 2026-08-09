@@ -80,6 +80,9 @@ const CALLS = [
   // is about; what a `null` means to a paste is `main.ts`'s business.
   ["refresh", (b) => b.refresh("#מראה_מקום(מקור: \"girsa:x/1:1\")[שו״ע]"), { quotes: [] }],
   ["clipboard-source", (b) => b.clipboardSource(), { markup: null }],
+  // `told: false` is the ordinary answer — Girsa is not open — and is not a
+  // failure. A save must never fail because the sibling application is closed.
+  ["saved-here", (b) => b.savedHere("/tmp/shiur.ksav", "shiur"), { told: false }],
 ];
 
 export async function run() {

@@ -148,6 +148,20 @@ export function flushSaves(): Promise<void> {
 
 /** The shell's title bar, refreshed when a document is auto-titled. */
 let updateTitleBar: () => void = () => {};
+/**
+ * Called after a background write lands, so the shell can tell Girsa where the
+ * document is (spec.md §10.4).
+ *
+ * A hook rather than a direct call, for the reason every other one in this
+ * module is: `save.ts` is a pure module the suite imports, and reaching into
+ * the backend from here would put the loopback inside the save path. The shell
+ * wires it; a build with no Girsa half wires nothing.
+ */
+let fileWritten: () => void = () => {};
+export function onFileWritten(fn: () => void) {
+  fileWritten = fn;
+}
+
 export function onUpdateTitleBar(fn: () => void) {
   updateTitleBar = fn;
 }
@@ -236,6 +250,11 @@ export async function autosaveToFile(enabled: boolean, text: () => Promise<strin
     markFileSaved();
     await watch.markInSync(docId ?? "", binding);
     updateTitleBar(); // the background write cleared the file: drop the dot
+    // …and the library learns where the document is, on an autosave as much as
+    // on a Ctrl+S. A registry that only heard about the saves a writer made by
+    // hand would answer *nothing cites this* for every document they left the
+    // autosave to look after — which is most of them.
+    fileWritten();
     return true;
   } catch {
     // A background save that fails must not steal the writer's attention; the

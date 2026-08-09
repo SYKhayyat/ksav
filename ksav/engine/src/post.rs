@@ -428,6 +428,53 @@ pub fn refresh(
     Ok(answer.quotes)
 }
 
+/// Tell Girsa a document has been saved here, and where (spec.md §10.4).
+///
+/// # The other half of *where did I use this*
+///
+/// `girsa-desk`'s document registry, its `who_cites` query and its tests were
+/// all built, and **nothing ever sent it a path**. The module's own header is
+/// the finding: `who_cites` walked `personal/ksav/` — the documents written in
+/// *Girsa's own toy editor*, a text box built so the loop could be demonstrated
+/// without Ksav installed — so a `.ksav` written in the real Ksav, the
+/// application the entire pairing exists for, answered *nothing cites this*.
+///
+/// And there is nowhere for Girsa to walk instead. A reader's documents live
+/// wherever they keep documents — a Dropbox folder, a shiur directory, a USB
+/// stick — and a library application has no business enumerating a disk. So the
+/// pen tells it, which is this.
+///
+/// # What is sent, and what is not
+///
+/// A **path and a name**. Not the text: Girsa reads the file itself, caching
+/// the refs against its modification time, so sending the body would be a
+/// second copy of a document with no owner between them — which is the defect
+/// `documents.rs` was written against, one layer down.
+///
+/// `forget: true` takes the row off the list — Ksav saying *I deleted this*.
+/// The file is never touched either way.
+///
+/// # Errors
+///
+/// If Girsa is not running, refuses, or answers something unreadable. Every
+/// caller here treats that as *nothing to do*: this is a courtesy to the
+/// sibling application, and a save must never fail because the library is not
+/// open.
+pub fn document(path: &str, name: Option<&str>, forget: bool) -> Result<(), String> {
+    let mut errand = serde_json::Map::new();
+    errand.insert("path".into(), path.into());
+    if let Some(name) = name {
+        errand.insert("name".into(), name.into());
+    }
+    if forget {
+        errand.insert("forget".into(), true.into());
+    }
+    let errand = serde_json::Value::Object(errand).to_string();
+    girsa_post::send(App::Girsa, "/document", Some(&errand))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// Whether the library is there, for an affordance that would otherwise fail.
 #[must_use]
 pub fn girsa() -> girsa_post::Presence {

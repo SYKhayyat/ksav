@@ -186,6 +186,12 @@ pub const SERVICES: &[Service] = &[
     // `Quick`, because it is a clipboard read, and a `POST` because it is asked
     // at the moment of pasting rather than polled.
     svc("clipboard-source", Post, "/clipboard-source", Quick, Native, girsa::clipboard_source),
+    // spec.md §10.4's *where did I use this*, from the sending end. Girsa's
+    // document registry, its `who_cites` query and its tests were all built and
+    // **nothing ever sent it a path** — so the query walked Girsa's own toy
+    // editor's directory and a document written in the real Ksav answered
+    // *nothing cites this*.
+    svc("saved-here", Post, "/saved-here", Quick, Native, girsa::saved_here),
 ];
 
 /// The service with this name, if there is one.
@@ -400,6 +406,38 @@ mod girsa {
         no_library("רענון המקורות", "refreshing a document's sources")
     }
 
+    /// Tell Girsa a document was saved, so *where did I use this* can find it.
+    ///
+    /// `{"path": "…", "name": "…", "forget": false}` → `{"told": true}`, or
+    /// `{"told": false}` when the library is not open — which is **not** an
+    /// error. A save must never fail because the sibling application is closed,
+    /// and this is a courtesy to it rather than a step in saving.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn saved_here(body: &str) -> String {
+        #[derive(serde::Deserialize)]
+        struct Saved {
+            path: String,
+            #[serde(default)]
+            name: Option<String>,
+            #[serde(default)]
+            forget: bool,
+        }
+        let Ok(saved) = serde_json::from_str::<Saved>(body) else {
+            return super::error_json(
+                "הבקשה אינה מכילה נתיב · the request carries no path",
+            );
+        };
+        let told = crate::post::document(&saved.path, saved.name.as_deref(), saved.forget).is_ok();
+        serde_json::json!({ "told": told }).to_string()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn saved_here(_: &str) -> String {
+        // A browser tab has no file path to tell anybody about, and saying so
+        // as an *error* would make an ordinary save report a failure.
+        serde_json::json!({ "told": false }).to_string()
+    }
+
     /// The Source Packet on the clipboard, **already rendered to markup**.
     ///
     /// `{"markup": null}` is the ordinary answer and is not a failure: the
@@ -511,10 +549,11 @@ mod tests {
             "linkify",
             "refresh",
             "clipboard-source",
+            "saved-here",
         ] {
             assert!(find(name).is_some(), "{name} is missing from the registry");
         }
-        assert_eq!(SERVICES.len(), 14, "add the new service to this list too");
+        assert_eq!(SERVICES.len(), 15, "add the new service to this list too");
     }
 
     /// A layout is the only thing that needs the server's deadline and the
@@ -539,7 +578,14 @@ mod tests {
             .collect();
         assert_eq!(
             native,
-            ["inbox", "mekoros", "linkify", "refresh", "clipboard-source"]
+            [
+                "inbox",
+                "mekoros",
+                "linkify",
+                "refresh",
+                "clipboard-source",
+                "saved-here"
+            ]
         );
     }
 

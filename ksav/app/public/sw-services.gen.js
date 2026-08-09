@@ -27,4 +27,5 @@ export const SERVICE_PATHS = [
   "/linkify",
   "/refresh",
   "/clipboard-source",
+  "/saved-here",
 ];

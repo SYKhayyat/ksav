@@ -1488,6 +1488,39 @@ function takeRefreshed(row: Refreshed): void {
   showRefreshed([row]);
 }
 
+/**
+ * Tell Girsa where a document now lives (spec.md §10.4).
+ *
+ * *Standing on a passage, see which of **your own documents** cite it.* Girsa's
+ * registry, its `who_cites` query and its tests were all built and **nothing
+ * ever sent it a path** — so the query walked `personal/ksav/`, the documents
+ * written in Girsa's own toy editor, and a `.ksav` written in the real Ksav
+ * answered *nothing cites this*. The reader's actual work, in the actual
+ * editor, was invisible to the feature it exists for.
+ *
+ * There is nowhere for Girsa to walk instead: a reader's documents live
+ * wherever they keep documents, and a library application has no business
+ * enumerating a disk.
+ *
+ * Only a **real path** is worth telling it about. The browser's handle tier has
+ * no path Girsa could open, and a download is not a place at all — those are
+ * the two tiers `files.canWriteBack` already distinguishes.
+ *
+ * Never awaited by a save and never able to fail one: the library being closed
+ * is the ordinary case, and this is a courtesy to it rather than a step in
+ * saving.
+ */
+function tellGirsaWhereItIs(forget = false): void {
+  const binding = runtime.currentBinding;
+  const girsa = sourcesOf(runtime.backend);
+  if (!girsa || binding?.kind !== "tauri" || !binding.path) return;
+  void girsa.savedHere(binding.path, runtime.currentDoc?.title || binding.name, forget).catch(() => {
+    // Deliberately silent. Girsa not being open is the ordinary case, and a
+    // line about it on every save would be noise about a courtesy the writer
+    // never asked for.
+  });
+}
+
 function closeMekoros(): void {
   closePanel("mekoros");
 }
@@ -3553,6 +3586,7 @@ async function saveFile() {
       save.markFileSaved();
       save.clearConflict();
       await watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
+      tellGirsaWhereItIs();
       setStatus(tf("savedTo", runtime.currentBinding.name), "ok");
       return;
     }
@@ -3833,6 +3867,7 @@ async function saveFileAs() {
   save.markFileSaved();
   save.clearConflict();
   await watch.markInSync(runtime.currentDoc.id, binding);
+  tellGirsaWhereItIs();
   updateTitleBar();
   setStatus(
     files.canWriteBack(binding) ? tf("savedTo", binding.name) : tf("savedCopy", binding.name),
@@ -5758,6 +5793,7 @@ function render() {
     if (at != null) jumpTo(at);
   });
   onMarkLines((lines) => runtime.view.dispatch({ effects: setErrorLines.of(lines) }));
+  save.onFileWritten(() => tellGirsaWhereItIs());
   wireSyncScroll();
   wireSplitter();
   applyTheme();

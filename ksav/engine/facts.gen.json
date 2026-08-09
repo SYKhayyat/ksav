@@ -1250,6 +1250,13 @@
       "path": "/clipboard-source",
       "cost": "quick",
       "reach": "native"
+    },
+    {
+      "name": "saved-here",
+      "method": "post",
+      "path": "/saved-here",
+      "cost": "quick",
+      "reach": "native"
     }
   ],
   "hebrew": {

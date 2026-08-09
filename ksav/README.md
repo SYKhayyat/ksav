@@ -362,7 +362,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,131 editor assertions, 458 engine
+- [x] **CI, running and green** — typecheck, 4,140 editor assertions, 458 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -438,7 +438,7 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,131 assertions across 68 files
+cd app && npm test                          # 4,140 assertions across 68 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 458 tests, 31 binaries
@@ -713,6 +713,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `linkify` | `POST /linkify` | `{text}` → `{text}` with the certain citations made live |
 | `refresh` | `POST /refresh` | `{markup, style, nikud}` → one row per citation in the document, as the library has it now |
 | `clipboard-source` | `POST /clipboard-source` | `{}` → `{markup}`, the Source Packet Girsa put on the clipboard, already rendered — or `{markup: null}`, which is the ordinary answer and means *paste as text* |
+| `saved-here` | `POST /saved-here` | `{path, name, forget}` → `{told}`, telling Girsa where a document is so *where did I use this* can find it. `told: false` means the library is not open, which is not an error |
 
 `GET /` and everything else is the built editor, served as static files.
 
@@ -728,6 +729,16 @@ It answers with **markup**, not the packet — rendered by `ksav_engine::source`
 the same renderer the loopback arrivals go through — so a quote that arrives on
 the clipboard and one that arrives over the loopback are the same document. A
 second renderer on the client is what spec.md §10.3 rules out.
+
+`saved-here` is spec.md §10.4's *"standing on a passage, see which of **your
+own documents** cite it"*, from the sending end. Girsa's registry, its query and
+its tests were all built and nothing ever sent it a path — so the query walked
+Girsa's **own toy editor's** directory, and a `.ksav` written in the real Ksav
+answered *nothing cites this*. There is nowhere for Girsa to walk instead: a
+reader's documents live wherever they keep documents. A path and a name, never
+the text; only for a real file path, since a browser handle is not a place Girsa
+can open; and on an autosave as much as on a Ctrl+S, because a registry that
+only heard about hand-made saves would miss most documents.
 
 `refresh` is spec.md §10.2's promise about a **document** rather than about a
 place, and it is reachable now — *רענון המקורות* in the palette, or bound to a

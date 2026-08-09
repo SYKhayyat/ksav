@@ -55,7 +55,10 @@ separate. Two windows are not two devices.
    a boundary somebody chose for tidiness; it is forced. My central claim is dead.
    *What it does not justify* — and this is the part that matters — is the **third
    repository**, `girsa-cite` living in it, or Ksav compiling a resolver it never calls.
-   Those are separate decisions that borrowed this one's argument. See §3 and §4.
+   Those are separate decisions that borrowed this one's argument. See §3, §4 and §4a —
+   and note that §4a concludes the *build matrix* asymmetry is correct while §4 concludes
+   the *repository* split is not. They are different decisions and only one of them is
+   forced by this paragraph.
 2. **The pull errands.** `Girsa/app/src-tauri/src/post.rs:34-46` had already made my
    argument against me and then beaten it: *"Handing a source to Ksav is a push: one
    direction, no reply, and the operating system already owns a channel that does it…
@@ -440,6 +443,127 @@ a per-word corpus frequency band, and the bands are worth 20.2% → 55.2% top-1 
 rerunnable, and re-measured during this sweep. `girsa-scan` beats a `page_offset: i32`
 column, and proves it with a test that snapshots 80 pages and asserts 1–42 are
 byte-identical after an anchor is inserted at 45.
+
+---
+
+## §4a The build matrix — and why the answer is the opposite of §4's
+
+*Asked after the sweep was written, on the same day: should Girsa get a WebAssembly build,
+should Ksav drop its, so that the two apps are equivalent? §4 just concluded `don't-build`
+on the third repository. This is the same lens on an adjacent question and it lands the
+other way, which is worth having on one page.*
+
+### Girsa → WASM: no. Four reasons, any one sufficient.
+
+1. **11 GB of corpus and a 3.6 GB index** (measured on disk). Not a bundle, at any
+   compression.
+2. **A hosted index is a server.** `spec.md` §11: *"Everything local, everything exportable
+   as plain files, no account… Never the corpus, never telemetry."* A browser Girsa reading
+   a remote index is a thin client to somebody's server — which is Sefaria, and §1 exists in
+   order not to be Sefaria. This is the reason that does not go away with cleverness.
+3. **tantivy is not a supported `wasm32` configuration** — filesystem, `memmap2`, threads.
+   Its `Directory` trait makes an HTTP-range-request directory *conceivable*, and that is a
+   real pattern, but it is a research project rather than a port. (Manifest read, not a
+   build attempt — flagged as such.)
+4. **The transport does not come with it.** `girsa-post` cannot run in a tab: no filesystem
+   for the `create_new` 0600 endpoint file, no listener. So the build matrix goes from one
+   live cell of two to **one live cell of four** — two tabs cannot loopback either. Adding
+   Girsa-WASM demotes 1,435 lines and an entire security model from *forced* to *conditional
+   on one of four builds*, which is a much worse deal than it currently looks.
+
+And the legitimate want underneath "browser Girsa" is **already met.** `Girsa/app/src/api.ts:8-15`:
+with no Tauri around, the same calls read static JSON out of `public/dev/`, written by
+`cargo run -p girsa-app --example dev-fixtures` — *"That is how the Hebrew and the nikud get
+looked at on a second rendering engine without building an installer, which trap W9 in
+BUILDER.md asks for and a screenshot from one OS does not answer."* Thirty lines, and it does
+the one thing a browser build of a 14.6 GB reading application is actually for.
+
+### Ksav keeps its WASM build — and I had this wrong until I counted it
+
+I expected to argue that the browser target is expensive surface for a build with no URL.
+Measured, it is not:
+
+| | lines |
+|---|---|
+| `ksav/wasm/src/lib.rs` | 52 |
+| `wasm-worker.ts` + `wasm-worker-host.ts` + `.stub.ts` | 96 |
+| `public/sw.js` + `sw-cache.js` | 209 |
+| `deploy.yml` + `wasm-smoke.mjs` | 288 |
+| `WasmBackend` in `api.ts` | ~145 |
+| `cfg(target_arch = "wasm32")` seams in the engine | **15** (5 in `lib.rs`, 10 in `services.rs`) |
+
+~790 lines and fifteen `cfg` seams for an entire delivery target. The 29,640,031-byte
+`ksav_wasm_bg.wasm` is a build artifact, not maintained code. The "it is a lot of surface"
+argument does not survive the count, and it was mine.
+
+**And the asymmetry is faithful rather than accidental.** Ksav's data is 4.5 MB of embedded
+lexicons. Girsa's is 14.6 GB. A three-thousand-fold ratio. Ksav *can* be a browser product
+because everything it needs fits in the bundle; Girsa can never be without becoming the
+server §11 forbids. Forcing the matrix symmetric means either deleting a real distribution
+channel or building that server. **The build matrix should be asymmetric because the products
+are asymmetric.**
+
+The user this serves is a Hebrew writer on a machine they cannot install software on —
+school, library, work. Not a small population, and the one least served by everything else.
+The thing is already built, and it is unfinished by exactly one setting:
+`ksav/README.md:592`, *"Before the first deploy, GitHub Pages has to be enabled for the
+repository."* Which is the same shape as the release that sat as a draft while three
+consecutive audits called it the single most consequential open item.
+
+### So equivalence is the wrong axis — spend the symmetry budget on the shell
+
+The target-matrix asymmetry costs almost nothing once the two bugs below are fixed. The
+*shell* asymmetry costs roughly 2,000 lines of divergence.
+
+| | Girsa | Ksav | Which is right |
+|---|---|---|---|
+| Tauri surface | 3,769 lines, **100** commands, 59 hand-mirrored interfaces | 423 lines, **1** command, client generated from the registry | Ksav |
+| Test harness | 7 of 24 modules testable, bare `await mod.run()`, hand-rolled `import.meta.url` path | modules read off disk, throws contained, `fileURLToPath` | Ksav |
+| Panel registry | a **function** in `main.ts:987` — silently omits `lanepanel` and `settingsview`, so Escape closes neither | module-level frozen array that **throws** on an undeclared × | Ksav |
+| Error vocabulary | `CODED` keyed on a Rust `Code`, with a test asserting *"rewording the prose changes nothing a reader sees"* | regexes over English `Display` | Girsa — and **neither** applies it to `girsa_post::PostError`, the one type that crosses the seam |
+| Readme numbers | `<!--=name-->` markers, both directions, `--write` fixer | regex prose sweep with four documented retreats, no fixer | Girsa |
+| Wire checking | independent hand-written mirror + comparator | generated from one side | **Girsa** — a generator catches a stale copy of a registry, never a *wrong* one |
+
+Note the last two rows. Symmetry is not "Girsa becomes Ksav": each has instruments the other
+should take. And when Girsa adopts the one-command registry it must **keep** `wire.test.mjs`
+— the registry unifies dispatch, the hand-written mirror stays as the independent statement.
+That is §4 of `duplication-2026-08-09.md` applied rather than quoted.
+
+### Two bugs the ambiguous status of the browser build has already caused
+
+**1. The service worker installs under `ksav serve`, where there is no engine behind it.**
+`main.ts:3477` gates on `backend?.kind === "desktop"` and `import.meta.env.PROD` — **not** on
+`__WASM__`. The `serve` bundle is built without `VITE_WASM=1`, so `api.ts:1070` returns
+`HttpBackend`. Offline, the cached shell therefore boots an editor whose compiler is the
+server that just went away, and `index.html` links `rel="manifest"`, so it offers to *install
+itself* in that state. The fix is one line: `if (!__WASM__) return;`.
+
+**2. The browser build claims a Girsa half it cannot have.** `api.ts:569-571`:
+
+```ts
+return s && typeof s.inbox === "function" ? (s as Sources) : null;
+```
+
+`inbox` is defined on the shared `ServiceClient` base at `api.ts:680`, so this **always**
+returns non-null and `t("girsaNeedsApp")` sits unreached. The comment above it says it exists
+*"so that 'can I reach Girsa' is never four separate `typeof b.mekoros === 'function'` checks
+that drift apart"* — it consolidated four drifting checks into one wrong one. Key it on
+`SERVICE.inbox.nativeOnly`, which the generated table already carries.
+
+And the test that should have caught it asserts the opposite. `services.test.mjs:166-172` is
+`try { await drive(backend) } catch { }` under the comment *"`WasmBackend` has no `Sources`
+half — a tab cannot reach the loopback — so the three Girsa services have no method here.
+**That is the design.**"* It is not: the methods are on the shared base, nothing throws, the
+`catch` is dead, and nothing anywhere asserts absence. The comment is also stale on the count
+— it says *three* where `services.rs:171-174` has four (`inbox`, `mekoros`, `linkify`,
+`refresh`). A test whose exemption comment states a mechanism the code does not have is the
+same failure as a doc comment doing it, and this one is guarding the seam.
+
+**The decision, then:** Girsa stays desktop-only with its fixture-backed browser mode for
+rendering tests. Ksav keeps the browser build and finishes it — fix the two bugs above, flip
+the Pages setting, and it stops being a claim in a README. Equivalence is pursued in the
+shell, where it is worth ~2,000 lines, and not in the target matrix, where it would cost a
+distribution channel or a server.
 
 ---
 

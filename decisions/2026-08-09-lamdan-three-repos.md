@@ -1878,3 +1878,86 @@ So the question, stated so it can be answered in a sentence:
   is still not covered.
 
 Nothing else in this wave is blocked on the answer.
+
+## §4 — the third repository, and the count that moved the other way
+
+§4's verdict on the shared repository is `don't-build`, **as three**, and the
+argument is not the WASM one it borrows from:
+
+> The stated cost of a monorepo is that Ksav would drag Girsa's tree. Measured:
+> `Girsa/.git` is **5.0 MB** — *smaller than Ksav's own 10 MB*… The argument does
+> not survive `du`.
+
+Re-measured today: `Girsa/.git` 3.7 MB, `Ksav/.git` 6.7 MB, `sefer-crates/.git`
+2.0 MB. Same conclusion, tighter numbers — and `girsa-ref/lexicon/sefaria.tsv`
+is still 3.56 MB that Ksav downloads on every fresh clone and cannot reach, more
+than Girsa's entire history.
+
+### The shape, recorded
+
+> **What should have existed instead:** one repository, one cargo workspace,
+> with `sefer-post` and `sefer-source` as crates inside it, and Ksav depending on
+> that repo by `git + rev`. Same pin discipline, same fresh-clone property, same
+> standalone releasability — and `check-dependents.sh` becomes `cargo test
+> --workspace` for the Girsa half plus one rev bump for the Ksav half, which is a
+> thing that can actually run.
+
+That is written down here because the report is right that it is *the shape to
+move toward* and not a first commit, and a shape nobody wrote down is a shape
+nobody moves toward. Two things about it are worth keeping separate from the
+appetite question:
+
+**The reason it loses is not the CI cost — it is that the CI cost went unpaid.**
+`check-dependents.sh` was building Ksav against the last pushed commit rather
+than the working tree for five releases, and nothing said so. That is evidence
+about what this arrangement is like to maintain rather than about anybody's
+diligence, and it is why "keep the split and pay the cost properly" is not the
+answer: the cost has a history of not being paid, and the fix (§8.3) is a
+seventy-line shell script that installs a `paths` override and then asserts via
+`cargo metadata` that it took.
+
+**And the split is doing one thing the merge would not.** Every one of these
+crates has a public surface with doc comments and tests written as though a
+stranger would read them, because the boundary made that the only way to work.
+`girsa-ksav` is the case: `girsa-desk/src/buffer.rs` asserts **equality**
+against it rather than `contains`, with the reason stated three lines up. That
+is what a shared contract looks like when it works, and it did not come from the
+crate being in a different repository — but it is the kind of thing a merge
+quietly stops producing.
+
+### The count the report projected, and the count this wave produced
+
+The report's per-crate deletion test found **two of six** earning a shared
+boundary, and expected the `girsa-cite`/`girsa-source` moves to leave exactly
+two. Measured against the manifests today — a crate counts when an application
+*names* it, because transitively compiled is not the same as reachable:
+
+| Crate | Named by Girsa | Named by Ksav | |
+|---|---|---|---|
+| `girsa-post` | yes | yes (twice: engine and shell) | earns it outright — two ends of a wire protocol |
+| `girsa-ksav` | yes | yes | earns it: five items called from both sides, and an equality assertion |
+| `girsa-source` | yes | yes | earns it weakly: a struct with eight fields and a version check, 503 lines |
+| `girsa-hebrew` | yes | **yes, since 2026-08-09** | earned it *during this wave* |
+| `girsa-ref` | yes | only through `girsa-ksav` | one reachable consumer |
+| `girsa-cite` | yes | no, at any depth | one consumer, and the claim that it had two is corrected above |
+
+**Four, not two, and the fourth is the interesting one.** The report measured
+`girsa-hebrew` as having one reachable consumer. Item #8.2 — the maqaf fix —
+made Ksav's speller depend on it, which deleted five duplicated character tables
+and removed 89 non-words from the shipped dictionary. So the wave moved this
+count *away* from the report's target, and did so by doing the highest-value
+thing in the report. That is not a contradiction to be smoothed over: **the
+shared-crate boundary is worth what the sharing is worth**, and a crate that
+earns it today earned it by being used, not by being planned for.
+
+Which leaves the honest position: `girsa-cite` and `girsa-ref` are the two that
+do not earn it, and the report's own verdict on moving them is
+`wrong-but-keep` — *"moving it now costs a version bump for zero gain"*. So
+nothing moves in this commit. What changes is that the arrangement is now
+described by something that can be wrong out loud: `check-dependents.sh` asks
+the manifests whether *both applications* is true wherever a crate claims it,
+which is how the five-year-old sentence about `girsa-cite` was finally caught by
+a machine rather than by a reader.
+
+`girsa_ref::RedirectTable` is the one open question in this section, and it is
+put in §8.10 above rather than repeated here.

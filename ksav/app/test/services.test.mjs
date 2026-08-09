@@ -78,6 +78,7 @@ const CALLS = [
   // The ordinary answer is `null` — the reader copied from a text editor — and
   // it is not a failure. The row drives the *service*, which is what this file
   // is about; what a `null` means to a paste is `main.ts`'s business.
+  ["refresh", (b) => b.refresh("#מראה_מקום(מקור: \"girsa:x/1:1\")[שו״ע]"), { quotes: [] }],
   ["clipboard-source", (b) => b.clipboardSource(), { markup: null }],
 ];
 

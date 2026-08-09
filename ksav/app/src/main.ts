@@ -29,7 +29,7 @@ import { createBackend, sourcesOf } from "./api";
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
  *  one lock and an empty vector when there is nothing waiting. */
 const GIRSA_POLL_MS = 1000;
-import type { Mekor, Mekoros, TemplateDef } from "./api";
+import type { Mekor, Mekoros, Refreshed, TemplateDef } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
@@ -96,7 +96,7 @@ import {
   overlayPanel,
 } from "./panels";
 import { BUNDLED_NOTICES } from "./engine.gen";
-import { docTextOf, plainText } from "./spans";
+import { bodyAt, docTextOf, plainText, scanDoc } from "./spans";
 import { minimalChange } from "./diff";
 import {
   settings,
@@ -521,6 +521,15 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       playMacro(all[all.length - 1]);
       return true;
     },
+  },
+  {
+    // Every citation in the document, as the library has it now (spec.md
+    // §10.2). An action rather than a bare key, so it is findable in the
+    // palette, bindable, and listed in Settings — which is how everything else
+    // a writer can do is reachable, and the reason this one had no way in was
+    // that it had no entry anywhere at all.
+    id: "refreshSources",
+    run: () => (void refreshSources(), true),
   },
   {
     // The hydra for whatever the caret is in.
@@ -1348,6 +1357,135 @@ async function linkifySelection(): Promise<void> {
     const bad = troubleSaid(e, "linkify");
     setStatus(bad.said, "err", bad.detail);
   }
+}
+
+/**
+ * Ask the library for every citation in this document again (spec.md §10.2).
+ *
+ * *"A whole sefer can be switched from abbreviated to full-form citations, or
+ * every quote regenerated against a corrected edition, without touching a word
+ * of the prose. No paste-based workflow can do that, which is the whole
+ * argument for the pairing."*
+ *
+ * The errand behind that sentence — `POST /refresh` — is named in Girsa's own
+ * `post.rs` as **the clearest of them**, the one the loopback earns itself on,
+ * and in this repository's README as *"the errand that pays for the loopback"*.
+ * It had a generated client, a generated table row, and **no caller in
+ * `src/`**. The service that justifies the process boundary had no way in.
+ *
+ * # Rows, and the writer says yes
+ *
+ * What comes back is one row per citation and not a rewritten document, and
+ * that is the design rather than an unfinished half of it: a correction
+ * somebody else made silently changing the words in the sefer you are writing
+ * is the one surprise this arrangement exists to avoid. A correction is a claim
+ * somebody made, not a fact about the sefer.
+ *
+ * So each row shows what the library says now, and each row that **differs from
+ * what is in the document** offers to put it in. A row that could not be looked
+ * up says why and offers nothing — the other thirty-nine still refresh, and
+ * that decision was made once, in Girsa.
+ */
+async function refreshSources(): Promise<void> {
+  const girsa = sourcesOf(runtime.backend);
+  if (!girsa) {
+    setStatus(t("girsaNeedsApp"), "");
+    return;
+  }
+  const markup = docTextOf(runtime.view.state.doc);
+  setStatus(t("askingGirsa"), "");
+  let rows: Refreshed[];
+  try {
+    rows = await girsa.refresh(markup);
+  } catch (e) {
+    const bad = troubleSaid(e, "reach_girsa");
+    setStatus(bad.said, "err", bad.detail);
+    return;
+  }
+  if (!rows.length) {
+    setStatus(t("refreshNone"), "");
+    return;
+  }
+  showRefreshed(rows);
+  const moved = rows.filter((r) => !r.trouble && !markup.includes(r.text)).length;
+  setStatus(tf("refreshedCount", rows.length, moved), moved ? "warn" : "ok");
+}
+
+/** The rows, each with what to do about it. */
+function showRefreshed(rows: Refreshed[]): void {
+  const list = document.getElementById("refresh-list");
+  if (!list) return;
+  const doc = docTextOf(runtime.view.state.doc);
+  list.replaceChildren(
+    ...rows.map((row) => {
+      // A row is "moved" when the words the library has now are not in the
+      // document. Compared against the whole buffer rather than against a
+      // parsed citation, deliberately: the writer may have edited the quote,
+      // and a diff of *their* words against the library's is exactly what they
+      // want to see rather than something this file guessed at.
+      const here = !row.trouble && doc.includes(row.text);
+      const line = el("div", { class: "refresh-row" }, [
+        el("b", {}, [row.display || row.ref]),
+        el("div", { class: "refresh-text" }, [row.text || ""]),
+      ]);
+      if (row.trouble) {
+        line.append(el("div", { class: "is-trouble" }, [row.trouble]));
+      } else if (!here) {
+        line.append(
+          el(
+            "button",
+            {
+              class: "sc-key",
+              onClick: () => takeRefreshed(row),
+            },
+            [t("refreshTake")],
+          ),
+        );
+      } else {
+        line.append(el("div", { class: "refresh-same" }, [t("refreshSame")]));
+      }
+      return line;
+    }),
+  );
+  openPanel("refresh-panel");
+}
+
+/**
+ * Put one refreshed quote into the document.
+ *
+ * The mekor is found by its **ref**, which is the whole reason the ref is
+ * stored: `#מראה_מקום(מקור: "girsa:…")[…]` names the place, so the citation to
+ * update can be found without parsing prose or trusting a position that the
+ * writer may have moved since the rows were asked for.
+ */
+function takeRefreshed(row: Refreshed): void {
+  const doc = docTextOf(runtime.view.state.doc);
+  const at = doc.indexOf(row.ref);
+  if (at < 0) {
+    setStatus(t("refreshGone"), "warn");
+    return;
+  }
+  // The citation's **body**, found through the scanner rather than by counting
+  // brackets here. A first version of this walked the string itself and
+  // `spans.test.mjs` refused it by name — bracket depth is one question with
+  // one answer, and a second counter is how `brackets.ts` came to delete a
+  // call's real closing paren over a `)` inside a string.
+  //
+  // The ref is what locates it, which is the whole reason the ref is stored:
+  // `#מראה_מקום(מקור: "girsa:…")[…]` names the place, so the citation to update
+  // is found without parsing prose or trusting a position the writer may have
+  // moved since the rows were asked for.
+  const body = bodyAt(scanDoc(runtime.view.state.doc), at);
+  if (!body) {
+    setStatus(t("refreshGone"), "warn");
+    return;
+  }
+  runtime.view.dispatch({
+    changes: { from: body.from, to: body.to, insert: row.display || row.text },
+  });
+  setStatus(t("refreshTook"), "ok");
+  scheduleCompile();
+  showRefreshed([row]);
 }
 
 function closeMekoros(): void {
@@ -5597,6 +5735,17 @@ function render() {
         ]),
       ]),
       el("div", { id: "history-list" }),
+    ]),
+    // Every citation in the document, as the library has it now (spec.md
+    // §10.2). See `refreshSources` for what the errand is and why the rows come
+    // back instead of a rewritten file.
+    overlayPanel("refresh-panel", "palette-box", [
+      // `panelHead` and not a hand-built ×. The panel *claims* a head exit, and
+      // `chrome.test.mjs` checks that the claim is kept by the one function
+      // that builds one — which is how an exit comes to be a promise rather
+      // than a note in a registry.
+      panelHead("refresh-panel", t("refreshTitle"), { level: "h3" }),
+      el("div", { id: "refresh-list" }),
     ]),
   );
 

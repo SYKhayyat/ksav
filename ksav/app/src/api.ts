@@ -613,6 +613,37 @@ export interface Sources {
    * §10.3 rules out.
    */
   clipboardSource(): Promise<string | null>;
+  /**
+   * Every citation in this document, as the library has it **now**
+   * (spec.md §10.2).
+   *
+   * *Regenerate every quote against a corrected edition* is a promise about a
+   * document rather than about a place, and this is the errand that performs
+   * it: one call, one row per citation, in the order they appear.
+   *
+   * What comes back is **rows and not a rewritten file**, and that is the whole
+   * design. A correction somebody else made silently changing the words in the
+   * sefer you are writing is the one surprise this arrangement exists to avoid
+   * — a correction is a claim somebody made, not a fact about the sefer. So the
+   * writer sees what moved and says yes.
+   *
+   * A citation Girsa cannot look up comes back as a row with a reason in it;
+   * the other thirty-nine still refresh, and that decision is made once, in the
+   * library, rather than forty times here.
+   */
+  refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshed[]>;
+}
+
+/** One citation, as the library has it now. */
+export interface Refreshed {
+  /** The place. */
+  ref: string;
+  /** The citation as it prints today. */
+  display: string;
+  /** The words today. */
+  text: string;
+  /** Why this one could not be refreshed, if it could not. */
+  trouble?: string | null;
 }
 
 /**
@@ -761,6 +792,19 @@ abstract class ServiceClient {
     const out = await this.ask<{ error?: string; text?: string }>("linkify", { text });
     if (out.error) throw new Error(out.error);
     return out.text ?? text;
+  }
+
+  async refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshed[]> {
+    const out = await this.ask<{ error?: string; quotes?: Refreshed[] }>("refresh", {
+      markup,
+      // Absent, not null: Girsa reads absence as *the reader's own setting*,
+      // and a `null` that deserialized to `Some(None)` on the other side would
+      // be this application overriding a preference it never asked about.
+      ...(style === undefined ? {} : { style }),
+      ...(nikud === undefined ? {} : { nikud }),
+    });
+    if (out.error) throw new Error(out.error);
+    return out.quotes ?? [];
   }
 
   async clipboardSource(): Promise<string | null> {

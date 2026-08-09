@@ -258,6 +258,27 @@ export const PANELS: readonly Panel[] = [
     exits: [{ via: "outside" }],
     selector: ".mekoros",
   },
+  {
+    // Every citation in the document, as the library has it now — spec.md
+    // §10.2's promise about a *document* rather than about a place.
+    //
+    // A dialog and not a popup: it is a list of forty rows the writer reads and
+    // decides about, one at a time, and it must survive them clicking into the
+    // document to look at where a citation sits. Escape closes it, because
+    // nothing about the application depends on it still being there.
+    //
+    // The service behind it — `POST /refresh` — was named in Girsa's own
+    // `post.rs` as *"the clearest of them"*, the errand the loopback earns
+    // itself on, and in this README as *"the errand that pays for the
+    // loopback"*. It had a generated client, a generated table row, and **no
+    // caller in `src/`**: the service that justifies the process boundary had
+    // no UI at all.
+    id: "refresh-panel",
+    kind: "modal",
+    presence: "class",
+    escape: true,
+    exits: [{ via: "head" }, { via: "scrim" }],
+  },
 ] as const;
 
 const BY_ID = new Map(PANELS.map((p) => [p.id, p]));

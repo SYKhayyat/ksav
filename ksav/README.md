@@ -362,7 +362,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,109 editor assertions, 458 engine
+- [x] **CI, running and green** — typecheck, 4,131 editor assertions, 458 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -438,7 +438,7 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,109 assertions across 68 files
+cd app && npm test                          # 4,131 assertions across 68 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 458 tests, 31 binaries
@@ -730,7 +730,11 @@ the clipboard and one that arrives over the loopback are the same document. A
 second renderer on the client is what spec.md §10.3 rules out.
 
 `refresh` is spec.md §10.2's promise about a **document** rather than about a
-place: forty citations at once, in the order they appear, each re-read against
+place, and it is reachable now — *רענון המקורות* in the palette, or bound to a
+key like anything else. It had a generated client, a generated table row and no
+caller in `src/`: the errand Girsa's own `post.rs` calls *"the clearest of
+them"*, and this README calls *"the errand that pays for the loopback"*, had no
+way in. forty citations at once, in the order they appear, each re-read against
 the corpus as it stands. A citation naming a sefer that shelf does not have
 comes back as a row with a reason in it — the other thirty-nine still refresh,
 and that decision is made once, in Girsa, rather than forty times here. What

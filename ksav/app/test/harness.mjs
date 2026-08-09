@@ -342,8 +342,22 @@ export async function rejects(name, fn, errorName) {
   }
 }
 
-export function summary(label) {
-  console.log(`${label}: ${pass} passed, ${fail} failed`);
+/**
+ * The tally, in the one place that formats it.
+ *
+ * The 9 August report listed this among the finished duplicates and said
+ * `delete`: it was exported, uncalled, and `run.mjs` printed the same sentence
+ * itself with a different separator. Deleting an uncalled function is the right
+ * instinct in general and the wrong one here — there is exactly one line in this
+ * suite that says *how many assertions ran*, `run.mjs` was writing it by hand,
+ * and the fix that leaves the tree with fewer ways to be wrong is the caller,
+ * not the removal.
+ *
+ * `also` is what a run has to add beyond the two numbers — a module that threw
+ * is not a failed assertion and must not be counted as one.
+ */
+export function summary(label, also = "") {
+  console.log(`${label} · ${pass} passed, ${fail} failed${also ? `, ${also}` : ""}`);
   return fail;
 }
 

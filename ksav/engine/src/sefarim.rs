@@ -335,9 +335,9 @@ pub fn typst_table() -> String {
             out.push_str(&format!(
                 "  {}: (שם: {}, סדר: {}, סוג: {}),\n",
                 typst_key(&fold(spelling)),
-                typst_string(s.canonical),
+                crate::escape::string_literal(s.canonical),
                 s.order,
-                typst_string(s.kind.as_str()),
+                crate::escape::string_literal(s.kind.as_str()),
             ));
         }
     }
@@ -352,7 +352,7 @@ pub fn typst_table() -> String {
         out.push_str(&format!(
             "  {}: {},\n",
             typst_key(kind.as_str()),
-            typst_string(kind.heading()),
+            crate::escape::string_literal(kind.heading()),
         ));
     }
     out.push_str(")\n");
@@ -375,21 +375,25 @@ pub fn catalog_json() -> String {
     serde_json::json!({ "sefarim": entries }).to_string()
 }
 
-/// A Typst string literal.
-///
-/// This was `format!("\"{}\"", s.replace(…).replace(…))` — byte-identical to
-/// `lib.rs`'s `typst_str`, in the same crate, forty lines from a `use super::*`,
-/// under a comment there saying *"nothing else is allowed to build a string
-/// literal by hand"*. The rule was right, and it was enforced at the site that
-/// prompted it and nowhere else.
-fn typst_string(s: &str) -> String {
-    crate::escape::string_literal(s)
-}
-
 /// A dictionary key. Typst allows a quoted string as a key, which is what makes
 /// a name with a space or a gershayim in it usable as one at all.
+///
+/// # The two names this used to have
+///
+/// There was a `typst_string` above it whose whole body was
+/// `crate::escape::string_literal(s)`, and this called that. Before the escaper
+/// existed it was `format!("\"{}\"", s.replace(…).replace(…))` —
+/// byte-identical to `lib.rs`'s `typst_str`, in the same crate, forty lines from
+/// a `use super::*`, under a comment there saying *"nothing else is allowed to
+/// build a string literal by hand"*. The rule was right and it was enforced at
+/// the site that prompted it and nowhere else.
+///
+/// The body is one call now, so a second name for it is one more thing to keep
+/// in step and nothing to gain by it. This one stays because *dictionary key* is
+/// a different claim from *string literal* — they are the same bytes and not the
+/// same sentence — and the plain literals say `string_literal`.
 fn typst_key(s: &str) -> String {
-    typst_string(s)
+    crate::escape::string_literal(s)
 }
 
 #[cfg(test)]

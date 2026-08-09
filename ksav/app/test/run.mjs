@@ -109,7 +109,9 @@ if (FILTER.length && !files.length) {
 
 // The harness keeps one running tally across every file, so a test that forgets
 // to report cannot hide a failure.
-const { counts, resetStorage } = await import(pathToFileURL(path.join(HERE, "harness.mjs")).href);
+const { counts, resetStorage, summary } = await import(
+  pathToFileURL(path.join(HERE, "harness.mjs")).href
+);
 
 /** Files whose `run()` threw rather than reporting. */
 const thrown = [];
@@ -153,10 +155,12 @@ for (const f of files) {
 
 const { pass, fail } = counts();
 const broke = thrown.length;
-console.log(
-  `\n${files.length} files · ${pass} passed, ${fail} failed` +
-    (broke ? `, ${broke} threw` : ""),
-);
+// Through the harness, which is where that sentence lives. This file wrote it
+// out by hand while `harness.mjs` exported an uncalled `summary()` saying the
+// same thing with a different separator — the 9 August report's `delete` list,
+// answered with the caller rather than the removal.
+console.log("");
+summary(`${files.length} files`, broke ? `${broke} threw` : "");
 if (broke) console.log(`  threw: ${thrown.join(", ")}`);
 
 // ------------------------------------------- the two numbers only this knows

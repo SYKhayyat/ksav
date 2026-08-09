@@ -89,9 +89,28 @@ export function run() {
     // bare newline would be a *paragraph* break in Ksav's source and would
     // silently restructure the document.
     const p = '<w:p><w:r><w:t>א</w:t><w:br/><w:t>ב</w:t></w:r></w:p>';
-    ok("a line break is a line break", convertDocument(doc(p)).body.includes("#מעבר_שורה"));
+    // An **unescaped** `#`, which is not what this used to ask. It asked
+    // `.includes("#מעבר_שורה")`, and `\#מעבר_שורה` contains that substring — so
+    // the assertion passed over markup Typst sets as literal words. The run
+    // built one string and escaped the whole of it, including the command it
+    // had just written; a `.docx` with a shift-return imported as visible
+    // markup mid-sentence, and had done since the importer was written.
+    const unescaped = (body, cmd) => body.split(cmd).some((_, i, all) =>
+      i > 0 && !all[i - 1].endsWith("\\"));
+    const out = convertDocument(doc(p)).body;
+    ok("a line break is a line break", unescaped(out, "#מעבר_שורה"), out);
     const pg = '<w:p><w:r><w:t>א</w:t><w:br w:type="page"/><w:t>ב</w:t></w:r></w:p>';
-    ok("a page break is a page break", convertDocument(doc(pg)).body.includes("#מעבר_עמוד"));
+    const pgOut = convertDocument(doc(pg)).body;
+    ok("a page break is a page break", unescaped(pgOut, "#מעבר_עמוד"), pgOut);
+    // …and the words around it are still escaped, or the fix would be "stop
+    // escaping", which is the other way to make this assertion pass.
+    const risky = '<w:p><w:r><w:t>a]b</w:t><w:br/><w:t>c#d</w:t></w:r></w:p>';
+    const both = convertDocument(doc(risky)).body;
+    ok(
+      "…and the text around it is still escaped",
+      both.includes(String.raw`a\]b`) && both.includes(String.raw`c\#d`),
+      both,
+    );
   }
 
   // --------------------------------------------------------------- escaping

@@ -22,9 +22,11 @@
 //   1. The generated file really came from the engine, and covers what the app
 //      needs. A generator that silently parsed nothing emits a file that
 //      typechecks and breaks everything at runtime.
-//   2. `settings.ts` ships the engine's defaults, field for field. The Rust
-//      value wins on the wire, so drift here shows as sliders that disagree with
-//      the page rather than as an error.
+//   2. A document falls back to the engine's defaults, field for field, and the
+//      app keeps **no copy** of them. The Rust value wins on the wire, so drift
+//      here shows as sliders that disagree with the page rather than as an
+//      error — and until `Settings` stopped extending `DocConfig` there were
+//      thirty fields for it to drift in.
 //   3. No module re-states the pairing by hand. This is the prohibition, and it
 //      is the one that stops the finding from growing back.
 //   4. Every Hebrew name the export tables are keyed by is a command the prelude
@@ -42,7 +44,7 @@ import {
   bothSpellings,
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
-import { DEFAULTS } from "../.tmp-test/settings.mjs";
+import { DEFAULTS, defaultPageSetup } from "../.tmp-test/settings.mjs";
 import { CLASSIFIED_NAMES, toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
 import { dirOf } from "../tools/paths.mjs";
@@ -95,10 +97,25 @@ export async function run() {
 
   {
     ok("the defaults were parsed", Object.keys(DOC_DEFAULTS).length >= 20);
+    // `defaultPageSetup()`, not `DEFAULTS`. This asserted that `settings.ts`
+    // shipped the engine's defaults *field for field* — which was the right
+    // assertion while `Settings extends DocConfig`, and the assertion is gone
+    // because the duplication it guarded is gone: the app no longer keeps a
+    // copy of the thirty page fields at all. What a document falls back to is
+    // read straight from the generated table.
+    const fallback = defaultPageSetup();
     const drifted = Object.entries(DOC_DEFAULTS).filter(([k, v]) =>
-      Array.isArray(v) ? JSON.stringify(DEFAULTS[k]) !== JSON.stringify(v) : DEFAULTS[k] !== v,
+      Array.isArray(v) ? JSON.stringify(fallback[k]) !== JSON.stringify(v) : fallback[k] !== v,
     );
-    check("settings.ts ships the engine's defaults, field for field", drifted, []);
+    check("a document falls back to the engine's defaults, field for field", drifted, []);
+
+    // …and the app holds no second opinion about any of them. This is the
+    // prohibition the assertion above turned into: the panel used to fall
+    // through to `settings[key]` whenever the document had not said, which for
+    // the per-edge margins is their ordinary state — so it could print a top
+    // margin the page was not laid out on.
+    const held = Object.keys(DOC_DEFAULTS).filter((k) => k in DEFAULTS);
+    check("and the app keeps no copy of a page field", held, []);
 
     // The four per-edge margins are **absent**, not zero: absent means "follow
     // margin_cm", so moving the one margin slider still moves all four. A
@@ -111,7 +128,7 @@ export async function run() {
       "margin_outer_cm",
       "notes_region_cm",
     ]) {
-      ok(`${k} stays absent rather than zero`, !(k in DOC_DEFAULTS) && !(k in DEFAULTS));
+      ok(`${k} stays absent rather than zero`, !(k in DOC_DEFAULTS) && !(k in fallback));
     }
 
     // `lang` means the *document's* language in the engine and the *interface's*
@@ -123,7 +140,9 @@ export async function run() {
       "David Libre",
       "Cascadia Mono",
     ]);
-    check("the default font is one of them", BUNDLED_FONTS.includes(DEFAULTS.font), true);
+    // The font a document falls back to, which is a fact about the document and
+    // was read off `DEFAULTS` while the app carried a copy of it.
+    check("the default font is one of them", BUNDLED_FONTS.includes(fallback.font), true);
     ok("every notice carries its copyright line", BUNDLED_NOTICES.every((n) => n.copyright));
     ok(
       "the maths font is notified but not offered",

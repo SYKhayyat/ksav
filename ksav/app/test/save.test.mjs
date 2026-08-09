@@ -25,6 +25,7 @@ import {
   hasUnsavedFileChanges,
   markFileSaved,
   markFileDirty,
+  dirtyDocuments,
   currentFailure,
   saveNow,
   flushSaves,
@@ -78,6 +79,11 @@ export async function run() {
     // ------------------------------------------------ the dot in the title bar
 
     {
+      // The flag is **per document** now, so these need one open. It was a
+      // single global boolean for a library of documents, twelve lines from
+      // `watch.known` — a `Map` keyed by document id, holding the other half of
+      // the same question.
+      runtime.setCurrentDoc({ id: "one", title: "one", body: "" });
       let redraws = 0;
       onUpdateTitleBar(() => redraws++);
       markFileSaved();
@@ -97,6 +103,33 @@ export async function run() {
 
       markFileSaved();
       check("saving an already-clean file redraws nothing", redraws, 2);
+    }
+
+    // ------------------------------------- and the dot belongs to a document
+    //
+    // The bug: one global boolean for a library. `openDoc` cleared it on every
+    // switch, so editing a file, opening a second document and coming back lost
+    // the dot **and** skipped the write-back — a file with unsaved changes
+    // reporting itself as saved, on the one route where that costs the writer
+    // their work.
+    {
+      runtime.setCurrentDoc({ id: "one", title: "one", body: "" });
+      markFileDirty();
+      ok("document one is dirty", hasUnsavedFileChanges());
+
+      runtime.setCurrentDoc({ id: "two", title: "two", body: "" });
+      notOk("switching to another document does not inherit the dot", hasUnsavedFileChanges());
+      ok("…and one is still dirty, asked by name", hasUnsavedFileChanges("one"));
+
+      markFileSaved();
+      ok("saving two leaves one alone", hasUnsavedFileChanges("one"));
+
+      runtime.setCurrentDoc({ id: "one", title: "one", body: "" });
+      ok("coming back to one, the dot is still there", hasUnsavedFileChanges());
+      check("and exactly one document is unwritten", dirtyDocuments(), ["one"]);
+
+      markFileSaved();
+      check("saving it clears only it", dirtyDocuments(), []);
     }
 
     // ------------------------------------------------ a failure that stays put

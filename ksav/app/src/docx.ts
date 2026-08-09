@@ -214,7 +214,25 @@ function flagOn(rPr: XmlNode | null, tag: string): boolean {
 /** One run's text, wrapped in whatever the run's properties ask for. */
 function convertRun(run: XmlNode): string {
   const rPr = kids(run, "w:rPr")[0] ?? null;
+  // Escaped text and generated commands, kept apart until the end.
+  //
+  // This built one string and escaped the whole of it, so the `#מעבר_שורה` it
+  // had just written was escaped too: what came out was `\#מעבר\_שורה`, which
+  // Typst sets as the literal words rather than breaking the line. A `.docx`
+  // with a shift-return in it imported as visible markup in the middle of the
+  // sentence.
+  //
+  // The test asserted `.includes("#מעבר_שורה")` and passed, because
+  // `\#מעבר_שורה` *contains* that substring — right up to the day `typstContent`
+  // learned to escape `_` as well, which is what the ten-character list from
+  // `girsa-ksav` brought with it. The bug was there the whole time and the
+  // assertion could not see it.
+  const parts: string[] = [];
   let text = "";
+  const flush = () => {
+    if (text) parts.push(typstContent(text));
+    text = "";
+  };
   for (const child of run.children) {
     if (typeof child === "string") continue;
     if (child.tag === "w:t") text += textOf(child);
@@ -223,11 +241,13 @@ function convertRun(run: XmlNode): string {
     // `#מעבר_שורה` is exactly that; a bare "\n" would be a paragraph break in
     // Ksav's source and would silently restructure the document.
     else if (child.tag === "w:br") {
-      text += child.attrs["w:type"] === "page" ? "\n\n#מעבר_עמוד\n\n" : "#מעבר_שורה\n";
+      flush();
+      parts.push(child.attrs["w:type"] === "page" ? "\n\n#מעבר_עמוד\n\n" : "#מעבר_שורה\n");
     }
   }
-  if (!text) return "";
-  let out = typstContent(text);
+  flush();
+  if (!parts.length) return "";
+  let out = parts.join("");
   // Innermost first, so the nesting reads the way it was written.
   const vert = rPr ? val(kids(rPr, "w:vertAlign")[0] ?? null) : null;
   if (vert === "superscript") out = `#עילי[${out}]`;

@@ -256,13 +256,44 @@ function empty(w: Windowed, node: HTMLElement, i: number) {
  * no names to give — everything is drawn at once, which is what this always did.
  */
 export function drawPages(host: HTMLElement, pages: string[], hashes?: string[]) {
-  current = hashes && hashes.length === pages.length ? { pages, hashes } : null;
+  // Recorded whether or not there are names for the pages. This used to be
+  // `null` without them, which was right for `drawCurrentInto` — a second pane
+  // reuses the windowing and the windowing needs hashes — and wrong for
+  // `currentPages`, which is about *what is on the screen* and is what Print
+  // reads. An engine too old to send hashes would have printed nothing.
+  current = { pages, hashes: hashes && hashes.length === pages.length ? hashes : [] };
   render(host, pages, hashes);
 }
 
 /** Draw the open document's pages into another pane — the full-screen preview. */
 export function drawCurrentInto(host: HTMLElement) {
-  if (current) render(host, current.pages, current.hashes);
+  if (current?.hashes.length) render(host, current.pages, current.hashes);
+}
+
+/**
+ * The pages that are **on screen**, which is not the same as the last compile.
+ *
+ * `runtime.lastResult` is the last thing the engine returned, stored
+ * unconditionally — including a failed compile, whose `pages_svg` is `[]`. The
+ * redraw is skipped in that case, deliberately: a writer mid-keystroke should
+ * keep looking at the last good page rather than at a blank rectangle.
+ *
+ * So after a failed compile the two records disagree, and every consumer that
+ * wanted *the pages* and reached for `lastResult` got the empty one. Print is
+ * the route where that is worst: it produces a **blank sheet**, silently, on the
+ * one output that is paper and cannot be undone by scrolling.
+ *
+ * This is the other record, and it is the one that is true by construction —
+ * `drawPages` is what put them on the screen, so what it last drew is what is
+ * there. Click-to-jump and reveal-the-cursor read it too: measuring a click
+ * against a page the reader is not looking at is the same defect with a
+ * different symptom.
+ *
+ * `lastResult` keeps its other consumers, which want the *compile* and not the
+ * pages — diagnostics, the healed count, whether it succeeded at all.
+ */
+export function currentPages(): readonly string[] {
+  return current?.pages ?? [];
 }
 
 function render(host: HTMLElement, pages: string[], hashes?: string[]) {

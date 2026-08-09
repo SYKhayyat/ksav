@@ -15,13 +15,39 @@ import type { Lang } from "./i18n";
 export type Layout = "two" | "page" | "source";
 export type PreviewSide = "left" | "right" | "top" | "bottom";
 
-// `DocConfig` also has a `lang` — the language the *document* is written in —
-// and it is deliberately not inherited here. `settings.lang` is the language of
-// the interface, which is a different choice: a Hebrew speaker may well write an
-// English document, and conflating the two would silently typeset it wrong. The
-// document language is left to the engine, which reads it off the direction.
-export interface Settings extends Omit<DocConfig, "lang"> {
+// **This no longer extends `DocConfig`,** and that is the fix rather than a
+// tidy-up.
+//
+// It did — `Settings extends Omit<DocConfig, "lang">` — so every one of the
+// thirty page-setup fields existed twice: once on the document, where B26 put
+// it, and once here. Thirty duplicated fields, and the reader that chose
+// between them (`now()` in `main.ts`) fell through to this copy whenever the
+// document had not said, which for the four per-edge margins and the note
+// region is their **normal** state: absent means *"follow the one margin"* and
+// *"decide from the document"*. So the settings panel could print a top margin
+// the document was not laid out on, and the writer had no way to tell which of
+// the two numbers the page had used.
+//
+// The app does need one page setup of its own — *what a new document starts
+// like*, which is what Word calls **set as default** — and that is `newDocument`
+// below. One field, holding a `PageSetup`, instead of thirty fields holding a
+// second opinion about the open document.
+//
+// `settings.lang` was already the exception that proved it: it is the language
+// of the *interface*, a different choice from the language of the document, and
+// conflating the two would silently typeset a document wrong. Every other page
+// field had exactly the same problem and no `Omit` to say so.
+export interface Settings {
   lang: Lang;
+  /**
+   * The page setup a **new** document starts with (B26).
+   *
+   * Only what differs from the shipped defaults, the same subtraction
+   * `ownPageSetup` makes for a document — so a writer who has never pressed
+   * *set as default* stores nothing at all, and a field added to `DocConfig`
+   * next year reaches them.
+   */
+  newDocument?: PageSetup;
   theme: "light" | "dark";
   layout: Layout;
   previewSide?: PreviewSide; // which side the preview sits on in split view
@@ -76,23 +102,16 @@ export interface Settings extends Omit<DocConfig, "lang"> {
 export { BUNDLED_FONTS } from "./engine.gen";
 
 export const DEFAULTS: Settings = {
-  // Everything that goes on the compile request, exactly as the engine's own
-  // `DocConfig::default()` states it.
+  // No page setup here any more. It used to spread `DOC_DEFAULTS` — the
+  // engine's own `DocConfig::default()`, generated so the two sides could not
+  // disagree — into this object, which put a second copy of every page field
+  // beside the document's own. The generated defaults are still the one source;
+  // they are read by `defaultPageSetup()`, which is what a document falls back
+  // to, and by nothing else.
   //
-  // This used to be twenty-odd values typed out a second time, and the way that
-  // fails is quiet rather than loud: the Rust value always wins on the wire, so
-  // a default changed in one place leaves the app's sliders reading one number
-  // while the page is laid out to another. The four per-edge margins and the
-  // note region stay absent — absent means "follow margin_cm" and "decide from
-  // the document", which is a different instruction from any number, so moving
-  // the one margin slider still moves all four.
-  ...DOC_DEFAULTS,
-  // Copied, not aliased: `DOC_DEFAULTS` is frozen-by-convention and shared, and
-  // one document adding a PDF keyword must not add it to the defaults every
-  // other document is built from.
-  keywords: [...DOC_DEFAULTS.keywords],
-  // Two-sided is off, so a document that nobody binds is laid out symmetrically
-  // and every existing file opens exactly as it did.
+  // `newDocument` is absent, which is the honest starting state: a writer who
+  // has never pressed *set as default* has expressed no opinion about what a new
+  // document looks like, and the shipped defaults answer for them.
   lang: "he",
   theme: "light",
   layout: "two",
@@ -120,9 +139,25 @@ const KEY = "ksav.settings";
 
 function loadSettings(): Settings {
   try {
-    const s = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || "{}") };
+    const raw = JSON.parse(localStorage.getItem(KEY) || "{}") as Record<string, unknown>;
+    const s = { ...DEFAULTS, ...raw } as Settings & Record<string, unknown>;
     if ((s.layout as string) === "one") s.layout = "source"; // migrate old value
-    return s;
+
+    // A settings blob written before page setup stopped living here has the
+    // thirty page fields at its top level. They meant *what a new document
+    // starts like* — that is what `set as default` wrote — so that is where
+    // they go, and the top-level copies are dropped rather than left to be read
+    // by something that no longer should.
+    //
+    // `readPageSetup` does the same validation it does for a document, so a
+    // hand-edited or corrupted blob cannot put a string where a number belongs
+    // on the next compile request.
+    if (!s.newDocument) {
+      const rescued = readPageSetup(raw);
+      if (rescued) s.newDocument = rescued;
+    }
+    for (const key of PAGE_FIELDS) delete s[key];
+    return s as Settings;
   } catch {
     return { ...DEFAULTS };
   }
@@ -195,6 +230,32 @@ export const PAGE_FIELDS = [
 export type PageSetup = Partial<Pick<DocConfig, (typeof PAGE_FIELDS)[number]>>;
 
 /**
+ * Anything the settings panel can edit.
+ *
+ * Two kinds of thing, and the union is where the difference is *stated* rather
+ * than lost: a page field belongs to the open document, an app field belongs to
+ * the person. They used to be one type, `Settings`, because `Settings` extended
+ * `DocConfig` — so `keyof Settings` accepted both and nothing in the type system
+ * knew which of the two a given row was editing.
+ */
+export type Field = keyof Settings | PageField;
+
+/** The name of a page-setup field. */
+export type PageField = (typeof PAGE_FIELDS)[number];
+
+/** What a given field's value is, on whichever side of the split it lives. */
+export type ValueOf<K extends Field> = K extends keyof Settings
+  ? Settings[K]
+  : K extends PageField
+    ? DocConfig[K]
+    : never;
+
+/** Is this the name of a page-setup field? */
+export function isPageField(key: Field): key is PageField {
+  return (PAGE_FIELDS as readonly string[]).includes(key as string);
+}
+
+/**
  * How a document is actually laid out: what it says about itself, over a default
  * for everything it does not (B26).
  *
@@ -239,14 +300,28 @@ function pickPageFields(src: Partial<DocConfig>): DocConfig {
   return out as unknown as DocConfig;
 }
 
-/** What a fresh document is laid out like, before anybody edits it (B26). */
+/**
+ * What a fresh document is laid out like, before anybody edits it (B26).
+ *
+ * `DOC_DEFAULTS` — the engine's own `DocConfig::default()`, generated so the
+ * two sides cannot disagree. This read `DEFAULTS`, which *spread* those in and
+ * therefore carried a second copy of every page field beside the app's own
+ * preferences; now the generated table is read directly and there is no copy to
+ * fall out of step.
+ */
 export function defaultPageSetup(): DocConfig {
-  return pickPageFields(DEFAULTS);
+  return pickPageFields({ ...DOC_DEFAULTS, keywords: [...DOC_DEFAULTS.keywords] });
 }
 
-/** The page setup the app is set to hand a **new** document (B26). */
+/**
+ * The page setup the app is set to hand a **new** document (B26).
+ *
+ * The writer's *set as default*, over the shipped defaults for everything they
+ * have not chosen — the same layering `docConfig` does for a document, because
+ * it is the same question asked about a document that does not exist yet.
+ */
 export function settingsPageSetup(): DocConfig {
-  return pickPageFields(settings);
+  return pageSetup(settings.newDocument, defaultPageSetup());
 }
 
 /**
@@ -333,7 +408,15 @@ export function docConfig(): DocConfig {
 // Document skins: one-click presets that restyle the document (font, size,
 // margins, spacing, numbering).
 
-export const SKINS: Record<string, Partial<Settings>> = {
+/**
+ * Document skins, as **page setup** — which is what every field in them is.
+ *
+ * Typed `Partial<Settings>` while `Settings` extended `DocConfig`, which said
+ * nothing at all: a skin has never contained a theme or a zoom, and could not
+ * usefully. `PageSetup` is what they are, and now the type says so — so a skin
+ * that tried to set `spellcheck` would not compile.
+ */
+export const SKINS: Record<string, PageSetup> = {
   sefer: { font: "Frank Ruhl Hofshi", size_pt: 13, margin_cm: 3, line_spacing_em: 0.7, justify: true, hebrew_numbering: true, numbering: true, paper: "a4" },
   modern: { font: "David Libre", size_pt: 12, margin_cm: 2.5, line_spacing_em: 0.95, justify: false, hebrew_numbering: false, numbering: true },
   letter: { font: "Frank Ruhl Hofshi", size_pt: 12, margin_cm: 3, line_spacing_em: 0.85, justify: true, hebrew_numbering: false, numbering: false },

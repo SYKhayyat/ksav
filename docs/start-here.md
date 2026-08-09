@@ -191,7 +191,7 @@ machine, rather than the way the person opening it likes new documents.
 ## Spell-check
 
 Hebrew and English, both at once, in one document. It knows which script a word is
-in and checks it against the right lexicon — 269,357 Hebrew entries and 96,184 English
+in and checks it against the right lexicon — 262,648 Hebrew entries and 96,184 English
 ones.
 
 It will underline your rebbe's name. Right-click → add, and it is in your

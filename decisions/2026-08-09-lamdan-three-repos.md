@@ -570,3 +570,97 @@ fixed.
 
 `Doing` gained six members. Each of them is a failure that had no name for what
 was being attempted, which is why it had no sentence.
+
+---
+
+## §8.6 / §5 — state that can disagree with itself
+
+Four places where one fact was recorded twice and the two records could differ.
+None of them is a race or a cache; each is a second variable that nobody
+noticed was the same question.
+
+### 1. Print produced a blank sheet
+
+`runtime.lastResult` and `preview.current` are both *the pages on screen*. On a
+failed compile the engine returns `pages_svg: []`, `compile.ts` stores it
+**unconditionally**, and the redraw is skipped — deliberately, so a writer
+mid-keystroke keeps looking at the last good page rather than a blank rectangle.
+
+So after a failed compile the two disagree, and every consumer that wanted *the
+pages* and reached for `lastResult` got the empty one. Print is where that is
+worst: a blank sheet, silently, on the one output that is paper.
+
+`preview.currentPages()` is the record that is true by construction — `drawPages`
+is what put them on the screen, so what it last drew is what is there. Print,
+click-to-jump and reveal-the-cursor read it. `lastResult` keeps the consumers
+that want the *compile*: diagnostics, the healed count, whether it succeeded.
+
+One thing had to change underneath: `drawPages` recorded `current` only when the
+engine sent page hashes. Right for the second pane, which reuses the windowing;
+wrong for Print, which would have produced nothing at all on an engine too old
+to send names.
+
+### 2. The dirty flag was one boolean for a library
+
+`save.unsavedToFile` was a single global; `watch.known` is a `Map` keyed by
+document id, twelve lines away in another module, holding the other half of the
+same question. `openDoc` called `markFileSaved()` on **every** switch, so
+editing a file, opening a second document and coming back lost the dot in the
+title bar *and* skipped the write-back — a file with unsaved changes reporting
+itself as saved.
+
+It is a `Set<string>` keyed the same way `watch.known` is, and `openDoc` clears
+nothing: opening a document says nothing new about whether its file has caught
+up, and pretending otherwise was the bug.
+
+### 3. `Settings extends DocConfig`, so thirty fields existed twice
+
+The reader that chose between them (`now()`) fell through to the app's copy
+whenever the document had not said — which for the four per-edge margins and the
+note region is their **normal** state, because absent means *"follow the one
+margin"* and *"decide from the document"*. So the settings panel could print a
+top margin the page was not laid out on, with nothing to tell the writer which
+of the two numbers had been used.
+
+`Settings` no longer extends `DocConfig`. The app needs exactly one page setup
+of its own — *what a new document starts like*, which is what Word calls **set
+as default** — and that is one field, `newDocument?: PageSetup`, instead of
+thirty holding a second opinion about the open document. A `Field` union names
+the two kinds where they meet, so the type system now knows which of the two a
+given row is editing; `now()` returns the document's answer and never falls
+back; `SKINS` are typed `PageSetup`, which is what they always were; and an
+existing settings blob has its top-level page fields rescued into `newDocument`
+once and then dropped.
+
+`enginefacts.test.mjs` used to assert *"settings.ts ships the engine's defaults,
+field for field"*. That assertion is gone because the duplication it guarded is
+gone, and its replacement is the prohibition: **the app keeps no copy of a page
+field at all.**
+
+### 4. `ACTIONS` was frozen before the macros existed
+
+The array was built at module load with `...macros.parseAll(settings.macros)`
+spread into it, under a comment saying `reconfigureShortcuts` runs after a macro
+is saved. It does — and it rebuilds the keymap from the array that was frozen
+before the macro existed. A macro recorded this session was denied by the
+palette and by Settings while **Help listed it**, because `help.ts` re-parses at
+render time and was the only surface that did. Three views of one list, two of
+them looking at a snapshot.
+
+`actions()` is a function now, and the macros are appended rather than spread —
+so an ordinary action keeps the position it has always had in the shortcut list.
+
+### And one the wider escaper exposed
+
+`docx.ts` built a run as one string — text *and* the `#מעבר_שורה` it had just
+generated — and escaped the whole of it. What came out was `\#מעבר\_שורה`, which
+Typst sets as literal words: **a `.docx` with a shift-return in it imported as
+visible markup mid-sentence**, and had done since the importer was written.
+
+The test asserted `.includes("#מעבר_שורה")` and passed, because `\#מעבר_שורה`
+contains that substring — right up to the day `typstContent` learned to escape
+`_` as well, which is what the ten-character list from `girsa-ksav` brought with
+it. The bug was there the whole time and the assertion could not see it. Text
+and generated commands are kept apart until the end now, and the test checks for
+an *unescaped* hash and that the words around it are still escaped — or "stop
+escaping" would be the other way to make it pass.

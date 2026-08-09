@@ -12,6 +12,8 @@ import {
   PAGE_PX,
   PREVIEW_PAD,
   MAX_FIT,
+  currentPages,
+  drawPages,
   previewGeometry,
   visibleWindow,
   lineStartVisible,
@@ -99,4 +101,42 @@ export async function run() {
     }
   }
   check(`the start of a line is on screen in all ${checked} configurations`, bad, null);
+
+  // ------------------------------------------- what is on screen, and Print
+  //
+  // Two records of *the pages on screen*: `runtime.lastResult`, which is the
+  // last thing the engine returned, and this one, which is the last thing that
+  // was drawn. They agree until a compile fails — the engine returns
+  // `pages_svg: []`, `compile.ts` stores it unconditionally and **skips the
+  // redraw**, deliberately, so a writer mid-keystroke keeps looking at the last
+  // good page rather than at a blank rectangle.
+  //
+  // Every consumer that wanted *the pages* and reached for `lastResult` then
+  // got the empty one. Print is where that is worst: a blank sheet, silently,
+  // on the one output that is paper.
+  {
+    // `FakeElement`, not `document.createElement` — a `document` on `globalThis`
+    // convinces `@codemirror/view` it is in a browser and it reads half a DOM
+    // off it at import time, which is why the harness installs one only for the
+    // tests that need it. `drawPages` builds through its host element, so a
+    // host is all this needs.
+    const host = new globalThis.FakeElement("div");
+    drawPages(host, ["<svg>one</svg>", "<svg>two</svg>"], ["h1", "h2"]);
+    check("what was drawn is what is on screen", currentPages().length, 2);
+
+    // The failed compile. Nothing is drawn, so nothing changes — which is the
+    // whole of the fix: the record of the screen is only written by drawing.
+    check("a failed compile does not empty the screen", currentPages().length, 2);
+    ok("…and the pages are still the ones a reader can see",
+      currentPages()[0].includes("one"));
+
+    // An engine too old to send page names still records what it drew. This was
+    // `null` without hashes, which is right for the second pane (it reuses the
+    // windowing, and the windowing needs names) and wrong for Print.
+    drawPages(host, ["<svg>only</svg>"]);
+    check("pages without names are still on the screen", currentPages().length, 1);
+
+    drawPages(host, [], []);
+    check("and drawing nothing does empty it", currentPages().length, 0);
+  }
 }

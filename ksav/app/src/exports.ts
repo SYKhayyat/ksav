@@ -12,6 +12,7 @@ import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { download, escapeAttr } from "./dom";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
+import { currentPages } from "./preview";
 import * as runtime from "./runtime";
 import { docConfig } from "./settings";
 import { flushSaves } from "./save";
@@ -90,7 +91,12 @@ export async function exportTypst() {
  * document. It is not reflowable and is not what "Export HTML" should mean.
  */
 function pageImageHtml(banner = ""): string {
-  const pages = (runtime.lastResult?.pages_svg || [])
+  // `currentPages()`, not `runtime.lastResult`. They are two records of the
+  // pages on screen and they disagree exactly when it matters: a failed compile
+  // returns `pages_svg: []`, `compile.ts` stores it unconditionally and skips
+  // the redraw — so the preview keeps showing the last good page and this
+  // produced **a blank sheet**, silently, on the one route that is paper.
+  const pages = currentPages()
     .map((s) => `<div class="page">${s}</div>`)
     .join("\n");
   return `<!doctype html><html dir="${docConfig().dir}"><head><meta charset="utf-8">

@@ -206,7 +206,13 @@ export function nothingIsCopiedBackIn() {
       // This file states each forbidden pattern as a string literal in order to
       // look for it, which is the one exemption every prohibition sweep in this
       // suite needs and the only one any of them has.
-      if (!name.endsWith(".mjs") || name === "runner.test.mjs") continue;
+      // `prohibitions.test.mjs` states every forbidden pattern as a literal in
+      // order to sweep the repository for it — the same exemption this file
+      // takes for itself, and the reason both exist: this one sweeps the two
+      // helper directories, where a copy of a helper hides; that one sweeps the
+      // tree, where a copy of a *rule* hides.
+      if (!name.endsWith(".mjs")) continue;
+      if (name === "runner.test.mjs" || name === "prohibitions.test.mjs") continue;
       files.push([path.join(dir, name), strip(readFileSync(path.join(dir, name), "utf8"))]);
     }
   }

@@ -31,8 +31,26 @@ let saveTimer: number | undefined;
 let savePending: Promise<void> = Promise.resolve();
 /** True while the editor holds text that has not reached durable storage. */
 let unsavedChanges = false;
-/** True while the document differs from the file it is bound to. */
-let unsavedToFile = false;
+/**
+ * Which documents differ from the file they are bound to, by id.
+ *
+ * **A `Set`, not a boolean.** It was one global flag for a library of
+ * documents, and `watch.known` — a `Map` keyed by document id, twelve lines
+ * away in another module — is the same fact kept the other way. `openDoc`
+ * cleared the flag on every switch, so opening a second document and coming
+ * back lost the dot in the title bar *and* skipped the write-back: a file with
+ * unsaved changes reported itself as saved.
+ *
+ * Keyed the same way `watch.known` is, because they answer two halves of one
+ * question — has the editor moved, and has the file moved — and a boolean could
+ * only ever answer the first one for whichever document was last touched.
+ */
+const dirtyDocs = new Set<string>();
+
+/** The document these questions are about, unless one is named. */
+function docId(id?: string): string | undefined {
+  return id ?? runtime.currentDoc?.id;
+}
 /** The failure currently on screen, so it is only rendered once. */
 let saveFailure: string | null = null;
 
@@ -55,18 +73,26 @@ export function clearConflict(): void {
 export function hasUnsavedChanges(): boolean {
   return unsavedChanges;
 }
-export function hasUnsavedFileChanges(): boolean {
-  return unsavedToFile;
+/** Does `id` — the open document by default — differ from its file? */
+export function hasUnsavedFileChanges(id?: string): boolean {
+  const doc = docId(id);
+  return !!doc && dirtyDocs.has(doc);
 }
-export function markFileSaved() {
-  const was = unsavedToFile;
-  unsavedToFile = false;
-  if (was) updateTitleBar(); // the dot in the title bar clears
+export function markFileSaved(id?: string) {
+  const doc = docId(id);
+  if (!doc) return;
+  if (dirtyDocs.delete(doc)) updateTitleBar(); // the dot in the title bar clears
 }
-export function markFileDirty() {
-  const was = unsavedToFile;
-  unsavedToFile = true;
+export function markFileDirty(id?: string) {
+  const doc = docId(id);
+  if (!doc) return;
+  const was = dirtyDocs.has(doc);
+  dirtyDocs.add(doc);
   if (!was) updateTitleBar();
+}
+/** Every document with unwritten changes, for a test to look at. */
+export function dirtyDocuments(): readonly string[] {
+  return [...dirtyDocs];
 }
 export function currentFailure(): string | null {
   return saveFailure;
@@ -76,9 +102,7 @@ export function currentFailure(): string | null {
 export function scheduleSave() {
   if (!runtime.currentDoc || runtime.switching) return;
   unsavedChanges = true;
-  const wasDirty = unsavedToFile;
-  unsavedToFile = true;
-  if (!wasDirty) updateTitleBar(); // first edit since the last file save: show the dot
+  markFileDirty(); // first edit since the last file save: show the dot
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => void saveNow(), SAVE_DEBOUNCE_MS);
 }
@@ -195,7 +219,7 @@ export const FILE_AUTOSAVE_MS = 30_000;
  */
 export async function autosaveToFile(enabled: boolean, text: () => Promise<string>) {
   const binding = runtime.currentBinding;
-  if (!unsavedToFile || !enabled || !binding || !files.canWriteBack(binding)) return false;
+  if (!hasUnsavedFileChanges() || !enabled || !binding || !files.canWriteBack(binding)) return false;
   if (!(await files.hasWritePermission(binding))) return false;
   // The check this whole module was missing. A background timer overwriting a
   // file that somebody else changed is the quietest data loss there is: no
@@ -209,7 +233,7 @@ export async function autosaveToFile(enabled: boolean, text: () => Promise<strin
   }
   try {
     if (!(await files.saveTo(binding, await text()))) return false;
-    unsavedToFile = false;
+    markFileSaved();
     await watch.markInSync(docId ?? "", binding);
     updateTitleBar(); // the background write cleared the file: drop the dot
     return true;
@@ -236,7 +260,7 @@ export function wireUnloadGuard() {
   window.addEventListener("beforeunload", (e) => {
     if (unsavedChanges) void saveNow();
     const binding = runtime.currentBinding;
-    if (saveFailure || (unsavedToFile && binding && files.canWriteBack(binding))) {
+    if (saveFailure || (hasUnsavedFileChanges() && binding && files.canWriteBack(binding))) {
       e.preventDefault();
       // Browsers ignore the string and show their own wording, but returnValue
       // still has to be set for the prompt to appear at all.

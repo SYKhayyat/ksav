@@ -106,16 +106,16 @@ import {
   applyPreset,
   undoPreset,
   pendingUndo,
-  PAGE_FIELDS,
+  isPageField,
   docConfig,
   ownPageSetup,
 } from "./settings";
-import type { Settings, Layout, PreviewSide, PageSetup } from "./settings";
+import type { Field, Settings, Layout, PreviewSide, PageSetup, ValueOf } from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule, bodyOnScreen } from "./compile";
 import * as commands from "./commands";
-import { applyPreview, drawCurrentInto, pageBox } from "./preview";
+import { applyPreview, currentPages, drawCurrentInto, pageBox } from "./preview";
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
@@ -260,7 +260,16 @@ async function openDoc(id: string) {
     selection: { anchor: 0 },
   });
   runtime.setSwitching(false);
-  save.markFileSaved();
+  // **Not** `save.markFileSaved()`. That used to be here, and with one global
+  // flag for a library of documents it cleared the mark on the document being
+  // *left* as well: switch away from an edited file and back, and the dot in
+  // the title bar was gone and the write-back was skipped — a file with unsaved
+  // changes reporting itself as saved.
+  //
+  // The flag is per document now, so there is nothing to clear: whatever was
+  // true of this one is still true of it. Opening it says nothing new about
+  // whether the file on disk has caught up, and pretending otherwise is what
+  // the bug was.
   await refreshBaseline();
   updateTitleBar();
   rerenderChrome();
@@ -438,7 +447,21 @@ function insertCommand(he: string): boolean {
   return true;
 }
 
-const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
+/**
+ * Everything the writer can do, minus the macros.
+ *
+ * The macros are **not** in here, and that is the fix. They were —
+ * `...macros.parseAll(settings.macros).map(…)`, spread into this array at
+ * *module load*, under a comment saying `reconfigureShortcuts` runs after a
+ * macro is saved. It does, and it rebuilds the keymap from this array, which by
+ * then is the one that was frozen before the macro existed.
+ *
+ * So a macro recorded this session was denied by the palette and by Settings
+ * while **Help listed it** — because `help.ts` re-parses `settings.macros` at
+ * render time and is the only surface that did. Three views of one list, two of
+ * them looking at a snapshot.
+ */
+const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Every action that inserts a registry command, generated from the one table
   // that says which. Hand-listing them here is what let the bullet list come out
   // two different ways depending on how you asked for it — see `actions.ts`.
@@ -469,13 +492,6 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "markInsert", run: () => (markReview("insert"), true) },
   { id: "markDelete", run: () => (markReview("delete"), true) },
   { id: "addComment", run: () => (addComment(), true) },
-  // Every saved macro, as an action — which is what makes a macro bindable to a
-  // key, findable in the palette and listed in Settings with no extra wiring.
-  // Computed at module load; `reconfigureShortcuts` runs after a macro is saved.
-  ...macros.parseAll(settings.macros).map((m) => ({
-    id: macros.actionIdOf(m),
-    run: () => (playMacro(m), true),
-  })),
   // Every structural operation, generated. Hand-listing them here would be the
   // same mistake the ribbon used to make: a second place to forget one.
   ...structure.STRUCTURE_ACTIONS.map((a) => ({
@@ -542,6 +558,30 @@ const ACTIONS: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
 ];
+
+/**
+ * Every action, including the macros saved since the page loaded.
+ *
+ * A function and not an array: a macro recorded this session has to be
+ * bindable, findable in the palette and listed in Settings *now*, and the only
+ * way an array can promise that is by being rebuilt — which is what the module
+ * comment above `BUILT_IN` says was assumed and was not happening.
+ *
+ * Macros last, so an ordinary action keeps the position it has always had in
+ * the shortcut list.
+ */
+function actions(): { id: string; run: (v: EditorView) => boolean }[] {
+  return [
+    ...BUILT_IN,
+    // Every saved macro, as an action — which is what makes a macro bindable to
+    // a key, findable in the palette and listed in Settings with no extra
+    // wiring.
+    ...savedMacros().map((m) => ({
+      id: macros.actionIdOf(m),
+      run: () => (playMacro(m), true),
+    })),
+  ];
+}
 /**
  * The bindings, and the aliases, now live in `bindings.ts` (B31, B36).
  *
@@ -559,7 +599,7 @@ function buildShortcutKeymap(): KeyBinding[] {
   // here: it is the same rule the settings panel needs when it warns about a
   // conflict, and two copies of it is how one of them stops matching.
   const aliases = aliasesInForce(kb);
-  for (const a of ACTIONS) {
+  for (const a of actions()) {
     // Structural operations are bound in `structureKeymap` instead. This keymap
     // sets `preventDefault`, which swallows the key whether or not the command
     // ran — fine for Mod-Alt-b, fatal for Enter and Tab, which must reach the
@@ -1123,7 +1163,10 @@ function wireSyncScroll() {
 async function jumpFromClick(e: MouseEvent) {
   const found = pageUnder(e.target);
   if (!found || !runtime.backend) return;
-  const svg = runtime.lastResult?.pages_svg?.[found.index];
+  // The page the reader actually clicked, which after a failed compile is not
+  // the last compile's. Measuring a click against a page nobody is looking at
+  // is the same defect as printing one.
+  const svg = currentPages()[found.index];
   const box = pageBox(svg);
   if (!box) return;
   const at = pointInPage(found.index, found.node.getBoundingClientRect(), box, e.clientX, e.clientY);
@@ -1160,8 +1203,8 @@ async function jumpFromClick(e: MouseEvent) {
  */
 async function revealCursor(): Promise<boolean> {
   if (!runtime.backend) return true;
-  const pages = runtime.lastResult?.pages_svg;
-  if (!pages?.length) {
+  const pages = currentPages();
+  if (!pages.length) {
     setStatus(t("revealNoPages"), "warn");
     return true;
   }
@@ -2227,7 +2270,7 @@ function buildHeader(): HTMLElement {
 }
 
 // ---------------------------------------------------------------- settings drawer
-function numberRow(labelKey: string, key: keyof Settings, min: number, max: number, step: number) {
+function numberRow(labelKey: string, key: Field, min: number, max: number, step: number) {
   const input = el("input", {
     type: "number",
     min,
@@ -2248,7 +2291,7 @@ function numberRow(labelKey: string, key: keyof Settings, min: number, max: numb
  * box is a real and useful state, and clearing one has to write `undefined`
  * back rather than zero — a zero margin and an unset margin are different pages.
  */
-function optNumberRow(labelKey: string, key: keyof Settings, min: number, max: number, step: number) {
+function optNumberRow(labelKey: string, key: Field, min: number, max: number, step: number) {
   const live = now(key);
   const input = el("input", {
     type: "number",
@@ -2266,7 +2309,7 @@ function optNumberRow(labelKey: string, key: keyof Settings, min: number, max: n
 }
 
 /** A fixed choice, labelled through the dictionary like every other row. */
-function selectRow(labelKey: string, key: keyof Settings, options: [string, string][]) {
+function selectRow(labelKey: string, key: Field, options: [string, string][]) {
   const live = String(now(key) ?? "");
   const sel = el(
     "select",
@@ -2285,7 +2328,7 @@ function selectRow(labelKey: string, key: keyof Settings, options: [string, stri
  * keyword list is the kind of field where a trailing comma is a keystroke, not
  * an intention.
  */
-function listRow(labelKey: string, key: keyof Settings) {
+function listRow(labelKey: string, key: Field) {
   const live = now(key);
   const input = el("input", {
     type: "text",
@@ -2301,7 +2344,7 @@ function listRow(labelKey: string, key: keyof Settings) {
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
 }
 
-function checkRow(labelKey: string, key: keyof Settings) {
+function checkRow(labelKey: string, key: Field) {
   const input = el("input", {
     type: "checkbox",
     ...(now(key) ? { checked: "checked" } : {}),
@@ -2309,7 +2352,7 @@ function checkRow(labelKey: string, key: keyof Settings) {
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
 }
-function textRow(labelKey: string, key: keyof Settings, placeholder = "") {
+function textRow(labelKey: string, key: Field, placeholder = "") {
   const input = el("input", {
     type: "text",
     placeholder,
@@ -2412,7 +2455,7 @@ function buildSettingsDrawer(): HTMLElement {
     : [el("div", { class: "set-note" }, [t("noAssets")])];
 
   const kb = keybindings();
-  const shortcutRows = ACTIONS.map((a) => {
+  const shortcutRows = actions().map((a) => {
     const btn = el("button", { class: "sc-key", type: "button" }, [kb[a.id] || "—"]);
     btn.addEventListener("click", () => captureShortcut(a.id, btn));
     // A structural operation names itself from the registry, so adding one to
@@ -3053,7 +3096,7 @@ function paletteActions(): { id: string; label: string; key: string }[] {
       .filter((a) => a.enabled)
       .map((a) => a.action.id),
   );
-  return ACTIONS.filter((a) => !structure.actionById(a.id) || here.has(a.id)).map((a) => ({
+  return actions().filter((a) => !structure.actionById(a.id) || here.has(a.id)).map((a) => ({
     id: a.id,
     label: macroName(a.id),
     key: kb[a.id] ?? "",
@@ -3964,7 +4007,7 @@ function playMacro(macro: macros.Macro, times = 1) {
 
 /** Any action by id — built-in, structural, or a saved macro. */
 function actionById(id: string): { id: string; run: (v: EditorView) => boolean } | undefined {
-  return ACTIONS.find((a) => a.id === id);
+  return actions().find((a) => a.id === id);
 }
 
 /**
@@ -5165,12 +5208,21 @@ async function removeAsset(name: string) {
  * One reader, because a panel that writes to the document and reads from the app
  * is a panel whose numbers jump back the moment you reopen it.
  */
-function now<K extends keyof Settings>(key: K): Settings[K] {
-  if ((PAGE_FIELDS as readonly string[]).includes(key as string)) {
-    const live = docConfig() as unknown as Record<string, unknown>;
-    if (live[key as string] !== undefined) return live[key as string] as Settings[K];
+function now<K extends Field>(key: K): ValueOf<K> {
+  // A page field is the **document's**, full stop. There is no fallback to an
+  // app preference and there must not be: `docConfig()` already lays the
+  // document out over the shipped defaults, so `undefined` here means the
+  // document has genuinely not said — which for the four per-edge margins and
+  // the note region is their ordinary state and a real instruction ("follow the
+  // one margin", "decide from the document").
+  //
+  // It used to fall through to `settings[key]` in exactly that case, so the
+  // panel could print a top margin the page was not laid out on, with nothing
+  // to tell the writer which of the two numbers had been used.
+  if (isPageField(key)) {
+    return (docConfig() as unknown as Record<string, unknown>)[key] as ValueOf<K>;
   }
-  return settings[key];
+  return settings[key as keyof Settings] as ValueOf<K>;
 }
 
 /**
@@ -5211,19 +5263,21 @@ function setPageSetup(change: PageSetup): void {
  * calls it *set as default*; so does this.
  */
 function adoptPageSetupAsDefault(): void {
-  const live = docConfig() as unknown as Record<string, unknown>;
-  for (const key of PAGE_FIELDS) {
-    (settings as unknown as Record<string, unknown>)[key] = live[key];
-  }
+  // One field, holding the same subtraction a document stores: only what
+  // differs from the shipped defaults. This used to copy all thirty page fields
+  // onto `settings` itself — which is how the app came to hold a second opinion
+  // about every one of them, and how the panel came to print a margin the open
+  // document was not laid out on.
+  settings.newDocument = ownPageSetup(docConfig() as unknown as PageSetup);
   saveSettings();
   showChromeNotice(t("setupIsDefault"));
 }
 
-function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
-  if ((PAGE_FIELDS as readonly string[]).includes(key as string)) {
+function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
+  if (isPageField(key)) {
     setPageSetup({ [key as string]: value } as PageSetup);
   } else {
-    settings[key] = value;
+    (settings as unknown as Record<string, unknown>)[key as string] = value;
     saveSettings();
   }
   if (key === "lang") {
@@ -5887,8 +5941,10 @@ async function boot() {
   // where flipping the direction is unambiguously right: nothing else exists yet
   // to be disturbed by it.
   if (getLang() === "en" && !localStorage.getItem("ksav.onboarded")) {
-    settings.dir = "ltr";
-    saveSettings();
+    // `dir` is page setup, so it belongs to the document rather than to the
+    // application — and at this moment there is exactly one, the starter, which
+    // is what makes flipping it unambiguously right here.
+    setPageSetup({ dir: "ltr" });
   }
   // Whether a durable store is available. When it is not — a private window, or
   // storage blocked — the fix is to lose *persistence* and nothing else. The old

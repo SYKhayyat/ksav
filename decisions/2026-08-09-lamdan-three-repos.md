@@ -438,3 +438,56 @@ English on the first screen of a Hebrew application, and it is the bug both
 neither of them reached. It goes through `trouble()` now, and `say` gained a
 `detail` argument so the transport string lands where every other one does —
 behind the details affordance.
+
+---
+
+## §8.4 — Girsa adopts git+rev, and CI stops faking a desk
+
+**The finding.** Girsa depended on the six shared crates by
+`path = "../sefer-crates/crates/…"` — a sibling of *its own checkout root*. So
+`git clone girsa && cargo build` failed inside `cargo metadata`, before a
+compiler ran, with `os error 3` naming a directory the reader had never heard
+of. The README's only note on the subject said *"cloning Girsa alone will not
+build"*, as though that were a property of the world rather than of one
+manifest.
+
+Every CI job carried a second `actions/checkout` to fake the desk layout, and
+that checkout needed its own pin — `SEFER_CRATES_REF`, three files away from the
+version pins it had to agree with. For a while it had **no `ref:` at all**,
+which undid the version pin entirely: CI resolved `=0.5.0` against whatever
+sefer-crates `main` happened to be at that second, and **three of eleven runs
+died on it** fifteen seconds in. 27% of CI history red because a different
+repository's default branch had not caught up.
+
+`ref:` fixed the symptom. The cause was the manifest.
+
+### What changed
+
+- Six `path` dependencies → `git` + `rev`, with the exact version kept beside
+  the rev so a commit whose manifests say something else is a resolution error
+  rather than a surprise at the first behaviour difference. Ksav made this move
+  first; this is the same shape.
+- Both `sefer-crates` checkouts and `SEFER_CRATES_REF` are gone from `ci.yml`.
+  Cargo fetches the pinned commit itself.
+- `crates/girsa-app/tests/manifests.rs` — a port of Ksav's, over this tree: no
+  path dependency escapes the repository, all six shared crates are git
+  dependencies on one rev at one version, every lock file records that rev, and
+  `ci.yml` carries no second pin.
+- `.cargo/config.toml` documents the `paths` override for the days somebody is
+  moving the seam, and **lost `[build] jobs = 12`**. The reasoning was sound and
+  the scope was not: `[build]` is not target-scoped, so every CI runner read a
+  number tuned for one 28 W laptop — a two-core runner told to oversubscribe by
+  three. It belongs in that laptop's own `~/.cargo/config.toml`, and the file
+  says so rather than dropping it silently. The linker choice stays, because it
+  *is* target-scoped and a Linux runner never reads it.
+
+### One thing the report asked for that is not done, with the reason
+
+> Add `ref:` to the Ksav checkout while you are in the file.
+
+The Ksav checkout feeds `check-ksav-fixture.sh`, which asks whether the packet
+Girsa produces is still the one Ksav asserts on. That is a **drift detector
+against the live consumer**; pinning it would make it a drift detector against a
+frozen consumer, which is no drift detector at all. The shared crates are pinned
+because taking a new version must be a deliberate act; this is the opposite
+question, and the workflow now says so where the `ref:` would have gone.

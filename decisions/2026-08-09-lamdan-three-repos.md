@@ -1436,3 +1436,31 @@ prohibition suites draw around `lamdan/` and `docs/`: the suite next door exists
 to assert that `girsa-link-inbound` has never been a binary in this tree, and it
 has to quote the command in order to say so. A rule that forbade naming a defect
 would forbid recording it.
+
+### The one `delete` verdict in §4, and why it does not hold
+
+> **Also positive:** `readme.test.mjs` (77 lines, 45 assertions) — already
+> convicted in prose by the file that replaced it (`documentation.test.mjs:5-8`:
+> *"which is how nineteen false claims survived forty-five green assertions"*)
+> and left running. `delete`.
+
+The file that supposedly replaced it opens by calling itself **"the rest of that
+argument"**, and its four fences are the shortcut card, counted claims, relative
+links and the living/log partition. Not one of them compares a key name to
+`bindings.ts`. Deleting `readme.test.mjs` would remove the only fence in the tree
+between the prose and the keymap, on the strength of a sentence that was
+complimenting it.
+
+What the criticism *is* right about is scope: twelve claims, hand-listed, over
+one of nine prose files. So the answer is the sweep rather than the delete. The
+hand-written table stays — it asserts a key is bound to the **right action**, and
+no scraper can know that — and beneath it every key-shaped string in every living
+page is now checked for being a combination the product answers to.
+
+The pattern is deliberately tight, because the file's own opening is the
+objection to widening it: *"a scraper would have to guess which backticked
+strings are keys, and guessing wrong in either direction makes the test
+worthless."* So it does not guess. A backticked modifier chord or a function key,
+and nothing else — a bare `Tab` in prose is a word. The six combinations the
+platform owns are an explicit list, and each is a claim: if Ksav ever binds
+`Ctrl+C`, that list is what has to be argued with.

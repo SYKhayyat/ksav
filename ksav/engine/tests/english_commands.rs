@@ -298,16 +298,14 @@ fn every_document_parameter_has_an_english_name() {
     );
 
     // Every Hebrew name reachable through the shared table plus `document`'s own.
-    let english: std::collections::HashSet<&str> = ksav_engine::diagnostics::en_param_tables(prelude)
-        .iter()
-        .flat_map(|t| t.split(','))
-        .filter_map(|e| e.split_once(':'))
-        .filter_map(|(_, v)| {
-            v.trim()
-                .strip_prefix('"')
-                .and_then(|s| s.split('"').next())
-        })
-        .collect();
+    // `en_param_pairs` returns the pairs themselves now, from Typst's own parse
+    // of the prelude. It used to hand back the *text* of each table and this
+    // split it on commas and colons a second time — the same fragile read the
+    // engine was doing internally, repeated in the test that was meant to be
+    // holding it.
+    let pairs = ksav_engine::diagnostics::en_param_pairs(prelude);
+    let english: std::collections::HashSet<&str> =
+        pairs.iter().map(|(_, hebrew)| hebrew.as_str()).collect();
 
     let unreachable: Vec<&String> = hebrew
         .iter()

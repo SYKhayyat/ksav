@@ -965,3 +965,59 @@ previous name — and it says that now.
 The presence claim in `spec.md` §10.6 was amended with §3d′, and the `documents`
 and `spans` claims with §8.7 and §8.8d — each beside the code that made them
 false, rather than in a list here.
+
+---
+
+## §1 #8 and #7 — the mirrored table, and the scraper in the shipping binary
+
+Two findings, one class: `facts.rs` states it — *"a value crossed a language
+boundary as source text… so it stops crossing as text"* — and `diagnostics.rs`
+states it — *"the prelude is a parsed `Source` now, so the question can be asked
+of the syntax tree that Typst itself produced"*. Both were applied to the site
+that prompted them.
+
+### `TemplateDef`, the one Rust→TypeScript table with no protection
+
+`facts.rs` was applied to four tables. `TemplateDef` was the fifth and went on
+being typed out by hand in `api.ts`: a field added in Rust never reached the
+client, a field renamed became `undefined` at every use, silently, because the
+Rust value always wins on the wire.
+
+The **field names** cross, not the templates — their bodies are twelve whole
+documents and `/templates` sends them at runtime — and they are measured by
+serialising a real `Template` rather than listed, so a field that gains
+`#[serde(rename)]` crosses under the name it goes on the wire with.
+
+`api.ts` re-exports, and the prohibition is what stops it growing back:
+`enginefacts.test.mjs` fails if that file declares a `TemplateDef` of its own. A
+second declaration typechecks perfectly and is wrong the moment Rust moves.
+
+### The scraper that runs in the shipping binary
+
+`hebrew_param` — the map that lets a diagnostic say *"`align` is `יישור`"* —
+found the prelude's parameter tables by substring, counted parentheses to the
+close, and split the region on commas and colons. Its own comment conceded it:
+
+> Still string-parsing a `.typ` file, which is fragile and worth saying out
+> loud: reflow the prelude's parameter tables onto one line and this quietly
+> gets less useful.
+
+Two hundred and forty lines above it, `enclosing_let` had made the opposite
+argument and won it, and listed exactly what a scan cannot see: a binding inside
+a string, a binding inside a comment, the difference between a nesting level and
+a textual neighbour. **Every one of those applies here.** A `//` note between two
+entries — and `_en_params` has several, arguing why a particular pairing is
+*absent* — reads as an entry. `rgb("…")` in a default value is a paren the
+counter has to be told about. A comma inside a string ends an entry that has not
+ended.
+
+`en_param_pairs` asks Typst's parse. A `Named` node under the right dictionary is
+a pairing; nothing else is, whatever it looks like. Two containers, because the
+vocabulary has two shapes — the flat `#let _en_params = (…)` and the per-command
+`extra: (…)`, which exists precisely because two Hebrew words can share one
+English one.
+
+And it returns the **pairs**, not the text of each table. `english_commands.rs`
+had been handed the raw regions and split them on commas and colons a second
+time: the same fragile read, repeated in the test that was meant to be holding
+it up.

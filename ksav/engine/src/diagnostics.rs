@@ -572,26 +572,18 @@ fn hebrew_param(name: &str) -> Option<String> {
         // cannot say its Hebrew equivalent is the failure this map exists to
         // prevent, so it reads the `extra` tables too.
         //
-        // Still string-parsing a `.typ` file, which is fragile and worth saying
-        // out loud: reflow the prelude's parameter tables onto one line and this
-        // quietly gets less useful. It cannot be *wrong* - a missing entry means a
-        // message falls back to the English name - and `tests/english_commands.rs`
-        // asserts the vocabulary is complete for the command where the omissions
-        // actually were.
-        for table in en_param_tables(crate::PRELUDE) {
-            for entry in table.split(',') {
-                let Some((k, v)) = entry.split_once(':') else {
-                    continue;
-                };
-                let k = k.trim().trim_start_matches("//").trim();
-                let v = v.trim();
-                if k.is_empty() || k.contains(char::is_whitespace) {
-                    continue;
-                }
-                if let Some(heb) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
-                    map.entry(k.to_string()).or_insert_with(|| heb.to_string());
-                }
-            }
+        // From Typst's own parse of the prelude, not a string scan of it. This
+        // used to find the tables by substring and split them on commas and
+        // colons, and said so: *"still string-parsing a `.typ` file, which is
+        // fragile."* A `//` note between two entries — and there are several,
+        // arguing why a particular pairing is *absent* — read as an entry.
+        //
+        // First spelling wins, which is what `or_insert_with` is for: a
+        // per-command `extra:` override and the flat table can both name one
+        // English word, and the flat one is walked first because it is declared
+        // first.
+        for (english, hebrew) in en_param_pairs(crate::PRELUDE) {
+            map.entry(english).or_insert(hebrew);
         }
         map
     });
@@ -1481,21 +1473,93 @@ mod end_to_end {
 /// `extra` table's values are string literals and one of them could hold a
 /// parenthesis; and because the shared table ends on a line of its own while an
 /// `extra` ends mid-expression, so there is no single closing token to look for.
-pub fn en_param_tables(prelude: &str) -> Vec<&str> {
+/// Every `english: "hebrew"` pair the prelude states, from **Typst's own parse
+/// of it**.
+///
+/// # This was a string scan, in the shipping binary, and said so
+///
+/// It found `"#let _en_params = ("` and `"extra: ("` by substring, counted
+/// parentheses to the close, split the region on commas and each entry on a
+/// colon. Its own comment conceded the problem: *"Still string-parsing a `.typ`
+/// file, which is fragile and worth saying out loud: reflow the prelude's
+/// parameter tables onto one line and this quietly gets less useful."*
+///
+/// Two hundred and forty lines above it, [`enclosing_let`] had already made the
+/// opposite argument and won it — *"the prelude is a parsed `Source` now, so the
+/// question can be asked of the syntax tree that Typst itself produced"* — and
+/// listed what a scan cannot see: a binding inside a string, a binding inside a
+/// comment, the difference between a nesting level and a textual neighbour.
+/// Every one of those applies here. A `//` note between two entries saying why a
+/// pairing is *absent* is read by the scanner as an entry; `rgb("…")` in a
+/// default value is a paren the counter has to be told about; a comma inside a
+/// string ends an entry that has not ended.
+///
+/// So it asks the tree. A `Named` node under the right dictionary is a pairing;
+/// nothing else is, whatever it looks like.
+///
+/// Two containers, because the vocabulary has two shapes: the flat
+/// `#let _en_params = (…)` table, and the per-command `extra: (…)` on an
+/// `_en(…)` wrapper — which exists precisely because two Hebrew words can share
+/// one English one, so `#מסמך`'s `justify` and everyone else's `align` cannot be
+/// the same row.
+#[must_use]
+pub fn en_param_pairs(prelude: &str) -> Vec<(String, String)> {
+    let source = Source::detached(prelude.to_string());
     let mut out = Vec::new();
-    for opener in ["#let _en_params = (", "extra: ("] {
-        let mut from = 0;
-        while let Some(at) = prelude[from..].find(opener) {
-            let start = from + at + opener.len();
-            if let Some(end) = balanced_close(prelude, start) {
-                out.push(&prelude[start..end]);
-                from = end;
-            } else {
-                from = start;
-            }
-        }
-    }
+    collect_pairs(&LinkedNode::new(source.root()), false, &mut out);
     out
+}
+
+/// Walk, collecting `Named` pairs once inside one of the two containers.
+///
+/// `inside` is set by the node that opens a container rather than tested for at
+/// each pair, because "is this dictionary the parameter table" is a question
+/// about an ancestor and asking it per-pair would be the same walk again.
+fn collect_pairs(node: &LinkedNode, inside: bool, out: &mut Vec<(String, String)>) {
+    for child in node.children() {
+        // `#let _en_params = (…)` — the flat table.
+        let opens = if child.kind() == SyntaxKind::LetBinding {
+            // `binding_name` answers with the `#` a writer would type, because its
+            // other caller puts it straight into a message.
+            binding_name(&child).as_deref() == Some("#_en_params")
+        } else {
+            // `extra: (…)` on an `_en` wrapper — the per-command overrides.
+            child.kind() == SyntaxKind::Named
+                && child
+                    .children()
+                    .next()
+                    .is_some_and(|n| n.kind() == SyntaxKind::Ident && n.get().leaf_text() == "extra")
+        };
+        if inside && child.kind() == SyntaxKind::Named {
+            if let Some(pair) = named_pair(&child) {
+                out.push(pair);
+            }
+            // A `Named` inside the table is a leaf as far as this is concerned;
+            // recursing into it would read a nested call's arguments as pairs.
+            continue;
+        }
+        collect_pairs(&child, inside || opens, out);
+    }
+}
+
+/// `english: "hebrew"` from a `Named` node, or nothing.
+///
+/// The name must be an `Ident` — a quoted key is a dictionary entry about
+/// something else — and the value must be a `Str`, which is what rules out
+/// `columns: 2` and `marker: ([◆], [–])` without a list of what to skip.
+fn named_pair(node: &LinkedNode) -> Option<(String, String)> {
+    let mut children = node.children().filter(|c| !c.kind().is_trivia());
+    let name = children.next()?;
+    if name.kind() != SyntaxKind::Ident {
+        return None;
+    }
+    let value = children.find(|c| c.kind() == SyntaxKind::Str)?;
+    let text = value.get().leaf_text();
+    let hebrew = text.strip_prefix('"')?.strip_suffix('"')?;
+    if hebrew.is_empty() {
+        return None;
+    }
+    Some((name.get().leaf_text().to_string(), hebrew.to_string()))
 }
 
 /// The index of the `)` closing a group opened just before `start`.

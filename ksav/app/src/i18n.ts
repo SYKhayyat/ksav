@@ -1,6 +1,8 @@
 // Bilingual UI strings. The whole app chrome flips between Hebrew (RTL) and
 // English (LTR); the *document* direction is a separate setting.
 
+import { GIRSA, KSAV } from "./names";
+
 export type Lang = "he" | "en";
 
 type Dict = Record<string, string>;
@@ -396,20 +398,20 @@ const HE: Dict = {
   healAction: "תיקון",
   healAllAction: "תיקון הכל",
   healedNothing: "אין סוגריים חסרים.",
-  sourceArrived: "התקבל מקור מגרסא — %s",
+  sourceArrived: `התקבל מקור מ${GIRSA} — %s`,
   selectAPhrase: "סמנו ביטוי כדי לחפש את מקורו",
-  askingGirsa: "שואל את גרסא…",
+  askingGirsa: `שואל את ${GIRSA}…`,
   // The browser build has no Girsa half at all — this is what the surfaces say
   // instead of running a failure through the error rephraser and reporting a
   // failure that never happened.
-  girsaNeedsApp: "חיפוש מקורות פועל כשגרסא פתוחה לצד כסב (לא בדפדפן)",
+  girsaNeedsApp: `חיפוש מקורות פועל כש${GIRSA} פתוחה לצד ${KSAV} (לא בדפדפן)`,
   phraseNotQuotation: "ביטוי נפוץ — לא נבחר מקור",
-  noneFitSearch: "אף אחד לא מתאים — פתח חיפוש בגרסא",
-  openedInGirsa: "נפתח חיפוש בגרסא",
+  noneFitSearch: `אף אחד לא מתאים — פתח חיפוש ב${GIRSA}`,
+  openedInGirsa: `נפתח חיפוש ב${GIRSA}`,
   nothingCertain: "לא נמצא ציטוט ודאי — הטקסט לא שונה",
   citationsLinked: "הציטוטים הפכו לקישורים",
-  documentArrived: "התקבל מסמך מגרסא — %s. להחליף את הטקסט שכאן? (יישמר צילום קודם)",
-  documentOpened: "נפתח מסמך מגרסא — %s",
+  documentArrived: `התקבל מסמך מ${GIRSA} — %s. להחליף את הטקסט שכאן? (יישמר צילום קודם)`,
+  documentOpened: `נפתח מסמך מ${GIRSA} — %s`,
   healedCount: "תוקנו {0} סוגריים.",
   previewHealed: "התצוגה מניחה {0} סוגריים חסרים",
   // deferred note bodies — הסימון כאן, הגוף בסוף

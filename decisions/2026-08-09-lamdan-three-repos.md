@@ -491,3 +491,82 @@ against the live consumer**; pinning it would make it a drift detector against a
 frozen consumer, which is no drift detector at all. The shared crates are pinned
 because taking a new version must be a deliberate act; this is the opposite
 question, and the workflow now says so where the `ref:` would have gone.
+
+---
+
+## §8.5 — the class becomes an executable prohibition, in all three repositories
+
+**The finding, and it is the report's verdict rather than one of its items.**
+
+> A repo that can name the class and does not sweep it is not out of time; it is
+> missing the step where a named class becomes an executable prohibition. Ksav
+> *invented* that step — `runner.test.mjs:199-278`'s prohibition sweeps are
+> exactly it — and then scoped it to two directories of one app.
+
+So each repository now carries a `prohibitions` suite that is repo-wide, covers
+every language in the tree, and is seeded with the class statements from §1.
+`Ksav/ksav/app/test/prohibitions.test.mjs`,
+`Girsa/app/test/prohibitions.test.mjs`,
+`sefer-crates/crates/girsa-ksav/tests/prohibitions.rs`.
+
+A rule states the class, the fragments that spell it, and its owners — and **an
+exemption is a claim with a test attached**: an owner that stops containing what
+it owns turns the suite red too, because that is how a green sweep comes to
+guard nothing.
+
+### What it found on its first run, which is the point
+
+**Ksav.** `editormarks.test.mjs` asserted *"every one is a combining mark in the
+Hebrew block"* against a hand-written `/^[֑-ׇ]$/`. Nothing in the nikud bar is
+one of the four word-breaking characters, so it passed — and it would also have
+passed if one had been added, which is the difference between a check and a
+coincidence. It reads `markPattern()` now, and gained the counter-case.
+
+**`i18n.ts:405` — `כסב`.** §1 #14, found by the sweep rather than by the report
+being re-read: *"חיפוש מקורות פועל כשגרסא פתוחה לצד **כסב**"*. The banned
+transliteration, in the application whose own name it is, in the string that
+tells the reader it needs Girsa. Girsa has a test literally named *"nowhere in
+src spells the sibling כסב"* and it cannot read this tree.
+
+Fixed with `app/src/names.ts` — the same file Girsa wrote, holding `KSAV`,
+`GIRSA` and `withPrefix` — and the sibling's name, which was spelled `גִּרְסָא`
+pointed in one module and unpointed seven times in another, is one constant now.
+
+The rule for the unpointed spelling is the interesting one: a blanket ban would
+be **wrong**, because `גרסה`/`גרסאות` is the ordinary Hebrew word for *version*
+and `i18n.ts` legitimately says it about the document history. So the
+prohibition is on the shapes that can only be the application, which is narrower
+and true where the obvious rule would have been neither.
+
+**Girsa.** `run.mjs:14` carried `new URL(import.meta.url).pathname` — the exact
+expression Ksav forbids by name — in the file whose own header says it has *"the
+same shape as `Ksav/ksav/app/test/run.mjs`, for the same reason it has that
+shape."* Three more test files had it. All four go through a new
+`app/tools/paths.mjs`, which is the file Ksav has and Girsa did not.
+
+**`girsa-desk/src/documents.rs` wrote markup that is not Ksav.** Its test fixture
+built `#מקור:("{r}")[]`. `מקור:` is a named *argument* of `#מראה_מקום`; what this
+wrote is something Ksav cannot emit and Typst cannot compile. All six tests were
+green over it, because `cited_in` scans for the literal substring `מקור:` and
+found one — **in the crate whose thesis is *no second markup writer***. The
+fixture goes through `girsa_ksav::mekor` now.
+
+**Sixteen `textContent = String(e)` sites** (§1 #16). `trouble.ts:190` claims
+*"**Every** `textContent = String(e)` in this application goes through here."*
+Eight were `say(String(e), true)` in `main.ts`, each under a comment arguing
+that the raw string carried a distinction worth keeping — *"'Ksav is not
+running' and 'Ksav refused it' are different things to a reader"*. The
+distinctions are real and the English was never how to keep them: they are
+`PostError::code()` and `girsa_app::trouble::Code` refusals, and `trouble()`
+reads both **by name**, so the distinction survives exactly and the sentence
+arrives in Hebrew.
+
+The other seven were in `laneview.ts`, routing `String(e)` into a private
+`trouble(why: string)` — so the guard in `sources.test.mjs`, which requires the
+`String(e)` and the assignment in **one expression**, could not see them: they
+were in different functions. That method takes the caught value now rather than
+a string, which is what makes the class unrepeatable there rather than merely
+fixed.
+
+`Doing` gained six members. Each of them is a failure that had no name for what
+was being attempted, which is why it had no sentence.

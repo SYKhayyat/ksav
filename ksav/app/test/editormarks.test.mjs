@@ -18,6 +18,7 @@
 import { check, ok, notOk, fakeView, installChrome } from "./harness.mjs";
 import { EditorState } from "@codemirror/state";
 import { errorLines, setErrorLines, offsetOf } from "../.tmp-test/errorlines.mjs";
+import { HEBREW, markPattern } from "../.tmp-test/engine.gen.mjs";
 import { changes, setBaseline, hunkAtLine } from "../.tmp-test/changes.mjs";
 import { NIKUD, insertNikud, nikudKeymap } from "../.tmp-test/nikud.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
@@ -155,9 +156,21 @@ export async function run() {
       check("no two marks share a key", keys.length, new Set(keys).size);
       const marks = NIKUD.map(([m]) => m);
       check("no mark is listed twice", marks.length, new Set(marks).size);
+      // The range is `markPattern()`'s and not this file's. It was
+      // `/^[֑-ׇ]$/` here — the whole block, which is *not* "the combining
+      // marks": maqaf, paseq, sof pasuq and nun hafukha sit inside it and
+      // separate words. Nothing in this bar is one of the four, so the
+      // assertion passed; it would also have passed if one had been added,
+      // which is the difference between a check and a coincidence.
+      const isMark = (m) => m.length === 1 && markPattern("u").test(m);
       check(
         "every one is a combining mark in the Hebrew block",
-        NIKUD.filter(([m]) => !/^[֑-ׇ]$/.test(m)).map(([, n]) => n),
+        NIKUD.filter(([m]) => !isMark(m)).map(([, n]) => n),
+        [],
+      );
+      check(
+        "…and word-breaking punctuation would not qualify",
+        [...HEBREW.wordBreaking].filter(isMark),
         [],
       );
       check(

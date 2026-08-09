@@ -17,6 +17,8 @@
 // English. Same rule as the engine's: the sentence is the reader's, the machine's
 // string is behind the details affordance, and it is never the sentence.
 
+import { GIRSA } from "./names";
+
 /** What was being attempted when the error was caught.
  *
  *  Needed because "what failed in the writer's words" cannot be written without
@@ -27,7 +29,7 @@ export type Doing = "compile" | "save_file" | "reach_girsa" | "linkify" | "gener
 const DOING: Record<Doing, { he: string; en: string }> = {
   compile: { he: "ההידור", en: "the compile" },
   save_file: { he: "השמירה לקובץ", en: "saving to the file" },
-  reach_girsa: { he: "הקשר עם גִּרְסָא", en: "reaching Girsa" },
+  reach_girsa: { he: `הקשר עם ${GIRSA}`, en: "reaching Girsa" },
   linkify: { he: "סימון המקורות", en: "marking the citations" },
   general: { he: "הפעולה", en: "the operation" },
 };
@@ -53,7 +55,7 @@ const DOING: Record<Doing, { he: string; en: string }> = {
 const CODED: Record<string, { he: (d: { he: string }) => string; en: (d: { en: string }) => string }> = {
   // Girsa is simply not open. Not a fault.
   "post-not-running": {
-    he: () => "גִּרְסָא אינה פועלת — פתחו אותה ונסו שוב",
+    he: () => `${GIRSA} אינה פועלת — פתחו אותה ונסו שוב`,
     en: () => "Girsa isn't running — open it and try again",
   },
   // The endpoint file outlived the listener.

@@ -1961,3 +1961,167 @@ a machine rather than by a reader.
 
 `girsa_ref::RedirectTable` is the one open question in this section, and it is
 put in §8.10 above rather than repeated here.
+
+## `RedirectTable` — the answer was build, and here is what it was missing
+
+§8.10 above left one question open and put both answers on the page. The answer
+came back in three words — **"always build - not delete"** — so the question was
+the wrong shape and the rule is the standing one: an audit's `delete` verdict is
+a claim that something is unfinished, and the work is to find the missing ten
+per cent.
+
+Which is exactly what it turned out to be. The `delete` rests on the crate being
+a *finished duplicate* of `redirects.jsonl` + `Standing`, and those redirect
+**`SegmentId`s** — the durable name — while this redirects **`Ref`s**, the human
+address. `segment.rs` says in as many words that the two are deliberately
+different things. Not a duplicate: an unbuilt half. And its own header says
+which half, in the sentence it has carried since day one — refs *"get stored
+inside Ksav documents"*.
+
+### The fact that was being answered silently
+
+Girsa's `Open::at` resolves an address through `covered_by`, which walks the
+corpus's redirect rows and the ancestry. So a mareh makom whose place upstream
+re-segmented refreshes with **the right words and no sign that anything
+happened**.
+
+Showing the reader the right words is correct. Leaving the document holding the
+old name is not, and the difference is where the two live: the redirect row is
+on *that* machine, against *that* shelf, and the document is a file somebody
+emails. The pen ends up holding a name that resolves only somewhere else.
+
+### The loop, in four pieces
+
+| | |
+|---|---|
+| `girsa_ref::Moved`, `rows()`, `of_rows()` | The table travels. Both ends are the printed ref — how a ref moves everywhere else here, and the same shape `redirects.jsonl` uses one level down. |
+| `girsa_desk::refreshed_reporting` | Girsa compares the ref the document sent with `packet.reference`, the ref those words are at today. Different is one row. |
+| `/refresh` gains `moved` | The fact crosses. |
+| `girsa_ksav::retargeted` | The pen's half: the same document with each citation's ref sent through `RedirectTable::follow`. |
+
+Ksav's `post::Refreshing` carries the rows, the table and the rewritten
+document, and the Refresh panel offers it as **one** decision rather than one
+per citation — the quote rows are about *words* and are one decision each; this
+is about *names* and is one decision total.
+
+Three things are deliberate:
+
+- **Offered, never applied.** A correction in somebody else's library silently
+  changing what a document *says* is the surprise spec.md §7.1 exists to avoid,
+  and a mareh makom is the writer's sentence.
+- **A place that became several is reported and not rewritten.** There is no
+  single new name to put, and inventing one would cite words nobody quoted. It
+  still appears in `moved`.
+- **`moved` absent means *this Girsa does not report it*, not *nothing moved*.**
+  Both come out as an empty table and neither rewrites anything, which is the
+  safe reading of the two.
+
+### What it cost, and what the fences caught
+
+`girsa-ref` is a named dependency of Ksav's engine now, which makes it the
+**fifth** shared crate both applications name — and `manifests.rs` went red on
+its hand-declared count of five dependency lines, which is the fence doing
+precisely its job. Updated deliberately, with the reason written beside it,
+which is what its own failure message asks for.
+
+`wire.test.mjs` went red twice, and both were real: the `at` fragment for the
+refresh literal had moved (`"quotes": quotes` → `"quotes": got.quotes`), and
+`RefreshResult` had gained two keys the editor's interface did not declare. That
+is the file working exactly as §4a intended — a generator would have caught
+neither, because neither is a stale copy of a registry.
+
+And one self-inflicted wound worth writing down: rewriting `main.ts`, `api.ts`
+and `i18n.ts` with a script that wrote the platform's line ending turned those
+files CRLF, in a repository whose `.gitattributes` forces LF. Six assertions in
+`chrome.test.mjs` went red — the ones that slice `main.ts` on `"\n}\n"` — for a
+change that touched none of the code they are about. `git diff` showed nothing,
+because git normalises on read and the tests read the working tree. The fix is
+one line; the lesson is that a tool which reads source is reading the bytes on
+disk, not the bytes git will store.
+
+## The CI pass, and the eight things that were red before it started
+
+The instruction for this wave was to write every fence as part of its item and
+run nothing until the end. That is a deliberate trade — the loop stays fast and
+the bill arrives once — and this section is the bill, because what it bought is
+worth knowing.
+
+**Nothing that was written during the wave was wrong.** Every failure the full
+run turned up was either code that had never been through the gate that governs
+it, or a check that had been failing before the wave began.
+
+### Things that had never compiled or never been linted
+
+- **`the_prose_can_be_reworded_without_moving_a_code`** — written with §8.3b's
+  `PostError::code()` and never run. `e.to_string().split_once(…)` borrows a
+  temporary that dies at the end of the statement (E0716), so
+  `cargo test -p girsa-post` has been failing since it landed. The test was
+  right; the binding was missing. That one is the direct cost of the trade, paid
+  once, in the crate that crosses the seam.
+- **Six unused imports and two orphaned doc comments** in Ksav's `engine/tests/`
+  — left by helpers that moved into `tests/common`. Invisible because the loop
+  is `cargo test` and the lint gate is a thing CI runs.
+- **Five Rust files whose last item sat below their test module**, which clippy
+  calls *items after a test module*. Two of them are `girsa_personal::Store`
+  impls that landed under the tests when §8.7 ported the six stores; clippy
+  stops at the first error in a crate, so fixing them one at a time is three
+  commits and three chances to stop looking. Swept, it is five files, and
+  `inbound.rs` had 325 lines of reading code down there that nothing had flagged
+  yet.
+
+### Things that were red before the wave
+
+- **`girsa-fix`'s and `girsa-desk`'s `Store` impls** (above) — CI has been red on
+  clippy for them since the port.
+- **The Source Packet fixture.** Girsa's packet gained `range`, and a whole-se'if
+  packet carries `"range":{"from":0}` — `girsa-source` has a test pinning that
+  exact spelling. Ksav's fixture is from 29 July. So `check-ksav-fixture.sh` was
+  failing: the library sending one shape and the pen asserting another, which is
+  the one disagreement the three-repository arrangement exists to catch.
+- **`check-dependents.sh` itself, twice**, and this is the one worth reading.
+
+### The script that asserts overrides take, whose override never took
+
+§8.3's whole finding was that this file was building Ksav against the last
+pushed commit rather than the working tree, and its fix was to install a `paths`
+override and then **assert, via `cargo metadata`, that it took**. That assertion
+has been failing ever since, for two reasons the file already contained the
+knowledge to avoid:
+
+**It read the wrong config.** Cargo discovers `.cargo/config.toml` by walking up
+from the current working directory, not from `--manifest-path`. Every cargo call
+ran with sefer-crates as the cwd, so it read *sefer-crates'* config and never saw
+the override just written into the dependent's. The header says *"run it from
+anywhere"*, and that sentence is the bug: true of where the script sits, false of
+where cargo looks.
+
+**And it wrote a path cargo cannot read.** The override was written as
+`/c/Users/…` — Git Bash's spelling — which cargo on Windows resolves against the
+config file's own drive, producing `C:\c\Users\…`, which is nowhere. Twenty
+lines above, the file computes `here_url` with `cygpath -m`, under a comment
+that says in as many words that the two spellings never match and that a
+comparison between them *"would fail every run on Windows, or, written the other
+way round, pass every run everywhere. Neither is a check."* The line that
+**writes** the path used the other spelling.
+
+One file, two ideas of what a path is, and the half that was checked was not the
+half that was used. It is the report's thesis in a single script: the class
+identified precisely, the instance in front of the author fixed, the sibling
+eight lines away untouched — inside the file written to catch exactly that.
+
+With both fixed the assertion passes for the first time: **9 girsa packages in
+Girsa's graph and 8 in Ksav's, all resolved to this checkout**, and both
+dependents build and test green against the working tree.
+
+### Where the three trees stand
+
+| | fmt | clippy `-D warnings` | tests | typecheck | build |
+|---|---|---|---|---|---|
+| sefer-crates | ✓ | ✓ | ✓ | — | — |
+| Girsa | ✓ | ✓ | 1,036 Rust · 203 editor | ✓ | ✓ vite, ✓ generated card |
+| Ksav | ✓ | ✓ engine, shell, wasm | 458 Rust · 4,244 editor over 69 files | ✓ | ✓ vite |
+
+Both applications are pinned to one sefer-crates rev again — Ksav had been a
+version behind at `=0.5.2` while Girsa was on `=0.5.3`, which is the two halves
+of one product compiling different shared crates, the single thing the shared
+repository exists to prevent.

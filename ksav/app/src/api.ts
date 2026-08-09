@@ -33,6 +33,21 @@ export interface DocConfig {
   first_line_indent_em: number;
   columns: number;
   paper: string;
+  /**
+   * A page size in centimetres, when a named paper is not what is wanted.
+   *
+   * **Both or neither.** Typst's `width`/`height` override `paper` entirely, so
+   * a width with no height would keep the named paper's height and produce a
+   * shape nobody asked for — the engine reads them as a pair or ignores them.
+   * Absent means *use `paper`*, which is what every document written before
+   * these existed says.
+   *
+   * A sefer is routinely printed at a size no standard names — 17×24, 20×27 —
+   * and until now the only answer was the nearest A-size and living with the
+   * margins.
+   */
+  page_width_cm?: number;
+  page_height_cm?: number;
   hebrew_numbering: boolean;
   header: string;
   footer: string;

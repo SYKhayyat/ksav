@@ -14,7 +14,7 @@
  *
  * The four per-edge margins and the note region are **absent** rather than
  * zero — absent means "follow the uniform margin" / "decide from the document",
- * which is a different instruction from any number. (margin_top_cm, margin_bottom_cm, margin_inner_cm, margin_outer_cm, notes_region_cm)
+ * which is a different instruction from any number. (margin_top_cm, margin_bottom_cm, margin_inner_cm, margin_outer_cm, page_width_cm, page_height_cm, notes_region_cm)
  */
 export const DOC_DEFAULTS = {
   font: "Frank Ruhl Hofshi",
@@ -210,6 +210,8 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "גופן": "font",
   "צבע": "colour",
   "יישור": "align",
+  "רוחב_עמוד": "page_width",
+  "גובה_עמוד": "page_height",
   "משקל": "weight",
   "נייר": "paper",
   "שוליים": "margin",

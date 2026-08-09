@@ -31,6 +31,7 @@
 #let _en_params = (
   // page and text
   size: "גודל", font: "גופן", colour: "צבע", color: "צבע", align: "יישור",
+  page_width: "רוחב_עמוד", page_height: "גובה_עמוד",
   weight: "משקל", paper: "נייר", margin: "שוליים", lang: "שפה", dir: "כיוון",
   landscape: "לרוחב", watermark: "סימן_מים", header: "כותרת_עליונה",
   footer: "כותרת_תחתונה", numbering: "מספור", hebrew_numbering: "מספור_עברי",
@@ -966,6 +967,17 @@
   מספור: true,
   מספור_עברי: false,
   נייר: "a4",
+  // A page size in centimetres, when a named paper is not what is wanted.
+  //
+  // **Both or neither.** Typst's `width`/`height` override `paper:` entirely,
+  // so a width with no height would keep A4's height and produce a shape nobody
+  // asked for — this reads them as a pair or ignores them. `none` is *use נייר*,
+  // which is what every document written before these existed says.
+  //
+  // A sefer is routinely printed at a size no standard names — 17×24, 20×27 —
+  // and the only answer used to be the nearest A-size and living with it.
+  רוחב_עמוד: none,
+  גובה_עמוד: none,
   כותרת_עליונה: none,
   כותרת_תחתונה: none,
   כותרת_זוגי: none,
@@ -1037,8 +1049,16 @@
     )
   }
   set text(font: גופן, size: גודל, lang: שפה, dir: כיוון)
+  // The size, one way or the other. `paper` and `width`/`height` are alternative
+  // spellings of one setting in Typst, and passing both is how a document ends
+  // up laid out to whichever the compiler happened to prefer.
+  let _size = if רוחב_עמוד != none and גובה_עמוד != none {
+    (width: רוחב_עמוד, height: גובה_עמוד)
+  } else {
+    (paper: נייר)
+  }
   set page(
-    paper: נייר,
+    .._size,
     binding: if bind_right { right } else { left },
     margin: if דו_צדדי {
       (top: m_top, inside: m_in, outside: m_out, bottom: m_bot + reserve)

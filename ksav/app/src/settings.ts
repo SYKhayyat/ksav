@@ -198,6 +198,12 @@ export const PAGE_FIELDS = [
   "first_line_indent_em",
   "columns",
   "paper",
+  // A page size in centimetres, for the sizes no standard names — a sefer is
+  // routinely printed at 17×24 or 20×27, and the only answer used to be the
+  // nearest A-size. Both or neither: Typst's width/height override `paper`
+  // entirely, so half a size is a shape nobody asked for.
+  "page_width_cm",
+  "page_height_cm",
   "hebrew_numbering",
   "header",
   "footer",

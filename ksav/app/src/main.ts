@@ -2486,6 +2486,13 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("margin", "margin_cm", 1, 6, 0.5),
     el("label", { class: "set-row" }, [el("span", {}, [t("direction")]), dirSel]),
     el("label", { class: "set-row" }, [el("span", {}, [t("paper")]), paperSel]),
+    // A custom page size, which overrides the named paper when **both** are
+    // given. Empty is the ordinary state and means "use the paper above" — the
+    // same "absent is an instruction" rule the four per-edge margins follow, and
+    // the reason both rows are optional rather than pre-filled with A4's
+    // numbers.
+    optNumberRow("pageWidth", "page_width_cm", 1, 200, 0.5),
+    optNumberRow("pageHeight", "page_height_cm", 1, 200, 0.5),
     checkRow("pageNumbers", "numbering"),
     checkRow("hebrewNumbering", "hebrew_numbering"),
     checkRow("justify", "justify"),

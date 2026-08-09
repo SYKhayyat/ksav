@@ -664,3 +664,45 @@ it. The bug was there the whole time and the assertion could not see it. Text
 and generated commands are kept apart until the end now, and the test checks for
 an *unescaped* hash and that the words around it are still escaped — or "stop
 escaping" would be the other way to make it pass.
+
+---
+
+## Page geometry, per document and fully custom
+
+Not from the report — asked for directly while it was being worked through, and
+it lands on exactly the surface §8.6 had just been opened up:
+
+> make sure page size and margin size (all custom) etc are all changeable per
+> document
+
+**What was already true.** B26 made page setup a property of the document, so
+the four per-edge margins, the binding gutter, two-sided mirroring and the
+uniform margin all live on the sefer and travel with the file. Every one of them
+is an arbitrary number in centimetres. `PAGE_FIELDS` is the list, `docConfig()`
+lays a document out as its own setup over the shipped defaults, and
+`setPageSetup` writes to the document rather than to the application.
+
+**What was not.** The **size** could only be a name Typst already knew — `a4`,
+`a5`, `us-letter`. A sefer is routinely printed at a size no standard names —
+17×24, 20×27 — and the only answer was the nearest A-size and living with the
+margins.
+
+`page_width_cm` / `page_height_cm`, in the engine, the prelude
+(`רוחב_עמוד` / `גובה_עמוד`, with `page_width` / `page_height` for the English
+side), `PAGE_FIELDS`, and two optional rows in the panel. Absent means *use the
+named paper*, which is what every document written before this says — the same
+"absent is an instruction" rule the per-edge margins follow, and why the rows
+are empty rather than pre-filled with A4's numbers.
+
+**Both or neither, and this is the only care the feature needs.** Typst's
+`width`/`height` override `paper:` **entirely**, so a width with no height does
+not mean *this wide and as tall as A4 was*; it means a page whose other
+dimension the compiler decides. The engine reads the pair or ignores it, the
+prelude reads the pair or falls back to `נייר`, and `page_geometry.rs` asserts
+the silent direction: half a size must leave the named paper alone.
+
+Measured off the laid-out page rather than asserted on the request — a named
+paper is the size it names, a custom size is the size it asks for, a custom size
+wins when both are given, half a size changes nothing, an impossible size is
+clamped rather than blanking the document, and a per-edge margin actually moves
+the text block.

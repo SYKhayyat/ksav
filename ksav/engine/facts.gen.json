@@ -30,6 +30,8 @@
     "first_line_indent_em": 0.0,
     "columns": 1,
     "paper": "a4",
+    "page_width_cm": null,
+    "page_height_cm": null,
     "hebrew_numbering": false,
     "header": "",
     "footer": "",

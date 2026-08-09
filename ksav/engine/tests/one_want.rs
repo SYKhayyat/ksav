@@ -309,6 +309,11 @@ fn the_prelude_and_the_engine_agree_about_a_default_page() {
         "שוליים_פנימי",
         "שוליים_חיצוני",
         "אזור_הערות",
+        // A custom page size is absent by default too, and for a third reason:
+        // `none` here means *use `נייר`*, and a number would override the named
+        // paper for every document ever written.
+        "רוחב_עמוד",
+        "גובה_עמוד",
     ] {
         assert_eq!(
             param(typst_name),
@@ -317,6 +322,7 @@ fn the_prelude_and_the_engine_agree_about_a_default_page() {
         );
     }
     assert!(cfg.margin_top_cm.is_none() && cfg.notes_region_cm.is_none());
+    assert!(cfg.page_width_cm.is_none() && cfg.page_height_cm.is_none());
 
     // The centre of the alignment table, from the other end: the engine's own
     // default has to be a value the prelude's `יישור_כותרת` understands.

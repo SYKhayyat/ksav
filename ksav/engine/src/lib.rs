@@ -167,6 +167,21 @@ pub struct DocConfig {
     pub columns: u32,
     /// Paper size (Typst name: "a4", "us-letter", "a5", ...).
     pub paper: String,
+    /// A page size in centimetres, when a named paper is not what is wanted.
+    ///
+    /// **Both or neither.** Typst's `set page(width:, height:)` overrides
+    /// `paper:` entirely, and half a size is not a page — a width with no height
+    /// would silently keep A4's height and produce a shape nobody asked for. So
+    /// `assemble_source` sends them only as a pair and the prelude only reads
+    /// them as one.
+    ///
+    /// `None` is *use the named paper*, which is what every document written
+    /// before this existed says, and is why it is an `Option` rather than a
+    /// number with a sentinel. A sefer is routinely printed at a size no
+    /// standard names — 17×24, 20×27 — and until now the only answer was to
+    /// pick the nearest A-size and live with the margins.
+    pub page_width_cm: Option<f64>,
+    pub page_height_cm: Option<f64>,
     /// Use Hebrew-letter numbering (א,ב,ג) for pages and ordered lists.
     pub hebrew_numbering: bool,
     /// Running header text (empty = none).
@@ -376,6 +391,9 @@ impl Default for DocConfig {
             first_line_indent_em: 0.0,
             columns: 1,
             paper: "a4".to_string(),
+            // A named paper, so nothing changes for a document that never asks.
+            page_width_cm: None,
+            page_height_cm: None,
             hebrew_numbering: false,
             header: String::new(),
             footer: String::new(),
@@ -541,6 +559,23 @@ impl DocConfig {
         }
         if let Some(g) = clamped(v, "gutter_cm", 0.0, 5.0) {
             cfg.gutter_cm = g;
+        }
+        // A custom page size, in centimetres. **Both or neither**: Typst's
+        // `width`/`height` override `paper` entirely, so a width with no height
+        // would keep the named paper's height and produce a shape nobody asked
+        // for. A request that sends one is treated as having sent nothing,
+        // which leaves the named paper doing its job rather than half of it.
+        //
+        // The range is deliberately wide — 1 cm to 200 cm covers a bentcher and
+        // a wall poster — because refusing a size somebody actually prints is
+        // worse than laying one out that they will look at once.
+        {
+            let w = clamped(v, "page_width_cm", 1.0, 200.0);
+            let h = clamped(v, "page_height_cm", 1.0, 200.0);
+            if let (Some(w), Some(h)) = (w, h) {
+                cfg.page_width_cm = Some(w);
+                cfg.page_height_cm = Some(h);
+            }
         }
         if let Some(t) = v.get("two_sided").and_then(|x| x.as_bool()) {
             cfg.two_sided = t;
@@ -814,6 +849,7 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         "#show: מסמך.with(\
          גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, שפה: {lang}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
+         רוחב_עמוד: {page_w}, גובה_עמוד: {page_h}, \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
          שוליים_עליון: {m_top}, שוליים_תחתון: {m_bot}, \
          שוליים_פנימי: {m_in}, שוליים_חיצוני: {m_out}, \
@@ -833,6 +869,8 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         m_in = typst_cm_or_none(cfg.margin_inner_cm),
         m_out = typst_cm_or_none(cfg.margin_outer_cm),
         gutter = cfg.gutter_cm,
+        page_w = typst_cm_or_none(cfg.page_width_cm),
+        page_h = typst_cm_or_none(cfg.page_height_cm),
         two_sided = if cfg.two_sided { "true" } else { "false" },
         head_even = typst_str_or_none(&cfg.header_even),
         head_odd = typst_str_or_none(&cfg.header_odd),

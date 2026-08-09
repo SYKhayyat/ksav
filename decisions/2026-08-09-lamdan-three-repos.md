@@ -761,3 +761,98 @@ The first run of it failed for the right reason and against the wrong number:
 sixty saves is below `Log::bloated`'s floor of 64, which exists so a layer with
 four rows in it is not rewritten because one was saved twice. The floor is the
 log's business; what the test asserts is that the growth is bounded at all.
+
+---
+
+## §8.8 — the four consumers that were never built
+
+§2's shape, ten times over: *the type, the security model, the persistence and
+the doc comment all exist; the caller does not.* The inverse of this project's
+own bug family — here the engine works, the UI is absent, and the comment is the
+lie. Four of them, one commit each.
+
+### a. The clipboard flavour Girsa spent eighty-six lines putting down
+
+`girsa_source::CLIPBOARD_MIME` is a real native clipboard format, with
+`clipboard-rs` pulled in specifically because *"a webview cannot do that"* —
+`navigator.clipboard.write` will take a custom type and then put it down as a
+Chromium **web custom format**, which another tab can read and a native
+application cannot — and all three flavours set inside one clipboard open,
+because on Windows two libraries taking turns means the second empties what the
+first put down.
+
+**Zero references in Ksav.** No paste handler, no clipboard plugin. Girsa's
+careful three-flavour Ctrl+C landed in an editor that only ever read
+`text/plain`.
+
+`engine/src/clipboard.rs` and a `clipboard-source` service, native-only. A
+service and not a webview call for exactly the reason Girsa gives for not
+*writing* it from one: a `paste` event exposes `text/plain`, `text/html` and
+files, and a custom native format is not among them on any platform.
+
+It answers with **markup**, not the packet, rendered by `ksav_engine::source` —
+the same renderer the loopback arrivals go through — so a quote that arrives on
+the clipboard and one that arrives over the loopback are the same document.
+
+The paste handler's ordering is its whole difficulty: the ask is asynchronous
+and `preventDefault` is not, so the plain text goes in immediately and is
+replaced if a packet turns up, and only if that text is still there — a reader
+who kept typing has moved on.
+
+### b. The errand that pays for the loopback
+
+`POST /refresh` is named in Girsa's own `post.rs` as *"the clearest of them"* and
+in Ksav's README as *"the errand that pays for the loopback"*. It had a generated
+client, a generated table row, and **no caller in `src/`**.
+
+A panel, and an action rather than a bare key — findable in the palette,
+bindable, listed in Settings, which is how everything else a writer can do is
+reachable. Rows and not a rewritten document, which is the design: a correction
+somebody else made silently changing the words in the sefer you are writing is
+the surprise this arrangement exists to avoid.
+
+Two of Ksav's own fences caught the first draft, both rightly: the panel claimed
+a head exit and built its × by hand rather than through `panelHead`, and
+`takeRefreshed` counted bracket depth itself — which `spans.ts` owns, and a
+second counter is how `brackets.ts` once came to delete a call's real closing
+paren over a `)` inside a string.
+
+### c. *Where did I use this* had a receiver, a store and a test, and no sender
+
+`girsa-desk`'s registry, its `who_cites` query and its tests were all built and
+**nothing ever sent it a path** — so the query walked `personal/ksav/`, the
+documents written in Girsa's *own toy editor*, and a `.ksav` written in the real
+Ksav answered *nothing cites this*. The reader's actual work, in the actual
+editor, was invisible to the feature it exists for.
+
+There is nowhere for Girsa to walk instead: a reader's documents live wherever
+they keep documents, and a library application has no business enumerating a
+disk. So the pen tells it — `saved-here`, a path and a name, never the text.
+
+Only for a real file path (a browser handle is not a place Girsa can open), and
+on an **autosave** as much as on a Ctrl+S, through a `save.onFileWritten` hook —
+a registry that only heard about hand-made saves would miss most documents.
+`told: false` means the library is closed, which never fails a save.
+
+### d. `Segment.anchors`, mined at ingest and read by nothing
+
+`girsa_corpus::anchors` mines Sefaria's inline `<i data-commentator="…"></i>`
+elements out of the text at ingest — **43,883 in Shulchan Arukh Orach Chayim
+alone** — records each one's character offset, rebases them across every segment
+split, persists them, and calls them *"spec.md §8.4's span anchoring, already
+computed upstream and sitting in the corpus unused"*.
+
+Forty lines away, `girsa-app/src/spans.rs` — the *other* implementation of §8.4 —
+opened with *"**Nothing in the shipped data says which words**"* and re-derived
+an approximation by string-matching, **only when the far sefer was already
+open**. Two files, one spec section, one saying the datum exists and one saying
+it does not.
+
+The consequence is not academic: a link to a commentary the reader had not
+opened had no span at all — which is exactly when a span is worth most, since
+the words are the only thing that would tell them whether to open it.
+
+`anchor_span` takes the **single-resolution case only**. Named once, one answer;
+named twice — three notes of Mishnah Berurah on one se'if, which is ordinary —
+two candidates and no way to choose, so none. Rule 6, and a highlight on the
+wrong half of a line looks exactly like a highlight on the right one.

@@ -32,23 +32,75 @@ const DOING: Record<Doing, { he: string; en: string }> = {
   general: { he: "הפעולה", en: "the operation" },
 };
 
-const TROUBLES: { match: RegExp; he: (d: { he: string }) => string; en: (d: { en: string }) => string }[] = [
-  {
-    // `PostError::NotRunning` — Girsa is simply not open. Not a fault.
-    match: /\bis not running\b/i,
+/**
+ * The refusals `girsa-post` makes on purpose, by the **name** Rust puts on them.
+ *
+ * `PostError::code()`, printed as `post-not-running: ksav is not running`. These
+ * three used to be matched by regular expression against the English prose of a
+ * `Display` impl in another repository — and so did Girsa's frontend, with four
+ * character-identical regexes. Every word of `girsa-post`'s error strings was
+ * load-bearing API between two repositories, in the crate that exists so the two
+ * sides need not agree in prose.
+ *
+ * Girsa had already written and tested this exact fix for its *own* error type
+ * (`girsa_app::trouble::Code`, and a test asserting *"rewording the prose
+ * changes nothing a reader sees"*). It had never been applied to the one type
+ * that actually crosses.
+ *
+ * `POST_CODES` in `engine.gen.ts` is `PostError::CODES`, and
+ * `diagnostics.test.mjs` fails if a code Rust can send has no line here.
+ */
+const CODED: Record<string, { he: (d: { he: string }) => string; en: (d: { en: string }) => string }> = {
+  // Girsa is simply not open. Not a fault.
+  "post-not-running": {
     he: () => "גִּרְסָא אינה פועלת — פתחו אותה ונסו שוב",
     en: () => "Girsa isn't running — open it and try again",
   },
-  {
-    // `PostError::Unreachable` — the endpoint file outlived the listener.
-    match: /could not reach|timed out|timeout/i,
+  // The endpoint file outlived the listener.
+  "post-unreachable": {
     he: (d) => `${d.he} לא נענה בזמן — ייתכן שהיישום נסגר שלא כשורה`,
     en: (d) => `${d.en} did not answer in time — the other application may have closed badly`,
   },
-  {
-    match: /refused it\b|connection refused|actively refused/i,
+  // It answered, and said no.
+  "post-refused": {
     he: (d) => `${d.he} נדחה על ידי הצד השני`,
     en: (d) => `${d.en} was refused by the other side`,
+  },
+};
+
+/** What Rust put in front of the colon, if it is a name this file knows. */
+function codeOf(detail: string): string | undefined {
+  const at = detail.indexOf(": ");
+  if (at <= 0) return undefined;
+  const name = detail.slice(0, at);
+  return name in CODED ? name : undefined;
+}
+
+/**
+ * The failures this application does **not** own.
+ *
+ * A browser `NotAllowedError`, an `os error 2`, a quota. Matching somebody
+ * else's words is the only thing available for these, and that is honest —
+ * unlike doing it to a sibling's error type, which is what `CODED` above ended.
+ *
+ * `PostError::Io` and `::Json` are deliberately uncoded and land here, because
+ * the distinction a reader needs — permission against not-found — lives in the
+ * operating system's own string and nowhere else.
+ */
+const TROUBLES: { match: RegExp; he: (d: { he: string }) => string; en: (d: { en: string }) => string }[] = [
+  {
+    match: /connection refused|actively refused/i,
+    he: (d) => `${d.he} נדחה על ידי הצד השני`,
+    en: (d) => `${d.en} was refused by the other side`,
+  },
+  {
+    // A timeout that is *not* `PostError::Unreachable` — a browser fetch, a
+    // socket the operating system gave up on. The post's own timeout is
+    // `post-unreachable` above; this is what is left, and it is genuinely
+    // somebody else's prose.
+    match: /timed out|timeout|etimedout/i,
+    he: (d) => `${d.he} לא נענה בזמן`,
+    en: (d) => `${d.en} did not answer in time`,
   },
   {
     match: /failed to fetch|networkerror|load failed/i,
@@ -83,6 +135,14 @@ export interface Trouble {
 export function troubleSaid(e: unknown, doing: Doing = "general"): Trouble {
   const detail = rawOf(e);
   const d = DOING[doing] ?? DOING.general;
+  // The name first, and the words only if there is no name. A refusal the
+  // sibling made on purpose carries one; a refusal from the operating system or
+  // the browser does not.
+  const code = codeOf(detail);
+  if (code) {
+    const said = CODED[code];
+    if (said) return { said: `${said.he(d)}  ·  ${said.en(d)}`, detail };
+  }
   for (const fam of TROUBLES) {
     if (fam.match.test(detail)) return { said: `${fam.he(d)}  ·  ${fam.en(d)}`, detail };
   }

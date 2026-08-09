@@ -373,3 +373,68 @@ is `/c/Users/…` while cargo writes `C:/Users/…` — so the obvious substring
 comparison never matches, and the check either fails every run on Windows or,
 written the other way round, passes everywhere always. `cygpath -m` when it
 exists.
+
+---
+
+## §8.3b — the one genuine cross-repo duplication
+
+**The finding.** `girsa_post::PostError` is the only error type that crosses
+between the two applications, and both frontends turned it into a Hebrew
+sentence by **regular expression over its English `Display`** — four
+character-identical regexes at `Girsa/app/src/trouble.ts:133` and
+`Ksav/app/src/diagnostics.ts:44`:
+
+```
+/could not reach|timed out|timeout/i
+/refused it\b/
+/permission denied|access is denied/i
+/no such file|os error 2\b/i
+```
+
+Every word of those strings was load-bearing API between two repositories, in
+the crate that exists so the two sides need not agree in prose.
+
+**And Girsa had already written this exact fix, for its own error type.**
+`girsa_app::trouble::Code` prints as `no-index: there is no index here`, its
+frontend keys on the name before the colon, and `trouble.test.mjs:96-105`
+asserts *"rewording the prose changes nothing a reader sees."* `trouble.ts` even
+filed `PostError` under a heading reading *"the refusals this codebase does not
+own… whatever a `PostError` says"* — which is the whole mistake in one line.
+`PostError` is not somebody else's; it is the shared crate's, which both
+applications compile.
+
+### What changed
+
+`PostError::code() -> Option<&'static str>` and `PostError::CODES`, with the
+code as the first thing `Display` prints — because what crosses to a frontend is
+a *string*, a JSON body or a `title` attribute, and there is nowhere else to put
+it.
+
+**`Io` and `Json` return `None` deliberately.** They forward the operating
+system's failure and serde's. Naming them `post-io` would claim a vocabulary the
+crate does not own, and would *stop* a frontend reading the words that actually
+separate `permission denied` from `no such file` — which a reader needs, and
+which only the OS's own string carries. Matching somebody else's prose is
+honest; doing it to your own, when you could have said the name, is the thing
+`code()` ends.
+
+Both sides key on the code, both hold `CODES` against their tables **from Rust**
+— `engine/tests/from_girsa.rs` here, `the_rules_this_repository_wrote_down.rs`
+there — and both suites assert that rewording the prose after the colon changes
+nothing a reader sees.
+
+`girsa-post` became a dev-dependency of `girsa-app` for that one assertion,
+which the adjacent test in the same file already licenses: *"A dev-dependency is
+a different claim and is allowed."*
+
+### And the site the report named
+
+`Girsa/app/src/main.ts:1214` — the failure path for *send to Ksav* — was
+`say(String(e), true)`, under a comment arguing that *"'Ksav is not running' and
+'Ksav refused it' are different things to a reader."* The distinction is real,
+and printing the English was never how to keep it. That line put `PostError`'s
+English on the first screen of a Hebrew application, and it is the bug both
+`presence.ts` and `trouble.ts` cite as their reason for existing, in the file
+neither of them reached. It goes through `trouble()` now, and `say` gained a
+`detail` argument so the transport string lands where every other one does —
+behind the details affordance.

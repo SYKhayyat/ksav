@@ -362,6 +362,55 @@ fn every_name_girsa_reads_is_a_name_the_prelude_binds() {
     );
 }
 
+/// Every refusal the post can make has a Hebrew sentence waiting for it.
+///
+/// `PostError` is the one error type that crosses between the two repositories,
+/// and both frontends had to say something about it to a Hebrew reader. Both did
+/// it by regular expression over the English `Display` — four
+/// character-identical regexes in `Girsa/app/src/trouble.ts` and
+/// `Ksav/app/src/diagnostics.ts` — which made every word of those strings
+/// load-bearing API between two repositories, in the crate that exists so the
+/// two sides need not agree in prose.
+///
+/// `PostError::code()` names them now. This is the half of the fence that lives
+/// here: a code the crate can send and this application has no line for prints
+/// English into a Hebrew UI, which is the original bug both `presence.ts` and
+/// `trouble.ts` cite as their reason for existing.
+///
+/// It reads TypeScript as text, and that is the right instrument for once:
+/// what it checks is *membership*, so it can only ever produce a loud refusal,
+/// never a wrong value — the same argument `app/tools/facts.mjs` makes for
+/// counting `cmd!(` in Rust source.
+#[test]
+fn every_post_error_code_has_a_sentence_in_the_editor() {
+    use girsa_post::PostError;
+    let src = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../app/src/diagnostics.ts"
+    ))
+    .expect("read diagnostics.ts");
+    let missing: Vec<&str> = PostError::CODES
+        .iter()
+        .copied()
+        .filter(|c| !src.contains(&format!("\"{c}\"")))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "girsa-post can send {missing:?} and app/src/diagnostics.ts has no line \
+         for it — a reader would be shown the English."
+    );
+    assert!(
+        !PostError::CODES.is_empty(),
+        "PostError::CODES is empty, so this test passes by checking nothing"
+    );
+
+    // And the codes really are what the messages lead with, so the editor's
+    // `codeOf` — which splits on the first `": "` — finds them.
+    let e = PostError::NotRunning(girsa_post::App::Girsa);
+    assert_eq!(e.code(), Some("post-not-running"));
+    assert!(e.to_string().starts_with("post-not-running: "), "{e}");
+}
+
 /// Both doors into a citation escape the same characters.
 ///
 /// A place lands in a Ksav document two ways: Girsa hands over a packet and

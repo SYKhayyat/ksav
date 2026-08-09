@@ -14,8 +14,11 @@ export async function run() {
   // ------------------------------------------------------ caught errors
 
   const cases = [
-    ["girsa is not running", "reach_girsa", "אינה פועלת"],
-    ["could not reach girsa: connection timed out", "reach_girsa", "נסגר שלא כשורה"],
+    // The three coded refusals, spelled the way `girsa_post::PostError` prints
+    // them: the name Rust put on it, then a colon, then prose that is *not* API.
+    ["post-not-running: girsa is not running", "reach_girsa", "אינה פועלת"],
+    ["post-unreachable: could not reach girsa: connection timed out", "reach_girsa", "נסגר שלא כשורה"],
+    ["post-refused: girsa refused it: 413 body too large", "reach_girsa", "נדחה"],
     ["TypeError: Failed to fetch", "compile", "בדקו שהמנוע פועל"],
     ["NotAllowedError: The request is not allowed", "save_file", "הרשאה"],
     ["NotFoundError: A requested file could not be found", "save_file", "אינו נמצא"],
@@ -28,6 +31,33 @@ export async function run() {
     notOk(`"${message.slice(0, 32)}…" → raw is not the sentence`, t.said.includes(message));
     ok(`"${message.slice(0, 32)}…" → bilingual, Hebrew`, /[֐-׿]/.test(t.said));
     ok(`"${message.slice(0, 32)}…" → bilingual, English`, /[A-Za-z]/.test(t.said));
+  }
+
+  // ------------------------------------------- the prose is not the API
+  //
+  // The three above used to be matched by their English words — here, and
+  // character for character in `Girsa/app/src/trouble.ts`. Two repositories
+  // keying on the `Display` impl of a type in a third, which is the crate that
+  // exists so the two sides need not agree in prose.
+  //
+  // `engine/tests/from_girsa.rs` holds `PostError::CODES` against this file, so
+  // a code Rust can send with no line here is a red build rather than English
+  // printed into a Hebrew UI. This is the other half: the sentence follows the
+  // **name**, and the words after the colon can say anything at all.
+  {
+    const same = "אינה פועלת";
+    for (const detail of [
+      "post-not-running: girsa is not running",
+      "post-not-running: Girsa has not been started",
+      "post-not-running: ",
+    ]) {
+      ok(`rewording the prose changes nothing: ${JSON.stringify(detail)}`,
+        troubleSaid(detail, "reach_girsa").said.includes(same));
+    }
+    // …and a code nobody has ever heard of is not silently treated as one.
+    const unknown = troubleSaid("post-nonsense: whatever", "reach_girsa");
+    notOk("an unknown code does not borrow another's sentence", unknown.said.includes(same));
+    ok("…and still names what failed", unknown.said.includes("הקשר עם"));
   }
 
   // Same error, two things being attempted, two sentences.

@@ -41,6 +41,7 @@ import {
   BUNDLED_NOTICES,
   COMMAND_EN,
   DOC_DEFAULTS,
+  TEMPLATE_FIELDS,
   bothSpellings,
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
@@ -91,6 +92,31 @@ export async function run() {
       withAliases({ כותרת1: 1 }),
       { "כותרת1": 1, h1: 1 },
     );
+  }
+
+  // -------------------------------------- 1b. TemplateDef is not typed twice
+  //
+  // §1 #8: `facts.rs` says *"a value crossed a language boundary as source
+  // text… so it stops crossing as text"*, and was applied to four tables.
+  // `TemplateDef` was the fifth, still typed out by hand in `api.ts` — the one
+  // Rust→TypeScript table with none of this protection. A field added in Rust
+  // never reached the client; a field renamed became `undefined` at every use.
+  //
+  // What crosses is the **field names**, not the templates: their bodies are
+  // twelve whole documents that `/templates` sends at runtime. So the assertion
+  // is that the shape the client is compiled against is the shape the engine
+  // actually serialises.
+  {
+    ok("the template shape came from the engine", TEMPLATE_FIELDS.length >= 8, TEMPLATE_FIELDS.join(", "));
+    for (const f of ["id", "he", "en", "category", "lang", "body"]) {
+      ok(`…and carries ${f}`, TEMPLATE_FIELDS.includes(f));
+    }
+    // The prohibition, which is the half that stops it growing back: `api.ts`
+    // must **re-export** the type, never declare one. A second declaration
+    // typechecks perfectly and is wrong the moment Rust moves.
+    const api = await readFile(path.join(SRC, "api.ts"), "utf8");
+    ok("api.ts does not declare TemplateDef itself", !/interface\s+TemplateDef/.test(api));
+    ok("…it re-exports the generated one", api.includes('from "./engine.gen"'));
   }
 
   // ------------------------------------------- 2. the defaults are the engine's

@@ -426,6 +426,34 @@ export const HEBREW = {
  */
 export const MARKUP_ESCAPES = "#[]\\$*_<>@";
 
+/**
+ * One template, as the engine's `templates::Template` is shaped.
+ *
+ * **Generated, and that is the finding.** `api.ts` carried this interface by
+ * hand — the one Rust→TypeScript table with none of `facts.gen.json`'s
+ * protection. A field added in Rust never reached the client; a field renamed
+ * became `undefined` at every use, silently, because the Rust value always
+ * wins on the wire. That is the same failure `facts.rs` was written against,
+ * still standing in the one table it had not reached.
+ *
+ * The **field names** cross, not the templates: their bodies are twelve whole
+ * documents and `/templates` sends them at runtime. Every field is a string in
+ * Rust (`&'static str`), so every field is a string here.
+ */
+export interface TemplateDef {
+  body: string;
+  category: string;
+  desc_en: string;
+  desc_he: string;
+  en: string;
+  he: string;
+  id: string;
+  lang: string;
+}
+
+/** The same field names as data, for a check that has to run at runtime. */
+export const TEMPLATE_FIELDS: readonly string[] = ["body","category","desc_en","desc_he","en","he","id","lang"];
+
 /** A character class matching every Hebrew combining mark but not the four. */
 export function markPattern(flags = "gu"): RegExp {
   const hex = (c: string) => (c.codePointAt(0) ?? 0).toString(16);

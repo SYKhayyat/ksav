@@ -167,6 +167,21 @@ fn hebrew_facts() -> HebrewFacts {
     }
 }
 
+/// The field names of one `Template`, as serde writes them.
+///
+/// A real one and not a synthesised value: `TEMPLATES` is never empty (the
+/// engine ships twelve), and serialising the first is the only reading that
+/// honours every serde attribute the struct carries or may grow.
+fn template_fields() -> Vec<String> {
+    let Some(first) = crate::templates::TEMPLATES.first() else {
+        return Vec::new();
+    };
+    match serde_json::to_value(first) {
+        Ok(serde_json::Value::Object(map)) => map.keys().cloned().collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// The four tables the app generates from, as one document.
 #[derive(Serialize)]
 pub struct Facts {
@@ -181,6 +196,22 @@ pub struct Facts {
     /// Read by `tools/build_lexicon.py`, which has no other way to reach
     /// `girsa-hebrew`.
     pub hebrew: HebrewFacts,
+    /// The field names of `templates::Template`, in declaration order.
+    ///
+    /// **Not the templates.** Their bodies are twelve whole documents and the
+    /// app fetches them from `/templates` at runtime; what crosses here is the
+    /// *shape*, because that is the part the client was re-typing.
+    ///
+    /// `TemplateDef` in `api.ts` was a hand-written mirror of this struct — the
+    /// one Rust→TypeScript table with none of this module's protection. A field
+    /// added in Rust simply never reached the client, and a field renamed
+    /// silently became `undefined` at every use, which is the failure mode this
+    /// whole file exists against.
+    ///
+    /// Measured by serialising a real `Template` rather than listed here, so a
+    /// field that gains `#[serde(rename)]` crosses under the name it goes on the
+    /// wire with.
+    pub template_fields: Vec<String>,
     /// Every character Typst reads as markup inside a `[…]` body.
     ///
     /// The client had five of these and the shared crate had ten, and both
@@ -198,6 +229,7 @@ pub fn facts() -> Facts {
         notices: NOTICES,
         services: SERVICES.iter().map(ServiceFact::of).collect(),
         hebrew: hebrew_facts(),
+        template_fields: template_fields(),
         markup_escapes: crate::escape::MARKUP.iter().collect(),
     }
 }

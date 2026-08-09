@@ -1299,5 +1299,15 @@
       "\""
     ]
   },
+  "template_fields": [
+    "body",
+    "category",
+    "desc_en",
+    "desc_he",
+    "en",
+    "he",
+    "id",
+    "lang"
+  ],
   "markup_escapes": "#[]\\$*_<>@"
 }

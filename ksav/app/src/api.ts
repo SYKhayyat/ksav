@@ -393,19 +393,26 @@ export interface SeferDef {
   aliases: string[];
 }
 
-export interface TemplateDef {
-  id: string;
-  he: string;
-  en: string;
-  category: string;
-  /** The language the body is written in: "he" or "en". Loading a template
-   *  switches the document to the direction that goes with it — an English
-   *  letter set flush right is nobody's letter. */
-  lang: string;
-  desc_he: string;
-  desc_en: string;
-  body: string;
-}
+/**
+ * One template, as `engine/src/templates.rs` shapes it.
+ *
+ * **Re-exported, not re-declared.** This was a hand-written mirror of that
+ * struct — the one Rust→TypeScript table with none of `facts.gen.json`'s
+ * protection, which is §1 #8's finding: `facts.rs` says *"a value crossed a
+ * language boundary as source text… so it stops crossing as text"*, and was
+ * applied to four tables while this one went on being typed out.
+ *
+ * A field added in Rust never reached the client; a field renamed became
+ * `undefined` at every use, silently, because the Rust value always wins on the
+ * wire. `engine.gen.ts` generates it from the field names `facts.rs` measures by
+ * serialising a real `Template`.
+ *
+ * `lang` is the language the body is written in: `"he"` or `"en"`. Loading a
+ * template switches the document to the direction that goes with it — an English
+ * letter set flush right is nobody's letter.
+ */
+import type { TemplateDef } from "./engine.gen";
+export type { TemplateDef };
 
 /** One word the checker does not recognise, positioned in the text it checked. */
 export interface Misspelling {

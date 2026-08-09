@@ -276,7 +276,7 @@ function readNotices() {
 
 // ---------------------------------------------------------------- emitting
 
-function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes) {
+function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields) {
   const q = (v) => JSON.stringify(v);
   const settable = defaults.filter((d) => !(d.name in NOT_A_SETTING) && !d.absent);
   const omitted = defaults.filter((d) => d.absent).map((d) => d.name);
@@ -289,6 +289,7 @@ function emit(aliases, params, containers, commands, defaults, notices, hebrew, 
     .map(([he, en]) => `  ${q(he)}: ${q(en)},`)
     .join("\n");
   const containerRows = containers.map((n) => `  ${q(n)},`).join("\n");
+  const templateRows = templateFields.map((f) => `  ${f}: string;`).join("\n");
   const paramExtraRows = [...params.byCommand]
     .map(
       ([he, over]) =>
@@ -429,6 +430,27 @@ export const HEBREW = {
  */
 export const MARKUP_ESCAPES = ${q(markupEscapes)};
 
+/**
+ * One template, as the engine's \`templates::Template\` is shaped.
+ *
+ * **Generated, and that is the finding.** \`api.ts\` carried this interface by
+ * hand — the one Rust→TypeScript table with none of \`facts.gen.json\`'s
+ * protection. A field added in Rust never reached the client; a field renamed
+ * became \`undefined\` at every use, silently, because the Rust value always
+ * wins on the wire. That is the same failure \`facts.rs\` was written against,
+ * still standing in the one table it had not reached.
+ *
+ * The **field names** cross, not the templates: their bodies are twelve whole
+ * documents and \`/templates\` sends them at runtime. Every field is a string in
+ * Rust (\`&'static str\`), so every field is a string here.
+ */
+export interface TemplateDef {
+${templateRows}
+}
+
+/** The same field names as data, for a check that has to run at runtime. */
+export const TEMPLATE_FIELDS: readonly string[] = ${q(templateFields)};
+
 /** A character class matching every Hebrew combining mark but not the four. */
 export function markPattern(flags = "gu"): RegExp {
   const hex = (c: string) => (c.codePointAt(0) ?? 0).toString(16);
@@ -495,6 +517,8 @@ const notices = readNotices();
 const hebrew = facts().hebrew;
 // `engine/src/escape.rs`'s `MARKUP`, so the client cannot hold a shorter list.
 const markupEscapes = facts().markup_escapes;
+// `templates::Template`'s field names, measured by serialising a real one.
+const templateFields = facts().template_fields;
 
 // The registry and the prelude have to agree about the pairing, and until now
 // nothing said so. The registry's `en` field is what the palette shows, what the
@@ -545,6 +569,7 @@ for (const [what, rows, least] of [
   ["notices (engine/facts.gen.json)", notices, 4],
   ["Hebrew prefix letters (engine/facts.gen.json)", hebrew.prefix_letters, 8],
   ["markup escapes (engine/facts.gen.json)", [...markupEscapes], 10],
+  ["template fields (engine/facts.gen.json)", templateFields, 8],
 ]) {
   const count = rows.length ?? rows.size;
   if (count < least) {
@@ -561,7 +586,7 @@ if (notices.some((n) => !n.name || !n.copyright)) {
   process.exit(1);
 }
 
-const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes);
+const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields);
 
 /** Every generated output, as `[path, wanted, label]`. */
 export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];

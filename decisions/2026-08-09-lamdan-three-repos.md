@@ -326,3 +326,50 @@ went missing at exactly the same seam, because *one producer* is not the same as
 `Mekor.range` is optional and a whole-place citation still writes nothing at all,
 which is what every document written before the field existed already says, and
 what makes them all still correct.
+
+---
+
+## §8.3 — `check-dependents.sh` was building the pin, not the tree
+
+**The finding.** `sefer-crates/tools/check-dependents.sh` is the whole reason
+the three-repository split is affordable, and its own header says so: standalone
+repositories mean a breaking change to a shared crate is no longer one atomic
+commit that compile-checks both applications, so the check moves into the
+shared repository and a break shows up in *its* PR.
+
+Ksav pins those crates by **git rev** — deliberately, because a `path` to a
+sibling of the checkout root meant `git clone ksav && cargo build` failed at
+`cargo metadata` before a compiler ran. So the script was building Ksav against
+the last *pushed* commit. Rename a public item in `girsa-hebrew`, run the
+script, and it goes green.
+
+Two of the three dependents' worth of safety net, quietly not there, in the file
+that calls itself the safety net.
+
+### What it does now
+
+- Installs the `paths` override itself, **prepended** to whatever
+  `.cargo/config.toml` the dependent already has — Girsa's is tracked and
+  carries a linker choice and a job count, and eating it for the duration of a
+  build would change what is being measured. `paths` is a bare top-level key, so
+  prepending is not a style choice: appended below a `[table]` header, TOML reads
+  it as a member of that table.
+- Restores the original on exit, including on Ctrl-C.
+- **Asserts the override took.** `cargo metadata` says where each package came
+  from, in its `id`: `path+file:///…` or `git+https://…?rev=…`. Every girsa
+  package must be a path under this checkout, and at least one must be found —
+  a graph with none in it would otherwise pass by being empty, which is the
+  shape this repository keeps rebuilding.
+- Checks that the workspace's declared version and its six exact pins agree.
+  Seven hand-written strings three lines apart with nothing between them; a bump
+  earlier the same day left the six behind and produced *"failed to select a
+  version for the requirement `girsa-ref = "=0.5.1"`"* in the repository whose
+  own manifest declares it.
+
+Two details that would have made the assertion a no-op, found by running it:
+`cargo metadata`'s `manifest_path` cannot be paired with a package name by any
+line-splitting scheme (`targets` sits between them), and under Git Bash `$PWD`
+is `/c/Users/…` while cargo writes `C:/Users/…` — so the obvious substring
+comparison never matches, and the check either fails every run on Windows or,
+written the other way round, passes everywhere always. `cygpath -m` when it
+exists.

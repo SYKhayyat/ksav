@@ -1464,3 +1464,161 @@ worthless."* So it does not guess. A backticked modifier chord or a function key
 and nothing else — a bare `Tab` in prose is a word. The six combinations the
 platform owns are an explicit list, and each is a claim: if Ksav ever binds
 `Ctrl+C`, that list is what has to be argued with.
+
+## §4a — the shell symmetry, in both directions, and the one row not done
+
+§4a's second table is six rows of *the same job done twice, better on one side*.
+Four go to Ksav, two to Girsa, and the report's own note on the last two is the
+part worth keeping:
+
+> Symmetry is not "Girsa becomes Ksav": each has instruments the other should
+> take.
+
+Five of the six are done. The sixth is not, and the reason is written out below
+rather than left in a commit message nobody will find.
+
+### Panel registry — a table that had already stopped being every panel
+
+> a **function** in `main.ts:987` — silently omits `lanepanel` and
+> `settingsview`, so Escape closes neither
+
+The function had been a table once. `panel.test.mjs`'s own header says what the
+table was for: *"the way you find out you had forgotten a line for a new panel
+was that Escape did nothing."* Then two panels were added, and Escape did
+nothing — which is the report's thesis arriving in the one file written to argue
+against it. A hand-kept registry needs the thing that keeps it in step, and the
+registry itself is not it.
+
+`PANELS` is a module-level `Object.freeze([…])` now, with both missing panels in
+it, and the fence is structural: `panel.test.mjs` reads every `.ts` in `src/`
+for a class with an `element`, an `isOpen` and a `close()`, then reads `main.ts`
+for every `const x = new Y()` whose `Y` is one of them, and asserts each is
+named in the table. An eleventh panel that forgets the line is a red test rather
+than a key that does nothing.
+
+The sweep's first version matched nothing and reported all ten panels missing,
+including the eight that were there — a `RegExp` built inside a template literal
+makes `\s` the letter `s`. A fence that reports everything is as useless as one
+that reports nothing, and it fails in the direction that gets it silenced. The
+line carries the note.
+
+### Test harness — seven of twenty-four
+
+> 7 of 24 modules testable, bare `await mod.run()`, hand-rolled
+> `import.meta.url` path
+
+Three separate defects wearing one row. The module list was hand-written, so
+seventeen test files existed and did not run; a `run()` that threw took the
+whole harness down with it, so one broken module hid every module after it; and
+the path was assembled from `import.meta.url` by hand, which is the thing
+`fileURLToPath` exists for.
+
+`run.mjs` reads `src/` for its modules, contains each `run()` in a `try` and
+counts what threw, and exits non-zero on `fail || thrown`. Twenty-four modules,
+all of them running. `splitting: true` was needed along with them: shared
+singletons were being bundled once per entry point, so two modules importing the
+same module were talking to two different copies of it.
+
+### Wire checking — seventeen response shapes, seven of them undeclared
+
+This is the row that pays. `services.gen.ts` is generated from `services.rs`, so
+*which services exist* cannot drift — and the report names exactly what a
+generator cannot do:
+
+> a generator catches a stale copy of a registry, never a *wrong* one
+
+What each service **answers with** is a `serde_json::json!` literal on one side
+and a hand-written `export interface` on the other, and nothing compared them.
+`app/test/wire.test.mjs` is Girsa's instrument over this tree: the seam stated by
+hand, seventeen rows, checked against the literals in the engine — key names
+only, because `Option<String>` against `string | null` is a mapping rather than
+an equality, and a checker that understood it would be a second Rust parser in
+JavaScript.
+
+It found seven response shapes with **no declared interface at all**: `linkify`,
+`refresh`, `saved-here`, `clipboard-source`, `jump`, `reveal` and the refusal
+every service can return. All seven were being read at call sites through inline
+structural types. `Refusable`, `Located`, `Revealed`, `Linkified`,
+`RefreshResult`, `Told`, `ClipboardSource` and `ServiceRow` now exist and the
+call sites name them.
+
+Three things in it are deliberate and easy to undo by accident. Coverage is by
+**offset**, not by count — two rows pointing at one literal would look like
+coverage and be one literal checked twice. `optional` is a *claim*, not a skip
+list: a key named there that turns out to be sent fails the row, because the
+claim went stale. And `nth` exists because three literals really are identical —
+`clipboard-source` answers a null packet from a packet that will not read, a
+build with no clipboard, and the wasm build that has neither, and the sameness is
+the design.
+
+`wire.test.mjs` is the third exemption to *nothing outside `tools/` reads the
+engine's Rust*, with the argument written above the line: it reads key **names**
+and no value, and importing a generated table instead would be the engine
+agreeing with itself, which is the one thing this file exists not to do.
+
+### Readme numbers — the marker channel, for the numbers the sweep declines
+
+> Girsa: `<!--=name-->` markers, both directions, `--write` fixer. Ksav: regex
+> prose sweep with four documented retreats, no fixer.
+
+Ksav's sweep reads *a number standing beside a fenced noun*, which is the right
+instrument for prose nobody marked, and one of its four documented retreats costs
+a claim. `NOUNS` omits `documents` on purpose — *"a sweep that reports two false
+positives to catch one truth is a sweep people learn to silence"* — so
+`oracleDocuments` had a forward claim and no reverse one: the README could carry
+a second, different oracle number and nothing would look at it.
+
+A marker needs no noun. A number followed by `<!--=oracleDocuments-->` renders as
+the number alone and tells the fence which measurement it is about, and
+`documentation.test.mjs` now checks both directions over every marked number. It
+is the escape hatch for the numbers the sweep must decline, not a replacement for
+it — somebody has to *add* a marker, and the sweep's whole value is over prose
+nobody marked. Both instruments, each doing the half it is good at.
+
+The README's own assertion counts were stale in the same commit: 4,152 → 4,244,
+68 files → 69. The file that made them stale was the file that checks them.
+
+### Error vocabulary — done earlier, under §8.3b
+
+The fourth row goes to Girsa, and it was answered before this section was
+reached: `PostError::code()` names the three refusals that cross the seam, and
+both frontends key on the code rather than on the English `Display` string. The
+report's parenthesis — *"and **neither** applies it to `girsa_post::PostError`,
+the one type that crosses the seam"* — was the finding, and it is closed.
+
+### The Tauri surface is **not** done, and here is what it would take
+
+> | Tauri surface | Girsa: 3,769 lines, **100** commands, 59 hand-mirrored
+> interfaces | Ksav: 423 lines, **1** command, client generated from the
+> registry | Ksav |
+
+Measured again today: `app/src-tauri/src/lib.rs` is 3,771 lines, still 100
+`#[tauri::command]`s, and `app/src/api.ts` is 1,545 lines with 65 `export
+interface`s. The row is right and the direction is right. It is not done.
+
+Not "deferred pending appetite" — deferred for a reason that survives being
+written down. Converting 100 commands to one registry-dispatched service is a
+mechanical change to **every call site in both languages simultaneously**, with
+no intermediate state that is testable: the registry either serves a call or the
+frontend gets nothing, and the frontend for these calls is roughly 130
+hand-written wrappers whose only current fence is the TypeScript compiler
+agreeing with a hand-written interface. That is precisely the fence
+`wire.test.mjs` was just written because it does not hold.
+
+So the order matters, and it is the opposite of the tempting one. **The mirror
+has to be trustworthy before the dispatch is unified**, because during the
+migration the mirror is the only independent statement of what each command
+answers with. The report says as much in the sentence after the table:
+
+> when Girsa adopts the one-command registry it must **keep** `wire.test.mjs` —
+> the registry unifies dispatch, the hand-written mirror stays as the independent
+> statement
+
+Girsa's `wire.test.mjs` covers its own seam today; Ksav's, written this week,
+covers seventeen shapes over one command. The first real step is neither of
+those: it is extending Girsa's mirror to all 100 commands, which is the work that
+makes the refactor checkable and is worth doing whether or not the refactor ever
+happens. That is the next commit in this row, and it is not in this one.
+
+What was not done is one row of six, it is named here, and nothing in the tree
+claims otherwise.

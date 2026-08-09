@@ -61,6 +61,12 @@ something in.
 | [2026-08-04 · Borrowed wave II](2026-08-04-borrowed-wave-ii.md) | typstify, and the fourteen features around it |
 | [2026-08-04 · Notes and the UI around them](2026-08-04-notes-and-ui.md) | The plan, the browser sweep, and the post-mortem on why 2,276 green assertions had not caught any of it |
 | [2026-08-07 · Writing a kuntres in it](2026-08-07-writing-a-kuntres.md) | The first hour of actually using it, and the three bugs that were green in 3,556 assertions |
+| [2026-08-09 · Values, files, and this directory](2026-08-09-values-files-and-decisions.md) | The engine's tables crossing the seam as values, the prelude as a file, and why the record moved here |
+| [2026-08-09 · The three-repository report](2026-08-09-lamdan-three-repos.md) | *The diagnosis is written down correctly and the sweep never runs* — eighteen classes, worked one at a time |
+
+Every file in this directory is in that table, and a test says so: an index
+edited by whoever remembers is an index two entries behind, which is what this
+one was.
 
 One dated record is deliberately **not** here:
 [`lamdan/whole-repo-2026-08-05.md`](../lamdan/whole-repo-2026-08-05.md), the

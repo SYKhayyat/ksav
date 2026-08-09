@@ -28,17 +28,27 @@ import { scan, type Node } from "./spans";
 // engine table said out loud, and the only reason it was right is that somebody
 // typed twenty-one names carefully once.
 
-/** Heading level per command name. */
-const HEADINGS: Record<string, number> = withAliases({
+/**
+ * The two commands that print as a Markdown heading and are **not** headings.
+ *
+ * This table used to be nine rows — every heading command and these two — and
+ * it was the fourth copy of a classification `spans.ts` owns and fences against
+ * the prelude in both directions. It had the failure a copy always has: no
+ * `#כותרת`, no `#hlevel`, and therefore no heading past level six survived an
+ * export at all, because the generic form is the only spelling that goes there.
+ *
+ * The seven real ones come off the node's own `role`/`level` below. These two do
+ * not, and that is a decision rather than an omission: `#שער` is `align(center,
+ * text(size: 2em, weight: "bold", …))` with no `heading()` in it, which is
+ * exactly why `spans.NOT_HEADINGS` refuses to call it one — but a document's
+ * title is a `#` in Markdown, where there is no such thing as centred large
+ * text. The two questions genuinely differ, so the divergence is written down
+ * with its reason instead of being a nine-row table nobody could tell was
+ * disagreeing.
+ */
+const TITLES_AS_HEADINGS: Record<string, number> = withAliases({
   שער: 1,
   תת_שער: 2,
-  כותרת1: 1,
-  כותרת2: 2,
-  כותרת3: 3,
-  כותרת4: 4,
-  כותרת5: 5,
-  כותרת6: 6,
-  סימן: 1,
 });
 
 /** Inline emphasis: the Markdown that wraps the command's content. */
@@ -108,6 +118,34 @@ const LISTS: Record<string, "bullet" | "number"> = withAliases<"bullet" | "numbe
   ממוספרת: "number",
   ממוספרת_עברית: "number",
 });
+
+/**
+ * Every command name the tables above classify, for the fence that checks them.
+ *
+ * `withAliases` keeps an unrecognised key rather than throwing — which is right,
+ * because some prelude spellings are not in the pairing — so a mistyped Hebrew
+ * name makes a table entry that simply never matches, silently. The check that
+ * every one of these is a command the prelude defines is real and lives in
+ * `enginefacts.test.mjs`; what it used to be given was a **regex over this
+ * file's source text**, matching any Hebrew word at two spaces of indent, with a
+ * floor of fifty to prove it had found something.
+ *
+ * That is the failure this repository has a name for. It could not tell a table
+ * key from a Hebrew word in a comment, it counted the tier stems by re-deriving
+ * the seven suffixes on its own side, and it went red the moment seven rows
+ * moved out of a table for a good reason — which is a fence failing for a
+ * reason it was not written under. The tables state their own contents here, and
+ * the floor is gone with them: an empty export is an empty list and the `every
+ * name is a command` check has nothing to be vacuously true over.
+ */
+export const CLASSIFIED_NAMES: readonly string[] = [
+  ...Object.keys(TITLES_AS_HEADINGS),
+  ...Object.keys(EMPHASIS),
+  ...Object.keys(ATOMS),
+  ...DROPPED,
+  ...NOTES,
+  ...Object.keys(LISTS),
+];
 
 export interface MarkdownOptions {
   /** false → plain text: no `#`, `**`, `[^1]`; notes become parentheticals. */
@@ -220,8 +258,10 @@ export function toMarkdown(source: string, opts: MarkdownOptions = {}): string {
         const args = s.args ? src.slice(s.args.from, s.args.to) : "";
         const name = /"([^"]*)"/.exec(args)?.[1] ?? "";
         out += markup ? `![](${name})` : name;
-      } else if (HEADINGS[s.name] != null) {
-        const level = HEADINGS[s.name];
+      } else if (s.role === "heading" || TITLES_AS_HEADINGS[s.name] != null) {
+        // Markdown stops at six, and the outline does not: `#כותרת(רמה: 9)` is
+        // a real level nine, and `#########` is not a heading in any flavour.
+        const level = Math.min(s.level ?? TITLES_AS_HEADINGS[s.name] ?? 1, 6);
         const text = inner().trim();
         out += markup ? `\n\n${"#".repeat(level)} ${text}\n\n` : `\n\n${text}\n\n`;
       } else if (s.role === "table") {

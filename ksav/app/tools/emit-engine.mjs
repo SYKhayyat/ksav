@@ -59,6 +59,7 @@ import { facts, insistFactsAreCurrent } from "./facts.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
 const PRELUDE = join(APP, "..", "engine", "typst", "ksav.typ");
+const CONTAINERS = join(APP, "..", "engine", "tests", "fixtures", "containers.json");
 const OUT = join(APP, "src", "engine.gen.ts");
 
 // Before a line of it is read. This module is imported by `test/run.mjs`, so
@@ -117,6 +118,100 @@ function readAliases() {
     if (!byHebrew.has(he)) byHebrew.set(he, m[1]);
   }
   return byHebrew;
+}
+
+/**
+ * The text of a parenthesised block starting at `open`, comments stripped.
+ *
+ * `_en_params` and the `extra:` dictionaries are Typst dictionaries spanning
+ * many lines with `//` notes between the entries — including notes that argue
+ * why a particular pairing is *absent*, which a line-at-a-time regex would read
+ * as an entry. Counting parentheses is the only honest way to find the end, and
+ * `_en_params` has `rgb("…")` nowhere so there is no string to hide one in.
+ */
+function parenBlock(src, open) {
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "(") depth++;
+    else if (src[i] === ")" && --depth === 0) {
+      return src
+        .slice(open + 1, i)
+        .split(/\r?\n/)
+        .map((l) => l.replace(/\/\/.*$/, ""))
+        .join("\n");
+    }
+  }
+  return "";
+}
+
+/** `key: "value"` pairs of a dictionary block, in declaration order. */
+function dictPairs(block) {
+  return [...block.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]);
+}
+
+/**
+ * The parameter pairing, Hebrew → English, as `_en` itself makes it.
+ *
+ * The mirror image of `readAliases`, and needed for the same reason one level
+ * down: an English alias whose parameters are still Hebrew is not English, and
+ * `#mktable(עמודות: 3)` is not a thing anybody would type. The prelude states
+ * the pairing once, in `_en_params`, and the two tables below are that
+ * statement crossing the seam as a *value* — `facts.rs:20-28`'s rule applied to
+ * the one table that lives in Typst rather than in Rust.
+ *
+ * Two directions of ambiguity, both handled here rather than at the call site:
+ *
+ *   - **Two English spellings of one Hebrew word.** `colour` and `color` both
+ *     map to `צבע`. Going back the other way needs one answer, so the first
+ *     declaration wins — which is the British spelling the prelude writes first
+ *     everywhere else.
+ *   - **Two Hebrew words for one English one.** `טורים` (text columns) and
+ *     `עמודות` (table columns) are both `columns`, which is exactly what `extra`
+ *     exists for. So the per-command overrides are kept as their own table
+ *     rather than flattened into the global one, and a reader merges them in the
+ *     same order `_en` does: `_en_params + extra`.
+ */
+function readParams() {
+  const src = readFileSync(PRELUDE, "utf8");
+  const at = src.indexOf("#let _en_params = (");
+  if (at < 0) return { global: new Map(), byCommand: new Map() };
+  const global = new Map();
+  for (const [en, he] of dictPairs(parenBlock(src, src.indexOf("(", at)))) {
+    if (!global.has(he)) global.set(he, en); // first English spelling wins
+  }
+
+  // `#let banded_config = _en(הגדרות_מדורגות, extra: (columns: "טורים"))`, and
+  // `#let document = _en(מסמך, extra: (` over eleven lines. Keyed by the Hebrew
+  // command, because that is the name a registry snippet is written with.
+  const byCommand = new Map();
+  for (const m of src.matchAll(/#let [A-Za-z][A-Za-z0-9_]* = _en\(([^\s,)]+),\s*extra:\s*\(/g)) {
+    const he = m[1].trim();
+    const block = parenBlock(src, m.index + m[0].length - 1);
+    const over = new Map();
+    for (const [en, heParam] of dictPairs(block)) over.set(heParam, en);
+    if (over.size) byCommand.set(he, over);
+  }
+  return { global, byCommand };
+}
+
+/**
+ * The commands Typst treats as containers, as the engine **measured** them.
+ *
+ * Not read from the prelude's text: whether `#כותרת1` is a container is a fact
+ * about `heading()`, and whether `#שער` is one is a fact about `align()` — both
+ * inside Typst, neither visible in a `#let` line. `engine/examples/emit-containers.rs`
+ * asks the compiler for all 136 bindings and `cargo test --test containers`
+ * re-asks, so this file is a cache of a measurement rather than a fourth list of
+ * command names.
+ *
+ * It is what lets `legalAt` grey `#מעבר_עמוד` where it would blank the page and
+ * offer it where it would not. The rule it replaces was *"is the caret inside
+ * any brackets at all"*, which greyed the button inside bold text and inside a
+ * document title for nothing.
+ */
+function readContainers() {
+  const j = JSON.parse(readFileSync(CONTAINERS, "utf8"));
+  return j.containers ?? [];
 }
 
 /** Every name the prelude binds at all, alias or definition. */
@@ -181,7 +276,7 @@ function readNotices() {
 
 // ---------------------------------------------------------------- emitting
 
-function emit(aliases, commands, defaults, notices) {
+function emit(aliases, params, containers, commands, defaults, notices) {
   const q = (v) => JSON.stringify(v);
   const settable = defaults.filter((d) => !(d.name in NOT_A_SETTING) && !d.absent);
   const omitted = defaults.filter((d) => d.absent).map((d) => d.name);
@@ -189,6 +284,16 @@ function emit(aliases, commands, defaults, notices) {
   const defaultRows = settable.map((d) => `  ${d.name}: ${q(d.value)},`).join("\n");
   const aliasRows = [...aliases]
     .map(([he, en]) => `  ${q(he)}: ${q(en)},`)
+    .join("\n");
+  const paramRows = [...params.global]
+    .map(([he, en]) => `  ${q(he)}: ${q(en)},`)
+    .join("\n");
+  const containerRows = containers.map((n) => `  ${q(n)},`).join("\n");
+  const paramExtraRows = [...params.byCommand]
+    .map(
+      ([he, over]) =>
+        `  ${q(he)}: { ${[...over].map(([h, e]) => `${q(h)}: ${q(e)}`).join(", ")} },`,
+    )
     .join("\n");
   const noticeRows = notices
     .map(
@@ -230,6 +335,59 @@ ${defaultRows}
 export const COMMAND_EN: Readonly<Record<string, string>> = {
 ${aliasRows}
 };
+
+/**
+ * The English name of every *parameter*, keyed by its Hebrew one.
+ *
+ * From the prelude's \`_en_params\`, which is what makes the pairing: an English
+ * alias is not a plain binding but a wrapper that renames its named arguments
+ * through that table. An English alias whose parameters are still Hebrew is not
+ * English, so a command written into an English document needs this as much as
+ * it needs \`COMMAND_EN\`.
+ *
+ * Where two English spellings share one Hebrew word (\`colour\`/\`color\` → \`צבע\`)
+ * the first the prelude declares is the one here, because going back the other
+ * way needs one answer.
+ */
+export const PARAM_EN: Readonly<Record<string, string>> = {
+${paramRows}
+};
+
+/**
+ * Per-command overrides, exactly as the prelude's \`extra:\` states them.
+ *
+ * Two Hebrew parameters can share one English word — \`טורים\` (text columns) and
+ * \`עמודות\` (table columns) are both \`columns\` — so the commands that need the
+ * other reading say so at their own alias, and a reader merges these over
+ * \`PARAM_EN\` the same way \`_en\` merges \`extra\` over \`_en_params\`. Keyed by the
+ * **Hebrew** command name, because that is the name a registry snippet carries.
+ */
+export const PARAM_EN_BY_COMMAND: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+${paramExtraRows}
+};
+
+/** The parameter pairing in force inside a given command, Hebrew → English. */
+export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
+  const over = PARAM_EN_BY_COMMAND[heCommand];
+  return over ? { ...PARAM_EN, ...over } : PARAM_EN;
+}
+
+/**
+ * Every command whose body is a Typst **container**, in Hebrew.
+ *
+ * Measured by the engine (\`engine/examples/emit-containers.rs\`) rather than
+ * written down, because it is a fact about what each command's definition
+ * expands to: \`#כותרת1\` is a \`heading()\` and \`#הערה\` a \`footnote()\`, both
+ * containers; \`#שער\` is \`align(center, text(…))\` and \`#הדגשה\` a \`strong()\`,
+ * both transparent. Fifty-three of the prelude's bindings are containers and
+ * nothing about their names separates them from the rest.
+ *
+ * Typst refuses \`pagebreak()\` inside one, in English, from the middle of a
+ * blanked preview — so this is what \`legalAt\` greys the page-level commands on.
+ */
+export const CONTAINERS: readonly string[] = [
+${containerRows}
+];
 
 /** Both spellings of a command, for a table that must accept either. */
 export function bothSpellings(he: string): readonly string[] {
@@ -276,6 +434,8 @@ export const BUNDLED_FONTS: readonly string[] = BUNDLED_NOTICES.filter(
 }
 
 const aliases = readAliases();
+const params = readParams();
+const containers = readContainers();
 const commands = readCommands();
 const defaults = readDefaults();
 const notices = readNotices();
@@ -322,6 +482,8 @@ for (const c of commands) if (!aliases.has(c.he)) aliases.set(c.he, c.en);
 // the cost of the check is four comparisons.
 for (const [what, rows, least] of [
   ["aliases (engine/typst/ksav.typ)", aliases, 120],
+  ["parameter names (engine/typst/ksav.typ)", params.global, 40],
+  ["containers (engine/tests/fixtures/containers.json)", containers, 30],
   ["commands (engine/facts.gen.json)", commands, 100],
   ["document defaults (engine/facts.gen.json)", defaults, 25],
   ["notices (engine/facts.gen.json)", notices, 4],
@@ -341,7 +503,7 @@ if (notices.some((n) => !n.name || !n.copyright)) {
   process.exit(1);
 }
 
-const built = emit(aliases, commands, defaults, notices);
+const built = emit(aliases, params, containers, commands, defaults, notices);
 
 /** Every generated output, as `[path, wanted, label]`. */
 export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];

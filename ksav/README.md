@@ -189,8 +189,9 @@ no fonts and no layout. So the scanner stays exactly as it is at runtime — and
 offline, **`engine/tests/scan_oracle.rs`** sweeps every document in the
 repository and asks Typst's own parser whether the scanner was right about it:
 the twelve templates, both starter documents, every note layout and structural edit
-the app produces, and the whole insertion grid. Twelve hundred documents, and
-the point of the grid is that nobody chose them.
+the app produces, and the whole insertion grid — in both languages, since the
+grid learned to ask its questions in English as well. Three thousand documents,
+and the point of the grid is that nobody chose them.
 
 It is the only check here that does not depend on somebody thinking of the case.
 The scanner's own fourteen unit tests were all green while a bare `(` in prose
@@ -354,7 +355,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,003 editor assertions, 436 engine
+- [x] **CI, running and green** — typecheck, 4,008 editor assertions, 440 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -430,10 +431,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,003 assertions across 66 files
+cd app && npm test                          # 4,008 assertions across 66 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 436 tests, 29 binaries
+cargo test --manifest-path engine/Cargo.toml            # 440 tests, 30 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -477,7 +478,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over 1,236 documents, a fence that
+editor's scanner against Typst's own parser over 3,157 documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

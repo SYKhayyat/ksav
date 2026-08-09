@@ -57,6 +57,13 @@
   space_after: "ריווח_אחרי", number_spacing: "ריווח_מספור",
   note_spacing: "ריווח_הערות", rule_between: "קו_בין",
   tracking: "מרווח_אותיות", underline: "קו_תחתון", smallcaps: "רברבתי",
+  // citations and indexes — the seven that had no English spelling at all.
+  // Twelve English aliases were plain bindings rather than `_en` wrappers, so
+  // their parameters stayed Hebrew: `#sourceref("ב״ב", מקום: "ב.")` is not
+  // English and is not something anybody would type, which is the sentence at
+  // the top of this table applied to the commands that had escaped it.
+  source: "מקור", sub: "תת", place: "מקום", brackets: "סוגריים",
+  groups: "קבוצות", chars: "תווים",
   // named colours
   header_fill: "צבע_כותרת", stripe: "צבע_פס", striped: "פסים",
   insert_colour: "צבע_הוספה", delete_colour: "צבע_מחיקה",
@@ -1181,7 +1188,7 @@
   },
   body,
 )
-#let rashi = כתב_רשי
+#let rashi = _en(כתב_רשי)
 
 // ============================================================
 //  עיצוב פנימי · inline text styles
@@ -1279,7 +1286,15 @@
   linebreak()
 }
 
-#let hlevel(body, level: 1) = heading(level: level, body)
+// `#let hlevel(body, level: 1) = heading(level: level, body)` — a *second*
+// definition of #כותרת rather than an alias of it, and the only English name in
+// the prelude that was. Nothing was wrong with it: two identical one-liners
+// agree until one of them is edited, which is the whole of the objection.
+// `girsa-ksav`'s reader is the third party that has to know these are the same
+// command, and its pairing check (`tests/from_girsa.rs`) is what found this —
+// it asked the prelude for `#let hlevel = … כותרת` and the prelude did not have
+// one.
+#let hlevel = _en(כותרת)
 #let h1 = כותרת1
 #let h2 = כותרת2
 #let h3 = כותרת3
@@ -1684,7 +1699,7 @@
 // long run of definitions can never push a stray blank page, and it gives the
 // editor one canonical place to file a new body.
 #let גופי_הערות(body) = block(height: 0pt, spacing: 0pt, body)
-#let note_body = גוף_הערה
+#let note_body = _en(גוף_הערה)
 #let note_named = _en(הערה_בשם)
 #let note_bodies = גופי_הערות
 
@@ -1758,8 +1773,8 @@
 #let blockquote = ציטוט
 #let callout = _en(הערת_צד, extra: (accent: "קו"))
 #let framebox = תיבה
-#let warnbox = אזהרה
-#let okbox = הצלחה
+#let warnbox = _en(אזהרה)
+#let okbox = _en(הצלחה)
 #let cite_ = מקור
 
 // ============================================================
@@ -1902,7 +1917,7 @@
     link(מקור, body)
   }
 }
-#let livecite = מקור_חי
+#let livecite = _en(מקור_חי)
 
 // מראה_מקומות — the sources cited in the document, collected and printed.
 //
@@ -1927,7 +1942,7 @@
     block(above: 0.4em, below: 0.4em)[#m.printed]
   }
 }
-#let sources = מראה_מקומות
+#let sources = _en(מראה_מקומות)
 
 // ============================================================
 //  מפתחות · the indexes (ענינים and מקורות)
@@ -2103,7 +2118,7 @@
   let body = שאר.pos()
   if body.len() > 0 { body.first() }
 }
-#let indexentry = ערך
+#let indexentry = _en(ערך)
 
 #let _ix_entry_line(name, locs, indent: 0em) = block(
   above: 0.25em, below: 0.25em, inset: (right: indent),
@@ -2149,7 +2164,7 @@
   }
   if טורים > 1 { columns(טורים, body) } else { body }
 }
-#let topicindex = מפתח_ענינים
+#let topicindex = _en(מפתח_ענינים, extra: (columns: "טורים"))
 
 // ------------------------------------------------------------ מפתח מקורות
 //
@@ -2181,7 +2196,7 @@
   }
   if סוגריים { [(#printed)] } else { printed }
 }
-#let sourceref = ציון_מקור
+#let sourceref = _en(ציון_מקור)
 
 #let מפתח_מקורות(כותרת: [מפתח המקורות], קבוצות: true, טורים: 2, גודל: 0.9em) = context {
   let marks = query(_ix_src_label)
@@ -2225,7 +2240,7 @@
   }
   if טורים > 1 { columns(טורים, body) } else { body }
 }
-#let sourceindex = מפתח_מקורות
+#let sourceindex = _en(מפתח_מקורות, extra: (columns: "טורים"))
 
 // ציון — an inline reference in small gray text, e.g. (רמב״ם הל׳ תפילין)
 #let ציון(body) = text(size: 0.85em, fill: luma(95), [(#body)])
@@ -2389,7 +2404,7 @@
   }
   page(..a, body)
 }
-#let page_section = מקטע_עמוד
+#let page_section = _en(מקטע_עמוד, extra: (columns: "טורים"))
 
 // ============================================================
 //  נוסחאות · mathematics
@@ -2428,7 +2443,7 @@
 #let seif = סעיף
 #let osource = אות
 #let verse = פסוק
-#let sourcenote = מראה_מקום
+#let sourcenote = _en(מראה_מקום)
 #let refmark = ציון
 #let dh = דיבור_המתחיל
 #let gemara = גמרא

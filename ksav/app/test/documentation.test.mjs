@@ -285,6 +285,21 @@ export async function run() {
         [],
       );
       ok("and the directory explains its own contract", tracked.includes("decisions/README.md"));
+
+      // …and the index is the whole of it. A record with an address nobody can
+      // reach from the front door is a record kept in the same way a directory
+      // nobody opens is documentation. `decisions/README.md`'s table was two
+      // entries short of the directory when this was written, and both of them
+      // were from the days the table was last edited — which is the ordinary
+      // way an index falls behind: it is edited by whoever remembers.
+      {
+        const index = readFileSync(path.join(ROOT, "decisions/README.md"), "utf8");
+        check(
+          "and every record is in its index",
+          records.filter((f) => !index.includes(f.slice("decisions/".length))),
+          [],
+        );
+      }
       check(
         "the merged files are gone rather than left to drift",
         tracked.filter((f) => f === "fixes.md" || f === "plan-notes-and-ui.md"),

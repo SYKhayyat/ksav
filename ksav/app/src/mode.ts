@@ -74,9 +74,36 @@
 // was O(characters before the caret) and ran again for each of `modeAt`,
 // `enclosing` and `legalAt`.
 
-import { ctxAt, framesAt, scan } from "./spans";
+// ---------------------------------------------------------------------------
+//
+// **The third thing every insertion has to know, and the one that was missing.**
+//
+// A registry snippet is a Hebrew string — `#הדגשה[|]`, `#טבלה(עמודות: …)` — and
+// every surface wrote it verbatim. So an English writer who pressed Bold got
+// `#הדגשה[|]` in the middle of an English document, and `#mktable` was a name the
+// product advertised and never once produced.
+//
+// `insertion.rs` argued this out and got the diagnosis exactly right while
+// declining the wrong cure: widening the *grid* to English by swapping names in
+// the fixture would assert a path no writer can reach, so its failures would be
+// artefacts of the swap. The cure it named instead is the one below —
+// *"translate the insertion by the document's language, the way `lists.ts`,
+// `headings.ts`, `table.ts` and `note-commands.ts` already do"* — and with it in
+// place the English half of the grid asserts a path a writer really is on.
+//
+// The pairing is not retyped here. `COMMAND_EN` and `PARAM_EN` are generated
+// from the prelude's own `#let` lines and `_en_params`, which are what *make*
+// both halves of the translation: an English alias is a wrapper that renames its
+// named arguments, so a command whose name is English and whose parameters are
+// Hebrew is not English and is not what anybody would type.
+
+import { COMMAND_EN, CONTAINERS, bothSpellings, paramsOf, withAliases } from "./engine.gen";
+import { ctxAt, framesAt, langOf, scan, splitArgs, topLevelColon } from "./spans";
 
 export type Mode = "code" | "content";
+
+/** Which language a command name is written in, per `spans.langOf`. */
+export type Lang = "he" | "en";
 
 const NAME_CH = /[A-Za-z0-9֐-׿_]/;
 
@@ -126,6 +153,117 @@ export function snippetAt(doc: string, pos: number, snippet: string): string {
   return withMode(snippet, modeAt(doc, pos));
 }
 
+// ---------------------------------------------------------------- language
+
+/** The English→Hebrew direction, derived rather than written a second time. */
+const COMMAND_HE: Record<string, string> = Object.fromEntries(
+  Object.entries(COMMAND_EN).map(([he, en]) => [en, he]),
+);
+
+/** The English→Hebrew parameter direction, per command, built the same way. */
+function paramsInto(heCommand: string, lang: Lang): Record<string, string> {
+  const pairs = Object.entries(paramsOf(heCommand));
+  return Object.fromEntries(
+    lang === "en" ? pairs : pairs.map(([he, en]) => [en, he]),
+  );
+}
+
+/**
+ * The same command, spelt in `lang`.
+ *
+ * A name with no pair keeps its own spelling. That is not a gap being tolerated:
+ * the prelude binds names the registry never advertises, and the honest answer
+ * for one of those is the name the writer would have to type anyway.
+ */
+function nameIn(name: string, lang: Lang): string {
+  if (langOf(name) === lang) return name;
+  return (lang === "en" ? COMMAND_EN[name] : COMMAND_HE[name]) ?? name;
+}
+
+/**
+ * A snippet rewritten into `lang` — command names **and** parameter names.
+ *
+ * Both halves are needed and the second is the one that gets forgotten:
+ * `#mktable(עמודות: (1fr, 1fr), cell[])` compiles, because `_en` passes an
+ * unrecognised name through to the Hebrew function underneath, and it is not
+ * English. The grid compiles every one of these in both languages, so a pairing
+ * that goes missing is a red test rather than a document that reads as half a
+ * translation.
+ *
+ * Rewritten through `scan` rather than by regex, for the reason `spans.ts`
+ * exists: a name inside a string literal (`#תמונה("|", …)`) and a name that is
+ * really prose are both things a regex over `#\w+` gets wrong, and the caret
+ * marker `|` is untouched because it is neither.
+ *
+ * Values are left alone. `מספור: "א"` is a numbering scheme and `פריסה: "צד"`
+ * is a layout the prelude compares by name — data the two languages share, not
+ * vocabulary either of them owns.
+ */
+export function translated(snippet: string, lang: Lang): string {
+  const sc = scan(snippet);
+  if (!sc.nodes.length) return snippet;
+  // Right to left, so an earlier edit cannot move a later one's offsets.
+  const edits: { from: number; to: number; text: string }[] = [];
+  for (const n of sc.nodes) {
+    const he = langOf(n.name) === "he" ? n.name : (COMMAND_HE[n.name] ?? n.name);
+    const spelt = nameIn(n.name, lang);
+    if (spelt !== n.name) edits.push({ from: n.nameFrom, to: n.nameTo, text: spelt });
+    if (!n.args) continue;
+    const names = paramsInto(he, lang);
+    for (const g of splitArgs(snippet, n.args.from, n.args.to)) {
+      const colon = topLevelColon(snippet, g.from, g.to);
+      if (colon < 0) continue;
+      const raw = snippet.slice(g.from, colon);
+      const key = raw.trim();
+      const into = names[key];
+      if (!into || into === key) continue;
+      const at = g.from + raw.indexOf(key);
+      edits.push({ from: at, to: at + key.length, text: into });
+    }
+  }
+  edits.sort((a, b) => b.from - a.from);
+  let out = snippet;
+  for (const e of edits) out = out.slice(0, e.from) + e.text + out.slice(e.to);
+  return out;
+}
+
+/**
+ * The language a command written at `pos` should be spelt in.
+ *
+ * Three questions, narrowest first, and each one is a thing the writer has
+ * actually done rather than a setting they might not know about:
+ *
+ *   1. **The call it lands inside.** Splicing a cell into `#mktable(…)` in
+ *      Hebrew would be a document that reads as neither language, and it is the
+ *      same answer `lists.ts` and `headings.ts` already give from the node they
+ *      are rewriting.
+ *   2. **What the rest of the document is written in**, by majority of its
+ *      commands — because the second command in a document should match the
+ *      first without the writer being asked.
+ *   3. **The prose**, when there are no commands yet: a document with letters in
+ *      it and no Hebrew ones is an English document, which is `headings.ts:329`'s
+ *      test for the same question one command earlier.
+ *
+ * An empty document is Hebrew. That is the product's default language and not a
+ * guess about the writer; the first command they write settles it for the rest.
+ */
+export function docLang(doc: string, pos: number): Lang {
+  const sc = scan(doc);
+  let inner: { lang: Lang; depth: number } | null = null;
+  let he = 0;
+  let en = 0;
+  for (const n of sc.nodes) {
+    if (n.lang === "en") en++;
+    else he++;
+    if (pos > n.from && pos < n.to && (!inner || n.depth > inner.depth)) {
+      inner = { lang: n.lang, depth: n.depth };
+    }
+  }
+  if (inner) return inner.lang;
+  if (en || he) return en > he ? "en" : "he";
+  return /\p{Script=Hebrew}/u.test(doc) || !/\p{L}/u.test(doc) ? "he" : "en";
+}
+
 // ---------------------------------------------------------------- delimiters
 
 /** Everything that may sit between two arguments without separating them. */
@@ -159,7 +297,11 @@ function nextCh(doc: string, pos: number): string {
  */
 export function insertionAt(doc: string, pos: number, snippet: string, to = pos): string {
   const m = modeAt(doc, pos);
-  let s = withMode(snippet, m);
+  // The language decision lives here rather than in the two callers, for the
+  // same reason the mode decision does: the callers forgot the mode three
+  // separate times in one day, and there is no version of "each surface
+  // remembers" that survives a fourth surface.
+  let s = withMode(translated(snippet, docLang(doc, pos)), m);
   // The mode rule passes non-commands (a comment region, plain text) through
   // untouched, and so does this: a separator around them would be markup the
   // writer did not ask for.
@@ -203,8 +345,18 @@ export function insertionAt(doc: string, pos: number, snippet: string, to = pos)
 // writer could act on, which is why they are worth greying rather than
 // explaining after the fact.
 
-/** Commands whose body Typst re-renders when building a table of contents. */
-const HEADINGS = ["כותרת", "כותרת1", "כותרת2", "כותרת3", "שער", "תת_שער", "כותרת_בהערה"];
+// Which commands are headings is **not** a list here. It was, and the list was
+// a fifth copy of a table `spans.ts` owns and fences against the prelude in both
+// directions — with the failures a copy always has, in both directions at once:
+// it had no `#h1`, no `#hlevel` and no `#כותרת4`, so `#תוכן` was offered inside
+// the entire English half of the heading commands and inside levels four to six,
+// where it recurses until Typst's nesting guard fires and the page blanks; and
+// it *did* have `#שער`, which `spans.ts:333-345` establishes — against the
+// compiler — is not a heading at all, so a legal `#תוכן` was refused there.
+//
+// The scan already answers the question. `role === "heading"` is derived from
+// the one table, in both languages, at every level, and `#שער` is excluded by
+// name with the reason written beside it.
 
 /**
  * Commands that print the headings of the document, so cannot sit inside one.
@@ -214,13 +366,30 @@ const HEADINGS = ["כותרת", "כותרת1", "כותרת2", "כותרת3", "ש
  * of something that works — which `every_refused_insertion_would_really_have_failed`
  * catches, and did.
  */
-const COLLECTORS = ["תוכן", "toc"];
+const COLLECTORS = [...bothSpellings("תוכן")];
 
 /** Commands that set up or end a page, which Typst allows only in the flow. */
-const PAGE_LEVEL = ["מקטע_עמוד", "page_section", "מעבר_עמוד", "pbreak"];
+const PAGE_LEVEL = [...bothSpellings("מקטע_עמוד"), ...bothSpellings("מעבר_עמוד")];
+
+/**
+ * The commands a page break may not sit inside, in both languages.
+ *
+ * Typst's own words are *"pagebreaks are not allowed inside of **containers**"*,
+ * and a container is a property of what a command expands to rather than of what
+ * it looks like: `#כותרת1` is a `heading()` and `#הערה` a `footnote()`, both
+ * containers; `#שער` is `align(center, text(…))` and `#הדגשה` a `strong()`, both
+ * transparent. Fifty-three of the prelude's bindings are containers, and no rule
+ * over their names would separate the two lists.
+ *
+ * So the list is not here. `CONTAINERS` is measured by the engine against the
+ * real compiler (`engine/examples/emit-containers.rs`, re-measured by
+ * `cargo test --test containers`) and this is that measurement with the English
+ * aliases folded in.
+ */
+const IN_CONTAINER = withAliases(Object.fromEntries(CONTAINERS.map((n) => [n, true])));
 
 /** The table command, in both languages — a merge has to be inside one. */
-const TABLES = ["טבלה", "mktable"];
+const TABLES = [...bothSpellings("טבלה")];
 
 export interface Legality {
   ok: boolean;
@@ -237,20 +406,32 @@ const LEGAL = { ok: true } as const;
  * the command and the same command reaches the document through five surfaces.
  */
 export function legalAt(doc: string, pos: number, command: string): Legality {
-  const frames = framesAt(scan(doc), pos);
-  const enc = frames.map((f) => f.name).filter(Boolean);
+  const sc = scan(doc);
+  const frames = framesAt(sc, pos);
   if (PAGE_LEVEL.includes(command)) {
     // `#מקטע_עמוד` sets up a page — margins, columns, its own header — and
-    // `#מעבר_עמוד` ends one. Typst refuses both inside any container, and says
+    // `#מעבר_עמוד` ends one. Typst refuses both inside a *container*, and says
     // so in English from the middle of a blanked preview.
-    return frames.length === 0 ? LEGAL : { ok: false, reason: "illegalPageLevel" };
+    //
+    // This used to be `frames.length === 0`: legal at the top level and nowhere
+    // else. That is right for a heading, a note and a list and wrong for every
+    // inline command in the language — a page break was greyed inside bold text,
+    // inside `#שער`, and inside `#כותרת_בהערה`, none of which is a container.
+    // The grid found it on the day it learned to ask in two languages, because
+    // asking in two languages is what put a `#שער` position in it.
+    const inside = sc.nodes.some(
+      (n) => IN_CONTAINER[n.name] && pos > n.from && pos < n.to,
+    );
+    return inside ? { ok: false, reason: "illegalPageLevel" } : LEGAL;
   }
   if (COLLECTORS.includes(command)) {
     // A table of contents inside a heading renders the heading, which renders
     // the contents, until Typst's nesting guard fires and the page goes blank.
-    return enc.some((n) => HEADINGS.includes(n))
-      ? { ok: false, reason: "illegalInHeading" }
-      : LEGAL;
+    //
+    // Strictly inside: a caret one past the closing bracket of a heading is
+    // after it, and `#תוכן` there is the ordinary thing a writer does.
+    const inHeading = sc.nodes.some((n) => n.role === "heading" && pos > n.from && pos < n.to);
+    return inHeading ? { ok: false, reason: "illegalInHeading" } : LEGAL;
   }
   if (command === "מיזוג" || command === "colspan_") {
     // A merged cell spliced between two existing cells overflows the row — the

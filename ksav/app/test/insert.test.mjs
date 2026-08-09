@@ -38,12 +38,12 @@ export async function run() {
   // ------------------------------------------------------------- refusals
 
   {
-    // `#מעבר_עמוד` ends a page. Typst refuses it inside any container and says
-    // so in English from the middle of a blanked preview, so the editor refuses
-    // it first, in Hebrew, with the page intact — which is the whole difference
+    // `#מעבר_עמוד` ends a page. Typst refuses it inside a container and says so
+    // in English from the middle of a blanked preview, so the editor refuses it
+    // first, in Hebrew, with the page intact — which is the whole difference
     // between a word processor and a text editor with a build step.
-    const doc = "#הדגשה[שלום]";
-    const p = plan(doc, at(doc, "שלום"), at(doc, "שלום"), "", "#מעבר_עמוד");
+    const doc = "#כותרת1[פרק]";
+    const p = plan(doc, at(doc, "פרק"), at(doc, "פרק"), "", "#מעבר_עמוד");
     check("a page break inside a container is refused", p.kind, "refuse");
     check("…naming what is wrong", p.reason, "illegalPageLevel");
   }
@@ -53,6 +53,23 @@ export async function run() {
     // rule falsifiable: `ONLY_AT_TOP` in reverse.
     const p = plan("שלום עולם", 5, 5, "", "#מעבר_עמוד");
     check("…and at the top level it is offered", p.kind, "edit");
+  }
+  {
+    // The third case, and the one this pair used to get wrong in the example it
+    // chose: **not everything with brackets is a container.** `#הדגשה` is a
+    // `strong()`, `#שער` is `align(center, text(…))`, and Typst puts a page
+    // break through both of them without complaint. The rule was
+    // `frames.length === 0` and the test that guarded it stood inside `#הדגשה`
+    // and called it a container — so the fence and the bug agreed, and a writer
+    // in bold text was refused an operation that works.
+    //
+    // Which commands are containers is measured against the compiler
+    // (`engine/tests/containers.rs`); these two are the assertion that the
+    // measurement is *reaching* the editor.
+    for (const doc of ["#הדגשה[שלום]", "#שער[שלום]"]) {
+      const p = plan(doc, at(doc, "שלום"), at(doc, "שלום"), "", "#מעבר_עמוד");
+      check(`…and inside ${doc.slice(0, 6)}…], which is not a container`, p.kind, "edit");
+    }
   }
   {
     // A table of contents inside a heading renders the heading, which renders

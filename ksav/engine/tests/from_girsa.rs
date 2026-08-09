@@ -278,3 +278,117 @@ fn both_placements_of_a_real_packet_lay_out() {
         assert!(on_the_page("ראוי לכל ירא שמים", &lines), "{placement:?}");
     }
 }
+
+/// The prelude as text, for the two tests below. Read from disk rather than
+/// `include_str!`'d so an edit to the prelude does not need the engine rebuilt
+/// before the check can see it.
+fn prelude() -> String {
+    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/typst/ksav.typ"))
+        .expect("read the prelude")
+}
+
+/// Is `name` bound by the prelude at all, under either spelling?
+fn bound(prelude: &str, name: &str) -> bool {
+    prelude
+        .lines()
+        .filter_map(|l| l.strip_prefix("#let "))
+        .any(|rest| {
+            rest.starts_with(name)
+                && rest[name.len()..]
+                    .starts_with(|c: char| c == ' ' || c == '(' || c == '=')
+        })
+}
+
+/// Girsa reads a Ksav document with Ksav's own names, in both spellings.
+///
+/// `girsa-ksav`'s reader is what puts a shelved document's *structure* on the
+/// shelf — its headings become the levels of the address, its items and rows
+/// become addressable text. It carries its own table of the forty-odd commands
+/// that are structure, and it has to: putting Typst inside a library that
+/// shelves a paragraph is not a trade anybody is making.
+///
+/// A private table in another repository is the shape this project keeps
+/// getting wrong, so the check runs in the direction that is actually possible.
+/// Ksav compiles `girsa-ksav` and Ksav owns the prelude, so **here** is where a
+/// pair can be held against the thing that really binds both names. Girsa's
+/// side cannot do this — it has no prelude — which is why the test lives in the
+/// dependent rather than the dependency.
+///
+/// What it caught: nothing, at the time it was written. What it exists for is
+/// that the reader matched **Hebrew names only** until this afternoon, and an
+/// English sefer came off the shelf as an undifferentiated run of paragraphs —
+/// no headings, no list items, no header row, every footnote spliced into the
+/// middle of its sentence. Not an error anywhere; `Inline` is the right answer
+/// for a name nobody knows.
+#[test]
+fn every_name_girsa_reads_is_a_name_the_prelude_binds() {
+    let prelude = prelude();
+    let mut missing = Vec::new();
+    for (he, en) in girsa_ksav::ALIASES {
+        if !bound(&prelude, he) {
+            missing.push(format!("#let {he} — the Hebrew name is not in the prelude"));
+        }
+        // The English spelling, in the two forms the prelude writes it:
+        // `#let h4 = כותרת4` for a plain rename, `#let mktable = _en(טבלה)`
+        // where the parameters are renamed too.
+        let plain = format!("#let {en} = {he}\n");
+        let wrapped = format!("#let {en} = _en({he}");
+        if !prelude.contains(&plain) && !prelude.contains(&wrapped) {
+            missing.push(format!("#let {en} = … {he} — the pair is not in the prelude"));
+        }
+    }
+    // The parameter names are a different table in the prelude — one dictionary
+    // for the whole language rather than a binding each.
+    for (he, en) in girsa_ksav::PARAM_ALIASES {
+        if !prelude.contains(&format!("{en}: \"{he}\"")) {
+            missing.push(format!("{en}: \"{he}\" — not in `_en_params`"));
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "girsa-ksav's reader names {} thing(s) this prelude does not bind. \
+         Either the prelude renamed a command and the reader now silently reads \
+         it as body text, or the reader's table has a typo:\n  {}",
+        missing.len(),
+        missing.join("\n  ")
+    );
+
+    // A floor, or a table that lost its rows would pass by being empty — which
+    // is the failure this whole sweep is named after.
+    assert!(
+        girsa_ksav::ALIASES.len() > 30,
+        "the alias table has {} rows",
+        girsa_ksav::ALIASES.len()
+    );
+}
+
+/// The buffer Girsa wrote reads back as the document it is.
+///
+/// The pairing above is a name check; this is the claim. `BUFFER` is a real
+/// Ksav document written by Girsa's own buffer, and reading it has to produce a
+/// heading, a quote and a mekor note — the three things a shelf address is
+/// built out of. It compiles two files above; here it is read.
+#[test]
+fn the_buffer_girsa_wrote_reads_back_with_its_structure_intact() {
+    use girsa_ksav::{Block, NoteKind};
+    let blocks = girsa_ksav::read(BUFFER);
+    assert!(
+        blocks
+            .iter()
+            .any(|b| matches!(b, Block::Heading { text, .. } if text.contains("השכמת הבוקר"))),
+        "the heading did not come back as a heading: {blocks:#?}"
+    );
+    assert!(
+        blocks
+            .iter()
+            .any(|b| matches!(b, Block::Quote(t) if t.contains("ראוי לכל ירא שמים"))),
+        "the quote did not come back as a quote: {blocks:#?}"
+    );
+    assert!(
+        blocks.iter().any(|b| matches!(
+            b,
+            Block::Note { kind: NoteKind::Mekor, text, .. } if text.contains("שולחן ערוך")
+        )),
+        "the mekor did not come back as a citation: {blocks:#?}"
+    );
+}

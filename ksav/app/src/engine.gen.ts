@@ -107,6 +107,7 @@ export const COMMAND_EN: Readonly<Record<string, string>> = {
   "מרווח_אותיות": "track",
   "גופן_שונה": "usefont",
   "קוד": "mono",
+  "כותרת": "hlevel",
   "כותרת1": "h1",
   "כותרת2": "h2",
   "כותרת3": "h3",
@@ -189,8 +190,199 @@ export const COMMAND_EN: Readonly<Record<string, string>> = {
   "ציון": "refmark",
   "דיבור_המתחיל": "dh",
   "גמרא": "gemara",
-  "כותרת": "hlevel",
 };
+
+/**
+ * The English name of every *parameter*, keyed by its Hebrew one.
+ *
+ * From the prelude's `_en_params`, which is what makes the pairing: an English
+ * alias is not a plain binding but a wrapper that renames its named arguments
+ * through that table. An English alias whose parameters are still Hebrew is not
+ * English, so a command written into an English document needs this as much as
+ * it needs `COMMAND_EN`.
+ *
+ * Where two English spellings share one Hebrew word (`colour`/`color` → `צבע`)
+ * the first the prelude declares is the one here, because going back the other
+ * way needs one answer.
+ */
+export const PARAM_EN: Readonly<Record<string, string>> = {
+  "גודל": "size",
+  "גופן": "font",
+  "צבע": "colour",
+  "יישור": "align",
+  "משקל": "weight",
+  "נייר": "paper",
+  "שוליים": "margin",
+  "שפה": "lang",
+  "כיוון": "dir",
+  "לרוחב": "landscape",
+  "סימן_מים": "watermark",
+  "כותרת_עליונה": "header",
+  "כותרת_תחתונה": "footer",
+  "מספור": "numbering",
+  "מספור_עברי": "hebrew_numbering",
+  "ריווח_שורות": "leading",
+  "ריווח_פסקאות": "para_spacing",
+  "הזחה_ראשונה": "first_indent",
+  "עמודות": "columns",
+  "אזור_הערות": "notes_region",
+  "רמה": "level",
+  "כותרת": "title",
+  "כותרות": "titles",
+  "שמות": "names",
+  "מאת": "by",
+  "כיתוב": "caption",
+  "רוחב": "width",
+  "יחס": "ratio",
+  "מידה": "amount",
+  "הזחה": "indent",
+  "הזחת_גוף": "body_indent",
+  "הידוק": "tight",
+  "סמן": "marker",
+  "סגנון": "style",
+  "תוויות": "labels",
+  "פריסה": "layout",
+  "תצוגה": "display",
+  "גבהים": "heights",
+  "מסגרת": "frame",
+  "הערה": "note",
+  "ממוספרת": "numbered",
+  "זרם": "stream",
+  "זרמים": "streams",
+  "גוון": "tint",
+  "קו": "rule",
+  "סוג": "kind",
+  "שם": "name",
+  "ריווח": "spacing",
+  "מרווח": "inset",
+  "ריווח_פריט": "item_spacing",
+  "ריווח_בין": "space_between",
+  "ריווח_לפני": "space_before",
+  "ריווח_אחרי": "space_after",
+  "ריווח_מספור": "number_spacing",
+  "ריווח_הערות": "note_spacing",
+  "קו_בין": "rule_between",
+  "מרווח_אותיות": "tracking",
+  "קו_תחתון": "underline",
+  "רברבתי": "smallcaps",
+  "מקור": "source",
+  "תת": "sub",
+  "מקום": "place",
+  "סוגריים": "brackets",
+  "קבוצות": "groups",
+  "תווים": "chars",
+  "צבע_כותרת": "header_fill",
+  "צבע_פס": "stripe",
+  "פסים": "striped",
+  "צבע_הוספה": "insert_colour",
+  "צבע_מחיקה": "delete_colour",
+  "צבע_הערה": "note_colour",
+};
+
+/**
+ * Per-command overrides, exactly as the prelude's `extra:` states them.
+ *
+ * Two Hebrew parameters can share one English word — `טורים` (text columns) and
+ * `עמודות` (table columns) are both `columns` — so the commands that need the
+ * other reading say so at their own alias, and a reader merges these over
+ * `PARAM_EN` the same way `_en` merges `extra` over `_en_params`. Keyed by the
+ * **Hebrew** command name, because that is the name a registry snippet carries.
+ */
+export const PARAM_EN_BY_COMMAND: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "הגדרות_מדורגות": { "טורים": "columns" },
+  "הגדרות_מדפים": { "טורים": "columns" },
+  "הגדרות_זרמים": { "טורים": "columns" },
+  "מסמך": { "טורים": "columns", "עמודות": "table_columns", "יישור": "justify", "כותרת_מסמך": "title", "שוליים_עליון": "margin_top", "שוליים_תחתון": "margin_bottom", "שוליים_פנימי": "margin_inner", "שוליים_חיצוני": "margin_outer", "שולי_כריכה": "gutter", "דו_צדדי": "two_sided", "כותרת_זוגי": "header_even", "כותרת_אי_זוגי": "header_odd", "תחתונה_זוגי": "footer_even", "תחתונה_אי_זוגי": "footer_odd", "יישור_כותרת": "head_align", "מחבר": "author", "מילות_מפתח": "keywords", "מניעת_יתומים": "prevent_orphans", "ריווח_הערות": "note_spacing" },
+  "הגדרות_הערות_צד": { "מרווח": "gutter" },
+  "הערת_צד": { "קו": "accent" },
+  "מפתח_ענינים": { "טורים": "columns" },
+  "מפתח_מקורות": { "טורים": "columns" },
+  "מקטע_עמוד": { "טורים": "columns" },
+};
+
+/** The parameter pairing in force inside a given command, Hebrew → English. */
+export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
+  const over = PARAM_EN_BY_COMMAND[heCommand];
+  return over ? { ...PARAM_EN, ...over } : PARAM_EN;
+}
+
+/**
+ * Every command whose body is a Typst **container**, in Hebrew.
+ *
+ * Measured by the engine (`engine/examples/emit-containers.rs`) rather than
+ * written down, because it is a fact about what each command's definition
+ * expands to: `#כותרת1` is a `heading()` and `#הערה` a `footnote()`, both
+ * containers; `#שער` is `align(center, text(…))` and `#הדגשה` a `strong()`,
+ * both transparent. Fifty-three of the prelude's bindings are containers and
+ * nothing about their names separates them from the rest.
+ *
+ * Typst refuses `pagebreak()` inside one, in English, from the middle of a
+ * blanked preview — so this is what `legalAt` greys the page-level commands on.
+ */
+export const CONTAINERS: readonly string[] = [
+  "הערה_בדרגה",
+  "הערה_א",
+  "הערה_ב",
+  "הערה_ג",
+  "הערה_ד",
+  "הערה_ה",
+  "הערה_ו",
+  "הערה_ז",
+  "מדור_בדרגה",
+  "מדור_א",
+  "מדור_ב",
+  "מדור_ג",
+  "מדור_ד",
+  "מדור_ה",
+  "מדור_ו",
+  "מדור_ז",
+  "מדף_בדרגה",
+  "מדף_א",
+  "מדף_ב",
+  "מדף_ג",
+  "מדף_ד",
+  "מדף_ה",
+  "מדף_ו",
+  "מדף_ז",
+  "הערה_זרם",
+  "הערת_תוכן",
+  "הערת_מקור",
+  "קוד",
+  "כותרת",
+  "כותרת1",
+  "כותרת2",
+  "כותרת3",
+  "כותרת4",
+  "כותרת5",
+  "כותרת6",
+  "רשימה",
+  "ממוספרת",
+  "ממוספרת_עברית",
+  "רשימת_הגדרות",
+  "הגדרה",
+  "הערה",
+  "הערה_על_הערה",
+  "הערת_גיליון",
+  "עם_הערות_צד",
+  "הערת_ימין",
+  "הערת_שמאל",
+  "עם_הערות_דו_צד",
+  "גופי_הערות",
+  "טבלה",
+  "ציטוט",
+  "הערת_צד",
+  "תיבה",
+  "אזהרה",
+  "הצלחה",
+  "חסר_הכללה",
+  "הזחה",
+  "טורים_בלוק",
+  "סימן",
+  "סעיף",
+  "מראה_מקום",
+  "עם_פירוש",
+  "הערת_עורך",
+];
 
 /** Both spellings of a command, for a table that must accept either. */
 export function bothSpellings(he: string): readonly string[] {

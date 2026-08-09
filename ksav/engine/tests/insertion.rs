@@ -29,6 +29,8 @@ const FIXTURE: &str = include_str!("fixtures/insertions.json");
 
 struct Case {
     ctx: String,
+    /// Which language's document this position is in.
+    lang: String,
     cmd: String,
     en: String,
     legal: bool,
@@ -44,6 +46,7 @@ fn cases() -> Vec<Case> {
         .iter()
         .map(|c| Case {
             ctx: c["ctx"].as_str().unwrap().to_string(),
+            lang: c["lang"].as_str().unwrap().to_string(),
             cmd: c["cmd"].as_str().unwrap().to_string(),
             en: c["en"].as_str().unwrap().to_string(),
             legal: c["legal"].as_bool().unwrap(),
@@ -74,8 +77,9 @@ fn every_offered_insertion_compiles_where_it_is_offered() {
         if let Err(e) = compiles(&c.source) {
             let first = e.lines().next().unwrap_or("").to_string();
             broken.push(format!(
-                "  {}/{}  {first}\n     {}",
+                "  {}/{}/{}  {first}\n     {}",
                 c.ctx,
+                c.lang,
                 c.cmd,
                 c.source.replace('\n', "⏎")
             ));
@@ -102,8 +106,9 @@ fn every_refused_insertion_would_really_have_failed() {
         refused += 1;
         if compiles(&c.source).is_ok() {
             wrong.push(format!(
-                "  {}/{}  refused as {:?}, but it compiles fine",
+                "  {}/{}/{}  refused as {:?}, but it compiles fine",
                 c.ctx,
+                c.lang,
                 c.cmd,
                 c.reason.as_deref().unwrap_or("(no reason)")
             ));
@@ -137,23 +142,35 @@ fn every_refused_insertion_would_really_have_failed() {
 // fail. A wrong exemption cannot hide in that, because there are no exemptions
 // — only claims the compiler settles.
 //
-// **On widening this grid to English, which was tried and is wrong.** The
-// obvious next step is to compile every case again with the command names
-// swapped for their English pair, so the English half of the language gets the
-// 1,035 compiled documents the Hebrew half has. It was built, and it fails, and
-// the failures are about the fixture rather than the product: the Insert menu,
-// the toolbar and the palette all write `c.insert` **verbatim**, so the app
-// never writes an English registry name into anything. An English writer who
-// picks Footnote gets `#הערה[]` in their English document. So a grid of English
-// insertions asserts a path no writer can reach, and its failures — a Hebrew
-// parameter name left inside an English call — are artefacts of the swap.
+// **On widening this grid to English, which was tried the wrong way first.**
+// The obvious version is to compile every case again with the command names
+// swapped for their English pair. That was built, and it failed, and the
+// failures were about the fixture rather than the product: the Insert menu, the
+// toolbar and the palette all wrote `c.insert` **verbatim**, so the app never
+// wrote an English registry name into anything. An English writer who picked
+// Footnote got `#הערה[]` in their English document. A grid of English insertions
+// therefore asserted a path no writer could reach, and its failures — a Hebrew
+// parameter name left inside an English call — were artefacts of the swap.
 //
-// What the English half really needs is not this. It is either the product
-// change (translate the insertion by the document's language, the way
-// `lists.ts`, `headings.ts`, `table.ts` and `note-commands.ts` already do) or
-// nothing; and the English forms the app *does* write are already compiled, in
-// `structure-edits.json`, twelve English documents of them. The name check
-// below is what is honestly assertable here, and it is stated as exactly that.
+// The comment that used to sit here named the alternative and stopped there:
+// *"either the product change (translate the insertion by the document's
+// language, the way `lists.ts`, `headings.ts`, `table.ts` and `note-commands.ts`
+// already do) or nothing."* It was right, and for eleven months the answer was
+// nothing — which is the shape the whole-repo report named: the diagnosis is
+// correct, it is written down, and the sweep never runs.
+//
+// The product change landed. `mode.ts`'s `insertionAt` spells a snippet in the
+// document's own language — **names and parameter names both**, through
+// `COMMAND_EN` and `PARAM_EN`, which are generated from the prelude's `#let`
+// lines and its `_en_params` and are what actually make the pairing. So the
+// English half of this grid is now the same claim as the Hebrew half: this is
+// what the product writes when a writer presses that button, here, and it
+// compiles. Twelve positions × two languages × every command, and no case is
+// reachable only by a test.
+//
+// The Hebrew half came out byte-identical to the day before, which is worth
+// recording: the language axis is additive, and the 1,035 documents that caught
+// 384 broken insertions still say exactly what they said.
 
 /// Every registry name resolves to something in the prelude, in both languages.
 ///
@@ -316,14 +333,28 @@ fn the_grid_exempts_nothing() {
     let mut contexts: Vec<&str> = all.iter().map(|c| c.ctx.as_str()).collect();
     contexts.sort_unstable();
     contexts.dedup();
+    let mut langs: Vec<&str> = all.iter().map(|c| c.lang.as_str()).collect();
+    langs.sort_unstable();
+    langs.dedup();
 
+    // The language axis is asserted rather than assumed, because the way it
+    // goes is not somebody deleting it: it is one `CONTEXTS` entry gaining a
+    // ninth position and no English twin, which halves the coverage of that
+    // position and changes no total anybody looks at.
+    assert_eq!(
+        langs,
+        ["en", "he"],
+        "the grid is being asked in {langs:?} — a position with no English twin \
+         is a position whose rule is fenced in one language only",
+    );
     assert_eq!(
         all.len(),
-        commands.len() * contexts.len(),
-        "the grid has holes: {} commands × {} contexts should be {} cases, not {}",
+        commands.len() * contexts.len() * langs.len(),
+        "the grid has holes: {} commands × {} contexts × {} languages should be {} cases, not {}",
         commands.len(),
         contexts.len(),
-        commands.len() * contexts.len(),
+        langs.len(),
+        commands.len() * contexts.len() * langs.len(),
         all.len(),
     );
 
@@ -345,18 +376,19 @@ fn the_grid_exempts_nothing() {
         let rows: Vec<&Case> = all.iter().filter(|c| c.cmd == *name).collect();
         assert_eq!(
             rows.len(),
-            contexts.len(),
-            "#{name} is missing from {} of the {} contexts — it is being skipped again",
-            contexts.len() - rows.len(),
-            contexts.len(),
+            contexts.len() * langs.len(),
+            "#{name} is missing from {} of the {} context/language pairs — it is being skipped again",
+            contexts.len() * langs.len() - rows.len(),
+            contexts.len() * langs.len(),
         );
         // And every refusal carries a reason. An exemption with no reason is how
         // the old list started.
         for r in rows.iter().filter(|r| !r.legal) {
             assert!(
                 r.reason.as_deref().is_some_and(|s| s.len() > 3),
-                "#{name} is refused in {} with no reason given",
-                r.ctx
+                "#{name} is refused in {}/{} with no reason given",
+                r.ctx,
+                r.lang
             );
         }
     }

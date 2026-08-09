@@ -43,7 +43,7 @@ import {
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
 import { DEFAULTS } from "../.tmp-test/settings.mjs";
-import { toMarkdown } from "../.tmp-test/markdown.mjs";
+import { CLASSIFIED_NAMES, toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -176,15 +176,15 @@ export async function run() {
     // right — some prelude spellings are not in the pairing — but it means a
     // mistyped Hebrew name produces a table entry that simply never matches. So
     // the names are checked against the prelude, from the export's own side.
-    const md = await readFile(path.join(SRC, "markdown.ts"), "utf8");
-    const keys = new Set();
-    for (const m of md.matchAll(/^\s{2,}([֐-׿][֐-׿_0-9]*):/gmu)) keys.add(m[1]);
-    // `...tiered("מדור")` names a *stem*, not a command: the seven names it
-    // stands for are `מדור_א` … `מדור_ז`, and those are what have to exist.
-    for (const m of md.matchAll(/\.\.\.tiered\("([֐-׿][֐-׿_0-9]*)"\)/gu)) {
-      for (const t of ["א", "ב", "ג", "ד", "ה", "ו", "ז"]) keys.add(`${m[1]}_${t}`);
-    }
-    ok("the export tables were read", keys.size >= 50);
+    //
+    // The list comes from the module, not from a regex over its source text.
+    // The regex could not tell a table key from a Hebrew word in a comment, it
+    // re-derived the seven tier suffixes on its own side, and it needed a floor
+    // of fifty to prove it had matched anything — a fence whose subject is the
+    // formatting of the file it is guarding. It went red the first time seven
+    // rows moved out of a table for a good reason, which is the whole argument
+    // against reading source as data, made by the fence itself.
+    const keys = new Set(CLASSIFIED_NAMES);
     const unknown = [...keys].filter((k) => !defined.has(k));
     check("every export-table name is a command the prelude defines", unknown, []);
 

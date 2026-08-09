@@ -856,3 +856,51 @@ the words are the only thing that would tell them whether to open it.
 named twice — three notes of Mishnah Berurah on one se'if, which is ordinary —
 two candidates and no way to choose, so none. Rule 6, and a highlight on the
 wrong half of a line looks exactly like a highlight on the right one.
+
+---
+
+## §4a — the two bugs the browser build's ambiguous status caused
+
+Both are one shape: a check that answers a question about the **build** by
+guessing at the object in front of it.
+
+### 1. The service worker installed under `ksav serve`
+
+The gate was `backend?.kind === "desktop"` and `import.meta.env.PROD`, and
+neither is the question. `ksav serve` is a production build served over HTTP
+with `HttpBackend` behind it — so it installed a **cache-first** service worker
+over an editor whose compiler is the server that just went away, and
+`index.html` links `rel="manifest"`, so it also offered to *install itself* in
+that state. What comes back is a shell that boots, draws the chrome, and cannot
+compile a document.
+
+`if (!__WASM__) return;` — one line. The wasm build is the only one where
+"offline" means the whole product is there, because the engine is in the tab.
+
+### 2. The browser build claimed a Girsa half it cannot have
+
+`sourcesOf` tested `typeof s.inbox === "function"`, and `inbox` is defined on the
+shared `ServiceClient` base — so it was **always** true. Its own comment says it
+exists *"so that 'can I reach Girsa' is never four separate `typeof b.mekoros ===
+'function'` checks that drift apart"*: it consolidated four drifting checks into
+one wrong one, and `t("girsaNeedsApp")` — the sentence that tells a reader why
+source-finding is unavailable in a tab — sat unreached.
+
+Keyed on `SERVICE.inbox.nativeOnly` now, which is generated from `services.rs`'s
+own `Reach` column. A build that cannot reach the loopback is a fact about the
+build, and the one place that knows which services need it is the table that
+declares them.
+
+**And the test that should have caught it asserted the opposite.**
+`services.test.mjs` wrapped the Girsa rows in a `try/catch` under the comment
+*"`WasmBackend` has no `Sources` half — a tab cannot reach the loopback — so the
+three Girsa services have no method here. **That is the design.**"* It was false
+in three ways at once: the methods are on the shared base, so nothing threw and
+the `catch` was dead; nothing anywhere asserted the absence it described; and it
+said *three* where the registry has six. A test whose exemption comment states a
+mechanism the code does not have is the same failure as a doc comment doing it —
+and this one was guarding the seam.
+
+The absence is asserted now, from the generated table, together with its
+counter-case: the server build still *has* a Girsa half, or "a browser tab has
+none" would be satisfied by nobody having one.

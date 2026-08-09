@@ -671,12 +671,41 @@ export interface Refreshed {
  * The Girsa half of a backend, or `null` if this one has no such half.
  *
  * One test, in one place, so that "can I reach Girsa" is never four separate
- * `typeof b.mekoros === "function"` checks that drift apart. `inbox` stands for
- * all four: an implementation provides the set or none of it.
+ * `typeof b.mekoros === "function"` checks that drift apart.
+ *
+ * # It consolidated four drifting checks into one wrong one
+ *
+ * The test was `typeof s.inbox === "function"`, and `inbox` is defined on the
+ * shared `ServiceClient` base — so it was **always** true. Every browser build
+ * claimed a Girsa half it cannot have, and `t("girsaNeedsApp")` — the sentence
+ * that tells a reader why source-finding is not available in a tab — sat
+ * unreached.
+ *
+ * The test that should have caught it asserted the opposite. `services.test.mjs`
+ * wrapped the Girsa rows in a `try/catch` under the comment *"`WasmBackend` has
+ * no `Sources` half — a tab cannot reach the loopback — so the three Girsa
+ * services have no method here. **That is the design.**"* It is not: the methods
+ * are on the shared base, nothing throws, the `catch` was dead, and nothing
+ * anywhere asserted absence. The comment was stale on the count as well — it
+ * said *three* where the registry has six.
+ *
+ * # Keyed on the registry, which already knew
+ *
+ * `SERVICE.inbox.nativeOnly` is generated from `services.rs`'s own `Reach`
+ * column. A build that cannot reach the loopback is a fact about the *build*,
+ * and the one place that knows which services need it is the table that
+ * declares them.
+ *
+ * A method check is still made beside it, because a backend could legitimately
+ * be missing the half for a second reason — and a `typeof` that is redundant is
+ * cheaper than a `typeof` that is missing.
  */
 export function sourcesOf(b: Backend | undefined): Sources | null {
   const s = b as (Backend & Partial<Sources>) | undefined;
-  return s && typeof s.inbox === "function" ? (s as Sources) : null;
+  if (!s || typeof s.inbox !== "function") return null;
+  // A browser tab has no loopback, and no amount of duck-typing changes that.
+  if (SERVICE.inbox.nativeOnly && s.kind === "wasm") return null;
+  return s as Sources;
 }
 
 /**

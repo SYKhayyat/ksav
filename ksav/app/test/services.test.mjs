@@ -21,7 +21,7 @@
 // service" and "this table has this service" are the same sentence here.
 
 import { check, ok } from "./harness.mjs";
-import { HttpBackend, TauriBackend, WasmBackend } from "../.tmp-test/api.mjs";
+import { HttpBackend, TauriBackend, WasmBackend, sourcesOf } from "../.tmp-test/api.mjs";
 import { SERVICE, SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
 import { HEADER_ONLY, metaPolicy } from "../../policy/meta.mjs";
 import { readFile } from "node:fs/promises";
@@ -174,9 +174,17 @@ export async function run() {
       try {
         await drive(backend);
       } catch {
-        // `WasmBackend` has no `Sources` half — a tab cannot reach the loopback
-        // — so the three Girsa services have no method here. That is the design,
-        // and the generated table says which three they are; see below.
+        // A native-only service in a tab. The `catch` used to carry a claim —
+        // *"`WasmBackend` has no `Sources` half, so the three Girsa services
+        // have no method here. That is the design."* — and it was false in
+        // three ways at once: the methods **are** on the shared `ServiceClient`
+        // base, so nothing threw and the catch was dead; nothing anywhere
+        // asserted the absence it described; and it said *three* where the
+        // registry has six. A test whose exemption comment states a mechanism
+        // the code does not have is the same failure as a doc comment doing it,
+        // and this one was guarding the seam.
+        //
+        // What is actually true is asserted below, from the generated table.
       }
     }
     for (const a of asked) {
@@ -191,6 +199,26 @@ export async function run() {
     // The bug, stated as a test: this is the service that was in three of the
     // four registries and missing from the fourth.
     ok("citation autocomplete is reachable in the offline build", reached.has("sefarim"));
+
+    // …and the absence, which nothing asserted at all.
+    //
+    // `sourcesOf` tested `typeof s.inbox === "function"`, and `inbox` is defined
+    // on the shared `ServiceClient` base — so it was **always** true and every
+    // browser build claimed a Girsa half it cannot have. The sentence that tells
+    // a reader why source-finding is unavailable in a tab sat unreached. It is
+    // keyed on `SERVICE.inbox.nativeOnly` now, which is generated from
+    // `services.rs`'s own `Reach` column.
+    {
+      const tab = new WasmBackend();
+      check("a browser tab has no Girsa half", sourcesOf(tab), null);
+      const nativeOnly = SERVICES.filter((s) => s.nativeOnly).map((s) => s.name);
+      ok(`…and the registry says which services that is (${nativeOnly.length})`,
+        nativeOnly.length >= 4, nativeOnly.join(", "));
+      // The desktop and server builds still have one, or the check above would
+      // be "nobody has a Girsa half", which is a different and equally wrong
+      // claim.
+      ok("the server build still has one", !!sourcesOf(new HttpBackend()));
+    }
   }
 
   // --------------------------------------------- nobody re-spells the list

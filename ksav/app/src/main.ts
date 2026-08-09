@@ -3759,6 +3759,21 @@ function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (runtime.backend?.kind === "desktop") return;
   if (!import.meta.env.PROD) return;
+  // …and **only the wasm build**, which is the one that can actually run
+  // offline.
+  //
+  // The gate was `kind === "desktop"` and `PROD`, and neither is the question.
+  // `ksav serve` is a production build served over HTTP with `HttpBackend`
+  // behind it, so it installed a cache-first worker over an editor whose
+  // *compiler is the server that just went away* — and `index.html` links
+  // `rel="manifest"`, so it also offered to **install itself** in that state.
+  // What comes back is a shell that boots, draws the chrome, and cannot
+  // compile a document.
+  //
+  // `__WASM__` is the only build where "offline" means the whole product is
+  // there, because the engine is in the tab. One line, and it is the line the
+  // ambiguous status of the browser build cost.
+  if (!__WASM__) return;
   void navigator.serviceWorker
     // `BASE_URL`, not `/`: on a project Pages site the app is served from
     // `/ksav/`, and a worker registered at the origin root would be refused —

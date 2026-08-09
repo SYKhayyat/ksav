@@ -362,6 +362,44 @@ fn every_name_girsa_reads_is_a_name_the_prelude_binds() {
     );
 }
 
+/// Both doors into a citation escape the same characters.
+///
+/// A place lands in a Ksav document two ways: Girsa hands over a packet and
+/// `girsa_ksav::to_ksav` renders it, or the writer picks a hit in the Mekoros
+/// panel and `citation.ts` writes it. Same feature, same `display` string off
+/// the same corpus, and the two escapers had **ten characters against five**.
+/// The five the editor was missing — `*` strong, `_` emph, `<`/`>` a label, `@`
+/// a ref — are all live Typst markup and all occur in Sefaria titles, so the two
+/// doors produced two different documents for one source.
+///
+/// The list lives in `engine/src/escape.rs` rather than in the shared crate,
+/// because a browser build has no loopback to Girsa and so does not compile
+/// `girsa-ksav` — but it does interpolate a font name into the prelude on every
+/// compile. This is the fence that keeps the two in step, in the direction that
+/// can be run.
+#[test]
+fn the_two_doors_into_a_citation_escape_the_same_characters() {
+    use ksav_engine::escape;
+    assert_eq!(
+        escape::MARKUP,
+        girsa_ksav::MARKUP,
+        "the engine and girsa-ksav disagree about what Typst reads as markup"
+    );
+    // …and the two functions really do use their lists, rather than agreeing
+    // about a constant neither of them reads.
+    let nasty: String = escape::MARKUP.iter().collect();
+    assert_eq!(
+        escape::content(&nasty),
+        girsa_ksav::escape(&nasty),
+        "the two escapers disagree on the characters they both claim to escape"
+    );
+    // The title that made this findable.
+    assert_eq!(
+        escape::content("*Rashi* on _Genesis_"),
+        girsa_ksav::escape("*Rashi* on _Genesis_")
+    );
+}
+
 /// The buffer Girsa wrote reads back as the document it is.
 ///
 /// The pairing above is a name check; this is the claim. `BUFFER` is a real

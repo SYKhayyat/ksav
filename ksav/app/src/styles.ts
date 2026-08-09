@@ -19,6 +19,7 @@
 // silently discard styling a writer typed by hand.
 
 import { scan, splitArgs, topLevelColon } from "./spans";
+import { typstString } from "./typst-escape";
 
 export type StyleCommand = "headings" | "lists" | "tables" | "review" | "notes";
 
@@ -191,9 +192,22 @@ function trimBlankLine(s: string): string {
 // The panel deals in plain JS values; the document deals in Typst source. These
 // convert between the two for the specific shapes the panel exposes.
 
-export function typstString(v: string): string {
-  return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
-}
+/**
+ * A Typst string literal.
+ *
+ * Re-exported rather than written, and it *was* written: byte-for-byte the same
+ * expression as `typst-escape.ts`'s, in the module whose own header says it is
+ * *"the one shared escaper every such panel now goes through"*. The engine had
+ * the identical pair inside one crate — `lib.rs`'s `typst_str` and
+ * `sefarim.rs`'s `typst_string`, forty lines from a `use super::*`, under a
+ * comment there saying *"nothing else is allowed to build a string literal by
+ * hand"*. Four copies of eleven characters, all agreeing, all of them written
+ * after the rule forbidding them.
+ *
+ * Kept exported from here because the panel imports `styles.typstString` in a
+ * dozen places and the name is right where it is used.
+ */
+export { typstString };
 
 export function typstBool(v: boolean): string {
   return v ? "true" : "false";

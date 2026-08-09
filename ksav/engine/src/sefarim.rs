@@ -376,8 +376,14 @@ pub fn catalog_json() -> String {
 }
 
 /// A Typst string literal.
+///
+/// This was `format!("\"{}\"", s.replace(…).replace(…))` — byte-identical to
+/// `lib.rs`'s `typst_str`, in the same crate, forty lines from a `use super::*`,
+/// under a comment there saying *"nothing else is allowed to build a string
+/// literal by hand"*. The rule was right, and it was enforced at the site that
+/// prompted it and nowhere else.
 fn typst_string(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+    crate::escape::string_literal(s)
 }
 
 /// A dictionary key. Typst allows a quoted string as a key, which is what makes

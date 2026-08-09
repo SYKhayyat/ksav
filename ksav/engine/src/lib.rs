@@ -21,7 +21,10 @@ use typst_layout::PagedDocument;
 pub mod assets;
 pub mod commands;
 pub mod diagnostics;
-/// The four tables the app generates its own copies from, as serialised values
+/// Somebody else's text, put into Typst markup. One string-literal escaper and
+/// one content escaper, for the four and two copies there used to be.
+pub mod escape;
+/// The tables the app generates its own copies from, as serialised values
 /// rather than as Rust source text for a regex to pick at.
 pub mod facts;
 /// A sefer is many files: `#כלול` and the line map that keeps its
@@ -692,7 +695,7 @@ impl Compiled {
 /// allowed to build a string literal by hand, which is how `font` and `paper`
 /// came to miss the backslash case that `header`/`footer` handled correctly.
 fn typst_str(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+    escape::string_literal(s)
 }
 
 /// `typst_str`, or the literal `none` when the string is empty.

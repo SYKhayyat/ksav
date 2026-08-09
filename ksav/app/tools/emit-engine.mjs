@@ -276,7 +276,7 @@ function readNotices() {
 
 // ---------------------------------------------------------------- emitting
 
-function emit(aliases, params, containers, commands, defaults, notices, hebrew) {
+function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes) {
   const q = (v) => JSON.stringify(v);
   const settable = defaults.filter((d) => !(d.name in NOT_A_SETTING) && !d.absent);
   const omitted = defaults.filter((d) => d.absent).map((d) => d.name);
@@ -418,11 +418,23 @@ export const HEBREW = {
   prefixLetters: ${q(hebrew.prefix_letters.join(""))},
 } as const;
 
+/**
+ * Every character Typst reads as markup inside a \`[…]\` body.
+ *
+ * From \`engine/src/escape.rs\`. This side had **five** of them — \`\\\\ [ ] # $\` —
+ * and \`girsa-ksav\`'s escaper had ten, and both write \`#מראה_מקום(מקור: …)[…]\`
+ * out of the same Girsa \`display\` string. The five missing were \`*\` (strong),
+ * \`_\` (emph), \`<\` and \`>\` (a label) and \`@\` (a ref), all of which appear in
+ * Sefaria titles. Same feature, two doors, two documents.
+ */
+export const MARKUP_ESCAPES = ${q(markupEscapes)};
+
 /** A character class matching every Hebrew combining mark but not the four. */
 export function markPattern(flags = "gu"): RegExp {
-  const cls = [...HEBREW.wordBreaking].map((c) => \`\\\\u{\${c.codePointAt(0).toString(16)}}\`);
+  const hex = (c: string) => (c.codePointAt(0) ?? 0).toString(16);
+  const cls = [...HEBREW.wordBreaking].map((c) => \`\\\\u{\${hex(c)}}\`);
   const [lo, hi] = HEBREW.markRange;
-  const range = \`\\\\u{\${lo.codePointAt(0).toString(16)}}-\\\\u{\${hi.codePointAt(0).toString(16)}}\`;
+  const range = \`\\\\u{\${hex(lo)}}-\\\\u{\${hex(hi)}}\`;
   // A negated lookahead rather than a hand-split range: splitting the block
   // around four holes is how \`sefarim.ts\` came to have one of them.
   return new RegExp(\`(?!\${cls.join("|")})[\${range}]\`, flags);
@@ -481,6 +493,8 @@ const notices = readNotices();
 // `girsa-hebrew`'s character rules, measured by `src/facts.rs` and serialised
 // with the rest. Nothing here interprets them; they cross as values.
 const hebrew = facts().hebrew;
+// `engine/src/escape.rs`'s `MARKUP`, so the client cannot hold a shorter list.
+const markupEscapes = facts().markup_escapes;
 
 // The registry and the prelude have to agree about the pairing, and until now
 // nothing said so. The registry's `en` field is what the palette shows, what the
@@ -530,6 +544,7 @@ for (const [what, rows, least] of [
   ["document defaults (engine/facts.gen.json)", defaults, 25],
   ["notices (engine/facts.gen.json)", notices, 4],
   ["Hebrew prefix letters (engine/facts.gen.json)", hebrew.prefix_letters, 8],
+  ["markup escapes (engine/facts.gen.json)", [...markupEscapes], 10],
 ]) {
   const count = rows.length ?? rows.size;
   if (count < least) {
@@ -546,7 +561,7 @@ if (notices.some((n) => !n.name || !n.copyright)) {
   process.exit(1);
 }
 
-const built = emit(aliases, params, containers, commands, defaults, notices, hebrew);
+const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes);
 
 /** Every generated output, as `[path, wanted, label]`. */
 export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];

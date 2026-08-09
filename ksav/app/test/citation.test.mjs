@@ -72,6 +72,34 @@ export async function run() {
     check("still one call", (nasty.match(/#מראה_מקום/gu) ?? []).length, 1);
   }
 
+  // -------------------------------------------- which characters were quoted
+  //
+  // `girsa-source` 0.5.1 added `range` — which characters of the place a quote
+  // actually was — and the Rust door (`ksav_engine::source`) has written
+  // `תווים:` since. This door could not express the argument at all, so the
+  // field was **structurally unreachable** from the editor's own insertion
+  // path: one feature, two doors, one of them missing an argument. Which is the
+  // same shape as the bug at the top of this file, in the same function, a
+  // release later.
+  {
+    const half = citationMarkup({ ...PLACE, range: { from: 4, to: 19 } });
+    ok("a partial quote says which characters", half.includes('תווים: "4-19"'), half);
+    const toEnd = citationMarkup({ ...PLACE, range: { from: 4, to: null } });
+    ok("…and a highlight running off the end is open", toEnd.includes('תווים: "4-"'), toEnd);
+    // It has to be the same spelling `girsa_ksav::characters` writes, because
+    // both doors write into one document and `#מראה_מקומות()` reads both.
+    ok("the ref is still there beside it", half.includes(PLACE.ref));
+  }
+  {
+    // A document that quotes a whole se'if says so by **saying nothing** — which
+    // is what every document written before the field existed already says, and
+    // what makes them all still correct.
+    for (const range of [undefined, { from: 0, to: null }]) {
+      const markup = citationMarkup({ ...PLACE, range });
+      notOk(`a whole place writes no תווים (${JSON.stringify(range)})`, markup.includes("תווים"));
+    }
+  }
+
   // ------------------------------------------------------- one producer only
   //
   // The prohibition, swept over the source, in the same shape as `spans.ts`'s.

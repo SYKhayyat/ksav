@@ -8,6 +8,7 @@
 
 import { check, ok } from "./harness.mjs";
 import { typstString, typstContent } from "../.tmp-test/typst-escape.mjs";
+import { MARKUP_ESCAPES } from "../.tmp-test/engine.gen.mjs";
 
 export async function run() {
   // ---- string literals ("…") ----
@@ -45,6 +46,28 @@ export async function run() {
   check("a hash is escaped so it starts no command", typstContent("C# and #tag"), "C\\# and \\#tag");
   check("a dollar is escaped so it opens no maths", typstContent("$5 or $10"), "\\$5 or \\$10");
   check("a backslash is doubled in content too", typstContent("a\\b"), "a\\\\b");
+
+  {
+    // The five this side used to be missing, and the reason it mattered:
+    // `girsa-ksav`'s escaper had ten characters, this one had five, and both
+    // write `#מראה_מקום(מקור: …)[…]` out of the same Girsa `display` string.
+    // `*` is strong, `_` is emph, `<…>` is a label, `@` is a ref — and Sefaria
+    // titles contain them, so one source landed as two different documents
+    // depending on which door it came through.
+    check("strong and emph markers are escaped", typstContent("*Rashi* on _Genesis_"),
+      "\\*Rashi\\* on \\_Genesis\\_");
+    check("a label and a ref are escaped", typstContent("<tag> @ref"), "\\<tag\\> \\@ref");
+  }
+
+  {
+    // And the list is not this module's to hold. It comes from
+    // `engine/src/escape.rs` through `facts.gen.json`, which is what stops the
+    // two doors drifting again — a fence over a list one side owns would be a
+    // fence over one side's opinion.
+    ok("the list arrives from the engine", MARKUP_ESCAPES.length === 10);
+    const missed = [...MARKUP_ESCAPES].filter((c) => typstContent(c) !== "\\" + c);
+    check("every character the engine names is escaped", missed, []);
+  }
 
   {
     // The whole point: wrapping escaped content in a call yields balanced markup.

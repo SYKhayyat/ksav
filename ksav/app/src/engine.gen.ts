@@ -413,11 +413,23 @@ export const HEBREW = {
   prefixLetters: "בדהוכלמש",
 } as const;
 
+/**
+ * Every character Typst reads as markup inside a `[…]` body.
+ *
+ * From `engine/src/escape.rs`. This side had **five** of them — `\\ [ ] # $` —
+ * and `girsa-ksav`'s escaper had ten, and both write `#מראה_מקום(מקור: …)[…]`
+ * out of the same Girsa `display` string. The five missing were `*` (strong),
+ * `_` (emph), `<` and `>` (a label) and `@` (a ref), all of which appear in
+ * Sefaria titles. Same feature, two doors, two documents.
+ */
+export const MARKUP_ESCAPES = "#[]\\$*_<>@";
+
 /** A character class matching every Hebrew combining mark but not the four. */
 export function markPattern(flags = "gu"): RegExp {
-  const cls = [...HEBREW.wordBreaking].map((c) => `\\u{${c.codePointAt(0).toString(16)}}`);
+  const hex = (c: string) => (c.codePointAt(0) ?? 0).toString(16);
+  const cls = [...HEBREW.wordBreaking].map((c) => `\\u{${hex(c)}}`);
   const [lo, hi] = HEBREW.markRange;
-  const range = `\\u{${lo.codePointAt(0).toString(16)}}-\\u{${hi.codePointAt(0).toString(16)}}`;
+  const range = `\\u{${hex(lo)}}-\\u{${hex(hi)}}`;
   // A negated lookahead rather than a hand-split range: splitting the block
   // around four holes is how `sefarim.ts` came to have one of them.
   return new RegExp(`(?!${cls.join("|")})[${range}]`, flags);

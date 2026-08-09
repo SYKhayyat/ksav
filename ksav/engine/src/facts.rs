@@ -181,6 +181,13 @@ pub struct Facts {
     /// Read by `tools/build_lexicon.py`, which has no other way to reach
     /// `girsa-hebrew`.
     pub hebrew: HebrewFacts,
+    /// Every character Typst reads as markup inside a `[…]` body.
+    ///
+    /// The client had five of these and the shared crate had ten, and both
+    /// wrote `#מראה_מקום(מקור: …)[…]` from the same Girsa `display` string. The
+    /// five it was missing — `* _ < > @` — are strong, emph, a label and a ref,
+    /// and Sefaria titles contain them. See `src/escape.rs`.
+    pub markup_escapes: String,
 }
 
 /// Everything, gathered.
@@ -191,6 +198,7 @@ pub fn facts() -> Facts {
         notices: NOTICES,
         services: SERVICES.iter().map(ServiceFact::of).collect(),
         hebrew: hebrew_facts(),
+        markup_escapes: crate::escape::MARKUP.iter().collect(),
     }
 }
 

@@ -44,9 +44,36 @@ import { typstContent, typstString } from "./typst-escape";
  * failure `typst-escape.ts` was written for — and this call site was one of the
  * ones it never reached.
  */
-export function citationMarkup(place: Pick<Mekor, "display" | "ref">): string {
+export function citationMarkup(place: Pick<Mekor, "display" | "ref" | "range">): string {
   const shown = typstContent(place.display ?? "");
   return place.ref
-    ? `#מראה_מקום(מקור: ${typstString(place.ref)})[${shown}]`
+    ? `#מראה_מקום(מקור: ${typstString(place.ref)}${characters(place.range)})[${shown}]`
     : `#מראה_מקום[${shown}]`;
+}
+
+/**
+ * The named argument that carries which characters of the place were quoted, or
+ * nothing.
+ *
+ * `תווים: "4-19"` — half-open, counted in the text as the reader was shown it.
+ * `"4-"` is *from there to the end*, which is what a highlight that runs off the
+ * last word means and what an editor who later adds a word to the se'if should
+ * still get.
+ *
+ * **Nothing is the right answer for the whole place.** A document that quotes a
+ * whole se'if says so by saying nothing, which is what every document written
+ * before this argument existed already says, and what makes them all still
+ * correct. `girsa_ksav::characters` decides it the same way and this has to
+ * match it byte for byte, because the two doors write into one document and
+ * `#מראה_מקומות()` reads both.
+ *
+ * Until now this side could not write the argument at all — the field existed in
+ * `girsa-source`, the Rust door wrote it, and the editor's own insertion path
+ * had no way to express it.
+ */
+function characters(range: Mekor["range"]): string {
+  if (!range) return "";
+  const { from, to } = range;
+  if (from === 0 && to == null) return "";
+  return `, תווים: ${typstString(to == null ? `${from}-` : `${from}-${to}`)}`;
 }

@@ -268,3 +268,61 @@ better than a green suite over a dictionary that still has `אתהשמים` in i
   first, so the file can still *explain* the bug it no longer has);
 - `fold-cases.json` contains a case for each of the four, or none of the three
   name-folders is being asked about them.
+
+---
+
+## dup §1.2 — two markup escapers, ten characters against five
+
+**The finding.** Putting somebody else's text into Typst markup is two
+questions, and both had been answered several times over.
+
+| | escapes |
+|---|---|
+| `girsa-ksav`'s `escape` | `# [ ] \ $ * _ < > @` |
+| `app/src/typst-escape.ts`'s `typstContent` | `\ [ ] # $` |
+
+Ten against five. The five missing are all live Typst markup: `*` is strong, `_`
+is emph, `<…>` is a label, `@` is a ref. Both functions write
+`#מראה_מקום(מקור: …)[…]` out of **the same Girsa `display` string**, and Sefaria
+titles contain `*` and `_`. One source, two doors, two different documents.
+
+The string-literal escaper was better behaved and had **four** copies:
+`lib.rs`'s `typst_str`, `sefarim.rs`'s `typst_string` — byte-identical, same
+crate, forty lines from a `use super::*`, under a comment in the first saying
+*"nothing else is allowed to build a string literal by hand"* — plus
+`typst-escape.ts` and `styles.ts` in TypeScript. Every one of them written after
+the rule forbidding them.
+
+### Where the authority went, and why not the obvious place
+
+`girsa-ksav` is the markup writer both applications compile, which makes it the
+obvious home and the wrong one — for a reason about the browser rather than
+about taste. It is a **native-only** dependency in Ksav (a browser build has no
+loopback to Girsa and nothing to be handed a source by), and the escaper is
+needed in *every* build: `assemble_source` interpolates a font name and a header
+into the prelude on every compile, offline included.
+
+So `engine/src/escape.rs` owns both functions and the ten-character list.
+`facts.gen.json` carries the list to the client, `typst-escape.ts` builds its
+escaper from it, `styles.ts` re-exports rather than re-implements, and
+`girsa-ksav` exposes its own list as `pub const MARKUP` **so it can be checked**.
+`from_girsa.rs` holds the two together — and not only the constants: it feeds the
+whole character set through both functions, because two lists agreeing about a
+value neither of them reads is not agreement.
+
+### And the argument the editor could not write
+
+`girsa-source` 0.5.1 added `range` — *which characters of the place a quote
+actually was* — and the Rust door has written `תווים:` since. `citation.ts`
+could not express it at all, so the field was **structurally unreachable** from
+the editor's own insertion path.
+
+That is the same shape as the bug at the top of `citation.test.mjs`, in the same
+function, one release later: the panel wrote the printed string and dropped the
+ref, and the fix put one producer in place — and then the next field to arrive
+went missing at exactly the same seam, because *one producer* is not the same as
+*one producer that can say everything*.
+
+`Mekor.range` is optional and a whole-place citation still writes nothing at all,
+which is what every document written before the field existed already says, and
+what makes them all still correct.

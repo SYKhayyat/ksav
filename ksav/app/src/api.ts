@@ -439,6 +439,24 @@ export interface Mekor {
   /** How long the whole segment is, so a window into it does not read as all of
    *  it. */
   characters: number;
+  /**
+   * Which characters of the place this citation actually is, if the library
+   * said. Half-open, counted in the text as the reader was shown it; `to: null`
+   * is *from there to the end*, which is what a highlight running off the last
+   * word means.
+   *
+   * Optional because a Girsa older than `girsa-source` 0.5.1 does not send one,
+   * and because a whole-se'if citation says so by saying nothing — `{from: 0,
+   * to: null}` is the whole place and is written as no `תווים:` at all, which
+   * is what every document written before the field existed already says.
+   *
+   * It is here because it was **structurally unreachable**: the field shipped in
+   * the shared crate, the Rust door (`ksav_engine::source`) wrote it, and
+   * `citation.ts` — the editor's own insertion path, and the *only* producer of
+   * a citation on this side — had no way to express it. One feature, two doors,
+   * one of them missing an argument.
+   */
+  range?: { from: number; to: number | null };
 }
 
 /** What Girsa says about a phrase. `total` first, because a phrase in four

@@ -29,7 +29,7 @@ import { createBackend, sourcesOf } from "./api";
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
  *  one lock and an empty vector when there is nothing waiting. */
 const GIRSA_POLL_MS = 1000;
-import type { Mekor, Mekoros, Refreshed, TemplateDef } from "./api";
+import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
@@ -1394,29 +1394,75 @@ async function refreshSources(): Promise<void> {
   }
   const markup = docTextOf(runtime.view.state.doc);
   setStatus(t("askingGirsa"), "");
-  let rows: Refreshed[];
+  let got: Refreshing;
   try {
-    rows = await girsa.refresh(markup);
+    got = await girsa.refresh(markup);
   } catch (e) {
     const bad = troubleSaid(e, "reach_girsa");
     setStatus(bad.said, "err", bad.detail);
     return;
   }
+  const rows = got.quotes;
   if (!rows.length) {
     setStatus(t("refreshNone"), "");
     return;
   }
-  showRefreshed(rows);
+  showRefreshed(rows, got);
   const moved = rows.filter((r) => !r.trouble && !markup.includes(r.text)).length;
   setStatus(tf("refreshedCount", rows.length, moved), moved ? "warn" : "ok");
 }
 
+/**
+ * The marei mekomos the library re-segmented, and the one button that fixes
+ * them.
+ *
+ * Not a row per citation, deliberately: this is one fact about the document —
+ * *N of your names are stale* — and offering it N times would make a writer
+ * click N times to accept a change they either want or do not. The rows below
+ * are about **words** and are one decision each; this is about **names** and is
+ * one decision total.
+ *
+ * The rewritten document comes from the engine (`girsa_ksav::retargeted`), so
+ * the scanner that finds a citation is the one both applications compile and
+ * nothing here matches a ref by string.
+ */
+function movedRow(got: Refreshing): HTMLElement | null {
+  if (!got.moved.length || !got.retargeted) return null;
+  const line = el("div", { class: "refresh-row refresh-moved" }, [
+    el("b", {}, [tf("refreshMoved", got.moved.length)]),
+    el(
+      "div",
+      { class: "refresh-text" },
+      got.moved.map((m) => el("div", {}, [`${m.from} → ${m.to.join(", ")}`])),
+    ),
+  ]);
+  line.append(
+    el(
+      "button",
+      {
+        class: "sc-key",
+        onClick: () => {
+          const doc = runtime.view.state.doc;
+          runtime.view.dispatch({
+            changes: { from: 0, to: doc.length, insert: got.retargeted ?? "" },
+          });
+          setStatus(t("refreshRetargeted"), "ok");
+        },
+      },
+      [t("refreshRetarget")],
+    ),
+  );
+  return line;
+}
+
 /** The rows, each with what to do about it. */
-function showRefreshed(rows: Refreshed[]): void {
+function showRefreshed(rows: Refreshed[], got?: Refreshing): void {
   const list = document.getElementById("refresh-list");
   if (!list) return;
   const doc = docTextOf(runtime.view.state.doc);
+  const moved = got ? movedRow(got) : null;
   list.replaceChildren(
+    ...(moved ? [moved] : []),
     ...rows.map((row) => {
       // A row is "moved" when the words the library has now are not in the
       // document. Compared against the whole buffer rather than against a

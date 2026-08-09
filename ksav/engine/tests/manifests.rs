@@ -191,8 +191,16 @@ fn every_girsa_dependency_is_accounted_for() {
     let found = girsa_lines(&root);
     let names: BTreeSet<_> = found.iter().map(|(_, n, _)| n.clone()).collect();
 
-    // engine: hebrew, source, ksav, post. src-tauri: post. Five lines, four
-    // crates.
+    // engine: hebrew, source, ksav, post, ref. src-tauri: post. Six lines,
+    // five crates.
+    //
+    // `girsa-ref` is the newest, and it was named for the reason its `redirect`
+    // module was written: refs travel between the two applications and get
+    // stored in Ksav documents, so when upstream re-segments a text the pen is
+    // the one holding the old name. Like `girsa-hebrew` before it, it was
+    // already in the binary through `girsa-source` and reachable from nothing
+    // here — and unlike it, the type nobody could reach (`RedirectTable`) had
+    // no consumer in *either* application. See `post::Refreshing`.
     //
     // `girsa-hebrew` is the newest and the only one in the **unconditional**
     // block: the other three are the loopback to Girsa and are gated to native
@@ -203,8 +211,8 @@ fn every_girsa_dependency_is_accounted_for() {
     // the same binary and wrong.
     assert_eq!(
         found.len(),
-        5,
-        "expected five girsa dependency lines, found {}: {:?}.\n\
+        6,
+        "expected six girsa dependency lines, found {}: {:?}.\n\
          If a shared crate was added, removed, or rewritten as a \n\
          `[dependencies.girsa-…]` table (which the scan in this file cannot see), \n\
          update this count deliberately — silence here is what let the last one \n\
@@ -217,10 +225,16 @@ fn every_girsa_dependency_is_accounted_for() {
     );
     assert_eq!(
         names,
-        ["girsa-hebrew", "girsa-ksav", "girsa-post", "girsa-source"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<BTreeSet<_>>(),
+        [
+            "girsa-hebrew",
+            "girsa-ksav",
+            "girsa-post",
+            "girsa-ref",
+            "girsa-source",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<BTreeSet<_>>(),
     );
 }
 

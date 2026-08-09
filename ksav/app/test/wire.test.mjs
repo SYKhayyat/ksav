@@ -148,7 +148,7 @@ const SEAM = [
   {
     what: "refresh: the citations as the library has them now",
     file: "services.rs",
-    at: '"quotes": quotes',
+    at: '"quotes": got.quotes',
     ts: "RefreshResult",
     optional: [],
   },

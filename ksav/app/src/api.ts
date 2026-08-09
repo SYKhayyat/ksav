@@ -570,6 +570,39 @@ export interface RefreshResult {
   total: number;
   /** How many of them could not be refreshed. */
   trouble: number;
+  /**
+   * The citations whose place upstream re-segmented, and where each points now.
+   *
+   * A refresh already returned the *right words* for these — Girsa's `Open::at`
+   * walks the corpus's redirect rows — and said nothing about the document
+   * holding a name that only resolves because those rows exist on that machine,
+   * against that shelf. A document is a file somebody emails.
+   */
+  moved: Moved[];
+  /**
+   * The document with those citations rewritten, or null when there is nothing
+   * to offer.
+   *
+   * Offered, never applied: a mareh makom is the writer's sentence, and a
+   * correction in somebody else's library silently changing what a document
+   * *says* is the surprise spec.md §7.1 exists to avoid. A place that became
+   * several is reported in `moved` and deliberately not rewritten — there is no
+   * single new name to put, and inventing one would cite words nobody quoted.
+   */
+  retargeted: string | null;
+}
+
+/** What a refresh came back with: the rows, and what moved. */
+export interface Refreshing {
+  quotes: Refreshed[];
+  moved: Moved[];
+  retargeted: string | null;
+}
+
+/** One row of `girsa_ref::RedirectTable`: an old ref, and where it went. */
+export interface Moved {
+  from: string;
+  to: string[];
 }
 
 /** `saved-here`: whether Girsa took the errand. False is an answer — Girsa not
@@ -710,7 +743,7 @@ export interface Sources {
    * the other thirty-nine still refresh, and that decision is made once, in the
    * library, rather than forty times here.
    */
-  refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshed[]>;
+  refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshing>;
   /**
    * Tell Girsa this document was saved here (spec.md §10.4).
    *
@@ -923,7 +956,7 @@ abstract class ServiceClient {
     return out.text ?? text;
   }
 
-  async refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshed[]> {
+  async refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshing> {
     const out = await this.ask<Partial<RefreshResult> & Refusable>("refresh", {
       markup,
       // Absent, not null: Girsa reads absence as *the reader's own setting*,
@@ -933,7 +966,14 @@ abstract class ServiceClient {
       ...(nikud === undefined ? {} : { nikud }),
     });
     if (out.error) throw new Error(out.error);
-    return out.quotes ?? [];
+    // `moved` absent is *this Girsa does not report it*, which is not the same
+    // as *nothing moved* — both come out as an empty list here and neither
+    // rewrites anything, which is the safe reading of the two.
+    return {
+      quotes: out.quotes ?? [],
+      moved: out.moved ?? [],
+      retargeted: out.retargeted ?? null,
+    };
   }
 
   async savedHere(path: string, name?: string, forget?: boolean): Promise<boolean> {

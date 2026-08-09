@@ -416,16 +416,69 @@ pub fn refresh(
     markup: &str,
     style: Option<&str>,
     nikud: Option<bool>,
-) -> Result<Vec<Refreshed>, String> {
+) -> Result<Refreshing, String> {
     #[derive(serde::Deserialize)]
     struct Answer {
         quotes: Vec<Refreshed>,
+        /// Where the citations that moved point now. Absent from a Girsa older
+        /// than the field, which is *nobody told me* and not *nothing moved* —
+        /// so it defaults to an empty table and the document is left alone.
+        #[serde(default)]
+        moved: Vec<girsa_ref::Moved>,
     }
     let errand = refresh_errand(markup, style, nikud);
     let answer =
         girsa_post::send(App::Girsa, "/refresh", Some(&errand)).map_err(|e| e.to_string())?;
     let answer: Answer = serde_json::from_str(&answer).map_err(|e| e.to_string())?;
-    Ok(answer.quotes)
+    let moved = girsa_ref::RedirectTable::of_rows(&answer.moved);
+    // Rewritten here, once, and offered rather than applied. A correction in
+    // somebody else's library silently changing what a document *says* is the
+    // surprise spec.md §7.1 exists to avoid — and a mareh makom is the reader's
+    // sentence, not the library's.
+    let retargeted = (!moved.is_empty()).then(|| {
+        girsa_ksav::retargeted(markup, |old| {
+            let now = old.parse().ok().map(|r| moved.follow(&r))?;
+            // A place that became several has no single new name, and inventing
+            // one would put a citation on words the writer did not quote. The
+            // row is still reported; it is the rewriting that declines.
+            match now.as_slice() {
+                [one] if one.to_string() != old => Some(one.to_string()),
+                _ => None,
+            }
+        })
+    });
+    Ok(Refreshing {
+        quotes: answer.quotes,
+        moved,
+        retargeted,
+    })
+}
+
+/// What a refresh came back with.
+///
+/// # Two answers, because a refresh asks two things at once
+///
+/// *What do these citations say today* is the errand, and the rows are it.
+/// *Are these citations still the right names for those words* is the question
+/// nobody was asking: `Open::at` on the far side resolves an address through
+/// the corpus's redirect rows, so a mareh makom whose place upstream
+/// re-segmented comes back with the right words and no sign that its name is
+/// now one that only resolves because a redirect row exists — on **that**
+/// machine, against **that** shelf.
+///
+/// A document is a file somebody emails. `girsa-ref`'s redirect module has said
+/// so since day one, in the header that describes refs which *"get stored inside
+/// Ksav documents"*, and its `RedirectTable` had no consumer in either
+/// application until this.
+pub struct Refreshing {
+    /// One row per citation, in the order they appear in the document.
+    pub quotes: Vec<Refreshed>,
+    /// Old ref → where it is now, for the ones that moved. Empty is the
+    /// ordinary case.
+    pub moved: girsa_ref::RedirectTable,
+    /// The document with those citations rewritten, when there were any and
+    /// each has a single new name. `None` is *there is nothing to offer*.
+    pub retargeted: Option<String>,
 }
 
 /// Tell Girsa a document has been saved here, and where (spec.md §10.4).

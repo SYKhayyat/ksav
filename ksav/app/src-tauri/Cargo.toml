@@ -34,7 +34,7 @@ ksav-engine = { path = "../../engine" }
 # is why the rev below has to be the one `engine/Cargo.toml` names, and why
 # `engine/tests/manifests.rs` fails when it is not. See that file for why this
 # is a git dependency pinned by SHA rather than the sibling path it was.
-girsa-post = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "237d283e31ccd15671cd0a69e40acc489c1b5091" }
+girsa-post = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
 tauri-plugin-deep-link = "2.4.9"
 
 # The desktop binary compiles Typst in-process, so it wants the same treatment

@@ -365,10 +365,16 @@ mod girsa {
             );
         };
         match crate::post::refresh(&asked.markup, asked.style.as_deref(), asked.nikud) {
-            Ok(quotes) => serde_json::json!({
-                "quotes": quotes,
-                "total": quotes.len(),
-                "trouble": quotes.iter().filter(|q| q.trouble.is_some()).count(),
+            // `moved` and `retargeted` are the second answer — see
+            // `post::Refreshing`. Offered, never applied: the document is
+            // rewritten here so the editor has one thing to insert, and whether
+            // to insert it is the writer's.
+            Ok(got) => serde_json::json!({
+                "quotes": got.quotes,
+                "total": got.quotes.len(),
+                "trouble": got.quotes.iter().filter(|q| q.trouble.is_some()).count(),
+                "moved": got.moved.rows(),
+                "retargeted": got.retargeted,
             })
             .to_string(),
             Err(why) => super::error_json(&why),

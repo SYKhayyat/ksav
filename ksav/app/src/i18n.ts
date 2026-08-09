@@ -405,6 +405,12 @@ const HE: Dict = {
   refreshTook: "המקור עודכן",
   refreshSame: "ללא שינוי",
   refreshGone: "הציטוט אינו במסמך יותר",
+  // A mareh makom whose place the library re-segmented. The quote still
+  // reads correctly — Girsa follows its own redirect rows — and the name in
+  // the document is now one that only resolves against that machine's shelf.
+  refreshMoved: "%s מראי מקומות זזו — הספרייה חילקה את המקום מחדש",
+  refreshRetarget: "עדכן את מראי המקומות",
+  refreshRetargeted: "מראי המקומות עודכנו",
   sourcePasted: `הודבק מקור מ${GIRSA} — עם מראה המקום`,
   sourceArrived: `התקבל מקור מ${GIRSA} — %s`,
   selectAPhrase: "סמנו ביטוי כדי לחפש את מקורו",

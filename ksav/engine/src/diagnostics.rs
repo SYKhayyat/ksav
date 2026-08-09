@@ -1562,22 +1562,3 @@ fn named_pair(node: &LinkedNode) -> Option<(String, String)> {
     Some((name.get().leaf_text().to_string(), hebrew.to_string()))
 }
 
-/// The index of the `)` closing a group opened just before `start`.
-fn balanced_close(text: &str, start: usize) -> Option<usize> {
-    let mut depth = 1usize;
-    let mut in_string = false;
-    for (i, c) in text[start..].char_indices() {
-        match c {
-            '"' => in_string = !in_string,
-            '(' if !in_string => depth += 1,
-            ')' if !in_string => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(start + i);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}

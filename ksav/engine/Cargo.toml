@@ -40,7 +40,7 @@ base64 = "0.22"
 # referenced it, so the correct definition of a word boundary shipped inside
 # Ksav for months while `spell/hebrew.rs` used a wrong one it had written out
 # by hand.
-girsa-hebrew = { version = "=0.5.2", git = "https://github.com/SYKhayyat/sefer-crates", rev = "33986437a21cf76383e311e027daec90d1669609" }
+girsa-hebrew = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "779d5c4066fa45e8a48f1a57bbdac827ff6bdfaa" }
 
 include_dir = { version = "0.7", optional = true }
 # Typst's own editor-support crate, for `src/jump.rs`. It is what turns a click
@@ -100,9 +100,9 @@ clipboard-rs = { version = "0.3.5", default-features = false }
 # offline browser build compiled the packet schema and the citation writer for
 # an application that is not there — `src/source.rs`, their only consumer here,
 # is reached exclusively through `post.rs` and is gated with them.
-girsa-source = { version = "=0.5.2", git = "https://github.com/SYKhayyat/sefer-crates", rev = "33986437a21cf76383e311e027daec90d1669609" }
-girsa-ksav = { version = "=0.5.2", git = "https://github.com/SYKhayyat/sefer-crates", rev = "33986437a21cf76383e311e027daec90d1669609" }
-girsa-post = { version = "=0.5.2", git = "https://github.com/SYKhayyat/sefer-crates", rev = "33986437a21cf76383e311e027daec90d1669609" }
+girsa-source = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "779d5c4066fa45e8a48f1a57bbdac827ff6bdfaa" }
+girsa-ksav = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "779d5c4066fa45e8a48f1a57bbdac827ff6bdfaa" }
+girsa-post = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "779d5c4066fa45e8a48f1a57bbdac827ff6bdfaa" }
 
 [features]
 # Embed the built SPA (ksav/app/dist) into the binary. Build the app first

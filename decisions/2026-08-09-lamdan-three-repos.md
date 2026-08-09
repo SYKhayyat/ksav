@@ -904,3 +904,64 @@ and this one was guarding the seam.
 The absence is asserted now, from the generated table, together with its
 counter-case: the server build still *has* a Girsa half, or "a browser tab has
 none" would be satisfied by nobody having one.
+
+---
+
+## §8.9 — the claims that were false, and the ones that had gone stale
+
+A comment that is wrong is worse than no comment, because it is read as
+evidence. Each of these was load-bearing somewhere.
+
+### The load-bearing claim at the seam, which was false in three places
+
+`sefer-crates/README.md` leads with it, `Girsa/spec.md:806` repeats it, and
+`girsa-app/src/sending.rs` says it at the exact function where the two
+vocabularies meet:
+
+> one citation formatter compiled into both means the app that *produces*
+> citations and the app that *prints* them cannot disagree
+
+**Ksav has never compiled `girsa-cite`.** Not at any depth; its manifests name
+`girsa-source`, `girsa-ksav`, `girsa-post` and now `girsa-hebrew`.
+
+And the real mechanism is **stronger** than the claimed one. Ksav has no
+citation formatter at all: it prints `packet.display`, a string Girsa already
+formatted, and asks the loopback for a re-print in another style. A formatter
+Ksav cannot reach cannot disagree with Girsa's. What the shared repository
+actually prevents is a second implementation *coming into existence*, which is
+the thing worth preventing — and `girsa-ksav` is the crate that earns the
+arrangement in the claimed way, because `girsa-desk` asserts **equality**
+against it rather than merely compiling it.
+
+All three rewritten. The crate stays: moving it now costs a version bump for no
+gain, and it is the shared repository's business to hold the definition whether
+or not both sides currently link it.
+
+### The flagship §3 test's helper described a path it does not take
+
+`a_reimport_keeps_every_name.rs`'s `as_resolved` said it resolves *"live first,
+then ancestry, then the redirect table — what a link, a correction or a Ksav
+citation goes through"*. It resolves through explicit redirect rows only; the
+ancestry walk the window uses is not in that path at all.
+
+The claim mattered because of where it sat: a *certifying* test appearing to
+exercise the reader's own resolution order. What it does certify is real and
+worth having — that the rows the importer writes are enough to find every
+previous name — and it says that now.
+
+### The stale ones
+
+- **`girsa-corpus/src/lib.rs` named SQLite**, in the header of the crate whose
+  subject it is. There is no SQLite in this project and there never was: it was
+  in an early plan, the plan changed, and the sentence outlived it.
+- **`spec.md` §8.6 said "Later" and "post-v1"** about the transmission chain,
+  which is built: `girsa-link/src/chain.rs` — `trace`, `between`, `forks`, with
+  `girsa_corpus::era` answering which end of a hop is earlier, and
+  `how_it_became_halacha.rs` exercising it. What it lacks is a way in from the
+  window, which is §2's shape and is now tracked as that rather than as a plan.
+- **"the 104-entry registry"**, in three files across two languages. It is 115,
+  and has been for a while.
+
+The presence claim in `spec.md` §10.6 was amended with §3d′, and the `documents`
+and `spans` claims with §8.7 and §8.8d — each beside the code that made them
+false, rather than in a list here.

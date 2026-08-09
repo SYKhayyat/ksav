@@ -89,7 +89,7 @@ export function ownCommands(own: Preamble = preambleInForce()): Available[] {
 /**
  * Everything a writer can type, registry first.
  *
- * Registry first because those are the 104 that are documented and always there;
+ * Registry first because those are the 115 that are documented and always there;
  * the writer's own come after, and say where they came from.
  */
 export function available(

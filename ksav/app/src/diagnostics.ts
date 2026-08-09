@@ -6,7 +6,7 @@
 // backend, the Tauri backend and `ksav serve` each depended on this one front end
 // to make their output legible, and anything else talking to `/compile` got
 // Typst's raw English. It lives in `engine/src/diagnostics.rs` now, beside the
-// span it needs, the prelude it has to subtract and the 104-entry registry that
+// span it needs, the prelude it has to subtract and the 115-entry registry that
 // answers *did you mean*. Two mechanisms for one job is how the wrong one ends up
 // on the flagship question, so there is one, and it is the one that also has the
 // line number.

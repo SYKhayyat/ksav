@@ -7,7 +7,7 @@
 //! `SourceDiagnostic` — span and all — appended the hints to the message and
 //! threw the span away. A writer who mistyped a command got
 //! `unknown variable: הדגשא` floating over a blank preview: no line, no column,
-//! no *did you mean הדגשה?* even though the 104-entry registry that would answer
+//! no *did you mean הדגשה?* even though the 115-entry registry that would answer
 //! that question was sitting in memory two modules over.
 //!
 //! Four things were wrong at once and half of them fixed is worse than none, so

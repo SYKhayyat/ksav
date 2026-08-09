@@ -38,7 +38,27 @@ const HERE = dirOf(import.meta.url);
 export const APP = path.resolve(HERE, "..");
 export const ROOT = path.resolve(APP, "..", "..");
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), "utf8");
+/**
+ * A file, read once per suite run.
+ *
+ * Nothing under this root changes while the suite runs — it is a checkout, not
+ * a workspace being edited — and `documentation.test.mjs` reads the same nine
+ * prose files four to six times each: once for the forward claim sweep, once
+ * for the backward one, once for the links, once for the partition. **580 KB of
+ * prose, read five times.**
+ *
+ * The suite is a three-second inner loop and this file was about a third of it.
+ * A cache is the whole fix and there is nothing to invalidate: a `Map` that
+ * outlives the run would be wrong, and this one does not — the process ends.
+ */
+const fileCache = new Map();
+const read = (rel) => {
+  const held = fileCache.get(rel);
+  if (held !== undefined) return held;
+  const body = readFileSync(path.join(ROOT, rel), "utf8");
+  fileCache.set(rel, body);
+  return body;
+};
 const count = (rel, re) => (read(rel).match(re) ?? []).length;
 
 /** Every `.rs` under a directory, recursively. */
@@ -318,12 +338,21 @@ export const NOUNS = [
   // sentence the moment it does.
 ];
 
-/** Every `.md` git tracks, which is the set a reader can actually reach. */
+/**
+ * Every `.md` git tracks, which is the set a reader can actually reach.
+ *
+ * One spawn per run. `coveredBy` and `livingPages` both default to calling this,
+ * and `documentation.test.mjs` calls all three — so a suite that spawns `git`
+ * once per *question* spawned it three times to ask about one unchanging list.
+ */
+let trackedCache = null;
 export function trackedMarkdown() {
-  return execFileSync("git", ["ls-files", "*.md"], { cwd: ROOT, encoding: "utf8" })
+  if (trackedCache) return trackedCache;
+  trackedCache = execFileSync("git", ["ls-files", "*.md"], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
     .filter(Boolean)
     .map((p) => p.replace(/\\/g, "/"));
+  return trackedCache;
 }
 
 /** Is this page a record rather than documentation? */

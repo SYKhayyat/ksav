@@ -15,6 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { commands } from "./commands.mjs";
 import { loadMany } from "./load.mjs";
+import { pathToFileURL } from "node:url";
 
 const mods = await loadMany(["bindings", "i18n", "structure"]);
 const { DEFAULT_KEYS, KEY_ALIASES, readable } = mods.bindings;
@@ -81,6 +82,13 @@ function label(id, lang) {
   return `\`${id}\``;
 }
 
+/**
+ * The shortcut card, as text.
+ *
+ * A function rather than a script body, so the fence that checks the file on
+ * disk can call it instead of spawning a `node`.
+ */
+export async function card() {
 const lines = [];
 lines.push("# Ksav — keyboard shortcuts · כְּתָב — מקשים");
 lines.push("");
@@ -126,4 +134,17 @@ lines.push("**Ctrl+Shift+C in Girsa**, not here: that is what puts a mekor into 
 lines.push("are writing, and it is the one shortcut that spans both applications. See");
 lines.push("[Girsa's own start-here](" + GIRSA_START_HERE + ").");
 
-console.log(lines.join("\n"));
+  return lines.join("\n");
+}
+
+// Printed when this file is *run*, which is how the card is regenerated:
+//
+//   node tools/card.mjs > ../../docs/shortcuts.md
+//
+// `documentation.test.mjs` used to reach it that way too — `execFileSync` of a
+// whole `node` — and paid **273 ms of a 2,000 ms suite**, 14%, to reprint a
+// markdown file. In the suite whose runner header celebrates removing six
+// spawns for costing 55% of the loop. It imports `card()` now.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  console.log(await card());
+}

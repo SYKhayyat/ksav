@@ -416,11 +416,37 @@
 // prints (this page, or this section), `scope` is what it counts against (the
 // whole document for the footer apparatuses, the section for the in-flow one).
 // Returns (number, body) pairs in document order.
+// Θ(n) and not Θ(n²), by the same argument `_ksav_real_of` makes at :173-190:
+// **both lists are already in document order**, and `shown` is a subsequence of
+// `mine` — so a number can be *counted* rather than searched for.
+//
+// This was `mine.position(x => x.location() == e.location())` per shown entry: a
+// linear scan of every note in the numbering scope, for every note on the page,
+// on every layout pass. The page-band apparatus re-derives its set inside the
+// page *footer*, which page breaking runs several times per page, so a 300-page
+// sefer paid that square repeatedly. It is the same defect the comment two
+// hundred lines up says it fixed, in the function immediately after it.
 #let _ap_entries(shown, scope, g) = {
   let mine = scope.filter(e => e.value.group == g)
-  shown
-    .filter(e => e.value.group == g)
-    .map(e => (mine.position(x => x.location() == e.location()) + 1, e.value.body))
+  let want = shown.filter(e => e.value.group == g)
+  let out = ()
+  let i = 0
+  for e in want {
+    // Walk forward to this entry. Never backwards: both are in document order,
+    // so the cursor only ever advances and the whole loop is one pass of `mine`.
+    while i < mine.len() and mine.at(i).location() != e.location() { i += 1 }
+    if i < mine.len() {
+      out.push((i + 1, e.value.body))
+      i += 1
+    } else {
+      // Not found — which cannot happen for a `shown` drawn from `scope`, and if
+      // it ever did, a note printed with no number is better than one printed
+      // with somebody else's. Restart the cursor so the rest still number.
+      out.push((out.len() + 1, e.value.body))
+      i = 0
+    }
+  }
+  out
 }
 
 // One group's block: the numbered entries, laid into columns and, if this

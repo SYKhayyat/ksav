@@ -1021,3 +1021,103 @@ And it returns the **pairs**, not the text of each table. `english_commands.rs`
 had been handed the raw regions and split them on commas and colons a second
 time: the same fragile read, repeated in the test that was meant to be holding
 it up.
+
+---
+
+## §6 — fourteen measurements, thirteen of them already in the file
+
+§6 is the one lens where the report starts by conceding the point: *"Somebody has
+been measuring, and it shows."* Then it lists fourteen sites, and every one of
+them carries the note that damns it — **the fix is in the same file, usually
+within twenty lines, with its own measurement in the comment.** `job.rs:98`
+rewalks a prefix that `did()` fifteen lines below stopped rewalking, and says so
+in a comment that quotes 164 million comparisons. `snippet.rs` walks the segment
+twice fifty lines under a module header celebrating the removal of two walks.
+`repair.rs:470` is missing the guard `repair.rs:269` has, in the same file, for
+the same reason, on a path asked twenty-five times as often.
+
+That is §1's shape with a stopwatch attached, and it means none of the thirteen
+needed a design. They needed the sweep to run.
+
+### The thirteen
+
+| What it was | Where | What it is now |
+|---|---|---|
+| whole-prefix rewalk per batch | `girsa-lane/src/job.rs` | a `from` floor that only advances |
+| `format!` of two segment ids per edge, unguarded | `girsa-link/src/repair.rs` | the empty-map guard from `:269` |
+| two walks to the first mark | `girsa-search/src/snippet.rs` | one walk with a `lead`-deep ring of byte offsets |
+| `beside(a)` inside an O(n²) pair loop | `girsa-link/src/chain.rs` | hoisted: once per `a`, not once per pair |
+| the whole personal layer scanned inside the BFS | `girsa-link/src/chain.rs` | `Graph::drawn`, assembled once at `new` |
+| every segment's text cloned to be mined | `girsa-corpus/src/anchors.rs` | `Mined::text` is a `Cow`, borrowed on the fast path |
+| the catalogue parsed per candidate slug, inside `for n in 2..u32::MAX` | `girsa-corpus/src/import/mine.rs` | one `HashSet` of the taken slugs |
+| linear `Queue::get` inside a loop over 28,124 entries | `girsa-fix/src/suspect.rs` | a `HashSet` of the ids already queued |
+| `tokenize` allocating a `String` per word, per hit | `girsa-search/src/index.rs` | `girsa_hebrew::for_each_token`, one reused buffer |
+| a 3.7 MB lexicon re-normalized per unresolved lookup | `girsa-search/src/citation.rs` | the normalized spelling is a third field, computed at `open` |
+| Θ(N²) marker numbering | `ksav/engine/typst/ksav.typ` | the linear form that was already at `:415` |
+| `savedMacros()` re-validating every macro per keystroke | `ksav/app/src/main.ts` | validated once, cached, invalidated on write |
+| `git ls-files` spawns and 580 KB of prose re-read per call | `ksav/app/test/docfacts.mjs` | the file list and the prose are read once |
+| a `node` subprocess inside the suite to reprint a markdown file | `ksav/app/test/documentation.test.mjs` | `card.mjs` exports `card()`; the CLI is a `pathToFileURL` guard |
+
+The fourteenth — `girsa-lane`'s retrieval having no index — is the one the report
+calls *"a genuine hole rather than a missed sweep"*, and it is the next section.
+
+### The one that turned into a shared-crate change
+
+*"`tokenize` allocating a `String` per word, per hit"* is aimed at `Hit::marks`,
+which tokenizes a hit's text to find **where** the matched words sit and then
+throws every string away. The report's note points at the fix — *"the shared
+crate has `normalize_into` for exactly this"* — and `normalize_into` is the wrong
+end of it: it reuses a buffer for the whole normalized string, and `marks` needs
+the words separately with their spans.
+
+So `girsa-hebrew` gained the missing half:
+
+```rust
+pub fn for_each_token(input: &str, mut f: impl FnMut(&str, usize, usize))
+```
+
+One buffer, cleared per word, handed out by reference. `tokenize` is now that
+function plus a `to_string` — which is the part worth having, because the two
+walkers had been **two copies of the same if-else ladder**, guarded by a test
+named `tokenizing_agrees_with_normalizing`. That test was the right instinct and
+the wrong shape: a test that two copies still say the same thing is a worse tool
+than one copy. Both now ask `folded(c)`, and the test remains, checking the thing
+that is still genuinely two shapes — a joined string against a list of spans.
+
+Four callers in `girsa-search` were filtering a `Vec<Token>` down to
+`(start, end)` pairs; they are one `spans_where(text, keep)` now, with the
+predicate as the only difference between them — which is all the difference there
+ever was. `notarikon_in` keeps a four-field `Word` instead, because it reads a
+word's first and last character and its span and nothing else, and holding a
+`String` to carry two `char`s across a 1,275,307-character segment is the same
+mistake in a costume.
+
+`Vocabulary::add` was swept while it was open: `entry(word.to_string())`
+allocates on **every** call, including the millionth sighting of `את`, and a
+vocabulary read off the corpus is almost entirely repeat sightings. A `get_mut`
+first makes it an allocation per *distinct* word.
+
+### The fence
+
+A prohibition, in the sweep §8.5 built:
+
+> **girsa-search marks spans by walking, not by collecting words** — no
+> `girsa_hebrew::tokenize(` under `crates/girsa-search/src/`, exempting
+> `tokenizer.rs`.
+
+The exemption is a claim with a test attached, as always here: tantivy's `Token`
+owns its `String`, so that one caller genuinely wants the words — they are the
+product, they go into the index. Every other caller in the crate wanted integers.
+
+And in `girsa-hebrew`, two tests: one that walking says what collecting says, and
+one that the buffer is *one* buffer — the words' pointer stops moving once it has
+grown past the longest of them. That second one is the whole change, made
+observable, so the next person to optimize the walker finds out rather than
+guesses.
+
+### What was not done, and why
+
+Three `tokenize` callers were left alone: `tokenizer.rs` (above),
+`girsa-app/src/spans.rs` and `fixing.rs`. All three keep the words. Rewriting
+them to walk would trade a clear `Vec` for a closure and buy nothing — the
+report's finding is about volume, and those run once per drawn line.

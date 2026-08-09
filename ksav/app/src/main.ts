@@ -4151,9 +4151,29 @@ function buildHelpPanel(): HTMLElement {
 
 let recording: macros.Step[] | null = null;
 
-/** The saved macros, read defensively — a bad preference must not stop the app. */
+/**
+ * The saved macros, read defensively — a bad preference must not stop the app.
+ *
+ * **Cached on the raw value.** `parseAll` re-validates every step of every macro
+ * and allocates a fresh object per step, and this is called from `actions()`,
+ * which the palette calls **per keystroke** while somebody is typing a command
+ * name. A writer with thirty macros of a dozen steps each was paying tens of
+ * thousands of allocations per keypress to produce a list that had not changed
+ * since the session started.
+ *
+ * Keyed on `settings.macros` by identity rather than by a dirty flag: the only
+ * thing that replaces it is `settings.macros = …`, which every writer here does
+ * (`macroSave`, `macroDelete`), so a stale cache is not reachable without
+ * mutating the array in place — which nothing does and which the assignment
+ * makes awkward.
+ */
+let macroCache: { raw: unknown; parsed: macros.Macro[] } | null = null;
 function savedMacros(): macros.Macro[] {
-  return macros.parseAll(settings.macros);
+  const held = macroCache;
+  if (held && held.raw === settings.macros) return held.parsed;
+  const parsed = macros.parseAll(settings.macros);
+  macroCache = { raw: settings.macros, parsed };
+  return parsed;
 }
 
 function macroName(id: string): string {

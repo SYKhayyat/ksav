@@ -23,6 +23,7 @@
 import { ok, check } from "./harness.mjs";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { card } from "../tools/card.mjs";
 import path from "node:path";
 import {
   facts,
@@ -56,11 +57,12 @@ export async function run() {
   // **Endnote**. A generator nothing re-runs is a hand-written file with extra
   // steps.
   {
-    const generated = execFileSync(process.execPath, [path.join(APP, "tools", "card.mjs")], {
-      cwd: APP,
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-    });
+    // Imported, not spawned. This was `execFileSync(process.execPath, …)` — a
+    // whole `node` — and cost **273 ms of a 2,000 ms suite**, 14%, to reprint a
+    // markdown file, in the suite whose runner header celebrates removing six
+    // spawns for costing 55% of the loop. The generator is a function now and
+    // still prints when it is run, which is how the card is regenerated.
+    const generated = await card();
     const onDisk = readFileSync(path.join(ROOT, "docs/shortcuts.md"), "utf8");
     const norm = (s) => s.replace(/\r\n/g, "\n").trimEnd();
     check(

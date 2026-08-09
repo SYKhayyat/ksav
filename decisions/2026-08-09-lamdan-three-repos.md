@@ -1758,3 +1758,123 @@ Every `girsa-…` command a shipped string names must be a target in this
 workspace that some document explains how to run. A checker cannot know which
 cache a Hebrew sentence is about, and it can refuse to let the window name
 something a reader cannot act on.
+
+## §8.10 — the finished duplicates, and the one that is still a question
+
+§8's last row is a list of seven things to delete, with a caveat attached that
+turns out to govern the whole item:
+
+> An afternoon, minus the `RedirectTable` conversation — it is `pub` and
+> cross-repo, and this project's `delete` verdicts have not held before. It is a
+> *finished duplicate* of a shipped mechanism, which is the one case where
+> deletion is not abandonment.
+
+Seven items. Two were already answered by earlier work in this wave, two are
+unifications rather than deletions, two are deletions of a name with no
+behaviour behind it, and one is not mine to decide.
+
+### `parse_anchor`, and `Writer` — unified, not deleted
+
+`why-the-panel-waits.rs` carried its own `parse_anchor` under a doc comment
+reading *"mirrors `store::parse_anchor`, which is crate-private"*. That sentence
+is an accurate description of a copy and is not a reason for one; the reason it
+gives — the original is private — is a thing that can be changed in one word.
+The detail it copied is the one that matters: a slug can carry a hyphen, so the
+split is on `-girsa:` rather than on the first `-`, which a second copy gets
+right the day it is written and wrong the day the format moves.
+
+`store::Writer` and `inbound::Writer` are genuinely two things. One files an
+edge under the work it comes **from** and the other under the work it lands
+**on**, and only the second writes a marker when it is done. What they were not
+two of is everything else: the buffer keyed by work, the count, the set of
+shards this run has already opened, `buffered_bytes`, and a flush whose entire
+subtlety is one flag — *truncate the first time this run touches a shard, append
+every time after*. That flag is why re-running the import is the same as running
+it once, which is what "a command somebody else can run" has to mean, and it was
+written twice with a test each.
+
+`inbound.rs` said so in prose: *"the same discipline as [`crate::store::Writer`]
+and for the same reason."* The duplication report files that under **the copies
+that admit themselves in a comment**, and the admission is the tell — somebody
+read both, understood they were one thing, wrote it down, and left two. It is
+`shards.rs` now, and the two tests that were also written twice are one pair.
+
+### Two names for one call, and one uncalled function
+
+`sefarim.rs`'s `typst_string` was, by the time this wave reached it, a function
+whose whole body was `crate::escape::string_literal(s)` — the copy the report
+found had already gone in dup §1.2. What was left was a second name, and a
+`typst_key` calling it. The name went; `typst_key` stayed, because *dictionary
+key* is a different claim from *string literal* — the same bytes and not the
+same sentence.
+
+`harness.mjs`'s `summary()` is the more interesting one, because the verdict was
+`delete` and the right answer is the opposite. It was exported, uncalled, and
+printed the same tally `run.mjs` wrote out by hand with a different separator.
+Deleting an uncalled function is the right instinct in general. Here it would
+leave the tree with the same number of ways to be wrong: there is exactly one
+line in this suite that says *how many assertions ran*, and two files were
+writing it. So `run.mjs` calls it, and `also` is what a run adds beyond the two
+numbers — a module that threw is not a failed assertion and must not be counted
+as one.
+
+That is the standing rule applied rather than quoted: **a dead feature is
+unfinished, not unwanted.** Two of this list's seven entries were dead because
+nobody had written the call, and the call is two lines.
+
+### Two that this wave had already closed
+
+The card subprocess is gone — `documentation.test.mjs` imports `card()` instead
+of `execFileSync`-ing a whole `node`, and the note above the entry point records
+what it cost: 273 ms of a 2,000 ms suite, in the suite whose runner header
+celebrates removing six spawns for taking 55% of the loop.
+
+`readme.test.mjs` is the `delete` verdict that was argued down, in §4 above, and
+the argument is not repeated here.
+
+### And one that was not on the list: a clippy failure since the store port
+
+`repair.rs` had `impl girsa_personal::Store for Repairs` sitting **below** its
+`#[cfg(test)] mod tests`. `clippy -D warnings` calls that *items after a test
+module*, and CI has been failing on it since §8.7 landed the port. Found by
+running clippy over the crate this item touched, which is the argument for
+running it over the crate you touch.
+
+### `girsa_ref::RedirectTable` — not deleted, and here is the question
+
+It is 115 lines in the shared repository, `pub`, and it has **no consumer
+anywhere**: not in Girsa, not in Ksav, not in `sefer-crates` itself. Its header
+is the reason it exists:
+
+> Refs travel between the two applications and get stored inside Ksav documents.
+> When upstream re-segments a text — and it does — every ref written against the
+> old shape has to keep resolving… So it exists now, before there is anything to
+> redirect, because retrofitting it means retrofitting it into documents that
+> have already been printed.
+
+That argument is sound and it is not what happened. The promise it was written
+to keep is kept, by a different mechanism, in the other repository:
+`redirects.jsonl` plus `Standing`, which walk **`SegmentId`** — the durable name
+— rather than `Ref`, the human address. `segment.rs` says the two are
+deliberately different things, and the two mechanisms are therefore not
+interchangeable: this table redirects addresses, and nothing in either
+application asks it to.
+
+Which is exactly why the report's caveat is right, and why this one is left
+alone. The `delete` verdict rests on it being a *finished duplicate*, and it is
+not a duplicate — it is an **unbuilt second half**. The standing rule in this
+project is that a dead feature is unfinished rather than unwanted, and removing
+one is a decision to be asked for rather than taken.
+
+So the question, stated so it can be answered in a sentence:
+
+- **Delete it.** The refresh service already re-resolves server-side and hands
+  Ksav the current citations, so a ref-level table on the wire has no errand.
+  The `MAX_REDIRECT_DEPTH` constant stays either way — it is the one number four
+  walkers share and §5 put it here.
+- **Build its consumer.** A Ksav document holds printed refs as well as ids, and
+  a reader opening a document offline — with no Girsa to ask — has nothing that
+  can tell them a ref moved. That is the case this table was written for and it
+  is still not covered.
+
+Nothing else in this wave is blocked on the answer.

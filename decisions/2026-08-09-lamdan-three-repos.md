@@ -706,3 +706,58 @@ paper is the size it names, a custom size is the size it asks for, a custom size
 wins when both are given, half a size changes nothing, an impossible size is
 clamped rather than blanking the document, and a per-edge margin actually moves
 the text block.
+
+---
+
+## §8.7 — one `Store`, six stores, and the sixth that forgot to compact
+
+**The finding.** Six stores across three crates in Girsa share an identical
+shape — `log`, an index, `open() -> (Self, Vec<String>)`, `nowhere()`,
+`compact()`, `count()`, `all()`, an add, a `remove` — five with an identical
+`From<LogError>` and five with an identical `Log::bloated` call.
+
+**The sixth forgot to compact.** `girsa-desk/src/documents.rs`, written last, in
+the crate added most recently. `remember` is called every time Ksav saves a
+document and each call appends a line superseding the last one for that path,
+and nothing ever rewrote the file — so `personal/documents.jsonl` grew **without
+bound**, in the store whose entire job is to be re-saved.
+
+That is not a defect anybody finds by reading it. You find it by noticing that
+five files say the same thing and one says nine-tenths of it.
+
+### Why a trait and not a `Store<T>` container
+
+`Store<T>` as a container was the obvious shape and is the wrong one: the six
+indexes are genuinely different. `BTreeMap<SegmentId, Vec<Mark>>` keeps several
+marks per place and sorts them by where they start; `BTreeMap<String,
+Collection>` keeps one folder per name; `girsa-fix`'s suspect queue is a plain
+`Vec` in log order, because the order candidates arrived *is* the order they are
+looked at. Flattening those into one generic map would move the difference into
+six `hold` closures without removing it.
+
+What is the same is the **procedure**: open, replay, hold, count, compact when
+bloated, report rather than fail. So `girsa_personal::Store` is a trait saying
+what a store must be able to answer, and `girsa_personal::open` is that
+procedure, once.
+
+The `From<LogError>` impls cannot be generic — `From` for a type in another
+crate is the orphan rule — so `io_from_log_error!` is a macro, which is the
+honest form of *"this is the same eleven lines again"* when the language will
+not let it be a function.
+
+`documents.rs`'s error type is `LogError` itself rather than a wrapper, so it
+takes no macro: the store is thin enough that the log's own failure is the only
+one it can have.
+
+### The fence
+
+`the_registry_compacts_instead_of_growing_forever` saves two hundred times,
+reopening between each, and asserts the file is bounded. Written as *save,
+reopen, save* rather than as a line count on one handle, because compaction
+happens **on open** — which is also the only moment it can, since that is when
+the whole set is in memory.
+
+The first run of it failed for the right reason and against the wrong number:
+sixty saves is below `Log::bloated`'s floor of 64, which exists so a layer with
+four rows in it is not rewritten because one was saved twice. The floor is the
+log's business; what the test asserts is that the growth is bounded at all.

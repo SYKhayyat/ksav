@@ -1121,3 +1121,124 @@ Three `tokenize` callers were left alone: `tokenizer.rs` (above),
 `girsa-app/src/spans.rs` and `fixing.rs`. All three keep the words. Rewriting
 them to walk would trade a clear `Vec` for a closure and buy nothing — the
 report's finding is about volume, and those run once per drawn line.
+
+---
+
+## §6 — the fourteenth: the lane had no index
+
+The one §6 finding the report refuses to call a missed sweep:
+
+> One genuine hole rather than a missed sweep: `girsa-lane`'s retrieval has no
+> index. `Vectors::open` reads every record's id to build an offset map and
+> `nearest` reads the whole file again — two full linear passes per sefer per
+> query. At the offered scale (`Chosen::everything()`) that is ~15 GB read twice
+> per query, and unlike the 13-day embed cost it is stated nowhere.
+
+Three claims, and they need three different answers.
+
+### The repeated `open` is a cache, and the file's length is the whole validation
+
+`Lane::ask` called `Vectors::open` **per sefer per query**, and an open walks
+every record in the file to build the offset map. Four thousand seforim, once a
+keystroke.
+
+`Lane` holds its stores now. What makes the cache safe rather than a second
+source of truth is that `vectors.bin` is **append-only**: a store that grew is a
+store whose length changed, so one `metadata` call per sefer is the entire
+correctness argument. A job that embeds four hundred more segments into one sefer
+invalidates that sefer and nothing else, without telling anybody it did.
+
+The key carries the model's fingerprint, which is not paranoia — `Lane` is
+`Clone`, clones share the map, and `set` can change one clone's model out from
+under another. Handing back a store built in another model's space is the exact
+mistake the file format's header exists to prevent, and the cache does not get to
+reintroduce it one layer up.
+
+### The repeated read of every vector needs something smaller to consult
+
+There was nothing to consult instead of the file, so something had to be small
+enough. `girsa-lane/src/signature.rs`: **signed random projection**, 256
+hyperplanes, one bit each.
+
+Both sides are unit length, so nearness is a cosine. Two vectors an angle θ apart
+fall on opposite sides of a random hyperplane with probability θ/π — so the
+fraction of 256 bits that disagree *estimates the angle*, and a `u64` XOR with
+four `count_ones` replaces 768 multiplies. Thirty-two bytes where the vector is
+three thousand and seventy-two.
+
+The honest comparison is not against the fifteen gigabytes, which were never in
+memory. It is against what `Vectors` **already** holds: a `HashMap<SegmentId,
+u64>` and a `Vec<SegmentId>` over every embedded segment, where a `SegmentId` is
+a good deal more than 32 bytes of heap. The index is smaller than the id map it
+sits beside.
+
+The planes are not stored. They are grown from a fixed seed by splitmix64, so
+every machine and every rebuild produces the same 256 for a given width — storing
+them would be one more file that can disagree with the signatures built from it,
+for 786 KB and no benefit.
+
+### The sidecar, and why a second file is allowed here
+
+`vectors.rs`'s own header argues against a second file, and it is right: *"the
+work product is the progress record… there is no second file that can survive a
+crash while disagreeing with what was actually embedded."*
+
+That argument is about a **progress record**. A signature is a pure function of a
+vector, so `signatures.bin` is a *cache* of an answer `vectors.bin` already
+contains — and it carries the one number that makes disagreement impossible to
+miss: `covers`, the byte length of `vectors.bin` it was built from.
+
+| `covers` vs the file | What happens |
+|---|---|
+| equal | read it |
+| less | sign **only the tail** and append — the ordinary case after a job runs |
+| more, or another model, width or version in the header | build it again |
+
+There is no state in which a stale sidecar is used, and none in which one costs
+an answer: the worst outcome is `nearest` reading the whole file, which is what
+it did before this existed. The torn tail is excluded from `covers`, so a crashed
+append does not get signed and does not get counted.
+
+### What it is allowed to get wrong, and who is told
+
+A shortlist can miss a vector the exact score would have ranked. Three things
+answer that and none of them is *hope*:
+
+1. A store under 4,096 vectors is **read whole** — below that the shortlist would
+   be most of the file and the seeks cost more than the read.
+2. The shortlist is oversampled 32× and then every candidate on it is scored
+   **exactly**, by reading its record at the offset the id map already knew. The
+   scores in the answer are true cosines, never estimates.
+3. It is **reported.** `Ranked::whole`, `Asked::whole`, and one wording —
+   `girsa_lane::SHORTLISTED` — drawn by the window, the CLI and the MCP surface.
+
+That third one is the whole temperament of the crate. This is the module that
+refuses to rank two models' vectors against each other because *"there is no way
+for a reader to notice that from the results."* An answer from a shortlist and an
+answer from the whole store are equally indistinguishable. So the store says
+which it gave.
+
+`Asked` also carries `read` — records pulled off disk — which is the cost the
+report says is stated nowhere, now available to every caller that wants to state
+it.
+
+### The fences
+
+Eleven, in `signature.rs` and `vectors.rs`. The two that are the change itself:
+
+- **the planes are the same planes every time.** The sidecar rests entirely on
+  it: signatures written by one run are compared against a query signed by the
+  next.
+- **hamming distance tracks the angle** — checked at 15°, 45° and 90° against
+  θ/π × 256, with three binomial standard errors of tolerance. A test that
+  demanded the exact figure would be testing the seed.
+
+And the ones that hold the shape: a big store answers from the index *and says
+so*; the index finds what reading the whole file finds (checked against an
+exhaustive dot product over 5,096 vectors); the sidecar grows by exactly four
+entries when four vectors are appended; a sidecar from another model is thrown
+away rather than believed; a superseded record is not a candidate.
+
+spec.md §9.9 gained the paragraph. It is the section whose own rule is *a partial
+lane that looks complete is the §9 defect this whole section exists to avoid* —
+and a partial ranking that looks exhaustive is the same defect one layer down.

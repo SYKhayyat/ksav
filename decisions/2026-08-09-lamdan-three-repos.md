@@ -1343,3 +1343,96 @@ runs"*, which was itself never run. It reads both spellings now, skips
 inheritance in either, and asserts separately that the root's
 `[workspace.dependencies]` — the one place a pin can live — has an entry for
 every shared crate.
+
+---
+
+## §4 — the wall, and three claims of isolation that were not measured
+
+§4's deletion test came back positive on four crates and the verdicts differ. All
+four are answered; two of them are answered by **correcting a comment**, which is
+the whole finding.
+
+### The `girsa-fix` / `girsa-note` wall
+
+The wall is right. They are siblings, neither may name the other, and
+`since.rs:311` says so. What the report measured is that a wall between two
+crates does not stop them needing the same primitive — it only stops them
+sharing one:
+
+> a duplicated FNV-1a hash (byte-identical down to a non-standard `0xff`
+> separator), a duplicated `"corrections.jsonl"` literal, four
+> `now_seconds()`, five identical `From<LogError>`, three identical
+> `to_text()`, and one function invented purely to route around the wall
+
+The route around the wall had already been found once, and its own doc comment
+carries the rule that made it work — `girsa_note::since`, on why it counts
+records rather than naming `Patch`:
+
+> *The answer was never to name `Patch`. **Counting records in a log is a fact
+> about the log format**, and the format is `girsa-personal`'s, which both
+> crates already depend on — the same argument that already put `is_tombstone`
+> there.*
+
+That is the sweep. Everything that passes that test moved to `girsa-personal`,
+and `girsa_personal::shared`'s header says nothing else may:
+
+| | where it is now | why it passes the test |
+|---|---|---|
+| FNV-1a with the `0xff` separator | `girsa_personal::fingerprint` | an id derived from a record's fields |
+| `now_seconds`, ×4 | `girsa_personal::now_seconds` | the stamp is part of the log format |
+| `"corrections.jsonl"`, ×2 | `girsa_personal::CORRECTIONS` | the name of a file in the personal layer |
+| `to_text`, ×3 | a default method on `Store` | *what a jsonl file is* |
+| `From<LogError>`, ×5 | `io_from_log_error!` | done in §8.7 |
+
+The hash is the one worth naming. `hash ^= 0xff` between parts is **not** FNV-1a
+— it is there so `["ab", "c"]` and `["a", "bc"]` cannot collide, which they must
+not, because the parts are a segment id and a span. Two copies agreed on that
+non-standard step exactly, which is the tell: two copies of an algorithm agree
+until one of them is improved, and these ids are on disk in readers' personal
+layers, so an improvement to either would silently stop matching every record
+already written. The new test pins the literal digest for that reason.
+
+`girsa_personal::shared` is not a junk drawer and the header is the fence: a
+helper that is merely *wanted* by two crates goes where its subject is, or it
+stays duplicated, which is the cheaper mistake.
+
+### Two crates whose isolation is zero, and the comments that claimed it
+
+`girsa-export` and `girsa-desk` both come back **`wrong-but-keep`**, and the
+correction is the point.
+
+`girsa-export/Cargo.toml` said `zip` was *"the only dependency in the tree that
+is here for a file format nobody reads back, **which is the whole argument for
+the crate**"*. `girsa-corpus/Cargo.toml` carries the same `zip 7.2.0` — it opens
+a .docx you drop on the window, which `girsa-export`'s own header says three
+lines further down — and `cargo tree -e normal` puts the crate at one crate over
+`girsa-app`: itself.
+
+`girsa-desk`'s header made the same shape of claim about `girsa-ksav` and
+`girsa-cite`. `girsa-corpus` pulls `girsa-ksav` anyway, because your own seforim
+go on the shelf, and `girsa-cite` is a direct `girsa-app` dependency regardless.
+
+Both crates stay, on the argument that was always the real one: **a boundary can
+be worth having without saving a compile.** Writing a file format nobody reads
+back is a different subject from reading a shelf. What was wrong was stating a
+subject boundary as a build measurement, unmeasured, in a repository whose whole
+discipline is that a claim is checked.
+
+### Fifteen documented commands that cannot run
+
+> Thirteen documented commands in `girsa-desk` cannot run — `bin/girsa-notes.rs`
+> and `examples/write.rs` all say `cargo run -p girsa-app`, and the targets moved
+> crates without their doc comments.
+
+Fifteen, counted. Every one is the first thing a reader would type and every one
+fails with *no bin target named `girsa-notes`*. The README had the right crate
+in all twenty of its lines — the usual failure runs the other way, and this is
+the code's own comments lying while the documentation is right.
+
+The fence reads every `cargo run -p <crate> --bin <name>` and `--example <name>`
+in every `.rs` file under `src/` and `examples/` and asserts the target is where
+the command says it is. `tests/` is skipped, and that is the same partition the
+prohibition suites draw around `lamdan/` and `docs/`: the suite next door exists
+to assert that `girsa-link-inbound` has never been a binary in this tree, and it
+has to quote the command in order to say so. A rule that forbade naming a defect
+would forbid recording it.

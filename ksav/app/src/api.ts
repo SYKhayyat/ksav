@@ -590,6 +590,29 @@ export interface Sources {
   /** Turn the citations in a piece of prose into live refs — the certain ones
    *  only (spec.md §10.5). Comes back rewritten, or unchanged. */
   linkify(text: string): Promise<string>;
+  /**
+   * The Source Packet on the clipboard, if Girsa put one there.
+   *
+   * spec.md §10.2's Ctrl+C, from this end. Girsa writes the packet under a real
+   * native clipboard format — taking eighty-six careful lines to do it, because
+   * a webview can only write Chromium's *web custom format*, which no native
+   * application can read — and nothing here read it, so that copy landed in an
+   * editor that only ever took `text/plain`.
+   *
+   * It has to be asked of the engine rather than read off the `paste` event: a
+   * paste exposes `text/plain`, `text/html` and files, and a custom native
+   * format is not among them on any platform.
+   *
+   * `null` is the ordinary answer — the reader copied from a text editor — and
+   * is not a failure. The caller pastes as text.
+   *
+   * What comes back is **markup**, not the packet: it is rendered in Rust by
+   * `ksav_engine::source`, the same renderer the loopback arrivals go through,
+   * so a quote that arrives on the clipboard and one that arrives over the
+   * loopback are the same document. A second renderer here is what spec.md
+   * §10.3 rules out.
+   */
+  clipboardSource(): Promise<string | null>;
 }
 
 /**
@@ -738,6 +761,20 @@ abstract class ServiceClient {
     const out = await this.ask<{ error?: string; text?: string }>("linkify", { text });
     if (out.error) throw new Error(out.error);
     return out.text ?? text;
+  }
+
+  async clipboardSource(): Promise<string | null> {
+    // No `error` branch, deliberately: every way this can go wrong — no
+    // clipboard on the machine, bytes that are not UTF-8, a build without the
+    // loopback — has the same right answer, which is *there is no packet, paste
+    // as text*. Turning any of them into a thrown error would make a perfectly
+    // ordinary paste report a failure.
+    const out = await this.ask<{ markup?: string | null; error?: string }>("clipboard-source", {});
+    // A packet that arrived and could not be read is **not** silence. A schema
+    // mismatch carries both version numbers, and turning it into a plain-text
+    // paste is exactly what the schema version exists to prevent.
+    if (out.error) throw new Error(out.error);
+    return out.markup ?? null;
   }
 }
 

@@ -75,6 +75,10 @@ const CALLS = [
   ["mekoros", (b) => b.mekoros("דברי רש\"י"), { hits: [] }],
   ["mekoros", (b) => b.searchInGirsa("דברי רש\"י"), { opened: true }],
   ["linkify", (b) => b.linkify("טקסט"), { text: "טקסט" }],
+  // The ordinary answer is `null` — the reader copied from a text editor — and
+  // it is not a failure. The row drives the *service*, which is what this file
+  // is about; what a `null` means to a paste is `main.ts`'s business.
+  ["clipboard-source", (b) => b.clipboardSource(), { markup: null }],
 ];
 
 export async function run() {

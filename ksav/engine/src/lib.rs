@@ -19,6 +19,10 @@ use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
 pub mod assets;
+/// Reading the Source Packet Girsa put on the clipboard — the other end of
+/// spec.md §10.2's Ctrl+C, which had a careful producer and no consumer.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod clipboard;
 pub mod commands;
 pub mod diagnostics;
 /// Somebody else's text, put into Typst markup. One string-literal escaper and

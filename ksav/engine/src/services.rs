@@ -172,6 +172,20 @@ pub const SERVICES: &[Service] = &[
     svc("mekoros", Post, "/mekoros", Work, Native, girsa::mekoros),
     svc("linkify", Post, "/linkify", Work, Native, girsa::linkify),
     svc("refresh", Post, "/refresh", Work, Native, girsa::refresh),
+    // spec.md §10.2's Ctrl+C, from this end. Girsa puts a Source Packet on the
+    // clipboard under a **real native format**, taking eighty-six lines of care
+    // to do it — and nothing here read it, so a careful three-flavour copy
+    // landed in an application that only ever took `text/plain`.
+    //
+    // A service and not a webview call, for exactly the reason Girsa's own
+    // module gives for not writing it from a webview: a `paste` event exposes
+    // `text/plain`, `text/html` and files, and a custom native format is not
+    // among them on any platform. So the reading happens in the process that can
+    // open the real clipboard.
+    //
+    // `Quick`, because it is a clipboard read, and a `POST` because it is asked
+    // at the moment of pasting rather than polled.
+    svc("clipboard-source", Post, "/clipboard-source", Quick, Native, girsa::clipboard_source),
 ];
 
 /// The service with this name, if there is one.
@@ -385,6 +399,42 @@ mod girsa {
     pub fn refresh(_: &str) -> String {
         no_library("רענון המקורות", "refreshing a document's sources")
     }
+
+    /// The Source Packet on the clipboard, **already rendered to markup**.
+    ///
+    /// `{"markup": null}` is the ordinary answer and is not a failure: the
+    /// reader copied from a text editor, or there is no clipboard on this
+    /// machine. The caller pastes as text, which is what a paste did before this
+    /// existed.
+    ///
+    /// Rendered here rather than handed over as a packet, for the reason the
+    /// arrivals path already gives: there is **one** renderer, in Rust, so a
+    /// quote that arrives over the loopback and a quote that arrives on the
+    /// clipboard are the same markup. A second renderer on the client is exactly
+    /// what spec.md §10.3 rules out.
+    ///
+    /// A packet that arrives and cannot be read is **not** `null`. It comes back
+    /// with the reason — a schema mismatch has both version numbers in it —
+    /// because turning that into a silent plain-text paste is what the schema
+    /// version exists to prevent.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn clipboard_source(_: &str) -> String {
+        let Some(json) = crate::clipboard::source_on_clipboard() else {
+            return serde_json::json!({ "markup": serde_json::Value::Null }).to_string();
+        };
+        match crate::source::insert(&json, girsa_ksav::CitationPlacement::Mekor) {
+            Ok(markup) => serde_json::json!({ "markup": markup }).to_string(),
+            Err(e) => super::error_json(&e.to_string()),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn clipboard_source(_: &str) -> String {
+        // Not `no_library`: a browser tab pasting text is not an error and must
+        // not be reported as one. The honest answer is *there is no packet*,
+        // which is also true and which the caller already knows how to handle.
+        serde_json::json!({ "markup": serde_json::Value::Null }).to_string()
+    }
 }
 
 #[cfg(test)]
@@ -460,10 +510,11 @@ mod tests {
             "mekoros",
             "linkify",
             "refresh",
+            "clipboard-source",
         ] {
             assert!(find(name).is_some(), "{name} is missing from the registry");
         }
-        assert_eq!(SERVICES.len(), 13, "add the new service to this list too");
+        assert_eq!(SERVICES.len(), 14, "add the new service to this list too");
     }
 
     /// A layout is the only thing that needs the server's deadline and the
@@ -486,7 +537,10 @@ mod tests {
             .filter(|s| s.reach == Native)
             .map(|s| s.name)
             .collect();
-        assert_eq!(native, ["inbox", "mekoros", "linkify", "refresh"]);
+        assert_eq!(
+            native,
+            ["inbox", "mekoros", "linkify", "refresh", "clipboard-source"]
+        );
     }
 
     /// A request with no phrase in it is a refusal with a reason, not a panic

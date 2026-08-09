@@ -26,4 +26,5 @@ export const SERVICE_PATHS = [
   "/mekoros",
   "/linkify",
   "/refresh",
+  "/clipboard-source",
 ];

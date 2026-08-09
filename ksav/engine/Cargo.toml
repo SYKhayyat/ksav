@@ -53,6 +53,12 @@ typst-ide = "0.15"
 # The HTTP server (net + threads) is native-only; wasm builds skip it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tiny_http = "0.12"
+# Reading the flavour Girsa put down. The **same** library Girsa writes it with,
+# and the same version: the two applications are reading and writing one native
+# clipboard format, and a difference in how it is registered would show up as
+# "sometimes it pastes as plain text". See `src/clipboard.rs` for why a webview
+# cannot do this and the engine has to.
+clipboard-rs = { version = "0.3.5", default-features = false }
 
 # --- the shared crates, from the sefer-crates repository --------------------
 #

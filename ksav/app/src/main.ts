@@ -988,6 +988,65 @@ function makeEditor(): EditorView {
       // A squiggle answers to a plain click, not only a right-click: on a
       // touchscreen there is no right-click at all.
       EditorView.domEventHandlers({
+        /**
+         * A paste that might be a source Girsa put down (spec.md §10.2).
+         *
+         * Girsa's Ctrl+C writes three flavours: `text/plain`, `text/html`, and
+         * a **real native clipboard format** carrying the Source Packet — eighty
+         * -six careful lines to do it, because a webview can only write
+         * Chromium's *web custom format*, which no native application can read.
+         * Nothing here read the third one, so that copy landed in an editor
+         * that only ever took the first.
+         *
+         * The packet cannot be read off this event — a `paste` exposes
+         * `text/plain`, `text/html` and files, and a custom native format is
+         * not among them on any platform — so the engine is asked, in the
+         * process that can open the real clipboard.
+         *
+         * Which makes the ordering the whole of the care needed here. The ask
+         * is asynchronous and `preventDefault` is not, so the plain text is
+         * taken *now*, the default is stopped, and the text is put in
+         * immediately; if a packet turns up, the same text is replaced by the
+         * markup. A reader pasting from anywhere else sees an ordinary paste
+         * and never waits for a clipboard round-trip.
+         */
+        paste(e, v) {
+          const plain = e.clipboardData?.getData("text/plain") ?? "";
+          const sources = sourcesOf(runtime.backend);
+          if (!sources || !plain) return false;
+          e.preventDefault();
+          const at = v.state.selection.main;
+          v.dispatch({
+            changes: { from: at.from, to: at.to, insert: plain },
+            selection: { anchor: at.from + plain.length },
+          });
+          const from = at.from;
+          void sources
+            .clipboardSource()
+            .then((markup) => {
+              if (!markup) return;
+              // Only if the text this put in is still there. A reader who kept
+              // typing while the clipboard was being read has moved on, and
+              // rewriting what is under their caret now would be worse than
+              // the plain paste they already have.
+              const here = docTextOf(v.state.doc).slice(from, from + plain.length);
+              if (here !== plain) return;
+              v.dispatch({
+                changes: { from, to: from + plain.length, insert: markup },
+                selection: { anchor: from + markup.length },
+              });
+              setStatus(t("sourcePasted"), "ok");
+              scheduleCompile();
+            })
+            .catch((err) => {
+              // A packet that arrived and could not be read — a schema
+              // mismatch carries both version numbers. The plain text is
+              // already in, so this is a line and not a failure.
+              const bad = troubleSaid(err, "reach_girsa");
+              setStatus(bad.said, "warn", bad.detail);
+            });
+          return true;
+        },
         mousedown(e, v) {
           if (!settings.spellcheck) return false;
           const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });

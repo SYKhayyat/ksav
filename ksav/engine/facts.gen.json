@@ -1243,6 +1243,13 @@
       "path": "/refresh",
       "cost": "work",
       "reach": "native"
+    },
+    {
+      "name": "clipboard-source",
+      "method": "post",
+      "path": "/clipboard-source",
+      "cost": "quick",
+      "reach": "native"
     }
   ],
   "hebrew": {

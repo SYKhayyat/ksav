@@ -398,6 +398,7 @@ const HE: Dict = {
   healAction: "תיקון",
   healAllAction: "תיקון הכל",
   healedNothing: "אין סוגריים חסרים.",
+  sourcePasted: `הודבק מקור מ${GIRSA} — עם מראה המקום`,
   sourceArrived: `התקבל מקור מ${GIRSA} — %s`,
   selectAPhrase: "סמנו ביטוי כדי לחפש את מקורו",
   askingGirsa: `שואל את ${GIRSA}…`,

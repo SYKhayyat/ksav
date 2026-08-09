@@ -362,7 +362,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,100 editor assertions, 457 engine
+- [x] **CI, running and green** — typecheck, 4,109 editor assertions, 458 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -438,10 +438,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,100 assertions across 68 files
+cd app && npm test                          # 4,109 assertions across 68 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 457 tests, 31 binaries
+cargo test --manifest-path engine/Cargo.toml            # 458 tests, 31 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -712,8 +712,22 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `mekoros` | `POST /mekoros` | `{phrase, except, search}` → where the phrase is from, or `{opened:true}` when asked to open Girsa's search instead |
 | `linkify` | `POST /linkify` | `{text}` → `{text}` with the certain citations made live |
 | `refresh` | `POST /refresh` | `{markup, style, nikud}` → one row per citation in the document, as the library has it now |
+| `clipboard-source` | `POST /clipboard-source` | `{}` → `{markup}`, the Source Packet Girsa put on the clipboard, already rendered — or `{markup: null}`, which is the ordinary answer and means *paste as text* |
 
 `GET /` and everything else is the built editor, served as static files.
+
+`clipboard-source` is spec.md §10.2's Ctrl+C from this end, and it is a service
+rather than a webview call for the same reason Girsa writes it from Rust: a
+`paste` event exposes `text/plain`, `text/html` and files, and a **custom native
+clipboard format is not among them** on any platform. Girsa takes eighty-six
+lines of care to put the packet down as a real format precisely so a native
+application can read it; for a long time nothing did, and that careful
+three-flavour copy landed in an editor that only ever took the plain text.
+
+It answers with **markup**, not the packet — rendered by `ksav_engine::source`,
+the same renderer the loopback arrivals go through — so a quote that arrives on
+the clipboard and one that arrives over the loopback are the same document. A
+second renderer on the client is what spec.md §10.3 rules out.
 
 `refresh` is spec.md §10.2's promise about a **document** rather than about a
 place: forty citations at once, in the order they appear, each re-read against

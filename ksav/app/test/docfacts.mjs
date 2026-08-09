@@ -285,7 +285,10 @@ export const CLAIMS = [
   ["ksav/README.md", "appTestFiles", (n) => `across ${n} files`],
   ["ksav/README.md", "engineTests", (n) => `${n} tests`],
   ["ksav/README.md", "engineBinaries", (n) => `${n} binaries`],
-  ["ksav/README.md", "oracleDocuments", (n) => `over ${group(n)} documents`],
+  // The one claim that carries a marker: `documents` is too common a noun to
+  // fence, so the reverse sweep declines it and the marker is what closes the
+  // gap. See `markedClaimsIn`.
+  ["ksav/README.md", "oracleDocuments", (n) => `over **${group(n)}**<!--=oracleDocuments--> documents`],
   ["docs/start-here.md", "commands", (n) => `There are ${n} commands`],
   ["docs/start-here.md", "hebrewEntries", (n) => `${group(n)} Hebrew entries`],
   ["docs/start-here.md", "englishEntries", (n) => `${group(n)} English`],
@@ -363,6 +366,35 @@ export function isLog(file) {
 /** The tracked pages that are documentation rather than record. */
 export function livingPages(tracked = trackedMarkdown()) {
   return tracked.filter((f) => !isLog(f));
+}
+
+/**
+ * Numbers a page marks as being about a named fact.
+ *
+ * Girsa's shape, taken here for the reason the 9 August report gives it the
+ * row: *"Readme numbers — Girsa: `<!--=name-->` markers, both directions,
+ * `--write` fixer. Ksav: regex prose sweep with four documented retreats, no
+ * fixer."*
+ *
+ * The sweep in `numericClaimsIn` reads *a number standing beside a fenced
+ * noun*, which is the right instrument for prose and has one failure it names
+ * itself: a noun too common to fence. `NOUNS` records the retreat —
+ * *"'documents' is deliberately not here… a sweep that reports two false
+ * positives to catch one truth is a sweep people learn to silence"* — and the
+ * consequence is that `oracleDocuments` has a forward claim and no reverse one.
+ *
+ * A marker needs no noun. `**1,035**<!--=oracleDocuments-->` renders as
+ * nothing, so a reader sees the sentence and the fence sees which fact the
+ * number is about. It is the escape hatch for exactly the numbers the sweep has
+ * to decline, and it is not a replacement for it: a marker is something
+ * somebody has to add, and the sweep's whole value is over prose nobody marked.
+ */
+export function markedClaimsIn(text) {
+  const out = [];
+  for (const m of text.matchAll(/(\d{1,3}(?:,\d{3})+|\d+)\*{0,2}<!--=([A-Za-z][A-Za-z0-9]*)-->/gu)) {
+    out.push({ number: Number(m[1].replace(/,/g, "")), fact: m[2], said: m[0] });
+  }
+  return out;
 }
 
 export function numericClaimsIn(text) {

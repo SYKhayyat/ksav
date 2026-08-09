@@ -32,6 +32,7 @@ import {
   RUNTIME,
   NOUNS,
   numericClaimsIn,
+  markedClaimsIn,
   trackedMarkdown,
   livingPages,
   isLog,
@@ -115,6 +116,40 @@ export async function run() {
       }
     }
     check("no living page states a fenced count that nothing checks", stray, []);
+  }
+
+  // ── the marked numbers ────────────────────────────────────────────────────
+  //
+  // The escape hatch for the numbers the sweep above has to decline. `NOUNS`
+  // records the one it declined and why — *"'documents' is deliberately not
+  // here… a sweep that reports two false positives to catch one truth is a
+  // sweep people learn to silence"* — and the price was that `oracleDocuments`
+  // had a forward claim and no reverse one: the README could carry a *second*
+  // documents number, wrong, and nothing here would look at it.
+  //
+  // A marker needs no noun. `**1,035**<!--=oracleDocuments-->` renders as
+  // nothing, so a reader sees the sentence and this sees which fact it is.
+  // Girsa's shape, taken for the reason the 9 August report gives it that row.
+  {
+    const wrong = [];
+    const unknown = [];
+    let marked = 0;
+    for (const file of living) {
+      const body = readFileSync(path.join(ROOT, file), "utf8");
+      for (const c of markedClaimsIn(body)) {
+        marked += 1;
+        if (!(c.fact in F)) {
+          unknown.push(`${file}: "${c.said}" names no measured fact`);
+          continue;
+        }
+        if (F[c.fact] !== c.number) {
+          wrong.push(`${file}: "${c.said}" — the tree has ${F[c.fact]}`);
+        }
+      }
+    }
+    ok("the pages carry marked numbers", marked > 0, `${marked} of them`);
+    check("every marked number names a fact this repository measures", unknown, []);
+    check("and every marked number is what that fact measures", wrong, []);
   }
 
   // The two nouns whose counts only a finished run knows are still swept for, so

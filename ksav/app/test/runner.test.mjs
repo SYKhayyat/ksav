@@ -262,8 +262,16 @@ export function nothingIsCopiedBackIn() {
   //     survives every reflow rustfmt can perform.
   //   - `docfacts.mjs` counts files and lines for the documentation fence. It
   //     never looks inside one.
+  //   - `wire.test.mjs` reads the **key names** of the engine's response
+  //     literals, and no value. It is the instrument the 9 August report gives
+  //     to Girsa — *"a generator catches a stale copy of a registry, never a
+  //     wrong one"* — and the whole reason it reads Rust rather than importing
+  //     a generated table is that a generated table would be the engine
+  //     agreeing with itself. Nothing it reads reaches the shipping bundle; it
+  //     can only refuse. If it ever reads a *value* out of a `.rs` file, this
+  //     prohibition is right and the exemption is wrong.
   {
-    const allowed = ["facts.mjs", "docfacts.mjs"];
+    const allowed = ["facts.mjs", "docfacts.mjs", "wire.test.mjs"];
     const guilty = files
       .filter(([f]) => !allowed.includes(path.basename(f)))
       .filter(([, s]) => /\.rs"|\.rs'|\.rs`/.test(s))

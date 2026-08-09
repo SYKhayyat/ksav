@@ -525,6 +525,78 @@ export interface AssembledSource {
   diagnostics: Diagnostic[];
 }
 
+/* ── The seven shapes that crossed the wire undeclared ──────────────────────
+ *
+ * Each of these was an inline `{ text?: string; error?: string }` written at
+ * one call site, or nothing at all. The 9 August report gave Girsa the wire row
+ * — *"a generator catches a stale copy of a registry, never a wrong one"* — and
+ * `test/wire.test.mjs` is the comparator this repository took from it: it reads
+ * every `serde_json::json!` response literal in the engine and asks whether an
+ * interface here declares its keys.
+ *
+ * A shape declared at one call site is a shape nothing can be compared against.
+ * These are the declarations, and the fence covers all seventeen literals. */
+
+/** Every response can be a refusal: `error_json` is a superset of the compile
+ *  shape with an `error` on it, so *"a refusal never has to be told apart from
+ *  the failure of the thing refused"* (`services.rs`). */
+export interface Refusable {
+  error?: string;
+}
+
+/** `jump`: where in the body a point on a page came from, and which file — the
+ *  answer is `{}` when the point is not over any of the writer's own text. */
+export interface Located {
+  line: number;
+  column: number;
+  /** The included file the line came from, or null for the main document. */
+  file: string | null;
+}
+
+/** `reveal`: everywhere on the rendered pages one place in the body ended up. */
+export interface Revealed {
+  points: PagePoint[];
+}
+
+/** `linkify`: the same markup with the mareh mekomos turned into links. */
+export interface Linkified {
+  text: string;
+}
+
+/** `refresh`: every citation in a document as the library has it now
+ *  (spec.md §10.2), with the two counts the panel draws its line from. */
+export interface RefreshResult {
+  quotes: Refreshed[];
+  total: number;
+  /** How many of them could not be refreshed. */
+  trouble: number;
+}
+
+/** `saved-here`: whether Girsa took the errand. False is an answer — Girsa not
+ *  running is the ordinary case, not a failure. */
+export interface Told {
+  told: boolean;
+}
+
+/** `clipboard-source`: a Girsa source packet on the clipboard, rendered to Ksav
+ *  markup in Rust, or null for *there is no packet, paste as text*. */
+export interface ClipboardSource {
+  markup: string | null;
+}
+
+/** One row of `services`: the registry describing itself, so a caller can ask
+ *  rather than keep a copy. Generated into `services.gen.ts` as well — this is
+ *  the shape of what the engine puts on the wire, and that is the shape the
+ *  build reads at compile time. Both, deliberately: the generator cannot tell
+ *  you the original is wrong. */
+export interface ServiceRow {
+  name: string;
+  method: string;
+  path: string;
+  cost: string;
+  nativeOnly: boolean;
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
   compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
@@ -846,13 +918,13 @@ abstract class ServiceClient {
   }
 
   async linkify(text: string): Promise<string> {
-    const out = await this.ask<{ error?: string; text?: string }>("linkify", { text });
+    const out = await this.ask<Linkified & Refusable>("linkify", { text });
     if (out.error) throw new Error(out.error);
     return out.text ?? text;
   }
 
   async refresh(markup: string, style?: string, nikud?: boolean): Promise<Refreshed[]> {
-    const out = await this.ask<{ error?: string; quotes?: Refreshed[] }>("refresh", {
+    const out = await this.ask<Partial<RefreshResult> & Refusable>("refresh", {
       markup,
       // Absent, not null: Girsa reads absence as *the reader's own setting*,
       // and a `null` that deserialized to `Some(None)` on the other side would
@@ -865,7 +937,7 @@ abstract class ServiceClient {
   }
 
   async savedHere(path: string, name?: string, forget?: boolean): Promise<boolean> {
-    const out = await this.ask<{ told?: boolean; error?: string }>("saved-here", {
+    const out = await this.ask<Partial<Told> & Refusable>("saved-here", {
       path,
       ...(name === undefined ? {} : { name }),
       ...(forget ? { forget: true } : {}),
@@ -880,7 +952,7 @@ abstract class ServiceClient {
     // loopback — has the same right answer, which is *there is no packet, paste
     // as text*. Turning any of them into a thrown error would make a perfectly
     // ordinary paste report a failure.
-    const out = await this.ask<{ markup?: string | null; error?: string }>("clipboard-source", {});
+    const out = await this.ask<Partial<ClipboardSource> & Refusable>("clipboard-source", {});
     // A packet that arrived and could not be read is **not** silence. A schema
     // mismatch carries both version numbers, and turning it into a plain-text
     // paste is exactly what the schema version exists to prevent.

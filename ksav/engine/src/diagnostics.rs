@@ -13,11 +13,19 @@
 //! Four things were wrong at once and half of them fixed is worse than none, so
 //! this module does all four:
 //!
-//! 1. **A location.** The prelude is prepended to every document, so a raw Typst
-//!    line number would name a line the writer cannot see. `body_offset` is the
-//!    byte at which the writer's own text begins, derived from the same
-//!    `assemble_source` that built the string, so it cannot drift. A diagnostic
-//!    that points into the prelude gets no line at all rather than a wrong one.
+//! 1. **A location.** What the compiler sees is not what the writer typed, so a
+//!    raw Typst line number would name a line the writer cannot see. A
+//!    diagnostic that points into the prelude gets no line at all rather than a
+//!    wrong one.
+//!
+//!    This used to be arithmetic over one enormous string: the prelude was
+//!    *prepended* to every document, so "is this span the writer's?" was
+//!    `span.start >= body_offset` where `body_offset` was the length of 111 KB
+//!    of prefix. The prelude is a **resolved file** now — the document opens
+//!    `#import "ksav.typ": *` — so a span carries which file it came from and
+//!    the question is an identity check on a [`FileId`]. What is left of the
+//!    arithmetic is [`body_offset_of`], measuring a two-line header, and it is
+//!    still subtraction over two strings the caller already holds.
 //! 2. **A suggestion.** One or two edits away, in either script, from the real
 //!    registry.
 //! 3. **The command, named.** Typst's argument-type errors do not say which call
@@ -47,7 +55,7 @@
 //! the flagship question.
 
 use typst::diag::{SourceDiagnostic, Tracepoint};
-use typst::syntax::{DiagSpanKind, Source, Span, SpanKind};
+use typst::syntax::{DiagSpanKind, LinkedNode, Source, Span, SpanKind, SyntaxKind};
 
 use crate::commands::COMMANDS;
 
@@ -98,37 +106,38 @@ impl Diagnostic {
     }
 }
 
-/// Where the writer's own text starts inside an assembled source — **the
-/// definition**, and the slow one.
+/// Where the writer's own text starts inside a main source — **the
+/// definition**.
 ///
-/// Assembling with an empty body gives prelude + wrapper + the trailing newline
-/// that `assemble_source`'s format string puts after `{body}`. Both come off the
-/// same format string, so this cannot drift out of step with it — which is the
-/// whole reason it is computed rather than counted by hand.
+/// Building a main source with an empty body gives the import line, the `#show`
+/// wrapper, the blank line, and the trailing newline that `main_source`'s format
+/// string puts after `{body}`. Both come off the same format string, so this
+/// cannot drift out of step with it — which is the whole reason it is computed
+/// rather than counted by hand.
 ///
-/// It is also 111 KB of `format!` to learn one integer, and it was being paid
-/// once per compile and *twice* per jump. Nothing on a hot path calls it any
-/// more; [`body_offset_of`] is what they call, and
+/// It used to be 111 KB of `format!` to learn one integer, paid once per compile
+/// and *twice* per jump, because the prelude was part of the string it was
+/// measuring. It is now a two-line header. [`body_offset_of`] is still what the
+/// hot paths call — it is subtraction over strings they already hold — and
 /// `the_cheap_offset_is_the_same_offset` sweeps the two over every shape of
 /// config there is so that the cheap one cannot quietly stop being this one.
 pub fn body_offset(cfg: &crate::DocConfig) -> usize {
-    crate::assemble_source("", cfg).len().saturating_sub(1)
+    crate::main_source("", cfg).len().saturating_sub(1)
 }
 
-/// The same offset, read off an assembly that already exists.
+/// The same offset, read off a main source that already exists.
 ///
-/// `assemble_source`'s format string ends in `{body}\n`, so everything before
-/// the writer's text is exactly `assembled.len() - body.len() - 1`. Every
-/// caller already holds both strings — the assembly it is locating spans in,
-/// and the body it assembled — so the prelude never has to be built a second
-/// time to be measured.
+/// `main_source`'s format string ends in `{body}\n`, so everything before the
+/// writer's text is exactly `main.len() - body.len() - 1`. Every caller already
+/// holds both strings — the source it is locating spans in, and the body it was
+/// built from — so nothing has to be formatted a second time to be measured.
 ///
 /// `saturating_sub` rather than an assertion: the arithmetic is only wrong if
-/// the two strings did not come from one `assemble_source` call, and the
-/// honest answer to that is the same one every other coordinate correction
-/// gives — no line, rather than a wrong one.
-pub fn body_offset_of(assembled: &str, body: &str) -> usize {
-    assembled.len().saturating_sub(body.len() + 1)
+/// the two strings did not come from one `main_source` call, and the honest
+/// answer to that is the same one every other coordinate correction gives — no
+/// line, rather than a wrong one.
+pub fn body_offset_of(main: &str, body: &str) -> usize {
+    main.len().saturating_sub(body.len() + 1)
 }
 
 /// 1-based line and character column of a byte offset inside `text`.
@@ -143,34 +152,74 @@ fn line_column(text: &str, byte: usize) -> (usize, usize) {
     (line, column)
 }
 
-/// The byte range a diagnostic's own span points at, in the assembled source.
-fn diag_span_range(d: &SourceDiagnostic, source: &Source) -> Option<std::ops::Range<usize>> {
+/// Which of the compile's two files a span landed in, and where inside it.
+///
+/// There are exactly two, and that is the point of the change that introduced
+/// this type. A compile is handed `main.typ` — the import line, the `#show`
+/// wrapper and the writer's text — and it resolves `ksav.typ`, the prelude,
+/// through the file resolver. Before that split there was one string with the
+/// prelude concatenated onto the front, so "which of the two is this?" was
+/// `range.start >= body_offset`: a comparison that is only as right as the
+/// arithmetic behind it, and that could not distinguish a span in the prelude
+/// from a span in the wrapper at all.
+#[derive(Debug, Clone)]
+enum Site {
+    /// `main.typ`. Before `body_offset` this is the header; after it, the
+    /// writer's own text.
+    Main(std::ops::Range<usize>),
+    /// `ksav.typ` — a place the writer has never seen and cannot edit.
+    Prelude(std::ops::Range<usize>),
+}
+
+/// The source a file id names, of the two this compile has.
+///
+/// `None` for anything else — an attached image, a package — which is not a
+/// place the writer can be sent either.
+fn source_for(id: typst::syntax::FileId, main: &Source) -> Option<&Source> {
+    if id == main.id() {
+        Some(main)
+    } else if id == crate::prelude_source().id() {
+        Some(crate::prelude_source())
+    } else {
+        None
+    }
+}
+
+/// `(file, byte range)` as a [`Site`].
+fn site(id: typst::syntax::FileId, range: std::ops::Range<usize>, main: &Source) -> Option<Site> {
+    if id == main.id() {
+        Some(Site::Main(range))
+    } else if id == crate::prelude_source().id() {
+        Some(Site::Prelude(range))
+    } else {
+        None
+    }
+}
+
+/// Where a diagnostic's own span points.
+fn diag_site(d: &SourceDiagnostic, main: &Source) -> Option<Site> {
     match d.span.get() {
         DiagSpanKind::Detached => None,
-        DiagSpanKind::Range { range, .. } => Some(range.start..range.end),
-        DiagSpanKind::Number {
-            num, sub_range, id, ..
-        } => {
-            // Only spans into the document itself can be resolved here; a span
-            // into some other file is not a line the writer can be sent to.
-            if id != source.id() {
-                return None;
-            }
-            source.range(num, sub_range)
+        // A raw byte range still names a file, and it used to be ignored: the
+        // range was taken as an offset into the document whatever file it came
+        // from, so a range into an attached SVG would have been read as a line
+        // of the writer's text.
+        DiagSpanKind::Range { id, range } => site(id, range.start..range.end, main),
+        DiagSpanKind::Number { num, sub_range, id } => {
+            let range = source_for(id, main)?.range(num, sub_range)?;
+            site(id, range, main)
         }
     }
 }
 
-/// The byte range a plain `Span` points at — the shape a trace entry carries.
-fn span_range(span: Span, source: &Source) -> Option<std::ops::Range<usize>> {
+/// The same, for the plain `Span` a trace entry carries.
+fn span_site(span: Span, main: &Source) -> Option<Site> {
     match span.get() {
         SpanKind::Detached => None,
-        SpanKind::Range { range, .. } => Some(range),
+        SpanKind::Range { id, range } => site(id, range, main),
         SpanKind::Number { num, id } => {
-            if id != source.id() {
-                return None;
-            }
-            source.range(num, None)
+            let range = source_for(id, main)?.range(num, None)?;
+            site(id, range, main)
         }
     }
 }
@@ -191,22 +240,27 @@ fn span_range(span: Span, source: &Source) -> Option<std::ops::Range<usize>> {
 /// so the text scan is only the fallback.
 fn where_it_happened(
     d: &SourceDiagnostic,
-    source: &Source,
+    main: &Source,
     body_offset: usize,
 ) -> (Option<usize>, Option<String>) {
-    let text = source.text();
+    let text = main.text();
     let body = &text[body_offset.min(text.len())..];
-    let in_body =
-        |r: std::ops::Range<usize>| (r.start >= body_offset).then(|| r.start - body_offset);
+    // The writer's own text is `main.typ` after the two-line header. A span in
+    // the header itself — the import, the `#show` wrapper — is no more a line
+    // the writer has than a span in the prelude is.
+    let in_body = |s: &Site| match s {
+        Site::Main(r) if r.start >= body_offset => Some(r.start - body_offset),
+        _ => None,
+    };
 
-    let own = diag_span_range(d, source);
-    if let Some(at) = own.clone().and_then(in_body) {
+    let own = diag_site(d, main);
+    if let Some(at) = own.as_ref().and_then(in_body) {
         return (Some(at), None);
     }
     // Innermost first in Typst's trace, so the last entry that lands in the body
     // is the writer's own call.
     for entry in d.trace.iter().rev() {
-        if let Some(at) = span_range(entry.span, source).and_then(in_body) {
+        if let Some(at) = span_site(entry.span, main).as_ref().and_then(in_body) {
             let named = match &entry.v {
                 Tracepoint::Call(Some(name)) => Some(format!("#{name}")),
                 _ => None,
@@ -222,10 +276,11 @@ fn where_it_happened(
     // still recoverable without guessing at anything.
     //
     // First, *which* Ksav command it was: the prelude span sits inside exactly one
-    // `#let`, and that `#let`'s name is the command the writer typed.
-    let named = own
-        .filter(|r| r.start < body_offset)
-        .and_then(|r| enclosing_let(&text[..body_offset], r.start));
+    // top-level `#let`, and that `#let`'s name is the command the writer typed.
+    let named = match &own {
+        Some(Site::Prelude(r)) => enclosing_let(crate::prelude_source(), r.start),
+        _ => None,
+    };
 
     // Second, the line — but only when it is not a guess. If the body calls that
     // command exactly once, that call is the only place this can have come from.
@@ -238,41 +293,67 @@ fn where_it_happened(
 
 /// The name of the top-level `#let` binding a byte offset falls inside.
 ///
-/// Scans back for the nearest **column-0** `#let <name>` — the prelude is a
-/// flat list of them, so the nearest one before an offset is the one that
-/// contains it.
+/// # This used to be a backwards text scan, and it was a convention with a
+/// sweep holding it up
 ///
-/// Column 0 is the whole correctness argument, and it used to be missing. A
-/// bare `rfind("#let ")` finds whichever binding is textually nearest, which
-/// for an offset inside a helper defined *within* a command is the helper, not
-/// the command — and the writer would be told their error was in a name they
-/// have never typed. `ksav.typ` happens to spell every nested binding as an
-/// indented `let` with no hash (360 at column 0, 187 indented, none of them
-/// hashed), so nothing had gone wrong yet; that is a convention, held by
-/// habit, in a file 2,324 lines long. Anchoring here means the convention no
-/// longer has to hold — and `every_top_level_let_names_itself` in
-/// `engine/tests/prelude.rs` sweeps all 360 of them so that this scan is
-/// checked against the prelude it scans rather than against a paragraph.
-fn enclosing_let(prelude: &str, byte: usize) -> Option<String> {
-    let upto = &prelude[..byte.min(prelude.len())];
-    let at = match upto.rfind("\n#let ") {
-        Some(nl) => nl + 1,
-        // The assembled source opens with the sefarim table's own `#let`, so
-        // there is one binding with no newline in front of it.
-        None if upto.starts_with("#let ") => 0,
-        None => return None,
-    };
-    // Read the name out of the *whole* prelude, not out of `upto`. Taken from
-    // the truncated copy, a span that landed inside the name itself returned a
-    // truncated name — `#let pageband1` reported as `#pageband`, `#let anchor`
-    // as `#ancho` — which is a wrong command name, and rule 4 says a wrong ref
-    // is worse than none. Found by the sweep below, not by reading this.
-    let rest = &prelude[at + "#let ".len()..];
-    let name: String = rest
-        .chars()
-        .take_while(|c| c.is_alphanumeric() || *c == '_')
-        .collect();
-    (!name.is_empty()).then(|| format!("#{name}"))
+/// The prelude was concatenated onto the front of every document, so all this
+/// had to work with was a `&str`. It found the nearest **column-0** `#let
+/// <name>` behind the offset. Column 0 was the whole correctness argument: a
+/// bare `rfind("#let ")` finds whichever binding is textually nearest, which for
+/// an offset inside a helper defined *within* a command is the helper, and the
+/// writer would be told their error was in a name they have never typed. What
+/// made the anchor work was that `ksav.typ` happens to spell every nested
+/// binding as an indented `let` with no hash — 361 at column 0, 187 indented,
+/// none of them hashed. A spelling convention, across 2,324 lines, with a
+/// 361-binding sweep run on every `cargo test` to keep it true.
+///
+/// The prelude is a parsed [`Source`] now, so the question can be asked of the
+/// syntax tree that Typst itself produced: **the outermost `LetBinding` node
+/// whose range contains the offset.** An indented `#let` inside a command is a
+/// nested node and cannot win; a `#let` inside a string or a comment is not a
+/// node at all. The convention is no longer load-bearing, and the sweep stays —
+/// not to hold up a rule, but because a resolver this far down the error path is
+/// worth checking against all 361 of the bindings it resolves.
+fn enclosing_let(source: &Source, byte: usize) -> Option<String> {
+    fn outermost(node: &LinkedNode, byte: usize) -> Option<String> {
+        for child in node.children() {
+            let range = child.range();
+            if byte < range.start || byte >= range.end {
+                continue;
+            }
+            if child.kind() == SyntaxKind::LetBinding {
+                return binding_name(&child);
+            }
+            if let Some(found) = outermost(&child, byte) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    outermost(&LinkedNode::new(source.root()), byte)
+}
+
+/// The name a `LetBinding` binds.
+///
+/// Two shapes: `#let x = …` puts an `Ident` straight under the binding, and
+/// `#let f(a) = …` puts a `Closure` there whose own first `Ident` is the name.
+/// A destructuring `#let (a, b) = …` has neither and gets no name, which is the
+/// right answer — the prelude has none, and a pattern is not a command.
+fn binding_name(binding: &LinkedNode) -> Option<String> {
+    for child in binding.children() {
+        match child.kind() {
+            SyntaxKind::Ident => return Some(format!("#{}", child.get().leaf_text())),
+            SyntaxKind::Closure => {
+                for part in child.children() {
+                    if part.kind() == SyntaxKind::Ident {
+                        return Some(format!("#{}", part.get().leaf_text()));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// The byte offset of the only call to `name` in `body`, if there is exactly one.
@@ -726,18 +807,24 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
     }
 }
 
-/// An assembled source, parsed, with the offset at which the writer's text starts.
+/// A main source, parsed, with the offset at which the writer's text starts.
 ///
 /// One of these is made per compile and used for every diagnostic that compile
 /// produces — warnings, errors, and the HTML path's — so a document cannot end up
 /// with some of its diagnostics located and some not.
+///
+/// The prelude is not in here and does not need to be: it is a file, it is
+/// parsed once per process, and [`crate::prelude_source`] hands out the very
+/// [`Source`] the compiler resolved. A prelude span therefore resolves against
+/// the same tree Typst numbered it in, rather than against a second parse of a
+/// copy — which is a stronger guarantee than the one this type used to rest on.
 pub struct Located {
-    source: Source,
+    main: Source,
     body_offset: usize,
 }
 
 impl Located {
-    /// Parse an assembled source for the purpose of resolving spans.
+    /// Parse a main source for the purpose of resolving spans.
     ///
     /// `Source::detached` is exactly what `typst-as-lib`'s `main_file(String)`
     /// builds, and `Source::new` numberizes the parse tree deterministically, so
@@ -747,32 +834,35 @@ impl Located {
     /// Takes the *body* rather than the config, because the offset is the
     /// difference between the two strings the caller already has. It used to
     /// take the config and re-assemble the whole 111 KB prelude with an empty
-    /// body to measure it — on every compile that produced so much as a
-    /// warning.
-    pub fn of(assembled: &str, body: &str) -> Self {
+    /// body to measure it — on every compile that produced so much as a warning.
+    /// What it parses is now two lines and the writer's own text; the 111 KB it
+    /// used to copy and re-parse to resolve one span is the prelude, and the
+    /// prelude is somebody else's file.
+    pub fn of(main: &str, body: &str) -> Self {
         Self {
-            source: Source::detached(assembled.to_string()),
-            body_offset: body_offset_of(assembled, body),
+            main: Source::detached(main.to_string()),
+            body_offset: body_offset_of(main, body),
         }
     }
 
     /// Turn Typst's diagnostics into located, rephrased ones.
     pub fn all(&self, diags: &[SourceDiagnostic], severity: &str) -> Vec<Diagnostic> {
-        located(diags, severity, &self.source, self.body_offset)
+        located(diags, severity, &self.main, self.body_offset)
     }
 }
 
 /// Turn Typst's diagnostics into located, rephrased ones.
 ///
-/// `source` is the assembled source Typst compiled — prelude, wrapper and body —
-/// and `body_offset` is where the writer's own text begins inside it.
+/// `main` is the source Typst compiled — the import line, the `#show` wrapper
+/// and the body — and `body_offset` is where the writer's own text begins inside
+/// it. The prelude is reached through [`crate::prelude_source`].
 fn located(
     diags: &[SourceDiagnostic],
     severity: &str,
-    source: &Source,
+    main: &Source,
     body_offset: usize,
 ) -> Vec<Diagnostic> {
-    let text = source.text();
+    let text = main.text();
     let body = &text[body_offset.min(text.len())..];
     diags
         .iter()
@@ -782,11 +872,11 @@ fn located(
                 raw.push_str("\n  ↳ ");
                 raw.push_str(&hint.v);
             }
-            // The span, mapped into the writer's own text. A span that lands
-            // before the body is a diagnostic about the prelude, and the honest
-            // answer for it is no line at all rather than a line the writer
-            // cannot see.
-            let (at, named) = where_it_happened(d, source, body_offset);
+            // The span, mapped into the writer's own text. A span in the prelude
+            // or in the two-line header is a diagnostic about something the
+            // writer cannot see, and the honest answer for it is no line at all
+            // rather than a line that is not theirs.
+            let (at, named) = where_it_happened(d, main, body_offset);
             let (line, column) = match at {
                 Some(at) => {
                     let (l, c) = line_column(body, at);
@@ -1002,96 +1092,164 @@ mod tests {
     }
 
     /// Every top-level `#let` in the real prelude is the name `enclosing_let`
-    /// gives for a span inside it — all 360 of them, swept.
+    /// gives for a span inside it — all 361 of them, swept.
     ///
     /// This is the fence under the §5 finding. `enclosing_let` is the last
     /// resort of the argument-type family: when Typst spans the prelude and
     /// records no call frame, the name of the binding the span fell inside is
     /// the only thing left that can tell the writer which of their commands
-    /// this was about. It found the nearest `#let ` anywhere, which is right
-    /// only for as long as `ksav.typ` writes every nested binding as an
-    /// indented `let` with no hash — a spelling convention, held by habit,
-    /// tested by nothing, over 2,324 lines. One indented `#let` and every
-    /// diagnostic in the family starts naming a private helper.
+    /// this was about.
     ///
-    /// Now it is anchored to column 0, and this asserts the anchor against the
-    /// prelude rather than against a paragraph: for each top-level binding,
-    /// a point in the middle of its text must resolve to its own name.
+    /// It has had three implementations and the sweep survived all of them,
+    /// which is the argument for the sweep. It found the nearest `#let `
+    /// anywhere — right only while `ksav.typ` writes every nested binding as an
+    /// indented `let` with no hash, a spelling convention held by habit over
+    /// 2,324 lines. Then it was anchored to column 0, which made the convention
+    /// unnecessary and the *scan* still a scan. Now the prelude is a parsed
+    /// `Source` and it asks the syntax tree, so a nested `#let` is a nested node
+    /// and a `#let` inside a string is not a node at all.
+    ///
+    /// The expectations are read the old way on purpose: a column-0 line scan
+    /// for what the answers *should* be, checked against what the tree walk
+    /// says, name for name and in order. Deriving both sides from the tree would
+    /// be a test of nothing.
+    ///
+    /// The probe point is the middle of each binding's **own node**, and the
+    /// difference from the old test is worth naming because it is the difference
+    /// between the two implementations. The old one probed halfway to the *next*
+    /// binding, which for a short definition followed by a long comment block is
+    /// a point inside the comment — and the backwards scan answered with the
+    /// preceding binding's name, because a scan cannot tell that it has walked
+    /// out of the thing it is naming. Seventy-five of the 361 probes landed
+    /// there. The tree says `None` for all of them, correctly: a comment is not
+    /// inside a binding, and no span Typst ever reports points at one.
     #[test]
     fn every_top_level_let_names_itself() {
-        let cfg = crate::DocConfig::default();
-        let assembled = crate::assemble_source("", &cfg);
-        let prefix = &assembled[..body_offset(&cfg)];
+        let source = crate::prelude_source();
+        let text = source.text();
 
-        // Every column-0 `#let`, with the byte it starts at.
-        let mut tops: Vec<(usize, String)> = Vec::new();
-        for (at, line) in line_starts(prefix) {
+        // What the answers should be: every column-0 `#let`, in order.
+        let mut expected: Vec<String> = Vec::new();
+        for (_, line) in line_starts(text) {
             if let Some(rest) = line.strip_prefix("#let ") {
                 let name: String = rest
                     .chars()
                     .take_while(|c| c.is_alphanumeric() || *c == '_')
                     .collect();
                 if !name.is_empty() {
-                    tops.push((at, name));
+                    expected.push(format!("#{name}"));
                 }
             }
         }
         assert!(
-            tops.len() > 300,
+            expected.len() > 300,
             "the prelude should be a few hundred bindings, found {}",
-            tops.len()
+            expected.len()
         );
 
+        // What the parser says the bindings are: every `LetBinding` with no
+        // `LetBinding` above it.
+        fn tops(node: &LinkedNode, out: &mut Vec<(std::ops::Range<usize>, Option<String>)>) {
+            for child in node.children() {
+                if child.kind() == SyntaxKind::LetBinding {
+                    out.push((child.range(), binding_name(&child)));
+                } else {
+                    tops(&child, out);
+                }
+            }
+        }
+        let mut found = Vec::new();
+        tops(&LinkedNode::new(source.root()), &mut found);
+
+        let names: Vec<String> = found
+            .iter()
+            .map(|(_, n)| n.clone().unwrap_or_else(|| "<unnamed>".into()))
+            .collect();
+        assert_eq!(
+            names, expected,
+            "the parser and a column-0 line scan disagree about what the prelude binds",
+        );
+
+        // And a point inside each binding resolves to that binding — not to a
+        // helper defined within it, which is the failure the whole resolver is
+        // about.
         let mut wrong = Vec::new();
-        for (i, (at, name)) in tops.iter().enumerate() {
-            let end = tops.get(i + 1).map_or(prefix.len(), |(next, _)| *next);
-            // A point inside the definition, not at either edge of it — which is
-            // where a span into a *nested* binding would land.
-            let mut mid = at + (end - at) / 2;
-            while mid > *at && !prefix.is_char_boundary(mid) {
+        for (range, name) in &found {
+            let mut mid = range.start + (range.end - range.start) / 2;
+            while mid > range.start && !text.is_char_boundary(mid) {
                 mid -= 1;
             }
-            let got = enclosing_let(prefix, mid);
-            if got.as_deref() != Some(&format!("#{name}")) {
-                wrong.push(format!("#{name} → {got:?}"));
+            let got = enclosing_let(source, mid);
+            if got != *name {
+                wrong.push(format!("{name:?} → {got:?}"));
             }
         }
         assert!(wrong.is_empty(), "bindings named wrong: {wrong:?}");
     }
 
-    /// The mutation the sweep above cannot make: a nested binding *written with
-    /// a hash*, which is what the convention forbids and nothing enforced.
+    /// The mutations the sweep above cannot make.
+    ///
+    /// A nested binding *written with a hash* is what the old spelling
+    /// convention forbade and nothing enforced. The last two are what only a
+    /// parser can get right: `#let` inside a string literal and inside a
+    /// comment are text, not bindings, and a scan for `\n#let ` would have
+    /// happily named both.
     #[test]
     fn a_nested_binding_does_not_steal_the_name() {
-        let prelude = "#let קודם() = 1\n#let מסגרת(גוף) = {\n  #let פנימי = 3\n  גוף\n}\n";
-        let inside = prelude.find("גוף\n}").unwrap();
+        let src = |t: &str| typst::syntax::Source::detached(t.to_string());
+
+        let prelude = src("#let קודם() = 1\n#let מסגרת(גוף) = {\n  #let פנימי = 3\n  גוף\n}\n");
+        let text = prelude.text().to_string();
         assert_eq!(
-            enclosing_let(prelude, inside),
+            enclosing_let(&prelude, text.find("גוף\n}").unwrap()),
             Some("#מסגרת".to_string()),
             "a span inside `מסגרת` must name `מסגרת`, not the helper it defines"
         );
         // And the first binding in the file still has a name, though nothing
-        // precedes it — the assembled source opens with the sefarim table's own.
+        // precedes it — the prelude module opens with the sefarim table's own.
         assert_eq!(
-            enclosing_let(prelude, prelude.find("= 1").unwrap()),
+            enclosing_let(&prelude, text.find("= 1").unwrap()),
             Some("#קודם".to_string()),
             "the binding at byte 0 has no newline in front of it"
         );
         // A span that lands inside the name itself still gets the whole name.
         assert_eq!(
-            enclosing_let(prelude, prelude.find("ודם").unwrap()),
+            enclosing_let(&prelude, text.find("ודם").unwrap()),
             Some("#קודם".to_string()),
             "a truncated command name is a wrong command name"
+        );
+
+        // A `#let` that is not a binding: inside a string, and inside a comment.
+        let quoted = src("#let שם = \"\\n#let מתחזה = 1\"\n");
+        let at = quoted.text().find("מתחזה").unwrap();
+        assert_eq!(
+            enclosing_let(&quoted, at),
+            Some("#שם".to_string()),
+            "text inside a string literal is not a binding"
+        );
+        let commented = src("#let שם = 1\n// #let מתחזה = 2\n#let אחר = 3\n");
+        let at = commented.text().find("מתחזה").unwrap();
+        assert_eq!(
+            enclosing_let(&commented, at),
+            None,
+            "a commented-out binding names nothing, not itself"
         );
     }
 
     /// The cheap offset is the same offset, over every shape of config.
     ///
-    /// `body_offset` is the definition and costs a 111 KB `format!`;
-    /// `body_offset_of` is subtraction. Everything on a hot path calls the
-    /// second one, so this is what stops it becoming a different number:
-    /// the config fields that change the wrapper's *length* — every string in
-    /// it, and the two that switch a `none` for a value — are swept.
+    /// `body_offset` is the definition — it builds a main source with an empty
+    /// body — and `body_offset_of` is subtraction. Everything on a hot path
+    /// calls the second one, so this is what stops it becoming a different
+    /// number: the config fields that change the wrapper's *length* — every
+    /// string in it, and the two that switch a `none` for a value — are swept.
+    ///
+    /// It also now sweeps **both arrangements**. `main_source` is what the
+    /// compiler is handed and `assemble_source` is what "export .typ" writes;
+    /// they share `show_rule` and differ only in what precedes it, and the body
+    /// has to start where the arithmetic says in each of them. The export is the
+    /// one nothing else in this file touches, so it is the one that could drift
+    /// quietly.
     #[test]
     fn the_cheap_offset_is_the_same_offset() {
         /// One way to make the wrapper a different length.
@@ -1131,18 +1289,25 @@ mod tests {
 
         for cfg in &configs {
             for body in ["", "א", "שורה\nושתיים\n", &"מילה ".repeat(500)] {
-                let assembled = crate::assemble_source(body, cfg);
+                let main = crate::main_source(body, cfg);
                 assert_eq!(
-                    body_offset_of(&assembled, body),
+                    body_offset_of(&main, body),
                     body_offset(cfg),
                     "body of {} bytes, dir {}",
                     body.len(),
                     cfg.dir
                 );
-                // And it really is where the body starts.
-                assert_eq!(
-                    &assembled[body_offset_of(&assembled, body)..],
-                    format!("{body}\n")
+                // And it really is where the body starts, in both arrangements.
+                assert_eq!(&main[body_offset_of(&main, body)..], format!("{body}\n"));
+                let flat = crate::assemble_source(body, cfg);
+                assert_eq!(&flat[body_offset_of(&flat, body)..], format!("{body}\n"));
+                // The header the compiler sees is two lines and a blank one, not
+                // a hundred kilobytes. Named so that a change which quietly puts
+                // the prelude back in front of the body fails here first.
+                assert!(
+                    body_offset(cfg) < 2_000,
+                    "the main source's header is {} bytes",
+                    body_offset(cfg)
                 );
             }
         }

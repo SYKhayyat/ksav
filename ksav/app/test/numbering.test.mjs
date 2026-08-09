@@ -15,7 +15,7 @@
 
 import { check, ok } from "./harness.mjs";
 import { gematria, hebrewNumeral, continueSeries } from "../.tmp-test/numbering.mjs";
-import { dirOf } from "../tools/paths.mjs";
+import { commands } from "../tools/commands.mjs";
 
 const SIMAN = "#סימן[א׳][|]";
 const SEIF = "#סעיף[א][|]";
@@ -136,13 +136,12 @@ export async function run() {
 
   {
     // The registry's snippet is what this continues *from*, so a change to it
-    // that broke the shape would be silent. Read it rather than assumed.
-    const { readFile } = await import("node:fs/promises");
-    const path = await import("node:path");
-    const HERE = dirOf(import.meta.url);
-    const rs = await readFile(path.resolve(HERE, "..", "..", "engine", "src", "commands.rs"), "utf8");
+    // that broke the shape would be silent. Read it rather than assumed — and
+    // read the *value*, not the Rust that spells it: this used to grep
+    // `commands.rs` for the literal, which passes just as happily on a comment.
+    const byName = new Map(commands().map((c) => [c.he, c]));
     for (const [name, snippet] of [["סימן", "#סימן[א׳][|]"], ["סעיף", "#סעיף[א][|]"]]) {
-      ok(`the registry still ships ${name} as ${snippet}`, rs.includes(`"${snippet}"`));
+      check(`the registry still ships ${name} as ${snippet}`, byName.get(name)?.insert, snippet);
       // And the caret is still past the number, which is why nobody saw it.
       ok(`…with the caret in the title`, snippet.indexOf("|") > snippet.indexOf("]"));
     }

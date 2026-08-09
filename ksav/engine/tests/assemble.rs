@@ -98,8 +98,15 @@ fn corpus() -> Vec<(&'static str, Value)> {
 }
 
 /// The bytes are the same bytes. This is the whole contract.
+///
+/// "The source a compile carries" stopped meaning "the source a compile is
+/// handed" in August: the compiler gets `main.typ`, which imports the prelude,
+/// and both services still answer with the inlined document because that is what
+/// a writer asking for plain Typst can actually use. So this is now a check that
+/// the two *services* agree — and `the_exported_file_compiles_on_its_own_to_the_same_document`
+/// is the check that what they agree on is a document.
 #[test]
-fn the_assembled_source_is_the_source_a_compile_would_have_carried() {
+fn both_services_answer_with_the_same_exported_source() {
     for (name, req) in corpus() {
         let quick = assemble(&req);
         let slow = compiled_source(&req);
@@ -175,4 +182,72 @@ fn assemble_is_a_registered_service() {
         matches!(s.reach, ksav_engine::services::Reach::All),
         "every build can export a .typ"
     );
+}
+
+/// The export is a **document**, not a document minus a file.
+///
+/// # The risk this covers, which did not exist until August
+///
+/// A compile no longer sees what the export writes. The compiler is handed
+/// `main.typ` — `#import "ksav.typ": *`, the `#show` wrapper, the body — and
+/// resolves the prelude as a file; "export .typ" inlines the prelude instead,
+/// because a writer who asks for plain Typst cannot be handed a file that
+/// imports a file they do not have.
+///
+/// That is two arrangements of one prelude, and the failure mode is one-sided
+/// and silent: every test in this repository compiles through the *first*
+/// arrangement, so the export could stop being self-contained — acquire an
+/// import, lose the catalogue, get its ordering wrong — and everything would
+/// stay green until somebody opened the exported file somewhere else.
+///
+/// So it is compiled here, through an engine with **no source resolver on it at
+/// all**. An engine that cannot resolve an import is what makes "self-contained"
+/// a thing a test can check rather than a thing a comment claims. And the pages
+/// are compared with the compiled arrangement's, because a file that compiles to
+/// a *different* document is a subtler version of the same failure.
+#[test]
+fn the_exported_file_compiles_on_its_own_to_the_same_document() {
+    use ksav_engine::probe;
+
+    for (what, body) in [
+        ("plain", "שלום עולם\n"),
+        (
+            "apparatus",
+            "#כותרת1[פרק א]\n\nגוף#הערה[הערת שוליים] וסיום.\n\n#הערות_בסוף()\n",
+        ),
+        (
+            "bands and an index",
+            "#סימן[א׳][פתיחה]\n\nראה #ציון_מקור(\"בבא בתרא\", מקום: \"ב.\") כאן.\n\n\
+             #מדף_א[הערה על הדף]\n\n#מפתח_מקורות()\n",
+        ),
+    ] {
+        let cfg = ksav_engine::DocConfig::default();
+        let exported = ksav_engine::assemble_source(body, &cfg);
+        assert!(
+            !exported.contains("#import \"ksav.typ\""),
+            "{what}: the export must not import the file it is meant to contain",
+        );
+
+        let alone = probe::layout_plain(&exported)
+            .unwrap_or_else(|d| panic!("{what}: the exported file did not compile: {d:?}"));
+        let compiled = probe::layout(body, &cfg)
+            .unwrap_or_else(|d| panic!("{what}: the document did not compile: {d:?}"));
+
+        assert_eq!(
+            probe::page_sizes(&alone),
+            probe::page_sizes(&compiled),
+            "{what}: the exported file laid out to different pages",
+        );
+        let words = |d: &_| {
+            probe::text_runs(d)
+                .iter()
+                .map(|r| r.text.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            words(&alone),
+            words(&compiled),
+            "{what}: the exported file laid out different text",
+        );
+    }
 }

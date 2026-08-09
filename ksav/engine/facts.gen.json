@@ -1,0 +1,1246 @@
+{
+  "doc_defaults": {
+    "font": "Frank Ruhl Hofshi",
+    "size_pt": 12.0,
+    "margin_cm": 2.5,
+    "margin_top_cm": null,
+    "margin_bottom_cm": null,
+    "margin_inner_cm": null,
+    "margin_outer_cm": null,
+    "gutter_cm": 0.0,
+    "two_sided": false,
+    "header_even": "",
+    "header_odd": "",
+    "footer_even": "",
+    "footer_odd": "",
+    "head_align": "center",
+    "title": "",
+    "author": "",
+    "keywords": [],
+    "pdf_standard": "",
+    "pdf_tagged": true,
+    "pdf_pages": "",
+    "prevent_orphans": false,
+    "dir": "rtl",
+    "lang": "",
+    "numbering": true,
+    "justify": true,
+    "line_spacing_em": 0.75,
+    "para_spacing_em": 1.2,
+    "first_line_indent_em": 0.0,
+    "columns": 1,
+    "paper": "a4",
+    "hebrew_numbering": false,
+    "header": "",
+    "footer": "",
+    "notes_region_cm": null
+  },
+  "commands": [
+    {
+      "he": "הדגשה",
+      "en": "bold",
+      "category": "style",
+      "desc_he": "טקסט מודגש",
+      "desc_en": "Bold text",
+      "insert": "#הדגשה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "נטוי",
+      "en": "italic",
+      "category": "style",
+      "desc_he": "טקסט נטוי",
+      "desc_en": "Italic text",
+      "insert": "#נטוי[|]",
+      "deprecated": false
+    },
+    {
+      "he": "קו_תחתון",
+      "en": "uline",
+      "category": "style",
+      "desc_he": "קו תחתון",
+      "desc_en": "Underline",
+      "insert": "#קו_תחתון[|]",
+      "deprecated": false
+    },
+    {
+      "he": "קו_חוצה",
+      "en": "sthrough",
+      "category": "style",
+      "desc_he": "קו חוצה",
+      "desc_en": "Strikethrough",
+      "insert": "#קו_חוצה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "סימון",
+      "en": "mark",
+      "category": "style",
+      "desc_he": "הדגשה בצבע רקע",
+      "desc_en": "Highlight",
+      "insert": "#סימון[|]",
+      "deprecated": false
+    },
+    {
+      "he": "רברבתי",
+      "en": "scaps",
+      "category": "style",
+      "desc_he": "אותיות רבתי",
+      "desc_en": "Small caps",
+      "insert": "#רברבתי[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כתב_רשי",
+      "en": "rashi",
+      "category": "style",
+      "desc_he": "כתב רש״י (דורש גופן מצורף)",
+      "desc_en": "Rashi script (needs an attached font)",
+      "insert": "#כתב_רשי[|]",
+      "deprecated": false
+    },
+    {
+      "he": "עילי",
+      "en": "sup",
+      "category": "style",
+      "desc_he": "כתב עילי",
+      "desc_en": "Superscript",
+      "insert": "#עילי[|]",
+      "deprecated": false
+    },
+    {
+      "he": "תחתי",
+      "en": "sub_",
+      "category": "style",
+      "desc_he": "כתב תחתי",
+      "desc_en": "Subscript",
+      "insert": "#תחתי[|]",
+      "deprecated": false
+    },
+    {
+      "he": "גדול",
+      "en": "big",
+      "category": "style",
+      "desc_he": "טקסט מוגדל",
+      "desc_en": "Larger text",
+      "insert": "#גדול[|]",
+      "deprecated": false
+    },
+    {
+      "he": "קטן",
+      "en": "tiny",
+      "category": "style",
+      "desc_he": "טקסט מוקטן",
+      "desc_en": "Smaller text",
+      "insert": "#קטן[|]",
+      "deprecated": false
+    },
+    {
+      "he": "צבע",
+      "en": "color",
+      "category": "style",
+      "desc_he": "צבע טקסט",
+      "desc_en": "Text color",
+      "insert": "#צבע(rgb(\"#b91c1c\"))[|]",
+      "deprecated": false
+    },
+    {
+      "he": "רקע",
+      "en": "bg",
+      "category": "style",
+      "desc_he": "צבע רקע",
+      "desc_en": "Background color",
+      "insert": "#רקע(yellow)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "גופן_שונה",
+      "en": "usefont",
+      "category": "style",
+      "desc_he": "החלפת גופן",
+      "desc_en": "Change font",
+      "insert": "#גופן_שונה(\"David Libre\")[|]",
+      "deprecated": false
+    },
+    {
+      "he": "קוד",
+      "en": "mono",
+      "category": "style",
+      "desc_he": "טקסט מונו (קוד)",
+      "desc_en": "Monospace / code",
+      "insert": "#קוד[|]",
+      "deprecated": false
+    },
+    {
+      "he": "גודל_גופן",
+      "en": "fsize",
+      "category": "style",
+      "desc_he": "גודל גופן מדויק",
+      "desc_en": "Exact font size",
+      "insert": "#גודל_גופן(14pt)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מרווח_אותיות",
+      "en": "track",
+      "category": "style",
+      "desc_he": "מרווח בין אותיות",
+      "desc_en": "Letter spacing",
+      "insert": "#מרווח_אותיות(0.1em)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "שער",
+      "en": "title",
+      "category": "heading",
+      "desc_he": "כותרת ראשית ממורכזת",
+      "desc_en": "Centered document title",
+      "insert": "#שער[|]",
+      "deprecated": false
+    },
+    {
+      "he": "תת_שער",
+      "en": "subtitle",
+      "category": "heading",
+      "desc_he": "כותרת משנה ממורכזת",
+      "desc_en": "Centered subtitle",
+      "insert": "#תת_שער[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת1",
+      "en": "h1",
+      "category": "heading",
+      "desc_he": "כותרת רמה 1",
+      "desc_en": "Heading level 1",
+      "insert": "#כותרת1[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת2",
+      "en": "h2",
+      "category": "heading",
+      "desc_he": "כותרת רמה 2",
+      "desc_en": "Heading level 2",
+      "insert": "#כותרת2[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת3",
+      "en": "h3",
+      "category": "heading",
+      "desc_he": "כותרת רמה 3",
+      "desc_en": "Heading level 3",
+      "insert": "#כותרת3[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת",
+      "en": "hlevel",
+      "category": "heading",
+      "desc_he": "כותרת בכל רמה",
+      "desc_en": "Heading at any level",
+      "insert": "#כותרת(רמה: 4)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת_בהערה",
+      "en": "note_heading",
+      "category": "heading",
+      "desc_he": "כותרת בתוך הערה — נראית ככותרת, אינה נכנסת לתוכן ואינה מקדמת מספור",
+      "desc_en": "Heading inside a note — looks like one, but stays out of the outline and the numbering",
+      "insert": "#כותרת_בהערה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרות",
+      "en": "headings_config",
+      "category": "heading",
+      "desc_he": "עיצוב הכותרות (גודל/צבע/יישור/מספור/קו לכל רמה)",
+      "desc_en": "Configure headings (size/colour/align/numbering/rule per level)",
+      "insert": "#הגדרות_כותרות(גודל: (2em, 1.4em), צבע: (rgb(\"#b91c1c\"), luma(40)), מספור: \"1.1\", קו: (true, false))|",
+      "deprecated": false
+    },
+    {
+      "he": "מרכז",
+      "en": "center_",
+      "category": "align",
+      "desc_he": "יישור למרכז",
+      "desc_en": "Center align",
+      "insert": "#מרכז[|]",
+      "deprecated": false
+    },
+    {
+      "he": "ימין",
+      "en": "right_",
+      "category": "align",
+      "desc_he": "יישור לימין",
+      "desc_en": "Right align",
+      "insert": "#ימין[|]",
+      "deprecated": false
+    },
+    {
+      "he": "שמאל",
+      "en": "left_",
+      "category": "align",
+      "desc_he": "יישור לשמאל",
+      "desc_en": "Left align",
+      "insert": "#שמאל[|]",
+      "deprecated": false
+    },
+    {
+      "he": "משמאל_לימין",
+      "en": "ltr_",
+      "category": "align",
+      "desc_he": "קטע משמאל לימין",
+      "desc_en": "Left-to-right run",
+      "insert": "#משמאל_לימין[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מימין_לשמאל",
+      "en": "rtl_",
+      "category": "align",
+      "desc_he": "קטע מימין לשמאל",
+      "desc_en": "Right-to-left run",
+      "insert": "#מימין_לשמאל[|]",
+      "deprecated": false
+    },
+    {
+      "he": "רשימה",
+      "en": "bullets",
+      "category": "list",
+      "desc_he": "רשימת תבליטים",
+      "desc_en": "Bulleted list",
+      "insert": "#רשימה(\n  פריט[|],\n  פריט[],\n)",
+      "deprecated": false
+    },
+    {
+      "he": "ממוספרת",
+      "en": "numbered",
+      "category": "list",
+      "desc_he": "רשימה ממוספרת",
+      "desc_en": "Numbered list",
+      "insert": "#ממוספרת(\n  פריט[|],\n  פריט[],\n)",
+      "deprecated": false
+    },
+    {
+      "he": "ממוספרת_עברית",
+      "en": "henum",
+      "category": "list",
+      "desc_he": "רשימה ממוספרת עברית (א,ב,ג)",
+      "desc_en": "Hebrew-lettered list",
+      "insert": "#ממוספרת_עברית(\n  פריט[|],\n  פריט[],\n)",
+      "deprecated": false
+    },
+    {
+      "he": "תוכן",
+      "en": "toc",
+      "category": "list",
+      "desc_he": "תוכן העניינים",
+      "desc_en": "Table of contents",
+      "insert": "#תוכן()",
+      "deprecated": false
+    },
+    {
+      "he": "פריט",
+      "en": "item",
+      "category": "list",
+      "desc_he": "פריט ברשימה",
+      "desc_en": "List item",
+      "insert": "פריט[|]",
+      "deprecated": false
+    },
+    {
+      "he": "רשימת_הגדרות",
+      "en": "deflist",
+      "category": "list",
+      "desc_he": "רשימת הגדרות",
+      "desc_en": "Definition list",
+      "insert": "#רשימת_הגדרות(\n  הגדרה[מונח][|],\n)",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_רשימות",
+      "en": "lists_config",
+      "category": "list",
+      "desc_he": "עיצוב הרשימות (סמן/הזחה/ריווח/מספור)",
+      "desc_en": "Configure lists (marker/indent/spacing/numbering)",
+      "insert": "#הגדרות_רשימות(סמן: ([◆], [–]), הזחה: 1.5em, הידוק: true)|",
+      "deprecated": false
+    },
+    {
+      "he": "טבלה",
+      "en": "mktable",
+      "category": "table",
+      "desc_he": "טבלה",
+      "desc_en": "Table",
+      "insert": "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n  תא[], תא[],\n  תא[], תא[],\n)",
+      "deprecated": false
+    },
+    {
+      "he": "תא",
+      "en": "cell",
+      "category": "table",
+      "desc_he": "תא בטבלה",
+      "desc_en": "Table cell",
+      "insert": "תא[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת_תא",
+      "en": "headcell",
+      "category": "table",
+      "desc_he": "תא כותרת",
+      "desc_en": "Header cell",
+      "insert": "כותרת_תא[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_טבלאות",
+      "en": "tables_config",
+      "category": "table",
+      "desc_he": "עיצוב הטבלאות (קו/מרווח/פסים/צבע כותרת/גופן)",
+      "desc_en": "Configure tables (stroke/inset/striping/header fill/font)",
+      "insert": "#הגדרות_טבלאות(פסים: true, צבע_כותרת: rgb(\"#dbeafe\"), מרווח: 10pt)|",
+      "deprecated": false
+    },
+    {
+      "he": "מיזוג",
+      "en": "colspan_",
+      "category": "table",
+      "desc_he": "מיזוג עמודות",
+      "desc_en": "Merge columns",
+      "insert": "#מיזוג(2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערה",
+      "en": "fnote",
+      "category": "footnote",
+      "desc_he": "הערת שוליים",
+      "desc_en": "Footnote",
+      "insert": "#הערה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערה_על_הערה",
+      "en": "subnote",
+      "category": "footnote",
+      "desc_he": "מיושן — השתמשו ב#הערה_ב. הערה על הערה באותו בלוק ובאותו מספור, קטנה ונטויה",
+      "desc_en": "Deprecated — use #הערה_ב. A note on a note in the same block and the same numbering, set smaller and italic",
+      "insert": "#הערה_על_הערה[|]",
+      "deprecated": true
+    },
+    {
+      "he": "הערה_א",
+      "en": "tier1",
+      "category": "footnote",
+      "desc_he": "הערה שכבתית — דרגה א (על הגוף)",
+      "desc_en": "Layered note — tier A (on the text)",
+      "insert": "#הערה_א[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערה_ב",
+      "en": "tier2",
+      "category": "footnote",
+      "desc_he": "הערה על הערה — דרגה ב (מוזחת באותו בלוק)",
+      "desc_en": "Note on a note — tier B (indented in the same block)",
+      "insert": "#הערה_ב[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערה_ג",
+      "en": "tier3",
+      "category": "footnote",
+      "desc_he": "הערה על הערה — דרגה ג (מוזחת באותו בלוק)",
+      "desc_en": "Note on a note — tier C (indented in the same block)",
+      "insert": "#הערה_ג[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערה_בדרגה",
+      "en": "tier",
+      "category": "footnote",
+      "desc_he": "הערה שכבתית בכל דרגה",
+      "desc_en": "Layered note at any tier",
+      "insert": "#הערה_בדרגה(2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_הערות",
+      "en": "footnote_config",
+      "category": "footnote",
+      "desc_he": "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות/מספור לכל דרגה)",
+      "desc_en": "Configure layered notes (size/style/indent/labels/numbering per tier)",
+      "insert": "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))",
+      "deprecated": false
+    },
+    {
+      "he": "מדור_א",
+      "en": "band1",
+      "category": "footnote",
+      "desc_he": "מדור א — בלוק ההערות הראשון (כל דרגה 1)",
+      "desc_en": "Band A — the first note block (all tier-1)",
+      "insert": "#מדור_א[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מדור_ב",
+      "en": "band2",
+      "category": "footnote",
+      "desc_he": "מדור ב — הערות על מדור א",
+      "desc_en": "Band B — notes on band A",
+      "insert": "#מדור_ב[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מדור_ג",
+      "en": "band3",
+      "category": "footnote",
+      "desc_he": "מדור ג — הערות על מדור ב",
+      "desc_en": "Band C — notes on band B",
+      "insert": "#מדור_ג[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מדור_בדרגה",
+      "en": "band",
+      "category": "footnote",
+      "desc_he": "מדור בכל דרגה",
+      "desc_en": "Band at any tier",
+      "insert": "#מדור_בדרגה(2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערות_מדורגות",
+      "en": "banded_notes",
+      "category": "footnote",
+      "desc_he": "הצגת המדורים כבלוקים נערמים (בסוף הקטע)",
+      "desc_en": "Render the bands, stacked (at end of section)",
+      "insert": "#הערות_מדורגות(כותרת: [הערות])",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מדורגות",
+      "en": "banded_config",
+      "category": "footnote",
+      "desc_he": "עיצוב המדורים (מספור/טורים/צבע לכל דרגה)",
+      "desc_en": "Configure bands (numbering/columns/colour per tier)",
+      "insert": "#הגדרות_מדורגות(טורים: (2, 1, 1))",
+      "deprecated": false
+    },
+    {
+      "he": "הערתסיום",
+      "en": "endnote",
+      "category": "footnote",
+      "desc_he": "הערת סיום (נאספת בסוף)",
+      "desc_en": "Endnote (collected at end)",
+      "insert": "#הערתסיום[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערות_בסוף",
+      "en": "endnotes",
+      "category": "footnote",
+      "desc_he": "הצגת הערות הסיום",
+      "desc_en": "Render collected endnotes",
+      "insert": "#הערות_בסוף(כותרת: [הערות])",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_הערות_סיום",
+      "en": "endnotes_config",
+      "category": "footnote",
+      "desc_he": "מספור הערות הסיום — כדי שיֵראו אחרת מהערות השוליים",
+      "desc_en": "Endnote numbering — so they do not look identical to the footnotes",
+      "insert": "#הגדרות_הערות_סיום(מספור: \"א\")",
+      "deprecated": false
+    },
+    {
+      "he": "הערות_בסוף_צד",
+      "en": "endnotes_side",
+      "category": "footnote",
+      "desc_he": "הערות סיום — כמה זרמים זה לצד זה",
+      "desc_en": "Endnotes — several streams side by side",
+      "insert": "#הערות_בסוף_צד(זרמים: (\"א\", \"ב\"), כותרות: (\"א\": [ביאורים], \"ב\": [מקורות]))",
+      "deprecated": false
+    },
+    {
+      "he": "מדף_א",
+      "en": "pageband1",
+      "category": "footnote",
+      "desc_he": "מדף א — בלוק הערות בתחתית העמוד (כל דרגה 1)",
+      "desc_en": "Page-band A — foot-of-page block (all tier-1)",
+      "insert": "#מדף_א[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מדף_ב",
+      "en": "pageband2",
+      "category": "footnote",
+      "desc_he": "מדף ב — הערות על מדף א (בלוק נפרד בעמוד)",
+      "desc_en": "Page-band B — notes on band A (separate page block)",
+      "insert": "#מדף_ב[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מדף_ג",
+      "en": "pageband3",
+      "category": "footnote",
+      "desc_he": "מדף ג — הערות על מדף ב",
+      "desc_en": "Page-band C — notes on band B",
+      "insert": "#מדף_ג[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מדף_בדרגה",
+      "en": "pageband",
+      "category": "footnote",
+      "desc_he": "מדף בכל דרגה (בתחתית העמוד)",
+      "desc_en": "Page-band at any tier (foot of page)",
+      "insert": "#מדף_בדרגה(2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מדפים",
+      "en": "pagebands_config",
+      "category": "footnote",
+      "desc_he": "עיצוב המדפים בעמוד (מספור/טורים/צבע לכל דרגה)",
+      "desc_en": "Configure page-bands (numbering/columns/colour per tier)",
+      "insert": "#הגדרות_מדפים(מספור: (\"א\", \"1\", \"a\"))",
+      "deprecated": false
+    },
+    {
+      "he": "הערה_זרם",
+      "en": "stream_note",
+      "category": "footnote",
+      "desc_he": "הערת שוליים בזרם נפרד (מספור עצמאי)",
+      "desc_en": "Footnote in a separate stream (independent numbering)",
+      "insert": "#הערה_זרם(\"מקורות\")[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_תוכן",
+      "en": "contentnote",
+      "category": "footnote",
+      "desc_he": "הערת תוכן — זרם \"תוכן\"",
+      "desc_en": "Content note — the \"content\" stream",
+      "insert": "#הערת_תוכן[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_מקור",
+      "en": "sourcenote_stream",
+      "category": "footnote",
+      "desc_he": "הערת מקור — זרם \"מקורות\"",
+      "desc_en": "Source note — the \"sources\" stream",
+      "insert": "#הערת_מקור[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_זרמים",
+      "en": "streams_config",
+      "category": "footnote",
+      "desc_he": "עיצוב זרמי ההערות (פריסה מוערמת/צד, מספור, כותרות)",
+      "desc_en": "Configure footnote streams (stacked/side-by-side, numbering, titles)",
+      "insert": "#הגדרות_זרמים(פריסה: \"צד\", זרמים: (\"תוכן\", \"מקורות\"))",
+      "deprecated": false
+    },
+    {
+      "he": "הערה_בשם",
+      "en": "note_named",
+      "category": "footnote",
+      "desc_he": "הערה שגופה נכתב בסוף המסמך",
+      "desc_en": "A note whose text is written at the end of the document",
+      "insert": "#הערה_בשם(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "גוף_הערה",
+      "en": "note_body",
+      "category": "footnote",
+      "desc_he": "גוף הערה (נכתב בסוף, מופיע במקום הסימון)",
+      "desc_en": "A note body (written at the end, printed at its marker)",
+      "insert": "#גוף_הערה(\"|\")[]",
+      "deprecated": false
+    },
+    {
+      "he": "גופי_הערות",
+      "en": "note_bodies",
+      "category": "footnote",
+      "desc_he": "אזור גופי ההערות בסוף המסמך",
+      "desc_en": "The note-bodies region at the end of the document",
+      "insert": "#גופי_הערות[|]",
+      "deprecated": false
+    },
+    {
+      "he": "ציטוט",
+      "en": "blockquote",
+      "category": "block",
+      "desc_he": "ציטוט בלוק",
+      "desc_en": "Block quote",
+      "insert": "#ציטוט[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_צד",
+      "en": "callout",
+      "category": "block",
+      "desc_he": "תיבת הדגשה (כחול)",
+      "desc_en": "Callout (blue)",
+      "insert": "#הערת_צד[|]",
+      "deprecated": false
+    },
+    {
+      "he": "אזהרה",
+      "en": "warnbox",
+      "category": "block",
+      "desc_he": "תיבת אזהרה (אדום)",
+      "desc_en": "Warning box (red)",
+      "insert": "#אזהרה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הצלחה",
+      "en": "okbox",
+      "category": "block",
+      "desc_he": "תיבת הצלחה (ירוק)",
+      "desc_en": "Success box (green)",
+      "insert": "#הצלחה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "תיבה",
+      "en": "framebox",
+      "category": "block",
+      "desc_he": "תיבה ממוסגרת",
+      "desc_en": "Framed box",
+      "insert": "#תיבה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מקור",
+      "en": "cite_",
+      "category": "block",
+      "desc_he": "ציטוט מקור (אפור)",
+      "desc_en": "Source citation",
+      "insert": "#מקור[|]",
+      "deprecated": false
+    },
+    {
+      "he": "קו_מפריד",
+      "en": "hrule",
+      "category": "layout",
+      "desc_he": "קו מפריד",
+      "desc_en": "Horizontal rule",
+      "insert": "#קו_מפריד",
+      "deprecated": false
+    },
+    {
+      "he": "מרווח",
+      "en": "vspace",
+      "category": "layout",
+      "desc_he": "רווח אנכי",
+      "desc_en": "Vertical space",
+      "insert": "#מרווח(מידה: 1em)",
+      "deprecated": false
+    },
+    {
+      "he": "מעבר_עמוד",
+      "en": "pbreak",
+      "category": "layout",
+      "desc_he": "מעבר עמוד",
+      "desc_en": "Page break",
+      "insert": "#מעבר_עמוד",
+      "deprecated": false
+    },
+    {
+      "he": "הזחה",
+      "en": "indent_",
+      "category": "layout",
+      "desc_he": "בלוק מוזח",
+      "desc_en": "Indented block",
+      "insert": "#הזחה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "טורים_בלוק",
+      "en": "cols",
+      "category": "layout",
+      "desc_he": "טורים מרובים",
+      "desc_en": "Multiple columns",
+      "insert": "#טורים_בלוק(2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "חסר",
+      "en": "blank",
+      "category": "layout",
+      "desc_he": "שורת מילוי (טופס)",
+      "desc_en": "Fill-in blank",
+      "insert": "#חסר()",
+      "deprecated": false
+    },
+    {
+      "he": "מעבר_שורה",
+      "en": "lbreak",
+      "category": "layout",
+      "desc_he": "מעבר שורה",
+      "desc_en": "Line break",
+      "insert": "#מעבר_שורה",
+      "deprecated": false
+    },
+    {
+      "he": "מעבר_טור",
+      "en": "cbreak",
+      "category": "layout",
+      "desc_he": "מעבר טור",
+      "desc_en": "Column break",
+      "insert": "#מעבר_טור",
+      "deprecated": false
+    },
+    {
+      "he": "רווח_אופקי",
+      "en": "hspace",
+      "category": "layout",
+      "desc_he": "רווח אופקי",
+      "desc_en": "Horizontal space",
+      "insert": "#רווח_אופקי(מידה: 1em)",
+      "deprecated": false
+    },
+    {
+      "he": "תמונה",
+      "en": "img",
+      "category": "image",
+      "desc_he": "הוספת תמונה",
+      "desc_en": "Insert an image",
+      "insert": "#תמונה(\"|\", רוחב: 60%)",
+      "deprecated": false
+    },
+    {
+      "he": "סימן",
+      "en": "siman",
+      "category": "torah",
+      "desc_he": "כותרת סימן",
+      "desc_en": "Siman heading",
+      "insert": "#סימן[א׳][|]",
+      "deprecated": false
+    },
+    {
+      "he": "סעיף",
+      "en": "seif",
+      "category": "torah",
+      "desc_he": "סעיף הלכתי ממוספר",
+      "desc_en": "Lettered halacha",
+      "insert": "#סעיף[א][|]",
+      "deprecated": false
+    },
+    {
+      "he": "פסוק",
+      "en": "verse",
+      "category": "torah",
+      "desc_he": "פסוק עם מקור",
+      "desc_en": "Verse with reference",
+      "insert": "#פסוק[מקור][|]",
+      "deprecated": false
+    },
+    {
+      "he": "מראה_מקום",
+      "en": "sourcenote",
+      "category": "torah",
+      "desc_he": "מראה מקום (הערה)",
+      "desc_en": "Source footnote",
+      "insert": "#מראה_מקום[|]",
+      "deprecated": false
+    },
+    {
+      "he": "ציון",
+      "en": "refmark",
+      "category": "torah",
+      "desc_he": "ציון מקור בסוגריים",
+      "desc_en": "Inline reference",
+      "insert": "#ציון[|]",
+      "deprecated": false
+    },
+    {
+      "he": "גמרא",
+      "en": "gemara",
+      "category": "torah",
+      "desc_he": "מראה מקום לגמרא",
+      "desc_en": "Gemara reference",
+      "insert": "#גמרא[ברכות][ב.]",
+      "deprecated": false
+    },
+    {
+      "he": "אות",
+      "en": "osource",
+      "category": "torah",
+      "desc_he": "אות מודגשת בתחילת קטע",
+      "desc_en": "Bold paragraph letter",
+      "insert": "#אות[|]",
+      "deprecated": false
+    },
+    {
+      "he": "דיבור_המתחיל",
+      "en": "dh",
+      "category": "torah",
+      "desc_he": "דיבור המתחיל",
+      "desc_en": "Lemma (d\"h)",
+      "insert": "#דיבור_המתחיל[|]",
+      "deprecated": false
+    },
+    {
+      "he": "ציון_מקור",
+      "en": "sourceref",
+      "category": "torah",
+      "desc_he": "ציון מקור — נכנס למפתח המקורות",
+      "desc_en": "Cite a sefer — indexed",
+      "insert": "#ציון_מקור(\"|\", מקום: \"ב.\")",
+      "deprecated": false
+    },
+    {
+      "he": "כלול",
+      "en": "include_part",
+      "category": "block",
+      "desc_he": "הכללת מסמך אחר (פרק) — בשורה משלו",
+      "desc_en": "Include another document (a chapter) — on its own line",
+      "insert": "#כלול(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "מפתח_מקורות",
+      "en": "sourceindex",
+      "category": "torah",
+      "desc_he": "מפתח המקורות (בסוף הספר)",
+      "desc_en": "Source index (at the back)",
+      "insert": "#מפתח_מקורות()",
+      "deprecated": false
+    },
+    {
+      "he": "ערך",
+      "en": "indexentry",
+      "category": "torah",
+      "desc_he": "סימון ערך למפתח הענינים",
+      "desc_en": "Mark a term for the topic index",
+      "insert": "#ערך(\"|\")[]",
+      "deprecated": false
+    },
+    {
+      "he": "מפתח_ענינים",
+      "en": "topicindex",
+      "category": "torah",
+      "desc_he": "מפתח הענינים (בסוף הספר)",
+      "desc_en": "Topic index (at the back)",
+      "insert": "#מפתח_ענינים()",
+      "deprecated": false
+    },
+    {
+      "he": "עם_פירוש",
+      "en": "commentary",
+      "category": "torah",
+      "desc_he": "טקסט עם פירוש בצד העמוד",
+      "desc_en": "Text with side commentary",
+      "insert": "#עם_פירוש([|], [הפירוש])",
+      "deprecated": false
+    },
+    {
+      "he": "עם_הערות_צד",
+      "en": "sidenotes",
+      "category": "torah",
+      "desc_he": "קטע עם הערות בטור צדדי",
+      "desc_en": "Section with side-column notes",
+      "insert": "#עם_הערות_צד[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_גיליון",
+      "en": "sidenote",
+      "category": "torah",
+      "desc_he": "הערה בטור הצד (בתוך עם_הערות_צד)",
+      "desc_en": "Side note (inside side-column section)",
+      "insert": "#הערת_גיליון[|]",
+      "deprecated": false
+    },
+    {
+      "he": "עם_הערות_דו_צד",
+      "en": "twosided",
+      "category": "torah",
+      "desc_he": "קטע עם הערות משני הצדדים",
+      "desc_en": "Section with notes on both sides",
+      "insert": "#עם_הערות_דו_צד[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_ימין",
+      "en": "noteright",
+      "category": "torah",
+      "desc_he": "הערה בטור הימני (דו-צדדי)",
+      "desc_en": "Right-side note (two-sided)",
+      "insert": "#הערת_ימין[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_שמאל",
+      "en": "noteleft",
+      "category": "torah",
+      "desc_he": "הערה בטור השמאלי (דו-צדדי)",
+      "desc_en": "Left-side note (two-sided)",
+      "insert": "#הערת_שמאל[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הוספה",
+      "en": "inserted",
+      "category": "review",
+      "desc_he": "סימון הוספה (שינוי עקוב)",
+      "desc_en": "Mark an insertion (tracked change)",
+      "insert": "#הוספה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "מחיקה",
+      "en": "deleted",
+      "category": "review",
+      "desc_he": "סימון מחיקה (שינוי עקוב)",
+      "desc_en": "Mark a deletion (tracked change)",
+      "insert": "#מחיקה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הערת_עורך",
+      "en": "comment_",
+      "category": "review",
+      "desc_he": "הערת עורך בשוליים",
+      "desc_en": "Editorial margin comment",
+      "insert": "#הערת_עורך[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_סקירה",
+      "en": "review_config",
+      "category": "review",
+      "desc_he": "תצוגת הסקירה (סימון / סופי / מקורי)",
+      "desc_en": "Review view (markup / final / original)",
+      "insert": "#הגדרות_סקירה(תצוגה: \"סופי\")",
+      "deprecated": false
+    },
+    {
+      "he": "מקטע_עמוד",
+      "en": "page_section",
+      "category": "layout",
+      "desc_he": "מקטע עם הגדרות עמוד משלו (טורים/שוליים/כותרות/סימן מים)",
+      "desc_en": "Section with its own page setup (columns/margins/headers/watermark)",
+      "insert": "#מקטע_עמוד(טורים: 2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "נוסחה",
+      "en": "formula",
+      "category": "math",
+      "desc_he": "נוסחה מוצגת (שורה משלה)",
+      "desc_en": "Displayed formula (own line)",
+      "insert": "#נוסחה(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "נוסחה_בשורה",
+      "en": "iformula",
+      "category": "math",
+      "desc_he": "נוסחה בתוך השורה",
+      "desc_en": "Inline formula",
+      "insert": "#נוסחה_בשורה(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "סמן",
+      "en": "anchor",
+      "category": "reference",
+      "desc_he": "סמן יעד להפניה",
+      "desc_en": "Mark a reference target",
+      "insert": "#סמן(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "הפניה",
+      "en": "xref",
+      "category": "reference",
+      "desc_he": "הפניה ליעד (מספר מתעדכן)",
+      "desc_en": "Reference (auto number)",
+      "insert": "#הפניה(\"|\")",
+      "deprecated": false
+    }
+  ],
+  "notices": [
+    {
+      "kind": "font",
+      "name": "Frank Ruhl Hofshi",
+      "copyright": "Copyright 2015 The Frank Ruhl Hofshi Project Authors",
+      "licence": "SIL Open Font License 1.1",
+      "licence_file": "licenses/OFL-1.1.txt",
+      "url": "https://openfontlicense.org",
+      "files": [
+        "assets/fonts/FrankRuhlHofshi-Regular.otf",
+        "assets/fonts/FrankRuhlHofshi-Bold.otf"
+      ],
+      "selectable": true
+    },
+    {
+      "kind": "font",
+      "name": "David Libre",
+      "copyright": "Copyright (c) 2003–2016 The David Libre Project Authors",
+      "licence": "SIL Open Font License 1.1",
+      "licence_file": "licenses/OFL-1.1.txt",
+      "url": "https://openfontlicense.org",
+      "files": [
+        "assets/fonts/DavidLibre-Regular.ttf",
+        "assets/fonts/DavidLibre-Bold.ttf"
+      ],
+      "selectable": true
+    },
+    {
+      "kind": "font",
+      "name": "Cascadia Mono",
+      "copyright": "Copyright (c) 2020 Microsoft Corporation",
+      "licence": "SIL Open Font License 1.1",
+      "licence_file": "licenses/OFL-1.1.txt",
+      "url": "https://github.com/microsoft/cascadia-code",
+      "files": [
+        "assets/fonts/CascadiaMono.ttf"
+      ],
+      "selectable": true
+    },
+    {
+      "kind": "font",
+      "name": "New Computer Modern Math",
+      "copyright": "Copyright (C) 2019–2026 Antonis Tsolomitis",
+      "licence": "GUST Font License 1.0 (LPPL 1.3c)",
+      "licence_file": "licenses/GUST-FONT-LICENSE.txt",
+      "url": "https://tug.org/fonts/licenses/GUST-FONT-LICENSE.txt",
+      "files": [
+        "assets/fonts/NewCMMath-Regular.otf"
+      ],
+      "selectable": false
+    },
+    {
+      "kind": "lexicon",
+      "name": "English Speller Database (SCOWL)",
+      "copyright": "Copyright 2000–2026 Kevin Atkinson; Australian data © 2016 Benjamin Titze",
+      "licence": "ESDB licence",
+      "licence_file": "licenses/ESDB.txt",
+      "url": "https://wordlist.aspell.net",
+      "files": [
+        "assets/lexicon-en.txt",
+        "assets/lexicon-en-supplement.txt"
+      ],
+      "selectable": false
+    },
+    {
+      "kind": "lexicon",
+      "name": "Ksav Hebrew lexicon",
+      "copyright": "Built from Public Domain texts (Sefaria, Project Ben-Yehuda)",
+      "licence": "MIT OR Apache-2.0",
+      "licence_file": "",
+      "url": "https://github.com/SYKhayyat/ksav",
+      "files": [
+        "assets/lexicon-he.txt",
+        "assets/lexicon-he-supplement.txt"
+      ],
+      "selectable": false
+    }
+  ],
+  "services": [
+    {
+      "name": "compile",
+      "method": "post",
+      "path": "/compile",
+      "cost": "layout",
+      "reach": "all"
+    },
+    {
+      "name": "assemble",
+      "method": "post",
+      "path": "/assemble",
+      "cost": "quick",
+      "reach": "all"
+    },
+    {
+      "name": "jump",
+      "method": "post",
+      "path": "/jump",
+      "cost": "layout",
+      "reach": "all"
+    },
+    {
+      "name": "reveal",
+      "method": "post",
+      "path": "/reveal",
+      "cost": "layout",
+      "reach": "all"
+    },
+    {
+      "name": "spell",
+      "method": "post",
+      "path": "/spell",
+      "cost": "work",
+      "reach": "all"
+    },
+    {
+      "name": "suggest",
+      "method": "post",
+      "path": "/suggest",
+      "cost": "work",
+      "reach": "all"
+    },
+    {
+      "name": "commands",
+      "method": "get",
+      "path": "/commands",
+      "cost": "quick",
+      "reach": "all"
+    },
+    {
+      "name": "templates",
+      "method": "get",
+      "path": "/templates",
+      "cost": "quick",
+      "reach": "all"
+    },
+    {
+      "name": "sefarim",
+      "method": "get",
+      "path": "/sefarim",
+      "cost": "quick",
+      "reach": "all"
+    },
+    {
+      "name": "inbox",
+      "method": "post",
+      "path": "/inbox",
+      "cost": "quick",
+      "reach": "native"
+    },
+    {
+      "name": "mekoros",
+      "method": "post",
+      "path": "/mekoros",
+      "cost": "work",
+      "reach": "native"
+    },
+    {
+      "name": "linkify",
+      "method": "post",
+      "path": "/linkify",
+      "cost": "work",
+      "reach": "native"
+    },
+    {
+      "name": "refresh",
+      "method": "post",
+      "path": "/refresh",
+      "cost": "work",
+      "reach": "native"
+    }
+  ]
+}

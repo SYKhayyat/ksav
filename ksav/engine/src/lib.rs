@@ -1,9 +1,16 @@
 //! Ksav engine — compiles Hebrew "Ksav" markup into real Typst output.
 //!
 //! The Hebrew commands are *actual Typst functions* defined in `typst/ksav.typ`.
-//! We prepend that prelude to the user's document, inject a `#show: מסמך.with(...)`
-//! wrapper driven by the editor settings, then run the genuine Typst compiler to
-//! produce a PDF and per-page SVG previews.
+//! We hand Typst a two-line document — an `#import` of that prelude and a
+//! `#show: מסמך.with(...)` wrapper driven by the editor settings — with the
+//! writer's text after it, and run the genuine Typst compiler to produce a PDF
+//! and per-page SVG previews.
+//!
+//! The prelude is a **resolved file** rather than a prefix, which is a change
+//! worth naming here because everything downstream is shaped by it: see
+//! [`prelude_source`] for what it replaced and [`main_source`] for what is left.
+//! "Export .typ" still inlines it — [`assemble_source`] — because a file a
+//! writer takes elsewhere has to stand on its own.
 
 use assets::Assets;
 use diagnostics::Located;
@@ -14,6 +21,9 @@ use typst_layout::PagedDocument;
 pub mod assets;
 pub mod commands;
 pub mod diagnostics;
+/// The four tables the app generates its own copies from, as serialised values
+/// rather than as Rust source text for a regex to pick at.
+pub mod facts;
 /// A sefer is many files: `#כלול` and the line map that keeps its
 /// diagnostics meaningful.
 pub mod include;
@@ -76,7 +86,14 @@ const FONT_CASCADIA: &[u8] = include_bytes!("../assets/fonts/CascadiaMono.ttf");
 const FONT_NEWCM_MATH: &[u8] = include_bytes!("../assets/fonts/NewCMMath-Regular.otf");
 
 /// Document-level settings, normally supplied by the editor toolbar.
-#[derive(Debug, Clone)]
+///
+/// `Serialize` is not decoration and not for the wire: it is how
+/// `DocConfig::default()` reaches the app. The defaults used to cross that seam
+/// as *source text* — `app/tools/emit-engine.mjs` sliced this file from
+/// `impl Default for DocConfig` and ran a regex over the lines — so reflowing
+/// that block changed the numbers the editor's sliders read while the page was
+/// laid out to the old ones. See `facts.rs`.
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct DocConfig {
     pub font: String,
     pub size_pt: f64,
@@ -709,18 +726,89 @@ fn typst_str_array(items: &[String]) -> String {
     )
 }
 
-pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
+/// The virtual path the prelude is registered at, and the name a document
+/// imports it by.
+///
+/// It is a *file* now, and that is the whole of change #23. See
+/// [`prelude_source`].
+pub const PRELUDE_PATH: &str = "ksav.typ";
+
+/// The line every compiled document opens with.
+const IMPORT_LINE: &str = "#import \"ksav.typ\": *";
+
+/// The prelude and the sefer catalogue, as one parsed Typst file — **once per
+/// process**.
+///
+/// # What this replaces
+///
+/// Every compile used to hand Typst a single string: the 34 KB sefer catalogue,
+/// then the 2,324-line prelude, then the `#show` wrapper, then the writer's
+/// text — around 111 KB of which ~110 KB was identical to the last keystroke's.
+/// Typst re-parsed all of it, every time, and then two more things did:
+/// `Located::of` copied and parsed it a second time to resolve any span, and
+/// `body_offset` re-ran the whole `format!` with an empty body to learn one
+/// integer.
+///
+/// Worse than the cost was what it did to the diagnostics. A span into the
+/// prelude and a span into the writer's text were the *same file* at different
+/// byte offsets, so telling them apart meant arithmetic, and naming the command
+/// a prelude span belonged to meant scanning backwards through 111 KB for the
+/// nearest column-0 `#let` — a rule held by spelling convention across 361
+/// bindings, which needed its own sweeping test to stay true.
+///
+/// Now the prelude is a file with a [`FileId`], the document `#import`s it, and
+/// Typst is handed a main source that is two lines plus the writer's text. A
+/// span carries which file it came from, so "is this the writer's line?" is an
+/// identity check rather than a comparison against an offset.
+///
+/// # Why the catalogue is still inside it
+///
+/// Because the prelude's index functions close over it — a Typst closure
+/// captures the scope it was defined in, so a table defined *after* them is a
+/// table they cannot see. That was a real constraint on a concatenation, where
+/// it dragged the body's offset around; inside one module file it costs nothing
+/// and needs nobody to remember it. Both halves are generated from
+/// [`sefarim::SEFARIM`] and `typst/ksav.typ`, which are still the one list and
+/// the one prelude.
+///
+/// # Why a `OnceLock` and not a builder argument
+///
+/// `Source::new` parses, and a `Source` is `Arc`-backed so handing one out is a
+/// pointer copy. Registering this with the engine per compile therefore costs a
+/// clone of an `Arc` and a one-entry `HashMap`; parsing 111 KB of Typst happens
+/// exactly once, at the first compile of the process.
+pub(crate) fn prelude_source() -> &'static typst::syntax::Source {
+    use typst::syntax::{RootedPath, Source, VirtualPath, VirtualRoot};
+    static IT: std::sync::OnceLock<Source> = std::sync::OnceLock::new();
+    IT.get_or_init(|| {
+        let vpath = VirtualPath::new(PRELUDE_PATH).expect("a valid virtual path");
+        let id = RootedPath::new(VirtualRoot::Project, vpath).intern();
+        Source::new(id, prelude_text())
+    })
+}
+
+/// The prelude module's text: catalogue, then prelude.
+///
+/// Shared with [`assemble_source`], which is what makes "export .typ" a
+/// self-contained document rather than one that imports a file the writer does
+/// not have. One string, two arrangements of it, no second copy of the order.
+fn prelude_text() -> String {
+    format!("{}\n{}\n", sefarim::typst_table(), PRELUDE)
+}
+
+/// The `#show: מסמך.with(…)` line: the editor's settings, as Typst.
+///
+/// Split out of the assembly because there are two arrangements now — the one
+/// the compiler sees and the one "export .typ" writes — and a second copy of
+/// twenty-nine formatted parameters is exactly the kind of drift this file has
+/// been bitten by before. It takes the body because one parameter is derived
+/// from it: `אזור_הערות` reserves space at the foot of the page only when the
+/// document actually uses the per-page apparatus.
+fn show_rule(body: &str, cfg: &DocConfig) -> String {
     let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
     let columns = cfg.columns.max(1);
     format!(
-        // The sefer catalogue goes *before* the prelude, because the prelude's
-        // index functions close over it: a Typst closure captures the scope it
-        // was defined in, so a table defined after them is a table they cannot
-        // see. `body_offset` is derived by assembling an empty body rather than
-        // counted by hand, so the extra lines shift the diagnostics' idea of
-        // where the writer's text starts without anyone having to remember to.
-        "{table}\n{prelude}\n\
-         #show: מסמך.with(\
+        "#show: מסמך.with(\
          גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, שפה: {lang}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
@@ -733,10 +821,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
          כותרת_מסמך: {title}, מחבר: {author}, מילות_מפתח: {keywords}, \
          מניעת_יתומים: {orphans}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
-         הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})\n\n\
-         {body}\n",
-        table = sefarim::typst_table(),
-        prelude = PRELUDE,
+         הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})",
         font = typst_str(&cfg.font),
         size = cfg.size_pt,
         margin = cfg.margin_cm,
@@ -778,11 +863,57 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
             r if r <= 0.0 => "none".to_string(),
             r => format!("{r}cm"),
         },
-        body = body,
     )
 }
 
-/// The compiler, configured for one assembled source and the request's assets.
+/// What the compiler is actually handed: two lines and the writer's text.
+///
+/// ```text
+/// #import "ksav.typ": *
+/// #show: מסמך.with(…)
+///
+/// {body}
+/// ```
+///
+/// The prelude reaches the document as a resolved file rather than as 111 KB of
+/// prefix, so Typst parses it once per process instead of once per keystroke,
+/// and a diagnostic that came from inside it carries a different [`FileId`]
+/// rather than a smaller byte offset.
+///
+/// **The body still sits in this file rather than in one of its own**, and it is
+/// worth saying why, because a `#include "body.typ"` would have made the
+/// writer's line numbers exact with no arithmetic at all. Typst gives an
+/// included file **its own scope**: it would not see the import above it, so
+/// every `#הדגשה` in the writer's text would be an unknown variable. That is the
+/// same fact `include.rs` opens with, and it is why `#כלול` is expanded
+/// textually by the engine. So there is a prefix, it is two lines and a blank
+/// one, and [`diagnostics::body_offset_of`] measures it by subtraction off the
+/// two strings the caller already holds.
+pub fn main_source(body: &str, cfg: &DocConfig) -> String {
+    format!(
+        "{IMPORT_LINE}\n{rule}\n\n{body}\n",
+        rule = show_rule(body, cfg),
+    )
+}
+
+/// The same document as one self-contained file — "export .typ".
+///
+/// This is what a writer gets when they ask for plain Typst, so it cannot
+/// `#import` a file they were not given: the prelude is inlined, exactly as it
+/// was on every compile before the prelude became a file. Both arrangements are
+/// built from the same [`prelude_text`] and the same [`show_rule`], so the
+/// exported document and the compiled one cannot come to disagree about what
+/// the settings were — `tests/assemble.rs` compiles the export through a bare
+/// engine and checks it lays out to the same pages.
+pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
+    format!(
+        "{prelude}{rule}\n\n{body}\n",
+        prelude = prelude_text(),
+        rule = show_rule(body, cfg),
+    )
+}
+
+/// The compiler, configured for one main source and the request's assets.
 ///
 /// The document has no file system to read from, so its images arrive as bytes on
 /// the request and are registered under the names the document uses. User fonts
@@ -797,14 +928,7 @@ pub(crate) fn engine_for(
     source: String,
     assets: &Assets,
 ) -> typst_as_lib::TypstEngine<typst_as_lib::TypstTemplateMainFile> {
-    let mut fonts: Vec<&[u8]> = vec![
-        FONT_FRANK_REG,
-        FONT_FRANK_BOLD,
-        FONT_DAVID_REG,
-        FONT_DAVID_BOLD,
-        FONT_CASCADIA,
-        FONT_NEWCM_MATH,
-    ];
+    let mut fonts = bundled_fonts();
     fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
     let files: Vec<(&str, &[u8])> = assets
         .files
@@ -814,6 +938,11 @@ pub(crate) fn engine_for(
     let mut builder = TypstEngine::builder()
         .main_file(source)
         .fonts(fonts)
+        // The prelude, as a file the document imports. `Source` is `Arc`-backed,
+        // so this is a pointer copy into a one-entry map — the 111 KB parse
+        // behind it happened at the first compile of the process and will not
+        // happen again. See `prelude_source`.
+        .with_static_source_file_resolver([prelude_source().clone()])
         .with_static_file_resolver(files);
     // Keep Typst's memoization cache alive across compiles instead of throwing it
     // away after each one. `typst-as-lib` defaults `comemo_evict_max_age` to
@@ -829,7 +958,56 @@ pub(crate) fn engine_for(
     builder.build()
 }
 
-/// Lay out an assembled source, with the request's assets available to it.
+/// The six faces every Ksav document is typeset with.
+///
+/// One list, because there are two engines now: the one a compile uses, which
+/// resolves the prelude as a file, and the bare one `probe::layout_plain` builds
+/// to check that an exported `.typ` really is self-contained. The difference
+/// between those two engines is the thing under test, so the fonts had better
+/// not be a second difference.
+fn bundled_fonts() -> Vec<&'static [u8]> {
+    vec![
+        FONT_FRANK_REG,
+        FONT_FRANK_BOLD,
+        FONT_DAVID_REG,
+        FONT_DAVID_BOLD,
+        FONT_CASCADIA,
+        FONT_NEWCM_MATH,
+    ]
+}
+
+/// A complete Typst document, laid out with **no Ksav assembly and no prelude
+/// resolver** — the fonts and nothing else.
+///
+/// This exists for one question, and it is a question the split into
+/// `main_source` and `assemble_source` created: **is what "export .typ" writes
+/// actually a document?** The compiled arrangement imports `ksav.typ`, so it
+/// would go on working perfectly if the exported one stopped being
+/// self-contained — the failure would be invisible here and total for the writer
+/// who took the file to a printer. An engine with no source resolver on it
+/// cannot resolve an import, so an export that acquired one fails loudly.
+pub(crate) fn layout_plain(source: &str) -> Result<PagedDocument, Vec<Diagnostic>> {
+    let engine = TypstEngine::builder()
+        .main_file(source.to_string())
+        .fonts(bundled_fonts())
+        .build();
+    let Warned { output, warnings } = engine.compile::<PagedDocument>();
+    match output {
+        Ok(doc) => Ok(doc),
+        Err(err) => {
+            let located = Located::of(source, "");
+            let mut diagnostics = located.all(&warnings, "warning");
+            use typst_as_lib::TypstAsLibError::*;
+            match err {
+                TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),
+                other => diagnostics.push(Diagnostic::ours("error", other.to_string())),
+            }
+            Err(diagnostics)
+        }
+    }
+}
+
+/// Lay out a main source, with the request's assets available to it.
 fn layout_source(
     source: String,
     assets: &Assets,
@@ -852,7 +1030,7 @@ pub fn compile_doc_with(
     cfg: &DocConfig,
     assets: &Assets,
 ) -> Result<PagedDocument, Vec<Diagnostic>> {
-    let text = assemble_source(body, cfg);
+    let text = main_source(body, cfg);
     let Warned { output, warnings } = layout_source(text.clone(), assets);
     match output {
         Ok(doc) => Ok(doc),
@@ -908,18 +1086,18 @@ pub fn compile_parts(
     // `Compiled`. Pass an empty set to get every page.
     have: &std::collections::HashSet<String>,
 ) -> Compiled {
-    let source = assemble_source(body, cfg);
+    let source = main_source(body, cfg);
     // The clone is for Typst, which takes the source by value. `source` itself
-    // stays here so that it can be handed back as `typst_source` — by move, not
-    // by a second copy — and so `Located` has something to parse if it is needed.
+    // stays here so `Located` has something to parse if it is needed.
     let Warned { output, warnings } = layout_source(source.clone(), assets);
 
-    // Locating a diagnostic means parsing the assembled source a second time, and
+    // Locating a diagnostic means parsing the main source a second time, and
     // `Source::detached` copies it to do so. That was done on every compile
     // whether or not anything had gone wrong: 4.2 ms of a 14.4 ms one-page
     // compile, spent parsing 83 KB of prelude to resolve spans that a clean
     // document does not have. A document with no warnings and no errors now pays
-    // none of it.
+    // none of it — and since the prelude became a file, what gets re-parsed when
+    // something *has* gone wrong is two lines and the writer's own text.
     let locate = |diags: &[_], severity: &str| {
         if diags.is_empty() {
             Vec::new()
@@ -989,7 +1167,11 @@ pub fn compile_parts(
                 pages_svg,
                 pages_hash,
                 diagnostics,
-                typst_source: if want_source { source } else { String::new() },
+                typst_source: if want_source {
+                    assemble_source(body, cfg)
+                } else {
+                    String::new()
+                },
             }
         }
         Err(err) => {
@@ -1001,14 +1183,17 @@ pub fn compile_parts(
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),
                 other => diagnostics.push(Diagnostic::ours("error", other.to_string())),
             }
-            drop(located);
             Compiled {
                 ok: false,
                 pdf: None,
                 pages_svg: Vec::new(),
                 pages_hash: Vec::new(),
                 diagnostics,
-                typst_source: if want_source { source } else { String::new() },
+                typst_source: if want_source {
+                    assemble_source(body, cfg)
+                } else {
+                    String::new()
+                },
             }
         }
     }
@@ -1375,7 +1560,7 @@ pub fn compile_html(
     cfg: &DocConfig,
     assets: &Assets,
 ) -> Result<String, Vec<Diagnostic>> {
-    let source = assemble_source(body, cfg);
+    let source = main_source(body, cfg);
     let located = Located::of(&source, body);
     // `engine_for`, not a second copy of its body.
     //

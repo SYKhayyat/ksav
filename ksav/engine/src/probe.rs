@@ -147,3 +147,15 @@ impl Line {
 pub fn layout(body: &str, cfg: &crate::DocConfig) -> Result<PagedDocument, Vec<crate::Diagnostic>> {
     crate::compile_doc(body, cfg)
 }
+
+/// Lay out a **whole Typst document** — no Ksav assembly, no prelude resolver.
+///
+/// The one caller is `tests/assemble.rs`, and the one question is whether what
+/// "export .typ" writes is still a document. A compile imports the prelude as a
+/// file; the export inlines it. Those are two arrangements of one prelude, and
+/// the compiled one would go on working perfectly if the exported one quietly
+/// stopped being self-contained — which is a failure with no symptom until
+/// somebody opens the file somewhere else.
+pub fn layout_plain(source: &str) -> Result<PagedDocument, Vec<crate::Diagnostic>> {
+    crate::layout_plain(source)
+}

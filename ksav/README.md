@@ -147,9 +147,20 @@ is not something anyone would type. `_en` renames named arguments through one
 table in the prelude and still accepts the Hebrew ones, so a document can be
 converted a command at a time without hitting a cliff halfway through.
 
-The engine prepends this prelude to the user's document, injects a
+The engine hands Typst a two-line document — `#import "ksav.typ": *`, then a
 `#show: מסמך.with(...)` wrapper driven by editor settings (font / size / margins /
-direction / numbering / columns / line-spacing), then compiles with real Typst.
+direction / numbering / columns / line-spacing) — with the writer's text after
+it, and compiles with real Typst. **The prelude is a resolved file**, not a
+prefix: it used to be concatenated onto the front of every compile, which meant
+Typst re-parsed 111 KB of unchanged Hebrew on every keystroke (3.7 ms of it, see
+`cargo run --release --example bench-prelude`) and every diagnostic's line number
+was that prefix's length subtracted from a byte offset. Now a span carries which
+file it came from.
+
+"Export .typ" still inlines the prelude, because a self-contained file is the
+whole point of that button; both arrangements come off the same `prelude_text`
+and the same `show_rule`, and `tests/assemble.rs` compiles the exported one
+through an engine with no file resolver on it to prove it still stands alone.
 
 Because **Typst itself parses the document**, we never reimplement a parser — and
 arbitrary cross-nesting (a table inside a footnote inside a heading inside a list
@@ -343,7 +354,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 3,842 editor assertions, 429 engine
+- [x] **CI, running and green** — typecheck, 3,896 editor assertions, 436 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -419,10 +430,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 3,809 assertions across 63 files
+cd app && npm test                          # 3,896 assertions across 64 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 429 tests, 28 binaries
+cargo test --manifest-path engine/Cargo.toml            # 436 tests, 29 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

@@ -19,14 +19,19 @@
 //!     particular [`typst::World`]'s files, so resolving one means holding the
 //!     world that produced it. `engine_for` exists so this module and
 //!     `compile_doc` build the same one.
-//!  2. **The writer's own coordinates.** Everything the compiler sees is the
-//!     *assembled* source: the 1,700-line prelude, then the `#show` wrapper,
-//!     then the writer's text. A line number counted in that is not a line
-//!     anybody can be sent to, so both directions convert through
-//!     `diagnostics::body_offset_of` — the same value the diagnostics use, for
-//!     the same reason, and deliberately not a second copy of the arithmetic.
-//!     It is read off the assembly this module already built rather than
-//!     measured by assembling a second one.
+//!  2. **The writer's own coordinates.** What the compiler sees is `main.typ`:
+//!     an `#import "ksav.typ": *`, the `#show` wrapper, a blank line, then the
+//!     writer's text. A line number counted in that is two lines out, so both
+//!     directions convert through `diagnostics::body_offset_of` — the same value
+//!     the diagnostics use, for the same reason, and deliberately not a second
+//!     copy of the arithmetic. It is read off the source this module already
+//!     built rather than measured by building a second one.
+//!
+//!     That correction used to be the length of the whole prelude, which is why
+//!     `jump_from_click` returning `Jump::File(id, _)` had to be checked against
+//!     `world.main()` and then re-checked against an offset: a click on a note
+//!     band and a click on the writer's word came back as the same file. They
+//!     are two files now, so the first check does the whole job.
 //!
 //! A jump that lands anywhere other than the writer's own text — inside the
 //! prelude, in another file, on a URL — is reported as *no answer* rather than
@@ -119,7 +124,7 @@ fn with_layout<R>(
     assets: &Assets,
     f: impl FnOnce(&IdeShim<'_>, &PagedDocument, &typst::syntax::Source) -> Option<R>,
 ) -> Option<R> {
-    let source = crate::assemble_source(body, cfg);
+    let source = crate::main_source(body, cfg);
     let engine = crate::engine_for(source, assets);
     engine
         .with_world(|world| {
@@ -141,10 +146,11 @@ fn with_layout<R>(
 /// one — the whole apparatus is prelude-generated.
 pub fn to_source(body: &str, cfg: &DocConfig, assets: &Assets, at: PagePoint) -> Option<BodySpot> {
     with_layout(body, cfg, assets, |world, doc, main| {
-        // Read off the assembly `with_layout` just built, not by assembling the
-        // prelude a second time with an empty body to measure it — which is
-        // what this cost until the two calls in this file were noticed to be
-        // the same 111 KB `format!` the compile had already done.
+        // Read off the source `with_layout` just built, not by building a
+        // second one with an empty body to measure it — which is what this cost
+        // until the two calls in this file were noticed to be the same 111 KB
+        // `format!` the compile had already done. It is a two-line header now,
+        // and it is still read rather than assumed.
         let offset = crate::diagnostics::body_offset_of(main.text(), body);
         let page = std::num::NonZeroUsize::new(at.page.checked_add(1)?)?;
         let position = PagedPosition {
@@ -298,7 +304,7 @@ mod tests {
     fn spot_and_byte_of_round_trip() {
         let cfg = cfg();
         let body = "שורה ראשונה\nline two\nשלוש עם ניקוד בְּרֵאשִׁית\n\nאחרי שורה ריקה";
-        let assembled = crate::assemble_source(body, &cfg);
+        let assembled = crate::main_source(body, &cfg);
         let offset = crate::diagnostics::body_offset(&cfg);
         let source = typst::syntax::Source::detached(assembled.clone());
         for (i, line) in body.split('\n').enumerate() {
@@ -313,12 +319,17 @@ mod tests {
         }
     }
 
-    /// A span in the prelude is not a place the writer has, and saying so is the
-    /// point — the alternative is sending the cursor to their line 1.
+    /// A span in the two-line header is not a place the writer has, and saying
+    /// so is the point — the alternative is sending the cursor to their line 1.
+    ///
+    /// The prelude cannot even reach here any more: it is a different file, so
+    /// `to_source` refuses it on the `id == world.main()` check above. What is
+    /// left to refuse is the import line and the `#show` wrapper, which are just
+    /// as much not the writer's text.
     #[test]
-    fn prelude_is_not_a_place() {
+    fn the_header_is_not_a_place() {
         let cfg = cfg();
-        let assembled = crate::assemble_source("שלום", &cfg);
+        let assembled = crate::main_source("שלום", &cfg);
         let source = typst::syntax::Source::detached(assembled);
         assert_eq!(
             spot(&source, 0, crate::diagnostics::body_offset(&cfg)),

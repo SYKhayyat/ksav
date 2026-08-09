@@ -33,6 +33,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { UNBUILDABLE, NOT_IMPORTABLE, sourceModules, buildableModules } from "./modules.mjs";
 import { dirOf, TEST, TOOLS } from "../tools/paths.mjs";
+import { facts, disagreements } from "../tools/facts.mjs";
 
 const HERE = dirOf(import.meta.url);
 const APP = path.resolve(HERE, "..");
@@ -234,12 +235,44 @@ export function nothingIsCopiedBackIn() {
     check("only tools/load.mjs and test/run.mjs invoke esbuild", guilty, []);
   }
 
-  // Four parsers of `commands.rs`, two of them byte-identical.
+  // Four parsers of `commands.rs`, two of them byte-identical — and then the
+  // parser itself, because the cause was never the duplication.
+  //
+  // Four Rust tables were read across this seam as **source text**: the command
+  // registry, the service registry, the redistribution notices, and
+  // `impl Default for DocConfig`. The last had no fence of any kind on it, so
+  // reflowing that block changed the defaults the client shipped, silently —
+  // the Rust value wins on the wire, so the sliders read one number and the page
+  // was laid out to another. `services.rs` had noticed the risk about itself and
+  // answered with `#[rustfmt::skip]`, which stops rustfmt and stops nothing else.
+  //
+  // The engine serialises all four now (`engine/src/facts.rs` →
+  // `engine/facts.gen.json`), so the prohibition is the whole class rather than
+  // one macro: **nothing here opens a `.rs` file to read a value out of it.**
+  // Two exemptions, both of which read Rust for something that is not a value:
+  //
+  //   - `tools/facts.mjs` counts declarations (`cmd!(`, `svc(`, `Notice {`) to
+  //     catch an unblessed edit. A count can only ever refuse loudly, and it
+  //     survives every reflow rustfmt can perform.
+  //   - `docfacts.mjs` counts files and lines for the documentation fence. It
+  //     never looks inside one.
   {
+    const allowed = ["facts.mjs", "docfacts.mjs"];
     const guilty = files
-      .filter(([f]) => path.basename(f) !== "commands.mjs")
-      .filter(([, s]) => s.includes("cmd!("))
+      .filter(([f]) => !allowed.includes(path.basename(f)))
+      .filter(([, s]) => /\.rs"|\.rs'|\.rs`/.test(s))
       .map(([f]) => path.basename(f));
-    check("only tools/commands.mjs parses the command macro", guilty, []);
+    check("nothing outside tools/facts.mjs reads the engine's Rust", guilty, []);
+  }
+
+  // …and the artefact it reads instead is real. A generator that silently read
+  // an empty table writes a file that typechecks and breaks at runtime, which is
+  // the failure every floor check in `tools/` exists to turn into a sentence.
+  {
+    const f = facts();
+    ok("the engine's facts artefact has all four tables", f.commands.length > 100 &&
+      f.services.length >= 10 && f.notices.length >= 4 &&
+      Object.keys(f.doc_defaults).length >= 25);
+    check("…and it agrees with the Rust it was serialised from", disagreements(), []);
   }
 }

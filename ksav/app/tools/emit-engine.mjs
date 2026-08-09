@@ -30,20 +30,41 @@
 // and not regenerated here is a red test rather than a number that disagrees
 // with itself.
 //
+// # Where the Rust facts come from
+//
+// Two of the three used to be read by **parsing this repository's Rust source
+// text** — `src.indexOf("impl Default for DocConfig")` and a `.slice`, then a
+// regex per field; the same again for `pub static NOTICES`. Reflowing either
+// block changed what the client shipped, and for the defaults it changed it
+// *silently*, because the Rust value always wins on the wire: the editor's
+// sliders would have read one number while the page was laid out to another.
+//
+// They come from `engine/facts.gen.json` now, which `engine/src/facts.rs`
+// serialises and `cargo test --test facts` keeps honest. The prelude is still
+// read as text and that is a different thing: `#let h1 = כותרת1` is a
+// *declaration in a language*, not a value literal, and reading it is how this
+// file knows about the four tiers per family the Rust registry deliberately
+// stops short of.
+//
 //   node tools/emit-engine.mjs          # rewrite app/src/engine.gen.ts
 //   node tools/emit-engine.mjs --check  # fail if it is stale
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript } from "./generated.mjs";
-import { commands as sharedCommands, readString } from "./commands.mjs";
+import { commands as sharedCommands } from "./commands.mjs";
+import { facts, insistFactsAreCurrent } from "./facts.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = join(here, "..");
-const ENGINE = join(APP, "..", "engine", "src");
 const PRELUDE = join(APP, "..", "engine", "typst", "ksav.typ");
 const OUT = join(APP, "src", "engine.gen.ts");
+
+// Before a line of it is read. This module is imported by `test/run.mjs`, so
+// this is what makes an unblessed Rust edit a red `npm test` and not only a red
+// `cargo test` in CI.
+insistFactsAreCurrent();
 
 /**
  * Fields of `DocConfig` that deliberately do **not** become app defaults.
@@ -112,7 +133,7 @@ function preludeNames() {
 /**
  * Every command in the registry: the pairing and the two flags on it.
  *
- * Through `tools/commands.mjs`, which is the one parser. This file had its own —
+ * Through `tools/commands.mjs`, which is the one reader. This file had its own —
  * the fifth reader of `commands.rs`, and byte-identical to the one in
  * `commands.mjs` down to the comment explaining the slice. Four of those readers
  * were reconciled when the count went 116 to 115; this one was not, because
@@ -127,72 +148,35 @@ function readCommands() {
   }));
 }
 
-/** `impl Default for DocConfig` as plain values. */
+/**
+ * `DocConfig::default()` as `[{ name, value, absent }]`.
+ *
+ * `absent` is `null` in the JSON and it is the whole reason the defaults are
+ * serialised rather than described: for the four per-edge margins and the note
+ * region, absent means *follow the uniform margin* / *decide from the document*,
+ * which is a different instruction from any number. It is emitted below as a
+ * missing key rather than as a value. `settings.ts` argued this in prose; the
+ * generator does it, and `an_absent_default_is_present_as_null` in
+ * `engine/tests/facts.rs` stops serde from ever dropping the field instead.
+ */
 function readDefaults() {
-  const src = readFileSync(join(ENGINE, "lib.rs"), "utf8");
-  const at = src.indexOf("impl Default for DocConfig");
-  if (at < 0) return [];
-  const body = src.slice(at, src.indexOf("\n}", src.indexOf("DocConfig {", at)));
-  const out = [];
-  for (const raw of body.split(/\r?\n/)) {
-    const line = raw.trim();
-    const m = /^([a-z_0-9]+):\s*(.+),$/.exec(line);
-    if (!m) continue;
-    const [, name, valueSrc] = m;
-    const value = decodeDefault(valueSrc);
-    if (value === undefined) continue;
-    out.push({ name, value, absent: value === null });
-  }
-  return out;
-}
-
-/** One Rust default expression as the JSON value it stands for. */
-function decodeDefault(src) {
-  const s = src.trim();
-  // `None` is not `undefined` and not `0`: for the four per-edge margins it is
-  // the whole meaning of "follow the uniform margin", so it is emitted as an
-  // *absent key* rather than as a value. `settings.ts` argued this in prose;
-  // now the generator does it.
-  if (s === "None") return null;
-  if (s === "String::new()") return "";
-  if (s === "Vec::new()") return [];
-  if (s === "true") return true;
-  if (s === "false") return false;
-  if (s.startsWith('"')) {
-    const lit = readString(s, 0);
-    return lit && s.slice(lit.end).trim() === ".to_string()" ? lit.value : undefined;
-  }
-  if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
-  return undefined;
+  return Object.entries(facts().doc_defaults).map(([name, value]) => ({
+    name,
+    value,
+    absent: value === null,
+  }));
 }
 
 /** The redistribution table, as `notices.rs` states it. */
 function readNotices() {
-  const src = readFileSync(join(ENGINE, "notices.rs"), "utf8");
-  const table = src.slice(src.indexOf("pub static NOTICES"), src.indexOf("\n];", src.indexOf("pub static NOTICES")));
-  const out = [];
-  for (const chunk of table.split("Notice {").slice(1)) {
-    const field = (name) => {
-      const m = new RegExp(`\\b${name}:\\s*(.+?),\\n`, "s").exec(chunk);
-      return m ? m[1].trim() : null;
-    };
-    const str = (name) => {
-      const v = field(name);
-      if (!v || !v.startsWith('"')) return null;
-      return readString(v, 0)?.value ?? null;
-    };
-    const kind = field("kind");
-    if (!kind) continue;
-    out.push({
-      kind: kind.replace("NoticeKind::", "").toLowerCase(),
-      name: str("name"),
-      copyright: str("copyright"),
-      licence: str("licence"),
-      url: str("url"),
-      selectable: field("selectable") === "true",
-    });
-  }
-  return out;
+  return facts().notices.map((n) => ({
+    kind: n.kind,
+    name: n.name,
+    copyright: n.copyright,
+    licence: n.licence,
+    url: n.url,
+    selectable: n.selectable,
+  }));
 }
 
 // ---------------------------------------------------------------- emitting
@@ -214,7 +198,9 @@ function emit(aliases, commands, defaults, notices) {
     )
     .join("\n");
 
-  return `// Generated by app/tools/emit-engine.mjs from engine/src/{lib,commands,notices}.rs.
+  return `// Generated by app/tools/emit-engine.mjs from engine/facts.gen.json
+// (the engine's own \`DocConfig::default()\`, registry and notices, serialised by
+// engine/src/facts.rs) and from the prelude's \`#let\` lines.
 // Do not edit by hand: run \`node tools/emit-engine.mjs\`.
 // \`npm test\` fails when this file and the engine disagree.
 //
@@ -329,26 +315,29 @@ if (problems.length) {
 // spellings have to reach `markdown.ts` either way.
 for (const c of commands) if (!aliases.has(c.he)) aliases.set(c.he, c.en);
 
-// An empty parse generates a file that typechecks, breaks everything at runtime
-// and looks like a successful regeneration. If a table is ever reformatted past
-// these parsers, say so here rather than three modules downstream.
+// An empty read generates a file that typechecks, breaks everything at runtime
+// and looks like a successful regeneration. The floors are kept even though
+// three of the four tables now arrive as serialised values rather than as parsed
+// text — a truncated artefact and a table that lost its rows both land here, and
+// the cost of the check is four comparisons.
 for (const [what, rows, least] of [
   ["aliases (engine/typst/ksav.typ)", aliases, 120],
-  ["commands (engine/src/commands.rs)", commands, 100],
-  ["document defaults (engine/src/lib.rs)", defaults, 25],
-  ["notices (engine/src/notices.rs)", notices, 4],
+  ["commands (engine/facts.gen.json)", commands, 100],
+  ["document defaults (engine/facts.gen.json)", defaults, 25],
+  ["notices (engine/facts.gen.json)", notices, 4],
 ]) {
   const count = rows.length ?? rows.size;
   if (count < least) {
     console.error(
-      `parsed only ${count} ${what}, expected at least ${least}.\n` +
-        "The table has been reformatted past this generator's parser.",
+      `read only ${count} ${what}, expected at least ${least}.\n` +
+        "The prelude has been reformatted past this generator's parser, or the\n" +
+        "engine's facts artefact is truncated.",
     );
     process.exit(1);
   }
 }
 if (notices.some((n) => !n.name || !n.copyright)) {
-  console.error("a notice parsed without a name or a copyright line");
+  console.error("a notice arrived without a name or a copyright line");
   process.exit(1);
 }
 

@@ -56,11 +56,24 @@ Every one of them had already been corrected by hand in every copy at least
 once, which is the tell. There are two answers, and which applies is decided by
 whether a language boundary is genuinely in the way:
 
-- **Generate it.** `app/src/engine.gen.ts` is written from `engine/src/lib.rs`,
-  `engine/src/commands.rs`, `engine/src/notices.rs` and `engine/typst/ksav.typ`
-  by `app/tools/emit-engine.mjs`; `npm test` runs the `--check` form, so a
-  default changed in Rust and not regenerated is a red test rather than sliders
-  that disagree with the page. The command tables in `markdown.ts`, `spans.ts`
+- **Generate it.** `app/src/engine.gen.ts` is written from `engine/facts.gen.json`
+  and `engine/typst/ksav.typ` by `app/tools/emit-engine.mjs`; `npm test` runs the
+  `--check` form, so a default changed in Rust and not regenerated is a red test
+  rather than sliders that disagree with the page.
+
+  The Rust half of that chain used to be *parsing Rust source text*:
+  `src.indexOf("impl Default for DocConfig")`, then a `.slice`, then a regex per
+  field, and the same shape again for the notices, the command registry and the
+  service registry. Which means a table's **formatting** was a build input.
+  `services.rs` had spotted the risk about itself and answered with a
+  `#[rustfmt::skip]`; `impl Default for DocConfig` had nothing, and it is the one
+  where the failure is silent — the Rust value wins on the wire, so a default the
+  parser missed shows up as the editor's sliders reading one number while the
+  page is laid out to another. `engine/src/facts.rs` serialises all four tables
+  now, `cargo test --test facts` keeps the artefact honest, and `runner.test.mjs`
+  sweeps `test/` and `tools/` for anything that opens a `.rs` file at all.
+
+  The command tables in `markdown.ts`, `spans.ts`
   and `ksav-lang.ts` are now keyed by the Hebrew name alone and expanded through
   the prelude's own pairing — which also gets them the four tiers per note
   family that the palette registry deliberately stops short of.

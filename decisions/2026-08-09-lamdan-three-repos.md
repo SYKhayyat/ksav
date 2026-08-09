@@ -1242,3 +1242,104 @@ away rather than believed; a superseded record is not a candidate.
 spec.md §9.9 gained the paragraph. It is the section whose own rule is *a partial
 lane that looks complete is the §9 defect this whole section exists to avoid* —
 and a partial ranking that looks exhaustive is the same defect one layer down.
+
+---
+
+## §5 — the two boundaries in the wrong place, and the cap written four times
+
+§5's verdict on Girsa is *"mostly in the right place, and two are not"*. Both are
+real. One of the two is half wrong, and saying so is part of the work: a sweep
+that moves things the diagnosis was wrong about is not better than one that never
+runs.
+
+### `is_well_formed`, on both sides, with the better one documented as better
+
+`girsa_corpus::segment::SegmentId::is_well_formed` is a character blacklist.
+`girsa_ref::Ref::is_well_formed` is the round trip, and says why:
+
+> *defined as the property itself rather than as a list of characters so it
+> cannot drift away from what the parser actually does*
+
+The corpus copy **names the ref copy as its counterpart** in its own doc comment,
+three paragraphs above the blacklist it kept.
+
+A blacklist is a claim about which characters break the grammar, made once, by
+hand, and never rechecked against the parser. The hyphen bug those same
+paragraphs document *is* that failure: a character nobody had listed, read as a
+separator, `girsa:tur/orach-chayim:240:1` coming back as a range from `orach` to
+`chayim:240:1` — a place-shaped thing that is not a place, with no error
+anywhere.
+
+So the round trip is the floor here too. The ban sits **on top** of it rather
+than instead of it, and both are load-bearing, which is what the new test
+demonstrates in one function:
+
+- An id with an **empty ordinal** passes every clause of the ban and prints as
+  `girsa:chovot-halevavot/5#`, which does not parse. Not hypothetical:
+  `Ordinal` is `Deserialize`, so a `segments.jsonl` with `"ordinal": []` produces
+  exactly that, and the blacklist would have called it well-formed and let it
+  into the corpus permanently. Ids are permanent from the moment they are
+  written.
+- A hyphenated section name **round-trips** since girsa-ref 0.2 and is still
+  refused, because the character set is deliberately narrower than the grammar —
+  every id already minted was minted under the narrow rule.
+
+### The basement, and the two modules the report was wrong about
+
+> `girsa-corpus` has become the workspace basement: 886 lines of
+> `argv`/`said`/`roots`/`csv` live in the ingest crate because the ingest crate
+> is the one everything can `use`.
+
+*"The one everything can `use`"* is the whole diagnosis, and it is right about
+two of the four. `argv.rs` and `said.rs` have no line about a corpus between
+them — a `PathBuf`, an `ExitCode` and a `Display` derive is the entire list of
+what they name. They are now `girsa-plain`, a crate with one dependency and no
+subject, and a test that keeps it that way:
+
+> **the leaf crate stays a leaf** — no dependency of `girsa-plain` may be named
+> `girsa-*`.
+
+That test is the actual fix. Moving 612 lines into a new crate buys nothing on
+its own; a crate that everything depends on and that *may* depend on anything is
+the next basement, and the only thing that stops it is a rule with an assertion
+attached.
+
+The other two stay, and the reason is in the new crate's header:
+
+- **`roots.rs`** answers *what makes a directory a corpus*, and the answer is
+  `works/index.jsonl`. That is a fact about the corpus format. Its own header
+  records that the rule used to live in the Tauri shell, under a README saying
+  the shell decides nothing, and was moved **into** `girsa-corpus` for exactly
+  this reason. Moving it out to satisfy a line count would undo a fix.
+- **`csv.rs`** reads Sefaria's link CSVs, and exists because the fields contain
+  the commas. That is ingest, in the ingest crate.
+
+### Four caps of 32, one claim
+
+`girsa_ref::redirect`, `girsa_corpus::store`, `girsa_corpus::standing` and
+`girsa_app::shelf` each wrote `MAX_DEPTH = 32`. `standing.rs` named two of the
+other three in its own comment — *"the same cap as `SegmentStore` and
+`Open::redirected`, for the same reason"* — and then wrote the number out again.
+Six lines that are the whole report in miniature.
+
+**Four walks stays right.** They traverse a `Ref` chain, a `SegmentId` table, an
+ancestor-and-redirect queue and a position map; one walker forced over all four
+would be a worse abstraction than four honest ones. Four *numbers* is not right,
+because they are one claim — thirty-two hops is a hand-built loop — and a repo
+that changed its mind about that would want to change it once.
+`girsa_ref::MAX_REDIRECT_DEPTH`, in the crate that owns redirects.
+
+### And a fence that had never been run
+
+`manifests.rs`'s `one_product_compiles_one_sefer_crates` was **red at HEAD**, and
+had been since it was written. Its scan split each line on `=` and asked whether
+the left side was a shared crate's name — so `girsa-ref.workspace = true`, which
+is how every member crate inherits the pin, fell through silently, while
+`app/src-tauri`'s `girsa-ref = { workspace = true }` did not, and the test
+asserted that a correctly inherited pin was not a git dependency.
+
+A fence written to answer *"the diagnosis is written down and the sweep never
+runs"*, which was itself never run. It reads both spellings now, skips
+inheritance in either, and asserts separately that the root's
+`[workspace.dependencies]` — the one place a pin can live — has an entry for
+every shared crate.

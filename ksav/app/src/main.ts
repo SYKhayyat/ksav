@@ -139,6 +139,9 @@ import * as hydra from "./hydra";
 import * as macros from "./macros";
 import * as help from "./help";
 import { plan as planInsertion, regionAround } from "./insert";
+import * as header from "./header";
+import * as panelrows from "./panelrows";
+import type { PanelList, PanelRow } from "./panelrows";
 
 // ---------------------------------------------------------------- editor
 //
@@ -2034,144 +2037,138 @@ function lazyMenu(name: string, label: string, build: () => (Node | string)[]): 
   return el("div", { class: "menu", "data-menu": name }, [btn, list]);
 }
 
+/**
+ * What each chip does when it is pressed.
+ *
+ * The other half of `header.chips`, which says what each one *is*. Separate
+ * because one half is a decision about state — glyph, name, on, unavailable —
+ * and this half is an effect, and the decision is the part that was
+ * untestable. A chip named here with no description there (or the reverse) is a
+ * `tsc` error, because both are keyed by the same union.
+ */
+const CHIP_RUN: Record<header.ChipId, () => void> = {
+  undo: () => void undo(runtime.view),
+  redo: () => void redo(runtime.view),
+  styles: openStyles,
+  find: () => void openSearchPanel(runtime.view),
+  outline: toggleOutline,
+  notesChooser: openNotesChooser,
+  notesPane: toggleNotesPane,
+  review: openReview,
+  language: () => setSetting("lang", getLang() === "he" ? "en" : "he"),
+  foldAll: () => void foldAll(runtime.view),
+  unfoldAll: () => void unfoldAll(runtime.view),
+  prose: () => setSetting("prose", !settings.prose),
+  layout: cycleLayout,
+  previewSide: cyclePreviewSide,
+  theme: () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
+  nikud: toggleNikud,
+  history: openHistory,
+  record: toggleRecording,
+  help: openHelp,
+  settings: toggleSettings,
+};
+
+/** The header's view of the world, gathered in one place. */
+function headerState(): header.HeaderState {
+  return {
+    theme: settings.theme,
+    prose: settings.prose,
+    layout: settings.layout,
+    previewSide: settings.previewSide || "left",
+    // Three of these are optional settings and one is the recorder's own
+    // buffer. `header.ts` takes booleans, because "is this chip on" is a
+    // question with two answers and `undefined` is not one of them.
+    outline: !!settings.outline,
+    nikud: !!settings.nikud,
+    notesPane: !!settings.notesPane,
+    recording: !!recording,
+  };
+}
+
 function buildHeader(): HTMLElement {
-  const lang = getLang();
+  const menuItem = (row: header.MenuRow, run: () => void, extra: Record<string, string> = {}) =>
+    el("button", { class: "menu-item", ...extra, onClick: run }, [row.label]);
 
-  const builtinItems = templatesForMenu().map((tpl) =>
-    el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
-      el("b", {}, [lang === "he" ? tpl.he : tpl.en]),
-      el("span", { class: "menu-desc" }, [lang === "he" ? tpl.desc_he : tpl.desc_en]),
-    ]),
-  );
+  const templatesByMenu = new Map(templatesForMenu().map((tpl) => [tpl.he, tpl]));
   const users = userTemplates();
-  const userItems = users.map((ut) =>
-    el("div", { class: "menu-item-row" }, [
-      el("button", { class: "menu-item menu-item-main", onClick: () => loadBody(ut.body) }, [
-        el("b", {}, ["★ " + ut.name]),
-      ]),
-      el("button", {
-        class: "menu-del",
-        title: t("delete"),
-        onClick: (e: Event) => {
-          e.stopPropagation();
-          deleteUserTemplate(ut.id);
-        },
-      }, ["×"]),
-    ]),
+  const usersById = new Map(users.map((u) => [u.id, u]));
+  const templatesMenu = menu(
+    "templates",
+    "📄 " + t("templates"),
+    header
+      .templateItems(
+        templatesForMenu().map((tpl) => ({ ...tpl, id: tpl.he })),
+        users,
+      )
+      .map((entry) => {
+        if (header.isSep(entry)) return el("div", { class: "menu-sep" });
+        const ut = usersById.get(entry.id);
+        if (ut) {
+          return el("div", { class: "menu-item-row" }, [
+            el("button", { class: "menu-item menu-item-main", onClick: () => loadBody(ut.body) }, [
+              el("b", {}, [entry.label]),
+            ]),
+            el("button", {
+              class: "menu-del",
+              title: t("delete"),
+              onClick: (e: Event) => {
+                e.stopPropagation();
+                deleteUserTemplate(ut.id);
+              },
+            }, ["×"]),
+          ]);
+        }
+        const tpl = templatesByMenu.get(entry.id)!;
+        return el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
+          el("b", {}, [entry.label]),
+          el("span", { class: "menu-desc" }, [entry.desc ?? ""]),
+        ]);
+      }),
   );
-  const templatesMenu = menu("templates", "📄 " + t("templates"), [
-    ...builtinItems,
-    ...(users.length ? [el("div", { class: "menu-sep" })] : []),
-    ...userItems,
-  ]);
 
-  const fileMenu = menu("file", "📁 " + t("file"), [
-    el("button", { class: "menu-item", onClick: newDoc }, [t("newDoc")]),
-    el("button", { class: "menu-item", onClick: openFile }, [t("open")]),
-    el("button", { class: "menu-item", onClick: saveFile }, [t("save")]),
-    el("button", { class: "menu-item", onClick: saveFileAs }, [
-      files.supportsRealFiles() ? t("saveAs") : t("saveCopy"),
-    ]),
-    el("button", { class: "menu-item", onClick: () => void importWord() }, [t("importWord")]),
-    el("button", { class: "menu-item", onClick: () => void copyShareLink(false) }, [t("shareRead")]),
-    el("button", { class: "menu-item", onClick: () => void copyShareLink(true) }, [t("shareReview")]),
-    el("button", { class: "menu-item", onClick: saveAsTemplate }, [t("saveAsTemplate")]),
-  ]);
+  const FILE_RUN: Record<string, () => void> = {
+    newDoc,
+    open: openFile,
+    save: saveFile,
+    saveAs: saveFileAs,
+    importWord: () => void importWord(),
+    shareRead: () => void copyShareLink(false),
+    shareReview: () => void copyShareLink(true),
+    saveAsTemplate,
+  };
+  const fileMenu = menu(
+    "file",
+    "📁 " + t("file"),
+    header
+      .fileItems(files.supportsRealFiles())
+      .filter((e) => !header.isSep(e))
+      .map((e) => menuItem(e as header.MenuRow, FILE_RUN[(e as header.MenuRow).id])),
+  );
 
   // The Skins menu is gone: presets now live inside the Styles panel, next to
   // the settings they overwrite, where the relationship is visible.
 
-  // `data-export` is the i18n key, which is already this item's identifier — the
-  // label is `t()` of it. No second vocabulary was invented for this: the point
-  // is only that a menu of nine localised strings is otherwise unaddressable
-  // from outside, and `.github/scripts/acceptance.mjs` has to click one of them
-  // in whichever language the interface happens to be in.
-  //
-  // Nine, not one. A menu where only the item under test can be found is a menu
-  // that will grow a tenth item nothing can reach.
-  const exp = (key: string, run: () => void) =>
-    el("button", { class: "menu-item", "data-export": key, onClick: run }, [t(key)]);
-  const exportMenu = menu("export", "⬇ " + t("export"), [
-    exp("exportPdf", () => void exports.exportPdf()),
-    exp("exportPdfPages", () => void exports.exportPdfPages()),
-    exp("exportWord", () => void exports.exportWord()),
-    exp("copyForWord", () => void exports.copyForWord()),
-    exp("exportHtml", () => void exports.exportHtml()),
-    exp("exportMarkdown", exports.exportMarkdown),
-    exp("exportText", exports.exportText),
-    exp("exportTypst", () => void exports.exportTypst()),
-    exp("print", exports.doPrint),
-  ]);
+  const EXPORT_RUN: Record<string, () => void> = {
+    exportPdf: () => void exports.exportPdf(),
+    exportPdfPages: () => void exports.exportPdfPages(),
+    exportWord: () => void exports.exportWord(),
+    copyForWord: () => void exports.copyForWord(),
+    exportHtml: () => void exports.exportHtml(),
+    exportMarkdown: exports.exportMarkdown,
+    exportText: exports.exportText,
+    exportTypst: () => void exports.exportTypst(),
+    print: exports.doPrint,
+  };
+  const exportMenu = menu(
+    "export",
+    "⬇ " + t("export"),
+    header.exportItems().map((row) =>
+      menuItem(row, EXPORT_RUN[row.id], { "data-export": row.id }),
+    ),
+  );
 
-  const langToggle = iconBtn(
-    lang === "he" ? "EN" : "עב",
-    t("language"),
-    () => setSetting("lang", lang === "he" ? "en" : "he"),
-    "chip",
-  );
-  const themeToggle = iconBtn(
-    settings.theme === "light" ? "🌙" : "☀",
-    t("theme"),
-    () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
-    "chip",
-  );
-  const undoBtn = iconBtn("↶", t("sc.undo"), () => undo(runtime.view), "chip");
-  const redoBtn = iconBtn("↷", t("sc.redo"), () => redo(runtime.view), "chip");
-  const findBtn = iconBtn("🔍", t("find"), () => openSearchPanel(runtime.view), "chip");
-  const foldAllBtn = iconBtn("⊟", t("foldAll"), () => foldAll(runtime.view), "chip");
-  const unfoldAllBtn = iconBtn("⊞", t("unfoldAll"), () => unfoldAll(runtime.view), "chip");
-  const proseToggle = iconBtn(
-    settings.prose ? "🅐" : "＃",
-    settings.prose ? t("raw") : t("prose"),
-    () => setSetting("prose", !settings.prose),
-    settings.prose ? "chip active" : "chip",
-  );
-  const layoutIcons: Record<Layout, string> = { two: "◫", page: "📄", source: "⟨⟩" };
-  const layoutToggle = iconBtn(
-    layoutIcons[settings.layout],
-    `${t("layout")}: ${t("mode." + settings.layout)}`,
-    cycleLayout,
-    "chip",
-  );
-  const sideIcons: Record<PreviewSide, string> = { left: "◧", right: "◨", top: "⬒", bottom: "⬓" };
-  const side = settings.previewSide || "left";
-  const previewSideToggle = iconBtn(
-    sideIcons[side],
-    `${t("previewSide")}: ${t("side." + side)}`,
-    cyclePreviewSide,
-    settings.layout === "two" ? "chip" : "chip disabled",
-  );
-  const outlineBtn = iconBtn(
-    "☰",
-    t("outline"),
-    toggleOutline,
-    settings.outline ? "chip active" : "chip",
-  );
-  const nikudBtn = iconBtn(
-    "אָ",
-    t("nikud"),
-    toggleNikud,
-    settings.nikud ? "chip active" : "chip",
-  );
-  const stylesBtn = iconBtn("🎨", t("stylesTitle"), openStyles, "chip");
-  const notesBtn = iconBtn("✻", t("notesChooser"), openNotesChooser, "chip");
-  const notesPaneBtn = iconBtn(
-    "†☰",
-    t("sc.notesPane"),
-    toggleNotesPane,
-    settings.notesPane ? "chip active" : "chip",
-  );
-  const reviewBtn = iconBtn("✎", t("reviewTitle"), openReview, "chip");
-  const historyBtn = iconBtn("🕐", t("history"), openHistory, "chip");
-  // Recording is a mode, and a mode with no indicator is a mode people leave on.
-  const recordBtn = iconBtn(
-    recording ? "⏹" : "⏺",
-    recording ? t("macroStop") : t("macroRecord"),
-    toggleRecording,
-    recording ? "chip active recording" : "chip",
-  );
-  const helpBtn = iconBtn("?", t("help"), openHelp, "chip");
-  const settingsBtn = iconBtn("⚙", t("settings"), toggleSettings, "chip");
+  const name = header.docTitle(runtime.currentDoc?.title, runtime.currentBinding?.name);
 
   return el("header", { role: "banner" }, [
     el("div", { class: "brand" }, [
@@ -2186,12 +2183,12 @@ function buildHeader(): HTMLElement {
         class: "doc-title-btn",
         type: "button",
         title: t("rename"),
-        "aria-label": `${t("rename")}: ${runtime.currentDoc?.title ?? ""}`,
+        "aria-label": name.label,
         onClick: renameDoc,
       },
       [
-        el("span", { class: "doc-title", id: "doc-title" }, [runtime.currentDoc?.title ?? ""]),
-        el("small", { class: "doc-file", id: "doc-file" }, [runtime.currentBinding?.name ?? ""]),
+        el("span", { class: "doc-title", id: "doc-title" }, [name.title]),
+        el("small", { class: "doc-file", id: "doc-file" }, [name.file]),
       ],
     ),
     buildToolbar(),
@@ -2209,28 +2206,23 @@ function buildHeader(): HTMLElement {
       exportMenu,
     ]),
     el("div", { class: "spacer" }),
-    el("div", { class: "chipbar", role: "group", "aria-label": t("viewControls") }, [
-      undoBtn,
-      redoBtn,
-      stylesBtn,
-      findBtn,
-      outlineBtn,
-      notesBtn,
-      notesPaneBtn,
-      reviewBtn,
-      langToggle,
-      foldAllBtn,
-      unfoldAllBtn,
-      proseToggle,
-      layoutToggle,
-      previewSideToggle,
-      themeToggle,
-      nikudBtn,
-      historyBtn,
-      recordBtn,
-      helpBtn,
-      settingsBtn,
-    ]),
+    el(
+      "div",
+      { class: "chipbar", role: "group", "aria-label": t("viewControls") },
+      // `disabled` in the class list is what `iconBtn` reads to set the real
+      // attribute, and `recording` is a class the stylesheet pulses.
+      header.chips(headerState()).map((c) =>
+        iconBtn(
+          c.glyph,
+          c.title,
+          CHIP_RUN[c.id],
+          ["chip", c.active ? "active" : "", c.disabled ? "disabled" : "", c.id === "record" && c.active ? "recording" : ""]
+            .filter(Boolean)
+            .join(" "),
+          { "data-chip": c.id },
+        ),
+      ),
+    ),
   ]);
 }
 
@@ -2686,45 +2678,10 @@ function toggleNotesPane() {
 function renderNotesPane() {
   const host = document.getElementById("notes-list");
   if (!host || !runtime.view) return;
-  const doc = docTextOf(runtime.view.state.doc);
-  const items = notesIn(doc);
-  host.innerHTML = "";
-  if (!items.length) {
-    host.append(el("div", { class: "outline-empty" }, [t("notesPaneEmpty")]));
-    return;
-  }
-  items.forEach((n, i) => {
-    // The note's own first words, flattened: a list of "#הערה" twelve times
-    // over is a list of nothing.
-    const gist = plainText(n.text);
-    host.append(
-      el(
-        "button",
-        {
-          class: "outline-item note-item",
-          style: `padding-inline-start:${8 + n.depth * 14}px`,
-          title: n.deferred ? t("noteJumpDeferred") : t("noteJump"),
-          // Wherever the prose actually is. For a deferred note that is the
-          // `#גוף_הערה` at the end of the file, which is the whole point of the
-          // row: the marker is easy to find and the prose is not.
-          onClick: () => jumpTo(n.bodyFrom),
-          onContextMenu: (e: Event) => {
-            e.preventDefault();
-            openNoteMenu(e as MouseEvent, n.from);
-          },
-        },
-        [
-          el("span", { class: "note-item-n" }, [String(i + 1)]),
-          // The pair's name, for a note written the deferred way — it is what
-          // the two halves are called in the source, and reading a row without
-          // it means hunting for which marker this prose belongs to. Before the
-          // gist, so the gist keeps the `:last-child` ellipsis.
-          ...(n.deferred ? [el("span", { class: "note-item-def" }, [n.deferred.name])] : []),
-          el("span", {}, [gist || "#" + n.command]),
-        ],
-      ),
-    );
-  });
+  // A row jumps to wherever the prose actually is. For a deferred note that is
+  // the `#גוף_הערה` at the end of the file, which is the whole point of the row:
+  // the marker is easy to find and the prose is not.
+  drawList(host, panelrows.noteList(notesIn(docTextOf(runtime.view.state.doc))), LOOKS.notes);
 }
 
 /**
@@ -2852,25 +2809,107 @@ function replaceAll(text: string, caret: number) {
 function renderOutline() {
   const host = document.getElementById("outline-list");
   if (!host || !runtime.view) return;
-  const items = outline(docTextOf(runtime.view.state.doc));
+  drawList(host, panelrows.outlineList(outline(docTextOf(runtime.view.state.doc))), LOOKS.outline);
+}
+
+/**
+ * How a panel's rows are dressed.
+ *
+ * Four panels, four sets of classes, and they are genuinely different: the
+ * outline is one line of text with an ellipsis on the button, a note row is a
+ * flex row with an ordinal, and the palette and history are `.pal-item`. What
+ * they share is the *row model*, which is now in `panelrows.ts` and testable;
+ * what differs is the stylesheet, and that stays here.
+ */
+interface Look {
+  row: string;
+  /** The leading chip's class — an ordinal in the notes pane, a category badge elsewhere. */
+  chip: string;
+  /** The words: `b` where the row is a flex line of parts, `span` where it is a line of text. */
+  label: "b" | "span";
+  /** This panel has a keyboard selection, so row 0 opens selected and the mouse moves it. */
+  selectable?: boolean;
+}
+
+const LOOKS: Record<string, Look> = {
+  outline: { row: "outline-item", chip: "pal-cat", label: "span" },
+  notes: { row: "outline-item note-item", chip: "note-item-n", label: "span" },
+  history: { row: "pal-item", chip: "pal-cat", label: "b" },
+  palette: { row: "pal-item", chip: "pal-cat", label: "b", selectable: true },
+};
+
+/**
+ * Draw a [`PanelList`] — the one place the four list panels turn rows into DOM.
+ *
+ * What a row *is* is `panelrows.ts`'s question and is answered without a
+ * browser. What is left here is the effect: the empty state, the indent, the
+ * click, and the sentence about what a cap left out.
+ */
+function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Snapshot[] = []) {
   host.innerHTML = "";
-  if (!items.length) {
-    host.append(el("div", { class: "outline-empty" }, [t("noHeadings")]));
+  if (list.empty) {
+    host.append(el("div", { class: "outline-empty" }, [t(list.empty)]));
     return;
   }
-  const minLevel = Math.min(...items.map((i) => i.level));
-  for (const it of items) {
-    const row = el(
-      "button",
-      {
-        class: "outline-item",
-        style: `padding-inline-start:${8 + (it.level - minLevel) * 14}px`,
-        onClick: () => jumpTo(it.from),
-      },
-      [it.title],
-    );
-    host.append(row);
+  list.rows.forEach((r, i) => host.append(drawRow(r, look, i === 0, snaps)));
+  // A cap that says nothing reads as completeness. This is the sentence that
+  // was missing from a palette showing 60 of the registry's 115 commands.
+  if (list.hidden) {
+    host.append(el("div", { class: "outline-empty" }, [tf("moreHidden", String(list.hidden))]));
   }
+}
+
+function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Snapshot[]): HTMLElement {
+  const run = () => {
+    switch (r.does.kind) {
+      case "jump":
+      case "note":
+        jumpTo(r.does.at);
+        return;
+      case "action":
+        closePalette();
+        runAction(r.does.id);
+        return;
+      case "insert":
+        insertSnippet(r.does.snippet);
+        closePalette();
+        return;
+      case "restore":
+        void restoreSnapshot(snaps[r.does.index]);
+    }
+  };
+  const attrs: Record<string, unknown> = {
+    class: look.row + (look.selectable && first ? " sel" : ""),
+    onClick: run,
+    ...(r.indent ? { style: `padding-inline-start:${panelrows.indentPx(r.indent)}px` } : {}),
+    ...(r.title ? { title: t(r.title) } : {}),
+    ...(r.does.kind === "action" ? { "data-action": r.does.id } : {}),
+  };
+  if (look.selectable) {
+    // Hover moves the selection so the mouse and the keyboard never disagree
+    // about which row Enter would run.
+    attrs.onMouseEnter = (e: Event) => {
+      const row = e.currentTarget as HTMLElement;
+      row.parentElement?.querySelectorAll(".pal-item.sel").forEach((x) => x.classList.remove("sel"));
+      row.classList.add("sel");
+    };
+  }
+  if (r.does.kind === "note") {
+    const marker = r.does.marker;
+    attrs.onContextMenu = (e: Event) => {
+      e.preventDefault();
+      openNoteMenu(e as MouseEvent, marker);
+    };
+  }
+  const when = r.when !== undefined ? new Date(r.when) : null;
+  return el("button", attrs, [
+    ...(r.chip ? [el("span", { class: look.chip }, [t(r.chip)])] : []),
+    ...(when ? [el("span", { class: look.chip }, [when.toLocaleDateString()])] : []),
+    ...(r.note ? [el("span", { class: "note-item-def" }, [r.note])] : []),
+    el(look.label, {}, [r.label]),
+    ...(r.trailing ? [el("code", {}, [r.trailing])] : []),
+    ...(when ? [el("code", {}, [when.toLocaleTimeString()])] : []),
+  ]);
 }
 // ---- version history (local snapshots) ----
 //
@@ -2918,25 +2957,13 @@ function closeHistory() {
 async function renderHistory() {
   const host = document.getElementById("history-list");
   if (!host || !runtime.currentDoc) return;
-  const list = (await docs.snapshots(runtime.currentDoc.id)).slice().reverse();
-  host.innerHTML = "";
+  const snaps = await docs.snapshots(runtime.currentDoc.id);
+  const scope = el("div", { class: "history-scope" }, [tf("historyOf", runtime.currentDoc.title)]);
+  drawList(host, panelrows.historyList(snaps), LOOKS.history, snaps);
   // Say whose history this is: with one list per document, the title is the
-  // thing that makes "restore" a safe button to press.
-  host.append(el("div", { class: "history-scope" }, [tf("historyOf", runtime.currentDoc.title)]));
-  if (!list.length) {
-    host.append(el("div", { class: "outline-empty" }, [t("noHistory")]));
-    return;
-  }
-  for (const s of list) {
-    const first = (s.body.split("\n").find((l) => l.trim()) || "—").slice(0, 42);
-    host.append(
-      el("button", { class: "pal-item", onClick: () => void restoreSnapshot(s) }, [
-        el("span", { class: "pal-cat" }, [new Date(s.t).toLocaleDateString()]),
-        el("b", {}, [first]),
-        el("code", {}, [new Date(s.t).toLocaleTimeString()]),
-      ]),
-    );
-  }
+  // thing that makes "restore" a safe button to press. Prepended after the fact
+  // because `drawList` owns the list and this is not part of it.
+  host.prepend(scope);
 }
 
 // ---------------------------------------------------------------- command palette
@@ -3034,78 +3061,13 @@ function paletteActions(): { id: string; label: string; key: string }[] {
 }
 
 function renderPaletteList(q: string) {
-  const list = document.getElementById("palette-list")!;
-  const lang = getLang();
-  const query = q.trim().toLowerCase();
-  list.innerHTML = "";
-  let n = 0;
-
-  // Operations first. They are what the word "command" means to somebody who
-  // opened this looking for one, and they are the half that was missing.
-  const acts = paletteActions().filter(
-    (a) => !query || a.label.toLowerCase().includes(query) || a.id.toLowerCase().includes(query),
+  // Operations first, then the same command list the completions use — and both
+  // caps reported rather than applied in silence. See `panelrows.paletteList`.
+  drawList(
+    document.getElementById("palette-list")!,
+    panelrows.paletteList(paletteActions(), commands.available(runtime.commandsReg), q, getLang()),
+    LOOKS.palette,
   );
-  for (const a of acts.slice(0, 30)) {
-    const row = el(
-      "button",
-      {
-        class: "pal-item" + (n === 0 ? " sel" : ""),
-        "data-action": a.id,
-        onMouseEnter: (e: Event) => {
-          list.querySelectorAll(".pal-item.sel").forEach((r) => r.classList.remove("sel"));
-          (e.currentTarget as HTMLElement).classList.add("sel");
-        },
-        onClick: () => {
-          closePalette();
-          runAction(a.id);
-        },
-      },
-      [
-        el("span", { class: "pal-cat" }, [t("cat.action")]),
-        el("b", {}, [a.label]),
-        el("code", {}, [a.key || a.id]),
-      ],
-    );
-    list.append(row);
-    n++;
-  }
-
-  // The same list the completions use. The palette never called `userCommandNames`
-  // at all, so a user-defined command was invisible here in every case — yours and
-  // the document's alike (B27).
-  const items = commands.available(runtime.commandsReg).filter((c) => commands.matches(c, query));
-  items.slice(0, 60).forEach((c) => {
-    const i = n++;
-    const row = el(
-      "button",
-      {
-        class: "pal-item" + (i === 0 ? " sel" : ""),
-        // Hover moves the selection so the mouse and the keyboard never
-        // disagree about which row Enter would run.
-        onMouseEnter: (e: Event) => {
-          list.querySelectorAll(".pal-item.sel").forEach((r) => r.classList.remove("sel"));
-          (e.currentTarget as HTMLElement).classList.add("sel");
-        },
-        onClick: () => {
-          insertSnippet(c.insert);
-          closePalette();
-        },
-      },
-      [
-        // A user-defined command says where it came from instead of a category —
-        // *this document's* or *yours*, which is the distinction that matters when
-        // both exist and the compiler runs one of them.
-        el("span", { class: "pal-cat" }, [
-          c.category ? t("cat." + c.category) : whose(c.from),
-        ]),
-        el("b", {}, [
-          c.from === "registry" ? (lang === "he" ? c.desc_he : c.desc_en) ?? c.name : c.name,
-        ]),
-        el("code", {}, ["#" + c.name + (c.en ? " · " + c.en : "")]),
-      ],
-    );
-    list.append(row);
-  });
 }
 
 // ---------------------------------------------------------------- templates / exports
@@ -5271,6 +5233,13 @@ function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
   } else if (key === "theme") {
     applyTheme();
     runtime.view.dispatch({ effects: themeCompartment.reconfigure(editorTheme(settings.theme === "dark")) });
+    // …and the chip that reports the theme, which is the one thing this branch
+    // did not do. Found by pressing it: the page went dark, the editor went
+    // dark, and the chip went on saying 🌙 — "switch to dark" — for as long as
+    // the session lasted, because nothing rebuilt the header. Its four siblings
+    // (`lang`, `prose`, `layout`, `editingMode`) all rerender; this one was the
+    // odd one out, and it is the toggle a writer presses first.
+    rerenderChrome();
   } else if (key === "prose") {
     runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw()) });
     rerenderChrome();

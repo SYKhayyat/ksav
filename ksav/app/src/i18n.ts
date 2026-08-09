@@ -285,6 +285,12 @@ const HE: Dict = {
   settings: "הגדרות",
   export: "ייצוא",
   palette: "פקודות",
+  // A palette that finds nothing has to say so. It said nothing at all — a
+  // blank rectangle, from the one surface whose whole job is finding things.
+  paletteNothing: "אין תוצאות",
+  // And a palette that stops at sixty has to say that too, or a list that is
+  // half the registry reads as all of it.
+  moreHidden: "ועוד {0} — צמצמו את החיפוש",
   language: "שפה",
   theme: "ערכת נושא",
   layout: "פריסה",
@@ -898,6 +904,8 @@ const EN: Dict = {
   settings: "Settings",
   export: "Export",
   palette: "Commands",
+  paletteNothing: "Nothing matches",
+  moreHidden: "and {0} more — narrow the search",
   language: "Language",
   theme: "Theme",
   layout: "Layout",

@@ -246,11 +246,24 @@ check(
 // registry — and nothing else, so typing "table" into Ctrl+K offered `#טבלה`
 // and could not offer "insert row below", "save", "export PDF" or "record
 // macro". The one surface in the product labelled Commands was a symbol picker.
+//
+// Re-aimed once the palette's rows moved to `panelrows.ts`. The first version
+// read the text of `renderPaletteList` and looked for `runAction(` inside it,
+// which is a fence tied to where the code happens to sit rather than to what it
+// has to do: the moment the row-drawing moved one function along, the fence went
+// red for a change that fixed nothing and broke nothing. What it *means* is that
+// an operation row runs through the one door, so it is asked of the function
+// that performs a row. The other half — that operations are in the list at all
+// — is executable now, in `panelrows.test.mjs`.
 {
   const body = MAIN.slice(MAIN.indexOf("function renderPaletteList"));
   const list = body.slice(0, body.indexOf("\n}\n") + 3);
   ok("the palette offers operations", /paletteActions\(\)/.test(list));
-  ok("…and runs them through the one door", /runAction\(/.test(list));
+  const draw = MAIN.slice(MAIN.indexOf("function drawRow"));
+  ok(
+    "…and runs them through the one door",
+    /case "action":[\s\S]{0,200}?runAction\(/.test(draw.slice(0, draw.indexOf("\n}\n") + 3)),
+  );
   ok("it still offers commands", /commands\.available\(/.test(list));
   // Structural operations are filtered to where the caret actually is, the same
   // rule the ribbon and the hydra use. Offering "delete row" outside a table and
@@ -259,6 +272,44 @@ check(
     "structural operations are filtered to the caret",
     /function paletteActions[\s\S]{0,700}?availableAt\(/.test(MAIN),
   );
+}
+
+
+// -------------------------------- 9. a chip that reports a setting is rebuilt
+//
+// **Found by pressing it.** The theme toggle flipped the page to dark, flipped
+// the editor to dark, saved the setting — and went on showing 🌙, "switch to
+// dark", for the rest of the session. `setSetting`'s `theme` branch applied the
+// theme and did not rebuild the header; its four siblings — `lang`, `prose`,
+// `layout`, `editingMode` — all did. One missing line, in the toggle a writer
+// presses first, and every reading test in this repository was green through it.
+//
+// The class, not the instance: `header.chips` is a pure function of a named
+// state, so **every settings key that state is built from has to be a key whose
+// change rebuilds the chrome.** The list is read off `headerState()` rather than
+// written here, so a chip that starts reporting a new setting is covered the
+// moment it is added — which is the difference between this and a fence that
+// names `theme`.
+{
+  const END = "\n}\n";
+  const state = MAIN.slice(MAIN.indexOf("function headerState()"));
+  const body = state.slice(0, state.indexOf(END) + END.length);
+  ok("the header's state is gathered in one place", body.includes("settings."));
+  const shown = [...body.matchAll(/settings\.(\w+)/g)].map((m) => m[1]);
+  ok("…and it reads several settings", shown.length >= 6, `${shown.length}`);
+
+  const set = MAIN.slice(MAIN.indexOf("function setSetting"));
+  const fn = set.slice(0, set.indexOf(END) + END.length);
+  // Each `else if (key === "x") { … }` arm, with its body.
+  const arms = new Map();
+  const ARM = /key === "(\w+)"\)\s*\{([\s\S]*?)\n  \}/g;
+  for (const m of fn.matchAll(ARM)) arms.set(m[1], m[2]);
+  ok("the settings dispatcher was read", arms.size >= 8, `${arms.size} arms`);
+
+  const silent = shown
+    .filter((key) => arms.has(key))
+    .filter((key) => !arms.get(key).includes("rerenderChrome()"));
+  check("a setting the chipbar shows is a setting that rebuilds it", silent, []);
 }
 
 }

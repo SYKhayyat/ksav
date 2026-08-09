@@ -1,0 +1,225 @@
+import { check, ok } from "./harness.mjs";
+import {
+  PALETTE_COMMANDS,
+  gist,
+  historyList,
+  indentPx,
+  noteList,
+  outlineList,
+  paletteList,
+} from "../.tmp-test/panelrows.mjs";
+import { notesIn } from "../.tmp-test/notes.mjs";
+import { outline } from "../.tmp-test/ksav-lang.mjs";
+
+// What the four list panels list, asked directly.
+//
+// The outline, the notes pane, the version history and the command palette each
+// built their rows inline in `main.ts`, and between them they answered four
+// questions four times: how far to indent, what a row's words are, what to say
+// when there is nothing, and what to do about a cap. Two of those had two
+// answers and two had none, and not one of them was reachable from a test.
+
+/** A body with a title page, three levels of heading and two notes. */
+const DOC = [
+  "#שער[קונטרס בעניני שבת]",
+  "",
+  "#כותרת1[פרק א]",
+  "",
+  "פתיחה#הערה[עיין שם היטב] וכאן.",
+  "",
+  "#כותרת2[סימן א]",
+  "",
+  "עוד#הערה[ועיין עוד] דבר.",
+  "",
+].join("\n");
+
+export async function run() {
+  // ------------------------------------------------------------ one indent rule
+
+  {
+    // It was `8 + level * 14` in the outline and `8 + depth * 14` in the notes
+    // pane — one rule, two spellings, in two functions neither of which could
+    // see the other.
+    check("no indent is the base padding", indentPx(0), 8);
+    check("one step is one step", indentPx(1), 22);
+    check("three steps", indentPx(3), 50);
+    // A negative depth is a bug upstream, not a negative padding.
+    check("nothing indents backwards", indentPx(-2), 8);
+  }
+
+  // ---------------------------------------------------------------- the outline
+
+  {
+    const list = outlineList(outline(DOC));
+    check("nothing is hidden from the outline", list.hidden, 0);
+    check("…and it is not empty", list.empty, null);
+    ok("every heading is a row", list.rows.length >= 3, `${list.rows.length} rows`);
+    check("every row jumps", list.rows.filter((r) => r.does.kind !== "jump"), []);
+    // Relative to the shallowest heading in the document, not absolute: a
+    // document whose only headings are `#כותרת3` is not a document indented
+    // three levels, it is a document whose headings all sit at one place.
+    check("the shallowest row is flush", Math.min(...list.rows.map((r) => r.indent)), 0);
+  }
+  {
+    const only3 = "#כותרת3[א]\n\nגוף\n\n#כותרת3[ב]\n\nעוד\n";
+    const list = outlineList(outline(only3));
+    check(
+      "headings all at one level all sit flush",
+      list.rows.map((r) => r.indent),
+      [0, 0],
+    );
+  }
+  {
+    const list = outlineList([]);
+    check("a document with no headings says so", list.empty, "noHeadings");
+    check("…and lists nothing", list.rows, []);
+  }
+
+  // ------------------------------------------------------------- the notes pane
+
+  {
+    const list = noteList(notesIn(DOC));
+    check("both notes are rows", list.rows.length, 2);
+    check("…numbered in reading order", list.rows.map((r) => r.chip), ["1", "2"]);
+    // The row's words are the note's own, flattened. A pane listing "#הערה"
+    // twice is a pane listing nothing.
+    check("…and named by their prose", list.rows[0].label, "עיין שם היטב");
+    check("…jumping to the prose, not the marker", list.rows[0].does.kind, "note");
+    ok(
+      "…and carrying the marker for the right-click menu",
+      typeof list.rows[0].does.marker === "number",
+    );
+  }
+  {
+    // A marker whose body has not been written yet has no words. Naming the
+    // command is the only honest thing left to show, and showing nothing is not
+    // an option — a blank row is a row that looks broken.
+    const list = noteList(notesIn("טקסט#הערה[]\n"));
+    ok("an empty note still says what it is", list.rows[0].label.startsWith("#"), list.rows[0].label);
+  }
+  {
+    check("a document with no notes says so", noteList([]).empty, "notesPaneEmpty");
+  }
+
+  // ----------------------------------------------------------------- the history
+
+  {
+    // The finding. The history panel took the first non-blank line **verbatim**,
+    // so every snapshot of a document that opens with a title page was listed as
+    // `#שער[קונטרס בעניני שבת]` — markup, in a list of versions. The notes pane
+    // had been flattening its rows with `plainText` all along; the two panels
+    // were asked the same question and one of them answered with the source.
+    const list = historyList([{ t: 1000, body: DOC }]);
+    ok(
+      "a version is named by its words",
+      list.rows[0].label.startsWith("קונטרס בעניני שבת פרק א"),
+      list.rows[0].label,
+    );
+    ok("…and not by its markup", !list.rows[0].label.includes("#"), list.rows[0].label);
+    check("…and carries when it was taken", list.rows[0].when, 1000);
+  }
+  {
+    // Newest first, decided here rather than by whoever calls it — "which end is
+    // the newest" is exactly the sort of thing that is right in one caller and
+    // wrong in the next.
+    const list = historyList([
+      { t: 1, body: "ראשון" },
+      { t: 2, body: "שני" },
+      { t: 3, body: "שלישי" },
+    ]);
+    check("the newest version is first", list.rows.map((r) => r.when), [3, 2, 1]);
+    // …and the index still points into the list that was passed in, not into
+    // the reversed one. Restoring the wrong snapshot is a data loss.
+    check(
+      "…and each row still points at its own snapshot",
+      list.rows.map((r) => r.does.index),
+      [2, 1, 0],
+    );
+  }
+  {
+    check("no versions says so", historyList([]).empty, "noHistory");
+    check("a blank version still gets a row", historyList([{ t: 1, body: "" }]).rows[0].label, "—");
+  }
+
+  // ------------------------------------------------------------------ the gist
+
+  {
+    check("markup is flattened away", gist("#הדגשה[שלום] עולם"), "שלום עולם");
+    check("whitespace collapses", gist("שלום\n\n   עולם"), "שלום עולם");
+    check("a short line is left alone", gist("שלום"), "שלום");
+    const long = "מילה ".repeat(40);
+    const cut = gist(long);
+    ok("a long line is cut", cut.endsWith("…"), cut);
+    ok("…to about the limit", [...cut].length <= 61, `${[...cut].length} characters`);
+    // Counted in characters, not in UTF-16 units. Every nikud point is a unit of
+    // its own, so a `slice(0, 42)` gives a pointed line half the words of an
+    // unpointed one — and the history panel's did exactly that.
+    const pointed = "בְּרֵאשִׁית ".repeat(12);
+    const plain = "בראשית ".repeat(12);
+    check(
+      "nikud does not count as words",
+      gist(pointed).split(" ").length,
+      gist(plain).split(" ").length,
+    );
+  }
+
+  // ------------------------------------------------------------------ the palette
+
+  const action = (id, label = id, key = "") => ({ id, label, key });
+  const command = (name, extra = {}) => ({
+    name,
+    insert: `#${name}[|]`,
+    from: "registry",
+    category: "style",
+    desc_he: name + " בעברית",
+    desc_en: name + " in English",
+    ...extra,
+  });
+
+  {
+    const list = paletteList([action("save", "שמור")], [command("הדגשה")], "", "he");
+    // Operations first. They are what the word "command" means to somebody who
+    // opened this looking for one, and they are the half that was missing.
+    check("operations come first", list.rows[0].does, { kind: "action", id: "save" });
+    check("…then the commands", list.rows[1].does.kind, "insert");
+    check("an operation row is labelled by its name", list.rows[0].label, "שמור");
+    check("a command row is labelled by its description", list.rows[1].label, "הדגשה בעברית");
+    check("…in the interface's language", paletteList([], [command("הדגשה")], "", "en").rows[0].label, "הדגשה in English");
+  }
+  {
+    // A user-defined command says where it came from instead of a category —
+    // *this document's* or *yours*, which is the distinction that matters when
+    // both exist and the compiler runs one of them.
+    const mine = command("שלי", { from: "yours", category: "", desc_he: undefined, desc_en: undefined });
+    const theirs = command("שלהם", { from: "document", category: "", desc_he: undefined, desc_en: undefined });
+    check("yours says so", paletteList([], [mine], "", "he").rows[0].chip, "fromYou");
+    check("the document's says so", paletteList([], [theirs], "", "he").rows[0].chip, "fromDocument");
+    check("…and is named by itself", paletteList([], [mine], "", "he").rows[0].label, "שלי");
+  }
+  {
+    const acts = [action("save", "שמור"), action("open", "פתח")];
+    const cmds = [command("הדגשה"), command("נטוי")];
+    check("a query filters operations", paletteList(acts, cmds, "שמור", "he").rows.length, 1);
+    check("…and commands", paletteList(acts, cmds, "נטוי", "he").rows.map((r) => r.label), [
+      "נטוי בעברית",
+    ]);
+    ok("…and an operation matches by its id too", paletteList(acts, [], "open", "he").rows.length === 1);
+  }
+  {
+    // **The finding.** A query nothing matches produced a blank rectangle — from
+    // the one surface in this application whose entire job is finding things.
+    const list = paletteList([action("save")], [command("הדגשה")], "zzzz", "he");
+    check("nothing matched is said out loud", list.empty, "paletteNothing");
+    check("…and nothing is listed", list.rows, []);
+  }
+  {
+    // **The other finding.** The caps are 30 and 60 and they were applied in
+    // silence: an empty query listed 60 of the registry's 115 commands and said
+    // nothing at all, which is a list that reads as *all of them*.
+    const many = Array.from({ length: PALETTE_COMMANDS + 7 }, (_, i) => command("פקודה" + i));
+    const list = paletteList([], many, "", "he");
+    check("the cap still caps", list.rows.length, PALETTE_COMMANDS);
+    check("…and says how many it left out", list.hidden, 7);
+    check("…and a list that fits hides nothing", paletteList([], many.slice(0, 3), "", "he").hidden, 0);
+  }
+}

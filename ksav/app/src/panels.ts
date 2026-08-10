@@ -380,9 +380,27 @@ export function closePanel(id: string): void {
   HOOKS.get(id)?.close?.();
 }
 
-/** Show or hide it, or flip it when `on` is left out. */
-export function togglePanel(id: string, on?: boolean): boolean {
-  const next = on ?? !isPanelOpen(id);
+/**
+ * Show or hide it, or flip it when `on` is **left out**.
+ *
+ * Left out, not `undefined` — and the rest parameter is what makes those two
+ * different things, because as `on?: boolean` with `on ?? !isPanelOpen(id)` they
+ * were the same thing and it cost the writer 45 pixels of every window.
+ *
+ * `settings.nikud` is an optional boolean: absent means the writer has never
+ * asked for the vowel bar, which is nearly all of them. `togglePanel("nikud-bar",
+ * settings.nikud)` therefore passed `undefined`, `??` read that as *no argument
+ * given*, and startup **flipped the bar on** — a full-width row of fourteen
+ * buttons, on screen for everyone who had never wanted it, with the chip in the
+ * header correctly reporting it as off. The same call shape was on the outline
+ * drawer, so a first run opened that too.
+ *
+ * A caller that means "flip" passes nothing; a caller holding a value passes the
+ * value, and an unset optional is now `false`, which is what an unset preference
+ * has always meant everywhere else in this file.
+ */
+export function togglePanel(id: string, ...on: [boolean?]): boolean {
+  const next = on.length ? !!on[0] : !isPanelOpen(id);
   if (next) openPanel(id);
   else closePanel(id);
   return next;

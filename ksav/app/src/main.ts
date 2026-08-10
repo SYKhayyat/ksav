@@ -23,7 +23,14 @@ import {
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
-import { deferredNotes, jumpDeferred, deferHere, recallHere, deferAll } from "./deferred-lint";
+import {
+  deferredNotes,
+  jumpDeferred,
+  deferHere,
+  recallHere,
+  deferAll,
+  sortDeferredBodies,
+} from "./deferred-lint";
 import { createBackend, sourcesOf } from "./api";
 /** How often the editor asks Girsa's desk whether anything arrived. A second
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
@@ -566,6 +573,7 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
+  { id: "deferSort", run: (v) => (sortDeferredBodies(v), true) },
 ];
 
 /**
@@ -2005,9 +2013,14 @@ function buildToolbar(): HTMLElement {
     // the palette silently lost every note because nothing wrote the dump call.
     // A writer clicks what the toolbar offers, so the toolbar has to offer the
     // thing it names.
+    // Three, not four. `⁑` — a note *on* a note, which renders as a slightly
+    // smaller, indented, separately-lettered entry in the same block — is a real
+    // sefer apparatus and a rare one, and the toolbar is the most expensive
+    // surface in the product. It keeps its Insert-menu item, its place in the
+    // Notes chooser and `Ctrl+Shift+N`; it does not keep a button beside the
+    // footnote that nearly everybody actually wants.
     tbGroup(t("cat.footnote"), [
       noteBtn("footnote", "†", "#הערה[|]"),
-      noteBtn("tieredNote", "⁑", null),
       noteBtn("endnote", "⁋", "#הערתסיום[|]"),
       b("הערת_צד", "▣"),
     ]),
@@ -4716,6 +4729,61 @@ function noteStyleRows(): Node[] {
   return rows;
 }
 
+/**
+ * Styles › Fixed regions — the heights of the page-foot bands, in cm.
+ *
+ * The one styling control that moves page geometry rather than ink: the engine
+ * reserves the foot of every page from exactly this tuple, so a number typed
+ * here shortens the text area by the same amount. That is why it is a number and
+ * not a slider — a sefer's apparatus is 1.5cm because somebody measured a page,
+ * not because they dragged something until it looked right.
+ *
+ * Off (`גבהים` absent) is the honest default and stays reachable: each band then
+ * takes the height its notes need, which is what you want until you are
+ * type-setting facing pages that have to line up.
+ */
+function bandStyleRows(): Node[] {
+  const heights = styles.readTuple(styleArg("bands", "גבהים"));
+  const on = heights !== null;
+  const rows: Node[] = [
+    styleRow(
+      t("bandsFixed"),
+      toggleControl(on, (v) =>
+        setStyleArgs("bands", { גבהים: v ? styles.typstTuple(["1.5cm", "1cm"]) : null }),
+      ),
+    ),
+  ];
+  if (!on) return rows;
+  // Three, matching the note tiers the panel already shows. A document with more
+  // keeps them: `withTier` grows the tuple and never shortens it, and everything
+  // past the third is preserved verbatim like any argument the panel does not
+  // display.
+  for (const tier of [1, 2, 3]) {
+    const cm = styles.readLength(heights?.[tier - 1], "cm");
+    const input = el("input", {
+      type: "number",
+      min: 0,
+      max: 12,
+      step: 0.1,
+      value: cm == null ? "" : String(cm),
+      placeholder: "—",
+    }) as HTMLInputElement;
+    input.addEventListener("change", () => {
+      const v = parseFloat(input.value);
+      if (!Number.isFinite(v) || v < 0) return;
+      setStyleArgs("bands", {
+        גבהים: styles.withTier(styleArg("bands", "גבהים"), tier, `${v}cm`, [
+          "1.5cm",
+          "1cm",
+          "1cm",
+        ]),
+      });
+    });
+    rows.push(styleRow(tf("bandHeight", String(tier)), input));
+  }
+  return rows;
+}
+
 function renderStylesPanel() {
   const box = document.getElementById("styles-body");
   if (!box) return;
@@ -4826,6 +4894,9 @@ function renderStylesPanel() {
     el("h3", {}, [t("styleNotes")]),
     el("p", { class: "styles-note" }, [t("styleNotesNote")]),
     ...noteStyleRows(),
+    el("h3", {}, [t("styleBands")]),
+    el("p", { class: "styles-note" }, [t("styleBandsNote")]),
+    ...bandStyleRows(),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
 }
@@ -5326,6 +5397,22 @@ function bodyPlacementRow(): HTMLElement {
         },
       },
       [t("deferAllAction")],
+    ),
+    // The other half of writing bodies at the end: keeping that list readable.
+    // Filed one at a time, it comes out in the order the notes were *written*,
+    // and a note added to page 1 of a finished chapter lands under the note from
+    // page 40. New bodies are now filed in reading order by construction; this is
+    // for the document that was written before they were.
+    el(
+      "button",
+      {
+        class: "defer-all",
+        onClick: () => {
+          closeNotesChooser();
+          sortDeferredBodies(runtime.view);
+        },
+      },
+      [t("deferSortAction")],
     ),
   ]);
 }

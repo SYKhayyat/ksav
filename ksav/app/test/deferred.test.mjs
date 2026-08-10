@@ -13,6 +13,7 @@ import {
   deferAllInlineNotes,
   deferSnippet,
   resolveDeferred,
+  sortBodies,
 } from "../.tmp-test/deferred.mjs";
 import { NOTE_CHOICES, applyChoice } from "../.tmp-test/notes.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
@@ -480,6 +481,88 @@ export async function run() {
   const r = applyChoice("ראש סוף.\n", 3, c, "primary");
   ok("chooser: still inline by default", r.text.includes("#הערה[]"));
   notOk("chooser: no body filed", r.text.includes("#גוף_הערה"));
+}
+
+// ---------------------------------------------------------------- 39. order
+//
+// The list at the foot of the file must read in the order of the text.
+//
+// Bodies were filed by appending, so the order was the order the notes were
+// *written*: add a note to the first paragraph of a finished chapter and its
+// prose lands underneath the note from the last page. org-mode has the same
+// defect and the same answer — a definition belongs where its reference does.
+
+/** The names of the filed bodies, top to bottom. */
+const filed = (text) => scan(text).defs.map((d) => d.name);
+
+// A note added before every existing one is filed above them, not under them.
+{
+  const doc = 'סוף המשפט#הערה_בשם("1")\n\n#גוף_הערה("1")[אחרונה]\n';
+  const at = doc.indexOf("סוף");
+  const r = insertDeferred(doc, at);
+  check("a note added earlier in the text is filed first", filed(r.text), ["2", "1"]);
+}
+
+// And one added after them still goes last.
+{
+  const doc = 'ראש#הערה_בשם("1") ואז סוף.\n\n#גוף_הערה("1")[ראשונה]\n';
+  const r = insertDeferred(doc, doc.indexOf(" ואז סוף") + 8);
+  check("a note added later in the text is filed last", filed(r.text), ["1", "2"]);
+}
+
+// Between two: the new body lands between their bodies.
+{
+  const doc =
+    'א#הערה_בשם("1") ב ג#הערה_בשם("2")\n\n#גוף_הערה("1")[ראשונה]\n#גוף_הערה("2")[שלישית]\n';
+  const r = insertDeferred(doc, doc.indexOf(" ב ") + 2);
+  check("a note added between two is filed between them", filed(r.text), ["1", "3", "2"]);
+}
+
+// The repair for the documents that already exist.
+{
+  const scrambled =
+    'א#הערה_בשם("7") ב#הערה_בשם("3") ג#הערה_בשם("5")\n\n' +
+    '#גוף_הערה("5")[גימל]\n#גוף_הערה("7")[אלף]\n#גוף_הערה("3")[בית]\n';
+  const s = sortBodies(scrambled);
+  check("sorting puts the bodies in marker order", filed(s.text), ["1", "2", "3"]);
+  ok("and the prose travels with its name", /#גוף_הערה\("1"\)\[אלף\]/.test(s.text));
+  ok("the second is the second marker's", /#גוף_הערה\("2"\)\[בית\]/.test(s.text));
+  ok("the markers are renumbered to match", /א#הערה_בשם\("1"\) ב#הערה_בשם\("2"\)/.test(s.text));
+  check("and it says how many moved", s.moved > 0, true);
+  check("running it again changes nothing", sortBodies(s.text).text, s.text);
+}
+
+// A name the writer chose is theirs. Renumbering `רש״י` to `2` would be the
+// panel destroying the writer's own text to tidy something they never asked to
+// be tidy, and it also has to not collide with the numbers around it.
+{
+  const mixed =
+    'א#הערה_בשם("4") ב#הערה_בשם("רש״י") ג#הערה_בשם("2")\n\n' +
+    '#גוף_הערה("2")[גימל]\n#גוף_הערה("רש״י")[בית]\n#גוף_הערה("4")[אלף]\n';
+  const s = sortBodies(mixed);
+  check("a writer's own name survives the sort", filed(s.text), ["1", "רש״י", "2"]);
+  ok("and its body is still its own", /#גוף_הערה\("רש״י"\)\[בית\]/.test(s.text));
+}
+
+// A body whose marker was deleted has no place in reading order, so it keeps the
+// end of the list rather than being dropped or shuffled to an arbitrary middle.
+{
+  const orphaned =
+    'א#הערה_בשם("2")\n\n#גוף_הערה("9")[יתום]\n#גוף_הערה("2")[אלף]\n';
+  const s = sortBodies(orphaned);
+  check("an orphan body sorts last", filed(s.text), ["1", "9"]);
+  ok("and is not renumbered onto a live name", s.text.includes('#גוף_הערה("9")[יתום]'));
+}
+
+// Nothing but the definitions moves: the whitespace, the blank lines and any
+// prose between them are the writer's and stay put.
+{
+  const spaced =
+    'א#הערה_בשם("2") ב#הערה_בשם("1")\n\n' +
+    '// ההערות:\n\n#גוף_הערה("1")[שנייה]\n\n#גוף_הערה("2")[ראשונה]\n';
+  const s = sortBodies(spaced);
+  ok("the comment between them stays where it was", s.text.includes("// ההערות:\n\n#גוף_הערה"));
+  ok("the blank line between the bodies survives", /\]\n\n#גוף_הערה/.test(s.text));
 }
 
 }

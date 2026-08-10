@@ -120,7 +120,15 @@ pub static COMMANDS: &[Command] = &[
     // thing the toolbar offered, and the toolbar offered the wrong thing.
     cmd!("הערה_על_הערה", "subnote", "footnote", "מיושן — השתמשו ב#הערה_ב. הערה על הערה באותו בלוק ובאותו מספור, קטנה ונטויה", "Deprecated — use #הערה_ב. A note on a note in the same block and the same numbering, set smaller and italic", "#הערה_על_הערה[|]", true),
     // layered (tiered) footnotes — one block, one sequence, a tier per indent
-    cmd!("הערה_א", "tier1", "footnote", "הערה שכבתית — דרגה א (על הגוף)", "Layered note — tier A (on the text)", "#הערה_א[|]"),
+    // Deprecated, and it is the same case as `הערה_על_הערה` one line up: a second
+    // name for something the writer already has. `#let הערה(body) =
+    // הערה_בדרגה(1, body)` — tier א *is* the ordinary footnote — so the Insert
+    // menu was offering "footnote" and "layered note — tier א (on the text)" as
+    // two choices for one function, which reads as "the layered kind is a
+    // different thing you must switch to before you can hang a note off it".
+    // Nothing has required that since the engine adopted the plain note. Still
+    // compiles, still completes, no longer advertised.
+    cmd!("הערה_א", "tier1", "footnote", "מיושן — זהו #הערה עצמה. דרגה א היא הערת השוליים הרגילה", "Deprecated — this is #הערה itself. Tier A is the ordinary footnote", "#הערה[|]", true),
     cmd!("הערה_ב", "tier2", "footnote", "הערה על הערה — דרגה ב (מוזחת באותו בלוק)", "Note on a note — tier B (indented in the same block)", "#הערה_ב[|]"),
     cmd!("הערה_ג", "tier3", "footnote", "הערה על הערה — דרגה ג (מוזחת באותו בלוק)", "Note on a note — tier C (indented in the same block)", "#הערה_ג[|]"),
     cmd!("הערה_בדרגה", "tier", "footnote", "הערה שכבתית בכל דרגה", "Layered note at any tier", "#הערה_בדרגה(2)[|]"),

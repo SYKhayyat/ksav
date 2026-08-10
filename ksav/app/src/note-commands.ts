@@ -154,8 +154,18 @@ export const DEFAULT_NOTE_KIND = { he: "הערה", en: "fnote" } as const;
  * Hebrew appearing in it from a toolbar button is watching the editor overrule
  * them, which is the complaint commit abc3dc0 answered for the table and styles
  * panels. `tier` is clamped to the family's depth by the caller.
+ *
+ * **Tier 1 is `#הערה`,** not `#הערה_א`, and that is the fix for the thing that
+ * made this whole mechanism feel wrong to use. `ksav.typ` defines
+ * `#let הערה(body) = הערה_בדרגה(1, body)` — the two are one function — and it
+ * does so *precisely* so that a sub-note hangs off the note the writer already
+ * wrote. Writing the alias anyway put a second name for the footnote into the
+ * document, and a second entry for it in the Insert menu, which together say the
+ * opposite: that a note has to be converted to tier א before anything can hang
+ * off it. Nothing has required that since the engine adopted the plain note.
  */
 export function tierCommand(tier: number, lang: "he" | "en" = "he"): string {
   const i = Math.min(Math.max(tier, 1), TIERS.length) - 1;
+  if (i === 0) return DEFAULT_NOTE_KIND[lang];
   return lang === "en" ? `tier${i + 1}` : `הערה_${TIERS[i]}`;
 }

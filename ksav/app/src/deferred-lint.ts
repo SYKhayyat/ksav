@@ -22,6 +22,7 @@ import {
   jump,
   problems,
   scan,
+  sortBodies,
 } from "./deferred";
 import type { Problem } from "./deferred";
 import { setStatus } from "./runtime";
@@ -121,6 +122,26 @@ export function deferAll(view: EditorView): boolean {
   }
   apply(view, text, view.state.selection.main.head);
   setStatus(tf("deferMovedCount", moved), "ok");
+  return true;
+}
+
+/**
+ * Put the list at the foot of the file back into reading order.
+ *
+ * The caret is left where it was rather than followed to a body: this is a tidy
+ * of a part of the file the writer is not looking at, and yanking the view down
+ * to the note list to prove it happened would be the opposite of the point. The
+ * status line says how many moved.
+ */
+export function sortDeferredBodies(view: EditorView): boolean {
+  const before = docTextOf(view.state.doc);
+  const { text, moved } = sortBodies(before);
+  if (text === before) {
+    setStatus(t("deferAlreadySorted"), "");
+    return false;
+  }
+  apply(view, text, view.state.selection.main.head);
+  setStatus(moved ? tf("deferSortedCount", moved) : t("deferRenumbered"), "ok");
   return true;
 }
 

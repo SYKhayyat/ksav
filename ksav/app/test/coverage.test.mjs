@@ -51,6 +51,13 @@ const registry = commands;
  */
 const NOT_OFFERED = {
   הערה_על_הערה: { kind: "deprecated" },
+  // A second name for `#הערה`. The prelude has `#let הערה(body) =
+  // הערה_בדרגה(1, body)` — tier א *is* the ordinary footnote — so the Insert
+  // menu was listing one function twice, as "footnote" and as "layered note —
+  // tier א", which reads as "the layered kind is a different thing you have to
+  // switch to before a note can hang off one". Nothing has required that since
+  // the engine adopted the plain note.
+  הערה_א: { kind: "deprecated" },
   // Written by the Styles panel, from controls, never as a raw snippet. The
   // evidence is two-sided: `styles.ts` has to know the command, *and* main.ts
   // has to have a control that writes that kind. Either alone would pass on a
@@ -163,10 +170,18 @@ for (const name of Object.keys(NOT_OFFERED)) {
 for (const [what, needle] of [
   ["the footnote", 'noteBtn("footnote"'],
   ["the endnote", 'noteBtn("endnote"'],
-  ["the tiered note", 'noteBtn("tieredNote"'],
 ]) {
   ok(`${what} has a toolbar button`, MAIN.includes(needle));
 }
+// The tiered note is the deliberate exception, and the assertion is inverted
+// rather than dropped so that putting it back is a decision somebody has to make
+// here. It is a real sefer apparatus used by very few documents, and the toolbar
+// is the most expensive surface in the product: it keeps the Insert menu, the
+// chooser and its key — checked immediately below — and gives up the button.
+ok(
+  "the tiered note is not in the toolbar",
+  !MAIN.includes('noteBtn("tieredNote"'),
+);
 for (const action of ["footnote", "endnote", "tieredNote"]) {
   ok(`${action} is in the Insert menu`, MAIN.includes(`noteItem("${action}"`));
 }

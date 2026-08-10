@@ -1094,6 +1094,20 @@
       (top: m_top, left: m_in, right: m_out, bottom: m_bot + reserve)
     },
     numbering: if מספור { np } else { none },
+    // The page number must not move when the document grows an apparatus, and
+    // until now it did — straight down to the edge of the paper.
+    //
+    // Typst's default `footer-descent` is **30% of the bottom margin**, and the
+    // reserve is added to that margin. So reserving 3 cm for the bands also
+    // lowered the whole footer by 0.9 cm, and the page number — which is printed
+    // *after* the bands — ended up 3pt from the bottom of an A4 sheet: measured
+    // y=838.93 of 841.89, inside every printer's unprintable border, for any
+    // document that used one `#מדף_` note. Pinning the descent to 30% of the
+    // *unreserved* margin is Typst's own default for a document with no
+    // apparatus, so a document without one lays out exactly as it did, and one
+    // with an apparatus now puts its bands in the reserve and its number in the
+    // same place as everybody else's.
+    footer-descent: 0.3 * m_bot,
     header: if has_head {
       context {
         let p = here().page()
@@ -1114,6 +1128,19 @@
       // paper edge is not.
       if reserve != 0pt {
         block(width: 100%, height: reserve, clip: true, {
+          // The apparatus is margin furniture, not prose, and it was inheriting
+          // the document's paragraph spacing: `ריווח_פסקאות` (1.2em ⇒ 14.4pt at
+          // 12pt) landed between one band and the next. So a band asked to be
+          // 1.5cm tall occupied 1.5cm **plus 14.4pt**, the error compounded down
+          // the stack, and "fixed regions" — a layout whose entire promise is
+          // that the geometry is fixed — was neither the height you asked for nor
+          // predictable from it.
+          //
+          // The gaps a band *should* have are the explicit `v(ריווח_בין)` calls
+          // in `_ap_bands`, and the entries set their own `spacing:` argument,
+          // which beats this. What goes away is only the spacing nobody asked
+          // for.
+          set block(spacing: 0pt)
           _pp_page_bands()
           _sf_page_streams()
         })
@@ -1121,7 +1148,20 @@
         _pp_page_bands()
         _sf_page_streams()
       }
-      context {
+      // `spacing: 0pt` on the number's own block, not a `set` on the footer: the
+      // apparatus above it is built out of blocks whose gaps are exactly what
+      // `ריווח_בין` configures, and a blanket set would flatten those too. Without
+      // it the paragraph spacing (`ריווח_פסקאות`, 1.2em) lands between the bands
+      // and the number, so a document with an apparatus printed its page number
+      // 14.4pt lower than a document without one — the last of the drift this
+      // footer is supposed to have no part in.
+      // `width: 100%` is load-bearing, not tidiness. A bare `block` shrink-wraps
+      // its content, so the `align(head_align(p), …)` inside it centred the number
+      // within the width of the digit — a no-op — and the block itself sat at the
+      // start of the line, which in Hebrew is the right edge. Measured x=519.62 of
+      // a 595.28pt page instead of 295.24. Caught by the golden layout, in a run of
+      // probe output I had already read and taken only the `y` from.
+      block(width: 100%, spacing: 0pt, context {
         let p = here().page()
         let custom = if has_foot { _rc_head(p, תחתונה_זוגי, תחתונה_אי_זוגי, כותרת_תחתונה) } else { none }
         let ln = if custom != none {
@@ -1130,7 +1170,7 @@
           text(size: 0.85em, fill: luma(100), numbering(np, ..counter(page).get()))
         } else { none }
         if ln != none { align(head_align(p), ln) }
-      }
+      })
     },
   )
   set par(justify: יישור, leading: ריווח_שורות, spacing: ריווח_פסקאות, first-line-indent: הזחה_ראשונה)

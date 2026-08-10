@@ -21,7 +21,7 @@
 import { scan, splitArgs, topLevelColon } from "./spans";
 import { typstString } from "./typst-escape";
 
-export type StyleCommand = "headings" | "lists" | "tables" | "review" | "notes";
+export type StyleCommand = "headings" | "lists" | "tables" | "review" | "notes" | "bands";
 
 const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   headings: ["הגדרות_כותרות", "headings_config"],
@@ -37,6 +37,13 @@ const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   // the command. And the shipped ramp was 0.9em → 0.88em → 0.86em, so a writer
   // who *did* find it was tuning something they could not see.
   notes: ["הגדרות_הערות", "footnote_config"],
+  // The fixed page-foot regions. Its `גבהים` tuple is the one setting in the
+  // product that changes **page geometry** — the engine reserves the foot of
+  // every page from it — and the only instruction for changing it was the note
+  // on the chooser card: *"the heights live in the #הגדרות_מדפים line at the top
+  // of the file — change them there."* Telling a writer to go and edit Typst is
+  // not a control.
+  bands: ["הגדרות_מדפים", "pagebands_config"],
 };
 
 /** The canonical (Hebrew) name we write. */
@@ -76,6 +83,7 @@ const EN_ARGS: Record<string, string> = {
   סגנון: "style",
   תוויות: "labels",
   ריווח: "spacing",
+  גבהים: "heights",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),

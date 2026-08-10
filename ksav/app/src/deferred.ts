@@ -434,14 +434,64 @@ export interface Change {
 }
 
 /**
+ * Where this note's marker sits, for the two bodies it has to be filed between.
+ *
+ * `Infinity` for a body whose marker does not exist: an orphan has no place in
+ * reading order, so it sorts to the end rather than to an arbitrary middle.
+ */
+function markerOf(s: Scan, name: string): number {
+  return s.refs.find((r) => r.name === name)?.from ?? Infinity;
+}
+
+/**
+ * The bodies this one belongs between, by the order their markers appear.
+ *
+ * Filed by *appending*, the list at the foot of the file came out in the order
+ * the writer happened to write the notes, which is not the order a reader meets
+ * them: add a note to the first paragraph of a finished chapter and its prose
+ * lands last, under the note from the final page. org-mode has the same defect
+ * and the same answer — a footnote's definition belongs where its reference
+ * does.
+ *
+ * With no name to go on (or a marker not yet in the text) this answers "after
+ * the last one", which is what it always did.
+ */
+function neighbours(s: Scan, name?: string): { after: Def | null; before: Def | null } {
+  const last = s.defs.length ? s.defs[s.defs.length - 1] : null;
+  if (name == null) return { after: last, before: null };
+  const mine = s.refs.find((r) => r.name === name)?.from;
+  if (mine == null) return { after: last, before: null };
+  let after: Def | null = null;
+  let before: Def | null = null;
+  for (const d of s.defs) {
+    if (d.name === name) continue;
+    if (markerOf(s, d.name) < mine) after = d;
+    else if (!before) before = d;
+  }
+  return { after, before };
+}
+
+/**
  * Where a new body belongs, and what has to be typed around it.
  *
- * Three cases, in the order a document is likely to be in: a `#גופי_הערות[…]`
+ * In reading order among the bodies already filed (see `neighbours`), and
+ * failing that in the order a document is likely to be in: a `#גופי_הערות[…]`
  * region if the writer made one, otherwise straight after the last body, and
  * otherwise a fresh block at the end of the document.
  */
-export function fileNewBody(text: string, entry: string): { text: string; at: number } {
+export function fileNewBody(text: string, entry: string, name?: string): { text: string; at: number } {
   const s = scan(text);
+  const { after, before } = neighbours(s, name);
+  if (after) {
+    const at = after.to;
+    return { text: text.slice(0, at) + "\n" + entry + text.slice(at), at: at + 1 };
+  }
+  // Every body already filed belongs after this one — so this is the first, and
+  // it goes above them rather than under the whole list.
+  if (before) {
+    const at = lineStartIfAlone(text, before.from, before.to);
+    return { text: text.slice(0, at) + entry + "\n" + text.slice(at), at };
+  }
   if (s.region) {
     const inner = text.slice(s.region.innerFrom, s.region.innerTo);
     const pad = inner.trim() === "" ? "\n" : "";
@@ -482,7 +532,7 @@ function referenceText(name: string, kind: string | null, rest: string, lang: La
 export function createBody(text: string, name: string): Change {
   const lang = scan(text).refs.find((r) => r.name === name)?.lang ?? "he";
   const entry = definitionText(name, "", lang);
-  const { text: out, at } = fileNewBody(text, entry);
+  const { text: out, at } = fileNewBody(text, entry, name);
   // Inside the body brackets: `#גוף_הערה("name")[` is the prefix.
   return { text: out, caret: at + entry.length - 1 };
 }
@@ -503,7 +553,7 @@ export function insertDeferred(
   const marker = referenceText(name, kind, "", lang);
   const withMarker = text.slice(0, pos) + marker + text.slice(pos);
   const entry = definitionText(name, "", lang);
-  const { text: out, at } = fileNewBody(withMarker, entry);
+  const { text: out, at } = fileNewBody(withMarker, entry, name);
   return { text: out, caret: at + entry.length - 1 };
 }
 
@@ -608,7 +658,7 @@ export function deferInlineNote(text: string, pos: number): Change | null {
   const kind = isDefaultKind(note.cmd) ? null : note.cmd;
   const marker = referenceText(name, kind, note.args, lang);
   const withMarker = text.slice(0, note.from) + marker + text.slice(note.to);
-  const { text: out } = fileNewBody(withMarker, definitionText(name, body, lang));
+  const { text: out } = fileNewBody(withMarker, definitionText(name, body, lang), name);
   // The caret stays where the note was — the writer is still writing the
   // sentence, not the note.
   return { text: out, caret: note.from + marker.length };
@@ -836,7 +886,11 @@ export function deferAllInlineNotes(text: string): { text: string; moved: number
     return String(next);
   };
 
-  const bodies: string[] = [];
+  // Named, not just spelled: these are filed one at a time, and a document that
+  // already had deferred bodies has to interleave the new ones among them rather
+  // than pile them all on the end. Without the name `fileNewBody` can only
+  // append, which is exactly the disorder this pass is supposed not to create.
+  const bodies: { name: string; entry: string }[] = [];
   let out = "";
   let cursor = 0;
   for (const s of top.sort((a, b) => a.from - b.from)) {
@@ -845,10 +899,96 @@ export function deferAllInlineNotes(text: string): { text: string; moved: number
     const kind = isDefaultKind(s.cmd) ? null : s.cmd;
     out += text.slice(cursor, s.from) + referenceText(name, kind, s.args, lang);
     cursor = s.to;
-    bodies.push(definitionText(name, s.body, lang));
+    bodies.push({ name, entry: definitionText(name, s.body, lang) });
   }
   out += text.slice(cursor);
 
-  for (const b of bodies) out = fileNewBody(out, b).text;
+  for (const b of bodies) out = fileNewBody(out, b.entry, b.name).text;
   return { text: out, moved: top.length };
+}
+
+// ---------------------------------------------------------------- normalising
+
+/**
+ * Put the filed bodies back into reading order, and renumber them.
+ *
+ * The repair half of `fileNewBody`'s ordering: a document written before that
+ * knew about order — or edited by hand, or assembled from two files — has its
+ * bodies in whatever sequence they were typed, and a list of thirty notes that
+ * does not follow the text is a list nobody can proofread against it. org-mode
+ * calls this normalising and it is the only reason its footnotes are usable.
+ *
+ * Two things happen, and both are conservative:
+ *
+ * - **The bodies are permuted between the slots they already occupy.** Each
+ *   definition's own text moves; the whitespace, the blank lines and anything
+ *   the writer put between them stay exactly where they are. A body whose marker
+ *   was deleted has no place in reading order and keeps the end of the list.
+ * - **Only machine-made names are renumbered.** `nextName` hands out `1`, `2`,
+ *   `3`, and after a few deletions they read `4, 1, 7`. A name the *writer*
+ *   chose — `#הערה_בשם("רש״י")` — is theirs and is left alone, which also means
+ *   this can be run on a document that mixes the two.
+ */
+export function sortBodies(text: string): { text: string; moved: number } {
+  const ordered = permuteBodies(text);
+  const renamed = renumberNotes(ordered.text);
+  return { text: renamed, moved: ordered.moved };
+}
+
+/** The bodies, permuted into the order their markers appear. */
+function permuteBodies(text: string): { text: string; moved: number } {
+  const s = scan(text);
+  if (s.defs.length < 2) return { text, moved: 0 };
+  // A stable sort, so orphans — all keyed `Infinity` — keep the order they were
+  // written in rather than being shuffled among themselves for no reason.
+  const want = [...s.defs].sort((a, b) => markerOf(s, a.name) - markerOf(s, b.name));
+  let moved = 0;
+  let out = "";
+  let cursor = 0;
+  s.defs.forEach((slot, i) => {
+    if (slot.name !== want[i].name) moved++;
+    out += text.slice(cursor, slot.from) + text.slice(want[i].from, want[i].to);
+    cursor = slot.to;
+  });
+  return { text: out + text.slice(cursor), moved };
+}
+
+/** Renumber the machine-named notes 1, 2, 3 down the document. */
+function renumberNotes(text: string): string {
+  const s = scan(text);
+  const numeric = (n: string) => /^[0-9]+$/.test(n);
+  // Names that are spoken for: everything the writer named, and every body whose
+  // marker is gone (which is not renumbered and must not be renumbered *onto*).
+  const reserved = new Set<string>();
+  for (const d of s.defs) if (markerOf(s, d.name) === Infinity) reserved.add(d.name);
+  for (const r of s.refs) if (!numeric(r.name)) reserved.add(r.name);
+
+  const map = new Map<string, string>();
+  let next = 1;
+  for (const r of s.refs) {
+    if (!numeric(r.name) || map.has(r.name)) continue;
+    while (reserved.has(String(next))) next++;
+    map.set(r.name, String(next));
+    next++;
+  }
+  // Every occurrence is rewritten from positions taken before any of it moved,
+  // applied last-first, so a name that swaps with another cannot collide with
+  // the half-rewritten document.
+  // `nameFrom..nameTo` spans the *literal*, quotes included, so the replacement
+  // has to put them back: written bare, `#הערה_בשם("3")` became
+  // `#הערה_בשם(1)` — an integer argument where the prelude expects a string, and
+  // the writer's own source silently reshaped by a tidy-up.
+  const quoted = (x: { nameFrom: number; nameTo: number }, n: string) =>
+    text[x.nameFrom] === '"' ? `"${n}"` : n;
+  const edits = [...s.refs, ...s.defs]
+    .filter((x) => map.get(x.name) !== undefined && map.get(x.name) !== x.name)
+    .map((x) => ({
+      from: x.nameFrom,
+      to: x.nameTo,
+      insert: quoted(x, map.get(x.name) as string),
+    }))
+    .sort((a, b) => b.from - a.from);
+  let out = text;
+  for (const e of edits) out = out.slice(0, e.from) + e.insert + out.slice(e.to);
+  return out;
 }

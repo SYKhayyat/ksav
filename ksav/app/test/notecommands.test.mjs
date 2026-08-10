@@ -70,8 +70,14 @@ check("a page-band above tier ג is a note", noteDepthAt("#מדף_ה[x]", 8), 1)
 check("ordinary prose is not", noteDepthAt("shalom olam", 4), 0);
 
 // …and the command it produces follows the document, not the interface.
-check("in Hebrew prose, tier א", tieredNoteAt("שלום עולם", 4, "he"), "#הערה_א[|]");
-check("in English prose, tier 1", tieredNoteAt("hello world", 4, "en"), "#tier1[|]");
+//
+// Tier 1 is the **ordinary note**, in both languages. `ksav.typ` defines
+// `#let הערה(body) = הערה_בדרגה(1, body)`, so `#הערה_א` is a second name for a
+// command the writer already has — and writing it taught them that a footnote
+// must be converted to "the layered kind" before anything can hang off it, which
+// has not been true since the engine adopted the plain note.
+check("in Hebrew prose, the ordinary note", tieredNoteAt("שלום עולם", 4, "he"), "#הערה[|]");
+check("in English prose, the ordinary note", tieredNoteAt("hello world", 4, "en"), "#fnote[|]");
 check("inside a Hebrew note, tier ב", tieredNoteAt("#הערה[x]", 7, "he"), "#הערה_ב[|]");
 check("inside an English note, tier 2", tieredNoteAt("#fnote[x]", 8, "en"), "#tier2[|]");
 check(
@@ -82,7 +88,11 @@ check(
 check("Hebrew is still the default", tieredNoteAt("#הערה[x]", 7), "#הערה_ב[|]");
 // Deeper than the family goes: clamped, never `#tier8` (which does not exist).
 check("clamped at the last tier", tierCommand(99, "en"), `tier${TIERS.length}`);
-check("and at the first", tierCommand(0, "he"), "הערה_א");
+check("and at the first", tierCommand(0, "he"), "הערה");
+// The alias is still a note command — documents contain it, and it has to keep
+// counting as note depth, completing and painting. It is simply not what any
+// surface *writes* any more.
+check("but #הערה_א is still recognised as a note", noteDepthAt("#הערה_א[x]", 9), 1);
 
 // The notes pane — the surface that was simply blank in English.
 check("the index sees a Hebrew note", notesIn("#הערה[shalom]").length, 1);

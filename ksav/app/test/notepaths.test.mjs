@@ -156,13 +156,16 @@ for (const marker of MARKERS) {
 
 // ------------------------------------------------- the tier reads the caret
 
-check("in prose, the tiered note is tier א", tieredNoteAt("שלום עולם", 4), "#הערה_א[|]");
+// Tier א is `#הערה` — the prelude makes them one function, so in prose the
+// tiered button writes the note anybody would have written, and tier ב hangs off
+// *that* with no conversion in between.
+check("in prose, the tiered note is the ordinary note", tieredNoteAt("שלום עולם", 4), "#הערה[|]");
 {
   const doc = "טקסט#הערה[בתוך ההערה] סוף";
   const inside = doc.indexOf("בתוך") + 2;
   check("inside a note, it is tier ב", tieredNoteAt(doc, inside), "#הערה_ב[|]");
   const outside = doc.length - 1;
-  check("outside it again, back to tier א", tieredNoteAt(doc, outside), "#הערה_א[|]");
+  check("outside it again, the ordinary note", tieredNoteAt(doc, outside), "#הערה[|]");
 }
 {
   const doc = "א#הערה[ב#הערה_ב[ג]]";

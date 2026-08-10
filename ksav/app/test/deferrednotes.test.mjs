@@ -211,7 +211,9 @@ for (const [label, inline] of Object.entries(CORPUS)) {
   check("at depth 1, though its bytes are elsewhere", at(rows, 1).depth, 1);
   check("two notes deep, a new note is tier ג", tieredNoteAt(doc, doc.indexOf("ועיין") + 2), "#הערה_ג[|]");
   check("in the outer body it is tier ב", tieredNoteAt(doc, doc.indexOf("עיין ") + 1), "#הערה_ב[|]");
-  check("and in the sentence it is tier א", tieredNoteAt(doc, 2), "#הערה_א[|]");
+  // Tier א *is* `#הערה` — one function in the prelude — so in ordinary prose the
+  // tiered button writes the ordinary note, and the sub-note hangs off that.
+  check("and in the sentence it is the ordinary note", tieredNoteAt(doc, 2), "#הערה[|]");
 }
 
 // -------------------------------------------------- 4. half-written notes

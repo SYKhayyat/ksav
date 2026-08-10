@@ -404,7 +404,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "שורה של פרוזה ובה מלים#הערה_א[]אחרות להמשך."
+   "source": "שורה של פרוזה ובה מלים#הערה[]אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -1439,7 +1439,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#tier1[]ds to continue."
+   "source": "A line of prose with some wor#fnote[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -2474,7 +2474,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#כותרת1[פרק #הערה_א[]ראשון]\n\nגוף."
+   "source": "#כותרת1[פרק #הערה[]ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -3509,7 +3509,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #tier1[]One]\n\nBody."
+   "source": "#h1[Chapter #fnote[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4544,7 +4544,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "טקסט#הערה[הערה #הערה_א[]פנימית] המשך."
+   "source": "טקסט#הערה[הערה #הערה[]פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -5579,7 +5579,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #tier1[]inside] continues."
+   "source": "Text#fnote[a note #fnote[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6614,7 +6614,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה_א[]כאן],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[]כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7649,7 +7649,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #tier1[]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #fnote[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8684,7 +8684,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],הערה_א[],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון],הערה[],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9719,7 +9719,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],tier1[],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],fnote[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10754,7 +10754,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(הערה_א[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#רשימה(הערה[],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11789,7 +11789,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#bullets(tier1[],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(fnote[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12824,7 +12824,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_א[]כאן], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה[]כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13859,7 +13859,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #tier1[]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #fnote[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14894,7 +14894,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_א[], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה[], תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15929,7 +15929,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],tier1[], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],fnote[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16964,7 +16964,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_א[]כאן] סוף],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה[]כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17999,7 +17999,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #tier1[]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #fnote[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -19034,7 +19034,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#כותרת4[פרק #הערה_א[]רביעי]\n\nגוף."
+   "source": "#כותרת4[פרק #הערה[]רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -20069,7 +20069,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #tier1[]Four]\n\nBody."
+   "source": "#h4[Section #fnote[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -21104,7 +21104,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#סימן[א׳][דיני #הערה_א[]תפילה]"
+   "source": "#סימן[א׳][דיני #הערה[]תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -22139,7 +22139,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #tier1[]prayer]"
+   "source": "#siman[1][The laws of #fnote[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -23174,7 +23174,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#שער[כותרת #הערה_א[]ראשית]\n\nגוף."
+   "source": "#שער[כותרת #הערה[]ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -24209,7 +24209,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#title[The #tier1[]Title]\n\nBody."
+   "source": "#title[The #fnote[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -25244,7 +25244,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה_א[]ת] גוף ההערה]"
+   "source": "#הערה[#כותרת_בהערה[ראשי#הערה[]ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -26279,7 +26279,7 @@
    "en": "tier1",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#tier1[]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#fnote[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

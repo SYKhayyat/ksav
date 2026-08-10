@@ -211,10 +211,14 @@ export const NOTE_CHOICES: NoteChoice[] = [
     insert: "#מדף_א[|]",
     insert2: "#מדף_ב[|]",
     head: "#הגדרות_מדפים(גבהים: (1.5cm, 1cm))",
+    // Was: "the heights live in the #הגדרות_מדפים line at the top of the file —
+    // change them there." Telling a writer to go and edit Typst is not a
+    // control, and this is the one setting in the product that changes page
+    // geometry. Styles › אזורים קבועים writes the same line.
     noteHe:
-      "הגבהים נקבעים בשורת #הגדרות_מדפים שבראש הקובץ — שנו אותם שם. מה שחורג מגובה האזור נחתך.",
+      "גובה כל אזור נקבע בלוח העיצוב, תחת ״אזורים קבועים״ — והמנוע שומר בתחתית העמוד בדיוק את הסכום הזה. מה שחורג מגובה האזור נחתך.",
     noteEn:
-      "The heights live in the #הגדרות_מדפים line at the top of the file — change them there. Anything past a region's height is clipped.",
+      "Each region's height is set in Styles, under “Fixed regions” — and the engine reserves exactly that much at the foot of the page. Anything past a region's height is clipped.",
   },
   // ---- two layers ----------------------------------------------------------
   {
@@ -229,16 +233,22 @@ export const NOTE_CHOICES: NoteChoice[] = [
     descEn:
       "Both layers fall into the same block at the foot of the page — the commentary lettered א,ב,ג and the he'aros on it numbered 1,2,3 and indented, so a marker says which layer it belongs to.",
     sketch: ["▤▤▤▤▤▤", "──────", "א ▪▪¹▪▪", "  1 ▫▫▫"],
-    insert: "#הערה_א[|]",
+    // `#הערה`, not `#הערה_א`, and the difference is the whole complaint about
+    // this card: writing `#הערה_א` teaches that the outer note needs converting
+    // before a note can hang off it. It does not. `ksav.typ` makes `#הערה` *be*
+    // tier 1 (`#let הערה(body) = הערה_בדרגה(1, body)`) precisely so that a
+    // sub-note adopts the note the writer already wrote — the engine gave up the
+    // conversion and this card kept demanding it.
+    insert: "#הערה[|]",
     insert2: "#הערה_ב[|]",
     // א,ב,ג for the commentary and 1,2,3 for the notes on it — the שער־הציון
     // order. This line said the opposite for a long time, and so did the engine
     // defaults, while the card beside it promised the right thing.
     head: '#הגדרות_הערות(מספור: ("א", "1"), הזחה: (0em, 1.4em))',
     noteHe:
-      "בלוק אחד ולא שניים — לטיפוסט יש סדרת הערות שוליים מאוזנת אחת בלבד. לשני בלוקים נפרדים בחרו באפשרות הבאה.",
+      "ההערה הרגילה #הערה היא כבר שכבה א׳ — אין צורך להמיר הערה קיימת כדי לתלות עליה הערה. בלוק אחד ולא שניים: לטיפוסט יש סדרת הערות שוליים מאוזנת אחת בלבד. לשני בלוקים נפרדים בחרו באפשרות הבאה.",
     noteEn:
-      "One block, not two — Typst has exactly one balanced page-bottom series. For two genuinely separate blocks, take the next option.",
+      "An ordinary #הערה is already layer א — you never convert an existing note to hang one off it. One block, not two: Typst has exactly one balanced page-bottom series. For two genuinely separate blocks, take the next option.",
   },
   {
     id: "two-bands",

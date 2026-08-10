@@ -160,3 +160,104 @@ fn every_margin_is_the_document_s_own() {
         "a 5cm top margin did not move the text down from a 2cm one: {plain:.1} → {pushed:.1}"
     );
 }
+
+// --------------------------------------------------------------- the page foot
+//
+// The apparatus at the foot of the page lives in the bottom margin, and the page
+// number lives under it. Three separate pieces of arithmetic had to agree for
+// that to come out right, and none of them did.
+
+/// A4's height in points, so a claim about "off the sheet" can be checked.
+const A4_PT: f64 = 841.89;
+
+/// Where the running footer line printed, and the lowest thing on the page.
+///
+/// The footer is given distinctive text rather than left as the page number: a
+/// document with footnotes has a `1` in the body, a `1` on the marker and a `1`
+/// on the note, and a test that picked the wrong one would be measuring a
+/// footnote and calling it a page number.
+fn foot(body: &str) -> (f64, f64) {
+    let cfg = DocConfig {
+        footer: "תחתית".into(),
+        ..Default::default()
+    };
+    let doc = probe::layout(body, &cfg).expect("it lays out");
+    let runs = probe::text_runs(&doc);
+    let line = runs
+        .iter()
+        .filter(|r| r.page == 1 && r.text.contains("תחתית"))
+        .map(|r| r.y)
+        .fold(f64::NAN, f64::max);
+    assert!(line.is_finite(), "the footer line never printed:\n{body}");
+    let lowest = runs
+        .iter()
+        .filter(|r| r.page == 1)
+        .map(|r| r.y)
+        .fold(f64::MIN, f64::max);
+    (line, lowest)
+}
+
+#[test]
+fn the_page_foot_line_does_not_move_when_the_document_grows_an_apparatus() {
+    // Typst's `footer-descent` defaults to **30% of the bottom margin**, and the
+    // reserve for the apparatus is added to that margin — so reserving 3cm also
+    // lowered the whole footer by 0.9cm and the page number, printed after the
+    // bands, ended up 2.96pt from the bottom of an A4 sheet. Measured, and inside
+    // every printer's unprintable border.
+    let (plain, _) = foot("טקסט ראשון#הערה[הערה רגילה] וסוף.\n");
+    for body in [
+        "טקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n",
+        "#הגדרות_מדפים(גבהים: (1.5cm, 1cm))\n\nטקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n",
+        "#הגדרות_מדפים(גבהים: (3cm, 2cm))\n\nטקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n",
+    ] {
+        let (line, lowest) = foot(body);
+        assert!(
+            (line - plain).abs() < 0.5,
+            "the foot line moved to {line:.2} (a document with no apparatus puts it at {plain:.2}):\n{body}"
+        );
+        // And nothing at all prints below it — which is the same statement seen
+        // from the other end, and the one that catches a band running off the
+        // sheet rather than merely pushing the number down.
+        assert!(
+            lowest <= line + 0.5,
+            "something printed below the foot line ({lowest:.2} > {line:.2}):\n{body}"
+        );
+        assert!(lowest < A4_PT, "something printed off the sheet: {lowest:.2}\n{body}");
+    }
+}
+
+#[test]
+fn a_declared_band_height_is_the_height_the_band_gets() {
+    // `auto_notes_region_cm` reserved a flat 3cm for any page apparatus and never
+    // read `גבהים`, so `(3cm, 2cm)` — five centimetres of declared bands — put the
+    // second band at y=879 on an 842pt page. Off the paper, with the prelude's own
+    // comment promising it would be clipped instead.
+    //
+    // Asserted as the distance between the two bands' entries, which is what a
+    // declared height actually buys, and against a *difference* of declared
+    // heights so the furniture between them cancels out.
+    let entries = |heights: &str| -> Vec<f64> {
+        let body = format!(
+            "#הגדרות_מדפים(גבהים: {heights})\n\nטקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n"
+        );
+        let doc = probe::layout(&body, &DocConfig::default()).expect("it lays out");
+        let runs = probe::text_runs(&doc);
+        let mut ys: Vec<f64> = runs
+            .iter()
+            .filter(|r| r.page == 1 && (r.text.contains("אחת") || r.text.contains("שתיים")))
+            .map(|r| r.y)
+            .collect();
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        ys
+    };
+    let small = entries("(1cm, 1cm)");
+    let large = entries("(3cm, 1cm)");
+    assert_eq!(small.len(), 2, "both bands print: {small:?}");
+    assert_eq!(large.len(), 2, "both bands print: {large:?}");
+    let grew = (large[1] - large[0]) - (small[1] - small[0]);
+    let want = 2.0 * PER_CM; // 1cm → 3cm
+    assert!(
+        (grew - want).abs() < 2.0,
+        "asking for 2cm more of band א moved band ב by {grew:.1}pt, not {want:.1}pt"
+    );
+}

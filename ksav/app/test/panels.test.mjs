@@ -459,6 +459,28 @@ withDom((root) => {
   check("which is a close", [on, off], [1, 1]);
 });
 
+// An **unset optional preference** is off, not "flip me".
+//
+// `settings.nikud` and `settings.outline` are `boolean | undefined`, absent
+// meaning the writer has never asked for the pane. `togglePanel(id, on?)`
+// resolved its argument with `on ?? !isPanelOpen(id)`, which cannot tell an
+// argument that was not passed from an argument whose value is `undefined` — so
+// startup opened both. The vowel bar, fourteen buttons and 45 pixels of every
+// window, was on for every writer who had never turned it on, with the header
+// chip correctly showing it as off.
+withDom((root) => {
+  place(root, "outline-drawer");
+  const unset = undefined;
+  check("an unset preference closes the panel", togglePanel("outline-drawer", unset), false);
+  ok("and it really is closed", !isPanelOpen("outline-drawer"));
+  togglePanel("outline-drawer", true);
+  check("an unset preference closes an open panel too", togglePanel("outline-drawer", unset), false);
+  ok("still closed", !isPanelOpen("outline-drawer"));
+  // The flip is still there for the callers that mean it — the settings drawer
+  // and the notes pane both open by being asked for, with no value to pass.
+  check("passing nothing still flips", togglePanel("outline-drawer"), true);
+});
+
 // ---------------------------------------------------- 8. the anchored menus
 
 withDom((root) => {

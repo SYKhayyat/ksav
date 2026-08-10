@@ -50,10 +50,19 @@ standing in one.
 ### Notes
 
 A footnote is `Ctrl+Shift+F` — or `Ctrl+Alt+F`, which is Word's. An endnote is
-`Ctrl+Alt+D`, Word's again. A note *on* a note is `Ctrl+Shift+N`, and it reads
-the caret: in prose it makes a first-tier note, inside a note a second-tier one,
-inside two a third. All three are on the toolbar (`†`, `⁋`, `⁑`) and in
-**Insert**, where a Word user looks first. The `†☰` chip opens a **notes pane**
+`Ctrl+Alt+D`, Word's again. Both are on the toolbar (`†`, `⁋`) and in **Insert**,
+where a Word user looks first.
+
+A note *on* a note is `Ctrl+Shift+N`, and it reads the caret: in prose it makes
+an ordinary note, inside a note a second-tier one, inside two a third. **You
+never convert the note you already wrote** — `#הערה` *is* the first tier, one
+function in the prelude, so a sub-note simply hangs off it. (The band layouts,
+`#מדור_` and `#מדף_`, are the exception: those are a different apparatus, not
+footnotes, and the outer note has to be one of them. Right-click converts.) It
+lives in **Insert** and the Notes chooser rather than on the toolbar — it is a
+real sefer apparatus and a rare one, and the toolbar is expensive.
+
+The `†☰` chip opens a **notes pane**
 listing every note in the document — click one to jump to it, right-click it (in
 the pane or in the text) to convert it, delete it with its marker, or hang
 another note off it.
@@ -97,6 +106,17 @@ command follows the document's language rather than the interface's.
 slant, colour, indent and numbering scheme. It writes the same `#הגדרות_הערות`
 line you would type by hand, which is what keeps the panel and the markup from
 drifting apart.
+
+**Styles ▸ Fixed regions** does the same for the band heights, and that one moves
+the page rather than the ink: the engine reserves exactly the declared total at
+the foot of every page, so the text area shortens to match and the page number
+stays where a document with no apparatus puts it.
+
+Writing note bodies at the end of the file keeps them **in the order of the
+text** — a new note is filed where its marker belongs, not appended — and
+*Sort the bodies into the order of the text* repairs a document written before
+that was true, renumbering as it goes and leaving any name you chose yourself
+alone.
 
 The tiers are numbered א,ב,ג over 1,2,3 — the שער־הציון arrangement, the
 commentary lettered and the he'aros on it numbered.
@@ -362,7 +382,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,244 editor assertions, 458 engine
+- [x] **CI, running and green** — typecheck, 4,267 editor assertions, 461 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -438,10 +458,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,244 assertions across 69 files
+cd app && npm test                          # 4,267 assertions across 69 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 458 tests, 31 binaries
+cargo test --manifest-path engine/Cargo.toml            # 461 tests, 31 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

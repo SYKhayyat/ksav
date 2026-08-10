@@ -230,6 +230,95 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
 /// workable default as soon as the document uses one of those commands, and
 /// nothing at all otherwise (native footnotes expand the text region themselves
 /// and must not lose page height to a reserve they never use).
+/// The band heights a document declared, in cm, if it declared any.
+///
+/// `#הגדרות_מדפים(גבהים: (1.5cm, 1cm))` is the *fixed regions* layout: each band
+/// always occupies its height whether or not it has notes. Those heights are the
+/// document telling us exactly how much page foot it needs, and until now nothing
+/// read them — the reserve was a flat 3 cm for every document, so declaring
+/// `(3cm, 2cm)` printed the second band **at y=879 on an 842pt page**, off the
+/// sheet, while the prelude's own comment promised it would be clipped instead.
+///
+/// A length with a unit this cannot resolve (`em`, `%`) yields `None` rather than
+/// a guess: the fallback reserve is a working default, and a wrong number here is
+/// worse than no number, because it would be wrong *silently* and in page
+/// geometry.
+fn declared_band_cm(body: &str) -> Option<Vec<f64>> {
+    for name in ["הגדרות_מדפים", "pagebands_config"] {
+        let mut base = 0;
+        while let Some(i) = body[base..].find(name) {
+            let start = base + i + name.len();
+            base = start;
+            let after_name = body[start..].trim_start();
+            if !after_name.starts_with('(') {
+                continue;
+            }
+            // Bounded to this call's own argument list. Searching the rest of the
+            // document for `גבהים` would let a bare `#הגדרות_מדפים()` followed
+            // three paragraphs later by the word in prose decide how much of every
+            // page is reserved.
+            let Some(end) = closing_paren(after_name) else { continue };
+            let rest = &after_name[..end];
+            for key in ["גבהים", "heights"] {
+                let Some(k) = rest.find(key) else { continue };
+                let after = rest[k + key.len()..].trim_start();
+                let Some(after) = after.strip_prefix(':') else { continue };
+                let after = after.trim_start();
+                let Some(open) = after.strip_prefix('(') else { continue };
+                let Some(close) = open.find(')') else { continue };
+                let items: Vec<&str> = open[..close]
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                let parsed: Option<Vec<f64>> = items.iter().map(|s| length_cm(s)).collect();
+                // One unreadable entry disqualifies the whole list: a partial sum
+                // reserves less than the bands will use, which is the exact defect
+                // this function exists to stop.
+                if let Some(v) = parsed {
+                    if !v.is_empty() {
+                        return Some(v);
+                    }
+                }
+                return None;
+            }
+        }
+    }
+    None
+}
+
+/// The byte offset just past the `(` that closes the one `s` opens with.
+///
+/// Depth-counted, so a nested tuple — which is what `גבהים` is — does not end the
+/// list at its own bracket. Strings do not need handling here: the caller works
+/// on `code_only` output, where they are already blanked.
+fn closing_paren(s: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A Typst absolute length, in cm. `None` for anything font-relative.
+fn length_cm(s: &str) -> Option<f64> {
+    for (unit, per_cm) in [("cm", 1.0), ("mm", 10.0), ("pt", 72.0 / 2.54), ("in", 1.0 / 2.54)] {
+        if let Some(n) = s.strip_suffix(unit) {
+            return n.trim().parse::<f64>().ok().map(|v| v / per_cm);
+        }
+    }
+    None
+}
+
 pub fn auto_notes_region_cm(body: &str) -> f64 {
     // Comments first, and this is the eleventh scanner in this repository.
     //
@@ -241,15 +330,37 @@ pub fn auto_notes_region_cm(body: &str) -> f64 {
     // The existing test covered the prose case (`the מדף_ command`) and stopped
     // one case short.
     let visible = code_only(body);
-    if PAGE_APPARATUS_COMMANDS
+    if !PAGE_APPARATUS_COMMANDS
         .iter()
         .any(|c| apparatus_is_called(&visible, c) || apparatus_is_named_as_kind(&visible, c))
     {
-        3.0
-    } else {
-        0.0
+        return 0.0;
+    }
+    match declared_band_cm(&visible) {
+        // Fixed regions: reserve exactly what the document asked for, plus the
+        // furniture the prelude draws around the bands — a rule above the
+        // apparatus and a gap between adjacent bands (`ריווח_בין`, 0.35em). Those
+        // are small, but they are what pushes the last band past its slot, and a
+        // band past its slot is a clipped sentence.
+        Some(heights) => {
+            let sum: f64 = heights.iter().sum();
+            let gaps = (heights.len().saturating_sub(1)) as f64;
+            sum + BAND_GAP_CM * gaps + BAND_RULE_CM
+        }
+        // No declared heights: the bands take the height they need, and a working
+        // default is the best that can be said in advance.
+        None => 3.0,
     }
 }
+
+/// What the prelude draws *between* two adjacent bands: `v(ריווח_בין)`, the short
+/// divider rule, `v(ריווח_בין)` again. Measured at 11.6pt (0.41 cm) at the
+/// shipped settings; carried at 0.45 so that a document which enlarges the gap a
+/// little does not start clipping, and so the allowance does not compound the
+/// wrong way down a five-band stack.
+const BAND_GAP_CM: f64 = 0.45;
+/// The rule above the apparatus as a whole, plus its `rule_gap`.
+const BAND_RULE_CM: f64 = 0.25;
 
 /// `body` with its comments and string literals blanked out, offsets preserved.
 ///
@@ -1670,6 +1781,64 @@ mod tests {
         assert_eq!(auto_notes_region_cm("#הערה_זרם(זרם: \"א\")[טקסט]"), 3.0);
         // A document with no apparatus at all reserves nothing.
         assert_eq!(auto_notes_region_cm("סתם טקסט עם #הדגשה[מילה]"), 0.0);
+    }
+
+    /// The reserve follows the heights the document declared.
+    ///
+    /// It did not. A flat 3 cm went to every document with a page apparatus,
+    /// whatever `#הגדרות_מדפים(גבהים: …)` said — so five centimetres of declared
+    /// bands printed the second one **off the sheet** (measured: y=879 on an
+    /// 842pt page), and a document asking for one centimetre paid for three.
+    /// `page_geometry.rs` holds the same claim against the laid-out page; this
+    /// holds the arithmetic, including the reading of the units.
+    #[test]
+    fn the_reserve_follows_the_declared_band_heights() {
+        let with = |heights: &str| {
+            auto_notes_region_cm(&format!(
+                "#הגדרות_מדפים(גבהים: {heights})\n\n#מדף_א[א] #מדף_ב[ב]"
+            ))
+        };
+        let near = |got: f64, want: f64| (got - want).abs() < 0.001;
+        assert!(near(with("(1.5cm, 1cm)"), 2.5 + BAND_GAP_CM + BAND_RULE_CM));
+        assert!(near(with("(3cm, 2cm)"), 5.0 + BAND_GAP_CM + BAND_RULE_CM));
+        // Every unit Typst writes an absolute length in.
+        assert!(near(with("(20mm, 10mm)"), 3.0 + BAND_GAP_CM + BAND_RULE_CM));
+        assert!(near(with("(1in,)"), 2.54 + BAND_RULE_CM));
+        let pt = with("(72pt, 72pt)");
+        assert!(near(pt, 2.0 * 2.54 + BAND_GAP_CM + BAND_RULE_CM), "got {pt}");
+        // A single band has no gap to pay for.
+        assert!(near(with("(2cm,)"), 2.0 + BAND_RULE_CM));
+
+        // A length this cannot resolve falls back to the working default rather
+        // than to a guess: `em` depends on the font size at the foot of the page,
+        // and a wrong number here is wrong in *page geometry*, silently.
+        assert_eq!(with("(4em, 3em)"), 3.0);
+        // As does a document that declares nothing.
+        assert_eq!(auto_notes_region_cm("#מדף_א[א] #מדף_ב[ב]"), 3.0);
+        // And declaring heights without ever writing a band still reserves
+        // nothing — the gate is the apparatus, not the configuration line.
+        assert_eq!(auto_notes_region_cm("#הגדרות_מדפים(גבהים: (2cm, 2cm))"), 0.0);
+        // A commented-out configuration is not a configuration.
+        assert_eq!(
+            auto_notes_region_cm("// #הגדרות_מדפים(גבהים: (9cm, 9cm))\n#מדף_א[א]"),
+            3.0
+        );
+        // And the search stays inside the call's own brackets: prose that happens
+        // to use the word must not decide how much of every page is reserved.
+        assert_eq!(
+            auto_notes_region_cm("#הגדרות_מדפים(קו: false)\n\n#מדף_א[א]\n\nעל גבהים: (9cm, 9cm) נדבר להלן."),
+            3.0
+        );
+        // A configuration that sets something else *and* the heights still reads.
+        assert!(near(
+            auto_notes_region_cm("#הגדרות_מדפים(קו: false, גבהים: (1cm, 1cm))\n#מדף_א[א]"),
+            2.0 + BAND_GAP_CM + BAND_RULE_CM
+        ));
+        // The English spelling reaches the same arithmetic.
+        assert!(near(
+            auto_notes_region_cm("#pagebands_config(heights: (1cm, 1cm))\n#מדף_א[א]"),
+            2.0 + BAND_GAP_CM + BAND_RULE_CM
+        ));
     }
 
     /// A commented-out apparatus is not an apparatus.

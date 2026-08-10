@@ -53,6 +53,7 @@ import {
   choiceForCommand,
   convertNote,
   deleteNote,
+  markersOf,
   noteAt,
   scaffold,
   notesIn,
@@ -1798,7 +1799,7 @@ function insertSnippet(rawSnippet: string) {
     return;
   }
   if (plan.kind === "note") {
-    applyNoteChoice(plan.choice, plan.which, { to: sel.to, text: selText, marker: plan.marker });
+    applyNoteChoice(plan.choice, plan.layer, { to: sel.to, text: selText, marker: plan.marker });
     return;
   }
   runtime.view.dispatch({
@@ -3040,7 +3041,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
   // Derived from the chooser, not hand-listed. This was six Hebrew literals out
   // of eighteen note commands — so twelve layouts were unreachable from the
   // menu, and the English spellings were unreachable from anywhere.
-  const targets = NOTE_CHOICES.flatMap((c) => [c.insert, c.insert2])
+  const targets = NOTE_CHOICES.flatMap(markersOf)
     .map((s) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1])
     .filter((c): c is string => !!c && c !== note.command)
     .filter((c, i, all) => all.indexOf(c) === i);
@@ -4730,7 +4731,48 @@ function noteStyleRows(): Node[] {
 }
 
 /**
- * Styles › Fixed regions — the heights of the page-foot bands, in cm.
+ * A height and the unit it is written in, as one control.
+ *
+ * `cm` and `%` are not two spellings of one number. A centimetre is a
+ * measurement somebody took off a printed page; a percentage is a proportion
+ * that survives the sefer moving from A4 to A5, which is the only reason the
+ * engine learned to resolve one. Offering the unit beside the number is what
+ * makes that a choice rather than a fact about which was implemented first.
+ */
+function regionHeightControl(
+  current: string | undefined,
+  onChange: (value: string) => void,
+): HTMLElement {
+  const read = styles.readRegionHeight(current);
+  const unit = read?.unit ?? "cm";
+  const input = el("input", {
+    type: "number",
+    min: 0,
+    // A percentage and a centimetre live on different scales, and a `max` of 12
+    // on a percentage would cap the apparatus at a tenth of the page.
+    max: unit === "%" ? 60 : 12,
+    step: unit === "%" ? 1 : 0.1,
+    value: read == null ? "" : String(read.n),
+    placeholder: "—",
+  }) as HTMLInputElement;
+  const commit = (n: number, u: string) => {
+    if (!Number.isFinite(n) || n < 0) return;
+    onChange(`${n}${u}`);
+  };
+  input.addEventListener("change", () => commit(parseFloat(input.value), unit));
+  const units = selectControl(
+    [["cm", t("unitCm")], ["%", t("unitPercent")]],
+    unit,
+    // Switching the unit keeps the number, not the size: 2cm becoming 2% is a
+    // different region and the writer can see that it is. Converting silently
+    // would move page geometry from a control that says it changes a unit.
+    (u) => commit(read?.n ?? (u === "%" ? 10 : 1.5), u),
+  );
+  return el("span", { class: "region-height" }, [input, units]);
+}
+
+/**
+ * Styles › Fixed regions — the heights of the page-foot bands.
  *
  * The one styling control that moves page geometry rather than ink: the engine
  * reserves the foot of every page from exactly this tuple, so a number typed
@@ -4741,6 +4783,13 @@ function noteStyleRows(): Node[] {
  * Off (`גבהים` absent) is the honest default and stays reachable: each band then
  * takes the height its notes need, which is what you want until you are
  * type-setting facing pages that have to line up.
+ *
+ * **Any number of regions**, which is what the engine has always offered:
+ * `#מדף_א…ז` is seven tiers and the prelude reserves a slot for every entry of
+ * the tuple. This panel showed three, hard-coded, with a comment explaining that
+ * a document with more would keep them — true, and no help at all to the writer
+ * who wanted a fourth and had no way to ask for one. The cap was never in the
+ * engine; it was in the loop.
  */
 function bandStyleRows(): Node[] {
   const heights = styles.readTuple(styleArg("bands", "גבהים"));
@@ -4753,35 +4802,187 @@ function bandStyleRows(): Node[] {
       ),
     ),
   ];
-  if (!on) return rows;
-  // Three, matching the note tiers the panel already shows. A document with more
-  // keeps them: `withTier` grows the tuple and never shortens it, and everything
-  // past the third is preserved verbatim like any argument the panel does not
-  // display.
-  for (const tier of [1, 2, 3]) {
-    const cm = styles.readLength(heights?.[tier - 1], "cm");
-    const input = el("input", {
-      type: "number",
-      min: 0,
-      max: 12,
-      step: 0.1,
-      value: cm == null ? "" : String(cm),
-      placeholder: "—",
-    }) as HTMLInputElement;
-    input.addEventListener("change", () => {
-      const v = parseFloat(input.value);
-      if (!Number.isFinite(v) || v < 0) return;
-      setStyleArgs("bands", {
-        גבהים: styles.withTier(styleArg("bands", "גבהים"), tier, `${v}cm`, [
-          "1.5cm",
-          "1cm",
-          "1cm",
+  if (!on || !heights) return rows;
+  heights.forEach((h, i) => {
+    const tier = i + 1;
+    rows.push(
+      styleRow(
+        tf("bandHeight", String(tier)),
+        el("span", { class: "region-row" }, [
+          regionHeightControl(h, (value) =>
+            setStyleArgs("bands", {
+              גבהים: styles.withTier(styleArg("bands", "גבהים"), tier, value, [
+                "1.5cm",
+                "1cm",
+                "1cm",
+              ]),
+            }),
+          ),
+          el(
+            "button",
+            {
+              class: "region-drop",
+              title: t("regionRemove"),
+              onClick: () =>
+                setStyleArgs("bands", {
+                  גבהים: styles.withoutTier(styleArg("bands", "גבהים"), tier),
+                }),
+            },
+            ["×"],
+          ),
         ]),
-      });
-    });
-    rows.push(styleRow(tf("bandHeight", String(tier)), input));
+      ),
+    );
+  });
+  // Seven, because `מדף_א…ז` is seven commands: past that a region would exist
+  // with no marker able to put a note in it, which is a control that does
+  // nothing dressed as one that does something.
+  if (heights.length < 7) {
+    rows.push(
+      styleRow(
+        "",
+        el(
+          "button",
+          {
+            class: "region-add",
+            onClick: () =>
+              setStyleArgs("bands", {
+                גבהים: styles.typstTuple([...heights, "1cm"]),
+              }),
+          },
+          ["+ " + t("regionAdd")],
+        ),
+      ),
+    );
   }
   return rows;
+}
+
+/**
+ * Styles › Parallel streams — the named peer apparatuses at the page foot.
+ *
+ * `#הערה_זרם("מקורות")` is a whole second page-foot apparatus that the product
+ * has shipped for as long as the bands and never once offered a control for.
+ * Where the bands are *tiers* — ordered layers, ב a note on א — these are
+ * *peers*: a peirush, a mareh mekomos and a nuschaos band, each numbered on its
+ * own, stacked or set side by side, and each pinned to a region of its own
+ * height if you want the page geometry fixed.
+ *
+ * Keyed by name rather than by position, because that is what a stream is. Which
+ * also means adding one here is adding a name, and the marker that fills it is
+ * `#הערה_זרם` with that same name — written for the writer by the chooser's
+ * "several parallel streams" card.
+ */
+function streamStyleRows(): Node[] {
+  const heights = styles.readDict(styleArg("streams", "גבהים"));
+  const layout = styles.readString(styleArg("streams", "פריסה")) ?? "מוערם";
+  const rows: Node[] = [
+    styleRow(
+      t("streamLayout"),
+      selectControl(
+        [["מוערם", t("streamStacked")], ["צד", t("streamSideBySide")]],
+        layout,
+        (v) => setStyleArgs("streams", { פריסה: v === "מוערם" ? null : styles.typstString(v) }),
+      ),
+    ),
+    styleRow(
+      t("streamsFixed"),
+      toggleControl(!!heights && heights.length > 0, (v) =>
+        setStyleArgs("streams", {
+          גבהים: v
+            ? styles.typstDict([
+                ["ביאור", "10%"],
+                ["מקורות", "6%"],
+              ])
+            : null,
+        }),
+      ),
+    ),
+  ];
+  if (!heights) return rows;
+  for (const [name, value] of heights) {
+    const rename = el("input", { type: "text", value: name, class: "stream-name" }) as HTMLInputElement;
+    rename.addEventListener("change", () => {
+      const to = rename.value.trim();
+      // An empty name is not a stream, and two streams with one name are one
+      // stream with its notes silently merged. Neither is worth writing to the
+      // document, so the control snaps back rather than pretending it took.
+      if (!to || to === name || heights.some(([k]) => k === to)) {
+        rename.value = name;
+        return;
+      }
+      setStyleArgs("streams", {
+        גבהים: styles.renameDictKey(styleArg("streams", "גבהים"), name, to),
+        // The order list and the titles are keyed by the same name. Renaming in
+        // one and not the others leaves a stream that is ordered and titled
+        // under a name nothing writes into any more — the region prints empty
+        // and nothing says why.
+        זרמים: renamedInTuple(styleArg("streams", "זרמים"), name, to),
+        כותרות: styles.renameDictKey(styleArg("streams", "כותרות"), name, to),
+        מספור: styles.renameDictKey(styleArg("streams", "מספור"), name, to),
+      });
+    });
+    rows.push(
+      styleRow(
+        "",
+        el("span", { class: "region-row" }, [
+          rename,
+          regionHeightControl(value, (v) =>
+            setStyleArgs("streams", {
+              גבהים: styles.withDictKey(styleArg("streams", "גבהים"), name, v),
+            }),
+          ),
+          el(
+            "button",
+            {
+              class: "region-drop",
+              title: t("regionRemove"),
+              onClick: () =>
+                setStyleArgs("streams", {
+                  גבהים: styles.withDictKey(styleArg("streams", "גבהים"), name, null),
+                }),
+            },
+            ["×"],
+          ),
+        ]),
+      ),
+    );
+  }
+  rows.push(
+    styleRow(
+      "",
+      el(
+        "button",
+        {
+          class: "region-add",
+          onClick: () => {
+            // A name nobody has used yet. `זרם 3` beside `זרם 3` would be one
+            // stream, so it counts up until it is free.
+            let n = heights.length + 1;
+            while (heights.some(([k]) => k === tf("streamDefaultName", String(n)))) n++;
+            setStyleArgs("streams", {
+              גבהים: styles.withDictKey(
+                styleArg("streams", "גבהים"),
+                tf("streamDefaultName", String(n)),
+                "6%",
+              ),
+            });
+          },
+        },
+        ["+ " + t("streamAdd")],
+      ),
+    ),
+  );
+  return rows;
+}
+
+/** Rename one entry of a `("א", "ב")` order tuple, leaving the order alone. */
+function renamedInTuple(src: string | undefined, from: string, to: string): string | null {
+  const items = styles.readTuple(src);
+  if (!items || !items.length) return null;
+  return styles.typstTuple(
+    items.map((s) => (styles.readString(s) === from ? styles.typstString(to) : s)),
+  );
 }
 
 function renderStylesPanel() {
@@ -4897,6 +5098,9 @@ function renderStylesPanel() {
     el("h3", {}, [t("styleBands")]),
     el("p", { class: "styles-note" }, [t("styleBandsNote")]),
     ...bandStyleRows(),
+    el("h3", {}, [t("styleStreams")]),
+    el("p", { class: "styles-note" }, [t("styleStreamsNote")]),
+    ...streamStyleRows(),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
 }
@@ -5261,7 +5465,7 @@ function deferBodies(): boolean {
  */
 function applyNoteChoice(
   choice: NoteChoice,
-  which: "primary" | "secondary",
+  layer: number,
   sel: { to?: number; text?: string; marker?: string } = {},
 ) {
   const from = runtime.view.state.selection.main.from;
@@ -5269,7 +5473,7 @@ function applyNoteChoice(
     docTextOf(runtime.view.state.doc),
     from,
     choice,
-    which,
+    layer,
     deferBodies(),
     sel,
   );
@@ -5277,8 +5481,8 @@ function applyNoteChoice(
   scheduleCompile();
 }
 
-function chooseNote(choice: NoteChoice, which: "primary" | "secondary") {
-  applyNoteChoice(choice, which);
+function chooseNote(choice: NoteChoice, layer: number) {
+  applyNoteChoice(choice, layer);
   closeNotesChooser();
 }
 
@@ -5307,12 +5511,17 @@ async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
   );
   const base = own.length > 120 ? own : filler;
   let src = base;
-  for (const [at, body, which] of [
-    [Math.floor(base.length * 0.6), t("notePreviewNoteB"), "secondary"],
-    [Math.floor(base.length * 0.2), t("notePreviewNoteA"), "primary"],
-  ] as [number, string, "primary" | "secondary"][]) {
-    if (which === "secondary" && !c.insert2) continue;
-    const r = applyChoice(src, at, c, which, false);
+  // One note per layer the layout actually has, back to front so that an earlier
+  // insertion cannot move a later one's offset. Two of these were hard-coded,
+  // which is why a card with three streams previewed as a card with two — the
+  // preview would have shown the third region empty and the writer would have
+  // read that as the third stream not working.
+  const layers = markersOf(c).length;
+  const bodies = [t("notePreviewNoteA"), t("notePreviewNoteB")];
+  for (let layer = layers - 1; layer >= 0; layer--) {
+    const at = Math.floor((base.length * (layer + 1)) / (layers + 1));
+    const r = applyChoice(src, at, c, layer, false);
+    const body = bodies[layer] ?? tf("notePreviewNoteN", String(layer + 1));
     src = r.text.slice(0, r.caret) + body + r.text.slice(r.caret);
   }
   const res = await backend.compile(src, { ...docConfig(), paper: "a5" }).catch(() => null);
@@ -5320,6 +5529,18 @@ async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
   if (!svg) return;
   host.innerHTML = svg;
   host.classList.add("ready");
+}
+
+/**
+ * What to call a marker on its own button.
+ *
+ * A stream marker names its stream — `#הערה_זרם("מקורות")[|]` — and that name is
+ * the only thing about it a writer cares to read. Anything else falls back to
+ * the command, which is still shorter and truer than "the second layer".
+ */
+function noteMarkerLabel(marker: string): string {
+  const named = /"([^"]+)"/.exec(marker)?.[1];
+  return named ?? /^#([A-Za-z0-9֐-׿_]+)/u.exec(marker)?.[1] ?? marker;
 }
 
 function noteCard(c: NoteChoice, live = false): HTMLElement {
@@ -5340,19 +5561,24 @@ function noteCard(c: NoteChoice, live = false): HTMLElement {
       ...(c.word ? [el("span", { class: "note-alias" }, [t("word." + c.word)])] : []),
       el("p", {}, [he ? c.descHe : c.descEn]),
       ...(note ? [el("p", { class: "note-caveat" }, [note])] : []),
+      // One button per marker the layout has, not one plus an optional second.
+      // A layout with three streams offered two of them, and the third was
+      // reachable only by typing `#הערה_זרם("נוסחאות")` — which is precisely the
+      // knowledge this chooser exists so nobody needs.
       el("div", { class: "note-actions" }, [
-        el("button", { class: "note-use", onClick: () => chooseNote(c, "primary") }, [
-          t("useThis"),
-        ]),
-        // A two-layer layout needs both markers; offer the upper one directly so
-        // the writer never has to work out which command pairs with which.
-        ...(c.insert2
-          ? [
-              el("button", { class: "note-use secondary", onClick: () => chooseNote(c, "secondary") }, [
-                t("useSecond"),
-              ]),
-            ]
-          : []),
+        el("button", { class: "note-use", onClick: () => chooseNote(c, 0) }, [t("useThis")]),
+        ...markersOf(c)
+          .slice(1)
+          .map((marker, i) =>
+            el(
+              "button",
+              { class: "note-use secondary", onClick: () => chooseNote(c, i + 1) },
+              // Two layers is "the note on it"; more than two are peers and want
+              // their own names, which the marker itself carries — a stream is
+              // called `#הערה_זרם("מקורות")` and that string is the label.
+              [markersOf(c).length > 2 ? noteMarkerLabel(marker) : t("useSecond")],
+            ),
+          ),
       ]),
     ]),
   ]);
@@ -5429,7 +5655,7 @@ function bodyPlacementRow(): HTMLElement {
 function quickNotesRow(): HTMLElement {
   const quick = (id: string, label: string, desc: string, glyph: string) => {
     const choice = NOTE_CHOICES.find((c) => c.id === id)!;
-    return el("button", { class: "note-quick", onClick: () => chooseNote(choice, "primary") }, [
+    return el("button", { class: "note-quick", onClick: () => chooseNote(choice, 0) }, [
       el("span", { class: "note-quick-glyph" }, [glyph]),
       el("span", {}, [el("b", {}, [label]), el("span", {}, [desc])]),
     ]);

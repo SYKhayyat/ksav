@@ -21,7 +21,14 @@
 import { scan, splitArgs, topLevelColon } from "./spans";
 import { typstString } from "./typst-escape";
 
-export type StyleCommand = "headings" | "lists" | "tables" | "review" | "notes" | "bands";
+export type StyleCommand =
+  | "headings"
+  | "lists"
+  | "tables"
+  | "review"
+  | "notes"
+  | "bands"
+  | "streams";
 
 const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   headings: ["הגדרות_כותרות", "headings_config"],
@@ -44,6 +51,15 @@ const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   // of the file — change them there."* Telling a writer to go and edit Typst is
   // not a control.
   bands: ["הגדרות_מדפים", "pagebands_config"],
+  // The other page-foot apparatus, and the one that had no UI at all.
+  //
+  // `#הערה_זרם("שם")` gives any number of independent peer streams — a peirush,
+  // a mareh mekomos, a nuschaos band — and `גבהים` pins each to a region of its
+  // own height, in the same page foot the bands reserve. Every one of its knobs
+  // (the order, the per-stream numbering, the titles, stacked versus side by
+  // side, the heights) was reachable only by typing the command, which is the
+  // same complaint that produced `bands` one entry up.
+  streams: ["הגדרות_זרמים", "streams_config"],
 };
 
 /** The canonical (Hebrew) name we write. */
@@ -84,6 +100,10 @@ const EN_ARGS: Record<string, string> = {
   תוויות: "labels",
   ריווח: "spacing",
   גבהים: "heights",
+  זרמים: "streams",
+  פריסה: "layout",
+  כותרות: "titles",
+  קו_בין: "rule_between",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
@@ -288,9 +308,100 @@ export function withTier(src: string | undefined, tier: number, value: string, f
   return typstTuple(items);
 }
 
+/**
+ * Drop one entry from a per-tier tuple.
+ *
+ * The other half of `withTier`, and it did not exist: the fixed-region panel
+ * could grow the tuple and never shrink it, so a writer who turned on a fourth
+ * region could not turn it back off without editing Typst by hand. Returns
+ * `null` when nothing is left, which is the caller's cue to remove the argument
+ * entirely rather than write `()` — an empty tuple is not the same as no fixed
+ * heights, and only one of the two means "each region takes what it needs".
+ */
+export function withoutTier(src: string | undefined, tier: number): string | null {
+  const items = readTuple(src) ?? [];
+  if (tier < 1 || tier > items.length) return items.length ? typstTuple(items) : null;
+  items.splice(tier - 1, 1);
+  return items.length ? typstTuple(items) : null;
+}
+
+/**
+ * Read a Typst dictionary — `("מקורות": 1.5cm, "ביאור": 2cm)`.
+ *
+ * The streams are keyed by name rather than by position, because a stream *is* a
+ * name: `#הערה_זרם("מקורות")` says which one it belongs to. So every per-stream
+ * setting is a dictionary where the per-tier ones are tuples, and the panel has
+ * to take one apart the same way — one stream at a time, leaving the rest, and
+ * the keys it does not recognise, exactly as written.
+ *
+ * Entries in order, because a dictionary's order is the order the streams print
+ * in when `זרמים` does not say otherwise.
+ */
+export function readDict(src: string | undefined): [string, string][] | null {
+  if (!src) return null;
+  const t = src.trim();
+  if (!t.startsWith("(") || !t.endsWith(")")) return null;
+  const inner = t.slice(1, -1).trim();
+  // `(:)` is Typst's empty dictionary — distinct from `()`, the empty array.
+  if (inner === ":" || inner === "") return [];
+  const out: [string, string][] = [];
+  for (const g of splitArgs(inner, 0, inner.length)) {
+    const colon = topLevelColon(inner, g.from, g.to);
+    if (colon < 0) return null;
+    const key = readString(inner.slice(g.from, colon).trim());
+    if (key === null) return null;
+    out.push([key, inner.slice(colon + 1, g.to).trim()]);
+  }
+  return out;
+}
+
+/** The inverse. An empty dictionary is `(:)`, which `()` would not be. */
+export function typstDict(entries: [string, string][]): string {
+  if (!entries.length) return "(:)";
+  return `(${entries.map(([k, v]) => `${typstString(k)}: ${v}`).join(", ")})`;
+}
+
+/**
+ * Set (or, with `value === null`, drop) one key of a dictionary argument.
+ *
+ * `null` back means the dictionary is now empty and the argument should go
+ * rather than be written as `(:)` — the same distinction `withoutTier` draws.
+ */
+export function withDictKey(
+  src: string | undefined,
+  key: string,
+  value: string | null,
+): string | null {
+  const entries = (readDict(src) ?? []).filter(([k]) => k !== key);
+  if (value !== null) entries.push([key, value]);
+  return entries.length ? typstDict(entries) : null;
+}
+
+/** Rename one key, keeping its place in the order. */
+export function renameDictKey(src: string | undefined, from: string, to: string): string | null {
+  const entries = readDict(src) ?? [];
+  const renamed = entries.map(([k, v]): [string, string] => (k === from ? [to, v] : [k, v]));
+  return renamed.length ? typstDict(renamed) : null;
+}
+
 /** Read a length like `1.5em` / `10pt` / `1cm`, returning its number. */
 export function readLength(src: string | undefined, unit: string): number | null {
   if (!src) return null;
   const m = new RegExp(`^(-?[\\d.]+)${unit}$`).exec(src.trim());
   return m ? parseFloat(m[1]) : null;
+}
+
+/**
+ * A region height, as the number and the unit it was written in.
+ *
+ * `cm` and `%` are two answers to one question and the panel shows them in one
+ * control, because they are not interchangeable: a centimetre is a measurement
+ * somebody took off a printed page, and a percentage is a proportion that
+ * survives the sefer moving from A4 to A5. Both are what the engine reserves
+ * the page foot from, so both have to round-trip exactly.
+ */
+export function readRegionHeight(src: string | undefined): { n: number; unit: "cm" | "%" } | null {
+  if (!src) return null;
+  const m = /^(-?[\d.]+)\s*(cm|%)$/.exec(src.trim());
+  return m ? { n: parseFloat(m[1]), unit: m[2] as "cm" | "%" } : null;
 }

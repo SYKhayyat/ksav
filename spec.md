@@ -67,7 +67,10 @@ document), each note-stream flowing in its own band. Empty space in a band stays
 The notes do **not** align to their anchor line — each band just fills in order.
 *Status:* **built.** `#הגדרות_מדפים(גבהים: (2cm, 1cm, …))` gives each tier band a fixed
 height; a band with nothing on this page keeps its slot empty rather than letting the
-bands below drift up. The whole apparatus lives in a region reserved at the foot of the
+bands below drift up. Any number of them, up to the seven tiers `מדף_א…ז` name, and each
+height may be an absolute length **or a percentage of the sheet** — `(15%, 10%)` keeps
+its proportions when the sefer moves from A4 to A5, which a centimetre does not. The
+whole apparatus lives in a region reserved at the foot of the
 page (`מסמך(אזור_הערות:)`, set automatically by the engine when the document uses these
 commands) — without that reserve the bands grew off the bottom of the sheet and took
 the page number with them, which was the real defect here.
@@ -77,8 +80,12 @@ Two or more apparatuses **both anchored in the main text**, each with its **own 
 symbols** (e.g. *,†,‡ for one, 1,2,3 for another) landing in its **own region** — the
 peirush-plus-mareh-mekomos case. This is option 4 carrying more than one independent
 stream; each stream can itself be two-tiered.
-*Status:* **built**, same mechanism as #4 — `#הגדרות_זרמים(גבהים: (…))` reserves a fixed
-slot per stream, stacked or side by side, each stream numbered from its own sequence.
+*Status:* **built**, same mechanism as #4 — `#הגדרות_זרמים(גבהים: ("מקורות": 2cm, …))`
+reserves a fixed slot per stream, stacked or side by side, each stream numbered from its
+own sequence, and any number of streams. Heights take a percentage here too. The page
+foot is reserved from this dictionary exactly as it is from the bands' array, and a
+document carrying both apparatuses pays for both — for a while it was read off the bands
+alone, so three declared streams got the flat default and printed the third off the sheet.
 Distinct symbols make the lost anchor-alignment far more livable — the reader matches by
 symbol, not position.
 

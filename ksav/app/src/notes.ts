@@ -39,13 +39,30 @@ export type NoteLayers = "one" | "two";
  * page-bottom equivalent `#מדף_א`/`#מדף_ב` sat correctly at y=741 with nothing
  * in the UI saying they were different questions.
  *
- * So the chooser asks the two axes and the twelve cards become the cells.
+ * So the chooser asks the two axes and the cards become the cells.
  */
 export type NoteWhere = "page" | "section" | "document" | "margin" | "volume";
-export type NoteHow = "one" | "stacked" | "parallel" | "fixed" | "split";
+export type NoteHow = "one" | "stacked" | "parallel" | "parallel-fixed" | "fixed" | "split";
 
 export const NOTE_WHERE: NoteWhere[] = ["page", "section", "document", "margin", "volume"];
-export const NOTE_HOW: NoteHow[] = ["one", "stacked", "parallel", "fixed", "split"];
+export const NOTE_HOW: NoteHow[] = [
+  "one",
+  "stacked",
+  "parallel",
+  // Its own column, and not a variant of `parallel` or of `fixed`.
+  //
+  // The engine has always had both — `#הערה_זרם("שם")` gives any number of
+  // independent peer apparatuses at the page foot, and `#הגדרות_זרמים(גבהים: …)`
+  // pins each of them to a slot — and the two were reachable only in
+  // combination with each other, never as a thing the chooser named. `parallel`
+  // means streams that take the height their notes need; `fixed` means the
+  // tiered `#מדף_` bands, which are ordered layers, not peers. Neither of those
+  // is "three commentaries, each in its own fixed region", which is what a
+  // Mikraos-Gedolos page actually is.
+  "parallel-fixed",
+  "fixed",
+  "split",
+];
 
 export interface NoteChoice {
   id: string;
@@ -73,10 +90,19 @@ export interface NoteChoice {
   /** Inserted at the cursor. `|` marks where the caret ends up. */
   insert: string;
   /**
-   * A second marker for the upper layer, offered after the first for two-layer
-   * layouts (e.g. the he'ara that hangs off the commentary).
+   * The layout's further markers, in order, after `insert`.
+   *
+   * This was a single `insert2` — one upper layer and no more — and it was a cap
+   * the engine never had. `#הערה_זרם("שם")` takes any name and the prelude
+   * stacks or ranks any number of streams; `#מדף_א…ז` and `#מדור_א…ז` are seven
+   * tiers each. Two markers per card meant a writer who wanted a third
+   * commentary had to find out that the mechanism existed by reading Typst.
+   *
+   * A card still shows only as many as a person can read at a glance — the
+   * tiered cards name two and let `tieredNoteAt` write the rest off the caret —
+   * but the shape no longer decides that for them.
    */
-  insert2?: string;
+  more?: string[];
   /** A line that must exist once, at the end of the document. */
   tail?: string;
   /**
@@ -178,7 +204,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "Two note streams, one down each side of the text — commentary on one side, sources on the other.",
     sketch: ["▪ ▤▤▤▤ ▫", "  ▤▤▤▤", "▪ ▤▤▤▤ ▫"],
     insert: "#הערת_ימין[|]",
-    insert2: "#הערת_שמאל[|]",
+    more: ["#הערת_שמאל[|]"],
     wrap: { open: "#עם_הערות_דו_צד[\n", close: "\n]" },
   },
   {
@@ -194,7 +220,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "Two independent note streams at the foot of the page, each numbered on its own — a peirush and mareh mekomos.",
     sketch: ["▤▤▤▤▤▤", "▤▤▤▤▤▤", "──────", "¹▪▪ │ א▪▪"],
     insert: "#הערת_תוכן[|]",
-    insert2: "#הערת_מקור[|]",
+    more: ["#הערת_מקור[|]"],
     head: '#הגדרות_זרמים(פריסה: "צד", זרמים: ("תוכן", "מקורות"), מספור: ("מקורות": "א"))',
   },
   {
@@ -209,7 +235,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "Fixed-height regions at the foot of every page; an empty region stays empty instead of letting the others drift.",
     sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪▪▪", "──────", "א ▫▫▫▫"],
     insert: "#מדף_א[|]",
-    insert2: "#מדף_ב[|]",
+    more: ["#מדף_ב[|]"],
     head: "#הגדרות_מדפים(גבהים: (1.5cm, 1cm))",
     // Was: "the heights live in the #הגדרות_מדפים line at the top of the file —
     // change them there." Telling a writer to go and edit Typst is not a
@@ -219,6 +245,50 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "גובה כל אזור נקבע בלוח העיצוב, תחת ״אזורים קבועים״ — והמנוע שומר בתחתית העמוד בדיוק את הסכום הזה. מה שחורג מגובה האזור נחתך.",
     noteEn:
       "Each region's height is set in Styles, under “Fixed regions” — and the engine reserves exactly that much at the foot of the page. Anything past a region's height is clipped.",
+  },
+  {
+    // Built, tested, aliased — and unreachable. The fourteenth card, and again it
+    // was not new code.
+    //
+    // `#הערה_זרם("שם")` has given any number of *independent peer apparatuses* at
+    // the page foot since the streams work, each numbered on its own, and
+    // `#הגדרות_זרמים(גבהים: (…))` has pinned each of them to a slot of its own
+    // height. Three streams render correctly today. The only two places the
+    // product mentioned streams offered exactly two of them — one card with two
+    // markers, and a Styles panel with none at all — so "a peirush, a mareh
+    // mekomos and a nusachaos band, each in its own region" was a thing the
+    // engine did and the product could not say.
+    //
+    // It is not the `bands` card with more markers: `#מדף_א…ז` are *tiers*, an
+    // ordered stack where ב is a note on א. These are peers. A writer choosing
+    // between them is choosing between "layers of commentary" and "commentaries
+    // side by side", which is a real question with a real answer.
+    id: "stream-regions",
+    where: ["page"],
+    how: "parallel-fixed",
+    layers: "one",
+    he: "כמה זרמים מקבילים, כל אחד באזור בגובה קבוע",
+    en: "Several parallel streams, each in a fixed region",
+    descHe:
+      "כל מספר של זרמי הערות עצמאיים בתחתית העמוד — ביאור, מראי מקומות, שינויי נוסחאות — כל אחד ממוספר בפני עצמו ובאזור בגובה קבוע משלו. אזור ריק נשאר ריק ואינו זז.",
+    descEn:
+      "Any number of independent note streams at the foot of the page — a peirush, mareh mekomos, nuschaos — each numbered on its own and each in its own fixed-height region. An empty region stays empty instead of letting the others drift.",
+    sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪▪▪", "──────", "א ▫▫▫▫", "──────", "1 ▫▫▫▫"],
+    insert: '#הערה_זרם("ביאור")[|]',
+    more: ['#הערה_זרם("מקורות")[|]', '#הערה_זרם("נוסחאות")[|]'],
+    // Percentages, not centimetres, and that is the point of writing them here.
+    // A region measured in cm is a region that is wrong the moment the sefer
+    // moves from A4 to A5; `10%` is a tenth of whatever sheet it lands on, and
+    // the engine reserves the page foot from exactly these numbers.
+    head:
+      '#הגדרות_זרמים(זרמים: ("ביאור", "מקורות", "נוסחאות"), ' +
+      'גבהים: ("ביאור": 10%, "מקורות": 6%, "נוסחאות": 6%), ' +
+      'מספור: ("מקורות": "א"), ' +
+      'כותרות: ("מקורות": [מראי מקומות], "נוסחאות": [שינויי נוסחאות]))',
+    noteHe:
+      "אפשר להוסיף זרמים ככל שתרצו — כל שם חדש ב#הערה_זרם הוא זרם משלו. השמות, הגבהים והסדר נערכים בלוח העיצוב תחת ״זרמים מקבילים״.",
+    noteEn:
+      "Add as many streams as you like — every new name in #הערה_זרם is a stream of its own. The names, the heights and the order are edited in Styles, under “Parallel streams”.",
   },
   // ---- two layers ----------------------------------------------------------
   {
@@ -240,7 +310,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
     // sub-note adopts the note the writer already wrote — the engine gave up the
     // conversion and this card kept demanding it.
     insert: "#הערה[|]",
-    insert2: "#הערה_ב[|]",
+    more: ["#הערה_ב[|]"],
     // א,ב,ג for the commentary and 1,2,3 for the notes on it — the שער־הציון
     // order. This line said the opposite for a long time, and so did the engine
     // defaults, while the card beside it promised the right thing.
@@ -263,7 +333,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "The commentary in one block (א,ב,ג) and the he'aros on it in the block beneath (1,2,3) — the Shaar-HaTziyun look. At section or document end.",
     sketch: ["▤▤▤▤▤▤", "──────", "א ▪▪¹▪▪", "──────", "1 ▫▫▫▫"],
     insert: "#מדור_א[|]",
-    insert2: "#מדור_ב[|]",
+    more: ["#מדור_ב[|]"],
     tail: "#הערות_מדורגות()",
   },
   {
@@ -279,7 +349,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "The commentary as balanced page-bottom footnotes, with the he'aros on it collected into their own numbered block at the back.",
     sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪¹▪▪", "", "בסוף:", "1. ▫▫▫"],
     insert: "#הערה[|]",
-    insert2: "#הערתסיום[|]",
+    more: ["#הערתסיום[|]"],
     tail: "#הערות_בסוף(כותרת: [הערות על הפירוש])",
     // Both apparatuses printed `¹`. A reader met two different ¹ on one page
     // with nothing to say which block to look in, and the product had no way to
@@ -309,7 +379,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
       "The commentary is collected at the back, and the he'aros on it are real, balanced footnotes at the foot of the commentary pages. The cheapest genuinely balanced notes-on-notes.",
     sketch: ["▤▤▤▤▤▤", "", "בסוף:", "1. ▪▪¹▪", "──────", "¹ ▫▫▫▫"],
     insert: "#הערתסיום[|]",
-    insert2: "#הערה[|]",
+    more: ["#הערה[|]"],
     tail: "#הערות_בסוף(כותרת: [הפירוש])",
     head: '#הגדרות_הערות_סיום(מספור: "א")',
     noteHe: "הפירוש אינו לצד הטקסט אלא בסוף — מתאים לכרך פירוש.",
@@ -341,7 +411,7 @@ export const NOTE_CHOICES: NoteChoice[] = [
     // other way it renders one column with both sets stacked in it — caught by
     // `apparatus.rs`, invisible to any check that a document merely compiles.
     insert: '#הערתסיום(זרם: "תוכן")[|]',
-    insert2: '#הערתסיום(זרם: "מקורות")[|]',
+    more: ['#הערתסיום(זרם: "מקורות")[|]'],
     tail: '#הערות_בסוף_צד(זרמים: ("תוכן", "מקורות"), כותרות: ("תוכן": [ביאורים], "מקורות": [מראי מקומות]))',
     noteHe: "שני הזרמים נאספים לסוף ומודפסים יחד — לא בתחתית כל עמוד.",
     noteEn: "Both streams are collected to the back and printed together — not at the foot of each page.",
@@ -382,6 +452,13 @@ export const BLOCKED: { where: NoteWhere; how: NoteHow; why: string }[] = [
   { where: "margin", how: "split", why: "whyMarginIsOneColumn" },
   { where: "volume", how: "one", why: "whyVolumeIsSplit" },
   { where: "volume", how: "stacked", why: "whyVolumeIsSplit" },
+  // A fixed region is fixed *to the foot of a page*. Everywhere that is not a
+  // page foot, "parallel streams in fixed regions" fails for the same reason
+  // "fixed regions" does one column over — there is nothing to fix them to.
+  { where: "section", how: "parallel-fixed", why: "whyFixedNeedsPage" },
+  { where: "document", how: "parallel-fixed", why: "whyFixedNeedsPage" },
+  { where: "margin", how: "parallel-fixed", why: "whyFixedNeedsPage" },
+  { where: "volume", how: "parallel-fixed", why: "whyVolumeIsSplit" },
   { where: "volume", how: "parallel", why: "whyVolumeIsSplit" },
   { where: "volume", how: "fixed", why: "whyVolumeIsSplit" },
 ];
@@ -425,23 +502,38 @@ export function whyNot(where: NoteWhere, how: NoteHow): string {
 // of a known layout, so `insertSnippet` can route it without any of its callers
 // knowing that notes are special.
 
+/**
+ * Every marker an arrangement offers, in order. `insert` is layer 0.
+ *
+ * The one place that knows how a card's markers are stored, so that "how many
+ * layers does this layout have" is a question about the layout rather than about
+ * whether a `insert2` field happens to be set.
+ */
+export function markersOf(c: NoteChoice): string[] {
+  return [c.insert, ...(c.more ?? [])];
+}
+
 /** The layout (and layer) a raw snippet is the marker of, if any. */
 export function noteFor(
   snippet: string,
-): { choice: NoteChoice; which: "primary" | "secondary"; marker: string } | null {
+): { choice: NoteChoice; layer: number; marker: string } | null {
   const s = snippet.trim();
+  // Primaries first, across every card, then the further layers: a snippet that
+  // is one card's primary and another's second layer belongs to the card that
+  // leads with it.
   for (const choice of NOTE_CHOICES) {
-    if (choice.insert === s) return { choice, which: "primary", marker: s };
+    if (choice.insert === s) return { choice, layer: 0, marker: s };
   }
   for (const choice of NOTE_CHOICES) {
-    if (choice.insert2 === s) return { choice, which: "secondary", marker: s };
+    const at = markersOf(choice).indexOf(s);
+    if (at > 0) return { choice, layer: at, marker: s };
   }
   // Tiers ג and below. `nested` names only the first two markers because a card
   // has to show something a person can read, but tier ד is the same layout and
   // needs the same configuration line — the one that makes the tiers legible.
   const nested = NOTE_CHOICES.find((c) => c.id === "nested");
   if (nested && /^#הערה_[גדהוז]\[\|?\]$/.test(s)) {
-    return { choice: nested, which: "secondary", marker: s };
+    return { choice: nested, layer: 1, marker: s };
   }
   return null;
 }
@@ -830,7 +922,7 @@ export function scaffold(
 export function choiceForCommand(command: string): NoteChoice | null {
   const named = (s: string | undefined) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1];
   for (const c of NOTE_CHOICES) {
-    if (named(c.insert) === command || named(c.insert2) === command) return c;
+    if (markersOf(c).some((m) => named(m) === command)) return c;
   }
   return null;
 }
@@ -844,7 +936,13 @@ export function applyChoice(
   doc: string,
   selectionFrom: number,
   choice: NoteChoice,
-  which: "primary" | "secondary" = "primary",
+  /**
+   * Which of the layout's markers to write, as an index into `markersOf`.
+   *
+   * Was `"primary" | "secondary"`, which could not name a third stream because
+   * the vocabulary had run out — and the engine has never had a limit of two.
+   */
+  layer = 0,
   deferred = false,
   /**
    * The writer's selection, when they had one.
@@ -862,8 +960,7 @@ export function applyChoice(
 ): { text: string; caret: number } {
   // `marker` overrides the layout's own: tiers ג and below are the same layout
   // as ב and want the same configuration line, but not the same command.
-  const chosen =
-    sel.marker ?? (which === "secondary" ? choice.insert2 : choice.insert) ?? choice.insert;
+  const chosen = sel.marker ?? markersOf(choice)[layer] ?? choice.insert;
   // Where the prose is written is orthogonal to where the note prints, so it is
   // a rewrite of the snippet rather than a twelfth layout: the same eleven
   // choices, each available either way round.

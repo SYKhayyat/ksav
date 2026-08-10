@@ -67,13 +67,15 @@ listing every note in the document — click one to jump to it, right-click it (
 the pane or in the text) to convert it, delete it with its marker, or hang
 another note off it.
 
-Underneath, Ksav supports thirteen note layouts — page-bottom footnotes, endnotes,
+Underneath, Ksav supports fourteen note layouts — page-bottom footnotes, endnotes,
 notes at the end of each section, sidenotes down one or both margins, fixed bands
-at the foot of the page, two separately-numbered blocks, and combinations. The
+at the foot of the page, any number of parallel streams each in a fixed region,
+two separately-numbered blocks, and combinations. The
 **Notes** button asks two questions you can answer — *where does it print* (the
 foot of the page, the end of a section, the end of the document, the margin, a
 second volume) and *how are the layers arranged* (one series, stacked bands,
-parallel streams, fixed regions, each layer somewhere else) — and the thirteen
+parallel streams, parallel streams in fixed regions, fixed regions, each layer
+somewhere else) — and the fourteen
 layouts are the cells of that grid. A combination that does not exist is greyed
 with its reason rather than hidden. Picking a cell renders a real page, set from
 your own text, instead of a diagram.
@@ -110,7 +112,17 @@ drifting apart.
 **Styles ▸ Fixed regions** does the same for the band heights, and that one moves
 the page rather than the ink: the engine reserves exactly the declared total at
 the foot of every page, so the text area shortens to match and the page number
-stays where a document with no apparatus puts it.
+stays where a document with no apparatus puts it. Add and remove regions there as
+you like — the engine has never had a limit of three — and give each one a height
+in centimetres or as a **percentage of the page**, which is the one that survives
+the sefer moving from A4 to A5.
+
+**Styles ▸ Parallel streams** is the same panel for the other page-foot
+apparatus. A stream is an independent apparatus with its own numbering — a
+peirush, a mareh mekomos, a nuschaos band — and any number of them can sit at the
+foot of one page, stacked or side by side, each pinned to a region of its own
+height. They reserve that page foot exactly as the bands do, and a document that
+carries both pays for both.
 
 Writing note bodies at the end of the file keeps them **in the order of the
 text** — a new note is filed where its marker belongs, not appended — and
@@ -325,10 +337,11 @@ browser on any OS.
 - [x] **WASM** — real Typst in the browser, no server; auto backend selection (M3)
 - [x] Cross-platform (Linux / macOS / Windows), fonts embedded
 - [x] **Tauri desktop app** — native window, engine in-process via `invoke` (M4)
-- [x] **The full note apparatus** — all thirteen note layouts in `spec.md` render
+- [x] **The full note apparatus** — all fourteen note layouts in `spec.md` render
       correctly (footnotes, endnotes, per-section endnotes, fixed page-foot
-      regions, parallel streams, true sidenotes down either margin, and the four
-      two-layer notes-on-notes arrangements). See
+      regions in centimetres or in percent of the page, any number of parallel
+      streams each in its own region, true sidenotes down either margin, and the
+      four two-layer notes-on-notes arrangements). See
       [`engine/README-notes.md`](engine/README-notes.md).
 - [x] **Rendered-output tests** — `engine/src/probe.rs` reads the laid-out
       document and `engine/tests/apparatus.rs` asserts where things landed on the
@@ -382,7 +395,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,267 editor assertions, 461 engine
+- [x] **CI, running and green** — typecheck, 4,319 editor assertions, 467 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -458,10 +471,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,267 assertions across 69 files
+cd app && npm test                          # 4,319 assertions across 69 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 461 tests, 31 binaries
+cargo test --manifest-path engine/Cargo.toml            # 467 tests, 31 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -505,7 +518,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,157**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **3,161**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

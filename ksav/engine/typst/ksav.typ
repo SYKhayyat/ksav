@@ -376,6 +376,29 @@
     a
   }
 }
+// A declared region height, resolved to something `block(height:)` can be given.
+//
+// A percentage means a percentage of the SHEET — "make the apparatus a fifth of
+// the page" is the only thing a writer means by `20%`, and it is what the Rust
+// side reserves off the bottom margin for (`length_cm`). Handed to
+// `block(height:)` raw, a ratio resolves against the *enclosing block* instead —
+// which for the page-foot apparatus is the reserve block the bands already sit
+// inside. So `20%` would come out a fifth of the reserve: a fifth of a fifth,
+// and shrinking further the more page the writer asks for. The two halves of the
+// feature would disagree about what the writer typed, and only one of them shows
+// on the page.
+//
+// Defined above `_ap_group` and not beside it: a Typst closure captures the
+// scope it was written in, so a helper declared after its caller is simply not
+// there when the caller runs.
+//
+// `page.height` needs context, which is why the caller wraps the block in one.
+// It is `auto` only when neither a paper nor an explicit height was set, which
+// the document wrapper never leaves possible; a region that still cannot resolve
+// takes the height it needs rather than a wrong one.
+#let _ap_fixed_height(h) = {
+  if type(h) != ratio { h } else if type(page.height) == length { h * page.height } else { auto }
+}
 #let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
 #let _ap_wrap(cfg, g, body) = text(
   size: _ap_pick(cfg, "גודל", g, 0.85em),
@@ -469,7 +492,8 @@
   let cols = _ap_pick(cfg, "טורים", g, 1)
   let filled = if cols > 1 { columns(cols, inner) } else { inner }
   let h = _ap_pick(cfg, "גבהים", g, none)
-  if h != none { block(width: 100%, height: h, clip: true, filled) } else { filled }
+  if h != none { context block(width: 100%, height: _ap_fixed_height(h), clip: true, filled) }
+  else { filled }
 }
 
 // The apparatus block itself: the rule above it, the groups, and a short divider
@@ -651,6 +675,10 @@
                         //   "fixed regions" layout: a band always occupies its
                         //   height, empty space stays empty, overflow is clipped.
                         //   none = each band takes exactly the height it needs.
+                        //   A percentage is a percentage of the SHEET: (15%, 10%)
+                        //   keeps its proportions when the paper changes, which a
+                        //   centimetre does not. Any number of bands, up to the
+                        //   seven tiers מדף_א…ז name.
 )
 #let _pp_cfg = state("ksav-pp-cfg", _pp_defaults)
 #let הגדרות_מדפים(..opts) = _pp_cfg.update(c => {
@@ -739,6 +767,10 @@
                         //   (independent of the main-text and other streams' columns)
   גבהים: (:),           // fixed per-stream region height, e.g. ("מקורות": 1.5cm) —
                         //   the stream always occupies that slot, empty or not.
+                        //   A percentage is a percentage of the SHEET, e.g.
+                        //   ("ביאור": 10%). Any number of streams; the engine
+                        //   reserves the page foot from exactly this dictionary,
+                        //   the same way it does from the bands' array.
   גודל: 0.85em,
   סגנון: "normal",
   צבע: luma(20),

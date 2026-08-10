@@ -46,30 +46,58 @@ const LAST_BODY = "סוףהגוףכאןממש";
 
 // A distinct body per note so a probe can tell them apart on the page, and so a
 // layout that merges two notes by content is visible as a missing string.
-const BODY_1 = "טקסטהערהאחת";
-const BODY_2 = "טקסטהערהשתים";
+//
+// All-Hebrew and none a substring of another: the engine side finds them with
+// `contains`, and a needle that is a prefix of the next one would report a
+// layout as working because its neighbour rendered.
+const BODIES = [
+  "טקסטהערהאחת",
+  "טקסטהערהשתים",
+  "טקסטהערהשלוש",
+  "טקסטהערהארבע",
+  "טקסטהערהחמש",
+  "טקסטהערהשש",
+  "טקסטהערהשבע",
+];
+/** The fixture's name for one layer, kept readable for the two common ones. */
+function whichName(layer) {
+  return layer === 0 ? "primary" : layer === 1 ? "secondary" : `layer${layer + 1}`;
+}
 
 export async function buildFixture() {
-  const { NOTE_CHOICES, applyChoice } = await load("notes");
+  const { NOTE_CHOICES, applyChoice, markersOf } = await load("notes");
   const cases = [];
   for (const c of NOTE_CHOICES) {
-    // "both" matters more than it looks: a two-layer layout's settings are what
-    // tell the layers apart, so a document containing only the first layer
+    const markers = markersOf(c);
+    // "both" matters more than it looks: a multi-layer layout's settings are
+    // what tell the layers apart, so a document containing only the first layer
     // cannot show whether those settings arrived. The first version of the
     // engine-side test passed a layout whose configuration was doing nothing,
     // purely because the fixture never used the second marker.
-    const whiches = c.insert2 ? ["primary", "secondary", "both"] : ["primary"];
-    for (const which of whiches) {
-      // Two notes of the kind under test, one early and one late, so a
-      // per-page apparatus has to render on more than the page it was
-      // configured on.
+    //
+    // One variant per layer, not per *first two* layers: a card with three
+    // parallel streams has a third region, and a fixture that stops at two would
+    // render it empty on every page and call that a pass.
+    const variants =
+      markers.length > 1
+        ? [...markers.map((_, i) => [whichName(i), [i]]), ["both", markers.map((_, i) => i)]]
+        : [["primary", [0]]];
+    for (const [which, layers] of variants) {
+      // Notes of the kind under test spread from early to late, so a per-page
+      // apparatus has to render on more than the page it was configured on.
       let text = FILLER;
+      // Paragraph 2 to paragraph 36 of 44, evenly, one note per layer — and for
+      // a single-layer case two notes of that one layer, which is the same
+      // spread with the same ends.
+      const slots = layers.length > 1 ? layers : [layers[0], layers[0]];
+      const plan = slots.map((layer, i) => [
+        2 + Math.round((i * 34) / (slots.length - 1)),
+        BODIES[i],
+        layer,
+      ]);
+      const bodies = plan.map(([, body]) => body);
       // Insert the later note first, so the earlier insertion's offset holds.
-      const plan =
-        which === "both"
-          ? [[36, BODY_2, "secondary"], [2, BODY_1, "primary"]]
-          : [[36, BODY_2, which], [2, BODY_1, which]];
-      for (const [para, body, layer] of plan) {
+      for (const [para, body, layer] of [...plan].reverse()) {
         const at = text.split("\n\n").slice(0, para).join("\n\n").length;
         const r = applyChoice(text, at, c, layer, false);
         text = r.text.slice(0, r.caret) + body + r.text.slice(r.caret);
@@ -96,13 +124,14 @@ export async function buildFixture() {
         place,
         // What the writer would see in the editor after two clicks.
         source: text,
-        bodies: [BODY_1, BODY_2],
+        bodies,
         // The configuration line this layout needs, and whether *this* case can
-        // show it working. A two-layer layout configured with a scheme per layer
-        // changes nothing in a document that uses only one layer — true, and not
-        // a bug, so only the case that uses every layer is asked to prove it.
+        // show it working. A multi-layer layout configured with a scheme per
+        // layer changes nothing in a document that uses only one layer — true,
+        // and not a bug, so only the case that uses every layer is asked to
+        // prove it.
         head: c.head ?? null,
-        exercisesHead: !!c.head && (c.insert2 ? which === "both" : true),
+        exercisesHead: !!c.head && (markers.length > 1 ? which === "both" : true),
       });
     }
   }

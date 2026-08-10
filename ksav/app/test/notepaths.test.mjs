@@ -14,6 +14,7 @@ import {
   deleteNote,
   tieredNoteAt,
   choiceAt,
+  markersOf,
   whyNot,
   BLOCKED,
   NOTE_WHERE,
@@ -48,9 +49,28 @@ for (const c of NOTE_CHOICES) {
   const primary = noteFor(c.insert);
   ok(`${c.id}: its own marker is recognised as a note`, !!primary);
   check(`${c.id}: and resolves to a layout`, !!primary?.choice, true);
-  if (c.insert2) {
-    ok(`${c.id}: the second layer's marker is recognised too`, !!noteFor(c.insert2));
-  }
+  // Every further marker, not just a second one. A card is allowed as many as
+  // its apparatus has — three parallel streams is three commands — and a marker
+  // the recogniser does not know is a marker `insertSnippet` splices raw, which
+  // loses the layout's configuration line and therefore its regions.
+  //
+  // What is held is that the marker is *recognised* and comes back as itself,
+  // not that it resolves to this card. A marker can be one card's upper layer
+  // and another's primary — `#הערתסיום` is the whole of the `endnote` card and
+  // also the back matter of `footnote-plus-endnotes` — and the recogniser
+  // deliberately prefers the card that leads with it. What matters downstream is
+  // that `applyChoice` writes the string that went in.
+  markersOf(c).forEach((m, layer) => {
+    if (layer === 0) return;
+    const found = noteFor(m);
+    ok(`${c.id}: layer ${layer}'s marker is recognised too`, !!found);
+    check(`${c.id}: layer ${layer} comes back as itself`, found?.marker, m);
+    check(
+      `${c.id}: layer ${layer} resolves to a marker of the layout it resolved to`,
+      markersOf(found.choice)[found.layer],
+      m,
+    );
+  });
 }
 
 // A command that is not a note must not be swallowed by the note path.
@@ -81,7 +101,7 @@ for (const deferred of [false, true]) {
     const found = noteFor(snippet);
     ok(`${surface}: goes through the note path`, !!found);
     if (!found) continue;
-    const r = applyChoice(DOC, AT, found.choice, found.which, deferred, { marker: found.marker });
+    const r = applyChoice(DOC, AT, found.choice, found.layer, deferred, { marker: found.marker });
     const key = snippet;
     if (produced.has(key)) {
       check(
@@ -96,7 +116,7 @@ for (const deferred of [false, true]) {
   // And the preference is actually honoured on that one path, or none of the
   // above means anything.
   const foot = noteFor("#הערה[|]");
-  const r = applyChoice(DOC, AT, foot.choice, foot.which, deferred, { marker: foot.marker });
+  const r = applyChoice(DOC, AT, foot.choice, foot.layer, deferred, { marker: foot.marker });
   if (deferred) {
     ok("deferred: the marker is a name and the body is filed at the end", r.text.includes("#הערה_בשם"));
     ok("deferred: a body region exists", r.text.includes("גוף_הערה"));
@@ -146,7 +166,7 @@ for (const marker of MARKERS) {
 // refactor that drops it silently.
 {
   const found = noteFor("#הערה[|]");
-  const r = applyChoice("אבג דהו", 4, found.choice, found.which, false, {
+  const r = applyChoice("אבג דהו", 4, found.choice, found.layer, false, {
     to: 7,
     text: "דהו",
     marker: found.marker,

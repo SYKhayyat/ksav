@@ -946,6 +946,30 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   border-radius: 5px; background: none; cursor: pointer;
 }
 
+/* ---- fixed regions and parallel streams ---------------------------------
+   The two page-foot apparatuses, both editable a region at a time and both
+   able to grow and shrink — so each row carries its own controls and a way to
+   take it away again, rather than the panel showing a fixed three because
+   three is what fitted. */
+.region-row { display: flex; align-items: center; gap: 4px; }
+.region-height { display: flex; align-items: center; gap: 4px; }
+.region-height input[type="number"] { width: 62px; }
+.region-height select { font-size: 11px; padding: 2px 4px; }
+.stream-name { width: 84px; font-family: var(--hebrew); font-size: 12px; }
+.region-drop {
+  width: 22px; height: 22px; line-height: 1; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--muted); font-size: 13px;
+}
+.region-drop:hover { border-color: var(--danger, #b3261e); color: var(--danger, #b3261e); }
+.region-add {
+  padding: 4px 10px; cursor: pointer;
+  font-family: var(--hebrew); font-size: 12px;
+  border: 1px dashed var(--line); border-radius: 6px;
+  background: none; color: var(--muted);
+}
+.region-add:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ---- table structure bar ------------------------------------------------
    Appears only when the cursor is inside a table. Driven by the cursor rather
    than a click on the preview, because the preview is an SVG picture of a page

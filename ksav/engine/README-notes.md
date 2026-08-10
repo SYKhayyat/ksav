@@ -105,6 +105,24 @@ Per-band fixed heights (`הגדרות_מדפים(גבהים:)`, `הגדרות_ז
 into the "fixed regions" layout: a band always occupies its slot, so a band that
 is empty on this page does not let the bands below it drift up.
 
+**Both apparatuses reserve, and they reserve separately.** The bands declare an
+array — `גבהים: (1.5cm, 1cm)`, one entry per tier — and the streams a dictionary
+keyed by stream name — `גבהים: ("מקורות": 1.5cm)`. The footer renders the bands
+and then the streams into the *same* block, so a document that carries both needs
+the sum of the two, and the scanner reads both shapes. It read only the bands'
+array once, which is why three declared streams got the flat 3 cm default and
+printed the third at y=823.62 — below the page number at 799.02, on its way off
+an 841.89pt sheet.
+
+**A height may be a percentage of the page.** `גבהים: (15%, 10%)` is a seventh
+and a tenth of the *sheet*, which is the proportion a writer means and the one
+that survives the sefer moving from A4 to A5. Two halves have to agree on what
+the percentage is of: `length_cm` in `lib.rs` turns it into the centimetres taken
+off the bottom margin, and `_ap_fixed_height` in `ksav.typ` resolves the same
+ratio against `page.height`. Handed to `block(height:)` raw a ratio would resolve
+against the reserve block the bands already sit in — a fraction of a fraction,
+and shrinking further the more page the writer asks for.
+
 ## The banded apparatus, and why there is only one of it
 
 Three of the collect-then-render apparatuses group their notes and print the

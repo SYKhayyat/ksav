@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_KEYS, KEY_ALIASES, readable } from "../.tmp-test/bindings.mjs";
 import { dirOf } from "../tools/paths.mjs";
-import { ROOT, livingPages } from "./docfacts.mjs";
+import { ROOT, facts, livingPages, word } from "./docfacts.mjs";
 
 // The README names keys. Documentation that names a key the application does not
 // have is the same bug as a menu item that does nothing — a promise the product
@@ -81,10 +81,17 @@ check("in both directions", DEFAULT_KEYS["heading.moveDown"], "Alt-Shift-ArrowDo
 
 // Claims about scale, which are the other kind of thing prose gets wrong.
 {
-  // Thirteen, and counted from `NOTE_CHOICES` rather than from prose — see
-  // `docfacts.mjs`. "Eleven options" was a claim about a taxonomy that the
-  // documentation fence had to choose its evidence to defend.
-  ok("the README claims thirteen note layouts", README.includes("thirteen note layouts"));
+  // Counted from `NOTE_CHOICES` — see `docfacts.mjs` — and *read* from there
+  // too. It said `"thirteen note layouts"` as a literal, which is a second
+  // statement of a number the documentation fence already derives: adding a
+  // fourteenth card turned one fence red for wanting "fourteen" and the other
+  // red for no longer finding "thirteen", and the two disagreed about which
+  // direction to fix. The derived one is the one that keeps being true.
+  const layouts = word(facts().noteLayouts);
+  ok(
+    `the README claims ${layouts} note layouts`,
+    README.includes(`${layouts} note layouts`),
+  );
   ok("and nine heading levels", /nine levels/.test(README));
 }
 

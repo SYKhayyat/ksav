@@ -15,7 +15,7 @@ import {
   resolveDeferred,
   sortBodies,
 } from "../.tmp-test/deferred.mjs";
-import { NOTE_CHOICES, applyChoice } from "../.tmp-test/notes.mjs";
+import { NOTE_CHOICES, applyChoice, markersOf } from "../.tmp-test/notes.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
 
 // Deferred note bodies: the editing model behind #הערה_בשם / #גוף_הערה.
@@ -444,30 +444,32 @@ export async function run() {
 // a layout silently downgraded to a plain footnote on the way through.
 {
   for (const c of NOTE_CHOICES) {
-    for (const which of c.insert2 ? ["primary", "secondary"] : ["primary"]) {
-      const r = applyChoice("ראש סוף.\n", 3, c, which, true);
+    // Every marker the layout has, not the first two. A card with three streams
+    // has a third command that is exactly as much a note as the first, and the
+    // deferred path has to file a body for it too.
+    markersOf(c).forEach((snippet, layer) => {
+      const r = applyChoice("ראש סוף.\n", 3, c, layer, true);
       const s = scan(r.text);
-      check(`chooser/${c.id}/${which}: one marker`, s.refs.length, 1);
-      check(`chooser/${c.id}/${which}: one body`, s.defs.length, 1);
-      check(`chooser/${c.id}/${which}: consistent`, problems(r.text).length, 0);
+      check(`chooser/${c.id}/${layer}: one marker`, s.refs.length, 1);
+      check(`chooser/${c.id}/${layer}: one body`, s.defs.length, 1);
+      check(`chooser/${c.id}/${layer}: consistent`, problems(r.text).length, 0);
       // The layout the writer picked is the layout that gets written.
-      const snippet = (which === "secondary" ? c.insert2 : c.insert) ?? c.insert;
       const cmd = /^#([A-Za-z0-9֐-׿_]+)/.exec(snippet)[1];
       check(
-        `chooser/${c.id}/${which}: layout kept`,
+        `chooser/${c.id}/${layer}: layout kept`,
         s.refs[0].kind,
         cmd === "הערה" ? null : cmd,
       );
       // The caret lands in the body, which is what the writer is about to type.
-      check(`chooser/${c.id}/${which}: caret in the body`, r.text[r.caret], "]");
-    }
+      check(`chooser/${c.id}/${layer}: caret in the body`, r.text[r.caret], "]");
+    });
   }
 }
 
 // 37. the layout's own scaffolding still gets written, and the body sits after it
 {
   const c = NOTE_CHOICES.find((x) => x.id === "endnote");
-  const r = applyChoice("ראש סוף.\n", 3, c, "primary", true);
+  const r = applyChoice("ראש סוף.\n", 3, c, 0, true);
   ok("chooser: the dump call is still written", r.text.includes("#הערות_בסוף"));
   ok(
     "chooser: the body is filed after it",
@@ -478,7 +480,7 @@ export async function run() {
 // 38. inline remains the default, unchanged
 {
   const c = NOTE_CHOICES.find((x) => x.id === "footnote");
-  const r = applyChoice("ראש סוף.\n", 3, c, "primary");
+  const r = applyChoice("ראש סוף.\n", 3, c, 0);
   ok("chooser: still inline by default", r.text.includes("#הערה[]"));
   notOk("chooser: no body filed", r.text.includes("#גוף_הערה"));
 }

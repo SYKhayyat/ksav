@@ -261,3 +261,148 @@ fn a_declared_band_height_is_the_height_the_band_gets() {
         "asking for 2cm more of band א moved band ב by {grew:.1}pt, not {want:.1}pt"
     );
 }
+
+// ─── parallel streams in fixed regions ──────────────────────────────────────
+//
+// `#הערה_זרם("שם")` is the *other* page-foot apparatus: any number of named peer
+// streams, each numbered on its own, each pinnable to a region of its own
+// height. It renders into the same reserved block the bands do — and the reserve
+// was read off `#הגדרות_מדפים` alone, so a three-stream document with declared
+// heights got the flat 3 cm default and printed its third stream at y=823.62,
+// below the page number at 799.02 and on its way off the sheet. The bug had just
+// been fixed for the bands and never swept to the sibling, which is the shape
+// this repository keeps rebuilding.
+
+/// Three declared streams all print, in order, above the page-foot line.
+#[test]
+fn three_declared_streams_stay_on_the_paper() {
+    let body = "#הגדרות_זרמים(גבהים: (\"ביאור\": 2cm, \"מקורות\": 1.5cm, \"נוסחאות\": 1.5cm))\n\n\
+                טקסט#הערה_זרם(\"ביאור\")[אחת] ועוד#הערה_זרם(\"מקורות\")[שתיים] \
+                ועוד#הערה_זרם(\"נוסחאות\")[שלוש] וסוף.\n";
+    let (line, lowest) = foot(body);
+    assert!(
+        lowest <= line + 0.5,
+        "a stream printed below the page-foot line ({lowest:.2} > {line:.2})"
+    );
+    assert!(lowest < A4_PT, "something printed off the sheet: {lowest:.2}");
+
+    let doc = probe::layout(body, &DocConfig::default()).expect("it lays out");
+    let runs = probe::text_runs(&doc);
+    let at = |needle: &str| {
+        runs.iter()
+            .find(|r| r.page == 1 && r.text.contains(needle))
+            .map(|r| r.y)
+            .unwrap_or_else(|| panic!("stream text {needle:?} never printed"))
+    };
+    let (a, b, c) = (at("אחת"), at("שתיים"), at("שלוש"));
+    assert!(
+        a < b && b < c,
+        "the three streams are out of order: {a:.1}, {b:.1}, {c:.1}"
+    );
+    assert!(
+        c < A4_PT,
+        "the third stream printed at {c:.1} on an {A4_PT}pt sheet"
+    );
+}
+
+/// A declared stream height is the height that stream gets.
+///
+/// Same claim as `a_declared_band_height_is_the_height_the_band_gets`, one
+/// apparatus over, and asserted the same way: against a *difference* of declared
+/// heights, so the furniture between the two regions cancels out.
+#[test]
+fn a_declared_stream_height_is_the_height_the_stream_gets() {
+    let entries = |heights: &str| -> Vec<f64> {
+        let body = format!(
+            "#הגדרות_זרמים(גבהים: {heights})\n\n\
+             טקסט#הערה_זרם(\"ביאור\")[אחת] ועוד#הערה_זרם(\"מקורות\")[שתיים] וסוף.\n"
+        );
+        let doc = probe::layout(&body, &DocConfig::default()).expect("it lays out");
+        let mut ys: Vec<f64> = probe::text_runs(&doc)
+            .iter()
+            .filter(|r| r.page == 1 && (r.text.contains("אחת") || r.text.contains("שתיים")))
+            .map(|r| r.y)
+            .collect();
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        ys
+    };
+    let small = entries("(\"ביאור\": 1cm, \"מקורות\": 1cm)");
+    let large = entries("(\"ביאור\": 3cm, \"מקורות\": 1cm)");
+    assert_eq!(small.len(), 2, "both streams print: {small:?}");
+    assert_eq!(large.len(), 2, "both streams print: {large:?}");
+    let grew = (large[1] - large[0]) - (small[1] - small[0]);
+    let want = 2.0 * PER_CM;
+    assert!(
+        (grew - want).abs() < 2.0,
+        "asking for 2cm more of the ביאור stream moved מקורות by {grew:.1}pt, not {want:.1}pt"
+    );
+}
+
+/// A region height in percent is a percentage of the sheet.
+///
+/// Two halves have to agree here: Rust turns `%` into the centimetres it takes
+/// off the bottom margin, and the prelude resolves the same ratio against
+/// `page.height`. Handed to `block(height:)` raw a ratio resolves against the
+/// *reserve block* instead — a percentage of a percentage — and the only visible
+/// symptom would be a region a fraction of the size that was asked for.
+///
+/// Measured on two papers, because "a percentage of the page" is exactly the
+/// claim that a single paper cannot distinguish from "some fixed length".
+#[test]
+fn a_percent_region_is_a_percent_of_the_page() {
+    let gap = |paper: &str| -> f64 {
+        let cfg = DocConfig {
+            paper: paper.into(),
+            margin_cm: 1.5,
+            ..Default::default()
+        };
+        let body = "#הגדרות_מדפים(גבהים: (20%, 5%))\n\n\
+                    טקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n";
+        let doc = probe::layout(body, &cfg).expect("it lays out");
+        let runs = probe::text_runs(&doc);
+        let y = |needle: &str| {
+            runs.iter()
+                .find(|r| r.page == 1 && r.text.contains(needle))
+                .map(|r| r.y)
+                .unwrap_or_else(|| panic!("band text {needle:?} never printed on {paper}"))
+        };
+        y("שתיים") - y("אחת")
+    };
+    // Band א is 20% of the sheet, so the distance down to band ב is 20% of the
+    // sheet plus the divider — and A3 is exactly √2 times as tall as A4.
+    let a4 = gap("a4");
+    let a3 = gap("a3");
+    let want = 0.20 * (42.0 - 29.7) * PER_CM;
+    assert!(
+        (a3 - a4 - want).abs() < 4.0,
+        "20% of the page moved band ב by {:.1}pt going A4→A3, not {want:.1}pt \
+         (A4 gap {a4:.1}, A3 gap {a3:.1}) — a ratio resolved against the reserve \
+         rather than the page would move by nothing like this",
+        a3 - a4
+    );
+}
+
+/// One stream, carrying tiered notes.
+///
+/// Streams and tiers are separate apparatuses — a stream is a *where*, a tier is
+/// a *layer* — so a note inside a stream's body is an ordinary tiered note and
+/// lands in the tiered apparatus, not in the stream. Nothing forbids it and
+/// nothing had ever checked it: the two mechanisms are built out of the same
+/// `_ap_note`/`_ap_group` machinery, and a shared renderer is exactly where one
+/// arrangement quietly eats the other's registration.
+#[test]
+fn a_stream_can_carry_a_tiered_note() {
+    let body = "#הגדרות_זרמים(גבהים: (\"ביאור\": 2.5cm))\n\n\
+                טקסט#הערה_זרם(\"ביאור\")[הביאור#הערה[ההערה על הביאור]] וסוף.\n";
+    let (line, lowest) = foot(body);
+    assert!(lowest <= line + 0.5, "something printed below the foot line");
+    let doc = probe::layout(body, &DocConfig::default()).expect("it lays out");
+    let runs = probe::text_runs(&doc);
+    let printed = |needle: &str| runs.iter().any(|r| r.page == 1 && r.text.contains(needle));
+    assert!(printed("הביאור"), "the stream's own note never printed");
+    assert!(
+        printed("ההערה על הביאור"),
+        "the tiered note inside the stream never printed — the two apparatuses \
+         are separate and both belong on the page"
+    );
+}

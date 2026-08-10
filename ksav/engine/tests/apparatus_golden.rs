@@ -419,10 +419,18 @@ const SINGLE_SOURCE: &[(&str, usize, &str)] = &[
          same layout pass. It belongs to `_ap_note`.",
     ),
     (
-        "block(width: 100%, height: h, clip: true",
+        "block(width: 100%, height: _ap_fixed_height(h), clip: true",
         1,
         "the fixed-height band slot. It was written twice — array-indexed for the \
          page bands, dictionary-keyed for the streams — and belongs to `_ap_group`.",
+    ),
+    (
+        "h * page.height",
+        1,
+        "resolving a percentage region height against the *sheet* rather than \
+         against the block it sits in. A second copy is a second answer to \
+         \"a percentage of what\", and the reserve the Rust side takes off the \
+         bottom margin only agrees with one of them.",
     ),
 ];
 

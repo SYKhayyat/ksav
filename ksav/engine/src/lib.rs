@@ -211,9 +211,20 @@ pub struct DocConfig {
 /// longer names anything fails too. The failure it prevents is quiet and ugly —
 /// the page keeps its full text height and the apparatus runs off the bottom
 /// edge of the sheet.
-const PAGE_APPARATUS_COMMANDS: &[&str] = &[
-    "מדף_",
-    "pageband",
+///
+/// It is **two** lists, one per apparatus, and that is not tidiness.
+///
+/// They are separate mechanisms that share one reserve: `#מדף_א…ז` are *tiers*,
+/// ordered layers of one apparatus, and `#הערה_זרם("שם")` are *named peer
+/// streams*, independent apparatuses that happen to sit at the same foot. Each
+/// declares its fixed region heights in its own configuration command, in its
+/// own shape, and the footer renders the bands and then the streams into the
+/// same reserved block — so what the page needs is the sum of the two. Held as
+/// one list, the reserve could only ever be read off one of them, which is
+/// exactly what went wrong: `#הגדרות_זרמים` was never read at all.
+const BAND_COMMANDS: &[&str] = &["מדף_", "pageband"];
+const BAND_CONFIG: &[&str] = &["הגדרות_מדפים", "pagebands_config"];
+const STREAM_COMMANDS: &[&str] = &[
     "הערה_זרם",
     "stream_note",
     "הערת_תוכן",
@@ -221,6 +232,7 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
     "הערת_מקור",
     "sourcenote_stream",
 ];
+const STREAM_CONFIG: &[&str] = &["הגדרות_זרמים", "streams_config"];
 
 /// How much page-foot region a body needs, in cm.
 ///
@@ -239,12 +251,19 @@ const PAGE_APPARATUS_COMMANDS: &[&str] = &[
 /// `(3cm, 2cm)` printed the second band **at y=879 on an 842pt page**, off the
 /// sheet, while the prelude's own comment promised it would be clipped instead.
 ///
-/// A length with a unit this cannot resolve (`em`, `%`) yields `None` rather than
-/// a guess: the fallback reserve is a working default, and a wrong number here is
+/// A length with a unit this cannot resolve (`em`) yields `None` rather than a
+/// guess: the fallback reserve is a working default, and a wrong number here is
 /// worse than no number, because it would be wrong *silently* and in page
 /// geometry.
-fn declared_band_cm(body: &str) -> Option<Vec<f64>> {
-    for name in ["הגדרות_מדפים", "pagebands_config"] {
+///
+/// `names` is one apparatus's configuration command, in both spellings. The
+/// bands write their heights as an **array** — `(1.5cm, 1cm)`, one entry per tier
+/// — and the streams as a **dictionary** keyed by stream name —
+/// `("מקורות": 1.5cm)`. Both are read here, because both reserve the same page
+/// foot, and reading only the first is how three declared streams got the flat
+/// 3 cm default and printed the third one off the sheet.
+fn declared_region_cm(body: &str, names: &[&str], page_h_cm: f64) -> Option<Vec<f64>> {
+    for name in names {
         let mut base = 0;
         while let Some(i) = body[base..].find(name) {
             let start = base + i + name.len();
@@ -271,7 +290,17 @@ fn declared_band_cm(body: &str) -> Option<Vec<f64>> {
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .collect();
-                let parsed: Option<Vec<f64>> = items.iter().map(|s| length_cm(s)).collect();
+                // An entry is either a bare length (the array form) or
+                // `"name": length` (the dictionary form). `code_only` has already
+                // blanked the name along with its quotes, so what survives of a
+                // dictionary entry is `: 1.5cm` — and the height is whatever
+                // follows the last colon in either shape. An empty dictionary,
+                // `(:)`, leaves nothing after the colon and so reads as *not
+                // declared*, which is exactly what it means.
+                let parsed: Option<Vec<f64>> = items
+                    .iter()
+                    .map(|s| length_cm(s.rsplit_once(':').map_or(*s, |(_, v)| v), page_h_cm))
+                    .collect();
                 // One unreadable entry disqualifies the whole list: a partial sum
                 // reserves less than the bands will use, which is the exact defect
                 // this function exists to stop.
@@ -309,8 +338,19 @@ fn closing_paren(s: &str) -> Option<usize> {
     None
 }
 
-/// A Typst absolute length, in cm. `None` for anything font-relative.
-fn length_cm(s: &str) -> Option<f64> {
+/// A Typst length, in cm. `None` for anything font-relative.
+///
+/// `%` is a percentage **of the sheet**, not of anything nearer. That is the one
+/// reading a writer means by "make the apparatus a fifth of the page", and it is
+/// the reading `_ap_fixed_height` in the prelude resolves against `page.height`
+/// so that the two halves of this agree. A bare ratio handed to `block(height:)`
+/// would otherwise be a percentage of the reserve block the bands already sit
+/// inside — a fraction of a fraction, shrinking as more is asked for.
+fn length_cm(s: &str, page_h_cm: f64) -> Option<f64> {
+    let s = s.trim();
+    if let Some(n) = s.strip_suffix('%') {
+        return n.trim().parse::<f64>().ok().map(|v| v / 100.0 * page_h_cm);
+    }
     for (unit, per_cm) in [("cm", 1.0), ("mm", 10.0), ("pt", 72.0 / 2.54), ("in", 1.0 / 2.54)] {
         if let Some(n) = s.strip_suffix(unit) {
             return n.trim().parse::<f64>().ok().map(|v| v / per_cm);
@@ -319,7 +359,45 @@ fn length_cm(s: &str) -> Option<f64> {
     None
 }
 
+/// The reserve for a document on A4, which is what every caller that does not
+/// know the paper is really assuming.
+///
+/// Only a `%` region height needs the sheet, so this is exact for every document
+/// that measures its apparatus in centimetres — which is all of them until now.
 pub fn auto_notes_region_cm(body: &str) -> f64 {
+    auto_notes_region_cm_on(body, paper_height_cm("a4"))
+}
+
+/// The height of a named paper, in cm — what a `%` region height is a percentage
+/// of.
+///
+/// Only the papers the product offers, plus A4 as the fallback. A number here is
+/// page geometry, and inventing a height for a paper nobody selected would put a
+/// band off the bottom of a sheet nobody thought to check.
+fn paper_height_cm(paper: &str) -> f64 {
+    match paper {
+        "a3" => 42.0,
+        "a5" => 21.0,
+        "a6" => 14.8,
+        "us-letter" => 27.94,
+        "us-legal" => 35.56,
+        _ => 29.7,
+    }
+}
+
+/// The sheet this document is laid out on, in cm.
+///
+/// `page_width_cm`/`page_height_cm` are **both or neither** — the prelude only
+/// honours them as a pair, because Typst's `width`/`height` override `paper:`
+/// entirely and a width with no height would silently keep the named paper's.
+fn sheet_height_cm(cfg: &DocConfig) -> f64 {
+    match (cfg.page_width_cm, cfg.page_height_cm) {
+        (Some(_), Some(h)) => h,
+        _ => paper_height_cm(&sanitize_paper(&cfg.paper)),
+    }
+}
+
+pub fn auto_notes_region_cm_on(body: &str, page_h_cm: f64) -> f64 {
     // Comments first, and this is the eleventh scanner in this repository.
     //
     // `spans.ts` opens with a monument to ten client-side matchers disagreeing
@@ -330,28 +408,57 @@ pub fn auto_notes_region_cm(body: &str) -> f64 {
     // The existing test covered the prose case (`the מדף_ command`) and stopped
     // one case short.
     let visible = code_only(body);
-    if !PAGE_APPARATUS_COMMANDS
-        .iter()
-        .any(|c| apparatus_is_called(&visible, c) || apparatus_is_named_as_kind(&visible, c))
-    {
+    // Per apparatus, not once for the document. The footer renders the bands and
+    // then the streams into the *same* reserved block, one under the other, so
+    // what the page needs is the sum of what each of them needs — and reading the
+    // reserve off `#הגדרות_מדפים` alone meant three declared streams got the flat
+    // 3 cm default and printed the third at y=823.62, below the page number at
+    // 799.02 and on its way off an 841.89pt sheet. The same defect that had just
+    // been fixed for the bands, one apparatus over, which is the shape this
+    // repository keeps rebuilding: the class is named, one instance is fixed, the
+    // sibling is never swept.
+    let mut total = 0.0;
+    let mut used_any = false;
+    for (commands, config) in [(BAND_COMMANDS, BAND_CONFIG), (STREAM_COMMANDS, STREAM_CONFIG)] {
+        if !commands
+            .iter()
+            .any(|c| apparatus_is_called(&visible, c) || apparatus_is_named_as_kind(&visible, c))
+        {
+            continue;
+        }
+        used_any = true;
+        total += match declared_region_cm(&visible, config, page_h_cm) {
+            // Fixed regions: reserve exactly what the document asked for, plus the
+            // furniture the prelude draws around the bands — a rule above the
+            // apparatus and a gap between adjacent bands (`ריווח_בין`, 0.35em). Those
+            // are small, but they are what pushes the last band past its slot, and a
+            // band past its slot is a clipped sentence.
+            Some(heights) => {
+                let sum: f64 = heights.iter().sum();
+                let gaps = (heights.len().saturating_sub(1)) as f64;
+                sum + BAND_GAP_CM * gaps + BAND_RULE_CM
+            }
+            // No declared heights: the regions take the height they need, and a
+            // working default is the best that can be said in advance.
+            None => DEFAULT_REGION_CM,
+        };
+    }
+    if !used_any {
         return 0.0;
     }
-    match declared_band_cm(&visible) {
-        // Fixed regions: reserve exactly what the document asked for, plus the
-        // furniture the prelude draws around the bands — a rule above the
-        // apparatus and a gap between adjacent bands (`ריווח_בין`, 0.35em). Those
-        // are small, but they are what pushes the last band past its slot, and a
-        // band past its slot is a clipped sentence.
-        Some(heights) => {
-            let sum: f64 = heights.iter().sum();
-            let gaps = (heights.len().saturating_sub(1)) as f64;
-            sum + BAND_GAP_CM * gaps + BAND_RULE_CM
-        }
-        // No declared heights: the bands take the height they need, and a working
-        // default is the best that can be said in advance.
-        None => 3.0,
-    }
+    // The reserve is added to the bottom margin, so a document that asks for more
+    // page than there is has no text area left to lay anything out in. `%` makes
+    // that a plausible typo rather than an exotic one — `(50%, 40%)` reads as
+    // modest right up until it is nine tenths of the sheet. Past this the regions
+    // are clipped, which is visible on the page; a document that will not lay out
+    // at all is not.
+    total.min(page_h_cm * MAX_REGION_SHARE)
 }
+
+/// A working reserve for an apparatus that did not say how tall it is.
+const DEFAULT_REGION_CM: f64 = 3.0;
+/// The most of the sheet the page-foot apparatus may claim.
+const MAX_REGION_SHARE: f64 = 0.6;
 
 /// What the prelude draws *between* two adjacent bands: `v(ריווח_בין)`, the short
 /// divider rule, `v(ריווח_בין)` again. Measured at 11.6pt (0.41 cm) at the
@@ -1012,9 +1119,12 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         para = cfg.para_spacing_em,
         indent = cfg.first_line_indent_em,
         columns = columns,
+        // The sheet is handed in because a `%` region height is a percentage of
+        // it, and Rust is the half of this that has to turn the writer's `15%`
+        // into the centimetres it takes off the bottom margin.
         region = match cfg
             .notes_region_cm
-            .unwrap_or_else(|| auto_notes_region_cm(body))
+            .unwrap_or_else(|| auto_notes_region_cm_on(body, sheet_height_cm(cfg)))
         {
             r if r <= 0.0 => "none".to_string(),
             r => format!("{r}cm"),
@@ -1839,6 +1949,113 @@ mod tests {
             auto_notes_region_cm("#pagebands_config(heights: (1cm, 1cm))\n#מדף_א[א]"),
             2.0 + BAND_GAP_CM + BAND_RULE_CM
         ));
+        // Any number of bands, not the two or three the UI used to offer. Seven
+        // is what מדף_א…ז name, and the arithmetic has to hold at the end of that
+        // stack, where the accumulated gaps are what push the last one off.
+        assert!(near(
+            with("(1cm, 1cm, 1cm, 1cm, 1cm, 1cm, 1cm)"),
+            7.0 + BAND_GAP_CM * 6.0 + BAND_RULE_CM
+        ));
+    }
+
+    /// A region height in percent is a percentage of the **sheet**.
+    ///
+    /// The prelude resolves the same ratio against `page.height`, so this is one
+    /// half of a claim whose other half is `_ap_fixed_height`. They have to agree
+    /// on what the percentage is *of*, or the reserve and the band disagree by a
+    /// factor of the reserve — and the visible one is the band.
+    #[test]
+    fn a_percent_region_is_a_percent_of_the_sheet() {
+        let near = |got: f64, want: f64| (got - want).abs() < 0.001;
+        let with = |heights: &str, sheet: f64| {
+            auto_notes_region_cm_on(
+                &format!("#הגדרות_מדפים(גבהים: {heights})\n\n#מדף_א[א] #מדף_ב[ב]"),
+                sheet,
+            )
+        };
+        // A4: 29.7 cm. 10% + 5% is 2.97 + 1.485.
+        assert!(near(
+            with("(10%, 5%)", 29.7),
+            2.97 + 1.485 + BAND_GAP_CM + BAND_RULE_CM
+        ));
+        // The same document on A3 reserves proportionally more, which is the
+        // entire reason to write a percentage instead of a centimetre.
+        assert!(near(
+            with("(10%, 5%)", 42.0),
+            4.2 + 2.1 + BAND_GAP_CM + BAND_RULE_CM
+        ));
+        // Mixed units in one tuple: a fixed rule under a proportional band is a
+        // real thing to want, and one unreadable entry must not be inferred from
+        // the readable ones.
+        assert!(near(
+            with("(20%, 1cm)", 29.7),
+            5.94 + 1.0 + BAND_GAP_CM + BAND_RULE_CM
+        ));
+        // `em` is still unresolvable — it depends on the font size at the foot of
+        // the page, which this scanner does not know and must not guess.
+        assert_eq!(with("(4em, 3em)", 29.7), DEFAULT_REGION_CM);
+        // And a document that asks for more page than it has gets clipped regions
+        // rather than a document that will not lay out at all.
+        assert!(near(with("(60%, 50%)", 29.7), 29.7 * MAX_REGION_SHARE));
+    }
+
+    /// The streams reserve the page foot too, from their own dictionary.
+    ///
+    /// They always needed it — `#הערה_זרם` has been on the page-apparatus list
+    /// since that list was written — but only the bands' *array* was ever read,
+    /// so a three-stream document with declared heights got the flat 3 cm and
+    /// printed its third stream at y=823.62 on an 841.89pt sheet, below the page
+    /// number at 799.02. The bug had just been fixed one apparatus over.
+    #[test]
+    fn the_reserve_follows_the_declared_stream_heights() {
+        let near = |got: f64, want: f64| (got - want).abs() < 0.001;
+        let three = "#הגדרות_זרמים(גבהים: (\"ביאור\": 2cm, \"מקורות\": 1cm, \"נוסחאות\": 1cm))\n\
+                     #הערה_זרם(\"ביאור\")[א] #הערה_זרם(\"מקורות\")[ב] #הערה_זרם(\"נוסחאות\")[ג]";
+        assert!(near(
+            auto_notes_region_cm(three),
+            4.0 + BAND_GAP_CM * 2.0 + BAND_RULE_CM
+        ));
+        // The English spelling of both the command and the key.
+        assert!(near(
+            auto_notes_region_cm(
+                "#streams_config(heights: (\"a\": 2cm, \"b\": 1cm))\n#stream_note(\"a\")[x]"
+            ),
+            3.0 + BAND_GAP_CM + BAND_RULE_CM
+        ));
+        // Percent works here too, and against the sheet.
+        assert!(near(
+            auto_notes_region_cm_on(
+                "#הגדרות_זרמים(גבהים: (\"ביאור\": 10%, \"מקורות\": 5%))\n#הערת_תוכן[א]",
+                29.7
+            ),
+            2.97 + 1.485 + BAND_GAP_CM + BAND_RULE_CM
+        ));
+        // An empty dictionary is the default and declares nothing.
+        assert_eq!(
+            auto_notes_region_cm("#הגדרות_זרמים(גבהים: (:))\n#הערת_מקור[א]"),
+            DEFAULT_REGION_CM
+        );
+        // Configuring the streams without writing one still reserves nothing.
+        assert_eq!(
+            auto_notes_region_cm("#הגדרות_זרמים(גבהים: (\"ביאור\": 4cm))"),
+            0.0
+        );
+        // Streams and tiers are separate apparatuses that render into the *same*
+        // reserved block, one under the other. A document carrying both needs
+        // room for both — the sum, not whichever the scanner happened to find
+        // first.
+        let both = "#הגדרות_מדפים(גבהים: (1.5cm, 1cm))\n\
+                    #הגדרות_זרמים(גבהים: (\"מקורות\": 1cm))\n\
+                    #מדף_א[א] #מדף_ב[ב] #הערה_זרם(\"מקורות\")[ג]";
+        assert!(near(
+            auto_notes_region_cm(both),
+            (2.5 + BAND_GAP_CM + BAND_RULE_CM) + (1.0 + BAND_RULE_CM)
+        ));
+        // …including when only one of the two says how tall it is.
+        assert!(near(
+            auto_notes_region_cm("#הגדרות_מדפים(גבהים: (1cm,))\n#מדף_א[א] #הערת_מקור[ב]"),
+            (1.0 + BAND_RULE_CM) + DEFAULT_REGION_CM
+        ));
     }
 
     /// A commented-out apparatus is not an apparatus.
@@ -1992,32 +2209,52 @@ mod tests {
         fam
     }
 
+    /// Every prefix the reserve is decided from, both apparatuses together.
+    ///
+    /// The runtime keeps them apart because they reserve separately; this fence
+    /// asks the other question — whether between them they still name everything
+    /// the prelude renders into a page footer — and for that they are one list.
+    fn page_apparatus_commands() -> Vec<&'static str> {
+        BAND_COMMANDS
+            .iter()
+            .chain(STREAM_COMMANDS.iter())
+            .copied()
+            .collect()
+    }
+
     #[test]
     fn the_page_foot_reserve_list_matches_the_prelude() {
         let family = footer_note_commands();
+        let listed = page_apparatus_commands();
 
         // Direction 1: nothing the prelude renders into the footer is missing.
         // A missing one means a document using it keeps its full text height and
         // the apparatus runs off the bottom of the sheet.
         for cmd in &family {
             assert!(
-                PAGE_APPARATUS_COMMANDS.iter().any(|p| cmd.starts_with(p)),
+                listed.iter().any(|p| cmd.starts_with(p)),
                 "`{cmd}` renders into the page footer and no prefix in \
-                 PAGE_APPARATUS_COMMANDS covers it, so a document using it \
-                 reserves no room for its own apparatus.\n\
+                 BAND_COMMANDS or STREAM_COMMANDS covers it, so a document using \
+                 it reserves no room for its own apparatus.\n\
                  The footer-rendered family, read out of ksav.typ: {family:?}"
             );
         }
 
-        // Direction 2: nothing in the list names something that no longer exists.
-        // A dead prefix is worse than useless — it reads as coverage.
-        for p in PAGE_APPARATUS_COMMANDS {
+        // Direction 2: nothing in the lists names something that no longer
+        // exists. A dead prefix is worse than useless — it reads as coverage.
+        for p in &listed {
             assert!(
                 family.iter().any(|c| c.starts_with(p)),
-                "PAGE_APPARATUS_COMMANDS lists {p:?}, which names no \
+                "{p:?} is listed as a page-foot apparatus and names no \
                  footer-rendered command in ksav.typ.\n\
                  The footer-rendered family, read out of ksav.typ: {family:?}"
             );
+        }
+
+        // And a command may not be in both halves, or its reserve is counted
+        // twice and the text block shrinks for no reason the writer can see.
+        for c in BAND_COMMANDS {
+            assert!(!STREAM_COMMANDS.contains(c), "{c:?} is in both halves");
         }
 
         // And the reserve really follows from membership, not from the prefix

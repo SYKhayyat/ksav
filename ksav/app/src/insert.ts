@@ -44,7 +44,7 @@ export function commandOf(snippet: string): string | null {
 
 export type Insertion =
   | { kind: "refuse"; reason: string }
-  | { kind: "note"; choice: NoteChoice; which: "primary" | "secondary"; marker?: string }
+  | { kind: "note"; choice: NoteChoice; layer: number; marker?: string }
   | { kind: "edit"; text: string; cursor: number };
 
 /**
@@ -69,7 +69,7 @@ export function plan(
   // its *body* may not be going in at the caret at all.
   const note = noteFor(snippetInSeries);
   if (note) {
-    return { kind: "note", choice: note.choice, which: note.which, marker: note.marker };
+    return { kind: "note", choice: note.choice, layer: note.layer, marker: note.marker };
   }
 
   const command = commandOf(snippetInSeries);

@@ -26,6 +26,7 @@
 // `src/` to keep it the only one.
 
 import type { Mekor } from "./api";
+import { scan, splitArgs, topLevelColon } from "./spans";
 import { typstContent, typstString } from "./typst-escape";
 
 /**
@@ -76,4 +77,53 @@ function characters(range: Mekor["range"]): string {
   const { from, to } = range;
   if (from === 0 && to == null) return "";
   return `, תווים: ${typstString(to == null ? `${from}-` : `${from}-${to}`)}`;
+}
+
+// ---------------------------------------------------------------- what it carries
+//
+// A source note's whole value is the half that does not print. `#מראה_מקום` is
+// `footnote(text(size: 0.92em, body))` — a footnote, eight per cent smaller —
+// and given `מקור:` it also files the canonical ref that `#מראה_מקומות()`
+// collects and that lets the document be reprinted in another citation style.
+// Written without one it contributes nothing to the index.
+//
+// Nothing on screen said which kind you were looking at. The inventory's line
+// was blunt: *a source note's entire value is invisible*. So it is a question
+// that can be asked now, and `sourcenote-lint.ts` asks it on every line.
+
+/** The two spellings of the source-note command. */
+const SOURCE_NOTE = ["מראה_מקום", "sourcenote"];
+
+/** One source note in the document, and whether its ref is there. */
+export interface SourceNote {
+  from: number;
+  to: number;
+  /** True when the note carries a `מקור:` / `source:` argument. */
+  indexed: boolean;
+}
+
+/**
+ * Every source note in the text, each saying whether it is in the index.
+ *
+ * Through `scan` rather than a regex, for the reason `spans.ts` exists: the
+ * name inside a string literal and the name that is really prose are both
+ * things `#\w+` gets wrong. `topLevelColon` is what tells a named argument from
+ * a nested call that happens to contain a colon.
+ */
+export function sourceNotes(doc: string): SourceNote[] {
+  const out: SourceNote[] = [];
+  for (const n of scan(doc).nodes) {
+    if (!SOURCE_NOTE.includes(n.name)) continue;
+    let indexed = false;
+    if (n.args) {
+      for (const g of splitArgs(doc, n.args.from, n.args.to)) {
+        const colon = topLevelColon(doc, g.from, g.to);
+        if (colon < 0) continue;
+        const key = doc.slice(g.from, colon).trim();
+        if (key === "מקור" || key === "source") indexed = true;
+      }
+    }
+    out.push({ from: n.nameFrom - 1, to: n.to, indexed });
+  }
+  return out;
 }

@@ -23,6 +23,7 @@ import {
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
+import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
 import {
   deferredNotes,
   jumpDeferred,
@@ -132,7 +133,7 @@ import * as commands from "./commands";
 import { applyPreview, currentPages, drawCurrentInto, pageBox } from "./preview";
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
-import { changeGutter, changeHighlight, changes, setBaseline } from "./changes";
+import { changeGutter, changeHighlight, changes, nameMarks, setBaseline } from "./changes";
 import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
@@ -898,15 +899,24 @@ function ksavCompletions(context: CompletionContext): CompletionResult | null {
   // One list, from `commands.ts`. It carries the *document's* own commands when the
   // document has any, so a shared sefer's `#` completion offers what its compiler
   // will actually run.
+  // The name in the language this document is written in, because that is the
+  // name that will be in the source a moment later — and the *other* spelling
+  // in the detail column, because a bilingual registry's second name is worth
+  // knowing and this is the one surface with room to show it.
+  const writing = docLang();
   const options = commands
     .available(runtime.commandsReg)
     .filter((c) => commands.matches(c, q))
-    .map((c) => ({
-      label: "#" + c.name,
-      detail: c.en ?? whose(c.from),
-      info: c.from === "registry" ? (getLang() === "he" ? c.desc_he : c.desc_en) : whose(c.from),
-      apply: insertApply(c.insert),
-    }));
+    .map((c) => {
+      const here = writing === "he" ? c.name : (c.en ?? c.name);
+      const other = writing === "he" ? c.en : c.name;
+      return {
+        label: "#" + here,
+        detail: (c.from === "registry" ? other : undefined) ?? whose(c.from),
+        info: c.from === "registry" ? (getLang() === "he" ? c.desc_he : c.desc_en) : whose(c.from),
+        apply: insertApply(c.insert),
+      };
+    });
   return { from: word.from, options, filter: false };
 }
 
@@ -1253,6 +1263,10 @@ function makeState(body: string, prose: boolean): EditorState {
       // Notes collected and never rendered: valid source, finished-looking page,
       // and the prose missing from it.
       apparatusLint,
+      // A source note that is not in the source index says so, on its own line.
+      // See `sourcenote-lint.ts`: the whole value of the command is the half
+      // that does not print, and nothing on screen said which kind you had.
+      sourceNoteMarks,
       deferredNotes,
       revealAll,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
@@ -2455,6 +2469,26 @@ function closeMekoros(): void {
   closePanel("mekoros");
 }
 
+/**
+ * Attach a ref to the source note at `at` — the lint's own way in.
+ *
+ * `askForMekor` works on the selection, which is the right shape for the
+ * gesture a writer makes (highlight a phrase, ask where it is from). The lint
+ * has a *note* rather than a selection, so it selects the note's printed text
+ * and asks about that: the printed text is precisely the phrase whose place is
+ * wanted, and it is already in the document.
+ */
+function attachRefToNote(view: EditorView, at: number): void {
+  const body = bodyAt(scanDoc(view.state), at);
+  if (!body) {
+    setStatus(t("selectAPhrase"), "");
+    return;
+  }
+  view.dispatch({ selection: { anchor: body.from, head: body.to } });
+  view.focus();
+  void askForMekor();
+}
+
 async function askForMekor(): Promise<void> {
   const sel = runtime.view.state.selection.main;
   const phrase = runtime.view.state.sliceDoc(sel.from, sel.to).trim();
@@ -3093,7 +3127,8 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
       // Computed against the live document, so the menu tells the truth about
       // this caret rather than about tables in general — and *asked*, not found
       // out by running the operation and looking at the wreckage.
-      const enabled = structure.isEnabled(action, doc, pos);
+      const why = structure.whyNot(action, doc, pos);
+      const enabled = why === null;
       const key = kb[action.id];
       items.push(
         el(
@@ -3101,6 +3136,7 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
           {
             class: "menu-item menu-cmd" + (enabled ? "" : " disabled"),
             disabled: enabled ? null : "true",
+            title: why ? t(why) : "",
             onClick: () => {
               closeMenus();
               runStructureAction(action, true);
@@ -3109,6 +3145,13 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
           [
             el("b", {}, [`${action.glyph}  ${t(action.label)}`]),
             key ? el("code", {}, [readable(key)]) : el("span"),
+            // On screen, not on a tooltip. A greyed item says "this exists, and
+            // not here"; without the second half the writer is left to guess
+            // which of eighteen greyed arrows is greyed for its own reason and
+            // which because the caret is nowhere near a table. A tooltip does
+            // not answer that — it answers one item at a time, to whoever
+            // thinks to hover, and never on a touchscreen.
+            ...(why ? [el("span", { class: "menu-why" }, [t(why)])] : []),
           ],
         ),
       );
@@ -3225,6 +3268,9 @@ function buildInsertMenu(): HTMLElement {
 
 function insertMenuItems(): (Node | string)[] {
   const lang = getLang();
+  // The interface's language names the *description*; the document's names the
+  // command, because the command is what lands in the source. See `buildToolbar`.
+  const writing = docLang();
   const cats: string[] = [];
   for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
   const kb = keybindings();
@@ -3294,7 +3340,16 @@ function insertMenuItems(): (Node | string)[] {
           },
           [
             el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
-            el("code", {}, ["#" + c.he]),
+            // The name the writer will find in their own source, which is the
+            // document's language and not the menu's. See `buildToolbar`.
+            el("code", {}, ["#" + (writing === "he" ? c.he : c.en)]),
+            // The reason, where it can be read. `insertions.json` has carried a
+            // `reason` per command for as long as the grid has existed and it
+            // reached a tooltip; the item dropped to 38% opacity and said
+            // nothing. The comment beside that rule in `styles.css` argues that
+            // an item which cannot act "still says so, rather than vanishing" —
+            // an argument won and then not implemented.
+            ...(legality.ok ? [] : [el("span", { class: "menu-why" }, [t(legality.reason!)])]),
           ],
         ),
       );
@@ -5116,17 +5171,35 @@ function updateContextBar() {
     group = action.group;
     const key = keys[action.id];
     const name = t(action.label);
+    // Why this one is greyed, when it is. On the ribbon the caret is always
+    // inside the structure already, so this is never "you are not in a table" —
+    // it is the useful half: *this is the top row*.
+    const why = enabled ? null : structure.whyNot(action, doc, near);
     children.push(
       el(
         "button",
         {
           class: "tb-btn" + (enabled ? "" : " disabled"),
           // The key is in the tooltip because a shortcut nobody can find is the
-          // same as no shortcut — the same rule the nikud bar follows.
-          title: key ? `${name} · ${readable(key)}` : name,
+          // same as no shortcut — the same rule the nikud bar follows. When the
+          // button cannot act, the reason takes the tooltip's place: the key is
+          // no use to somebody who has just been refused.
+          title: why ? `${name} — ${t(why)}` : key ? `${name} · ${readable(key)}` : name,
           "aria-label": name,
-          disabled: enabled ? null : "true",
-          onClick: () => runStructureAction(action, true),
+          // `aria-disabled`, not `disabled`. A `disabled` button cannot be
+          // clicked, cannot be focused and — with `pointer-events: none` on top
+          // of it — cannot even be hovered on a touchscreen, so the one control
+          // that knows why it is refusing is the one control that cannot say
+          // so. Eighteen greyed arrows and no way to ask any of them a question.
+          // Pressed, it now answers.
+          "aria-disabled": enabled ? null : "true",
+          onClick: () => {
+            if (why) {
+              setStatus(t(why), "warn");
+              return;
+            }
+            runStructureAction(action, true);
+          },
         },
         // The two or three a writer reaches for carry their name. A Word user
         // does not discover a feature by hovering eleven arrows, and Word
@@ -7014,6 +7087,21 @@ function applyTheme() {
 function openPreviewOverlay() {
   openPanel("preview-modal");
 }
+/**
+ * Tell the change gutter what its three marks mean.
+ *
+ * From `help.MARKS`, which is the legend the help panel prints, so the wedge in
+ * the margin and the line in the help say the same sentence — a legend and a
+ * tooltip that are two hand-written lists are two lists that disagree.
+ */
+function nameGutterMarks() {
+  nameMarks({
+    added: t("mark.added"),
+    changed: t("mark.changed"),
+    removed: t("mark.removed"),
+  });
+}
+
 function applyUiDir() {
   document.documentElement.lang = getLang();
   document.documentElement.dir = isRtlUi() ? "rtl" : "ltr";
@@ -7021,6 +7109,7 @@ function applyUiDir() {
 
 function rerenderChrome() {
   applyUiDir();
+  nameGutterMarks();
   const app = document.getElementById("app")!;
   app.querySelector("header")?.replaceWith(buildHeader());
   // settings drawer keeps open state
@@ -7177,6 +7266,9 @@ function render() {
   // A diagnostic that names a line has to be able to go there, and the line has
   // to be visible in the editor. `diagview` knows nothing about CodeMirror and
   // does not need to; it asks.
+  // The source-note lint knows which notes want a ref; it does not know how to
+  // go and get one, because that is a network errand to Girsa.
+  onAttachRef(attachRefToNote);
   onGoToLine((line, column) => {
     const at = offsetOf(runtime.view, line, column);
     if (at != null) jumpTo(at);
@@ -7186,6 +7278,7 @@ function render() {
   applyTheme();
   applyPageView();
   applyUiDir();
+  nameGutterMarks();
   applyPreview();
   updateCounts();
   // The three surfaces whose open state is a saved preference rather than a
@@ -7198,6 +7291,60 @@ function render() {
 }
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
+/**
+ * Is this keystroke somebody typing into a field?
+ *
+ * `.cm-content` is `contenteditable`, so the editor is covered by the same
+ * test: when the caret is in a document, CodeMirror's own keymaps have already
+ * had the event and the fallback below must keep its hands off it.
+ */
+function typingIntoSomething(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el?.closest?.("input, textarea, select, [contenteditable='true']");
+}
+
+/**
+ * Run a shortcut that arrived while the editor did not have focus.
+ *
+ * # The finding
+ *
+ * Every shortcut in this application lived in a CodeMirror keymap, which means
+ * every shortcut required the caret to be in a document. Click a chip, a panel,
+ * the outline, a tab — anything at all — and `Mod-k` stopped opening the
+ * command palette, `Mod-f` stopped finding, help stopped opening. Nothing said
+ * so; the key simply did nothing, which reads as the shortcut not existing.
+ *
+ * That is most of what the inventory means by *113 commands are advertised
+ * across four surfaces and the reader could not reach them: zero of four*. The
+ * palette is the route to the registry, and the route was conditional on
+ * standing somewhere the reader had just left in order to look at a panel.
+ *
+ * # Modifier keys only
+ *
+ * A binding with no modifier — Enter, Tab, an arrow — belongs to whatever has
+ * focus. Swallowing Enter here would break every button in the chrome, which is
+ * a far worse bug than the one being fixed. So this handles the combinations
+ * that are unambiguously application shortcuts and leaves the rest alone.
+ *
+ * The action runs against `runtime.view`, the primary editor, which is what the
+ * writer means: they are looking at a document and pressing a key about it.
+ */
+function runShortcutOutsideEditor(e: KeyboardEvent): boolean {
+  if (!runtime.view) return false;
+  if (typingIntoSomething(e.target)) return false;
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) return false;
+  const key = eventToKey(e);
+  if (!key) return false;
+  const kb = keybindings();
+  const aliases = aliasesInForce(kb);
+  let id = Object.keys(kb).find((k) => kb[k] === key);
+  if (!id) id = Object.keys(aliases).find((k) => aliases[k].includes(key));
+  if (!id || !actionById(id)) return false;
+  e.preventDefault();
+  runAction(id, runtime.view);
+  return true;
+}
+
 function wireKeys() {
   window.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") {
@@ -7223,6 +7370,10 @@ function wireKeys() {
       runtime.view?.focus();
     } else if (e.key === "Alt" && proseHere()) {
       runtime.view.dispatch({ effects: setRevealAll.of(true) });
+    } else {
+      // Last, so nothing above it changes, and only when the editor did not get
+      // the event itself. See `runShortcutOutsideEditor`.
+      runShortcutOutsideEditor(e);
     }
   });
   window.addEventListener("keyup", (e) => {

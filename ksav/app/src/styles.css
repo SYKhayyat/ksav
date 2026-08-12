@@ -203,6 +203,20 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
    chips, so the two conventions are one. */
 .chip.disabled, .tb-btn[disabled] { opacity: .4; pointer-events: none; }
 
+/* `aria-disabled` is the other kind: greyed, and still reachable, because it
+   has something to say. `pointer-events: none` on a control that knows why it
+   is refusing is how eighteen greyed arrows came to be unaskable — you could
+   not click one, could not focus one, and on a touchscreen could not even
+   hover one. Pressed, these report their reason in the status bar. */
+.tb-btn[aria-disabled="true"] { opacity: .4; }
+.tb-btn[aria-disabled="true"]:hover { background: none; cursor: help; }
+
+/* The reason under a greyed menu item, on screen rather than on a tooltip. A
+   tooltip answers one item at a time, to whoever thinks to hover, and never on
+   a touchscreen — while the writer's question is about a whole greyed menu. */
+.menu-why { display: block; font-size: .84em; opacity: .85; font-style: italic; }
+.menu-item.disabled .menu-why { opacity: 1; }
+
 /* ---- Page mode: a single centered page you type on, like Word ---- */
 #app[data-page] .source-pane { border: none; }
 #app[data-page] .source-pane .pane-head { display: none; }

@@ -50,6 +50,26 @@ export const changes = StateField.define<ChangeState>({
   },
 });
 
+/**
+ * What each mark means, in the reader's language.
+ *
+ * Injected rather than looked up, for the reason `spellTooltip` gives: this
+ * module keeps no opinion about the interface's language, and `main.ts` owns
+ * `i18n`. Empty until the shell says otherwise, which is also what a test
+ * without a shell sees.
+ *
+ * It exists at all because a coloured wedge in the margin is a claim nobody can
+ * check. Three of them — green, blue, and a wedge for text that is no longer
+ * there — and the inventory's note was simply *the change gutter's red wedge
+ * means something exact and is unlabelled*.
+ */
+let names: Partial<Record<Hunk["kind"], string>> = {};
+
+/** Name the three marks. Called by the shell at boot and on a language change. */
+export function nameMarks(said: Record<Hunk["kind"], string>): void {
+  names = said;
+}
+
 class ChangeMarker extends GutterMarker {
   constructor(readonly kind: Hunk["kind"]) {
     super();
@@ -60,6 +80,8 @@ class ChangeMarker extends GutterMarker {
   toDOM() {
     const el = document.createElement("div");
     el.className = `cm-change-mark cm-change-${this.kind}`;
+    const said = names[this.kind];
+    if (said) el.title = said;
     return el;
   }
 }

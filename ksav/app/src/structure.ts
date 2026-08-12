@@ -77,6 +77,25 @@ export interface StructureAction {
    */
   enabled(ctx: StructureContext): boolean;
   /**
+   * Why it cannot, when the caret **is** in the structure it acts on — an i18n
+   * key, read off this operation's own `can*` predicate.
+   *
+   * A greyed control is information: *this exists, and not here*. It stops being
+   * information the moment the writer cannot tell which half of that sentence
+   * they are looking at. Eighteen table operations grey out at once when the
+   * caret leaves a table, and one greys out on its own when it is the top row,
+   * and until now those looked identical: 38% opacity and nothing else.
+   *
+   * Static rather than computed, because each predicate has one failure mode.
+   * Where a predicate has two — moving a column refuses at the edge *and*
+   * across a merge — the string says both. A reason that is true half the time
+   * is worse than the grey it replaces.
+   *
+   * When the caret is outside the structure entirely, `whyNot` answers with
+   * that instead: the operation is not the thing that has gone wrong.
+   */
+  why: string;
+  /**
    * Do it. Returns null exactly when `enabled` says no — the last item cannot
    * move down, the first cannot indent — so a surface that ignores `enabled` and
    * just calls this still cannot be lied to.
@@ -198,6 +217,27 @@ export function isEnabled(action: StructureAction, doc: string, pos: number): bo
 }
 
 /**
+ * Why this operation cannot act here — an i18n key — or null when it can.
+ *
+ * Two different sentences, and telling them apart is the whole value: *you are
+ * not in a table* is about where the caret is, and *this is the top row* is
+ * about this operation at this caret. A surface that shows only the second when
+ * the first is true sends the writer looking for a top row they are nowhere
+ * near.
+ */
+export function whyNot(action: StructureAction, doc: string, pos: number): string | null {
+  const ctx = contextAt(doc, pos);
+  if (action.enabled(ctx)) return null;
+  const inside =
+    action.structure === "list"
+      ? ctx.list() !== null
+      : action.structure === "table"
+        ? ctx.table() !== null
+        : ctx.section() !== null;
+  return inside ? action.why : `why.notIn.${action.structure}`;
+}
+
+/**
  * One decision, two callers.
  *
  * `can` is the authority: `run` performs the edit only when `can` agrees, so an
@@ -236,6 +276,7 @@ function onList(
 const LIST_ACTIONS: StructureAction[] = [
   {
     id: "list.addItem",
+    why: "why.notIn.list",
     primary: true,
     structure: "list",
     group: "items",
@@ -248,6 +289,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.splitItem",
+    why: "why.notIn.list",
     primary: true,
     structure: "list",
     group: "items",
@@ -261,6 +303,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.breakInItem",
+    why: "why.notOnItem",
     structure: "list",
     group: "items",
     glyph: "↵",
@@ -276,6 +319,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.deleteItem",
+    why: "why.notOnItem",
     structure: "list",
     group: "items",
     glyph: "✕",
@@ -287,6 +331,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.indent",
+    why: "why.firstItemNoNest",
     primary: true,
     structure: "list",
     group: "level",
@@ -299,6 +344,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.outdent",
+    why: "why.notNestedList",
     structure: "list",
     group: "level",
     glyph: "⇤",
@@ -313,6 +359,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.moveUp",
+    why: "why.noItemAbove",
     structure: "list",
     group: "order",
     glyph: "▲",
@@ -324,6 +371,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.moveDown",
+    why: "why.noItemBelow",
     structure: "list",
     group: "order",
     glyph: "▼",
@@ -335,6 +383,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.bullets",
+    why: "why.alreadyThisKind",
     structure: "list",
     group: "kind",
     glyph: "•",
@@ -346,6 +395,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.numbered",
+    why: "why.alreadyThisKind",
     structure: "list",
     group: "kind",
     glyph: "1.",
@@ -357,6 +407,7 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.hebrew",
+    why: "why.alreadyThisKind",
     structure: "list",
     group: "kind",
     glyph: "א.",
@@ -422,6 +473,7 @@ function stepWidth(t: tables.TableInfo, col: number, by: 1 | -1): string {
 const TABLE_ACTIONS: StructureAction[] = [
   {
     id: "table.rowAbove",
+    why: "why.notIn.table",
     structure: "table",
     group: "rows",
     glyph: "↑＋",
@@ -433,6 +485,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.rowBelow",
+    why: "why.notIn.table",
     primary: true,
     structure: "table",
     group: "rows",
@@ -445,6 +498,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.rowUp",
+    why: "why.topRow",
     structure: "table",
     group: "rows",
     glyph: "▲",
@@ -456,6 +510,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.rowDown",
+    why: "why.bottomRow",
     structure: "table",
     group: "rows",
     glyph: "▼",
@@ -467,6 +522,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.rowDelete",
+    why: "why.lastRowLeft",
     structure: "table",
     group: "rows",
     glyph: "⊖",
@@ -478,6 +534,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.colBefore",
+    why: "why.notIn.table",
     structure: "table",
     group: "cols",
     glyph: "＋←",
@@ -489,6 +546,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.colAfter",
+    why: "why.notIn.table",
     primary: true,
     structure: "table",
     group: "cols",
@@ -501,6 +559,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.colStart",
+    why: "why.columnCannotMove",
     structure: "table",
     group: "cols",
     glyph: "◀",
@@ -512,6 +571,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.colEnd",
+    why: "why.columnCannotMove",
     structure: "table",
     group: "cols",
     glyph: "▶",
@@ -523,6 +583,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.colDelete",
+    why: "why.lastColumnLeft",
     structure: "table",
     group: "cols",
     glyph: "⊗",
@@ -534,6 +595,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.mergeRight",
+    why: "why.noCellRight",
     structure: "table",
     group: "cells",
     glyph: "⇥⇤",
@@ -545,6 +607,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.splitCell",
+    why: "why.notMerged",
     structure: "table",
     group: "cells",
     glyph: "⇤⇥",
@@ -556,6 +619,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.widerColumn",
+    why: "why.widthUnchanged",
     structure: "table",
     group: "width",
     glyph: "↔＋",
@@ -567,6 +631,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.narrowerColumn",
+    why: "why.widthUnchanged",
     structure: "table",
     group: "width",
     glyph: "↔－",
@@ -580,6 +645,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.equalColumns",
+    why: "why.alreadyEqual",
     structure: "table",
     group: "width",
     glyph: "≡",
@@ -591,6 +657,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.autoColumns",
+    why: "why.alreadyAuto",
     structure: "table",
     group: "width",
     glyph: "⤢",
@@ -602,6 +669,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.headerRow",
+    why: "why.headerRowNoChange",
     primary: true,
     structure: "table",
     group: "whole",
@@ -614,6 +682,7 @@ const TABLE_ACTIONS: StructureAction[] = [
   },
   {
     id: "table.delete",
+    why: "why.notIn.table",
     structure: "table",
     group: "whole",
     glyph: "🗑",
@@ -650,6 +719,7 @@ function onHeading(
 const HEADING_ACTIONS: StructureAction[] = [
   {
     id: "heading.promote",
+    why: "why.headingTopLevel",
     primary: true,
     structure: "heading",
     group: "level",
@@ -662,6 +732,7 @@ const HEADING_ACTIONS: StructureAction[] = [
   },
   {
     id: "heading.demote",
+    why: "why.headingDeepest",
     primary: true,
     structure: "heading",
     group: "level",
@@ -677,6 +748,7 @@ const HEADING_ACTIONS: StructureAction[] = [
     // showed three. Generated rather than listed: a level that exists in the
     // model should not also need a hand-written entry here to be reachable.
     id: `heading.level${i + 1}`,
+    why: "why.lineNotHeadable",
     structure: "heading" as const,
     group: "levels",
     glyph: `${i + 1}`,
@@ -691,6 +763,7 @@ const HEADING_ACTIONS: StructureAction[] = [
   })),
   {
     id: "heading.moveUp",
+    why: "why.noSectionToSwap",
     structure: "heading",
     group: "order",
     glyph: "▲",
@@ -702,6 +775,7 @@ const HEADING_ACTIONS: StructureAction[] = [
   },
   {
     id: "heading.moveDown",
+    why: "why.noSectionToSwap",
     structure: "heading",
     group: "order",
     glyph: "▼",
@@ -713,6 +787,7 @@ const HEADING_ACTIONS: StructureAction[] = [
   },
   {
     id: "heading.delete",
+    why: "why.notIn.heading",
     structure: "heading",
     group: "whole",
     glyph: "🗑",
@@ -724,6 +799,7 @@ const HEADING_ACTIONS: StructureAction[] = [
   },
   {
     id: "heading.contents",
+    why: "why.contentsAlready",
     structure: "heading",
     group: "whole",
     glyph: "☰",

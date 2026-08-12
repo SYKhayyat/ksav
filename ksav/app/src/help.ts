@@ -143,10 +143,42 @@ function commandSections(input: HelpInput): HelpSection[] {
   }));
 }
 
+/**
+ * Every mark the editor puts in the margin or under the text.
+ *
+ * One table, and it is the *only* statement of what these mean — `changes.ts`
+ * names its three from it, `styles.css` colours them, and this section prints
+ * it. A legend that is a second hand-written list is a legend that goes stale
+ * the first time a mark is added.
+ *
+ * The inventory's line was: *the change gutter's red wedge means something
+ * exact and is unlabelled*. It is not one wedge. There are three marks in that
+ * gutter alone, plus a fold arrow, a squiggle and a highlighted line, and not
+ * one of them said anything anywhere.
+ */
+export const MARKS: { id: string; glyph: string; what: string }[] = [
+  { id: "mark.added", glyph: "▍", what: "mark.added" },
+  { id: "mark.changed", glyph: "▍", what: "mark.changed" },
+  { id: "mark.removed", glyph: "◤", what: "mark.removed" },
+  { id: "mark.fold", glyph: "▾", what: "mark.fold" },
+  { id: "mark.spell", glyph: "﹏", what: "mark.spell" },
+  { id: "mark.error", glyph: "▮", what: "mark.error" },
+];
+
+/** The legend, as a help section. */
+function marks(input: HelpInput): HelpSection {
+  return {
+    title: "helpMarks",
+    lede: "helpMarksLede",
+    entries: MARKS.map((m) => ({ id: m.id, what: input.t(m.what), how: m.glyph })),
+  };
+}
+
 /** Everything, in the order a reader wants it. */
 export function helpSections(input: HelpInput): HelpSection[] {
   return [
     shortcuts(input),
+    marks(input),
     ...structures(input),
     hydras(input),
     macroSection(input),

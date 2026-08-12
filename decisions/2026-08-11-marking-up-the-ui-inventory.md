@@ -202,11 +202,22 @@ investigated.
       This is not a labelling defect. A mode offered in the settings drawer does
       nothing when selected.
 
-      Two candidate causes, neither confirmed: the dynamic import of
-      `@replit/codemirror-emacs` fails and `extensionFor` returns `[]`, or the
-      extension loads and Ksav's own bindings sit above it despite
-      `Prec.highest`. The next step is to find out which, in the running
-      application.
+      **It works in the dev build.** Driven in Chromium against the Vite dev
+      server: the mode was switched to Emacs, `HELLO WORLD` typed into the
+      document, `C-k` killed to end of line and `C-y` yanked it back — the kill
+      ring, live. `Ctrl+K` is Ksav's own command-palette shortcut and the palette
+      did **not** open, which is the proof that the extension took the key ahead
+      of Ksav's keymap exactly as `Prec.highest` intends.
+
+      So the source is not the fault, and the failure is specific to the build
+      being used. Two shapes, with different causes: in a packaged desktop build
+      the dynamic import of `@replit/codemirror-emacs` may 404 or, worse, hang —
+      `applyMode` awaits it, `lastError` stays null, no extension is ever
+      installed, and nothing anywhere fires, permanently. In a `tauri dev` build
+      it is the same code that was just observed working, and the difference is
+      the WebView2 runtime or the session. The next step is the network tab in
+      the failing application while the mode is switched: a chunk that 404s and a
+      chunk that never resolves are different diseases with one symptom.
 
       Two things made it survivable for as long as it has: `loadError()` in
       `keymodes.ts` records why a load failed and **has no caller anywhere in the

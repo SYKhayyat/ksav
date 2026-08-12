@@ -45,13 +45,14 @@ const ALLOWED = [
   // The sample ordinal on a siman and a seif, for the same reason.
   "[א׳]",
   "[א]",
-  // Enum values. `#הגדרות_זרמים` compares `פריסה` against "מוערם"/"צד", and
-  // `#הגדרות_סקירה` compares `תצוגה` against "סימון"/"סופי"/"מקורי" — Hebrew
-  // literals in the prelude, with no English spelling to give them. This is
-  // the engine's half of the same finding, and it is not fixed here.
-  '"צד"',
-  '"סופי"',
 ];
+
+// What is **not** on that list, and was: `פריסה: "צד"` and `תצוגה: "סופי"`.
+// Those are enum values, compared by the prelude against a fixed set of names
+// rather than used as data, and until `_en_values` existed there was no English
+// spelling to give them — an English command taking an English parameter and a
+// Hebrew value. Two of them, invisible precisely because they are two lines in
+// a file of two thousand. `english_commands.rs` holds the engine's half.
 
 /** What Hebrew survives translation into English, minus what is allowed. */
 function leftover(snippet) {

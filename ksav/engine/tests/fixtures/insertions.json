@@ -1646,7 +1646,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))ds to continue."
+   "source": "A line of prose with some wor#streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))ds to continue."
   },
   {
    "ctx": "prose",
@@ -2024,7 +2024,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#review_config(display: \"סופי\")ds to continue."
+   "source": "A line of prose with some wor#review_config(display: \"final\")ds to continue."
   },
   {
    "ctx": "prose",
@@ -3716,7 +3716,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))One]\n\nBody."
+   "source": "#h1[Chapter #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4094,7 +4094,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #review_config(display: \"סופי\")One]\n\nBody."
+   "source": "#h1[Chapter #review_config(display: \"final\")One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5786,7 +5786,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))inside] continues."
+   "source": "Text#fnote[a note #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6164,7 +6164,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #review_config(display: \"סופי\")inside] continues."
+   "source": "Text#fnote[a note #review_config(display: \"final\")inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7856,7 +7856,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8234,7 +8234,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #review_config(display: \"סופי\")here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #review_config(display: \"final\")here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9926,7 +9926,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\")),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],streams_config(layout: \"side\", streams: (\"Text\", \"Sources\")),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10304,7 +10304,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],review_config(display: \"סופי\"),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],review_config(display: \"final\"),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -11996,7 +11996,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\")),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(streams_config(layout: \"side\", streams: (\"Text\", \"Sources\")),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12374,7 +12374,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(review_config(display: \"סופי\"),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(review_config(display: \"final\"),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14066,7 +14066,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14444,7 +14444,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #review_config(display: \"סופי\")here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #review_config(display: \"final\")here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -16136,7 +16136,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\")), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],streams_config(layout: \"side\", streams: (\"Text\", \"Sources\")), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16514,7 +16514,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],review_config(display: \"סופי\"), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],review_config(display: \"final\"), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -18206,7 +18206,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18584,7 +18584,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #review_config(display: \"סופי\")here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #review_config(display: \"final\")here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -20276,7 +20276,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))Four]\n\nBody."
+   "source": "#h4[Section #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20654,7 +20654,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #review_config(display: \"סופי\")Four]\n\nBody."
+   "source": "#h4[Section #review_config(display: \"final\")Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -22346,7 +22346,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))prayer]"
+   "source": "#siman[1][The laws of #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22724,7 +22724,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #review_config(display: \"סופי\")prayer]"
+   "source": "#siman[1][The laws of #review_config(display: \"final\")prayer]"
   },
   {
    "ctx": "siman-body",
@@ -24416,7 +24416,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#title[The #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))Title]\n\nBody."
+   "source": "#title[The #streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24794,7 +24794,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#title[The #review_config(display: \"סופי\")Title]\n\nBody."
+   "source": "#title[The #review_config(display: \"final\")Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -26486,7 +26486,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))ing] the note body]"
+   "source": "#fnote[#note_heading[Head#streams_config(layout: \"side\", streams: (\"Text\", \"Sources\"))ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26864,7 +26864,7 @@
    "en": "review_config",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#review_config(display: \"סופי\")ing] the note body]"
+   "source": "#fnote[#note_heading[Head#review_config(display: \"final\")ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

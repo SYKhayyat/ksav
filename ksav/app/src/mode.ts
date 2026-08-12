@@ -213,11 +213,12 @@ function nameIn(name: string, lang: Lang): string {
  *     not. It is a typographic choice, not a language.
  *   - **`#siman[א׳]`, `#seif[א]`.** The same: a sample ordinal in the alphabet
  *     the construct is usually numbered in.
- *   - **`פריסה: "צד"`, `תצוגה: "סופי"`.** These are enum values the prelude
- *     compares against Hebrew literals and nothing else, so an English spelling
- *     would be a document that does not compile. The engine, not this table,
- *     is where that gets fixed; `insertions.test.mjs` names them so the gap
- *     stays counted rather than forgotten.
+ * The enum values **are** here — `פריסה: "צד"`, `תצוגה: "סופי"` — and they were
+ * the one thing this table could not fix on its own, because the prelude
+ * compared them against Hebrew literals and nothing else, so an English
+ * spelling would have been a document that does not compile. `_en_values` in
+ * `ksav.typ` now understands both, so writing them in English is a real answer
+ * rather than a plausible one. `english_commands.rs` holds it.
  */
 const CONTENT: readonly (readonly [string, string])[] = [
   ["הערות", "Notes"],
@@ -230,6 +231,13 @@ const CONTENT: readonly (readonly [string, string])[] = [
   ["נוסחאות", "Variants"],
   ["שינויי נוסחאות", "Textual variants"],
   ["תוכן", "Text"],
+  // The two enum values. `_en_values` in the prelude accepts either spelling,
+  // so these translate the same way a command name does.
+  ["מוערם", "stacked"],
+  ["צד", "side"],
+  ["סימון", "marks"],
+  ["סופי", "final"],
+  ["מקורי", "original"],
 ];
 
 const CONTENT_EN: Record<string, string> = Object.fromEntries(CONTENT);

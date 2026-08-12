@@ -80,6 +80,41 @@
 }
 
 // ============================================================
+//  ערכים באנגלית · English parameter *values*
+// ------------------------------------------------------------
+//  An English name for every command and an English name for every parameter
+//  still left `#streams_config(layout: "צד")` and `#review_config(display:
+//  "סופי")` — an English command taking an English parameter and a Hebrew
+//  value, because two parameters in this prelude are compared against a fixed
+//  set of names rather than used as data.
+//
+//  There are only two of them, and that is the point: they were invisible
+//  precisely because they are two lines in a file of two thousand. Every other
+//  value a writer gives is data — a length, a colour, a numbering pattern, a
+//  stream's own name — and data belongs to whoever wrote it, in whatever
+//  language they wrote it in.
+//
+//  `יישור_כותרת` had already solved this for itself, in place, with its own
+//  `in ("חוץ", "חיצוני", "outside", "outer")`. That is the right behaviour and
+//  the wrong shape: a third enum would have needed a third hand-written list.
+//  This is the same answer said once.
+//
+//  Hebrew in, Hebrew out. Nothing here changes what an existing document means.
+#let _en_values = (
+  // הגדרות_זרמים · פריסה
+  stacked: "מוערם",
+  side: "צד",
+  // הגדרות_סקירה · תצוגה
+  marks: "סימון",
+  marked: "סימון",
+  final: "סופי",
+  original: "מקורי",
+)
+
+/// One value, said in Hebrew whichever language it arrived in.
+#let _val(v) = if type(v) == str { _en_values.at(v, default: v) } else { v }
+
+// ============================================================
 //  הערות שכבתיות · layered (tiered) footnotes — per page
 // ------------------------------------------------------------
 //  A note ON a note becomes its own stacked block at the foot of the page,
@@ -835,7 +870,7 @@
           },
         ),
         divider: 30%,
-        side: cfg.at("פריסה", default: "מוערם") == "צד",
+        side: _val(cfg.at("פריסה", default: "מוערם")) == "צד",
       ))
     }
   }
@@ -2427,7 +2462,7 @@
 )
 #let _rv_cfg = state("ksav-rv-cfg", _rv_defaults)
 #let הגדרות_סקירה(..opts) = _rv_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
-#let _rv_mode(c) = c.at("תצוגה", default: "סימון")
+#let _rv_mode(c) = _val(c.at("תצוגה", default: "סימון"))
 #let _rv_by(c, מאת) = if מאת != none and c.at("שמות", default: true) {
   text(size: 0.8em, fill: luma(110), [ ‏(#מאת)])
 } else { none }

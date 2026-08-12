@@ -176,6 +176,58 @@ fn an_english_review_mark_takes_a_name() {
     assert!(page.contains("a new clause"), "{page}");
 }
 
+// ── parameter *values* ──────────────────────────────────────
+
+// An English name for every command and an English name for every parameter
+// still left `#review_config(display: "סופי")` — an English command taking an
+// English parameter and a Hebrew value, because two parameters in this prelude
+// are compared against a fixed set of names rather than used as data.
+//
+// Two, and that is the point: they were invisible precisely because they are
+// two lines in a file of two thousand. Everything else a writer passes is data.
+
+#[test]
+fn a_review_display_mode_can_be_named_in_english() {
+    // "final" is the accepted view: an insertion prints as ordinary text and a
+    // deletion is gone. If the English spelling were not understood, the mode
+    // would fall back to the marked-up view and the deleted words would still
+    // be on the page.
+    let page = text(&render(
+        "#review_config(display: \"final\")
+#inserted[kept] #deleted[dropped]",
+        &ltr(),
+    ));
+    assert!(page.contains("kept"), "{page}");
+    assert!(!page.contains("dropped"), "{page}");
+}
+
+#[test]
+fn the_hebrew_spelling_of_a_value_still_means_what_it_meant() {
+    // Every document written before this existed says סופי, and every one of
+    // them has to keep meaning exactly what it meant.
+    let page = text(&render(
+        "#הגדרות_סקירה(תצוגה: \"סופי\")
+#הוספה[kept] #מחיקה[dropped]",
+        &ltr(),
+    ));
+    assert!(page.contains("kept"), "{page}");
+    assert!(!page.contains("dropped"), "{page}");
+}
+
+#[test]
+fn a_value_that_is_not_an_enum_is_left_alone() {
+    // A stream is named by the writer. "side" is an English *enum* value for
+    // `פריסה`, and it must not be translated when it is somebody's stream
+    // name — which is what a blanket substitution over every string would do.
+    let page = text(&render(
+        "#streams_config(streams: (\"side\",))
+#stream_note(\"side\")[a remark]
+Body.",
+        &ltr(),
+    ));
+    assert!(page.contains("a remark"), "{page}");
+}
+
 // ── the templates ───────────────────────────────────────────────────────────
 
 #[test]

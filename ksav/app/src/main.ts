@@ -40,6 +40,7 @@ import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
+import * as opendocs from "./opendocs";
 import type { DocAsset } from "./docs";
 import { ACTION_COMMAND } from "./actions";
 import * as store from "./store";
@@ -254,24 +255,46 @@ const editorTheme = (dark: boolean) =>
 /** Set while runtime.switching documents, so the editor's own change events don't write
  *  the outgoing document's text over the incoming one. */
 
-/** Switch the editor to another document in the library. */
+/**
+ * Show a document, opening it if it was not already open.
+ *
+ * This used to be a **text edit** into one long-lived editor, which is the
+ * single line of code the whole "no concept of an open document" finding was
+ * hiding behind: one text, one caret, one undo history, for every document a
+ * writer would ever hold. `runtime.swapDocument` made that swap survivable by
+ * resetting the history; it is not called from here any more, because there is
+ * no longer one history to reset.
+ *
+ * A document is a state now (see `opendocs.ts`). Switching stashes what the view
+ * holds for the outgoing document — its text, its caret, its undo stack, where
+ * it was scrolled to — and hands the view the incoming one. Nothing is
+ * reconstructed, so nothing can come back subtly different from how it was left.
+ *
+ * The document being *already open* is the ordinary case now rather than the
+ * only case, and it costs one `setState`.
+ */
 async function openDoc(id: string) {
   const next = await docs.getDoc(id);
   if (!next) return;
+  // Already on screen — and *fully* so. Both halves are checked because closing
+  // a document moves the open set's focus before this runs, so the set can name
+  // a document the view is not yet showing.
+  if (opendocs.focusedId() === id && runtime.currentDoc?.id === id) return;
   await flushSaves();
   runtime.setSwitching(true);
+  stashFocused();
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
   runtime.setCurrentBinding(await files.recallBinding(next.id));
   // Stamp the file as we found it, so "has it changed" has something to mean.
   await watch.markInSync(next.id, runtime.currentBinding);
-  // **Not** a bare `dispatch`. A swap replaces the text of the one editor, and
-  // an editor with one history for its whole life reads that as an undoable
-  // edit — so Ctrl+Z poured the outgoing document's body into the incoming one
-  // and the change listener persisted it there. `swapDocument` resets the
-  // history, which is the rule the comment above `swapUntouchedStarter` has
-  // stated correctly and unenforced since it was written.
-  runtime.swapDocument(next.body);
+  if (!opendocs.isOpen(id)) {
+    opendocs.put({ id, state: makeState(next.body, !!settings.prose), scrollTop: 0, prose: !!settings.prose });
+  }
+  const entry = opendocs.focus(id)!;
+  runtime.view.setState(entry.state);
+  syncGlobals();
+  runtime.view.scrollDOM.scrollTop = entry.scrollTop;
   runtime.setSwitching(false);
   // **Not** `save.markFileSaved()`. That used to be here, and with one global
   // flag for a library of documents it cleared the mark on the document being
@@ -288,6 +311,117 @@ async function openDoc(id: string) {
   rerenderChrome();
   runtime.view.focus();
   scheduleCompile();
+}
+
+/**
+ * The open documents, as a list a person can look at and choose from.
+ *
+ * Most recently used first, which makes the *second* row the answer to "the one
+ * I was just in" — the same order `lastDoc` jumps by, so the key and the panel
+ * cannot disagree about what "last" means.
+ */
+function openSwitcher() {
+  if (opendocs.count() < 2) {
+    setStatus(t("onlyOneOpen"), "");
+    return;
+  }
+  const list = document.getElementById("switcher-list")!;
+  list.replaceChildren(
+    el("div", { class: "menu-cat" }, [t("openDocs")]),
+    ...opendocs.openDocs().map((entry, i) => {
+      const meta = docs.library().find((e) => e.id === entry.id);
+      return el(
+        "button",
+        {
+          class: "pal-item" + (i === 0 ? " active" : ""),
+          onClick: () => {
+            closePanel("switcher");
+            void openDoc(entry.id);
+          },
+        },
+        [
+          el("b", {}, [(i === 0 ? "● " : "") + (meta?.title ?? entry.id)]),
+          el("span", { class: "menu-desc" }, [meta?.fileName ?? ""]),
+        ],
+      );
+    }),
+  );
+  openPanel("switcher");
+}
+
+/** Straight to the document before this one. Nothing to do with one open. */
+function goToLastDoc() {
+  const to = opendocs.previous();
+  if (!to) {
+    setStatus(t("onlyOneOpen"), "");
+    return;
+  }
+  void openDoc(to);
+}
+
+/** Put what the view currently holds back into the open set, before leaving it. */
+function stashFocused() {
+  const id = opendocs.focusedId();
+  if (!id || !runtime.view) return;
+  opendocs.stash(id, runtime.view.state, runtime.view.scrollDOM.scrollTop);
+}
+
+/**
+ * Reconfigure the compartments that belong to the *application* rather than to
+ * the document, after a state swap.
+ *
+ * A state carries the compartment values it was built with, which is right for
+ * the document's own — its prose mode, its direction — and wrong for everything
+ * else: a state created before the writer switched to the dark theme would come
+ * back light, and one created before they rebound a key would come back with
+ * the old binding. Cheaper and far more reliable than trying to reach into every
+ * stored state whenever a setting changes, and it runs once per switch.
+ */
+function syncGlobals() {
+  runtime.view.dispatch({
+    effects: [
+      themeCompartment.reconfigure(editorTheme(settings.theme === "dark")),
+      focusCompartment.reconfigure(focusExtension(!!settings.focusMode, !!settings.typewriter)),
+      shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
+      autoCompartment.reconfigure(autoExtension()),
+      structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
+      // The document's own, and it has to be re-read rather than inherited:
+      // this is the incoming document's direction, not the outgoing one's.
+      dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })),
+    ],
+  });
+  // The editing mode is loaded asynchronously, so it is applied rather than
+  // reconfigured inline — `applyMode` awaits the import and dispatches itself.
+  void keymodes.applyMode(runtime.view, keymodes.isMode(settings.editingMode) ? settings.editingMode : "default");
+}
+
+/**
+ * Close a document — put it away, do not destroy it.
+ *
+ * The distinction the inventory insists on, and the reason the control that does
+ * this must never wear the `×` the Documents menu uses to delete: *"closing and
+ * deleting appearing as the same glyph in two strips is not survivable"*. The
+ * document stays in the library, with its text, its history and its file
+ * binding; what goes is the open state — the caret, the undo stack, the scroll.
+ *
+ * Saved first, unconditionally. Closing something is exactly the moment a writer
+ * assumes their work has been dealt with.
+ */
+async function closeOpenDoc(id: string) {
+  await flushSaves();
+  if (opendocs.focusedId() === id) stashFocused();
+  const next = opendocs.close(id);
+  if (next) {
+    // `openDoc` does the whole switch, and it proceeds because `runtime.currentDoc`
+    // is still the document just closed. One path in, so a document arriving on
+    // screen always arrives the same way.
+    await openDoc(next);
+    return;
+  }
+  // The last one. An editor with no document is not a state this application
+  // has, so closing the only open document opens a new empty one rather than
+  // leaving a writer looking at nothing.
+  await newNamedDoc();
 }
 
 /**
@@ -340,15 +474,29 @@ async function duplicateDoc(id: string) {
   await openDoc(copy.id);
 }
 
+/**
+ * Delete a document from the library.
+ *
+ * Distinct from [`closeOpenDoc`], and the distinction is the point: this
+ * destroys the sefer, that one puts it away. A deleted document also has to
+ * leave the open set — an entry pointing at a record that no longer exists is a
+ * switcher row that opens nothing.
+ */
 async function removeDoc(id: string) {
   const entry = docs.library().find((e) => e.id === id);
   if (!entry) return;
   if (!confirm(tf("confirmDeleteDoc", entry.title))) return;
+  const wasFocused = opendocs.focusedId() === id;
   await docs.deleteDoc(id);
   await files.rememberBinding(id, null);
-  if (runtime.currentDoc.id === id) {
-    const next = docs.library()[0];
-    if (next) await openDoc(next.id);
+  const next = opendocs.close(id);
+  if (wasFocused) {
+    // Whatever was next in the open set, or the library's newest, or a new one.
+    // Three fallbacks because all three are reachable: closing the last open
+    // document of several, deleting the only open one, and deleting the last
+    // document there is.
+    const to = next ?? docs.library().find((e) => e.id !== id)?.id;
+    if (to) await openDoc(to);
     else await newNamedDoc();
   } else {
     rerenderChrome();
@@ -598,6 +746,12 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       return true;
     },
   },
+  // The open set, from the keyboard. Both of them, because they answer different
+  // questions: `lastDoc` is "back to the one I was in" and needs no reading,
+  // `switcher` is "show me what I am holding" and does.
+  { id: "lastDoc", run: () => (goToLastDoc(), true) },
+  { id: "switcher", run: () => (openSwitcher(), true) },
+  { id: "closeDoc", run: () => (void closeOpenDoc(runtime.currentDoc.id), true) },
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
@@ -927,8 +1081,39 @@ function autoExtension() {
  * whole decoration set and the editor goes blank. Putting them in one slot makes
  * that impossible instead of forbidden.
  */
-function proseOrRaw() {
-  return settings.prose ? proseMode : visibleBidiMarks(bidiMarkName);
+function proseOrRaw(prose = proseHere()) {
+  return prose ? proseMode : visibleBidiMarks(bidiMarkName);
+}
+
+/**
+ * Prose or raw, for the document on screen.
+ *
+ * `settings.prose` is now the default a *newly opened* document starts from,
+ * not the answer for the one in front of you. That is the fix for *"I closed
+ * this document and reopened it, and it went into prose mode"*: the mode was an
+ * application-wide flag, so it could not be remembered per document because
+ * there was nowhere for it to be remembered.
+ *
+ * Falls back to the setting before anything is open, which is the state `boot`
+ * is in when it builds the first editor.
+ */
+function proseHere(): boolean {
+  const id = opendocs.focusedId();
+  const doc = id ? opendocs.opened(id) : undefined;
+  return doc ? doc.prose : !!settings.prose;
+}
+
+/** Set prose or raw for the document on screen, and remember it there. */
+function setProseHere(prose: boolean) {
+  const id = opendocs.focusedId();
+  const doc = id ? opendocs.opened(id) : undefined;
+  if (doc) doc.prose = prose;
+  // Still written to settings, because it is the default the *next* document
+  // opens with, and a writer who works in raw should not have to say so again
+  // for every document they open.
+  settings.prose = prose;
+  saveSettings();
+  runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw(prose)) });
 }
 
 /** What to call a bidi control character, in the interface's language. */
@@ -967,10 +1152,23 @@ function toggleIsolateSelection(v: EditorView): boolean {
   return true;
 }
 
-function makeEditor(): EditorView {
-  return new EditorView({
-    doc: runtime.currentDoc.body,
-    parent: document.getElementById("editor-host")!,
+/**
+ * A fresh editor state for one document.
+ *
+ * The extensions used to be spelled inline in `new EditorView({…})`, which meant
+ * there was exactly one state for the life of the tab and therefore exactly one
+ * text, one caret and one undo history — the whole of the "no concept of an open
+ * document" finding, expressed as a constructor call. A state per open document
+ * is CodeMirror's own answer, and `opendocs.ts` is where they are kept.
+ *
+ * `prose` is a parameter rather than a read of `settings.prose` because it is a
+ * property of the document now: a writer marking up somebody else's source and
+ * one composing a sefer want opposite answers and may hold both open at once.
+ * The setting remains the default a newly opened document starts from.
+ */
+function makeState(body: string, prose: boolean): EditorState {
+  return EditorState.create({
+    doc: body,
     extensions: [
       // In a compartment, and owned by `runtime.ts`, because a document swap
       // has to be able to throw the stack away. See `swapDocument` there.
@@ -1042,7 +1240,10 @@ function makeEditor(): EditorView {
       // letter in it answers for itself, and the syntax is held apart from the
       // prose so a command stops migrating through the sentence it is in.
       bidiSupport(() => (docConfig().dir === "ltr" ? "ltr" : "rtl")),
-      proseCompartment.of(proseOrRaw()),
+      // The parameter, not `proseHere()`: a state may be built for a document
+      // that is not the focused one, and asking "what mode is the screen in"
+      // would give it somebody else's answer.
+      proseCompartment.of(proseOrRaw(prose)),
       themeCompartment.of(editorTheme(settings.theme === "dark")),
       spell.misspellings,
       spell.spellDecorations,
@@ -1196,6 +1397,14 @@ function makeEditor(): EditorView {
         }
       }),
     ],
+  });
+}
+
+/** The one editor, holding whichever document is focused. */
+function makeEditor(): EditorView {
+  return new EditorView({
+    state: makeState(runtime.currentDoc.body, !!settings.prose),
+    parent: document.getElementById("editor-host")!,
   });
 }
 
@@ -2185,32 +2394,97 @@ function buildDocsMenu(): HTMLElement {
   return lazyMenu("documents", "🗂 " + t("documents"), docsMenuItems);
 }
 
-/** Rebuilt on every open, so it never shows a stale library. */
+/**
+ * Rebuilt on every open, so it never shows a stale library.
+ *
+ * **Two lists, and they are two different facts.** *Open* is what this session
+ * is holding — with a caret, an undo history and a scroll position each. *All
+ * documents* is what exists. Before the open set they were the same list with a
+ * dot on one row, which is exactly the conflation that made "new document" look
+ * like it had destroyed the open one.
+ *
+ * The controls on each row are deliberately unlike each other. Closing puts a
+ * document away and destroys nothing; deleting destroys it. The inventory is
+ * blunt about this — *"closing and deleting appearing as the same glyph in two
+ * strips is not survivable"* — so the close control is a `⌄` labelled "close",
+ * and `×` continues to mean delete and only delete.
+ */
 function docsMenuItems(): (Node | string)[] {
   const items: (Node | string)[] = [
     el("button", { class: "menu-item", onClick: () => void newNamedDoc() }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
+    // "Save as" already existed, in the File menu. The margin comment asking
+    // *"do we have a save as something else.ksav option?"* was written by
+    // somebody looking at the document's name and its filename side by side and
+    // wondering how to change the second — which is here, not under File. The
+    // command is the same one; this is a second door onto it, at the place the
+    // question gets asked.
+    el("button", { class: "menu-item", onClick: () => void saveFileAs() }, [t("saveAs")]),
     el("button", { class: "menu-item", onClick: () => void duplicateDoc(runtime.currentDoc.id) }, [
       t("duplicate"),
     ]),
-    el("div", { class: "menu-sep" }),
-    el("div", { class: "menu-cat" }, [t("library")]),
   ];
+
+  // The open set, most recently focused first — the order the switcher uses, so
+  // the two surfaces agree about what "the last document" means.
+  const open = opendocs.openDocs();
+  if (open.length > 1) {
+    items.push(el("div", { class: "menu-sep" }));
+    items.push(el("div", { class: "menu-cat" }, [`${t("openDocs")} · ${readable(keybindings().switcher)}`]));
+    for (const entry of open) {
+      const meta = docs.library().find((e) => e.id === entry.id);
+      if (!meta) continue;
+      const here = entry.id === opendocs.focusedId();
+      items.push(
+        el("div", { class: "menu-item-row" }, [
+          el(
+            "button",
+            {
+              class: "menu-item menu-item-main" + (here ? " active" : ""),
+              onClick: () => {
+                closeMenus();
+                void openDoc(entry.id);
+              },
+            },
+            [
+              el("b", {}, [(here ? "● " : "") + meta.title]),
+              el("span", { class: "menu-desc" }, [meta.fileName ?? ""]),
+            ],
+          ),
+          el("button", {
+            class: "menu-close",
+            title: t("closeDoc"),
+            onClick: (e: Event) => {
+              e.stopPropagation();
+              void closeOpenDoc(entry.id);
+            },
+          }, ["⌄"]),
+        ]),
+      );
+    }
+  }
+
+  items.push(el("div", { class: "menu-sep" }));
+  items.push(el("div", { class: "menu-cat" }, [t("library")]));
   for (const entry of docs.library()) {
-    const open = entry.id === runtime.currentDoc?.id;
+    const here = entry.id === opendocs.focusedId();
+    const isOpen = opendocs.isOpen(entry.id);
     items.push(
       el("div", { class: "menu-item-row" }, [
         el(
           "button",
           {
-            class: "menu-item menu-item-main" + (open ? " active" : ""),
+            class: "menu-item menu-item-main" + (here ? " active" : ""),
             onClick: () => {
               closeMenus();
               void openDoc(entry.id);
             },
           },
           [
-            el("b", {}, [(open ? "● " : "") + entry.title]),
+            // A document already open is marked as such, so a writer can see
+            // that choosing it will switch to what they left rather than
+            // reopening it from disk.
+            el("b", {}, [(here ? "● " : isOpen ? "◦ " : "") + entry.title]),
             el("span", { class: "menu-desc" }, [
               [entry.fileName, new Date(entry.updated).toLocaleString()].filter(Boolean).join(" · "),
             ]),
@@ -2535,7 +2809,7 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
   language: () => setSetting("lang", getLang() === "he" ? "en" : "he"),
   foldAll: () => void foldAll(runtime.view),
   unfoldAll: () => void unfoldAll(runtime.view),
-  prose: () => setSetting("prose", !settings.prose),
+  prose: () => setProseHere(!proseHere()),
   layout: cycleLayout,
   previewSide: cyclePreviewSide,
   theme: () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
@@ -2550,7 +2824,7 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
 function headerState(): header.HeaderState {
   return {
     theme: settings.theme,
-    prose: settings.prose,
+    prose: proseHere(),
     layout: settings.layout,
     previewSide: settings.previewSide || "left",
     // Three of these are optional settings and one is the recorder's own
@@ -6170,17 +6444,21 @@ function wireSplitter() {
   });
 }
 
-// Cycle split → page (Word-like) → source. Entering page mode turns on prose so
-// you see formatting, not markup.
+// Cycle split → page (Word-like) → source.
+//
+// It used to switch **prose mode on** as a side effect of reaching page view,
+// with a comment explaining that you want to see formatting there rather than
+// markup. The margin comment on it was *"this seems to turn on prose mode — a
+// side effect, which it should advertise, and probably not do"*, and that is
+// exactly right on both counts: a chip labelled with a layout that also changes
+// how the *source* is displayed is a chip that does two things and says one.
+//
+// It is gone rather than announced. Page view shows the printed page; whether
+// the source beside it is prose or raw is a separate question with a separate
+// control, and the writer had already answered it.
 function cycleLayout() {
   const order: Layout[] = ["two", "page", "source"];
-  const next = order[(order.indexOf(settings.layout) + 1) % order.length];
-  if (next === "page" && !settings.prose) {
-    settings.prose = true;
-    saveSettings();
-    runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseMode) });
-  }
-  setSetting("layout", next);
+  setSetting("layout", order[(order.indexOf(settings.layout) + 1) % order.length]);
 }
 
 function openPreviewOverlay() {
@@ -6291,6 +6569,11 @@ function render() {
         }),
       el("div", { id: "palette-list" }),
     ]),
+    // The open-document switcher. Deliberately its own surface and not a row in
+    // the palette: with several documents open, a strip of chrome cannot be an
+    // inventory of what is open and also stay out of the way, so this is the
+    // surface that tells that truth. Tabs for the eye, switcher for the hand.
+    overlayPanel("switcher", "palette-box", [el("div", { id: "switcher-list" })]),
     // floating preview (page mode): a button + a modal showing the rendered pages
     el("button", {
       id: "float-preview-btn",
@@ -6323,6 +6606,16 @@ function render() {
   );
 
   runtime.setView(makeEditor());
+  // The document boot built the editor around is open, and is the focused one.
+  // Said here rather than inside `makeEditor` because the open set is a fact
+  // about the application, and the editor is one view onto it.
+  opendocs.put({
+    id: runtime.currentDoc.id,
+    state: runtime.view.state,
+    scrollTop: 0,
+    prose: !!settings.prose,
+  });
+  opendocs.focus(runtime.currentDoc.id);
   // A diagnostic that names a line has to be able to go there, and the line has
   // to be visible in the editor. `diagview` knows nothing about CodeMirror and
   // does not need to; it asks.
@@ -6373,12 +6666,12 @@ function wireKeys() {
       // so did this. Said once now, and unconditionally, because the panels
       // themselves no longer run their side effects when they were not open.
       runtime.view?.focus();
-    } else if (e.key === "Alt" && settings.prose) {
+    } else if (e.key === "Alt" && proseHere()) {
       runtime.view.dispatch({ effects: setRevealAll.of(true) });
     }
   });
   window.addEventListener("keyup", (e) => {
-    if (e.key === "Alt" && settings.prose) runtime.view.dispatch({ effects: setRevealAll.of(false) });
+    if (e.key === "Alt" && proseHere()) runtime.view.dispatch({ effects: setRevealAll.of(false) });
   });
   window.addEventListener("click", (e) => {
     closeMenus();

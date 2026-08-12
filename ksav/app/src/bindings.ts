@@ -106,6 +106,19 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // is the caret's, and taking it cost a writer the ability to click into their
   // own spell-checked words at all.
   spellSuggest: "Mod-.",
+  // Straight back to the document you were just in. Not a convenience: with
+  // several documents open, no strip of chrome can be an inventory of what is
+  // open *and* stay out of the way, so the keyboard is the surface that tells
+  // that truth. `Mod-Alt-Tab` rather than the bare `Ctrl+Tab` a browser uses,
+  // because a browser tab is what would swallow it.
+  lastDoc: "Mod-Alt-Tab",
+  // The full list, most recently used first, as a panel.
+  switcher: "Mod-Alt-o",
+  // Put this document away. Deliberately **not** `Mod-w`: that is the browser's
+  // close-tab and the desktop shell's close-window, and a key that sometimes
+  // puts a document away and sometimes ends the session is not one anybody can
+  // press without checking first.
+  closeDoc: "Mod-Alt-w",
   // Deferred note bodies. `deferJump` is the workhorse — org-mode's C-c C-c —
   // and gets the mnemonic key; the two that move prose around sit beside it.
   deferJump: "Mod-Alt-j",

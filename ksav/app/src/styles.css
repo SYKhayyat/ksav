@@ -143,6 +143,19 @@ header {
 }
 .menu-del:hover { color: var(--danger); background: var(--accent-soft); }
 
+/* Closing a document, which is not deleting one.
+   These two controls sit in the same menu on rows that look alike, and the
+   inventory is blunt about what happens if they also *read* alike: "closing and
+   deleting appearing as the same glyph in two strips is not survivable". So the
+   glyph differs (a chevron, not a cross), and the hover colour differs too —
+   `.menu-del` goes red on hover because it destroys something, and this one
+   does not, because it does not. */
+.menu-close {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 14px; padding: 4px 8px; border-radius: 6px;
+}
+.menu-close:hover { color: var(--fg); background: var(--accent-soft); }
+
 /* ---- main split (flex: resizable + repositionable) ----
    <main> is forced LTR so preview side is physical (left/right/top/bottom),
    independent of the UI's reading direction. Panes/editor keep their own dir. */

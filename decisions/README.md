@@ -65,6 +65,7 @@ something in.
 | [2026-08-09 · The three-repository report](2026-08-09-lamdan-three-repos.md) | *The diagnosis is written down correctly and the sweep never runs* — eighteen classes, worked one at a time |
 | [2026-08-10 · Fixed regions and peer streams](2026-08-10-regions-and-streams.md) | Percent-of-sheet heights, any number of regions, and regions for peer streams — the engine could already do more than the product could say |
 | [2026-08-11 · Marking up the UI inventory](2026-08-11-marking-up-the-ui-inventory.md) | 156 offers handed over for markup: the seven complaints that were one missing concept, and the documents/panes/tabs model that answers them |
+| [2026-08-12 · No preference ever survived a reload](2026-08-12-no-preference-ever-survived-a-reload.md) | A temporal-dead-zone ReferenceError in `loadSettings`, swallowed by a catch written for corrupt JSON, discarded every stored preference on every boot — which is why emacs mode did nothing |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

@@ -63,6 +63,9 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+P` | Where did this print? | היכן זה נדפס? |
 | `Ctrl+Alt+X` | Isolate the selection's direction | בידוד כיווניות לקטע |
 | `Ctrl+.` | Spelling suggestions for the word at the caret | הצעות איות למילה שבסמן |
+| `Ctrl+Alt+Tab` | Back to the previous document | חזרה למסמך הקודם |
+| `Ctrl+Alt+O` | List the open documents | רשימת המסמכים הפתוחים |
+| `Ctrl+Alt+W` | Close this document (it stays in the library) | סגירת המסמך (נשאר בספרייה) |
 | `Ctrl+Alt+J` | Jump between a note's marker and its body | מעבר בין הסימון לגוף ההערה |
 | `Ctrl+Alt+Shift+F` | Send this note's text to the end | העברת ההערה לסוף |
 | `Ctrl+Alt+R` | Bring this note back into the sentence | החזרת ההערה למשפט |

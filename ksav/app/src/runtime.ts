@@ -15,7 +15,6 @@
 // dependency is deliberate, where a circular import would only hide it.
 
 import { docTextOf } from "./spans";
-import { Compartment } from "@codemirror/state";
 import { history } from "@codemirror/commands";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -45,56 +44,25 @@ export function replaceAll(next: string) {
 
 // ---------------------------------------------------------------- the undo history
 //
-// The history lives here, in a compartment, because a **document swap is not an
-// edit** and one long-lived editor cannot tell the difference on its own.
+// A **document swap is not an edit**, and this is where that stopped being a
+// sentence in a comment and became a property of the program.
 //
-// `openDoc` switches documents by replacing the text of the single editor. With
-// one history for the life of that editor, the replace is an ordinary undoable
-// edit, so Ctrl+Z after opening a second document wrote the *first* document's
-// body onto the screen while the second one was the open document — and the
-// change listener then persisted it there. One document's text inside another,
-// and both of them now mislabelled.
+// `openDoc` used to switch documents by replacing the text of one long-lived
+// editor. With one history for the life of that editor, the replace was an
+// ordinary undoable edit, so Ctrl+Z after opening a second document wrote the
+// *first* document's body onto the screen while the second one was the open
+// document — and the change listener then persisted it there. One document's
+// text inside another, and both of them mislabelled.
 //
-// The rule was already written down, in the comment above `swapUntouchedStarter`
-// in `main.ts`: there is no undo across a document swap. Nothing enforced it,
-// because the history extension has no idea a swap happened. `swapDocument` is
-// what tells it, and it is here rather than in `main.ts` so that a test can hold
-// the same extension and the same function a writer does.
+// The first fix here was a compartment the swap could reset. That is gone,
+// because the open set replaced the swap itself: an open document *is* an
+// `EditorState`, and a state carries its own history, so there is no stack to
+// reset because there was never one stack. See `opendocs.ts`. What is left is
+// the extension every state installs.
 
-const historyCompartment = new Compartment();
-
-/** The undo history, as the editor should install it. */
+/** The undo history, as every document's state installs it. */
 export function historyExtension(): Extension {
-  return historyCompartment.of(history());
-}
-
-/**
- * Throw the undo stack away.
- *
- * Two transactions, and it has to be two: reconfiguring a compartment to a
- * value equivalent to the one it already holds leaves the existing state field
- * — and therefore the stack — exactly where it was. Removing the extension
- * drops the field; putting it back builds a fresh one with nothing in it.
- */
-export function resetHistory() {
-  view.dispatch({ effects: historyCompartment.reconfigure([]) });
-  view.dispatch({ effects: historyCompartment.reconfigure(history()) });
-}
-
-/**
- * Put another document's text in the editor, with no way back to the last one.
- *
- * The reset goes *after* the replace, because the replace is the last thing the
- * outgoing document's history could have held. Neither reconfiguration changes
- * the document, so nothing keyed off `docChanged` — the autosave, the compile,
- * the macro recorder — sees anything at all.
- */
-export function swapDocument(body: string) {
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: body },
-    selection: { anchor: 0 },
-  });
-  resetHistory();
+  return history();
 }
 
 /** Put the cursor somewhere and scroll it into sight. */

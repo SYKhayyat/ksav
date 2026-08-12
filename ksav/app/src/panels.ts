@@ -188,6 +188,10 @@ export const PANELS: readonly Panel[] = [
     exits: [{ via: "head" }, { via: "scrim" }],
   },
   { id: "palette", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
+  // The open documents, most recently used first. Declared like every other
+  // surface, which is what gets it an Escape and a dismissing backdrop without
+  // anybody remembering to add one.
+  { id: "switcher", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
   {
     id: "notes-chooser",
     kind: "modal",

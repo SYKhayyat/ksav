@@ -61,6 +61,15 @@ export function plan(
   to: number,
   selText: string,
   rawSnippet: string,
+  /**
+   * The language to write in when the document has said nothing yet — the page
+   * direction, which the shell knows and this does not.
+   *
+   * A blank left-to-right document used to take a Hebrew first command, and
+   * that one command was then the majority the *next* insertion consulted. See
+   * `mode.docLang`.
+   */
+  whenSilent: "he" | "en" = "he",
 ): Insertion {
   const snippetInSeries = continueSeries(doc, from, rawSnippet);
 
@@ -78,7 +87,7 @@ export function plan(
     if (!legality.ok) return { kind: "refuse", reason: legality.reason! };
   }
 
-  const snippet = insertionAt(doc, from, snippetInSeries, to);
+  const snippet = insertionAt(doc, from, snippetInSeries, to, whenSilent);
   const pipe = snippet.indexOf("|");
   if (pipe < 0) return { kind: "edit", text: snippet, cursor: snippet.length };
   // The `|` is where the caret goes, and where a selection is wrapped. Both, and

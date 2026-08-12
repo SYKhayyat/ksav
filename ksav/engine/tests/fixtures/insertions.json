@@ -323,7 +323,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "שורה של פרוזה ובה מלים#רשימת_הגדרות(\n  הגדרה[מונח][],\n)אחרות להמשך."
+   "source": "שורה של פרוזה ובה מלים#רשימת_הגדרות(\n  הגדרה[][],\n)אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -809,7 +809,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "שורה של פרוזה ובה מלים#פסוק[מקור][]אחרות להמשך."
+   "source": "שורה של פרוזה ובה מלים#פסוק[][]אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -836,7 +836,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "שורה של פרוזה ובה מלים#גמרא[ברכות][ב.]אחרות להמשך."
+   "source": "שורה של פרוזה ובה מלים#גמרא[][]אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -863,7 +863,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "שורה של פרוזה ובה מלים#ציון_מקור(\"\", מקום: \"ב.\")אחרות להמשך."
+   "source": "שורה של פרוזה ובה מלים#ציון_מקור(\"\", מקום: \"\")אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -908,7 +908,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "שורה של פרוזה ובה מלים#עם_פירוש([], [הפירוש])אחרות להמשך."
+   "source": "שורה של פרוזה ובה מלים#עם_פירוש([], [])אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -1349,7 +1349,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#פריט[]ds to continue."
+   "source": "A line of prose with some wor#item[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1358,7 +1358,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#deflist(\n  defitem[מונח][],\n)ds to continue."
+   "source": "A line of prose with some wor#deflist(\n  defitem[][],\n)ds to continue."
   },
   {
    "ctx": "prose",
@@ -1385,7 +1385,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#תא[]ds to continue."
+   "source": "A line of prose with some wor#cell[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1394,7 +1394,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#כותרת_תא[]ds to continue."
+   "source": "A line of prose with some wor#headcell[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1520,7 +1520,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#banded_notes(title: [הערות])ds to continue."
+   "source": "A line of prose with some wor#banded_notes(title: [Notes])ds to continue."
   },
   {
    "ctx": "prose",
@@ -1547,7 +1547,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#endnotes(title: [הערות])ds to continue."
+   "source": "A line of prose with some wor#endnotes(title: [Notes])ds to continue."
   },
   {
    "ctx": "prose",
@@ -1565,7 +1565,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))ds to continue."
+   "source": "A line of prose with some wor#endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))ds to continue."
   },
   {
    "ctx": "prose",
@@ -1619,7 +1619,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#stream_note(\"מקורות\")[]ds to continue."
+   "source": "A line of prose with some wor#stream_note(\"Sources\")[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1646,7 +1646,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))ds to continue."
+   "source": "A line of prose with some wor#streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))ds to continue."
   },
   {
    "ctx": "prose",
@@ -1844,7 +1844,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#verse[מקור][]ds to continue."
+   "source": "A line of prose with some wor#verse[][]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1871,7 +1871,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#gemara[ברכות][ב.]ds to continue."
+   "source": "A line of prose with some wor#gemara[][]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1898,7 +1898,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#sourceref(\"\", place: \"ב.\")ds to continue."
+   "source": "A line of prose with some wor#sourceref(\"\", place: \"\")ds to continue."
   },
   {
    "ctx": "prose",
@@ -1943,7 +1943,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#commentary([], [הפירוש])ds to continue."
+   "source": "A line of prose with some wor#commentary([], [])ds to continue."
   },
   {
    "ctx": "prose",
@@ -2393,7 +2393,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#כותרת1[פרק #רשימת_הגדרות(\n  הגדרה[מונח][],\n)ראשון]\n\nגוף."
+   "source": "#כותרת1[פרק #רשימת_הגדרות(\n  הגדרה[][],\n)ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -2879,7 +2879,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#כותרת1[פרק #פסוק[מקור][]ראשון]\n\nגוף."
+   "source": "#כותרת1[פרק #פסוק[][]ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -2906,7 +2906,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#כותרת1[פרק #גמרא[ברכות][ב.]ראשון]\n\nגוף."
+   "source": "#כותרת1[פרק #גמרא[][]ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -2933,7 +2933,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#כותרת1[פרק #ציון_מקור(\"\", מקום: \"ב.\")ראשון]\n\nגוף."
+   "source": "#כותרת1[פרק #ציון_מקור(\"\", מקום: \"\")ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -2978,7 +2978,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#כותרת1[פרק #עם_פירוש([], [הפירוש])ראשון]\n\nגוף."
+   "source": "#כותרת1[פרק #עם_פירוש([], [])ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -3419,7 +3419,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #פריט[]One]\n\nBody."
+   "source": "#h1[Chapter #item[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3428,7 +3428,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #deflist(\n  defitem[מונח][],\n)One]\n\nBody."
+   "source": "#h1[Chapter #deflist(\n  defitem[][],\n)One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3455,7 +3455,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #תא[]One]\n\nBody."
+   "source": "#h1[Chapter #cell[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3464,7 +3464,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #כותרת_תא[]One]\n\nBody."
+   "source": "#h1[Chapter #headcell[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3590,7 +3590,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #banded_notes(title: [הערות])One]\n\nBody."
+   "source": "#h1[Chapter #banded_notes(title: [Notes])One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3617,7 +3617,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #endnotes(title: [הערות])One]\n\nBody."
+   "source": "#h1[Chapter #endnotes(title: [Notes])One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3635,7 +3635,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))One]\n\nBody."
+   "source": "#h1[Chapter #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3689,7 +3689,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #stream_note(\"מקורות\")[]One]\n\nBody."
+   "source": "#h1[Chapter #stream_note(\"Sources\")[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3716,7 +3716,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))One]\n\nBody."
+   "source": "#h1[Chapter #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3914,7 +3914,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #verse[מקור][]One]\n\nBody."
+   "source": "#h1[Chapter #verse[][]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3941,7 +3941,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #gemara[ברכות][ב.]One]\n\nBody."
+   "source": "#h1[Chapter #gemara[][]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -3968,7 +3968,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #sourceref(\"\", place: \"ב.\")One]\n\nBody."
+   "source": "#h1[Chapter #sourceref(\"\", place: \"\")One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4013,7 +4013,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #commentary([], [הפירוש])One]\n\nBody."
+   "source": "#h1[Chapter #commentary([], [])One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4463,7 +4463,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "טקסט#הערה[הערה #רשימת_הגדרות(\n  הגדרה[מונח][],\n)פנימית] המשך."
+   "source": "טקסט#הערה[הערה #רשימת_הגדרות(\n  הגדרה[][],\n)פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -4949,7 +4949,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "טקסט#הערה[הערה #פסוק[מקור][]פנימית] המשך."
+   "source": "טקסט#הערה[הערה #פסוק[][]פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -4976,7 +4976,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "טקסט#הערה[הערה #גמרא[ברכות][ב.]פנימית] המשך."
+   "source": "טקסט#הערה[הערה #גמרא[][]פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -5003,7 +5003,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "טקסט#הערה[הערה #ציון_מקור(\"\", מקום: \"ב.\")פנימית] המשך."
+   "source": "טקסט#הערה[הערה #ציון_מקור(\"\", מקום: \"\")פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -5048,7 +5048,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "טקסט#הערה[הערה #עם_פירוש([], [הפירוש])פנימית] המשך."
+   "source": "טקסט#הערה[הערה #עם_פירוש([], [])פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -5489,7 +5489,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #פריט[]inside] continues."
+   "source": "Text#fnote[a note #item[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5498,7 +5498,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #deflist(\n  defitem[מונח][],\n)inside] continues."
+   "source": "Text#fnote[a note #deflist(\n  defitem[][],\n)inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5525,7 +5525,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #תא[]inside] continues."
+   "source": "Text#fnote[a note #cell[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5534,7 +5534,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #כותרת_תא[]inside] continues."
+   "source": "Text#fnote[a note #headcell[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5660,7 +5660,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #banded_notes(title: [הערות])inside] continues."
+   "source": "Text#fnote[a note #banded_notes(title: [Notes])inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5687,7 +5687,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #endnotes(title: [הערות])inside] continues."
+   "source": "Text#fnote[a note #endnotes(title: [Notes])inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5705,7 +5705,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))inside] continues."
+   "source": "Text#fnote[a note #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5759,7 +5759,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #stream_note(\"מקורות\")[]inside] continues."
+   "source": "Text#fnote[a note #stream_note(\"Sources\")[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5786,7 +5786,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))inside] continues."
+   "source": "Text#fnote[a note #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))inside] continues."
   },
   {
    "ctx": "note-body",
@@ -5984,7 +5984,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #verse[מקור][]inside] continues."
+   "source": "Text#fnote[a note #verse[][]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6011,7 +6011,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #gemara[ברכות][ב.]inside] continues."
+   "source": "Text#fnote[a note #gemara[][]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6038,7 +6038,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #sourceref(\"\", place: \"ב.\")inside] continues."
+   "source": "Text#fnote[a note #sourceref(\"\", place: \"\")inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6083,7 +6083,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #commentary([], [הפירוש])inside] continues."
+   "source": "Text#fnote[a note #commentary([], [])inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6533,7 +6533,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #רשימת_הגדרות(\n  הגדרה[מונח][],\n)כאן],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #רשימת_הגדרות(\n  הגדרה[][],\n)כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7019,7 +7019,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #פסוק[מקור][]כאן],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #פסוק[][]כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7046,7 +7046,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #גמרא[ברכות][ב.]כאן],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #גמרא[][]כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7073,7 +7073,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #ציון_מקור(\"\", מקום: \"ב.\")כאן],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #ציון_מקור(\"\", מקום: \"\")כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7118,7 +7118,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #עם_פירוש([], [הפירוש])כאן],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #עם_פירוש([], [])כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7559,7 +7559,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #פריט[]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #item[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7568,7 +7568,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #deflist(\n  defitem[מונח][],\n)here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #deflist(\n  defitem[][],\n)here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7595,7 +7595,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #תא[]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #cell[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7604,7 +7604,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #כותרת_תא[]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #headcell[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7730,7 +7730,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #banded_notes(title: [הערות])here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #banded_notes(title: [Notes])here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7757,7 +7757,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #endnotes(title: [הערות])here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #endnotes(title: [Notes])here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7775,7 +7775,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7829,7 +7829,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #stream_note(\"מקורות\")[]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #stream_note(\"Sources\")[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7856,7 +7856,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8054,7 +8054,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #verse[מקור][]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #verse[][]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8081,7 +8081,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #gemara[ברכות][ב.]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #gemara[][]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8108,7 +8108,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #sourceref(\"\", place: \"ב.\")here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #sourceref(\"\", place: \"\")here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8153,7 +8153,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #commentary([], [הפירוש])here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #commentary([], [])here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8603,7 +8603,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],רשימת_הגדרות(\n  הגדרה[מונח][],\n),\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון],רשימת_הגדרות(\n  הגדרה[][],\n),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9089,7 +9089,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],פסוק[מקור][],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון],פסוק[][],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9116,7 +9116,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],גמרא[ברכות][ב.],\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון],גמרא[][],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9143,7 +9143,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],ציון_מקור(\"\", מקום: \"ב.\"),\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון],ציון_מקור(\"\", מקום: \"\"),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9188,7 +9188,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],עם_פירוש([], [הפירוש]),\n  פריט[שני],\n)"
+   "source": "#רשימה(\n  פריט[ראשון],עם_פירוש([], []),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9629,7 +9629,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],פריט[],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],item[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9638,7 +9638,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],deflist(\n  defitem[מונח][],\n),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],deflist(\n  defitem[][],\n),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9665,7 +9665,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],תא[],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],cell[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9674,7 +9674,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],כותרת_תא[],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],headcell[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9800,7 +9800,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],banded_notes(title: [הערות]),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],banded_notes(title: [Notes]),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9827,7 +9827,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],endnotes(title: [הערות]),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],endnotes(title: [Notes]),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9845,7 +9845,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות])),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources])),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9899,7 +9899,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],stream_note(\"מקורות\")[],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],stream_note(\"Sources\")[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9926,7 +9926,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\")),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\")),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10124,7 +10124,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],verse[מקור][],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],verse[][],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10151,7 +10151,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],gemara[ברכות][ב.],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],gemara[][],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10178,7 +10178,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],sourceref(\"\", place: \"ב.\"),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],sourceref(\"\", place: \"\"),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10223,7 +10223,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],commentary([], [הפירוש]),\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],commentary([], []),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10673,7 +10673,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(רשימת_הגדרות(\n  הגדרה[מונח][],\n),\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#רשימה(רשימת_הגדרות(\n  הגדרה[][],\n),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11159,7 +11159,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(פסוק[מקור][],\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#רשימה(פסוק[][],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11186,7 +11186,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(גמרא[ברכות][ב.],\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#רשימה(גמרא[][],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11213,7 +11213,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(ציון_מקור(\"\", מקום: \"ב.\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#רשימה(ציון_מקור(\"\", מקום: \"\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11258,7 +11258,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(עם_פירוש([], [הפירוש]),\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#רשימה(עם_פירוש([], []),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11699,7 +11699,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#bullets(פריט[],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(item[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11708,7 +11708,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#bullets(deflist(\n  defitem[מונח][],\n),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(deflist(\n  defitem[][],\n),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11735,7 +11735,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(תא[],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(cell[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11744,7 +11744,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(כותרת_תא[],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(headcell[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11870,7 +11870,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(banded_notes(title: [הערות]),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(banded_notes(title: [Notes]),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11897,7 +11897,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(endnotes(title: [הערות]),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(endnotes(title: [Notes]),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11915,7 +11915,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#bullets(endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות])),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources])),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11969,7 +11969,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#bullets(stream_note(\"מקורות\")[],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(stream_note(\"Sources\")[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11996,7 +11996,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\")),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\")),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12194,7 +12194,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#bullets(verse[מקור][],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(verse[][],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12221,7 +12221,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#bullets(gemara[ברכות][ב.],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(gemara[][],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12248,7 +12248,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#bullets(sourceref(\"\", place: \"ב.\"),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(sourceref(\"\", place: \"\"),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12293,7 +12293,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#bullets(commentary([], [הפירוש]),\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(commentary([], []),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12743,7 +12743,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #רשימת_הגדרות(\n  הגדרה[מונח][],\n)כאן], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #רשימת_הגדרות(\n  הגדרה[][],\n)כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13229,7 +13229,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #פסוק[מקור][]כאן], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #פסוק[][]כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13256,7 +13256,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #גמרא[ברכות][ב.]כאן], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #גמרא[][]כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13283,7 +13283,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #ציון_מקור(\"\", מקום: \"ב.\")כאן], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #ציון_מקור(\"\", מקום: \"\")כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13328,7 +13328,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #עם_פירוש([], [הפירוש])כאן], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #עם_פירוש([], [])כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13769,7 +13769,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #פריט[]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #item[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13778,7 +13778,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #deflist(\n  defitem[מונח][],\n)here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #deflist(\n  defitem[][],\n)here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13805,7 +13805,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #תא[]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #cell[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13814,7 +13814,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #כותרת_תא[]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #headcell[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13940,7 +13940,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #banded_notes(title: [הערות])here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #banded_notes(title: [Notes])here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13967,7 +13967,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #endnotes(title: [הערות])here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #endnotes(title: [Notes])here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13985,7 +13985,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14039,7 +14039,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #stream_note(\"מקורות\")[]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #stream_note(\"Sources\")[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14066,7 +14066,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14264,7 +14264,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #verse[מקור][]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #verse[][]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14291,7 +14291,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #gemara[ברכות][ב.]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #gemara[][]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14318,7 +14318,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #sourceref(\"\", place: \"ב.\")here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #sourceref(\"\", place: \"\")here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14363,7 +14363,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #commentary([], [הפירוש])here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #commentary([], [])here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14813,7 +14813,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],רשימת_הגדרות(\n  הגדרה[מונח][],\n), תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],רשימת_הגדרות(\n  הגדרה[][],\n), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15299,7 +15299,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],פסוק[מקור][], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],פסוק[][], תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15326,7 +15326,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],גמרא[ברכות][ב.], תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],גמרא[][], תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15353,7 +15353,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],ציון_מקור(\"\", מקום: \"ב.\"), תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],ציון_מקור(\"\", מקום: \"\"), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15398,7 +15398,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],עם_פירוש([], [הפירוש]), תא[שתים],\n)"
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],עם_פירוש([], []), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15839,7 +15839,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],פריט[], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],item[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15848,7 +15848,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],deflist(\n  defitem[מונח][],\n), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],deflist(\n  defitem[][],\n), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15875,7 +15875,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],תא[], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],cell[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15884,7 +15884,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],כותרת_תא[], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],headcell[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16010,7 +16010,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],banded_notes(title: [הערות]), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],banded_notes(title: [Notes]), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16037,7 +16037,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],endnotes(title: [הערות]), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],endnotes(title: [Notes]), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16055,7 +16055,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות])), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources])), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16109,7 +16109,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],stream_note(\"מקורות\")[], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],stream_note(\"Sources\")[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16136,7 +16136,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\")), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\")), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16334,7 +16334,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],verse[מקור][], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],verse[][], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16361,7 +16361,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],gemara[ברכות][ב.], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],gemara[][], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16388,7 +16388,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],sourceref(\"\", place: \"ב.\"), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],sourceref(\"\", place: \"\"), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16433,7 +16433,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],commentary([], [הפירוש]), cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],commentary([], []), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16883,7 +16883,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #רשימת_הגדרות(\n  הגדרה[מונח][],\n)כאן] סוף],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #רשימת_הגדרות(\n  הגדרה[][],\n)כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17369,7 +17369,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #פסוק[מקור][]כאן] סוף],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #פסוק[][]כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17396,7 +17396,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #גמרא[ברכות][ב.]כאן] סוף],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #גמרא[][]כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17423,7 +17423,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #ציון_מקור(\"\", מקום: \"ב.\")כאן] סוף],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #ציון_מקור(\"\", מקום: \"\")כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17468,7 +17468,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #עם_פירוש([], [הפירוש])כאן] סוף],\n)"
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #עם_פירוש([], [])כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17909,7 +17909,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #פריט[]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #item[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17918,7 +17918,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #deflist(\n  defitem[מונח][],\n)here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #deflist(\n  defitem[][],\n)here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17945,7 +17945,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #תא[]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #cell[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -17954,7 +17954,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #כותרת_תא[]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #headcell[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18080,7 +18080,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #banded_notes(title: [הערות])here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #banded_notes(title: [Notes])here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18107,7 +18107,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #endnotes(title: [הערות])here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #endnotes(title: [Notes])here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18125,7 +18125,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18179,7 +18179,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #stream_note(\"מקורות\")[]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #stream_note(\"Sources\")[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18206,7 +18206,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18404,7 +18404,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #verse[מקור][]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #verse[][]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18431,7 +18431,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #gemara[ברכות][ב.]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #gemara[][]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18458,7 +18458,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #sourceref(\"\", place: \"ב.\")here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #sourceref(\"\", place: \"\")here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18503,7 +18503,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #commentary([], [הפירוש])here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #commentary([], [])here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18953,7 +18953,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#כותרת4[פרק #רשימת_הגדרות(\n  הגדרה[מונח][],\n)רביעי]\n\nגוף."
+   "source": "#כותרת4[פרק #רשימת_הגדרות(\n  הגדרה[][],\n)רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -19439,7 +19439,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#כותרת4[פרק #פסוק[מקור][]רביעי]\n\nגוף."
+   "source": "#כותרת4[פרק #פסוק[][]רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -19466,7 +19466,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#כותרת4[פרק #גמרא[ברכות][ב.]רביעי]\n\nגוף."
+   "source": "#כותרת4[פרק #גמרא[][]רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -19493,7 +19493,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#כותרת4[פרק #ציון_מקור(\"\", מקום: \"ב.\")רביעי]\n\nגוף."
+   "source": "#כותרת4[פרק #ציון_מקור(\"\", מקום: \"\")רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -19538,7 +19538,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#כותרת4[פרק #עם_פירוש([], [הפירוש])רביעי]\n\nגוף."
+   "source": "#כותרת4[פרק #עם_פירוש([], [])רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -19979,7 +19979,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #פריט[]Four]\n\nBody."
+   "source": "#h4[Section #item[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -19988,7 +19988,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #deflist(\n  defitem[מונח][],\n)Four]\n\nBody."
+   "source": "#h4[Section #deflist(\n  defitem[][],\n)Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20015,7 +20015,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #תא[]Four]\n\nBody."
+   "source": "#h4[Section #cell[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20024,7 +20024,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #כותרת_תא[]Four]\n\nBody."
+   "source": "#h4[Section #headcell[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20150,7 +20150,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #banded_notes(title: [הערות])Four]\n\nBody."
+   "source": "#h4[Section #banded_notes(title: [Notes])Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20177,7 +20177,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #endnotes(title: [הערות])Four]\n\nBody."
+   "source": "#h4[Section #endnotes(title: [Notes])Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20195,7 +20195,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))Four]\n\nBody."
+   "source": "#h4[Section #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20249,7 +20249,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #stream_note(\"מקורות\")[]Four]\n\nBody."
+   "source": "#h4[Section #stream_note(\"Sources\")[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20276,7 +20276,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))Four]\n\nBody."
+   "source": "#h4[Section #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20474,7 +20474,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #verse[מקור][]Four]\n\nBody."
+   "source": "#h4[Section #verse[][]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20501,7 +20501,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #gemara[ברכות][ב.]Four]\n\nBody."
+   "source": "#h4[Section #gemara[][]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20528,7 +20528,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #sourceref(\"\", place: \"ב.\")Four]\n\nBody."
+   "source": "#h4[Section #sourceref(\"\", place: \"\")Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -20573,7 +20573,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #commentary([], [הפירוש])Four]\n\nBody."
+   "source": "#h4[Section #commentary([], [])Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -21023,7 +21023,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#סימן[א׳][דיני #רשימת_הגדרות(\n  הגדרה[מונח][],\n)תפילה]"
+   "source": "#סימן[א׳][דיני #רשימת_הגדרות(\n  הגדרה[][],\n)תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -21509,7 +21509,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#סימן[א׳][דיני #פסוק[מקור][]תפילה]"
+   "source": "#סימן[א׳][דיני #פסוק[][]תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -21536,7 +21536,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#סימן[א׳][דיני #גמרא[ברכות][ב.]תפילה]"
+   "source": "#סימן[א׳][דיני #גמרא[][]תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -21563,7 +21563,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#סימן[א׳][דיני #ציון_מקור(\"\", מקום: \"ב.\")תפילה]"
+   "source": "#סימן[א׳][דיני #ציון_מקור(\"\", מקום: \"\")תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -21608,7 +21608,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#סימן[א׳][דיני #עם_פירוש([], [הפירוש])תפילה]"
+   "source": "#סימן[א׳][דיני #עם_פירוש([], [])תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -22049,7 +22049,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #פריט[]prayer]"
+   "source": "#siman[1][The laws of #item[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22058,7 +22058,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #deflist(\n  defitem[מונח][],\n)prayer]"
+   "source": "#siman[1][The laws of #deflist(\n  defitem[][],\n)prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22085,7 +22085,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #תא[]prayer]"
+   "source": "#siman[1][The laws of #cell[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22094,7 +22094,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #כותרת_תא[]prayer]"
+   "source": "#siman[1][The laws of #headcell[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22220,7 +22220,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #banded_notes(title: [הערות])prayer]"
+   "source": "#siman[1][The laws of #banded_notes(title: [Notes])prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22247,7 +22247,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #endnotes(title: [הערות])prayer]"
+   "source": "#siman[1][The laws of #endnotes(title: [Notes])prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22265,7 +22265,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))prayer]"
+   "source": "#siman[1][The laws of #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22319,7 +22319,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #stream_note(\"מקורות\")[]prayer]"
+   "source": "#siman[1][The laws of #stream_note(\"Sources\")[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22346,7 +22346,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))prayer]"
+   "source": "#siman[1][The laws of #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22544,7 +22544,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #verse[מקור][]prayer]"
+   "source": "#siman[1][The laws of #verse[][]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22571,7 +22571,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #gemara[ברכות][ב.]prayer]"
+   "source": "#siman[1][The laws of #gemara[][]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22598,7 +22598,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #sourceref(\"\", place: \"ב.\")prayer]"
+   "source": "#siman[1][The laws of #sourceref(\"\", place: \"\")prayer]"
   },
   {
    "ctx": "siman-body",
@@ -22643,7 +22643,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #commentary([], [הפירוש])prayer]"
+   "source": "#siman[1][The laws of #commentary([], [])prayer]"
   },
   {
    "ctx": "siman-body",
@@ -23093,7 +23093,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#שער[כותרת #רשימת_הגדרות(\n  הגדרה[מונח][],\n)ראשית]\n\nגוף."
+   "source": "#שער[כותרת #רשימת_הגדרות(\n  הגדרה[][],\n)ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -23579,7 +23579,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#שער[כותרת #פסוק[מקור][]ראשית]\n\nגוף."
+   "source": "#שער[כותרת #פסוק[][]ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -23606,7 +23606,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#שער[כותרת #גמרא[ברכות][ב.]ראשית]\n\nגוף."
+   "source": "#שער[כותרת #גמרא[][]ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -23633,7 +23633,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#שער[כותרת #ציון_מקור(\"\", מקום: \"ב.\")ראשית]\n\nגוף."
+   "source": "#שער[כותרת #ציון_מקור(\"\", מקום: \"\")ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -23678,7 +23678,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#שער[כותרת #עם_פירוש([], [הפירוש])ראשית]\n\nגוף."
+   "source": "#שער[כותרת #עם_פירוש([], [])ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -24119,7 +24119,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#title[The #פריט[]Title]\n\nBody."
+   "source": "#title[The #item[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24128,7 +24128,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#title[The #deflist(\n  defitem[מונח][],\n)Title]\n\nBody."
+   "source": "#title[The #deflist(\n  defitem[][],\n)Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24155,7 +24155,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#title[The #תא[]Title]\n\nBody."
+   "source": "#title[The #cell[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24164,7 +24164,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#title[The #כותרת_תא[]Title]\n\nBody."
+   "source": "#title[The #headcell[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24290,7 +24290,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#title[The #banded_notes(title: [הערות])Title]\n\nBody."
+   "source": "#title[The #banded_notes(title: [Notes])Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24317,7 +24317,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#title[The #endnotes(title: [הערות])Title]\n\nBody."
+   "source": "#title[The #endnotes(title: [Notes])Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24335,7 +24335,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#title[The #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))Title]\n\nBody."
+   "source": "#title[The #endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24389,7 +24389,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#title[The #stream_note(\"מקורות\")[]Title]\n\nBody."
+   "source": "#title[The #stream_note(\"Sources\")[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24416,7 +24416,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#title[The #streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))Title]\n\nBody."
+   "source": "#title[The #streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24614,7 +24614,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#title[The #verse[מקור][]Title]\n\nBody."
+   "source": "#title[The #verse[][]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24641,7 +24641,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#title[The #gemara[ברכות][ב.]Title]\n\nBody."
+   "source": "#title[The #gemara[][]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24668,7 +24668,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#title[The #sourceref(\"\", place: \"ב.\")Title]\n\nBody."
+   "source": "#title[The #sourceref(\"\", place: \"\")Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -24713,7 +24713,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#title[The #commentary([], [הפירוש])Title]\n\nBody."
+   "source": "#title[The #commentary([], [])Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -25163,7 +25163,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#רשימת_הגדרות(\n  הגדרה[מונח][],\n)ת] גוף ההערה]"
+   "source": "#הערה[#כותרת_בהערה[ראשי#רשימת_הגדרות(\n  הגדרה[][],\n)ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -25649,7 +25649,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#פסוק[מקור][]ת] גוף ההערה]"
+   "source": "#הערה[#כותרת_בהערה[ראשי#פסוק[][]ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -25676,7 +25676,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#גמרא[ברכות][ב.]ת] גוף ההערה]"
+   "source": "#הערה[#כותרת_בהערה[ראשי#גמרא[][]ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -25703,7 +25703,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#ציון_מקור(\"\", מקום: \"ב.\")ת] גוף ההערה]"
+   "source": "#הערה[#כותרת_בהערה[ראשי#ציון_מקור(\"\", מקום: \"\")ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -25748,7 +25748,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#עם_פירוש([], [הפירוש])ת] גוף ההערה]"
+   "source": "#הערה[#כותרת_בהערה[ראשי#עם_פירוש([], [])ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -26189,7 +26189,7 @@
    "en": "item",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#פריט[]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#item[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26198,7 +26198,7 @@
    "en": "deflist",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#deflist(\n  defitem[מונח][],\n)ing] the note body]"
+   "source": "#fnote[#note_heading[Head#deflist(\n  defitem[][],\n)ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26225,7 +26225,7 @@
    "en": "cell",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#תא[]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#cell[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26234,7 +26234,7 @@
    "en": "headcell",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#כותרת_תא[]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#headcell[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26360,7 +26360,7 @@
    "en": "banded_notes",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#banded_notes(title: [הערות])ing] the note body]"
+   "source": "#fnote[#note_heading[Head#banded_notes(title: [Notes])ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26387,7 +26387,7 @@
    "en": "endnotes",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#endnotes(title: [הערות])ing] the note body]"
+   "source": "#fnote[#note_heading[Head#endnotes(title: [Notes])ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26405,7 +26405,7 @@
    "en": "endnotes_side",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [ביאורים], \"ב\": [מקורות]))ing] the note body]"
+   "source": "#fnote[#note_heading[Head#endnotes_side(streams: (\"א\", \"ב\"), titles: (\"א\": [Explanations], \"ב\": [Sources]))ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26459,7 +26459,7 @@
    "en": "stream_note",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#stream_note(\"מקורות\")[]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#stream_note(\"Sources\")[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26486,7 +26486,7 @@
    "en": "streams_config",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#streams_config(layout: \"צד\", streams: (\"תוכן\", \"מקורות\"))ing] the note body]"
+   "source": "#fnote[#note_heading[Head#streams_config(layout: \"צד\", streams: (\"Text\", \"Sources\"))ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26684,7 +26684,7 @@
    "en": "verse",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#verse[מקור][]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#verse[][]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26711,7 +26711,7 @@
    "en": "gemara",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#gemara[ברכות][ב.]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#gemara[][]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26738,7 +26738,7 @@
    "en": "sourceref",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#sourceref(\"\", place: \"ב.\")ing] the note body]"
+   "source": "#fnote[#note_heading[Head#sourceref(\"\", place: \"\")ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -26783,7 +26783,7 @@
    "en": "commentary",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#commentary([], [הפירוש])ing] the note body]"
+   "source": "#fnote[#note_heading[Head#commentary([], [])ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

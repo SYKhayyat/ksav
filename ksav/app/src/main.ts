@@ -106,6 +106,7 @@ import {
   toggleMenu,
   panelHead,
   overlayPanel,
+  localise,
 } from "./panels";
 import { BUNDLED_NOTICES } from "./engine.gen";
 import { bodyAt, docTextOf, plainText, scanDoc } from "./spans";
@@ -145,7 +146,7 @@ import { lineInDocument, onGoToLine, onGoToPart, onMarkLines } from "./diagview"
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import { troubleSaid } from "./diagnostics";
-import { insertionAt, legalAt } from "./mode";
+import { docLang as modeDocLang, insertionAt, legalAt } from "./mode";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as hydra from "./hydra";
@@ -2627,8 +2628,38 @@ function tieredNoteHere(doc: string, pos: number): string {
  * The language a generated command is written in: the document's, never the
  * interface's. Three surfaces asked this the same way and a fourth arrived with
  * the deferred markers, so it is a function now.
+ *
+ * # It used to be a second opinion
+ *
+ * This read the page direction and nothing else, while `mode.docLang` — the
+ * function the insertion path actually consults — reads what the document is
+ * *written in*: the call the caret sits inside, then the majority of its
+ * commands, then the majority of its letters. Two answers to one question,
+ * disagreeing on any document whose direction and content point different ways,
+ * and each one authoritative over a different set of surfaces.
+ *
+ * So there is one answer now, and the direction has the job it is actually good
+ * for: saying what a document that has said nothing yet is going to be. That
+ * matters more than it sounds. A blank left-to-right document took a Hebrew
+ * first command, and the *next* insertion then found one Hebrew command and no
+ * English ones, which is a majority.
  */
 function docLang(): "he" | "en" {
+  const v = runtime.view;
+  if (!v) return dirLang();
+  return modeDocLang(docTextOf(v.state.doc), v.state.selection.main.from, dirLang());
+}
+
+/**
+ * What the page direction says the document is.
+ *
+ * Not an answer to "what language is this document" — that is `docLang`, and it
+ * asks the text. This is the *tiebreak* the text cannot supply: a document with
+ * no letters in it has said nothing, and the direction is then the only thing
+ * the writer has stated. Passed into the pure modules, which know about text
+ * and deliberately nothing about page setup.
+ */
+function dirLang(): "he" | "en" {
   return docConfig().dir === "ltr" ? "en" : "he";
 }
 
@@ -2667,7 +2698,7 @@ function insertSnippet(rawSnippet: string) {
 
   // Every decision is `insert.plan`, which is a pure function and therefore
   // testable; what is left here is performing it. See `insert.ts`.
-  const plan = planInsertion(doc, sel.from, sel.to, selText, rawSnippet);
+  const plan = planInsertion(doc, sel.from, sel.to, selText, rawSnippet, dirLang());
   if (plan.kind === "refuse") {
     setStatus(t(plan.reason), "warn");
     return;
@@ -2854,12 +2885,18 @@ function noteBtn(action: string, glyph: string, snippet: string | null): HTMLEle
 
 function buildToolbar(): HTMLElement {
   const lang = getLang();
+  // Two languages in one tooltip, and they are not the same question. The
+  // *description* is the interface's, because it is being read; the **command
+  // name** is the document's, because it is what the button is about to write.
+  // An English toolbar reading "Bold text · #הדגשה" over a button that inserts
+  // `#bold` is naming something that will not be in the document.
+  const writing = docLang();
   const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
   const b = (he: string, label: string) => {
     const c = byName(he);
     if (!c) return el("span");
     const title = lang === "he" ? c.desc_he : c.desc_en;
-    return iconBtn(label, `${title} · #${c.he}`, () => insertSnippet(c.insert), "", {
+    return iconBtn(label, `${title} · #${writing === "he" ? c.he : c.en}`, () => insertSnippet(c.insert), "", {
       "data-command": c.he,
     });
   };
@@ -3702,7 +3739,7 @@ function buildSettingsDrawer(): HTMLElement {
     // to close only by finding the ⚙ chip again — and below 720px the drawer is
     // the full viewport width, so that chip is *underneath it*. There was
     // literally no way out of Settings on a phone.
-    panelHead("settings-drawer", t("settings"), { level: "h3" }),
+    panelHead("settings-drawer", "settings", { level: "h3" }),
     // B26. The fourteen fields below this line belong to the **open document** and
     // travel with it; everything under `fitWidthLabel` is about the person at the
     // desk. Saying which is which is the whole point — a writer who does not know
@@ -4057,7 +4094,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
             // "collected and never printed" failure, performed by the product
             // and then reported back to the writer as a lint.
             const choice = choiceForCommand(command);
-            const done = choice ? scaffold(e2.text, e2.caret, choice) : e2;
+            const done = choice ? scaffold(e2.text, e2.caret, choice, dirLang()) : e2;
             replaceAll(done.text, done.caret ?? e2.caret);
             setStatus(tf("noteConverted", command), "ok");
           },
@@ -5174,12 +5211,13 @@ function buildHelpPanel(): HTMLElement {
     id: "help-search",
     type: "search",
     placeholder: t("helpSearch"),
+    "data-i18n-placeholder": "helpSearch",
     class: "help-search",
   }) as HTMLInputElement;
   input.addEventListener("input", () => renderHelp(input.value));
-  return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help") }, [
-    panelHead("help-panel", t("helpTitle")),
-    el("p", { class: "help-lede" }, [t("helpLede")]),
+  return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help"), "data-i18n-label": "help" }, [
+    panelHead("help-panel", "helpTitle"),
+    el("p", { class: "help-lede", "data-i18n": "helpLede" }, [t("helpLede")]),
     input,
     el("div", { id: "help-body" }),
   ]);
@@ -5446,7 +5484,7 @@ function renderHydra() {
   // by a key you have to already know is a surface people get stuck in. The head
   // is built by `panelHead` like every other, which is also what put the hydra
   // into the Escape sweep it had been missing from.
-  const head = panelHead("hydra", t("structure." + h.structure), {
+  const head = panelHead("hydra", "structure." + h.structure, {
     level: "h3",
     cls: "hydra-head",
     extra: [el("span", {}, [t("hydraHint")]), el("div", { class: "spacer" })],
@@ -6054,7 +6092,7 @@ function renderStylesPanel() {
   ];
 
   box.replaceChildren(
-    panelHead("styles-panel", t("stylesTitle")),
+    panelHead("styles-panel", "stylesTitle"),
     el("p", { class: "styles-lede" }, [t("stylesLede")]),
 
     el("h3", {}, [t("stylePresets")]),
@@ -6100,7 +6138,7 @@ function openModal(title: string, lede: string, rows: (Node | string)[], onOk: (
   modalOk = onOk;
   const box = document.getElementById("form-modal-body")!;
   box.replaceChildren(
-    panelHead("form-modal", title),
+    panelHead("form-modal", { text: title }),
     el("p", { class: "styles-lede" }, [lede]),
     ...rows,
     el("div", { class: "modal-actions" }, [
@@ -6254,7 +6292,7 @@ function renderReviewPanel() {
     ]);
 
   box.replaceChildren(
-    panelHead("review-panel", t("reviewTitle")),
+    panelHead("review-panel", "reviewTitle"),
     el("p", { class: "styles-lede" }, [t("reviewLede")]),
 
     el("h3", {}, [t("reviewView")]),
@@ -6459,6 +6497,7 @@ function applyNoteChoice(
     layer,
     deferBodies(),
     sel,
+    dirLang(),
   );
   editDoc(text, caret);
   scheduleCompile();
@@ -6709,7 +6748,7 @@ function renderNotesChooser() {
   const box = document.getElementById("notes-chooser-body")!;
   const picked = notesCell ? choiceAt(notesCell.where, notesCell.how) : null;
   box.replaceChildren(
-    panelHead("notes-chooser", t("notesChooserTitle")),
+    panelHead("notes-chooser", "notesChooserTitle"),
     el("p", { class: "notes-lede" }, [t("notesChooserLede")]),
     el("p", { class: "notes-mix" }, [t("notesMix")]),
     el("h3", {}, [t("notesCommon")]),
@@ -6988,12 +7027,12 @@ function rerenderChrome() {
   const drawerOpen = isPanelOpen("settings-drawer");
   document.getElementById("settings-drawer")!.replaceWith(buildSettingsDrawer());
   if (drawerOpen) openPanel("settings-drawer");
-  // localize any remaining static labels (pane heads, etc.)
-  document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((e) => {
-    e.textContent = t(e.dataset.i18n!);
-  });
-  // palette placeholder
-  (document.getElementById("palette-input") as HTMLInputElement).placeholder = t("searchCommands");
+  // Every label built once at boot and marked with its key — the panel heads,
+  // the drawer names, the palette's placeholder. `panels.localise` is the one
+  // that knows how each kind of label is set; this used to be four lines here
+  // that swept for `[data-i18n]` and found nothing, because nothing produced
+  // one. See `panelHead`.
+  localise();
 }
 
 // ---------------------------------------------------------------- boot
@@ -7026,25 +7065,25 @@ function render() {
       el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
     ]),
     buildSettingsDrawer(),
-    el("aside", { id: "outline-drawer", class: "drawer drawer-start", "aria-label": t("outline") }, [
+    el("aside", { id: "outline-drawer", class: "drawer drawer-start", "aria-label": t("outline"), "data-i18n-label": "outline" }, [
       // Its own close control, for the same reason the settings drawer needed
       // one: below 720px a drawer is the full viewport, so the chip that opened
       // it is underneath it and cannot be the only way back out.
-      panelHead("outline-drawer", t("outline"), { level: "h3" }),
+      panelHead("outline-drawer", "outline", { level: "h3" }),
       el("div", { id: "outline-list", class: "outline-list" }),
     ]),
     // The notes pane, beside the outline: the two halves of a sefer's structure.
-    el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane") }, [
+    el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane"), "data-i18n-label": "notesPane" }, [
       panelHead("notes-drawer", t("notesPane"), { level: "h3" }),
       el("div", { id: "notes-list", class: "notes-list" }),
     ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
-    el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle") }, [
+    el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle"), "data-i18n-label": "stylesTitle" }, [
       el("div", { id: "styles-body" }),
     ]),
     // review panel (a drawer, so the document stays visible while you go
     // through the changes — the whole point is comparing them with the text)
-    el("aside", { id: "review-panel", class: "drawer drawer-styles", "aria-label": t("reviewTitle") }, [
+    el("aside", { id: "review-panel", class: "drawer drawer-styles", "aria-label": t("reviewTitle"), "data-i18n-label": "reviewTitle" }, [
       el("div", { id: "review-body" }),
     ]),
     // a shared form modal (section page setup, formulas)
@@ -7060,6 +7099,7 @@ function render() {
         el("input", {
           id: "palette-input",
           placeholder: t("searchCommands"),
+          "data-i18n-placeholder": "searchCommands",
           oninput: (e: Event) => renderPaletteList((e.target as HTMLInputElement).value),
           onKeyDown: (e: Event) => {
             if (paletteKey(e as KeyboardEvent)) {
@@ -7081,14 +7121,15 @@ function render() {
       id: "float-preview-btn",
       class: "float-preview-btn",
       title: t("preview"),
+      "data-i18n-title": "preview",
       onClick: openPreviewOverlay,
     }, ["📄"]),
     overlayPanel("preview-modal", "preview-modal-box", [el("div", { id: "preview-modal-body" })]),
     // version history modal
     overlayPanel("history-modal", "palette-box", [
       el("div", { class: "history-head" }, [
-        el("b", {}, [t("history")]),
-        el("button", { class: "sc-key", onClick: () => void takeSnapshot(true) }, [
+        el("b", { "data-i18n": "history" }, [t("history")]),
+        el("button", { class: "sc-key", "data-i18n": "snapshotNow", onClick: () => void takeSnapshot(true) }, [
           t("snapshotNow"),
         ]),
       ]),
@@ -7102,7 +7143,7 @@ function render() {
       // `chrome.test.mjs` checks that the claim is kept by the one function
       // that builds one — which is how an exit comes to be a promise rather
       // than a note in a registry.
-      panelHead("refresh-panel", t("refreshTitle"), { level: "h3" }),
+      panelHead("refresh-panel", "refreshTitle", { level: "h3" }),
       el("div", { id: "refresh-list" }),
     ]),
   );
@@ -7529,6 +7570,20 @@ async function adoptDictionary(): Promise<void> {
 
 async function boot() {
   installHooks();
+  // The interface language, before anything reads it — and this line did not
+  // exist. `setLang` was called from exactly one place, `setSetting("lang", …)`,
+  // which is the chip; nothing ever handed it what was stored. So the
+  // application booted Hebrew every time however many times a writer had chosen
+  // English, and only the chip put it right, for that session.
+  //
+  // That is what the help panel's Hebrew title was really about. The interface
+  // was not "in English with one Hebrew string in it" — it was in Hebrew, and
+  // the chip's rerender reached the header and the settings drawer and left the
+  // panels where they were. Two faults, one symptom, and this is the first.
+  //
+  // Before `starterDoc()`, which asks `getLang()` to decide whether a new
+  // document opens in English and left-to-right.
+  if (settings.lang === "en" || settings.lang === "he") setLang(settings.lang);
   // The store opens before anything is drawn: the editor is constructed with
   // the document's text in it, so there is never a frame in which the writer
   // could type into a buffer that has no document behind it.

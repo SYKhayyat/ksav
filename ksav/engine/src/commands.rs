@@ -21,6 +21,23 @@ pub struct Command {
     /// English description.
     pub desc_en: &'static str,
     /// Text to insert; `|` marks the desired cursor position.
+    ///
+    /// # No placeholder content
+    ///
+    /// A slot the writer has to fill is left **empty**, never filled with a word
+    /// standing in for what belongs there. `#רשימת_הגדרות` used to arrive as
+    /// `הגדרה[מונח][]` and `#גמרא` as `[ברכות][ב.]`, which put the words *term*,
+    /// *Berachos* and *2a* into the document looking exactly like text the writer
+    /// had typed — so the writer either shipped them or deleted them by hand,
+    /// and the sample taught nothing either way. Four commands did this.
+    ///
+    /// What the slots are *for* is a question the interface answers where the
+    /// command is offered, in the language the writer reads. A document is not
+    /// the place to keep documentation.
+    ///
+    /// A **default** is a different thing and stays: `#הערות_בסוף(כותרת: [הערות])`
+    /// titles a block that needs a title, and `#סימן[א׳]` starts a series the
+    /// numbering commands continue from. Neither is standing in for something.
     pub insert: &'static str,
     /// Still compiles, no longer advertised.
     ///
@@ -91,7 +108,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("ממוספרת_עברית", "henum", "list", "רשימה ממוספרת עברית (א,ב,ג)", "Hebrew-lettered list", "#ממוספרת_עברית(\n  פריט[|],\n  פריט[],\n)"),
     cmd!("תוכן", "toc", "list", "תוכן העניינים", "Table of contents", "#תוכן()"),
     cmd!("פריט", "item", "list", "פריט ברשימה", "List item", "פריט[|]"),
-    cmd!("רשימת_הגדרות", "deflist", "list", "רשימת הגדרות", "Definition list", "#רשימת_הגדרות(\n  הגדרה[מונח][|],\n)"),
+    cmd!("רשימת_הגדרות", "deflist", "list", "רשימת הגדרות", "Definition list", "#רשימת_הגדרות(\n  הגדרה[|][],\n)"),
     cmd!("הגדרות_רשימות", "lists_config", "list", "עיצוב הרשימות (סמן/הזחה/ריווח/מספור)", "Configure lists (marker/indent/spacing/numbering)", "#הגדרות_רשימות(סמן: ([◆], [–]), הזחה: 1.5em, הידוק: true)|"),
     // ---- table ----
     // A new table spans the text width and arrives with a header row and two
@@ -187,21 +204,21 @@ pub static COMMANDS: &[Command] = &[
     // ---- torah / yeshiva ----
     cmd!("סימן", "siman", "torah", "כותרת סימן", "Siman heading", "#סימן[א׳][|]"),
     cmd!("סעיף", "seif", "torah", "סעיף הלכתי ממוספר", "Lettered halacha", "#סעיף[א][|]"),
-    cmd!("פסוק", "verse", "torah", "פסוק עם מקור", "Verse with reference", "#פסוק[מקור][|]"),
+    cmd!("פסוק", "verse", "torah", "פסוק עם מקור", "Verse with reference", "#פסוק[|][]"),
     cmd!("מראה_מקום", "sourcenote", "torah", "מראה מקום (הערה)", "Source footnote", "#מראה_מקום[|]"),
     cmd!("ציון", "refmark", "torah", "ציון מקור בסוגריים", "Inline reference", "#ציון[|]"),
-    cmd!("גמרא", "gemara", "torah", "מראה מקום לגמרא", "Gemara reference", "#גמרא[ברכות][ב.]"),
+    cmd!("גמרא", "gemara", "torah", "מראה מקום לגמרא", "Gemara reference", "#גמרא[|][]"),
     cmd!("אות", "osource", "torah", "אות מודגשת בתחילת קטע", "Bold paragraph letter", "#אות[|]"),
     cmd!("דיבור_המתחיל", "dh", "torah", "דיבור המתחיל", "Lemma (d\"h)", "#דיבור_המתחיל[|]"),
     // The indexes. `ציון_מקור` and `ערך` are marks, and the two `מפתח_` commands
     // print what the marks collected — so they belong at the *back* of the
     // document, which is the one thing about them a writer has to be told.
-    cmd!("ציון_מקור", "sourceref", "torah", "ציון מקור — נכנס למפתח המקורות", "Cite a sefer — indexed", "#ציון_מקור(\"|\", מקום: \"ב.\")"),
+    cmd!("ציון_מקור", "sourceref", "torah", "ציון מקור — נכנס למפתח המקורות", "Cite a sefer — indexed", "#ציון_מקור(\"|\", מקום: \"\")"),
     cmd!("כלול", "include_part", "block", "הכללת מסמך אחר (פרק) — בשורה משלו", "Include another document (a chapter) — on its own line", "#כלול(\"|\")"),
     cmd!("מפתח_מקורות", "sourceindex", "torah", "מפתח המקורות (בסוף הספר)", "Source index (at the back)", "#מפתח_מקורות()"),
     cmd!("ערך", "indexentry", "torah", "סימון ערך למפתח הענינים", "Mark a term for the topic index", "#ערך(\"|\")[]"),
     cmd!("מפתח_ענינים", "topicindex", "torah", "מפתח הענינים (בסוף הספר)", "Topic index (at the back)", "#מפתח_ענינים()"),
-    cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [הפירוש])"),
+    cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [])"),
     cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
     cmd!("הערת_גיליון", "sidenote", "torah", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),
     cmd!("עם_הערות_דו_צד", "twosided", "torah", "קטע עם הערות משני הצדדים", "Section with notes on both sides", "#עם_הערות_דו_צד[|]"),

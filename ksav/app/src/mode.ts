@@ -181,9 +181,78 @@ function nameIn(name: string, lang: Lang): string {
 }
 
 /**
- * A snippet rewritten into `lang` — command names **and** parameter names.
+ * Words a template ships **as content**, in both languages.
  *
- * Both halves are needed and the second is the one that gets forgotten:
+ * Command names and parameter names are the prelude's, and `translated` gets
+ * them from the registry. These are not that. They are the words the templates
+ * put inside `[…]` and `"…"` — an apparatus title, a stream's name, a sample
+ * tractate, the word standing in for what the writer is about to type — and
+ * they have no registry to come from, because they are ordinary words rather
+ * than vocabulary the engine defines.
+ *
+ * Every entry here is a **default** — a title a block needs, a stream's name.
+ * There are no placeholders in it, because there are no placeholders left in
+ * the templates: a slot the writer has to fill arrives empty. See
+ * `Command::insert` in the engine for why.
+ *
+ * Left untranslated they were the visible half of *"everything is coming in in
+ * Hebrew"*: an English document that pressed "endnotes" got
+ * `#endnotes(title: [הערות])`, which is an English command titling its block in
+ * Hebrew. `translated` renamed everything the writer could not see and nothing
+ * they could.
+ *
+ * Applied only to whole values — a complete string literal or a complete
+ * bracketed run — so this can never chew a word out of the middle of prose. It
+ * is safe to run over a snippet because a snippet is *ours*; the writer's own
+ * text is spliced in afterwards by `plan`, never passed through here.
+ *
+ * What is deliberately absent:
+ *
+ *   - **Numbering schemes.** `מספור: "א"` says *number these with Hebrew
+ *     letters*, and an English work on Hebrew sources does that as often as
+ *     not. It is a typographic choice, not a language.
+ *   - **`#siman[א׳]`, `#seif[א]`.** The same: a sample ordinal in the alphabet
+ *     the construct is usually numbered in.
+ *   - **`פריסה: "צד"`, `תצוגה: "סופי"`.** These are enum values the prelude
+ *     compares against Hebrew literals and nothing else, so an English spelling
+ *     would be a document that does not compile. The engine, not this table,
+ *     is where that gets fixed; `insertions.test.mjs` names them so the gap
+ *     stays counted rather than forgotten.
+ */
+const CONTENT: readonly (readonly [string, string])[] = [
+  ["הערות", "Notes"],
+  ["הערות על הפירוש", "Notes on the commentary"],
+  ["הפירוש", "The commentary"],
+  ["ביאורים", "Explanations"],
+  ["ביאור", "Explanation"],
+  ["מקורות", "Sources"],
+  ["מראי מקומות", "References"],
+  ["נוסחאות", "Variants"],
+  ["שינויי נוסחאות", "Textual variants"],
+  ["תוכן", "Text"],
+];
+
+const CONTENT_EN: Record<string, string> = Object.fromEntries(CONTENT);
+const CONTENT_HE: Record<string, string> = Object.fromEntries(
+  CONTENT.map(([he, en]) => [en, he]),
+);
+
+/** Every whole `"…"` and `[…]` value in a snippet, said in `lang`. */
+function localised(snippet: string, lang: Lang): string {
+  const table = lang === "en" ? CONTENT_EN : CONTENT_HE;
+  return snippet.replace(/"([^"\n]*)"|\[([^[\]\n]*)\]/gu, (whole, str, content) => {
+    const value = str ?? content;
+    const into = table[value];
+    if (into === undefined) return whole;
+    return str === undefined ? `[${into}]` : `"${into}"`;
+  });
+}
+
+/**
+ * A snippet rewritten into `lang` — command names, parameter names **and** the
+ * words the template ships as content.
+ *
+ * The first two are needed and the second is the one that gets forgotten:
  * `#mktable(עמודות: (1fr, 1fr), cell[])` compiles, because `_en` passes an
  * unrecognised name through to the Hebrew function underneath, and it is not
  * English. The grid compiles every one of these in both languages, so a pairing
@@ -195,11 +264,22 @@ function nameIn(name: string, lang: Lang): string {
  * really prose are both things a regex over `#\w+` gets wrong, and the caret
  * marker `|` is untouched because it is neither.
  *
- * Values are left alone. `מספור: "א"` is a numbering scheme and `פריסה: "צד"`
- * is a layout the prelude compares by name — data the two languages share, not
- * vocabulary either of them owns.
+ * A snippet with **no `#`** is translated too, and that is not a detail:
+ * `פריט[|]`, `תא[|]` and `כותרת_תא[|]` are the list item, the table cell and
+ * the header cell — three of the most-pressed buttons in the application — and
+ * they are bare names because they are written inside an argument list. `scan`
+ * reads a bare name in a bare snippet as prose, quite correctly, so all three
+ * went in in Hebrew no matter what language the document was. Asking the same
+ * question with a `#` in front of it is the whole fix.
  */
 export function translated(snippet: string, lang: Lang): string {
+  // The bare nested helpers. `#` is what tells `scan` this is a command rather
+  // than a word, and `withMode` puts the right one back afterwards.
+  if (snippet && !snippet.startsWith("#") && NAME_CH.test(snippet[0])) {
+    const asCall = translated("#" + snippet, lang);
+    return asCall.startsWith("#") ? asCall.slice(1) : asCall;
+  }
+  snippet = localised(snippet, lang);
   const sc = scan(snippet);
   if (!sc.nodes.length) return snippet;
   // Right to left, so an earlier edit cannot move a later one's offsets.
@@ -240,14 +320,35 @@ export function translated(snippet: string, lang: Lang): string {
  *   2. **What the rest of the document is written in**, by majority of its
  *      commands — because the second command in a document should match the
  *      first without the writer being asked.
- *   3. **The prose**, when there are no commands yet: a document with letters in
- *      it and no Hebrew ones is an English document, which is `headings.ts:329`'s
- *      test for the same question one command earlier.
+ *   3. **The prose**, when there are no commands yet — by which script most of
+ *      the letters are in.
  *
- * An empty document is Hebrew. That is the product's default language and not a
- * guess about the writer; the first command they write settles it for the rest.
+ * A document with no letters in it has said nothing, so `whenSilent` answers —
+ * the page direction, which the writer or the template *did* set. It defaults
+ * to Hebrew, which is this product's default, and the shell passes the real
+ * one. Without it a blank left-to-right document got a Hebrew first command,
+ * and that one command was then the majority in (2) — the ratchet below,
+ * re-armed on a document the writer had explicitly set to English.
+ *
+ * # Why (3) counts rather than tests
+ *
+ * It used to read `/\p{Script=Hebrew}/.test(doc) ? "he" : "en"` — *any* Hebrew
+ * letter anywhere made the whole document Hebrew. The writer's own words, on an
+ * English document: *"Wait! now, everything is coming in in Hebrew. I don't know
+ * why. this is puzzling."*
+ *
+ * Nothing was intermittent. An English sefer quotes Hebrew — a posuk, a tractate
+ * name, a word in a translation — and one such word flipped every subsequent
+ * insertion to Hebrew, which put more Hebrew in the document, which made the
+ * next test even less likely to come out the other way. A one-way test on a
+ * bilingual document is a ratchet, and the writer feels it as the application
+ * changing its mind for no reason.
+ *
+ * A majority is not a ratchet: a page of English with a posuk in it is English,
+ * and it stays English as it grows. Hebrew wins a tie, which is this product's
+ * default and matters only for the handful of documents that are exactly half.
  */
-export function docLang(doc: string, pos: number): Lang {
+export function docLang(doc: string, pos: number, whenSilent: Lang = "he"): Lang {
   const sc = scan(doc);
   let inner: { lang: Lang; depth: number } | null = null;
   let he = 0;
@@ -261,7 +362,21 @@ export function docLang(doc: string, pos: number): Lang {
   }
   if (inner) return inner.lang;
   if (en || he) return en > he ? "en" : "he";
-  return /\p{Script=Hebrew}/u.test(doc) || !/\p{L}/u.test(doc) ? "he" : "en";
+  return prosePart(doc) ?? whenSilent;
+}
+
+/**
+ * Which script most of a document's letters are in, or null if it has none.
+ *
+ * Latin rather than "not Hebrew": a Greek word or a Cyrillic name is neither
+ * language's evidence, and counting it as English would put the same ratchet
+ * back in facing the other way.
+ */
+function prosePart(doc: string): Lang | null {
+  const hebrew = doc.match(/\p{Script=Hebrew}/gu)?.length ?? 0;
+  const latin = doc.match(/\p{Script=Latin}/gu)?.length ?? 0;
+  if (!hebrew && !latin) return null;
+  return latin > hebrew ? "en" : "he";
 }
 
 // ---------------------------------------------------------------- delimiters
@@ -295,13 +410,20 @@ function nextCh(doc: string, pos: number): string {
  * works; any separator added after the end of the snippet lands after it, which
  * is what leaves the caret in front of the comma rather than behind it.
  */
-export function insertionAt(doc: string, pos: number, snippet: string, to = pos): string {
+export function insertionAt(
+  doc: string,
+  pos: number,
+  snippet: string,
+  to = pos,
+  /** What the page direction says, for a document that has said nothing. */
+  whenSilent: Lang = "he",
+): string {
   const m = modeAt(doc, pos);
   // The language decision lives here rather than in the two callers, for the
   // same reason the mode decision does: the callers forgot the mode three
   // separate times in one day, and there is no version of "each surface
   // remembers" that survives a fourth surface.
-  let s = withMode(translated(snippet, docLang(doc, pos)), m);
+  let s = withMode(translated(snippet, docLang(doc, pos, whenSilent)), m);
   // The mode rule passes non-commands (a comment region, plain text) through
   // untouched, and so does this: a separator around them would be markup the
   // writer did not ask for.

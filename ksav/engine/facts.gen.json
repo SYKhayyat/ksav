@@ -359,7 +359,7 @@
       "category": "list",
       "desc_he": "רשימת הגדרות",
       "desc_en": "Definition list",
-      "insert": "#רשימת_הגדרות(\n  הגדרה[מונח][|],\n)",
+      "insert": "#רשימת_הגדרות(\n  הגדרה[|][],\n)",
       "deprecated": false
     },
     {
@@ -845,7 +845,7 @@
       "category": "torah",
       "desc_he": "פסוק עם מקור",
       "desc_en": "Verse with reference",
-      "insert": "#פסוק[מקור][|]",
+      "insert": "#פסוק[|][]",
       "deprecated": false
     },
     {
@@ -872,7 +872,7 @@
       "category": "torah",
       "desc_he": "מראה מקום לגמרא",
       "desc_en": "Gemara reference",
-      "insert": "#גמרא[ברכות][ב.]",
+      "insert": "#גמרא[|][]",
       "deprecated": false
     },
     {
@@ -899,7 +899,7 @@
       "category": "torah",
       "desc_he": "ציון מקור — נכנס למפתח המקורות",
       "desc_en": "Cite a sefer — indexed",
-      "insert": "#ציון_מקור(\"|\", מקום: \"ב.\")",
+      "insert": "#ציון_מקור(\"|\", מקום: \"\")",
       "deprecated": false
     },
     {
@@ -944,7 +944,7 @@
       "category": "torah",
       "desc_he": "טקסט עם פירוש בצד העמוד",
       "desc_en": "Text with side commentary",
-      "insert": "#עם_פירוש([|], [הפירוש])",
+      "insert": "#עם_פירוש([|], [])",
       "deprecated": false
     },
     {

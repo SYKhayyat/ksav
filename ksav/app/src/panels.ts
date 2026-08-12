@@ -517,18 +517,34 @@ export function toggleMenu(list: HTMLElement, btn: HTMLElement, fill?: () => voi
  * not a name, and a screen reader announced every one of these as "×, button" —
  * the same rule `iconBtn` states for the toolbar, applied to the control that
  * gets people out of things.
+ *
+ * # Why the title is a key and not a string
+ *
+ * Because these panels are built **once**, at boot, and switching the interface
+ * language rebuilds the header and the settings drawer and nothing else. The
+ * help panel was reported reading *מה אפשר לעשות* with the interface in
+ * English — and `helpTitle` is in both dictionaries, so nothing was missing. It
+ * was translated at boot, in Hebrew, and never asked again.
+ *
+ * Taking the key rather than the answer is what lets `localise` ask again. A
+ * caller that passes `t("helpTitle")` gets a title that is right once; a caller
+ * that passes `"helpTitle"` gets one that is right whenever anybody looks.
  */
 export function panelHead(
   id: string,
-  title: string,
+  /** An i18n key. Pass `{ text }` for a title that is not one — a file's name. */
+  title: string | { text: string },
   opts: { level?: "h2" | "h3"; cls?: string; extra?: Node[] } = {},
 ): HTMLElement {
   const p = panelOf(id);
   if (!hasExit(p, "head")) {
     throw new Error(`panels: "${id}" does not claim a head exit, so it must not build one`);
   }
+  const keyed = typeof title === "string";
   return el("div", { class: opts.cls ?? "styles-head" }, [
-    el(opts.level ?? "h2", {}, [title]),
+    el(opts.level ?? "h2", keyed ? { "data-i18n": title } : {}, [
+      keyed ? t(title) : title.text,
+    ]),
     ...(opts.extra ?? []),
     el(
       "button",
@@ -537,11 +553,39 @@ export function panelHead(
         type: "button",
         title: t("close"),
         "aria-label": t("close"),
+        "data-i18n-title": "close",
+        "data-i18n-label": "close",
         onClick: () => closePanel(id),
       },
       ["×"],
     ),
   ]);
+}
+
+/**
+ * Say every marked label again, in whatever language is current now.
+ *
+ * The mechanism was already here — `rerenderChrome` has swept for `[data-i18n]`
+ * for as long as anyone can remember — and **nothing in `src/` produced one**.
+ * A sweep with no producers is a loop over an empty list, run on every language
+ * change, reporting success. So the surfaces built once at boot kept the
+ * language they were born in, and the writer met that as a Hebrew title over an
+ * English panel with no way to explain it.
+ *
+ * Four attributes, because a label is not always text: a tooltip, an accessible
+ * name and a placeholder are all read by somebody, and all three were as stuck
+ * as the headings were.
+ */
+export function localise(root: ParentNode = document): void {
+  const say = (sel: string, set: (e: HTMLElement, s: string) => void) => {
+    root.querySelectorAll<HTMLElement>(`[${sel}]`).forEach((e) => {
+      set(e, t(e.getAttribute(sel)!));
+    });
+  };
+  say("data-i18n", (e, s) => (e.textContent = s));
+  say("data-i18n-title", (e, s) => e.setAttribute("title", s));
+  say("data-i18n-label", (e, s) => e.setAttribute("aria-label", s));
+  say("data-i18n-placeholder", (e, s) => e.setAttribute("placeholder", s));
 }
 
 /**

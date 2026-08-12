@@ -46,7 +46,9 @@ import {
   closeOnOutsideClick,
   closeMenus,
   toggleMenu,
+  localise,
 } from "../.tmp-test/panels.mjs";
+import { DICTS, setLang } from "../.tmp-test/i18n.mjs";
 
 const HERE = dirOf(import.meta.url);
 const CSS = readFileSync(path.join(HERE, "..", "src", "styles.css"), "utf8");
@@ -67,7 +69,9 @@ function selectorParts(sel) {
     return "";
   });
   const want = [...base.matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
-  return { want, forbid };
+  // `[data-i18n]` and friends — presence only, which is all `localise` asks.
+  const attrs = [...base.matchAll(/\[([\w-]+)\]/g)].map((m) => m[1]);
+  return { want, forbid, attrs };
 }
 
 class FakeText {
@@ -144,8 +148,21 @@ class FakeEl {
     return sibs[sibs.indexOf(this) - 1] ?? null;
   }
   matches(sel) {
-    const { want, forbid } = selectorParts(sel);
-    return want.every((c) => this.classes.has(c)) && !forbid.some((c) => this.classes.has(c));
+    const { want, forbid, attrs } = selectorParts(sel);
+    return (
+      want.every((c) => this.classes.has(c)) &&
+      !forbid.some((c) => this.classes.has(c)) &&
+      attrs.every((a) => this.attrs.has(a))
+    );
+  }
+  get textContent() {
+    return [...this.walk()]
+      .flatMap((n) => n.children.filter((c) => c instanceof FakeText))
+      .map((c) => c.text)
+      .join("");
+  }
+  set textContent(v) {
+    this.replaceChildren(new FakeText(v));
   }
   closest(sel) {
     for (let n = this; n; n = n.parent) if (n instanceof FakeEl && n.matches(sel)) return n;
@@ -307,6 +324,47 @@ withDom((root) => {
   head.find((n) => n.classes.has("styles-close"))?.click();
   notOk("the × closes the panel it was built for", isPanelOpen("help-panel"));
   ok("and leaves every other panel alone", isPanelOpen("styles-panel"));
+});
+
+// ---------------------------------------------------------------- 3b. language
+//
+// The help panel was reported reading *מה אפשר לעשות* with the interface in
+// English, and `helpTitle` is in both dictionaries — nothing was missing. These
+// surfaces are built **once**, at boot, and a language change rebuilds the
+// header and the settings drawer and nothing else, so every one of them kept
+// the language it was born in.
+//
+// The sweep for `[data-i18n]` had been in `rerenderChrome` for as long as
+// anyone can remember, and **nothing in `src/` produced one** — a loop over an
+// empty list, run on every language change, reporting success. So this asks the
+// question from the other end: build a head, change the language, and read it.
+
+withDom((root) => {
+  setLang("he");
+  const head = panelHead("help-panel", "helpTitle");
+  root.append(head);
+  const title = head.find((n) => n.getAttribute?.("data-i18n") === "helpTitle");
+  ok("a panel head keeps the key it was given", !!title);
+  check("and says it in the language of the moment", title.textContent, DICTS.he.helpTitle);
+
+  setLang("en");
+  check("which does not change on its own", title.textContent, DICTS.he.helpTitle);
+  localise(root);
+  check("until somebody asks again", title.textContent, DICTS.en.helpTitle);
+
+  const x = head.find((n) => n.classes.has("styles-close"));
+  check("and the × follows, tooltip", x.getAttribute("title"), DICTS.en.close);
+  check("and accessible name", x.getAttribute("aria-label"), DICTS.en.close);
+  setLang("he");
+});
+
+// A title that is not a key — a section's own name — is passed as text and left
+// alone, because re-saying it would replace the writer's words with a key.
+withDom((root) => {
+  const head = panelHead("form-modal", { text: "פרק שני" });
+  root.append(head);
+  localise(root);
+  ok("a text title survives a language change", head.textContent.includes("פרק שני"));
 });
 
 // A surface that does not claim a head exit must not build one, so the registry

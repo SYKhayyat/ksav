@@ -22,6 +22,7 @@ import {
   retargetRef,
   scan as scanDeferred,
 } from "./deferred";
+import { docLang, translated } from "./mode";
 import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
 import { scan as scanSpans, type Node, type Scan } from "./spans";
 
@@ -863,10 +864,23 @@ export function deleteNote(doc: string, note: NoteSpan): { text: string; caret: 
   return { text: doc.slice(0, note.from) + doc.slice(note.to), caret: note.from };
 }
 
-/** Does the document already end with (or contain) this scaffolding line? */
+/**
+ * Does the document already end with (or contain) this scaffolding line?
+ *
+ * Asked in **both spellings**, because the document may be written in either
+ * and this decides whether to add the line again. An English document holding
+ * `#endnotes()` answered "no" to `#הערות_בסוף` and got a second dump call in
+ * the other language — two apparatus footers, one document, and the second one
+ * printing the notes a second time.
+ */
 export function hasLine(doc: string, line: string): boolean {
   const head = line.split("(")[0].trim();
-  return head.length > 0 && doc.includes(head);
+  if (!head) return false;
+  return (
+    doc.includes(head) ||
+    doc.includes(translated(head, "he")) ||
+    doc.includes(translated(head, "en"))
+  );
 }
 
 /**
@@ -887,26 +901,43 @@ export function scaffold(
   doc: string,
   caret: number,
   choice: NoteChoice,
+  /** What the page direction says, for a document that has said nothing yet. */
+  whenSilent: "he" | "en" = "he",
 ): { text: string; caret: number } {
+  // Every string a layout writes is spelt in the document's language, not in the
+  // one the cards happen to be written in. The chooser's `wrap`, `head` and
+  // `tail` are Hebrew literals because this is a Hebrew-first product; a
+  // scaffolding line is still source the writer has to read and edit, and three
+  // Hebrew lines wrapped around an English document is the report *"everything
+  // is coming in in Hebrew"* with the apparatus doing the inserting.
+  //
+  // Derived from the document rather than passed in, for the reason
+  // `insertionAt` gives about the same decision: the callers forgot the mode
+  // three separate times in one day, and there is no version of "each surface
+  // remembers" that survives a fourth surface.
+  const lang = docLang(doc, caret, whenSilent);
+  const say = (s: string) => translated(s, lang);
   let text = doc;
-  if (choice.wrap && !text.includes(choice.wrap.open.trim())) {
+  if (choice.wrap && !text.includes(say(choice.wrap.open).trim())) {
     // Wrap the whole document: the note has to live inside the wrapper or it has
     // no column to land in.
     const before = text.length;
-    text = choice.wrap.open + text + choice.wrap.close;
-    caret += text.length - before - choice.wrap.close.length;
+    const open = say(choice.wrap.open);
+    const close = say(choice.wrap.close);
+    text = open + text + close;
+    caret += text.length - before - close.length;
   }
 
   if (choice.head && !hasLine(text, choice.head)) {
     // First line of the file, before any wrapper: the apparatus reads this state
     // from the page footer, so anything it sits after is a page it never reaches.
-    const line = choice.head + "\n\n";
+    const line = say(choice.head) + "\n\n";
     text = line + text;
     caret += line.length;
   }
 
   if (choice.tail && !hasLine(text, choice.tail)) {
-    text = text.replace(/\s*$/, "") + "\n\n" + choice.tail + "\n";
+    text = text.replace(/\s*$/, "") + "\n\n" + say(choice.tail) + "\n";
   }
   return { text, caret };
 }
@@ -957,10 +988,19 @@ export function applyChoice(
    * wrap there.
    */
   sel: { to?: number; text?: string; marker?: string } = {},
+  /** What the page direction says, for a document that has said nothing yet. */
+  whenSilent: "he" | "en" = "he",
 ): { text: string; caret: number } {
   // `marker` overrides the layout's own: tiers ג and below are the same layout
   // as ב and want the same configuration line, but not the same command.
-  const chosen = sel.marker ?? markersOf(choice)[layer] ?? choice.insert;
+  const raw = sel.marker ?? markersOf(choice)[layer] ?? choice.insert;
+  // Spelt in the document's language before anything else happens to it, so the
+  // deferred pair, the caret arithmetic and `scaffold`'s own reading of the
+  // document all see the string that is actually going in. `plan` short-circuits
+  // to this branch *before* `insertionAt`, so a note is the one insertion that
+  // never passed through the translation every other command gets — which is why
+  // note markers arrived in Hebrew in an English document while `#bold` did not.
+  const chosen = translated(raw, docLang(doc, selectionFrom, whenSilent));
   // Where the prose is written is orthogonal to where the note prints, so it is
   // a rewrite of the snippet rather than a twelfth layout: the same eleven
   // choices, each available either way round.
@@ -975,7 +1015,7 @@ export function applyChoice(
   let text = doc.slice(0, selectionFrom) + clean + doc.slice(to);
   let caret = selectionFrom + (caretInSnippet < 0 ? clean.length : caretInSnippet);
 
-  ({ text, caret } = scaffold(text, caret, choice));
+  ({ text, caret } = scaffold(text, caret, choice, whenSilent));
 
   // The body last, so it is filed *after* the layout's own scaffolding rather
   // than being pushed below it — and the caret follows the writer to it, since

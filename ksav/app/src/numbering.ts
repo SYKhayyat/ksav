@@ -177,3 +177,126 @@ export function continueSeries(doc: string, at: number, snippet: string): string
   // Only the first group. The title is the writer's and the caret is in it.
   return snippet.replace(/\[[^\]]*\]/u, `[${next}]`);
 }
+
+// ---------------------------------------------------------------- resequencing
+//
+// `continueSeries` answers *what number does the one I am adding get*. It reads
+// the document backwards from the caret and it is right about the end of a
+// series, which is where a writer adds most of them.
+//
+// It is silent about everything else. Insert a siman between two others and the
+// new one takes the number of the one it now precedes; delete one and the rest
+// count past the hole; move one and its number goes with it to the wrong place.
+// The margin note was exact: *"`#סימן` does not renumber when one is inserted in
+// the middle. A list does; this does not."* And then, of `#סעיף`, the same
+// sentence again — which is what makes it the family and not the command.
+//
+// A list renumbers for free because a list's numbers are **not in the source**:
+// Typst counts the items. A siman's number is written by hand, in the text,
+// because that is what a siman is — so renumbering here means rewriting the
+// writer's own characters, and it has to be exactly as conservative as
+// `continueSeries` is about which characters it will touch.
+
+/** One member of a series, and what its number ought to be. */
+export interface Numbered {
+  /** The command as written — `סימן` or `siman`. */
+  name: string;
+  /** The range of the numeral itself, inside the first `[…]`. */
+  from: number;
+  to: number;
+  /** What is written there now. */
+  written: string;
+  /** What the sequence says it should be, punctuated like its neighbours. */
+  wanted: string;
+}
+
+/**
+ * Every series member in the document, each with the number it should carry.
+ *
+ * **A body that is not a Hebrew numeral is not counted and not touched.** That
+ * is the same rule `continueSeries` follows and for the same reason: `#סימן[פתיחה]`
+ * is an introduction, `#סימן[1]` is a writer who numbers in digits, and
+ * renumbering either into a scheme they did not choose is worse than leaving a
+ * sequence with a gap in it. They are simply invisible to the count, so a
+ * hand-numbered introduction before `#סימן[א׳]` leaves א׳ alone.
+ *
+ * The punctuation comes from the **first** numeral in each run, because that is
+ * where the document states its style: a kuntres writes `א׳` and a שולחן ערוך
+ * style writes `א`, and a resequence that changed one into the other would be
+ * making a typographic decision nobody asked it to make.
+ */
+export function sequence(doc: string): Numbered[] {
+  const nodes = [...scan(doc).nodes].sort((a, b) => a.from - b.from);
+  const out: Numbered[] = [];
+  for (const series of SERIES) {
+    let count = 0;
+    let suffix: string | null = null;
+    for (const n of nodes) {
+      if (series.resetBy.includes(n.name)) {
+        count = 0;
+        suffix = null;
+        continue;
+      }
+      if (!series.names.includes(n.name) || n.bodies.length === 0) continue;
+      const body = n.bodies[0];
+      const written = doc.slice(body.from, body.to);
+      if (gematria(written) === 0) continue;
+      count++;
+      if (suffix === null) suffix = suffixOf(written);
+      out.push({
+        name: n.name,
+        from: body.from,
+        to: body.to,
+        written,
+        wanted: hebrewNumeral(count) + suffix,
+      });
+    }
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/** The members whose number disagrees with their position. */
+export function outOfSequence(doc: string): Numbered[] {
+  return sequence(doc).filter((n) => n.written !== n.wanted);
+}
+
+/**
+ * The document with every series counting from one again.
+ *
+ * Right to left, so an earlier rewrite cannot move a later one's offsets — the
+ * same reason `translated` sorts its edits that way. Returns the text unchanged
+ * when nothing was wrong, which is what lets the caller skip a transaction
+ * rather than push an identity edit onto the undo stack.
+ */
+export function resequence(doc: string): { text: string; changed: number } {
+  const wrong = outOfSequence(doc).sort((a, b) => b.from - a.from);
+  let text = doc;
+  for (const n of wrong) text = text.slice(0, n.from) + n.wanted + text.slice(n.to);
+  return { text, changed: wrong.length };
+}
+
+/**
+ * Resequence, and say where the caret ended up.
+ *
+ * The caret matters because this runs **immediately after an insertion**: the
+ * writer has just added a siman in the middle and is about to type its title,
+ * and a renumber that moved them somewhere else would be worse than not
+ * renumbering at all. A numeral can change length — `ט` to `י`, `יט` to `כ` —
+ * so every edit before the caret shifts it.
+ *
+ * An edit *containing* the caret cannot happen: the caret is in the title after
+ * an insertion, never inside the number, and the number is the only thing here
+ * that gets rewritten.
+ */
+export function resequenceAt(doc: string, caret: number): { text: string; caret: number; changed: number } {
+  const wrong = outOfSequence(doc);
+  let moved = caret;
+  for (const n of wrong) if (n.to <= caret) moved += n.wanted.length - n.written.length;
+  const { text, changed } = resequence(doc);
+  return { text, caret: moved, changed };
+}
+
+/** Is this snippet a member of a running series? For the caller that resequences. */
+export function inSeries(snippet: string): boolean {
+  return seriesFor(snippet) !== null;
+}

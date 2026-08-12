@@ -24,6 +24,8 @@ import {
 import { bracketLint, healAll } from "./bracket-lint";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
+import { numberingMarks, renumberAll } from "./numbering-lint";
+import { inSeries, resequenceAt } from "./numbering";
 import {
   deferredNotes,
   jumpDeferred,
@@ -648,6 +650,18 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       return true;
     },
   },
+  {
+    // Put every series back in sequence, on demand. The lint offers this on the
+    // line it marks; an action makes it bindable, findable in the palette and
+    // recordable in a macro — which is how everything a writer can do is
+    // reachable here, and what a repair that only exists inside a lint is not.
+    id: "renumber",
+    run: (v) => {
+      const n = renumberAll(v);
+      setStatus(n ? tf("renumbered", n) : t("renumberedNothing"), n ? "ok" : "");
+      return true;
+    },
+  },
   { id: "region", run: () => (insertRegion(), true) },
   { id: "comment", run: () => (commentOut(), true) },
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
@@ -1267,6 +1281,10 @@ function makeState(body: string, prose: boolean): EditorState {
       // See `sourcenote-lint.ts`: the whole value of the command is the half
       // that does not print, and nothing on screen said which kind you had.
       sourceNoteMarks,
+      // A siman or a se'if whose number no longer says where it is. The
+      // insertion path resequences on insert; this is the half that catches a
+      // delete and a move, neither of which asks this application anything.
+      numberingMarks,
       deferredNotes,
       revealAll,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
@@ -2740,6 +2758,22 @@ function insertSnippet(rawSnippet: string) {
   if (plan.kind === "note") {
     applyNoteChoice(plan.choice, plan.layer, { to: sel.to, text: selText, marker: plan.marker });
     return;
+  }
+  // A siman or a se'if added in the middle leaves every one after it holding
+  // the wrong number, because a siman's number is written in the source by hand
+  // — that is what a siman *is* — where a list's numbers are Typst's and
+  // renumber for free. `continueSeries` gave the new one the number of the one
+  // it now precedes, which is right; the rest of the run is what nothing ever
+  // fixed. One transaction, so it is one undo.
+  if (inSeries(rawSnippet)) {
+    const inserted = doc.slice(0, sel.from) + plan.text + doc.slice(sel.to);
+    const done = resequenceAt(inserted, sel.from + plan.cursor);
+    if (done.changed) {
+      editDoc(done.text, done.caret);
+      if (done.changed > 1) setStatus(tf("renumbered", done.changed), "ok");
+      runtime.view.focus();
+      return;
+    }
   }
   runtime.view.dispatch({
     changes: { from: sel.from, to: sel.to, insert: plan.text },

@@ -65,6 +65,7 @@ import {
 import { aliasesInForce, keybindingsFrom, readable, whoHolds } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
+import { printedPrefix, fractionAtLine, lineAtFraction } from "./scrollmap";
 import * as styles from "./styles";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
@@ -1156,6 +1157,10 @@ function makeEditor(): EditorView {
           }
         }
         if (u.docChanged) {
+          // What prints has moved, so the scroll map is stale. Dropped rather
+          // than rebuilt: a scroll event will rebuild it if one comes, and most
+          // keystrokes are never followed by a scroll.
+          invalidateScrollMap();
           // Saving and rendering are scheduled independently. One must never be
           // able to stop the other — that coupling is what silently lost text.
           scheduleSave();
@@ -1242,23 +1247,86 @@ function updateCounts() {
 }
 
 
-// Sync scrolling: scrolling the editor drives the preview and vice-versa
-// (percentage-based, which is all a scrollbar can honestly be). Clicking the
-// preview puts the cursor on the word that was clicked — exactly, by asking the
-// compiler, not by proportion. Two-panel mode only.
+/**
+ * The printed-character prefix sum for the document as it stands.
+ *
+ * Rebuilt lazily and cached against the document's length and its first
+ * changed-marker, because it is a full pass over the text and the thing that
+ * asks for it is a scroll event. Invalidated by `invalidateScrollMap`, which
+ * the update listener calls on every document change — one comparison per
+ * keystroke, one rebuild per scroll after a change.
+ */
+let scrollPrefix: number[] | null = null;
+function invalidateScrollMap() {
+  scrollPrefix = null;
+}
+function printedMap(): number[] {
+  if (!scrollPrefix) scrollPrefix = printedPrefix(docTextOf(runtime.view.state.doc));
+  return scrollPrefix;
+}
+
+// Sync scrolling: scrolling the editor drives the preview and vice-versa.
+//
+// **Not by the scrollbars.** It used to be `scrollTop / scrollHeight` on each
+// side, under a comment claiming a percentage was "all a scrollbar can honestly
+// be". A fraction of the source's pixels equals a fraction of the printed
+// pixels only if every line of source prints, and in a Ksav document a great
+// deal does not — comments, command heads, closing brackets. The writer who
+// found this said so in the same sentence they reported it: *"this might be
+// because I have so many comments"*, and they were right. A marked-up document
+// is precisely the case where the old arithmetic is furthest off, which is to
+// say the harder somebody works, the more wrong it got.
+//
+// The proportion survives; the currency changes. `scrollmap.ts` counts the
+// characters that will actually print, so a page of margin notes weighs nothing
+// on the source side and the same fraction means the same place on both. See
+// that module for what this still does not cover.
+//
+// Clicking the preview puts the cursor on the word that was clicked — exactly,
+// by asking the compiler, not by proportion. Two-panel mode only.
 function wireSyncScroll() {
   const preview = document.getElementById("preview")!;
   const scroller = runtime.view.scrollDOM;
   let lock = false;
-  const frac = (e: HTMLElement) => e.scrollTop / Math.max(1, e.scrollHeight - e.clientHeight);
-  const apply = (src: HTMLElement, dst: HTMLElement) => {
-    if (lock || settings.syncScroll === false || settings.layout !== "two") return;
+  const guard = () => !(lock || settings.syncScroll === false || settings.layout !== "two");
+  const unlock = () => requestAnimationFrame(() => (lock = false));
+
+  // The quantity both panes are steered by is **the fraction of the document
+  // above the top edge**, and that is worth stating because getting it wrong is
+  // subtle and was measurable: the source side reads the line at the top of the
+  // viewport, so the preview side has to read the top of its own content — not
+  // the position of its scrollbar thumb. Those differ by a whole viewport
+  // height, which on a four-page document is four points of drift in a file
+  // with no comments in it at all. Hence `scrollHeight` on the preview rather
+  // than `scrollHeight - clientHeight`.
+  const previewTopFraction = () => preview.scrollTop / Math.max(1, preview.scrollHeight);
+  const setPreviewTop = (f: number) =>
+    (preview.scrollTop = Math.min(f * preview.scrollHeight, preview.scrollHeight - preview.clientHeight));
+
+  // Source → preview. The line at the top of the editor's viewport is the one
+  // the writer is looking at; how much has printed above it is the fraction.
+  scroller.addEventListener("scroll", () => {
+    if (!guard()) return;
     lock = true;
-    dst.scrollTop = frac(src) * (dst.scrollHeight - dst.clientHeight);
-    requestAnimationFrame(() => (lock = false));
-  };
-  scroller.addEventListener("scroll", () => apply(scroller, preview));
-  preview.addEventListener("scroll", () => apply(preview, scroller));
+    const top = runtime.view.lineBlockAtHeight(scroller.scrollTop);
+    const line = runtime.view.state.doc.lineAt(top.from).number - 1;
+    setPreviewTop(fractionAtLine(printedMap(), line));
+    unlock();
+  });
+
+  // Preview → source, through the same map read backwards. A pane of pages is
+  // uniform in a way a pane of source is not, so how far down its content the
+  // top edge sits is an honest reading of how much of the print is behind you.
+  preview.addEventListener("scroll", () => {
+    if (!guard()) return;
+    lock = true;
+    const line = lineAtFraction(printedMap(), previewTopFraction());
+    const doc = runtime.view.state.doc;
+    const at = doc.line(Math.max(1, Math.min(line + 1, doc.lines)));
+    scroller.scrollTop = runtime.view.lineBlockAt(at.from).top;
+    unlock();
+  });
+
   preview.addEventListener("click", (e) => {
     if (settings.layout !== "two") return;
     // A drag that ended here is a selection, not a click: the reader is copying a

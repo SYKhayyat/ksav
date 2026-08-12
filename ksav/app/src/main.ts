@@ -118,6 +118,7 @@ import {
   isPageField,
   docConfig,
   ownPageSetup,
+  settingsLoadFailure,
 } from "./settings";
 import type { Field, Settings, Layout, PreviewSide, PageSetup, ValueOf } from "./settings";
 import * as save from "./save";
@@ -812,6 +813,31 @@ async function runSpellCheck() {
 }
 
 /**
+ * What the editing mode is actually doing, said out loud.
+ *
+ * This was `t("editingModeNote")` — a static string reading *"Real Vim and
+ * Emacs. While one is on it gets the keys before Ksav's own shortcuts"* —
+ * printed regardless of whether anything had loaded. For the whole life of the
+ * feature it was false: the mode was never applied at all, because
+ * `loadSettings` was throwing and `settings.editingMode` was `"default"` by the
+ * time boot looked at it. A sentence asserting that a thing works is not a
+ * substitute for the thing working, and it is actively worse than silence when
+ * the writer is trying to work out why their keys do nothing.
+ *
+ * So it reports. `keymodes.loadError()` has existed since the modes were
+ * written, with a comment promising "a note saying why the mode did not
+ * arrive", and **had no caller anywhere in the application** — its only
+ * reference was a test asserting it was null. This is the caller.
+ */
+function editingModeNote(): string {
+  const mode = settings.editingMode ?? "default";
+  if (mode === "default") return t("editingModeNoteOff");
+  const failed = keymodes.loadError();
+  if (failed) return tf("editingModeFailed", failed);
+  return t("editingModeNote");
+}
+
+/**
  * What the checker is actually checking, said out loud.
  *
  * This is the other half of adding English. The toggle used to read as on over a
@@ -1305,6 +1331,15 @@ function wireSyncScroll() {
 
   // Source → preview. The line at the top of the editor's viewport is the one
   // the writer is looking at; how much has printed above it is the fraction.
+  //
+  // `lineBlockAtHeight` and not a line count, and that is what makes **folding**
+  // work. A folded region is the mirror image of a comment: it takes one line of
+  // pixels and prints in full, where a comment takes its full height and prints
+  // nothing. A document with both — which is what a marked-up sefer is — is
+  // wrong in two directions at once under anything that counts what is on
+  // screen. CodeMirror's height map already knows where a fold put every line,
+  // and `printedPrefix` is built over the whole document, so folded text keeps
+  // its full weight. Neither half had to be told about the other.
   scroller.addEventListener("scroll", () => {
     if (!guard()) return;
     lock = true;
@@ -2953,7 +2988,7 @@ function buildSettingsDrawer(): HTMLElement {
       ["vim", t("mode.vim")],
       ["emacs", t("mode.emacs")],
     ]),
-    el("div", { class: "set-note" }, [t("editingModeNote")]),
+    el("div", { class: "set-note" }, [editingModeNote()]),
     checkRow("focusModeLabel", "focusMode"),
     checkRow("typewriterLabel", "typewriter"),
     checkRow("autocompleteLabel", "autocomplete"),
@@ -6722,6 +6757,15 @@ async function boot() {
       updateTitleBar();
     });
   }
+  // Preferences that could not be read are preferences the writer has silently
+  // lost. This banner exists because that failure had nowhere to go for the
+  // whole life of the application: `loadSettings` threw on every boot and the
+  // catch handed back the defaults, so every choice anybody ever made was
+  // discarded on reload and nothing anywhere said a word about it. A fallback
+  // that cannot report itself is indistinguishable from a feature that does not
+  // work, which is what "emacs mode does nothing" turned out to be.
+  const lostSettings = settingsLoadFailure();
+  if (lostSettings) showChromeNotice(tf("settingsLost", lostSettings));
   render();
   wireKeys();
   save.wireUnloadGuard();

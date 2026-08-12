@@ -67,6 +67,81 @@ export async function run() {
     ok("and the command name is not", total < body + "#הערה".length);
   }
 
+  // ---------------------------------------------------------------- folding
+  //
+  // The other way source height stops meaning printed height, and it is not the
+  // same case as comments. A folded region takes **one line of pixels and prints
+  // in full** — the exact opposite of a comment, which takes its full height and
+  // prints nothing. Any scheme that counts what is *on screen* is wrong in both
+  // directions at once, and by more than either alone in a document that has
+  // both.
+  //
+  // Two things make this work, and only the second is testable here:
+  //
+  //   - The map is built over the document text, not over the viewport, so
+  //     folded content is counted exactly as if it were open. That is what these
+  //     assertions pin.
+  //   - "Which line is at the top of the source pane" is asked of
+  //     `view.lineBlockAtHeight`, which is CodeMirror's own fold-aware height
+  //     map. A line count would have been wrong the moment anything folded.
+  //
+  // The delimiters are the subtle part. `//{ … //}` is the fold that **still
+  // prints**, and its own markers are `//` comments — so the markers must weigh
+  // nothing and everything between them must weigh full. `/* … */` is the other
+  // construct, which folds *and* is removed from the output, so all of it weighs
+  // nothing. Getting those two the same way round would be a silent 100% error
+  // on whichever one was wrong.
+
+  {
+    const line = "שורה שנדפסת\n";
+    const open = "//{ קטע מקופל\n";
+    const close = "//}\n";
+    const folded = printedPrefix(line.repeat(2) + open + line.repeat(4) + close + line.repeat(2));
+    const flat = printedPrefix(line.repeat(8));
+    check(
+      "a fold's body weighs exactly what it would unfolded",
+      folded[folded.length - 1],
+      flat[flat.length - 1],
+    );
+  }
+
+  {
+    // And the markers themselves are comments, so they are worth nothing — a
+    // document made of nothing but fold markers prints nothing.
+    const p = printedPrefix("//{ אחד\n//}\n//{ שתיים\n//}\n");
+    check("fold markers are not content", p[p.length - 1], 0);
+  }
+
+  {
+    // The other foldable construct, and the one that goes the other way: a block
+    // comment is removed from the output, so it weighs nothing however tall it is.
+    const line = "שורה שנדפסת\n";
+    const hidden = "/* הערה\nשנמשכת\nעל פני שורות\n*/\n";
+    const p = printedPrefix(line.repeat(2) + hidden + line.repeat(2));
+    const q = printedPrefix(line.repeat(4));
+    check("a hidden block weighs nothing", p[p.length - 1], q[q.length - 1]);
+  }
+
+  {
+    // Both in one document, which is the case the writer's own file is: the
+    // half-way point of the *print* is nowhere near the half-way point of the
+    // source, and it is not near the half-way point of the *folded* source either.
+    const line = "שורה שנדפסת\n";
+    const note = "// הערה\n";
+    const text = line.repeat(10) + "//{ קטע\n" + line.repeat(10) + "//}\n" + note.repeat(40) + line.repeat(10);
+    const p = printedPrefix(text);
+    // Everything above the comment block: twenty printing lines of thirty.
+    const beforeNotes = 10 + 1 + 10 + 1;
+    check(
+      "two thirds of the print is above the comments",
+      Math.round(fractionAtLine(p, beforeNotes) * 100),
+      67,
+    );
+    // Folded, the source is 10 + 1 + 40 + 10 = 61 visible lines and that point is
+    // line 11 of them — 18% by anything that counted what was on screen.
+    ok("...where a visible-line count would have said 18%", Math.round((11 / 61) * 100) === 18);
+  }
+
   // ------------------------------------------------------------- the two directions
 
   {

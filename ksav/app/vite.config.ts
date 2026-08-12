@@ -6,6 +6,9 @@ const pkgVersion: string = createRequire(import.meta.url)("./package.json").vers
 import { fileURLToPath } from "node:url";
 
 import { SERVICES } from "./src/services.gen";
+// @ts-expect-error — plain JS beside the test that exercises it. See the header
+// of that file for why the rule is not written inline here.
+import { MODE_PACKAGES, stripStatementPure } from "./tools/pure-annotations.mjs";
 // @ts-expect-error — plain JS beside `csp.txt`, which is where the rule about
 // how that file may be delivered belongs. No types, and nothing to type.
 import { metaPolicy } from "../policy/meta.mjs";
@@ -75,6 +78,40 @@ export default defineConfig({
     __PUBLIC_BASE__: JSON.stringify(publicBase),
   },
   plugins: [
+    {
+      // Keep the editing modes' key tables out of the minifier's teeth.
+      //
+      // `@replit/codemirror-emacs` registers its entire keyboard at module
+      // scope, and annotates both calls as side-effect free:
+      //
+      //     for (let i in emacsKeys) {
+      //         /*@__PURE__*/EmacsHandler.bindKey(i, emacsKeys[i]);
+      //     }
+      //     /*@__PURE__*/EmacsHandler.addCommands({ … });
+      //
+      // `@__PURE__` is a promise to the bundler that a call may be deleted when
+      // its result is unused. Both of these exist *only* for their side effect,
+      // so the promise is false, and Rollup does what it was told: the built
+      // chunk carries the `emacsKeys` table and the `bindKey` method and **not
+      // one call registering the one with the other**, nor any of the command
+      // implementations. The mode then loads cleanly, adds its CSS class, and
+      // has no bindings and no commands. That is the whole of "emacs mode does
+      // nothing": in the dev server, which does not tree-shake, it works.
+      //
+      // The rule lives in `tools/pure-annotations.mjs` so a test can run it
+      // against the real dependency on disk: it drops the annotation only where
+      // it introduces a statement, and leaves the honest expression-position
+      // ones alone. Scoped to the two mode packages, because this is a claim
+      // about their source and not a general opinion about pure annotations.
+      name: "ksav-mode-side-effects",
+      apply: "build",
+      enforce: "pre",
+      transform(code: string, id: string) {
+        if (!MODE_PACKAGES.test(id)) return null;
+        const fixed = stripStatementPure(code);
+        return fixed === code ? null : { code: fixed, map: null };
+      },
+    },
     {
       name: "ksav-csp",
       apply: "build",

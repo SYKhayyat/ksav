@@ -377,6 +377,12 @@ const HE: Dict = {
   "mode.vim": "Vim",
   "mode.emacs": "Emacs",
   editingModeNote: "Vim ו־Emacs אמיתיים. במצב כזה הם מקבלים את המקשים לפני קיצורי כתב — לשמירה: ‎:w‎ ב־Vim, ‎C-x C-s‎ ב־Emacs.",
+  // What the note says when no mode is on, and when one was asked for and did
+  // not arrive. The old note asserted the first sentence unconditionally, in a
+  // build where the mode was never applied at all.
+  editingModeNoteOff: "Vim ו־Emacs אמיתיים זמינים כאן — בחרו אחד מהם והם יקבלו את המקשים לפני קיצורי כתב.",
+  editingModeFailed: "⚠ המצב שנבחר לא נטען, והמקלדת נשארה רגילה. הסיבה: {0}",
+  settingsLost: "⚠ ההעדפות השמורות לא נקראו, וההגדרות חזרו לברירת המחדל. הסיבה: {0}",
   focusModeLabel: "מצב ריכוז (עמעום שאר הטקסט)",
   typewriterLabel: "גלילת מכונת כתיבה (השורה במרכז)",
   crashTitle: "משהו נשבר",
@@ -1040,6 +1046,9 @@ const EN: Dict = {
   "mode.vim": "Vim",
   "mode.emacs": "Emacs",
   editingModeNote: "Real Vim and Emacs. While one is on it gets the keys before Ksav's own shortcuts — to save, :w in Vim, C-x C-s in Emacs.",
+  editingModeNoteOff: "Real Vim and Emacs are available here — pick one and it gets the keys before Ksav's own shortcuts.",
+  editingModeFailed: "⚠ The mode you chose did not load, and the keyboard is unchanged. Reason: {0}",
+  settingsLost: "⚠ Your saved preferences could not be read, so the settings are back to their defaults. Reason: {0}",
   focusModeLabel: "Focus mode (dim the rest)",
   typewriterLabel: "Typewriter scrolling (keep the line centred)",
   crashTitle: "Something broke",

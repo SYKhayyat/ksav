@@ -135,46 +135,6 @@ export const DEFAULTS: Settings = {
   autosaveFile: true,
 };
 
-const KEY = "ksav.settings";
-
-function loadSettings(): Settings {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || "{}") as Record<string, unknown>;
-    const s = { ...DEFAULTS, ...raw } as Settings & Record<string, unknown>;
-    if ((s.layout as string) === "one") s.layout = "source"; // migrate old value
-
-    // A settings blob written before page setup stopped living here has the
-    // thirty page fields at its top level. They meant *what a new document
-    // starts like* — that is what `set as default` wrote — so that is where
-    // they go, and the top-level copies are dropped rather than left to be read
-    // by something that no longer should.
-    //
-    // `readPageSetup` does the same validation it does for a document, so a
-    // hand-edited or corrupted blob cannot put a string where a number belongs
-    // on the next compile request.
-    if (!s.newDocument) {
-      const rescued = readPageSetup(raw);
-      if (rescued) s.newDocument = rescued;
-    }
-    for (const key of PAGE_FIELDS) delete s[key];
-    return s as Settings;
-  } catch {
-    return { ...DEFAULTS };
-  }
-}
-
-/** The live settings object. Mutated in place; call `saveSettings` after. */
-export const settings: Settings = loadSettings();
-
-export function saveSettings() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(settings));
-  } catch {
-    // Preferences are worth a lot less than text. If storage is full the save
-    // path says so far more usefully than a silently-reverted toggle would.
-  }
-}
-
 /** The page-setup subset that goes on a compile request. */
 /**
  * The page-setup fields, as opposed to the fields about the application (B26).
@@ -231,6 +191,106 @@ export const PAGE_FIELDS = [
   "pdf_tagged",
   "prevent_orphans",
 ] as const;
+
+const KEY = "ksav.settings";
+
+/**
+ * What the last load could not read, if anything.
+ *
+ * Not decoration. Every preference a writer had ever set was being thrown away
+ * on every single boot — see [`loadSettings`] — and the reason it survived for
+ * as long as it did is that the failure had nowhere to go. A load that falls
+ * back to the defaults is a load that has silently un-chosen everything the
+ * person chose, and it has to be able to say so.
+ */
+let loadFailure: string | null = null;
+
+/** Why the stored preferences could not be read, or null if they were. */
+export function settingsLoadFailure(): string | null {
+  return loadFailure;
+}
+
+/**
+ * The preferences as stored, with the shipped defaults underneath.
+ *
+ * # The bug this function was
+ *
+ * `PAGE_FIELDS` is declared with `const`, **below** this function, and this
+ * function is called at module scope by the `settings` binding below. A `const`
+ * is in its temporal dead zone until its own declaration is evaluated, so
+ * `for (const key of PAGE_FIELDS)` threw `ReferenceError: Cannot access
+ * 'PAGE_FIELDS' before initialization` — on every boot, in every build, since
+ * the day page setup was split out of this object.
+ *
+ * The `catch` then did what it says: returned the defaults. It was written for
+ * a corrupted or hand-edited JSON blob, and it absorbed a *programming error*
+ * with exactly the same shrug. So **no preference has ever survived a reload**:
+ * not the theme, not the layout, not prose mode, not spell-check, not the
+ * keybindings, not the editing mode. The settings drawer was honest for the
+ * length of one session — `settings` is mutated in place and the drawer reads
+ * it — and every reload quietly un-chose all of it.
+ *
+ * That is why "emacs mode does nothing" was reported. The mode was never
+ * applied, because `settings.editingMode` was `"default"` by the time `boot`
+ * looked at it. It is also, almost certainly, why a reopened document "went
+ * into prose mode" and why the preview came back left-to-right.
+ *
+ * Two things changed, and the second matters more than the first:
+ *
+ *   - `PAGE_FIELDS` moved above this function, so there is no dead zone.
+ *   - The `catch` no longer treats every failure as a bad blob. Unreadable JSON
+ *     is expected and recoverable; anything else is a defect, and it is
+ *     recorded so [`settingsLoadFailure`] can put it in front of a person
+ *     rather than leaving them to notice their preferences evaporating.
+ */
+export function loadSettings(): Settings {
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(localStorage.getItem(KEY) || "{}") as Record<string, unknown>;
+  } catch (e) {
+    // The one failure this fallback was written for: a blob that is not JSON.
+    // Nothing can be rescued from it, and the defaults are the right answer.
+    loadFailure = e instanceof Error ? e.message : String(e);
+    return { ...DEFAULTS };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    loadFailure = "stored preferences are not an object";
+    return { ...DEFAULTS };
+  }
+
+  loadFailure = null;
+  const s = { ...DEFAULTS, ...raw } as Settings & Record<string, unknown>;
+  if ((s.layout as string) === "one") s.layout = "source"; // migrate old value
+
+  // A settings blob written before page setup stopped living here has the
+  // thirty page fields at its top level. They meant *what a new document
+  // starts like* — that is what `set as default` wrote — so that is where
+  // they go, and the top-level copies are dropped rather than left to be read
+  // by something that no longer should.
+  //
+  // `readPageSetup` does the same validation it does for a document, so a
+  // hand-edited or corrupted blob cannot put a string where a number belongs
+  // on the next compile request.
+  if (!s.newDocument) {
+    const rescued = readPageSetup(raw);
+    if (rescued) s.newDocument = rescued;
+  }
+  for (const key of PAGE_FIELDS) delete s[key];
+  return s as Settings;
+}
+
+/** The live settings object. Mutated in place; call `saveSettings` after. */
+export const settings: Settings = loadSettings();
+
+export function saveSettings() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(settings));
+  } catch {
+    // Preferences are worth a lot less than text. If storage is full the save
+    // path says so far more usefully than a silently-reverted toggle would.
+  }
+}
+
 
 /** A document's own page setup, where it has said anything (B26). */
 export type PageSetup = Partial<Pick<DocConfig, (typeof PAGE_FIELDS)[number]>>;

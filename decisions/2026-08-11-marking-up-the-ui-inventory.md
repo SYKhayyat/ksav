@@ -9,16 +9,24 @@ comments are `//` lines in the document source.
 
 ## How far the reading got, and what that means
 
-Comments run from the header through roughly item 49. They stop there, and the
-reason is stated in them: the caret could not be placed on or after a
-spell-checked word, and source and preview were scrolled to different places.
-The document became unpleasant to write in before it had been fully read.
+Comments run from the header through item 58. The reading stopped once at item
+49, for the reason stated in the comments — the caret could not be placed on or
+after a spell-checked word, and source and preview were scrolled to different
+places — and then resumed the next day through the command-demonstration block
+and the settings drawer.
 
-**Items 50 to 156 are unreviewed, not approved.** Nothing below item 49 has been
+**Items 59 to 156 are unreviewed, not approved.** Nothing below item 58 has been
 seen by a writer, and no silence in this document should be read as consent to
-anything in that range. The two defects that stopped the reading are therefore
+anything in that range. The two defects that stopped the first reading are still
 the first work in the list, because until they are fixed the rest of the
 inventory cannot be marked up at all.
+
+The second pass covered items 50 to 58, which is where the commands are actually
+*demonstrated* rather than described — the file contains live `#gemara`,
+`#סימן`, `#seif`, `#dh`, `#הערת_ימין` and the rest. That is why almost everything
+it found is a defect in a command's behaviour rather than a wish about a menu,
+and why it produced the root cause in part three that four separate comments were
+each describing a corner of.
 
 ---
 
@@ -323,6 +331,23 @@ investigated.
 - [ ] **Settings and other drawers cannot be closed without scrolling back up**
       to reach the close button.
 
+From the second pass, over items 50 to 58:
+
+- [ ] **`#סמן` and `#הפניה` do not render.** Anchor and cross-reference, both
+      inserted into the document and neither producing anything in the preview.
+      Two of the two commands in the Reference category.
+- [ ] **`#סעיף` does not renumber or sort** on insert, delete or move — the same
+      defect already recorded for `#סימן`, so it is the family and not the
+      command.
+- [ ] **Several style commands jump the view to the top of the document**,
+      because that is where the declaration they add is written. The edit is
+      right and the scroll is a side effect of it.
+- [ ] **Comments in a right-to-left document put their slashes on the wrong side
+      of the line.** Reported as something to check rather than as confirmed;
+      the writer's file is full of comments, so it was noticed at length.
+- [ ] **The page footer removes page numbering.** Setting one appears to
+      overwrite the other.
+
 ---
 
 # Part three — findings that outrun their own line
@@ -365,6 +390,84 @@ does not arrive where a writer stands.
 **Work:** a description at the point of use, not only in help; a reason on a
 disabled control, visible without hovering; a legend for every gutter mark; and a
 route to the command registry that a first-time reader actually finds.
+
+## Everything inserts in Hebrew, in one field
+
+Four comments in the second pass, escalating: the definition list arrives with a
+Hebrew placeholder; the side-note tags "come in in Hebrew, even though I am in
+English and LTR"; "there are other things that come in in Hebrew"; and finally,
+at the table, *"Wait! now, everything is coming in in Hebrew. I don't know why.
+this is puzzling."*
+
+Nothing is intermittent, and there is nothing puzzling once the fact table is
+opened. Every command in `facts.gen.json` carries **`he`, `en`, `desc_he`,
+`desc_en` — and exactly one `insert`**:
+
+```
+{ "he": "הדגשה", "en": "bold", "desc_he": …, "desc_en": …,
+  "insert": "#הדגשה[|]" }
+```
+
+Zero of the 115 commands has an insert template in English. Every insertion site
+in the application — the toolbar, the Insert menu, the palette, autocomplete, the
+panel rows — calls `insertSnippet(c.insert)` with that one Hebrew string. So the
+interface language is honoured everywhere except in the text it writes, which is
+the only place the writer keeps.
+
+The sharp part: **the engine already accepts the English spelling.** Each command
+has an English alias defined in the prelude, `lib.rs` has a test asserting that
+every alias is defined and compiles, and the diagnostics understand both
+spellings well enough to correct a mistyped one into the other. English source is
+a finished, tested capability of the engine that no button in the application can
+produce. That is this repository's defect family exactly, and this time it is a
+missing *field*, not a missing thought.
+
+**The rule, as stated in the margins:** a tag's language follows **the document**,
+not the interface. A Hebrew document gets Hebrew commands while the menus are in
+English, and the reverse. That is the correct axis — the source belongs to the
+document — and it is not the axis anything is currently written against.
+
+- [ ] A second insert template per command, generated from the English alias the
+      prelude already defines.
+- [ ] Insertion picks the template by document language, not interface language.
+- [ ] Placeholder content inside a template is a separate problem in the same
+      string: `#רשימת_הגדרות(\n הגדרה[מונח][|],\n)` ships the word *מונח* as
+      content. A placeholder that is indistinguishable from text the writer typed
+      is a defect in both languages.
+- [ ] The help panel's title showed as *מה אפשר לעשות* with the interface in
+      English. This one is **not** a missing translation — `i18n.ts` carries
+      `helpTitle` twice, Hebrew at line 619 and `"What you can do"` at line 1248.
+      The English string exists and the Hebrew one reached the screen, so the
+      lookup or the surface is at fault. Worth finding, because whatever picks the
+      wrong table there may be picking it elsewhere.
+
+## Collections: marks of one kind, gathered
+
+Asked for twice in the same block, about different commands, which is what makes
+it a concept rather than a request:
+
+- Of `#refmark`, `#gemara`, `#סימן` and their neighbours: *"There should be a way
+  to gather all of these, to make a list at the end or something. This should
+  include special cases, like gemara."*
+- Of `#dh`: *"these should be able to be collected. If not, it is just bold. You
+  should be able to apply styles to the collection (and maybe exempt some), as
+  well as see just these in some list somewhere."*
+
+The second sentence is the argument for the whole feature and should be quoted
+whenever this is scheduled: **without collection, a semantic mark is just bold.**
+The only thing distinguishing `#dh` from bold text today is a name in the source,
+and a name that no surface ever reads is decoration.
+
+This is the same shape as the source index, which already exists and already
+works — `מראה_מקום` with a `מקור:` is collected, and the document can be
+reprinted in another citation style because of it. So the mechanism is built; it
+serves one mark. Generalising it is: any class of mark can be gathered into an
+index, the collection can be styled as a set, and individual members can be
+exempted.
+
+- [ ] One index mechanism over a class of marks, not one per mark.
+- [ ] Style applied to a collection, with per-instance exemption — which is the
+      global/override model below, applied to a set rather than to a kind.
 
 ## Global by default, per-instance by override
 
@@ -552,7 +655,14 @@ Recorded as given. None of it is estimated or scheduled here.
 **Snapshots, export, modes**
 
 - [ ] Automatic snapshots, or automatic turned off and taken by hand.
-- [ ] An org-mode export, if it can be done.
+- [ ] **Org mode, imported and exported.** Both directions, asked for explicitly
+      and separately from the export list it first appeared in. It is the one
+      interchange format on the list whose structure is close to this
+      application's own: headings with levels, folded subtrees, footnotes with
+      named labels, `#+` keyword blocks, and inline markup with paired
+      delimiters. Word import already exists and is the harder problem; org is a
+      plain-text tree, and the risk is not parsing it but deciding what the
+      constructs with no Ksav equivalent become in each direction.
 - [ ] A page range is offered for PDF only. No reason has been given for that.
 - [ ] Justify belongs in one control with right, centre and left.
 - [ ] **The keyboard modes, once they run at all.** The implementations are not
@@ -588,6 +698,53 @@ Recorded as given. None of it is estimated or scheduled here.
 - [ ] Insert holds a great deal that is not insertion — bold, alignment. The menu
       taxonomy needs revisiting.
 
+**Menus and drawers, from the second pass**
+
+- [ ] **A drawer holding every command**, searchable and grouped. This is the
+      answer the writer arrived at independently for the "113 commands nobody can
+      reach" finding in part three, having tried the four surfaces that already
+      advertise them. Take it as the specification for that work.
+- [ ] Insert and its neighbours reopen where they were left rather than at the
+      top of the list. Wanted at the top, and configurable.
+- [ ] Choose exactly what enters the table of contents, including excluding
+      individual headings.
+- [ ] The font dropdown is ugly. Named plainly, recorded plainly.
+- [ ] Header and footer content lives in the settings drawer, which makes
+      anything beyond plain text — bold, mixed runs — hard to express. They are
+      document content in a settings control.
+- [ ] **Git built in** — commit, push, revert, possibly more — raised with its own
+      hedge attached: *"maybe we should not."* Recorded with the hedge intact, and
+      not decided. It is a real ask for a writer keeping a sefer under version
+      control and a large surface for one that is not.
+
+**The command set itself, from the demonstration block**
+
+The second pass ran the commands rather than reading their names, which produced
+the first honest review of the vocabulary.
+
+- [ ] **`#seif` should be called seif**, not "lettered seif". The variant name
+      describes an option, not a thing.
+- [ ] **Nobody has ever called a `#dh` a lemma.** The English name is wrong for
+      the people who use it; דיבור המתחיל is the term.
+- [ ] **`#osource` — why is this not a list, or a seif with different styling?**
+      Asked as a question and it deserves an answer rather than a change: either
+      it is structurally distinct and nothing says so, or it is a style wearing a
+      command's name, which is the same complaint as `מראה_מקום` above.
+- [ ] **`#commentary([text], [commentary])` shows nothing linking its two
+      halves.** Explicitly *not* a request to delete it — a request to look at it
+      and establish whether it is useful. See the standing rule on dead features.
+- [ ] **`#sidenotes` renders as what looks like plain parentheses.**
+- [ ] **`#gemara[ברכות][ב.]` appears to do nothing beyond what typing it would
+      do.** Same treatment: keep, but establish what it is for.
+- [ ] **`#הגדרות_סקירה(תצוגה: "סופי")` — no one can tell what it does** from the
+      menu. The review-mode configuration command, and the clearest small instance
+      of the mute-interface finding.
+- [ ] **Side notes (`#הערת_ימין`, `#הערת_שמאל`) were called very good**, with
+      three asks: configurable width; the tag's language following the document;
+      and, most substantially, **one side without the other** — today the pair is
+      required, so the body text can only sit between them rather than beside one.
+      That is a layout capability, not a defaulting problem.
+
 ---
 
 # Open questions
@@ -600,4 +757,7 @@ Not decided, and not to be assumed:
 3. What the compile policy should be for an unfocused tab: idle, on focus, or
    never until selected.
 4. The remaining axes of the note apparatus, per part three.
-5. Everything in inventory items 50 to 156, which nobody has read.
+5. Everything in inventory items 59 to 156, which nobody has read.
+6. Whether `#commentary`, `#gemara` and `#osource` earn their place. Asked as
+   questions in the margins, and to be answered by establishing what each is for
+   — not by removing them.

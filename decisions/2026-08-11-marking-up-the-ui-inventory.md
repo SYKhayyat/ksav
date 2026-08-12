@@ -259,6 +259,18 @@ fix is never "write more documentation":
 - 113 commands are advertised across four surfaces — the Insert menu, the
   palette, autocomplete and the help panel — and the reader of the inventory
   could not reach them to test them. Zero of four.
+- **The sharpest instance, found while marking up part four of this document.**
+  There are two foldable constructs that do not print. `/* … */` is the
+  toolbar's "insert region" button: it folds, and the text is removed from the
+  output. `//{ … //}`, implemented in `ksav-lang.ts` and described in its own
+  comment as "Notepad++-style", folds while the text still prints. Those are two
+  genuinely different acts — *hide this from the sefer* and *keep it, just get it
+  out of my way while I write*. The second was requested in the margins as
+  something to build, because nothing anywhere says it exists: no button, no menu
+  entry, no palette command, no help line. The first was met and produced the
+  comment *"I have no clue what region does"*, because its name says nothing
+  about hiding text from the output. One door with an uninformative sign, one
+  feature with no door, and a writer who asked for what was already there.
 
 This is the repository's established defect family one storey up. Not a lying
 interface this time — a mute one. The information exists, in the right shape, and
@@ -325,6 +337,80 @@ given, because it is a better decomposition than the current one:
 The fifth point is the actual assignment: the axes above are the ones a writer
 could name, and the rest are to be derived and brought back.
 
+### What the twenty-nine commands actually are
+
+Six families — tiers, bands, page-bands, endnotes, streams, deferred bodies —
+plus five configuration commands, four render calls, and two tombstones
+(`הערה_על_הערה` and `הערה_א` are deprecated and still advertised in the menu, so
+the interface offers a command whose own description tells you not to use it).
+
+Net: **eighteen different ways to write a note.** They are not eighteen ideas.
+They are a cross product — three arrangements by three tiers, plus the any-tier
+escape hatches — **exposed as cells rather than as axes**. `מדף_ב` is not
+something a writer would want to say; it is *tier two, printed at the foot of the
+page*, which is two settings wearing a command's clothes. The notes chooser has
+the same disease one floor up: thirty cells, fourteen live.
+
+### The model: channels
+
+Decided. One concept underneath all six families.
+
+**A channel** is a note stream. It owns its numbering, and **only notes in the
+same channel number together** — that is what makes it a channel rather than a
+style.
+
+**A channel has a source**: the body text, or *another channel*. A channel whose
+source is a channel is a note on a note, and it is placed independently of its
+parent — which is the difference between `הערה_ב` and `מדף_ב` that today is
+encoded in which command was typed.
+
+**A channel has a placement**: the foot of the page, the end of the section, the
+end of the document, indented inside its parent's block, or a named **region**.
+
+**A region** is a fixed area on the page, made by its own command with its own
+size. Once it exists, any channel can be pointed into it. More than one channel
+in one region is what raises the stacked-versus-side-by-side and column questions
+the engine already answers.
+
+For the common case, one command makes a region and a channel pointed at it, as a
+shortcut. Both halves stay separately available: make the region alone, and put
+whichever notes you like into it.
+
+Tested against the eighteen, every one expresses:
+
+| Today | In the model |
+|---|---|
+| `הערה` | the default channel, placed at the foot of the page |
+| `הערה_ב`, `הערה_ג` | a channel on that channel, placed indented inside its parent's block |
+| `הערתסיום` | a channel placed at the end of the document |
+| `מדור_א/ב/ג` | channels placed in regions at the end of the section |
+| `מדף_א/ב/ג` | channels placed in regions at the foot of the page |
+| `הערה_זרם("x")` | a channel you named |
+| streams side by side | two channels sharing one region |
+
+The payoff: the authoring vocabulary collapses from eighteen commands to about
+three acts — write a note, write a note on a note, write a note in a named
+channel — because arrangement stops being encoded in the command's identity. That
+is also what makes the first axis above possible at all: *change where the bodies
+live after the notes already exist* cannot work while the arrangement is welded
+to the command that was typed.
+
+Both tombstones die with it.
+
+### One naming collision, before it does damage
+
+"Region" is now doing three jobs, and only one of them may keep the word:
+
+1. **A fixed area on the page** that a channel is placed into — the engine's
+   existing sense (`הגדרות_מדפים`, and the title of the 2026-08-10 record). This
+   one keeps the name.
+2. **The toolbar's "insert region" button**, which wraps the selection in a block
+   comment and removes it from the output. Simply misnamed, and the margin
+   comment *"I have no clue what region does"* is the receipt. It gets a name
+   that says it hides text.
+3. **The foldable span that still prints** — nearly called a region while this
+   was being worked out. It is a fold, and that is what it should be called.
+
 Related, from the same margins:
 
 - [ ] Insert should not list a note-on-a-note as a top-level offer.
@@ -350,8 +436,14 @@ Recorded as given. None of it is estimated or scheduled here.
 **Folding and structure**
 
 - [ ] Fold and unfold **by heading level**, or to a given depth.
-- [ ] A collapsible region whose markers are invisible in the preview and in the
-      output: `{abc}` folds in the editor, and what prints is `abc`.
+- [ ] **Three constructs, named and reachable.** Two that do not print — an
+      ordinary comment and a multi-line one — and one that does: a **fold**, a
+      span the writer marks off so it can be collapsed while writing, which
+      prints in full and whose markers never appear in the output. All three
+      already exist (`//`, `/* … */`, and `//{ … //}`). The work is a name for
+      each that says which one reaches the page, a door for the fold, and
+      **delimiters short enough to type constantly** — brace-like, since these
+      are expected to be typed by hand all day. `//{` is not that.
 - [ ] Move a whole section with or without its children; promote and demote the
       same way.
 - [ ] The Format menu prints shortcuts. They must read the live, configurable

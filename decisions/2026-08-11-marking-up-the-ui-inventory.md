@@ -185,8 +185,37 @@ one comes before all of it because it is small and the damage is live.
 
 # Part two — defects reported in the margins
 
-Three were traced to their cause while reading the comments; the rest are as
-reported and not yet investigated.
+One is a shipped feature that does not work at all. Three more were traced to
+their cause while reading the comments; the rest are as reported and not yet
+investigated.
+
+## Broken
+
+- [ ] **Emacs mode does nothing.** Confirmed at the keyboard: with the caret in
+      the document and emacs mode selected, `C-x C-s`, `C-k` and `C-space`/`C-w`
+      all fall through to Ksav's own bindings. None of emacs runs. The margin
+      comment called the mode "shallow — only for save", and the truth is worse:
+      it is not shallow, it is absent, and the one thing that appears to work is
+      Ctrl+S, which is Ksav's binding and was never emacs' at all. Vim is
+      presumed to share the cause and has not been tested.
+
+      This is not a labelling defect. A mode offered in the settings drawer does
+      nothing when selected.
+
+      Two candidate causes, neither confirmed: the dynamic import of
+      `@replit/codemirror-emacs` fails and `extensionFor` returns `[]`, or the
+      extension loads and Ksav's own bindings sit above it despite
+      `Prec.highest`. The next step is to find out which, in the running
+      application.
+
+      Two things made it survivable for as long as it has: `loadError()` in
+      `keymodes.ts` records why a load failed and **has no caller anywhere in the
+      application** — the "note saying why the mode did not arrive" that its own
+      comment promises was never built, and the only reference to it is a test
+      asserting it is null. And `editingModeNote` in the settings drawer is a
+      static string reading *"Real Vim and Emacs. While one is on it gets the
+      keys before Ksav's own shortcuts"* — an assertion printed regardless of
+      whether anything loaded. Both need fixing, and neither is the bug.
 
 ## Traced
 
@@ -469,8 +498,35 @@ Recorded as given. None of it is estimated or scheduled here.
 - [ ] An org-mode export, if it can be done.
 - [ ] A page range is offered for PDF only. No reason has been given for that.
 - [ ] Justify belongs in one control with right, centre and left.
-- [ ] The vim and emacs modes are shallow — reportedly little more than save.
-      Full implementations are wanted.
+- [ ] **The keyboard modes, once they run at all.** The implementations are not
+      shallow — `@replit/codemirror-vim` is the CodeMirror 5 vim mode carried
+      forward, with operators, motions, text objects, counts, registers, macros
+      and `:` commands, and the emacs package brings the kill ring, the mark,
+      prefix arguments and M-x. The design work is what happens around them, and
+      none of it is worth starting until the defect above is fixed:
+      - The mode's keys on and Ksav's own off — a full takeover, not only on
+        collisions. This is only correct alongside the next item; without it, a
+        writer loses the doors to 113 commands and gets nothing back.
+      - **Every command in the registry as a `:` command and as `M-x`**, generated
+        from the same registry that already feeds the Insert menu, the palette,
+        autocomplete and help. `Vim.defineEx` and `EmacsHandler.addCommands` are
+        already used for save; pointing them at the registry is a loop.
+      - A leader key that opens a hydra — which is what the hydras already are,
+        and it resolves the documented collision where vim's ViewPlugin key
+        handling broke them, rather than fighting it.
+      - Text objects for the units a sefer is made of: the note body at the
+        caret, this siman, this heading's whole section.
+      - Structural motions: `]]` and `[[` between headings, a motion to the next
+        note marker, and the existing deferred-note jump bound as a motion so it
+        composes with operators.
+      - Escape has to be adjudicated. Today it closes any open panel and returns
+        the caret to the text; in vim it is *the* key.
+      - Two macro systems — Ksav's recorded macros and vim's `q`/`@` registers —
+        with no relationship and no acknowledgement of each other.
+      - The shortcut list must stop lying while a mode is on: mark the bindings
+        the mode has taken.
+      - Hebrew and modal editing, untested: does `f` find a letter that carries a
+        nikud, and does `x` take the letter with its marks or leave them orphaned?
 - [ ] Help entries should be clickable.
 - [ ] Insert holds a great deal that is not insertion — bold, alignment. The menu
       taxonomy needs revisiting.

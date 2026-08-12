@@ -209,15 +209,33 @@ investigated.
       did **not** open, which is the proof that the extension took the key ahead
       of Ksav's keymap exactly as `Prec.highest` intends.
 
-      So the source is not the fault, and the failure is specific to the build
-      being used. Two shapes, with different causes: in a packaged desktop build
-      the dynamic import of `@replit/codemirror-emacs` may 404 or, worse, hang —
-      `applyMode` awaits it, `lastError` stays null, no extension is ever
-      installed, and nothing anywhere fires, permanently. In a `tauri dev` build
-      it is the same code that was just observed working, and the difference is
-      the WebView2 runtime or the session. The next step is the network tab in
-      the failing application while the mode is switched: a chunk that 404s and a
-      chunk that never resolves are different diseases with one symptom.
+      So the source is not the fault. The failure is in the desktop build, and
+      the following is established about it:
+
+      - The failing application is `src-tauri/target/release/app.exe`, built
+        2026-08-11 07:04 and running since 07:05 — a locally built release
+        binary, not an installed package.
+      - **The mode code is embedded in it.** A Tauri release build bakes in
+        `dist/` at compile time; rebuilding `dist/` reproduces the same five
+        files with identical hashes, and two of them are the modes —
+        `index-BKZmVdeG.js` is vim and `index-Ces1X76C.js` is emacs, confirmed by
+        content rather than by name. Both chunk names appear as strings inside
+        `app.exe`. Nothing is missing from the bundle.
+      - **That build has no devtools.** `tauri` is declared with `features = []`,
+        and Tauri v2 requires the `devtools` feature for a release build to have
+        them, so the failure cannot be observed from inside the running window.
+
+      What remains is load-time or apply-time inside the desktop shell: the
+      dynamic import rejects or never settles, or the extension installs and
+      something in the shell takes the keys first. Distinguishing them needs
+      either the `devtools` feature and a rebuild, or `npm run tauri dev`, which
+      produces a desktop window with devtools against the same code.
+
+      A note on chunk names, recorded because it cost an hour: Vite names a
+      dynamic chunk after the imported module's *entry file*, not its package.
+      Both mode packages enter at `index.js`, so both chunks are called
+      `index-*` and a search for "vim" or "emacs" among the filenames finds
+      nothing and looks like proof they were never built.
 
       Two things made it survivable for as long as it has: `loadError()` in
       `keymodes.ts` records why a load failed and **has no caller anywhere in the

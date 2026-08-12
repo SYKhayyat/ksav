@@ -2,7 +2,7 @@ import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
 import { Compartment, EditorState, Prec } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
-import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
+import { historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
 import { foldGutter, foldKeymap, foldAll, unfoldAll, bracketMatching } from "@codemirror/language";
 import {
@@ -263,10 +263,13 @@ async function openDoc(id: string) {
   runtime.setCurrentBinding(await files.recallBinding(next.id));
   // Stamp the file as we found it, so "has it changed" has something to mean.
   await watch.markInSync(next.id, runtime.currentBinding);
-  runtime.view.dispatch({
-    changes: { from: 0, to: runtime.view.state.doc.length, insert: next.body },
-    selection: { anchor: 0 },
-  });
+  // **Not** a bare `dispatch`. A swap replaces the text of the one editor, and
+  // an editor with one history for its whole life reads that as an undoable
+  // edit — so Ctrl+Z poured the outgoing document's body into the incoming one
+  // and the change listener persisted it there. `swapDocument` resets the
+  // history, which is the rule the comment above `swapUntouchedStarter` has
+  // stated correctly and unenforced since it was written.
+  runtime.swapDocument(next.body);
   runtime.setSwitching(false);
   // **Not** `save.markFileSaved()`. That used to be here, and with one global
   // flag for a library of documents it cleared the mark on the document being
@@ -571,6 +574,28 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "revealCursor", run: () => (void revealCursor(), true) },
   // The manual override for when the automatic isolation does not reach.
   { id: "isolate", run: (v) => toggleIsolateSelection(v) },
+  {
+    // Suggestions for the word the caret is in. The pointer route is a
+    // right-click; this is the one that does not need a pointer at all, and it
+    // is also what the hover tooltip names — a signpost pointing at a key that
+    // does not exist is worse than no signpost.
+    id: "spellSuggest",
+    run: (v) => {
+      if (!settings.spellcheck) {
+        setStatus(t("spellOff"), "warn");
+        return true;
+      }
+      const m = spell.misspellingAt(v, v.state.selection.main.head);
+      if (!m) {
+        setStatus(t("spellNothingHere"), "");
+        return true;
+      }
+      // Anchored to the word rather than to a pointer that was never here.
+      const at = v.coordsAtPos(m.start);
+      void openSpellMenu(m, at ? at.left : 0, at ? at.bottom : 0);
+      return true;
+    },
+  },
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
@@ -920,7 +945,9 @@ function makeEditor(): EditorView {
     doc: runtime.currentDoc.body,
     parent: document.getElementById("editor-host")!,
     extensions: [
-      history(),
+      // In a compartment, and owned by `runtime.ts`, because a document swap
+      // has to be able to throw the stack away. See `swapDocument` there.
+      runtime.historyExtension(),
       drawSelection(),
       highlightActiveLine(),
       ksavFolding,
@@ -992,6 +1019,14 @@ function makeEditor(): EditorView {
       themeCompartment.of(editorTheme(settings.theme === "dark")),
       spell.misspellings,
       spell.spellDecorations,
+      // What the squiggle means, and both ways to act on it. The left button
+      // used to be the only route to the suggestions, and it cost the caret;
+      // this is the route that costs nothing. The key it names is read live off
+      // the bindings, so rebinding `spellSuggest` moves the sentence with it.
+      spell.spellTooltip((m) => {
+        const which = m.lang === "en" ? t("spellLexEn") : t("spellLexHe");
+        return tf("spellTip", which, readable(keybindings().spellSuggest));
+      }),
       errorLines,
       errorLineDecorations,
       // What has moved since the last snapshot: the gutter, the faint line
@@ -1065,21 +1100,27 @@ function makeEditor(): EditorView {
             });
           return true;
         },
-        mousedown(e, v) {
-          if (!settings.spellcheck) return false;
-          const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
-          if (pos == null) return false;
-          const m = spell.misspellingAt(v, pos);
-          if (!m) return false;
-          e.preventDefault();
-          void openSpellMenu(m, e.clientX, e.clientY);
-          return true;
-        },
+        // **There is no `mousedown` here, and that is the fix.**
+        //
+        // It used to open the suggestion menu on any press over a squiggle,
+        // with `preventDefault()` in front of it — so the left button, whose
+        // one job in a text editor is to put the caret somewhere, could not
+        // put the caret on a misspelled word. `misspellingAt` counted the
+        // boundary *after* the word as a hit too, which is why the report was
+        // "on or after". A writer with a page of unrecognised Torah
+        // terminology could not click into their own sentences.
+        //
+        // Suggestions are a right-click and a key now — which is what they are
+        // in Word, in the browser and in every code editor — and the squiggle
+        // says so on hover, so nothing is lost with the gesture. See
+        // `spellTooltip` in `spell.ts`.
         contextmenu(e, v) {
           const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
           if (pos == null) return false;
           if (settings.spellcheck) {
-            const m = spell.misspellingAt(v, pos);
+            // `misspellingUnder`, not `misspellingAt`: a pointer landed on a
+            // character, and the boundary after the last one is the next word.
+            const m = spell.misspellingUnder(v, pos);
             if (m) {
               e.preventDefault();
               void openSpellMenu(m, e.clientX, e.clientY);

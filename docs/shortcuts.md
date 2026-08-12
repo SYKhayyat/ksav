@@ -62,6 +62,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+E` | Show collected notes | הצגת הערות שנאספו |
 | `Ctrl+Alt+P` | Where did this print? | היכן זה נדפס? |
 | `Ctrl+Alt+X` | Isolate the selection's direction | בידוד כיווניות לקטע |
+| `Ctrl+.` | Spelling suggestions for the word at the caret | הצעות איות למילה שבסמן |
 | `Ctrl+Alt+J` | Jump between a note's marker and its body | מעבר בין הסימון לגוף ההערה |
 | `Ctrl+Alt+Shift+F` | Send this note's text to the end | העברת ההערה לסוף |
 | `Ctrl+Alt+R` | Bring this note back into the sentence | החזרת ההערה למשפט |

@@ -100,6 +100,12 @@ export const DEFAULT_KEYS: Record<string, string> = {
   revealCursor: "Mod-Alt-p",
   // Bidi isolation by hand, for the run the automatic pass does not cover.
   isolate: "Mod-Alt-x",
+  // Spelling suggestions for the word the caret is in. On `Mod-.` because that
+  // is where VS Code and every editor since have put "fix the thing I am
+  // standing on", and because the gesture it replaces was a left click — which
+  // is the caret's, and taking it cost a writer the ability to click into their
+  // own spell-checked words at all.
+  spellSuggest: "Mod-.",
   // Deferred note bodies. `deferJump` is the workhorse — org-mode's C-c C-c —
   // and gets the mnemonic key; the two that move prose around sit beside it.
   deferJump: "Mod-Alt-j",

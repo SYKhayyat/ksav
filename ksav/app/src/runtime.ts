@@ -15,6 +15,9 @@
 // dependency is deliberate, where a circular import would only hide it.
 
 import { docTextOf } from "./spans";
+import { Compartment } from "@codemirror/state";
+import { history } from "@codemirror/commands";
+import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { Backend, CommandDef, CompileResult, TemplateDef } from "./api";
 import type { KsavDoc } from "./docs";
@@ -38,6 +41,60 @@ export function replaceAll(next: string) {
   const doc = docText();
   if (next === doc) return;
   view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+}
+
+// ---------------------------------------------------------------- the undo history
+//
+// The history lives here, in a compartment, because a **document swap is not an
+// edit** and one long-lived editor cannot tell the difference on its own.
+//
+// `openDoc` switches documents by replacing the text of the single editor. With
+// one history for the life of that editor, the replace is an ordinary undoable
+// edit, so Ctrl+Z after opening a second document wrote the *first* document's
+// body onto the screen while the second one was the open document — and the
+// change listener then persisted it there. One document's text inside another,
+// and both of them now mislabelled.
+//
+// The rule was already written down, in the comment above `swapUntouchedStarter`
+// in `main.ts`: there is no undo across a document swap. Nothing enforced it,
+// because the history extension has no idea a swap happened. `swapDocument` is
+// what tells it, and it is here rather than in `main.ts` so that a test can hold
+// the same extension and the same function a writer does.
+
+const historyCompartment = new Compartment();
+
+/** The undo history, as the editor should install it. */
+export function historyExtension(): Extension {
+  return historyCompartment.of(history());
+}
+
+/**
+ * Throw the undo stack away.
+ *
+ * Two transactions, and it has to be two: reconfiguring a compartment to a
+ * value equivalent to the one it already holds leaves the existing state field
+ * — and therefore the stack — exactly where it was. Removing the extension
+ * drops the field; putting it back builds a fresh one with nothing in it.
+ */
+export function resetHistory() {
+  view.dispatch({ effects: historyCompartment.reconfigure([]) });
+  view.dispatch({ effects: historyCompartment.reconfigure(history()) });
+}
+
+/**
+ * Put another document's text in the editor, with no way back to the last one.
+ *
+ * The reset goes *after* the replace, because the replace is the last thing the
+ * outgoing document's history could have held. Neither reconfiguration changes
+ * the document, so nothing keyed off `docChanged` — the autosave, the compile,
+ * the macro recorder — sees anything at all.
+ */
+export function swapDocument(body: string) {
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: body },
+    selection: { anchor: 0 },
+  });
+  resetHistory();
 }
 
 /** Put the cursor somewhere and scroll it into sight. */

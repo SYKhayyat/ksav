@@ -862,9 +862,21 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   text-decoration-color: var(--danger);
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
-  cursor: pointer;
+  /* Deliberately **not** `cursor: pointer`. This is text, and the left button
+     puts the caret in it like any other text. The pointer cursor was honest
+     while `mousedown` opened the suggestion menu — and that gesture is exactly
+     what made a spell-checked word impossible to click into. Suggestions are a
+     right-click or `spellSuggest`; the hover tooltip says so. */
 }
 :root[data-theme="dark"] .cm-spell-error { text-decoration-color: #f87171; }
+
+/* The hover tooltip on a squiggle: what the mark means and how to act on it.
+   It replaces the discoverability the left click was providing by accident. */
+.cm-spell-tip {
+  padding: 6px 9px; font-size: 12.5px; line-height: 1.45; max-width: 280px;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,.18);
+}
 
 .spell-menu {
   position: fixed; z-index: 80; min-width: 160px; max-width: 260px;

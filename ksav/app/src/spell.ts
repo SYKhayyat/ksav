@@ -17,7 +17,7 @@
 //     chaburah's terminology, every rebbe's name, or a writer's own coinages. A
 //     checker that cannot be taught is one people switch off.
 
-import { EditorView, Decoration, ViewPlugin } from "@codemirror/view";
+import { EditorView, Decoration, ViewPlugin, hoverTooltip } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import { scan } from "./spans";
@@ -358,8 +358,67 @@ export function importUserWords(text: string): number {
   return merged.added;
 }
 
-/** The misspelling under a document position, if any. */
+// ---------------------------------------------------------------- reaching a squiggle
+//
+// Two questions that look like one, and conflating them is what made a
+// spell-checked word impossible to put a caret in.
+//
+// **Where is the caret?** A caret sits *between* characters, so a caret at
+// either end of a misspelled word is legitimately "in" it — that is what makes
+// `Ctrl+.` work when you have just finished typing the word. Inclusive at both
+// ends is correct here.
+//
+// **What did the pointer land on?** A click resolves to the nearest boundary, so
+// inclusive-at-both-ends means the position immediately *after* a misspelling
+// counts as a hit on it — and the writer's report was, exactly, that the caret
+// could not be placed "on or after a spell-checked word". Half-open is correct
+// here, and the two are separate functions rather than a flag because the call
+// sites are asking different questions.
+
+/** The misspelling the caret is standing in, counting both ends. */
 export function misspellingAt(view: EditorView, pos: number): Misspelling | null {
   const list = view.state.field(misspellings, false) ?? [];
   return list.find((m) => pos >= m.start && pos <= m.start + m.len) ?? null;
+}
+
+/** The misspelling a pointer landed on — the character, not the boundary after it. */
+export function misspellingUnder(view: EditorView, pos: number): Misspelling | null {
+  const list = view.state.field(misspellings, false) ?? [];
+  return list.find((m) => pos >= m.start && pos < m.start + m.len) ?? null;
+}
+
+/**
+ * What a squiggle is, on hover.
+ *
+ * The left button used to open the suggestion menu, which is why this is here.
+ * That gesture was two things at once: it was the only route anybody could find
+ * to the suggestions, and it was also the reason a spell-checked word could not
+ * be clicked into — `preventDefault` on every `mousedown` over a squiggle, so
+ * the caret never moved. Handing the left button back to the caret removes the
+ * defect and removes the only signpost with it.
+ *
+ * So the signpost gets built properly: hovering says what the mark means, which
+ * lexicon flagged it, and both ways to act on it. That is the same argument the
+ * inventory makes about the change gutter's red wedge and about disabled menu
+ * items — the application knows, and does not say.
+ *
+ * `text` is passed in rather than looked up so this module keeps no opinion
+ * about the interface's language; `main.ts` owns `i18n`.
+ */
+export function spellTooltip(text: (m: Misspelling) => string) {
+  return hoverTooltip((view, pos) => {
+    const m = misspellingUnder(view, pos);
+    if (!m) return null;
+    return {
+      pos: m.start,
+      end: m.start + m.len,
+      above: true,
+      create: () => {
+        const dom = document.createElement("div");
+        dom.className = "cm-spell-tip";
+        dom.textContent = text(m);
+        return { dom };
+      },
+    };
+  });
 }

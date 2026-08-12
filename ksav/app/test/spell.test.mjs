@@ -7,8 +7,13 @@
 // first document anyone wrote — and the dictionary that is about to become a
 // file the writer owns.
 
-import { check, ok, notOk, resetStorage } from "./harness.mjs";
+import { check, ok, notOk, resetStorage, fakeView } from "./harness.mjs";
 import * as spell from "../.tmp-test/spell.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
+
+const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
 
 export async function run() {
   // ------------------------------------------------------------ what gets checked
@@ -208,5 +213,76 @@ export async function run() {
     spell.noteLexiconSizes(undefined);
     check("…and a response without the field leaves the last answer alone",
       spell.lexiconSizes(), { he: 269385, en: 0 });
+  }
+
+  // ------------------------------------------------------- reaching a squiggle
+  //
+  // The defect that stopped a review: *"I can't put my cursor on something which
+  // is spell-checked, which is highly inconvenient"*, and later, sharper, *"the
+  // no cursor on or after a spell-checked word is very annoying"*.
+  //
+  // Two causes, and the second is why the report says "or after". `main.ts` bound
+  // `mousedown` over a squiggle to the suggestion menu with `preventDefault()` in
+  // front of it, so the left button — whose one job is to place the caret — never
+  // placed it. And `misspellingAt` counted `start + len` as inside the word, so
+  // the boundary *after* the last character was a hit too. A writer with a page
+  // of unrecognised Torah terminology could not click into their own sentences.
+  //
+  // The caret question and the pointer question are separate now, and the
+  // assertions below are the difference between them.
+  {
+    const doc = "שלום זעפרן עולם";
+    const start = doc.indexOf("זעפרן");
+    const len = "זעפרן".length;
+    const v = fakeView(doc, 0, [spell.misspellings]);
+    v.dispatch({ effects: spell.setMisspellings.of([{ start, len, word: "זעפרן", lang: "he" }]) });
+
+    // The caret sits *between* characters, so both ends are legitimately inside
+    // the word — that is what makes the keyboard route work when you have just
+    // finished typing it.
+    ok("the caret before the word is in it", !!spell.misspellingAt(v, start));
+    ok("the caret inside the word is in it", !!spell.misspellingAt(v, start + 2));
+    ok("the caret just after the word is in it", !!spell.misspellingAt(v, start + len));
+
+    // A pointer landed on a *character*. The boundary after the last one belongs
+    // to the next word, and treating it as a hit is the "or after" in the report.
+    ok("a click on the word finds it", !!spell.misspellingUnder(v, start));
+    ok("…and inside it", !!spell.misspellingUnder(v, start + 2));
+    check("a click after the word finds nothing", spell.misspellingUnder(v, start + len), null);
+    check("nor before it", spell.misspellingUnder(v, start - 1), null);
+  }
+
+  {
+    // The other half, and the one no unit test of `spell.ts` can reach: the
+    // handler that swallowed the click lived in `main.ts`, which boots the
+    // application on import and so can only be read. A prohibition, then —
+    // the same shape `chrome.test.mjs` uses, and for the same reason: absence
+    // is the one thing a regex over source gets right every time.
+    const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+    const handlers = main.slice(main.indexOf("EditorView.domEventHandlers({"));
+    notOk(
+      "nothing binds the left button over a squiggle any more",
+      /\bmousedown\s*\(/.test(handlers),
+    );
+    ok(
+      "the pointer route asks the pointer's question",
+      main.includes("spell.misspellingUnder(v, pos)"),
+    );
+    ok(
+      "…and there is a keyboard route, so nothing is lost with the gesture",
+      main.includes('id: "spellSuggest"'),
+    );
+  }
+
+  {
+    // The squiggle stopped claiming to be a button, and started saying what it
+    // is. Both halves matter: `cursor: pointer` on text the left button no
+    // longer acts on is the same lie one layer down, and the tooltip is the
+    // only thing left telling a writer that suggestions exist at all.
+    const css = readFileSync(path.join(SRC, "styles.css"), "utf8");
+    const rule = css.slice(css.indexOf(".cm-spell-error {"), css.indexOf(":root[data-theme=\"dark\"] .cm-spell-error"));
+    notOk("a squiggle no longer claims to be clickable", /^\s*cursor:\s*pointer/m.test(rule));
+    ok("and the hover tooltip has somewhere to be drawn", css.includes(".cm-spell-tip"));
+    ok("the tooltip exists to be installed", typeof spell.spellTooltip === "function");
   }
 }

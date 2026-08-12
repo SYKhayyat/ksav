@@ -209,8 +209,9 @@ investigated.
       did **not** open, which is the proof that the extension took the key ahead
       of Ksav's keymap exactly as `Prec.highest` intends.
 
-      So the source is not the fault. The failure is in the desktop build, and
-      the following is established about it:
+      So the source is not the fault, and neither — it turned out — is the
+      desktop shell. What follows was established about the failing application
+      before the real split was found:
 
       - The failing application is `src-tauri/target/release/app.exe`, built
         2026-08-11 07:04 and running since 07:05 — a locally built release
@@ -225,11 +226,38 @@ investigated.
         and Tauri v2 requires the `devtools` feature for a release build to have
         them, so the failure cannot be observed from inside the running window.
 
-      What remains is load-time or apply-time inside the desktop shell: the
-      dynamic import rejects or never settles, or the extension installs and
-      something in the shell takes the keys first. Distinguishing them needs
-      either the `devtools` feature and a rebuild, or `npm run tauri dev`, which
-      produces a desktop window with devtools against the same code.
+      **Reproduced in a browser, against the production bundle.** Serving
+      `dist/` with `vite preview` and driving it: switching to Emacs and pressing
+      `C-k` kills nothing, and `Ctrl+K` opens Ksav's command palette — the mode
+      is not getting the key. Switching the *same page* to Vim, typing letters
+      inserts nothing and the vim panel appears: **vim works and emacs does not,
+      in one build, by one method.** That is the reported symptom exactly, with
+      no desktop shell involved. The dev server had shown emacs working, so the
+      split is dev versus production, not browser versus desktop.
+
+      **Nothing throws.** Driven by hand against the production chunk, every step
+      `extensionFor` takes succeeds: the chunk imports, `emacsKeys` carries its
+      full table of 62 bindings, `EmacsHandler.addCommands` and `bindKey` both
+      return, and `emacs()` returns a four-element extension. The console is
+      clean. So the extension is built, is loadable, and is installed — and
+      simply never sees a keystroke.
+
+      **The mechanism, which the file already documents about something else.**
+      `modeCompartment` is placed before `shortcutCompartment` in the editor's
+      extension array, both at `Prec.highest`, and the comment beside it states
+      the design: *"CodeMirror breaks that tie by array order, so the mode gets
+      first refusal on every key."* The whole promise that the mode wins rests on
+      a **tie-break**. Vim never enters that contest: two lines above, the same
+      comment records that `@replit/codemirror-vim` "handles keys from a
+      **ViewPlugin event handler**, and a plugin's DOM handlers run before the
+      `keymap` facet regardless of precedence" — which is why the hydra had to be
+      rewritten to own the keyboard by being first. Vim bypasses the keymap
+      system, so it wins in every build. Emacs uses the keymap facet, ties with
+      Ksav's own shortcuts at the same precedence, and loses.
+
+      One thing is still unexplained and should not be guessed at: why the tie
+      falls to emacs on the dev server and to Ksav in the production build, when
+      the array order is written once and is the same in both.
 
       A note on chunk names, recorded because it cost an hour: Vite names a
       dynamic chunk after the imported module's *entry file*, not its package.

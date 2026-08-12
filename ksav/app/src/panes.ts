@@ -40,7 +40,23 @@
 // one. An arrangement is a tree you built or one this file ships, and both are
 // chosen rather than arrived at.
 
-export type Role = "source" | "preview";
+/**
+ * What a pane shows.
+ *
+ * `outline` and `notes` are here because of two margin comments that were the
+ * same comment: *"maybe there should be a toggle to have this shift the other
+ * panes open, because now it covers source"*, and, of the notes drawer, *"same
+ * problem as the other drawers — there should be an option to have it resize the
+ * panes (maybe also for all of them an option to float)."*
+ *
+ * A drawer that covers the source is a drawer you close to read what it is
+ * telling you about. Once the window is a tree, "shift the other panes open" is
+ * not a mode to add — it is what a pane already is.
+ */
+export type Role = "source" | "preview" | "outline" | "notes";
+
+/** The roles that show a document's text and can be typed in. */
+export const EDITABLE: Role[] = ["source"];
 
 /** One pane. */
 export interface Leaf {

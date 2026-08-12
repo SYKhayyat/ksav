@@ -1276,3 +1276,11 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   font-size: 16px; padding: 2px 9px; border-radius: 6px; align-self: center;
 }
 .tab-new:hover { color: var(--fg); background: var(--accent-soft); }
+
+/* A side panel docked as a pane rather than floating over the document. Same
+   list, same rows — see `renderOutline`, which draws into every home the list
+   has. What differs is that this one takes space instead of covering the thing
+   it is about, which is what the margins asked for twice. */
+.panel-pane { padding: 6px 4px; background: var(--panel); }
+.pane-name { flex: 1; }
+.pane-head { display: flex; align-items: center; gap: 2px; }

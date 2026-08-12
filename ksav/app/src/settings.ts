@@ -77,6 +77,17 @@ export interface Settings {
    */
   tabs?: unknown;
   /**
+   * Whether the outline and the notes list **float over** the document or take
+   * a pane of their own.
+   *
+   * Asked for twice in the margins, about two different drawers, in the same
+   * words: a panel that covers the source is a panel you have to close to read
+   * what it is telling you about. `float` is what this application always did
+   * and stays the default, because it is what a narrow window wants; `pane`
+   * shifts the others open, which is what a wide one does.
+   */
+  panelPlacement?: "float" | "pane";
+  /**
    * The source pane, dressed as a sheet of paper — what Word calls print layout.
    *
    * Was one of three values of `layout`, which conflated it with *how the

@@ -685,6 +685,11 @@ const HE: Dict = {
   // The pane tree. "Arrangement" rather than "layout", because a layout was one
   // of three fixed things and an arrangement is whatever the writer built.
   arrangement: "סידור החלונות",
+  outlinePane: "מפת מסמך",
+  notesPaneRole: "רשימת ההערות",
+  panelPlacementLabel: "מפת מסמך ורשימת הערות",
+  "placement.float": "צפות מעל המסמך",
+  "placement.pane": "חלון משלהן (מזיזות את השאר)",
   // A tab is a *סידור*, not a document. See tabs.ts.
   closeTab: "סגירת הסידור (המסמכים נשארים פתוחים)",
   newTab: "סידור חדש",
@@ -1354,6 +1359,11 @@ const EN: Dict = {
   "sc.deferSort": "Sort the note bodies into the order of the text",
   previewSide: "Preview position",
   arrangement: "Arrangement",
+  outlinePane: "Document map",
+  notesPaneRole: "Notes list",
+  panelPlacementLabel: "Document map and notes list",
+  "placement.float": "Float over the document",
+  "placement.pane": "A pane of their own (shifts the rest)",
   closeTab: "Close this arrangement (the documents stay open)",
   newTab: "New arrangement",
   newTabDesc: "Another tab with its own arrangement — the documents stay shared",

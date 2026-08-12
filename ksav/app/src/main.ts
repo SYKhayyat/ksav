@@ -1534,6 +1534,11 @@ function renderPanes() {
   if (v) runtime.setView(v);
   applyPreview();
   drawCurrentIntoAll();
+  // The side panels, now that their hosts are in the document. Both are cheap
+  // and both are wrong to leave blank: an outline pane that fills in on the
+  // next keystroke is an outline pane that looks broken until you type.
+  renderOutline();
+  renderNotesPane();
 }
 
 function renderNode(node: panes.PaneNode, held: Map<string, EditorState>): HTMLElement {
@@ -1564,9 +1569,18 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
       focusedPane = pane.id;
       runtime.setView(view);
     });
-  } else {
+  } else if (pane.role === "preview") {
     host.classList.add("preview-host");
     wirePreviewClicks(host);
+  } else {
+    // The outline and the notes list, as panes rather than as drawers over the
+    // document. The list itself is the same list, drawn into every home it has.
+    //
+    // **Not filled here.** `renderNode` builds a detached tree and `renderPanes`
+    // attaches it afterwards, so a `querySelectorAll` at this moment searches a
+    // document this host is not in yet and finds nothing. Filled once the tree
+    // is on screen; see the end of `renderPanes`.
+    host.classList.add(pane.role === "outline" ? "outline-list" : "notes-list", "panel-pane");
   }
   wirePaneScroll(pane, host);
   return section;
@@ -1581,7 +1595,16 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
  * setting nobody can find and nobody can tell which pane it applies to.
  */
 function paneHead(pane: panes.Leaf): HTMLElement {
-  const kids: Node[] = [el("span", { class: "pane-name" }, [t(pane.role)])];
+  // `source` and `preview` are already keys; the two panel roles have their own
+  // names because "outline" is also the name of a *function* in this file and a
+  // key called `notes` would collide with the notes chooser.
+  const NAME: Record<string, string> = {
+    source: "source",
+    preview: "preview",
+    outline: "outlinePane",
+    notes: "notesPaneRole",
+  };
+  const kids: Node[] = [el("span", { class: "pane-name" }, [t(NAME[pane.role])])];
   if (panes.leaves(paneTree).length > 1) {
     kids.push(
       el("button", {
@@ -3752,6 +3775,13 @@ function buildSettingsDrawer(): HTMLElement {
     ]),
     el("h3", { style: "margin-top:18px" }, [t("thisMachine")]),
     checkRow("fitWidthLabel", "fitWidth"),
+    // Where the outline and the notes list go. Asked for twice in the margins,
+    // about two different drawers, in the same words: a panel that covers the
+    // source is a panel you have to close to read what it is telling you about.
+    selectRow("panelPlacementLabel", "panelPlacement", [
+      ["float", t("placement.float")],
+      ["pane", t("placement.pane")],
+    ]),
     numberRow("zoom", "zoom", 0.5, 2, 0.1),
     selectRow("editingModeLabel", "editingMode", [
       ["default", t("mode.default")],
@@ -3910,11 +3940,39 @@ function toggleSettings() {
 }
 
 // ---- outline / document map ----
+//
+// Two ways to show it, and the writer picks which. *"Maybe there should be a
+// toggle to have this shift the other panes open, because now it covers
+// source"* — a panel that covers the source is a panel you have to close to read
+// what it is telling you about, which is the opposite of what an outline is for.
+//
+// Once the window is a tree, "shift the other panes open" is not a mode to
+// build; it is what a pane already is. `settings.panelPlacement` decides, and
+// it decides for the notes list too, because the second margin comment about
+// this said "maybe also for all of them".
 function toggleOutline() {
   settings.outline = !settings.outline;
   saveSettings();
-  togglePanel("outline-drawer", settings.outline);
+  if (settings.panelPlacement === "pane") togglePanelPane("outline", settings.outline);
+  else togglePanel("outline-drawer", settings.outline);
   rerenderChrome();
+}
+
+/**
+ * Put a side panel in the pane tree, or take it out.
+ *
+ * Docked at the inline start of the whole window rather than beside whatever
+ * pane happens to be focused: an outline is about the *document*, not about one
+ * view of it, and a writer who splits the source twice does not want a third
+ * outline. It is the one pane whose position is decided rather than chosen.
+ */
+function togglePanelPane(role: "outline" | "notes", on: boolean) {
+  const existing = panes.leaves(paneTree).find((l) => l.role === role);
+  if (on && !existing) {
+    setTree(panes.split(paneTree, paneTree.id, "row", panes.leaf(role, null, { linked: false }), true));
+  } else if (!on && existing) {
+    setTree(panes.closePane(paneTree, existing.id));
+  }
 }
 
 // ---- the notes pane ----
@@ -3926,16 +3984,22 @@ function toggleOutline() {
 // which in a sefer is the larger half of the document.
 
 function toggleNotesPane() {
-  togglePanel("notes-drawer");
+  settings.notesPane = !settings.notesPane;
+  saveSettings();
+  if (settings.panelPlacement === "pane") togglePanelPane("notes", !!settings.notesPane);
+  else togglePanel("notes-drawer", !!settings.notesPane);
+  rerenderChrome();
 }
 
 function renderNotesPane() {
-  const host = document.getElementById("notes-list");
-  if (!host || !runtime.view) return;
+  if (!runtime.view) return;
   // A row jumps to wherever the prose actually is. For a deferred note that is
   // the `#גוף_הערה` at the end of the file, which is the whole point of the row:
   // the marker is easy to find and the prose is not.
-  drawList(host, panelrows.noteList(notesIn(docTextOf(runtime.view.state.doc))), LOOKS.notes);
+  const rows = panelrows.noteList(notesIn(docTextOf(runtime.view.state.doc)));
+  for (const host of document.querySelectorAll<HTMLElement>(".notes-list")) {
+    drawList(host, rows, LOOKS.notes);
+  }
 }
 
 /**
@@ -4061,9 +4125,14 @@ function replaceAll(text: string, caret: number) {
   runtime.view.focus();
 }
 function renderOutline() {
-  const host = document.getElementById("outline-list");
-  if (!host || !runtime.view) return;
-  drawList(host, panelrows.outlineList(outline(docTextOf(runtime.view.state.doc))), LOOKS.outline);
+  if (!runtime.view) return;
+  const rows = panelrows.outlineList(outline(docTextOf(runtime.view.state.doc)));
+  // Every home the list has: the drawer, and a pane if the writer docked it.
+  // A class rather than an id, for the same reason the preview stopped being
+  // `#preview` — "the outline" is however many of them are on screen.
+  for (const host of document.querySelectorAll<HTMLElement>(".outline-list")) {
+    drawList(host, rows, LOOKS.outline);
+  }
 }
 
 /**
@@ -6962,12 +7031,12 @@ function render() {
       // one: below 720px a drawer is the full viewport, so the chip that opened
       // it is underneath it and cannot be the only way back out.
       panelHead("outline-drawer", t("outline"), { level: "h3" }),
-      el("div", { id: "outline-list" }),
+      el("div", { id: "outline-list", class: "outline-list" }),
     ]),
     // The notes pane, beside the outline: the two halves of a sefer's structure.
     el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane") }, [
       panelHead("notes-drawer", t("notesPane"), { level: "h3" }),
-      el("div", { id: "notes-list" }),
+      el("div", { id: "notes-list", class: "notes-list" }),
     ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
     el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle") }, [

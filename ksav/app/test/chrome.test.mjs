@@ -296,7 +296,13 @@ check(
   const body = state.slice(0, state.indexOf(END) + END.length);
   ok("the header's state is gathered in one place", body.includes("settings."));
   const shown = [...body.matchAll(/settings\.(\w+)/g)].map((m) => m[1]);
-  ok("…and it reads several settings", shown.length >= 6, `${shown.length}`);
+  // Four, not six. The threshold came down because two of the things the header
+  // shows stopped being settings: prose is a property of the open document now,
+  // and the arrangement is read off the pane tree. A header that reported those
+  // from `settings` would be reporting the wrong document's mode the moment a
+  // second one was open, which is the failure this whole fence exists to catch —
+  // so the number falling is the fix working, not the fence weakening.
+  ok("…and it reads several settings", shown.length >= 4, `${shown.length}`);
 
   const set = MAIN.slice(MAIN.indexOf("function setSetting"));
   const fn = set.slice(0, set.indexOf(END) + END.length);

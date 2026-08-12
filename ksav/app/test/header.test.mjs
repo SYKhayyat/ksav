@@ -28,8 +28,7 @@ import { setLang } from "../.tmp-test/i18n.mjs";
 const OFF = {
   theme: "light",
   prose: false,
-  layout: "two",
-  previewSide: "left",
+  arrangement: "sourceAndPreview",
   outline: false,
   nikud: false,
   notesPane: false,
@@ -45,7 +44,7 @@ export async function run() {
 
   {
     const bar = chips(OFF);
-    ok("the chipbar has every chip", bar.length === 20, `${bar.length} chips`);
+    ok("the chipbar has every chip", bar.length === 19, `${bar.length} chips`);
     check(
       "…each with an id, a glyph and a name",
       bar.filter((c) => !c.id || !c.glyph || !c.title).map((c) => c.id ?? "(none)"),
@@ -105,40 +104,64 @@ export async function run() {
   // ---------------------------------------- unavailable means unavailable
 
   {
-    // The finding this one is named after. `previewSideToggle` passed
-    // `"chip disabled"`, the stylesheet greyed it, and `iconBtn` had no notion
-    // of the state — so the control looked greyed, clicked, saved a setting,
-    // rebuilt the chrome and announced itself to a screen reader as enabled.
-    // `dom.ts` reads the class now; this is the half that decides *when*.
-    check("the preview side is a question a split view has", by(OFF, "previewSide").disabled, false);
-    for (const layout of ["page", "source"]) {
-      check(
-        `…and one a ${layout} layout does not`,
-        by({ ...OFF, layout }, "previewSide").disabled,
-        true,
-      );
-    }
+    // The finding this section is named after has been **dissolved** rather
+    // than fixed again, and that is worth recording where the assertion used to
+    // be. `previewSideToggle` passed `"chip disabled"`, the stylesheet greyed
+    // it, and `iconBtn` had no notion of the state — so the control looked
+    // greyed, clicked, saved a setting, rebuilt the chrome, and announced itself
+    // to a screen reader as enabled. `dom.ts` reading the class fixed the half
+    // about *looking* disabled; this file's job was the half that decided when.
+    //
+    // The chip is gone. Which side the preview sits on stopped being an
+    // application setting when the window became a tree of panes: it is which
+    // child of a split a pane is, and there is no state in which the question is
+    // unanswerable, so there is nothing to grey out. A control that is sometimes
+    // meaningless is a control in the wrong place, and the strongest fix for one
+    // is not to have it.
+    //
+    // So the assertion inverts: **nothing in the chipbar is ever unavailable.**
+    // That is a stronger claim than the one it replaces, and it goes red the day
+    // somebody adds a chip that only sometimes applies — which is the moment to
+    // ask whether it belongs in the bar at all.
     check(
-      "nothing else is ever unavailable",
-      chips({ ...OFF, layout: "page" }).filter((c) => c.disabled).map((c) => c.id),
-      ["previewSide"],
+      "no chip is ever unavailable, because none of them is sometimes meaningless",
+      chips(OFF).filter((c) => c.disabled).map((c) => c.id),
+      [],
     );
+    check(
+      "…in any state",
+      chips({ ...OFF, prose: true, arrangement: null, recording: true }).filter((c) => c.disabled).map((c) => c.id),
+      [],
+    );
+    // The arrangement chip opens a picker, so it has nothing to report as
+    // "active" — every arrangement is as on as any other. It is the one chip in
+    // the bar that is a door rather than a toggle.
+    check("the arrangement chip is a door, not a toggle", by(OFF, "arrangement").active, undefined);
   }
 
   // --------------------------------------------- every glyph exists to be shown
 
   {
-    // Four layouts × four sides. A missing entry in either table is `undefined`
-    // rendered as the string "undefined" into a button, which is the shape a
-    // fifth layout would arrive in.
-    for (const layout of ["two", "page", "source"]) {
-      const c = by({ ...OFF, layout }, "layout");
-      ok(`the ${layout} layout has a glyph`, !!c.glyph && c.glyph !== "undefined", c.glyph);
-      ok(`…and names itself`, c.title.includes(":"), c.title);
-    }
-    for (const previewSide of ["left", "right", "top", "bottom"]) {
-      const c = by({ ...OFF, previewSide }, "previewSide");
-      ok(`the ${previewSide} side has a glyph`, !!c.glyph && c.glyph !== "undefined", c.glyph);
+    // This used to be three layouts × four sides, looking up two glyph tables by
+    // the state's value — because both chips *displayed* which of a fixed set
+    // they were in, and a missing entry rendered the string "undefined" into a
+    // button. Neither table exists now: the chip opens a picker instead of
+    // showing a position in a cycle, so there is one glyph and no lookup to get
+    // wrong.
+    //
+    // The property worth keeping is the general one, and it is stronger stated
+    // over the whole bar in every state than over one chip's table.
+    const states = [
+      OFF,
+      { ...OFF, prose: true },
+      { ...OFF, recording: true },
+      { ...OFF, theme: "dark" },
+      { ...OFF, arrangement: null },
+      { ...OFF, outline: true, nikud: true, notesPane: true },
+    ];
+    for (const s of states) {
+      const bad = chips(s).filter((c) => !c.glyph || c.glyph === "undefined" || !c.title || c.title.includes("undefined"));
+      check("every chip has a real glyph and a real name", bad.map((c) => c.id), []);
     }
   }
 

@@ -1,6 +1,6 @@
 import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
-import { Compartment, EditorState, Prec } from "@codemirror/state";
+import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
@@ -41,6 +41,7 @@ import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
+import * as panes from "./panes";
 import type { DocAsset } from "./docs";
 import { ACTION_COMMAND } from "./actions";
 import * as store from "./store";
@@ -121,7 +122,7 @@ import {
   ownPageSetup,
   settingsLoadFailure,
 } from "./settings";
-import type { Field, Settings, Layout, PreviewSide, PageSetup, ValueOf } from "./settings";
+import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule, bodyOnScreen } from "./compile";
@@ -1400,12 +1401,383 @@ function makeState(body: string, prose: boolean): EditorState {
   });
 }
 
-/** The one editor, holding whichever document is focused. */
-function makeEditor(): EditorView {
-  return new EditorView({
-    state: makeState(runtime.currentDoc.body, !!settings.prose),
-    parent: document.getElementById("editor-host")!,
+// ---------------------------------------------------------------- panes
+//
+// The window is a tree of panes now (`panes.ts`), and this is the part that
+// turns that tree into DOM and into editors. Three rules carry all of it:
+//
+//   **One document, many views.** Every source pane showing a document is a
+//   separate `EditorView` with its own caret, its own scroll and its own fold
+//   state. They are views of one text, not copies of it, so a change made in any
+//   of them appears in all of them.
+//
+//   **One undo history per document.** Exactly one view per document is the
+//   *primary*: it holds the document's state, with the history in it. Every
+//   other view is a mirror, and a mirror that is typed into routes the change to
+//   the primary rather than applying it locally. So there is one place edits are
+//   recorded, which is what makes undo mean the same thing in every pane — and
+//   is the lesson from the bug that poured one document's text into another.
+//
+//   **The focused pane is `runtime.view`.** Every command in the application
+//   acts on it, unchanged, because "the editor" was always meant to be "the one
+//   the writer is typing in".
+
+/** The window's arrangement. */
+let paneTree: panes.PaneNode = panes.defaultTree();
+/** The live editor for each source pane. */
+const paneViews = new Map<string, EditorView>();
+/** Which pane the writer is in. */
+let focusedPane: string | null = null;
+/** Set while a change is being mirrored, so mirroring does not recurse. */
+let mirroring = false;
+
+/** The view that owns a document's history: the first source pane showing it. */
+function primaryView(): EditorView | undefined {
+  for (const l of panes.leaves(paneTree)) {
+    if (l.role !== "source") continue;
+    const v = paneViews.get(l.id);
+    if (v) return v;
+  }
+  return undefined;
+}
+
+/**
+ * Put a change into every other source pane, without recording it again.
+ *
+ * `addToHistory.of(false)`, and that is the whole of "one undo history per
+ * document": the primary has already recorded this edit, and a mirror that
+ * recorded it too would build a second stack that diverges the moment anybody
+ * undoes anything.
+ */
+function mirrorChange(from: EditorView, tr: Transaction) {
+  if (!tr.docChanged || mirroring) return;
+  mirroring = true;
+  try {
+    for (const v of paneViews.values()) {
+      if (v === from) continue;
+      v.dispatch({ changes: tr.changes, annotations: Transaction.addToHistory.of(false) });
+    }
+  } finally {
+    mirroring = false;
+  }
+}
+
+/** One source pane's editor. */
+function makePaneView(host: HTMLElement, state: EditorState): EditorView {
+  const view: EditorView = new EditorView({
+    state,
+    parent: host,
+    dispatch: (tr) => {
+      // A mirror that is typed into hands the change to the primary, so the
+      // edit is recorded once. Everything that is not a document change —
+      // moving the caret, folding, scrolling into view — stays local, because
+      // those are exactly the things a pane owns.
+      const primary = primaryView();
+      if (tr.docChanged && !mirroring && primary && primary !== view) {
+        const was = tr.annotation(Transaction.userEvent);
+        primary.dispatch({
+          changes: tr.changes,
+          selection: tr.selection,
+          ...(was ? { userEvent: was } : {}),
+        });
+        return;
+      }
+      view.update([tr]);
+      mirrorChange(view, tr);
+    },
   });
+  return view;
+}
+
+/**
+ * Build `<main>` from the pane tree.
+ *
+ * Rebuilt wholesale rather than diffed, and the cost is bounded because it only
+ * runs when the *arrangement* changes — not on a keystroke, not on a scroll, and
+ * not when a document is switched. Each source pane's state is carried across so
+ * an arrangement change does not cost a writer their carets.
+ */
+function renderPanes() {
+  const main = document.querySelector("main");
+  if (!main) return;
+  // What each pane was holding, so rebuilding does not reset it.
+  const held = new Map<string, EditorState>();
+  for (const [id, v] of paneViews) held.set(id, v.state);
+  for (const v of paneViews.values()) v.destroy();
+  paneViews.clear();
+
+  main.replaceChildren(renderNode(paneTree, held));
+  main.setAttribute("data-panes", String(panes.leaves(paneTree).length));
+
+  // The focused pane has to be one that still exists.
+  const live = panes.leaves(paneTree).filter((l) => l.role === "source");
+  if (!focusedPane || !paneViews.has(focusedPane)) focusedPane = live[0]?.id ?? null;
+  const v = focusedPane ? paneViews.get(focusedPane) : undefined;
+  if (v) runtime.setView(v);
+  applyPreview();
+  drawCurrentIntoAll();
+}
+
+function renderNode(node: panes.PaneNode, held: Map<string, EditorState>): HTMLElement {
+  if (node.kind === "leaf") return renderLeaf(node, held);
+  const box = el("div", { class: "pane-split", "data-dir": node.dir });
+  const a = renderNode(node.a, held);
+  const b = renderNode(node.b, held);
+  a.style.flex = `${node.frac} 1 0`;
+  b.style.flex = `${1 - node.frac} 1 0`;
+  box.append(a, splitterFor(node), b);
+  return box;
+}
+
+function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLElement {
+  const host = el("div", { class: "pane-host", id: `pane-host-${pane.id}` });
+  const section = el(
+    "section",
+    { class: `pane ${pane.role}-pane`, "data-pane": pane.id, "aria-label": t(pane.role) },
+    [paneHead(pane), host],
+  );
+  if (pane.role === "source") {
+    const state =
+      held.get(pane.id) ??
+      makeState(primaryView() ? docTextOf(primaryView()!.state.doc) : runtime.currentDoc.body, proseHere());
+    const view = makePaneView(host, state);
+    paneViews.set(pane.id, view);
+    host.addEventListener("focusin", () => {
+      focusedPane = pane.id;
+      runtime.setView(view);
+    });
+  } else {
+    host.classList.add("preview-host");
+    wirePreviewClicks(host);
+  }
+  wirePaneScroll(pane, host);
+  return section;
+}
+
+/**
+ * A pane's own strip: what it is showing, and the controls that belong to it.
+ *
+ * The scroll-link toggle lives here rather than in Settings because it is a
+ * property of *this* pane — *"we also should make that you can optionally unlink
+ * the scrolling"* — and a per-pane property in an application-wide drawer is a
+ * setting nobody can find and nobody can tell which pane it applies to.
+ */
+function paneHead(pane: panes.Leaf): HTMLElement {
+  const kids: Node[] = [el("span", { class: "pane-name" }, [t(pane.role)])];
+  if (panes.leaves(paneTree).length > 1) {
+    kids.push(
+      el("button", {
+        class: "pane-btn",
+        title: pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
+        onClick: () => setTree(panes.update(paneTree, pane.id, { linked: !pane.linked })),
+      }, [pane.linked ? "⇅" : "⇵"]),
+      el("button", {
+        class: "pane-btn",
+        title: t("splitBeside"),
+        onClick: () => setTree(panes.split(paneTree, pane.id, "col", panes.leaf(pane.role, pane.docId, { linked: false }))),
+      }, ["⊟"]),
+      // Closing a *pane* is not closing a document and not deleting one. Third
+      // meaning, third glyph — see the Documents menu for the other two.
+      el("button", {
+        class: "pane-btn pane-close",
+        title: t("closePane"),
+        onClick: () => setTree(panes.closePane(paneTree, pane.id)),
+      }, ["–"]),
+    );
+  }
+  return el("div", { class: "pane-head" }, kids);
+}
+
+function splitterFor(node: panes.Split): HTMLElement {
+  const bar = el("div", {
+    class: "splitter",
+    role: "separator",
+    tabindex: "0",
+    "aria-label": t("previewSide"),
+  });
+  let dragging = false;
+  const onMove = (e: PointerEvent) => {
+    if (!dragging) return;
+    const box = bar.parentElement!.getBoundingClientRect();
+    const frac =
+      node.dir === "row" ? (e.clientX - box.left) / box.width : (e.clientY - box.top) / box.height;
+    // The tree is the authority, and the DOM follows it — so a drag survives a
+    // rebuild rather than being a style somebody set once.
+    paneTree = panes.resize(paneTree, node.id, frac);
+    const live = panes.splits(paneTree).find((s) => s.id === node.id)!;
+    (bar.previousElementSibling as HTMLElement).style.flex = `${live.frac} 1 0`;
+    (bar.nextElementSibling as HTMLElement).style.flex = `${1 - live.frac} 1 0`;
+  };
+  const onUp = () => {
+    dragging = false;
+    document.body.style.userSelect = "";
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    rememberPanes();
+  };
+  bar.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    (e as PointerEvent).preventDefault();
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+  return bar;
+}
+
+/**
+ * Scroll, remembered per pane and optionally tied to a sibling's.
+ *
+ * The link is per pane and off by default on a pane a writer opened deliberately
+ * to look somewhere else, which is the only default that makes the feature worth
+ * having: a second view whose scroll follows the first is the first view again.
+ */
+function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
+  const scroller = () =>
+    pane.role === "source" ? (paneViews.get(pane.id)?.scrollDOM ?? host) : host;
+  host.addEventListener(
+    "scroll",
+    () => {
+      if (mirroring) return;
+      const top = scroller().scrollTop;
+      pane.scrollTop = top;
+      if (!pane.linked) return;
+      const other = panes.sibling(paneTree, pane.id);
+      if (!other || !other.linked) return;
+      const target = other.role === "source" ? paneViews.get(other.id)?.scrollDOM : paneHostOf(other.id);
+      if (!target) return;
+      mirroring = true;
+      try {
+        syncLinkedScroll(pane, other, top, target);
+      } finally {
+        mirroring = false;
+      }
+    },
+    true,
+  );
+}
+
+function paneHostOf(id: string): HTMLElement | null {
+  return document.getElementById(`pane-host-${id}`);
+}
+
+/**
+ * Move a linked pane to where its partner is, in the currency each understands.
+ *
+ * Two source panes, or two previews, are the same kind of thing and follow each
+ * other by fraction. A source and a preview are not, and go through the printed
+ * map in `scrollmap.ts` for the reason that module exists: a fraction of the
+ * source's pixels is not a fraction of the printed pixels in any document with
+ * comments or folds in it.
+ */
+function syncLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, target: HTMLElement) {
+  if (from.role === to.role) {
+    const src = from.role === "source" ? paneViews.get(from.id)!.scrollDOM : paneHostOf(from.id)!;
+    target.scrollTop = (top / Math.max(1, src.scrollHeight)) * target.scrollHeight;
+    return;
+  }
+  if (from.role === "source") {
+    const view = paneViews.get(from.id)!;
+    const line = view.state.doc.lineAt(view.lineBlockAtHeight(top).from).number - 1;
+    target.scrollTop = Math.min(
+      fractionAtLine(printedMap(), line) * target.scrollHeight,
+      target.scrollHeight - target.clientHeight,
+    );
+  } else {
+    const host = paneHostOf(from.id)!;
+    const view = paneViews.get(to.id)!;
+    const line = lineAtFraction(printedMap(), top / Math.max(1, host.scrollHeight));
+    const doc = view.state.doc;
+    const at = doc.line(Math.max(1, Math.min(line + 1, doc.lines)));
+    target.scrollTop = view.lineBlockAt(at.from).top;
+  }
+}
+
+/**
+ * The arrangements this application ships, as a list to choose from.
+ *
+ * A **picker**, and that is the whole of what replaced the two chips that used
+ * to cycle. Every option is on screen at once with the one you are in marked, so
+ * choosing costs one press and choosing wrong costs one more — where a cycle of
+ * four cost up to seven and never showed you what you were choosing between.
+ *
+ * The page view sits in the same list, because from a writer's side it is the
+ * same kind of choice: what the window looks like. It is not an arrangement
+ * underneath — it is a source pane dressed as a sheet of paper — and keeping
+ * that distinction in the code while hiding it in the interface is the right way
+ * round.
+ */
+function openArrangements() {
+  const here = panes.arrangementOf(paneTree);
+  const list = document.getElementById("arrangement-list")!;
+  list.replaceChildren(
+    el("div", { class: "menu-cat" }, [t("arrangement")]),
+    ...panes.ARRANGEMENTS.map((a) =>
+      el(
+        "button",
+        {
+          class: "pal-item" + (a.id === here && !settings.pageView ? " active" : ""),
+          onClick: () => {
+            closePanel("arrangement");
+            settings.pageView = false;
+            applyPageView();
+            setTree(a.build());
+            rerenderChrome();
+          },
+        },
+        [
+          el("b", {}, [(a.id === here && !settings.pageView ? "● " : "") + t("arr." + a.id)]),
+          el("span", { class: "menu-desc" }, [t("arrDesc." + a.id)]),
+        ],
+      ),
+    ),
+    el("div", { class: "menu-sep" }),
+    el(
+      "button",
+      {
+        class: "pal-item" + (settings.pageView ? " active" : ""),
+        onClick: () => {
+          closePanel("arrangement");
+          settings.pageView = true;
+          applyPageView();
+          setTree(panes.ARRANGEMENTS.find((a) => a.id === "sourceOnly")!.build());
+          rerenderChrome();
+        },
+      },
+      [
+        el("b", {}, [(settings.pageView ? "● " : "") + t("arr.page")]),
+        el("span", { class: "menu-desc" }, [t("arrDesc.page")]),
+      ],
+    ),
+  );
+  openPanel("arrangement");
+}
+
+/** Dress the source pane as a sheet of paper, or stop. */
+function applyPageView() {
+  const app = document.getElementById("app")!;
+  if (settings.pageView) app.dataset.page = "1";
+  else delete app.dataset.page;
+  saveSettings();
+}
+
+/** Change the arrangement, redraw, and remember it. */
+function setTree(next: panes.PaneNode) {
+  paneTree = next;
+  renderPanes();
+  rememberPanes();
+  scheduleCompile();
+}
+
+/** Persist the arrangement, so a restart comes back to the same window. */
+function rememberPanes() {
+  settings.panes = paneTree;
+  saveSettings();
+}
+
+/** Draw the current pages into every preview pane there is. */
+function drawCurrentIntoAll() {
+  for (const host of document.querySelectorAll<HTMLElement>(".preview-host")) drawCurrentInto(host);
 }
 
 // Hebrew-aware word + character count — of the TEXT, not the markup.
@@ -1500,83 +1872,32 @@ function printedMap(): number[] {
   return scrollPrefix;
 }
 
-// Sync scrolling: scrolling the editor drives the preview and vice-versa.
+// Scrolling, between panes.
 //
 // **Not by the scrollbars.** It used to be `scrollTop / scrollHeight` on each
 // side, under a comment claiming a percentage was "all a scrollbar can honestly
-// be". A fraction of the source's pixels equals a fraction of the printed
-// pixels only if every line of source prints, and in a Ksav document a great
-// deal does not — comments, command heads, closing brackets. The writer who
-// found this said so in the same sentence they reported it: *"this might be
-// because I have so many comments"*, and they were right. A marked-up document
-// is precisely the case where the old arithmetic is furthest off, which is to
-// say the harder somebody works, the more wrong it got.
+// be". A fraction of the source's pixels equals a fraction of the printed pixels
+// only if every line of source prints, and in a Ksav document a great deal does
+// not — comments, command heads, closing brackets, and everything inside a fold.
+// The writer who found this said so in the same sentence they reported it:
+// *"this might be because I have so many comments"*. A marked-up document is
+// precisely the case where the old arithmetic is furthest off, which is to say
+// the harder somebody works, the more wrong it got.
 //
 // The proportion survives; the currency changes. `scrollmap.ts` counts the
-// characters that will actually print, so a page of margin notes weighs nothing
-// on the source side and the same fraction means the same place on both. See
-// that module for what this still does not cover.
+// characters that will actually print. The arithmetic now lives in
+// `syncLinkedScroll`, because *which* pane follows which is a property of the
+// pane tree rather than a fact about the one split this application used to have.
 //
-// Clicking the preview puts the cursor on the word that was clicked — exactly,
-// by asking the compiler, not by proportion. Two-panel mode only.
-function wireSyncScroll() {
-  const preview = document.getElementById("preview")!;
-  const scroller = runtime.view.scrollDOM;
-  let lock = false;
-  const guard = () => !(lock || settings.syncScroll === false || settings.layout !== "two");
-  const unlock = () => requestAnimationFrame(() => (lock = false));
-
-  // The quantity both panes are steered by is **the fraction of the document
-  // above the top edge**, and that is worth stating because getting it wrong is
-  // subtle and was measurable: the source side reads the line at the top of the
-  // viewport, so the preview side has to read the top of its own content — not
-  // the position of its scrollbar thumb. Those differ by a whole viewport
-  // height, which on a four-page document is four points of drift in a file
-  // with no comments in it at all. Hence `scrollHeight` on the preview rather
-  // than `scrollHeight - clientHeight`.
-  const previewTopFraction = () => preview.scrollTop / Math.max(1, preview.scrollHeight);
-  const setPreviewTop = (f: number) =>
-    (preview.scrollTop = Math.min(f * preview.scrollHeight, preview.scrollHeight - preview.clientHeight));
-
-  // Source → preview. The line at the top of the editor's viewport is the one
-  // the writer is looking at; how much has printed above it is the fraction.
-  //
-  // `lineBlockAtHeight` and not a line count, and that is what makes **folding**
-  // work. A folded region is the mirror image of a comment: it takes one line of
-  // pixels and prints in full, where a comment takes its full height and prints
-  // nothing. A document with both — which is what a marked-up sefer is — is
-  // wrong in two directions at once under anything that counts what is on
-  // screen. CodeMirror's height map already knows where a fold put every line,
-  // and `printedPrefix` is built over the whole document, so folded text keeps
-  // its full weight. Neither half had to be told about the other.
-  scroller.addEventListener("scroll", () => {
-    if (!guard()) return;
-    lock = true;
-    const top = runtime.view.lineBlockAtHeight(scroller.scrollTop);
-    const line = runtime.view.state.doc.lineAt(top.from).number - 1;
-    setPreviewTop(fractionAtLine(printedMap(), line));
-    unlock();
-  });
-
-  // Preview → source, through the same map read backwards. A pane of pages is
-  // uniform in a way a pane of source is not, so how far down its content the
-  // top edge sits is an honest reading of how much of the print is behind you.
-  preview.addEventListener("scroll", () => {
-    if (!guard()) return;
-    lock = true;
-    const line = lineAtFraction(printedMap(), previewTopFraction());
-    const doc = runtime.view.state.doc;
-    const at = doc.line(Math.max(1, Math.min(line + 1, doc.lines)));
-    scroller.scrollTop = runtime.view.lineBlockAt(at.from).top;
-    unlock();
-  });
-
-  preview.addEventListener("click", (e) => {
-    if (settings.layout !== "two") return;
-    // A drag that ended here is a selection, not a click: the reader is copying a
-    // rendered line, and moving the caret would take the selection with it.
+// What is left here is the other direction, which is not a proportion at all:
+// clicking a rendered page puts the caret on the word that was clicked, by
+// asking the compiler.
+function wirePreviewClicks(host: HTMLElement) {
+  host.addEventListener("click", (e) => {
+    // A drag that ended here is a selection, not a click: the reader is copying
+    // a rendered line, and moving the caret would take the selection with it.
     if (!isPlainClick(window.getSelection())) return;
-    void jumpFromClick(e);
+    void jumpFromClick(e as MouseEvent);
   });
 }
 
@@ -2810,8 +3131,7 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
   foldAll: () => void foldAll(runtime.view),
   unfoldAll: () => void unfoldAll(runtime.view),
   prose: () => setProseHere(!proseHere()),
-  layout: cycleLayout,
-  previewSide: cyclePreviewSide,
+  arrangement: openArrangements,
   theme: () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
   nikud: toggleNikud,
   history: openHistory,
@@ -2825,8 +3145,7 @@ function headerState(): header.HeaderState {
   return {
     theme: settings.theme,
     prose: proseHere(),
-    layout: settings.layout,
-    previewSide: settings.previewSide || "left",
+    arrangement: panes.arrangementOf(paneTree),
     // Three of these are optional settings and one is the recorder's own
     // buffer. `header.ts` takes booleans, because "is this chip on" is a
     // question with two answers and `undefined` is not one of them.
@@ -6348,9 +6667,6 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
   } else if (key === "prose") {
     runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw()) });
     rerenderChrome();
-  } else if (key === "layout") {
-    applyLayout();
-    rerenderChrome();
   } else if (key === "dir") {
     runtime.view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })) });
     // The preview pane reads in the document's direction, so flipping the
@@ -6384,82 +6700,31 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
 function applyTheme() {
   document.documentElement.dataset.theme = settings.theme;
 }
-function applyLayout() {
-  document.getElementById("app")!.dataset.layout = settings.layout;
-}
 
-// Preview placement: which side of the split the preview sits on, and how much
-// of the split it takes. Applied to <main> so CSS can flip orientation/order.
-function applyPreviewSide() {
-  const main = document.querySelector("main");
-  if (main) (main as HTMLElement).dataset.side = settings.previewSide || "left";
-  document.documentElement.style.setProperty("--preview-frac", String(settings.previewFrac ?? 0.5));
-}
-function cyclePreviewSide() {
-  const order: PreviewSide[] = ["left", "right", "bottom", "top"];
-  const cur = settings.previewSide || "left";
-  settings.previewSide = order[(order.indexOf(cur) + 1) % order.length];
-  saveSettings();
-  applyPreviewSide();
-  rerenderChrome();
-}
-
-// Drag the divider between the two panes to resize the split (not fixed 50/50).
-// Works for both horizontal (left/right) and vertical (top/bottom) placements.
-function wireSplitter() {
-  const splitter = document.getElementById("splitter");
-  const main = document.querySelector("main") as HTMLElement | null;
-  if (!splitter || !main) return;
-  let dragging = false;
-  const onMove = (e: PointerEvent) => {
-    if (!dragging) return;
-    const rect = main.getBoundingClientRect();
-    const side = settings.previewSide || "left";
-    const vertical = side === "top" || side === "bottom";
-    const total = vertical ? rect.height : rect.width;
-    const pos = vertical ? e.clientY - rect.top : e.clientX - rect.left;
-    // <main> is forced LTR, so pos maps left→right / top→bottom physically.
-    const leadFrac = Math.min(1, Math.max(0, pos / Math.max(1, total)));
-    const previewLeads = side === "left" || side === "top";
-    let pf = previewLeads ? leadFrac : 1 - leadFrac;
-    pf = Math.min(0.85, Math.max(0.15, pf));
-    settings.previewFrac = pf;
-    document.documentElement.style.setProperty("--preview-frac", String(pf));
-  };
-  const onUp = () => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.style.userSelect = "";
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    saveSettings();
-  };
-  splitter.addEventListener("pointerdown", (e) => {
-    if (settings.layout !== "two") return; // splitter only active in split runtime.view
-    dragging = true;
-    (e as PointerEvent).preventDefault();
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  });
-}
-
-// Cycle split → page (Word-like) → source.
+// Preview placement is not a setting any more, and the two cycling chips it fed
+// are gone with it. Which side the preview sits on is *which child of a split it
+// is*, which the tree says directly and a splitter drag changes; how much of the
+// split it takes is that split's own fraction. Both used to be application-wide
+// values, which is the shape a window with exactly one divider has.
 //
-// It used to switch **prose mode on** as a side effect of reaching page view,
-// with a comment explaining that you want to see formatting there rather than
-// markup. The margin comment on it was *"this seems to turn on prose mode — a
-// side effect, which it should advertise, and probably not do"*, and that is
-// exactly right on both counts: a chip labelled with a layout that also changes
-// how the *source* is displayed is a chip that does two things and says one.
+// The page view survived, because it is a different question wearing the same
+// word: how one pane is *drawn*, not how the window is divided. It is
+// `settings.pageView` and `applyPageView` now, and it sits in the arrangement
+// picker beside the arrangements because from a writer's side it is the same
+// kind of choice.
 //
-// It is gone rather than announced. Page view shows the printed page; whether
-// the source beside it is prose or raw is a separate question with a separate
-// control, and the writer had already answered it.
-function cycleLayout() {
-  const order: Layout[] = ["two", "page", "source"];
-  setSetting("layout", order[(order.indexOf(settings.layout) + 1) % order.length]);
-}
+// The layout chip also switched **prose mode on** as a side effect of reaching
+// page view. The margin comment was *"this seems to turn on prose mode — a side
+// effect, which it should advertise, and probably not do"*, right on both
+// counts, and it is gone rather than announced: whether the source is prose or
+// raw is a separate question with a separate control, and the writer had already
+// answered it.
+
+// The splitter is per split now, and built by `splitterFor` beside the tree it
+// resizes. The old one was a single element with an id, which is the shape a
+// window with exactly one divider has — and the reason `settings.previewFrac`
+// was a global: there was only ever one fraction to store. A tree keeps its
+// fractions on its splits, where a second divider has somewhere to put its own.
 
 function openPreviewOverlay() {
   openPanel("preview-modal");
@@ -6488,7 +6753,6 @@ function rerenderChrome() {
 // ---------------------------------------------------------------- boot
 function render() {
   const app = document.getElementById("app")!;
-  app.dataset.layout = settings.layout;
   app.append(
     buildHeader(),
     // Directly under the toolbar, where Word and LibreOffice put their
@@ -6496,24 +6760,11 @@ function render() {
     // of the window, which the writer reasonably reported as "no UI at all".
     contextBar(),
     buildNikudBar(scheduleCompile),
-    el("main", {}, [
-      el("section", { class: "pane preview-pane", "aria-label": t("preview") }, [
-        el("div", { class: "pane-head", "data-i18n": "preview" }, [t("preview")]),
-        el("div", { id: "preview" }),
-      ]),
-      el("div", {
-        class: "splitter",
-        id: "splitter",
-        title: t("previewSide"),
-        role: "separator",
-        tabindex: "0",
-        "aria-label": t("previewSide"),
-      }),
-      el("section", { class: "pane source-pane", "aria-label": t("source") }, [
-        el("div", { class: "pane-head", "data-i18n": "source" }, [t("source")]),
-        el("div", { id: "editor-host", "aria-label": t("source") }),
-      ]),
-    ]),
+    // Empty. `renderPanes` fills it from the pane tree, which is the one
+    // statement of what the window looks like — a fixed preview/splitter/source
+    // triple here would be a second one, and the two would drift the first time
+    // somebody split a pane.
+    el("main", {}),
     // Announced as it changes: "rendering…", "3 pages", a compile error and —
     // the reason this matters — a save failure are all reported here, and a
     // status nobody is told about is the failure mode this whole pass exists to
@@ -6574,6 +6825,7 @@ function render() {
     // inventory of what is open and also stay out of the way, so this is the
     // surface that tells that truth. Tabs for the eye, switcher for the hand.
     overlayPanel("switcher", "palette-box", [el("div", { id: "switcher-list" })]),
+    overlayPanel("arrangement", "palette-box", [el("div", { id: "arrangement-list" })]),
     // floating preview (page mode): a button + a modal showing the rendered pages
     el("button", {
       id: "float-preview-btn",
@@ -6605,7 +6857,10 @@ function render() {
     ]),
   );
 
-  runtime.setView(makeEditor());
+  // The window, from the pane tree. Builds the editors, so it comes before
+  // anything that reaches for one.
+  paneTree = (settings.panes as panes.PaneNode | undefined) ?? panes.defaultTree();
+  renderPanes();
   // The document boot built the editor around is open, and is the focused one.
   // Said here rather than inside `makeEditor` because the open set is a fact
   // about the application, and the editor is one view onto it.
@@ -6625,11 +6880,8 @@ function render() {
   });
   onMarkLines((lines) => runtime.view.dispatch({ effects: setErrorLines.of(lines) }));
   save.onFileWritten(() => tellGirsaWhereItIs());
-  wireSyncScroll();
-  wireSplitter();
   applyTheme();
-  applyLayout();
-  applyPreviewSide();
+  applyPageView();
   applyUiDir();
   applyPreview();
   updateCounts();

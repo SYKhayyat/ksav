@@ -156,37 +156,47 @@ header {
 }
 .menu-close:hover { color: var(--fg); background: var(--accent-soft); }
 
-/* ---- main split (flex: resizable + repositionable) ----
-   <main> is forced LTR so preview side is physical (left/right/top/bottom),
-   independent of the UI's reading direction. Panes/editor keep their own dir. */
+/* ---- the pane tree ----
+   <main> is a tree of splits now, not a fixed preview/splitter/source triple.
+   Every split is a flex row or column with two children and a divider between
+   them, and every leaf is a pane. That is recursive, so "three previews beside a
+   source" needs no rule of its own — which is exactly what the two chips that
+   used to cycle fixed arrangements could not express.
+
+   <main> stays forced-LTR so a split's `a` side is physically first regardless
+   of the interface's reading direction. Panes and the editor keep their own dir,
+   which is the document's. */
 main { flex: 1; display: flex; min-height: 0; direction: ltr; }
-/* orientation by preview side (row = beside, column = above/below) */
-#app[data-layout="two"] main[data-side="top"],
-#app[data-layout="two"] main[data-side="bottom"] { flex-direction: column; }
+.pane-split { flex: 1 1 0; display: flex; min-height: 0; min-width: 0; }
+.pane-split[data-dir="row"] { flex-direction: row; }
+.pane-split[data-dir="col"] { flex-direction: column; }
+.pane { min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; flex: 1 1 0; }
+.pane-host { flex: 1; min-height: 0; overflow: auto; }
+.preview-host { overflow: auto; }
 
-/* split sizing: preview gets --preview-frac of the space, source the rest */
-#app[data-layout="two"] .preview-pane { flex: var(--preview-frac, .5) 1 0; }
-#app[data-layout="two"] .source-pane  { flex: calc(1 - var(--preview-frac, .5)) 1 0; }
-
-/* order: preview leads on left/top, trails on right/bottom */
-main[data-side="left"] .preview-pane, main[data-side="top"] .preview-pane { order: 0; }
-main[data-side="left"] .source-pane, main[data-side="top"] .source-pane { order: 2; }
-main[data-side="right"] .preview-pane, main[data-side="bottom"] .preview-pane { order: 2; }
-main[data-side="right"] .source-pane, main[data-side="bottom"] .source-pane { order: 0; }
-
-/* source-only and page modes are single-pane */
-#app[data-layout="source"] .preview-pane,
-#app[data-layout="page"] .preview-pane { display: none; }
-#app[data-layout="source"] .source-pane,
-#app[data-layout="page"] .source-pane { flex: 1 1 0; }
-.pane { min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
-
-/* draggable divider between the two panes (split view only) */
-.splitter { order: 1; flex: 0 0 6px; background: var(--line); display: none; touch-action: none; }
-#app[data-layout="two"] .splitter { display: block; }
-main[data-side="left"] .splitter, main[data-side="right"] .splitter { cursor: col-resize; }
-main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: row-resize; }
+/* The divider belongs to the split it divides, so a window with three splits has
+   three of them and each carries its own fraction. The old one was a single
+   element with an id — the shape a window with exactly one divider has, and the
+   reason the fraction had to be a global setting. */
+.splitter { flex: 0 0 6px; background: var(--line); touch-action: none; }
+.pane-split[data-dir="row"] > .splitter { cursor: col-resize; }
+.pane-split[data-dir="col"] > .splitter { cursor: row-resize; }
 .splitter:hover { background: var(--accent); }
+
+/* A pane's own strip: what it is, and the controls that belong to it rather than
+   to the application. The scroll link is here because it is a property of *this*
+   pane, and a per-pane property in an application-wide drawer is a setting
+   nobody can find and nobody can tell which pane it applies to. */
+.pane-btn {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 13px; padding: 1px 5px; border-radius: 5px; line-height: 1.4;
+}
+.pane-btn:hover { color: var(--fg); background: var(--accent-soft); }
+/* Closing a *pane* is the third thing in this application that could be spelled
+   with a cross, after closing a document and deleting one. Three meanings, three
+   glyphs, and none of them borrowed. */
+.pane-close:hover { color: var(--fg); }
+
 /* A greyed control must also be an unclickable one. `opacity: .4` alone said
    "you cannot press this" and let you press it — see `iconBtn`, which now sets
    the real attribute. `[disabled]` covers every button in the app, not only the
@@ -194,21 +204,21 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
 .chip.disabled, .tb-btn[disabled] { opacity: .4; pointer-events: none; }
 
 /* ---- Page mode: a single centered page you type on, like Word ---- */
-#app[data-layout="page"] .source-pane { border: none; }
-#app[data-layout="page"] .source-pane .pane-head { display: none; }
-#app[data-layout="page"] #editor-host {
+#app[data-page] .source-pane { border: none; }
+#app[data-page] .source-pane .pane-head { display: none; }
+#app[data-page] .source-pane .pane-host {
   background: var(--bg); overflow: auto; padding: 30px 16px;
 }
-#app[data-layout="page"] .cm-editor {
+#app[data-page] .cm-editor {
   max-width: 860px; margin: 0 auto; background: #fff; color: #111827;
   box-shadow: 0 3px 24px rgba(0,0,0,.15); border-radius: 3px; min-height: 1040px;
 }
-:root[data-theme="dark"] #app[data-layout="page"] .cm-editor { background: #f8fafc; }
-#app[data-layout="page"] .cm-content {
+:root[data-theme="dark"] #app[data-page] .cm-editor { background: #f8fafc; }
+#app[data-page] .cm-content {
   padding: 72px 84px; font-family: "Frank Ruhl Libre","David Libre",serif; font-size: 17px;
 }
-#app[data-layout="page"] .cm-gutters { display: none; }
-#app[data-layout="page"] .cm-activeLine { background: transparent; }
+#app[data-page] .cm-gutters { display: none; }
+#app[data-page] .cm-activeLine { background: transparent; }
 
 /* floating preview button + modal (page mode) */
 .float-preview-btn {
@@ -216,7 +226,7 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
   width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #fff;
   border: none; box-shadow: 0 5px 16px rgba(0,0,0,.28); cursor: pointer; font-size: 20px;
 }
-#app[data-layout="page"] .float-preview-btn { display: inline-flex; align-items: center; justify-content: center; }
+#app[data-page] .float-preview-btn { display: inline-flex; align-items: center; justify-content: center; }
 .preview-modal-box {
   width: min(900px, 94vw); max-height: 88vh; overflow: auto; background: var(--bg);
   border-radius: 12px; padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.4);
@@ -225,7 +235,7 @@ main[data-side="top"] .splitter, main[data-side="bottom"] .splitter { cursor: ro
   font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
   padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
-#editor-host { flex: 1; min-height: 0; background: var(--editor-bg); }
+.source-pane .pane-host { background: var(--editor-bg); }
 .cm-editor { height: 100%; background: var(--editor-bg); color: var(--ink); }
 
 /* ---- preview ----
@@ -610,12 +620,10 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 
   /* The split becomes vertical regardless of the chosen preview side: side by
      side is unreadable once each pane is under ~450px. */
-  #app[data-layout="two"] main { flex-direction: column; }
-  #app[data-layout="two"] main[data-side="right"] .preview-pane,
-  #app[data-layout="two"] main[data-side="bottom"] .preview-pane { order: 2; }
-  #app[data-layout="two"] main[data-side="right"] .source-pane,
-  #app[data-layout="two"] main[data-side="bottom"] .source-pane { order: 0; }
-  main[data-side="left"] .splitter, main[data-side="right"] .splitter { cursor: row-resize; }
+  /* Side by side is unreadable once each pane is under ~450px, so every split
+     stacks regardless of the direction it was built with. */
+  .pane-split { flex-direction: column !important; }
+  .splitter { cursor: row-resize; }
 
   .drawer, .drawer-start { width: min(340px, 100vw); }
   #preview { padding: 10px; }
@@ -650,10 +658,10 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   .brand-name { font-size: 16px; }
   /* Below this the two-pane split leaves neither pane usable; show one at a
      time and let the floating preview button swap between them. */
-  #app[data-layout="two"] .preview-pane { display: none; }
-  #app[data-layout="two"] .splitter { display: none; }
-  #app[data-layout="two"] .source-pane { flex: 1 1 0; }
-  #app[data-layout="two"] .float-preview-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .preview-pane { display: none; }
+  .splitter { display: none; }
+  .source-pane { flex: 1 1 0; }
+  .float-preview-btn { display: inline-flex; align-items: center; justify-content: center; }
 }
 
 /* Coarse pointers get the larger targets even on a wide tablet. */

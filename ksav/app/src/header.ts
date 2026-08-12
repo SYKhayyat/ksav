@@ -34,7 +34,7 @@
 // module; a test sets the language and reads the string a writer would see.
 
 import { t, getLang } from "./i18n";
-import type { Layout, PreviewSide, Settings } from "./settings";
+import type { Settings } from "./settings";
 
 /**
  * Every chip, by name.
@@ -59,8 +59,7 @@ export type ChipId =
   | "foldAll"
   | "unfoldAll"
   | "prose"
-  | "layout"
-  | "previewSide"
+  | "arrangement"
   | "theme"
   | "nikud"
   | "history"
@@ -98,8 +97,8 @@ export interface Chip {
 export interface HeaderState {
   theme: Settings["theme"];
   prose: boolean;
-  layout: Layout;
-  previewSide: PreviewSide;
+  /** Which shipped arrangement the pane tree is, if it is one of them. */
+  arrangement: string | null;
   outline: boolean;
   nikud: boolean;
   notesPane: boolean;
@@ -107,8 +106,6 @@ export interface HeaderState {
   recording: boolean;
 }
 
-const LAYOUT_GLYPH: Record<Layout, string> = { two: "◫", page: "📄", source: "⟨⟩" };
-const SIDE_GLYPH: Record<PreviewSide, string> = { left: "◧", right: "◨", top: "⬒", bottom: "⬓" };
 
 /**
  * The chipbar, in order.
@@ -144,21 +141,22 @@ export function chips(s: HeaderState): Chip[] {
       title: s.prose ? t("raw") : t("prose"),
       active: s.prose,
     },
-    {
-      id: "layout",
-      glyph: LAYOUT_GLYPH[s.layout],
-      title: `${t("layout")}: ${t("mode." + s.layout)}`,
-    },
-    // Which side the preview sits on is a question only a two-pane layout has.
-    // In `page` or `source` there is nothing to put on a side, and the chip used
-    // to look greyed and work anyway — saving a setting and rebuilding the whole
-    // chrome for a pane that is not on screen.
-    {
-      id: "previewSide",
-      glyph: SIDE_GLYPH[s.previewSide],
-      title: `${t("previewSide")}: ${t("side." + s.previewSide)}`,
-      disabled: s.layout !== "two",
-    },
+    // **One chip, and it opens a picker.**
+    //
+    // There were two here, and both *cycled*: `layout` through three fixed
+    // arrangements and `previewSide` through four positions. The margin comment
+    // was the same on each — *"I don't like cycles, I like that people can pick
+    // which they want"* — and it is right for a reason worth writing down: a
+    // cycle is a picker with the choices hidden and the wrong ones on the way to
+    // the right one. Seven presses to see four options and get back where you
+    // started is not a control, it is a puzzle.
+    //
+    // Both are gone. The window is a tree of panes, so an arrangement is
+    // something you built or something this application ships, and either way it
+    // is chosen rather than arrived at. Which side the preview sits on stopped
+    // being a setting at all: it is which child of a split it is, and dragging a
+    // splitter or splitting a pane says it directly.
+    { id: "arrangement", glyph: "▥", title: t("arrangement") },
     // The sun and the moon name the theme you would switch to, like the language
     // chip. Anything is defensible here as long as it is one rule.
     { id: "theme", glyph: dark ? "☀" : "🌙", title: t("theme") },

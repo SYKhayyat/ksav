@@ -192,6 +192,9 @@ export const PANELS: readonly Panel[] = [
   // surface, which is what gets it an Escape and a dismissing backdrop without
   // anybody remembering to add one.
   { id: "switcher", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
+  // The arrangements this application ships, as a picker. Replaces two chips
+  // that cycled; see the comment on the chip in .
+  { id: "arrangement", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
   {
     id: "notes-chooser",
     kind: "modal",

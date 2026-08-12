@@ -13,7 +13,7 @@ import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import * as parts from "./parts";
 import { t, tf } from "./i18n";
-import { applyPreview, drawPages } from "./preview";
+import { applyPreview, drawPagesEverywhere } from "./preview";
 import { docConfig } from "./settings";
 import * as runtime from "./runtime";
 import type { AssembledSource, CompileResult, DocConfig } from "./api";
@@ -117,9 +117,9 @@ export async function runCompile() {
     if (mine !== generation) return; // superseded while we were waiting
     runtime.setLastResult(res);
     const ms = Math.round(performance.now() - t0);
-    const preview = document.getElementById("preview")!;
     if (res.pages_svg.length) {
-      drawPages(preview, res.pages_svg, res.pages_hash);
+      // Every preview pane, from one compile. See `previewHosts`.
+      drawPagesEverywhere(res.pages_svg, res.pages_hash);
       applyPreview();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");

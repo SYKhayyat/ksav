@@ -52,6 +52,27 @@ export interface Settings {
   layout: Layout;
   previewSide?: PreviewSide; // which side the preview sits on in split view
   previewFrac?: number; // fraction of the split given to the preview (0–1)
+  /**
+   * The window's arrangement: a tree of panes (`panes.ts`).
+   *
+   * `unknown` here on purpose. This module is loaded before anything that knows
+   * what a pane is, and importing the type would put a dependency on the shape
+   * of the window into the module that decides whether spell-check is on. The
+   * one reader casts it, and `panes.ts` owns the shape.
+   *
+   * Persisted because an arrangement a writer built and lost on restart is
+   * worth less than no arrangement at all.
+   */
+  panes?: unknown;
+  /**
+   * The source pane, dressed as a sheet of paper — what Word calls print layout.
+   *
+   * Was one of three values of `layout`, which conflated it with *how the
+   * window is divided*. It is not that: it is how one pane is drawn, and it
+   * survived the move to a pane tree because a writer who wants to see a page
+   * while typing is asking a real question. See `applyPageView` in `main.ts`.
+   */
+  pageView?: boolean;
   prose: boolean;
   zoom: number;
   // Fit the page to the preview pane, which is what Word does and the reason

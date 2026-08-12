@@ -271,6 +271,31 @@ export function drawCurrentInto(host: HTMLElement) {
 }
 
 /**
+ * Every element the pages should be drawn into.
+ *
+ * The pane tree's preview panes, plus the full-screen overlay. Several previews
+ * of one document share **one compile** and are drawn from its result — which is
+ * the whole cost argument for allowing more than one: a second preview of the
+ * same document is a second scroll position and not a second layout.
+ */
+export function previewHosts(): HTMLElement[] {
+  const out = [...document.querySelectorAll<HTMLElement>(".preview-host")];
+  const modal = document.getElementById("preview-modal-body");
+  if (modal) out.push(modal);
+  return out;
+}
+
+/** Draw a fresh compile into every preview pane there is. */
+export function drawPagesEverywhere(pages: string[], hashes?: string[]) {
+  const hosts = previewHosts();
+  // The first call records what is on screen (see `currentPages`); the rest
+  // reuse it, so a document with four previews still compiles once.
+  if (!hosts.length) return;
+  drawPages(hosts[0], pages, hashes);
+  for (const host of hosts.slice(1)) drawCurrentInto(host);
+}
+
+/**
  * The pages that are **on screen**, which is not the same as the last compile.
  *
  * `runtime.lastResult` is the last thing the engine returned, stored
@@ -388,9 +413,12 @@ export function applyPreview() {
   // after the pages are written, so a single layout read here would force the
   // whole preview to be laid out before it could answer.
   const s = previewStyle({ dir, fitWidth, zoom: settings.zoom });
-  const panes = [document.getElementById("preview"), document.getElementById("preview-modal-body")];
-  for (const pane of panes) {
-    if (!pane) continue;
+  // Every preview there is, and not a list of two ids. A window is a tree of
+  // panes now, so "the preview" is however many the writer opened — and the
+  // margin comment that asked for several previews of one document asked for
+  // exactly this: *"multiple previews or sources open at one time, meaning all
+  // of the same doc, so you can look in one place as you type."*
+  for (const pane of previewHosts()) {
     pane.style.direction = s.direction;
     pane.dataset.fit = fitWidth ? "width" : "zoom";
     pane.style.setProperty("--page-width", s.pageWidthCss);

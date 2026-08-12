@@ -65,6 +65,18 @@ export interface Settings {
    */
   panes?: unknown;
   /**
+   * The tab strip: every arrangement, and which one is showing.
+   *
+   * `unknown` for the same reason `panes` is — this module is loaded before
+   * anything that knows what a tab is, and `tabs.restore` refuses a shape it
+   * does not recognise rather than trusting what came out of storage.
+   *
+   * Documents are deliberately **not** in here. A tab does not own its
+   * documents; the open set does. Persisting them per tab is how the same
+   * document ends up open twice with two carets.
+   */
+  tabs?: unknown;
+  /**
    * The source pane, dressed as a sheet of paper — what Word calls print layout.
    *
    * Was one of three values of `layout`, which conflated it with *how the

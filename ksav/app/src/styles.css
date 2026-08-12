@@ -1235,3 +1235,44 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   font-family: var(--mono); font-size: 11px; margin-top: 8px;
   max-height: 45vh; overflow: auto;
 }
+
+/* ---- the tab strip ----
+   A tab is an **arrangement**, not a document — see `tabs.ts`. It is not on
+   screen with one tab, because the first observation in the whole UI inventory
+   was that sixteen things compete for the top of the window before a word is
+   typed, and a strip showing a single tab spends a row of chrome saying nothing.
+   `buildTabStrip` returns an empty element in that case, so the rule is in the
+   code rather than in a `:empty` selector that would also hide a real one. */
+.tabstrip {
+  display: flex; align-items: stretch; gap: 2px; padding: 0 8px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabstrip:empty { display: none; }
+.tabstrip::-webkit-scrollbar { display: none; }
+.tab {
+  display: flex; align-items: center; gap: 2px; padding: 0 2px 0 8px;
+  border: 1px solid transparent; border-bottom: none; border-radius: 7px 7px 0 0;
+  max-width: 220px; flex: none;
+}
+.tab.active { background: var(--bg); border-color: var(--line); }
+.tab-main {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font: inherit; font-size: 12.5px; padding: 6px 2px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+}
+.tab.active .tab-main { color: var(--fg); }
+/* The one × this application keeps for closing, and it can afford it because
+   closing a tab destroys nothing: every document it showed is still open. The
+   other two candidates gave the glyph up — see `.menu-close` (close a document)
+   and `.pane-close` (close a pane) beside `.menu-del` (delete one). */
+.tab-close {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 14px; line-height: 1; padding: 3px 5px; border-radius: 5px;
+}
+.tab-close:hover { color: var(--fg); background: var(--accent-soft); }
+.tab-new {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 16px; padding: 2px 9px; border-radius: 6px; align-self: center;
+}
+.tab-new:hover { color: var(--fg); background: var(--accent-soft); }

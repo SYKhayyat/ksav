@@ -66,6 +66,8 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+Tab` | Back to the previous document | חזרה למסמך הקודם |
 | `Ctrl+Alt+O` | List the open documents | רשימת המסמכים הפתוחים |
 | `Ctrl+Alt+W` | Close this document (it stays in the library) | סגירת המסמך (נשאר בספרייה) |
+| `Ctrl+Alt+T` | New arrangement | סידור חדש |
+| `Ctrl+Alt+PageDown` | Next arrangement | הסידור הבא |
 | `Ctrl+Alt+J` | Jump between a note's marker and its body | מעבר בין הסימון לגוף ההערה |
 | `Ctrl+Alt+Shift+F` | Send this note's text to the end | העברת ההערה לסוף |
 | `Ctrl+Alt+R` | Bring this note back into the sentence | החזרת ההערה למשפט |

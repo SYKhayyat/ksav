@@ -42,6 +42,7 @@ import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
 import * as panes from "./panes";
+import * as tabs from "./tabs";
 import type { DocAsset } from "./docs";
 import { ACTION_COMMAND } from "./actions";
 import * as store from "./store";
@@ -284,6 +285,7 @@ async function openDoc(id: string) {
   await flushSaves();
   runtime.setSwitching(true);
   stashFocused();
+  const leaving = runtime.currentDoc?.id ?? null;
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
   runtime.setCurrentBinding(await files.recallBinding(next.id));
@@ -307,6 +309,11 @@ async function openDoc(id: string) {
   // true of this one is still true of it. Opening it says nothing new about
   // whether the file on disk has caught up, and pretending otherwise is what
   // the bug was.
+  // The panes in this arrangement now show the incoming document, so the tab
+  // can say what it is holding. See `retargetPanes` for why this is a mutation.
+  retargetPanes(leaving, id);
+  refreshTabStrip();
+  rememberPanes();
   await refreshBaseline();
   updateTitleBar();
   rerenderChrome();
@@ -753,6 +760,17 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "lastDoc", run: () => (goToLastDoc(), true) },
   { id: "switcher", run: () => (openSwitcher(), true) },
   { id: "closeDoc", run: () => (void closeOpenDoc(runtime.currentDoc.id), true) },
+  { id: "newTab", run: () => (newTab(), true) },
+  {
+    // Round, because with two or three arrangements "next" is the only motion
+    // anybody needs and a key that stops at the end is a key you have to look at
+    // the screen to use.
+    id: "nextTab",
+    run: () => {
+      if (tabs.count() > 1) selectTab((tabs.activeIndex() + 1) % tabs.count());
+      return true;
+    },
+  },
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
@@ -1732,6 +1750,25 @@ function openArrangements() {
       ),
     ),
     el("div", { class: "menu-sep" }),
+    // **The route to a second arrangement that is not inside the tab strip.**
+    //
+    // The strip hides itself at one tab, which is right — a row of chrome
+    // showing a single tab says nothing — but the `+` lives in the strip, so
+    // with the strip hidden there would be no way to make a second arrangement
+    // at all. The record is explicit that the strip "must never be the only
+    // route in"; this is the other one, and `newTab` is bound to a key besides.
+    el(
+      "button",
+      {
+        class: "pal-item",
+        onClick: () => {
+          closePanel("arrangement");
+          newTab();
+        },
+      },
+      [el("b", {}, [t("newTab")]), el("span", { class: "menu-desc" }, [t("newTabDesc")])],
+    ),
+    el("div", { class: "menu-sep" }),
     el(
       "button",
       {
@@ -1771,8 +1808,148 @@ function setTree(next: panes.PaneNode) {
 
 /** Persist the arrangement, so a restart comes back to the same window. */
 function rememberPanes() {
-  settings.panes = paneTree;
+  tabs.stash(paneTree, focusedPane);
+  settings.tabs = tabs.serialise();
   saveSettings();
+}
+
+// ---------------------------------------------------------------- the tab strip
+//
+// A tab is an **arrangement**, not a document. See `tabs.ts` for the rule that
+// makes that work and the three consequences that follow from it; what is here
+// is the strip, which is deliberately small.
+//
+// It is not on screen with one tab. The very first observation in the marked-up
+// inventory was that sixteen things compete for the top of the window before a
+// word is typed, and a strip showing a single tab spends a row of chrome telling
+// a writer something they can already see.
+
+/** The strip, or nothing. */
+function buildTabStrip(): HTMLElement {
+  const strip = el("div", { class: "tabstrip", id: "tabstrip" });
+  if (!tabs.stripVisible()) return strip;
+  const titleOf = (id: string) => docs.library().find((e) => e.id === id)?.title;
+  tabs.all().forEach((tab, i) => {
+    const here = i === tabs.activeIndex();
+    strip.append(
+      el("div", { class: "tab" + (here ? " active" : "") }, [
+        el(
+          "button",
+          {
+            class: "tab-main",
+            // Double-click to rename, which is where every tab strip ever built
+            // puts it — and the moment an arrangement stops being a document
+            // tab is the moment somebody wants to name it.
+            onDblClick: () => renameTab(i),
+            onClick: () => selectTab(i),
+          },
+          [tabs.label(tab, titleOf, t("untitled"))],
+        ),
+        // A `×`, and this is the one place in the application that keeps it for
+        // closing. Closing a tab destroys nothing at all — every document it
+        // showed is still open — which is why it can afford the glyph that
+        // closing a *document* and deleting one both had to give up.
+        el("button", {
+          class: "tab-close",
+          title: t("closeTab"),
+          onClick: (e: Event) => {
+            e.stopPropagation();
+            closeTab(i);
+          },
+        }, ["×"]),
+      ]),
+    );
+  });
+  strip.append(
+    el("button", { class: "tab-new", title: t("newTab"), onClick: () => newTab() }, ["+"]),
+  );
+  return strip;
+}
+
+function refreshTabStrip() {
+  document.getElementById("tabstrip")?.replaceWith(buildTabStrip());
+}
+
+/**
+ * Point this arrangement's panes at a document.
+ *
+ * A pane's `docId` is what lets a tab name itself, and it is the difference
+ * between two tabs that are genuinely two things and two tabs that are the same
+ * view twice. Panes that named *no* document follow the focus, which is what
+ * `null` means; a pane that named the document being left follows too, because a
+ * writer switching document inside an arrangement means "show me this here".
+ *
+ * Mutated in place rather than rebuilt, deliberately: this runs on every
+ * document switch, and going through `panes.update` would hand `renderPanes` a
+ * new tree, which would destroy and rebuild every editor in the window — the
+ * carets, the scroll and the folds of panes nobody touched — to change a label.
+ */
+function retargetPanes(from: string | null, to: string) {
+  for (const l of panes.leaves(paneTree)) {
+    if (l.docId === null || l.docId === from) l.docId = to;
+  }
+}
+
+/** A second arrangement, starting from the shipped one. */
+function newTab() {
+  tabs.stash(paneTree, focusedPane);
+  const tab = tabs.add(panes.defaultTree());
+  paneTree = tab.tree;
+  // Pinned to whatever is on screen, so the new tab is a thing rather than a
+  // second window onto whatever happens to be focused.
+  retargetPanes(null, runtime.currentDoc.id);
+  focusedPane = null;
+  renderPanes();
+  refreshTabStrip();
+  rememberPanes();
+  scheduleCompile();
+}
+
+function selectTab(i: number) {
+  if (i === tabs.activeIndex()) return;
+  tabs.stash(paneTree, focusedPane);
+  const tab = tabs.select(i);
+  if (!tab) return;
+  paneTree = tab.tree;
+  focusedPane = tab.focusedPane;
+  renderPanes();
+  refreshTabStrip();
+  rememberPanes();
+  // **And the document it was showing.** A tab remembers the arrangement *and*
+  // which document sat in each pane; restoring only the geometry gives a writer
+  // back the shape of the window they left with somebody else's text in it,
+  // which is worse than not restoring it at all. `openDoc` does nothing when the
+  // document is already on screen, so switching between two tabs on one document
+  // costs nothing.
+  const want = tabs.focusedDoc(tab);
+  if (want && want !== runtime.currentDoc?.id) void openDoc(want);
+  else scheduleCompile();
+}
+
+function closeTab(i: number) {
+  // Stash first, or closing a tab that is not the active one writes the closed
+  // tab's index over the active tab's arrangement.
+  tabs.stash(paneTree, focusedPane);
+  const next = tabs.close(i);
+  if (!next) return;
+  paneTree = next.tree;
+  focusedPane = next.focusedPane;
+  renderPanes();
+  refreshTabStrip();
+  rememberPanes();
+  const want = tabs.focusedDoc(next);
+  if (want && want !== runtime.currentDoc?.id) void openDoc(want);
+  else scheduleCompile();
+}
+
+function renameTab(i: number) {
+  const tab = tabs.all()[i];
+  if (!tab) return;
+  const name = prompt(t("renameTabPrompt"), tab.name ?? "");
+  if (name === null) return;
+  tabs.rename(i, name);
+  refreshTabStrip();
+  rememberPanes();
 }
 
 /** Draw the current pages into every preview pane there is. */
@@ -6760,6 +6937,10 @@ function render() {
     // of the window, which the writer reasonably reported as "no UI at all".
     contextBar(),
     buildNikudBar(scheduleCompile),
+    // Arrangements, when there is more than one. Above the panes because that
+    // is what it selects between, and invisible at one because a strip of one
+    // tab is a row of chrome saying nothing.
+    buildTabStrip(),
     // Empty. `renderPanes` fills it from the pane tree, which is the one
     // statement of what the window looks like — a fixed preview/splitter/source
     // triple here would be a second one, and the two would drift the first time
@@ -6859,7 +7040,15 @@ function render() {
 
   // The window, from the pane tree. Builds the editors, so it comes before
   // anything that reaches for one.
-  paneTree = (settings.panes as panes.PaneNode | undefined) ?? panes.defaultTree();
+  // The strip, or a single tab holding whatever arrangement was stored. A
+  // restart has to come back to the window the writer left, or an arrangement
+  // they built is worth less than no arrangement at all.
+  if (!tabs.restore(settings.tabs)) {
+    tabs.reset();
+    tabs.add((settings.panes as panes.PaneNode | undefined) ?? panes.defaultTree());
+  }
+  paneTree = tabs.current()!.tree;
+  focusedPane = tabs.current()!.focusedPane;
   renderPanes();
   // The document boot built the editor around is open, and is the focused one.
   // Said here rather than inside `makeEditor` because the open set is a fact
@@ -6871,6 +7060,10 @@ function render() {
     prose: !!settings.prose,
   });
   opendocs.focus(runtime.currentDoc.id);
+  // And the panes say which document they are showing, so the tab strip can
+  // name itself the moment there is more than one tab.
+  retargetPanes(null, runtime.currentDoc.id);
+  refreshTabStrip();
   // A diagnostic that names a line has to be able to go there, and the line has
   // to be visible in the editor. `diagview` knows nothing about CodeMirror and
   // does not need to; it asks.

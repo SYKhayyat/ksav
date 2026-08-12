@@ -119,6 +119,14 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // puts a document away and sometimes ends the session is not one anybody can
   // press without checking first.
   closeDoc: "Mod-Alt-w",
+  // Arrangements. The strip hides itself at one tab, so these are not a
+  // shortcut for something already on screen — for a writer with one tab they
+  // are the *only* route besides the arrangement picker, which is the reason
+  // the record says the strip "must never be the only route in".
+  newTab: "Mod-Alt-t",
+  // Not `Mod-Alt-]`, which is `unfoldAll` — caught by the fence that refuses two
+  // actions on one combination, which is the whole reason that fence exists.
+  nextTab: "Mod-Alt-PageDown",
   // Deferred note bodies. `deferJump` is the workhorse — org-mode's C-c C-c —
   // and gets the mnemonic key; the two that move prose around sit beside it.
   deferJump: "Mod-Alt-j",

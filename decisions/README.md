@@ -63,6 +63,8 @@ something in.
 | [2026-08-07 · Writing a kuntres in it](2026-08-07-writing-a-kuntres.md) | The first hour of actually using it, and the three bugs that were green in 3,556 assertions |
 | [2026-08-09 · Values, files, and this directory](2026-08-09-values-files-and-decisions.md) | The engine's tables crossing the seam as values, the prelude as a file, and why the record moved here |
 | [2026-08-09 · The three-repository report](2026-08-09-lamdan-three-repos.md) | *The diagnosis is written down correctly and the sweep never runs* — eighteen classes, worked one at a time |
+| [2026-08-10 · Fixed regions and peer streams](2026-08-10-regions-and-streams.md) | Percent-of-sheet heights, any number of regions, and regions for peer streams — the engine could already do more than the product could say |
+| [2026-08-11 · Marking up the UI inventory](2026-08-11-marking-up-the-ui-inventory.md) | 156 offers handed over for markup: the seven complaints that were one missing concept, and the documents/panes/tabs model that answers them |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

@@ -1231,12 +1231,26 @@
       block(width: 100%, spacing: 0pt, context {
         let p = here().page()
         let custom = if has_foot { _rc_head(p, תחתונה_זוגי, תחתונה_אי_זוגי, כותרת_תחתונה) } else { none }
-        let ln = if custom != none {
-          text(size: 0.85em, fill: luma(100), custom)
-        } else if מספור {
-          text(size: 0.85em, fill: luma(100), numbering(np, ..counter(page).get()))
-        } else { none }
-        if ln != none { align(head_align(p), ln) }
+        // **Both, when both were asked for.** This was `if custom … else if
+        // מספור`, so writing anything into the footer switched the page numbers
+        // off — reported exactly that way: *"The page footer removes page
+        // numbering. Setting one appears to overwrite the other."*
+        //
+        // They are not alternatives and never were. A footer line is what the
+        // document says at the bottom of every page (a sefer's name, a siman);
+        // the page number is where the reader is. Asking for one has nothing to
+        // say about the other, and a control that silently turns off a control
+        // three rows above it in the same panel is the sort of thing a writer
+        // has to discover by counting pages.
+        //
+        // Stacked, number underneath, because that is the order they are read
+        // in and because a footer line can be long enough to fill the measure.
+        let lines = ()
+        if custom != none { lines.push(text(size: 0.85em, fill: luma(100), custom)) }
+        if מספור {
+          lines.push(text(size: 0.85em, fill: luma(100), numbering(np, ..counter(page).get())))
+        }
+        for ln in lines { align(head_align(p), ln) }
       })
     },
   )

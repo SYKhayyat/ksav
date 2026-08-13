@@ -179,6 +179,14 @@ const A4_PT: f64 = 841.89;
 fn foot(body: &str) -> (f64, f64) {
     let cfg = DocConfig {
         footer: "תחתית".into(),
+        // **Numbering off, deliberately.** These tests ask one question: does an
+        // apparatus push the footer down the page. The page number is not part
+        // of that question, and since a footer and a number now both print —
+        // they used to be alternatives, which was the bug — leaving it on would
+        // make "the lowest thing on the page" mean the number and turn every
+        // assertion below into a statement about a feature these tests are not
+        // about.
+        numbering: false,
         ..Default::default()
     };
     let doc = probe::layout(body, &cfg).expect("it lays out");
@@ -413,4 +421,66 @@ fn a_stream_can_carry_a_tiered_note() {
         "the tiered note inside the stream never printed — the two apparatuses \
          are separate and both belong on the page"
     );
+}
+
+// ── a footer and a page number are two different things ─────────────────────
+
+// The footer used to be `if custom … else if מספור`, so writing anything into
+// the footer switched the page numbers off: *"The page footer removes page
+// numbering. Setting one appears to overwrite the other."*
+//
+// They were never alternatives. A footer line is what the document says at the
+// bottom of every page; the page number is where the reader is. A control that
+// silently turns off a control three rows above it in the same panel is
+// something a writer discovers by counting pages.
+
+#[test]
+fn a_footer_and_a_page_number_both_print() {
+    let cfg = DocConfig {
+        footer: "ספר הזכרון".to_string(),
+        numbering: true,
+        ..Default::default()
+    };
+    let doc = probe::layout("שורה של טקסט.", &cfg).expect("compiles");
+    let runs = probe::text_runs(&doc);
+    let footer = runs
+        .iter()
+        .find(|r| r.text.contains("ספר"))
+        .expect("the footer line");
+    let number = runs
+        .iter()
+        .find(|r| r.text.trim() == "1" && r.y > 700.0)
+        .expect("the page number");
+    // Stacked, number underneath, which is the order they are read in.
+    assert!(
+        number.y > footer.y,
+        "footer at {} number at {}",
+        footer.y,
+        number.y
+    );
+    // And both inside the paper, not printed off the bottom of it.
+    let (_, height) = probe::page_sizes(&doc)[0];
+    assert!(number.y + number.size < height, "{} vs {height}", number.y);
+}
+
+#[test]
+fn a_footer_on_its_own_still_prints_without_a_number() {
+    let cfg = DocConfig {
+        footer: "ספר הזכרון".to_string(),
+        numbering: false,
+        ..Default::default()
+    };
+    let runs = probe::text_runs(&probe::layout("שורה.", &cfg).expect("compiles"));
+    assert!(runs.iter().any(|r| r.text.contains("ספר")));
+    assert!(!runs.iter().any(|r| r.text.trim() == "1" && r.y > 700.0));
+}
+
+#[test]
+fn a_number_on_its_own_is_unchanged() {
+    let cfg = DocConfig {
+        numbering: true,
+        ..Default::default()
+    };
+    let runs = probe::text_runs(&probe::layout("שורה.", &cfg).expect("compiles"));
+    assert!(runs.iter().any(|r| r.text.trim() == "1" && r.y > 700.0));
 }

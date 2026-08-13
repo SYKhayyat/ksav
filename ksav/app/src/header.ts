@@ -231,16 +231,27 @@ export function fileItems(realFiles: boolean): MenuEntry[] {
 }
 
 /**
- * The Export menu — nine items, every one addressable.
+ * The Export menu — eight routes, every one addressable.
  *
- * Nine, not one. A menu where only the item under test can be found is a menu
- * that will grow a tenth item nothing can reach; the ids are the i18n keys,
+ * Eight, not one. A menu where only the item under test can be found is a menu
+ * that will grow a ninth item nothing can reach; the ids are the i18n keys,
  * which are already each item's identifier, so no second vocabulary was invented
  * for this.
+ *
+ * It was nine, and the ninth was `exportPdfPages` — "PDF — selected pages…",
+ * which was the PDF route with a `window.prompt` in front of it. That is not a
+ * route, it is an argument, and holding it as a route is what made a page range
+ * a property of one format:
+ *
+ * > *"A page range is offered for PDF only. No reason has been given for that."*
+ *
+ * The range is one box at the head of this menu now, read by every route that
+ * has pages — see `pagerange.ts`, which also says why the others do not. Nothing
+ * was lost with the row: it had no key, no palette entry and no caller outside
+ * this list, so the box is strictly more reachable than the item it replaces.
  */
 export const EXPORTS = [
   "exportPdf",
-  "exportPdfPages",
   "exportWord",
   "copyForWord",
   "exportHtml",

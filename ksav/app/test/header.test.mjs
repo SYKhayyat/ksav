@@ -192,12 +192,18 @@ export async function run() {
     check("and nothing else moves with it", fileItems(true).length, fileItems(false).length);
   }
   {
-    // Nine, not one. A menu where only the item under test can be found is a
-    // menu that will grow a tenth item nothing can reach — and
+    // Eight, not one. A menu where only the item under test can be found is a
+    // menu that will grow a ninth item nothing can reach — and
     // `.github/scripts/acceptance.mjs` finds these by `data-export`, which is
     // the id.
     const items = exportItems();
     check("every export is addressable", items.length, EXPORTS.length);
+    // It was nine, and the ninth was the PDF route with a `window.prompt` in
+    // front of it. A page range is an argument, not a route: holding it as one
+    // is what made it a property of a single format. It is a box at the head of
+    // the menu now, and `pagerange.ts` says which routes read it.
+    check("a page range is not one of them", EXPORTS.filter((id) => id === "exportPdfPages"), []);
+    check("there are eight of them", EXPORTS.length, 8);
     check(
       "…by an id, not by a localised label",
       items.filter((r) => !r.id || !r.label).map((r) => r.id),

@@ -279,10 +279,49 @@ const RULES = [
     // which is the shape a correct second table has.
     allow: ["ksav/app/src/spans.ts"],
   },
+  {
+    // The class: **a raw control character inside a source file.** Twice in the
+    // same file, and both times a string literal that was meant to hold
+    // something printable: a NUL used as a separator, written as the byte
+    // instead of as the escape, and a sentinel value that was meant to be a
+    // space.
+    //
+    // The bug is not the character. It is that ripgrep treats a file containing
+    // a NUL as **binary and stops searching it** — silently, at the first one —
+    // so `main.ts`, the largest module in the application, answered every search
+    // with partial results and said so in a warning nobody reads. A tool that
+    // quietly stops working is the exact shape this suite is for, and it cost an
+    // hour of "why does this grep find nothing".
+    //
+    // Tab and the two line endings are the whole of the legitimate set.
+    // Anything that genuinely needs one of the others has an escape in every
+    // language here, and an escape is greppable, diffable and visible in a
+    // review, which the byte is not.
+    //
+    // Stated as a `probe` rather than a `match` on purpose: a regular expression
+    // for this has to *contain* the characters it forbids, either as literals —
+    // which is the bug — or as escapes, which is one editor away from being
+    // turned back into literals. That is how the second instance got in. A loop
+    // over character codes cannot be corrupted into passing.
+    what: "no source file carries a raw control character",
+    where: /\.(ts|mjs|js|rs|typ|py)$/u,
+    probe: hasControlChar,
+    allow: [],
+  },
 ];
+
+/** Any character below space that is not tab, newline or carriage return. */
+function hasControlChar(body) {
+  for (let i = 0; i < body.length; i++) {
+    const c = body.charCodeAt(i);
+    if (c < 32 && c !== 9 && c !== 10 && c !== 13) return true;
+  }
+  return false;
+}
 
 /** Does this file break the rule? */
 function breaks(rule, body) {
+  if (rule.probe) return rule.probe(body);
   if (rule.match) return rule.match.test(body);
   return rule.contains.some((fragment) => body.includes(fragment));
 }

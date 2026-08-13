@@ -10,6 +10,12 @@ import {
   moveSection,
   deleteSection,
   addContents,
+  canAddContents,
+  contentsCall,
+  contentsDepth,
+  setContentsDepth,
+  inContents,
+  toggleInContents,
   makeHeading,
   MAX_LEVEL,
 } from "../.tmp-test/headings.mjs";
@@ -184,6 +190,123 @@ export async function run() {
   ok("the document follows it", r.text.includes("#כותרת1[ראשון]"));
   notOk("and it is only ever written once", addContents(r.text));
   ok("English documents get the English call", addContents("#h1[T]\n", "en").text.startsWith("#toc()"));
+}
+
+// ---------------------------------------------------------------- what enters it
+//
+// > *"Choose exactly what enters the table of contents, including excluding
+// > individual headings."*
+//
+// Neither half was expressible. `#תוכן` took a title and a numbering scheme and
+// nothing about *which headings*; a heading could be kept out only by knowing
+// that Typst calls it `outlined` and that the prelude passes strays through.
+
+{
+  // How deep — a property of the contents, so it lives on the call.
+  check("a contents with no depth is every level", contentsDepth("#תוכן()\n\nגוף\n"), null);
+  check("a depth is read", contentsDepth("#תוכן(עומק: 2)\n"), 2);
+  check("in English too", contentsDepth("#toc(depth: 3)\n"), 3);
+  check("a document with no contents has no depth", contentsDepth("גוף\n"), null);
+  check("nor a contents call", contentsCall("גוף\n"), null);
+}
+
+{
+  const made = addContents(D, "he", 2);
+  ok("a contents can be made at a depth", made.text.startsWith("#תוכן(עומק: 2)"));
+  check("and reads back as that depth", contentsDepth(made.text), 2);
+  ok("English gets the English argument", addContents("#h1[T]\n", "en", 2).text.startsWith("#toc(depth: 2)"));
+}
+
+{
+  const doc = "#תוכן()\n\n#כותרת1[א]\n";
+  const deep = setContentsDepth(doc, 3);
+  ok("the depth of an existing contents is set in place", deep.text.startsWith("#תוכן(עומק: 3)"));
+  ok("and the rest of the document is untouched", deep.text.includes("#כותרת1[א]"));
+  check("changing it again replaces rather than repeats", contentsDepth(setContentsDepth(deep.text, 1).text), 1);
+  ok(
+    "…and leaves one argument, not two",
+    (setContentsDepth(deep.text, 1).text.match(/עומק/g) || []).length === 1,
+  );
+  // Back to "all" is the call the writer started with, not `עומק: none`: a
+  // sentinel would be a third state of a two-state question, visible in their
+  // source forever.
+  check("clearing it gives back the plain call", setContentsDepth(deep.text, null).text.split("\n")[0], "#תוכן()");
+  check("nothing to set when there is no contents", setContentsDepth("גוף\n", 2), null);
+}
+
+{
+  // Another argument on the call survives a depth change, which is the whole
+  // reason this is a rewrite of the argument list rather than of the call.
+  const titled = '#תוכן(כותרת: [פתח דבר])\n';
+  const r = setContentsDepth(titled, 2);
+  ok("the title is kept", r.text.includes("כותרת: [פתח דבר]"));
+  ok("and the depth is added", r.text.includes("עומק: 2"));
+  check("and taking the depth off again leaves the title", setContentsDepth(r.text, null).text.trim(), '#תוכן(כותרת: [פתח דבר])');
+}
+
+{
+  // Not this one — a property of a heading, so the writer marks it where the
+  // heading is.
+  const doc = "#כותרת1[שער]\n\n#כותרת1[פרק א]\n";
+  const h = headings(doc)[0];
+  ok("a plain heading is in the contents", inContents(doc, h));
+  const out = toggleInContents(doc, h);
+  ok("taking it out writes the Hebrew argument", out.text.startsWith("#כותרת1(בתוכן: false)[שער]"));
+  check("and it reads back as out", inContents(out.text, headings(out.text)[0]), false);
+  ok("its neighbour is untouched", inContents(out.text, headings(out.text)[1]));
+  // A heading that is out of the contents is still a heading: same level, same
+  // title, still in the outline. Only one line of the contents is missing.
+  check("it is still a heading at the same level", headings(out.text)[0].level, 1);
+  check("with the same title", out.text.includes("[שער]"), true);
+}
+
+{
+  const doc = "#כותרת1(בתוכן: false)[שער]\n";
+  const back = toggleInContents(doc, headings(doc)[0]);
+  check("putting it back leaves no empty argument list", back.text.trim(), "#כותרת1[שער]");
+  ok("and it is in the contents again", inContents(back.text, headings(back.text)[0]));
+}
+
+{
+  // The argument joins whatever the heading already carries, and leaves when it
+  // is taken off — the same "no empty `()`" rule, one level down.
+  const doc = '#כותרת1(צבע: red)[פרק]\n';
+  const out = toggleInContents(doc, headings(doc)[0]);
+  ok("an existing argument is kept", out.text.includes("צבע: red"));
+  ok("and the new one joins it", out.text.includes("בתוכן: false"));
+  const back = toggleInContents(out.text, headings(out.text)[0]);
+  check("removing it leaves the other behind", back.text.trim(), "#כותרת1(צבע: red)[פרק]");
+}
+
+{
+  // An English document gets Typst's own name, which has always worked and had
+  // no Hebrew spelling — which is the whole finding.
+  const doc = "#h1[Title page]\n";
+  const out = toggleInContents(doc, headings(doc)[0]);
+  ok("English uses `outlined`", out.text.startsWith("#h1(outlined: false)"));
+  check("and reads back as out", inContents(out.text, headings(out.text)[0]), false);
+  check("and back in again", toggleInContents(out.text, headings(out.text)[0]).text.trim(), "#h1[Title page]");
+}
+
+{
+  // Round trip over every heading in a real document: out and back in leaves the
+  // text exactly as it was. The single cases above would pass on an
+  // implementation that leaves a stray comma behind.
+  const drift = headings(D)
+    .map((_, i) => {
+      const h = headings(D)[i];
+      const out = toggleInContents(D, h);
+      const back = toggleInContents(out.text, headings(out.text)[i]);
+      return back.text === D ? null : `${i}: ${back.text}`;
+    })
+    .filter(Boolean);
+  check("out and back in changes nothing", drift, []);
+}
+
+{
+  // The depth control's two states, which is what the Insert row switches on.
+  ok("a document with no contents can be given one", canAddContents(D));
+  notOk("and one that has one cannot", canAddContents(addContents(D).text));
 }
 
 }

@@ -41,7 +41,7 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 122 commands. `#` in the editor offers all of them with what each one
+There are 124 commands. `#` in the editor offers all of them with what each one
 does, so none is worth memorising.
 
 ## Where a note goes is a setting, not a command
@@ -278,7 +278,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 66 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 70 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is

@@ -124,7 +124,7 @@ export async function run() {
     // must **re-export** the type, never declare one. A second declaration
     // typechecks perfectly and is wrong the moment Rust moves.
     const api = await readFile(path.join(SRC, "api.ts"), "utf8");
-    ok("api.ts does not declare TemplateDef itself", !/interface\s+TemplateDef/.test(api));
+    ok("api.ts does not declare TemplateDef itself", !/interface\s+TemplateDef\b/.test(api));
     ok("…it re-exports the generated one", api.includes('from "./engine.gen"'));
   }
 

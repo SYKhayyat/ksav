@@ -277,6 +277,14 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_סקירה", "review_config", "review", "תצוגת הסקירה (סימון / סופי / מקורי)", "Review view (markup / final / original)", "#הגדרות_סקירה(תצוגה: \"סופי\")"),
     // ---- section page setup ----
     cmd!("מקטע_עמוד", "page_section", "layout", "מקטע עם הגדרות עמוד משלו (טורים/שוליים/כותרות/סימן מים)", "Section with its own page setup (columns/margins/headers/watermark)", "#מקטע_עמוד(טורים: 2)[|]"),
+    // The running heads, as document content rather than as two boxes in the
+    // settings drawer. The report's words: *"they are document content in a
+    // settings control"* — and being a string in a settings field is what made
+    // a bold word or a mixed run inexpressible. These take content, and a
+    // document may set them more than once, which is what a sefer whose running
+    // head names the current masechta actually needs.
+    cmd!("כותרת_עליונה", "running_head", "layout", "כותרת רצה בראש העמוד", "Running head at the top of the page", "#כותרת_עליונה[|]"),
+    cmd!("כותרת_תחתונה", "running_foot", "layout", "כותרת רצה בתחתית העמוד", "Running foot at the bottom of the page", "#כותרת_תחתונה[|]"),
     // ---- math ----
     cmd!("נוסחה", "formula", "math", "נוסחה מוצגת (שורה משלה)", "Displayed formula (own line)", "#נוסחה(\"|\")"),
     cmd!("נוסחה_בשורה", "iformula", "math", "נוסחה בתוך השורה", "Inline formula", "#נוסחה_בשורה(\"|\")"),

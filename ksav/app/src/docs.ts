@@ -121,6 +121,40 @@ export const MAX_SNAPSHOTS = 50;
 export const MAX_HISTORY_BYTES = 2 * 1024 * 1024;
 
 /**
+ * How often a snapshot is taken by itself, if at all.
+ *
+ * > *"Automatic snapshots, or automatic turned off and taken by hand."*
+ *
+ * The cadence was `window.setInterval(… , 180000)` at the bottom of `main.ts`:
+ * three minutes, written as a number, with no way to change it and no way to
+ * stop it. A writer who wants their history to mean *the points I chose* — which
+ * is what a history is for, and why every version-control system in the world
+ * has a commit button rather than a clock — had nothing to turn off.
+ *
+ * Returns milliseconds, or `null` for *off, take them by hand*. The bounds are
+ * here rather than in the settings row because they are a fact about the
+ * feature: under a minute the store is being written to faster than anybody
+ * types a paragraph, and over an hour it is not an automatic history, it is an
+ * ambush. A number outside them is clamped rather than refused — the row is a
+ * spinner, and a typed `999` should give the writer the longest gap on offer,
+ * not silently keep the old one.
+ */
+export const MIN_SNAPSHOT_MINUTES = 1;
+export const MAX_SNAPSHOT_MINUTES = 60;
+export const DEFAULT_SNAPSHOT_MINUTES = 3;
+
+export function autoInterval(on: boolean | undefined, minutes: number | undefined): number | null {
+  // `undefined` is *on*: it is what every settings file written before this
+  // existed says, and those writers have been getting automatic snapshots for
+  // as long as the feature has been there. An absent field must never be read
+  // as a preference the writer never expressed.
+  if (on === false) return null;
+  const m = Number.isFinite(minutes) ? (minutes as number) : DEFAULT_SNAPSHOT_MINUTES;
+  const clamped = Math.min(MAX_SNAPSHOT_MINUTES, Math.max(MIN_SNAPSHOT_MINUTES, m));
+  return Math.round(clamped * 60_000);
+}
+
+/**
  * Remember a document's own page setup (B26).
  *
  * Its own function rather than a general `update`, because this is the one field

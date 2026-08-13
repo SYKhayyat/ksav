@@ -813,6 +813,30 @@ const HEADING_ACTIONS: StructureAction[] = [
       (doc, h) => heads.deleteSection(doc, h),
     ),
   },
+  {
+    // *"Choose exactly what enters the table of contents, including excluding
+    // individual headings."* This is the "individual headings" half, and it is a
+    // heading operation in the way `heading.contents` never was: it acts on the
+    // heading the caret is on and changes nothing else about it.
+    //
+    // `headingHere` rather than `onHeading`, for the same reason the level
+    // buttons use it: `onHeading` resolves to the section the caret is *inside*,
+    // so standing in a paragraph this would have marked the heading above —
+    // silently, and three lines away from where the writer was looking.
+    id: "heading.inContents",
+    why: "why.notOnHeading",
+    structure: "heading",
+    group: "whole",
+    glyph: "☰",
+    label: "headingInContents",
+    ...op(
+      (ctx) => !!ctx.headingHere() && heads.canToggleInContents(),
+      (ctx) => {
+        const h = ctx.headingHere();
+        return h ? heads.toggleInContents(ctx.doc, h) : null;
+      },
+    ),
+  },
   // `heading.contents` was here, and a table of contents is not a heading
   // operation. It was wrapped in `onHeading`, which means it required the caret
   // to be *inside a section* — so in a document with headings, standing at the

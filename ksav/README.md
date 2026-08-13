@@ -280,6 +280,12 @@ collapses the sefer to chapters, or to chapters and simanim.
   answers to.
 - **`F1`** — help, and every line of it is a button: the entry that tells you
   `Ctrl+Shift+F` makes a footnote makes one.
+- **`Ctrl+=` / `Ctrl+-` / `Ctrl+0`** — bigger, smaller, back to 100%. They resize
+  whichever of the two you are standing in: the text when the caret is in it, the
+  page otherwise. Both sizes are also rows in Settings, named for what they zoom.
+- **`Ctrl+Alt+S`** — keep this version. Automatic snapshots are on by default and
+  switchable off in Settings, which is the point of a key for the manual one: a
+  history of *the points you chose* is only useful if you can choose them.
 
 Every key above is rebindable in Settings, and Settings lists every operation in
 the product because that list is generated too.
@@ -391,7 +397,7 @@ the reasoning, not the reference, and this file is long enough.
 
 ## Features (engine)
 
-- **122 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **124 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -424,7 +430,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 122 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 124 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -449,8 +455,33 @@ the reasoning, not the reference, and this file is long enough.
   every change were accepted, and the document before any of them.
 - **Bilingual UI** (Hebrew ⇄ English) with full RTL/LTR flip of the chrome —
   independent of the document's own direction. Persisted.
-- **Settings**: font, size, margins, direction, page numbers, justify, line
-  spacing, columns, zoom. **Light/dark theme.** One/two-panel layout.
+- **Settings**: font, size, margins, direction, page numbers, text alignment,
+  line spacing, columns, two zooms. **Light/dark theme.** One/two-panel layout.
+  - **The font list** is grouped by where each face comes from — bundled with
+    Ksav, attached to this document, or installed on this machine — because that
+    is the same question as *will it still resolve when somebody else opens
+    this*. Each name is drawn in its own face, and a family none of the three
+    knows can still be named by hand.
+  - **Text alignment** is one control with four answers: justified, right,
+    centred, left. It was a `justify` tick box, which could say *justified or
+    not* and had no word for *which edge* — so a centred sheet meant wrapping
+    every paragraph by hand.
+  - **Running heads** can stay in Settings as plain text, or move into the
+    document as `#כותרת_עליונה[…]` / `#כותרת_תחתונה[…]`. In the document they
+    take content, so a bold word or a mixed run works — and a document may set
+    them more than once, which is how a sefer names the current masechta across
+    the top of each chapter. The settings drawer has the button that moves one
+    across, text and all.
+  - **The table of contents** takes a depth (Insert ▸ the levels box beside it),
+    and any single heading can be kept out of it with `בתוכן: false` — offered
+    wherever the heading operations are, so a title page's own heading does not
+    have to appear in its own contents.
+  - **Snapshots** are automatic by default, at a cadence you set, or switched
+    off entirely and taken by hand with `Ctrl+Alt+S`.
+  - **Exports** share one page range, at the head of the Export menu. Every route
+    either reads it or says why it cannot: Word and web HTML reflow, so the
+    reader decides the pages; Markdown, plain text and `.typ` are the source,
+    which was never laid out. The PDF and the printer read it.
 
 ## Runs in the browser (WASM)
 
@@ -542,7 +573,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,244 editor assertions, 607 engine
+- [x] **CI, running and green** — typecheck, 5,409 editor assertions, 624 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -618,10 +649,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 5,244 assertions across 83 files
+cd app && npm test                          # 5,409 assertions across 86 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 607 tests, 39 binaries
+cargo test --manifest-path engine/Cargo.toml            # 624 tests, 40 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -665,7 +696,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,343**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **3,395**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

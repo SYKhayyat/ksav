@@ -60,6 +60,11 @@ export interface HeadingInfo {
   /** The command as written, so a rewrite keeps the document's language. */
   name: string;
   lang: "he" | "en";
+  /** One past the command's name — where an argument list would start. */
+  nameTo: number;
+  /** Inside the `(…)`, when the call has one. `null` when it does not. */
+  argsFrom: number | null;
+  argsTo: number | null;
 }
 
 function info(n: Node): HeadingInfo {
@@ -73,6 +78,9 @@ function info(n: Node): HeadingInfo {
     levelFixed: n.levelFixed === true,
     name: n.name,
     lang: n.lang,
+    nameTo: n.nameTo,
+    argsFrom: n.args ? n.args.from : null,
+    argsTo: n.args ? n.args.to : null,
   };
 }
 
@@ -356,11 +364,133 @@ export function makeHeading(doc: string, pos: number, level: number): Edit | nul
 }
 
 /** Insert a table of contents at the top of the document, once. */
-export function addContents(doc: string, lang: "he" | "en" = "he"): Edit | null {
+export function addContents(doc: string, lang: "he" | "en" = "he", depth: number | null = null): Edit | null {
   if (!canAddContents(doc)) return null;
-  const call = lang === "en" ? "#toc()" : "#תוכן()";
+  const name = lang === "en" ? "#toc" : "#תוכן";
+  const call = depth === null ? `${name}()` : `${name}(${DEPTH_ARG[lang]}: ${depth})`;
   const text = `${call}\n\n${doc.replace(/^\s*/, "")}`;
   return { text, caret: call.length };
+}
+
+// ---------------------------------------------------------------- what enters it
+//
+// > *"Choose exactly what enters the table of contents, including excluding
+// > individual headings."*
+//
+// Neither half was expressible. `#תוכן` took a title and a numbering scheme and
+// nothing about **which headings**, so every heading in the document went in and
+// that was the end of it — a sefer with a heading per se'if got a contents
+// hundreds of lines long, and the title page's own heading was in it too.
+//
+// Two answers, because they are two questions. *How deep* is a property of the
+// contents and is one number on the call. *Not this one* is a property of a
+// heading, and the writer marks it where the heading is.
+
+/** The argument that says how many levels enter, in each language. */
+const DEPTH_ARG: Record<"he" | "en", string> = { he: "עומק", en: "depth" };
+/** The argument on a heading that keeps it out, in each language. */
+const IN_CONTENTS_ARG: Record<"he" | "en", string> = { he: "בתוכן", en: "outlined" };
+/** Both spellings of both, for reading a call written in either language. */
+const ANY_DEPTH = /(?:^|,)\s*(?:עומק|depth)\s*:\s*([^,]*)/;
+const ANY_IN_CONTENTS = /(?:^|,)\s*(?:בתוכן|outlined)\s*:\s*(?:false|לא)\s*(?=,|$)/;
+
+/** The `#תוכן` call this document has, if it has one. */
+export function contentsCall(doc: string): { from: number; to: number; args: string; lang: "he" | "en" } | null {
+  const n = scan(doc).nodes.find((x) => x.name === "תוכן" || x.name === "toc");
+  if (!n) return null;
+  return {
+    from: n.from,
+    to: n.to,
+    args: n.args ? doc.slice(n.args.from, n.args.to) : "",
+    lang: n.lang,
+  };
+}
+
+/** How deep this document's contents goes, or `null` for "every level". */
+export function contentsDepth(doc: string): number | null {
+  const call = contentsCall(doc);
+  if (!call) return null;
+  const m = ANY_DEPTH.exec(call.args);
+  if (!m) return null;
+  const n = Number(m[1].trim());
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Set — or clear — the depth of the contents this document already has.
+ *
+ * `null` is *every level*, which is written by removing the argument rather than
+ * by passing a sentinel: `#תוכן()` is what a document that has never been asked
+ * the question says, and a writer who goes back to "all" should end up with the
+ * call they started with rather than `#תוכן(עומק: none)`.
+ *
+ * Returns null when there is no contents to change, which is what greys the
+ * control rather than silently doing nothing.
+ */
+export function setContentsDepth(doc: string, depth: number | null): Edit | null {
+  const call = contentsCall(doc);
+  if (!call) return null;
+  const rest = call.args.replace(ANY_DEPTH, "").replace(/^\s*,\s*/, "").trim();
+  const arg = depth === null ? "" : `${DEPTH_ARG[call.lang]}: ${depth}`;
+  const inner = [arg, rest].filter(Boolean).join(", ");
+  const name = call.lang === "en" ? "#toc" : "#תוכן";
+  const replacement = `${name}(${inner})`;
+  const text = doc.slice(0, call.from) + replacement + doc.slice(call.to);
+  return { text, caret: call.from + replacement.length };
+}
+
+/** Does this heading enter the table of contents? */
+export function inContents(doc: string, h: HeadingInfo): boolean {
+  if (h.argsFrom === null || h.argsTo === null) return true;
+  return !ANY_IN_CONTENTS.test(doc.slice(h.argsFrom, h.argsTo));
+}
+
+/**
+ * Keep this heading out of the contents, or put it back.
+ *
+ * The argument reaches Typst's own `heading(outlined:)` — the prelude passes a
+ * heading's strays straight through — so this is a name for something the
+ * engine could always do and nothing could say. In Hebrew it is `בתוכן`, which
+ * is the word the rest of the vocabulary would use; `outlined` keeps working,
+ * and a document written in English gets that one.
+ *
+ * Never renumbers and never moves anything: a heading that is out of the
+ * contents is still a heading, still numbered, still foldable, still in the
+ * outline pane. It is one line of the contents that is not printed.
+ */
+export function toggleInContents(doc: string, h: HeadingInfo): Edit | null {
+  const arg = `${IN_CONTENTS_ARG[h.lang]}: false`;
+  if (!inContents(doc, h)) {
+    // Put it back: strip the argument, and the empty `()` with it if that is
+    // all there was. `#כותרת1()` is legal and ugly, and it is not what the
+    // document looked like before the writer pressed this.
+    const inner = doc.slice(h.argsFrom!, h.argsTo!).replace(ANY_IN_CONTENTS, "").replace(/^\s*,\s*/, "").trim();
+    const from = inner ? h.argsFrom! : h.nameTo;
+    const to = inner ? h.argsTo! : h.argsTo! + 1;
+    const text = doc.slice(0, from) + inner + doc.slice(to);
+    return { text, caret: from + inner.length };
+  }
+  if (h.argsFrom === null || h.argsTo === null) {
+    // No argument list at all: give it one, immediately after the name.
+    const text = `${doc.slice(0, h.nameTo)}(${arg})${doc.slice(h.nameTo)}`;
+    return { text, caret: h.nameTo + arg.length + 2 };
+  }
+  const inner = doc.slice(h.argsFrom, h.argsTo).trim();
+  const merged = inner ? `${inner}, ${arg}` : arg;
+  const text = doc.slice(0, h.argsFrom) + merged + doc.slice(h.argsTo);
+  return { text, caret: h.argsFrom + merged.length };
+}
+
+/**
+ * A heading can always be taken out of the contents, and always put back.
+ *
+ * Its own predicate rather than a bare `true` because the structure action needs
+ * one, and because a `#סימן` — whose level is pinned in the prelude — is *not* an
+ * exception here: the level is fixed, the outline flag is an ordinary stray, and
+ * the two have nothing to do with each other.
+ */
+export function canToggleInContents(): boolean {
+  return true;
 }
 
 /**

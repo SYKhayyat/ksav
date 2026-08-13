@@ -25,6 +25,7 @@
     "lang": "",
     "numbering": true,
     "justify": true,
+    "text_align": "",
     "line_spacing_em": 0.75,
     "para_spacing_em": 1.2,
     "first_line_indent_em": 0.0,
@@ -1089,6 +1090,24 @@
       "desc_he": "מקטע עם הגדרות עמוד משלו (טורים/שוליים/כותרות/סימן מים)",
       "desc_en": "Section with its own page setup (columns/margins/headers/watermark)",
       "insert": "#מקטע_עמוד(טורים: 2)[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת_עליונה",
+      "en": "running_head",
+      "category": "layout",
+      "desc_he": "כותרת רצה בראש העמוד",
+      "desc_en": "Running head at the top of the page",
+      "insert": "#כותרת_עליונה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "כותרת_תחתונה",
+      "en": "running_foot",
+      "category": "layout",
+      "desc_he": "כותרת רצה בתחתית העמוד",
+      "desc_en": "Running foot at the bottom of the page",
+      "insert": "#כותרת_תחתונה[|]",
       "deprecated": false
     },
     {

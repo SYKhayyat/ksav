@@ -182,4 +182,84 @@ export async function run() {
     ok("and what it guards is the parse", guarded.includes("JSON.parse"));
     notOk("...and nothing else", guarded.includes("PAGE_FIELDS"));
   }
+
+  // ---------------------------------------------------------------- one control
+  //
+  // > *"Justify belongs in one control with right, centre and left."*
+  //
+  // Underneath there are two fields, and that is deliberate: every document ever
+  // saved holds `justify: true|false` and nothing else, so a single four-valued
+  // field would have had to guess what those documents meant. The pair keeps the
+  // old answer readable and lets the new one win. These two functions are the
+  // only place in the application that knows the pair exists.
+  {
+    check("the four answers, in the order the panel offers them", [...settings.ALIGN_CHOICES], [
+      "justify",
+      "right",
+      "center",
+      "left",
+    ]);
+  }
+
+  {
+    // A document written before `text_align` existed. Both readings of the old
+    // boolean have to land on a real choice, or the control shows nothing
+    // selected for every document in the library.
+    check("justified", settings.alignChoice({ justify: true, text_align: "", dir: "rtl" }), "justify");
+    check(
+      "and ragged is the reading edge, which in Hebrew is the right",
+      settings.alignChoice({ justify: false, text_align: "", dir: "rtl" }),
+      "right",
+    );
+    check(
+      "…and the left in English",
+      settings.alignChoice({ justify: false, text_align: "", dir: "ltr" }),
+      "left",
+    );
+  }
+
+  {
+    // The new answer wins over the old one, in both directions — a document
+    // holding an edge *and* `justify: true` is one the writer never asked for,
+    // and it must not read as justified.
+    check("an edge wins", settings.alignChoice({ justify: true, text_align: "center", dir: "rtl" }), "center");
+    check("in either direction", settings.alignChoice({ justify: true, text_align: "left", dir: "rtl" }), "left");
+    check(
+      "and an unrecognised one falls back rather than guessing",
+      settings.alignChoice({ justify: true, text_align: "sideways", dir: "rtl" }),
+      "justify",
+    );
+  }
+
+  {
+    check("choosing justified clears the edge", settings.alignSetup("justify"), {
+      justify: true,
+      text_align: "",
+    });
+    check("choosing an edge turns justification off", settings.alignSetup("center"), {
+      justify: false,
+      text_align: "center",
+    });
+    // The round trip, which is the property that matters: what the panel writes
+    // is what the panel reads back, for all four and in both directions.
+    const trips = settings.ALIGN_CHOICES.flatMap((choice) =>
+      ["rtl", "ltr"].map((dir) => [
+        choice,
+        settings.alignChoice({ ...settings.alignSetup(choice), dir }),
+      ]),
+    );
+    check(
+      "every choice reads back as itself",
+      trips.filter(([want, got]) => want !== got),
+      [],
+    );
+  }
+
+  {
+    // Both halves travel with the document, which is the whole point of B26: a
+    // sefer set centred stays centred when it is opened on another machine.
+    const page = settings.PAGE_FIELDS;
+    ok("justify is page setup", page.includes("justify"));
+    ok("and so is the edge", page.includes("text_align"));
+  }
 }

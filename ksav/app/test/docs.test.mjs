@@ -321,6 +321,39 @@ export async function run() {
     check("ids do not collide", ids.size, 2000);
   }
 
+  // ------------------------------------------------------------ the cadence
+  //
+  // > *"Automatic snapshots, or automatic turned off and taken by hand."*
+  //
+  // Both halves were missing. The cadence was `setInterval(…, 180000)` at the
+  // bottom of `main.ts`: three minutes, written as a number, with no way to
+  // change it and no way to stop it.
+  {
+    check("off means off", docs.autoInterval(false, 3), null);
+    check("on means minutes", docs.autoInterval(true, 5), 5 * 60_000);
+    // An absent field is *on*. It is what every settings file written before
+    // this existed says, and those writers have had automatic snapshots all
+    // along — reading a missing field as a preference nobody expressed would
+    // silently switch the feature off for all of them.
+    check("an unset switch is on", docs.autoInterval(undefined, undefined), 3 * 60_000);
+    check("…at the shipped cadence", docs.autoInterval(undefined, undefined) / 60_000, docs.DEFAULT_SNAPSHOT_MINUTES);
+    // Clamped rather than refused: the row is a spinner, and a typed 999 should
+    // give the longest gap on offer rather than silently keeping the old one.
+    check("too often is the floor", docs.autoInterval(true, 0), docs.MIN_SNAPSHOT_MINUTES * 60_000);
+    check("too rare is the ceiling", docs.autoInterval(true, 999), docs.MAX_SNAPSHOT_MINUTES * 60_000);
+    check("and nonsense is the default", docs.autoInterval(true, NaN), docs.DEFAULT_SNAPSHOT_MINUTES * 60_000);
+    ok(
+      "the shipped cadence is inside the bounds",
+      docs.DEFAULT_SNAPSHOT_MINUTES >= docs.MIN_SNAPSHOT_MINUTES &&
+        docs.DEFAULT_SNAPSHOT_MINUTES <= docs.MAX_SNAPSHOT_MINUTES,
+    );
+    check(
+      "and three minutes is still three minutes, as it was before it was a setting",
+      docs.autoInterval(true, docs.DEFAULT_SNAPSHOT_MINUTES),
+      180000,
+    );
+  }
+
   await rejects(
     "a document that cannot be structured-cloned rejects rather than half-saving",
     () => docs.putDoc({ id: "fn", title: "t", body: "b", assets: [], updated: 0, boom: () => {} }),

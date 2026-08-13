@@ -161,7 +161,30 @@ pub struct DocConfig {
     /// Show page numbers.
     pub numbering: bool,
     /// Justify paragraphs.
+    ///
+    /// Half of one control. See [`DocConfig::text_align`], which holds the other
+    /// three answers to the same question and takes precedence over this one.
     pub justify: bool,
+    /// Where the text sits when it is not justified: `right`, `center`, `left`.
+    ///
+    /// > *"Justify belongs in one control with right, centre and left."*
+    ///
+    /// It did not, and could not: `justify` is a boolean, so the panel offered a
+    /// tick box whose two states were *justified* and *not justified*, and there
+    /// was no document-level way to say **which edge** the unjustified text
+    /// should sit at. A writer who wanted a centred sheet had to reach for
+    /// `#מרכז` around every paragraph.
+    ///
+    /// Empty is the ordinary state and means *take `justify`* — which is what
+    /// every document written before this field existed says, and why it is a
+    /// string with an empty default rather than a fourth boolean. Non-empty wins,
+    /// because the panel writes the pair together and a document holding both an
+    /// alignment and `justify: true` is one the writer never asked for.
+    ///
+    /// The prelude takes one parameter for both readings — `יישור` accepts
+    /// `true`/`false` or an alignment name — so the two halves stay one control
+    /// all the way down to the page rather than being reassembled per layer.
+    pub text_align: String,
     /// Line spacing (leading) in em.
     pub line_spacing_em: f64,
     /// Space between paragraphs, in em.
@@ -860,6 +883,9 @@ impl Default for DocConfig {
             lang: String::new(),
             numbering: true,
             justify: true,
+            // Empty is *take `justify`*, which is what every document written
+            // before this field existed says. See the field.
+            text_align: String::new(),
             line_spacing_em: 0.75,
             para_spacing_em: 1.2,
             first_line_indent_em: 0.0,
@@ -986,6 +1012,12 @@ impl DocConfig {
         if let Some(j) = v.get("justify").and_then(|x| x.as_bool()) {
             cfg.justify = j;
         }
+        if let Some(a) = v.get("text_align").and_then(|x| x.as_str()) {
+            // Sanitised on the way in rather than on the way out, so a nonsense
+            // value is dropped where it arrives instead of reaching the prelude
+            // as a string that names no alignment and silently does nothing.
+            cfg.text_align = sanitize_text_align(a);
+        }
         if let Some(l) = clamped(v, "line_spacing_em", 0.0, 10.0) {
             cfg.line_spacing_em = l;
         }
@@ -1108,6 +1140,22 @@ impl DocConfig {
 /// `tests/one_want.rs` can hold the two tables to each other — a spelling one
 /// side accepts and the other does not falls through to centred, which is a
 /// running head in the wrong place and no error anywhere.
+/// The three edges the text can sit at, or empty for "take `justify`".
+///
+/// Both spellings, like every other name a writer can type: the editor sends the
+/// English word and somebody calling `#מסמך` by hand writes the Hebrew one.
+/// Anything else is empty rather than a guess — an unrecognised alignment must
+/// fall back to what the document already said, not to an edge nobody chose.
+pub fn sanitize_text_align(a: &str) -> String {
+    match a.trim() {
+        "right" | "ימין" => "right",
+        "center" | "centre" | "מרכז" | "אמצע" => "center",
+        "left" | "שמאל" => "left",
+        _ => "",
+    }
+    .to_string()
+}
+
 pub fn sanitize_head_align(a: &str) -> String {
     match a.trim() {
         "outside" | "outer" | "חוץ" | "חיצוני" => "outside",
@@ -1366,7 +1414,20 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         paper = typst_str(&sanitize_paper(&cfg.paper)),
         header = typst_str_or_none(&cfg.header),
         footer = typst_str_or_none(&cfg.footer),
-        justify = if cfg.justify { "true" } else { "false" },
+        // One parameter carrying both readings of one control: `true`/`false`
+        // when the answer is "justified or not", and a name when it is "at which
+        // edge". `יישור` takes either — see the prelude — so the pair the panel
+        // writes together stays one value all the way to the page.
+        justify = match sanitize_text_align(&cfg.text_align).as_str() {
+            "" => {
+                if cfg.justify {
+                    "true".to_string()
+                } else {
+                    "false".to_string()
+                }
+            }
+            edge => typst_str(edge),
+        },
         leading = cfg.line_spacing_em,
         para = cfg.para_spacing_em,
         indent = cfg.first_line_indent_em,

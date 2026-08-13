@@ -38,13 +38,23 @@
   // `justify` is **not** here, and `align` is. Both used to be, both mapping to
   // יישור — so `#headings_config(justify: center)` silently set heading
   // *alignment*, because a flat table applied to every alias cannot tell the two
-  // readings of one Hebrew word apart. יישור is a boolean on מסמך (justify
-  // the text) and an alignment everywhere else, so `justify` belongs to מסמך's
-  // own `extra` and nowhere else.
+  // readings of one Hebrew word apart. Everywhere but מסמך, יישור is an
+  // alignment and nothing else, so `justify` belongs to מסמך's own `extra` and
+  // nowhere else.
+  //
+  // On מסמך the two readings are now one parameter that takes either — `true`
+  // for justified, an edge name for ranged — so `align` and `justify` both land
+  // on יישור there and both mean what they read as. That is the reason the two
+  // aliases can coexist at all: they are no longer two settings, they are two
+  // English words for one control. See `_doc_align`.
   leading: "ריווח_שורות", para_spacing: "ריווח_פסקאות",
   first_indent: "הזחה_ראשונה", columns: "עמודות", notes_region: "אזור_הערות",
   // structure
   level: "רמה", title: "כותרת", titles: "כותרות", names: "שמות", by: "מאת",
+  // How many heading levels enter #תוכן. One command uses it and it is here
+  // rather than in that command's `extra` because it is an ordinary word: the
+  // next thing that takes a depth should get the same Hebrew for it.
+  depth: "עומק",
   caption: "כיתוב", width: "רוחב", ratio: "יחס", amount: "מידה",
   indent: "הזחה", body_indent: "הזחת_גוף", tight: "הידוק", marker: "סמן",
   // `start` is Typst's own name for it and always worked; there was no name for
@@ -1753,6 +1763,95 @@
   if side != none { side } else { אחיד }
 }
 
+// ------------------------------------------------------------
+//  Running heads as document content
+// ------------------------------------------------------------
+//
+// > *"Header and footer content lives in the settings drawer, which makes
+// > anything beyond plain text — bold, mixed runs — hard to express. They are
+// > document content in a settings control."*
+//
+// Exactly so, and the second sentence is the diagnosis. The six settings fields
+// are strings, and a string is what reaches Typst — so `*שם הספר*` in that box
+// printed the asterisks. There was no way to put a bold word, a mixed run, or a
+// page counter into a running head at all, short of calling `#מסמך` by hand.
+//
+// These two commands are the same setting written where it belongs. They take
+// **content**, so everything the writer can type in the body works in a running
+// head; and because they are a state, a document may set them more than once —
+// which is the thing a settings field could never do and a bound sefer always
+// wants: the masechta across the top of one chapter and a different one across
+// the next.
+//
+// The settings fields still work and still win where nothing has been said. A
+// document that has never called these lays out byte-identically to before.
+// Marked in the flow and read back with `query`, **not** held in a `state`.
+//
+// A state is the obvious way to write this and it does not work: a page header
+// is realised outside the document flow, so `state.get()` inside one answers
+// with the initial value on every page — the head simply never appears, in a
+// prelude that reads as though it should. `query(selector(<…>).before(here()))`
+// is Typst's own recipe for "what was the last chapter heading before this
+// page", and it is the same question.
+#let _rc_set(kind, body, זוגי, אי_זוגי) = [
+  #metadata((kind: kind, body: body, even: זוגי, odd: אי_זוגי))<ksav-rc>
+]
+
+// The running header from here on. `זוגי`/`אי_זוגי` name the verso and recto
+// lines separately, exactly as the settings fields do, and either may be left
+// out — a sefer that wants the masechta on one side and nothing on the other
+// says so by giving one and not the other.
+#let כותרת_עליונה(body, זוגי: none, אי_זוגי: none) = _rc_set("head", body, זוגי, אי_זוגי)
+#let כותרת_תחתונה(body, זוגי: none, אי_זוגי: none) = _rc_set("foot", body, זוגי, אי_זוגי)
+// `even`/`odd` rather than `header_even`/`header_odd`: on מסמך those names carry
+// the word "header" because six fields sit in one argument list, and here the
+// command already says which of the two it is.
+#let running_head = _en(כותרת_עליונה, extra: (even: "זוגי", odd: "אי_זוגי"))
+#let running_foot = _en(כותרת_תחתונה, extra: (even: "זוגי", odd: "אי_זוגי"))
+
+// What to print at the top or bottom of page `p`: what the document has said
+// most recently, and otherwise what the settings fields said.
+//
+// Read at the page's own location, so a `#כותרת_עליונה` on page 40 governs page
+// 40 onwards and not the whole sefer retroactively — which is the entire point
+// of it being a state rather than a parameter.
+// By page number, and **not** by `.before(here())`.
+//
+// A page header's own location is the top of the page, so `.before(here())`
+// excludes everything on that page — including the `#כותרת_עליונה` that was
+// written to introduce it. The head would then start one page late, which is
+// worse than not working: it looks right on every page but the one you were
+// looking at. The footer, whose location is the bottom of the page, would have
+// agreed with neither.
+//
+// So both ask the same question by page: *the most recent mark on this page or
+// an earlier one*, which is what "from here on" means to whoever typed it.
+#let _rc_line(kind, p, זוגי, אי_זוגי, אחיד) = {
+  let marks = query(<ksav-rc>)
+    .filter(m => m.value.kind == kind and m.location().page() <= p)
+  let last = if marks.len() > 0 { marks.last().value } else { none }
+  let from_doc = if last == none { none } else {
+    _rc_head(p, last.even, last.odd, last.body)
+  }
+  if from_doc != none { from_doc } else { _rc_head(p, זוגי, אי_זוגי, אחיד) }
+}
+
+// _doc_align(v) — the alignment half of מסמך's יישור, or `none`.
+//
+// `none` for `true` and `false`, which are the justify half, and `none` for a
+// name that means nothing — an unrecognised alignment falls back to what the
+// document already said rather than to an edge nobody chose. Both spellings of
+// each edge, and a real Typst alignment passes straight through, so
+// `#מסמך(יישור: center)` and `#document(align: "center")` are the same request.
+#let _doc_align(v) = {
+  if type(v) == alignment { v }
+  else if type(v) != str { none }
+  else if v in ("ימין", "right") { right }
+  else if v in ("מרכז", "אמצע", "center", "centre") { center }
+  else if v in ("שמאל", "left") { left }
+  else { none }
+}
+
 #let מסמך(
   גופן: "Frank Ruhl Hofshi",
   גודל: 12pt,
@@ -1775,6 +1874,25 @@
   דו_צדדי: false,
   כיוון: rtl,
   שפה: "he",
+  // יישור — how the text is set, in one parameter because it is one question.
+  //
+  //   true            justified (the default, and what every document written
+  //                   before this said)
+  //   false           ragged, sitting at the reading edge
+  //   "ימין" / right   ranged right
+  //   "מרכז" / center  centred
+  //   "שמאל" / left    ranged left
+  //
+  // It used to be a boolean and nothing else, so a document could say *justified
+  // or not* and had no way at all to say *at which edge* — a writer who wanted a
+  // centred sheet had to wrap every paragraph in #מרכז. The report put it as
+  // *"justify belongs in one control with right, centre and left"*, and this is
+  // that control: one word, four answers, rather than a tick box beside a
+  // dropdown that can contradict it.
+  //
+  // A real Typst alignment value is taken too, so `#document(align: center)` —
+  // which the English table has always mapped here, and which used to reach
+  // `par(justify: center)` and fail — now means what it reads as.
   יישור: true,
   מספור: true,
   מספור_עברי: false,
@@ -1836,8 +1954,12 @@
   // left to `binding: auto`, which reads the *text* direction — so a document
   // whose body flips direction mid-way would otherwise re-bind itself.
   let bind_right = כיוון == rtl
-  let has_head = כותרת_עליונה != none or כותרת_זוגי != none or כותרת_אי_זוגי != none
-  let has_foot = כותרת_תחתונה != none or תחתונה_זוגי != none or תחתונה_אי_זוגי != none
+  // `has_head` / `has_foot` are gone with the `if` they guarded. They asked
+  // *"did a parameter give one?"*, which is a question only half the answer now
+  // lives in: `#כותרת_עליונה` may set a running head on page 40, and a header
+  // installed only when a parameter was present would have made the command work
+  // in exactly the documents that had no need of it. Both are functions now, and
+  // both render nothing when nothing has been said — which is what `auto` did.
   // Where a running head sits. Only "חוץ"/"פנים" need the page number, and only
   // on a two-sided document does either mean anything — on a one-sided one every
   // page has the same geometry, so "outside" is a fixed edge.
@@ -1894,15 +2016,18 @@
     // with an apparatus now puts its bands in the reserve and its number in the
     // same place as everybody else's.
     footer-descent: 0.3 * m_bot,
-    header: if has_head {
-      context {
-        let p = here().page()
-        let line = _rc_head(p, כותרת_זוגי, כותרת_אי_זוגי, כותרת_עליונה)
-        if line != none {
-          align(head_align(p), text(size: 0.85em, fill: luma(100), line))
-        }
+    // Always a function, never `auto`. The settings fields are known here and a
+    // `#כותרת_עליונה` in the document is not — it may arrive on page 40 — so a
+    // header installed only when a *parameter* was given would have made the
+    // command work in exactly the documents that did not need it. It renders
+    // nothing when nothing has been said, which is what `auto` did.
+    header: context {
+      let p = here().page()
+      let line = _rc_line("head", p, כותרת_זוגי, כותרת_אי_זוגי, כותרת_עליונה)
+      if line != none {
+        align(head_align(p), text(size: 0.85em, fill: luma(100), line))
       }
-    } else { auto },
+    },
     // Footer = per-page regrouped bands (read-only, renders nothing when unused)
     // stacked above the page number / custom footer line. We render the number
     // ourselves here because a custom footer replaces Typst's automatic one.
@@ -1949,7 +2074,7 @@
       // probe output I had already read and taken only the `y` from.
       block(width: 100%, spacing: 0pt, context {
         let p = here().page()
-        let custom = if has_foot { _rc_head(p, תחתונה_זוגי, תחתונה_אי_זוגי, כותרת_תחתונה) } else { none }
+        let custom = _rc_line("foot", p, תחתונה_זוגי, תחתונה_אי_זוגי, כותרת_תחתונה)
         // **Both, when both were asked for.** This was `if custom … else if
         // מספור`, so writing anything into the footer switched the page numbers
         // off — reported exactly that way: *"The page footer removes page
@@ -1973,7 +2098,17 @@
       })
     },
   )
-  set par(justify: יישור, leading: ריווח_שורות, spacing: ריווח_פסקאות, first-line-indent: הזחה_ראשונה)
+  // The two readings of יישור, split at the one place that has to know the
+  // difference. `_doc_align` returns `none` for the boolean forms, so a document
+  // that says `true` or `false` lays out byte-identically to before.
+  let _al = _doc_align(יישור)
+  set par(justify: יישור == true, leading: ריווח_שורות, spacing: ריווח_פסקאות, first-line-indent: הזחה_ראשונה)
+  // Unconditional, and `start` — Typst's own default — when no edge was named.
+  // Written as `if _al != none { set align(_al) }` it does nothing at all: a
+  // `set` is scoped to the block it appears in, so the rule governed the two
+  // lines of that `if` and looked exactly like a working feature. The prelude
+  // has this note already, about a `show` rule, twenty lines further down.
+  set align(if _al == none { start } else { _al })
   // Space footnote entries apart so each note — including a note-on-a-note that
   // Typst hoists into its own entry — reads as a separate block, not one run-on list.
   set footnote.entry(gap: ריווח_הערות)
@@ -2205,6 +2340,18 @@
 // Strays go to `heading` itself, so `#כותרת1(outlined: false)[…]` reaches the
 // element and a misspelled knob gets Typst's own error naming it.
 #let _hd_styled(lvl, body, named) = {
+  // בתוכן — does this heading enter #תוכן? Typst's own name for it is `outlined`,
+  // which has always worked here because strays go to `heading` itself; what it
+  // did not have was a Hebrew name, so the one thing a writer needs to keep a
+  // title page or a running head out of the contents was reachable only by
+  // knowing Typst. Translated here rather than in `_en_params`, which runs the
+  // other way — English name to Hebrew — and would not have helped a Hebrew
+  // document at all.
+  let named = if "בתוכן" in named {
+    let d = named
+    d.insert("outlined", d.remove("בתוכן"))
+    d
+  } else { named }
   let (own, rest) = _cfg_split(named, _hd_defaults.keys())
   if own.len() == 0 { heading(level: lvl, ..rest, body) } else {
     _hd_own.update(own)
@@ -2402,14 +2549,23 @@
 // an English document was the most visible way Ksav's Hebrew-first defaults
 // leaked into a left-to-right document; the heading follows `lang` now, and an
 // explicit title still overrides it.
-#let תוכן(כותרת: auto, מספור: auto) = context {
+// עומק: none → every level, which is what this always did. A number keeps the
+// contents to that many levels — the other half of *"choose exactly what enters
+// the table of contents"*, and the half that applies to the document as a whole.
+// A sefer with a heading per se'if has a contents hundreds of lines long
+// otherwise, and there was no way to say so at all.
+//
+// The per-heading half is `בתוכן: false` on the heading itself — see `_hd_styled`
+// — because "not this one" is a fact about a heading and "three levels deep" is
+// a fact about the contents, and a single control could not have said both.
+#let תוכן(כותרת: auto, מספור: auto, עומק: none) = context {
   let title = if כותרת != auto { כותרת } else if text.lang == "he" { [תוכן העניינים] } else { [Contents] }
   let show-nums = if מספור == auto { _hd_cfg.get().at("מספור", default: none) != none } else { מספור }
   if show-nums {
-    outline(title: title)
+    outline(title: title, depth: עומק)
   } else {
     show outline.entry: it => it.indented(none, it.inner())
-    outline(title: title)
+    outline(title: title, depth: עומק)
   }
 }
 #let toc = _en(תוכן)

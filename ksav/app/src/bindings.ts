@@ -160,6 +160,23 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Moved off `Mod-Alt-f`, which is Word's footnote key. See `footnote`.
   deferHere: "Mod-Alt-Shift-f",
   deferRecall: "Mod-Alt-r",
+  // Zoom, where every application on the machine puts it. Which surface they act
+  // on is `zoom.surfaceOf` — the text when the caret is in it, the page
+  // otherwise — so one pair of keys does not need two pairs of bindings.
+  //
+  // These are the browser's own zoom keys as well, and that is the point: in the
+  // desktop shell they are ours outright, and in a tab `preventDefault` on a
+  // handled key keeps the browser from zooming the chrome out from under the
+  // writer. A tool whose text cannot be made bigger with Ctrl+= is a tool that
+  // has told the reader it is not for them.
+  zoomIn: "Mod-=",
+  zoomOut: "Mod--",
+  zoomReset: "Mod-0",
+  // Take a snapshot by hand. Beside `save` on purpose: they are the two things a
+  // writer does deliberately to keep what they have, and the difference between
+  // them — one writes the file, one keeps a point to come back to — is worth a
+  // key each rather than one key and a panel.
+  snapshot: "Mod-Alt-s",
 };
 
 /**
@@ -245,12 +262,20 @@ export function whoHolds(
  * says so once, rather than every row hedging.
  */
 export function readable(binding: string): string {
-  return binding
-    .split("-")
-    .map((part) => {
-      if (part === "Mod") return "Ctrl";
-      // A single character goes up; `Shift` and `Alt` are already spelled.
-      return part.length === 1 ? part.toUpperCase() : part;
-    })
-    .join("+");
+  return (
+    binding
+      // Not a plain `split("-")`. The separator is also a key: `Mod--` is
+      // Ctrl and the minus key, and splitting naively gives `["Mod","",""]`,
+      // which prints as `Ctrl++` — the wrong key, in the shortcut list, on the
+      // card, and in every menu that shows a binding. The lookahead is
+      // CodeMirror's own rule from `normalizeKeyName`, which is what these
+      // strings are fed to, so the two halves read one spelling.
+      .split(/-(?!$)/)
+      .map((part) => {
+        if (part === "Mod") return "Ctrl";
+        // A single character goes up; `Shift` and `Alt` are already spelled.
+        return part.length === 1 ? part.toUpperCase() : part;
+      })
+      .join("+")
+  );
 }

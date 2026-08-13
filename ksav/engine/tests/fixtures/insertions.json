@@ -1057,6 +1057,24 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#כותרת_עליונה[]אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#כותרת_תחתונה[]אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -2151,6 +2169,24 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#page_section(columns: 2)[]ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#running_head[]ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#running_foot[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -3253,6 +3289,24 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #כותרת_עליונה[]ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #כותרת_תחתונה[]ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -4347,6 +4401,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#h1[Chapter #page_section(columns: 2)[]One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #running_head[]One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #running_foot[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5449,6 +5521,24 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #כותרת_עליונה[]פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #כותרת_תחתונה[]פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -6543,6 +6633,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "Text#fnote[a note #page_section(columns: 2)[]inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #running_head[]inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #running_foot[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7645,6 +7753,24 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #כותרת_עליונה[]כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #כותרת_תחתונה[]כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -8739,6 +8865,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#bullets(\n  item[first #page_section(columns: 2)[]here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #running_head[]here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #running_foot[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9841,6 +9985,24 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],כותרת_עליונה[],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],כותרת_תחתונה[],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -10935,6 +11097,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#bullets(\n  item[first],page_section(columns: 2)[],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],running_head[],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],running_foot[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -12037,6 +12217,24 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(כותרת_עליונה[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(כותרת_תחתונה[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -13131,6 +13329,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#bullets(page_section(columns: 2)[],\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(running_head[],\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(running_foot[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14233,6 +14449,24 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #כותרת_עליונה[]כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #כותרת_תחתונה[]כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -15327,6 +15561,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #page_section(columns: 2)[]here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #running_head[]here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #running_foot[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -16429,6 +16681,24 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],כותרת_עליונה[], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],כותרת_תחתונה[], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -17523,6 +17793,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],page_section(columns: 2)[], cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],running_head[], cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],running_foot[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -18625,6 +18913,24 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #כותרת_עליונה[]כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #כותרת_תחתונה[]כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -19719,6 +20025,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#bullets(\n  item[first #fnote[in a note #page_section(columns: 2)[]here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #running_head[]here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #running_foot[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -20821,6 +21145,24 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #כותרת_עליונה[]רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #כותרת_תחתונה[]רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -21915,6 +22257,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#h4[Section #page_section(columns: 2)[]Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #running_head[]Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #running_foot[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -23017,6 +23377,24 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #כותרת_עליונה[]תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #כותרת_תחתונה[]תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -24111,6 +24489,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#siman[1][The laws of #page_section(columns: 2)[]prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #running_head[]prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #running_foot[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -25213,6 +25609,24 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #כותרת_עליונה[]ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #כותרת_תחתונה[]ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -26307,6 +26721,24 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #page_section(columns: 2)[]Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #running_head[]Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #running_foot[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -27409,6 +27841,24 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#כותרת_עליונה[]ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#כותרת_תחתונה[]ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "נוסחה",
    "en": "formula",
    "legal": true,
@@ -28503,6 +28953,24 @@
    "legal": false,
    "reason": "illegalPageLevel",
    "source": "#fnote[#note_heading[Head#page_section(columns: 2)[]ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "כותרת_עליונה",
+   "en": "running_head",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#running_head[]ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "כותרת_תחתונה",
+   "en": "running_foot",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#running_foot[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

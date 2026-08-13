@@ -127,6 +127,19 @@ header {
   font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted);
   padding: 8px 9px 3px; font-weight: 700;
 }
+/* The page range at the head of the Export menu — one control the whole menu
+   reads, rather than a route with a prompt in front of it. Laid out as a block
+   rather than a `.menu-item` because it is not a thing you press: the label sits
+   over the box and the hint under it, which is where a writer looks for "what
+   does empty mean". */
+.menu-input-row { padding: 2px 9px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.menu-input-row .menu-cat { padding: 4px 0 3px; }
+.menu-input {
+  width: 100%; box-sizing: border-box; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  font-family: var(--mono); font-size: 12px;
+}
+.menu-input-row .menu-desc { padding-top: 4px; }
 .menu-cmd { flex-direction: row; align-items: center; justify-content: space-between; }
 .menu-cmd code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
 /* The live shortcut, where a command has one. Dressed like the keys the rest of
@@ -235,8 +248,13 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
   box-shadow: 0 3px 24px rgba(0,0,0,.15); border-radius: 3px; min-height: 1040px;
 }
 :root[data-theme="dark"] #app[data-page] .cm-editor { background: #f8fafc; }
+/* Page view has its own base size — a sheet of paper is read at a different size
+   from a code pane — and it multiplies by the same `--source-zoom` the editor
+   theme does, so one zoom control moves both rather than working in one view and
+   doing nothing in the other. */
 #app[data-page] .cm-content {
-  padding: 72px 84px; font-family: "Frank Ruhl Libre","David Libre",serif; font-size: 17px;
+  padding: 72px 84px; font-family: "Frank Ruhl Libre","David Libre",serif;
+  font-size: calc(17px * var(--source-zoom, 1));
 }
 #app[data-page] .cm-gutters { display: none; }
 #app[data-page] .cm-activeLine { background: transparent; }
@@ -642,6 +660,12 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 .set-note { font-size: 12px; color: var(--muted); margin: 6px 0; }
 .font-pick { display: flex; gap: 4px; align-items: center; }
 .font-pick input[type="text"] { min-width: 0; }
+/* The list is grouped by where each face comes from, and every option is drawn
+   in its own face — a list of font names set in one face is a list of strings,
+   and the question a writer is asking here is what the letters look like. */
+.font-pick select { max-width: 190px; }
+.font-pick optgroup { font-style: normal; font-weight: 700; }
+.font-pick option { font-size: 14px; }
 button.mini {
   border: 1px solid var(--border); background: var(--panel); color: inherit;
   border-radius: 5px; width: 24px; height: 24px; line-height: 1; cursor: pointer; flex: none;

@@ -28,7 +28,26 @@
 import { check, ok, notOk } from "./harness.mjs";
 import * as exports_ from "../.tmp-test/exports.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
+import { drawPages } from "../.tmp-test/preview.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
+
+/**
+ * Put pages on the screen, which is not the same as recording a compile.
+ *
+ * `currentPages` is what print and the HTML fallback read, and it is fed by
+ * `drawPages` rather than by `runtime.lastResult` — deliberately, and for the
+ * reason its own comment gives: a failed compile stores an empty `pages_svg`
+ * and the redraw is skipped, so the two records disagree exactly when it
+ * matters. A test that set `lastResult` and expected print to see pages would
+ * be asserting the bug.
+ */
+function onScreen(pages) {
+  // No hashes, which takes the blind full-redraw path — the one a webview
+  // without an IntersectionObserver takes, and the one that needs nothing of the
+  // host but somewhere to put a string. The windowed path is `preview.test.mjs`'s
+  // subject; what matters here is only that `currentPages` now says these.
+  drawPages({ innerHTML: "" }, pages);
+}
 
 // ---------------------------------------------------------------- the fakes
 //
@@ -189,6 +208,73 @@ export async function run() {
       const n = DICTS.he.previewHealed.replace("{0}", "2");
       ok("the count is the document's own", captured.printed.html.includes("2") && statusText().includes("2"));
       ok("and it is the translated sentence", n.includes("2"));
+    }
+
+    // ------------------------------------------------ 1b. print and the range
+    //
+    // > *"A page range is offered for PDF only. No reason has been given for
+    // > that."*
+    //
+    // Print is the route where "pages 4 to 9" is the entire reason anybody asks
+    // the question, and it took the lot. These are pictures of pages, one SVG
+    // each, so the range is a filter and nothing more — which is why it could
+    // have been here all along.
+
+    {
+      withDoc(BALANCED);
+      onScreen(["<svg id='p1'/>", "<svg id='p2'/>", "<svg id='p3'/>", "<svg id='p4'/>"]);
+      exports_.setPages("");
+      captured.printed = null;
+      exports_.doPrint();
+      check("with no range, every page prints", (captured.printed.html.match(/<svg /g) || []).length, 4);
+
+      exports_.setPages("2-3");
+      captured.printed = null;
+      exports_.doPrint();
+      check("with one, only those", (captured.printed.html.match(/<svg /g) || []).length, 2);
+      ok("and they are the ones named", captured.printed.html.includes("p2") && captured.printed.html.includes("p3"));
+      notOk("not the ones that were not", captured.printed.html.includes("p1"));
+    }
+
+    {
+      // A spec with a piece in it that names nothing is refused rather than
+      // silently trimmed. The engine's own parser drops what it cannot read, so
+      // `1,x,5` used to print pages 1 and 5 and never mention the `x` — a sheaf
+      // of paper that is quietly not the one that was asked for, on the one
+      // route that cannot be undone by deleting a file.
+      withDoc(BALANCED);
+      exports_.setPages("1,x,5");
+      captured.printed = null;
+      exports_.doPrint();
+      check("nothing is printed", captured.printed, null);
+      check("and it is reported as an error", statusClass(), "err");
+      ok("naming the piece that could not be read", statusText().includes("x"));
+    }
+
+    {
+      // Asking past the end is not an error — the pages that exist still print —
+      // but a printer that emits nothing looks exactly like a printer that is
+      // broken, so it is worth a word.
+      withDoc(BALANCED);
+      exports_.setPages("9-12");
+      captured.printed = null;
+      exports_.doPrint();
+      ok("the window still opens", !!captured.printed);
+      check("with no pages in it", (captured.printed.html.match(/<svg /g) || []).length, 0);
+      check("and that is said as a warning", statusClass(), "warn");
+      exports_.setPages("");
+    }
+
+    {
+      // Not persisted, deliberately: a range is a fact about one export, not a
+      // preference. What is asserted is only that the module is the one place it
+      // lives, so nothing else can hold a second opinion about it.
+      exports_.setPages("3-4");
+      check("the box remembers what was typed, verbatim", exports_.pagesText(), "3-4");
+      check("and hands out the parsed form", exports_.pagesSpec().spans, [{ from: 3, to: 4 }]);
+      exports_.setPages("");
+      check("clearing it means every page again", exports_.pagesSpec().spans, null);
+      onScreen(["<svg id='page1'/>"]);
     }
 
     // ------------------------------------------------ 2. the Word handoff

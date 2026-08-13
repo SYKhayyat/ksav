@@ -97,7 +97,26 @@ export interface Settings {
    */
   pageView?: boolean;
   prose: boolean;
+  /**
+   * The **preview's** zoom, despite the name.
+   *
+   * `previewStyle` is its only reader and always was, so this has never been an
+   * application zoom — it is one of the two the writer asked for, and the name
+   * stays because settings are stored by key and renaming it would throw away
+   * the zoom of everybody who has ever set one. `zoom.ts` holds the bounds, the
+   * step, and which of the two a zoom command means; `FIELD_OF` there is how the
+   * rest of the app refers to this field without having to know its history.
+   */
   zoom: number;
+  /**
+   * The **source's** zoom — the size of the text being typed.
+   *
+   * The half that did not exist. The editor was a fixed 15px with no control
+   * anywhere, which is the whole of *"zoom in the source and in the preview"*.
+   * Applied as `--source-zoom` on the root element, which both the ordinary
+   * editor rule and the page-view one multiply their own base size by.
+   */
+  sourceZoom?: number;
   // Fit the page to the preview pane, which is what Word does and the reason
   // nobody meets the 1366×768 overflow there. When on, `zoom` is not consulted.
   fitWidth?: boolean;
@@ -145,6 +164,21 @@ export interface Settings {
   spellcheckComments?: boolean;
   syncScroll?: boolean;
   autosaveFile?: boolean; // write back to the bound file on a timer, not only on Ctrl+S
+  /**
+   * Take a snapshot on a timer, or leave the history to the writer's own hand.
+   *
+   * > *"Automatic snapshots, or automatic turned off and taken by hand."*
+   *
+   * Both halves of that were missing. The cadence was a bare `180000` in a
+   * `setInterval` at the bottom of `main.ts` — not a setting, not a number
+   * anybody could see, and not switchable off — and "by hand" existed only as a
+   * button inside the history panel, which is a door you have to already be
+   * behind. The rule for what the pair means is `docs.autoInterval`; this is
+   * only where the answer is kept.
+   */
+  autoSnapshot?: boolean;
+  /** Minutes between automatic snapshots. Ignored when `autoSnapshot` is off. */
+  autoSnapshotMinutes?: number;
   customCommands?: string; // user #let definitions, prepended at compile
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
@@ -204,7 +238,10 @@ export const DEFAULTS: Settings = {
   // which is the right distance for the people who want it.
   prose: true,
   zoom: 1,
+  sourceZoom: 1,
   fitWidth: true,
+  autoSnapshot: true,
+  autoSnapshotMinutes: 3,
   editingMode: "default",
   focusMode: false,
   typewriter: false,
@@ -236,7 +273,12 @@ export const PAGE_FIELDS = [
   "margin_cm",
   "dir",
   "numbering",
+  // Two fields, one control. `justify` is the boolean this has always had;
+  // `text_align` is the edge, and it wins when it is set. `alignChoice` /
+  // `alignSetup` below are the only two places that know the pair exists — see
+  // them for why it is a pair rather than a fourth value of a single field.
   "justify",
+  "text_align",
   "line_spacing_em",
   "para_spacing_em",
   "first_line_indent_em",
@@ -403,6 +445,49 @@ export type ValueOf<K extends Field> = K extends keyof Settings
 /** Is this the name of a page-setup field? */
 export function isPageField(key: Field): key is PageField {
   return (PAGE_FIELDS as readonly string[]).includes(key as string);
+}
+
+// ---------------------------------------------------------------- one control
+//
+// > *"Justify belongs in one control with right, centre and left."*
+//
+// It did not: `justify` is a boolean, so the panel had a tick box whose two
+// states were *justified* and *not justified*, and there was no document-level
+// way to say which edge unjustified text should sit at. Turning it off left the
+// text ranged at the reading edge and that was the end of the writer's choice —
+// a centred sheet meant wrapping every paragraph in `#מרכז`.
+//
+// The four answers are one question, so the panel asks it once. Underneath there
+// are still two fields, and that is deliberate rather than a compromise: every
+// document ever saved holds `justify: true|false` and nothing else, so a single
+// four-valued field would have had to guess what those documents meant on the
+// first read of every one of them. The pair keeps the old answer readable and
+// lets the new one win, which is the same shape the per-edge margins use.
+
+/** The four answers, in the order the panel offers them. */
+export const ALIGN_CHOICES = ["justify", "right", "center", "left"] as const;
+export type AlignChoice = (typeof ALIGN_CHOICES)[number];
+
+/**
+ * Which of the four a document is on.
+ *
+ * `text_align` wins when it says anything. Otherwise `justify: true` is
+ * *justified* and `justify: false` is the reading edge — which is a real edge and
+ * has to be named as one, or the control would show nothing selected for every
+ * document written before it existed.
+ */
+export function alignChoice(cfg: Pick<DocConfig, "justify" | "text_align" | "dir">): AlignChoice {
+  const edge = cfg.text_align;
+  if (edge === "right" || edge === "center" || edge === "left") return edge;
+  if (cfg.justify) return "justify";
+  return cfg.dir === "ltr" ? "left" : "right";
+}
+
+/** The pair of fields that puts a document on one of the four. */
+export function alignSetup(choice: AlignChoice): Pick<DocConfig, "justify" | "text_align"> {
+  return choice === "justify"
+    ? { justify: true, text_align: "" }
+    : { justify: false, text_align: choice };
 }
 
 /**

@@ -144,6 +144,10 @@ import {
   settingsLoadFailure,
 } from "./settings";
 import type { Field, Settings, PageSetup, ValueOf } from "./settings";
+// The alignment pair is read and written as a unit rather than field by field —
+// see `alignRow` — so it comes in under a namespace instead of as four more
+// names in the list above.
+import * as settings_ from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule, bodyOnScreen } from "./compile";
@@ -164,6 +168,9 @@ import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./err
 import { lineInDocument, onGoToLine, onGoToPart, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
+import * as zoom from "./zoom";
+import * as pagerange from "./pagerange";
+import * as fonts from "./fonts";
 import { troubleSaid } from "./diagnostics";
 import { docLang as modeDocLang, insertionAt, legalAt } from "./mode";
 import * as structure from "./structure";
@@ -259,7 +266,13 @@ const themeCompartment = new Compartment();
 const editorTheme = (dark: boolean) =>
   EditorView.theme(
     {
-      "&": { height: "100%", fontSize: "15px" },
+      // The source's own zoom, which is the half of *"zoom in the source and in
+      // the preview"* that did not exist: this was a flat `15px`, so the one
+      // surface a writing tool is for was the one surface whose size could not
+      // be changed. `--source-zoom` is set on the root by `applySourceZoom`, and
+      // the fallback keeps this rule correct before the first paint and in any
+      // test that mounts an editor without the application around it.
+      "&": { height: "100%", fontSize: "calc(15px * var(--source-zoom, 1))" },
       ".cm-content": {
         fontFamily: '"Frank Ruhl Libre","David Libre",serif',
         lineHeight: "1.7",
@@ -839,6 +852,16 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "deferAll", run: (v) => (deferAll(v), true) },
   { id: "deferRecallAll", run: (v) => (inlineAll(v), true) },
   { id: "deferSort", run: (v) => (sortDeferredBodies(v), true) },
+  // Zoom, on the surface the writer is standing in. `zoom.surfaceOf` is where
+  // that rule is written down; this is the three doors to it.
+  { id: "zoomIn", run: () => stepZoom(1) },
+  { id: "zoomOut", run: () => stepZoom(-1) },
+  { id: "zoomReset", run: () => stepZoom(0) },
+  // Keep this point in the history, now. It existed only as a button inside the
+  // history panel — a door you have to already be behind — which is half of what
+  // *"or automatic turned off and taken by hand"* was asking for: turning the
+  // clock off is no use if the hand has nowhere to press.
+  { id: "snapshot", run: () => (void takeSnapshot(true), true) },
 ];
 
 /**
@@ -1108,6 +1131,27 @@ function editingModeNote(): string {
   const failed = keymodes.loadError();
   if (failed) return tf("editingModeFailed", failed);
   return t("editingModeNote");
+}
+
+/**
+ * Which of the two the history is on, and how to take one by hand.
+ *
+ * A checkbox reading "automatic snapshots" answers half the question and leaves
+ * the important half — *then what?* — to be worked out. Off, the writer needs to
+ * know there is a key; on, they need to know the number underneath is minutes
+ * and that the key still works. Both sentences name the binding in force rather
+ * than the shipped one, so a rebound `Mod-Alt-s` reads as whatever the writer
+ * made it.
+ */
+function snapshotNote(): string {
+  // Unbound is a state a writer can put this in from the Shortcuts list below,
+  // and "press  to keep a point" is the sort of sentence that gets shipped. The
+  // fallback names the button, which is always there.
+  const bound = keybindings().snapshot;
+  const key = bound ? readable(bound) : t("snapshotNow");
+  return settings.autoSnapshot === false
+    ? tf("autoSnapshotOffNote", key)
+    : tf("autoSnapshotOnNote", key);
 }
 
 /**
@@ -2954,6 +2998,91 @@ function addContentsHere(): boolean {
   return true;
 }
 
+/**
+ * Take a running head out of the settings drawer and put it in the document.
+ *
+ * The one-way door the finding asks for, and it is one-way on purpose: the
+ * command can express things the field cannot — bold, a mixed run, a different
+ * line per chapter — so there is no honest way to read one back into a text box
+ * afterwards. It carries the text across, clears the field so the two cannot
+ * disagree, and puts the caret in the new call.
+ *
+ * The insertion goes at the **top** of the document rather than at the caret: a
+ * running head set halfway down governs from there on, which is a real and
+ * useful thing to do deliberately and never what somebody means by pressing a
+ * button in Settings.
+ */
+function moveRunningIntoDoc(which: "header" | "footer") {
+  if (!runtime.view) return;
+  const he = which === "header" ? "כותרת_עליונה" : "כותרת_תחתונה";
+  const en = which === "header" ? "running_head" : "running_foot";
+  const name = docLang() === "en" ? en : he;
+  const text = String(docConfig()[which] ?? "");
+  const call = `#${name}[${text}]`;
+  const doc = docTextNow();
+  editDoc(`${call}\n\n${doc.replace(/^\s*/, "")}`, call.length - 1);
+  // Cleared, so the document and the panel cannot give two answers about one
+  // running head. The command wins in the prelude either way; leaving the field
+  // filled would make that precedence something a writer has to discover.
+  setSetting(which, "" as never);
+  // Redrawn, or the box goes on showing the text it no longer holds. The drawer
+  // is built once and toggled — it is not a `lazyMenu` — so clearing the model
+  // leaves the input exactly as the writer typed it, and the next time they open
+  // Settings the field and the document each claim the running head. Found by
+  // pressing the button and opening the drawer again.
+  rerenderChrome();
+  closePanel("settings-drawer");
+  runtime.view.focus();
+}
+
+/**
+ * How many heading levels the table of contents shows.
+ *
+ * One control that means two things depending on what the document already
+ * says, and that is the point rather than a shortcut: before there is a
+ * contents it decides what the next one will be, and after there is one it
+ * rewrites that call. A separate "edit the contents" door would have been a
+ * second implementation of one choice, which is the shape this repository keeps
+ * having to collapse.
+ */
+function contentsDepthRow(): HTMLElement {
+  const doc = docTextNow();
+  const live = heads.contentsDepth(doc);
+  const has = !heads.canAddContents(doc);
+  const sel = el(
+    "select",
+    {
+      id: "contents-depth",
+      onChange: (e: Event) => {
+        const raw = (e.target as HTMLSelectElement).value;
+        const depth = raw === "" ? null : Number(raw);
+        const made = has
+          ? heads.setContentsDepth(doc, depth)
+          : heads.addContents(doc, docLang(), depth);
+        closeMenus();
+        if (!made) return;
+        editDoc(made.text, made.caret);
+        runtime.view?.focus();
+      },
+    },
+    [
+      el("option", { value: "", ...(live === null ? { selected: "selected" } : {}) }, [
+        t("contentsDepthAll"),
+      ]),
+      ...[1, 2, 3, 4, 5].map((n) =>
+        el("option", { value: String(n), ...(live === n ? { selected: "selected" } : {}) }, [
+          tf("contentsDepthN", n),
+        ]),
+      ),
+    ],
+  );
+  return el("div", { class: "menu-input-row" }, [
+    el("span", { class: "menu-cat" }, [t("contentsDepth")]),
+    sel,
+    el("div", { class: "menu-desc" }, [t(has ? "contentsDepthEdits" : "contentsDepthMakes")]),
+  ]);
+}
+
 /** A fold: collapsible while writing, and every word of it prints. */
 function insertFold() {
   const sel = runtime.view.state.selection.main;
@@ -3796,6 +3925,12 @@ function insertMenuItems(): (Node | string)[] {
         ],
       );
     })(),
+    // How deep it goes — the other half of *"choose exactly what enters the
+    // table of contents"*. Beside the row that makes one, because it is the same
+    // decision: before there is a contents it chooses what will be made, and
+    // after there is one it edits the call in place rather than being greyed.
+    // The per-heading half is `heading.inContents`, which is where a heading is.
+    contentsDepthRow(),
     el("button", { class: "menu-item", onClick: () => (closeMenus(), hiddenBreak()) }, [
       el("b", {}, ["⏎ " + t("hiddenBreak")]),
       el("span", { class: "menu-desc" }, [t("hiddenBreakLede")]),
@@ -3997,6 +4132,69 @@ function headerState(): header.HeaderState {
   };
 }
 
+/**
+ * The pages box at the head of the Export menu.
+ *
+ * One control for the whole menu rather than one route with a prompt in front of
+ * it. The hint under it is the part that makes it usable: an empty box has to
+ * say what empty *means* — and it means every page, which is not something a
+ * blank field communicates — and a spec with a piece in it that names nothing
+ * has to say so here, before a file goes out that is quietly not the one that
+ * was asked for.
+ */
+function pagesRow(): HTMLElement {
+  const hint = el("div", { class: "menu-desc", id: "export-pages-hint" }, [pagesHint()]);
+  const input = el("input", {
+    type: "text",
+    id: "export-pages",
+    class: "menu-input",
+    value: exports.pagesText(),
+    placeholder: t("pagesAll"),
+    "aria-label": t("pagesLabel"),
+    onInput: (e: Event) => {
+      exports.setPages((e.target as HTMLInputElement).value);
+      hint.textContent = pagesHint();
+    },
+  });
+  return el("div", { class: "menu-input-row" }, [
+    el("span", { class: "menu-cat" }, [t("pagesLabel")]),
+    input,
+    hint,
+  ]);
+}
+
+/** What the pages box is currently asking for, in words. */
+function pagesHint(): string {
+  const spec = exports.pagesSpec();
+  const total = currentPages().length;
+  if (spec.bad.length) return tf("pagesUnreadable", spec.bad.join(", "));
+  // A one-page document gets its own sentence rather than "all 1 pages", which
+  // is the kind of thing that reads as a program talking to itself. Hebrew is
+  // worse about it than English, which is why it is a separate string and not a
+  // clever plural rule.
+  if (!spec.spans) return total === 1 ? t("pagesAllOne") : tf("pagesAllOf", total);
+  if (pagerange.beyond(spec, total)) {
+    return total === 1 ? t("pagesBeyondOne") : tf("pagesBeyond", total);
+  }
+  return tf("pagesChosen", pagerange.select(spec, currentPages()).length, total);
+}
+
+/**
+ * One export route, and — when a range is set — whether it can honour it.
+ *
+ * The reason the finding says was never given. It is said at the point of use
+ * and only when it is relevant: six rows permanently captioned "this format has
+ * no pages" is noise, and the same six rows silently ignoring a range the writer
+ * just typed is the bug.
+ */
+function exportItem(row: header.MenuRow, run: () => void): HTMLElement {
+  const btn = el("button", { class: "menu-item", "data-export": row.id, onClick: run }, [row.label]);
+  const why = pagerange.whyNoRange(row.id);
+  if (!why || !exports.pagesSpec().spans) return btn;
+  btn.append(el("span", { class: "menu-why" }, [t(why)]));
+  return btn;
+}
+
 function buildHeader(): HTMLElement {
   const menuItem = (row: header.MenuRow, run: () => void, extra: Record<string, string> = {}) =>
     el("button", { class: "menu-item", ...extra, onClick: run }, [row.label]);
@@ -4062,7 +4260,6 @@ function buildHeader(): HTMLElement {
 
   const EXPORT_RUN: Record<string, () => void> = {
     exportPdf: () => void exports.exportPdf(),
-    exportPdfPages: () => void exports.exportPdfPages(),
     exportWord: () => void exports.exportWord(),
     copyForWord: () => void exports.copyForWord(),
     exportHtml: () => void exports.exportHtml(),
@@ -4071,13 +4268,14 @@ function buildHeader(): HTMLElement {
     exportTypst: () => void exports.exportTypst(),
     print: exports.doPrint,
   };
-  const exportMenu = menu(
-    "export",
-    "⬇ " + t("export"),
-    header.exportItems().map((row) =>
-      menuItem(row, EXPORT_RUN[row.id], { "data-export": row.id }),
+  // Rebuilt on every open, because the page count in the hint is the count of
+  // the document as it stands and the range is whatever the writer last typed.
+  const exportMenu = lazyMenu("export", "⬇ " + t("export"), () => [
+    pagesRow(),
+    ...header.exportItems().map((row) =>
+      exportItem(row, EXPORT_RUN[row.id]),
     ),
-  );
+  ]);
 
   const name = header.docTitle(runtime.currentDoc?.title, runtime.currentBinding?.name);
 
@@ -4190,6 +4388,36 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
 }
 
 /**
+ * Where the text sits: justified, right, centre or left — one row.
+ *
+ * Its own function rather than a `selectRow`, because the answer is written to
+ * *two* page fields at once and `setSetting` writes one. Writing them
+ * separately would put the document through a state holding both an edge and
+ * `justify: true` — briefly, and then compiled, because each write schedules a
+ * compile. `setPageSetup` takes the pair in one act.
+ */
+function alignRow() {
+  const cfg = docConfig();
+  const live = settings_.alignChoice(cfg);
+  const sel = el(
+    "select",
+    {
+      onChange: (e: Event) => {
+        const choice = (e.target as HTMLSelectElement).value as settings_.AlignChoice;
+        setPageSetup(settings_.alignSetup(choice));
+        scheduleCompile();
+      },
+    },
+    settings_.ALIGN_CHOICES.map((value) =>
+      el("option", { value, ...(live === value ? { selected: "selected" } : {}) }, [
+        t(`align.${value}`),
+      ]),
+    ),
+  );
+  return el("label", { class: "set-row" }, [el("span", {}, [t("textAlign")]), sel]);
+}
+
+/**
  * A comma-separated list, edited as text and stored as an array.
  *
  * The split is deliberately forgiving about spaces and empty entries — a
@@ -4246,26 +4474,93 @@ function textAreaRow(labelKey: string, key: keyof Settings, placeholder = "") {
   return el("div", { class: "set-block" }, [el("span", {}, [t(labelKey)]), ta]);
 }
 
-function buildSettingsDrawer(): HTMLElement {
-  // Bundled families, plus anything the writer has attached to this document.
-  // The box is free text rather than a fixed list, because a font file carries
-  // its own family name and only the file knows it.
-  const fontList = el("datalist", { id: "font-families" }, [
-    ...BUNDLED_FONTS,
-    ...(runtime.currentDoc?.assets ?? [])
-      .filter((a) => a.kind === "font")
-      .map((a) => a.name.replace(/\.[^.]+$/, "")),
-  ].map((f) => el("option", { value: f })));
-  const fontSel = el("span", { class: "font-pick" }, [
-    el("input", {
+/**
+ * The font control: a real list, grouped by where each face comes from.
+ *
+ * > *"The font dropdown is ugly. Named plainly, recorded plainly."*
+ *
+ * It was not a dropdown. It was a text box with a `datalist` hint, so choosing a
+ * font meant typing a family name exactly right — and typed wrong, nothing said
+ * so: Typst falls back to whatever it can find and the sefer comes out in a face
+ * nobody chose. Each option is drawn **in its own face**, which is the plainest
+ * naming there is; the group it sits in says whether it will still resolve on
+ * somebody else's machine.
+ *
+ * The typed route survives as the last option rather than as the only one. A
+ * font installed on this machine is real and no list the application can build
+ * knows its name, so refusing the text box would have taken a working thing
+ * away — see `fonts.ts`.
+ */
+function buildFontPicker(): HTMLElement {
+  const assets = runtime.currentDoc?.assets ?? [];
+  const current = docConfig().font;
+  const options = fonts.fontOptions(BUNDLED_FONTS, assets, current);
+  const box = el("span", { class: "font-pick" }, []);
+
+  const typeIt = () => {
+    const input = el("input", {
       type: "text",
-      list: "font-families",
-      value: docConfig().font,
-      onChange: (e: Event) => setSetting("font", (e.target as HTMLInputElement).value as never),
-    }),
-    fontList,
-    el("button", { type: "button", class: "mini", title: t("addFont"), onClick: addFont }, ["+"]),
-  ]);
+      class: "font-typed",
+      value: current,
+      "aria-label": t("font"),
+      onChange: (e: Event) => {
+        setSetting("font", (e.target as HTMLInputElement).value as never);
+        rerenderChrome();
+      },
+    });
+    box.replaceChildren(input, addFontButton());
+    input.focus();
+  };
+
+  const sel = el(
+    "select",
+    {
+      id: "font-family",
+      onChange: (e: Event) => {
+        const v = (e.target as HTMLSelectElement).value;
+        if (v === OTHER_FONT) return typeIt();
+        setSetting("font", v as never);
+        rerenderChrome();
+      },
+    },
+    [
+      ...fonts.fontGroups(options).map((g) =>
+        el(
+          "optgroup",
+          { label: t(`fontFrom.${g.source}`) },
+          g.fonts.map((f) =>
+            el(
+              "option",
+              {
+                value: f.name,
+                // Drawn in its own face. A list of font names set in one face is
+                // a list of strings; the whole question a writer is asking here
+                // is what the letters look like.
+                style: `font-family:"${f.name}"`,
+                ...(f.name === current ? { selected: "selected" } : {}),
+              },
+              [f.name],
+            ),
+          ),
+        ),
+      ),
+      el("option", { value: OTHER_FONT }, [t("fontOther")]),
+    ],
+  );
+  box.replaceChildren(sel, addFontButton());
+  return box;
+}
+
+/** The `+` that attaches a font file to this document — labelled, not a bare glyph. */
+function addFontButton(): HTMLElement {
+  return el("button", { type: "button", class: "mini", title: t("addFont"), onClick: addFont }, ["+"]);
+}
+
+/** The sentinel value of the "name it yourself" row. Not a family anybody has. */
+const OTHER_FONT = "__ksav-other-font__";
+
+function buildSettingsDrawer(): HTMLElement {
+  const fontSel = buildFontPicker();
   const dirSel = el(
     "select",
     { onChange: (e: Event) => setSetting("dir", (e.target as HTMLSelectElement).value as never) },
@@ -4363,13 +4658,37 @@ function buildSettingsDrawer(): HTMLElement {
     optNumberRow("pageHeight", "page_height_cm", 1, 200, 0.5),
     checkRow("pageNumbers", "numbering"),
     checkRow("hebrewNumbering", "hebrew_numbering"),
-    checkRow("justify", "justify"),
+    // One row, four answers. Was a `justify` tick box with nothing beside it,
+    // which is why a centred sheet had to be done paragraph by paragraph.
+    alignRow(),
     numberRow("lineSpacing", "line_spacing_em", 0.4, 1.5, 0.05),
     numberRow("paraSpacing", "para_spacing_em", 0, 3, 0.1),
     numberRow("firstIndent", "first_line_indent_em", 0, 4, 0.25),
     numberRow("columns", "columns", 1, 3, 1),
     textRow("headerText", "header", ""),
     textRow("footerText", "footer", ""),
+    // > *"Header and footer content lives in the settings drawer, which makes
+    // > anything beyond plain text — bold, mixed runs — hard to express. They
+    // > are document content in a settings control."*
+    //
+    // Both halves are answered by moving them into the document: `#כותרת_עליונה`
+    // takes content, so everything the writer can type works, and a document may
+    // set it more than once — the masechta over one chapter and a different one
+    // over the next, which no settings field could ever have said.
+    //
+    // The boxes above stay. Plain text is still the common case and typing it
+    // into a field is still the shortest way to get it; this is the door out of
+    // that field for the moment it is not enough, and it carries what is already
+    // written across rather than making the writer type it twice.
+    el("div", { class: "set-note" }, [t("runningHeadNote")]),
+    el("div", { class: "set-row" }, [
+      el("button", { class: "sc-key", type: "button", onClick: () => moveRunningIntoDoc("header") }, [
+        t("headerToDocument"),
+      ]),
+      el("button", { class: "sc-key", type: "button", onClick: () => moveRunningIntoDoc("footer") }, [
+        t("footerToDocument"),
+      ]),
+    ]),
     // Everything a sefer that will be *printed and bound* needs and a document
     // read on a screen does not. Kept in its own group and off by default, so
     // the ordinary page setup above stays five fields rather than eighteen.
@@ -4423,7 +4742,23 @@ function buildSettingsDrawer(): HTMLElement {
       ["float", t("placement.float")],
       ["pane", t("placement.pane")],
     ]),
-    numberRow("zoom", "zoom", 0.5, 2, 0.1),
+    // Two zooms, named for the two things they zoom. The bounds and the step are
+    // `zoom.ts`'s, not four numbers typed into two calls: they are a fact about
+    // what a zoom is, and the keyboard has to agree with the panel about them.
+    numberRow("zoomSource", "sourceZoom", zoom.MIN, zoom.MAX, zoom.STEP),
+    numberRow("zoom", "zoom", zoom.MIN, zoom.MAX, zoom.STEP),
+    // Which of the two a Ctrl+= lands on is not guessable from the rows above,
+    // and it is the whole reason there is one pair of keys rather than two.
+    el("div", { class: "set-note" }, [t("zoomNote")]),
+    checkRow("autoSnapshotLabel", "autoSnapshot"),
+    numberRow(
+      "autoSnapshotMinutes",
+      "autoSnapshotMinutes",
+      docs.MIN_SNAPSHOT_MINUTES,
+      docs.MAX_SNAPSHOT_MINUTES,
+      1,
+    ),
+    el("div", { class: "set-note" }, [snapshotNote()]),
     selectRow("editingModeLabel", "editingMode", [
       ["default", t("mode.default")],
       ["vim", t("mode.vim")],
@@ -5776,7 +6111,7 @@ function updateContextBar() {
     // go stale — a style defined a keystroke ago has to be offerable now. Rebuilt
     // only when the set of names has actually changed, for the same reason the
     // value below is only assigned when it differs.
-    const names = styles.findCustomStyles(doc).map((s) => s.name).join(" ");
+    const names = styles.findCustomStyles(doc).map((s) => s.name).join("\u0000");
     if (levelSel.dataset.styles !== names) {
       levelSel.dataset.styles = names;
       fillParagraphStyles(levelSel);
@@ -8738,6 +9073,18 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     });
   } else if (key === "zoom" || key === "fitWidth") {
     applyPreview();
+  } else if (key === "sourceZoom") {
+    applySourceZoom();
+  } else if (key === "autoSnapshot" || key === "autoSnapshotMinutes") {
+    // The timer is rebuilt rather than left to the next reload, which is the
+    // whole difference between a setting and a constant.
+    scheduleAutoSnapshots();
+    // …and so is the sentence under the switch. `snapshotNote` says which of the
+    // two states the history is in and how to keep a version by hand; without
+    // this, turning the clock off left it reading *"a version is kept by itself
+    // whenever the text has changed"* — the switch moved and the line under it
+    // went on describing the state before. Found by pressing it.
+    if (isPanelOpen("settings-drawer")) rerenderChrome();
   } else if (key === "autocomplete") {
     runtime.view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
   } else if (key === "spellcheck") {
@@ -8761,6 +9108,63 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
 // ---------------------------------------------------------------- layout / theme / chrome
 function applyTheme() {
   document.documentElement.dataset.theme = settings.theme;
+}
+
+/**
+ * The source's zoom, as a number the stylesheet multiplies by.
+ *
+ * One custom property rather than a rule per view: the editor theme's `15px` and
+ * page view's `17px` are two different base sizes for two different ways of
+ * reading the same text, and both are correct. Multiplying is the only shape
+ * that leaves that difference intact — a zoom that set a font size outright
+ * would have flattened page view back to a code pane.
+ */
+function applySourceZoom() {
+  document.documentElement.style.setProperty(
+    "--source-zoom",
+    String(zoom.clamp(settings.sourceZoom ?? zoom.DEFAULT)),
+  );
+}
+
+/**
+ * Zoom the surface the writer is in. `by` is +1, -1, or 0 for "back to 100%".
+ *
+ * The caret test is `runtime.view.hasFocus`, which is the honest reading of
+ * *"which of these two am I working in"*: a writer who has clicked into the page
+ * to read it is not typing, and the thing under their eyes is the preview.
+ */
+function stepZoom(by: number): boolean {
+  const surface = zoom.surfaceOf(!!runtime.view?.hasFocus);
+  const field = zoom.FIELD_OF[surface];
+  const now = (settings[field] ?? zoom.DEFAULT) as number;
+  const next = by === 0 ? zoom.DEFAULT : zoom.step(now, by);
+  setSetting(field, next as never);
+  // Say what happened and to which of the two, because the difference between
+  // "the text got bigger" and "the page got bigger" is invisible in a window
+  // where only one of them is on screen.
+  setStatus(`${t(surface === "source" ? "zoomSource" : "zoom")} ${zoom.percent(next)}`, "");
+  // The panel is where the number lives; if it is open it must not go on showing
+  // the old one.
+  if (isPanelOpen("settings-drawer")) rerenderChrome();
+  return true;
+}
+
+/**
+ * Start, restart or stop the automatic snapshot timer.
+ *
+ * Called at boot and again whenever either of the two settings changes, which is
+ * the part a `setInterval` at the bottom of `boot` could not do: the cadence was
+ * fixed at load and the only way to change it was to reload the application.
+ */
+let autoSnapshotTimer: number | null = null;
+function scheduleAutoSnapshots() {
+  if (autoSnapshotTimer !== null) {
+    window.clearInterval(autoSnapshotTimer);
+    autoSnapshotTimer = null;
+  }
+  const every = docs.autoInterval(settings.autoSnapshot, settings.autoSnapshotMinutes);
+  if (every === null) return;
+  autoSnapshotTimer = window.setInterval(() => void takeSnapshot(), every);
 }
 
 // Preview placement is not a setting any more, and the two cycling chips it fed
@@ -8988,6 +9392,7 @@ function render() {
   onMarkLines((lines) => runtime.view.dispatch({ effects: setErrorLines.of(lines) }));
   save.onFileWritten(() => tellGirsaWhereItIs());
   applyTheme();
+  applySourceZoom();
   applyPageView();
   applyUiDir();
   nameGutterMarks();
@@ -9613,9 +10018,11 @@ async function boot() {
   // rather than through scheduleCompile, so nothing would be checked until the
   // writer's first keystroke.
   scheduleSpellCheck();
-  // periodic auto-snapshot (only stores when the text changed) — snapshots live
-  // in the store, so this is the one timer with nothing to do without one.
-  if (durable) window.setInterval(() => void takeSnapshot(), 180000);
+  // Periodic auto-snapshot, when the writer has left it on (only stores when the
+  // text changed). Snapshots live in the store, so this is the one timer with
+  // nothing to do without one — and the cadence is `scheduleAutoSnapshots`,
+  // which reads the settings and can be called again when they change.
+  if (durable) scheduleAutoSnapshots();
   // periodic write-back to the bound file, when there is one to write to. Kept
   // even with no store: a file binding made this session writes to disk, not to
   // the store, so it is exactly the escape hatch a private window still has.

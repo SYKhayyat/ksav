@@ -27,7 +27,16 @@ export interface DocConfig {
    */
   lang?: string;
   numbering: boolean;
+  /**
+   * Justify paragraphs — half of one control.
+   *
+   * The other half is `text_align`, which holds the three edges and wins when it
+   * says anything. `settings.alignChoice` / `alignSetup` are the only two places
+   * that know the pair exists; everything else asks them.
+   */
   justify: boolean;
+  /** Where unjustified text sits: `right`, `center`, `left`, or `""` for "take `justify`". */
+  text_align: string;
   line_spacing_em: number;
   para_spacing_em: number;
   first_line_indent_em: number;

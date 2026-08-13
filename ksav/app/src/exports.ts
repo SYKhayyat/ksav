@@ -12,10 +12,47 @@ import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { download, escapeAttr } from "./dom";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
+import * as pagerange from "./pagerange";
 import { currentPages } from "./preview";
 import * as runtime from "./runtime";
 import { docConfig } from "./settings";
 import { flushSaves } from "./save";
+
+// ---------------------------------------------------------------- which pages
+//
+// > *"A page range is offered for PDF only. No reason has been given for that."*
+//
+// It was one menu item that put up a `window.prompt`, handed the answer to the
+// engine and forgot it. Print — the route where "pages 4 to 9" is the entire
+// reason anybody asks the question — sent the whole sefer to the printer.
+//
+// It is one range now, held here, read by every route that has pages at all.
+// `pagerange.ts` says which those are and, for the rest, why not.
+//
+// **Deliberately not persisted.** A page range is a fact about one export, not a
+// preference: a `1-4` that survived a reload would be a document quietly
+// exporting its first four pages next week, with the reason four settings
+// drawers away. It lives for as long as the tab does, which is about as long as
+// the intention behind it.
+let range: pagerange.PageSpec = pagerange.ALL;
+let rangeText = "";
+
+/** What the writer typed into the pages box, verbatim. */
+export function pagesText(): string {
+  return rangeText;
+}
+
+/** The range in force, parsed. */
+export function pagesSpec(): pagerange.PageSpec {
+  return range;
+}
+
+/** Set the range from what the writer typed. Returns it parsed, offcuts and all. */
+export function setPages(text: string): pagerange.PageSpec {
+  rangeText = text;
+  range = pagerange.parsePages(text);
+  return range;
+}
 
 /**
  * Warn when what is about to leave the app was built from a *healed* copy.
@@ -31,11 +68,20 @@ function warnIfHealed() {
   if (n) runtime.setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
 }
 
-export async function exportPdf(pages?: string) {
+export async function exportPdf() {
   runtime.closeMenus();
   await flushSaves();
+  // A range with a piece in it that names nothing is refused rather than
+  // silently trimmed. The engine's parser drops what it cannot read, so `1,x,5`
+  // exported pages 1 and 5 and said nothing at all — a file that is quietly not
+  // the one that was asked for, which is the worst of the three possible
+  // behaviours.
+  if (range.bad.length) {
+    runtime.setStatus(`✗ ${tf("pagesUnreadable", range.bad.join(", "))}`, "err");
+    return;
+  }
   runtime.setStatus(t("rendering"), "");
-  const res = await compileForExport(pages ? { pdf_pages: pages } : undefined);
+  const res = await compileForExport(rangeText ? { pdf_pages: rangeText } : undefined);
   if (!res?.pdf_base64) {
     // A PDF/A export can be refused for a real, nameable reason — an
     // unembeddable font, a missing title — and "compile error" over the top of
@@ -54,13 +100,12 @@ export async function exportPdf(pages?: string) {
   else warnIfHealed();
 }
 
-/** Export a subset of the pages — what you send when the printer wants a proof. */
-export async function exportPdfPages() {
-  runtime.closeMenus();
-  const spec = window.prompt(t("pdfPagesPrompt"), "");
-  if (spec === null) return;
-  await exportPdf(spec.trim() || undefined);
-}
+// `exportPdfPages` used to live here: a second export route whose only
+// difference from the first was a `window.prompt` in front of it. It is the
+// pages box at the top of the Export menu now — one control, read by every route
+// that has pages, rather than a range that existed only if you chose the item
+// with the ellipsis. It had no key and no palette entry, so the box is strictly
+// more reachable than the item it replaces.
 
 export async function exportTypst() {
   runtime.closeMenus();
@@ -96,7 +141,13 @@ function pageImageHtml(banner = ""): string {
   // returns `pages_svg: []`, `compile.ts` stores it unconditionally and skips
   // the redraw — so the preview keeps showing the last good page and this
   // produced **a blank sheet**, silently, on the one route that is paper.
-  const pages = currentPages()
+  //
+  // The range applies here, and this is the honest place for it: these *are*
+  // pages, one SVG each, so "pages 4 to 9" is a filter and nothing more. It
+  // covers print — which is where the question is actually asked — and the HTML
+  // fallback, which is the same pictures under a different extension.
+  const pages = pagerange
+    .select(range, currentPages())
     .map((s) => `<div class="page">${s}</div>`)
     .join("\n");
   return `<!doctype html><html dir="${docConfig().dir}"><head><meta charset="utf-8">
@@ -266,6 +317,18 @@ export function exportText() {
 
 export function doPrint() {
   runtime.closeMenus();
+  // Same refusal as the PDF, and for a stronger reason: paper is the one route
+  // that cannot be undone by deleting a file.
+  if (range.bad.length) {
+    runtime.setStatus(`✗ ${tf("pagesUnreadable", range.bad.join(", "))}`, "err");
+    return;
+  }
+  // Asking for pages the document does not have is not an error — Typst drops
+  // them and so does `select` — but it produces an empty print window, and a
+  // printer that emits nothing looks exactly like a printer that is broken.
+  if (pagerange.beyond(range, currentPages().length)) {
+    runtime.setStatus(`⚠ ${tf("pagesBeyond", currentPages().length)}`, "warn");
+  }
   const w = window.open("", "_blank");
   if (!w) return;
   // Printing wants the page images: what comes out of the printer must look

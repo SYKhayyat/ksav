@@ -79,6 +79,10 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+J` | Jump between a note's marker and its body | מעבר בין הסימון לגוף ההערה |
 | `Ctrl+Alt+Shift+F` | Send this note's text to the end | העברת ההערה לסוף |
 | `Ctrl+Alt+R` | Bring this note back into the sentence | החזרת ההערה למשפט |
+| `Ctrl+=` | Bigger | הגדלה |
+| `Ctrl+-` | Smaller | הקטנה |
+| `Ctrl+0` | Back to 100% | חזרה ל־100% |
+| `Ctrl+Alt+S` | Keep this version | שמירת גרסה |
 
 ## Not in the table
 
@@ -87,7 +91,7 @@ prose again — the markup is one key away, which is the right distance for the
 people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
-one does. There are 122 of them and none is worth memorising.
+one does. There are 124 of them and none is worth memorising.
 
 **Nikud** has its own keymap while you are typing pointed Hebrew. It is not in
 this table because it is not one binding — it is a layer, and it is documented

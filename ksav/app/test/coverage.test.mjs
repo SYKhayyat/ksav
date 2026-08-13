@@ -260,6 +260,42 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   }
 }
 
+// --------------------------------------------------- a list you can make
+//
+// *"It looks like it is not a list"*, in the margin of a document whose 156
+// numbered items are `#הדגשה[45.]` paragraphs. There was no verb: the bullet
+// button inserted an **empty** list, and pressed over a selection it wrapped the
+// whole selection inside one bullet. A few lines later the same margin records
+// that the structure controls were greyed with no reason — correct, because the
+// caret was in prose, and useless, because what to do about that is exactly the
+// verb that did not exist.
+{
+  const LISTS = read("lists.ts");
+  ok("there is a verb", LISTS.includes("export function makeList("));
+  ok("…and it refuses out loud", LISTS.includes("export function canMakeList("));
+  // Through `plan`, so the toolbar, the menu, the palette and the keyboard all
+  // do it — one producer, which is the rule this file exists to keep.
+  ok("the bullet button makes one of a selection", read("insert.ts").includes('kind: "rewrite"'));
+  ok("…and the shell performs it", MAIN.includes('plan.kind === "rewrite"'));
+  ok("it is an action of its own", MAIN.includes('id: "makeList"'));
+  ok("…named in the Format menu", MAIN.includes('t("makeList")'));
+  for (const lang of ["he", "en"]) {
+    ok(`…and described in ${lang}`, !!DICTS[lang].makeListLede);
+  }
+  // The prose caret, which is where the margin note was written. A strip that
+  // vanishes reads as the product breaking; it says what can be made instead.
+  ok("prose says what it is", MAIN.includes('t("inProse")'));
+  // A second paragraph under one number: the third reading of Enter in a list,
+  // and the one that had no key at all.
+  ok("an item can hold two paragraphs", LISTS.includes("export function paraInItem("));
+  ok("…as an operation like the rest", read("structure.ts").includes('id: "list.paraInItem"'));
+  ok("…with a key", read("bindings.ts").includes('"list.paraInItem"'));
+  // Per level, which Typst has always read and no control could write.
+  ok("numbering is per level", read("styles.ts").includes('"numbering-levels"'));
+  ok("…and the panel composes the pattern", MAIN.includes("function levelsControl("));
+  ok("a list can start at a number of its own", read("styles.ts").includes("התחלה: { kind:"));
+}
+
 // --------------------------------------- the three constructs, named and open
 //
 // Two hide a span from the page and one folds a span that still prints, and the

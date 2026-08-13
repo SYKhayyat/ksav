@@ -359,6 +359,151 @@ export function deleteItem(doc: string, list: ListInfo, pos: number): Edit | nul
   return { text: doc.slice(0, from) + doc.slice(cut), caret: from };
 }
 
+/**
+ * A paragraph break *inside* an item — not a new item, and not a line break.
+ *
+ * The third thing Enter can mean in a list, and the one that had no key. Enter
+ * makes the next bullet, `Shift+Enter` makes a new line in this one, and
+ * neither of them gives an item a second *paragraph* — which is what a se'if
+ * with two paragraphs under one number needs, and what somebody writing a real
+ * sefer asks for about as often as they ask for the other two.
+ *
+ * A blank line, which is Typst's own paragraph break and is what the writer
+ * would have typed in prose. It is legal inside a content block, so the item
+ * keeps its number and gains a paragraph — see `engine/tests/lists.rs`.
+ */
+export function paraInItem(doc: string, list: ListInfo, pos: number): Edit | null {
+  const here = itemAt(list, pos);
+  if (!canBreakInItem(here)) return null;
+  const snippet = "\n\n";
+  return { text: doc.slice(0, pos) + snippet + doc.slice(pos), caret: pos + snippet.length };
+}
+
+// ---------------------------------------------------------------- make one
+//
+// *"It looks like it is not a list"* — written in the margin of a document whose
+// 156 numbered items are `#הדגשה[45.]` paragraphs with typed numbers. The same
+// margin, a few lines later, records that the structure controls were greyed out
+// and said nothing: correct, because the caret was in prose and there was
+// nothing to act on, and useless, because the thing to do about that is exactly
+// what the product had no verb for.
+//
+// So this is the verb. It reads what is there the way a person reads it, throws
+// away the numbering the writer typed by hand — that is what the real list is
+// for — and writes the list they meant.
+
+/** The hand-typed numbering this strips: `1.`, `(2)`, `א)`, `iv.`, `A.`. */
+const TYPED_NUMBER = /^\s*\(?\s*(\d{1,3}|[א-ת]{1,2}|[ivxlcIVXLC]{1,6}|[A-Za-z])\s*[.)\]:]\s*/;
+/** …and the bullets: `-`, `–`, `*`, `•`. */
+const TYPED_BULLET = /^\s*[-–—*•·]\s+/;
+/** A number a writer emphasised, which is how the inventory's own spine is written. */
+const BOLD_WRAPPED = /^\s*#(?:הדגשה|bold)\[([^\]]*)\]\s*/;
+
+/** What the writer had been typing in front of each item, if anything. */
+export type TypedMark = "number" | "letter" | "bullet" | "none";
+
+function markOf(line: string): TypedMark {
+  const bare = line.replace(BOLD_WRAPPED, (_m, inner: string) =>
+    TYPED_NUMBER.test(inner) || /^\s*[\d]/.test(inner) ? "" : _m,
+  );
+  if (TYPED_BULLET.test(bare)) return "bullet";
+  const n = TYPED_NUMBER.exec(bare);
+  if (!n) return bare === line ? "none" : "number";
+  return /^\d/.test(n[1]) ? "number" : /^[א-ת]/.test(n[1]) ? "letter" : "number";
+}
+
+/** The line without whatever it was wearing. */
+function stripMark(line: string): string {
+  const bare = line.replace(BOLD_WRAPPED, (_m, inner: string) =>
+    TYPED_NUMBER.test(inner) || /^\s*[\d]/.test(inner) ? "" : _m,
+  );
+  return bare.replace(TYPED_BULLET, "").replace(TYPED_NUMBER, "").trim();
+}
+
+/**
+ * The lines the selection covers, as the items they are asking to become.
+ *
+ * Two readings, because a writer means two different things and the page shows
+ * them both. **With a blank line anywhere in the block** they have written
+ * paragraphs, and a paragraph is an item — its own lines are one item's prose,
+ * wrapped, exactly as they already print. **With no blank line at all** they
+ * have a stack of lines, which prints as one paragraph and is meant as a list,
+ * so each line is an item. Guessing one rule for both cases gets the other one
+ * badly wrong in either direction.
+ */
+export function itemsFor(block: string): string[] {
+  const chunks = /\n[ \t]*\n/.test(block) ? block.split(/\n[ \t]*\n+/) : block.split("\n");
+  return chunks.map((c) => c.trim()).filter((c) => c !== "");
+}
+
+/** Nothing to make a list out of, or the caret is already in one. */
+export function canMakeList(doc: string, from: number, to: number): boolean {
+  if (listAt(doc, from) || listAt(doc, to)) return false;
+  return itemsFor(blockAround(doc, from, to).text).length > 0;
+}
+
+function blockAround(doc: string, from: number, to: number): { text: string; from: number; to: number } {
+  let start = doc.lastIndexOf("\n", from - 1) + 1;
+  let end = doc.indexOf("\n", to);
+  if (end < 0) end = doc.length;
+  // An empty selection means "this paragraph", which is what every word
+  // processor means by it: run out to the blank line in both directions.
+  if (from === to) {
+    while (start > 0) {
+      const prev = doc.lastIndexOf("\n", start - 2) + 1;
+      if (doc.slice(prev, start - 1).trim() === "") break;
+      start = prev;
+    }
+    while (end < doc.length) {
+      const next = doc.indexOf("\n", end + 1);
+      const line = doc.slice(end + 1, next < 0 ? doc.length : next);
+      if (line.trim() === "") break;
+      end = next < 0 ? doc.length : next;
+    }
+  }
+  return { text: doc.slice(start, end), from: start, to: end };
+}
+
+/**
+ * Make this a real list.
+ *
+ * `kind` may be `"auto"`, which reads the numbering the writer typed: digits
+ * make a numbered list, Hebrew letters make a Hebrew-lettered one, and bullets
+ * or nothing make bullets. Whatever it picks, the typed marks come off — a list
+ * that renumbers itself and still carries the old numbers is worse than the
+ * paragraphs it replaced.
+ */
+export function makeList(
+  doc: string,
+  from: number,
+  to: number,
+  kind: ListKind | "auto",
+  lang: "he" | "en",
+): Edit | null {
+  if (!canMakeList(doc, from, to)) return null;
+  const block = blockAround(doc, from, to);
+  const lines = itemsFor(block.text);
+  const marks = lines.map(markOf);
+  const chosen: ListKind =
+    kind !== "auto"
+      ? kind
+      : marks.includes("letter") && !marks.includes("number")
+        ? "hebrew"
+        : marks.includes("number")
+          ? "numbered"
+          : "bullets";
+  const name = lang === "en" ? KIND_NAME[chosen].en : KIND_NAME[chosen].he;
+  const item = lang === "en" ? "item" : "פריט";
+  const indent = /^[ \t]*/.exec(block.text)?.[0] ?? "";
+  const body = lines.map((l) => `${indent}  ${item}[${stripMark(l)}],`).join("\n");
+  const text = `${indent}#${name}(\n${body}\n${indent})`;
+  return {
+    text: doc.slice(0, block.from) + text + doc.slice(block.to),
+    // Inside the first item, which is where a writer looks after pressing it.
+    caret: block.from + text.indexOf("[") + 1,
+  };
+}
+
 /** Turn this list into bullets / numbers / Hebrew letters, keeping every item. */
 export function setKind(doc: string, list: ListInfo, kind: ListKind): Edit {
   if (!canSetKind(list, kind)) return { text: doc, caret: list.from };

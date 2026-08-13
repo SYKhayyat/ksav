@@ -11,6 +11,10 @@ import {
   deleteItem,
   setKind,
   moveItem,
+  paraInItem,
+  itemsFor,
+  makeList,
+  canMakeList,
 } from "../.tmp-test/lists.mjs";
 import { modeAt } from "../.tmp-test/mode.mjs";
 
@@ -247,6 +251,101 @@ export async function run() {
   ok("add: an English list gets an English item", r.text.includes("item[]"));
   const k = setKind(E, l, "numbered");
   ok("kind: and an English command name", k.text.includes("#numbered("));
+}
+
+// ---------------------------------------------------- a paragraph in an item
+//
+// The third reading of Enter, and the one that had no key at all: a second
+// paragraph under one number. Enter makes the next item, Shift+Enter makes a
+// line inside this one, and a se'if with two paragraphs needs neither.
+{
+  const L = `#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n)`;
+  const l = listAt(L, L.indexOf("שני"));
+  const at = L.indexOf("שני") + 3;
+  const r = paraInItem(L, l, at);
+  legal("para", r.text);
+  check("para: a blank line, which is what a paragraph break is", r.text.slice(at, at + 2), "\n\n");
+  check("para: the item still holds it", listAt(r.text, r.text.indexOf("שני")).items.length, 2);
+  ok("para: and it is not a line break", !r.text.includes("\\\n"));
+  check("para: the caret is past it", r.caret, at + 2);
+  ok("para: refused where there is no item", paraInItem(L, l, l.argsFrom) === null);
+}
+
+// ------------------------------------------------- make this a real list
+//
+// *"It looks like it is not a list"*, written in the margin of a document whose
+// 156 numbered items are `#הדגשה[45.]` paragraphs. There was no verb for it:
+// the bullet button inserted an *empty* list, and pressed with a selection it
+// wrapped the whole selection inside one bullet.
+{
+  check("items: one per line when there are no blank lines", itemsFor("אחת\nשתים\nשלש").length, 3);
+  // With blank lines the writer has written paragraphs, and a paragraph is an
+  // item — its own lines are one item's prose, wrapped, exactly as they print.
+  check("items: one per paragraph when there are", itemsFor("אחת\nעוד\n\nשתים").length, 2);
+  check("items: and the wrapped lines stay together", itemsFor("אחת\nעוד\n\nשתים")[0], "אחת\nעוד");
+  check("items: blank lines are not items", itemsFor("\n\nאחת\n\n\n").length, 1);
+}
+{
+  const P = "אחת\nשתים\nשלש";
+  const r = makeList(P, 0, P.length, "auto", "he");
+  legal("make", r.text);
+  check("make: one item per line", listAt(r.text, r.text.indexOf("שתים")).items.length, 3);
+  ok("make: bullets when nothing was numbered", r.text.startsWith("#רשימה("));
+  check("make: the caret lands in the first item", r.text.slice(r.caret, r.caret + 3), "אחת");
+}
+{
+  // The numbers the writer typed come off. A list that renumbers itself and
+  // still carries the old numbers is worse than the paragraphs it replaced.
+  const P = "1. אחת\n2. שתים\n3. שלש";
+  const r = makeList(P, 0, P.length, "auto", "he");
+  ok("make: typed digits choose a numbered list", r.text.startsWith("#ממוספרת("));
+  ok("make: and the digits are gone", !/1\./.test(r.text), r.text);
+  check("make: three items", listAt(r.text, r.text.indexOf("שתים")).items.length, 3);
+}
+{
+  const P = "א. אחת\nב. שתים";
+  const r = makeList(P, 0, P.length, "auto", "he");
+  ok("make: typed Hebrew letters choose a Hebrew-lettered list", r.text.startsWith("#ממוספרת_עברית("));
+  ok("make: and the letters are gone", !r.text.includes("א. אחת"), r.text);
+}
+{
+  const P = "- אחת\n– שתים\n• שלש";
+  const r = makeList(P, 0, P.length, "auto", "he");
+  ok("make: typed bullets choose bullets", r.text.startsWith("#רשימה("));
+  ok("make: and the bullets are gone", !/[-–•]/.test(r.text), r.text);
+}
+{
+  // The inventory's own spine: a number the writer emphasised.
+  const P = "#הדגשה[45.] אחת\n#הדגשה[46.] שתים";
+  const r = makeList(P, 0, P.length, "auto", "he");
+  ok("make: an emphasised number is still a typed number", r.text.startsWith("#ממוספרת("));
+  ok("make: and it comes off with the rest", !r.text.includes("הדגשה"), r.text);
+}
+{
+  // Emphasis that is not a number is the writer's markup and stays.
+  const P = "#הדגשה[פתיחה] אחת\n#הדגשה[המשך] שתים";
+  const r = makeList(P, 0, P.length, "auto", "he");
+  ok("make: emphasis that is not a number survives", r.text.includes("#הדגשה[פתיחה]"), r.text);
+}
+{
+  const P = "one\ntwo";
+  const r = makeList(P, 0, P.length, "bullets", "en");
+  ok("make: an English document gets English names", r.text.startsWith("#bullets("), r.text);
+  ok("make: and English items", r.text.includes("item[one]"), r.text);
+}
+{
+  // An empty selection means "this paragraph", which is what it means in every
+  // word processor.
+  const P = "לפני\n\nאחת\nשתים\n\nאחרי";
+  const r = makeList(P, P.indexOf("אחת") + 1, P.indexOf("אחת") + 1, "auto", "he");
+  ok("make: the caret alone takes its own paragraph", r.text.startsWith("לפני\n\n#רשימה("), r.text);
+  ok("make: and leaves the neighbours alone", r.text.endsWith("\n\nאחרי"), r.text);
+}
+{
+  const L = `#רשימה(\n  פריט[ראשון],\n)`;
+  notOk("make: refused inside a list", canMakeList(L, L.indexOf("ראשון"), L.indexOf("ראשון")));
+  ok("make: and it does not act", makeList(L, L.indexOf("ראשון"), L.indexOf("ראשון"), "auto", "he") === null);
+  notOk("make: refused with nothing to make", canMakeList("   \n  \n", 0, 6));
 }
 
 }

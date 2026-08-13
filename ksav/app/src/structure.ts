@@ -318,6 +318,22 @@ const LIST_ACTIONS: StructureAction[] = [
     ),
   },
   {
+    id: "list.paraInItem",
+    why: "why.notOnItem",
+    structure: "list",
+    group: "items",
+    glyph: "¶",
+    label: "listParaInItem",
+    // The third thing Enter can mean in a list, and the one that had no key:
+    // a second *paragraph* under one number, which is what a se'if with two
+    // paragraphs needs. Enter makes the next item and Shift+Enter makes a line
+    // in this one; neither of those is this.
+    ...onList(
+      (_list, here) => lists.canBreakInItem(here),
+      (doc, list, pos) => lists.paraInItem(doc, list, pos),
+    ),
+  },
+  {
     id: "list.deleteItem",
     why: "why.notOnItem",
     structure: "list",

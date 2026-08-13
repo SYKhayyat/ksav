@@ -28,15 +28,23 @@
 //                 and a configuration line at the top. `notes.ts` owns that;
 //                 this says only "it is one of those, here is which".
 //   - `edit`    — the text to splice and where the caret goes.
+//   - `rewrite` — the whole document, because what the writer asked for is not a
+//                 splice. Pressing the bullet button over four paragraphs means
+//                 *make these four things a list*, which is Word's behaviour and
+//                 everyone's; the splice could only ever wrap all four inside
+//                 one bullet, and it reaches past the selection to the ends of
+//                 the lines besides. See `lists.makeList`.
 //
 // The shell keeps the six lines that dispatch it. What is left in `main.ts` is
 // the effect; what is here is every decision, and every decision is now a
 // question you can ask in a test file without a browser.
 
 import { continueLevel } from "./headings";
+import { itemsFor, makeList } from "./lists";
 import { legalAt, insertionAt } from "./mode";
 import { noteFor, type NoteChoice } from "./notes";
 import { continueSeries } from "./numbering";
+import { SPELLING, type ListKind } from "./spans";
 
 /** A command name, if this snippet begins with one. */
 export function commandOf(snippet: string): string | null {
@@ -46,7 +54,24 @@ export function commandOf(snippet: string): string | null {
 export type Insertion =
   | { kind: "refuse"; reason: string }
   | { kind: "note"; choice: NoteChoice; layer: number; marker?: string }
-  | { kind: "edit"; text: string; cursor: number };
+  | { kind: "edit"; text: string; cursor: number }
+  | { kind: "rewrite"; text: string; caret: number };
+
+/** The three list commands, in both languages, as a snippet's leading name. */
+const LIST_KINDS: Record<string, ListKind> = {
+  [SPELLING.list.bullets.he]: "bullets",
+  [SPELLING.list.bullets.en]: "bullets",
+  [SPELLING.list.numbered.he]: "numbered",
+  [SPELLING.list.numbered.en]: "numbered",
+  [SPELLING.list.hebrew.he]: "hebrew",
+  [SPELLING.list.hebrew.en]: "hebrew",
+};
+/** Which of those names is the English one — the list is written in its language. */
+const LIST_LANG_EN: Record<string, true> = {
+  [SPELLING.list.bullets.en]: true,
+  [SPELLING.list.numbered.en]: true,
+  [SPELLING.list.hebrew.en]: true,
+};
 
 /**
  * What this snippet becomes at this caret.
@@ -93,6 +118,24 @@ export function plan(
   }
 
   const snippet = insertionAt(doc, from, snippetInSeries, to, whenSilent);
+
+  // A list command over prose the writer has selected is not an insertion at
+  // all — it is *"make this a real list"*, the verb the product had no word
+  // for. The 156 numbered items in the inventory that catalogues this product
+  // are `#הדגשה[45.]` paragraphs for exactly this reason: pressing the bullet
+  // button over them wrapped all 156 inside one bullet, so nobody pressed it
+  // twice. `makeList` reads the numbers the writer typed and throws them away,
+  // which is what the list is being asked to take over.
+  //
+  // Read off `snippet` rather than the raw one, because `insertionAt` is what
+  // resolved the document's language and the new list has to be written in it.
+  const written = commandOf(snippet);
+  const kind = written ? LIST_KINDS[written] : undefined;
+  if (kind && to > from && itemsFor(doc.slice(from, to)).length > 1) {
+    const made = makeList(doc, from, to, kind, written! in LIST_LANG_EN ? "en" : "he");
+    if (made) return { kind: "rewrite", text: made.text, caret: made.caret };
+  }
+
   const pipe = snippet.indexOf("|");
   if (pipe < 0) return { kind: "edit", text: snippet, cursor: snippet.length };
   // The `|` is where the caret goes, and where a selection is wrapped. Both, and

@@ -118,6 +118,7 @@ const EN_ARGS: Record<string, string> = {
   הידוק: "tight",
   יישור: "align",
   מספור: "numbering",
+  התחלה: "start",
   מרווח: "inset",
   סמן: "marker",
   פסים: "striped",
@@ -364,6 +365,17 @@ export type FieldKind =
   | "marker"
   | "align"
   | "numbering"
+  /**
+   * A numbering scheme **per depth** — digits at the top, letters underneath.
+   *
+   * A separate kind from `numbering` because Typst reads an enum's pattern one
+   * symbol per level (`"1.א.i."`) and a heading's as one scheme for the whole
+   * tree. One five-option picker served both, so the level-two answer a writer
+   * wanted could be picked and never written.
+   */
+  | "numbering-levels"
+  /** A whole number a list starts counting from — 1, or the 0 people want. */
+  | "count"
   | "text";
 
 export interface Field {
@@ -409,8 +421,9 @@ export const INSTANCE_FIELDS: Record<StyleCommand, Readonly<Record<string, Field
     הזחת_גוף: { kind: "length-em", label: "knobBodyIndent" },
     ריווח: { kind: "length-em", label: "knobSpacing" },
     הידוק: { kind: "bool", label: "knobTight" },
-    מספור: { kind: "numbering", label: "knobNumbering" },
+    מספור: { kind: "numbering-levels", label: "knobNumbering" },
     ריווח_מספור: { kind: "length-em", label: "knobNumberGap" },
+    התחלה: { kind: "count", label: "knobStart" },
   },
   tables: {
     קו: { kind: "rule", label: "knobBorder" },
@@ -661,6 +674,44 @@ export function readColor(src: string | undefined): string | null {
     return `#${h}${h}${h}`;
   }
   return null;
+}
+
+/**
+ * The counting symbols Typst understands, one per level of a nested list.
+ *
+ * `"1.א.i."` is three levels: digits, Hebrew letters, lower roman. Everything
+ * between one symbol and the next is that level's suffix.
+ */
+const COUNT_SYMBOLS = "1aAiIא*";
+
+/**
+ * A numbering pattern as the levels it describes.
+ *
+ * `"1.א.i."` → `["1.", "א.", "i."]`. A prefix before the first symbol goes with
+ * the level it introduces, so `"(1)"` is one level and not a stray bracket.
+ */
+export function readLevels(src: string | undefined): string[] {
+  const s = readString(src);
+  if (s === null) return [];
+  const out: string[] = [];
+  let pending = "";
+  for (const ch of s) {
+    if (COUNT_SYMBOLS.includes(ch)) {
+      out.push(pending + ch);
+      pending = "";
+    } else if (out.length) {
+      out[out.length - 1] += ch;
+    } else {
+      pending += ch;
+    }
+  }
+  return out;
+}
+
+/** The levels back as a pattern, or null when every level said nothing. */
+export function typstLevels(levels: (string | null)[]): string | null {
+  const said = levels.filter((l): l is string => !!l);
+  return said.length ? typstString(said.join("")) : null;
 }
 
 export function readString(src: string | undefined): string | null {

@@ -62,6 +62,9 @@ export const DEFAULT_KEYS: Record<string, string> = {
   h3: "Mod-3",
   bullets: "Mod-Shift-8",
   numbered: "Mod-Shift-7",
+  // Make what is written here a list, reading the numbering the writer typed by
+  // hand. The two above name a kind; this one asks the text.
+  makeList: "Mod-Shift-9",
   table: "Mod-Shift-t",
   toc: "Mod-Shift-o",
   center: "Mod-e",
@@ -84,6 +87,10 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // everywhere else. Rebindable like the rest; see `structureKeymap`.
   "list.splitItem": "Enter",
   "list.breakInItem": "Shift-Enter",
+  // The third reading of Enter inside a list: a new *paragraph* under the same
+  // number, which is what a se'if with two paragraphs is. Word puts nothing
+  // here because Word has no third reading; `Ctrl+Enter` is free and adjacent.
+  "list.paraInItem": "Mod-Enter",
   "list.indent": "Tab",
   "list.outdent": "Shift-Tab",
   "list.moveUp": "Alt-ArrowUp",

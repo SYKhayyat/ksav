@@ -47,6 +47,9 @@
   level: "רמה", title: "כותרת", titles: "כותרות", names: "שמות", by: "מאת",
   caption: "כיתוב", width: "רוחב", ratio: "יחס", amount: "מידה",
   indent: "הזחה", body_indent: "הזחת_גוף", tight: "הידוק", marker: "סמן",
+  // `start` is Typst's own name for it and always worked; there was no name for
+  // it here, so a list could not begin at 0 without leaving the language.
+  start: "התחלה",
   style: "סגנון", labels: "תוויות", layout: "פריסה", display: "תצוגה",
   heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
   // notes and streams
@@ -1695,6 +1698,7 @@
   הידוק: false,         // tight (single-line spacing between items)
   מספור: auto,          // enum numbering scheme (auto = document default "1."/"א.")
   ריווח_מספור: auto,    // number-to-body gap for enums
+  התחלה: auto,          // the first item's number (auto = 1; 0 is the other one people want)
 )
 #let _ls_cfg = state("ksav-ls-cfg", _ls_defaults)
 #let הגדרות_רשימות(..opts) = _ls_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
@@ -2238,6 +2242,28 @@
 // list says how it differs. Named arguments the config does not know are handed on
 // to Typst's own `list`/`enum`, so `#רשימה(tight: true)` still works and a
 // misspelled knob still stops the compile naming itself.
+// ---- one scheme, every depth ----
+//
+// A marker and a numbering pattern are the two knobs that describe *the whole
+// nest*, not one list: Typst reads `("–", "·")` and `"1.א.i."` by depth, so the
+// second entry is what a sub-list looks like. Passed as a **field** on the enum
+// — which is what these did — the pattern reaches that list's own items and
+// stops there, because the `#רשימה` nested inside an item is a separate call
+// with a separate field, and it defaults back to `•` and `1.`. So the writer
+// who set `מספור: "1.א."` on their list got `1.` at the top and `1.` again
+// underneath, with nothing to say why.
+//
+// Emitted as a **set rule** instead, it reaches every list realised inside this
+// one, which is what "level two" means. The rule is scoped to the block, so the
+// next list in the document is untouched — the two halves of that promise are
+// `tests/lists.rs`.
+#let _ls_deep(a, kind) = {
+  let keys = if kind == "enum" { ("numbering",) } else { ("marker",) }
+  let deep = (:)
+  let shallow = (:)
+  for (k, v) in a { if k in keys { deep.insert(k, v) } else { shallow.insert(k, v) } }
+  (deep, shallow)
+}
 #let רשימה(..פריטים) = context {
   let (own, rest) = _cfg_split(פריטים.named(), _ls_defaults.keys())
   let c = _cfg_with(_ls_cfg.get(), own)
@@ -2249,7 +2275,9 @@
   // Merged rather than spread alongside, so a Typst-named argument the writer
   // gave wins outright instead of arriving twice under the same name.
   for (k, v) in rest { a.insert(k, v) }
-  list(..a, ..פריטים.pos())
+  let (deep, shallow) = _ls_deep(a, "list")
+  set list(..deep)
+  list(..shallow, ..פריטים.pos())
 }
 #let ממוספרת(..פריטים) = context {
   let (own, rest) = _cfg_split(פריטים.named(), _ls_defaults.keys())
@@ -2261,8 +2289,14 @@
   // since the day the config existed and read by nothing, so the one list knob
   // that only enums have was the one knob that did nothing.
   if c.at("ריווח_מספור", default: auto) != auto { a.insert("body-indent", c.ריווח_מספור) }
+  // Where the numbers start. Typst has always taken `start:`, so a writer who
+  // knew Typst could already say it; there was no Hebrew name for it, no
+  // English one, and no control — which is the same as not having it.
+  if c.at("התחלה", default: auto) != auto { a.insert("start", c.התחלה) }
   for (k, v) in rest { a.insert(k, v) }
-  enum(..a, ..פריטים.pos())
+  let (deep, shallow) = _ls_deep(a, "enum")
+  set enum(..deep)
+  enum(..shallow, ..פריטים.pos())
 }
 // Hebrew-lettered, which is what this command *is*: `מספור` here is the
 // definition and not an override, so it is set rather than passed — passed, a

@@ -246,6 +246,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "הזחת_גוף": "body_indent",
   "הידוק": "tight",
   "סמן": "marker",
+  "התחלה": "start",
   "סגנון": "style",
   "תוויות": "labels",
   "פריסה": "layout",

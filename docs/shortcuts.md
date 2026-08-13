@@ -33,6 +33,7 @@ rather than leaving two actions on one key.
 | `Ctrl+3` | Heading 3 | כותרת 3 |
 | `Ctrl+Shift+8` | Bullet list | רשימה |
 | `Ctrl+Shift+7` | Numbered list | רשימה ממוספרת |
+| `Ctrl+Shift+9` | Make this a real list | עשה מכאן רשימה |
 | `Ctrl+Shift+T` | Table | טבלה |
 | `Ctrl+Shift+O` | Table of contents | תוכן עניינים |
 | `Ctrl+E` | Center | מרכז |
@@ -50,6 +51,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+M` | Comment | הערת עורך |
 | `Enter` | Split the item | פיצול הפריט |
 | `Shift+Enter` | New line inside this item | שורה חדשה בתוך הפריט |
+| `Ctrl+Enter` | New paragraph in this item | פסקה חדשה באותו פריט |
 | `Tab` | Indent (make a sub-item) | הזחה פנימה (תת־פריט) |
 | `Shift+Tab` | Outdent | הזחה החוצה |
 | `Alt+ArrowUp` | Move up | העברה למעלה |

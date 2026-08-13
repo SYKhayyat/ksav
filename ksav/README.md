@@ -29,7 +29,9 @@ Everything structural works the way a word processor works:
 | You want to | Do this |
 |---|---|
 | a bullet list | the `•` button, then **Enter** for the next bullet |
+| a list out of paragraphs you already typed | select them and press `•` — or **Format ▸ Make this a real list**, which reads the `1.` or `א.` you typed and takes it off |
 | a line *inside* a bullet | **Shift+Enter** |
+| a second *paragraph* under one number | **Ctrl+Enter** |
 | a sub-bullet | **Tab** (and **Shift+Tab** to come back out) |
 | a heading | the paragraph-style dropdown in the toolbar — nine levels |
 | to move a whole section | **Alt+Shift+↑/↓**, subsections and all |
@@ -174,6 +176,20 @@ alone.
 
 The tiers are numbered א,ב,ג over 1,2,3 — the שער־הציון arrangement, the
 commentary lettered and the he'aros on it numbered.
+
+### Lists
+
+A list numbers itself, so the numbering is a setting rather than something you
+type. **Styles ▸ Lists** sets it **per level** — digits for the simanim, letters
+for the se'ifim under them, roman numerals under those — which is how Typst has
+always read a nested list's pattern and which no control could write until now.
+The same section says which number a list starts at, for the people who want 0.
+
+Paragraphs you have already typed become a list by selecting them and pressing
+the bullet or number button. **Format ▸ Make this a real list** is the one that
+reads what is there: `1.` makes a numbered list, `א.` a Hebrew-lettered one, `-`
+bullets — and whichever it picks, the numbering you typed by hand comes off,
+because that is the job the list is taking over.
 
 ### Comments, hidden text and folds
 
@@ -466,7 +482,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,070 editor assertions, 582 engine
+- [x] **CI, running and green** — typecheck, 5,126 editor assertions, 594 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -542,10 +558,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 5,070 assertions across 82 files
+cd app && npm test                          # 5,126 assertions across 82 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 582 tests, 37 binaries
+cargo test --manifest-path engine/Cargo.toml            # 594 tests, 38 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

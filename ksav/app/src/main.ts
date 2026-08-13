@@ -171,6 +171,7 @@ import * as macros from "./macros";
 import * as help from "./help";
 import { plan as planInsertion } from "./insert";
 import * as hiding from "./hiding";
+import * as lists from "./lists";
 import * as header from "./header";
 import * as panelrows from "./panelrows";
 import type { PanelList, PanelRow } from "./panelrows";
@@ -677,6 +678,9 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       return true;
     },
   },
+  // The verb the product had no word for: take what is written and make it a
+  // list, reading the numbers the writer typed by hand and throwing them away.
+  { id: "makeList", run: () => makeListHere() },
   // One question — does this reach the page? — asked three ways. See `hiding.ts`.
   { id: "fold", run: () => (insertFold(), true) },
   { id: "hideBlock", run: () => (hideBlockHere(), true) },
@@ -2817,6 +2821,14 @@ function insertSnippet(rawSnippet: string) {
     applyNoteChoice(plan.choice, plan.layer, { to: sel.to, text: selText, marker: plan.marker });
     return;
   }
+  // "Make this a real list" — the bullet button pressed over paragraphs. A
+  // whole-document rewrite because it reaches past the selection to the ends of
+  // the lines it touches, which a splice into `[from, to]` cannot do.
+  if (plan.kind === "rewrite") {
+    editDoc(plan.text, plan.caret);
+    runtime.view.focus();
+    return;
+  }
   // A siman or a se'if added in the middle leaves every one after it holding
   // the wrong number, because a siman's number is written in the source by hand
   // — that is what a siman *is* — where a list's numbers are Typst's and
@@ -2854,6 +2866,29 @@ function applyHiding(edit: hiding.Edit) {
   });
   runtime.view.focus();
   scheduleCompile();
+}
+
+/**
+ * Make what is written here a real list.
+ *
+ * The bullet and number buttons do this too, for the kind they name; this is
+ * the one that *reads* — `1.` makes a numbered list, `א.` a Hebrew-lettered
+ * one, `-` bullets — and it is the answer to a document whose 156 numbered
+ * items are typed numbers in bold. Refuses out loud rather than doing nothing,
+ * because "nothing happened" is what the greyed controls were already saying.
+ */
+function makeListHere(): boolean {
+  if (!runtime.view) return false;
+  const sel = runtime.view.state.selection.main;
+  const doc = docTextOf(runtime.view.state.doc);
+  const made = lists.makeList(doc, sel.from, sel.to, "auto", docLang());
+  if (!made) {
+    setStatus(t(lists.listAt(doc, sel.from) ? "why.alreadyAList" : "why.nothingToList"), "warn");
+    return true;
+  }
+  editDoc(made.text, made.caret);
+  runtime.view.focus();
+  return true;
 }
 
 /** A fold: collapsible while writing, and every word of it prints. */
@@ -3358,6 +3393,16 @@ function buildMacroMenu(): HTMLElement {
 
 function buildFormatMenu(): HTMLElement {
   return lazyMenu("format", "¶ " + t("format"), () => [
+    // First, because it is the one thing a writer standing in prose can do to a
+    // list — every operation below it needs a list to already exist, and the
+    // margin note *"it looks like it is not a list"* was written by somebody
+    // who had none and no way to make one out of what they had typed.
+    el("button", { class: "menu-item", onClick: () => (closeMenus(), makeListHere()) }, [
+      el("b", {}, ["≔ " + t("makeList")]),
+      keybindings().makeList ? el("code", {}, [readable(keybindings().makeList)]) : el("span"),
+      el("span", { class: "menu-desc" }, [t("makeListLede")]),
+    ]),
+    el("div", { class: "menu-sep" }),
     ...structureMenuItems(["heading", "list"]),
     el("div", { class: "menu-cat" }, [t("foldLevels")]),
     // Fold *to* a depth. The chips beside the toolbar take everything down or
@@ -5401,6 +5446,36 @@ function updateContextBar() {
   const near = structure.structureNear(doc, pos)?.pos ?? pos;
   const here = structure.availableAt(doc, near);
   if (here.length === 0) {
+    // In prose, and that is worth saying rather than showing nothing.
+    //
+    // This is the other half of a margin note: *"header was greyed out and no
+    // reason was given"*. It was greyed correctly — the caret was in prose, so
+    // every list and table operation had nothing to act on — and the strip then
+    // vanished entirely, which is a product that looks broken rather than one
+    // that is being precise. What a writer standing in prose can actually do to
+    // a list is *make* one, so that is what the strip offers.
+    const sel = runtime.view.state.selection.main;
+    if (lists.canMakeList(doc, sel.from, sel.to)) {
+      const signature = `prose|${getLang()}`;
+      if (bar.dataset.signature !== signature || !bar.childElementCount) {
+        bar.dataset.signature = signature;
+        bar.replaceChildren(
+          el("span", { class: "context-bar-label" }, [t("inProse")]),
+          el(
+            "button",
+            {
+              class: "tb-btn",
+              title: `${t("makeList")} — ${t("makeListLede")}`,
+              "aria-label": t("makeList"),
+              onClick: () => makeListHere(),
+            },
+            ["≔ ", el("span", { class: "tb-name" }, [t("makeList")])],
+          ),
+        );
+      }
+      openPanel("context-bar");
+      return;
+    }
     closePanel("context-bar");
     bar.replaceChildren();
     delete bar.dataset.signature;
@@ -6016,6 +6091,49 @@ function textControl(
   return input;
 }
 
+/**
+ * A numbering scheme **per level** — digits at the top, letters underneath.
+ *
+ * Typst has read a nested list's pattern one symbol per level for as long as it
+ * has had lists: `"1.א.i."` numbers the top level `1.`, the one inside it `א.`
+ * and the one inside that `i.`. Nothing said so, and the one control that wrote
+ * the field offered five whole-pattern schemes, so *"letters at one level and
+ * digits at another"* was a setting the engine had and the product did not.
+ *
+ * Three rows, or more when the document already asks for more — a pattern with
+ * four levels in it must not lose its fourth by being looked at.
+ */
+function levelsControl(raw: string | undefined, set: (v: string | null) => void): HTMLElement {
+  const levels = styles.readLevels(raw);
+  const rows = Math.max(3, levels.length);
+  const options: [string, string][] = [
+    ["", t("notSet")],
+    ["1.", "1. 2. 3."],
+    ["1)", "1) 2) 3)"],
+    ["א.", "א. ב. ג."],
+    ["א)", "א) ב) ג)"],
+    ["a.", "a. b. c."],
+    ["A.", "A. B. C."],
+    ["i.", "i. ii. iii."],
+    ["I.", "I. II. III."],
+  ];
+  const picked = Array.from({ length: rows }, (_, i) => levels[i] ?? "");
+  const write = () => set(styles.typstLevels(picked.map((p) => p || null)));
+  return el(
+    "span",
+    { class: "level-rows" },
+    picked.map((current, i) =>
+      el("span", { class: "level-row" }, [
+        el("span", { class: "level-tag" }, [String(i + 1)]),
+        selectControl(options, current, (v) => {
+          picked[i] = v;
+          write();
+        }),
+      ]),
+    ),
+  );
+}
+
 function selectControl(
   options: [string, string, boolean?][],
   current: string,
@@ -6228,6 +6346,16 @@ function fieldControl(
         [['"1."', "1. 2. 3."], ['"1.1"', "1.1 1.2"], ['"א."', "א. ב. ג."], ['"I."', "I. II."], ['"a."', "a. b. c."]],
         (raw ?? "").trim(),
       );
+    case "numbering-levels":
+      return levelsControl(raw, set);
+    case "count": {
+      const input = el("input", { type: "number", step: 1, value: (raw ?? "").trim() }) as HTMLInputElement;
+      input.addEventListener("change", () => {
+        const v = parseInt(input.value, 10);
+        set(Number.isFinite(v) ? String(v) : null);
+      });
+      return input;
+    }
     case "text": {
       const input = el("input", { type: "text", value: styles.readString(raw) ?? "" }) as HTMLInputElement;
       input.addEventListener("change", () =>
@@ -7052,6 +7180,17 @@ function renderStylesPanel() {
         styleRow(t("listIndent"), indentInput),
         styleRow(t("listTight"), toggleControl(lTight, (v) =>
           setStyleArgs("lists", { "הידוק": v ? "true" : null }))),
+        // Per level, because that is how Typst has always read the pattern and
+        // how a sefer is actually numbered: digits for the simanim, letters for
+        // the se'ifim under them. Written on the document's config rather than
+        // on one list, which is where "what does level two look like" belongs.
+        styleRow(t("listNumbering"), levelsControl(styleArg("lists", "מספור"), (v) =>
+          setStyleArgs("lists", { "מספור": v }))),
+        styleRow(t("listStart"), fieldControl(
+          { kind: "count", label: "knobStart" },
+          styleArg("lists", "התחלה"),
+          (v) => setStyleArgs("lists", { "התחלה": v }),
+        )),
       ];
 
   // --- tables (in-document) ---

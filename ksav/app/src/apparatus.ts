@@ -26,7 +26,16 @@
 // rendering and need nothing: the engine reserves their region and wraps them
 // automatically. Guessing that they behaved alike would have produced four
 // false warnings.
+//
+// **And the channels.** A channel placed at the end of a section or of the
+// document is the same failure with a new spelling — the note is collected and
+// nothing prints it until `#הצג_אזור` is called for its region — so it is the
+// first thing this checks. Whether a channel collects is a fact about the
+// document's declarations rather than about the command that was typed, which is
+// the whole of the model, so the rule below cannot express it and the channels
+// get a pass of their own.
 
+import { channelNotesIn, channelsIn, regionsShownIn, showRegionLine } from "./channels";
 import { scan as scanDeferred } from "./deferred";
 import { BAND_FAMILY } from "./note-commands";
 import { scan as scanSpans, type Node } from "./spans";
@@ -161,6 +170,30 @@ const DEFAULT_STREAM = "הערות";
  */
 export function unrendered(doc: string): Unrendered[] {
   const out: Unrendered[] = [];
+  // Channels first, because they are the same failure under the new spelling
+  // and the sweep is the point: a channel placed at the end of a section or of
+  // the document collects its notes and prints nothing until `#הצג_אזור` is
+  // called for its region. Naming a class of bug and fixing one instance of it
+  // is this repository's most-repeated mistake; the eighteen commands are two
+  // rules below, and a document written in channels would have been silent.
+  {
+    const shown = regionsShownIn(doc);
+    const byName = new Map(channelsIn(doc).map((c) => [c.name, c]));
+    for (const note of channelNotesIn(doc)) {
+      const c = byName.get(note.channel);
+      if (!c || c.kind !== "collected") continue;
+      if (shown.some((s) => s.from > note.from && s.region === c.region)) continue;
+      out.push({
+        from: note.from,
+        to: note.to,
+        command: note.command,
+        fix: showRegionLine(c.region),
+        // The region, not the stream — the same field, because what the fix has
+        // to name is "which collection is missing its call" either way.
+        stream: c.region,
+      });
+    }
+  }
   for (const rule of RULES) {
     // A dump call is never deferred: it takes no note body, so there is nothing
     // to exile and `#הערה_בשם` cannot stand for one.
@@ -190,10 +223,27 @@ export function unrendered(doc: string): Unrendered[] {
  */
 export function addDump(doc: string, p: Unrendered): { text: string; caret: number } {
   const call =
-    p.stream && p.stream !== DEFAULT_STREAM
+    // A channel's fix already names its region — `#הצג_אזור("ביאור")` — so there
+    // is nothing to fill in, and filling it in would append a second argument
+    // list to a call that has one.
+    p.fix.includes("()") && p.stream && p.stream !== DEFAULT_STREAM
       ? p.fix.replace("()", `(זרם: "${p.stream}")`)
       : p.fix;
+  return fileAtEnd(doc, call);
+}
+
+/**
+ * Put a rendering call at the end of the document.
+ *
+ * Exported because the Styles panel's "print the collected notes here" button
+ * needs exactly this rule, and splicing at the caret is not it: a dump renders
+ * what was written *before* it, so a call inserted where the writer happens to
+ * be standing — which on a fresh document is the first line — renders nothing at
+ * all and leaves the lint standing. Found by pressing the button in the running
+ * app, not by any test: every assertion about this call had gone through
+ * `addDump`, and the new button had its own copy of the idea.
+ */
+export function fileAtEnd(doc: string, call: string): { text: string; caret: number } {
   const body = doc.replace(/\s*$/, "");
-  const text = `${body}\n\n${call}\n`;
-  return { text, caret: body.length + 2 };
+  return { text: `${body}\n\n${call}\n`, caret: body.length + 2 };
 }

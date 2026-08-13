@@ -32,6 +32,7 @@ import {
   deferHere,
   recallHere,
   deferAll,
+  inlineAll,
   sortDeferredBodies,
 } from "./deferred-lint";
 import { createBackend, sourcesOf } from "./api";
@@ -61,6 +62,7 @@ import {
   deleteNote,
   markersOf,
   noteAt,
+  noteDepthAt,
   scaffold,
   notesIn,
   tieredNoteAt,
@@ -79,6 +81,8 @@ import { citationMarkup } from "./citation";
 import type { NoteChoice } from "./notes";
 import * as marks from "./marks";
 import { marksIn } from "./marks";
+import * as channels from "./channels";
+import * as apparatus from "./apparatus";
 
 // The modules `main.ts` was split into. What is left here is the shell: the
 // editor itself, the chrome around it, the panels, and boot. Everything with a
@@ -792,6 +796,12 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
+  // Both directions, both bindable, both findable in the palette. The bulk moves
+  // lived only on two buttons inside the notes chooser, which meant "change where
+  // the bodies live" was a thing you could do only if you first opened a modal
+  // about note *layouts* — a different question.
+  { id: "deferAll", run: (v) => (deferAll(v), true) },
+  { id: "deferRecallAll", run: (v) => (inlineAll(v), true) },
   { id: "deferSort", run: (v) => (sortDeferredBodies(v), true) },
 ];
 
@@ -3318,11 +3328,13 @@ function insertMenuItems(): (Node | string)[] {
   for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
   const kb = keybindings();
   /** Insert ▸ Footnote / Endnote, where a Word user looks first. */
-  const noteItem = (action: string, glyph: string, snippet: string | null) =>
+  const noteItem = (action: string, glyph: string, snippet: string | null, why?: string) =>
     el(
       "button",
       {
-        class: "menu-item",
+        class: "menu-item" + (why ? " disabled" : ""),
+        disabled: why ? "true" : null,
+        title: why ? t(why) : "",
         onClick: () => {
           closeMenus();
           const st = runtime.view.state;
@@ -3332,6 +3344,7 @@ function insertMenuItems(): (Node | string)[] {
       [
         el("b", {}, [`${glyph} ${t("sc." + action)}`]),
         kb[action] ? el("code", {}, [readable(kb[action])]) : el("span"),
+        ...(why ? [el("span", { class: "menu-why" }, [t(why)])] : []),
       ],
     );
   const items: (Node | string)[] = [
@@ -3342,11 +3355,28 @@ function insertMenuItems(): (Node | string)[] {
     // none anywhere in the product.
     noteItem("footnote", "†", "#הערה[|]"),
     noteItem("endnote", "⁋", "#הערתסיום[|]"),
-    noteItem("tieredNote", "⁑", null),
     el("button", { class: "menu-item", onClick: openNotesChooser }, [
       el("b", {}, ["✻ " + t("notesChooser")]),
       el("span", { class: "menu-desc" }, [t("notesChooserLede")]),
     ]),
+    // A note on a note is **not** a top-level offer, and that was the margin
+    // note: it sat third in this menu, above the chooser, as though it were one
+    // of the two things a person opens Insert to do. It is not — it is a second
+    // note hung off one that already exists, so in ordinary prose there is
+    // nothing for it to hang off and the command writes a note *beside* the
+    // sentence rather than under a note.
+    //
+    // Below the chooser, and greyed with its reason where it cannot act, which
+    // is this menu's own rule two dozen lines down: an item that silently
+    // vanishes when the caret moves is a product that looks broken.
+    noteItem(
+      "tieredNote",
+      "⁑",
+      null,
+      noteDepthAt(docTextOf(runtime.view?.state.doc ?? ""), runtime.view?.state.selection.main.from ?? 0) > 0
+        ? undefined
+        : "whyNoteOnNoteNeedsANote",
+    ),
     el("button", { class: "menu-item", onClick: insertImage }, [
       el("b", {}, ["🖼 " + t("insertImage")]),
     ]),
@@ -5855,6 +5885,27 @@ function styleRow(label: string, control: Node): HTMLElement {
   return el("label", { class: "set-row" }, [el("span", {}, [label]), control]);
 }
 
+/**
+ * A free-text control for a value that is not a string literal.
+ *
+ * A region's name and a channel's height are both written bare in the source —
+ * one is an identifier the writer chose, the other a length — so neither goes
+ * through `fieldControl`'s `"text"` case, which quotes what it is given.
+ */
+function textControl(
+  current: string,
+  onSet: (v: string) => void,
+  placeholder = "",
+): HTMLElement {
+  const input = el("input", {
+    type: "text",
+    value: current,
+    ...(placeholder ? { placeholder } : {}),
+  }) as HTMLInputElement;
+  input.addEventListener("change", () => onSet(input.value));
+  return input;
+}
+
 function selectControl(
   options: [string, string, boolean?][],
   current: string,
@@ -6611,6 +6662,201 @@ function markStyleRows(): Node[] {
   return rows;
 }
 
+// ----------------------------------------------------------------- channels
+//
+// The one section of this panel that edits the *document's own* declarations
+// rather than a `#הגדרות_*` call, because that is what a channel is: a note
+// stream with a source and a placement, declared once and read wherever a note
+// is written.
+//
+// It is here rather than in the Notes chooser on purpose. The chooser asks
+// "where should this note go?" once, at the moment a note is written, and then
+// the answer is welded into the command that got typed — which is the whole
+// complaint the channel model answers. This asks the same question about a
+// channel that already exists, with the notes already written, and moving the
+// apparatus from the foot of the page to the back of the sefer is one select.
+
+/** Which channel the section is editing; "" until the writer picks one. */
+let channelName = "";
+
+/** The document's channels, or an empty list when there is no editor yet. */
+function documentChannels(): channels.Channel[] {
+  if (!runtime.view) return [];
+  return channels.channelsIn(docTextOf(runtime.view.state.doc));
+}
+
+/** The channel being edited, if it is still in the document. */
+function currentChannel(): channels.Channel | null {
+  return documentChannels().find((c) => c.name === channelName) ?? null;
+}
+
+/** Rewrite one channel's declaration and put the caret on it. */
+function setChannel(fields: channels.ChannelFields) {
+  if (!runtime.view || !channelName) return;
+  const doc = docTextOf(runtime.view.state.doc);
+  const { text, at } = channels.writeChannel(doc, channelName, fields, docLang());
+  replaceAll(text, at);
+  renderStylesPanel();
+}
+
+/**
+ * A channel's name for a chooser: what it *is*, not only what it is called.
+ *
+ * The seven built-in tiers are the native apparatus and a writer does not think
+ * of them as "הערה_ג" — they are the third layer of notes — so they say so, and
+ * a channel the writer named says its own name.
+ */
+function channelLabel(c: channels.Channel): string {
+  const tier = channels.TIER_CHANNELS.indexOf(c.name);
+  if (tier === 0) return t("channelDefault");
+  if (tier > 0) return tf("channelTier", tier + 1);
+  return c.name;
+}
+
+function channelRows(): Node[] {
+  const list = documentChannels();
+  const rows: Node[] = [
+    styleRow(
+      t("channelPick"),
+      selectControl(
+        [["", t("channelPickNone")], ...list.map((c) => [c.name, channelLabel(c)] as [string, string])],
+        channelName,
+        (v) => {
+          channelName = v;
+          renderStylesPanel();
+        },
+      ),
+    ),
+  ];
+  const c = currentChannel();
+  if (!c) {
+    rows.push(el("p", { class: "styles-note" }, [t("channelPickLede")]));
+    rows.push(channelAddRow());
+    return rows;
+  }
+
+  // What this channel is a note *on*. A channel cannot be its own source, and
+  // offering it would let a writer write the cycle the engine has to defend
+  // against — better not to offer it than to bound it twice.
+  rows.push(
+    styleRow(
+      t("channelSource"),
+      selectControl(
+        [
+          ["", t("channelSourceBody")],
+          ...list
+            .filter((o) => o.name !== c.name)
+            .map((o) => [o.name, channelLabel(o)] as [string, string]),
+        ],
+        c.source ?? "",
+        (v) => setChannel({ source: v || null }),
+      ),
+    ),
+  );
+  rows.push(
+    styleRow(
+      t("channelPlacement"),
+      selectControl(
+        channels.PLACEMENTS.map((p) => [p, t("placement." + p)] as [string, string]),
+        c.placement,
+        (v) => setChannel({ placement: v as channels.Placement }),
+      ),
+    ),
+  );
+  // A height is what turns a page-foot channel into a fixed region of its own,
+  // and it is meaningless anywhere else — a collected region takes the height it
+  // needs. Offered only where it does something.
+  if (c.placement === "רגל") {
+    rows.push(
+      styleRow(
+        t("channelHeight"),
+        textControl(c.height ?? "", (v) => setChannel({ height: v.trim() || null }), "3cm"),
+      ),
+    );
+  }
+  rows.push(
+    styleRow(
+      t("channelRegion"),
+      textControl(
+        c.region === c.name ? "" : c.region,
+        (v) => setChannel({ region: v.trim() || null }),
+        c.name,
+      ),
+    ),
+  );
+
+  // What this channel *is*, said plainly, because the three settings above
+  // combine into an arrangement and a writer should not have to hold the rules
+  // in their head to know which one they have just described.
+  rows.push(el("p", { class: "styles-note" }, [t("channelKind." + c.kind)]));
+
+  rows.push(
+    styleRow(
+      "",
+      el("span", { class: "chan-actions" }, [
+        el(
+          "button",
+          { class: "note-use", onClick: () => insertSnippet(channels.noteLine(c.name, docLang())) },
+          ["+ " + t("channelInsertNote")],
+        ),
+        // A collected channel prints nowhere until its region is shown. This is
+        // the "collected and then never rendered" failure that every one of the
+        // eighteen commands could produce, offered as a button instead of as a
+        // lint after the fact.
+        //
+        // Filed at the **end of the document**, through the same rule the lint's
+        // own repair uses. Splicing it at the caret is what this button did
+        // first, and a call renders what was written before it — so on a
+        // document whose caret is on line one it rendered nothing and left the
+        // warning standing, which is the button producing the defect it exists
+        // to cure.
+        ...(c.kind === "collected"
+          ? [
+              el(
+                "button",
+                {
+                  class: "note-use",
+                  onClick: () => {
+                    if (!runtime.view) return;
+                    const filed = apparatus.fileAtEnd(
+                      docTextOf(runtime.view.state.doc),
+                      channels.showRegionLine(c.region, docLang()),
+                    );
+                    replaceAll(filed.text, filed.caret);
+                  },
+                },
+                ["+ " + t("channelInsertDump")],
+              ),
+            ]
+          : []),
+      ]),
+    ),
+  );
+  return rows;
+}
+
+function channelAddRow(): Node {
+  return styleRow(
+    "",
+    el(
+      "button",
+      {
+        class: "note-use",
+        onClick: () => {
+          const name = prompt(t("channelNewPrompt"))?.trim();
+          if (!name || !runtime.view) return;
+          const doc = docTextOf(runtime.view.state.doc);
+          const { text, at } = channels.writeChannel(doc, name, { placement: "רגל" }, docLang());
+          replaceAll(text, at);
+          channelName = name;
+          renderStylesPanel();
+        },
+      },
+      ["+ " + t("channelNew")],
+    ),
+  );
+}
+
 /** Rename one entry of a `("א", "ב")` order tuple, leaving the order alone. */
 function renamedInTuple(src: string | undefined, from: string, to: string): string | null {
   const items = styles.readTuple(src);
@@ -6758,6 +7004,9 @@ function renderStylesPanel() {
     el("h3", {}, [t("styleTables")]),
     ...scopeRows("tables", "kindTable", "kindTableOne"),
     ...tables,
+    el("h3", {}, [t("styleChannels")]),
+    el("p", { class: "styles-note" }, [t("styleChannelsNote")]),
+    ...channelRows(),
     el("h3", {}, [t("styleNotes")]),
     el("p", { class: "styles-note" }, [t("styleNotesNote")]),
     ...scopeRows("notes", "kindNote", "kindNoteOne"),
@@ -7297,6 +7546,22 @@ function bodyPlacementRow(): HTMLElement {
         },
       },
       [t("deferAllAction")],
+    ),
+    // The other direction, and the one that was missing. "Where the note bodies
+    // live" is only *changeable after the notes exist* if it is changeable both
+    // ways: a document could be swept to the org-mode arrangement with one press
+    // and could not be swept back, which is a switch that goes one way.
+    el(
+      "button",
+      {
+        class: "defer-all",
+        onClick: () => {
+          closeNotesChooser();
+          inlineAll(runtime.view);
+          scheduleCompile();
+        },
+      },
+      [t("deferRecallAllAction")],
     ),
     // The other half of writing bodies at the end: keeping that list readable.
     // Filed one at a time, it comes out in the order the notes were *written*,

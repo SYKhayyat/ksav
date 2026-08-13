@@ -79,7 +79,7 @@ prose again — the markup is one key away, which is the right distance for the
 people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
-one does. There are 117 of them and none is worth memorising.
+one does. There are 120 of them and none is worth memorising.
 
 **Nikud** has its own keymap while you are typing pointed Hebrew. It is not in
 this table because it is not one binding — it is a layer, and it is documented

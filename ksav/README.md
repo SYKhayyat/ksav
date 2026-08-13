@@ -89,11 +89,53 @@ You can mix them freely: footnotes at the foot of the page and endnotes at the
 back, in the same document, exactly as in Word — and they no longer both print
 `¹`, since the back matter takes a numbering of its own.
 
-There is a second, independent choice in that panel: whether a note's **text**
-lives inline or at the end of the file (the org-mode arrangement). The page comes
-out identical either way; only the source changes — and every way of inserting a
-note honours it, because the toolbar, the menu, the keyboard and the panel all go
-through one producer.
+### Channels
+
+Those fourteen layouts used to be spelt as eighteen different commands, and they
+were never eighteen ideas — they are a cross product of three arrangements by
+three tiers, exposed as cells rather than as axes. `#מדף_ב` is not something a
+writer would want to say; it is *tier two, printed at the foot of the page*,
+which is two settings wearing a command's clothes.
+
+So there is one concept underneath them. A **channel** is a note stream: it owns
+its numbering, and **only notes in the same channel number together** — that is
+what makes it a channel rather than a style. Two things describe one:
+
+- a **source** — the body text, or *another channel*, which is what makes it a
+  note on a note;
+- a **placement** — the foot of the page, the end of the section or the end of
+  the document, optionally into a named **region**: a fixed area with a size of
+  its own that any number of channels can be pointed into.
+
+```typst
+#ערוץ("ביאור", מיקום: "רגל", גובה: 3cm)   // a peirush in a fixed band
+#ערוץ("שער", מקור: "ביאור", מיקום: "סוף")  // notes on it, collected at the back
+
+בראשית ברא#הערה(ערוץ: "ביאור")[עיין רש״י#הערה(ערוץ: "שער")[ובמה שכתב הרמב״ן]].
+
+#הצג_אזור("שער")
+```
+
+The whole point is the line you do not have to touch. Move that peirush from the
+foot of the page to the back of the sefer and one word changes — `מיקום: "סוף"` —
+and not one of three hundred notes is retyped. That could not be done while the
+arrangement was welded to the command that got typed, which is also why *"change
+where the note bodies live after the notes exist"* was possible in one direction
+only.
+
+**Styles ▸ Note channels** is that model as controls: pick a channel, see what it
+hangs off and where it prints, change either. The eighteen commands still work
+and still mean what they meant — a document that has them keeps compiling — and
+`#הערה_א` and `#הערה_על_הערה`, which were second names for `#הערה` and
+`#הערה_ב`, are no longer offered anywhere.
+
+There is a second, independent choice in the Notes panel: whether a note's
+**text** lives inline or at the end of the file (the org-mode arrangement). The
+page comes out identical either way; only the source changes — and every way of
+inserting a note honours it, because the toolbar, the menu, the keyboard and the
+panel all go through one producer. It is changeable **after** the notes exist,
+in both directions: send every note's prose to the end, bring every one back,
+and sort the list at the foot of the file into the order of the text.
 
 The rest of the editor cannot tell the difference either, which took a second
 pass to be true: the notes pane lists a deferred note under the marker where it
@@ -244,7 +286,7 @@ the reasoning, not the reference, and this file is long enough.
 
 ## Features (engine)
 
-- **117 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **120 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -277,7 +319,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 117 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 120 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -395,7 +437,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,892 editor assertions, 546 engine
+- [x] **CI, running and green** — typecheck, 5,013 editor assertions, 575 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -471,10 +513,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,892 assertions across 80 files
+cd app && npm test                          # 5,013 assertions across 81 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 546 tests, 35 binaries
+cargo test --manifest-path engine/Cargo.toml            # 575 tests, 36 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -518,7 +560,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,213**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **3,291**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

@@ -122,7 +122,24 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_טבלאות", "tables_config", "table", "עיצוב הטבלאות (קו/מרווח/פסים/צבע כותרת/גופן)", "Configure tables (stroke/inset/striping/header fill/font)", "#הגדרות_טבלאות(פסים: true, צבע_כותרת: rgb(\"#dbeafe\"), מרווח: 10pt)|"),
     cmd!("מיזוג", "colspan_", "table", "מיזוג עמודות", "Merge columns", "#מיזוג(2)[|]"),
     // ---- footnote ----
-    cmd!("הערה", "fnote", "footnote", "הערת שוליים", "Footnote", "#הערה[|]"),
+    //
+    // # Channels
+    //
+    // Eighteen commands wrote a note before this, and they were never eighteen
+    // ideas: three arrangements by three tiers plus the escape hatches, exposed
+    // as *cells* rather than as *axes*. `#מדף_ב` is not something a writer would
+    // want to say — it is *tier two, printed at the foot of the page*, which is
+    // two settings wearing a command's clothes.
+    //
+    // A **channel** is a note stream. It owns its numbering, only notes in the
+    // same channel number together, and two declarations describe one: a source
+    // (the body text, or another channel) and a placement (the foot of the page,
+    // the end of the section, the end of the document — optionally into a named
+    // region). Everything below the first three entries is a spelling of that.
+    cmd!("הערה", "fnote", "footnote", "הערת שוליים — ב#ערוץ שנבחר, או בברירת המחדל", "Footnote — in a chosen channel, or the default one", "#הערה[|]"),
+    cmd!("ערוץ", "channel", "footnote", "הגדרת ערוץ הערות — על מה הוא נסמך והיכן הוא מודפס", "Declare a note channel — what it hangs off and where it prints", "#ערוץ(\"|\", מיקום: \"רגל\")"),
+    cmd!("אזור", "region", "footnote", "אזור קבוע שערוצים מופנים אליו, עם גובה משלו", "A fixed region channels are pointed into, with a height of its own", "#אזור(\"|\", מיקום: \"רגל\", גובה: 3cm)"),
+    cmd!("הצג_אזור", "show_region", "footnote", "הצגת ערוצי האזור כאן (בסוף המדור או המסמך)", "Print a region's channels here (end of the section or the document)", "#הצג_אזור(\"|\")"),
     // A sub-note in the NATIVE apparatus is not a second block: Typst has one
     // page-bottom footnote series, so these land in the same block as #הערה, in
     // the same running sequence, distinguished only by size/slant/indent. The

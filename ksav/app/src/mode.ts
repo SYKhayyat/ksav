@@ -231,10 +231,15 @@ const CONTENT: readonly (readonly [string, string])[] = [
   ["נוסחאות", "Variants"],
   ["שינויי נוסחאות", "Textual variants"],
   ["תוכן", "Text"],
-  // The two enum values. `_en_values` in the prelude accepts either spelling,
-  // so these translate the same way a command name does.
+  // The enum values. `_en_values` in the prelude accepts either spelling, so
+  // these translate the same way a command name does.
   ["מוערם", "stacked"],
   ["צד", "side"],
+  // A channel's placement — the one axis of the note model that is compared
+  // against a fixed set of names rather than used as data.
+  ["רגל", "foot"],
+  ["סוף_מדור", "section"],
+  ["סוף", "document"],
   ["סימון", "marks"],
   ["סופי", "final"],
   ["מקורי", "original"],

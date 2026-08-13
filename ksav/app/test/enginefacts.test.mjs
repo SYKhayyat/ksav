@@ -47,6 +47,13 @@ import {
 } from "../.tmp-test/engine.gen.mjs";
 import { INSTANCE_KEYS, instanceCommands } from "../.tmp-test/styles.mjs";
 import { MARK_CLASSES, STYLED_CLASSES } from "../.tmp-test/marks.mjs";
+import {
+  DEFAULT_CHANNEL,
+  PLACEMENTS,
+  TIER_CHANNELS as CHANNEL_TIERS,
+  englishArg,
+  englishValue,
+} from "../.tmp-test/channels.mjs";
 import { DEFAULTS, defaultPageSetup } from "../.tmp-test/settings.mjs";
 import { CLASSIFIED_NAMES, toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
@@ -361,6 +368,70 @@ export async function run() {
       [...MARK_CLASSES].sort(),
       classKeys("_mk_titles").sort(),
     );
+
+    // ------------------------------------------------------------- channels
+    //
+    // The channel model has four tables that exist on both sides of the wire —
+    // the built-in tier channels, the three placements, the argument names and
+    // the placement *values* — and every one of them is a list the editor could
+    // get wrong in the way this file exists to catch: a panel that offers a
+    // placement the engine refuses stops the compile the moment somebody picks
+    // it, and one that omits a placement the engine accepts is an arrangement
+    // reachable only by typing the command.
+    check(
+      "the editor's built-in channels are the prelude's tiers",
+      [...CHANNEL_TIERS],
+      quotedOn("_ch_tiers"),
+    );
+    check(
+      "the editor's placements are the prelude's",
+      [...PLACEMENTS].sort(),
+      quotedOn("_ch_places").sort(),
+    );
+    check(
+      "…and the default channel is the one the prelude writes into",
+      DEFAULT_CHANNEL,
+      quotedOn("_ch_default")[0],
+    );
+    // The English spellings, against `_en_params` and `_en_values`. An English
+    // command taking a Hebrew parameter is not English, and neither is one
+    // taking a Hebrew *value* — which is the whole reason `_en_values` exists.
+    for (const he of ["ערוץ", "מקור", "מיקום", "אזור", "גובה", "פריסה", "כותרת"]) {
+      const en = englishArg(he);
+      ok(
+        `the panel's English spelling of ${he} is one the prelude reads`,
+        !!en && new RegExp(`\\b${en}:\\s*"${he}"`, "u").test(prelude),
+        () => `${he} → ${en} is not in _en_params`,
+      );
+    }
+    for (const he of [...PLACEMENTS, "מוערם", "צד"]) {
+      const en = englishValue(he);
+      ok(
+        `the panel's English spelling of the value ${he} is one the prelude reads`,
+        !!en && new RegExp(`\\b${en}:\\s*"${he}"`, "u").test(prelude),
+        () => `${he} → ${en} is not in _en_values`,
+      );
+    }
+    // A channel knob the prelude accepts and the editor never writes is not a
+    // defect — the panel deliberately offers four of ten — but a knob the editor
+    // writes and the prelude refuses stops the compile, so that direction is
+    // checked and the other is not.
+    const channelOwn = preludeList("_ch_own");
+    for (const he of ["מקור", "מיקום", "אזור", "גובה"]) {
+      ok(
+        `the prelude's #ערוץ accepts ${he}`,
+        channelOwn.includes(he),
+        () => `_ch_own is ${channelOwn}`,
+      );
+    }
+    const regionOwn = preludeList("_rg_own");
+    for (const he of ["מיקום", "גובה", "פריסה", "כותרת"]) {
+      ok(
+        `the prelude's #אזור accepts ${he}`,
+        regionOwn.includes(he),
+        () => `_rg_own is ${regionOwn}`,
+      );
+    }
   }
 
   // ------------------------------------------- 5. "strip the markup", once

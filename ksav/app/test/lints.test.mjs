@@ -194,6 +194,54 @@ export async function run() {
       check("source unchanged", v.text(), doc);
     }
 
+    // ------------------------------------------------------ and the channels
+    //
+    // The same failure under the new spelling, swept rather than left for the
+    // next report to find: a channel placed at the end of a section or of the
+    // document collects its notes and prints nothing until `#הצג_אזור` is
+    // called. Naming a class of bug and fixing one instance of it is the mistake
+    // this repository keeps repeating.
+
+    {
+      const doc = '#ערוץ("ביאור", מיקום: "סוף")\nפתיחה#הערה(ערוץ: "ביאור")[הגוף] סוף.\n';
+      const found = unrendered(doc);
+      check("a collected channel with no region call is diagnosed", found.length, 1);
+      check("…and the fix names its region", found[0]?.fix, '#הצג_אזור("ביאור")');
+      const v = fakeView(doc, 0);
+      check("the repair writes one call", renderAllNotes(v), 1);
+      ok("…which is the region's", v.text().includes('#הצג_אזור("ביאור")'));
+      check("and nothing is left unrendered", unrendered(v.text()), []);
+      ok("the writer's note is untouched", v.text().includes("[הגוף]"));
+    }
+
+    {
+      // A channel at the *foot of the page* prints itself, like every other
+      // page-foot apparatus. Warning about it would be four false positives in
+      // a row, which is what the comment at the head of `apparatus.ts` says
+      // guessing produced last time.
+      const doc = '#ערוץ("ביאור", מיקום: "רגל", גובה: 3cm)\nא#הערה(ערוץ: "ביאור")[גוף]\n';
+      check("a page-foot channel needs no call", unrendered(doc), []);
+    }
+
+    {
+      // Two channels in one region: one call renders both, so the second is not
+      // a second warning.
+      const doc =
+        '#אזור("פירושים", מיקום: "סוף")\n' +
+        '#ערוץ("ביאור", אזור: "פירושים")\n#ערוץ("מקורות", אזור: "פירושים")\n' +
+        'א#הערה(ערוץ: "ביאור")[אחד]#הערה(ערוץ: "מקורות")[שניים]\n\n#הצג_אזור("פירושים")\n';
+      check("one call covers every channel in its region", unrendered(doc), []);
+    }
+
+    {
+      // The call has to come *after* the note, exactly as the dump calls do: a
+      // region shown at the top of the file renders what was written before it,
+      // which is nothing.
+      const doc =
+        '#ערוץ("ביאור", מיקום: "סוף")\n#הצג_אזור("ביאור")\n\nא#הערה(ערוץ: "ביאור")[גוף]\n';
+      check("a call before the note does not cover it", unrendered(doc).length, 1);
+    }
+
     {
       // Both repairs on one document, in the order a writer would hit them.
       // They must not fight: healing brackets must not disturb the streams, and

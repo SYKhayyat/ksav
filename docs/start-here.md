@@ -41,8 +41,30 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 117 commands. `#` in the editor offers all of them with what each one
+There are 120 commands. `#` in the editor offers all of them with what each one
 does, so none is worth memorising.
+
+## Where a note goes is a setting, not a command
+
+A **channel** is a note stream. It owns its numbering — only notes in the same
+channel number together — and two things describe one: what it is a note *on*
+(the text itself, or another channel) and where it is *printed* (the foot of the
+page, the end of the section, the end of the document).
+
+```
+#ערוץ("ביאור", מיקום: "רגל", גובה: 3cm)
+
+בראשית ברא#הערה(ערוץ: "ביאור")[עיין רש״י] אלקים.
+```
+
+Change `"רגל"` to `"סוף"` and the whole peirush moves to the back of the sefer.
+Not one note is retyped, because none of them says where it goes. **Styles ▸ Note
+channels** is the same thing without typing: pick a channel, change where it
+prints.
+
+Give a channel a `גובה` and it gets a fixed region of its own at the foot of the
+page; point two channels at one `#אזור` and they share it, stacked or side by
+side. That is the Mikraos-Gedolos arrangement, and it is two lines.
 
 ## Notes whose text lives at the end
 

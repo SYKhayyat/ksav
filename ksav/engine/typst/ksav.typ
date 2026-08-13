@@ -52,6 +52,12 @@
   // notes and streams
   stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
   kind: "סוג", name: "שם",
+  // channels. `placement` and not `place`, which is already מקום — a source
+  // reference's page — and would have made one English word mean two things a
+  // writer can set on two different commands.
+  // `source` is already here, one section down, and it is the same Hebrew word:
+  // what a citation points at and what a channel hangs off are both מקור.
+  channel: "ערוץ", placement: "מיקום", region: "אזור", height: "גובה",
   // The one switch every `#הגדרות_*` command shares: make the global win over
   // every per-element override. See `_cfg_with`.
   force: "כפה",
@@ -110,6 +116,11 @@
   // הגדרות_זרמים · פריסה
   stacked: "מוערם",
   side: "צד",
+  // ערוץ / אזור · מיקום — where a channel's notes are printed.
+  foot: "רגל",
+  section: "סוף_מדור",
+  document: "סוף",
+  end: "סוף",
   // הגדרות_סקירה · תצוגה
   marks: "סימון",
   marked: "סימון",
@@ -414,6 +425,20 @@
   }
 }
 
+// The tiers of the native apparatus, named. A tier IS a channel — the one whose
+// source is the tier above it and whose placement is the foot of the page — so
+// the seven tier commands are seven built-in channels and this array is where
+// they get their names. `#הערה` and `#הערה_א` are one channel and always were;
+// see the channel section for what the rest of the model is.
+//
+// Numbering keys on this name rather than on the tier integer, which is the
+// same set for the tier commands and is what lets a channel a writer *declared*
+// number on its own without leaving the native apparatus.
+#let _ch_tiers = ("הערה", "הערה_ב", "הערה_ג", "הערה_ד", "הערה_ה", "הערה_ו", "הערה_ז")
+#let _ch_tier_name(n) = if n >= 1 and n <= _ch_tiers.len() {
+  _ch_tiers.at(n - 1)
+} else { "הערה_" + str(n) }
+
 // הערה_בדרגה(דרגה, body) — a note in tier `דרגה` (1 = a note on the text, 2 = a note
 // ON a tier-1 note, …). Nest freely: #הערה_א[… #הערה_ב[… #הערה_ג[…]]].
 //
@@ -421,7 +446,13 @@
 // note that has to stand out, without a second `#הגדרות_הערות` line that would
 // restyle every note after it. Per-tier tuples still apply to the tiers this note
 // is not in, so an override is one entry deep and not a fresh apparatus.
-#let הערה_בדרגה(דרגה, body, ..opts) = context {
+//
+// `_ערוץ` and `_מספור` are the channel layer's, not the writer's. A channel is
+// what numbers together, and a *declared* channel placed at the page foot is a
+// tier of this apparatus with a name and a sequence of its own — so the layer
+// above passes both, and a writer who never declares a channel sees exactly the
+// per-tier behaviour this apparatus has always had.
+#let הערה_בדרגה(דרגה, body, _ערוץ: none, _מספור: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
   let cfg = _cfg_with(_fn_cfg.get(), own)
   // Not ours: handed to `footnote` at both call sites below, so its own error
@@ -441,51 +472,41 @@
     body
   })
   let schemes = cfg.at("מספור", default: none)
-  if type(schemes) != array {
+  // A channel's own scheme beats the per-tier array: the channel *is* the
+  // sequence, and two channels sharing a tier are two sequences.
+  let scheme = if _מספור != none { _מספור } else if type(schemes) == array {
+    _fn_pick(schemes, דרגה, "1")
+  } else { none }
+  if scheme == none {
     footnote(..rest, entry)
   } else {
-    // Per-tier numbering. Typst has ONE footnote counter, and the `numbering`
+    // Per-channel numbering. Typst has ONE footnote counter, and the `numbering`
     // callback is handed that counter's value — so it cannot be used to count a
     // tier. The number is instead this note's *rank among the real notes of its
-    // own tier*, read out of a query, exactly as the collect-then-render
+    // own channel*, read out of a query, exactly as the collect-then-render
     // apparatus does it; the callback then ignores the argument it was given.
     // Read-only, so it converges, and `_ksav_real_of` keeps a body that an
     // apparatus re-displays from being counted twice.
-    [#metadata(דרגה)#label("ksav-fnt")]
+    let key = if _ערוץ != none { _ערוץ } else { _ch_tier_name(דרגה) }
+    [#metadata(key)#label("ksav-fnt")]
     context {
       let loc = here()
-      let n = _ksav_rank(selector(label("ksav-fnt")), loc, e => e.value == דרגה)
-      let scheme = _fn_pick(schemes, דרגה, "1")
+      let n = _ksav_rank(selector(label("ksav-fnt")), loc, e => e.value == key)
       footnote(numbering: _ => numbering(scheme, n), ..rest, entry)
     }
   }
 }
 
-// tier aliases — Hebrew letters mirror the "block A / block B / block C" model.
-// Each forwards `..opts`, because an alias that swallowed the per-note override
-// would be a control that works on `#הערה_בדרגה(2, …)` and silently does nothing
-// on `#הערה_ב[…]`, which is the spelling everybody actually writes.
-#let הערה_א(body, ..opts) = הערה_בדרגה(1, body, ..opts)
-#let הערה_ב(body, ..opts) = הערה_בדרגה(2, body, ..opts)
-#let הערה_ג(body, ..opts) = הערה_בדרגה(3, body, ..opts)
-#let הערה_ד(body, ..opts) = הערה_בדרגה(4, body, ..opts)
-#let הערה_ה(body, ..opts) = הערה_בדרגה(5, body, ..opts)
-#let הערה_ו(body, ..opts) = הערה_בדרגה(6, body, ..opts)
-#let הערה_ז(body, ..opts) = הערה_בדרגה(7, body, ..opts)
 // `_en` and not a bare binding, now that these take named arguments: a bare
 // binding is the same function under a second name, so `#tier2(size: 1em)[…]`
 // would arrive as a Hebrew-named knob spelled in English and be rejected. That
 // is the finding this file already recorded once about twelve other aliases —
 // *"an English command taking an English parameter"* — and every command that
 // grows a named argument joins the list.
+//
+// The seven tier aliases themselves are declared with the channel commands, one
+// section down, because a tier IS a channel and they route through the table.
 #let tier = _en(הערה_בדרגה)
-#let tier1 = _en(הערה_א)
-#let tier2 = _en(הערה_ב)
-#let tier3 = _en(הערה_ג)
-#let tier4 = _en(הערה_ד)
-#let tier5 = _en(הערה_ה)
-#let tier6 = _en(הערה_ו)
-#let tier7 = _en(הערה_ז)
 
 // ============================================================
 //  A banded apparatus, written once
@@ -663,13 +684,26 @@
   out
 }
 
+// A fixed region: the slot a band or a channel occupies whether or not it has
+// anything in it this page. Its own function because a *region* can hold more
+// than one channel — the slot then belongs to the region and not to any one
+// group inside it — and because the answer to "a percentage of what" may be
+// written once (see `_ap_fixed_height`).
+#let _ap_slot(h, body) = if h == none { body } else {
+  context block(width: 100%, height: _ap_fixed_height(h), clip: true, body)
+}
+
 // One group's block: the numbered entries, laid into columns and, if this
 // apparatus reserves fixed regions, into a slot of a fixed height that it
 // occupies whether or not it has anything in it this page.
 //
 // `lead` prints INSIDE the columns — a band's own small label belongs at the top
 // of its first column. `above` prints outside them — a stream's title spans them.
-#let _ap_group(cfg, g, entries, above: none, lead: none) = {
+//
+// `גובה: auto` reads the height off this group's own key, which is what a band
+// and a lone stream want. `none` says the caller is doing the slot itself —
+// a region holding several channels is one slot, not one per channel.
+#let _ap_group(cfg, g, entries, above: none, lead: none, גובה: auto) = {
   above
   let inner = {
     lead
@@ -686,9 +720,7 @@
   }
   let cols = _ap_pick(cfg, "טורים", g, 1)
   let filled = if cols > 1 { columns(cols, inner) } else { inner }
-  let h = _ap_pick(cfg, "גבהים", g, none)
-  if h != none { context block(width: 100%, height: _ap_fixed_height(h), clip: true, filled) }
-  else { filled }
+  _ap_slot(if גובה == auto { _ap_pick(cfg, "גבהים", g, none) } else { גובה }, filled)
 }
 
 // The apparatus block itself: the rule above it, the groups, and a short divider
@@ -731,6 +763,209 @@
 }
 
 // ============================================================
+//  ערוצים · channels — the table
+// ------------------------------------------------------------
+//  Eighteen commands wrote a note before this. They were never eighteen ideas:
+//  three arrangements by three tiers plus the any-tier escape hatches, exposed
+//  as *cells* rather than as *axes*. `#מדף_ב` is not something a writer would
+//  want to say — it is *tier two, printed at the foot of the page*, which is two
+//  settings wearing a command's clothes.
+//
+//  So: one concept, and it is the one thing every arrangement has in common.
+//
+//  **A channel is a note stream. It owns its numbering, and only notes in the
+//  same channel number together** — that is what makes it a channel rather than
+//  a style. Two things describe one:
+//
+//    · **a source** — the body text, or *another channel*. A channel whose
+//      source is a channel is a note on a note, and it is placed independently
+//      of its parent, which is the difference between `#הערה_ב` and `#מדף_ב`
+//      that used to be encoded in which command was typed.
+//    · **a placement** — "רגל" (the foot of the page), "סוף_מדור" (the end of
+//      the section) or "סוף" (the end of the document), optionally into a named
+//      **region**.
+//
+//  The doc this comes from names five placements. Three of them are the ones a
+//  writer chooses; the other two are consequences and not choices. *Indented
+//  inside its parent's block* is what a channel gets when its source is a
+//  channel and both are at the page foot — it cannot be indented inside a block
+//  that is three hundred pages away — and *a named region* is `אזור:`, which
+//  every placement takes.
+//
+//  **A region is a fixed area, made by its own command with its own size.** Once
+//  it exists any channel can be pointed into it, and more than one channel in
+//  one region is what raises the stacked-versus-side-by-side question the
+//  `_ap_*` renderer above already answers. A channel given a `גובה` and no
+//  `אזור` gets a region of its own — the common case, said in one command.
+//
+//  # Where a channel's notes are actually collected
+//
+//  Three collectors, and which one a channel uses is a *consequence* of its
+//  placement rather than a fourth thing to choose:
+//
+//    · **the native footnote apparatus** — Typst's own, balanced across page
+//      breaks, one series per page. The default channel `הערה` and any channel
+//      whose source chain reaches it without asking for a region. This is the
+//      one collector nothing else can imitate: only Typst can balance a note
+//      against the page it is on.
+//    · **the page-foot regions** — the read-only footer apparatus (`#הערה_זרם`
+//      and `_sf_page_streams`). Every other channel placed at "רגל".
+//    · **the collected regions** — a channel placed at "סוף_מדור" or "סוף",
+//      rendered where `#הצג_אזור` is called.
+//
+//  The table is read with `.final()` and not `.get()`, deliberately: where a
+//  channel prints is a fact about the document, not about a position in it, and
+//  a `#ערוץ` line written at the bottom of the file has to reach page one. The
+//  configuration commands underneath it are still positional, which is the flaw
+//  this layer exists above.
+// ============================================================
+#let _ch_default = "הערה"
+#let _ch_places = ("רגל", "סוף_מדור", "סוף")
+// A knob of a channel, and where the shared renderer reads it: `_ap_pick` wants
+// knob-major dictionaries keyed by the group, and a channel's record is
+// channel-major. `כותרת` is singular on a channel and plural in the renderer for
+// the same reason — one channel has one title, and the apparatus has a table.
+#let _ch_knobs = (
+  ("מספור", "מספור"), ("גודל", "גודל"), ("סגנון", "סגנון"),
+  ("צבע", "צבע"), ("טורים", "טורים"), ("כותרת", "כותרות"),
+)
+// The seven tiers of the native apparatus, as the seven channels they are. A
+// document that declares nothing already has these, which is why `#הערה_ב`
+// inside `#הערה` needs no `#ערוץ` line to work.
+#let _ch_builtin = {
+  let d = (:)
+  for (i, n) in _ch_tiers.enumerate() {
+    d.insert(n, (מיקום: "רגל", מקור: if i == 0 { auto } else { _ch_tiers.at(i - 1) }))
+  }
+  d
+}
+#let _ch_st = state("ksav-ch", (ערוצים: _ch_builtin, סדר: _ch_tiers, אזורים: (:), סדר_אזורים: ()))
+
+#let _ch_rec(t, name) = t.ערוצים.at(name, default: (:))
+#let _rg_rec(t, name) = t.אזורים.at(name, default: (:))
+// Where a channel's notes print. A channel pointed into a region takes the
+// region's placement, because a region *is* a place — pointing a channel at one
+// and then asking the channel where it goes is asking the same question twice
+// and letting the two answers disagree. Said the other way: `#אזור("x", מיקום:
+// "סוף")` is how a whole group of channels moves at once.
+#let _ch_place(t, name) = {
+  let r = _ch_rec(t, name)
+  if "מיקום" in r { return _val(r.מיקום) }
+  let a = r.at("אזור", default: none)
+  if a != none {
+    let rg = _rg_rec(t, _as_string(a).trim())
+    if "מיקום" in rg { return _val(rg.מיקום) }
+  }
+  "רגל"
+}
+// The channel this one hangs off, or none for a channel on the body text.
+#let _ch_source(t, name) = {
+  let s = _ch_rec(t, name).at("מקור", default: auto)
+  if s == auto or s == none { none } else { _as_string(s).trim() }
+}
+// The region a channel is pointed into. A channel that named none is its own
+// region — which is what every document written before channels existed has, and
+// why `#הערה_זרם("מקורות")` still gets its own slot without declaring one.
+#let _ch_region(t, name) = {
+  let a = _ch_rec(t, name).at("אזור", default: none)
+  if a == none { name } else { _as_string(a).trim() }
+}
+// The guard is not decoration: `#ערוץ("א", מקור: "ב")` and `#ערוץ("ב", מקור: "א")`
+// is a cycle a writer can type, and a chain walk without a bound hangs the
+// compile rather than printing a document with one odd-looking note in it.
+#let _ch_walk_max = 16
+// How deep in the source chain — 1 for a channel on the body text. This is the
+// tier the native apparatus indents by.
+#let _ch_depth(t, name) = {
+  let d = 1
+  let at = name
+  let guard = 0
+  while guard < _ch_walk_max {
+    let s = _ch_source(t, at)
+    if s == none or s == at { break }
+    d += 1
+    at = s
+    guard += 1
+  }
+  d
+}
+// Is this channel part of Typst's own balanced page-bottom series?
+//
+// Exactly when its source chain reaches the default channel with every link
+// placed at the page foot and none of them asking for a region. Typst has one
+// balanced series, so a *second* root channel at the page foot cannot join it —
+// it becomes a region at the foot instead, which is fixed geometry rather than
+// balanced, and needs the reserve the Rust side takes off the bottom margin.
+#let _ch_is_native(t, name) = {
+  let at = name
+  let guard = 0
+  while guard < _ch_walk_max {
+    if _ch_place(t, at) != "רגל" { return false }
+    let r = _ch_rec(t, at)
+    if r.at("אזור", default: none) != none or r.at("גובה", default: none) != none {
+      return false
+    }
+    let s = _ch_source(t, at)
+    if s == none or s == at { return at == _ch_default }
+    at = s
+    guard += 1
+  }
+  false
+}
+// Where a channel's notes are collected: "מקורי" (Typst's own), "רגל" (a region
+// at the page foot) or "אסוף" (a region rendered at a #הצג_אזור call).
+#let _ch_kind(t, name) = {
+  if _ch_is_native(t, name) { "מקורי" }
+  else if _ch_place(t, name) == "רגל" { "רגל" }
+  else { "אסוף" }
+}
+// A channel's numbering scheme, when it declared one. `none` leaves the
+// apparatus underneath to answer — which for a native channel is the per-tier
+// array of `#הגדרות_הערות`.
+#let _ch_scheme(t, name) = _ch_rec(t, name).at("מספור", default: none)
+// The height of a region: its own if it declared one, else the height of the
+// lone channel that made it, else whatever the apparatus's own table says.
+#let _ch_region_height(cfg, t, rg, chans) = {
+  let own = _rg_rec(t, rg).at("גובה", default: none)
+  if own != none { return own }
+  for c in chans {
+    let h = _ch_rec(t, c).at("גובה", default: none)
+    if h != none { return h }
+  }
+  _ap_pick(cfg, "גבהים", rg, none)
+}
+#let _ch_region_side(t, rg) = _val(_rg_rec(t, rg).at("פריסה", default: "מוערם")) == "צד"
+
+// Fold the channel table into an apparatus's configuration.
+//
+// The apparatus knobs are read by `_ap_pick`, which takes a dictionary keyed by
+// group, an array (per tier) or one scalar. A channel that declared a knob has
+// to beat the apparatus's own setting for that channel and for no other — so a
+// scalar being overridden is first spread across every group present, and only
+// then overwritten. Without that, `#הגדרות_זרמים(גודל: 0.9em)` plus one channel
+// with its own size would leave every *other* stream falling back to the
+// renderer's hard-coded default: one writer's override silently restyling the
+// notes they did not touch.
+#let _ch_merge(cfg, t, groups) = {
+  let c = cfg
+  for (mine, theirs) in _ch_knobs {
+    let base = cfg.at(theirs, default: none)
+    let d = (:)
+    for g in groups {
+      let own = _ch_rec(t, g).at(mine, default: none)
+      if own != none { d.insert(g, own) }
+      else if type(base) == dictionary { if g in base { d.insert(g, base.at(g)) } }
+      // An array is a *per-tier* setting and a channel is not a tier. Left
+      // alone, so `_ap_pick` falls through to the renderer's own answer rather
+      // than handing a band the whole tuple as its numbering scheme.
+      else if base != none and type(base) != array { d.insert(g, base) }
+    }
+    if d.len() > 0 { c.insert(theirs, d) }
+  }
+  c
+}
+
+// ============================================================
 //  הערות מדורגות · fully regrouped stacked bands (end / section)
 // ------------------------------------------------------------
 //  The Gemara / critical-apparatus look: ALL tier-1 notes in one band, then
@@ -762,6 +997,61 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
+// The channels pointed into a region, in declaration order.
+#let _ch_in_region(t, rg) = t.סדר.filter(c => _ch_region(t, c) == rg)
+
+// A collected channel's numbering: its own if it declared one, else the band
+// convention by its position in its region — א,ב,ג over 1,2,3, the שער־הציון
+// order, which is `_ap_numbering` read through `_md_cfg` and not a second copy
+// of it.
+#let _ch_position(t, name) = {
+  let i = _ch_in_region(t, _ch_region(t, name)).position(c => c == name)
+  if i == none { 1 } else { i + 1 }
+}
+
+// Two sets of knobs a channel can answer by its position in its region, and the
+// fallback each takes outside the arrays' range.
+//
+// The split is the point. **`מספור` belongs to the channel** — it is the one
+// thing "only notes in the same channel number together" is about — so it
+// follows the channel wherever the channel is placed. **Size, slant and colour
+// belong to where it is printed**: the page-foot apparatus deliberately runs a
+// shade smaller than the in-flow one because it lives in the bottom margin, and
+// carrying the in-flow ramp down there would undo that on purpose.
+#let _ch_ramp_number = (("מספור", "1"),)
+#let _ch_ramps = _ch_ramp_number + (("גודל", 0.85em), ("סגנון", "normal"), ("צבע", luma(0)))
+
+// Answer a set of knobs *by each channel's position in its region*.
+//
+// The apparatus defaults are per-tier arrays and a channel is not a tier, so
+// without this two channels sharing a region would print identically and the
+// writer would have to restate a convention the apparatus already holds — א,ב,ג
+// over 1,2,3, the שער־הציון order, read out of `_md_defaults` rather than
+// written a second time.
+//
+// `declared` is what keeps a document written before channels existed from
+// renumbering itself: `#הערה_זרם("מקורות")` is a channel nobody declared, and
+// its apparatus already has an answer. A channel a `#ערוץ` line named takes the
+// convention wherever it is placed, which is what makes moving one from the foot
+// of the page to the back of the sefer leave its numbering alone.
+#let _ch_ramped(cfg, t, chans, keys, declared) = {
+  let base = _md_cfg.get()
+  let c = cfg
+  for (k, fb) in keys {
+    let arr = base.at(k, default: none)
+    let d = if type(c.at(k, default: none)) == dictionary { c.at(k) } else { (:) }
+    for g in chans {
+      if declared and not t.סדר.contains(g) { continue }
+      let own = _ch_rec(t, g).at(k, default: none)
+      if own != none { d.insert(g, own) }
+      else { d.insert(g, _fn_pick(arr, _ch_position(t, g), fb)) }
+    }
+    if d.len() > 0 { c.insert(k, d) }
+  }
+  c
+}
+
+
 #let _md_label = label("ksav-md")
 // Every #הערות_מדורגות call drops this marker, which delimits one "section":
 // a note belongs to the section that ends at the first dump after it.
@@ -989,6 +1279,13 @@
   for (k, v) in opts.named() { d.insert(k, v) }
   d
 })
+// One page-foot channel's configuration: the stream settings, anything the
+// channel declared, and its numbering by position in its region. Read at the
+// marker *and* in the footer, because a marker that says `1` over an entry that
+// says `א` is a reader sent to the wrong band.
+#let _ch_foot_cfg(t, chans) = _ch_ramped(
+  _ch_merge(_sf_cfg.get(), t, chans), t, chans, _ch_ramp_number, true,
+)
 #let _sf_label = label("ksav-sf")
 #let _sf_all() = _ap_all(_sf_label)
 // Numbered document-wide, like the per-page bands: a stream is one running
@@ -1004,7 +1301,9 @@
 #let הערה_זרם(זרם, body, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
   _cfg_strict("הערה_זרם", rest)
-  _ap_note(_cfg_with(_sf_cfg.get(), own), _sf_label, _sf_scope, _as_string(זרם), body, own: own)
+  let name = _as_string(זרם)
+  let cfg = _ch_foot_cfg(_ch_st.final(), (name,))
+  _ap_note(_cfg_with(cfg, own), _sf_label, _sf_scope, name, body, own: own)
 }
 // Ordered list of stream names actually present, honouring an explicit order.
 #let _sf_order(cfg, present) = {
@@ -1013,11 +1312,35 @@
     explicit.filter(s => present.contains(s)) + present.filter(s => not explicit.contains(s))
   } else { present }
 }
-// Read-only footer: render every stream's notes for the current page.
+// One channel's block inside a page-foot region. The slot belongs to the region,
+// so this never takes one of its own — `גובה: none`.
+//
+// A stream title spans the stream's columns, so it goes `above` them rather than
+// leading the first one.
+#let _sf_stream_block(cfg, s, mine, all) = _ap_group(
+  cfg,
+  s,
+  _ap_entries(mine, all, s),
+  גובה: none,
+  above: {
+    let head = cfg.at("כותרות", default: (:)).at(s, default: none)
+    if head != none {
+      block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head))
+    }
+  },
+)
+
+// Read-only footer: render every page-foot region's notes for the current page.
+//
+// The groups here are **regions**, not channels: a region is the fixed slot, and
+// the channels pointed into it share that slot, stacked or side by side. A
+// channel nobody declared is its own region, so a document written before
+// channels existed lays out to the same page — one region per stream, each with
+// the height `#הגדרות_זרמים(גבהים: …)` gave it.
 #let _sf_page_streams() = context {
   let all = _sf_all()
   if all.len() > 0 {
-    let cfg = _sf_cfg.get()
+    let t = _ch_st.final()
     let pg = here().page()
     let mine = all.filter(e => e.location().page() == pg)
     if mine.len() > 0 {
@@ -1025,25 +1348,38 @@
       // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
       // laid out on every apparatus page, even with nothing in it this page, so
       // a stream never drifts into another's place.
-      let fixed = cfg.at("גבהים", default: (:)).keys()
-      let streams = _sf_order(cfg, present + fixed.filter(s => not present.contains(s)))
+      let fixed = _sf_cfg.get().at("גבהים", default: (:)).keys()
+      let streams = _sf_order(_sf_cfg.get(), present + fixed.filter(s => not present.contains(s)))
+      // …and the ramps, for the channels a `#ערוץ` line declared. A channel's
+      // numbering belongs to the channel, so moving one from the foot of the
+      // page to the back of the sefer must not renumber it — which it did until
+      // this line, because the two apparatuses answer that question differently
+      // when nobody asks. A stream nobody declared is untouched.
+      let cfg = _ch_foot_cfg(t, streams)
+      let regions = ()
+      let members = (:)
+      for s in streams {
+        let rg = _ch_region(t, s)
+        if not regions.contains(rg) { regions.push(rg) }
+        let m = members.at(rg, default: ())
+        m.push(s)
+        members.insert(rg, m)
+      }
       set align(if text.dir == rtl { right } else { left })
       block(width: 100%, _ap_bands(
         cfg,
-        streams,
-        // A stream title spans the stream's columns, so it goes `above` them
-        // rather than leading the first one.
-        s => _ap_group(
-          cfg,
-          s,
-          _ap_entries(mine, all, s),
-          above: {
-            let head = cfg.at("כותרות", default: (:)).at(s, default: none)
-            if head != none {
-              block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head))
-            }
-          },
-        ),
+        regions,
+        rg => {
+          let chans = members.at(rg)
+          let one(s) = _sf_stream_block(cfg, s, mine, all)
+          _ap_slot(_ch_region_height(cfg, t, rg, chans), if chans.len() == 1 {
+            one(chans.first())
+          } else if _ch_region_side(t, rg) {
+            grid(columns: chans.map(_ => 1fr), column-gutter: 1.2em, ..chans.map(one))
+          } else {
+            for s in chans { one(s) }
+          })
+        },
         divider: 30%,
         side: _val(cfg.at("פריסה", default: "מוערם")) == "צד",
       ))
@@ -1056,6 +1392,204 @@
 #let contentnote = _en(הערת_תוכן, extra: (columns: "טורים"))
 #let sourcenote_stream = _en(הערת_מקור, extra: (columns: "טורים"))
 #let streams_config = _en(הגדרות_זרמים, extra: (columns: "טורים"))
+
+// ============================================================
+//  ערוצים · channels — the commands
+// ------------------------------------------------------------
+//  Three acts, and the arrangement stops being encoded in the command's
+//  identity:
+//
+//    #הערה[…]                       a note
+//    #הערה(ערוץ: "ביאור")[…]         a note in a channel you named
+//    #ערוץ("שער", מקור: "ביאור")     …and that channel is a note on a note
+//
+//  Everything else is a declaration at the top of the file, and it can be
+//  changed after the notes are written — which is the payoff, and which the
+//  eighteen commands could not give. Moving a commentary from the foot of the
+//  page to the back of the sefer was a find-and-replace over every note; it is
+//  now one word in one line.
+//
+//  See the table above for what a channel and a region are.
+// ============================================================
+#let _ch_own = (
+  "מקור", "מיקום", "אזור", "גובה",
+  "מספור", "גודל", "סגנון", "צבע", "טורים", "כותרת",
+)
+#let _rg_own = ("מיקום", "גובה", "פריסה", "כותרת")
+
+// The apparatus configuration for a set of collected channels: whatever the
+// channel declared and whatever the bands were configured with, then the ramps.
+#let _ch_cfg(t, chans) = _ch_ramped(
+  _ch_merge(_md_cfg.get(), t, chans), t, chans, _ch_ramps, false,
+)
+
+// ---- the collected placement · one region, rendered where it is asked for ----
+// Its own label, and not the section bands': `#הערות_מדורגות` renders *every*
+// group in its section, so a channel sharing that label would print in a band it
+// was never pointed at. Its own dump marker per region, and not one shared one:
+// a document that dumps a section region at every siman and a document-end
+// region once would otherwise cut the second one's scope at every siman.
+#let _cn_label = label("ksav-cn")
+#let _cn_dump(rg) = label("ksav-cnd-" + rg)
+#let _cn_scope(rg) = loc => _ksav_between(selector(_cn_label), _cn_dump(rg), loc)
+#let _cn_note(cfg, rg, name, body, own) = _ap_note(
+  cfg, _cn_label, _cn_scope(rg), name, body, own: own,
+)
+
+// ערוץ(שם, מקור: auto, מיקום: "רגל", אזור: none, גובה: none, …) — declare a
+// channel, or change one that already exists.
+//
+// Read with `.final()` by everything that places a note, so the line may sit
+// anywhere in the file and still reach page one — unlike the `#הגדרות_*`
+// commands underneath it, which are read at the position they are written.
+#let ערוץ(שם, ..opts) = {
+  let name = _as_string(שם).trim()
+  let (own, rest) = _cfg_split(opts.named(), _ch_own)
+  _cfg_strict("ערוץ", rest)
+  // Said here rather than at the note, where a misspelled placement would
+  // silently become a page-foot region and the writer would be looking at the
+  // wrong end of the sefer for their notes.
+  if "מיקום" in own and not _ch_places.contains(_val(own.מיקום)) {
+    panic(
+      "ערוץ: מיקום לא מוכר · unknown placement: " + _as_string(own.מיקום)
+        + " (רגל · סוף_מדור · סוף)",
+    )
+  }
+  _ch_st.update(t => {
+    let ch = t.ערוצים
+    let rec = ch.at(name, default: (:))
+    for (k, v) in own { rec.insert(k, v) }
+    ch.insert(name, rec)
+    let order = t.סדר
+    if not order.contains(name) { order.push(name) }
+    (..t, ערוצים: ch, סדר: order)
+  })
+}
+
+// אזור(שם, מיקום: "רגל", גובה: none, פריסה: "מוערם", כותרת: none) — declare a
+// region: a fixed area with a size of its own that any channel can be pointed
+// into. Two channels in one region is what `פריסה` answers.
+#let אזור(שם, ..opts) = {
+  let name = _as_string(שם).trim()
+  let (own, rest) = _cfg_split(opts.named(), _rg_own)
+  _cfg_strict("אזור", rest)
+  if "מיקום" in own and not _ch_places.contains(_val(own.מיקום)) {
+    panic(
+      "אזור: מיקום לא מוכר · unknown placement: " + _as_string(own.מיקום)
+        + " (רגל · סוף_מדור · סוף)",
+    )
+  }
+  _ch_st.update(t => {
+    let rg = t.אזורים
+    let rec = rg.at(name, default: (:))
+    for (k, v) in own { rec.insert(k, v) }
+    rg.insert(name, rec)
+    let order = t.סדר_אזורים
+    if not order.contains(name) { order.push(name) }
+    (..t, אזורים: rg, סדר_אזורים: order)
+  })
+}
+
+// One note, in one channel. Which collector it lands in is read off the table,
+// so nothing at the call site says where the note prints — that is the whole
+// point of the model, and it is what lets the placement change afterwards.
+#let _ch_note(שם, body, named) = context {
+  let t = _ch_st.final()
+  let name = _as_string(שם).trim()
+  let kind = _ch_kind(t, name)
+  if kind == "מקורי" {
+    // Typst's own balanced series. `rest` travels on so a misspelled argument
+    // still gets `footnote`'s own error naming it.
+    let (own, rest) = _cfg_split(named, _fn_own_keys)
+    הערה_בדרגה(
+      _ch_depth(t, name), body,
+      _ערוץ: name, _מספור: _ch_scheme(t, name),
+      ..own, ..rest,
+    )
+  } else if kind == "רגל" {
+    // A region at the foot of the page. Not balanced — Typst has exactly one
+    // balanced series and the default channel is it — so this is fixed
+    // geometry, and the engine reserves the page foot for it.
+    הערה_זרם(name, body, ..named)
+  } else {
+    let (own, rest) = _cfg_split(named, _ap_own_keys)
+    _cfg_strict("הערה", rest)
+    let rg = _ch_region(t, name)
+    _cn_note(_cfg_with(_ch_cfg(t, (name,)), own), rg, name, body, own)
+  }
+}
+
+// הצג_אזור(שם) — print a collected region's channels here, and close its scope.
+// Called at the end of the section, or once at the end of the document; each
+// call renders only the notes written since the previous one.
+#let הצג_אזור(שם, כותרת: auto) = {
+  let rg = _as_string(שם).trim()
+  context {
+    let t = _ch_st.final()
+    let notes = _ksav_real_of(_cn_scope(rg)(here()))
+    let mine = notes.filter(e => _ch_region(t, e.value.group) == rg)
+    if mine.len() > 0 {
+      // Declared channels in declaration order, then anything that landed here
+      // without being declared — which keeps a note visible rather than tidy.
+      let chans = _ch_in_region(t, rg).filter(c => mine.any(e => e.value.group == c))
+      for e in mine { if not chans.contains(e.value.group) { chans.push(e.value.group) } }
+      let cfg = _ch_cfg(t, chans)
+      let title = if כותרת != auto { כותרת } else {
+        _rg_rec(t, rg).at("כותרת", default: none)
+      }
+      _ap_bands(
+        cfg,
+        chans,
+        c => _ap_group(
+          cfg, c, _ap_entries(mine, mine, c),
+          above: {
+            let head = _ch_rec(t, c).at("כותרת", default: none)
+            if head != none {
+              block(spacing: 0.2em, text(size: 0.72em, weight: "bold", fill: luma(90), head))
+            }
+          },
+        ),
+        head: if title != none { heading(level: 3, outlined: false, numbering: none, title) },
+        rule_gap: 0.3em,
+        divider: 40%,
+        side: _ch_region_side(t, rg),
+      )
+    }
+  }
+  // The section boundary itself, after the context above so that context renders
+  // the section ending here rather than the next one.
+  [#metadata(none)#_cn_dump(rg)]
+}
+
+#let channel = _en(ערוץ, extra: (columns: "טורים"))
+#let region = _en(אזור)
+#let show_region = _en(הצג_אזור)
+
+// tier aliases — Hebrew letters mirror the "block A / block B / block C" model.
+// Each forwards `..opts`, because an alias that swallowed the per-note override
+// would be a control that works on `#הערה_בדרגה(2, …)` and silently does nothing
+// on `#הערה_ב[…]`, which is the spelling everybody actually writes.
+//
+// Each is the channel of that name — `#הערה_ב` is the channel whose source is
+// `#הערה` — so declaring `#ערוץ("הערה_ב", מיקום: "סוף")` moves every tier-two
+// note to the back of the sefer without one of them being retyped. That is the
+// difference between a tier and a channel, and it is why these route through
+// `_ch_note` while `#הערה_בדרגה` stays what it is: the native apparatus's own
+// tier command, one floor below the model.
+#let הערה_א(body, ..opts) = _ch_note(_ch_tier_name(1), body, opts.named())
+#let הערה_ב(body, ..opts) = _ch_note(_ch_tier_name(2), body, opts.named())
+#let הערה_ג(body, ..opts) = _ch_note(_ch_tier_name(3), body, opts.named())
+#let הערה_ד(body, ..opts) = _ch_note(_ch_tier_name(4), body, opts.named())
+#let הערה_ה(body, ..opts) = _ch_note(_ch_tier_name(5), body, opts.named())
+#let הערה_ו(body, ..opts) = _ch_note(_ch_tier_name(6), body, opts.named())
+#let הערה_ז(body, ..opts) = _ch_note(_ch_tier_name(7), body, opts.named())
+#let tier1 = _en(הערה_א)
+#let tier2 = _en(הערה_ב)
+#let tier3 = _en(הערה_ג)
+#let tier4 = _en(הערה_ד)
+#let tier5 = _en(הערה_ה)
+#let tier6 = _en(הערה_ו)
+#let tier7 = _en(הערה_ז)
 
 // ============================================================
 //  עיצוב גלובלי · configurable headings / lists / tables
@@ -1791,7 +2325,17 @@
 // With the shipped defaults tier 1 is 1em / normal / black / no indent and the
 // numbering is one native running sequence, so this is exactly `footnote(body)`
 // — see `_fn_wrap`, which returns the body untouched in that case.
-#let הערה(body, ..opts) = הערה_בדרגה(1, body, ..opts)
+//
+// `ערוץ:` is the whole of the channel model at the point of writing a note.
+// Everything else — where the channel prints, what it is a note *on*, how it is
+// numbered and how it looks — is declared once with `#ערוץ` and can be changed
+// after the notes exist. Naming a channel nobody declared is not an error: it is
+// a page-foot region of its own, which is what `#הערה_זרם` has always been.
+#let הערה(body, ערוץ: none, ..opts) = _ch_note(
+  if ערוץ == none { _ch_default } else { ערוץ },
+  body,
+  opts.named(),
+)
 #let fnote = _en(הערה)
 
 // הערה_על_הערה · a note ON a note (a sub-note) in the *native* apparatus.
@@ -3191,3 +3735,4 @@
 #let refmark = _en(ציון)
 #let dh = _en(דיבור_המתחיל)
 #let gemara = _en(גמרא)
+

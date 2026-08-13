@@ -391,6 +391,33 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#ערוץ(\"\", מיקום: \"רגל\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#אזור(\"\", מיקום: \"רגל\", גובה: 3cm)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הצג_אזור(\"\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -1440,6 +1467,33 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#fnote[]ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#channel(\"\", placement: \"foot\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#region(\"\", placement: \"foot\", height: 3cm)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#show_region(\"\")ds to continue."
   },
   {
    "ctx": "prose",
@@ -2497,6 +2551,33 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #ערוץ(\"\", מיקום: \"רגל\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הצג_אזור(\"\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -3546,6 +3627,33 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #fnote[]One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #channel(\"\", placement: \"foot\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #region(\"\", placement: \"foot\", height: 3cm)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #show_region(\"\")One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4603,6 +4711,33 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #ערוץ(\"\", מיקום: \"רגל\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הצג_אזור(\"\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -5652,6 +5787,33 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #fnote[]inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #channel(\"\", placement: \"foot\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #region(\"\", placement: \"foot\", height: 3cm)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #show_region(\"\")inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6709,6 +6871,33 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #ערוץ(\"\", מיקום: \"רגל\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הצג_אזור(\"\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -7758,6 +7947,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[]here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #channel(\"\", placement: \"foot\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #region(\"\", placement: \"foot\", height: 3cm)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #show_region(\"\")here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8815,6 +9031,33 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],ערוץ(\"\", מיקום: \"רגל\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],אזור(\"\", מיקום: \"רגל\", גובה: 3cm),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הצג_אזור(\"\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -9864,6 +10107,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],fnote[],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],channel(\"\", placement: \"foot\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],region(\"\", placement: \"foot\", height: 3cm),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],show_region(\"\"),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10921,6 +11191,33 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(ערוץ(\"\", מיקום: \"רגל\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(אזור(\"\", מיקום: \"רגל\", גובה: 3cm),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הצג_אזור(\"\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -11970,6 +12267,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(fnote[],\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(channel(\"\", placement: \"foot\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(region(\"\", placement: \"foot\", height: 3cm),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(show_region(\"\"),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -13027,6 +13351,33 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #ערוץ(\"\", מיקום: \"רגל\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הצג_אזור(\"\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -14076,6 +14427,33 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #fnote[]here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #channel(\"\", placement: \"foot\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #region(\"\", placement: \"foot\", height: 3cm)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #show_region(\"\")here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -15133,6 +15511,33 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],ערוץ(\"\", מיקום: \"רגל\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],אזור(\"\", מיקום: \"רגל\", גובה: 3cm), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הצג_אזור(\"\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -16182,6 +16587,33 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],fnote[], cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],channel(\"\", placement: \"foot\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],region(\"\", placement: \"foot\", height: 3cm), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],show_region(\"\"), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -17239,6 +17671,33 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #ערוץ(\"\", מיקום: \"רגל\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הצג_אזור(\"\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -18288,6 +18747,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #fnote[]here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #channel(\"\", placement: \"foot\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #region(\"\", placement: \"foot\", height: 3cm)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #show_region(\"\")here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -19345,6 +19831,33 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #ערוץ(\"\", מיקום: \"רגל\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הצג_אזור(\"\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -20394,6 +20907,33 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #fnote[]Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #channel(\"\", placement: \"foot\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #region(\"\", placement: \"foot\", height: 3cm)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #show_region(\"\")Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -21451,6 +21991,33 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #ערוץ(\"\", מיקום: \"רגל\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הצג_אזור(\"\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -22500,6 +23067,33 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #fnote[]prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #channel(\"\", placement: \"foot\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #region(\"\", placement: \"foot\", height: 3cm)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #show_region(\"\")prayer]"
   },
   {
    "ctx": "siman-body",
@@ -23557,6 +24151,33 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #ערוץ(\"\", מיקום: \"רגל\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #אזור(\"\", מיקום: \"רגל\", גובה: 3cm)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הצג_אזור(\"\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -24606,6 +25227,33 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #fnote[]Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #channel(\"\", placement: \"foot\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #region(\"\", placement: \"foot\", height: 3cm)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #show_region(\"\")Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -25663,6 +26311,33 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#ערוץ(\"\", מיקום: \"רגל\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#אזור(\"\", מיקום: \"רגל\", גובה: 3cm)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הצג_אזור(\"\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "הערה_על_הערה",
    "en": "subnote",
    "legal": true,
@@ -26712,6 +27387,33 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#fnote[]ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "ערוץ",
+   "en": "channel",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#channel(\"\", placement: \"foot\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "אזור",
+   "en": "region",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#region(\"\", placement: \"foot\", height: 3cm)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הצג_אזור",
+   "en": "show_region",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#show_region(\"\")ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

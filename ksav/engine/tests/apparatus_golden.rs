@@ -452,9 +452,24 @@ fn the_banded_apparatus_is_written_once() {
 #[test]
 fn all_three_apparatuses_route_through_the_shared_core() {
     // one definition + one call site per apparatus
+    //
+    // Four apparatuses now, not three: a channel placed at the end of a section
+    // or of the document collects through `_cn_note` and prints at `#הצג_אזור`.
+    // It is a fourth *collector* and deliberately not a fourth implementation —
+    // it exists because `#הערות_מדורגות` renders every group in its section, so
+    // a channel sharing that label would print in a band it was never pointed
+    // at. Everything below the label is this same shared core.
     for (name, expect, whose) in [
-        ("_ap_note(", 4, "section bands, page bands, streams"),
-        ("_ap_bands(", 4, "section bands, page bands, streams"),
+        (
+            "_ap_note(",
+            5,
+            "section bands, page bands, streams, collected channels",
+        ),
+        (
+            "_ap_bands(",
+            5,
+            "section bands, page bands, streams, collected channels",
+        ),
     ] {
         let n = PRELUDE.matches(name).count();
         assert_eq!(
@@ -465,7 +480,7 @@ fn all_three_apparatuses_route_through_the_shared_core() {
         );
     }
     // and each public collector really is the thin wrapper it claims to be
-    for cmd in ["מדור_בדרגה", "מדף_בדרגה", "הערה_זרם"] {
+    for cmd in ["מדור_בדרגה", "מדף_בדרגה", "הערה_זרם", "_cn_note"] {
         let def = format!("#let {cmd}(");
         let at = PRELUDE
             .find(&def)

@@ -16,6 +16,7 @@ import {
   createBody,
   deferAllInlineNotes,
   deferInlineNote,
+  inlineAllDeferredNotes,
   inlineDeferredNote,
   inlineNoteAt,
   insertDeferred,
@@ -122,6 +123,25 @@ export function deferAll(view: EditorView): boolean {
   }
   apply(view, text, view.state.selection.main.head);
   setStatus(tf("deferMovedCount", moved), "ok");
+  return true;
+}
+
+/**
+ * Bring every deferred note back into its sentence.
+ *
+ * The other direction, and the one that was missing: *where the bodies live* is
+ * only changeable after the fact if it is changeable both ways. A note whose
+ * name carries two markers, or whose prose has not been written, is left where
+ * it is and the count says so — a partly-deferred document is a legal one.
+ */
+export function inlineAll(view: EditorView): boolean {
+  const { text, moved } = inlineAllDeferredNotes(docTextOf(view.state.doc));
+  if (!moved) {
+    setStatus(t("deferNothingToRecall"), "");
+    return false;
+  }
+  apply(view, text, view.state.selection.main.head);
+  setStatus(tf("deferRecalledCount", moved), "ok");
   return true;
 }
 

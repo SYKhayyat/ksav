@@ -14,6 +14,7 @@
 
 use assets::Assets;
 use diagnostics::Located;
+use std::collections::HashMap;
 use typst::diag::Warned;
 use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
@@ -233,6 +234,220 @@ const STREAM_COMMANDS: &[&str] = &[
     "sourcenote_stream",
 ];
 const STREAM_CONFIG: &[&str] = &["הגדרות_זרמים", "streams_config"];
+
+/// The channel and region declarations, in both spellings.
+///
+/// A channel placed at the foot of the page is a *fixed region* there and not
+/// Typst's balanced series — Typst has exactly one of those and the default
+/// channel is it — so it renders into the footer and needs the same reserve the
+/// bands and the streams do. Neither list above can see it: a document written
+/// in channels contains `#הערה(ערוץ: "ביאור")` and not one of the eighteen
+/// command names.
+const CHANNEL_DECL: &[&str] = &["ערוץ", "channel"];
+const REGION_DECL: &[&str] = &["אזור", "region"];
+/// The named argument that puts a note in a channel.
+const CHANNEL_ARG: &[&str] = &["ערוץ", "channel"];
+/// Placement, and the two spellings of the one value that means the page foot.
+const PLACEMENT_ARG: &[&str] = &["מיקום", "placement"];
+const FOOT_PLACEMENT: &[&str] = &["רגל", "foot"];
+const HEIGHT_ARG: &[&str] = &["גובה", "height"];
+const SOURCE_ARG: &[&str] = &["מקור", "source"];
+const REGION_ARG: &[&str] = &["אזור", "region"];
+/// The seven built-in tier channels, which are Typst's own balanced series and
+/// reserve nothing. `ksav.typ` names them once, in `_ch_tiers`, and
+/// `the_tier_channels_match_the_prelude` checks this against it.
+const TIER_CHANNELS: &[&str] = &[
+    "הערה",
+    "הערה_ב",
+    "הערה_ג",
+    "הערה_ד",
+    "הערה_ה",
+    "הערה_ו",
+    "הערה_ז",
+];
+
+/// One `#ערוץ(…)` or `#אזור(…)` declaration, as much of it as a text scan can
+/// honestly read.
+#[derive(Default, Clone)]
+struct ChannelDecl {
+    placement: Option<String>,
+    region: Option<String>,
+    height: Option<String>,
+    has_source: bool,
+}
+
+/// The value of the first of `keys` given as a named argument in `args`.
+///
+/// `args` is one call's argument list, already bounded by `closing_paren`.
+/// Values are taken to the next comma at depth zero, so a tuple or a nested call
+/// does not end one early. Quotes are stripped, because every value this reads —
+/// a placement, a region name, a channel name — is written as a string.
+fn named_arg(args: &str, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        let mut base = 0;
+        while let Some(i) = args[base..].find(key) {
+            let start = base + i;
+            base = start + key.len();
+            // A whole word: `מיקום` must not match inside `מיקומים`, and
+            // `אזור` must not match inside `אזור_הערות`.
+            let before_ok = args[..start]
+                .chars()
+                .next_back()
+                .is_none_or(|c| !c.is_alphanumeric() && c != '_');
+            let after = args[base..].trim_start();
+            let Some(after) = after.strip_prefix(':') else {
+                continue;
+            };
+            if !before_ok || args[base..].starts_with('_') {
+                continue;
+            }
+            let after = after.trim_start();
+            let mut depth = 0i32;
+            let mut end = after.len();
+            for (j, c) in after.char_indices() {
+                match c {
+                    '(' | '[' => depth += 1,
+                    ')' | ']' => {
+                        if depth == 0 {
+                            end = j;
+                            break;
+                        }
+                        depth -= 1;
+                    }
+                    ',' if depth == 0 => {
+                        end = j;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            return Some(after[..end].trim().trim_matches('"').trim().to_string());
+        }
+    }
+    None
+}
+
+/// Every `#name(…)` declaration in `body`, keyed by the first positional
+/// argument — which for both of these commands is the thing's own name.
+fn channel_declarations(body: &str, names: &[&str]) -> HashMap<String, ChannelDecl> {
+    let mut out: HashMap<String, ChannelDecl> = HashMap::new();
+    for name in names {
+        let mut base = 0;
+        while let Some(i) = body[base..].find(name) {
+            let start = base + i;
+            base = start + name.len();
+            // `#ערוץ(`, not the word ערוץ inside `#הערה(ערוץ: …)` — the argument
+            // and the command are the same word, deliberately, and only one of
+            // them declares anything.
+            if !body[..start].ends_with('#') {
+                continue;
+            }
+            let after = body[base..].trim_start();
+            if !after.starts_with('(') {
+                continue;
+            }
+            let Some(end) = closing_paren(after) else {
+                continue;
+            };
+            let args = &after[1..end];
+            let Some(first) = args.split(',').next() else {
+                continue;
+            };
+            let key = first.trim().trim_matches('"').trim().to_string();
+            if key.is_empty() {
+                continue;
+            }
+            let decl = ChannelDecl {
+                placement: named_arg(args, PLACEMENT_ARG),
+                region: named_arg(args, REGION_ARG),
+                height: named_arg(args, HEIGHT_ARG),
+                has_source: named_arg(args, SOURCE_ARG).is_some(),
+            };
+            // A second declaration of the same name adds to the first, exactly as
+            // the prelude's own `#ערוץ` does.
+            let slot = out.entry(key).or_default();
+            slot.placement = decl.placement.or(slot.placement.take());
+            slot.region = decl.region.or(slot.region.take());
+            slot.height = decl.height.or(slot.height.take());
+            slot.has_source |= decl.has_source;
+        }
+    }
+    out
+}
+
+/// How much page foot a document's *channels* need, in cm.
+///
+/// `None` when it writes no note into a channel that lands at the page foot —
+/// which is every document that only uses the default channel, its tiers, or a
+/// channel it placed at the back.
+///
+/// Deliberately keyed on notes actually written, not on declarations: declaring
+/// an apparatus and never writing into it reserves nothing, which is the rule
+/// the stream and band configuration commands already follow.
+fn channel_region_cm(body: &str, page_h_cm: f64) -> Option<f64> {
+    let channels = channel_declarations(body, CHANNEL_DECL);
+    let regions = channel_declarations(body, REGION_DECL);
+
+    // Which channels notes were actually written into.
+    let mut used: Vec<String> = Vec::new();
+    let mut base = 0;
+    while let Some(i) = body[base..].find('#') {
+        let start = base + i;
+        base = start + 1;
+        let Some(open) = body[start..].find('(') else { break };
+        let Some(end) = closing_paren(&body[start + open..]) else {
+            continue;
+        };
+        let args = &body[start + open + 1..start + open + end];
+        if let Some(name) = named_arg(args, CHANNEL_ARG) {
+            if !name.is_empty() && !used.contains(&name) {
+                used.push(name);
+            }
+        }
+    }
+
+    // Each such channel's region, when that region is at the foot of the page.
+    let mut feet: Vec<(String, Option<String>)> = Vec::new();
+    for name in used {
+        if TIER_CHANNELS.contains(&name.as_str()) {
+            continue;
+        }
+        let ch = channels.get(&name).cloned().unwrap_or_default();
+        let region = ch.region.clone().unwrap_or_else(|| name.clone());
+        let rg = regions.get(&region).cloned().unwrap_or_default();
+        // The channel's own placement, else its region's, else the page foot.
+        let placement = ch.placement.clone().or(rg.placement.clone());
+        if let Some(p) = &placement {
+            if !FOOT_PLACEMENT.contains(&p.as_str()) {
+                continue;
+            }
+        }
+        // A channel that hangs off another and asked for no region of its own is
+        // a tier of the native apparatus — indented in its parent's block, in
+        // Typst's balanced series, reserving nothing.
+        if ch.has_source && ch.region.is_none() && ch.height.is_none() {
+            continue;
+        }
+        let height = ch.height.clone().or(rg.height.clone());
+        if !feet.iter().any(|(r, _)| *r == region) {
+            feet.push((region, height));
+        }
+    }
+    if feet.is_empty() {
+        return None;
+    }
+    // Exactly what was asked for plus the furniture the prelude draws, and the
+    // working default for a region that did not say — the same arithmetic the
+    // bands and streams get, because they share the block.
+    let mut total = BAND_RULE_CM + BAND_GAP_CM * (feet.len().saturating_sub(1)) as f64;
+    for (_, height) in &feet {
+        total += match height.as_deref().and_then(|h| length_cm(h, page_h_cm)) {
+            Some(cm) => cm,
+            None => DEFAULT_REGION_CM,
+        };
+    }
+    Some(total)
+}
 
 /// How much page-foot region a body needs, in cm.
 ///
@@ -459,6 +674,13 @@ pub fn auto_notes_region_cm_on(body: &str, page_h_cm: f64) -> f64 {
             None => DEFAULT_REGION_CM,
         };
     }
+    // …and the channels, which are the same footer and the same block. A document
+    // may carry both — the eighteen commands still work — so this is a third
+    // summand and not a third answer.
+    if let Some(cm) = channel_region_cm(&code_only_keeping_strings(body), page_h_cm) {
+        used_any = true;
+        total += cm;
+    }
     if !used_any {
         return 0.0;
     }
@@ -497,6 +719,20 @@ const BAND_RULE_CM: f64 = 0.25;
 /// a Typst body is not a Ksav editor buffer, and the shared thing worth having
 /// is the corpus of documents that must come out the same way, not the code.
 fn code_only(body: &str) -> String {
+    code_only_with(body, false)
+}
+
+/// The same, keeping the string literals.
+///
+/// One caller wants them: a channel declaration says where it goes *in a string*
+/// — `#ערוץ("ביאור", מיקום: "רגל")` — so blanking them leaves nothing to read.
+/// A parameter and not a second scanner, because the comment rules are the same
+/// rules and the last thing this repository needs is a twelfth of these.
+fn code_only_keeping_strings(body: &str) -> String {
+    code_only_with(body, true)
+}
+
+fn code_only_with(body: &str, keep_strings: bool) -> String {
     let mut out = String::with_capacity(body.len());
     let mut chars = body.chars().peekable();
     let mut in_string = false;
@@ -505,10 +741,10 @@ fn code_only(body: &str) -> String {
     let blank = |c: char| if c == '\n' { '\n' } else { ' ' };
     while let Some(c) = chars.next() {
         if in_string {
-            out.push(blank(c));
+            out.push(if keep_strings { c } else { blank(c) });
             if c == '\\' {
                 if let Some(n) = chars.next() {
-                    out.push(blank(n));
+                    out.push(if keep_strings { n } else { blank(n) });
                 }
             } else if c == '"' {
                 in_string = false;
@@ -518,7 +754,7 @@ fn code_only(body: &str) -> String {
         match c {
             '"' => {
                 in_string = true;
-                out.push(' ');
+                out.push(if keep_strings { '"' } else { ' ' });
             }
             '/' if chars.peek() == Some(&'/') => {
                 out.push(' ');
@@ -2101,6 +2337,134 @@ mod tests {
         DocConfig::from_json(&json)
     }
 
+    /// Two cm figures that agree to within a rounding error.
+    ///
+    /// Was a `let near = …` closure written out in each of the reserve tests, and
+    /// a fourth copy was one edit away when the channels arrived. The reserve is
+    /// arithmetic over declared lengths, so an exact `==` fails on a sum that
+    /// went through a percentage.
+    fn near(got: f64, want: f64) -> bool {
+        (got - want).abs() < 0.001
+    }
+
+    /// The built-in channels are the prelude's, and it says so once.
+    ///
+    /// `TIER_CHANNELS` is why a document full of `#הערה(ערוץ: "הערה_ב")` does not
+    /// lose 3 cm off every page for an apparatus it is not using: those seven
+    /// names are Typst's own balanced series. A copy of a list is a copy that
+    /// goes stale, and this one goes stale *quietly* — the reserve grows and the
+    /// sefer repaginates.
+    #[test]
+    fn the_tier_channels_match_the_prelude() {
+        let start = PRELUDE
+            .find("#let _ch_tiers = (")
+            .expect("`_ch_tiers` is not defined in ksav.typ");
+        let open = start + PRELUDE[start..].find('(').unwrap();
+        let end = open + closing_paren(&PRELUDE[open..]).expect("unterminated `_ch_tiers`");
+        let names: Vec<String> = PRELUDE[open + 1..end]
+            .split(',')
+            .map(|s| s.trim().trim_matches('"').trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        assert_eq!(
+            names,
+            TIER_CHANNELS,
+            "the prelude's built-in channels and the reserve's idea of them have \
+             parted company"
+        );
+    }
+
+    #[test]
+    fn a_channel_reserves_the_page_foot_only_when_it_lands_there() {
+        // The default channel and its tiers are Typst's own balanced series and
+        // expand the text region themselves — a reserve would take page height
+        // from every document with an ordinary footnote in it.
+        assert_eq!(auto_notes_region_cm("טקסט#הערה[גוף]"), 0.0);
+        assert_eq!(
+            auto_notes_region_cm("טקסט#הערה(ערוץ: \"הערה_ב\")[גוף]"),
+            0.0,
+            "a built-in tier is the native apparatus"
+        );
+        assert_eq!(
+            auto_notes_region_cm(
+                "#ערוץ(\"שער\", מקור: \"הערה\")\nטקסט#הערה(ערוץ: \"שער\")[גוף]"
+            ),
+            0.0,
+            "a channel on a channel, with no region of its own, is a tier too"
+        );
+        // A channel placed at the back needs no page foot either.
+        assert_eq!(
+            auto_notes_region_cm(
+                "#ערוץ(\"ביאור\", מיקום: \"סוף\")\nטקסט#הערה(ערוץ: \"ביאור\")[גוף]"
+            ),
+            0.0
+        );
+        // A channel nobody declared is a page-foot region of its own, and it is
+        // the read-only footer apparatus — which is the one that runs off the
+        // bottom of the sheet with nothing reserved.
+        assert_eq!(
+            auto_notes_region_cm("טקסט#הערה(ערוץ: \"מקורות\")[גוף]"),
+            DEFAULT_REGION_CM + BAND_RULE_CM
+        );
+        // Declaring one and never writing into it reserves nothing — the rule the
+        // band and stream configuration commands already follow.
+        assert_eq!(
+            auto_notes_region_cm("#ערוץ(\"ביאור\", מיקום: \"רגל\", גובה: 4cm)\nטקסט"),
+            0.0
+        );
+        // And a declared height is the height that is taken off the margin.
+        assert!(near(
+            auto_notes_region_cm(
+                "#ערוץ(\"ביאור\", מיקום: \"רגל\", גובה: 4cm)\nטקסט#הערה(ערוץ: \"ביאור\")[גוף]"
+            ),
+            4.0 + BAND_RULE_CM
+        ));
+        // Both spellings, because a document may be written in either.
+        assert!(near(
+            auto_notes_region_cm(
+                "#channel(\"peirush\", placement: \"foot\", height: 4cm)\n\
+                 text#fnote(channel: \"peirush\")[body]"
+            ),
+            4.0 + BAND_RULE_CM
+        ));
+    }
+
+    #[test]
+    fn channels_sharing_a_region_reserve_it_once() {
+        // Two channels, one region, one slot. Reserving per channel would take
+        // twice the page foot the apparatus actually occupies.
+        let body = "#אזור(\"פירושים\", מיקום: \"רגל\", גובה: 3cm)\n\
+                    #ערוץ(\"ביאור\", אזור: \"פירושים\")\n\
+                    #ערוץ(\"מקורות\", אזור: \"פירושים\")\n\
+                    טקסט#הערה(ערוץ: \"ביאור\")[א]#הערה(ערוץ: \"מקורות\")[ב]";
+        assert!(near(auto_notes_region_cm(body), 3.0 + BAND_RULE_CM));
+        // …and a channel takes its region's placement, so pointing both at a
+        // region declared at the back reserves nothing at all.
+        assert_eq!(
+            auto_notes_region_cm(&body.replace("\"רגל\", גובה: 3cm", "\"סוף\"")),
+            0.0
+        );
+    }
+
+    #[test]
+    fn a_commented_out_channel_reserves_nothing() {
+        // The eleventh scanner's rule, on the twelfth caller: parking an
+        // apparatus behind `//` while you decide about it must not silently cost
+        // 3 cm on every page.
+        assert_eq!(
+            auto_notes_region_cm("// טקסט#הערה(ערוץ: \"מקורות\")[גוף]\nטקסט"),
+            0.0
+        );
+        // A header whose *text* mentions a channel is text, not an apparatus.
+        // String literals are kept for this scan — that is what makes the
+        // placement readable — so the guard is that a channel argument has to sit
+        // in a real call, and `#כותרת_עליונה("…")` gives it one. This is the
+        // known gap, written down rather than guessed at: the reserve is 3 cm too
+        // generous for a document that quotes the command in a running head, and
+        // 3 cm too small is the failure that puts notes off the paper.
+        assert!(auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")") >= 0.0);
+    }
+
     #[test]
     fn the_page_foot_reserve_follows_a_real_call_not_a_prose_mention() {
         // A document that only *talks* about the apparatus must not lose 3 cm at
@@ -2134,7 +2498,6 @@ mod tests {
                 "#הגדרות_מדפים(גבהים: {heights})\n\n#מדף_א[א] #מדף_ב[ב]"
             ))
         };
-        let near = |got: f64, want: f64| (got - want).abs() < 0.001;
         assert!(near(with("(1.5cm, 1cm)"), 2.5 + BAND_GAP_CM + BAND_RULE_CM));
         assert!(near(with("(3cm, 2cm)"), 5.0 + BAND_GAP_CM + BAND_RULE_CM));
         // Every unit Typst writes an absolute length in.
@@ -2200,7 +2563,6 @@ mod tests {
     /// factor of the reserve — and the visible one is the band.
     #[test]
     fn a_percent_region_is_a_percent_of_the_sheet() {
-        let near = |got: f64, want: f64| (got - want).abs() < 0.001;
         let with = |heights: &str, sheet: f64| {
             auto_notes_region_cm_on(
                 &format!("#הגדרות_מדפים(גבהים: {heights})\n\n#מדף_א[א] #מדף_ב[ב]"),
@@ -2242,7 +2604,6 @@ mod tests {
     /// number at 799.02. The bug had just been fixed one apparatus over.
     #[test]
     fn the_reserve_follows_the_declared_stream_heights() {
-        let near = |got: f64, want: f64| (got - want).abs() < 0.001;
         let three = "#הגדרות_זרמים(גבהים: (\"ביאור\": 2cm, \"מקורות\": 1cm, \"נוסחאות\": 1cm))\n\
                      #הערה_זרם(\"ביאור\")[א] #הערה_זרם(\"מקורות\")[ב] #הערה_זרם(\"נוסחאות\")[ג]";
         assert!(near(

@@ -907,6 +907,80 @@ export function deferAllInlineNotes(text: string): { text: string; moved: number
   return { text: out, moved: top.length };
 }
 
+/**
+ * The inverse in bulk: bring *every* deferred note back into its sentence.
+ *
+ * The bulk form of `inlineDeferredNote`, and the half that was missing. The
+ * decision record asks that where note bodies live be *"changeable after notes
+ * already exist"*, and it was changeable in one direction only: a document could
+ * be swept to the org-mode arrangement with one press and could not be swept
+ * back. A switch that goes one way is not a switch, and a writer who tried it on
+ * a finished sefer and disliked it had three hundred notes to move by hand.
+ *
+ * Conservative in the two places it can be:
+ *
+ * - **A name with more than one marker is left alone.** Inlining would have to
+ *   put the same prose in two places, and silently doubling a note is worse than
+ *   declining to move it — the same rule `inlineDeferredNote` applies one note
+ *   at a time.
+ * - **A marker with no body is left alone**, and the lint keeps reporting it.
+ *   That is a note the writer has not finished writing, not a note to delete.
+ *
+ * Both leave a document that is *partly* deferred, which is a legal document —
+ * the per-note override is exactly that — so the count says how many moved and
+ * the ones that did not stay where they are.
+ */
+export function inlineAllDeferredNotes(text: string): { text: string; moved: number } {
+  const { refs, defs } = scan(text);
+  if (!refs.length) return { text, moved: 0 };
+
+  const seen = new Map<string, number>();
+  for (const r of refs) seen.set(r.name, (seen.get(r.name) ?? 0) + 1);
+  const bodyOfName = new Map<string, Def>();
+  for (const d of defs) if (!bodyOfName.has(d.name)) bodyOfName.set(d.name, d);
+
+  /** Every edit this makes, as (from, to, insert) over the *original* offsets. */
+  const edits: { from: number; to: number; insert: string }[] = [];
+  let moved = 0;
+  for (const r of refs) {
+    if ((seen.get(r.name) ?? 0) > 1) continue;
+    const def = bodyOfName.get(r.name);
+    if (!def) continue;
+    const body = text.slice(def.bodyFrom, def.bodyTo);
+    const cmd = r.kind ?? DEFAULT_KIND[r.lang];
+    edits.push({
+      from: r.from,
+      to: r.to,
+      insert: `#${cmd}${r.rest ? `(${r.rest})` : ""}[${body}]`,
+    });
+    edits.push({
+      from: lineStartIfAlone(text, def.from, def.to),
+      to: lineEndIfAlone(text, def.from, def.to),
+      insert: "",
+    });
+    moved++;
+  }
+  if (!moved) return { text, moved: 0 };
+
+  // Applied back to front, so an earlier edit keeps the offsets a later one was
+  // measured against. A body nested inside another body cannot be reached from
+  // here — its definition is inside a span this loop may also be replacing — so
+  // overlapping edits are dropped rather than allowed to interleave and produce
+  // a document neither half of the pair meant.
+  edits.sort((a, b) => b.from - a.from);
+  let out = text;
+  let last = Infinity;
+  for (const e of edits) {
+    if (e.to > last) continue;
+    out = out.slice(0, e.from) + e.insert + out.slice(e.to);
+    last = e.from;
+  }
+  // The last body taken away leaves the blank line that separated the region
+  // from the text, as recalling one note does.
+  if (!scan(out).defs.length) out = out.replace(/\s*$/, "\n");
+  return { text: out, moved };
+}
+
 // ---------------------------------------------------------------- normalising
 
 /**

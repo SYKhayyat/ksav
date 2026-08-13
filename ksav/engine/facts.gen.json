@@ -420,9 +420,36 @@
       "he": "הערה",
       "en": "fnote",
       "category": "footnote",
-      "desc_he": "הערת שוליים",
-      "desc_en": "Footnote",
+      "desc_he": "הערת שוליים — ב#ערוץ שנבחר, או בברירת המחדל",
+      "desc_en": "Footnote — in a chosen channel, or the default one",
       "insert": "#הערה[|]",
+      "deprecated": false
+    },
+    {
+      "he": "ערוץ",
+      "en": "channel",
+      "category": "footnote",
+      "desc_he": "הגדרת ערוץ הערות — על מה הוא נסמך והיכן הוא מודפס",
+      "desc_en": "Declare a note channel — what it hangs off and where it prints",
+      "insert": "#ערוץ(\"|\", מיקום: \"רגל\")",
+      "deprecated": false
+    },
+    {
+      "he": "אזור",
+      "en": "region",
+      "category": "footnote",
+      "desc_he": "אזור קבוע שערוצים מופנים אליו, עם גובה משלו",
+      "desc_en": "A fixed region channels are pointed into, with a height of its own",
+      "insert": "#אזור(\"|\", מיקום: \"רגל\", גובה: 3cm)",
+      "deprecated": false
+    },
+    {
+      "he": "הצג_אזור",
+      "en": "show_region",
+      "category": "footnote",
+      "desc_he": "הצגת ערוצי האזור כאן (בסוף המדור או המסמך)",
+      "desc_en": "Print a region's channels here (end of the section or the document)",
+      "insert": "#הצג_אזור(\"|\")",
       "deprecated": false
     },
     {

@@ -183,7 +183,25 @@ ok(
   !MAIN.includes('noteBtn("tieredNote"'),
 );
 for (const action of ["footnote", "endnote", "tieredNote"]) {
-  ok(`${action} is in the Insert menu`, MAIN.includes(`noteItem("${action}"`));
+  ok(
+    `${action} is in the Insert menu`,
+    new RegExp(`noteItem\\(\\s*"${action}"`).test(MAIN),
+  );
+}
+// …and the note on a note is not a *top-level* offer, which is what the margin
+// note asked for. It sat third, above the chooser, as though it were one of the
+// two things a person opens Insert to do; it is a second note hung off one that
+// already exists, so in ordinary prose there is nothing for it to hang off.
+{
+  const chooser = MAIN.indexOf("onClick: openNotesChooser");
+  const tiered = MAIN.search(/noteItem\(\s*"tieredNote"/);
+  ok("the note on a note is offered below the chooser, not above it", chooser < tiered);
+  // Greyed with its reason where it cannot act, which is this menu's own rule
+  // for every other command: an item that silently vanishes when the caret moves
+  // is a product that looks broken.
+  const item = MAIN.slice(tiered, tiered + 500);
+  ok("…and it says why when the caret is not in a note", item.includes("whyNoteOnNoteNeedsANote"));
+  ok("…on the evidence of the caret, not of a setting", item.includes("noteDepthAt("));
 }
 
 // And the cosmetic alias is no longer advertised anywhere.
@@ -191,6 +209,55 @@ ok(
   "the toolbar no longer points ⁑ at הערה_על_הערה",
   !/b\("הערה_על_הערה"/.test(MAIN),
 );
+
+// ---------------------------------------------- the two tombstones, retired
+//
+// `#הערה_על_הערה` and `#הערה_א` are second names for things the writer already
+// has — the first is `#הערה_ב`, the second *is* `#הערה` — and under the channel
+// model they are not even second mechanisms: a tier is a channel, and both of
+// these name a channel that already exists. They still compile, because a
+// command that exists in documents cannot simply be deleted, and they are
+// offered nowhere.
+for (const name of ["הערה_על_הערה", "הערה_א"]) {
+  const c = registry().find((x) => x.he === name);
+  ok(`${name} is still in the registry`, !!c);
+  ok(`…and marked deprecated, which is what keeps it out of the menus`, !!c?.deprecated);
+  ok(
+    `…and its description says what to use instead`,
+    /מיושן|Deprecated/.test((c?.desc_he ?? "") + (c?.desc_en ?? "")),
+  );
+}
+
+// ------------------------------------------------- channels reach a control
+//
+// The whole point of the model is that *where* a note prints stops being welded
+// to the command that got typed — and a model the engine has and the interface
+// cannot say is a model nobody can use. Which is this file's own thesis, applied
+// to the thing this file's thesis was written about.
+{
+  ok("the Styles panel has a channels section", MAIN.includes('t("styleChannels")'));
+  ok("…which reads the document's own channels", MAIN.includes("channels.channelsIn("));
+  ok("…and writes a declaration back", MAIN.includes("channels.writeChannel("));
+  // The payoff, as a control: a placement chooser over the three placements the
+  // engine has, not a menu of arrangements.
+  ok("…offering the placements", MAIN.includes("channels.PLACEMENTS.map("));
+  // A collected channel prints nowhere until its region is shown, which is the
+  // "collected and then never rendered" failure every one of the eighteen
+  // commands could produce. Offered as a button rather than as a lint after the
+  // fact.
+  ok("…and a way to print a collected region", MAIN.includes("channels.showRegionLine("));
+}
+
+// Both directions of "where do the note bodies live", which is only *changeable
+// after the notes exist* if it is changeable both ways.
+{
+  const LINT = read("deferred-lint.ts");
+  ok("every note can be sent to the end", LINT.includes("export function deferAll("));
+  ok("and every note can be brought back", LINT.includes("export function inlineAll("));
+  for (const id of ["deferAll", "deferRecallAll", "deferSort"]) {
+    ok(`${id} is an action, not only a button in a modal`, MAIN.includes(`id: "${id}"`));
+  }
+}
 
 // ------------------------------------------------- every action has a key
 //

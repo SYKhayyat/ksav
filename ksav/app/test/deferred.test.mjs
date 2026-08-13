@@ -11,6 +11,7 @@ import {
   deferInlineNote,
   inlineDeferredNote,
   deferAllInlineNotes,
+  inlineAllDeferredNotes,
   deferSnippet,
   resolveDeferred,
   sortBodies,
@@ -565,6 +566,77 @@ const filed = (text) => scan(text).defs.map((d) => d.name);
   const s = sortBodies(spaced);
   ok("the comment between them stays where it was", s.text.includes("// ההערות:\n\n#גוף_הערה"));
   ok("the blank line between the bodies survives", /\]\n\n#גוף_הערה/.test(s.text));
+}
+
+// ------------------------------------------------- and back again, in bulk
+//
+// Where the note bodies live has to be changeable *after the notes already
+// exist*, and it was changeable in one direction only: a document could be swept
+// to the org-mode arrangement with one press and could not be swept back. A
+// switch that goes one way is not a switch, and a writer who tried it on a
+// finished sefer had three hundred notes to move by hand.
+
+{
+  const inline = "בראשית#הערה[עיין שם] ברא#הערה[ועיין עוד] אלקים.\n";
+  const away = deferAllInlineNotes(inline);
+  check("every note went to the end", away.moved, 2);
+  const back = inlineAllDeferredNotes(away.text);
+  check("and every one came back", back.moved, 2);
+  check("the document is the one we started with", back.text.trim(), inline.trim());
+}
+
+{
+  // Round-tripping must not lose what the marker said about *where* the note
+  // prints — that is the whole of `סוג`, and dropping it turns an endnote into
+  // a footnote on the way home.
+  const t = 'א#הערה_בשם("1", סוג: הערתסיום)\n\n#גוף_הערה("1")[בסוף]\n';
+  const r = inlineAllDeferredNotes(t);
+  check("a marker with a layout comes back as that layout", r.moved, 1);
+  ok("…and it is the endnote it was", r.text.includes("#הערתסיום[בסוף]"));
+}
+
+{
+  // Two markers for one name would have to duplicate the prose, and silently
+  // doubling a note is worse than declining to move it.
+  const shared = 'א#הערה_בשם("1") ב#הערה_בשם("1")\n\n#גוף_הערה("1")[אחת]\n';
+  const r = inlineAllDeferredNotes(shared);
+  check("a name with two markers is left alone", r.moved, 0);
+  check("and the document is untouched", r.text, shared);
+}
+
+{
+  // A marker whose prose has not been written is a note the writer has not
+  // finished, not a note to delete.
+  const half = 'א#הערה_בשם("1") ב#הערה_בשם("2")\n\n#גוף_הערה("2")[שנייה]\n';
+  const r = inlineAllDeferredNotes(half);
+  check("the finished one moves", r.moved, 1);
+  ok("the dangling marker stays a marker", r.text.includes('#הערה_בשם("1")'));
+  ok("…and the finished one is inline", r.text.includes("#הערה[שנייה]"));
+}
+
+{
+  // A partly-deferred document is legal — that is what the per-note override
+  // is — so a bulk move in either direction leaves the other half alone.
+  const mixed = 'א#הערה[קרובה] ב#הערה_בשם("1")\n\n#גוף_הערה("1")[רחוקה]\n';
+  const r = inlineAllDeferredNotes(mixed);
+  check("only the deferred half moves", r.moved, 1);
+  ok("the inline note is where it was", r.text.includes("#הערה[קרובה]"));
+}
+
+{
+  check(
+    "nothing to recall says so by moving nothing",
+    inlineAllDeferredNotes("טקסט בלי הערות כלל.\n").moved,
+    0,
+  );
+}
+
+{
+  // An English document comes back in English, which is the rule every rewrite
+  // in this module follows.
+  const en = 'a#note_named("1")\n\n#note_body("1")[see Rashi]\n';
+  const r = inlineAllDeferredNotes(en);
+  ok("an English pair inlines to an English command", r.text.includes("#fnote[see Rashi]"));
 }
 
 }

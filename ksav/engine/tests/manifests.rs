@@ -40,79 +40,16 @@
 //! this repository has, and a fifth written in a shape this file cannot read
 //! fails the count rather than passing silently.
 
+mod common;
+
+use common::repo::{field, named, normalise, root, uncommented};
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
-/// The repository root: this crate is `ksav/engine`, so two levels up.
-fn root() -> PathBuf {
-    normalise(&Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(".."))
-}
-
-/// Resolve `.` and `..` textually. Not `canonicalize`: a path dependency
-/// pointing outside the repository may or may not exist on the machine running
-/// the test, and "it does not exist here" is a different failure from "it points
-/// outside", which is the one worth naming.
-fn normalise(p: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for c in p.components() {
-        match c {
-            Component::ParentDir => {
-                out.pop();
-            }
-            Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
-
-/// Every `Cargo.toml` and `Cargo.lock` in the tree, minus build output and
-/// dependencies of other ecosystems.
+/// Every `Cargo.toml` and `Cargo.lock` in the tree.
 fn manifests(root: &Path, name: &str) -> Vec<PathBuf> {
-    fn walk(dir: &Path, name: &str, out: &mut Vec<PathBuf>) {
-        let Ok(entries) = fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let base = entry.file_name();
-            let base = base.to_string_lossy();
-            if path.is_dir() {
-                // `target` and `node_modules` hold thousands of manifests that
-                // belong to other people; `.git` holds none.
-                if base == "target" || base == "node_modules" || base == ".git" {
-                    continue;
-                }
-                walk(&path, name, out);
-            } else if base == name {
-                out.push(path);
-            }
-        }
-    }
-    let mut out = Vec::new();
-    walk(root, name, &mut out);
-    out.sort();
-    out
-}
-
-/// A manifest with `#` comments removed, so that prose *about* a path
-/// dependency is not read as one. This file's own subject matter is discussed at
-/// length in `engine/Cargo.toml`.
-fn uncommented(path: &Path) -> String {
-    fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("{} is readable: {e}", path.display()))
-        .lines()
-        .map(|line| match line.find('#') {
-            // Inside a string a `#` is content, not a comment. No manifest here
-            // has one, and the only way to be sure without a parser is to keep
-            // the line whole when it might.
-            Some(_) if line.matches('"').count() % 2 == 1 => line.to_string(),
-            Some(i) => line[..i].to_string(),
-            None => line.to_string(),
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    named(root, name)
 }
 
 /// `girsa-source = { … }` — the dependency lines this file is about, as
@@ -144,14 +81,6 @@ fn pinned_rev(root: &Path) -> String {
         .find(|l| l.trim_start().starts_with("girsa-source"))
         .expect("engine/Cargo.toml declares girsa-source");
     field(line, "rev").expect("girsa-source is pinned by rev")
-}
-
-/// The value of `key = "…"` on a dependency line.
-fn field(line: &str, key: &str) -> Option<String> {
-    let at = line.find(&format!("{key} = \""))?;
-    let rest = &line[at + key.len() + 4..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
 }
 
 const SEFER_CRATES: &str = "https://github.com/SYKhayyat/sefer-crates";

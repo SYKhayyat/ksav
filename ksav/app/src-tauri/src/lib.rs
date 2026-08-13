@@ -231,6 +231,46 @@ fn normalize(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+/// The loopback desk, held where something can let go of it.
+///
+/// It used to be held by `std::mem::forget`, directly beneath a comment reading
+/// *"dropping it is what withdraws the endpoint file, which is how Girsa stops
+/// offering to send the moment this window closes"*. `mem::forget` is the
+/// guarantee that the drop will never run, so the sentence described a mechanism
+/// the line below it had disabled.
+///
+/// Measured before this changed: close every Ksav window the ordinary way, and
+/// `ksav-endpoint.json` is still on disk naming a dead pid. Girsa reads that file
+/// to find us, so *every* ordinary close looked from over there like a crash —
+/// its presence chip saying **"כְּתָב is registered but not answering — it may
+/// have closed badly"**. `Presence::Stale` exists for the crash case and had
+/// quietly become Ksav's permanent state.
+///
+/// `Option`, because withdrawing is `None`: taking the desk out is what drops it,
+/// and `Desk::drop` unblocks the listener and removes the endpoint file in that
+/// order. See `run`, where the exit that does it lives.
+#[derive(Default)]
+struct DeskHold(Mutex<Option<girsa_post::desk::Desk>>);
+
+/// One URL from the operating system, turned into a source waiting in the inbox.
+///
+/// The single place a `ksav://` URL becomes an arrival, and deliberately so:
+/// three different things hand a URL to this application — the argv that started
+/// it, the argv a second instance forwards, and an open-url event from the
+/// window server — and a source that arrived by one route and not another, or
+/// arrived differently, is the failure the whole pairing is built to avoid.
+/// `engine/tests/deep_link.rs` holds it to one call site.
+fn deliver(url: &str) {
+    let Some(girsa_post::Errand::Insert { packet }) =
+        girsa_post::deep_link(girsa_post::App::Ksav, url)
+    else {
+        return;
+    };
+    if let Err(why) = ksav_engine::post::arrived(&packet) {
+        eprintln!("a source arrived and was refused: {why}");
+    }
+}
+
 /// A file the user picked, with its contents.
 #[derive(serde::Serialize)]
 struct OpenedFile {
@@ -315,21 +355,62 @@ async fn ksav_write_file(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let built = tauri::Builder::default();
+
+    // **First**, before every other plugin, because this is the one that decides
+    // whether this process is going to be an application at all — the second
+    // instance sends its argv and exits from inside this plugin's setup, so
+    // nothing below it runs twice.
+    //
+    // Measured with Ksav already open: `ksav://insert?packet=…` started a second
+    // Ksav. The deep-link listener below was never wrong; on Windows and Linux
+    // it only ever hears a *cold* start, and delivering a URL to a running
+    // process is this plugin's job. What that cost was two things, and the
+    // second is the one that outlives the packet: `post::INBOX` is process-local
+    // so the source waited in the wrong window, and `Desk::open` republishes the
+    // endpoint file, so the duplicate took the pairing over — every later send
+    // from Girsa going to it, over the loopback as much as over `ksav://`, and
+    // Girsa reporting Ksav absent the moment the duplicate closed. See the note
+    // in `Cargo.toml`.
+    //
+    // With the plugin's `deep-link` feature the forwarded argv reaches the
+    // listener wired below, so there is one delivery path and not two.
+    #[cfg(any(windows, target_os = "linux"))]
+    let built = built.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        // The URL routes itself. What is left is the part a writer notices: the
+        // window they already had may be behind the document they were reading
+        // when they pressed send, and a source that silently landed in a hidden
+        // window looks exactly like a source that never arrived.
+        use tauri::Manager as _;
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
+
+    let built = built
         .plugin(tauri_plugin_dialog::init())
         .manage(AllowedPaths::default())
+        .manage(DeskHold::default())
         // `ksav://insert?packet=…`, and the pairing with Girsa (spec.md §10.6).
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            use tauri::Manager as _;
+
             // The loopback desk. A failure here costs the pairing and not the
             // editor: Ksav is a writing application first, and without it the
             // only thing that stops working is being handed a source.
             match ksav_engine::post::open_desk(env!("CARGO_PKG_VERSION")) {
                 Ok(desk) => {
-                    // Kept for the life of the process: dropping it is what
-                    // withdraws the endpoint file, which is how Girsa stops
-                    // offering to send the moment this window closes.
-                    std::mem::forget(desk);
+                    // Held for the life of the process, and — the part that is
+                    // new — let go of when the process ends. This used to be
+                    // `std::mem::forget(desk)`, which kept it alive by making
+                    // the drop unreachable. See `DeskHold` and the exit in
+                    // `run`.
+                    if let Ok(mut hold) = app.state::<DeskHold>().0.lock() {
+                        *hold = Some(desk);
+                    }
                 }
                 Err(e) => eprintln!("the Girsa pairing is not open: {e}"),
             }
@@ -340,16 +421,33 @@ pub fn run() {
                 if let Err(e) = app.deep_link().register_all() {
                     eprintln!("could not register ksav:// with the system: {e}");
                 }
+                // The URL that *started* this process, which on these platforms
+                // arrives in argv and does not raise an open-url event at all.
+                //
+                // Measured before this was here: with nothing running, firing a
+                // `ksav://insert` URL opened Ksav and the inbox file was never
+                // written — the source was dropped on the floor by the one
+                // route that was supposed to be the whole feature. The listener
+                // below is for a URL arriving at a process that is already up;
+                // this is for the one that brought it up, and the two hand to
+                // the same place so a source cannot arrive twice or differently.
+                //
+                // macOS is not here on purpose: it delivers through the app
+                // delegate, which does raise the event, so asking as well would
+                // insert the same quote twice.
+                match app.deep_link().get_current() {
+                    Ok(Some(urls)) => {
+                        for url in urls {
+                            deliver(url.as_str());
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => eprintln!("could not read the URL Ksav was started with: {e}"),
+                }
             }
             tauri_plugin_deep_link::DeepLinkExt::deep_link(app).on_open_url(|event| {
                 for url in event.urls() {
-                    if let Some(girsa_post::Errand::Insert { packet }) =
-                        girsa_post::deep_link(girsa_post::App::Ksav, url.as_str())
-                    {
-                        if let Err(why) = ksav_engine::post::arrived(&packet) {
-                            eprintln!("a source arrived and was refused: {why}");
-                        }
-                    }
+                    deliver(url.as_str());
                 }
             });
 
@@ -376,8 +474,46 @@ pub fn run() {
             ksav_dictionary_write,
             ksav_dictionary_where
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        // `build` and then `run(callback)`, where this used to be
+        // `run(context)`.
+        //
+        // The difference is that `run(context)` takes no callback, and on
+        // Windows it never returns — the event loop calls `exit()` — so nothing
+        // managed is ever dropped and there is no moment at which this
+        // application can be told it is stopping. That is the only reason the
+        // desk was held by `mem::forget`: there was nowhere to let go of it.
+        // Here is that moment.
+        .build(tauri::generate_context!());
+
+    match built {
+        Ok(app) => app.run(|handle, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                // Taking the desk out is what drops it, and `Desk::drop`
+                // unblocks the listener and withdraws `ksav-endpoint.json` — in
+                // that order, which is the crate's own rule about which of the
+                // two may outlive the other.
+                //
+                // Girsa reads that file to find us. Until this ran, every
+                // ordinary close left it behind naming a dead pid, so Girsa's
+                // presence chip reported a crash — "registered but not
+                // answering, it may have closed badly" — for every close a
+                // writer has ever performed.
+                use tauri::Manager as _;
+                if let Some(hold) = handle.try_state::<DeskHold>() {
+                    if let Ok(mut desk) = hold.0.lock() {
+                        *desk = None;
+                    }
+                }
+            }
+        }),
+        Err(e) => {
+            // A sentence somebody can act on rather than a panic message. Every
+            // other refusal in this shell is legible; the one path that can only
+            // stop should be too.
+            eprintln!("Ksav could not open its window: {e}");
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]

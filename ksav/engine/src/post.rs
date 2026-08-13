@@ -534,6 +534,20 @@ pub fn girsa() -> girsa_post::Presence {
     girsa_post::presence(App::Girsa)
 }
 
+/// The URL scheme the operating system has to be told about — `ksav`.
+///
+/// Asked of `girsa-post` rather than written down, because it is `girsa-post`
+/// that decides what [`arrived`] will and will not parse. The scheme also has to
+/// be registered with the system, and *that* copy lives in
+/// `app/src-tauri/tauri.conf.json`, where nothing in Rust can see it: a rename
+/// upstream would leave the shell registering a scheme the parser then refuses,
+/// which is a deep link that opens Ksav and does nothing. `engine/tests/
+/// deep_link.rs` holds the two together.
+#[must_use]
+pub fn scheme() -> &'static str {
+    App::Ksav.as_str()
+}
+
 /// Put a source in the inbox directly — the `ksav://insert?packet=…` path,
 /// where the operating system hands us a URL rather than a request.
 ///

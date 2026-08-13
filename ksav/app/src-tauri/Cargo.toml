@@ -37,6 +37,33 @@ ksav-engine = { path = "../../engine" }
 girsa-post = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
 tauri-plugin-deep-link = "2.4.9"
 
+# The other half of the deep link, and the half a writer meets.
+#
+# On Windows and Linux the deep-link plugin only ever hears a *cold* start.
+# Handing a URL to a process that is already running is this plugin's job, and it
+# is documented as deep-link's companion on those platforms; it was simply never
+# added. So with Ksav open, `ksav://insert?packet=…` started a **second Ksav**,
+# and what that costs here is not one misdelivered quote:
+#
+#   * `post::INBOX` is a process-local `static`, so the packet waits in a window
+#     the writer is not typing in — the send looks like it did nothing.
+#   * `Desk::open` binds a fresh port and `publish()`es the endpoint file
+#     unconditionally, so the duplicate **takes over the pairing**. From that
+#     moment every send from Girsa goes to the duplicate, including the loopback
+#     route that has nothing to do with deep links. When the duplicate is closed
+#     its `Desk` drop withdraws the endpoint file, and Girsa then reports that
+#     Ksav is not running while the writer is looking straight at it.
+#
+# With the `deep-link` feature the second process's argv is handed to the
+# listener already wired in `run()`, so there is no second delivery route to keep
+# in step with it. macOS routes URLs through the app delegate and needs neither,
+# which is why this is a targeted dependency rather than a plain one.
+#
+# `engine/tests/manifests.rs` holds every manifest in the tree to this pairing,
+# so a shell that grows a deep link later cannot ship without it.
+[target.'cfg(any(windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+
 # The desktop binary compiles Typst in-process, so it wants the same treatment
 # the engine's own release profile gets — and a crate does not inherit another
 # crate's profile, so without this the installer everybody downloads was the one

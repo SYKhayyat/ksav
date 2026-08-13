@@ -90,3 +90,109 @@ pub fn line_with<'a>(lines: &'a [Line], needle: &str) -> &'a Line {
             )
         })
 }
+
+/// Reading the repository as a set of files, for the tests whose subject is the
+/// tree rather than a laid-out page.
+///
+/// The same reason the render helpers above are here: `manifests.rs` grew these
+/// five functions for one claim, and the second claim that needs them —
+/// `deep_link.rs`, whose subject is spread across a manifest, a Rust file and a
+/// JSON configuration — would otherwise have copied them. That is the shape this
+/// module exists to stop.
+pub mod repo {
+    use std::fs;
+    use std::path::{Component, Path, PathBuf};
+
+    /// The repository root: this crate is `ksav/engine`, so two levels up.
+    #[must_use]
+    pub fn root() -> PathBuf {
+        normalise(&Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(".."))
+    }
+
+    /// Resolve `.` and `..` textually. Not `canonicalize`: a path dependency
+    /// pointing outside the repository may or may not exist on the machine
+    /// running the test, and "it does not exist here" is a different failure
+    /// from "it points outside", which is the one worth naming.
+    #[must_use]
+    pub fn normalise(p: &Path) -> PathBuf {
+        let mut out = PathBuf::new();
+        for c in p.components() {
+            match c {
+                Component::ParentDir => {
+                    out.pop();
+                }
+                Component::CurDir => {}
+                other => out.push(other.as_os_str()),
+            }
+        }
+        out
+    }
+
+    /// Every file with this name in the tree, minus build output and
+    /// dependencies of other ecosystems.
+    #[must_use]
+    pub fn named(root: &Path, name: &str) -> Vec<PathBuf> {
+        fn walk(dir: &Path, name: &str, out: &mut Vec<PathBuf>) {
+            let Ok(entries) = fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let base = entry.file_name();
+                let base = base.to_string_lossy();
+                if path.is_dir() {
+                    // `target` and `node_modules` hold thousands of manifests
+                    // that belong to other people; `.git` holds none.
+                    if base == "target" || base == "node_modules" || base == ".git" {
+                        continue;
+                    }
+                    walk(&path, name, out);
+                } else if base == name {
+                    out.push(path);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(root, name, &mut out);
+        out.sort();
+        out
+    }
+
+    /// A manifest with `#` comments removed, so that prose *about* a dependency
+    /// is not read as one. Both of this module's subjects are discussed at
+    /// length in the manifests they govern.
+    #[must_use]
+    pub fn uncommented(path: &Path) -> String {
+        fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("{} is readable: {e}", path.display()))
+            .lines()
+            .map(|line| match line.find('#') {
+                // Inside a string a `#` is content, not a comment. No manifest
+                // here has one, and the only way to be sure without a parser is
+                // to keep the line whole when it might.
+                Some(_) if line.matches('"').count() % 2 == 1 => line.to_string(),
+                Some(i) => line[..i].to_string(),
+                None => line.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// The value of `key = "…"` on a dependency line.
+    #[must_use]
+    pub fn field(line: &str, key: &str) -> Option<String> {
+        let at = line.find(&format!("{key} = \""))?;
+        let rest = &line[at + key.len() + 4..];
+        let end = rest.find('"')?;
+        Some(rest[..end].to_string())
+    }
+
+    /// A path as the reader would name it: relative to the repository root.
+    #[must_use]
+    pub fn shown(root: &Path, path: &Path) -> String {
+        path.strip_prefix(root)
+            .unwrap_or(path)
+            .display()
+            .to_string()
+    }
+}

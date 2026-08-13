@@ -67,7 +67,10 @@
   // English and is not something anybody would type, which is the sentence at
   // the top of this table applied to the commands that had escaped it.
   source: "מקור", sub: "תת", place: "מקום", brackets: "סוגריים",
-  groups: "קבוצות", chars: "תווים",
+  groups: "קבוצות", chars: "תווים", sort: "מיון",
+  // The mark register's two non-style knobs: opt this mark out of its class's
+  // styling, and out of its class's list.
+  exempt: "פטור", listed: "ברשימה",
   // named colours
   header_fill: "צבע_כותרת", stripe: "צבע_פס", striped: "פסים",
   insert_colour: "צבע_הוספה", delete_colour: "צבע_מחיקה",
@@ -112,6 +115,18 @@
   marked: "סימון",
   final: "סופי",
   original: "מקורי",
+  // הגדרות_סימונים · the mark classes, which are named by their own commands.
+  // `#marklist("gemara")` and `#marks_config(size: ("gemara": 0.9em))` are the
+  // spellings an English document would use, and a class name is data like any
+  // other value here.
+  refmark: "ציון",
+  gemara: "גמרא",
+  dh: "דיבור_המתחיל",
+  verse: "פסוק",
+  sourceref: "ציון_מקור",
+  indexentry: "ערך",
+  siman: "סימן",
+  sourcenote: "מראה_מקום",
 )
 
 /// One value, said in Hebrew whichever language it arrived in.
@@ -255,12 +270,21 @@
 //  So they take both. This flattens content back to the plain string they need.
 //  There is nothing in those brackets but characters — no nested command to lose —
 //  and the space element is the only thing that needs naming.
+//
+//  `join` needs the empty case named, because `().join("")` in Typst is **none**
+//  and not `""`. `#גמרא[][]` — which is what the Insert menu writes before the
+//  writer has typed the masechta — is a sequence with no children, so this
+//  returned `none` and every caller that went on to `.trim()` or `+` it failed
+//  with *"type none has no method trim"*, naming a method the writer never
+//  called. It had been latent since this function was written: nothing asked it
+//  for an empty body until a mark had to derive its own list entry from one.
 #let _as_string(x) = {
   if type(x) == str { x } else if type(x) == content {
     if x.has("text") {
       x.text
     } else if x.has("children") {
-      x.children.map(_as_string).join("")
+      let parts = x.children.map(_as_string)
+      if parts.len() == 0 { "" } else { parts.join("") }
     } else if x == [ ] {
       " "
     } else {
@@ -2304,6 +2328,145 @@
 #let img = _en(תמונה)
 
 // ============================================================
+//  סימונים · the mark register
+// ------------------------------------------------------------
+//  A semantic mark that nothing ever collects is decoration. `#דיבור_המתחיל`
+//  was `strong(body)` and `#ציון` was small grey text in brackets: the only
+//  thing separating either from typing the formatting by hand was a name in the
+//  source, and a name no surface reads is a comment with syntax.
+//
+//  So a mark of a class registers itself where it stands, and three things
+//  follow at once:
+//
+//    · `#רשימת_סימונים("גמרא")` prints every mark of that class with the pages
+//      it landed on — ONE printer over a class of marks, rather than a bespoke
+//      index command per mark, which is what the two `#מפתח_*` commands were;
+//    · `#הגדרות_סימונים(סגנון: ("גמרא": "italic"))` styles the whole class;
+//    · `#גמרא("ברכות", "ב.", צבע: red)` overrules that for one of them, and
+//      `פטור: true` opts one out of the class's styling altogether.
+//
+//  That is `_cfg_with`'s three-layer model applied to a **set** rather than to a
+//  kind: the class is the global, the mark is the instance, and `כפה` on the
+//  global overrules both the per-mark settings and the exemptions — because an
+//  exemption is exactly one of the hundred one-off overrides that switch exists
+//  to sweep up.
+//
+//  Eight classes, six of them styled here. The other two are styled by whatever
+//  they already are — a `#סימן` is a heading and takes heading styles, a
+//  `#מראה_מקום` is a footnote and takes the note styles — and giving either a
+//  second styling channel would be two authorities for one fact. They register
+//  for the collecting and no more.
+#let _mk_label = label("ksav-mark")
+
+/// The classes, and the look each one ships with. A class absent from here is
+/// collected and printed exactly as its own command draws it.
+#let _mk_defaults = (
+  "ציון": (גודל: 0.85em, צבע: luma(95), סוגריים: true),
+  "גמרא": (סגנון: "italic"),
+  "דיבור_המתחיל": (משקל: "bold"),
+  "פסוק": (סגנון: "italic"),
+  "ציון_מקור": (סגנון: "italic"),
+  "ערך": (:),
+)
+
+/// What `#רשימת_סימונים` calls a class when the writer does not title it.
+#let _mk_titles = (
+  "ציון": "רשימת הציונים",
+  "גמרא": "מראי המקומות בגמרא",
+  "דיבור_המתחיל": "רשימת הדיבורים המתחילים",
+  "פסוק": "רשימת הפסוקים",
+  "ציון_מקור": "רשימת המקורות",
+  "ערך": "רשימת הערכים",
+  "סימן": "רשימת הסימנים",
+  "מראה_מקום": "רשימת מראי המקומות",
+)
+
+/// What a mark's own arguments may say about how it looks.
+#let _mk_knobs = ("גודל", "סגנון", "משקל", "צבע", "קו_תחתון", "סוגריים")
+
+/// …plus the two that are not a look at all: `פטור` takes this mark out of its
+/// class's styling, and `ברשימה: false` takes it out of the class's list. Two
+/// separate wants — *this one is set differently on purpose* and *this one is
+/// not worth listing* — and conflating them would make each unreachable half
+/// the time.
+#let _mk_own_keys = _mk_knobs + ("פטור", "ברשימה")
+
+/// The class styling, knob-major: `גודל: ("ציון": 0.8em)` — one dictionary per
+/// knob, keyed by class, exactly as `#הגדרות_זרמים` keys its knobs by stream.
+/// A plain value instead of a dictionary applies to every class.
+#let _mk_cfg = state("ksav-mk-cfg", (:))
+#let הגדרות_סימונים(..opts) = _mk_cfg.update(c => {
+  let d = c
+  for (k, v) in opts.named() { d.insert(k, v) }
+  d
+})
+#let marks_config = _en(הגדרות_סימונים)
+
+/// One knob's value for one class. The dictionary may be keyed in either
+/// language — `("gemara": …)` in an English document — which is what `_val`
+/// answers, so a class name is data like every other value in this prelude.
+#let _mk_pick(cfg, key, cls) = {
+  let a = cfg.at(key, default: none)
+  if type(a) != dictionary { a } else {
+    let out = none
+    for (k, v) in a { if _val(k) == cls { out = v } }
+    out
+  }
+}
+
+/// The three layers, resolved for one mark: shipped default, class, this mark.
+#let _mk_conf(cls, own) = {
+  let base = _mk_defaults.at(cls, default: (:))
+  let mine = (:)
+  for (k, v) in own { if _mk_knobs.contains(k) { mine.insert(k, v) } }
+  let g = _mk_cfg.get()
+  let c = base
+  for k in _mk_knobs {
+    let v = _mk_pick(g, k, cls)
+    if v != none { c.insert(k, v) }
+  }
+  // Rule 3 first, and ahead of the exemption as well as of the override: `כפה`
+  // is the switch for making a sefer uniform again, and it would not do that if
+  // every `פטור: true` in it survived. See `_cfg_with`.
+  if g.at("כפה", default: false) { c }
+  else if own.at("פטור", default: false) { _cfg_with(base, mine) }
+  else { _cfg_with(c, mine) }
+}
+
+#let _mk_render(c, body) = {
+  if body == none { return }
+  let out = body
+  if c.at("סוגריים", default: false) { out = [(#out)] }
+  if c.at("קו_תחתון", default: false) { out = underline(out) }
+  let a = (:)
+  if "גודל" in c { a.insert("size", c.גודל) }
+  if "צבע" in c { a.insert("fill", c.צבע) }
+  if "סגנון" in c { a.insert("style", _val(c.סגנון)) }
+  if "משקל" in c { a.insert("weight", _val(c.משקל)) }
+  text(..a, out)
+}
+
+/// Register one mark where it stands, and print it in its class's style.
+///
+/// `רשומה` is what the list shows — which is not always what prints: a
+/// `#ציון_מקור` prints the sefer's canonical name and lists under it, a `#פסוק`
+/// prints the quotation and lists under its source, and a `#ערך` may print
+/// nothing at all and still belong in the list.
+#let _mk_mark(cls, רשומה, body, named, extra: (:)) = {
+  let (own, rest) = _cfg_split(named, _mk_own_keys)
+  _cfg_strict(cls, rest)
+  if own.at("ברשימה", default: true) != false {
+    let v = (class: cls, entry: _as_string(רשומה).trim())
+    for (k, val) in extra { v.insert(k, val) }
+    [#metadata(v)#_mk_label]
+  }
+  context _mk_render(_mk_conf(cls, own), body)
+}
+
+/// Every mark of one class, in the order they were written.
+#let _mk_of(cls) = query(_mk_label).filter(m => m.value.class == cls)
+
+// ============================================================
 //  תורני · Torah / yeshiva writing
 //  First-class support for divrei Torah, chiddushim and sefarim:
 //  siman/seif structure, verse & source references, and mekoros
@@ -2311,7 +2474,19 @@
 // ============================================================
 
 // סימן — a numbered chapter heading, "סימן א׳ — כותרת"
-#let סימן(מספר, כותרת) = heading(level: 1, [סימן #מספר#if כותרת != none [ — #כותרת]])
+//
+// The mark rides **inside** the heading's own body rather than in front of it.
+// A metadata element sitting on its own in block context opens a paragraph, and
+// a paragraph before every siman is vertical space nobody asked for; inside, it
+// is invisible and its location is still the heading's, which is what the page
+// number in the list is read off.
+#let סימן(מספר, כותרת) = heading(
+  level: 1,
+  [סימן #מספר#if כותרת != none [ — #כותרת]#metadata((
+    class: "סימן",
+    entry: "סימן " + _as_string(מספר) + if כותרת != none { " — " + _as_string(כותרת) } else { "" },
+  ))#_mk_label],
+)
 
 // סעיף — a lettered/numbered halachic paragraph: "א. גוף ההלכה"
 #let סעיף(אות, body) = block(spacing: 0.85em, {
@@ -2322,8 +2497,16 @@
 // אות — an inline bold source/paragraph marker, e.g. #אות[ב]
 #let אות(סימן) = strong([#סימן. ])
 
-// פסוק — an emphasized quotation followed by its reference in parentheses
-#let פסוק(מקור, body) = [#emph[#body] #text(size: 0.82em, fill: luma(95))[(#מקור)]]
+// פסוק — an emphasized quotation followed by its reference in parentheses.
+//
+// The quotation carries the class's styling; the reference after it does not,
+// because the reference is the apparatus around the mark rather than the mark.
+// The list files the pesukim under their sources, which is the order a reader
+// looks them up in.
+#let פסוק(מקור, body, ..opts) = {
+  _mk_mark("פסוק", מקור, body, opts.named())
+  [ #text(size: 0.82em, fill: luma(95))[(#מקור)]]
+}
 
 // מראה_מקום — a source citation set as a footnote (the mekoros apparatus)
 //
@@ -2343,10 +2526,22 @@
 // all still right. Without it the ref alone says *this se'if*, and regenerating
 // against a corrected edition hands back the whole se'if to a writer who
 // quoted half of one.
-#let _ksav_mekor_label = label("ksav-mekor")
+//
+// It registers in the mark register (`_mk_label`) like every other collectable
+// mark, and carries its `ref` and `chars` alongside the entry — which is why
+// the register's value is a dictionary a class may add to rather than a fixed
+// pair. Collect-only: what a mareh makom looks like is a footnote's question,
+// answered by `#הגדרות_הערות`, and a second styling channel over the same text
+// would be two authorities for one fact.
 #let מראה_מקום(body, מקור: none, תווים: none) = {
   if מקור != none {
-    [#metadata((ref: מקור, chars: תווים, printed: body))#_ksav_mekor_label]
+    [#metadata((
+      class: "מראה_מקום",
+      entry: _as_string(body).trim(),
+      ref: מקור,
+      chars: תווים,
+      printed: body,
+    ))#_mk_label]
   }
   footnote(text(size: 0.92em, body))
 }
@@ -2359,7 +2554,13 @@
 // that opens the page it names.
 #let מקור_חי(body, מקור: none) = {
   if מקור == none { body } else {
-    [#metadata((ref: מקור, printed: body))#_ksav_mekor_label]
+    [#metadata((
+      class: "מראה_מקום",
+      entry: _as_string(body).trim(),
+      ref: מקור,
+      chars: none,
+      printed: body,
+    ))#_mk_label]
     link(מקור, body)
   }
 }
@@ -2371,7 +2572,7 @@
 // sort and a print (Girsa spec.md §10.4). Every citation that carried a `מקור:`
 // appears once, in the order it was first cited.
 #let מראה_מקומות(כותרת: none) = context {
-  let notes = query(_ksav_mekor_label)
+  let notes = _mk_of("מראה_מקום")
   if notes.len() == 0 { return }
   if כותרת != none { heading(level: 2, outlined: false, numbering: none, כותרת) }
   // A dictionary, not an array. `x in array` is a linear scan, so deduplicating
@@ -2409,8 +2610,12 @@
 //      catalogue the engine generates above this prelude (`_ix_sefarim`).
 // ============================================================
 
-#let _ix_topic_label = label("ksav-ix-topic")
-#let _ix_src_label = label("ksav-ix-src")
+//  Both indexes collect through the one mark register above (`_mk_label`) and
+//  filter by class. What is special about them is not the collecting — that is
+//  the same query every class gets — but the *printing*: Shas order, gematria,
+//  sub-entries, group headings. So `#רשימת_סימונים("ערך")` and `#מפתח_ענינים`
+//  read the same marks and are both right, one as a plain list of pages and one
+//  as an index.
 
 // The letters, as numbers. Final forms carry their base value, because ת"ק is
 // five hundred whichever way the kuf was typed.
@@ -2569,12 +2774,14 @@
 // `#ערך("שבת")[מלאכת בורר]` fail with "unexpected argument" — pointing at a
 // bracket the writer had every right to type.
 #let ערך(מונח, תת: none, ..שאר) = {
-  [#metadata((
-    term: str(מונח).trim(),
-    sub: if תת == none { "" } else { str(תת).trim() },
-  ))#_ix_topic_label]
   let body = שאר.pos()
-  if body.len() > 0 { body.first() }
+  _mk_mark(
+    "ערך",
+    מונח,
+    if body.len() > 0 { body.first() } else { none },
+    שאר.named(),
+    extra: (sub: if תת == none { "" } else { _as_string(תת).trim() }),
+  )
 }
 #let indexentry = _en(ערך)
 
@@ -2584,7 +2791,7 @@
 )
 
 #let מפתח_ענינים(כותרת: [מפתח הענינים], טורים: 2, גודל: 0.9em) = context {
-  let marks = query(_ix_topic_label)
+  let marks = _mk_of("ערך")
   if marks.len() == 0 { return }
   if כותרת != none { heading(level: 1, numbering: none, כותרת) }
   // Gather first, print second. A term's pages are spread through the document
@@ -2594,7 +2801,7 @@
   let groups = (:)
   for m in marks {
     let v = m.value
-    let g = groups.at(v.term, default: (locs: (), subs: (:)))
+    let g = groups.at(v.entry, default: (locs: (), subs: (:)))
     if v.sub == "" {
       g.locs.push(m.location())
     } else {
@@ -2602,7 +2809,7 @@
       sl.push(m.location())
       g.subs.insert(v.sub, sl)
     }
-    groups.insert(v.term, g)
+    groups.insert(v.entry, g)
   }
   let body = {
     set text(size: גודל)
@@ -2635,38 +2842,56 @@
 // The optional body overrides the printed form, and rides `..שאר` for the same
 // reason as `ערך` above: a trailing `[…]` is positional and Typst has no
 // optional positional parameter.
-#let ציון_מקור(ספר, מקום: none, סוגריים: false, ..שאר) = {
+//
+// `סוגריים` is no longer a parameter of its own: it is one of the mark
+// register's knobs, so `#הגדרות_סימונים(סוגריים: ("ציון_מקור": true))` can put
+// every citation in brackets and one citation can still say otherwise. Same
+// spelling, same meaning, one implementation.
+//
+// The class's styling applies to whichever form prints, including an explicit
+// body. It did not before — an overridden body escaped the italic that the
+// generated form has always had — and the inconsistency was invisible precisely
+// because it only showed on the citations a writer had already taken by hand.
+#let ציון_מקור(ספר, מקום: none, ..שאר) = {
   let e = _ix_sefarim.at(_ix_fold(ספר), default: none)
   let canon = if e == none { str(ספר).trim() } else { e.שם }
   let place = if מקום == none { "" } else { str(מקום).trim() }
-  [#metadata((
-    sefer: canon,
-    order: if e == none { 9000 } else { e.סדר },
-    kind: if e == none { "other" } else { e.סוג },
-    place: place,
-  ))#_ix_src_label]
   let own = שאר.pos()
   let printed = if own.len() > 0 { own.first() } else {
     // The writer's own spelling is *not* what prints. Somebody who wrote ב״ב in
     // one place and בבא בתרא in another gets one spelling throughout, which is
     // the copy-editing pass nobody has time for.
-    text(style: "italic", canon + if place != "" { " " + place } else { "" })
+    canon + if place != "" { " " + place } else { "" }
   }
-  if סוגריים { [(#printed)] } else { printed }
+  _mk_mark(
+    "ציון_מקור",
+    canon + if place != "" { " " + place } else { "" },
+    printed,
+    שאר.named(),
+    // The entry and the sefer are two different answers and both are wanted: a
+    // plain list wants "ברכות ב." and the index wants every daf of ברכות filed
+    // under one heading.
+    extra: (
+      sefer: canon,
+      sub: place,
+      order: if e == none { 9000 } else { e.סדר },
+      kind: if e == none { "other" } else { e.סוג },
+    ),
+  )
 }
 #let sourceref = _en(ציון_מקור)
 
 #let מפתח_מקורות(כותרת: [מפתח המקורות], קבוצות: true, טורים: 2, גודל: 0.9em) = context {
-  let marks = query(_ix_src_label)
+  let marks = _mk_of("ציון_מקור")
   if marks.len() == 0 { return }
   if כותרת != none { heading(level: 1, numbering: none, כותרת) }
   let by = (:)
   for m in marks {
     let v = m.value
     let g = by.at(v.sefer, default: (order: v.order, kind: v.kind, places: (:)))
-    let pl = g.places.at(v.place, default: ())
+    let pl = g.places.at(v.sub, default: ())
     pl.push(m.location())
-    g.places.insert(v.place, pl)
+    g.places.insert(v.sub, pl)
     by.insert(v.sefer, g)
   }
   // Shas order first, then the alphabet for anything sharing a rank — which is
@@ -2701,13 +2926,69 @@
 #let sourceindex = _en(מפתח_מקורות, extra: (columns: "טורים"))
 
 // ציון — an inline reference in small gray text, e.g. (רמב״ם הל׳ תפילין)
-#let ציון(body) = text(size: 0.85em, fill: luma(95), [(#body)])
+#let ציון(body, ..opts) = _mk_mark("ציון", body, body, opts.named())
 
 // דיבור_המתחיל — a bolded lemma opening a comment, "ד״ה ..."
-#let דיבור_המתחיל(body) = strong(body)
+//
+// The one the argument for this whole mechanism was made about: *"if not, it is
+// just bold."* It is still bold — `משקל: "bold"` is the class default — and it
+// is now also gathered, restyled as a set, and exemptible one at a time.
+#let דיבור_המתחיל(body, ..opts) = _mk_mark("דיבור_המתחיל", body, body, opts.named())
 
 // גמרא — format a Talmudic reference, e.g. #גמרא("ברכות", "ב.")
-#let גמרא(מסכת, דף) = text(style: "italic", [#מסכת #דף])
+#let גמרא(מסכת, דף, ..opts) = _mk_mark(
+  "גמרא",
+  _as_string(מסכת).trim() + " " + _as_string(דף).trim(),
+  [#מסכת #דף],
+  opts.named(),
+)
+
+// רשימת_סימונים — every mark of one class, with the pages it landed on.
+//
+// The generalisation of `#מפתח_ענינים` and `#מפתח_מקורות`: one printer over a
+// class of marks rather than a bespoke command per mark. Those two stay, because
+// what is special about them is the *sorting* — Shas order, gematria, group
+// headings, sub-entries — and none of that generalises to a class of lemmas. The
+// collecting does, and is now shared.
+//
+// Order of first appearance by default, which for a `#דיבור_המתחיל` or a `#סימן`
+// is the order of the sefer and the only order that means anything. `מיון: true`
+// sorts alphabetically instead, by the same Hebrew sort key the indexes use.
+/// The title one class's list gets when the writer does not give it one.
+///
+/// A function and not an inline `if`, so the guard below stays the one-line
+/// `if כותרת != none { heading(…) }` shape that every self-titling collector in
+/// this prelude uses. `test/spans.test.mjs` derives which commands print headings
+/// by reading this file, and it recognises a collector that titles itself by that
+/// guard — a nested brace inside it made this command look like a heading
+/// producer, which would have greyed `#רשימת_סימונים` inside every heading.
+#let _mk_head(cls, כותרת) = if כותרת == auto {
+  _mk_titles.at(cls, default: "רשימת הסימונים")
+} else { כותרת }
+
+#let רשימת_סימונים(סוג, כותרת: auto, טורים: 1, גודל: 0.9em, מיון: false) = context {
+  let cls = _val(_as_string(סוג).trim())
+  let marks = _mk_of(cls)
+  if marks.len() == 0 { return }
+  if כותרת != none { heading(level: 1, numbering: none, _mk_head(cls, כותרת)) }
+  let by = (:)
+  let order = ()
+  for m in marks {
+    let e = m.value.entry
+    if e == "" { continue }
+    let locs = by.at(e, default: none)
+    if locs == none { order.push(e); locs = () }
+    locs.push(m.location())
+    by.insert(e, locs)
+  }
+  let names = if מיון { order.sorted(key: _ix_sortkey) } else { order }
+  let body = {
+    set text(size: גודל)
+    for e in names { _ix_entry_line(e, by.at(e)) }
+  }
+  if טורים > 1 { columns(טורים, body) } else { body }
+}
+#let marklist = _en(רשימת_סימונים, extra: (columns: "טורים"))
 
 // עם_פירוש — main text with commentary alongside it on the page (parallel
 // columns, RTL: body on the right, commentary in the outer/left column). Not
@@ -2900,8 +3181,13 @@
 #let siman = סימן
 #let seif = סעיף
 #let osource = אות
-#let verse = פסוק
+// The four collectable marks take named arguments now — their own styling, and
+// whether they take the class's — so their English spellings have to translate
+// those names like every other `_en` alias. A plain binding here would leave
+// `#gemara("ברכות", "ב.", colour: red)` stopping the compile on a parameter the
+// Hebrew command accepts, which is the whole complaint `_en` exists to answer.
+#let verse = _en(פסוק)
 #let sourcenote = _en(מראה_מקום)
-#let refmark = ציון
-#let dh = דיבור_המתחיל
-#let gemara = גמרא
+#let refmark = _en(ציון)
+#let dh = _en(דיבור_המתחיל)
+#let gemara = _en(גמרא)

@@ -41,7 +41,7 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 115 commands. `#` in the editor offers all of them with what each one
+There are 117 commands. `#` in the editor offers all of them with what each one
 does, so none is worth memorising.
 
 ## Notes whose text lives at the end

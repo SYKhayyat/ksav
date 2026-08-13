@@ -939,6 +939,24 @@
       "deprecated": false
     },
     {
+      "he": "רשימת_סימונים",
+      "en": "marklist",
+      "category": "torah",
+      "desc_he": "רשימת כל הסימונים מסוג אחד (בסוף הספר)",
+      "desc_en": "List every mark of one kind (at the back)",
+      "insert": "#רשימת_סימונים(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_סימונים",
+      "en": "marks_config",
+      "category": "torah",
+      "desc_he": "עיצוב סוג של סימונים",
+      "desc_en": "Style a kind of mark",
+      "insert": "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))",
+      "deprecated": false
+    },
+    {
       "he": "עם_פירוש",
       "en": "commentary",
       "category": "torah",

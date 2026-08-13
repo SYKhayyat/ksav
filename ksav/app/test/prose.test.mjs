@@ -51,6 +51,10 @@ const DOCS = {
   "headings and emphasis": `#כותרת1[פרק]\nטקסט עם #הדגשה[מודגש] ו#נטוי[נטוי].\n`,
   "hidden break": `שורה // מעבר\nהמשך\n`,
   "block comment": `לפני /* פנים\nעוד */ אחרי\n`,
+  // Two bodies on one command — four of the commands a sefer is written with.
+  "two bodies": `#גמרא[ברכות][ב.] ו#פסוק[בראשית א, א][בראשית ברא] ו#סעיף[א][גוף] סוף.\n`,
+  "two bodies, one empty": `#גמרא[][] סוף.\n`,
+  "two bodies with an argument": `#גמרא[ברכות][ב.] ו#ציון(פטור: true)[רמב״ם] סוף.\n`,
   empty: ``,
 };
 
@@ -103,4 +107,29 @@ export async function run() {
     "prose: the body's own text is not",
     !spans.some((s) => s.includes("הביאור")),
   );
+
+  // A command with two bodies. This hid the opening through the end of the first
+  // body and the bracket after it, so `#גמרא[ברכות][ב.]` read as *ברכות[ב.]* — the
+  // second body's brackets sitting in the prose, in the view whose one promise is
+  // that there is no markup in it.
+  {
+    const two = `#גמרא[ברכות][ב.] סוף.\n`;
+    const st = EditorState.create({
+      doc: two,
+      selection: { anchor: two.length - 1 },
+      extensions: [proseMode],
+    });
+    const covered = [];
+    const it2 = st.field(proseMode).deco.iter();
+    while (it2.value) {
+      covered.push(two.slice(it2.from, it2.to));
+      it2.next();
+    }
+    ok("prose: the opening of a two-bodied command is covered", covered.includes("#גמרא["));
+    ok("prose: so is the bracket pair between its bodies", covered.includes("]["));
+    ok("prose: and the last body's closing bracket", covered.filter((c) => c === "]").length === 1);
+    // Both halves of the reference are styled, not only the first.
+    ok("prose: the masechta is marked", covered.includes("ברכות"));
+    ok("prose: and so is the daf", covered.includes("ב."));
+  }
 }

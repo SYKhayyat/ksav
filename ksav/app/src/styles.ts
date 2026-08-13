@@ -29,29 +29,39 @@ export type StyleCommand =
   | "review"
   | "notes"
   | "bands"
-  | "streams";
+  | "streams"
+  | "marks";
 
-const COMMAND_NAMES: Record<StyleCommand, string[]> = {
-  headings: ["הגדרות_כותרות", "headings_config"],
-  lists: ["הגדרות_רשימות", "lists_config"],
-  tables: ["הגדרות_טבלאות", "tables_config"],
+/**
+ * The `#הגדרות_*` command each section reads and writes, by its Hebrew name.
+ *
+ * Hebrew only, and the English spelling comes from the generated pairing rather
+ * than from a second column here. Eight commands with both names written side by
+ * side is a copy of the registry, which is what `test/enginefacts.test.mjs`
+ * refuses in any module — and it refused this one the moment the eighth section
+ * was added, which is the fence doing precisely its job.
+ */
+const COMMAND_NAMES: Record<StyleCommand, string> = {
+  headings: "הגדרות_כותרות",
+  lists: "הגדרות_רשימות",
+  tables: "הגדרות_טבלאות",
   // Not styling, but the same shape — one `#הגדרות_*` call whose named arguments
   // the UI reads and writes — so it uses the same machinery rather than a second
   // copy of it. This one carries which review view the document is read in.
-  review: ["הגדרות_סקירה", "review_config"],
+  review: "הגדרות_סקירה",
   // The tiered notes. Every knob the apparatus has — per-tier size, slant,
   // colour, indent, numbering scheme, label prefix, the gap between entries —
   // has always been configurable and none of it was reachable except by typing
   // the command. And the shipped ramp was 0.9em → 0.88em → 0.86em, so a writer
   // who *did* find it was tuning something they could not see.
-  notes: ["הגדרות_הערות", "footnote_config"],
+  notes: "הגדרות_הערות",
   // The fixed page-foot regions. Its `גבהים` tuple is the one setting in the
   // product that changes **page geometry** — the engine reserves the foot of
   // every page from it — and the only instruction for changing it was the note
   // on the chooser card: *"the heights live in the #הגדרות_מדפים line at the top
   // of the file — change them there."* Telling a writer to go and edit Typst is
   // not a control.
-  bands: ["הגדרות_מדפים", "pagebands_config"],
+  bands: "הגדרות_מדפים",
   // The other page-foot apparatus, and the one that had no UI at all.
   //
   // `#הערה_זרם("שם")` gives any number of independent peer streams — a peirush,
@@ -60,12 +70,32 @@ const COMMAND_NAMES: Record<StyleCommand, string[]> = {
   // (the order, the per-stream numbering, the titles, stacked versus side by
   // side, the heights) was reachable only by typing the command, which is the
   // same complaint that produced `bands` one entry up.
-  streams: ["הגדרות_זרמים", "streams_config"],
+  streams: "הגדרות_זרמים",
+  // The mark register — `#ציון`, `#גמרא`, `#דיבור_המתחיל`, `#פסוק`, `#ציון_מקור`,
+  // `#ערך`. Its knobs are keyed by *class* rather than by tier or by stream, so
+  // the section has a class chooser where the Headings section has a level one;
+  // the value shapes are the same dictionaries the streams section already reads.
+  marks: "הגדרות_סימונים",
 };
+
+/**
+ * The mark classes a control may style, in the order the panel offers them.
+ *
+ * `marks.ts` owns the list, because *what a mark class is* is one question and
+ * the module that walks the document for them is the one that has to answer it.
+ * Re-exported under the name the panel uses.
+ */
+export { STYLED_CLASSES as MARK_CLASSES } from "./marks";
+import { STYLED_CLASSES } from "./marks";
 
 /** The canonical (Hebrew) name we write. */
 function canonical(kind: StyleCommand): string {
-  return COMMAND_NAMES[kind][0];
+  return COMMAND_NAMES[kind];
+}
+
+/** Both spellings of this section's command — Hebrew first, then the alias. */
+function spellings(kind: StyleCommand): readonly string[] {
+  return bothSpellings(COMMAND_NAMES[kind]);
 }
 
 /**
@@ -106,6 +136,24 @@ const EN_ARGS: Record<string, string> = {
   פריסה: "layout",
   כותרות: "titles",
   קו_בין: "rule_between",
+  // Eight of these were missing while the panel was already writing them, so an
+  // English document that had a heading weight or a table's stripe colour set
+  // from a control came out with a Hebrew argument name on an English command.
+  // Still legal Typst, still not what the writer typed. `test/styles.test.mjs`
+  // now reads `_en_params` out of the prelude and fails on any key this panel
+  // writes without a spelling here, which is what would have caught them.
+  משקל: "weight",
+  גופן: "font",
+  ריווח_לפני: "space_before",
+  ריווח_אחרי: "space_after",
+  מרווח_אותיות: "tracking",
+  הזחת_גוף: "body_indent",
+  ריווח_מספור: "number_spacing",
+  צבע_פס: "stripe",
+  סוגריים: "brackets",
+  פטור: "exempt",
+  ברשימה: "listed",
+  מיון: "sort",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
@@ -122,6 +170,17 @@ function canonicalKey(key: string): string {
 /** An argument name in the form the document is written in. */
 function keyIn(lang: CommandLang, key: string): string {
   return lang === "en" ? (EN_ARGS[key] ?? key) : key;
+}
+
+/**
+ * What this panel would call an argument in an English document.
+ *
+ * Exported for the fence that compares the whole of `EN_ARGS` against the
+ * prelude's `_en_params`, which is the authority. Eight knobs the panel already
+ * wrote were missing from that table, and nothing compared the two.
+ */
+export function englishArg(key: string): string | undefined {
+  return EN_ARGS[key];
 }
 
 export interface StyleCall {
@@ -156,7 +215,7 @@ function splitStyleArgs(src: string): Map<string, string> {
 
 /** Find the document's `#הגדרות_*` call of this kind, if it has one. */
 export function findStyleCall(doc: string, kind: StyleCommand): StyleCall | null {
-  for (const name of COMMAND_NAMES[kind]) {
+  for (const name of spellings(kind)) {
     const node = scan(doc).nodes.find((n) => n.hash && n.name === name && n.args);
     if (!node) continue; // absent, or unbalanced — leave it alone
     const raw = splitStyleArgs(doc.slice(node.args!.from, node.args!.to));
@@ -198,7 +257,7 @@ export function setStyleArgs(
   }
 
   const out = existing ? existing.lang : lang;
-  const name = out === "en" ? COMMAND_NAMES[kind][1] : canonical(kind);
+  const name = out === "en" ? (spellings(kind)[1] ?? canonical(kind)) : canonical(kind);
   const rendered =
     "#" +
     name +
@@ -267,6 +326,7 @@ const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
   ],
   bands: ["מדף_בדרגה", "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז"],
   streams: ["הערה_זרם", "הערת_תוכן", "הערת_מקור"],
+  marks: [...STYLED_CLASSES],
 };
 
 /** The Hebrew names, for a caller checking them against the prelude. */
@@ -379,6 +439,20 @@ export const INSTANCE_FIELDS: Record<StyleCommand, Readonly<Record<string, Field
     גודל: { kind: "size-em", label: "knobSize" },
     סגנון: { kind: "slant", label: "knobSlant" },
     צבע: { kind: "colour", label: "knobColour" },
+  },
+  // The two at the end are not a look at all, and they are two wants and not one:
+  // `פטור` says *this mark is not in its class's styling*, `ברשימה` says *this
+  // mark is not in its class's list*. A writer who wants a lemma set differently
+  // and a writer who wants one kept out of the index are not the same writer.
+  marks: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    משקל: { kind: "weight", label: "knobWeight" },
+    צבע: { kind: "colour", label: "knobColour" },
+    קו_תחתון: { kind: "bool", label: "knobUnderline" },
+    סוגריים: { kind: "bool", label: "knobBrackets" },
+    פטור: { kind: "bool", label: "knobExempt" },
+    ברשימה: { kind: "bool", label: "knobListed" },
   },
 };
 
@@ -677,11 +751,58 @@ export function readDict(src: string | undefined): [string, string][] | null {
   for (const g of splitArgs(inner, 0, inner.length)) {
     const colon = topLevelColon(inner, g.from, g.to);
     if (colon < 0) return null;
-    const key = readString(inner.slice(g.from, colon).trim());
+    const raw = inner.slice(g.from, colon).trim();
+    // Typst writes a dictionary key either way — `("ציון": …)` and `(ציון: …)`
+    // are the same dictionary — and this read only the quoted form, so a
+    // hand-typed key made the whole argument unreadable and the panel showed
+    // nothing set. The panel keeps writing the quoted form; it just no longer
+    // insists the writer did.
+    const key = readString(raw) ?? (/^[\p{L}\p{N}_]+$/u.test(raw) ? raw : null);
     if (key === null) return null;
     out.push([key, inner.slice(colon + 1, g.to).trim()]);
   }
   return out;
+}
+
+// ------------------------------------------------------- a knob, keyed by class
+//
+// The mark register's globals are knob-major: `גודל: ("ציון": 0.8em)` — one
+// dictionary per knob, keyed by the class it applies to — and a plain value
+// instead of a dictionary is the answer for *every* class. That second shape is
+// the one a scalar-only reader gets wrong: a document that says `גודל: 0.9em`
+// has set every class to 0.9em, and a control showing one class has to say so.
+
+/** What one class shows for a knob whose value may be a dictionary or a scalar. */
+export function classValue(src: string | undefined, cls: string): string | undefined {
+  if (src === undefined) return undefined;
+  const dict = readDict(src);
+  if (!dict) return src; // a scalar applies to every class, so it is this one's
+  const found = dict.find(([k]) => k === cls);
+  return found ? found[1] : undefined;
+}
+
+/**
+ * Set (or, with `null`, drop) one class's entry in a knob-major argument.
+ *
+ * `classes` is what the *other* classes keep when a scalar has to become a
+ * dictionary: a document that said `גודל: 0.9em` said it for all of them, and
+ * setting one class must not quietly restyle the other five back to their
+ * shipped sizes. The same reasoning as `withTier`'s `fill`, one shape along.
+ */
+export function withClassKey(
+  src: string | undefined,
+  cls: string,
+  value: string | null,
+  classes: readonly string[],
+): string | null {
+  const dict = readDict(src);
+  const entries: [string, string][] = dict
+    ? dict.filter(([k]) => k !== cls)
+    : src === undefined
+      ? []
+      : classes.filter((c) => c !== cls).map((c): [string, string] => [c, src]);
+  if (value !== null) entries.push([cls, value]);
+  return entries.length ? typstDict(entries) : null;
 }
 
 /** The inverse. An empty dictionary is `(:)`, which `()` would not be. */

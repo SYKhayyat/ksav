@@ -9,6 +9,7 @@
 import { check, notOk, ok } from "./harness.mjs";
 import * as styles from "../.tmp-test/styles.mjs";
 import { hasKey } from "../.tmp-test/i18n.mjs";
+import { readFile } from "node:fs/promises";
 
 export async function run() {
   // ------------------------------------------------------------ finding
@@ -339,5 +340,133 @@ Body`;
       }
     }
     check("every knob's label is a translated name and not a key", nameless, []);
+  }
+
+  // -------------------------------------- every argument this panel writes, in English
+  {
+    // The gap that was live: eight knobs the panel already wrote had no English
+    // spelling here, so a control pressed on an English document put a Hebrew
+    // argument name on an English command. Legal Typst; not the writer's document.
+    //
+    // The prelude is the authority — `_en_params` in `engine/typst/ksav.typ` — so
+    // the fence reads it rather than restating it. Two failures are caught: a key
+    // with no spelling at all, and one spelt differently from the engine's, which
+    // would write an argument the compiler then refuses.
+    const prelude = await readFile(
+      new URL("../../engine/typst/ksav.typ", import.meta.url),
+      "utf8",
+    );
+    const at = prelude.indexOf("#let _en_params = (");
+    ok("the prelude declares _en_params", at >= 0);
+    const block = prelude.slice(at, prelude.indexOf("\n)", at));
+    // A set per Hebrew key, not one name: two English spellings map to `צבע`
+    // (`colour` and `color`, and the prelude means both), so the question is
+    // whether the panel writes *one the engine reads* rather than one particular
+    // one.
+    const enParams = new Map();
+    for (const m of block.matchAll(/([A-Za-z_][A-Za-z0-9_]*):\s*"([^"]+)"/gu)) {
+      if (!enParams.has(m[2])) enParams.set(m[2], new Set());
+      enParams.get(m[2]).add(m[1]);
+    }
+    const wrong = new Set();
+    for (const fields of Object.values(styles.INSTANCE_FIELDS)) {
+      for (const key of Object.keys(fields)) {
+        const want = enParams.get(key);
+        const got = styles.englishArg(key);
+        if (!want) wrong.add(`${key}: the prelude has no English name for it`);
+        else if (!got) wrong.add(`${key}: the panel has no English name for it`);
+        else if (!want.has(got)) wrong.add(`${key}: panel writes ${got}, engine reads ${[...want]}`);
+      }
+    }
+    check("every knob the panel writes has the engine's own English name", [...wrong], []);
+  }
+
+  // ------------------------------------------------ a knob keyed by mark class
+  {
+    // The mark register's globals are knob-major: one dictionary per knob, keyed by
+    // class. A **plain value** instead of a dictionary is the answer for every
+    // class, and that second shape is the one a scalar-blind reader gets wrong.
+    check("a class reads its own entry", styles.classValue('("ציון": 0.8em)', "ציון"), "0.8em");
+    check("…and nothing when the dictionary does not mention it", styles.classValue('("ציון": 0.8em)', "גמרא"), undefined);
+    check("a scalar is every class's answer", styles.classValue("0.8em", "גמרא"), "0.8em");
+    check("an absent argument is nobody's", styles.classValue(undefined, "גמרא"), undefined);
+    // Typst writes a dictionary key either way, and only one of them used to read.
+    check("an unquoted key is the same key", styles.classValue("(ציון: 0.8em)", "ציון"), "0.8em");
+  }
+
+  {
+    const CLASSES = ["ציון", "גמרא", "דיבור_המתחיל"];
+    check(
+      "setting one class writes a dictionary",
+      styles.withClassKey(undefined, "ציון", "0.8em", CLASSES),
+      '("ציון": 0.8em)',
+    );
+    check(
+      "…and leaves the classes already in it alone",
+      styles.withClassKey('("גמרא": 1em)', "ציון", "0.8em", CLASSES),
+      '("גמרא": 1em, "ציון": 0.8em)',
+    );
+    // The `withTier` reasoning, one shape along: a document that said `גודל: 0.9em`
+    // said it for every class, and setting one of them must not quietly restyle the
+    // other two back to their shipped sizes.
+    check(
+      "a scalar becomes a dictionary that keeps what the scalar said",
+      styles.withClassKey("0.9em", "ציון", "0.8em", CLASSES),
+      '("גמרא": 0.9em, "דיבור_המתחיל": 0.9em, "ציון": 0.8em)',
+    );
+    check(
+      "clearing the last class clears the argument",
+      styles.withClassKey('("ציון": 0.8em)', "ציון", null, CLASSES),
+      null,
+    );
+    check(
+      "…and clearing one of two leaves the other",
+      styles.withClassKey('("ציון": 0.8em, "גמרא": 1em)', "ציון", null, CLASSES),
+      '("גמרא": 1em)',
+    );
+  }
+
+  {
+    // The section is the eighth, and it is the same machinery: one `#הגדרות_*` call
+    // read and written, in either language.
+    check(
+      "the marks global is found in Hebrew",
+      styles.findStyleCall('#הגדרות_סימונים(גודל: ("ציון": 0.8em))', "marks").args.get("גודל"),
+      '("ציון": 0.8em)',
+    );
+    const en = styles.findStyleCall('#marks_config(size: ("refmark": 0.8em))', "marks");
+    check("…and in English, under the Hebrew key", en.args.get("גודל"), '("refmark": 0.8em)');
+    check("…keeping the language it was written in", en.lang, "en");
+    check(
+      "a new marks setting is written in the document's language",
+      styles.setStyleArgs("Body", "marks", { גודל: '("refmark": 0.8em)' }, "en"),
+      '#marks_config(size: ("refmark": 0.8em))\nBody',
+    );
+  }
+
+  {
+    // One mark's own arguments, which is the per-instance layer for a set rather
+    // than for a kind — and the two switches that are not a look at all.
+    const doc = "פתיחה #ציון[רמב״ם] סוף";
+    const inst = styles.findInstance(doc, "marks", doc.indexOf("רמב״ם"));
+    ok("the mark under the caret is found", !!inst);
+    check("its class is the command", inst.name, "ציון");
+    check(
+      "an exemption is written on the mark itself",
+      styles.setInstanceArgs(doc, inst, { פטור: "true" }),
+      "פתיחה #ציון(פטור: true)[רמב״ם] סוף",
+    );
+    const enDoc = "Body #refmark[Rambam] end";
+    const enInst = styles.findInstance(enDoc, "marks", enDoc.indexOf("Rambam"));
+    check(
+      "…and in English it is `exempt`",
+      styles.setInstanceArgs(enDoc, enInst, { פטור: "true" }),
+      "Body #refmark(exempt: true)[Rambam] end",
+    );
+    check(
+      "keeping it out of the list is a second, separate switch",
+      styles.setInstanceArgs(doc, inst, { ברשימה: "false" }),
+      "פתיחה #ציון(ברשימה: false)[רמב״ם] סוף",
+    );
   }
 }

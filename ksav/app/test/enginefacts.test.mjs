@@ -46,6 +46,7 @@ import {
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
 import { INSTANCE_KEYS, instanceCommands } from "../.tmp-test/styles.mjs";
+import { MARK_CLASSES, STYLED_CLASSES } from "../.tmp-test/marks.mjs";
 import { DEFAULTS, defaultPageSetup } from "../.tmp-test/settings.mjs";
 import { CLASSIFIED_NAMES, toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
@@ -261,6 +262,12 @@ export async function run() {
       ok(`the prelude declares ${name}`, !!m, () => `${name} is not in ksav.typ`);
       return m ? [...m[1].matchAll(/"([^"]+)"/gu)].map((x) => x[1]) : [];
     };
+    /** Every quoted string on one `#let name = …` line, wherever they sit in it. */
+    const quotedOn = (name) => {
+      const m = new RegExp(`#let ${name} = ([^\n]*)`, "u").exec(prelude);
+      ok(`the prelude declares ${name}`, !!m, () => `${name} is not in ksav.typ`);
+      return m ? [...m[1].matchAll(/"([^"]+)"/gu)].map((x) => x[1]) : [];
+    };
     /** The knob names of a `#let _xx_defaults = (…)` block, which spans lines. */
     const defaultsList = (name) => {
       const at = prelude.indexOf(`#let ${name} = (`);
@@ -281,6 +288,7 @@ export async function run() {
       notes: "_fn_own_keys",
       bands: "_ap_own_keys",
       streams: "_ap_own_keys",
+      marks: "_mk_own_keys",
     };
     const want = {
       headings: defaultsList("_hd_defaults"),
@@ -289,6 +297,11 @@ export async function run() {
       notes: preludeList("_fn_own_keys"),
       bands: preludeList("_ap_own_keys"),
       streams: preludeList("_ap_own_keys"),
+      // Composed the way the prelude composes it: `_mk_own_keys = _mk_knobs +
+      // ("פטור", "ברשימה")`, the six knobs plus the two switches
+      // that are not a look at all. Reading only the line would find the two and
+      // silently stop asking about the six.
+      marks: [...preludeList("_mk_knobs"), ...quotedOn("_mk_own_keys")],
     };
     for (const [kind, arg] of Object.entries(splitAgainst)) {
       ok(
@@ -325,6 +338,29 @@ export async function run() {
       }
     }
     check("every command the panel styles per instance takes named arguments", cannot, []);
+
+    // The mark classes, which are a second list the panel could get wrong in the
+    // same way. `_mk_defaults` is the prelude's set of *styled* classes and
+    // `_mk_titles` its set of *collected* ones — the difference is deliberate (a
+    // siman is a heading and a mareh makom a footnote, and neither takes a second
+    // styling channel), so both halves are compared rather than one.
+    const classKeys = (name) => {
+      const at = prelude.indexOf(`#let ${name} = (`);
+      ok(`the prelude declares ${name}`, at >= 0, () => `${name} is not in ksav.typ`);
+      if (at < 0) return [];
+      const block = prelude.slice(at, prelude.indexOf("\n)", at));
+      return [...block.matchAll(/^\s{2}"([^"]+)":/gmu)].map((m) => m[1]);
+    };
+    check(
+      "the panel styles exactly the classes the prelude gives a look to",
+      [...STYLED_CLASSES].sort(),
+      classKeys("_mk_defaults").sort(),
+    );
+    check(
+      "and the marks pane lists exactly the classes the prelude collects",
+      [...MARK_CLASSES].sort(),
+      classKeys("_mk_titles").sort(),
+    );
   }
 
   // ------------------------------------------- 5. "strip the markup", once

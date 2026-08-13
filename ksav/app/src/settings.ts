@@ -104,6 +104,13 @@ export interface Settings {
   outline?: boolean;
   /** The notes pane — Word's navigation pane, for the document's notes. */
   notesPane?: boolean;
+  /**
+   * The marks pane — every semantic mark in the document, grouped by class.
+   *
+   * The third of the three list surfaces, and the one the mark register needed:
+   * a collection nothing shows you is a collection you have to take on trust.
+   */
+  marksPane?: boolean;
   nikud?: boolean;
   autocomplete?: boolean;
   spellcheck?: boolean;

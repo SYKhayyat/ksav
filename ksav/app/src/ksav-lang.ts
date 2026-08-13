@@ -253,6 +253,29 @@ class LabelWidget extends WidgetType {
   }
 }
 
+/**
+ * A literal string standing in for hidden markup.
+ *
+ * One use so far and it earns a class rather than a `Decoration.replace({})`:
+ * the `][` between two bodies of one command has to become a **space**, because
+ * the page puts one there. `#גמרא[ברכות][ב.]` prints *ברכות ב.* — a masechta and
+ * its daf are two words — and closing the gap up would read as one.
+ */
+class TextWidget extends WidgetType {
+  constructor(readonly text: string, readonly cls: string) {
+    super();
+  }
+  eq(o: TextWidget) {
+    return o.text === this.text && o.cls === this.cls;
+  }
+  toDOM() {
+    const s = document.createElement("span");
+    s.className = this.cls;
+    s.textContent = this.text;
+    return s;
+  }
+}
+
 // A numbered footnote marker chip (the body is hidden in prose mode).
 class FootnoteWidget extends WidgetType {
   constructor(readonly label: string, readonly title: string) {
@@ -810,16 +833,33 @@ function proseDecorations(state: EditorState): ProseValue {
 
     // hide "#name(args)[" and the matching "]" — the argument group included, or
     // a coloured run would still read as `#צבע(rgb("#b91c1c"))` on the page.
+    //
+    // **Every** body, not the first. `#גמרא[ברכות][ב.]`, `#פסוק[מקור][גוף]`,
+    // `#סעיף[א][גוף]` and `#סימן[א׳][כותרת]` all carry two, and this hid the
+    // opening through the end of the first one and the bracket after it — so the
+    // view whose one promise is that it looks like the page read *ברכות[ב.]*, with
+    // the second body's brackets sitting in the prose. Four commands, all four of
+    // them the ones a sefer is actually written with.
+    const last = s.bodies[s.bodies.length - 1];
     ranges.push({ from: s.from, to: body.from, deco: hide, side: -1 });
-    ranges.push({ from: body.to, to: body.to + 1, deco: hide, side: 1 });
-    // style the inner content
-    if (body.to > body.from)
-      ranges.push({
-        from: body.from,
-        to: body.to,
-        deco: Decoration.mark({ class: cls }),
-        side: 0,
-      });
+    ranges.push({ from: last.to, to: last.to + 1, deco: hide, side: 1 });
+    for (let b = 0; b < s.bodies.length; b++) {
+      const g = s.bodies[b];
+      // The `][` between two bodies. A space is what the page puts there — a
+      // masechta and its daf are two words — so it is hidden down to one rather
+      // than closed up.
+      if (b > 0) {
+        ranges.push({
+          from: s.bodies[b - 1].to,
+          to: g.from,
+          deco: Decoration.replace({ widget: new TextWidget(" ", "pm-gap") }),
+          side: 0,
+        });
+      }
+      if (g.to > g.from) {
+        ranges.push({ from: g.from, to: g.to, deco: Decoration.mark({ class: cls }), side: 0 });
+      }
+    }
   }
 
   // ---- the definitions region, as a numbered list ----

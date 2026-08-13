@@ -45,6 +45,7 @@
 import { plainText } from "./spans";
 import type { OutlineRow } from "./ksav-lang";
 import type { NoteSpan } from "./notes";
+import type { MarkSpan } from "./marks";
 import type { Snapshot } from "./docs";
 import type { Available } from "./commands";
 import { matches } from "./commands";
@@ -249,6 +250,52 @@ export function noteList(items: readonly NoteSpan[], doc = ""): PanelList {
     empty: null,
     hidden: 0,
   };
+}
+
+/**
+ * The marks pane: every semantic mark in the document, grouped by its class.
+ *
+ * *"You should be able to … see just these in some list somewhere."* Grouped and
+ * not flat, because the question a writer arrives with is about one class — every
+ * lemma, every siman, every place in Shas — and a single stream of all eight
+ * classes in reading order answers it no better than the document does.
+ *
+ * The class heading is a row of its own with no action, which is how this list
+ * says *there are seven of these* without a second surface to say it in. The
+ * count goes in the chip, where the notes pane puts an ordinal: it is the number
+ * the writer is actually asking for.
+ *
+ * `label` for a class row is its **Hebrew class name**, not a translation. This
+ * module does not resolve language — see `PanelList.empty` — so the shell
+ * translates it through `markClass.<name>`, and a class with no key would show
+ * its own name rather than a blank.
+ */
+export function markList(items: readonly MarkSpan[], order: readonly string[]): PanelList {
+  if (!items.length) return { rows: [], empty: "marksPaneEmpty", hidden: 0 };
+  const rows: PanelRow[] = [];
+  for (const cls of order) {
+    const mine = items.filter((m) => m.cls === cls);
+    if (!mine.length) continue;
+    rows.push({
+      does: { kind: "jump", at: mine[0].from },
+      indent: 0,
+      chip: String(mine.length),
+      label: cls,
+      id: "markclass:" + cls,
+    });
+    for (const m of mine) {
+      rows.push({
+        does: { kind: "jump", at: m.from },
+        indent: 1,
+        // A mark whose words are not written yet — `#גמרא[][]` straight out of
+        // the Insert menu — has nothing to show but what it is, and naming the
+        // command is the only honest row left.
+        label: gist(m.text) || "#" + m.command,
+        full: flat(m.text) || undefined,
+      });
+    }
+  }
+  return { rows, empty: null, hidden: 0 };
 }
 
 /**

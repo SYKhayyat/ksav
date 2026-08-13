@@ -53,7 +53,7 @@
  * telling you about. Once the window is a tree, "shift the other panes open" is
  * not a mode to add — it is what a pane already is.
  */
-export type Role = "source" | "preview" | "outline" | "notes";
+export type Role = "source" | "preview" | "outline" | "notes" | "marks";
 
 /** The roles that show a document's text and can be typed in. */
 export const EDITABLE: Role[] = ["source"];

@@ -77,6 +77,8 @@ import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
 import { citationMarkup } from "./citation";
 import type { NoteChoice } from "./notes";
+import * as marks from "./marks";
+import { marksIn } from "./marks";
 
 // The modules `main.ts` was split into. What is left here is the shell: the
 // editor itself, the chrome around it, the panels, and boot. Everything with a
@@ -111,7 +113,7 @@ import {
   overlayPanel,
   localise,
 } from "./panels";
-import { BUNDLED_NOTICES } from "./engine.gen";
+import { BUNDLED_NOTICES, COMMAND_EN } from "./engine.gen";
 import { bodyAt, docTextOf, plainText, scanDoc } from "./spans";
 import { minimalChange } from "./diff";
 import {
@@ -1613,7 +1615,12 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     // attaches it afterwards, so a `querySelectorAll` at this moment searches a
     // document this host is not in yet and finds nothing. Filled once the tree
     // is on screen; see the end of `renderPanes`.
-    host.classList.add(pane.role === "outline" ? "outline-list" : "notes-list", "panel-pane");
+    const LIST_CLASS: Record<string, string> = {
+      outline: "outline-list",
+      notes: "notes-list",
+      marks: "marks-list",
+    };
+    host.classList.add(LIST_CLASS[pane.role] ?? "notes-list", "panel-pane");
   }
   wirePaneScroll(pane, host);
   return section;
@@ -1636,6 +1643,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     preview: "preview",
     outline: "outlinePane",
     notes: "notesPaneRole",
+    marks: "marksPane",
   };
   const kids: Node[] = [el("span", { class: "pane-name" }, [t(NAME[pane.role])])];
   if (panes.leaves(paneTree).length > 1) {
@@ -2075,6 +2083,7 @@ function refreshPanes() {
     if (isReviewOpen()) renderReviewPanel();
     if (settings.outline) renderOutline();
     if (settings.notesPane) renderNotesPane();
+    if (settings.marksPane) renderMarksPane();
   }, PANE_DEBOUNCE_MS);
 }
 const PANE_DEBOUNCE_MS = 200;
@@ -3452,6 +3461,7 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
   outline: toggleOutline,
   notesChooser: openNotesChooser,
   notesPane: toggleNotesPane,
+  marksPane: toggleMarksPane,
   review: openReview,
   language: () => setSetting("lang", getLang() === "he" ? "en" : "he"),
   foldAll: () => void foldAll(runtime.view),
@@ -3478,6 +3488,7 @@ function headerState(): header.HeaderState {
     outline: !!settings.outline,
     nikud: !!settings.nikud,
     notesPane: !!settings.notesPane,
+    marksPane: !!settings.marksPane,
     recording: !!recording,
   };
 }
@@ -4092,7 +4103,7 @@ function toggleOutline() {
  * view of it, and a writer who splits the source twice does not want a third
  * outline. It is the one pane whose position is decided rather than chosen.
  */
-function togglePanelPane(role: "outline" | "notes", on: boolean) {
+function togglePanelPane(role: "outline" | "notes" | "marks", on: boolean) {
   const existing = panes.leaves(paneTree).find((l) => l.role === role);
   if (on && !existing) {
     setTree(panes.split(paneTree, paneTree.id, "row", panes.leaf(role, null, { linked: false }), true));
@@ -4115,6 +4126,41 @@ function toggleNotesPane() {
   if (settings.panelPlacement === "pane") togglePanelPane("notes", !!settings.notesPane);
   else togglePanel("notes-drawer", !!settings.notesPane);
   rerenderChrome();
+}
+
+// ---- the marks pane ----
+//
+// The third list surface, and the one the mark register was asked for by name:
+// *"you should be able to … see just these in some list somewhere."* A collection
+// that only exists once the document is printed is a collection a writer has to
+// take on trust while they are writing it.
+//
+// Grouped by class rather than in reading order, because the question is always
+// about one class — every lemma, every siman, every place in Shas. What a row
+// shows and how the groups are ordered is `panelrows.markList`; what a mark *is*
+// is `marks.ts`; this is the two of them drawn into every home the list has.
+
+function toggleMarksPane() {
+  settings.marksPane = !settings.marksPane;
+  saveSettings();
+  if (settings.panelPlacement === "pane") togglePanelPane("marks", !!settings.marksPane);
+  else togglePanel("marks-drawer", !!settings.marksPane);
+  rerenderChrome();
+}
+
+function renderMarksPane() {
+  if (!runtime.view) return;
+  const doc = docTextOf(runtime.view.state.doc);
+  const rows = panelrows.markList(marksIn(doc), marks.MARK_CLASSES);
+  // The class rows carry their Hebrew class name; `panelrows` does not resolve
+  // language, so the translation happens here, once, where every other string in
+  // this file is translated.
+  for (const r of rows.rows) {
+    if (r.id?.startsWith("markclass:")) r.label = t("markClass." + r.label);
+  }
+  for (const host of document.querySelectorAll<HTMLElement>(".marks-list")) {
+    drawList(host, rows, LOOKS.marks);
+  }
 }
 
 function renderNotesPane() {
@@ -4284,6 +4330,10 @@ interface Look {
 const LOOKS: Record<string, Look> = {
   outline: { row: "outline-item", chip: "pal-cat", label: "span" },
   notes: { row: "outline-item note-item", chip: "note-item-n", label: "span" },
+  // The same dress as the notes pane: a leading count where that has an ordinal,
+  // and one line of words. A third stylesheet for a third list of clickable lines
+  // would be the copy this module exists to stop.
+  marks: { row: "outline-item note-item", chip: "note-item-n", label: "span" },
   history: { row: "pal-item", chip: "pal-cat", label: "b" },
   palette: { row: "pal-item", chip: "pal-cat", label: "b", selectable: true },
 };
@@ -6464,6 +6514,103 @@ function streamStyleRows(): Node[] {
   return rows;
 }
 
+// ------------------------------------------------------------ Styles › marks
+//
+// The mark register, which is the collection layer for `#ציון`, `#גמרא`,
+// `#דיבור_המתחיל`, `#פסוק`, `#ציון_מקור` and `#ערך`. Its globals are keyed by
+// *class* rather than by tier or by stream — `גודל: ("ציון": 0.8em)` — so this
+// section has a class chooser where the Headings section has a level one, and
+// "every kind" writes the plain value that the engine reads as the answer for all
+// of them.
+
+/** Which mark class the *default* layer is being edited for; "" = all of them. */
+let markClass = "";
+
+/** The value the Marks section is showing for one knob, at the chosen class. */
+function markArg(key: string): string | undefined {
+  const raw = styleArg("marks", key);
+  if (markClass === "") {
+    // A dictionary is not one answer for every class, so "every kind" shows
+    // nothing set rather than picking one of six and calling it the document's.
+    return styles.readDict(raw) ? undefined : raw;
+  }
+  return styles.classValue(raw, markClass);
+}
+
+/** Write one knob, for the chosen class or for all of them. */
+function setMarkArg(key: string, value: string | null) {
+  if (markClass === "") {
+    setStyleArgs("marks", { [key]: value });
+    return;
+  }
+  setStyleArgs("marks", {
+    [key]: styles.withClassKey(styleArg("marks", key), markClass, value, styles.MARK_CLASSES),
+  });
+}
+
+function markClassRow(): Node {
+  return styleRow(
+    t("markClass"),
+    selectControl(
+      [
+        ["", t("everyClass")],
+        ...(styles.MARK_CLASSES.map((c) => [c, t("markClass." + c)]) as [string, string][]),
+      ],
+      markClass,
+      (v) => {
+        markClass = v;
+        renderStylesPanel();
+      },
+    ),
+  );
+}
+
+/**
+ * The class's own styling, plus the one button that prints the collection.
+ *
+ * The button is the point of the whole mechanism being reachable: *"there should
+ * be a way to gather all of these, to make a list at the end"*. Without it the
+ * collection exists and the only way to see it is to know the command's name.
+ * It is offered per class, because a list of everything is not a list.
+ */
+function markStyleRows(): Node[] {
+  const rows: Node[] = [markClassRow()];
+  for (const [key, field] of Object.entries(styles.INSTANCE_FIELDS.marks)) {
+    // `פטור` and `ברשימה` belong to one mark and to nothing else: a class that
+    // exempts itself from its own styling is a class with no styling, and one
+    // that leaves itself out of its own list is a list of nothing.
+    if (key === "פטור" || key === "ברשימה") continue;
+    rows.push(
+      styleRow(t(field.label), fieldControl(field, markArg(key), (v) => setMarkArg(key, v))),
+    );
+  }
+  if (markClass !== "") {
+    rows.push(
+      styleRow(
+        "",
+        el(
+          "button",
+          {
+            class: "note-use",
+            // The command name is translated on the way in by `insertionAt`; the
+            // *class* is an argument value and is not, so it is written in the
+            // document's own language here. The engine reads either spelling —
+            // this is about what the writer finds in their file afterwards.
+            onClick: () =>
+              insertSnippet(
+                `#רשימת_סימונים(${typstString(
+                  docLang() === "en" ? (COMMAND_EN[markClass] ?? markClass) : markClass,
+                )})\n`,
+              ),
+          },
+          ["+ " + t("markInsertList")],
+        ),
+      ),
+    );
+  }
+  return rows;
+}
+
 /** Rename one entry of a `("א", "ב")` order tuple, leaving the order alone. */
 function renamedInTuple(src: string | undefined, from: string, to: string): string | null {
   const items = styles.readTuple(src);
@@ -6584,6 +6731,7 @@ function renderStylesPanel() {
   const noteInstance = scopedInstance("notes");
   const bandInstance = scopedInstance("bands");
   const streamInstance = scopedInstance("streams");
+  const markInstance = scopedInstance("marks");
 
   box.replaceChildren(
     panelHead("styles-panel", "stylesTitle"),
@@ -6622,6 +6770,10 @@ function renderStylesPanel() {
     el("p", { class: "styles-note" }, [t("styleStreamsNote")]),
     ...scopeRows("streams", "kindStream", "kindStreamOne"),
     ...(streamInstance ? instanceRows("streams", streamInstance) : streamStyleRows()),
+    el("h3", {}, [t("styleMarks")]),
+    el("p", { class: "styles-note" }, [t("styleMarksNote")]),
+    ...scopeRows("marks", "kindMark", "kindMarkOne"),
+    ...(markInstance ? instanceRows("marks", markInstance) : markStyleRows()),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
 }
@@ -7593,6 +7745,13 @@ function render() {
       panelHead("notes-drawer", "notesPane", { level: "h3" }),
       el("div", { id: "notes-list", class: "notes-list" }),
     ]),
+    // The marks pane, beside the other two: what the document *says things are*,
+    // where the outline is what it is built from and the notes pane is what hangs
+    // off it.
+    el("aside", { id: "marks-drawer", class: "drawer drawer-start", "aria-label": t("marksPane"), "data-i18n-label": "marksPane" }, [
+      panelHead("marks-drawer", "marksPane", { level: "h3" }),
+      el("div", { id: "marks-list", class: "marks-list" }),
+    ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
     el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle"), "data-i18n-label": "stylesTitle" }, [
       el("div", { id: "styles-body" }),
@@ -7715,6 +7874,7 @@ function render() {
   togglePanel("nikud-bar", settings.nikud);
   togglePanel("outline-drawer", settings.outline);
   togglePanel("notes-drawer", !!settings.notesPane);
+  togglePanel("marks-drawer", !!settings.marksPane);
 }
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
@@ -7956,6 +8116,21 @@ function wirePanels() {
     },
     close: () => {
       settings.notesPane = false;
+      saveSettings();
+      rerenderChrome();
+      runtime.view?.focus();
+    },
+  });
+
+  wirePanel("marks-drawer", {
+    open: () => {
+      settings.marksPane = true;
+      saveSettings();
+      renderMarksPane();
+      rerenderChrome();
+    },
+    close: () => {
+      settings.marksPane = false;
       saveSettings();
       rerenderChrome();
       runtime.view?.focus();

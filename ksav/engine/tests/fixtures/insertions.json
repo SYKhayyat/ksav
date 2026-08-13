@@ -904,6 +904,24 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#רשימת_סימונים(\"\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_סימונים(סגנון: (\"\": \"italic\"))אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -1935,6 +1953,24 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#topicindex()ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#marklist(\"\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#marks_config(style: (\"\": \"italic\"))ds to continue."
   },
   {
    "ctx": "prose",
@@ -2974,6 +3010,24 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #רשימת_סימונים(\"\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_סימונים(סגנון: (\"\": \"italic\"))ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -4005,6 +4059,24 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #topicindex()One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #marklist(\"\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #marks_config(style: (\"\": \"italic\"))One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5044,6 +5116,24 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #רשימת_סימונים(\"\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_סימונים(סגנון: (\"\": \"italic\"))פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -6075,6 +6165,24 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #topicindex()inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #marklist(\"\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #marks_config(style: (\"\": \"italic\"))inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7114,6 +7222,24 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #רשימת_סימונים(\"\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_סימונים(סגנון: (\"\": \"italic\"))כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -8145,6 +8271,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #topicindex()here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #marklist(\"\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #marks_config(style: (\"\": \"italic\"))here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9184,6 +9328,24 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],רשימת_סימונים(\"\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_סימונים(סגנון: (\"\": \"italic\")),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -10215,6 +10377,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],topicindex(),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],marklist(\"\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],marks_config(style: (\"\": \"italic\")),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -11254,6 +11434,24 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(רשימת_סימונים(\"\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_סימונים(סגנון: (\"\": \"italic\")),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -12285,6 +12483,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(topicindex(),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(marklist(\"\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(marks_config(style: (\"\": \"italic\")),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -13324,6 +13540,24 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #רשימת_סימונים(\"\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_סימונים(סגנון: (\"\": \"italic\"))כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -14355,6 +14589,24 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #topicindex()here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #marklist(\"\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #marks_config(style: (\"\": \"italic\"))here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -15394,6 +15646,24 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],רשימת_סימונים(\"\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_סימונים(סגנון: (\"\": \"italic\")), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -16425,6 +16695,24 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],topicindex(), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],marklist(\"\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],marks_config(style: (\"\": \"italic\")), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -17464,6 +17752,24 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #רשימת_סימונים(\"\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_סימונים(סגנון: (\"\": \"italic\"))כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -18495,6 +18801,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #topicindex()here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #marklist(\"\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #marks_config(style: (\"\": \"italic\"))here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -19534,6 +19858,24 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #רשימת_סימונים(\"\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_סימונים(סגנון: (\"\": \"italic\"))רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -20565,6 +20907,24 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #topicindex()Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #marklist(\"\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #marks_config(style: (\"\": \"italic\"))Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -21604,6 +21964,24 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #רשימת_סימונים(\"\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_סימונים(סגנון: (\"\": \"italic\"))תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -22635,6 +23013,24 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #topicindex()prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #marklist(\"\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #marks_config(style: (\"\": \"italic\"))prayer]"
   },
   {
    "ctx": "siman-body",
@@ -23674,6 +24070,24 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #רשימת_סימונים(\"\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_סימונים(סגנון: (\"\": \"italic\"))ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -24705,6 +25119,24 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #topicindex()Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #marklist(\"\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #marks_config(style: (\"\": \"italic\"))Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -25744,6 +26176,24 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#רשימת_סימונים(\"\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_סימונים(סגנון: (\"\": \"italic\"))ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -26775,6 +27225,24 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#topicindex()ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "רשימת_סימונים",
+   "en": "marklist",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#marklist(\"\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימונים",
+   "en": "marks_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#marks_config(style: (\"\": \"italic\"))ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

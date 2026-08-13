@@ -54,6 +54,7 @@ export type ChipId =
   | "outline"
   | "notesChooser"
   | "notesPane"
+  | "marksPane"
   | "review"
   | "language"
   | "foldAll"
@@ -102,6 +103,7 @@ export interface HeaderState {
   outline: boolean;
   nikud: boolean;
   notesPane: boolean;
+  marksPane: boolean;
   /** Recording a macro. A mode with no indicator is a mode people leave on. */
   recording: boolean;
 }
@@ -126,6 +128,9 @@ export function chips(s: HeaderState): Chip[] {
     { id: "outline", glyph: "☰", title: t("outline"), active: s.outline },
     { id: "notesChooser", glyph: "✻", title: t("notesChooser") },
     { id: "notesPane", glyph: "†☰", title: t("sc.notesPane"), active: s.notesPane },
+    // The third list. Its glyph is a mark and a list, the way the notes pane's is
+    // a dagger and a list: the chipbar says which list, not that there is one.
+    { id: "marksPane", glyph: "◆☰", title: t("sc.marksPane"), active: s.marksPane },
     { id: "review", glyph: "✎", title: t("reviewTitle") },
     // The glyph is the language you would switch *to*, which is the one thing a
     // reader who cannot read the current one can still act on.

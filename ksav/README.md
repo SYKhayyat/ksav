@@ -244,7 +244,7 @@ the reasoning, not the reference, and this file is long enough.
 
 ## Features (engine)
 
-- **115 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **117 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -277,7 +277,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 115 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 117 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -395,7 +395,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 4,813 editor assertions, 524 engine
+- [x] **CI, running and green** — typecheck, 4,892 editor assertions, 546 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -471,10 +471,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 4,813 assertions across 79 files
+cd app && npm test                          # 4,892 assertions across 80 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 524 tests, 34 binaries
+cargo test --manifest-path engine/Cargo.toml            # 546 tests, 35 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -518,7 +518,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,161**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **3,213**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

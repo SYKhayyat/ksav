@@ -218,6 +218,12 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מפתח_מקורות", "sourceindex", "torah", "מפתח המקורות (בסוף הספר)", "Source index (at the back)", "#מפתח_מקורות()"),
     cmd!("ערך", "indexentry", "torah", "סימון ערך למפתח הענינים", "Mark a term for the topic index", "#ערך(\"|\")[]"),
     cmd!("מפתח_ענינים", "topicindex", "torah", "מפתח הענינים (בסוף הספר)", "Topic index (at the back)", "#מפתח_ענינים()"),
+    // The mark register. Every collectable mark — ציון, גמרא, דיבור_המתחיל,
+    // פסוק, סימן, ערך, ציון_מקור, מראה_מקום — is gathered by class, so one
+    // command lists any of them and one command styles a whole class. The class
+    // is the first argument, and it is the command's own name.
+    cmd!("רשימת_סימונים", "marklist", "torah", "רשימת כל הסימונים מסוג אחד (בסוף הספר)", "List every mark of one kind (at the back)", "#רשימת_סימונים(\"|\")"),
+    cmd!("הגדרות_סימונים", "marks_config", "torah", "עיצוב סוג של סימונים", "Style a kind of mark", "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))"),
     cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [])"),
     cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
     cmd!("הערת_גיליון", "sidenote", "torah", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),

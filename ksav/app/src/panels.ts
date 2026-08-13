@@ -175,6 +175,15 @@ export const PANELS: readonly Panel[] = [
     persisted: true,
     exits: [{ via: "head" }],
   },
+  {
+    id: "marks-drawer",
+    kind: "drawer",
+    presence: "class",
+    // The third list, and persisted like the other two (`settings.marksPane`).
+    escape: false,
+    persisted: true,
+    exits: [{ via: "head" }],
+  },
   { id: "help-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "styles-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "review-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },

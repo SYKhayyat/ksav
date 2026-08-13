@@ -270,8 +270,13 @@ export function nothingIsCopiedBackIn() {
   //     agreeing with itself. Nothing it reads reaches the shipping bundle; it
   //     can only refuse. If it ever reads a *value* out of a `.rs` file, this
   //     prohibition is right and the exemption is wrong.
+  //   - `skips.test.mjs` reads the **shape** of `#[test]` bodies — does this one
+  //     skip cases, does it assert a floor, does it let an environment variable
+  //     decide whether it checks anything. No value it reads reaches anything;
+  //     the only thing it can do with what it finds is fail. The same sentence
+  //     as `wire.test.mjs`, and the same condition on it.
   {
-    const allowed = ["facts.mjs", "docfacts.mjs", "wire.test.mjs"];
+    const allowed = ["facts.mjs", "docfacts.mjs", "wire.test.mjs", "skips.test.mjs"];
     const guilty = files
       .filter(([f]) => !allowed.includes(path.basename(f)))
       .filter(([, s]) => /\.rs"|\.rs'|\.rs`/.test(s))

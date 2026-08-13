@@ -48,8 +48,24 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Every `Cargo.toml` and `Cargo.lock` in the tree.
+///
+/// The floor is here rather than in each caller because the callers are loops:
+/// `no_path_dependency_escapes_the_repository` walked every manifest looking for
+/// a `path = "…"` that leaves the repository, and an empty list meant it found
+/// none and passed. That is the test guarding the exact defect that made every
+/// Rust job in `ci.yml` fail at `cargo metadata` — so a version of it that goes
+/// quiet when the walk stops working is worse than not having it. `named` is
+/// deliberately tolerant of a directory it cannot read; the caller who knows
+/// what "none" would mean is the one that gets to say so.
 fn manifests(root: &Path, name: &str) -> Vec<PathBuf> {
-    named(root, name)
+    let found = named(root, name);
+    assert!(
+        !found.is_empty(),
+        "no {name} anywhere under {} — the walk found nothing, so every rule in \
+         this file is about to pass by examining no files at all.",
+        root.display(),
+    );
+    found
 }
 
 /// `girsa-source = { … }` — the dependency lines this file is about, as

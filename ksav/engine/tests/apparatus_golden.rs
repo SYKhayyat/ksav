@@ -334,19 +334,43 @@ fn render_all() -> String {
 #[test]
 fn the_band_apparatus_lays_out_exactly_as_it_did() {
     let now = render_all();
-    if std::env::var("KSAV_UPDATE_GOLDEN").is_ok() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/apparatus-golden.txt");
+
+    // Updating the pinned layout rewrites the thing this test compares against.
+    // It does not get to skip the comparison.
+    //
+    // The `return` that used to be here made `KSAV_UPDATE_GOLDEN` a switch that
+    // turns the fence into a test that writes a file and reports success — a
+    // check passing because it did not run. One `export` in a shell profile
+    // disables it for every run on that machine, silently. So the variable is
+    // refused on a remote, and where it is meant the file is re-read below and
+    // compared like any other run: `GOLDEN` is `include_str!` and therefore the
+    // *old* text, so the comparison after a write is against what actually
+    // landed on disk rather than against what was intended to.
+    let updating = std::env::var("KSAV_UPDATE_GOLDEN").is_ok();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/apparatus-golden.txt");
+    if updating {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "KSAV_UPDATE_GOLDEN is set in CI. Rewriting the pinned layout on a \
+             remote would report success for a comparison nobody made. Update it \
+             on a desk and commit the result.",
+        );
         std::fs::write(&path, &now).expect("write golden");
         eprintln!("wrote {}", path.display());
-        return;
     }
-    if now == GOLDEN {
+    let pinned = if updating {
+        std::fs::read_to_string(&path).expect("read back the golden that was just written")
+    } else {
+        GOLDEN.to_string()
+    };
+    let pinned = pinned.as_str();
+    if now == pinned {
         return;
     }
     // Report the first differing case, not the first differing byte: a run's
     // coordinates mean nothing without knowing which document produced them.
-    let a: Vec<&str> = GOLDEN.split("\n## ").collect();
+    let a: Vec<&str> = pinned.split("\n## ").collect();
     let b: Vec<&str> = now.split("\n## ").collect();
     let mut msg = String::from("the band apparatus renders differently than the pinned layout.\n");
     for i in 0..a.len().max(b.len()) {

@@ -43,10 +43,26 @@ fn the_committed_facts_are_this_crates_facts() {
     let wanted = ksav_engine::facts::facts_json();
     let path = artefact();
 
+    // Blessing rewrites the artefact. It does not excuse the comparison.
+    //
+    // This used to `return` here, which made `KSAV_BLESS=1` a switch that turns
+    // the fence into a test that writes a file and reports success — a check
+    // passing because it did not run. One `export` in a shell profile is all
+    // that takes, and it is silent and permanent on that machine.
+    //
+    // So: refused where nobody could have meant it, and where it is meant, the
+    // comparison below still happens. It compares against what was just
+    // written, which is evidence rather than an assumption — if the write
+    // landed somewhere else, or landed wrong, this still goes red.
     if std::env::var_os("KSAV_BLESS").is_some() {
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "KSAV_BLESS is set in CI. Blessing rewrites the artefact this test \
+             exists to check, so on a remote it would report success for a \
+             comparison nobody made. Regenerate on a desk and commit the result.",
+        );
         std::fs::write(&path, &wanted).expect("write facts.gen.json");
         eprintln!("wrote {}", path.display());
-        return;
     }
 
     let have = std::fs::read_to_string(&path).unwrap_or_default();

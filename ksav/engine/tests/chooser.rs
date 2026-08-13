@@ -183,10 +183,17 @@ fn an_apparatus_prints_where_the_chooser_says_it_does() {
 /// `head` is the wrong field for it). Both are worth failing on.
 #[test]
 fn a_layouts_configuration_is_written_where_it_takes_effect() {
+    // Both `continue`s below are ordinary — most cases carry no configuration
+    // line, and only some of those are ones a move can be shown to disturb. But
+    // a loop whose every case is skipped is a green test that checked nothing,
+    // and this one is two `continue`s away from that: rename `head` in the
+    // chooser's output and every case takes the first one.
+    let (mut with_head, mut moved) = (0, 0);
     for c in cases() {
         let Some(head) = c.head.as_deref() else {
             continue;
         };
+        with_head += 1;
         assert!(
             c.source.starts_with(head),
             "{}/{}: the configuration line is not at the top of the file",
@@ -196,6 +203,7 @@ fn a_layouts_configuration_is_written_where_it_takes_effect() {
         if !c.exercises_head {
             continue;
         }
+        moved += 1;
         let at_head = c.source.clone();
         let at_tail = format!(
             "{}\n\n{head}\n",
@@ -243,4 +251,15 @@ fn a_layouts_configuration_is_written_where_it_takes_effect() {
             c.id, c.which,
         );
     }
+    assert!(
+        with_head > 0,
+        "no case carries a configuration line, so nothing above ran. Either the \
+         chooser stopped emitting `head` or the field was renamed."
+    );
+    assert!(
+        moved > 0,
+        "{with_head} cases carry a configuration line and none of them is marked \
+         `exercises_head`, so the head/tail comparison — the whole regression this \
+         test is — never ran."
+    );
 }

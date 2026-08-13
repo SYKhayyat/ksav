@@ -48,6 +48,12 @@ fn every_structural_edit_still_compiles() {
 #[test]
 fn no_structural_edit_silently_loses_text() {
     let v: serde_json::Value = serde_json::from_str(FIXTURE).expect("fixture parses");
+    // Both skips below are correct and both are unbounded: a fixture in which
+    // every case is named "delete", or one in which nothing compiles, leaves
+    // this test green having read nothing off a page. The second is the live
+    // risk — a broken prelude fails the compile sweep above *and* silently
+    // empties this one, so a single change turns two fences into one.
+    let mut checked = 0;
     for c in v["cases"].as_array().unwrap() {
         let name = c["name"].as_str().unwrap();
         if name.contains("delete") {
@@ -57,6 +63,7 @@ fn no_structural_edit_silently_loses_text() {
         let Ok(doc) = probe::layout(source, &DocConfig::default()) else {
             continue; // the compile test above owns this failure
         };
+        checked += 1;
         let runs = probe::text_runs(&doc);
         let page: String = runs.iter().map(|r| r.text.as_str()).collect();
         // The words this document was built from, stated by the generator.
@@ -87,4 +94,9 @@ fn no_structural_edit_silently_loses_text() {
             );
         }
     }
+    assert!(
+        checked > 0,
+        "no case reached a page — every fixture was either a deletion or failed \
+         to compile, so this test read nothing."
+    );
 }

@@ -116,6 +116,20 @@ const { counts, resetStorage, summary } = await import(
 /** Files whose `run()` threw rather than reporting. */
 const thrown = [];
 
+/**
+ * Files whose `run()` returned having asserted nothing at all.
+ *
+ * The quietest failure a suite has. A file that reports no assertions cannot go
+ * red — it is a green tick beside a name, in a list of green ticks, and it looks
+ * exactly like a file that passed. Every way of getting there is a defect: a
+ * `run()` that returns early, a loop over a fixture that arrived empty, a
+ * condition that is false on this machine.
+ *
+ * This is the editor's half of the rule the engine's tests hold with a counted
+ * floor (`assert!(checked > 0)`): a check that cannot run must fail, not pass.
+ */
+const silent = [];
+
 for (const f of files) {
   const mod = await import(pathToFileURL(path.join(HERE, f)).href);
   if (typeof mod.run !== "function") {
@@ -146,9 +160,12 @@ for (const f of files) {
   }
   const after = counts();
   const failed = after.fail - before.fail + (threw ? 1 : 0);
+  const said = after.pass - before.pass + (after.fail - before.fail);
+  if (!threw && said === 0) silent.push(f);
   console.log(
-    `${failed ? "✗" : "✓"} ${f.padEnd(24)} ${after.pass - before.pass} passed` +
-      (failed ? `, ${failed} FAILED` : ""),
+    `${failed || (!threw && said === 0) ? "✗" : "✓"} ${f.padEnd(24)} ${after.pass - before.pass} passed` +
+      (failed ? `, ${failed} FAILED` : "") +
+      (!threw && said === 0 ? " — ASSERTED NOTHING" : ""),
   );
   if (threw) console.log(`  threw: ${threw?.stack ?? threw}`);
 }
@@ -162,6 +179,16 @@ const broke = thrown.length;
 console.log("");
 summary(`${files.length} files`, broke ? `${broke} threw` : "");
 if (broke) console.log(`  threw: ${thrown.join(", ")}`);
+if (silent.length) {
+  console.log(`\n✗ ${silent.length} file(s) asserted nothing: ${silent.join(", ")}`);
+  console.log(
+    "  A file that reports no assertions cannot go red. Whatever it was going to",
+  );
+  console.log(
+    "  check, it did not — an empty fixture, an early return, or a condition that",
+  );
+  console.log("  is false on this machine. Say what was absent, and fail on it.");
+}
 
 // ------------------------------------------- the two numbers only this knows
 //
@@ -178,7 +205,7 @@ if (broke) console.log(`  threw: ${thrown.join(", ")}`);
 // describe *the whole suite*, and checking a partial tally against the
 // documentation would fail every single-file run and teach everybody to ignore
 // the one fence that catches a stale count.
-if (!fail && !broke && !FILTER.length) {
+if (!fail && !broke && !silent.length && !FILTER.length) {
   const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, ROOT } = await import(
     pathToFileURL(path.join(HERE, "docfacts.mjs")).href
   );
@@ -214,4 +241,4 @@ if (FILTER.length) {
   console.log(`(filtered to ${FILTER.join(" ")} — the documentation fence needs a full run)`);
 }
 
-process.exit(fail || broke ? 1 : 0);
+process.exit(fail || broke || silent.length ? 1 : 0);

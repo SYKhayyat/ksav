@@ -378,3 +378,34 @@ export function lineAt(doc: string, pos: number): { from: number; to: number; li
 export function canMakeHeading(on: HeadingInfo | null, line: string, level: number): boolean {
   return on ? canSetLevel(on, level) : !line.startsWith("#");
 }
+
+// ---------------------------------------------------------------- any level
+//
+// `#כותרת(רמה: 4)` is what the registry ships for *"heading at any level"*, and
+// the 4 is a literal. So the command described as taking any level took one
+// level, silently, and the margin note said exactly that: **"Heading, any
+// level" quietly inserts level 4.**
+//
+// Four is not even a bad guess — levels 1 to 3 have commands of their own, so 4
+// is where "any level" starts being useful. What is wrong is that it is a
+// guess at all, made in a registry that has never seen the document, when the
+// document knows the answer: the heading you are standing under.
+
+/**
+ * The level a heading inserted at `pos` should take.
+ *
+ * One below the section the caret is in, clamped to what the engine has, and 1
+ * when there is no heading above it yet. The same shape as `continueSeries`:
+ * read the document rather than ship a number.
+ */
+export function levelUnder(doc: string, pos: number, all: HeadingInfo[] = headings(doc)): number {
+  const here = sectionAt(doc, pos, all);
+  return here ? Math.min(here.level + 1, MAX_LEVEL) : 1;
+}
+
+/** The `רמה:` / `level:` argument in `#כותרת`, as one that fits where it lands. */
+export function continueLevel(doc: string, pos: number, snippet: string): string {
+  const m = /^#(כותרת|hlevel)\((רמה|level):\s*\d+/u.exec(snippet.trim());
+  if (!m) return snippet;
+  return snippet.replace(/(\((?:רמה|level):\s*)\d+/u, `$1${levelUnder(doc, pos)}`);
+}

@@ -33,6 +33,7 @@
 // the effect; what is here is every decision, and every decision is now a
 // question you can ask in a test file without a browser.
 
+import { continueLevel } from "./headings";
 import { legalAt, insertionAt } from "./mode";
 import { noteFor, type NoteChoice } from "./notes";
 import { continueSeries } from "./numbering";
@@ -71,7 +72,11 @@ export function plan(
    */
   whenSilent: "he" | "en" = "he",
 ): Insertion {
-  const snippetInSeries = continueSeries(doc, from, rawSnippet);
+  // Two rewrites that read the document rather than trust the registry's
+  // literal: the number a siman gets, and the level "heading at any level"
+  // takes. Both are the same finding — a static string in a table that has
+  // never seen the document, producing the same value every time.
+  const snippetInSeries = continueLevel(doc, from, continueSeries(doc, from, rawSnippet));
 
   // A note is a layout, not a string. Answered before legality because the
   // layouts place themselves — a note's marker is legal wherever prose is, and

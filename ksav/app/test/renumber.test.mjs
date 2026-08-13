@@ -20,6 +20,7 @@ import {
   continueSeries,
 } from "../.tmp-test/numbering.mjs";
 import { numberMarks, renumberAll } from "../.tmp-test/numbering-lint.mjs";
+import { levelUnder, continueLevel } from "../.tmp-test/headings.mjs";
 import { fakeView, installChrome } from "./harness.mjs";
 
 const doc = (...lines) => lines.join("\n") + "\n";
@@ -225,5 +226,48 @@ check("a footnote is not", inSeries("#הערה[|]"), false);
     chrome.restore();
   }
 }
+
+// ---------------------------------------------------------------- 7. any level
+//
+// The same finding one command over. `#כותרת(רמה: 4)` is what the registry ships
+// for *"heading at any level"*, and the 4 is a literal in a table that has never
+// seen the document — so a command described as taking any level took exactly
+// one, silently. The margin note: *"'Heading, any level' quietly inserts level
+// 4."*
+//
+// Four is not even a bad guess: levels 1 to 3 have commands of their own, so 4
+// is where "any level" starts being useful. What is wrong is that it is a guess
+// at all, when the document knows the answer — the heading you are standing
+// under.
+
+check("with no heading above it, a heading is level 1", levelUnder("Body text.\n", 5), 1);
+check("under a level-1 heading it is level 2", levelUnder("#h1[Chapter]\n\nBody.\n", 20), 2);
+check(
+  "and under a level-3 it is level 4 — which is what the literal guessed",
+  levelUnder("#h1[A]\n\n#h2[B]\n\n#h3[C]\n\nBody.\n", 32),
+  4,
+);
+
+{
+  const under = "#h1[Chapter]\n\nBody.\n";
+  check(
+    "the snippet is rewritten to fit where it lands",
+    continueLevel(under, under.length, "#כותרת(רמה: 4)[|]"),
+    "#כותרת(רמה: 2)[|]",
+  );
+  check(
+    "the English spelling too",
+    continueLevel(under, under.length, "#hlevel(level: 4)[|]"),
+    "#hlevel(level: 2)[|]",
+  );
+}
+
+check("nothing else is touched", continueLevel("#h1[A]\n", 8, "#bold[|]"), "#bold[|]");
+check(
+  "and prose that happens to say the word is not a template",
+  continueLevel("#h1[A]\n", 8, "some prose about רמה: 4"),
+  "some prose about רמה: 4",
+);
+
 
 }

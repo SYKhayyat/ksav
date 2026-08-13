@@ -47,21 +47,20 @@ jobs:
       - name: Install
         working-directory: ./ksav/app
         run: npm ci
-      - name: Typecheck
-        working-directory: ./ksav/app
-        run: npx tsc --noEmit
-      - name: Test
-        working-directory: ./ksav/app
-        run: npm test
+      # Groups of `ksav/tools/gate.mjs`, which is the one place a check command
+      # is written down. See the header of `ci.yml`.
+      - name: Check the editor
+        working-directory: ./ksav
+        run: node tools/gate.mjs editor
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
       # The engine, in release, because that is what the installers carry and a
       # debug-only pass would not be the same binary.
-      - name: Engine
-        working-directory: ./ksav/engine
-        run: cargo test --release
+      - name: Check the engine
+        working-directory: ./ksav
+        run: node tools/gate.mjs engine --release
 
   build:
     needs: check
@@ -127,16 +126,14 @@ jobs:
 
       # Cheap, and it fails the build before a 20-minute Rust compile if the
       # editor code is broken.
-      - name: Test and typecheck
-        working-directory: ./ksav/app
-        run: |
-          npm test
-          npx tsc --noEmit
+      - name: Check the editor
+        working-directory: ./ksav
+        run: node tools/gate.mjs editor
 
-      - name: Engine tests
+      - name: Check the engine
         if: matrix.platform == 'ubuntu-22.04'
-        working-directory: ./ksav/engine
-        run: cargo test --release
+        working-directory: ./ksav
+        run: node tools/gate.mjs engine --release
 
       - uses: tauri-apps/tauri-action@v0
         env:

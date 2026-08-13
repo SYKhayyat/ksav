@@ -101,10 +101,13 @@ jobs:
       # that was never assembled successfully. The site is what this job builds,
       # so the gate belongs here.
       #
-      # The suite, not a subset: it takes three seconds.
-      - name: Test
-        working-directory: ./ksav/app
-        run: npm test
+      # The whole editor group, not a subset: it takes a few seconds. It is a
+      # group of `ksav/tools/gate.mjs` rather than a command, which is why the
+      # typechecker came along — this step used to run the suite alone, and the
+      # reason it did is that whoever wrote it had to remember a second line.
+      - name: Check the editor
+        working-directory: ./ksav
+        run: node tools/gate.mjs editor
 
       # And the engine that will be inside the published page. `wasm-pack`
       # succeeding proves the crate compiled for wasm32; it does not prove the

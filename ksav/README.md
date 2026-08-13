@@ -573,7 +573,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,409 editor assertions, 631 engine
+- [x] **CI, running and green** — typecheck, 5,461 editor assertions, 631 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -649,26 +649,43 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 5,409 assertions across 86 files
-cd app && npm test -- panels spans          # just those files, by substring
-cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 631 tests, 42 binaries
-cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path app/src-tauri/Cargo.toml
+node tools/gate.mjs                         # the whole gate
+node tools/gate.mjs fmt editor              # or a group at a time
+cd app && npm test -- panels spans          # the inner loop: those files, by substring
 ```
 
-A filtered run says so and skips the two checks that describe the whole suite —
-the assertion tally above and the documentation fence over it. A partial tally
-checked against the documentation would fail every single-file run, which is the
-fastest way to teach everybody to ignore the one fence that catches a stale count.
+Four groups, nine checks:
 
-`.github/workflows/ci.yml` runs all of these on every push and pull request, plus
-two that cannot run from a plain checkout. It builds the wasm engine and then
-*runs* it (`.github/scripts/wasm-smoke.mjs` — every template compiled, both
-lexicons answered); the built package is git-ignored and produced locally, so
-without that job the entire no-server build could break and every other check
-would still be green. And it builds the app, embeds it in the server, and
-[uses it](#use-it).
+| group | what it runs |
+|---|---|
+| `fmt` | `rustfmt`, over all three Rust trees |
+| `editor` | the typechecker, then 5,461 assertions across 87 files |
+| `engine` | lints, then 631 tests across 42 binaries |
+| `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
+
+**One command, deliberately.** This section used to list six and
+`.github/workflows/ci.yml` spelled nine steps out again beside them. Nobody runs
+six commands, and it showed: for four consecutive pushes the *only* red job on
+`main` was `formatting`, failing at its first step in eleven seconds while every
+other job went green, with fifty-four unformatted hunks accumulating under it.
+`tools/gate.mjs` is now the one place a check command is written — the workflow
+selects a group by name, and `app/test/gate.test.mjs` fails if a check command
+reappears as a literal in the workflow or in any living page.
+
+A filtered run is the exception, and it is not an oversight: `npm test -- panels`
+is what a developer runs forty times an hour, and it says so and skips the two
+checks that describe the whole suite — the assertion tally above and the
+documentation fence over it. A partial tally checked against the documentation
+would fail every single-file run, which is the fastest way to teach everybody to
+ignore the one fence that catches a stale count.
+
+The workflow runs the gate on every push and pull request, plus two jobs that
+need more than a plain checkout and are therefore not part of it. It builds the
+wasm engine and then *runs* it (`.github/scripts/wasm-smoke.mjs` — every template
+compiled, both lexicons answered); the built package is git-ignored and produced
+locally, so without that job the entire no-server build could break and every
+other check would still be green. And it builds the app, embeds it in the server,
+and [uses it](#use-it).
 
 The editor's runner (`app/test/run.mjs`) builds **every module in `app/src`** and
 executes every `app/test/*.test.mjs`, so **adding a test is adding a file** — that

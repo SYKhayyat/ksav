@@ -29,6 +29,25 @@
 # red build: a failure here is now a failure in *this* repository, where before
 # a change to the other one could turn this file red without a commit landing
 # anywhere near it.
+#
+# # One runner
+#
+# No step below spells a check command out. They select a group from
+# `ksav/tools/gate.mjs`, which is the one place the gate is written down, and
+# `ksav/app/test/gate.test.mjs` fails if a check command reappears as a literal
+# here or in any living page.
+#
+# That is not tidiness. This file used to hold nine check steps and the README
+# listed six commands beside them, and for four consecutive pushes the *only*
+# red job on `main` was `formatting` — eleven seconds, first step, while every
+# other job went green — with fifty-four unformatted hunks accumulating under
+# it. A gate nobody can run in one command is a gate that gets read as a
+# suggestion.
+#
+# The jobs stay separate because their costs differ by orders of magnitude:
+# `formatting` needs no build, no cache and no system libraries and answers in
+# seconds instead of queueing behind the Typst compiler. Splitting the *run* is
+# not the same as splitting the *list*.
 
 name: ci
 
@@ -65,12 +84,9 @@ jobs:
       - name: Install
         working-directory: ./ksav/app
         run: npm ci
-      - name: Typecheck
-        working-directory: ./ksav/app
-        run: npx tsc --noEmit
-      - name: Test
-        working-directory: ./ksav/app
-        run: npm test
+      - name: Check
+        working-directory: ./ksav
+        run: node tools/gate.mjs editor
       - name: Build
         working-directory: ./ksav/app
         run: npx vite build
@@ -88,15 +104,17 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      # The engine's own standard is 0 warnings; enforce it rather than trust it.
-      - name: Clippy
-        working-directory: ./ksav/engine
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: Test
-        working-directory: ./ksav/engine
-        run: cargo test --release
+      # Lints then tests, and the tests in release: compiling documents through
+      # a debug Typst is slow enough to matter here, and nowhere else. That is
+      # the whole reason the runner takes `--release` rather than deciding a
+      # profile for everybody.
+      - name: Check
+        working-directory: ./ksav
+        run: node tools/gate.mjs engine --release
 
   # Formatting, across every Rust tree in this repository.
   #
@@ -120,18 +138,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      # `prototypes/flutter-app/rust` is deliberately absent: nothing in this
-      # file builds, tests or ships it, and gating an abandoned prototype would
-      # be a red nobody can act on.
-      - name: Engine
-        working-directory: ./ksav/engine
-        run: cargo fmt -- --check
-      - name: Browser engine
-        working-directory: ./ksav/wasm
-        run: cargo fmt -- --check
-      - name: Desktop shell
-        working-directory: ./ksav/app/src-tauri
-        run: cargo fmt -- --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # All three Rust trees. `prototypes/flutter-app/rust` is deliberately
+      # absent: nothing in this file builds, tests or ships it, and gating an
+      # abandoned prototype would be a red nobody can act on.
+      - name: Check
+        working-directory: ./ksav
+        run: node tools/gate.mjs fmt
 
   wasm:
     name: browser engine
@@ -254,8 +269,13 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/app/src-tauri -> target"
-      # Compiles the Tauri commands and runs the path-allowlist tests. The
-      # bundlers are release.yml's job; this only has to prove the shell builds.
-      - name: Test
-        working-directory: ./ksav/app/src-tauri
-        run: cargo test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Compiles the Tauri commands, lints them, and runs the path-allowlist and
+      # deep-link tests. The bundlers are release.yml's job; this only has to
+      # prove the shell builds. Clippy came with the runner — it was gated on
+      # one of the three Rust trees, the same shape as the formatting gap.
+      - name: Check
+        working-directory: ./ksav
+        run: node tools/gate.mjs shell

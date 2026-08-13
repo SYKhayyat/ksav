@@ -222,7 +222,10 @@ fn the_page_foot_line_does_not_move_when_the_document_grows_an_apparatus() {
             lowest <= line + 0.5,
             "something printed below the foot line ({lowest:.2} > {line:.2}):\n{body}"
         );
-        assert!(lowest < A4_PT, "something printed off the sheet: {lowest:.2}\n{body}");
+        assert!(
+            lowest < A4_PT,
+            "something printed off the sheet: {lowest:.2}\n{body}"
+        );
     }
 }
 
@@ -237,9 +240,8 @@ fn a_declared_band_height_is_the_height_the_band_gets() {
     // declared height actually buys, and against a *difference* of declared
     // heights so the furniture between them cancels out.
     let entries = |heights: &str| -> Vec<f64> {
-        let body = format!(
-            "#הגדרות_מדפים(גבהים: {heights})\n\nטקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n"
-        );
+        let body =
+            format!("#הגדרות_מדפים(גבהים: {heights})\n\nטקסט#מדף_א[אחת] ועוד#מדף_ב[שתיים] וסוף.\n");
         let doc = probe::layout(&body, &DocConfig::default()).expect("it lays out");
         let runs = probe::text_runs(&doc);
         let mut ys: Vec<f64> = runs
@@ -284,7 +286,10 @@ fn three_declared_streams_stay_on_the_paper() {
         lowest <= line + 0.5,
         "a stream printed below the page-foot line ({lowest:.2} > {line:.2})"
     );
-    assert!(lowest < A4_PT, "something printed off the sheet: {lowest:.2}");
+    assert!(
+        lowest < A4_PT,
+        "something printed off the sheet: {lowest:.2}"
+    );
 
     let doc = probe::layout(body, &DocConfig::default()).expect("it lays out");
     let runs = probe::text_runs(&doc);
@@ -395,7 +400,10 @@ fn a_stream_can_carry_a_tiered_note() {
     let body = "#הגדרות_זרמים(גבהים: (\"ביאור\": 2.5cm))\n\n\
                 טקסט#הערה_זרם(\"ביאור\")[הביאור#הערה[ההערה על הביאור]] וסוף.\n";
     let (line, lowest) = foot(body);
-    assert!(lowest <= line + 0.5, "something printed below the foot line");
+    assert!(
+        lowest <= line + 0.5,
+        "something printed below the foot line"
+    );
     let doc = probe::layout(body, &DocConfig::default()).expect("it lays out");
     let runs = probe::text_runs(&doc);
     let printed = |needle: &str| runs.iter().any(|r| r.page == 1 && r.text.contains(needle));

@@ -318,4 +318,95 @@ check(
   check("a setting the chipbar shows is a setting that rebuilds it", silent, []);
 }
 
+// ---------------------------------------------------------------- 9. the
+// selectors the acceptance run drives the assembled app by
+//
+// `.github/scripts/acceptance.mjs` is the only check that opens the real
+// product: the built bundle, inside the real server, driven by a real browser.
+// It finds things by id, class and data-attribute — and nothing has ever held
+// it to those names existing.
+//
+// It went stale exactly the way you would expect. The window became a tree of
+// panes, so "the preview" stopped being `#preview` and became however many
+// `.preview-host` elements are on screen; the acceptance run kept asking for
+// `#preview .page`, kept getting nothing, and reported `0 pages` thirteen times
+// on a build where every compile succeeded and the pages were on the screen.
+//
+// A check that cannot fail for the reason it names is worse than no check, so
+// this is the check on the check: every selector it drives by has to appear in
+// `src/`. Cheap, textual, and it can only ever produce a loud refusal.
+{
+  const HERE = dirOf(import.meta.url);
+  const accept = readFileSync(
+    path.join(HERE, "..", "..", "..", ".github", "scripts", "acceptance.mjs"),
+    "utf8",
+  );
+  // Only the strings that are selectors, and only the parts of them that name
+  // something `src/` is responsible for.
+  // Read out of the calls that take one, rather than out of every string that
+  // starts with a dot — `endsWith(".pdf")` is not a selector, and a guard that
+  // reports it is a guard people learn to ignore.
+  const wanted = new Set();
+  const CALLS = /(?:locator|click|fill|waitForSelector|querySelectorAll|selectOption)\(\s*["'`]([^"'`]+)["'`]/g;
+  for (const m of accept.matchAll(CALLS)) {
+    for (const part of m[1].split(/\s+/)) {
+      if (part.startsWith("#") || part.startsWith(".")) wanted.add(part);
+    }
+  }
+  for (const m of accept.matchAll(/\[data-(?:action|command|menu|export|chip)="([^"]+)"\]/g)) {
+    wanted.add(m[1]);
+  }
+  ok("the acceptance script was read", wanted.size > 5, `${wanted.size} selectors`);
+
+  const src = (f) => readFileSync(path.join(HERE, "..", "src", f), "utf8");
+  const TS = readdirSync(path.join(HERE, "..", "src"))
+    .filter((f) => f.endsWith(".ts"))
+    .map(src)
+    .join("\n");
+  // Comments stripped, because this stylesheet argues with itself in prose and
+  // names selectors while doing it. The comment explaining that `#preview` is
+  // gone contains the string `#preview`, which was enough to answer "is this
+  // declared?" with yes — the guard reading its own explanation as evidence.
+  const CSS = src("styles.css").replace(/\/\*[\s\S]*?\*\//g, " ");
+
+  // **Not** "does this word appear in src/". That was the first spelling of this
+  // check and it passed the mutation: put `#preview` back and it stayed green,
+  // because the word *preview* is all over `preview.ts`, the pane roles and
+  // `#preview-modal-body`. A guard that cannot fail is the thing it is guarding
+  // against, one storey up.
+  //
+  // So an id has to be *declared* as an id and a class as a class:
+  const declared = (sel) => {
+    const name = sel.slice(1);
+    if (sel.startsWith("#")) {
+      return (
+        TS.includes(`id: "${name}"`) ||
+        TS.includes(`getElementById("${name}")`) ||
+        // The boundary is load-bearing, and the mutation proved it: without it
+        // `#preview` matched the rule for `#preview-modal-body`, and the guard
+        // stayed green with the exact selector that produced thirteen red
+        // acceptance checks.
+        new RegExp(`#${name}(?![\\w-])`).test(CSS)
+      );
+    }
+    // A class is real if the stylesheet has a rule for it or the shell puts it
+    // on an element. `.cm-content` is CodeMirror's own and is styled here,
+    // which is the honest evidence that this application depends on it.
+    return (
+      new RegExp(`\\.${name}[\\s,:.{>]`).test(CSS) ||
+      TS.includes(`classList.add("${name}"`) ||
+      new RegExp(`class: "[^"]*\\b${name}\\b`).test(TS)
+    );
+  };
+
+  // Names that come from the engine's registry rather than from `src/` — a
+  // command is `#הדגשה` in `commands.rs` and reaches the DOM through a loop.
+  const FROM_REGISTRY = /^[֐-׿_]+$/u;
+  const missing = [...wanted]
+    .filter((sel) => !FROM_REGISTRY.test(sel))
+    .filter((sel) => sel.startsWith("#") || sel.startsWith("."))
+    .filter((sel) => !declared(sel));
+  check("every selector the acceptance run drives by is declared in src/", missing, []);
+}
+
 }

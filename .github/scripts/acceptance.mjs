@@ -26,7 +26,16 @@
 //   - `#status` — the compile verdict. `ok`, `warn`, `err`, one per compile,
 //     with the page count and the milliseconds in it.
 //   - `#diagnostics` — the compiler's own words when something is wrong.
-//   - `#preview .page` — that pages exist, and how many. Not what is on them.
+//   - `.preview-host .page` — that pages exist, and how many. Not what is on
+//     them.
+//
+//     It read `#preview .page` until the window became a tree of panes. There is
+//     no `#preview` any more, and there was never going to be one again: a
+//     document can have four previews open at once, so "the preview" is a class
+//     and however many of them are on screen. The selector went on matching
+//     nothing and the check went on reporting `0 pages` — thirteen of them, on a
+//     build where every compile succeeded and the pages were on the screen. A
+//     check that cannot fail for the reason it names is worse than no check.
 //   - `console.error` and uncaught exceptions — the whole page, the whole run.
 //   - the PDF's first bytes, because a download that is not a PDF is a bug no
 //     amount of green status text would have caught.
@@ -289,7 +298,7 @@ async function main() {
         cls: last.cls,
         text: last.text,
         diagnostics: document.getElementById("diagnostics")?.textContent ?? "",
-        pages: document.querySelectorAll("#preview .page").length,
+        pages: document.querySelectorAll(".preview-host .page").length,
       };
     });
   }
@@ -335,9 +344,9 @@ async function main() {
   // whole claim is that a red run means something. So the boot step waits for the
   // page the way a person does, and only the 30-second timeout can fail it.
   await page
-    .waitForSelector("#preview .page", { timeout: 30_000 })
+    .waitForSelector(".preview-host .page", { timeout: 30_000 })
     .catch(() => {});
-  const pages = await page.locator("#preview .page").count();
+  const pages = await page.locator(".preview-host .page").count();
   check("a page is rendered", pages > 0, `${pages} pages`);
   check(
     "it is talking to the server engine",

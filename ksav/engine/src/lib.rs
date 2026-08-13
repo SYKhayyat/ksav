@@ -276,15 +276,23 @@ fn declared_region_cm(body: &str, names: &[&str], page_h_cm: f64) -> Option<Vec<
             // document for `גבהים` would let a bare `#הגדרות_מדפים()` followed
             // three paragraphs later by the word in prose decide how much of every
             // page is reserved.
-            let Some(end) = closing_paren(after_name) else { continue };
+            let Some(end) = closing_paren(after_name) else {
+                continue;
+            };
             let rest = &after_name[..end];
             for key in ["גבהים", "heights"] {
                 let Some(k) = rest.find(key) else { continue };
                 let after = rest[k + key.len()..].trim_start();
-                let Some(after) = after.strip_prefix(':') else { continue };
+                let Some(after) = after.strip_prefix(':') else {
+                    continue;
+                };
                 let after = after.trim_start();
-                let Some(open) = after.strip_prefix('(') else { continue };
-                let Some(close) = open.find(')') else { continue };
+                let Some(open) = after.strip_prefix('(') else {
+                    continue;
+                };
+                let Some(close) = open.find(')') else {
+                    continue;
+                };
                 let items: Vec<&str> = open[..close]
                     .split(',')
                     .map(str::trim)
@@ -351,7 +359,12 @@ fn length_cm(s: &str, page_h_cm: f64) -> Option<f64> {
     if let Some(n) = s.strip_suffix('%') {
         return n.trim().parse::<f64>().ok().map(|v| v / 100.0 * page_h_cm);
     }
-    for (unit, per_cm) in [("cm", 1.0), ("mm", 10.0), ("pt", 72.0 / 2.54), ("in", 1.0 / 2.54)] {
+    for (unit, per_cm) in [
+        ("cm", 1.0),
+        ("mm", 10.0),
+        ("pt", 72.0 / 2.54),
+        ("in", 1.0 / 2.54),
+    ] {
         if let Some(n) = s.strip_suffix(unit) {
             return n.trim().parse::<f64>().ok().map(|v| v / per_cm);
         }
@@ -419,7 +432,10 @@ pub fn auto_notes_region_cm_on(body: &str, page_h_cm: f64) -> f64 {
     // sibling is never swept.
     let mut total = 0.0;
     let mut used_any = false;
-    for (commands, config) in [(BAND_COMMANDS, BAND_CONFIG), (STREAM_COMMANDS, STREAM_CONFIG)] {
+    for (commands, config) in [
+        (BAND_COMMANDS, BAND_CONFIG),
+        (STREAM_COMMANDS, STREAM_CONFIG),
+    ] {
         if !commands
             .iter()
             .any(|c| apparatus_is_called(&visible, c) || apparatus_is_named_as_kind(&visible, c))
@@ -1915,7 +1931,10 @@ mod tests {
         assert!(near(with("(20mm, 10mm)"), 3.0 + BAND_GAP_CM + BAND_RULE_CM));
         assert!(near(with("(1in,)"), 2.54 + BAND_RULE_CM));
         let pt = with("(72pt, 72pt)");
-        assert!(near(pt, 2.0 * 2.54 + BAND_GAP_CM + BAND_RULE_CM), "got {pt}");
+        assert!(
+            near(pt, 2.0 * 2.54 + BAND_GAP_CM + BAND_RULE_CM),
+            "got {pt}"
+        );
         // A single band has no gap to pay for.
         assert!(near(with("(2cm,)"), 2.0 + BAND_RULE_CM));
 
@@ -1927,7 +1946,10 @@ mod tests {
         assert_eq!(auto_notes_region_cm("#מדף_א[א] #מדף_ב[ב]"), 3.0);
         // And declaring heights without ever writing a band still reserves
         // nothing — the gate is the apparatus, not the configuration line.
-        assert_eq!(auto_notes_region_cm("#הגדרות_מדפים(גבהים: (2cm, 2cm))"), 0.0);
+        assert_eq!(
+            auto_notes_region_cm("#הגדרות_מדפים(גבהים: (2cm, 2cm))"),
+            0.0
+        );
         // A commented-out configuration is not a configuration.
         assert_eq!(
             auto_notes_region_cm("// #הגדרות_מדפים(גבהים: (9cm, 9cm))\n#מדף_א[א]"),
@@ -1936,7 +1958,9 @@ mod tests {
         // And the search stays inside the call's own brackets: prose that happens
         // to use the word must not decide how much of every page is reserved.
         assert_eq!(
-            auto_notes_region_cm("#הגדרות_מדפים(קו: false)\n\n#מדף_א[א]\n\nעל גבהים: (9cm, 9cm) נדבר להלן."),
+            auto_notes_region_cm(
+                "#הגדרות_מדפים(קו: false)\n\n#מדף_א[א]\n\nעל גבהים: (9cm, 9cm) נדבר להלן."
+            ),
             3.0
         );
         // A configuration that sets something else *and* the heights still reads.

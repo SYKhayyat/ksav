@@ -2083,7 +2083,17 @@
 #let נטוי(body) = emph(body)
 #let קו_תחתון(body) = underline(body)
 #let קו_חוצה(body) = strike(body)
-#let סימון(body) = highlight(body)
+// סימון — highlight, in whatever colour is asked for.
+//
+// `צבע` was the whole difference between this and `רקע` one line down: two
+// commands, one Typst function, and the toolbar button was wired to the half
+// that could not take a colour. So the argument comes here and `רקע` becomes
+// what it always was — the same thing with the colour written first.
+#let סימון(צבע: auto, body) = if צבע == auto {
+  highlight(body)
+} else {
+  highlight(fill: צבע, body)
+}
 #let עילי(body) = super(body)
 #let תחתי(body) = sub(body)
 #let רברבתי(body) = smallcaps(body)
@@ -2091,7 +2101,7 @@
 #let קטן(body) = text(size: 0.85em, body)
 #let גודל_גופן(מידה, body) = text(size: מידה, body)
 #let צבע(גוון, body) = text(fill: גוון, body)
-#let רקע(גוון, body) = highlight(fill: גוון, body)
+#let רקע(גוון, body) = סימון(צבע: גוון, body)
 #let מרווח_אותיות(מידה, body) = text(tracking: מידה, body)
 #let גופן_שונה(שם, body) = text(font: _as_string(שם), body)
 #let קוד(body) = box(
@@ -2099,12 +2109,73 @@
   text(font: ("Cascadia Mono", "Consolas", "monospace"), body),
 )
 
+// עיצוב — a look, as one command.
+//
+// A paragraph style is a name and a look, and Ksav had the second half only.
+// Writing one meant writing Typst by hand:
+//
+//     #let שאלה(תוכן) = text(size: 1.1em, weight: "bold", תוכן)
+//
+// which works, and which no control can read afterwards — the styles panel can
+// rewrite a `#הגדרות_*` call because it knows its shape, and knows nothing about
+// arbitrary code. So the knobs get a command of their own, and a custom style
+// becomes a `#let` in the document that the panel *can* read and rewrite:
+//
+//     #let שאלה(תוכן) = עיצוב(תוכן, גודל: 1.1em, משקל: "bold")
+//
+// The knobs are deliberately the same set the panel already offers a heading —
+// there is no third vocabulary for "what a piece of text looks like".
+//
+// Inline unless something makes it a block. `יישור` and the two spacings are
+// block-level questions in Typst, so asking either of them puts the content in a
+// block; asking neither leaves `#שאלה[…]` usable in the middle of a sentence,
+// which a style that always blocked would not be.
+#let עיצוב(
+  body,
+  גודל: auto,
+  משקל: auto,
+  צבע: auto,
+  סגנון: auto,
+  מרווח_אותיות: auto,
+  קו_תחתון: false,
+  רברבתי: false,
+  יישור: auto,
+  ריווח_לפני: auto,
+  ריווח_אחרי: auto,
+) = {
+  let inner = body
+  if רברבתי { inner = smallcaps(inner) }
+  if קו_תחתון { inner = underline(inner) }
+  let t = (:)
+  if גודל != auto { t.insert("size", גודל) }
+  if משקל != auto { t.insert("weight", משקל) }
+  if צבע != auto { t.insert("fill", צבע) }
+  if סגנון != auto { t.insert("style", סגנון) }
+  if מרווח_אותיות != auto { t.insert("tracking", מרווח_אותיות) }
+  let out = text(..t, inner)
+  let blocky = יישור != auto or ריווח_לפני != auto or ריווח_אחרי != auto
+  if not blocky { return out }
+  // The value is a Typst alignment written bare — `right`, `center`, `left` —
+  // which is what the panel's alignment control produces and what `#תמונה` has
+  // always taken.
+  if יישור != auto { out = align(יישור, out) }
+  block(
+    above: if ריווח_לפני == auto { auto } else { ריווח_לפני },
+    below: if ריווח_אחרי == auto { auto } else { ריווח_אחרי },
+    out,
+  )
+}
+
 // English aliases (collision-free with Typst builtins)
+#let styled = _en(עיצוב)
 #let bold = הדגשה
 #let italic = נטוי
 #let uline = קו_תחתון
 #let sthrough = קו_חוצה
-#let mark = סימון
+// `_en`, not a bare alias, now that it takes a named argument: `#mark(color:
+// red)` has to reach `צבע`, or the English spelling of a command is English in
+// its name only.
+#let mark = _en(סימון)
 #let sup = עילי
 #let sub_ = תחתי
 #let scaps = רברבתי
@@ -2862,6 +2933,14 @@
 
 #let מעבר_עמוד = pagebreak(weak: true)
 #let מעבר_שורה = linebreak()
+// מעבר_פסקה — a paragraph break that is not a blank line.
+//
+// A blank line is Typst's own way of ending a paragraph and it works in prose.
+// It does not work everywhere a writer wants a paragraph: inside a list item, a
+// note body or a table cell, a blank line is either swallowed by the block or —
+// in a list — read as the end of the item. `parbreak()` is the same break said
+// as a command, so it goes anywhere content goes.
+#let מעבר_פסקה = parbreak()
 #let מעבר_טור = colbreak()
 #let הזחה(body) = pad(right: 1.5em, body)
 #let טורים_בלוק(מספר, body) = columns(מספר, body)
@@ -2900,6 +2979,11 @@
 #let hspace = _en(רווח_אופקי)
 #let pbreak = מעבר_עמוד
 #let lbreak = מעבר_שורה
+// `parabreak`, not `parbreak`: `#let parbreak = …` would shadow Typst's own
+// function for everything defined after it here, including the line above that
+// calls it, and a writer typing Typst's `#parbreak()` directly — which the sink
+// has always allowed — would get Ksav's binding instead.
+#let parabreak = מעבר_פסקה
 #let cbreak = מעבר_טור
 #let indent_ = הזחה
 #let cols = טורים_בלוק

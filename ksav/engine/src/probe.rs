@@ -12,6 +12,7 @@
 
 use typst::layout::{Frame, FrameItem, Point};
 use typst::text::FontStyle;
+use typst::visualize::Paint;
 use typst_layout::PagedDocument;
 
 /// One laid-out run of text, positioned on its page.
@@ -83,6 +84,59 @@ fn walk(frame: &Frame, origin: Point, page: usize, out: &mut Vec<TextRun>) {
                     italic: info.variant.style != FontStyle::Normal,
                     weight: info.variant.weight.to_number(),
                 })
+            }
+            _ => {}
+        }
+    }
+}
+
+/// One filled shape on the page: a highlight, a cell background, a rule.
+#[derive(Debug, Clone)]
+pub struct Fill {
+    /// 1-based page number.
+    pub page: usize,
+    /// Absolute position on the page, in points, from the top-left corner.
+    pub x: f64,
+    pub y: f64,
+    /// The fill colour as `#rrggbb`, lowercase, alpha dropped.
+    ///
+    /// Alpha is dropped because a highlight is drawn semi-transparent and the
+    /// question a test asks is *which colour*, not how much of it. Comparing
+    /// eight hex digits would make every assertion depend on Typst's default
+    /// opacity as well as on the colour the writer asked for.
+    pub colour: String,
+}
+
+/// Every filled shape in the document, in layout order.
+///
+/// The half of the page `text_runs` cannot see. `#סימון(צבע: …)` puts no text on
+/// the page at all — it puts a rectangle behind text that was going to be there
+/// anyway — so a test written against the runs cannot tell a highlight that
+/// applied from one that was silently dropped.
+pub fn fills(doc: &PagedDocument) -> Vec<Fill> {
+    let mut out = Vec::new();
+    for (i, page) in doc.pages().iter().enumerate() {
+        walk_fills(&page.frame, Point::zero(), i + 1, &mut out);
+    }
+    out
+}
+
+fn walk_fills(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Fill>) {
+    for (pos, item) in frame.items() {
+        let at = origin + *pos;
+        match item {
+            FrameItem::Group(g) => walk_fills(&g.frame, at, page, out),
+            FrameItem::Shape(shape, _) => {
+                let Some(Paint::Solid(colour)) = shape.fill.as_ref() else {
+                    continue;
+                };
+                let [r, g, b, _] = colour.to_vec4_u8();
+                out.push(Fill {
+                    page,
+                    x: at.x.to_pt(),
+                    y: at.y.to_pt(),
+                    colour: format!("#{r:02x}{g:02x}{b:02x}"),
+                });
             }
             _ => {}
         }

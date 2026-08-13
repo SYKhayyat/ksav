@@ -113,7 +113,27 @@ export interface Settings {
   marksPane?: boolean;
   nikud?: boolean;
   autocomplete?: boolean;
+  /**
+   * Close a bracket when one is opened. On, and asked for by name.
+   *
+   * Separate from `autoPairQuotes` because they are separate questions with
+   * opposite answers in Hebrew, and a single "auto-close" switch would have made
+   * turning quotes on cost you the brackets.
+   */
+  autoPairBrackets?: boolean;
+  /** The same for `"` and `'`. Off: see `pairedDelimiters` in `main.ts`. */
+  autoPairQuotes?: boolean;
   spellcheck?: boolean;
+  /**
+   * Check the words inside comments and folds as well.
+   *
+   * Off, because the checker's own rule is *never underline what does not
+   * print* and a comment does not print. But a comment is still prose somebody
+   * typed — a note to a chavrusa, a paragraph parked while it is reworked, the
+   * label on a fold — and for a writer who uses them that way an unchecked one
+   * is the only unchecked text in the sefer.
+   */
+  spellcheckComments?: boolean;
   syncScroll?: boolean;
   autosaveFile?: boolean; // write back to the bound file on a timer, not only on Ctrl+S
   customCommands?: string; // user #let definitions, prepended at compile
@@ -181,7 +201,10 @@ export const DEFAULTS: Settings = {
   typewriter: false,
   checkUpdates: true,
   autocomplete: true,
+  autoPairBrackets: true,
+  autoPairQuotes: false,
   spellcheck: true,
+  spellcheckComments: false,
   syncScroll: true,
   autosaveFile: true,
 };

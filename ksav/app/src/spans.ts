@@ -1156,7 +1156,19 @@ export function scanOf(key: object, text: () => string): Scan {
  */
 const TEXTS = new WeakMap<object, string>();
 
-export function docTextOf(doc: { toString(): string }): string {
+export function docTextOf(doc: { toString(): string } | string): string {
+  // A string is already the answer, and it is not a legal `WeakMap` key.
+  //
+  // Not defensiveness: the declared parameter is *anything with a `toString`*,
+  // which a string satisfies, and `WeakMap.set` throws on one. So the signature
+  // invited a call that the body could not survive — and `docTextOf(view?.state
+  // .doc ?? "")`, which reads as the careful spelling, is exactly that call. It
+  // took the whole application down at boot, with a blank page and an empty
+  // console, because the throw landed in an unawaited `boot()`.
+  //
+  // A string caller gets no memo, which is the honest cost of not having a
+  // `Text` to key on.
+  if (typeof doc === "string") return doc;
   const hit = TEXTS.get(doc);
   if (hit !== undefined) return hit;
   const fresh = doc.toString();

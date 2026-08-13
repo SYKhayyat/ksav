@@ -40,6 +40,15 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#עיצוב(גודל: 1.1em)[]אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "סימון",
    "en": "mark",
    "legal": true,
@@ -787,6 +796,15 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#מעבר_פסקה אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -1116,6 +1134,15 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#sthrough[]ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#styled(size: 1.1em)[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -1867,6 +1894,15 @@
   {
    "ctx": "prose",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#parabreak ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -2196,6 +2232,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #קו_חוצה[]ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #עיצוב(גודל: 1.1em)[]ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -2947,6 +2992,15 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #מעבר_פסקה ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -3276,6 +3330,15 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #sthrough[]One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #styled(size: 1.1em)[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4027,6 +4090,15 @@
   {
    "ctx": "heading-body",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #parabreak One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -4356,6 +4428,15 @@
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #קו_חוצה[]פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #עיצוב(גודל: 1.1em)[]פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -5107,6 +5188,15 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #מעבר_פסקה פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -5436,6 +5526,15 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #sthrough[]inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #styled(size: 1.1em)[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6187,6 +6286,15 @@
   {
    "ctx": "note-body",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #parabreak inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -6516,6 +6624,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #קו_חוצה[]כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #עיצוב(גודל: 1.1em)[]כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7267,6 +7384,15 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #מעבר_פסקה כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -7596,6 +7722,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #sthrough[]here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #styled(size: 1.1em)[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8347,6 +8482,15 @@
   {
    "ctx": "list-in-item",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #parabreak here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -8676,6 +8820,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],קו_חוצה[],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],עיצוב(גודל: 1.1em)[],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9427,6 +9580,15 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],מעבר_פסקה,\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -9756,6 +9918,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],sthrough[],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],styled(size: 1.1em)[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10507,6 +10678,15 @@
   {
    "ctx": "list-between-items",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],parabreak,\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -10836,6 +11016,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(קו_חוצה[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(עיצוב(גודל: 1.1em)[],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -11587,6 +11776,15 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(מעבר_פסקה,\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -11916,6 +12114,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(sthrough[],\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(styled(size: 1.1em)[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12667,6 +12874,15 @@
   {
    "ctx": "list-after-open",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(parabreak,\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -12996,6 +13212,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #קו_חוצה[]כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #עיצוב(גודל: 1.1em)[]כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -13747,6 +13972,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #מעבר_פסקה כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -14076,6 +14310,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #sthrough[]here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #styled(size: 1.1em)[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14827,6 +15070,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #parabreak here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -15156,6 +15408,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],קו_חוצה[], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],עיצוב(גודל: 1.1em)[], תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -15907,6 +16168,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],מעבר_פסקה, תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -16236,6 +16506,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],sthrough[], cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],styled(size: 1.1em)[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16987,6 +17266,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],parabreak, cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -17316,6 +17604,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #קו_חוצה[]כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #עיצוב(גודל: 1.1em)[]כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18067,6 +18364,15 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #מעבר_פסקה כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -18396,6 +18702,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #sthrough[]here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #styled(size: 1.1em)[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -19147,6 +19462,15 @@
   {
    "ctx": "nested-deep",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #parabreak here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -19476,6 +19800,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #קו_חוצה[]רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #עיצוב(גודל: 1.1em)[]רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -20227,6 +20560,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #מעבר_פסקה רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -20556,6 +20898,15 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #sthrough[]Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #styled(size: 1.1em)[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -21307,6 +21658,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #parabreak Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -21636,6 +21996,15 @@
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #קו_חוצה[]תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #עיצוב(גודל: 1.1em)[]תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -22387,6 +22756,15 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #מעבר_פסקה תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -22716,6 +23094,15 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #sthrough[]prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #styled(size: 1.1em)[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -23467,6 +23854,15 @@
   {
    "ctx": "siman-body",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #parabreak prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -23796,6 +24192,15 @@
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #קו_חוצה[]ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #עיצוב(גודל: 1.1em)[]ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -24547,6 +24952,15 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #מעבר_פסקה ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -24876,6 +25290,15 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #sthrough[]Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #styled(size: 1.1em)[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -25627,6 +26050,15 @@
   {
    "ctx": "title-body",
    "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #parabreak Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -25956,6 +26388,15 @@
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#קו_חוצה[]ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#עיצוב(גודל: 1.1em)[]ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -26707,6 +27148,15 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#מעבר_פסקה ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מעבר_טור",
    "en": "cbreak",
    "legal": true,
@@ -27036,6 +27486,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#sthrough[]ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "עיצוב",
+   "en": "styled",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#styled(size: 1.1em)[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -27783,6 +28242,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#lbreak ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "מעבר_פסקה",
+   "en": "parabreak",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#parabreak ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

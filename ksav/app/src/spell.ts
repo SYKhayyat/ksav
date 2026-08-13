@@ -130,7 +130,29 @@ function build(view: EditorView): DecorationSet {
  * and it also picks up content the walker never could — `#סימן("א", [דיני
  * תפילה])` puts its title in a content argument belonging to no nested call.
  */
-export function proseRegions(text: string): { from: number; to: number }[] {
+/**
+ * A comment's contents, without the marks that make it one.
+ *
+ * Stripped before the contents are read back, or the recursion would look at
+ * `// שלום` and correctly answer *that is a comment* — and blank the very words
+ * it was asked to expose.
+ */
+function insideMarks(text: string, c: { from: number; to: number }): { from: number; to: number } {
+  let open = text.startsWith("/*", c.from) || text.startsWith("//", c.from) ? 2 : 0;
+  // A fold's brace is part of its mark, not part of its label: `//{ פרק א` names
+  // a fold *פרק א*, and leaving the `{` in would open a code block in the reader
+  // below and take the label with it.
+  if (open === 2 && (text[c.from + 2] === "{" || text[c.from + 2] === "}")) open = 3;
+  const close = text.endsWith("*/", c.to) ? 2 : 0;
+  const from = c.from + open;
+  const to = Math.max(from, c.to - close);
+  return { from, to };
+}
+
+export function proseRegions(
+  text: string,
+  opts: { comments?: boolean } = {},
+): { from: number; to: number }[] {
   // A mask rather than a list of ranges, because the regions genuinely nest and
   // interleave: a command head can contain a command body which can contain
   // another head. Range arithmetic on that is where the old bug came from.
@@ -157,7 +179,24 @@ export function proseRegions(text: string): { from: number; to: number }[] {
 
   // Comments never reach the page — including ones inside a command body, which
   // is why this runs last.
-  for (const c of doc.comments) paint(c.from, c.to, 0);
+  //
+  // `opts.comments` is the one caller that wants them anyway. A comment is prose
+  // the writer typed: a note to a chavrusa, a paragraph parked while it is
+  // reworked, the label on a fold. It does not print, which is why this is off
+  // by default and why `scrollmap.ts` — which asks the same function *what
+  // prints* — must never turn it on.
+  for (const c of doc.comments) {
+    paint(c.from, c.to, 0);
+    if (!opts.comments) continue;
+    // A comment holds prose *and* markup: a commented-out paragraph is the most
+    // ordinary kind there is, and `#הערה` is no more a misspelling behind a `//`
+    // than in front of one. So the same question is asked of what is inside the
+    // marks — recursively, rather than by a second scanner that would be this
+    // module's private opinion about markup all over again.
+    const body = insideMarks(text, c);
+    for (const r of proseRegions(text.slice(body.from, body.to)))
+      paint(body.from + r.from, body.from + r.to, 1);
+  }
 
   const out: { from: number; to: number }[] = [];
   let from = -1;
@@ -178,9 +217,12 @@ export function proseRegions(text: string): { from: number; to: number }[] {
  * Blanked rather than removed: every character keeps its original offset, so a
  * misspelling's position in this string is its position in the real document and
  * no index mapping is needed. Getting that wrong underlines the wrong words.
+ *
+ * `comments` carries the writer's setting through: a comment is not on the page,
+ * so it is not checked unless they say so.
  */
-export function checkableText(text: string): string {
-  const keep = proseRegions(text);
+export function checkableText(text: string, opts: { comments?: boolean } = {}): string {
+  const keep = proseRegions(text, opts);
   const out = new Array<string>(text.length).fill(" ");
   for (const r of keep) {
     for (let i = r.from; i < r.to; i++) out[i] = text[i];

@@ -23,6 +23,7 @@ rather than leaving two actions on one key.
 | `Ctrl+/` | Hide line | הסתרת שורה |
 | `Ctrl+Shift+/` | Hide passage | הסתרת קטע |
 | `Ctrl+Alt+/` | Hidden line break | מעבר שורה נסתר |
+| `Ctrl+Alt+Enter` | Paragraph break | מעבר פסקה |
 | `Ctrl+Alt+1` | Fold to level 1 | קפל לרמה 1 |
 | `Ctrl+Alt+2` | Fold to level 2 | קפל לרמה 2 |
 | `Ctrl+Alt+3` | Fold to level 3 | קפל לרמה 3 |
@@ -85,7 +86,7 @@ prose again — the markup is one key away, which is the right distance for the
 people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
-one does. There are 120 of them and none is worth memorising.
+one does. There are 122 of them and none is worth memorising.
 
 **Nikud** has its own keymap while you are typing pointed Hebrew. It is not in
 this table because it is not one binding — it is a layer, and it is documented

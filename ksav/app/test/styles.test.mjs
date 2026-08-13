@@ -469,4 +469,113 @@ Body`;
       "פתיחה #ציון(ברשימה: false)[רמב״ם] סוף",
     );
   }
+
+  // ------------------------------------------------------ the writer's own styles
+  //
+  // A custom style is a `#let` in the document whose body is one `#עיצוב` call.
+  // Two properties carry the whole feature: the definition is found *inside* a
+  // `#let` (where Typst writes the call bare, with no `#`), and a `#let` of any
+  // other shape is left completely alone.
+  {
+    const doc = '#let שאלה(תוכן) = עיצוב(תוכן, גודל: 1.15em, משקל: "bold")\n#שאלה[מה הדין]';
+    const found = styles.findCustomStyles(doc);
+    check("the style is found", found.map((s) => s.name), ["שאלה"]);
+    check("its knobs are read", [...found[0].args.keys()], ["גודל", "משקל"]);
+    check("values keep their source form", found[0].args.get("משקל"), '"bold"');
+    check(
+      "the range is the definition and nothing after it",
+      doc.slice(found[0].from, found[0].to),
+      '#let שאלה(תוכן) = עיצוב(תוכן, גודל: 1.15em, משקל: "bold")',
+    );
+    check("the content parameter is the writer's word", found[0].param, "תוכן");
+  }
+
+  {
+    // The one that would silently break the feature: `#let` bodies are code
+    // context, so the call has no `#` and a scanner looking for `#עיצוב` sees
+    // nothing at all.
+    notOk(
+      "a hash before the call is not what a #let body looks like",
+      '#let שאלה(תוכן) = עיצוב(תוכן)'.includes("#עיצוב"),
+    );
+    ok("and it is still found", styles.findCustomStyles("#let שאלה(תוכן) = עיצוב(תוכן)").length === 1);
+  }
+
+  {
+    // Anything else a writer wrote with `#let` is theirs, not a style. Offering
+    // it in the dropdown would apply arbitrary code as a paragraph style, and
+    // rewriting it would destroy it.
+    const doc = '#let דגש(x) = text(fill: red, strong(x))\n#let שאלה(תוכן) = עיצוב(תוכן, גודל: 2em)';
+    check("only the one shaped like a style", styles.findCustomStyles(doc).map((s) => s.name), ["שאלה"]);
+  }
+
+  {
+    const doc = "#let שאלה(תוכן) = עיצוב(תוכן, גודל: 2em)\n#שאלה[מה]";
+    const style = styles.findCustomStyle(doc, "שאלה");
+    check(
+      "a knob is set without disturbing the rest",
+      styles.setCustomStyleArgs(doc, style, { משקל: '"bold"' }),
+      '#let שאלה(תוכן) = עיצוב(תוכן, גודל: 2em, משקל: "bold")\n#שאלה[מה]',
+    );
+    check(
+      "and cleared with null",
+      styles.setCustomStyleArgs(doc, style, { גודל: null }),
+      "#let שאלה(תוכן) = עיצוב(תוכן)\n#שאלה[מה]",
+    );
+    ok(
+      "a style with no knobs left is still defined",
+      styles.setCustomStyleArgs(doc, style, { גודל: null }).includes("#let שאלה"),
+    );
+  }
+
+  {
+    // Typst binds in reading order, so a definition under the paragraph that
+    // uses it is an unknown-variable error rather than a style.
+    const made = styles.defineCustomStyle("פסקה ראשונה", "שאלה", { גודל: "2em" });
+    ok("a new style goes above the text", made.startsWith("#let שאלה(תוכן) = עיצוב(תוכן, גודל: 2em)\n"));
+    const twice = styles.defineCustomStyle(made, "שאלה", { גודל: "3em" });
+    check("defining the same name again changes nothing", twice, made);
+    const second = styles.defineCustomStyle(made, "תשובה");
+    check(
+      "a second one goes under the first",
+      second.indexOf("תשובה") > second.indexOf("שאלה"),
+      true,
+    );
+    ok(
+      "an English document gets the English spelling",
+      styles.defineCustomStyle("text", "question", { גודל: "2em" }, "en")
+        .startsWith("#let question(body) = styled(body, size: 2em)"),
+    );
+  }
+
+  {
+    const doc = "#let שאלה(תוכן) = עיצוב(תוכן, גודל: 2em)\n#שאלה[מה הדין] אחר כך";
+    check(
+      "the caret inside styled text knows which style it is in",
+      styles.customStyleAt(doc, doc.indexOf("הדין"))?.name,
+      "שאלה",
+    );
+    check("and outside it, none", styles.customStyleAt(doc, doc.indexOf("אחר")), null);
+    // Standing on the definition is standing in the document, not in styled text:
+    // the dropdown must not claim the paragraph is a style because the caret
+    // happens to be on the `#let` line.
+    check("the definition is not the style", styles.customStyleAt(doc, 5), null);
+  }
+
+  {
+    check("a name is required", styles.styleNameError("", []), "styleNameEmpty");
+    check("and must be an identifier", styles.styleNameError("two words", []), "styleNameBad");
+    check("Hebrew is an identifier", styles.styleNameError("שאלה", []), null);
+    // Shadowing `#הערה` with a paragraph style would take the footnote away from
+    // the whole document, and the error would surface a hundred lines later.
+    check("a registry name is taken", styles.styleNameError("הערה", ["הערה"]), "styleNameTaken");
+  }
+
+  {
+    // Every label the style editor puts on a row has to exist in both languages,
+    // the same fence every other knob table here is under.
+    for (const [key, field] of Object.entries(styles.STYLE_FIELDS)) {
+      ok(`the ${key} knob has a label`, hasKey(field.label));
+    }
+  }
 }

@@ -74,7 +74,13 @@ pub static COMMANDS: &[Command] = &[
     cmd!("נטוי", "italic", "style", "טקסט נטוי", "Italic text", "#נטוי[|]"),
     cmd!("קו_תחתון", "uline", "style", "קו תחתון", "Underline", "#קו_תחתון[|]"),
     cmd!("קו_חוצה", "sthrough", "style", "קו חוצה", "Strikethrough", "#קו_חוצה[|]"),
+    // A look, as one command — the knobs a custom paragraph style is made of.
+    // Rarely typed by hand: it is what a `#let` written by the style editor
+    // calls, and what lets the editor read that `#let` back.
+    cmd!("עיצוב", "styled", "style", "עיצוב מותאם (גודל, משקל, צבע, יישור)", "A custom look (size, weight, colour, alignment)", "#עיצוב(גודל: 1.1em)[|]"),
     cmd!("סימון", "mark", "style", "הדגשה בצבע רקע", "Highlight", "#סימון[|]"),
+    // `#רקע` is the same command with the colour written first, and it stays:
+    // documents have it. `#סימון(צבע: …)` is what the toolbar writes.
     cmd!("רברבתי", "scaps", "style", "אותיות רבתי", "Small caps", "#רברבתי[|]"),
     cmd!("כתב_רשי", "rashi", "style", "כתב רש״י (דורש גופן מצורף)", "Rashi script (needs an attached font)", "#כתב_רשי[|]"),
     cmd!("עילי", "sup", "style", "כתב עילי", "Superscript", "#עילי[|]"),
@@ -214,6 +220,10 @@ pub static COMMANDS: &[Command] = &[
     // longer fuse with the word after it either.
     cmd!("חסר", "blank", "layout", "שורת מילוי (טופס)", "Fill-in blank", "#חסר()"),
     cmd!("מעבר_שורה", "lbreak", "layout", "מעבר שורה", "Line break", "#מעבר_שורה"),
+    // A paragraph break as a command, for the places a blank line cannot be one:
+    // inside a list item, a note body or a cell. See the prelude for why the
+    // English name is `parabreak` and not Typst's own `parbreak`.
+    cmd!("מעבר_פסקה", "parabreak", "layout", "מעבר פסקה (בלי שורה ריקה)", "Paragraph break (without a blank line)", "#מעבר_פסקה"),
     cmd!("מעבר_טור", "cbreak", "layout", "מעבר טור", "Column break", "#מעבר_טור"),
     cmd!("רווח_אופקי", "hspace", "layout", "רווח אופקי", "Horizontal space", "#רווח_אופקי(מידה: 1em)"),
     // ---- images ----

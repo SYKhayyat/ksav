@@ -685,6 +685,17 @@ export function readColor(src: string | undefined): string | null {
 const COUNT_SYMBOLS = "1aAiIא*";
 
 /**
+ * The colour a bare `#סימון[…]` paints — Typst's own default highlight fill.
+ *
+ * The toolbar's highlighter opens on it, so a writer who never touches the
+ * swatch gets exactly the page that `#סימון[…]` written by hand gives, which is
+ * what the palette, the Insert menu and every existing document write. It is
+ * Typst's value and not ours: `engine/tests/inline_text.rs` asserts that a bare
+ * highlight still paints it, and names this constant when it does not.
+ */
+export const DEFAULT_HIGHLIGHT = "#fffd11";
+
+/**
  * A numbering pattern as the levels it describes.
  *
  * `"1.א.i."` → `["1.", "א.", "i."]`. A prefix before the first symbol goes with
@@ -706,6 +717,209 @@ export function readLevels(src: string | undefined): string[] {
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------- custom styles
+//
+// A paragraph style of the writer's own.
+//
+// The paragraph-style dropdown offered nine heading levels and body text, and
+// the margin asked for the tenth entry every word processor has: *other* — make
+// a style, name it, apply it. Ksav's answer to "a named look" was already in the
+// language and unreachable from the interface: a `#let`.
+//
+//     #let שאלה(תוכן) = עיצוב(תוכן, גודל: 1.15em, משקל: "bold")
+//     #שאלה[מה הדין ב…]
+//
+// Two decisions are worth stating, because both could have gone the other way.
+//
+// **It lives in the document**, not in the settings drawer's `#let` preamble.
+// A style belongs to the sefer the way `#הגדרות_כותרות` does: it travels with
+// the file, it is visible in the source, and a reader who opens the file gets
+// the writer's styles rather than their own. The preamble is for a person's own
+// commands across every document, which is a different thing wearing the same
+// syntax.
+//
+// **The body is one `#עיצוב` call**, not arbitrary Typst. Arbitrary Typst is
+// what a writer could always type and what no control could ever read back — the
+// panel can rewrite a `#הגדרות_*` call because it knows its shape. So the
+// definition has a shape too, and a style the editor made is a style the editor
+// can still edit. A `#let` of any other shape is simply not a *custom style* as
+// far as this module is concerned: it is left completely alone, offered nowhere,
+// and never rewritten.
+
+/**
+ * The knobs a custom style is made of — `#עיצוב`'s own arguments.
+ *
+ * Deliberately the same set, with the same `Field` kinds and the same labels, as
+ * a heading's. There is no second vocabulary in this product for *what a piece
+ * of text looks like*, and inventing one here would have been the third.
+ */
+export const STYLE_FIELDS: Readonly<Record<string, Field>> = {
+  גודל: { kind: "size-em", label: "knobSize" },
+  משקל: { kind: "weight", label: "knobWeight" },
+  צבע: { kind: "colour", label: "knobColour" },
+  סגנון: { kind: "slant", label: "knobSlant" },
+  מרווח_אותיות: { kind: "length-pt", label: "knobTracking" },
+  קו_תחתון: { kind: "bool", label: "knobUnderline" },
+  רברבתי: { kind: "bool", label: "knobSmallcaps" },
+  יישור: { kind: "align", label: "knobAlign" },
+  ריווח_לפני: { kind: "length-em", label: "knobSpaceBefore" },
+  ריווח_אחרי: { kind: "length-em", label: "knobSpaceAfter" },
+};
+
+/** One `#let NAME(תוכן) = עיצוב(תוכן, …)` in the document. */
+export interface CustomStyle {
+  /** The name the writer gave it — what `#NAME[…]` applies. */
+  name: string;
+  /** What the definition calls its content, so a rewrite keeps the writer's word. */
+  param: string;
+  /** Byte range of the whole definition. */
+  from: number;
+  to: number;
+  /** Knob → its source text, canonicalised to Hebrew like every other call here. */
+  args: Map<string, string>;
+  lang: CommandLang;
+}
+
+// The head of a definition, anchored to the end of what comes before the
+// `#עיצוב` call. A Hebrew identifier is in `֐-׿`, which is the whole
+// point of the language.
+const STYLE_HEAD =
+  /(?:^|\n)([ \t]*)#?let[ \t]+([A-Za-z֐-׿_][\w֐-׿]*)[ \t]*\([ \t]*([A-Za-z֐-׿_][\w֐-׿]*)[ \t]*\)[ \t]*=[ \t]*$/;
+
+/**
+ * Every custom style the document defines, in the order they are written.
+ *
+ * Found through `scan`, which sees the call *without* its `#` — inside a `#let`
+ * body Typst is in code context, so `עיצוב(…)` is written bare. A regex over
+ * `#עיצוב` would have found none of them.
+ */
+export function findCustomStyles(doc: string): CustomStyle[] {
+  const names = bothSpellings("עיצוב");
+  const out: CustomStyle[] = [];
+  for (const n of scan(doc).nodes) {
+    if (!n.args || !names.includes(n.name)) continue;
+    const head = STYLE_HEAD.exec(doc.slice(0, n.from));
+    if (!head) continue;
+    const raw = splitStyleArgs(doc.slice(n.args.from, n.args.to));
+    out.push({
+      name: head[2],
+      param: head[3],
+      // `head.index` is the start of the `\n` for every match but one, so step
+      // over it — the definition is the line, not the break before it.
+      from: head.index + (head[0].startsWith("\n") ? 1 : 0),
+      to: n.args.to + 1,
+      args: new Map([...raw].map(([k, v]) => [canonicalKey(k), v])),
+      lang: n.name === "עיצוב" ? "he" : "en",
+    });
+  }
+  return out;
+}
+
+/** One by name, or null. */
+export function findCustomStyle(doc: string, name: string): CustomStyle | null {
+  return findCustomStyles(doc).find((s) => s.name === name) ?? null;
+}
+
+/**
+ * The custom style the caret is standing in, innermost first.
+ *
+ * What the paragraph-style dropdown reads to show where you *are* rather than
+ * what was last pressed — the same job `headingAt` does for a heading. The
+ * definition itself does not count as being inside the style: standing on the
+ * `#let` line is standing in the document, not in styled text.
+ */
+export function customStyleAt(doc: string, pos: number): CustomStyle | null {
+  const styles = findCustomStyles(doc);
+  if (!styles.length) return null;
+  const byName = new Map(styles.map((s) => [s.name, s]));
+  let best: CustomStyle | null = null;
+  let bestDepth = -1;
+  for (const n of scan(doc).nodes) {
+    const style = byName.get(n.name);
+    if (!style || !n.hash) continue;
+    if (pos < n.from || pos > n.to) continue;
+    if (n.depth < bestDepth) continue;
+    bestDepth = n.depth;
+    best = style;
+  }
+  return best;
+}
+
+function renderCustomStyle(
+  name: string,
+  param: string,
+  args: Map<string, string>,
+  lang: CommandLang,
+): string {
+  const call = lang === "en" ? (bothSpellings("עיצוב")[1] ?? "עיצוב") : "עיצוב";
+  const named = [...args].map(([k, v]) => `${keyIn(lang, k)}: ${v}`);
+  return `#let ${name}(${param}) = ${call}(${[param, ...named].join(", ")})`;
+}
+
+/**
+ * Set or clear knobs on a custom style, leaving the ones not mentioned alone.
+ *
+ * Unlike `setStyleArgs`, an empty argument list is **not** a reason to delete the
+ * definition: a style with no knobs left is still a name the document uses, and
+ * removing the `#let` would stop the sefer compiling. Deleting a style is a
+ * different act with a different door.
+ */
+export function setCustomStyleArgs(
+  doc: string,
+  style: CustomStyle,
+  changes: Record<string, string | null>,
+): string {
+  const args = new Map(style.args);
+  for (const [k, v] of Object.entries(changes)) {
+    if (v === null) args.delete(k);
+    else args.set(k, v);
+  }
+  return (
+    doc.slice(0, style.from) +
+    renderCustomStyle(style.name, style.param, args, style.lang) +
+    doc.slice(style.to)
+  );
+}
+
+/**
+ * Add a style definition to the document, at the top.
+ *
+ * At the top because Typst binds in reading order: a `#let` written under the
+ * paragraph that uses it is an unknown-variable error, and the paragraph in hand
+ * can be anywhere. Returns the document unchanged if that name is already a
+ * style — applying an existing style is what the dropdown does with it, and
+ * defining it twice would shadow the writer's own.
+ */
+export function defineCustomStyle(
+  doc: string,
+  name: string,
+  args: Record<string, string> = {},
+  lang: CommandLang = "he",
+): string {
+  if (findCustomStyle(doc, name)) return doc;
+  const param = lang === "en" ? "body" : "תוכן";
+  const line = renderCustomStyle(name, param, new Map(Object.entries(args)), lang);
+  // Under the styles already there, so a second one does not jump the first.
+  const existing = findCustomStyles(doc);
+  const at = existing.length ? existing[existing.length - 1].to : 0;
+  return at === 0 ? `${line}\n${doc}` : `${doc.slice(0, at)}\n${line}${doc.slice(at)}`;
+}
+
+/**
+ * Whether a name may be used for a style.
+ *
+ * A Typst identifier, and not one the registry already has — shadowing `#הערה`
+ * with a paragraph style would take the footnote away from the whole document,
+ * silently, and the error would surface a hundred lines later.
+ */
+export function styleNameError(name: string, taken: readonly string[]): string | null {
+  const n = name.trim();
+  if (!n) return "styleNameEmpty";
+  if (!/^[A-Za-z֐-׿_][\w֐-׿]*$/.test(n)) return "styleNameBad";
+  if (taken.includes(n)) return "styleNameTaken";
+  return null;
 }
 
 /** The levels back as a pattern, or null when every level said nothing. */

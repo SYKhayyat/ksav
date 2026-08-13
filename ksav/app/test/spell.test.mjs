@@ -95,6 +95,26 @@ export async function run() {
   }
 
   {
+    // Comments, switchable. The checker's rule is *never underline what does not
+    // print*, and a comment does not print — but it is still prose somebody
+    // typed, and for a writer who parks paragraphs in one it would be the only
+    // unchecked text in the sefer.
+    const src = "גלוי // מוסתר\n/* גם זה */";
+    notOk("off by default", spell.checkableText(src).includes("מוסתר"));
+    ok("on when asked", spell.checkableText(src, { comments: true }).includes("מוסתר"));
+    ok("…including a block one", spell.checkableText(src, { comments: true }).includes("גם"));
+    ok("the prose is checked either way", spell.checkableText(src).includes("גלוי"));
+    // The offset guarantee holds in both settings, or every squiggle in a
+    // commented document lands on the wrong word.
+    check("length is preserved with comments on", spell.checkableText(src, { comments: true }).length, src.length);
+    // A command name inside a comment is still a command name.
+    notOk(
+      "markup inside a comment is not suddenly prose",
+      spell.checkableText("// #הדגשה[א]", { comments: true }).includes("הדגשה"),
+    );
+  }
+
+  {
     // The offset guarantee, stated on its own: every squiggle is positioned by
     // an index into this string, so it has to be the same length as the source
     // it came from or every marker lands somewhere else.

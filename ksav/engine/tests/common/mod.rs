@@ -22,7 +22,7 @@
 
 #![allow(dead_code)] // each test crate uses a different subset
 
-use ksav_engine::probe::{self, Line, TextRun};
+use ksav_engine::probe::{self, Fill, Line, TextRun};
 use ksav_engine::DocConfig;
 
 /// Lay a body out with the default configuration, or panic with the diagnostics.
@@ -60,6 +60,13 @@ pub fn text(runs: &[TextRun]) -> String {
 /// The same, straight from a body — the shape four of the copies had.
 pub fn page_text(body: &str) -> String {
     text(&render(body))
+}
+
+/// Every filled shape a body puts on the page — highlights, cell backgrounds.
+pub fn page_fills(body: &str) -> Vec<Fill> {
+    let doc = probe::layout(body, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("compile failed: {d:?}"));
+    probe::fills(&doc)
 }
 
 /// Runs grouped into visual lines, at the tolerance these tests have always used.

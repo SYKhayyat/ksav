@@ -33,6 +33,31 @@
 
 import { delimiters } from "./spans";
 
+/**
+ * Which delimiters close themselves as you type, as two switches.
+ *
+ * Not healing — that is everything below — but the same subject, and this is the
+ * module that holds the reasoning about which characters are delimiters in a
+ * Hebrew document at all.
+ *
+ * They were one hard-coded answer and they are two questions with opposite
+ * answers. Brackets pairing is liked and stays on. Quotes cannot be assumed: in
+ * Hebrew `"` is the gershayim of רש״י and שו״ע and `'` is the geresh of ר', both
+ * standing *inside* words several times a line, and pairing them turns ordinary
+ * typing into a fight. So quotes ship off — which is a default, not a refusal.
+ * A writer setting an English sefer should have them, and one switch for both
+ * would have made having them cost the brackets.
+ */
+export function pairedDelimiters(brackets: boolean, quotes: boolean): string[] {
+  const out: string[] = [];
+  // `$` is Typst's maths delimiter and pairs exactly the way a bracket does. It
+  // is a bracket in every sense that matters here and has always been in this
+  // list; typstify's `editor/typst.go` reaches the same conclusion.
+  if (brackets) out.push("(", "[", "{", "$");
+  if (quotes) out.push('"', "'");
+  return out;
+}
+
 export type Opener = "[" | "(" | "{";
 export type Closer = "]" | ")" | "}";
 

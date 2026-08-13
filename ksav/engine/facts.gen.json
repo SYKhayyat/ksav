@@ -75,6 +75,15 @@
       "deprecated": false
     },
     {
+      "he": "עיצוב",
+      "en": "styled",
+      "category": "style",
+      "desc_he": "עיצוב מותאם (גודל, משקל, צבע, יישור)",
+      "desc_en": "A custom look (size, weight, colour, alignment)",
+      "insert": "#עיצוב(גודל: 1.1em)[|]",
+      "deprecated": false
+    },
+    {
       "he": "סימון",
       "en": "mark",
       "category": "style",
@@ -819,6 +828,15 @@
       "desc_he": "מעבר שורה",
       "desc_en": "Line break",
       "insert": "#מעבר_שורה",
+      "deprecated": false
+    },
+    {
+      "he": "מעבר_פסקה",
+      "en": "parabreak",
+      "category": "layout",
+      "desc_he": "מעבר פסקה (בלי שורה ריקה)",
+      "desc_en": "Paragraph break (without a blank line)",
+      "insert": "#מעבר_פסקה",
       "deprecated": false
     },
     {

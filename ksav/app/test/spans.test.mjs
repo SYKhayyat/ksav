@@ -557,6 +557,20 @@ export async function run() {
     spans.clearScanCache();
     check("dropping the memo changes nothing about the answer", spans.scan(a).nodes.length, 2);
   }
+
+  {
+    // The memo is a `WeakMap` keyed on the `Text` object, and a `WeakMap` throws
+    // on a primitive key — so `docTextOf` used to reject the one value its own
+    // signature most invites: a plain string. `docTextOf(view?.state.doc ?? "")`
+    // reads as the careful spelling and took the whole application down at boot,
+    // blank page, empty console, because the throw landed in an unawaited
+    // `boot()`.
+    check("a string is already the answer", spans.docTextOf("#הדגשה[א]"), "#הדגשה[א]");
+    check("including the empty one", spans.docTextOf(""), "");
+    const doc = { toString: () => "#הדגשה[ב]" };
+    check("and a document is read through it", spans.docTextOf(doc), "#הדגשה[ב]");
+    ok("…once", spans.docTextOf(doc) === spans.docTextOf(doc));
+  }
 }
 
 // -------------------------------------------------------------------- helpers

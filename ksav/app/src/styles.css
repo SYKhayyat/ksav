@@ -907,6 +907,10 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   color: var(--muted); font-size: .85em; letter-spacing: .05em;
 }
 .pm-pagebreak { display: inline-block; width: 100%; text-align: center; }
+/* A line break and a paragraph break sit *inside* the line, unlike the page and
+   column breaks above, so they stay inline and small — what Word's ¶ looks
+   like, and for the same reason: it marks a spot, it does not take a row. */
+.pm-break { color: var(--muted); font-size: .8em; opacity: .75; padding: 0 .15em; }
 .pm-toc, .pm-apparatus {
   display: inline-block; border: 1px dashed var(--line); border-radius: 5px;
   padding: 1px 7px; background: var(--bg);
@@ -914,6 +918,17 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .pm-anchor, .pm-xref, .pm-image {
   border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--bg);
 }
+/* ---- a toolbar button with a setting attached ---------------------------
+   The highlighter and its colour. They read as one control because they are
+   one: the swatch is what the pen will paint with, not a separate command. */
+.tb-split { display: inline-flex; align-items: stretch; gap: 1px; }
+.tb-swatch {
+  width: 18px; padding: 0; border: 1px solid var(--line); border-radius: 4px;
+  background: none; cursor: pointer; align-self: center; height: 20px;
+}
+.tb-swatch::-webkit-color-swatch { border: none; border-radius: 2px; }
+.tb-swatch::-moz-color-swatch { border: none; border-radius: 2px; }
+
 /* A note chip carries the note's own text as its tooltip, so it can be read
    without revealing the markup. */
 .pm-fn { cursor: help; }

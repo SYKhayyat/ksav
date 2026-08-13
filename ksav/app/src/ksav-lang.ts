@@ -190,6 +190,13 @@ const SELF_CLOSING: Record<string, { cls: string; text: string }> = {
     קו_מפריד: { cls: "pm-hr", text: "" },
     חסר: { cls: "pm-blank", text: "\u00a0\u00a0\u00a0\u00a0\u00a0" },
     מעבר_עמוד: { cls: "pm-pagebreak", text: "— — —" },
+    // The other two breaks, which were missing from this table while the page
+    // and column breaks were in it. In prose mode a `#מעבר_שורה` showed its own
+    // markup in the middle of a sentence — the one place prose mode exists to
+    // not do that — and the paragraph break, being new, would have joined it.
+    // The glyphs are the ones a word processor shows for the same two things.
+    מעבר_שורה: { cls: "pm-break", text: "↵" },
+    מעבר_פסקה: { cls: "pm-break", text: "¶" },
     מעבר_טור: { cls: "pm-pagebreak", text: "⋮" },
     תמונה: { cls: "pm-image", text: "🖼" },
     תוכן: { cls: "pm-toc", text: "⧉" },

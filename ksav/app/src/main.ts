@@ -30,6 +30,7 @@ import {
   outline,
 } from "./ksav-lang";
 import { bracketLint, healAll } from "./bracket-lint";
+import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
 import { numberingMarks, renumberAll } from "./numbering-lint";
@@ -150,7 +151,7 @@ import { applyPreview, currentPages, drawCurrentInto, pageBox } from "./preview"
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { changeGutter, changeHighlight, changes, nameMarks, setBaseline } from "./changes";
-import { focusCompartment, focusExtension } from "./focus";
+import { focusCompartment, focusExtension, paragraphAt } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
 import * as share from "./share";
@@ -686,6 +687,12 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "hideBlock", run: () => (hideBlockHere(), true) },
   { id: "hideLine", run: () => (hideLineHere(), true) },
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
+  // The fourth thing Enter can mean, and the one the product had no way to say:
+  // end the paragraph *here*, without the blank line that a list item reads as
+  // the end of the item and a note body swallows.
+  // Written in Hebrew and translated by `insert.plan`, like every other snippet
+  // in this table — an English document gets `#parabreak`.
+  { id: "paraBreak", run: () => (insertSnippet("#מעבר_פסקה"), true) },
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
   { id: "palette", run: () => (openPalette(), true) },
@@ -996,6 +1003,31 @@ function sefarimCompletions(context: CompletionContext): CompletionResult | null
   };
 }
 const autoCompartment = new Compartment();
+
+// ---------------------------------------------------------------- pairing
+//
+// Which delimiters close themselves, as two switches rather than one.
+//
+// They are two questions and were one hard-coded answer. Brackets pairing is
+// liked and stays on. Quotes are the ones that cannot be assumed: in a Hebrew
+// document `"` is the gershayim of רש״י and שו״ע and `'` is the geresh of ר'
+// — both sit *inside* words, several times a line, and pairing them turns
+// ordinary typing into a fight. That is why they ship off. It is not a reason to
+// withhold them from a writer setting an English sefer, or from anyone who wants
+// them; it is a reason for the default and for the note under the switch.
+const pairCompartment = new Compartment();
+
+function pairExtension() {
+  // `closeBrackets` takes its list from language data, and Ksav's highlighter is
+  // a regex scanner with no grammar behind it, so the data is provided directly
+  // rather than by a language.
+  const brackets = pairedDelimiters(
+    settings.autoPairBrackets !== false,
+    !!settings.autoPairQuotes,
+  );
+  return EditorState.languageData.of(() => [{ closeBrackets: { brackets } }]);
+}
+
 // ---------------------------------------------------------------- spell check
 //
 // The engine holds the lexicons and does the checking (see engine/src/spell/);
@@ -1020,7 +1052,9 @@ async function runSpellCheck() {
   if (!runtime.backend || !settings.spellcheck || !runtime.view) return;
   // Only the text that will actually print: command names are not misspellings,
   // and underlining them would make the feature useless on its first document.
-  const text = spell.checkableText(docTextOf(runtime.view.state.doc));
+  const text = spell.checkableText(docTextOf(runtime.view.state.doc), {
+    comments: !!settings.spellcheckComments,
+  });
   try {
     const res = await runtime.backend.spell(text, spell.userWordsText(), false);
     spellFailed = false;
@@ -1278,17 +1312,15 @@ function makeState(body: string, prose: boolean): EditorState {
         return true;
       }),
       closeBrackets(),
-      // Pair the maths delimiter the way brackets pair — typstify's
-      // `editor/typst.go` does the same, and Typst's `$…$` works in a Ksav body
-      // because the body *is* Typst. `closeBrackets` takes its list from
-      // language data, and Ksav's highlighter is a regex scanner with no grammar
-      // behind it, so the data is provided directly rather than by a language.
-      //
-      // The gershayim is deliberately absent from that list, for the reason
+      // What it is allowed to close: two switches, in a compartment because they
+      // are settings. Typst's `$…$` pairs with the brackets — typstify's
+      // `editor/typst.go` does the same, and `$…$` works in a Ksav body because
+      // the body *is* Typst. The gershayim ships **off**, for the reason
       // `brackets.ts` gives at length: `"` is not a delimiter in a Hebrew
       // document, because רש״י and שו״ע are everywhere and pairing quotes
-      // swallows whole tables.
-      EditorState.languageData.of(() => [{ closeBrackets: { brackets: ["(", "[", "{", "$"] } }]),
+      // swallows whole tables. Off is a default, not a refusal — see
+      // `pairExtension`.
+      pairCompartment.of(pairExtension()),
       search({ top: true }),
       // The hydra is *not* here, and that is the fix rather than an omission.
       // It was `Prec.highest(keymap.of(hydraKeymap()))` a dozen lines below,
@@ -3014,45 +3046,220 @@ function toggleNikud() {
 // with `aria-label` for assistive technology.
 
 /**
- * The current paragraph's level, as a control and as a readout.
+ * The open document's text, or `""` when there is no editor yet.
  *
- * Bound to the same registry operations as everything else: picking a level
- * runs `heading.levelN`, and "body text" unwraps. It is rebuilt on every
- * selection change by `updateContextBar`, so it always shows where the caret
- * actually is rather than what was last pressed.
+ * The obvious spelling is a nullish coalesce straight into `docTextOf`, with an
+ * empty string as the fallback — and it **throws**. `docTextOf` memoises on a
+ * `WeakMap` keyed by the `Text` object, and a `WeakMap` refuses a primitive key,
+ * so the branch that looks like the safe default is the one that cannot work.
+ * The chrome is built once before the editor exists, which is that branch, on
+ * every boot: it took the whole application down with a blank page and nothing
+ * in the console, because an unhandled rejection in `boot()` is not a console
+ * message.
  */
-function headingLevelSelect(): HTMLElement {
+function docTextNow(): string {
+  return runtime.view ? docTextOf(runtime.view.state.doc) : "";
+}
+
+/**
+ * The paragraph-style control: what this paragraph *is*, and the two doors out.
+ *
+ * The dropdown is the readout — rebuilt on every selection change by
+ * `updateContextBar`, so it says where the caret actually is rather than what
+ * was last pressed — and it is bound to the same registry operations as
+ * everything else: a level runs `heading.levelN`, "body text" unwraps.
+ *
+ * Three things the margin asked for and it did not have:
+ *
+ *   - **A number.** Nine levels in a dropdown means levels 4 to 9 are a scroll,
+ *     and a writer working at depth knows the number they want. Typing it is one
+ *     gesture where picking it is three.
+ *   - **Other.** The tenth entry every word processor has — a style of the
+ *     writer's own, named, created and applied in one act. See `styles.ts`.
+ *   - **Edit this one.** The formatting behind whatever is applied here, without
+ *     first working out which of the styles panel's nine sections owns it. For a
+ *     heading that is the Headings section at *this* level; for a custom style it
+ *     is that style's own knobs.
+ */
+function paragraphStyleControl(): HTMLElement {
   const sel = el("select", {
     id: "heading-level",
     class: "heading-select",
     title: t("paragraphStyle"),
     "aria-label": t("paragraphStyle"),
   }) as HTMLSelectElement;
-  sel.append(el("option", { value: "0" }, [t("bodyText")]));
+  fillParagraphStyles(sel);
+  sel.addEventListener("change", () => applyParagraphStyle(sel.value));
+
+  // 1 to `MAX_LEVEL`, and no zero: "not a heading" is a different answer and it
+  // is the dropdown's, where it can be named. A blank box means *this paragraph
+  // is not one*, which is also what it shows when the caret is in body text.
+  const level = el("input", {
+    type: "number",
+    class: "heading-number",
+    min: 1,
+    max: heads.MAX_LEVEL,
+    step: 1,
+    id: "heading-level-number",
+    title: t("headingLevel"),
+    "aria-label": t("headingLevel"),
+  }) as HTMLInputElement;
+  level.addEventListener("change", () => {
+    const want = parseInt(level.value, 10);
+    if (!Number.isFinite(want) || want < 1 || want > heads.MAX_LEVEL) {
+      setStatus(tf("headingLevelRange", String(heads.MAX_LEVEL)), "warn");
+      updateContextBar();
+      return;
+    }
+    applyParagraphStyle(String(want));
+  });
+
+  return el("span", { class: "tb-split" }, [
+    sel,
+    level,
+    iconBtn("✎", t("editThisStyle"), () => editParagraphStyle(sel.value)),
+  ]);
+}
+
+/** The dropdown's options: body text, the levels, this document's own styles, other. */
+function fillParagraphStyles(sel: HTMLSelectElement) {
+  const doc = docTextNow();
+  sel.replaceChildren(el("option", { value: "0" }, [t("bodyText")]));
   for (let i = 1; i <= heads.MAX_LEVEL; i++) {
     sel.append(el("option", { value: String(i) }, [t("headingLevel" + i)]));
   }
-  sel.addEventListener("change", () => {
-    const want = parseInt(sel.value, 10);
-    const doc = docTextOf(runtime.view.state.doc);
-    const pos = runtime.view.state.selection.main.head;
-    if (want === 0) {
-      const h = heads.headingAt(doc, pos);
-      if (!h) return;
-      // Null for a heading whose level the prelude fixes (`#סימן`): unwrapping
-      // one would drop its number, which is the writer's text.
-      const e = heads.unwrapHeading(doc, h);
-      if (!e) return;
-      editDoc(e.text, e.caret);
-      scheduleCompile();
-      runtime.view.focus();
+  const own = styles.findCustomStyles(doc);
+  if (own.length) {
+    sel.append(
+      el(
+        "optgroup",
+        { label: t("customStyles") },
+        own.map((s) => el("option", { value: `custom:${s.name}` }, [s.name])),
+      ),
+    );
+  }
+  sel.append(el("option", { value: "new" }, [t("newStyle")]));
+}
+
+/** What the dropdown should be showing, given where the caret is. */
+function paragraphStyleAt(doc: string, pos: number): string {
+  const own = styles.customStyleAt(doc, pos);
+  if (own) return `custom:${own.name}`;
+  const heading = heads.headingAt(doc, pos);
+  return String(heading ? heading.level : 0);
+}
+
+function applyParagraphStyle(value: string) {
+  const doc = docTextOf(runtime.view.state.doc);
+  const pos = runtime.view.state.selection.main.head;
+  if (value === "new") {
+    openNewStyle();
+    return;
+  }
+  if (value.startsWith("custom:")) {
+    applyCustomStyle(value.slice("custom:".length));
+    return;
+  }
+  const want = parseInt(value, 10);
+  if (want === 0) {
+    // Body text unwraps whichever of the two this paragraph is. The custom style
+    // first, because a styled heading is a heading with a wrapper inside it and
+    // taking the outer one off would take the heading with it.
+    const own = styles.customStyleAt(doc, pos);
+    if (own) {
+      unwrapCustomStyle(own.name);
       return;
     }
-    const action = structure.actionById(`heading.level${want}`);
-    if (action) runStructureAction(action);
+    const h = heads.headingAt(doc, pos);
+    if (!h) return;
+    // Null for a heading whose level the prelude fixes (`#סימן`): unwrapping
+    // one would drop its number, which is the writer's text.
+    const e = heads.unwrapHeading(doc, h);
+    if (!e) return;
+    editDoc(e.text, e.caret);
+    scheduleCompile();
     runtime.view.focus();
-  });
-  return sel;
+    return;
+  }
+  const action = structure.actionById(`heading.level${want}`);
+  if (action) runStructureAction(action);
+  runtime.view.focus();
+}
+
+/** The pencil: open whatever is applied here for editing, and say when nothing is. */
+function editParagraphStyle(value: string) {
+  if (value.startsWith("custom:")) {
+    openStyleEditor(value.slice("custom:".length));
+    return;
+  }
+  const level = parseInt(value, 10);
+  if (!level) {
+    // Body text has no style of its own to open — the document's own text
+    // settings are page setup, which is a different drawer, so say that rather
+    // than opening the wrong one.
+    setStatus(t("noStyleToEdit"), "warn");
+    return;
+  }
+  // The Headings section already edits per-level design; this points it at the
+  // level in hand, which is the step a writer otherwise has to work out.
+  headingLevel = level;
+  openStyles();
+}
+
+/**
+ * The colour the highlighter is about to use.
+ *
+ * Session state and not a setting: it is the *last colour picked*, which is what
+ * every word processor's highlighter remembers and what nobody wants to find in
+ * a settings drawer. It starts on Typst's own default so the button, the palette
+ * and `#סימון[…]` typed by hand all put the same thing on the page.
+ */
+let highlightColour = styles.DEFAULT_HIGHLIGHT;
+
+/**
+ * The highlighter, and the colour it will use.
+ *
+ * *"Highlight should offer a colour"* — and the engine had offered one all
+ * along, under a second name (`#רקע`) that the toolbar was not wired to. The
+ * colour is an argument on `#סימון` now, so this is one control: press the pen
+ * to highlight, press the swatch to change what colour it highlights in. The
+ * swatch is a real `input[type=color]` rather than a palette of five, because
+ * the argument takes any colour and a fixed palette would be the product being
+ * narrower than the document format again.
+ */
+function highlightControl(writing: Lang): HTMLElement {
+  const cmd = runtime.commandsReg.find((c) => c.he === "סימון");
+  if (!cmd) return el("span");
+  const name = writing === "he" ? cmd.he : cmd.en;
+  const desc = getLang() === "he" ? cmd.desc_he : cmd.desc_en;
+  const swatch = el("input", {
+    type: "color",
+    class: "tb-swatch",
+    value: highlightColour,
+    title: t("highlightColour"),
+    "aria-label": t("highlightColour"),
+  }) as HTMLInputElement;
+  const apply = () => {
+    highlightColour = swatch.value;
+    // The default colour is written as the bare command, so the common case
+    // leaves the source exactly as it was before there was a swatch — and a
+    // document-wide restyle of highlights stays possible for the writer who
+    // never asked for a particular one.
+    // Written in Hebrew and translated by `insert.plan`, like every other
+    // snippet: an English document gets `#mark(color: …)`.
+    insertSnippet(
+      highlightColour.toLowerCase() === styles.DEFAULT_HIGHLIGHT
+        ? "#סימון[|]"
+        : `#סימון(צבע: rgb(${typstString(highlightColour)}))[|]`,
+    );
+  };
+  // Picking a colour highlights with it. A swatch that only *records* a choice
+  // would make every use two gestures, and the second one invisible.
+  swatch.addEventListener("change", apply);
+  return el("span", { class: "tb-split" }, [
+    iconBtn("🖍", `${desc} · #${name}`, apply, "", { "data-command": cmd.he }),
+    swatch,
+  ]);
 }
 
 /**
@@ -3101,13 +3308,13 @@ function buildToolbar(): HTMLElement {
       b("נטוי", "I"),
       b("קו_תחתון", "U"),
       b("קו_חוצה", "S"),
-      b("סימון", "🖍"),
+      highlightControl(writing),
     ]),
     // The paragraph-style control, which is a word processor's single most-used
     // widget and which Ksav did not have. Three fixed buttons could only reach
     // three of nine levels, and could not tell the writer which one they were
     // standing in — a dropdown does both, and is where a Word user looks first.
-    tbGroup(t("cat.heading"), [headingLevelSelect()]),
+    tbGroup(t("cat.heading"), [paragraphStyleControl()]),
     tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
     // The toolbar told the truth about one of these three.
     //
@@ -3512,7 +3719,7 @@ function insertMenuItems(): (Node | string)[] {
       "tieredNote",
       "⁑",
       null,
-      noteDepthAt(docTextOf(runtime.view?.state.doc ?? ""), runtime.view?.state.selection.main.from ?? 0) > 0
+      noteDepthAt(docTextNow(), runtime.view?.state.selection.main.from ?? 0) > 0
         ? undefined
         : "whyNoteOnNoteNeedsANote",
     ),
@@ -3530,6 +3737,16 @@ function insertMenuItems(): (Node | string)[] {
       el("b", {}, ["⏎ " + t("hiddenBreak")]),
       el("span", { class: "menu-desc" }, [t("hiddenBreakLede")]),
     ]),
+    // Beside it, because the two are the same shape of thing — a break in the
+    // source whose effect on the page is not the one a blank line has.
+    el(
+      "button",
+      { class: "menu-item", onClick: () => (closeMenus(), insertSnippet("#מעבר_פסקה")) },
+      [
+        el("b", {}, ["¶ " + t("paraBreak")]),
+        el("span", { class: "menu-desc" }, [t("paraBreakLede")]),
+      ],
+    ),
     el("div", { class: "menu-sep" }),
     // The three constructs, together and in the order that makes the difference
     // between them readable: two that the page never sees, then one it sees all
@@ -4114,7 +4331,13 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("focusModeLabel", "focusMode"),
     checkRow("typewriterLabel", "typewriter"),
     checkRow("autocompleteLabel", "autocomplete"),
+    checkRow("autoPairBracketsLabel", "autoPairBrackets"),
+    checkRow("autoPairQuotesLabel", "autoPairQuotes"),
+    // Off by default, and the note says why rather than leaving a writer to
+    // discover it by fighting their own gershayim for an hour.
+    el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
     checkRow("spellcheckLabel", "spellcheck"),
+    checkRow("spellcheckCommentsLabel", "spellcheckComments"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
     checkRow("syncScrollLabel", "syncScroll"),
     checkRow("autosaveFileLabel", "autosaveFile"),
@@ -5431,12 +5654,28 @@ function updateContextBar() {
   // `StructureContext` below shares.
   const levelSel = document.getElementById("heading-level") as HTMLSelectElement | null;
   if (levelSel) {
-    const on = heads.headingAt(doc, pos);
-    const want = String(on ? on.level : 0);
+    // The document's own styles are options in this list, so the list itself can
+    // go stale — a style defined a keystroke ago has to be offerable now. Rebuilt
+    // only when the set of names has actually changed, for the same reason the
+    // value below is only assigned when it differs.
+    const names = styles.findCustomStyles(doc).map((s) => s.name).join(" ");
+    if (levelSel.dataset.styles !== names) {
+      levelSel.dataset.styles = names;
+      fillParagraphStyles(levelSel);
+    }
+    const want = paragraphStyleAt(doc, pos);
     // Assigning `value` on a `<select>` is not free and fires no change event,
     // but it does invalidate style and can close a native dropdown the writer
     // has open. Most caret moves do not change the answer.
     if (levelSel.value !== want) levelSel.value = want;
+    const num = document.getElementById("heading-level-number") as HTMLInputElement | null;
+    // Blank for anything that is not a heading — body text and a custom style
+    // alike. A number box showing 0, or showing the level of the last heading
+    // you were in, would be saying something untrue about where the caret is.
+    if (num) {
+      const level = /^\d+$/.test(want) && want !== "0" ? want : "";
+      if (num.value !== level) num.value = level;
+    }
   }
 
   // Sticky by one character: see `structureNear`. Finishing a list left the
@@ -6041,6 +6280,160 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
 function openStyles() {
   closeMenus();
   openPanel("styles-panel");
+}
+
+// ---------------------------------------------------------------- custom styles
+//
+// The writer's own paragraph styles. `styles.ts` owns what one *is* and how it
+// is read and rewritten; this is the three gestures — apply, remove, edit — and
+// the small form that makes one.
+
+/**
+ * Put a custom style on the paragraph, or on the selection if there is one.
+ *
+ * With nothing selected it takes the whole paragraph, which is what a paragraph
+ * style means and what pressing one in Word does. Written directly rather than
+ * through `insertSnippet`: a custom style's name is the writer's own word and
+ * there is no second language to translate it into.
+ */
+function applyCustomStyle(name: string): boolean {
+  const view = runtime.view;
+  const span = styleTarget();
+  if (!span) {
+    setStatus(t("noParagraphHere"), "warn");
+    updateContextBar();
+    return false;
+  }
+  const body = view.state.sliceDoc(span.from, span.to);
+  const head = span.from + name.length + 2; // `#` + name + `[`
+  view.dispatch({
+    changes: { from: span.from, to: span.to, insert: `#${name}[${body}]` },
+    selection: { anchor: head, head: head + body.length },
+  });
+  scheduleCompile();
+  view.focus();
+  return true;
+}
+
+/** What a paragraph style would go on: the selection, or the paragraph in hand. */
+function styleTarget(): { from: number; to: number } | null {
+  const view = runtime.view;
+  const sel = view.state.selection.main;
+  if (!sel.empty) return { from: sel.from, to: sel.to };
+  const lines = paragraphAt(view.state, sel.head);
+  const from = view.state.doc.line(lines.from).from;
+  const to = view.state.doc.line(lines.to).to;
+  return from === to ? null : { from, to };
+}
+
+/** Take the style off again — what "body text" means when one is applied. */
+function unwrapCustomStyle(name: string) {
+  const view = runtime.view;
+  const doc = docTextOf(view.state.doc);
+  const pos = view.state.selection.main.head;
+  // Innermost first, the same rule `customStyleAt` uses to decide which style the
+  // dropdown is showing — so the pair always act on the same one.
+  const node = scanDoc(view.state.doc)
+    .nodes.filter((n) => n.hash && n.name === name && pos >= n.from && pos <= n.to && n.bodies.length)
+    .sort((a, b) => b.depth - a.depth)[0];
+  if (!node) return;
+  const body = node.bodies[node.bodies.length - 1];
+  const inner = doc.slice(body.from, body.to);
+  view.dispatch({
+    changes: { from: node.from, to: node.to, insert: inner },
+    selection: { anchor: node.from + inner.length },
+  });
+  scheduleCompile();
+  view.focus();
+}
+
+/** Every name a new style may not take: the registry's, and the ones already made. */
+function takenStyleNames(): string[] {
+  const doc = docTextNow();
+  return [
+    ...runtime.commandsReg.flatMap((c) => [c.he, c.en]),
+    ...styles.findCustomStyles(doc).map((s) => s.name),
+  ];
+}
+
+/** The knob rows a style is made of, over whatever reads and writes them. */
+function styleKnobRows(
+  read: (key: string) => string | undefined,
+  write: (key: string, value: string | null) => void,
+): Node[] {
+  return Object.entries(styles.STYLE_FIELDS).map(([key, field]) =>
+    styleRow(t(field.label), fieldControl(field, read(key), (v) => write(key, v))),
+  );
+}
+
+/** *Other…* — name a style, give it a look, and put it on this paragraph. */
+function openNewStyle() {
+  const pending: Record<string, string> = {};
+  const nameInput = textField();
+  openModal(
+    t("newStyleTitle"),
+    t("newStyleLede"),
+    [
+      fieldRow(t("styleName"), nameInput),
+      ...styleKnobRows(
+        (k) => pending[k],
+        (k, v) => {
+          if (v === null) delete pending[k];
+          else pending[k] = v;
+        },
+      ),
+    ],
+    () => {
+      const name = nameInput.value.trim();
+      const bad = styles.styleNameError(name, takenStyleNames());
+      if (bad) {
+        setStatus(t(bad), "warn");
+        updateContextBar();
+        return;
+      }
+      // **The use first, then the definition**, and the order is the whole of
+      // it. `defineCustomStyle` writes at the top of the document, so doing it
+      // first moves every offset underneath — including the paragraph the style
+      // is being made *for*. Driven the other way round once, and it wrapped the
+      // `#let` it had just written together with the rest of the page, into a
+      // document that did not compile. Applying first leaves the second dispatch
+      // a plain insertion above the caret, which CodeMirror maps for us.
+      if (!applyCustomStyle(name)) return;
+      editDoc(styles.defineCustomStyle(docTextNow(), name, pending, docLang()));
+      scheduleCompile();
+      setStatus(tf("styleCreated", name), "ok");
+    },
+    t("createAction"),
+  );
+  nameInput.focus();
+}
+
+/** The formatting behind a style that already exists, live. */
+function openStyleEditor(name: string) {
+  const style = styles.findCustomStyle(docTextOf(runtime.view.state.doc), name);
+  if (!style) {
+    setStatus(t("noStyleToEdit"), "warn");
+    return;
+  }
+  openModal(
+    tf("editStyleTitle", name),
+    t("editStyleLede"),
+    styleKnobRows(
+      (k) => style.args.get(k),
+      (k, v) => {
+        // Re-found on every change: the previous write moved the offsets this
+        // one is about to use, and holding the stale range is how a panel
+        // corrupts the very line it is editing.
+        const doc = docTextOf(runtime.view.state.doc);
+        const now = styles.findCustomStyle(doc, name);
+        if (!now) return;
+        editDoc(styles.setCustomStyleArgs(doc, now, { [k]: v }));
+        scheduleCompile();
+      },
+    ),
+    () => {},
+    t("done"),
+  );
 }
 
 
@@ -7284,7 +7677,15 @@ function renderStylesPanel() {
 
 let modalOk: (() => void) | null = null;
 
-function openModal(title: string, lede: string, rows: (Node | string)[], onOk: () => void) {
+function openModal(
+  title: string,
+  lede: string,
+  rows: (Node | string)[],
+  onOk: () => void,
+  // What the button says. It said *Insert* for every caller, which was true of
+  // the two there were and false the moment a form *created* something.
+  okLabel = t("insertAction"),
+) {
   modalOk = onOk;
   const box = document.getElementById("form-modal-body")!;
   box.replaceChildren(
@@ -7293,7 +7694,7 @@ function openModal(title: string, lede: string, rows: (Node | string)[], onOk: (
     ...rows,
     el("div", { class: "modal-actions" }, [
       el("button", { class: "note-use", onClick: () => { const f = modalOk; closeModal(); f?.(); } }, [
-        t("insertAction"),
+        okLabel,
       ]),
       el("button", { class: "sc-key", onClick: closeModal }, [t("cancel")]),
     ]),
@@ -8142,6 +8543,14 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // adding new ones.
     if (settings.spellcheck) scheduleSpellCheck();
     else clearSpellCheck();
+  } else if (key === "spellcheckComments") {
+    // A wider or narrower checkable text, so the answer on screen is stale
+    // either way — and turning it *off* has to clear the squiggles it put in
+    // comments rather than leave them there until the next keystroke.
+    clearSpellCheck();
+    scheduleSpellCheck();
+  } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
+    runtime.view.dispatch({ effects: pairCompartment.reconfigure(pairExtension()) });
   } else {
     scheduleCompile();
   }

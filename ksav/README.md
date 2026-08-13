@@ -33,7 +33,10 @@ Everything structural works the way a word processor works:
 | a line *inside* a bullet | **Shift+Enter** |
 | a second *paragraph* under one number | **Ctrl+Enter** |
 | a sub-bullet | **Tab** (and **Shift+Tab** to come back out) |
-| a heading | the paragraph-style dropdown in the toolbar — nine levels |
+| a heading | the paragraph-style dropdown in the toolbar — nine levels, or type the number in the box beside it |
+| a style of your own | the same dropdown ▸ **New style…** |
+| a highlight in a particular colour | the swatch beside the 🖍 button |
+| a paragraph break with no blank line | **Ctrl+Alt+Enter** |
 | to move a whole section | **Alt+Shift+↑/↓**, subsections and all |
 | a table | the Table menu, then the ribbon that appears |
 | a footnote | the Notes button, or `Ctrl+Shift+F` |
@@ -191,6 +194,28 @@ reads what is there: `1.` makes a numbered list, `א.` a Hebrew-lettered one, `-
 bullets — and whichever it picks, the numbering you typed by hand comes off,
 because that is the job the list is taking over.
 
+### Styles of your own
+
+The paragraph-style dropdown lists body text, nine heading levels, and — once
+you have made any — **your own styles**. **New style…** asks for a name and what
+it looks like, makes it, and puts it on the paragraph in one act. The pencil
+beside the dropdown opens whatever is applied here for editing: for a heading
+that is the Headings section at *this* level, for one of your own it is that
+style's own knobs, and a change there shows everywhere the style is used.
+
+A style is kept **in the document**, as one line:
+
+```typst
+#let שאלה(תוכן) = עיצוב(תוכן, גודל: 1.15em, משקל: "bold")
+```
+
+so it travels with the sefer, it is visible in the source, and somebody you send
+the file to gets your styles rather than their own. `#עיצוב` takes the same
+knobs a heading has — size, weight, colour, slant, tracking, underline, small
+caps, alignment, the space before and after — which is why the editor can read
+the line back and rewrite it. A `#let` of any other shape is your own code: it
+is never offered as a style and never rewritten.
+
 ### Comments, hidden text and folds
 
 Three ways to mark off a span of source, and the only thing worth remembering
@@ -246,6 +271,14 @@ Two different things, deliberately kept apart:
   stay on this machine and follow you between documents.
 
 The Settings drawer says which is which, at the line where they divide.
+
+Two of those switches are worth knowing about before they surprise you.
+**Brackets close themselves** as you type and quotes do not — separately
+switchable, and quotes ship off because in Hebrew `"` is the gershayim of רש״י
+and `'` the geresh of ר', both standing *inside* words several times a line.
+And **spell-check skips comments and folds**, on the rule that it never
+underlines what does not print; turn it on if you park paragraphs in a comment
+while you rework them. Markup inside a comment stays unchecked either way.
 
 ## Core idea
 
@@ -331,7 +364,7 @@ the reasoning, not the reference, and this file is long enough.
 
 ## Features (engine)
 
-- **120 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **122 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -364,7 +397,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 120 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 122 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -482,7 +515,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,126 editor assertions, 594 engine
+- [x] **CI, running and green** — typecheck, 5,176 editor assertions, 607 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -558,10 +591,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 5,126 assertions across 82 files
+cd app && npm test                          # 5,176 assertions across 82 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 594 tests, 38 binaries
+cargo test --manifest-path engine/Cargo.toml            # 607 tests, 39 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```
@@ -605,7 +638,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,291**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **3,343**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

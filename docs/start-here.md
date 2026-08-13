@@ -41,7 +41,7 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 120 commands. `#` in the editor offers all of them with what each one
+There are 122 commands. `#` in the editor offers all of them with what each one
 does, so none is worth memorising.
 
 ## Where a note goes is a setting, not a command
@@ -127,6 +127,11 @@ In prose view a hidden break is invisible, as it should be; put the cursor in it
 (or hold Alt) and it comes back so you can delete it. One caveat: splitting a word
 across a hidden break splits it for the spell-checker too, which will then
 underline both halves. Between words, which is the usual case, nothing notices.
+
+The other direction — a **paragraph** break where a blank line will not do — is
+**`Ctrl+Alt+Enter`**, which writes `#מעבר_פסקה`. Inside a list item a blank line
+is read as the end of the *item*, and inside a note body the block swallows it;
+the command goes anywhere content goes and shows as a `¶` in prose view.
 
 ## Three ways to mark off a span, and which one prints
 
@@ -273,7 +278,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 64 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 65 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is

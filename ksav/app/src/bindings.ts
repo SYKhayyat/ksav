@@ -50,6 +50,11 @@ export const DEFAULT_KEYS: Record<string, string> = {
   hideBlock: "Mod-Shift-/",
   // The third of the family: this one hides a *line break* rather than text.
   hiddenBreak: "Mod-Alt-/",
+  // A paragraph break that is not a blank line. Beside `list.paraInItem` on
+  // `Mod-Enter` because they are the same intention in two contexts — end the
+  // paragraph, stay where you are — and the one that works everywhere takes the
+  // combination the more specific one leaves free.
+  paraBreak: "Mod-Alt-Enter",
   // Fold to a depth — the outline collapsed to chapters, or to simanim. `foldAll`
   // takes everything down at once and answers a different question.
   foldLevel1: "Mod-Alt-1",

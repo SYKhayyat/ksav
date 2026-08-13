@@ -1,10 +1,29 @@
-import { check } from "./harness.mjs";
-import { analyze } from "../.tmp-test/brackets.mjs";
+import { check, notOk, ok } from "./harness.mjs";
+import { analyze, pairedDelimiters } from "../.tmp-test/brackets.mjs";
+import { DEFAULTS } from "../.tmp-test/settings.mjs";
 
 // Bracket healing: the speculative repair that keeps the preview alive while
 // a command is half-typed. Its invariant — healed text is balanced, and
 // healing it again changes nothing — is the last block in this file.
 export async function run() {
+
+// 0. what closes itself as you type — two switches, not one.
+{
+  const both = pairedDelimiters(true, true);
+  const bracketsOnly = pairedDelimiters(true, false);
+  const quotesOnly = pairedDelimiters(false, true);
+  ok("brackets bring the maths delimiter with them", bracketsOnly.includes("$"));
+  notOk("…and not the gershayim", bracketsOnly.includes('"'));
+  ok("quotes are the gershayim and the geresh", quotesOnly.includes('"') && quotesOnly.includes("'"));
+  notOk("…and bring no bracket with them", quotesOnly.includes("("));
+  check("neither is everything off", pairedDelimiters(false, false), []);
+  check("both is the union", both.length, bracketsOnly.length + quotesOnly.length);
+  // The default, said here rather than only in the settings file: brackets
+  // pair, quotes do not. In Hebrew `"` and `'` stand inside words several times
+  // a line, so pairing them by default would be the product fighting the writer.
+  ok("brackets ship on", DEFAULTS.autoPairBrackets === true);
+  ok("quotes ship off", DEFAULTS.autoPairQuotes === false);
+}
 
 // 1. balanced document — nothing to report, healed === input
 {

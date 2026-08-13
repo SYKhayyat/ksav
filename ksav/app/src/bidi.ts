@@ -172,6 +172,31 @@ export function resolveLineDirections(lines: string[], fallback: Dir, seed: Dir 
   return out;
 }
 
+/**
+ * The same text with every comment blanked out, character for character.
+ *
+ * A comment is a note to the writer, not part of the document, and it must not
+ * decide which way the line it sits on reads — nor, through the inheritance
+ * chain, which way the blank lines after it read. A file whose comments are in
+ * English and whose prose is in Hebrew was flipping whole runs of lines to
+ * left-to-right on the strength of a note that never prints.
+ *
+ * Blanked rather than removed so that every offset still lines up with `text`,
+ * and newlines are kept so the line count does not move. The brackets inside a
+ * comment go with it, which is a second small correction: the approximate group
+ * stack in `resolveLineDirections` was counting them.
+ */
+export function withoutComments(text: string, s: Scan = scan(text)): string {
+  if (!s.comments.length) return text;
+  const out = text.split("");
+  for (const c of s.comments) {
+    for (let i = c.from; i < c.to && i < out.length; i++) {
+      if (out[i] !== "\n") out[i] = " ";
+    }
+  }
+  return out.join("");
+}
+
 /** A run of syntax to hold apart from the prose around it. */
 export interface Isolate {
   from: number;
@@ -203,7 +228,16 @@ export interface Isolate {
 export function isolateSpans(text: string, s: Scan = scan(text)): Isolate[] {
   const spans: Isolate[] = [];
   for (const c of s.comments) {
-    spans.push({ from: c.from, to: c.to, dir: naturalDirection(text.slice(c.from, c.to)) });
+    // The marker is left outside the isolate, and that is the whole of the
+    // reported defect. `//` is neutral in the bidi algorithm, so inside an
+    // isolate it takes the *comment's* direction: an English note in a Hebrew
+    // file drew its slashes on the left of the line while a Hebrew note drew
+    // them on the right, in the same document, on adjacent lines. Outside the
+    // isolate they take the line's direction instead, which is where the line
+    // starts — which is where they were typed, and the same side every time.
+    const from = c.from + 2;
+    const to = c.to - (text.startsWith("/*", c.from) && !c.unterminated ? 2 : 0);
+    if (to > from) spans.push({ from, to, dir: naturalDirection(text.slice(from, to)) });
   }
   for (const n of s.nodes) {
     const to = n.args ? n.args.to + 1 : n.nameTo;
@@ -237,6 +271,11 @@ const SEED_LINES = 200;
 function lineDecorations(view: EditorView, fallback: Dir): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const doc = view.state.doc;
+  // Off the memoised scan, and over the whole document rather than the
+  // viewport, for the reason `isolateDecorations` gives at length: the answer a
+  // line gets must not depend on where the writer has scrolled to.
+  const s = scanDoc(doc);
+  const prose = withoutComments(s.text, s);
   // Two visible ranges can meet on one line — the end of one is the start of the
   // next — and a builder rejects the same position twice. Tracking the last line
   // emitted is cheaper than reasoning about when that happens.
@@ -247,7 +286,10 @@ function lineDecorations(view: EditorView, fallback: Dir): DecorationSet {
     if (last < first) continue;
     const seedFrom = Math.max(1, first - SEED_LINES);
     const lines: string[] = [];
-    for (let n = seedFrom; n <= last; n++) lines.push(doc.line(n).text);
+    for (let n = seedFrom; n <= last; n++) {
+      const line = doc.line(n);
+      lines.push(prose.slice(line.from, line.to));
+    }
     const dirs = resolveLineDirections(lines, fallback);
     for (let n = first; n <= last; n++) {
       builder.add(doc.line(n).from, doc.line(n).from, LINE_DIR[dirs[n - seedFrom]]);

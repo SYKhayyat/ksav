@@ -12,6 +12,7 @@ import {
   naturalDirection,
   resolveLineDirections,
   isolateSpans,
+  withoutComments,
   toggleIsolate,
   BIDI_MARKS,
   BIDI_MARK_RE,
@@ -141,8 +142,69 @@ export function run() {
     const text = "שלום // a note about שלום\n#הערה[גוף]";
     const spans = isolateSpans(text);
     check("a comment is isolated too", spans.length, 2);
-    check("the comment first", text.slice(spans[0].from, spans[0].to), "// a note about שלום");
+    check("the comment first", text.slice(spans[0].from, spans[0].to), " a note about שלום");
     check("then the command", text.slice(spans[1].from, spans[1].to), "#הערה");
+  }
+
+  // ---------------------------------------------- the slashes, and which side
+  //
+  // Reported off a file full of comments: *"comments in a right-to-left document
+  // put their slashes on the wrong side of the line."* `//` is neutral, so
+  // inside the isolate it took the comment's own direction — which means the
+  // marker changed sides with the language of the note, in one document, on
+  // consecutive lines. It is syntax; it belongs to the line.
+
+  {
+    const text = "// note\n// הערה";
+    const spans = isolateSpans(text);
+    check("the marker is outside the isolate", text.slice(spans[0].from, spans[0].to), " note");
+    check("in either language", text.slice(spans[1].from, spans[1].to), " הערה");
+    check("and the note still reads its own way", spans[0].dir, "ltr");
+    check("as does the other", spans[1].dir, "rtl");
+  }
+
+  {
+    const text = "/* הערה ארוכה */";
+    const spans = isolateSpans(text);
+    check("a block comment isolates its body", text.slice(spans[0].from, spans[0].to), " הערה ארוכה ");
+  }
+
+  {
+    // An unterminated block comment has no closing marker to leave out, and
+    // trimming two characters off the end would eat the writer's last word.
+    const text = "/* הערה שלא נסגרה";
+    const spans = isolateSpans(text);
+    check("an unterminated one runs to the end", text.slice(spans[0].from, spans[0].to), " הערה שלא נסגרה");
+  }
+
+  {
+    check("an empty comment gets no isolate at all", isolateSpans("//").length, 0);
+    check("nor does one with nothing after the marker", isolateSpans("/**/").length, 0);
+  }
+
+  // A comment is a note to the writer, not part of the document, so it does not
+  // decide which way anything reads — not its own line, and not, through the
+  // inheritance chain, the lines after it.
+
+  {
+    const text = "שלום\n// an English note\n\nעולם";
+    const prose = withoutComments(text);
+    check("the comment is blanked", prose, "שלום\n                  \n\nעולם");
+    check("and nothing else moves", prose.length, text.length);
+    const dirs = resolveLineDirections(prose.split("\n"), "rtl");
+    check("the comment line inherits rather than answering", dirs[1], "rtl");
+    check("and the blank line after it is not flipped either", dirs[2], "rtl");
+  }
+
+  {
+    // The second correction, small and free: the group stack was counting the
+    // brackets inside comments.
+    const prose = withoutComments("#הערה[ // a ] b\nשלום\n]");
+    check("a bracket inside a comment is gone with it", prose, "#הערה[         \nשלום\n]");
+  }
+
+  {
+    check("text with no comment in it is returned as it is", withoutComments("שלום עולם"), "שלום עולם");
   }
 
   {

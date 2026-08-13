@@ -11,6 +11,7 @@ import type { DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
+import { FOLD_OPEN, FOLD_CLOSE } from "./hiding";
 import { bothSpellings, withAliases } from "./engine.gen";
 import {
   DEFER_BODY_COMMANDS,
@@ -1036,15 +1037,17 @@ export const ksavFold = foldService.of((state, lineStart) => {
   const line = doc.lineAt(lineStart);
   const text = line.text;
 
-  // 0) custom fold region: //{ ... //} (Notepad++-style; these are comments,
-  //    so they never render — they just mark a collapsible, labelled region).
+  // 0) a fold: `//{ … //}`. The marks are line comments, so the compiler never
+  //    sees them and the page prints in full — which is the whole difference
+  //    between this and the two constructs that hide. See `hiding.ts`, which
+  //    owns the marks and the doors.
   const trimmed = text.trimStart();
-  if (trimmed.startsWith("//{")) {
+  if (trimmed.startsWith(FOLD_OPEN)) {
     let depth = 1;
     for (let n = line.number + 1; n <= doc.lines; n++) {
       const lt = doc.line(n).text.trimStart();
-      if (lt.startsWith("//{")) depth++;
-      else if (lt.startsWith("//}")) {
+      if (lt.startsWith(FOLD_OPEN)) depth++;
+      else if (lt.startsWith(FOLD_CLOSE)) {
         depth--;
         if (depth === 0) return { from: line.to, to: doc.line(n).to };
       }
@@ -1097,14 +1100,14 @@ export const ksavFold = foldService.of((state, lineStart) => {
   return null;
 });
 
-// A collapsed fold shows a meaningful label instead of a bare "…": the region's
+// A collapsed fold shows a meaningful label instead of a bare "…": the fold's
 // name, the heading title, or the command being folded. This is what makes a
 // collapsed block still readable — you see what you named it.
 function foldLabelText(state: EditorState, range: { from: number; to: number }): string {
   const line = state.doc.lineAt(range.from);
   const text = line.text;
-  const region = text.match(/\/\/\{\s*(.*)$/); // //{ label
-  if (region) return region[1].trim() || "…";
+  const named = text.match(/\/\/\{\s*(.*)$/); // //{ label
+  if (named) return named[1].trim() || "…";
   const s = scanDoc(state.doc);
   const head = s.nodes.find(
     (n) => n.role === "heading" && n.from >= line.from && n.from <= line.to,

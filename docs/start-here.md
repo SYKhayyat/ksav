@@ -110,7 +110,7 @@ page.
 
 Most of it costs nothing, in fact: runs of spaces, tabs and indentation all
 collapse to one space before they reach the paper, so indent freely. The line
-break is the only one that misbehaves, and **`Ctrl+Shift+/`** is the escape from
+break is the only one that misbehaves, and **`Ctrl+Alt+/`** is the escape from
 it: it breaks the line in the editor and prints nothing at all. What it writes is
 a comment across the break —
 
@@ -121,13 +121,50 @@ a comment across the break —
 
 — which sets as one unbroken run, because whitespace inside a comment is eaten. A
 `//` comment will not do it: that one ends *at* the newline, so the newline is
-still there and still prints. `Ctrl+/` is the neighbouring key and the neighbouring
-idea — it hides *text* from the page rather than a line break.
+still there and still prints.
 
 In prose view a hidden break is invisible, as it should be; put the cursor in it
 (or hold Alt) and it comes back so you can delete it. One caveat: splitting a word
 across a hidden break splits it for the spell-checker too, which will then
 underline both halves. Between words, which is the usual case, nothing notices.
+
+## Three ways to mark off a span, and which one prints
+
+The other two keys on the slash are the same idea one storey up, and the only
+thing worth remembering about all three is **what reaches the page**:
+
+| | Keys | In the file | On the page |
+|---|---|---|---|
+| **Hide line** | `Ctrl+/` | `// …` | nothing |
+| **Hide passage** | `Ctrl+Shift+/` | `/* … */` | nothing |
+| **Fold** | `Ctrl+Shift+G` | `//{ … //}` | **all of it** |
+
+The first two are how you keep a note to yourself, or take a paragraph out of the
+sefer without losing it — press the same key again on the same lines and it comes
+back. Nothing inside them runs at all: a footnote hidden this way does not quietly
+take a number.
+
+A **fold** is the opposite, and it is the one people ask us to build without
+noticing it is already there. It marks a span so you can collapse it while
+writing — a whole perek out of the way while you work on the next one — and every
+word of it still prints. Give it a name on the opening line and that name is what
+the collapsed line shows:
+
+```
+//{ פרק ג — דיני שהייה
+… שלושים עמודים …
+//}
+```
+
+Type `//{` and the editor writes the closing mark and puts the cursor between
+them, so the three characters are typed once. The marks are comments, which is
+why they can never reach the paper — and why they are three characters rather
+than one: a bare brace is Typst code and would print.
+
+Folding is not only by hand. A heading folds its whole section from the arrow in
+the gutter, `Ctrl+Alt+[` takes everything down and `Ctrl+Alt+]` puts it back, and
+**Format ▸ Fold by heading level** — `Ctrl+Alt+1`, `2`, `3` — collapses the sefer
+to chapters, or to chapters and simanim, which is the view you want at 300 pages.
 
 ## Compiling
 
@@ -236,7 +273,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 58 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 62 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is

@@ -12,6 +12,7 @@ import { check, ok, notOk } from "./harness.mjs";
 import {
   DEFAULT_KEYS,
   KEY_ALIASES,
+  RENAMED_ACTIONS,
   keybindingsFrom,
   aliasesInForce,
   whoHolds,
@@ -51,6 +52,32 @@ export function run() {
   }
   check("no changes is the shipped table", keybindingsFrom(undefined).bold, DEFAULT_KEYS.bold);
   check("and so is an empty object", keybindingsFrom({}).save, DEFAULT_KEYS.save);
+
+  // ------------------------------------------------------------ a rename is not a reset
+  //
+  // Rebindings are stored by action id, so renaming an action throws the
+  // writer's key away without saying so: the setting is still in the file,
+  // keyed to a name nothing answers to, and the shipped default quietly comes
+  // back. `region` became `fold` and `comment` became `hideBlock` the day the
+  // three source constructs got names that say which one reaches the page, and
+  // that is the shape of every rename after it.
+  {
+    const bound = keybindingsFrom({ region: "Mod-Alt-g", comment: "Mod-Alt-c" });
+    check("a rename carries the writer's key", bound.fold, "Mod-Alt-g");
+    check("…for both of them", bound.hideBlock, "Mod-Alt-c");
+    check("…and the old id is not still bound", bound.region, undefined);
+  }
+  for (const [was, now] of Object.entries(RENAMED_ACTIONS)) {
+    ok(`the rename target ${now} exists`, now in DEFAULT_KEYS, `${was} → ${now}`);
+    ok(`…and ${was} is gone from the shipped table`, !(was in DEFAULT_KEYS));
+  }
+  {
+    // An action may be bound without shipping a key of its own — the settings
+    // panel offers every action, not only the ones with a default — so the
+    // rename pass must not quietly drop what it does not recognise.
+    const bound = keybindingsFrom({ "list.deleteItem": "Mod-Alt-Shift-x" });
+    check("a key on an action with no default survives", bound["list.deleteItem"], "Mod-Alt-Shift-x");
+  }
 
   // ------------------------------------------------------------ aliases yield
   //

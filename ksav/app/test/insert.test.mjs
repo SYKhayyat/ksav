@@ -1,5 +1,5 @@
 import { check, ok } from "./harness.mjs";
-import { plan, regionAround, commandOf } from "../.tmp-test/insert.mjs";
+import { plan, commandOf } from "../.tmp-test/insert.mjs";
 
 // What a click on the toolbar turns into, asked directly.
 //
@@ -108,30 +108,9 @@ export async function run() {
     ok("…and does not repeat the first one's number", !p.text.startsWith("#סימן[א׳]"), p.text);
   }
 
-  // --------------------------------------------------------------- regions
-
-  {
-    // The `//{` must begin its own line or the fold service does not see it, and
-    // the region a writer just made silently refuses to fold. Mid-line is the
-    // case that gets this wrong.
-    const doc = "שלום עולם";
-    const r = regionAround(doc, 5, 9, "אזור");
-    ok("a region mid-line starts on a new one", r.text.startsWith("\n//{ "), JSON.stringify(r.text));
-    check("…and the label is selected so it can be renamed",
-      r.text.slice(r.select[0] - r.from, r.select[1] - r.from), "אזור");
-  }
-  {
-    const doc = "שלום עולם";
-    const r = regionAround(doc, 0, 5, "אזור");
-    ok("a region at a line start needs no newline", r.text.startsWith("//{ "), JSON.stringify(r.text));
-    check("…and the label is still selected",
-      r.text.slice(r.select[0], r.select[1]), "אזור");
-  }
-  {
-    const r = regionAround("א\nב", 2, 3, "אזור");
-    ok("a region after a newline needs no newline either", r.text.startsWith("//{ "), r.text);
-    ok("…and closes on its own line", r.text.endsWith("\n//}\n"), JSON.stringify(r.text));
-  }
+  // `regionAround` was here and is now `foldAround` — see `hiding.test.mjs`,
+  // which took its three cases with it. What it builds is a fold, and "region"
+  // is the fixed area on the page that `#אזור` makes.
 
   // ---------------------------------------------------------- command names
 

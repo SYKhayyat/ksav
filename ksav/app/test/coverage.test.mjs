@@ -2,6 +2,7 @@ import { ok, check } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { commands } from "../tools/commands.mjs";
+import { DICTS } from "../.tmp-test/i18n.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 // Is it reachable from the chrome at all?
@@ -257,6 +258,40 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   for (const id of ["deferAll", "deferRecallAll", "deferSort"]) {
     ok(`${id} is an action, not only a button in a modal`, MAIN.includes(`id: "${id}"`));
   }
+}
+
+// --------------------------------------- the three constructs, named and open
+//
+// Two hide a span from the page and one folds a span that still prints, and the
+// only thing a writer needs from the interface is which is which. All three
+// shipped for as long as there has been an editor. The line comment had no door
+// of any kind — no button, no menu entry, no palette command, no key — and the
+// fold's one door was a toolbar button labelled **Region**, which says nothing
+// about folding, nothing about printing, and now names something else: `#אזור`,
+// a fixed area on the page. The margin note on that button read *"I have no clue
+// what region does"*, and the same reader then asked for the fold to be built.
+{
+  const HIDING = read("hiding.ts");
+  ok("one module owns the marks", HIDING.includes("export const FOLD_OPEN"));
+  ok("…and nothing else spells them", !read("main.ts").includes('"//{'));
+  for (const id of ["hideLine", "hideBlock", "fold"]) {
+    ok(`${id} is an action`, MAIN.includes(`id: "${id}"`));
+    // A name and a description, in the menu, at the point of use — the lede is
+    // where "does this reach the page?" is actually answered.
+    ok(`…${id} names itself in the Insert menu`, MAIN.includes(`name: "${id}"`));
+    for (const lang of ["he", "en"]) {
+      ok(`…and says what it does in ${lang}`, !!DICTS[lang][id + "Lede"], id);
+    }
+  }
+  ok("the toolbar button says fold", MAIN.includes('iconBtn("▤", t("fold")'));
+  ok("…and not region", !MAIN.includes('t("region")'));
+  // Fold *to a depth*, which is what somebody with a 300-page sefer wants and
+  // which this editor could not do: `foldAll` takes everything down at once.
+  ok("the outline folds to a level", read("headings.ts").includes("export function sectionsToFold("));
+  for (const level of [1, 2, 3]) {
+    ok(`foldLevel${level} is an action`, MAIN.includes("id: `foldLevel${level}`"));
+  }
+  ok("…and reaches the Format menu", MAIN.includes('t("foldLevels")'));
 }
 
 // ------------------------------------------------- every action has a key

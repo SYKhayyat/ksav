@@ -14,7 +14,7 @@ equally for left-to-right English documents.
 **If you are here to use it, not to build it:
 [`docs/start-here.md`](docs/start-here.md)** — and
 [`docs/from-word.md`](docs/from-word.md) if that is what you are leaving.
-[`docs/shortcuts.md`](docs/shortcuts.md) is all 58 bindings in both languages,
+[`docs/shortcuts.md`](docs/shortcuts.md) is all 62 bindings in both languages,
 generated from the source.
 
 ## Download

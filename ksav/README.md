@@ -175,6 +175,35 @@ alone.
 The tiers are numbered א,ב,ג over 1,2,3 — the שער־הציון arrangement, the
 commentary lettered and the he'aros on it numbered.
 
+### Comments, hidden text and folds
+
+Three ways to mark off a span of source, and the only thing worth remembering
+about them is what reaches the page:
+
+| | Keys | In the file | On the page |
+|---|---|---|---|
+| **Hide line** | `Ctrl+/` | `// …` | nothing |
+| **Hide passage** | `Ctrl+Shift+/` | `/* … */` | nothing |
+| **Fold** | `Ctrl+Shift+G` | `//{ … //}` | **all of it** |
+
+The first two are a toggle — press the same key on the same lines and the text
+comes back — and nothing inside them runs, so a footnote hidden this way does
+not quietly take a number. The third is the opposite: a **fold** marks a span so
+it can be collapsed while writing, and every word of it prints. Name it on the
+opening line and the name is what the collapsed line shows. Type `//{` and the
+editor writes the closing mark, so it costs three keystrokes once; the marks are
+comments, which is why they can never reach the paper.
+
+All three shipped for as long as there has been an editor. The line comment had
+no door of any kind, and the fold's one door was a toolbar button labelled
+*Region* — a word that says nothing about folding, nothing about printing, and
+which `#אזור` now uses for a fixed area on the page.
+
+Folding is not only by hand: a heading folds its section from the gutter,
+`Ctrl+Alt+[` and `Ctrl+Alt+]` take everything down and put it back, and
+**Format ▸ Fold by heading level** — `Ctrl+Alt+1`, `Ctrl+Alt+2`, `Ctrl+Alt+3` —
+collapses the sefer to chapters, or to chapters and simanim.
+
 ### Going faster
 
 - **`Ctrl+Alt+K`** — a *hydra*: a panel listing every operation available where
@@ -437,7 +466,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,013 editor assertions, 575 engine
+- [x] **CI, running and green** — typecheck, 5,070 editor assertions, 582 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -513,10 +542,10 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 5,013 assertions across 81 files
+cd app && npm test                          # 5,070 assertions across 82 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
-cargo test --manifest-path engine/Cargo.toml            # 575 tests, 36 binaries
+cargo test --manifest-path engine/Cargo.toml            # 582 tests, 37 binaries
 cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path app/src-tauri/Cargo.toml
 ```

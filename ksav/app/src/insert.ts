@@ -108,27 +108,7 @@ export function plan(
   return { kind: "edit", text: snippet.slice(0, pipe) + snippet.slice(pipe + 1), cursor: pipe };
 }
 
-/**
- * The `//{ … //}` region a writer folds a chunk of sefer into.
- *
- * Here rather than in the shell for one reason that is not tidiness: the `//{`
- * **must** begin its own line or the fold service, which keys on a line starting
- * with `//{`, does not see it — so the region a writer just made refuses to
- * fold, with nothing on screen to say why. That rule is worth a test, and a test
- * needs it out of `main.ts`.
- */
-export function regionAround(
-  doc: string,
-  from: number,
-  to: number,
-  label: string,
-): { text: string; from: number; to: number; select: [number, number] } {
-  const selText = doc.slice(from, to);
-  const atLineStart = from === 0 || doc[from - 1] === "\n";
-  const lead = atLineStart ? "" : "\n";
-  const text = `${lead}//{ ${label}\n${selText}\n//}\n`;
-  // Start of the label, so it can be renamed immediately: `//{ ` is four
-  // characters after whatever newline had to be prepended.
-  const at = from + lead.length + 4;
-  return { text, from, to, select: [at, at + label.length] };
-}
+// `regionAround` lived here and is now `foldAround` in `hiding.ts`, beside the
+// two constructs it is constantly confused with. The name went with it: what it
+// builds is a fold, and "region" is the fixed area on the page that `#אזור`
+// makes.

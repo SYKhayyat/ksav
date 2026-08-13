@@ -39,11 +39,22 @@ export const DEFAULT_KEYS: Record<string, string> = {
   endnote: "Mod-Alt-d",
   // A note *on* a note, at whatever tier the caret is standing in.
   tieredNote: "Mod-Shift-n",
-  region: "Mod-Shift-g",
-  comment: "Mod-/",
-  // The sibling of `comment`, and deliberately next to it on the keyboard: one
-  // hides text from the page, the other hides a *line break* from the page.
-  hiddenBreak: "Mod-Shift-/",
+  // A fold: the writer marks off a span so it can be collapsed, and every word
+  // of it still prints. Was `region`, which named the one thing it is not.
+  fold: "Mod-Shift-g",
+  // The three of them share the slash, because they are one question — *does
+  // this reach the page?* — asked three ways. `Mod-/` is the line toggle
+  // everywhere there is an editor, and it used to hide a *passage* here; the
+  // line form, which is what a writer reaches for, had no key at all.
+  hideLine: "Mod-/",
+  hideBlock: "Mod-Shift-/",
+  // The third of the family: this one hides a *line break* rather than text.
+  hiddenBreak: "Mod-Alt-/",
+  // Fold to a depth — the outline collapsed to chapters, or to simanim. `foldAll`
+  // takes everything down at once and answers a different question.
+  foldLevel1: "Mod-Alt-1",
+  foldLevel2: "Mod-Alt-2",
+  foldLevel3: "Mod-Alt-3",
   undo: "Mod-z",
   redo: "Mod-y",
   h1: "Mod-1",
@@ -149,9 +160,33 @@ export const KEY_ALIASES: Record<string, string[]> = {
   footnote: ["Mod-Alt-f"],
 };
 
+/**
+ * Actions that have been renamed, old name to new.
+ *
+ * A writer's rebindings are stored by action id, so renaming an action silently
+ * throws their key away — the setting is still in the file, keyed to a name
+ * nothing answers to any more, and the shipped default quietly comes back. This
+ * table is how a rename stays a rename rather than a reset.
+ */
+export const RENAMED_ACTIONS: Record<string, string> = {
+  // Both from the day the three source constructs got names that say which one
+  // reaches the page. `region` is now `#אזור`, a fixed area on the page, and
+  // `comment` was too close to `addComment`, which is a review mark.
+  region: "fold",
+  comment: "hideBlock",
+};
+
 /** The bindings in force: the shipped table with the writer's changes over it. */
 export function keybindingsFrom(changed: Record<string, string> | undefined): Record<string, string> {
-  return { ...DEFAULT_KEYS, ...(changed || {}) };
+  const mine: Record<string, string> = {};
+  for (const [id, key] of Object.entries(changed || {})) {
+    // Not filtered against `DEFAULT_KEYS`: an action may be bound without
+    // shipping a key of its own — the settings panel offers every action, not
+    // only the ones with a default — so a filter here would quietly throw those
+    // away, which is the exact failure this rename table exists to prevent.
+    mine[RENAMED_ACTIONS[id] ?? id] = key;
+  }
+  return { ...DEFAULT_KEYS, ...mine };
 }
 
 /**

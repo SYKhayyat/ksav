@@ -141,6 +141,23 @@ export function sectionEnd(doc: string, h: HeadingInfo, all: HeadingInfo[] = hea
   return next ? next.from : doc.length;
 }
 
+/**
+ * Which sections collapse when the outline is folded **to** a level.
+ *
+ * The direction is the whole of it, and it is the part everybody gets backwards:
+ * *fold to level 1* leaves the level-1 headings on screen and takes everything
+ * under them down — so the sections that collapse are the ones at that level
+ * **and deeper**, not the ones above it. The editor could previously only fold
+ * everything at once, which answers a question nobody writing a sefer asks.
+ */
+export function sectionsToFold(
+  doc: string,
+  level: number,
+  all: HeadingInfo[] = headings(doc),
+): HeadingInfo[] {
+  return all.filter((h) => h.level >= level);
+}
+
 export interface Edit {
   text: string;
   caret: number;

@@ -19,9 +19,13 @@ rather than leaving two actions on one key.
 | `Ctrl+Shift+F` · `Ctrl+Alt+F` | Footnote | הערת שוליים |
 | `Ctrl+Alt+D` | Endnote | הערת סיום |
 | `Ctrl+Shift+N` | Note on the note | הערה על ההערה |
-| `Ctrl+Shift+G` | Fold region | אזור מתקפל |
-| `Ctrl+/` | Comment out | הפוך להערה |
-| `Ctrl+Shift+/` | Hidden line break | מעבר שורה נסתר |
+| `Ctrl+Shift+G` | Fold | קיפול |
+| `Ctrl+/` | Hide line | הסתרת שורה |
+| `Ctrl+Shift+/` | Hide passage | הסתרת קטע |
+| `Ctrl+Alt+/` | Hidden line break | מעבר שורה נסתר |
+| `Ctrl+Alt+1` | Fold to level 1 | קפל לרמה 1 |
+| `Ctrl+Alt+2` | Fold to level 2 | קפל לרמה 2 |
+| `Ctrl+Alt+3` | Fold to level 3 | קפל לרמה 3 |
 | `Ctrl+Z` | Undo | בטל |
 | `Ctrl+Y` · `Ctrl+Shift+Z` | Redo | בצע שוב |
 | `Ctrl+1` | Heading 1 | כותרת 1 |

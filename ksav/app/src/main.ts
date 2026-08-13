@@ -4,7 +4,15 @@ import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
-import { foldGutter, foldKeymap, foldAll, unfoldAll, bracketMatching } from "@codemirror/language";
+import {
+  foldGutter,
+  foldKeymap,
+  foldAll,
+  unfoldAll,
+  foldEffect,
+  foldService,
+  bracketMatching,
+} from "@codemirror/language";
 import {
   autocompletion,
   completionKeymap,
@@ -161,7 +169,8 @@ import * as heads from "./headings";
 import * as hydra from "./hydra";
 import * as macros from "./macros";
 import * as help from "./help";
-import { plan as planInsertion, regionAround } from "./insert";
+import { plan as planInsertion } from "./insert";
+import * as hiding from "./hiding";
 import * as header from "./header";
 import * as panelrows from "./panelrows";
 import type { PanelList, PanelRow } from "./panelrows";
@@ -668,8 +677,10 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       return true;
     },
   },
-  { id: "region", run: () => (insertRegion(), true) },
-  { id: "comment", run: () => (commentOut(), true) },
+  // One question — does this reach the page? — asked three ways. See `hiding.ts`.
+  { id: "fold", run: () => (insertFold(), true) },
+  { id: "hideBlock", run: () => (hideBlockHere(), true) },
+  { id: "hideLine", run: () => (hideLineHere(), true) },
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
@@ -677,6 +688,13 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
+  // Fold *to a depth*: chapters only, or chapters and simanim. `foldAll` takes
+  // every collapsible thing in the document down at once, which is a different
+  // question and the only one this editor could answer.
+  ...[1, 2, 3].map((level) => ({
+    id: `foldLevel${level}`,
+    run: (v: EditorView) => (foldToLevel(v, level), true),
+  })),
   { id: "save", run: () => (saveFile(), true) },
   { id: "open", run: () => (openFile(), true) },
   { id: "newDoc", run: () => (newDoc(), true) },
@@ -1234,6 +1252,27 @@ function makeState(body: string, prose: boolean): EditorState {
       ksavFolding,
       foldGutter(),
       bracketMatching(),
+      // The answer to "three characters is too many to type all day". A fold's
+      // marks have to be comments or the page would print them, Typst's comment
+      // is `//`, and one brace after it is the shortest brace-like thing that
+      // can follow — so `//{` is the floor, not a choice. What can be bought is
+      // the rest: finish the opener and the editor writes the closer, the line
+      // between them and the caret. Above `closeBrackets`, which would otherwise
+      // answer the same `{` with a `}` that prints.
+      EditorView.inputHandler.of((view, from, to, text) => {
+        if (text !== "{") return false;
+        const sel = view.state.selection.main;
+        if (!sel.empty || from !== sel.from || to !== sel.to) return false;
+        const doc = docTextOf(view.state.doc);
+        const closer = hiding.foldCloser(doc.slice(0, from) + "{" + doc.slice(to), from + 1);
+        if (!closer) return false;
+        view.dispatch({
+          changes: { from, to, insert: "{" + closer.insert },
+          selection: { anchor: closer.caret },
+          userEvent: "input.type",
+        });
+        return true;
+      }),
       closeBrackets(),
       // Pair the maths delimiter the way brackets pair — typstify's
       // `editor/typst.go` does the same, and Typst's `$…$` works in a Ksav body
@@ -2801,30 +2840,63 @@ function insertSnippet(rawSnippet: string) {
   runtime.view.focus();
 }
 
-function insertRegion() {
-  const sel = runtime.view.state.selection.main;
-  const doc = docTextOf(runtime.view.state.doc);
-  const r = regionAround(doc, sel.from, sel.to, t("region"));
+/**
+ * The three constructs, through one door each.
+ *
+ * `hiding.ts` decides what the text becomes; this decides nothing at all, which
+ * is the point — the padding rules, the toggle-back and the "the mark must
+ * start its own line" rule are testable there and were not testable here.
+ */
+function applyHiding(edit: hiding.Edit) {
   runtime.view.dispatch({
-    changes: { from: r.from, to: r.to, insert: r.text },
-    selection: { anchor: r.select[0], head: r.select[1] },
+    changes: { from: edit.from, to: edit.to, insert: edit.text },
+    selection: { anchor: edit.select[0], head: edit.select[1] },
   });
   runtime.view.focus();
   scheduleCompile();
 }
 
-
-// Wrap the selection in a block comment (/* … */): foldable, styled, and NOT
-// rendered — a collapsible editor comment.
-function commentOut() {
+/** A fold: collapsible while writing, and every word of it prints. */
+function insertFold() {
   const sel = runtime.view.state.selection.main;
-  const selText = runtime.view.state.sliceDoc(sel.from, sel.to) || t("region");
-  runtime.view.dispatch({
-    changes: { from: sel.from, to: sel.to, insert: `/* ${selText} */` },
-    selection: { anchor: sel.from + 3, head: sel.from + 3 + selText.length },
-  });
-  runtime.view.focus();
-  scheduleCompile();
+  applyHiding(hiding.foldAround(docTextOf(runtime.view.state.doc), sel.from, sel.to, t("foldName")));
+}
+
+/** Hide a passage from the page with `/* … *\/`, or reveal the one we are in. */
+function hideBlockHere() {
+  const sel = runtime.view.state.selection.main;
+  applyHiding(hiding.hideBlock(docTextOf(runtime.view.state.doc), sel.from, sel.to, t("hiddenName")));
+}
+
+/** Hide these lines from the page with `//`, or bring them back. */
+function hideLineHere() {
+  const sel = runtime.view.state.selection.main;
+  applyHiding(hiding.hideLines(docTextOf(runtime.view.state.doc), sel.from, sel.to));
+}
+
+/**
+ * Collapse the outline to a depth: chapters only, or chapters and simanim.
+ *
+ * The ranges come from the fold service rather than from a second reckoning of
+ * where a section ends, so this collapses exactly what a click on the gutter
+ * arrow would — one authority for "what does this heading fold", asked twice.
+ */
+function foldToLevel(view: EditorView, level: number) {
+  unfoldAll(view);
+  const doc = docTextOf(view.state.doc);
+  const effects = [];
+  for (const h of heads.sectionsToFold(doc, level)) {
+    const line = view.state.doc.lineAt(h.from);
+    for (const service of view.state.facet(foldService)) {
+      const range = service(view.state, line.from, line.to);
+      if (range) {
+        effects.push(foldEffect.of(range));
+        break;
+      }
+    }
+  }
+  if (effects.length) view.dispatch({ effects });
+  setStatus(effects.length ? tf("foldLevel", String(level)) : t("noHeadings"), effects.length ? "ok" : "");
 }
 
 /**
@@ -2846,12 +2918,12 @@ function commentOut() {
  * break is the only one that misbehaves, which is why this is one action and not
  * a family of them.
  *
- * With a selection this *is* [`commentOut`] — "make this not print" is one idea,
- * and two implementations of it would eventually disagree about the padding.
+ * With a selection this *is* [`hideBlockHere`] — "make this not print" is one
+ * idea, and two implementations of it would eventually disagree about the padding.
  */
 function hiddenBreak() {
   const sel = runtime.view.state.selection.main;
-  if (!sel.empty) return commentOut();
+  if (!sel.empty) return hideBlockHere();
   const text = "/*\n*/";
   runtime.view.dispatch({
     changes: { from: sel.from, insert: text },
@@ -3026,7 +3098,11 @@ function buildToolbar(): HTMLElement {
     tbGroup(t("cat.align"), [b("ימין", "⇥"), b("מרכז", "≡"), b("שמאל", "⇤")]),
     tbGroup(t("cat.torah"), [b("ציטוט", "❝"), b("סימן", "§"), b("סעיף", "א."), b("מראה_מקום", "‡")]),
     tbGroup(t("tools"), [
-      iconBtn("▤", t("region"), insertRegion),
+      // "Region" until this button got a name that says what it does. It makes
+      // a fold — the text prints in full — and `#אזור` is now a real command
+      // for a fixed area on the page, so the old label named the wrong one of
+      // the two things it could have meant.
+      iconBtn("▤", t("fold"), insertFold),
       iconBtn("⋯", t("palette"), openPalette),
     ]),
   ]);
@@ -3281,7 +3357,25 @@ function buildMacroMenu(): HTMLElement {
 }
 
 function buildFormatMenu(): HTMLElement {
-  return lazyMenu("format", "¶ " + t("format"), () => structureMenuItems(["heading", "list"]));
+  return lazyMenu("format", "¶ " + t("format"), () => [
+    ...structureMenuItems(["heading", "list"]),
+    el("div", { class: "menu-cat" }, [t("foldLevels")]),
+    // Fold *to* a depth. The chips beside the toolbar take everything down or
+    // put everything back, which is the only folding this product could do from
+    // a door — and not the one somebody with a 300-page sefer wants.
+    ...[1, 2, 3].map((level) =>
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), foldToLevel(runtime.view, level)) }, [
+        el("b", {}, [`⊟ ${tf("foldLevel", String(level))}`]),
+        keybindings()[`foldLevel${level}`]
+          ? el("code", {}, [readable(keybindings()[`foldLevel${level}`])])
+          : el("span"),
+      ]),
+    ),
+    el("button", { class: "menu-item", onClick: () => (closeMenus(), void unfoldAll(runtime.view)) }, [
+      el("b", {}, ["⊞ " + t("unfoldAll")]),
+      keybindings().unfoldAll ? el("code", {}, [readable(keybindings().unfoldAll)]) : el("span"),
+    ]),
+  ]);
 }
 
 function buildTableMenu(): HTMLElement {
@@ -3391,6 +3485,22 @@ function insertMenuItems(): (Node | string)[] {
       el("b", {}, ["⏎ " + t("hiddenBreak")]),
       el("span", { class: "menu-desc" }, [t("hiddenBreakLede")]),
     ]),
+    el("div", { class: "menu-sep" }),
+    // The three constructs, together and in the order that makes the difference
+    // between them readable: two that the page never sees, then one it sees all
+    // of. Every one of them already existed; the line comment had no door of any
+    // kind, and the fold's door was a button labelled "Region".
+    ...[
+      { name: "hideLine", glyph: "⌫", run: hideLineHere },
+      { name: "hideBlock", glyph: "▨", run: hideBlockHere },
+      { name: "fold", glyph: "▤", run: insertFold },
+    ].map((c) =>
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), c.run()) }, [
+        el("b", {}, [`${c.glyph} ${t(c.name)}`]),
+        kb[c.name] ? el("code", {}, [readable(kb[c.name])]) : el("span"),
+        el("span", { class: "menu-desc" }, [t(c.name + "Lede")]),
+      ]),
+    ),
     el("div", { class: "menu-sep" }),
   ];
   const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";

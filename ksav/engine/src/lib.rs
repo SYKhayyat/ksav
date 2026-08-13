@@ -1307,6 +1307,95 @@ fn first_italic(body: &str) -> Option<usize> {
     walk(&LinkedNode::new(&root))
 }
 
+/// Every call of `names` in the body, as (its first string argument, offset).
+///
+/// The pair `#סמן`/`#הפניה` needs both halves of the document to answer a
+/// question about either of them, which is why this collects rather than
+/// finding the first one.
+fn calls_with_name(body: &str, names: &[&str]) -> Vec<(String, usize)> {
+    use typst::syntax::{LinkedNode, SyntaxKind};
+    fn walk(node: &LinkedNode, names: &[&str], out: &mut Vec<(String, usize)>) {
+        if node.kind() == SyntaxKind::FuncCall {
+            let mut kids = node.children().filter(|c| !c.kind().is_trivia());
+            if let Some(head) = kids.next() {
+                if head.kind() == SyntaxKind::Ident
+                    && names.contains(&head.get().leaf_text().as_str())
+                {
+                    // The first string argument, which is the name in both of
+                    // these commands. A call written some other way — a variable,
+                    // a computed name — is left alone rather than guessed at.
+                    let arg = node
+                        .children()
+                        .flat_map(|a| a.children().collect::<Vec<_>>())
+                        .find(|c| c.kind() == SyntaxKind::Str)
+                        .map(|c| c.get().leaf_text().to_string());
+                    if let Some(raw) = arg {
+                        out.push((raw.trim_matches('"').to_string(), head.offset()));
+                    }
+                }
+            }
+        }
+        for child in node.children() {
+            walk(&child, names, out);
+        }
+    }
+    let root = typst::syntax::parse(body);
+    let mut out = Vec::new();
+    walk(&LinkedNode::new(&root), names, &mut out);
+    out
+}
+
+/// References that point at an anchor the document has not got.
+///
+/// # What this is really about
+///
+/// `#סמן` and `#הפניה` are the two commands in the Reference category, and the
+/// margin note says neither renders. Half of that is a misreading and half is
+/// this application's fault, which is worth separating.
+///
+/// `#סמן` renders nothing **because it is an anchor**: it marks a place so that
+/// something else can point at it. There is nothing for it to draw, and there
+/// never was.
+///
+/// `#הפניה` does render — it prints the anchor's number. Unless the anchor is
+/// not there, in which case the prelude prints `?`, which is the only thing the
+/// writer ever sees and says nothing about why. Insert the pair from the
+/// toolbar, whose templates are `#סמן("|")` and `#הפניה("|")` with the caret
+/// inside an empty string, and you get an anchor named "" and a reference to
+/// "" — so the writer meets a bare `?` and a command that appears to do nothing.
+///
+/// So the question is asked of the whole document at compile time, where both
+/// halves are visible, and the answer names the name.
+pub(crate) fn dangling_references(body: &str) -> Vec<Diagnostic> {
+    let anchors: std::collections::BTreeSet<String> = calls_with_name(body, &["סמן", "anchor"])
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    calls_with_name(body, &["הפניה", "xref"])
+        .into_iter()
+        .filter(|(name, _)| !anchors.contains(name))
+        .map(|(name, at)| {
+            let (line, column) = line_column(body, at);
+            let mut said = Diagnostic::ours(
+                "warning",
+                format!(
+                    concat!(
+                        "אין במסמך סמן בשם {name} — הוסיפו #סמן({name}) במקום שאליו ההפניה מכוונת, ",
+                        "או תקנו את האיות · ",
+                        "no anchor named {name} in this document — add #anchor({name}) ",
+                        "where the reference points, or fix the spelling"
+                    ),
+                    name = format!("{name:?}"),
+                ),
+            );
+            said.line = Some(line);
+            said.column = Some(column);
+            said.about = Some("#הפניה".to_string());
+            said
+        })
+        .collect()
+}
+
 /// A byte offset in the body as a 1-based (line, column), counted in characters.
 ///
 /// The same convention `Diagnostic` states: a Hebrew letter is two bytes and no
@@ -1501,11 +1590,15 @@ pub fn compile_parts(
     // book is the compiler's, and this is the one place that holds both it and
     // the writer's text. See `italic_warning`.
     let italic = italic_warning(body, cfg, assets);
+    // A reference to an anchor the document has not got. Same shape and same
+    // reason: a question only the whole document can answer, asked once here.
+    let dangling = dangling_references(body);
 
     match output {
         Ok(doc) => {
             let mut diagnostics = locate(&warnings, "warning");
             diagnostics.extend(italic.clone());
+            diagnostics.extend(dangling.clone());
             // Whatever the export has to say, say it. These used to go into
             // `.ok()` and vanish, so a PDF that failed to export came back as
             // `ok: true` with no bytes and no explanation. It mattered little
@@ -1576,6 +1669,7 @@ pub fn compile_parts(
             let located = Located::of(&source, body);
             let mut diagnostics = located.all(&warnings, "warning");
             diagnostics.extend(italic);
+            diagnostics.extend(dangling);
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),

@@ -1873,14 +1873,21 @@
 // ---- הפניות · cross-references (auto-numbered, auto-updating) ----
 // #סמן("שם") marks a target; #הפניה("שם") prints its number. Numbers follow
 // document order and update automatically when targets are added/reordered.
+// The number is the target's position in document order, so it means nothing to
+// a reader unless the target shows it too: "see 3" needs a 3 to point at. The
+// mark therefore prints its own number, in the same form the reference prints.
 #let _ksav_xref = state("ksav-xref", ())
-#let סמן(שם) = _ksav_xref.update(l => l + (_as_string(שם),))
-#let הפניה(שם) = context {
-  let שם = _as_string(שם)
+#let _xref_number(שם) = context {
   let l = _ksav_xref.final()
   let idx = l.position(x => x == שם)
   if idx == none [?] else [#(idx + 1)]
 }
+#let סמן(שם) = {
+  let שם = _as_string(שם)
+  _ksav_xref.update(l => l + (שם,))
+  _xref_number(שם)
+}
+#let הפניה(שם) = _xref_number(_as_string(שם))
 #let anchor = סמן
 #let xref = הפניה
 

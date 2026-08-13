@@ -89,6 +89,10 @@ export interface PanelRow {
   id?: string;
   /** i18n key for the row's tooltip, when it has one worth having. */
   title?: string;
+  /** The row's words in full, where `label` is a cut-down version of them. */
+  full?: string;
+  /** The line of the document this row points into, for reading it in place. */
+  context?: string;
 }
 
 export interface PanelList {
@@ -182,6 +186,36 @@ export function outlineList(items: readonly OutlineRow[]): PanelList {
   };
 }
 
+/** Markup out, whitespace collapsed — a note's words as words. */
+function flat(text: string): string {
+  return plainText(text).replace(/\s+/gu, " ").trim();
+}
+
+/**
+ * The line the note's *marker* sits on, as prose, with a `†` where it sits.
+ *
+ * The marker's line and not the note's: for a deferred note those are two
+ * different lines, and the one worth reading is the sentence being annotated
+ * rather than the pile of note bodies at the end of the file.
+ *
+ * The note's own words come out of it. Left in — which is what stripping the
+ * markup does on its own, since a footnote body *is* text — the line repeats
+ * the note directly under the note, and the sentence it is supposed to show
+ * cannot be read through it.
+ */
+function lineAround(doc: string, n: NoteSpan): string | undefined {
+  const from = doc.lastIndexOf("\n", Math.max(0, n.from - 1)) + 1;
+  const nl = doc.indexOf("\n", n.from);
+  const to = nl < 0 ? doc.length : nl;
+  // The marker's own span and no more. `bodyTo` is the wrong end to cut at for
+  // a deferred note: its prose is on another line entirely, and everything from
+  // the marker to there would go with it.
+  const end = Math.min(n.to, to);
+  const line = flat(doc.slice(from, n.from)) + " † " + flat(doc.slice(end, to));
+  const said = line.replace(/\s+/gu, " ").trim();
+  return said === "†" ? undefined : said;
+}
+
 /**
  * The notes pane: every note in reading order, indented by how many notes it is
  * inside.
@@ -190,13 +224,19 @@ export function outlineList(items: readonly OutlineRow[]): PanelList {
  * by — it is not the printed mark, which the prelude decides and which restarts
  * per page for a banded apparatus.
  */
-export function noteList(items: readonly NoteSpan[]): PanelList {
+export function noteList(items: readonly NoteSpan[], doc = ""): PanelList {
   if (!items.length) return { rows: [], empty: "notesPaneEmpty", hidden: 0 };
   return {
     rows: items.map((n, i) => ({
       does: { kind: "note", at: n.bodyFrom, marker: n.from },
       indent: n.depth,
       chip: String(i + 1),
+      // The whole note, and the sentence it hangs off — *"the notes drawer
+      // should expand to the whole note, and to the line the note sits on"*.
+      // One line of a note is enough to recognise it and never enough to read
+      // it, and a note read away from the sentence it annotates is half a note.
+      full: flat(n.text),
+      context: doc ? lineAround(doc, n) : undefined,
       // The pair's name, for a note written the deferred way — it is what the
       // two halves are called in the source, and reading a row without it means
       // hunting for which marker this prose belongs to.

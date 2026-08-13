@@ -297,7 +297,7 @@ withDom((root) => {
   for (const p of PANELS) {
     if (!hasExit(p, "head")) continue;
     const host = p.presence === "class" ? place(root, p.id) : null;
-    const head = panelHead(p.id, "title");
+    const head = panelHead(p.id, "close");
     (host ?? root).append(head);
     const x = head.find((n) => n.classes.has("styles-close"));
     ok(`${p.id}: its head carries a ×`, !!x);
@@ -317,7 +317,7 @@ withDom((root) => {
 withDom((root) => {
   place(root, "help-panel");
   place(root, "styles-panel");
-  const head = panelHead("help-panel", "help");
+  const head = panelHead("help-panel", "helpTitle");
   root.append(head);
   openPanel("help-panel");
   openPanel("styles-panel");
@@ -367,12 +367,28 @@ withDom((root) => {
   ok("a text title survives a language change", head.textContent.includes("פרק שני"));
 });
 
+// A title that is not a key at all. `t` answers a key it does not know with the
+// key itself, so `panelHead(id, t("notesPane"))` — the answer where the
+// question belonged — produced a head reading "Notes" that carried
+// `data-i18n="Notes"` and stayed in the language it was born in for ever after.
+// Reported as a drawer with no title, by somebody reading in English.
+withDom(() => {
+  let threw = false;
+  try {
+    panelHead("help-panel", DICTS.he.notesPane);
+  } catch {
+    threw = true;
+  }
+  ok("an answer cannot be passed where a key belongs", threw);
+  ok("and the same words as a title are fine when said so", !!panelHead("help-panel", { text: DICTS.he.notesPane }));
+});
+
 // A surface that does not claim a head exit must not build one, so the registry
 // cannot drift into describing a × that is not there.
 withDom(() => {
   let threw = false;
   try {
-    panelHead("palette", "no head here");
+    panelHead("palette", "helpTitle");
   } catch {
     threw = true;
   }

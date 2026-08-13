@@ -1,4 +1,4 @@
-import { check, ok } from "./harness.mjs";
+import { check, ok, notOk } from "./harness.mjs";
 import {
   PALETTE_COMMANDS,
   gist,
@@ -99,6 +99,38 @@ export async function run() {
   }
   {
     check("a document with no notes says so", noteList([]).empty, "notesPaneEmpty");
+  }
+  {
+    // "The notes drawer should expand to the whole note, and to the line the
+    // note sits on." One line of a note is enough to recognise it and never
+    // enough to read it.
+    const long = "פתיחה#הערה[" + "מילה ".repeat(40).trim() + "] וכאן.\n\nשורה אחרת\n";
+    const row = noteList(notesIn(long), long).rows[0];
+    ok("the label is cut", row.label.endsWith("…"));
+    notOk("…and the whole note is not", row.full.endsWith("…"));
+    ok("…and is the note's own words", row.full.startsWith("מילה מילה"));
+    check("the line the note sits on comes with it", row.context, "פתיחה † וכאן.");
+  }
+  {
+    // The marker's line, not the note's — for a deferred note those are two
+    // different lines, and the one worth reading is the sentence.
+    const doc = "פתיחה#הערה_בשם(\"א\") וכאן.\n\n#גוף_הערה(\"א\")[דברי הערה]\n";
+    const row = noteList(notesIn(doc), doc).rows[0];
+    check("the sentence is the context", row.context, "פתיחה † וכאן.");
+    check("and the note's own words are the expansion", row.full, "דברי הערה");
+  }
+  {
+    // Without the document there is nothing to quote, and a row must not
+    // invent one.
+    const row = noteList(notesIn(DOC)).rows[0];
+    check("no document, no context line", row.context, undefined);
+    check("the note itself is still there", row.full, "עיין שם היטב");
+  }
+  {
+    // A note on a line of its own: nothing but the marker, so there is no
+    // sentence to show and the row says so by not offering one.
+    const doc = "#הערה[לבד]\n";
+    check("a line that is only the note offers no context", noteList(notesIn(doc), doc).rows[0].context, undefined);
   }
 
   // ----------------------------------------------------------------- the history

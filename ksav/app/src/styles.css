@@ -347,7 +347,11 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 .drawer {
   position: fixed; top: 0; inset-inline-end: 0; height: 100vh; width: 300px; z-index: 50;
   background: var(--panel); border-inline-start: 1px solid var(--line);
-  box-shadow: -8px 0 30px rgba(0,0,0,.15); padding: 16px 18px;
+  box-shadow: -8px 0 30px rgba(0,0,0,.15);
+  /* No padding at the top: the sticky head supplies its own, and a sticky
+     element cannot rise above its container's content box — with padding here
+     the head parked 16px down and the text scrolled through the gap. */
+  padding: 0 18px 16px;
   transition: transform .2s; overflow: auto;
   /* hidden off-screen toward the anchored (inline-end) edge */
   transform: translateX(100%);
@@ -371,6 +375,28 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 }
 .outline-item:hover { background: var(--accent-soft); color: var(--accent); }
 .outline-empty { color: var(--muted); font-size: 13px; padding: 8px; }
+/* A note row, opened where it stands: the whole note, and the line it hangs
+   off. The row itself still jumps; the chevron is the other question. */
+.row-wrap { position: relative; }
+.row-wrap > .outline-item { padding-inline-end: 26px; }
+.row-expand {
+  position: absolute; inset-block-start: 4px; inset-inline-end: 2px;
+  border: 0; background: none; color: var(--muted); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 3px 5px; border-radius: 5px;
+}
+.row-expand:hover { background: var(--accent-soft); color: var(--accent); }
+.row-wrap.expanded .row-expand { transform: rotate(180deg); }
+.row-more { display: none; }
+.row-wrap.expanded .row-more { display: block; }
+.row-full {
+  font-size: 12.5px; line-height: 1.6; color: var(--ink);
+  padding: 2px 10px 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.row-context {
+  font-size: 12px; line-height: 1.6; color: var(--muted);
+  margin: 0 10px 8px; padding-inline-start: 8px;
+  border-inline-start: 2px solid var(--line); overflow-wrap: anywhere;
+}
 .drawer h3 { margin: 0 0 12px; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; font-size: 13px; }
 .set-row input[type="number"], .set-row input[type="text"], .set-row select {
@@ -965,6 +991,21 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 }
 .styles-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .styles-head h2 { margin: 0; font-size: 18px; }
+/* The way out stays reachable.
+   A drawer scrolls, its head scrolled away with the rest of it, and the × went
+   off the top — reported as "settings and other drawers cannot be closed
+   without scrolling back up to reach the close button". Below 720px a drawer is
+   the whole viewport, so the chip that opened it is underneath it and the × is
+   the only way back. Sticky here rather than in each drawer: `panelHead` builds
+   every one of these, and one of them being fixed and the next not is how this
+   became a report in the first place. */
+.drawer .styles-head {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--panel);
+  margin: 0 -18px 10px; padding: 16px 18px 8px;
+  border-block-end: 1px solid var(--line);
+}
+.drawer .styles-head h2, .drawer .styles-head h3 { margin: 0; }
 .styles-close {
   border: none; background: none; color: var(--muted); font-size: 20px;
   line-height: 1; cursor: pointer; padding: 0 4px;

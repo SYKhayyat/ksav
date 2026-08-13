@@ -4122,7 +4122,8 @@ function renderNotesPane() {
   // A row jumps to wherever the prose actually is. For a deferred note that is
   // the `#גוף_הערה` at the end of the file, which is the whole point of the row:
   // the marker is easy to find and the prose is not.
-  const rows = panelrows.noteList(notesIn(docTextOf(runtime.view.state.doc)));
+  const doc = docTextOf(runtime.view.state.doc);
+  const rows = panelrows.noteList(notesIn(doc), doc);
   for (const host of document.querySelectorAll<HTMLElement>(".notes-list")) {
     drawList(host, rows, LOOKS.notes);
   }
@@ -4351,7 +4352,7 @@ function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Snapshot[]
     };
   }
   const when = r.when !== undefined ? new Date(r.when) : null;
-  return el("button", attrs, [
+  const button = el("button", attrs, [
     ...(r.chip ? [el("span", { class: look.chip }, [t(r.chip)])] : []),
     ...(when ? [el("span", { class: look.chip }, [when.toLocaleDateString()])] : []),
     ...(r.note ? [el("span", { class: "note-item-def" }, [r.note])] : []),
@@ -4359,6 +4360,39 @@ function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Snapshot[]
     ...(r.trailing ? [el("code", {}, [r.trailing])] : []),
     ...(when ? [el("code", {}, [when.toLocaleTimeString()])] : []),
   ]);
+  return r.full || r.context ? expandable(button, r) : button;
+}
+
+/**
+ * A row that can be opened where it stands.
+ *
+ * Asked for the notes pane — *"it should expand to the whole note, and to the
+ * line the note sits on"*. A row shows a gist, which is enough to recognise a
+ * note and never enough to read one, and the only way to read it was to leave
+ * the list and go to the text. The jump is still what the row itself does; this
+ * is the other question a writer has about a note, which is what it says.
+ */
+function expandable(button: HTMLElement, r: PanelRow): HTMLElement {
+  const body = el("div", { class: "row-more" }, [
+    ...(r.full ? [el("div", { class: "row-full" }, [r.full])] : []),
+    ...(r.context ? [el("div", { class: "row-context" }, [r.context])] : []),
+  ]);
+  const toggle = el("button", {
+    class: "row-expand",
+    type: "button",
+    title: t("expandRow"),
+    "aria-label": t("expandRow"),
+    "aria-expanded": "false",
+    onClick: (e: Event) => {
+      const wrap = (e.currentTarget as HTMLElement).parentElement!;
+      // `expanded`, not `open`: `open` belongs to the panel registry, which
+      // owns every panel's visibility and has a guard saying so. A row that
+      // opens in place is not a panel and must not borrow the word.
+      const shown = wrap.classList.toggle("expanded");
+      (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(shown));
+    },
+  }, ["⌄"]);
+  return el("div", { class: "row-wrap" }, [button, toggle, body]);
 }
 // ---- version history (local snapshots) ----
 //
@@ -7229,7 +7263,7 @@ function render() {
     ]),
     // The notes pane, beside the outline: the two halves of a sefer's structure.
     el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane"), "data-i18n-label": "notesPane" }, [
-      panelHead("notes-drawer", t("notesPane"), { level: "h3" }),
+      panelHead("notes-drawer", "notesPane", { level: "h3" }),
       el("div", { id: "notes-list", class: "notes-list" }),
     ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
@@ -7488,7 +7522,7 @@ function maybeOnboard() {
   // document until there is a reader to welcome — and `mountPanel` is what puts
   // the `open` class on it.
   const overlay = overlayPanel("welcome", "palette-box welcome-box", [
-      panelHead("welcome", t("welcomeTitle")),
+      panelHead("welcome", "welcomeTitle"),
       el("p", {}, [t("welcomeBody")]),
       ...groups.flatMap((g) => [
         el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),

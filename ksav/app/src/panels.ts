@@ -57,7 +57,7 @@
 // the frame moved.
 
 import { el } from "./dom";
-import { t } from "./i18n";
+import { hasKey, t } from "./i18n";
 
 // ---------------------------------------------------------------- the shapes
 
@@ -541,6 +541,13 @@ export function panelHead(
     throw new Error(`panels: "${id}" does not claim a head exit, so it must not build one`);
   }
   const keyed = typeof title === "string";
+  if (keyed && !hasKey(title)) {
+    // Almost always `t("someKey")` written where `"someKey"` belongs. `t` falls
+    // back to returning what it was given, so the title looks right and never
+    // changes language again — which is how the notes drawer came to be
+    // reported as untitled by somebody reading the interface in English.
+    throw new Error(`panels: "${title}" is not an i18n key — pass the key, or { text } for a name`);
+  }
   return el("div", { class: opts.cls ?? "styles-head" }, [
     el(opts.level ?? "h2", keyed ? { "data-i18n": title } : {}, [
       keyed ? t(title) : title.text,

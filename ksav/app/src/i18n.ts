@@ -213,6 +213,7 @@ const HE: Dict = {
   illegalMergeBetweenCells: "מיזוג בין תאים קיימים מרחיב את השורה מעבר למספר העמודות — השתמשו ב\"מיזוג ימינה\" בסרגל הטבלה.",
   // the notes pane
   notesPane: "הערות",
+  expandRow: "הצגת ההערה במלואה",
   notesPaneEmpty: "אין עדיין הערות במסמך.",
   noteConvert: "המרה ל…",
   noteDelete: "מחיקת ההערה",
@@ -968,7 +969,8 @@ const EN: Dict = {
     "A table of contents prints the headings, so it cannot sit inside one.",
   illegalMergeBetweenCells:
     "Merging between existing cells makes the row wider than the table — use \"merge right\" on the table ribbon.",
-  notesPane: "Notes",
+  notesPane: "Footnotes",
+  expandRow: "Show the whole note",
   notesPaneEmpty: "No notes in this document yet.",
   noteConvert: "Convert to…",
   noteDelete: "Delete the note",
@@ -1453,7 +1455,7 @@ const EN: Dict = {
   previewSide: "Preview position",
   arrangement: "Arrangement",
   outlinePane: "Document map",
-  notesPaneRole: "Notes list",
+  notesPaneRole: "Footnotes",
   panelPlacementLabel: "Document map and notes list",
   "placement.float": "Float over the document",
   "placement.pane": "A pane of their own (shifts the rest)",
@@ -1505,6 +1507,20 @@ export function setLang(l: Lang) {
 export function getLang(): Lang {
   return current;
 }
+/**
+ * Whether a string is a key in either dictionary.
+ *
+ * `t` falls back to returning the key, which is the right thing at a call site
+ * and a trap at a *registration* site: `panelHead(id, t("notesPane"))` passed
+ * the answer where the question belonged, and the panel then carried
+ * `data-i18n="Notes"` — a title that looked right until somebody changed
+ * language, and then stayed in the language it was born in. Asking here is what
+ * turns that into an error at boot rather than a report from a writer.
+ */
+export function hasKey(key: string): boolean {
+  return key in DICTS.he || key in DICTS.en;
+}
+
 export function t(key: string): string {
   return DICTS[current][key] ?? DICTS.en[key] ?? key;
 }

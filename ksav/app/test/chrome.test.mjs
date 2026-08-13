@@ -1,4 +1,4 @@
-import { ok, check } from "./harness.mjs";
+import { ok, check, notOk } from "./harness.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -125,6 +125,14 @@ for (const p of PANELS) {
   if (hasExit(p, "scrim")) {
     ok(`${p.id}: its backdrop is built through overlayPanel`, somewhere(`overlayPanel("${p.id}"`));
   }
+  // The title is a key, not the answer to one. `panelHead` throws on this at
+  // boot, which is the real guard; here so it is a failing test rather than a
+  // blank screen. See `panels.ts` — a head built from `t("notesPane")` reads
+  // right once and then stays in the language it was born in.
+  notOk(
+    `${p.id}: its head is given a key, not a translated string`,
+    somewhere(`panelHead("${p.id}", t(`),
+  );
 }
 
 // ---------------------------------------------------------------- 4. Escape
@@ -407,6 +415,27 @@ check(
     .filter((sel) => sel.startsWith("#") || sel.startsWith("."))
     .filter((sel) => !declared(sel));
   check("every selector the acceptance run drives by is declared in src/", missing, []);
+
+  // ---------------------------------------------------------- 10. the way out
+  //
+  // "Settings and other drawers cannot be closed without scrolling back up to
+  // reach the close button." A drawer scrolls, the head scrolled with it, and
+  // below 720px a drawer is the whole viewport — so the chip that opened it is
+  // underneath it and the × is the only way back. Read off the stylesheet
+  // because that is where it is decided, and because deleting the rule is a
+  // one-line change that nothing else here would notice.
+  const rule = /\.drawer\s+\.styles-head\s*\{([^}]*)\}/.exec(CSS);
+  ok("the drawer head has a rule of its own", !!rule);
+  ok("…and it stays put while the drawer scrolls", /position:\s*sticky/.test(rule?.[1] ?? ""));
+  ok("…anchored to the top", /top:\s*0/.test(rule?.[1] ?? ""));
+  // The other half, and it is not decoration: a sticky element cannot rise
+  // above its container's content box, so a drawer with padding at the top
+  // parks its head below the edge and the text scrolls through the gap.
+  const drawer = /\.drawer\s*\{([^}]*)\}/.exec(CSS);
+  notOk(
+    "…and the drawer keeps no top padding for the text to show through",
+    /padding:\s*\d+(px|em|rem)/.test(drawer?.[1] ?? ""),
+  );
 }
 
 }

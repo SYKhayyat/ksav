@@ -813,18 +813,17 @@ const HEADING_ACTIONS: StructureAction[] = [
       (doc, h) => heads.deleteSection(doc, h),
     ),
   },
-  {
-    id: "heading.contents",
-    why: "why.contentsAlready",
-    structure: "heading",
-    group: "whole",
-    glyph: "☰",
-    label: "headingContents",
-    ...onHeading(
-      (_h, ctx) => heads.canAddContents(ctx.doc),
-      (doc) => heads.addContents(doc),
-    ),
-  },
+  // `heading.contents` was here, and a table of contents is not a heading
+  // operation. It was wrapped in `onHeading`, which means it required the caret
+  // to be *inside a section* — so in a document with headings, standing at the
+  // top of the file where a table of contents actually goes, the only door to it
+  // was greyed out and said "you are not in a heading". That is the receipt.
+  //
+  // It also made two implementations of one thing: this one, and the `toc`
+  // action on `Ctrl+Shift+O` which spliced `#תוכן()` in at the caret wherever
+  // that happened to be, mid-sentence included. `toc` now runs
+  // `headings.addContents` — the good half — and it is offered from Insert,
+  // where a thing that puts something new on the page belongs. See `menus.ts`.
 ];
 
 export const STRUCTURE_ACTIONS: StructureAction[] = [

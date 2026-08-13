@@ -76,6 +76,10 @@ export const DEFAULT_KEYS: Record<string, string> = {
   right: "Mod-Shift-r",
   left: "Mod-Shift-l",
   palette: "Mod-k",
+  // The whole registry, grouped and searchable, beside the palette's key
+  // because they are the two answers to "which command was it": the modal for
+  // when you know, the drawer for when you are looking.
+  commandsDrawer: "Mod-Shift-k",
   find: "Mod-f",
   foldAll: "Mod-Alt-[",
   unfoldAll: "Mod-Alt-]",

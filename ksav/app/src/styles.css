@@ -129,6 +129,14 @@ header {
 }
 .menu-cmd { flex-direction: row; align-items: center; justify-content: space-between; }
 .menu-cmd code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+/* The live shortcut, where a command has one. Dressed like the keys the rest of
+   this chrome prints rather than like a command name, because it is a key: the
+   command name beside it is what a writer types, and this is what they press
+   instead. Never wraps — a broken `Ctrl+Shift+F` reads as two shortcuts. */
+.menu-key {
+  background: var(--accent-soft); border-radius: 4px; padding: 1px 5px;
+  white-space: nowrap; margin-inline-start: 6px;
+}
 /* An item that cannot act here still says so, rather than vanishing: "this
    exists, and not at this caret" is information a writer needs, and a menu that
    silently changes length between openings is one nobody learns the shape of. */
@@ -999,6 +1007,18 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 }
 .help-list { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 0; }
 .help-list dt { font-size: 12.5px; }
+/* A help entry that runs. It is a button and reads as text until the pointer is
+   over it: help is a page to read first and act on second, and two hundred rows
+   dressed as buttons would be a wall of controls rather than a list of
+   sentences. Aligned to the start so it sits exactly where the plain entries
+   beside it do — the marks legend has no button and the two must line up. */
+.help-list dt .help-run {
+  all: unset; cursor: pointer; display: block; width: 100%;
+  border-radius: 4px; padding: 1px 4px; margin-inline-start: -4px;
+}
+.help-list dt .help-run:hover, .help-list dt .help-run:focus-visible {
+  background: var(--accent-soft); color: var(--accent);
+}
 .help-list dd { margin: 0; }
 .help-list dd code {
   font-family: var(--mono); font-size: 11px; color: var(--accent);

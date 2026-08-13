@@ -184,6 +184,22 @@ export const PANELS: readonly Panel[] = [
     persisted: true,
     exits: [{ via: "head" }],
   },
+  // Every command the writer can type, grouped and searchable.
+  //
+  // A drawer rather than a modal, so that running a command does not close the
+  // list you are working through — the palette is the modal, and it answers a
+  // different question (see `panelrows.commandGroups`). Not persisted, and this
+  // is the line it falls on: the outline, the notes and the marks are *views of
+  // the document* and a writer keeps one open beside the text, while this is a
+  // reference surface like the help page, which is the panel it sits next to
+  // here for exactly that reason.
+  {
+    id: "commands-drawer",
+    kind: "drawer",
+    presence: "class",
+    escape: true,
+    exits: [{ via: "head" }],
+  },
   { id: "help-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "styles-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "review-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },

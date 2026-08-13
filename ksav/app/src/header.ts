@@ -56,6 +56,7 @@ export type ChipId =
   | "notesPane"
   | "marksPane"
   | "review"
+  | "commands"
   | "language"
   | "foldAll"
   | "unfoldAll"
@@ -132,6 +133,11 @@ export function chips(s: HeaderState): Chip[] {
     // a dagger and a list: the chipbar says which list, not that there is one.
     { id: "marksPane", glyph: "◆☰", title: t("sc.marksPane"), active: s.marksPane },
     { id: "review", glyph: "✎", title: t("reviewTitle") },
+    // Every command there is, grouped and searchable. The glyph is `#`, which is
+    // the character a writer types to start one — the four surfaces that already
+    // advertised the registry were a menu, a modal, a completion popup and a
+    // help page, and none of them was a door labelled with the thing itself.
+    { id: "commands", glyph: "#", title: t("commandsTitle") },
     // The glyph is the language you would switch *to*, which is the one thing a
     // reader who cannot read the current one can still act on.
     { id: "language", glyph: lang === "he" ? "EN" : "עב", title: t("language") },

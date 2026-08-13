@@ -15,6 +15,20 @@ pub struct Command {
     /// English alias (a collision-free `#let` in the prelude).
     pub en: &'static str,
     /// Category key (UI groups + localizes these).
+    ///
+    /// # What a category is, and what it is not
+    ///
+    /// It says **what this command is about** — the subject a writer would name
+    /// when looking for it. Nothing more: it is not a claim about which menu
+    /// shows the command, which is the client's question and is answered in the
+    /// client (`app/src/menus.ts`), because this crate has never seen a menubar.
+    ///
+    /// Two categories are distinct when a writer would go looking under one and
+    /// not the other. That is why `list` and `table` are separate despite both
+    /// being grids of text — somebody wanting a table does not look under lists
+    /// — and it is why `#תוכן` left `list` for `reference`: a table of contents
+    /// is not a list you type, it is generated from the headings, which is the
+    /// same thing a cross-reference is and nothing that a bulleted list is.
     pub category: &'static str,
     /// Hebrew description.
     pub desc_he: &'static str,
@@ -112,7 +126,6 @@ pub static COMMANDS: &[Command] = &[
     cmd!("רשימה", "bullets", "list", "רשימת תבליטים", "Bulleted list", "#רשימה(\n  פריט[|],\n  פריט[],\n)"),
     cmd!("ממוספרת", "numbered", "list", "רשימה ממוספרת", "Numbered list", "#ממוספרת(\n  פריט[|],\n  פריט[],\n)"),
     cmd!("ממוספרת_עברית", "henum", "list", "רשימה ממוספרת עברית (א,ב,ג)", "Hebrew-lettered list", "#ממוספרת_עברית(\n  פריט[|],\n  פריט[],\n)"),
-    cmd!("תוכן", "toc", "list", "תוכן העניינים", "Table of contents", "#תוכן()"),
     cmd!("פריט", "item", "list", "פריט ברשימה", "List item", "פריט[|]"),
     cmd!("רשימת_הגדרות", "deflist", "list", "רשימת הגדרות", "Definition list", "#רשימת_הגדרות(\n  הגדרה[|][],\n)"),
     cmd!("הגדרות_רשימות", "lists_config", "list", "עיצוב הרשימות (סמן/הזחה/ריווח/מספור)", "Configure lists (marker/indent/spacing/numbering)", "#הגדרות_רשימות(סמן: ([◆], [–]), הזחה: 1.5em, הידוק: true)|"),
@@ -268,6 +281,15 @@ pub static COMMANDS: &[Command] = &[
     cmd!("נוסחה", "formula", "math", "נוסחה מוצגת (שורה משלה)", "Displayed formula (own line)", "#נוסחה(\"|\")"),
     cmd!("נוסחה_בשורה", "iformula", "math", "נוסחה בתוך השורה", "Inline formula", "#נוסחה_בשורה(\"|\")"),
     // ---- cross-references ----
+    //
+    // The table of contents lives here, and it used to live under `list`. Nobody
+    // had ever written down why, and there is no why: a table of contents is not
+    // a list the writer types, it is generated from the headings, exactly like a
+    // cross-reference is generated from the target it points at. Both go stale
+    // if the document moves and both fix themselves when it recompiles, which is
+    // the property this category is about. Word files it the same way, under
+    // References, which is where a writer arriving from Word goes looking.
+    cmd!("תוכן", "toc", "reference", "תוכן העניינים", "Table of contents", "#תוכן()"),
     cmd!("סמן", "anchor", "reference", "סמן יעד להפניה", "Mark a reference target", "#סמן(\"|\")"),
     cmd!("הפניה", "xref", "reference", "הפניה ליעד (מספר מתעדכן)", "Reference (auto number)", "#הפניה(\"|\")"),
 ];

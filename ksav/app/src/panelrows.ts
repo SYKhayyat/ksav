@@ -49,6 +49,8 @@ import type { MarkSpan } from "./marks";
 import type { Snapshot } from "./docs";
 import type { Available } from "./commands";
 import { matches } from "./commands";
+import { actionForCommand } from "./actions";
+import { readable } from "./bindings";
 
 /** What a row is for. The shell performs these; nothing here does. */
 export type RowAction =
@@ -326,6 +328,86 @@ export function historyList(snapshots: readonly Snapshot[]): PanelList {
 /** How many rows of each kind the palette shows before it stops. */
 export const PALETTE_ACTIONS = 30;
 export const PALETTE_COMMANDS = 60;
+
+/** One heading in the commands drawer, and the commands under it. */
+export interface CommandGroup {
+  /**
+   * The i18n key for the heading — a registry category, or where a command the
+   * writer defined came from.
+   */
+  title: string;
+  rows: PanelRow[];
+}
+
+/**
+ * Every command, grouped, with nothing left out.
+ *
+ * # Why this exists next to the palette
+ *
+ * The inventory's reader could not reach the 122 commands from any of the four
+ * surfaces that advertise them — the Insert menu, the palette, autocomplete and
+ * the help page — and then arrived independently at what they wanted instead: a
+ * drawer holding every command, searchable and grouped. The record says to take
+ * that as the specification, so this is it.
+ *
+ * It is not the palette again. The palette is a modal that closes on the first
+ * thing you run, caps its list at sixty and mixes commands in with operations,
+ * because it answers *"I know what I want, get me there"*. This answers the
+ * other question — *"what is there?"* — which needs the whole list, the
+ * headings that make a list of 122 readable, and a surface that survives being
+ * used. It sits beside the text like the outline and the notes list, and the
+ * groups are the registry's own categories, so it is the same taxonomy the
+ * menus and the help page present rather than a fourth opinion.
+ *
+ * **No cap.** Every other list here has one and reports it; this one is the
+ * inventory, and an inventory that stops at sixty is the exact failure the
+ * palette's `hidden` count exists to confess to.
+ *
+ * `bound` is the live bindings by action id — the writer's over the shipped
+ * table — so a row shows the key that actually runs it today.
+ */
+export function commandGroups(
+  commands: readonly Available[],
+  bound: Record<string, string>,
+  query: string,
+  lang: "he" | "en",
+): { groups: CommandGroup[]; empty: string | null; shown: number } {
+  const groups: CommandGroup[] = [];
+  const byTitle = new Map<string, CommandGroup>();
+  let shown = 0;
+  for (const c of commands) {
+    if (!matches(c, query)) continue;
+    shown++;
+    // A registry command groups by its category; one the writer defined groups
+    // by where it came from, which is the distinction that matters when both a
+    // document's `#דגש` and yours exist and the compiler runs one of them.
+    const title = c.category
+      ? "cat." + c.category
+      : c.from === "document"
+        ? "fromDocument"
+        : "fromYou";
+    let group = byTitle.get(title);
+    if (!group) {
+      group = { title, rows: [] };
+      byTitle.set(title, group);
+      groups.push(group);
+    }
+    const key = bound[actionForCommand(c.name) ?? ""];
+    group.rows.push({
+      does: { kind: "insert", snippet: c.insert },
+      indent: 0,
+      // The shortcut, where there is one. Thirteen commands have had a key
+      // since the beginning and no surface that lists commands has ever
+      // printed it beside one.
+      note: key ? readable(key) : undefined,
+      label:
+        (c.from === "registry" ? (lang === "he" ? c.desc_he : c.desc_en) : undefined) ?? c.name,
+      trailing: "#" + c.name + (c.en ? " · " + c.en : ""),
+      id: c.name,
+    });
+  }
+  return { groups, empty: shown ? null : "paletteNothing", shown };
+}
 
 /** One action the palette can run: an id, a name, and the key that runs it. */
 export interface PaletteAction {

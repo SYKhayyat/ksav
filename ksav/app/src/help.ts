@@ -19,6 +19,7 @@ import { actionIdOf, describe as describeMacro, parseAll } from "./macros";
 import type { Macro } from "./macros";
 import { STRUCTURE_ACTIONS } from "./structure";
 import type { Structure } from "./structure";
+import type { RowAction } from "./panelrows";
 
 export interface HelpEntry {
   /** What it does, already in the reader's language. */
@@ -27,6 +28,25 @@ export interface HelpEntry {
   how: string;
   /** The action id this came from, so coverage can be checked. */
   id?: string;
+  /**
+   * What pressing this entry should do, when pressing it can do anything.
+   *
+   * Help was a list of two hundred lines of `<dt>` and `<dd>`: it could tell you
+   * that `Ctrl+Shift+F` makes a footnote and could not make one. That is a page
+   * about the product rather than a part of it — and the reader is already
+   * looking at the name of the thing they want, which is the moment to let them
+   * have it. The margins asked for exactly this in four words: *"help entries
+   * should be clickable"*.
+   *
+   * Absent on the marks legend, and that is not an oversight: a gutter wedge is
+   * a thing to recognise, not a thing to run, and a button that does nothing
+   * would be worse than the text it replaced.
+   *
+   * The shape is `panelrows.RowAction` — the same vocabulary the palette, the
+   * outline and the notes list already speak — so the shell performs it with the
+   * dispatcher it already has rather than growing a second one.
+   */
+  does?: RowAction;
 }
 
 export interface HelpSection {
@@ -44,8 +64,21 @@ export interface HelpInput {
   keys: Record<string, string>;
   /** Whatever is in settings, unparsed. */
   macros?: unknown;
-  /** The engine's command registry, if it has been fetched. */
-  commands?: { he: string; en: string; category: string; desc_he: string; desc_en: string }[];
+  /**
+   * The engine's command registry, if it has been fetched.
+   *
+   * `insert` came in with the clickable entries: the row already named the
+   * command, and running it needs the snippet the registry carries rather than
+   * a second guess at what `#הערה` expands to.
+   */
+  commands?: {
+    he: string;
+    en: string;
+    category: string;
+    desc_he: string;
+    desc_en: string;
+    insert: string;
+  }[];
   /** Which language the reader is reading in. */
   lang: "he" | "en";
   /** Per-operation hydra key overrides. */
@@ -71,7 +104,12 @@ function shortcuts(input: HelpInput): HelpSection {
   for (const id of Object.keys(DEFAULT_KEYS)) {
     const key = input.keys[id];
     if (!key) continue; // unbound by the writer: nothing to document
-    entries.push({ id, what: labelOf(id, input.t), how: readable(key) });
+    entries.push({
+      id,
+      what: labelOf(id, input.t),
+      how: readable(key),
+      does: { kind: "action", id },
+    });
   }
   return { title: "helpShortcuts", lede: "helpShortcutsLede", entries };
 }
@@ -91,6 +129,7 @@ function structures(input: HelpInput): HelpSection[] {
         // The key if it has one, otherwise the ribbon glyph — which is what the
         // reader is looking at when they come here asking "what is that button".
         how: key ? readable(key) : a.glyph,
+        does: { kind: "action", id: a.id },
       };
     }),
   }));
@@ -105,6 +144,7 @@ function hydras(input: HelpInput): HelpSection {
         id: e.action.id,
         what: `${input.t("structure." + h.structure)} · ${input.t(e.action.label)}`,
         how: e.key,
+        does: { kind: "action", id: e.action.id },
       });
     }
   }
@@ -123,6 +163,7 @@ function macroSection(input: HelpInput): HelpSection {
       how: input.keys[actionIdOf(m)]
         ? readable(input.keys[actionIdOf(m)])
         : describeMacro(m, (id) => labelOf(id, input.t)),
+      does: { kind: "action", id: actionIdOf(m) },
     })),
   };
 }
@@ -139,6 +180,7 @@ function commandSections(input: HelpInput): HelpSection[] {
       .map((c) => ({
         what: input.lang === "he" ? c.desc_he : c.desc_en,
         how: "#" + (input.lang === "he" ? c.he : c.en),
+        does: { kind: "insert" as const, snippet: c.insert },
       })),
   }));
 }

@@ -345,15 +345,6 @@
       "deprecated": false
     },
     {
-      "he": "תוכן",
-      "en": "toc",
-      "category": "list",
-      "desc_he": "תוכן העניינים",
-      "desc_en": "Table of contents",
-      "insert": "#תוכן()",
-      "deprecated": false
-    },
-    {
       "he": "פריט",
       "en": "item",
       "category": "list",
@@ -1116,6 +1107,15 @@
       "desc_he": "נוסחה בתוך השורה",
       "desc_en": "Inline formula",
       "insert": "#נוסחה_בשורה(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "תוכן",
+      "en": "toc",
+      "category": "reference",
+      "desc_he": "תוכן העניינים",
+      "desc_en": "Table of contents",
+      "insert": "#תוכן()",
       "deprecated": false
     },
     {

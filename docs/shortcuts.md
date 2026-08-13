@@ -41,6 +41,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Shift+R` | Right | ימין |
 | `Ctrl+Shift+L` | Left | שמאל |
 | `Ctrl+K` | Commands | פקודות |
+| `Ctrl+Shift+K` | Every command | כל הפקודות |
 | `Ctrl+F` | Find | חיפוש |
 | `Ctrl+Alt+[` | Fold all | קפל הכל |
 | `Ctrl+Alt+]` | Unfold all | פרוש הכל |

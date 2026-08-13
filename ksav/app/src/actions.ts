@@ -36,7 +36,11 @@
 // try: the cure is that the two lists stop living in one file.
 
 /**
- * Action id → the Hebrew name of the command it inserts.
+ * Action id → the Hebrew name of the command it is the door to.
+ *
+ * All but one of them insert it at the caret; see [`PLACED_COMMANDS`] for the
+ * one that places it instead. Either way this is the pairing, and it is what
+ * lets a menu row for a command print the key that also runs it.
  *
  * Hebrew only, deliberately. The English spelling is the *prelude's* to make
  * (`#let bold = הדגשה`), `engine.gen.ts` mirrors it, and writing it here again
@@ -69,3 +73,40 @@ export const ACTION_COMMAND = {
 
 /** The action ids that insert a registry command. */
 export type CommandAction = keyof typeof ACTION_COMMAND;
+
+/**
+ * The doors that do **not** splice their command in at the caret.
+ *
+ * `#תוכן()` goes at the top of the document and there may only ever be one of
+ * them, which is a placement rather than an insertion — so `toc` runs
+ * `headings.addContents` and the generated `insertSnippet` door is skipped for
+ * it. Listed here rather than left as a special case in the shell so that the
+ * exception is one line in the same table as the rule, and so a test can hold
+ * the shell to it: an id in here must have a hand-written action, and an id not
+ * in here must not.
+ */
+export const PLACED_COMMANDS: readonly CommandAction[] = ["toc"];
+
+/** The same table read the other way, built once. */
+const BY_COMMAND: Record<string, CommandAction> = Object.fromEntries(
+  Object.entries(ACTION_COMMAND).map(([id, he]) => [he, id as CommandAction]),
+);
+
+/**
+ * The action that inserts this command, if one does.
+ *
+ * For the menus, so that a row offering `#הדגשה` prints the key that also
+ * inserts it. They printed nothing: the Insert menu showed the command name in
+ * a `<code>` and left the shortcut column empty for all 122 rows, while
+ * `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+E` and nine more were live the whole time.
+ * A shortcut nobody can find is the same as no shortcut, and the place a writer
+ * looks for one is beside the thing it does.
+ *
+ * The name is the Hebrew one because that is the side `ACTION_COMMAND` states —
+ * the English spelling is the prelude's, and asking for it here would be a
+ * second statement of the pairing. Callers hold a `CommandDef`, which carries
+ * both.
+ */
+export function actionForCommand(he: string): CommandAction | undefined {
+  return BY_COMMAND[he];
+}

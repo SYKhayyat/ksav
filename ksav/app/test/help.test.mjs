@@ -107,7 +107,14 @@ export async function run() {
   const withCommands = {
     ...base,
     commands: [
-      { he: "הדגשה", en: "bold", category: "style", desc_he: "מודגש", desc_en: "Bold text" },
+      {
+        he: "הדגשה",
+        en: "bold",
+        category: "style",
+        desc_he: "מודגש",
+        desc_en: "Bold text",
+        insert: "#הדגשה[|]",
+      },
     ],
   };
   const style = helpSections(withCommands).find((s) => s.title === "cat.style");
@@ -116,6 +123,85 @@ export async function run() {
   check("with the command to type", style.entries[0].how, "#bold");
   const he = helpSections({ ...withCommands, lang: "he" }).find((s) => s.title === "cat.style");
   check("Hebrew readers get the Hebrew name", he.entries[0].how, "#הדגשה");
+}
+
+// ---------------------------------------------------------------- it can be used
+//
+// *"Help entries should be clickable."* Help could tell you that Ctrl+Shift+F
+// makes a footnote and could not make one — a page about the product rather than
+// a part of it. Every entry that names something runnable now carries what to
+// run, in the same `RowAction` vocabulary the palette and the panels speak.
+
+{
+  const withEverything = {
+    ...base,
+    macros: [{ id: "m1", name: "Rashi note", steps: [{ kind: "text", text: "רש״י" }] }],
+    commands: [
+      {
+        he: "הדגשה",
+        en: "bold",
+        category: "style",
+        desc_he: "מודגש",
+        desc_en: "Bold text",
+        insert: "#הדגשה[|]",
+      },
+    ],
+  };
+  const sections = helpSections(withEverything);
+  const by = (title) => sections.find((s) => s.title === title);
+
+  check(
+    "a shortcut runs its action",
+    by("helpShortcuts").entries.find((e) => e.id === "bold").does,
+    { kind: "action", id: "bold" },
+  );
+  check(
+    "a structural operation runs its action",
+    by("structure.table").entries[0].does.kind,
+    "action",
+  );
+  check("a hydra entry runs its action", by("helpHydras").entries[0].does.kind, "action");
+  check("a macro runs itself", by("macros").entries[0].does, { kind: "action", id: "macro.m1" });
+  check("a command inserts itself", by("cat.style").entries[0].does, {
+    kind: "insert",
+    snippet: "#הדגשה[|]",
+  });
+
+  // The legend is the exception, and deliberately: a wedge in the gutter is a
+  // thing to recognise, not a thing to run, and a button that does nothing would
+  // be worse than the text it replaced.
+  check(
+    "the marks legend runs nothing",
+    by("helpMarks").entries.filter((e) => e.does).map((e) => e.what),
+    [],
+  );
+
+  // Every entry outside the legend has somewhere to go. The point of the fence:
+  // a section added later without a `does` is a section of dead rows.
+  check(
+    "and nothing else is a dead row",
+    sections
+      .filter((s) => s.title !== "helpMarks")
+      .flatMap((s) => s.entries.filter((e) => !e.does).map((e) => `${s.title}: ${e.what}`)),
+    [],
+  );
+
+  // Every action a help entry offers to run must be an id something answers to.
+  // A `does` naming an operation that does not exist is a button that fails
+  // silently, which is the family this whole surface is a correction for.
+  const known = new Set([
+    ...Object.keys(DEFAULT_KEYS),
+    ...STRUCTURE_ACTIONS.map((a) => a.id),
+    "macro.m1",
+  ]);
+  check(
+    "every action it offers is one that exists",
+    sections
+      .flatMap((s) => s.entries)
+      .filter((e) => e.does?.kind === "action" && !known.has(e.does.id))
+      .map((e) => e.does.id),
+    [],
+  );
 }
 
 // ---------------------------------------------------------------- search

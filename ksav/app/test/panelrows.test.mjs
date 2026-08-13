@@ -1,6 +1,7 @@
 import { check, ok, notOk } from "./harness.mjs";
 import {
   PALETTE_COMMANDS,
+  commandGroups,
   gist,
   historyList,
   indentPx,
@@ -253,5 +254,53 @@ export async function run() {
     check("the cap still caps", list.rows.length, PALETTE_COMMANDS);
     check("…and says how many it left out", list.hidden, 7);
     check("…and a list that fits hides nothing", paletteList([], many.slice(0, 3), "", "he").hidden, 0);
+  }
+
+  // ---------------------------------------------- the commands drawer
+  //
+  // The inventory's reader could not reach the registry from any of the four
+  // surfaces that advertise it, and asked for a drawer holding every command,
+  // searchable and grouped, instead. The two properties that make it *not* the
+  // palette again are that it is grouped and that nothing is capped.
+  {
+    const cmds = [
+      command("הדגשה", { category: "style", en: "bold" }),
+      command("נטוי", { category: "style", en: "italic" }),
+      command("הערה", { category: "footnote", en: "fnote" }),
+      command("שלי", { from: "yours", category: "", desc_he: undefined, desc_en: undefined }),
+    ];
+    const { groups, empty, shown } = commandGroups(cmds, { bold: "Mod-b" }, "", "he");
+    check("nothing is left out", shown, 4);
+    check("the groups are the registry's categories", groups.map((g) => g.title), [
+      "cat.style",
+      "cat.footnote",
+      "fromYou",
+    ]);
+    check("in the order the commands arrived", groups[0].rows.map((r) => r.id), ["הדגשה", "נטוי"]);
+    check("a row inserts its command", groups[0].rows[0].does, {
+      kind: "insert",
+      snippet: "#הדגשה[|]",
+    });
+    // **The shortcut, at last.** `#הדגשה` has answered to Ctrl+B since the
+    // beginning and no surface listing commands has ever said so.
+    check("a command with a key prints it", groups[0].rows[0].note, "Ctrl+B");
+    check("…and one without prints nothing", groups[0].rows[1].note, undefined);
+    check("a rebound key is the one shown", commandGroups(cmds, { bold: "F9" }, "", "he").groups[0].rows[0].note, "F9");
+    check("a row names the command in both languages", groups[0].rows[0].trailing, "#הדגשה · bold");
+    check("nothing is said about a cap", empty, null);
+  }
+  {
+    const cmds = [command("הדגשה"), command("נטוי")];
+    check("a query filters", commandGroups(cmds, {}, "נטוי", "he").shown, 1);
+    check("…and empty groups do not appear", commandGroups(cmds, {}, "נטוי", "he").groups.length, 1);
+    const none = commandGroups(cmds, {}, "zzzz", "he");
+    check("nothing matched is said out loud", none.empty, "paletteNothing");
+    check("…and no group is drawn", none.groups, []);
+  }
+  {
+    // No cap, and this is the point of the surface: an inventory that stops at
+    // sixty is the failure the palette's `hidden` count exists to confess to.
+    const many = Array.from({ length: PALETTE_COMMANDS + 40 }, (_, i) => command("פקודה" + i));
+    check("every command is listed", commandGroups(many, {}, "", "he").shown, many.length);
   }
 }

@@ -267,10 +267,22 @@ check(
   const body = MAIN.slice(MAIN.indexOf("function renderPaletteList"));
   const list = body.slice(0, body.indexOf("\n}\n") + 3);
   ok("the palette offers operations", /paletteActions\(\)/.test(list));
-  const draw = MAIN.slice(MAIN.indexOf("function drawRow"));
+  // The `switch` moved out of `drawRow` into `runRow` when help entries became
+  // clickable — help speaks the same `RowAction` vocabulary now, and a second
+  // copy of this dispatch beside the help panel is how one of them would come to
+  // disagree with the other. So the fence follows the property rather than the
+  // function: there is one dispatcher, it reaches `runAction`, and every surface
+  // that performs a row goes through it.
+  const door = MAIN.slice(MAIN.indexOf("function runRow"));
   ok(
     "…and runs them through the one door",
-    /case "action":[\s\S]{0,200}?runAction\(/.test(draw.slice(0, draw.indexOf("\n}\n") + 3)),
+    /case "action":[\s\S]{0,200}?runAction\(/.test(door.slice(0, door.indexOf("\n}\n") + 3)),
+  );
+  const draw = MAIN.slice(MAIN.indexOf("function drawRow"));
+  ok("a drawn row goes through it", /runRow\(r\.does/.test(draw.slice(0, draw.indexOf("\n}\n") + 3)));
+  ok(
+    "and so does a help entry",
+    /function renderHelp[\s\S]{0,2000}?runRow\(/.test(MAIN),
   );
   ok("it still offers commands", /commands\.available\(/.test(list));
   // Structural operations are filtered to where the caret actually is, the same

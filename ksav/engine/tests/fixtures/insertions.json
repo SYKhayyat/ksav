@@ -310,15 +310,6 @@
   {
    "ctx": "prose",
    "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "שורה של פרוזה ובה מלים#תוכן()אחרות להמשך."
-  },
-  {
-   "ctx": "prose",
-   "lang": "he",
    "cmd": "פריט",
    "en": "item",
    "legal": true,
@@ -1084,6 +1075,15 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#תוכן()אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -1404,15 +1404,6 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#henum(\n  item[],\n  item[],\n)ds to continue."
-  },
-  {
-   "ctx": "prose",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "A line of prose with some wor#toc()ds to continue."
   },
   {
    "ctx": "prose",
@@ -2182,6 +2173,15 @@
   {
    "ctx": "prose",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#toc()ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -2502,15 +2502,6 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)ראשון]\n\nגוף."
-  },
-  {
-   "ctx": "heading-body",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": false,
-   "reason": "illegalInHeading",
-   "source": "#כותרת1[פרק #תוכן()ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -3280,6 +3271,15 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": false,
+   "reason": "illegalInHeading",
+   "source": "#כותרת1[פרק #תוכן()ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -3600,15 +3600,6 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #henum(\n  item[],\n  item[],\n)One]\n\nBody."
-  },
-  {
-   "ctx": "heading-body",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": false,
-   "reason": "illegalInHeading",
-   "source": "#h1[Chapter #toc()One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4378,6 +4369,15 @@
   {
    "ctx": "heading-body",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": false,
+   "reason": "illegalInHeading",
+   "source": "#h1[Chapter #toc()One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -4698,15 +4698,6 @@
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)פנימית] המשך."
-  },
-  {
-   "ctx": "note-body",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "טקסט#הערה[הערה #תוכן()פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -5476,6 +5467,15 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #תוכן()פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -5796,15 +5796,6 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #henum(\n  item[],\n  item[],\n)inside] continues."
-  },
-  {
-   "ctx": "note-body",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "Text#fnote[a note #toc()inside] continues."
   },
   {
    "ctx": "note-body",
@@ -6574,6 +6565,15 @@
   {
    "ctx": "note-body",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #toc()inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -6894,15 +6894,6 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)כאן],\n  פריט[שני],\n)"
-  },
-  {
-   "ctx": "list-in-item",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #תוכן()כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -7672,6 +7663,15 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #תוכן()כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -7992,15 +7992,6 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #henum(\n  item[],\n  item[],\n)here],\n  item[second],\n)"
-  },
-  {
-   "ctx": "list-in-item",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#bullets(\n  item[first #toc()here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8770,6 +8761,15 @@
   {
    "ctx": "list-in-item",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #toc()here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -9090,15 +9090,6 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],ממוספרת_עברית(\n  פריט[],\n  פריט[],\n),\n  פריט[שני],\n)"
-  },
-  {
-   "ctx": "list-between-items",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון],תוכן(),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -9868,6 +9859,15 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],תוכן(),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -10188,15 +10188,6 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],henum(\n  item[],\n  item[],\n),\n  item[second],\n)"
-  },
-  {
-   "ctx": "list-between-items",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#bullets(\n  item[first],toc(),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -10966,6 +10957,15 @@
   {
    "ctx": "list-between-items",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],toc(),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -11286,15 +11286,6 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(ממוספרת_עברית(\n  פריט[],\n  פריט[],\n),\n  פריט[ראשון],\n  פריט[שני],\n)"
-  },
-  {
-   "ctx": "list-after-open",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#רשימה(תוכן(),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -12064,6 +12055,15 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(תוכן(),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -12384,15 +12384,6 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(henum(\n  item[],\n  item[],\n),\n  item[first],\n  item[second],\n)"
-  },
-  {
-   "ctx": "list-after-open",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#bullets(toc(),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -13162,6 +13153,15 @@
   {
    "ctx": "list-after-open",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(toc(),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -13482,15 +13482,6 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)כאן], תא[שתים],\n)"
-  },
-  {
-   "ctx": "table-in-cell",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #תוכן()כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -14260,6 +14251,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #תוכן()כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -14580,15 +14580,6 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #henum(\n  item[],\n  item[],\n)here], cell[two],\n)"
-  },
-  {
-   "ctx": "table-in-cell",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #toc()here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -15358,6 +15349,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #toc()here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -15678,15 +15678,6 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],ממוספרת_עברית(\n  פריט[],\n  פריט[],\n), תא[שתים],\n)"
-  },
-  {
-   "ctx": "table-between-cells",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],תוכן(), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -16456,6 +16447,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],תוכן(), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -16776,15 +16776,6 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],henum(\n  item[],\n  item[],\n), cell[two],\n)"
-  },
-  {
-   "ctx": "table-between-cells",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],toc(), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -17554,6 +17545,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],toc(), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -17874,15 +17874,6 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)כאן] סוף],\n)"
-  },
-  {
-   "ctx": "nested-deep",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #תוכן()כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -18652,6 +18643,15 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #תוכן()כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -18972,15 +18972,6 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #henum(\n  item[],\n  item[],\n)here] end],\n)"
-  },
-  {
-   "ctx": "nested-deep",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #toc()here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -19750,6 +19741,15 @@
   {
    "ctx": "nested-deep",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #toc()here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -20070,15 +20070,6 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)רביעי]\n\nגוף."
-  },
-  {
-   "ctx": "deep-heading-body",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": false,
-   "reason": "illegalInHeading",
-   "source": "#כותרת4[פרק #תוכן()רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -20848,6 +20839,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": false,
+   "reason": "illegalInHeading",
+   "source": "#כותרת4[פרק #תוכן()רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -21168,15 +21168,6 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #henum(\n  item[],\n  item[],\n)Four]\n\nBody."
-  },
-  {
-   "ctx": "deep-heading-body",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": false,
-   "reason": "illegalInHeading",
-   "source": "#h4[Section #toc()Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -21946,6 +21937,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": false,
+   "reason": "illegalInHeading",
+   "source": "#h4[Section #toc()Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -22266,15 +22266,6 @@
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)תפילה]"
-  },
-  {
-   "ctx": "siman-body",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": false,
-   "reason": "illegalInHeading",
-   "source": "#סימן[א׳][דיני #תוכן()תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -23044,6 +23035,15 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": false,
+   "reason": "illegalInHeading",
+   "source": "#סימן[א׳][דיני #תוכן()תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -23364,15 +23364,6 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #henum(\n  item[],\n  item[],\n)prayer]"
-  },
-  {
-   "ctx": "siman-body",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": false,
-   "reason": "illegalInHeading",
-   "source": "#siman[1][The laws of #toc()prayer]"
   },
   {
    "ctx": "siman-body",
@@ -24142,6 +24133,15 @@
   {
    "ctx": "siman-body",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": false,
+   "reason": "illegalInHeading",
+   "source": "#siman[1][The laws of #toc()prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -24462,15 +24462,6 @@
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)ראשית]\n\nגוף."
-  },
-  {
-   "ctx": "title-body",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#שער[כותרת #תוכן()ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -25240,6 +25231,15 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #תוכן()ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -25560,15 +25560,6 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #henum(\n  item[],\n  item[],\n)Title]\n\nBody."
-  },
-  {
-   "ctx": "title-body",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#title[The #toc()Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -26338,6 +26329,15 @@
   {
    "ctx": "title-body",
    "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #toc()Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -26658,15 +26658,6 @@
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#ממוספרת_עברית(\n  פריט[],\n  פריט[],\n)ת] גוף ההערה]"
-  },
-  {
-   "ctx": "note-heading-body",
-   "lang": "he",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#הערה[#כותרת_בהערה[ראשי#תוכן()ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -27436,6 +27427,15 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#תוכן()ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "סמן",
    "en": "anchor",
    "legal": true,
@@ -27756,15 +27756,6 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#henum(\n  item[],\n  item[],\n)ing] the note body]"
-  },
-  {
-   "ctx": "note-heading-body",
-   "lang": "en",
-   "cmd": "תוכן",
-   "en": "toc",
-   "legal": true,
-   "reason": null,
-   "source": "#fnote[#note_heading[Head#toc()ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -28530,6 +28521,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#iformula(\"x^2 + 1\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "תוכן",
+   "en": "toc",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#toc()ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

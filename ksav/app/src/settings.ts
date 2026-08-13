@@ -123,6 +123,15 @@ export interface Settings {
   autoPairBrackets?: boolean;
   /** The same for `"` and `'`. Off: see `pairedDelimiters` in `main.ts`. */
   autoPairQuotes?: boolean;
+  /**
+   * Reopen a menubar menu scrolled where it was left, rather than at the top.
+   *
+   * Off, so menus open at the top — which is what was asked for and what a menu
+   * does everywhere else. Kept as a switch because somebody working through one
+   * long stretch of the Insert menu wants the other behaviour, and that is a
+   * preference rather than a mistake. See `lazyMenu`.
+   */
+  keepMenuPosition?: boolean;
   spellcheck?: boolean;
   /**
    * Check the words inside comments and folds as well.
@@ -203,6 +212,7 @@ export const DEFAULTS: Settings = {
   autocomplete: true,
   autoPairBrackets: true,
   autoPairQuotes: false,
+  keepMenuPosition: false,
   spellcheck: true,
   spellcheckComments: false,
   syncScroll: true,

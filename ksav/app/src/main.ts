@@ -57,7 +57,7 @@ import * as opendocs from "./opendocs";
 import * as panes from "./panes";
 import * as tabs from "./tabs";
 import type { DocAsset } from "./docs";
-import { ACTION_COMMAND } from "./actions";
+import { ACTION_COMMAND, PLACED_COMMANDS, actionForCommand } from "./actions";
 import * as store from "./store";
 import * as files from "./files";
 import {
@@ -89,6 +89,7 @@ import { typstString, typstContent } from "./typst-escape";
 import { citationMarkup } from "./citation";
 import type { NoteChoice } from "./notes";
 import * as marks from "./marks";
+import * as menus from "./menus";
 import { marksIn } from "./marks";
 import * as channels from "./channels";
 import * as apparatus from "./apparatus";
@@ -655,10 +656,15 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Every action that inserts a registry command, generated from the one table
   // that says which. Hand-listing them here is what let the bullet list come out
   // two different ways depending on how you asked for it — see `actions.ts`.
-  ...Object.entries(ACTION_COMMAND).map(([id, he]) => ({
-    id,
-    run: () => insertCommand(he),
-  })),
+  ...Object.entries(ACTION_COMMAND)
+    .filter(([id]) => !(PLACED_COMMANDS as readonly string[]).includes(id))
+    .map(([id, he]) => ({
+      id,
+      run: () => insertCommand(he),
+    })),
+  // The one door in that table that places its command rather than splicing it
+  // in. See `addContentsHere`.
+  { id: "toc", run: () => addContentsHere() },
   {
     id: "tieredNote",
     run: () => {
@@ -696,6 +702,7 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
   { id: "palette", run: () => (openPalette(), true) },
+  { id: "commandsDrawer", run: () => (openCommands(), true) },
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
@@ -2923,6 +2930,30 @@ function makeListHere(): boolean {
   return true;
 }
 
+/**
+ * A table of contents, at the top of the document, once.
+ *
+ * The one door, and there used to be two. `heading.contents` was a structural
+ * operation on headings — so it refused unless the caret was inside a section,
+ * which is nowhere near where a table of contents goes — and the `toc` action
+ * spliced `#תוכן()` in wherever the caret happened to be, mid-word included.
+ * Now both are this: `headings.addContents` puts it at the top and refuses a
+ * second one, and the refusal is a sentence rather than a button that does
+ * nothing.
+ */
+function addContentsHere(): boolean {
+  if (!runtime.view) return false;
+  const doc = docTextNow();
+  const made = heads.addContents(doc, docLang());
+  if (!made) {
+    setStatus(t("why.contentsAlready"), "warn");
+    return true;
+  }
+  editDoc(made.text, made.caret);
+  runtime.view.focus();
+  return true;
+}
+
 /** A fold: collapsible while writing, and every word of it prints. */
 function insertFold() {
   const sel = runtime.view.state.selection.main;
@@ -3598,6 +3629,13 @@ function buildMacroMenu(): HTMLElement {
   });
 }
 
+/** The categories the registry publishes, in the order it declares them. */
+function registryCategories(): string[] {
+  const cats: string[] = [];
+  for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
+  return cats;
+}
+
 function buildFormatMenu(): HTMLElement {
   return lazyMenu("format", "¶ " + t("format"), () => [
     // First, because it is the one thing a writer standing in prose can do to a
@@ -3627,6 +3665,12 @@ function buildFormatMenu(): HTMLElement {
       el("b", {}, ["⊞ " + t("unfoldAll")]),
       keybindings().unfoldAll ? el("code", {}, [readable(keybindings().unfoldAll)]) : el("span"),
     ]),
+    el("div", { class: "menu-sep" }),
+    // Bold, italic, the colours and the three alignments. They were in Insert,
+    // which is a menu for putting something on the page, and not one of them
+    // does that: every one of them needs text to already be there. See
+    // `menus.ts` for the rule and for what it costs to have had none.
+    ...commandRows(menus.categoriesIn("format", registryCategories())),
   ]);
 }
 
@@ -3646,6 +3690,10 @@ function buildTableMenu(): HTMLElement {
     }, [el("b", {}, ["▦  " + t("insertTable")])]),
     el("div", { class: "menu-sep" }),
     ...structureMenuItems(["table"]),
+    // The cell commands and the table configuration line, beside the operations
+    // that act on a table. They were under Insert, three menus away from every
+    // other thing about a table.
+    ...commandRows(menus.categoriesIn("table", registryCategories())),
   ]);
 }
 
@@ -3666,12 +3714,6 @@ function buildInsertMenu(): HTMLElement {
 }
 
 function insertMenuItems(): (Node | string)[] {
-  const lang = getLang();
-  // The interface's language names the *description*; the document's names the
-  // command, because the command is what lands in the source. See `buildToolbar`.
-  const writing = docLang();
-  const cats: string[] = [];
-  for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
   const kb = keybindings();
   /** Insert ▸ Footnote / Endnote, where a Word user looks first. */
   const noteItem = (action: string, glyph: string, snippet: string | null, why?: string) =>
@@ -3733,6 +3775,27 @@ function insertMenuItems(): (Node | string)[] {
       el("b", {}, ["▭ " + t("sectionSetup")]),
       el("span", { class: "menu-desc" }, [t("sectionSetupLede")]),
     ]),
+    // Contents, which used to be in Format under Headings. It is neither: it
+    // does not change a heading, it puts a generated page at the top of the
+    // document — so it is an insertion, and this is Insert. Greyed with its
+    // reason once the document has one, the same rule every other item here
+    // follows. See `menus.ts` and `addContentsHere`.
+    (() => {
+      const already = !heads.canAddContents(docTextNow());
+      return el(
+        "button",
+        {
+          class: "menu-item" + (already ? " disabled" : ""),
+          disabled: already ? "true" : null,
+          onClick: () => (closeMenus(), addContentsHere()),
+        },
+        [
+          el("b", {}, ["☰ " + t("sc.toc")]),
+          kb.toc ? el("code", {}, [readable(kb.toc)]) : el("span"),
+          ...(already ? [el("span", { class: "menu-why" }, [t("why.contentsAlready")])] : []),
+        ],
+      );
+    })(),
     el("button", { class: "menu-item", onClick: () => (closeMenus(), hiddenBreak()) }, [
       el("b", {}, ["⏎ " + t("hiddenBreak")]),
       el("span", { class: "menu-desc" }, [t("hiddenBreakLede")]),
@@ -3765,15 +3828,40 @@ function insertMenuItems(): (Node | string)[] {
     ),
     el("div", { class: "menu-sep" }),
   ];
-  const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";
+  items.push(...commandRows(menus.categoriesIn("insert", registryCategories())));
+  return items;
+}
+
+/**
+ * The registry's own commands, as menu rows, for one menu's categories.
+ *
+ * Written once and called three times. It was the tail of the Insert menu and
+ * nowhere else, which is how Insert came to hold every category the engine
+ * publishes — including the eighteen that change text already written. Which
+ * categories a menu shows is `menus.ts`'s answer; what a row looks like is this.
+ */
+function commandRows(cats: readonly string[]): (Node | string)[] {
+  const lang = getLang();
+  // The interface's language names the *description*; the document's names the
+  // command, because the command is what lands in the source. See `buildToolbar`.
+  const writing = docLang();
+  const kb = keybindings();
+  const doc = docTextNow();
   const pos = runtime.view?.state.selection.main.from ?? 0;
+  const items: (Node | string)[] = [];
   for (const cat of cats) {
+    const inCat = runtime.commandsReg.filter((x) => x.category === cat && !x.deprecated);
+    if (!inCat.length) continue;
     items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
-    for (const c of runtime.commandsReg.filter((x) => x.category === cat && !x.deprecated)) {
+    for (const c of inCat) {
       // Greyed rather than hidden, with the reason on the tooltip. "This exists,
       // and not here" is information; a command that silently vanishes from the
       // menu when the caret moves is a product that looks broken.
       const legality = legalAt(doc, pos, c.he);
+      // The live binding, when an action is the door to this command. Read
+      // through `keybindings()` and never `DEFAULT_KEYS`, so a writer who
+      // rebound `Ctrl+B` is shown the key they chose. See `actions.ts`.
+      const key = kb[actionForCommand(c.he) ?? ""];
       items.push(
         el(
           "button",
@@ -3788,6 +3876,7 @@ function insertMenuItems(): (Node | string)[] {
             // The name the writer will find in their own source, which is the
             // document's language and not the menu's. See `buildToolbar`.
             el("code", {}, ["#" + (writing === "he" ? c.he : c.en)]),
+            ...(key ? [el("code", { class: "menu-key" }, [readable(key)])] : []),
             // The reason, where it can be read. `insertions.json` has carried a
             // `reason` per command for as long as the grid has existed and it
             // reached a tooltip; the item dropped to 38% opacity and said
@@ -3837,10 +3926,22 @@ function lazyMenu(name: string, label: string, build: () => (Node | string)[]): 
     "aria-expanded": "false",
     onClick: (e: Event) => {
       e.stopPropagation();
-      toggleMenu(list, btn, () => {
+      const opened = toggleMenu(list, btn, () => {
         list.replaceChildren();
         list.append(...build().map((n) => (typeof n === "string" ? document.createTextNode(n) : n)));
       });
+      // **Back to the top.** Replacing the children does not reset the scroll
+      // position, so Insert — the tallest menu in the product by a long way —
+      // reopened halfway down wherever it was left, which reads as a menu that
+      // has lost its first twenty items. Wanted at the top, and configurable,
+      // because somebody working through one long stretch of it wants the
+      // opposite and is entitled to say so.
+      //
+      // **After `toggleMenu`, not inside its `fill`.** The fill runs before the
+      // `open` class goes on, and a hidden element has no scroll to set: written
+      // there it was a line that read correctly, ran on every open, and did
+      // nothing at all. Found by driving it.
+      if (opened && !settings.keepMenuPosition) list.scrollTop = 0;
     },
   }, [label]);
   return el("div", { class: "menu", "data-menu": name }, [btn, list]);
@@ -3865,6 +3966,7 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
   notesPane: toggleNotesPane,
   marksPane: toggleMarksPane,
   review: openReview,
+  commands: openCommands,
   language: () => setSetting("lang", getLang() === "he" ? "en" : "he"),
   foldAll: () => void foldAll(runtime.view),
   unfoldAll: () => void unfoldAll(runtime.view),
@@ -4336,6 +4438,7 @@ function buildSettingsDrawer(): HTMLElement {
     // Off by default, and the note says why rather than leaving a writer to
     // discover it by fighting their own gershayim for an hour.
     el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
+    checkRow("keepMenuPositionLabel", "keepMenuPosition"),
     checkRow("spellcheckLabel", "spellcheck"),
     checkRow("spellcheckCommentsLabel", "spellcheckComments"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
@@ -4744,6 +4847,11 @@ const LOOKS: Record<string, Look> = {
   marks: { row: "outline-item note-item", chip: "note-item-n", label: "span" },
   history: { row: "pal-item", chip: "pal-cat", label: "b" },
   palette: { row: "pal-item", chip: "pal-cat", label: "b", selectable: true },
+  // The commands drawer wears the palette's row, because a row that inserts a
+  // command should look the same wherever it is offered. It is not selectable:
+  // the drawer is browsed with the mouse and the search field, and a keyboard
+  // selection that Enter runs belongs to the modal that closes afterwards.
+  commands: { row: "pal-item", chip: "pal-cat", label: "b" },
 };
 
 /**
@@ -4767,25 +4875,35 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
   }
 }
 
+/**
+ * Perform a [`panelrows.RowAction`] — the six lines every list-shaped surface
+ * shares.
+ *
+ * Out of `drawRow` because help now speaks the same vocabulary: a help entry
+ * that names an operation can run it, and a second copy of this `switch` beside
+ * the help panel is how one of them would come to disagree with the other.
+ */
+function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
+  switch (does.kind) {
+    case "jump":
+    case "note":
+      jumpTo(does.at);
+      return;
+    case "action":
+      closePalette();
+      runAction(does.id);
+      return;
+    case "insert":
+      insertSnippet(does.snippet);
+      closePalette();
+      return;
+    case "restore":
+      void restoreSnapshot(snaps[does.index]);
+  }
+}
+
 function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Snapshot[]): HTMLElement {
-  const run = () => {
-    switch (r.does.kind) {
-      case "jump":
-      case "note":
-        jumpTo(r.does.at);
-        return;
-      case "action":
-        closePalette();
-        runAction(r.does.id);
-        return;
-      case "insert":
-        insertSnippet(r.does.snippet);
-        closePalette();
-        return;
-      case "restore":
-        void restoreSnapshot(snaps[r.does.index]);
-    }
-  };
+  const run = () => runRow(r.does, snaps);
   const attrs: Record<string, unknown> = {
     class: look.row + (look.selectable && first ? " sel" : ""),
     onClick: run,
@@ -5873,7 +5991,29 @@ function renderHelp(query: string) {
           el("h3", {}, [t(s.title)]),
           ...(s.lede ? [el("p", { class: "help-lede" }, [t(s.lede)])] : []),
           el("dl", { class: "help-list" }, s.entries.flatMap((e) => [
-            el("dt", {}, [e.what]),
+            // A button where the entry has something to run, plain text where it
+            // has not — the marks legend, which names a wedge in the gutter and
+            // has nothing to do. See `HelpEntry.does`.
+            el("dt", {}, [
+              e.does
+                ? el(
+                    "button",
+                    {
+                      class: "help-run",
+                      type: "button",
+                      title: t("helpRun"),
+                      ...(e.does.kind === "action" ? { "data-action": e.does.id } : {}),
+                      onClick: () => {
+                        // The panel stays open. Help is where somebody goes to
+                        // try three things in a row, and a drawer that shuts on
+                        // the first one makes them find their place again twice.
+                        runRow(e.does!);
+                      },
+                    },
+                    [e.what],
+                  )
+                : e.what,
+            ]),
             el("dd", {}, [el("code", {}, [e.how])]),
           ])),
         ]),
@@ -5881,6 +6021,68 @@ function renderHelp(query: string) {
     : [el("p", { class: "help-lede" }, [t("helpNothing")])];
 
   box.replaceChildren(...body);
+}
+
+// ---------------------------------------------------------------- the commands drawer
+//
+// The 122 commands, grouped by the registry's own categories, searchable, with
+// nothing left out and nothing capped. The inventory's reader could not reach
+// them from any of the four surfaces that advertise them and asked for this
+// instead; `panelrows.commandGroups` carries the argument for why it is not the
+// palette again.
+
+function openCommands() {
+  closeMenus();
+  openPanel("commands-drawer");
+}
+
+function renderCommands(query: string) {
+  const box = document.getElementById("commands-body");
+  if (!box) return;
+  const { groups, empty } = panelrows.commandGroups(
+    commands.available(runtime.commandsReg),
+    keybindings(),
+    query,
+    getLang(),
+  );
+  if (empty) {
+    box.replaceChildren(el("div", { class: "outline-empty" }, [t(empty)]));
+    return;
+  }
+  box.replaceChildren(
+    ...groups.map((g) =>
+      el("section", { class: "help-section" }, [
+        el("h3", {}, [t(g.title)]),
+        ...g.rows.map((r) => drawRow(r, LOOKS.commands, false, [])),
+      ]),
+    ),
+  );
+}
+
+function buildCommandsDrawer(): HTMLElement {
+  const input = el("input", {
+    id: "commands-search",
+    type: "search",
+    placeholder: t("commandsSearch"),
+    "data-i18n-placeholder": "commandsSearch",
+    class: "help-search",
+  }) as HTMLInputElement;
+  input.addEventListener("input", () => renderCommands(input.value));
+  return el(
+    "aside",
+    {
+      id: "commands-drawer",
+      class: "drawer drawer-help",
+      "aria-label": t("commandsTitle"),
+      "data-i18n-label": "commandsTitle",
+    },
+    [
+      panelHead("commands-drawer", "commandsTitle"),
+      el("p", { class: "help-lede", "data-i18n": "commandsLede" }, [t("commandsLede")]),
+      input,
+      el("div", { id: "commands-body" }),
+    ],
+  );
 }
 
 function buildHelpPanel(): HTMLElement {
@@ -8686,6 +8888,7 @@ function render() {
     ]),
     // a shared form modal (section page setup, formulas)
     overlayPanel("form-modal", "palette-box form-modal-box", [el("div", { id: "form-modal-body" })]),
+    buildCommandsDrawer(),
     buildHelpPanel(),
     // the hydra panel — a strip, not an overlay: the document must stay visible
     // and the caret must stay where it is while operations fire against it
@@ -9061,6 +9264,13 @@ function wirePanels() {
   });
 
   wirePanel("settings-drawer", { close: () => runtime.view?.focus() });
+  wirePanel("commands-drawer", {
+    open: () => {
+      renderCommands("");
+      (document.getElementById("commands-search") as HTMLInputElement | null)?.focus();
+    },
+    close: () => runtime.view?.focus(),
+  });
   wirePanel("help-panel", {
     open: () => {
       renderHelp("");

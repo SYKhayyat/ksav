@@ -40,6 +40,8 @@ Everything structural works the way a word processor works:
 | to move a whole section | **Alt+Shift+↑/↓**, subsections and all |
 | a table | the Table menu, then the ribbon that appears |
 | a footnote | the Notes button, or `Ctrl+Shift+F` |
+| a table of contents | **Insert ▸ Table of contents**, or `Ctrl+Shift+O` — it goes at the top, once |
+| to find out what else there is | the `#` chip, or `Ctrl+Shift+K`: every command there is, grouped and searchable |
 
 ### The context ribbon
 
@@ -51,6 +53,22 @@ greyed rather than hidden, so the strip is the same shape every time.
 The same operations are in the **Format** and **Table** menus, each showing its
 keyboard shortcut, for when you are looking for a feature rather than already
 standing in one.
+
+### Which menu holds what
+
+One rule, and everything follows from it: **Insert puts something new on the
+page, Format changes text that is already there.** So notes, images, formulas,
+breaks, lists and the table of contents are under Insert; bold, colour,
+alignment and the rest of the ways to dress existing text are under Format,
+alongside the heading and list operations; and a table has its own menu because
+it brings twenty operations with it. Every row that has a keyboard shortcut
+prints it, as you have it bound — not as it shipped.
+
+If you would rather not think about which menu, press `Ctrl+Shift+K` or the `#`
+chip: that drawer holds every command the registry offers, grouped, searchable,
+with nothing cut off at the bottom. (The two commands that have been superseded
+are the exception — they still compile, so nobody's sefer breaks, and they are
+no longer pointed at.)
 
 ### Notes
 
@@ -255,7 +273,13 @@ collapses the sefer to chapters, or to chapters and simanim.
 - **`F3` / `F4`** — record a macro and replay it. Macros record *actions*, not
   keystrokes and not cursor positions, so they replay correctly from anywhere.
   Save one and it becomes bindable to a key like anything else.
-- **`Ctrl+K`** — the command palette, for everything by name.
+- **`Ctrl+K`** — the command palette, for everything by name, when you know what
+  you are after.
+- **`Ctrl+Shift+K`** — every command there is, grouped by what it is for, when
+  you do not. It stays open while you use it, and each row shows the shortcut it
+  answers to.
+- **`F1`** — help, and every line of it is a button: the entry that tells you
+  `Ctrl+Shift+F` makes a footnote makes one.
 
 Every key above is rebindable in Settings, and Settings lists every operation in
 the product because that list is generated too.
@@ -279,6 +303,9 @@ and `'` the geresh of ר', both standing *inside* words several times a line.
 And **spell-check skips comments and folds**, on the rule that it never
 underlines what does not print; turn it on if you park paragraphs in a comment
 while you rework them. Markup inside a comment stays unchecked either way.
+There is a third: **menus reopen at the top** rather than wherever you left
+them, which is what you want unless you are working through one long stretch of
+Insert — in which case turn it off.
 
 ## Core idea
 
@@ -515,7 +542,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,176 editor assertions, 607 engine
+- [x] **CI, running and green** — typecheck, 5,244 editor assertions, 607 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -591,7 +618,7 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 ## Test
 
 ```sh
-cd app && npm test                          # 5,176 assertions across 82 files
+cd app && npm test                          # 5,244 assertions across 83 files
 cd app && npm test -- panels spans          # just those files, by substring
 cd app && npx tsc --noEmit                  # typecheck
 cargo test --manifest-path engine/Cargo.toml            # 607 tests, 39 binaries

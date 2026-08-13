@@ -45,7 +45,7 @@ export async function run() {
 
   {
     const bar = chips(OFF);
-    ok("the chipbar has every chip", bar.length === 20, `${bar.length} chips`);
+    ok("the chipbar has every chip", bar.length === 21, `${bar.length} chips`);
     check(
       "…each with an id, a glyph and a name",
       bar.filter((c) => !c.id || !c.glyph || !c.title).map((c) => c.id ?? "(none)"),

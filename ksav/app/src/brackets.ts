@@ -162,6 +162,12 @@ export function analyze(text: string): Analysis {
   // part that genuinely belongs here and cannot come from a node tree, because
   // a node tree only describes documents that balance.
   for (const d of delims) {
+    // Punctuation, not structure. A parenthesis in a sentence closes nothing
+    // and needs nothing closed, and saying otherwise is a lie the writer cannot
+    // act on — with a repair button beside it that would put a bracket in the
+    // middle of their prose. See `Delimiter.structural` for the Word import
+    // this was reported from.
+    if (!d.structural) continue;
     if (d.opener) {
       stack.push({ pos: d.pos, ch: d.ch as Opener, name: d.name });
       continue;

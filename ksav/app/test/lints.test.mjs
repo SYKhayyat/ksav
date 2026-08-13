@@ -65,9 +65,47 @@ export async function run() {
     }
 
     {
+      // Punctuation. Reported against the Word import — "reports missing
+      // brackets and then renders correctly" — and it renders correctly because
+      // there is nothing wrong with it. Hebrew typed in visual order stores a
+      // parenthetical as `)טקסט(`, which read as a stray closer *and* an
+      // unclosed opener, twice per parenthetical, with a repair button beside
+      // each that would have written brackets into the writer's sentences.
+      //
+      // Every document here compiles: `engine/tests/delimiters.rs` is the
+      // oracle, and it asks the compiler rather than assuming.
+      const prose = [
+        "טקסט) מיותר\n",
+        "שלום (עולם\n",
+        ")טקסט(\n",
+        "1) פריט ראשון\n",
+        "#הדגשה[מודגש (ולא נסגר]\n",
+      ];
+      for (const doc of prose) {
+        const v = fakeView(doc, 0);
+        check(`a paren in prose is not a delimiter: ${JSON.stringify(doc.trim())}`, analyze(doc).problems, []);
+        check("and the heal declines", healAll(v), 0);
+        check("leaving the sentence alone", v.text(), doc);
+      }
+    }
+
+    {
+      // In code it is structure again, and the chiluk is the `#`.
+      const doc = "#כותרת(רמה: 1)[פרק]\n#כותרת(רמה: 1\n";
+      const problems = analyze(doc).problems;
+      check("an unclosed argument list is still a problem", problems.length, 1);
+      check("and it is the opener that never closed", problems[0].ch, "(");
+    }
+
+    {
       // A stray closer is deleted, not "closed". The two repairs are different
       // edits and the module picks between them by kind.
-      const doc = "טקסט רגיל) המשך\n";
+      //
+      // A `]`, and it used to be a `)`. A parenthesis in a sentence is not a
+      // delimiter — `engine/tests/delimiters.rs` asks the compiler, and it
+      // compiles — so this had been testing the repair through the one document
+      // shape where the finding itself was wrong.
+      const doc = "טקסט רגיל] המשך\n";
       const v = fakeView(doc, 0);
       ok("a stray closer is a problem", analyze(doc).problems.length > 0);
       ok("it is repaired", healAll(v) > 0);

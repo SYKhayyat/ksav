@@ -17,7 +17,15 @@
 // that arrangement breaks.
 
 import { check, ok, notOk, rejects, installChrome } from "./harness.mjs";
-import { stash, recovery, clearRecovery, describe, install, _resetReported } from "../.tmp-test/crash.mjs";
+import {
+  stash,
+  recovery,
+  clearRecovery,
+  worthOffering,
+  describe,
+  install,
+  _resetReported,
+} from "../.tmp-test/crash.mjs";
 import { escapeAttr, humanSize } from "../.tmp-test/dom.mjs";
 import { MODES, isMode, loadError, setSaveCommand, extensionFor } from "../.tmp-test/keymodes.mjs";
 import { createEngineWorker } from "../.tmp-test/wasm-worker-host.stub.mjs";
@@ -43,6 +51,34 @@ export async function run() {
     ok("stamped, so a stale one can be recognised", typeof r.at === "number" && r.at > 0);
     clearRecovery();
     check("and clearing it clears it", recovery(), null);
+  }
+
+  {
+    // Which document it was, so the next session can ask whether the rescue is
+    // worth anything at all. Without it the offer could only compare against
+    // the document that happened to be open, which is usually not the one that
+    // crashed.
+    clearRecovery();
+    stash("קונטרס", "טקסט", "doc-7");
+    check("the document's id is stashed with it", recovery().id, "doc-7");
+    clearRecovery();
+    stash("קונטרס", "טקסט");
+    check("and a rescue from an older build simply has none", recovery().id, undefined);
+    clearRecovery();
+  }
+
+  // Whether to say anything. The reported symptom — "a crash notice appears on
+  // opening a document, which then loads correctly" — was this question never
+  // being asked: a real crash, over text autosave had already written, offered
+  // again on every launch.
+  {
+    const r = { at: 1, title: "t", body: "כל מה שכתבתי הערב\n" };
+    ok("a rescue nobody else holds is offered", worthOffering(r, ["משהו אחר", null]));
+    notOk("one the open document already has is not", worthOffering(r, ["כל מה שכתבתי הערב"]));
+    notOk("nor one its own document already has", worthOffering(r, ["אחר", "כל מה שכתבתי הערב  "]));
+    notOk("nothing to offer is not an offer", worthOffering(null, []));
+    notOk("and neither is whitespace", worthOffering({ at: 1, title: "t", body: "  \n" }, []));
+    ok("a document that could not be read decides nothing", worthOffering(r, [undefined, undefined]));
   }
 
   {

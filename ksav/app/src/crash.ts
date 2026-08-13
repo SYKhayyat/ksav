@@ -27,13 +27,25 @@ export interface Recovery {
   /** The document's title, for the offer to say which document it is. */
   title: string;
   body: string;
+  /**
+   * Which document it was, so the next session can ask whether the rescue is
+   * worth anything.
+   *
+   * Without this the offer could only compare the rescued text against the
+   * document that happened to be open when the app started, and the crash's
+   * document is very often not that one. The reported symptom is exactly what
+   * that produces: a crash notice on opening a document that then loads
+   * perfectly, because autosave had already written the text and nothing here
+   * was in a position to know.
+   */
+  id?: string;
 }
 
 /** Stash the text where a reload can find it. Synchronous, on purpose. */
-export function stash(title: string, body: string): boolean {
+export function stash(title: string, body: string, id?: string): boolean {
   if (!body) return false;
   try {
-    localStorage.setItem(RECOVERY_KEY, JSON.stringify({ at: Date.now(), title, body }));
+    localStorage.setItem(RECOVERY_KEY, JSON.stringify({ at: Date.now(), title, body, id }));
     return true;
   } catch {
     // Quota, or a private window. The download offer below is the fallback, and
@@ -52,6 +64,27 @@ export function recovery(): Recovery | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Whether a rescue is worth putting in front of a writer.
+ *
+ * It is not, if the text it holds is already somewhere they can reach — and
+ * that is the usual case, because autosave nearly always won the race with the
+ * crash. Offering it anyway is the reported *"crash notice on opening a
+ * document which then loads correctly"*: a true notice about a real crash,
+ * about text that was never in danger, arriving on every launch until somebody
+ * accepted a duplicate document to make it stop.
+ *
+ * `known` is whatever copies the caller can cheaply lay hands on — the open
+ * document, and the document the rescue names. Not the whole library: reading
+ * every document out of storage on boot to answer this would cost more than
+ * the question is worth, and the two that matter cover it.
+ */
+export function worthOffering(r: Recovery | null, known: (string | null | undefined)[]): boolean {
+  const text = r?.body.trim();
+  if (!text) return false;
+  return !known.some((k) => (k ?? "").trim() === text);
 }
 
 export function clearRecovery(): void {
@@ -94,13 +127,16 @@ let reported = false;
  * a crash handler that crashes is how an application stops being able to tell
  * anybody anything.
  */
-export function install(text: () => { title: string; body: string }, show: Reporter): () => void {
+export function install(
+  text: () => { title: string; body: string; id?: string },
+  show: Reporter,
+): () => void {
   const handle = (error: unknown) => {
     if (reported) return;
     reported = true;
     try {
-      const { title, body } = text();
-      stash(title, body);
+      const { title, body, id } = text();
+      stash(title, body, id);
     } catch {
       // Even the rescue failed. Still show the panel — the writer at least
       // learns that something is wrong before they type another paragraph into

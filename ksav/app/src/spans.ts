@@ -472,6 +472,24 @@ export interface Delimiter {
    * escapes or comments.
    */
   name: string;
+  /**
+   * Whether this delimiter is structure, or a character in somebody's prose.
+   *
+   * `[` and `]` are always structure. `(`, `)`, `{` and `}` are structure only
+   * in code — after a `#name`, or inside an argument list, an array or a block.
+   * **A bare `(` in markup is a parenthesis**, which the scan above has always
+   * known (see the frame it opens: the context inside it is the context
+   * outside) and reported anyway.
+   *
+   * The cost of not saying so was a real complaint about the Word import:
+   * *"reports missing brackets and then renders correctly"*. It renders because
+   * the document is fine. Hebrew typed in visual order — the way a good deal of
+   * older Word material was — stores a parenthetical as `)טקסט(`, which reads
+   * as a stray closer and an unclosed opener, twice per parenthetical, in a
+   * document Typst has no complaint about. And the lint offered to repair it,
+   * which would have inserted brackets into the writer's sentences.
+   */
+  structural: boolean;
 }
 
 const DELIM_CH: Record<number, Delimiter["ch"]> = {
@@ -587,7 +605,7 @@ function lexCore(
   const heads: Head[] = [];
   const frames: Frame[] = [];
   const delims: Delimiter[] = [];
-  const stack: { pos: number; code: number; ctx: Ctx; frame: Frame }[] = [];
+  const stack: { pos: number; code: number; ctx: Ctx; frame: Frame; structural: boolean }[] = [];
   let ctx: Ctx = "content";
   // An open `#let`/`#set`/`#show` statement: code mode until the first newline
   // at the bracket depth it started on, so a definition whose value spans a
@@ -680,15 +698,26 @@ function lexCore(
         c === 0x5b ? "content" : ctx === "code" || head.hash ? "code" : ctx;
       const frame: Frame = { open: i, close: n, ctx: inner, name: head.name };
       frames.push(frame);
-      stack.push({ pos: i, code: c, ctx, frame });
-      if (opts.delims) delims.push({ pos: i, ch: DELIM_CH[c], opener: true, name: head.name });
+      // `[` is structure wherever it appears; the other two only in code.
+      const structural = c === 0x5b || inner === "code";
+      stack.push({ pos: i, code: c, ctx, frame, structural });
+      if (opts.delims) {
+        delims.push({ pos: i, ch: DELIM_CH[c], opener: true, name: head.name, structural });
+      }
       ctx = inner;
       continue;
     }
     if (c === 0x5d /* ] */ || c === 0x29 /* ) */ || c === 0x7d /* } */) {
-      if (opts.delims) delims.push({ pos: i, ch: DELIM_CH[c], opener: false, name: "" });
       const want = c === 0x5d ? 0x5b : c === 0x29 ? 0x28 : 0x7b;
       const top = stack[stack.length - 1];
+      if (opts.delims) {
+        // A closer is structure if the opener it answers was. With nothing open
+        // to answer, the context it stands in decides: a `)` in code is a
+        // mistake, and a `)` in a sentence is punctuation.
+        const structural =
+          c === 0x5d || (top && top.code === want ? top.structural : ctx === "code");
+        delims.push({ pos: i, ch: DELIM_CH[c], opener: false, name: "", structural });
+      }
       if (top && top.code === want) {
         closes.set(top.pos, i);
         openerOf.set(i, top.pos);

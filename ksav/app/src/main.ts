@@ -4816,31 +4816,62 @@ function showCrashPanel(detail: string) {
 }
 
 /**
- * Offer back a document rescued from a crash.
+ * Offer back a document rescued from a crash — if there is anything to offer.
  *
  * As a *new* document, never over the top of the open one. The rescued text is
  * from a session that ended badly, and the surest way to turn one lost evening
  * into two is to let it overwrite whatever is there now.
+ *
+ * # Why this was appearing over nothing
+ *
+ * Reported as *"a crash notice appears on opening a document, which then loads
+ * correctly"* — and both halves were true. A crash really had happened, in some
+ * earlier session; the document really was fine, because autosave had already
+ * written it. The rescue was a duplicate of text the library already held, and
+ * the offer had no way to find that out: it compared the rescued body against
+ * the *open* document only, and the open document is usually not the one that
+ * crashed. Then, having offered, it cleared the stash only when the writer said
+ * yes — so a rescue nobody wanted was offered again on every launch, for ever.
+ *
+ * So the stash carries its document's id, this asks that document whether it
+ * already has the text, and the offer a writer does get carries a way to say no.
  */
-function offerRecovery() {
+async function offerRecovery() {
   const rescued = crash.recovery();
   if (!rescued) return;
-  if (rescued.body.trim() === runtime.docText().trim()) {
-    // Already have it — the crash happened after the library copy was written.
+  // The document it came from — a rescue with no id is from a build before the
+  // id was stashed, and there is nothing to ask. The open document is checked
+  // as well, and is what this used to check alone.
+  const home = rescued.id ? await docs.getDoc(rescued.id) : null;
+  if (!crash.worthOffering(rescued, [runtime.docText(), home?.body])) {
     crash.clearRecovery();
     return;
   }
-  showChromeNotice(tf("recoveryOffer", rescued.title || t("untitled")), () => {
-    void (async () => {
-      const doc = await docs.createDoc(
-        (rescued.title || t("untitled")) + " ‏(" + t("recovered") + ")",
-        rescued.body,
-      );
-      crash.clearRecovery();
-      clearChromeNotice();
-      await openDoc(doc.id);
-    })();
-  });
+  showChromeNotice(
+    tf("recoveryOffer", rescued.title || t("untitled")),
+    {
+      label: t("recoveryOpen"),
+      press: () =>
+        void (async () => {
+          const doc = await docs.createDoc(
+            (rescued.title || t("untitled")) + " ‏(" + t("recovered") + ")",
+            rescued.body,
+          );
+          crash.clearRecovery();
+          clearChromeNotice();
+          await openDoc(doc.id);
+        })(),
+    },
+    {
+      // The other answer, which did not exist. Without it the only way to stop
+      // being asked was to accept a document you did not want.
+      label: t("recoveryDiscard"),
+      press: () => {
+        crash.clearRecovery();
+        clearChromeNotice();
+      },
+    },
+  );
 }
 
 /**
@@ -4857,8 +4888,9 @@ async function maybeCheckForUpdate() {
   update.markChecked();
   const release = await update.checkForUpdate();
   if (!release) return;
-  showChromeNotice(tf("updateAvailable", release.version), () => {
-    window.open(release.url, "_blank", "noopener");
+  showChromeNotice(tf("updateAvailable", release.version), {
+    label: t("updateDownload"),
+    press: () => window.open(release.url, "_blank", "noopener"),
   });
 }
 
@@ -7651,13 +7683,37 @@ const REGISTRY_RETRY_MS = 2000;
  * at risk, this one is amber because only the toolbar is. Both live in the same
  * `.notices` stack, so neither can hide the other.
  */
-function showChromeNotice(message: string, retry?: () => void) {
+/**
+ * A button on a notice, which must say what it does.
+ *
+ * `press` rather than `run`: this is a button on a banner and not an `Action`
+ * from the command registry, and `chrome.test.mjs` fences `.run` to keep every
+ * command going through `runAction` so the macro recorder sees it. One name for
+ * two unrelated things is how that fence starts reporting the wrong offence.
+ */
+interface NoticeAct {
+  label: string;
+  press: () => void;
+}
+
+/**
+ * The banner across the top, and the buttons on it.
+ *
+ * Every action names itself, and that is the whole change from the version
+ * that took a bare callback. The label used to be `t("retrySave")` for all of
+ * them, so a banner offering a document rescued from a crash, and a banner
+ * announcing a new release, and a banner saying the file had changed on disk,
+ * all carried one button reading "Try again" — which answers none of those
+ * three questions and actively misdescribes two of them. The type is the fix:
+ * an action cannot be attached without a label for it.
+ */
+function showChromeNotice(message: string, ...acts: NoticeAct[]) {
   document.getElementById("chrome-error")?.remove();
   const banner = el("div", { id: "chrome-error", class: "chrome-error", role: "alert" }, [
     el("span", { class: "save-error-text" }, [message]),
-    ...(retry
-      ? [el("button", { class: "save-error-act", type: "button", onClick: retry }, [t("retrySave")])]
-      : []),
+    ...acts.map((a) =>
+      el("button", { class: "save-error-act", type: "button", onClick: a.press }, [a.label]),
+    ),
   ]);
   noticeHost().append(banner);
 }
@@ -7694,7 +7750,7 @@ async function loadRegistries(): Promise<void> {
     if (await fetchRegistries()) return;
     // Out of automatic attempts: hand the retry over rather than leaving a
     // "retrying…" that will never resolve.
-    showChromeNotice(t("registriesGaveUp"), () => void loadRegistries());
+    showChromeNotice(t("registriesGaveUp"), { label: t("retrySave"), press: () => void loadRegistries() });
   }, REGISTRY_RETRY_MS);
 }
 
@@ -7854,10 +7910,14 @@ async function boot() {
   void openSharedIfLinked();
   // Rescue the text before anything else, then say what happened.
   crash.install(
-    () => ({ title: runtime.currentDoc?.title ?? "", body: runtime.docText() }),
+    () => ({
+      title: runtime.currentDoc?.title ?? "",
+      body: runtime.docText(),
+      id: runtime.currentDoc?.id,
+    }),
     (_e, detail) => showCrashPanel(detail),
   );
-  offerRecovery();
+  void offerRecovery();
   void maybeCheckForUpdate();
   await watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
   // Notice when the file changes underneath us — Dropbox pulling an older copy
@@ -7870,7 +7930,10 @@ async function boot() {
       // A notice and not a modal. The conflict costs nothing until the next
       // save, and a dialog thrown up mid-sentence over something that can wait
       // is how writers learn to dismiss dialogs without reading them.
-      showChromeNotice(tf("fileChangedNotice", name), () => void reloadFromDisk());
+      showChromeNotice(tf("fileChangedNotice", name), {
+        label: t("reloadFromDisk"),
+        press: () => void reloadFromDisk(),
+      });
     },
   );
   if (settings.editingMode && settings.editingMode !== "default") {

@@ -92,8 +92,14 @@ fn an_item_can_hold_two_paragraphs() {
     // number and gains a paragraph.
     let out = page_text("#ממוספרת[ראשונה\n\nשניה][אחר]");
     assert!(out.contains("ראשונה") && out.contains("שניה"), "{out}");
-    assert!(out.contains("1.") && out.contains("2."), "two items, not three: {out}");
-    assert!(!out.contains("3."), "the blank line started a new item: {out}");
+    assert!(
+        out.contains("1.") && out.contains("2."),
+        "two items, not three: {out}"
+    );
+    assert!(
+        !out.contains("3."),
+        "the blank line started a new item: {out}"
+    );
 }
 
 #[test]

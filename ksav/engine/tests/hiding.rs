@@ -45,7 +45,10 @@ fn a_fold_prints_every_word_and_none_of_its_marks() {
     let folded = format!("{FOLD_OPEN} שם\nאחת שתים שלש\n{FOLD_CLOSE}");
     assert_eq!(printed(plain), printed(&folded));
     assert!(!printed(&folded).contains('{'), "a mark reached the page");
-    assert!(!printed(&folded).contains("שם"), "the fold's label reached the page");
+    assert!(
+        !printed(&folded).contains("שם"),
+        "the fold's label reached the page"
+    );
 }
 
 #[test]
@@ -63,9 +66,7 @@ fn a_fold_in_the_middle_of_a_paragraph_does_not_break_it() {
 #[test]
 fn a_fold_nested_in_a_fold_is_still_free() {
     let plain = "אחת שתים";
-    let folded = format!(
-        "{FOLD_OPEN} חוץ\n{FOLD_OPEN} פנים\nאחת שתים\n{FOLD_CLOSE}\n{FOLD_CLOSE}"
-    );
+    let folded = format!("{FOLD_OPEN} חוץ\n{FOLD_OPEN} פנים\nאחת שתים\n{FOLD_CLOSE}\n{FOLD_CLOSE}");
     assert_eq!(printed(plain), printed(&folded));
 }
 
@@ -103,5 +104,8 @@ fn a_command_inside_a_hidden_span_does_not_run() {
     let live = printed("אחת#הערה[גוף]\nשתים#הערה[עוד]");
     let hidden = printed(&format!("{LINE} אחת#הערה[גוף]\nשתים#הערה[עוד]"));
     assert!(live.contains('1') && live.contains('2'), "{live}");
-    assert!(!hidden.contains('2'), "a hidden note still took a number: {hidden}");
+    assert!(
+        !hidden.contains('2'),
+        "a hidden note still took a number: {hidden}"
+    );
 }

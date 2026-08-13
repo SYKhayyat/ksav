@@ -124,9 +124,8 @@ fn one_headings_override_does_not_reach_the_next_heading() {
 /// array and a per-instance override have to compose rather than fight.
 #[test]
 fn the_global_still_takes_one_value_per_level() {
-    let runs = render(
-        "#הגדרות_כותרות(גודל: (3em, 1em))\n\n#כותרת1[פרק]\n\nגוף\n\n#כותרת2[סימן]\n\nעוד\n",
-    );
+    let runs =
+        render("#הגדרות_כותרות(גודל: (3em, 1em))\n\n#כותרת1[פרק]\n\nגוף\n\n#כותרת2[סימן]\n\nעוד\n");
     assert!(
         size_of(&runs, "פרק") > size_of(&runs, "סימן") + 4.0,
         "the per-level array did not separate the levels"
@@ -166,7 +165,10 @@ fn without_overrule_the_same_document_keeps_the_override() {
 /// so its parameters stayed Hebrew.
 #[test]
 fn the_english_spellings_carry_the_whole_model() {
-    let runs = render_with("#h1(size: 3em)[Big]\n\nbody\n\n#h1[Small]\n\nmore\n", &ltr());
+    let runs = render_with(
+        "#h1(size: 3em)[Big]\n\nbody\n\n#h1[Small]\n\nmore\n",
+        &ltr(),
+    );
     assert!(
         size_of(&runs, "Big") > size_of(&runs, "Small") + 4.0,
         "an English heading could not be sized for itself"
@@ -201,7 +203,10 @@ fn a_heading_still_takes_typsts_own_arguments() {
 fn a_list_can_carry_its_own_marker() {
     let runs = render("#רשימה(סמן: [◆], פריט[אחד], פריט[שתים])\n\n#רשימה(פריט[שלש])\n");
     let page = text(&runs);
-    assert!(page.contains('◆'), "the per-list marker never printed: {page}");
+    assert!(
+        page.contains('◆'),
+        "the per-list marker never printed: {page}"
+    );
 }
 
 #[test]
@@ -209,7 +214,8 @@ fn a_lists_marker_does_not_become_every_lists_marker() {
     let runs = render("#רשימה(סמן: [◆], פריט[אחד])\n\n#רשימה(פריט[שתים])\n");
     let diamonds = runs.iter().filter(|r| r.text.contains('◆')).count();
     assert_eq!(
-        diamonds, 1,
+        diamonds,
+        1,
         "one list's marker reached another list: {}",
         text(&runs)
     );
@@ -217,12 +223,13 @@ fn a_lists_marker_does_not_become_every_lists_marker() {
 
 #[test]
 fn overrule_makes_the_global_win_over_a_list() {
-    let runs = render(
-        "#הגדרות_רשימות(סמן: [•], כפה: true)\n\n#רשימה(סמן: [◆], פריט[אחד])\n",
-    );
+    let runs = render("#הגדרות_רשימות(סמן: [•], כפה: true)\n\n#רשימה(סמן: [◆], פריט[אחד])\n");
     let page = text(&runs);
     assert!(!page.contains('◆'), "overrule did not overrule: {page}");
-    assert!(page.contains('•'), "…and the global marker did not print: {page}");
+    assert!(
+        page.contains('•'),
+        "…and the global marker did not print: {page}"
+    );
 }
 
 /// A Ksav knob and a Typst parameter can arrive in the same call, and the Typst
@@ -285,9 +292,7 @@ fn every_table_knob_is_also_a_per_table_knob() {
 
 #[test]
 fn a_tables_own_size_applies_to_that_table() {
-    let runs = render(
-        "#טבלה(עמודות: 1, גודל: 20pt, תא[גדול])\n\n#טבלה(עמודות: 1, תא[רגיל])\n",
-    );
+    let runs = render("#טבלה(עמודות: 1, גודל: 20pt, תא[גדול])\n\n#טבלה(עמודות: 1, תא[רגיל])\n");
     let big = size_of(&runs, "גדול");
     let plain = size_of(&runs, "רגיל");
     assert!(
@@ -343,7 +348,9 @@ fn one_note_can_be_set_apart_from_its_neighbours() {
 #[test]
 fn a_styled_note_still_numbers_with_the_rest() {
     let plain = text(&render("א#הערה[אחת] ב#הערה[שתים] ג#הערה[שלש]\n"));
-    let styled = text(&render("א#הערה[אחת] ב#הערה(גודל: 1.6em)[שתים] ג#הערה[שלש]\n"));
+    let styled = text(&render(
+        "א#הערה[אחת] ב#הערה(גודל: 1.6em)[שתים] ג#הערה[שלש]\n",
+    ));
     for n in ['1', '2', '3'] {
         assert!(
             plain.contains(n) && styled.contains(n),
@@ -383,9 +390,7 @@ fn a_tier_alias_forwards_the_override() {
 /// which is what its own deprecation notice already told writers to use instead.
 #[test]
 fn a_note_on_a_note_follows_the_note_settings() {
-    let runs = render(
-        "#הגדרות_הערות(גודל: (1em, 1.8em))\n\nא#הערה[ראשונה #הערה_על_הערה[תת]]\n",
-    );
+    let runs = render("#הגדרות_הערות(גודל: (1em, 1.8em))\n\nא#הערה[ראשונה #הערה_על_הערה[תת]]\n");
     assert!(
         size_of(&runs, "תת") > size_of(&runs, "ראשונה") + 3.0,
         "the sub-note ignored the tier-2 size it was configured with"
@@ -420,9 +425,8 @@ fn overrule_makes_the_global_win_over_a_banded_note() {
 
 #[test]
 fn one_stream_note_can_be_set_apart() {
-    let runs = render(
-        "א#הערה_זרם(\"מקורות\", גודל: 1.4em)[מיוחדת] ב#הערה_זרם(\"מקורות\")[רגילה] ג\n",
-    );
+    let runs =
+        render("א#הערה_זרם(\"מקורות\", גודל: 1.4em)[מיוחדת] ב#הערה_זרם(\"מקורות\")[רגילה] ג\n");
     assert!(
         size_of(&runs, "מיוחדת") > size_of(&runs, "רגילה") + 2.0,
         "a stream note's own size did not reach the stream"

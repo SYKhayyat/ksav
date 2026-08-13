@@ -169,7 +169,10 @@ fn marks_are_listed_in_the_order_they_were_written() {
 #רשימת_סימונים(\"דיבור_המתחיל\")";
     let runs = render(body);
     let list = list_text(&runs, "רשימת הדיבורים המתחילים");
-    let at = |s: &str| list.find(s).unwrap_or_else(|| panic!("{s} missing: {list}"));
+    let at = |s: &str| {
+        list.find(s)
+            .unwrap_or_else(|| panic!("{s} missing: {list}"))
+    };
     assert!(at("תניא") < at("אביי") && at("אביי") < at("גמרא"), "{list}");
 }
 
@@ -181,7 +184,10 @@ fn a_list_can_be_sorted_alphabetically_instead() {
 #רשימת_סימונים(\"דיבור_המתחיל\", מיון: true)";
     let runs = render(body);
     let list = list_text(&runs, "רשימת הדיבורים המתחילים");
-    let at = |s: &str| list.find(s).unwrap_or_else(|| panic!("{s} missing: {list}"));
+    let at = |s: &str| {
+        list.find(s)
+            .unwrap_or_else(|| panic!("{s} missing: {list}"))
+    };
     assert!(at("אביי") < at("גמרא") && at("גמרא") < at("תניא"), "{list}");
 }
 
@@ -229,7 +235,10 @@ fn the_source_notes_still_collect_through_the_shared_register() {
 #רשימת_סימונים(\"מראה_מקום\")";
     let runs = render(body);
     let all = text(&runs);
-    assert!(all.contains("מראי מקומות"), "the old printer still runs: {all}");
+    assert!(
+        all.contains("מראי מקומות"),
+        "the old printer still runs: {all}"
+    );
     let list = list_text(&runs, "רשימת מראי המקומות");
     assert!(
         list.contains("ברכות ב."),
@@ -332,7 +341,10 @@ fn one_mark_can_be_kept_out_of_the_list_while_still_printing() {
 #רשימת_סימונים(\"ציון\")";
     let runs = render(body);
     let all = text(&runs);
-    assert!(all.contains("מושמט"), "it still prints where it stands: {all}");
+    assert!(
+        all.contains("מושמט"),
+        "it still prints where it stands: {all}"
+    );
     let list = list_text(&runs, "רשימת הציונים");
     assert!(list.contains("ברשימה"), "the listed one belongs: {list}");
     assert!(!list.contains("מושמט"), "the omitted one does not: {list}");
@@ -369,8 +381,14 @@ fn without_the_switch_the_three_marks_differ() {
 #ציון[רגיל] ו#ציון(גודל: 0.6em)[חורג] ו#ציון(פטור: true)[פטור]";
     let runs = render(body);
     let plain = size_of(&runs, "רגיל");
-    assert!(size_of(&runs, "חורג") < plain - 4.0, "the override should differ");
-    assert!(size_of(&runs, "פטור") < plain - 4.0, "the exemption should differ");
+    assert!(
+        size_of(&runs, "חורג") < plain - 4.0,
+        "the override should differ"
+    );
+    assert!(
+        size_of(&runs, "פטור") < plain - 4.0,
+        "the exemption should differ"
+    );
 }
 
 // ── the shipped look, and the knobs that reach it ───────────────────────────
@@ -381,8 +399,14 @@ fn without_the_switch_the_three_marks_differ() {
 #[test]
 fn a_lemma_is_still_bold() {
     let runs = render("#דיבור_המתחיל[מודגש] ורגיל.");
-    assert!(weight_of(&runs, "מודגש") >= 600, "the lemma lost its weight");
-    assert!(weight_of(&runs, "ורגיל") < 600, "and the prose did not gain any");
+    assert!(
+        weight_of(&runs, "מודגש") >= 600,
+        "the lemma lost its weight"
+    );
+    assert!(
+        weight_of(&runs, "ורגיל") < 600,
+        "and the prose did not gain any"
+    );
 }
 
 /// The slant is **not** asserted, and the reason is worth writing down rather
@@ -418,10 +442,18 @@ fn a_slant_the_font_has_not_got_still_leaves_the_words_on_the_page() {
 #[test]
 fn the_brackets_knob_works_on_a_class_and_on_one_mark() {
     let none = render("#ציון(סוגריים: false)[בלי]");
-    assert!(!text(&none).contains("(בלי)"), "brackets survived being switched off");
+    assert!(
+        !text(&none).contains("(בלי)"),
+        "brackets survived being switched off"
+    );
     let one = render("#ציון_מקור(\"ברכות\", מקום: \"ב.\", סוגריים: true)");
-    assert!(text(&one).contains("(ברכות ב.)"), "the citation should be bracketed");
-    let all = render("#הגדרות_סימונים(סוגריים: (\"ציון_מקור\": true))\n\n#ציון_מקור(\"ברכות\", מקום: \"ב.\")");
+    assert!(
+        text(&one).contains("(ברכות ב.)"),
+        "the citation should be bracketed"
+    );
+    let all = render(
+        "#הגדרות_סימונים(סוגריים: (\"ציון_מקור\": true))\n\n#ציון_מקור(\"ברכות\", מקום: \"ב.\")",
+    );
     assert!(
         text(&all).contains("(ברכות ב.)"),
         "the class setting should bracket every citation"

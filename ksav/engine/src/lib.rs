@@ -417,7 +417,9 @@ fn channel_region_cm(body: &str, page_h_cm: f64) -> Option<f64> {
     while let Some(i) = body[base..].find('#') {
         let start = base + i;
         base = start + 1;
-        let Some(open) = body[start..].find('(') else { break };
+        let Some(open) = body[start..].find('(') else {
+            break;
+        };
         let Some(end) = closing_paren(&body[start + open..]) else {
             continue;
         };
@@ -2428,8 +2430,7 @@ mod tests {
             .filter(|s| !s.is_empty())
             .collect();
         assert_eq!(
-            names,
-            TIER_CHANNELS,
+            names, TIER_CHANNELS,
             "the prelude's built-in channels and the reserve's idea of them have \
              parted company"
         );
@@ -2447,9 +2448,7 @@ mod tests {
             "a built-in tier is the native apparatus"
         );
         assert_eq!(
-            auto_notes_region_cm(
-                "#ערוץ(\"שער\", מקור: \"הערה\")\nטקסט#הערה(ערוץ: \"שער\")[גוף]"
-            ),
+            auto_notes_region_cm("#ערוץ(\"שער\", מקור: \"הערה\")\nטקסט#הערה(ערוץ: \"שער\")[גוף]"),
             0.0,
             "a channel on a channel, with no region of its own, is a tier too"
         );

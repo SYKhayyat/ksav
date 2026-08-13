@@ -35,10 +35,7 @@ fn and_in_english() {
     // `#let mark = _en(סימון)`, not a bare alias: an English command that cannot
     // take an English argument name is English in its name only.
     let fills = page_fills("#mark(color: rgb(\"#00ff00\"))[green]");
-    assert!(
-        fills.iter().any(|f| f.colour == "#00ff00"),
-        "{fills:?}"
-    );
+    assert!(fills.iter().any(|f| f.colour == "#00ff00"), "{fills:?}");
 }
 
 #[test]
@@ -58,7 +55,10 @@ fn the_older_spelling_paints_the_same_colour() {
     let by_position = page_fills("#רקע(rgb(\"#0000ff\"))[א]");
     assert_eq!(
         by_name.iter().map(|f| f.colour.clone()).collect::<Vec<_>>(),
-        by_position.iter().map(|f| f.colour.clone()).collect::<Vec<_>>(),
+        by_position
+            .iter()
+            .map(|f| f.colour.clone())
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -88,7 +88,8 @@ fn and_it_is_a_let_a_writer_can_name() {
     // of its own and travels with the sefer.
     let runs = render("#let שאלה(תוכן) = עיצוב(תוכן, גודל: 20pt)\n#שאלה[מה הדין]");
     assert!(
-        runs.iter().any(|r| r.text.contains('מ') && (r.size - 20.0).abs() < 0.01),
+        runs.iter()
+            .any(|r| r.text.contains('מ') && (r.size - 20.0).abs() < 0.01),
         "{runs:?}"
     );
 }
@@ -105,14 +106,18 @@ fn a_style_with_no_block_knob_stays_inside_the_sentence() {
     let inline = visual_lines(&render("לפני #עיצוב(משקל: \"bold\")[באמצע] אחרי")).len();
     assert_eq!(inline, plain, "the style broke the sentence in two");
     let blocked = visual_lines(&render("לפני #עיצוב(יישור: center)[באמצע] אחרי")).len();
-    assert!(blocked > plain, "asking for alignment did not make it a block");
+    assert!(
+        blocked > plain,
+        "asking for alignment did not make it a block"
+    );
 }
 
 #[test]
 fn a_custom_style_speaks_english_too() {
     let runs = render("#styled(size: 20pt, weight: \"bold\")[question]");
     assert!(
-        runs.iter().any(|r| (r.size - 20.0).abs() < 0.01 && r.weight == 700),
+        runs.iter()
+            .any(|r| (r.size - 20.0).abs() < 0.01 && r.weight == 700),
         "{runs:?}"
     );
 }
@@ -130,7 +135,10 @@ fn and_it_works_where_a_blank_line_cannot() {
     // item; `#מעבר_פסקה` ends the paragraph and stays inside it, so the item
     // keeps its number.
     let out = page_text("#ממוספרת[ראשונה #מעבר_פסקה שניה][אחר]");
-    assert!(out.contains("1.") && out.contains("2."), "two items, not three: {out}");
+    assert!(
+        out.contains("1.") && out.contains("2."),
+        "two items, not three: {out}"
+    );
     assert!(!out.contains("3."), "the break started a new item: {out}");
     let lines = visual_lines(&render("#ממוספרת(הזחה: 0em)[ראשונה #מעבר_פסקה שניה]")).len();
     let flat = visual_lines(&render("#ממוספרת(הזחה: 0em)[ראשונה שניה]")).len();

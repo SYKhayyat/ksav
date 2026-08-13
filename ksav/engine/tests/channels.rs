@@ -81,7 +81,11 @@ fn marker_of(body: &str, needle: &str) -> String {
 fn refuses(body: &str) -> String {
     match probe::layout(body, &DocConfig::default()) {
         Ok(_) => panic!("compiled, and should not have:\n{body}"),
-        Err(d) => d.iter().map(|x| x.message.clone()).collect::<Vec<_>>().join(" · "),
+        Err(d) => d
+            .iter()
+            .map(|x| x.message.clone())
+            .collect::<Vec<_>>()
+            .join(" · "),
     }
 }
 
@@ -122,8 +126,14 @@ fn a_sourced_channel_at_the_page_foot_indents_against_its_parent() {
     let body = "#ערוץ(\"שער\", מקור: \"הערה\")\n\
                 טקסט#הערה[ביאור#הערה(ערוץ: \"שער\")[תלוי]] סוף.";
     let runs = render(body);
-    let parent = runs.iter().find(|r| r.text.contains("ביאור")).expect("parent");
-    let child = runs.iter().find(|r| r.text.contains("תלוי")).expect("child");
+    let parent = runs
+        .iter()
+        .find(|r| r.text.contains("ביאור"))
+        .expect("parent");
+    let child = runs
+        .iter()
+        .find(|r| r.text.contains("תלוי"))
+        .expect("child");
     assert_eq!(parent.page, child.page);
     // RTL: further in means a *smaller* x, since the notes are set to the right.
     assert!(
@@ -147,10 +157,26 @@ fn only_notes_in_the_same_channel_number_together() {
                 #הערה(ערוץ: \"מקורות\")[שלישי]\
                 #הערה(ערוץ: \"ביאור\")[אלמוני]\
                 #הערה(ערוץ: \"מקורות\")[רביעי]] סוף.";
-    assert_eq!(marker_of(body, "פלוני"), "א", "first note of the lettered channel");
-    assert_eq!(marker_of(body, "אלמוני"), "ב", "second note of the lettered channel");
-    assert_eq!(marker_of(body, "שלישי"), "1", "first note of the numbered channel");
-    assert_eq!(marker_of(body, "רביעי"), "2", "second note of the numbered channel");
+    assert_eq!(
+        marker_of(body, "פלוני"),
+        "א",
+        "first note of the lettered channel"
+    );
+    assert_eq!(
+        marker_of(body, "אלמוני"),
+        "ב",
+        "second note of the lettered channel"
+    );
+    assert_eq!(
+        marker_of(body, "שלישי"),
+        "1",
+        "first note of the numbered channel"
+    );
+    assert_eq!(
+        marker_of(body, "רביעי"),
+        "2",
+        "second note of the numbered channel"
+    );
 }
 
 // ------------------------------------------------------------- the placements
@@ -199,7 +225,11 @@ fn a_collected_region_renders_only_what_was_written_since_the_last_call() {
                 ראשון#הערה(ערוץ: \"ביאור\")[אלף]\n\n#הצג_אזור(\"ביאור\")\n\n\
                 שני#הערה(ערוץ: \"ביאור\")[בית]\n\n#הצג_אזור(\"ביאור\")";
     let s = out(body);
-    assert_eq!(s.matches("אלף").count(), 1, "the first section's note printed twice: {s}");
+    assert_eq!(
+        s.matches("אלף").count(),
+        1,
+        "the first section's note printed twice: {s}"
+    );
     assert_eq!(s.matches("בית").count(), 1, "{s}");
 }
 
@@ -215,7 +245,10 @@ fn two_collected_regions_do_not_cut_each_others_scopes() {
                 שני\n\n#הצג_אזור(\"ארוך\")";
     let s = out(body);
     assert!(s.contains("מדורי"), "the section note never printed: {s}");
-    assert!(s.contains("סופי"), "the document-end note was cut off by the section dump: {s}");
+    assert!(
+        s.contains("סופי"),
+        "the document-end note was cut off by the section dump: {s}"
+    );
 }
 
 // ----------------------------------------------------------------- regions
@@ -235,8 +268,16 @@ fn two_channels_share_one_region_and_keep_their_own_numbers() {
     // The band convention by position in the region: א,ב for the first channel
     // and 1,2 for the second — the שער־הציון order, which the apparatus already
     // holds and the writer does not have to restate.
-    assert_eq!(marker_of(body, "אלמוני"), "ב", "the first channel of a region is lettered");
-    assert_eq!(marker_of(body, "שלישי"), "1", "the second channel of a region is numbered");
+    assert_eq!(
+        marker_of(body, "אלמוני"),
+        "ב",
+        "the first channel of a region is lettered"
+    );
+    assert_eq!(
+        marker_of(body, "שלישי"),
+        "1",
+        "the second channel of a region is numbered"
+    );
 }
 
 #[test]
@@ -265,7 +306,10 @@ fn a_channel_that_declared_a_height_gets_a_region_of_its_own() {
     // footer apparatus — so it lands below the main text in the reserve.
     let (_, note) = where_at(body, "הביאור");
     let (_, prose) = where_at(body, "טקסט");
-    assert!(note > prose, "the region printed above the prose it hangs off");
+    assert!(
+        note > prose,
+        "the region printed above the prose it hangs off"
+    );
 }
 
 #[test]
@@ -281,7 +325,10 @@ fn channels_in_one_region_can_be_set_side_by_side() {
     );
     let a = where_at(stacked, "שמאלי");
     let b = where_at(stacked, "ימני");
-    assert!(b.1 > a.1, "stacked: the second channel should sit below the first");
+    assert!(
+        b.1 > a.1,
+        "stacked: the second channel should sit below the first"
+    );
     let a = where_at(&side, "שמאלי");
     let b = where_at(&side, "ימני");
     assert!(
@@ -300,8 +347,14 @@ fn a_channel_styles_its_own_notes() {
     let body = "#ערוץ(\"ביאור\", מקור: \"הערה\", גודל: 6pt)\n\
                 טקסט#הערה[רגילה#הערה(ערוץ: \"ביאור\")[קטנה]] סוף.";
     let runs = render(body);
-    let small = runs.iter().find(|r| r.text.contains("קטנה")).expect("the styled note");
-    let plain = runs.iter().find(|r| r.text.contains("רגילה")).expect("the plain note");
+    let small = runs
+        .iter()
+        .find(|r| r.text.contains("קטנה"))
+        .expect("the styled note");
+    let plain = runs
+        .iter()
+        .find(|r| r.text.contains("רגילה"))
+        .expect("the plain note");
     assert!(
         small.size < plain.size - 1.0,
         "the channel's own size never reached its notes: {} vs {}",
@@ -318,8 +371,14 @@ fn one_note_still_overrules_its_channel() {
                 טקסט#הערה(ערוץ: \"ביאור\")[רגילה]\
                 #הערה(ערוץ: \"ביאור\", גודל: 14pt)[גדולה]\n\n#הצג_אזור(\"ביאור\")";
     let runs = render(body);
-    let big = runs.iter().find(|r| r.text.contains("גדולה")).expect("the override");
-    let small = runs.iter().find(|r| r.text.contains("רגילה")).expect("the default");
+    let big = runs
+        .iter()
+        .find(|r| r.text.contains("גדולה"))
+        .expect("the override");
+    let small = runs
+        .iter()
+        .find(|r| r.text.contains("רגילה"))
+        .expect("the default");
     assert!(
         big.size > small.size + 4.0,
         "the per-note override did nothing: {} vs {}",
@@ -334,7 +393,10 @@ fn a_channel_carries_a_title_into_its_region() {
                 #ערוץ(\"ביאור\", אזור: \"פירושים\", כותרת: [ביאורי הגר\"א])\n\
                 טקסט#הערה(ערוץ: \"ביאור\")[גוף] סוף.\n\n#הצג_אזור(\"פירושים\")";
     let s = out(body);
-    assert!(s.contains("ביאורי הגר"), "the channel's title never printed: {s}");
+    assert!(
+        s.contains("ביאורי הגר"),
+        "the channel's title never printed: {s}"
+    );
 }
 
 // ------------------------------------------------------ saying so, not guessing
@@ -343,8 +405,14 @@ fn a_channel_carries_a_title_into_its_region() {
 fn an_unknown_placement_is_refused_by_name() {
     let msg = refuses("#ערוץ(\"ביאור\", מיקום: \"בצד\")\nטקסט");
     assert!(msg.contains("מיקום"), "{msg}");
-    assert!(msg.contains("בצד"), "the message does not name what was written: {msg}");
-    assert!(msg.contains("רגל"), "the message does not say what is allowed: {msg}");
+    assert!(
+        msg.contains("בצד"),
+        "the message does not name what was written: {msg}"
+    );
+    assert!(
+        msg.contains("רגל"),
+        "the message does not say what is allowed: {msg}"
+    );
 }
 
 #[test]
@@ -417,7 +485,11 @@ fn the_marker_and_its_entry_agree_on_the_scheme() {
         .map(|r| r.text.trim().to_string())
         .filter(|s| !s.is_empty() && s != "טקסט" && s != "סוף.")
         .collect();
-    assert_eq!(prose.len(), 2, "expected two markers in the prose, got {prose:?}");
+    assert_eq!(
+        prose.len(),
+        2,
+        "expected two markers in the prose, got {prose:?}"
+    );
     assert_eq!(prose[0], marker_of(body, "פלוני"), "the first channel");
     assert_eq!(prose[1], marker_of(body, "שלישי"), "the second channel");
 }
@@ -436,7 +508,10 @@ fn a_deferred_marker_can_name_a_channel() {
     let s = out(body);
     assert!(s.contains("הביאור"), "the deferred note never printed: {s}");
     let (_, y) = where_at(body, "הביאור");
-    assert!(y < 300.0, "it printed at the page foot rather than in its channel: y={y}");
+    assert!(
+        y < 300.0,
+        "it printed at the page foot rather than in its channel: y={y}"
+    );
 }
 
 // ------------------------------------------------- the eighteen, in the model

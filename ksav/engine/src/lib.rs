@@ -1247,6 +1247,114 @@ pub(crate) fn engine_for(
 /// to check that an exported `.typ` really is self-contained. The difference
 /// between those two engines is the thing under test, so the fonts had better
 /// not be a second difference.
+/// The families among the loaded faces that have an italic (or oblique) one.
+///
+/// # Why the engine has to answer this
+///
+/// `#נטוי` is Typst's `emph`, and `emph` is a *request*: it asks for an italic
+/// face in the family in force. In a family that ships only Regular and Bold —
+/// which is every font this engine bundles, and very nearly every Hebrew family
+/// there is — Typst finds none, hands back the upright face, and says nothing.
+/// The words come out exactly as they went in.
+///
+/// So `#נטוי` has never done anything, in any document, in either script, for
+/// as long as the toolbar has had an `I` on it. Bold works, because there are
+/// Bold faces. The report was one line: *"Italic does not apply."*
+///
+/// The writer's instruction was *italicise when possible, and when it is not
+/// possible, say so* — and only the engine can tell. Typst's language has no
+/// way to ask whether a face exists; the font book is the compiler's. This is
+/// that question, asked of the same bytes the compile is given.
+///
+/// Lower-cased, because that is how Typst matches a family name.
+fn families_with_italic(fonts: &[&[u8]]) -> std::collections::BTreeSet<String> {
+    use typst::text::FontStyle;
+    let mut out = std::collections::BTreeSet::new();
+    for bytes in fonts {
+        for font in typst::text::Font::iter(typst::foundations::Bytes::new(bytes.to_vec())) {
+            let info = font.info();
+            if info.variant.style != FontStyle::Normal {
+                out.insert(info.family.to_lowercase());
+            }
+        }
+    }
+    out
+}
+
+/// Where the body first asks for italics, as a byte offset into it.
+///
+/// Through Typst's own parse rather than a search for `#נטוי`, for the reason
+/// `spans.ts` gives on the other side of the seam: the name inside a string
+/// literal is not a call, and a warning about a command the writer never wrote
+/// is worse than the silence it replaces.
+///
+/// The **offset** and not merely a yes, because a diagnostic that names no
+/// place is a diagnostic the writer has to go looking for. With one, the status
+/// bar's entry becomes a button that goes there and the line is marked, which
+/// is the whole difference between being told and being able to act.
+fn first_italic(body: &str) -> Option<usize> {
+    use typst::syntax::{LinkedNode, SyntaxKind};
+    fn walk(node: &LinkedNode) -> Option<usize> {
+        if node.kind() == SyntaxKind::Ident {
+            let name = node.get().leaf_text();
+            if name == "נטוי" || name == "italic" {
+                return Some(node.offset());
+            }
+        }
+        node.children().find_map(|child| walk(&child))
+    }
+    let root = typst::syntax::parse(body);
+    walk(&LinkedNode::new(&root))
+}
+
+/// A byte offset in the body as a 1-based (line, column), counted in characters.
+///
+/// The same convention `Diagnostic` states: a Hebrew letter is two bytes and no
+/// writer counts in bytes.
+fn line_column(body: &str, offset: usize) -> (usize, usize) {
+    let upto = &body[..offset.min(body.len())];
+    let line = upto.matches('\n').count() + 1;
+    let start = upto.rfind('\n').map_or(0, |i| i + 1);
+    (
+        line,
+        body[start..offset.min(body.len())].chars().count() + 1,
+    )
+}
+
+/// The warning a document earns by asking for a face its font has not got.
+///
+/// A warning and not an error: the document compiles, every other command in it
+/// is fine, and a writer part-way through a sefer is entitled to keep working.
+/// What must not happen is that they keep pressing a button which does nothing
+/// and are never told.
+pub(crate) fn italic_warning(body: &str, cfg: &DocConfig, assets: &Assets) -> Option<Diagnostic> {
+    let at = first_italic(body)?;
+    let mut fonts = bundled_fonts();
+    fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
+    if families_with_italic(&fonts).contains(&cfg.font.to_lowercase()) {
+        return None;
+    }
+    let (line, column) = line_column(body, at);
+    let mut said = Diagnostic::ours(
+        "warning",
+        format!(
+            concat!(
+                "לגופן {font} אין גרסה נטויה, ולכן #נטוי משאיר את הטקסט זקוף. ",
+                "בחרו גופן שיש לו אחת, צרפו קובץ גופן, או השתמשו ב#הדגשה · ",
+                "{font} has no italic face, so #italic leaves the text upright. ",
+                "Choose a font that has one, attach a font file, or use bold instead",
+            ),
+            font = cfg.font,
+        ),
+    );
+    said.line = Some(line);
+    said.column = Some(column);
+    // The command it is about, so the diagnostics view can name it the way it
+    // names every other one.
+    said.about = Some("#נטוי".to_string());
+    Some(said)
+}
+
 fn bundled_fonts() -> Vec<&'static [u8]> {
     vec![
         FONT_FRANK_REG,
@@ -1388,9 +1496,16 @@ pub fn compile_parts(
         }
     };
 
+    // A request the fonts cannot grant. Computed here rather than inside the
+    // compile because Typst has no way to ask whether a face exists — the font
+    // book is the compiler's, and this is the one place that holds both it and
+    // the writer's text. See `italic_warning`.
+    let italic = italic_warning(body, cfg, assets);
+
     match output {
         Ok(doc) => {
             let mut diagnostics = locate(&warnings, "warning");
+            diagnostics.extend(italic.clone());
             // Whatever the export has to say, say it. These used to go into
             // `.ok()` and vanish, so a PDF that failed to export came back as
             // `ok: true` with no bytes and no explanation. It mattered little
@@ -1460,6 +1575,7 @@ pub fn compile_parts(
             // Something went wrong, so the second parse is worth its cost here.
             let located = Located::of(&source, body);
             let mut diagnostics = located.all(&warnings, "warning");
+            diagnostics.extend(italic);
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),

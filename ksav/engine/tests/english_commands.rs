@@ -424,3 +424,112 @@ fn document_parameters(prelude: &str) -> Vec<String> {
     }
     out
 }
+
+// ── a face that is not there ────────────────────────────────────────────────
+
+// `#נטוי` is Typst's `emph`, and `emph` is a *request*: it asks for an italic
+// face in the family in force. Every font this engine bundles ships Regular and
+// Bold and nothing else — as does very nearly every Hebrew family there is — so
+// Typst finds none, hands back the upright face, and says nothing. The words
+// come out exactly as they went in.
+//
+// Which means `#נטוי` has never done anything, in any document, in either
+// script, for as long as the toolbar has had an `I` on it. The report was one
+// line: *"Italic does not apply."*
+//
+// The instruction was: italicise when possible, and when it is not possible,
+// say so. Only the engine can tell — Typst's language has no way to ask whether
+// a face exists, because the font book belongs to the compiler.
+
+#[test]
+fn asking_for_italics_the_font_has_not_got_is_reported() {
+    let out = ksav_engine::compile("רגיל #נטוי[נטוי כאן] סוף", &DocConfig::default());
+    assert!(out.ok, "the document still compiles");
+    let said: Vec<&str> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == "warning")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].contains("Frank Ruhl Hofshi"), "{said:?}");
+    assert!(said[0].contains("italic"), "{said:?}");
+}
+
+#[test]
+fn the_english_spelling_is_the_same_request() {
+    let out = ksav_engine::compile("plain #italic[slanted] end", &ltr());
+    let warnings = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == "warning")
+        .count();
+    assert_eq!(warnings, 1);
+}
+
+#[test]
+fn a_document_that_does_not_ask_is_not_told() {
+    let out = ksav_engine::compile("רגיל #הדגשה[מודגש] סוף", &DocConfig::default());
+    assert_eq!(out.diagnostics.len(), 0, "{:?}", out.diagnostics);
+}
+
+#[test]
+fn the_word_italic_inside_a_string_is_not_a_request() {
+    // Through Typst's own parse rather than a search for the name: a warning
+    // about a command the writer never wrote is worse than the silence it
+    // replaces. Here `"italic"` is a font name, not a call.
+    let out = ksav_engine::compile(r#"#גופן_שונה("italic")[x]"#, &DocConfig::default());
+    let mine = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("no italic face"))
+        .count();
+    assert_eq!(mine, 0, "{:?}", out.diagnostics);
+}
+
+#[test]
+fn an_attached_font_with_an_italic_face_is_believed() {
+    // The other half, and the reason this is a font-book question rather than a
+    // fixed answer about the bundled six: a writer who attaches a family that
+    // *has* an italic gets a real italic and no warning.
+    let bytes = std::fs::read("assets/fonts/DavidLibre-Regular.ttf").expect("a bundled font");
+    let assets = ksav_engine::assets::Assets {
+        fonts: vec![ksav_engine::assets::Asset {
+            name: "DavidLibre-Regular.ttf".into(),
+            bytes,
+        }],
+        ..Default::default()
+    };
+    let cfg = DocConfig {
+        font: "David Libre".to_string(),
+        ..Default::default()
+    };
+    let out = ksav_engine::compile_with("רגיל #נטוי[נטוי] סוף", &cfg, &assets);
+    // David Libre has no italic either, so this still warns — and warns about
+    // *David Libre*, which is the point: the answer follows the document's font
+    // rather than a note about the default one.
+    let said: Vec<&str> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("no italic face"))
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].contains("David Libre"), "{said:?}");
+}
+
+#[test]
+fn the_warning_names_the_line_the_command_is_on() {
+    // A diagnostic that names no place is one the writer has to go looking for.
+    let out = ksav_engine::compile(
+        "שורה ראשונה.\n\nשורה שלישית עם #נטוי[זה] בתוכה.\n",
+        &DocConfig::default(),
+    );
+    let said = out
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("no italic face"))
+        .expect("the warning");
+    assert_eq!(said.line, Some(3), "{said:?}");
+    assert_eq!(said.about.as_deref(), Some("#נטוי"));
+}

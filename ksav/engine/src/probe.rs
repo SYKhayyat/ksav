@@ -11,6 +11,7 @@
 //! typesetting apparatus.
 
 use typst::layout::{Frame, FrameItem, Point};
+use typst::text::FontStyle;
 use typst_layout::PagedDocument;
 
 /// One laid-out run of text, positioned on its page.
@@ -34,6 +35,20 @@ pub struct TextRun {
     pub width: f64,
     /// The text of the run.
     pub text: String,
+    /// The typographic family the glyphs actually came from.
+    ///
+    /// Which face a run was set in is the only way to ask whether a *style*
+    /// applied. `#נטוי[…]` is `emph`, and emphasis is a request: Typst looks for
+    /// an italic face in the family in force and, in a Hebrew family that ships
+    /// only a regular, finds none — so the words come out upright and nothing
+    /// anywhere says the request was refused. That is exactly the report
+    /// *"italic does not apply"*, and until now the probe could not tell the
+    /// difference between a style that was ignored and a style that never ran.
+    pub font: String,
+    /// True when the face is an italic or oblique one.
+    pub italic: bool,
+    /// The face's weight, 400 for regular and 700 for bold.
+    pub weight: u16,
 }
 
 /// Every positioned text run in the document, in layout order.
@@ -55,14 +70,20 @@ fn walk(frame: &Frame, origin: Point, page: usize, out: &mut Vec<TextRun>) {
                 // what matters, and that is already carried by `pos`.
                 walk(&g.frame, at, page, out);
             }
-            FrameItem::Text(t) => out.push(TextRun {
-                page,
-                x: at.x.to_pt(),
-                y: at.y.to_pt(),
-                size: t.size.to_pt(),
-                width: t.width().to_pt(),
-                text: t.text.to_string(),
-            }),
+            FrameItem::Text(t) => {
+                let info = t.font.font().info();
+                out.push(TextRun {
+                    page,
+                    x: at.x.to_pt(),
+                    y: at.y.to_pt(),
+                    size: t.size.to_pt(),
+                    width: t.width().to_pt(),
+                    text: t.text.to_string(),
+                    font: info.family.clone(),
+                    italic: info.variant.style != FontStyle::Normal,
+                    weight: info.variant.weight.to_number(),
+                })
+            }
             _ => {}
         }
     }

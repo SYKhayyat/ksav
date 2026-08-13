@@ -452,11 +452,66 @@ export async function run() {
   // prelude defines as a `heading()` and the scanner has never heard of would
   // be invisible to the outline, to folding and to every heading operation —
   // exactly how `#hlevel` and `#סימן` each came to be known to one surface.
-  const headingProducers = [];
-  for (const m of prelude.matchAll(/^#let\s+([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*\(([^)]*)\)\s*=\s*(.*)$/gmu)) {
-    if (/\bheading\(/.test(m[3])) headingProducers.push(m[1]);
+  // To a fixpoint, and not one hop. `#כותרת1` used to be `heading(level: 1, body)`
+  // written out; it is now a call to a shared helper that carries the per-heading
+  // style override to the show rule, so a single-hop derivation stopped seeing the
+  // six commands most documents are written with — and the fence went from
+  // guarding the outline to guarding nothing, quietly, on a refactor that had
+  // nothing to do with it. A command produces a heading if its body calls
+  // `heading(` or calls something that does.
+  // Bodies to the next top-level `#let`, not to the end of the line: a helper in
+  // the chain is a block, and reading only its first line reads `{`. Comments are
+  // cut out first, or the prose above the *next* definition would be read as part
+  // of this one — and this file's own next assertion is that `#שער` does **not**
+  // produce a heading, which a passing mention in a comment would break.
+  const bodies = new Map();
+  // One chunk per top-level `#let`, whatever form it takes — a binding ends a
+  // definition just as a function does, and slicing only at *function* heads
+  // swallowed every binding and comment in between, which put four commands that
+  // merely print a title of their own into the set.
+  for (const chunk of prelude.split(/^(?=#let )/mu)) {
+    const head = /^#let\s+([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*\(([^)]*)\)\s*=/u.exec(chunk);
+    if (!head) continue;
+    bodies.set(
+      head[1],
+      chunk
+        .slice(head[0].length)
+        .replace(/\/\*[\s\S]*?\*\//gu, " ")
+        .replace(/\/\/[^\n]*/gu, " ")
+        // A block that titles itself is not a heading. `#מפתח_ענינים`,
+        // `#מראה_מקומות`, `#הערות_בסוף` and `#הערות_מדורגות` each print a section
+        // title from an optional `כותרת:` argument and then print an index or a
+        // note block underneath it — so they contain a `heading()` and are not
+        // one, and treating them as one would offer to demote an index into a
+        // `#כותרת2`. The tell is the guard: a heading command's heading is
+        // unconditional and takes the words positionally (`#סימן(מספר, כותרת)`
+        // is one, and is known to the scanner); a self-titling block's is
+        // conditional on a named title being given at all.
+        .replace(/if\s+(?:כותרת|title)\s*!=\s*none\s*\{[^{}]*\}/gu, " "),
+    );
   }
-  ok("the prelude has heading-producing commands", headingProducers.length >= 8);
+  const produces = new Set();
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [name, body] of bodies) {
+      if (produces.has(name)) continue;
+      const viaHelper = [...produces, "heading"].some((h) =>
+        new RegExp(`(?<![A-Za-z0-9֐-׿_])${h}\\(`, "u").test(body),
+      );
+      if (viaHelper) {
+        produces.add(name);
+        grew = true;
+      }
+    }
+  }
+  // Only the ones a writer can actually type: the private helpers in the chain are
+  // not commands, and the scanner has no business knowing their names.
+  const headingProducers = [...produces].filter((n) => !n.startsWith("_"));
+  ok(
+    "the prelude has heading-producing commands",
+    headingProducers.length >= 8,
+    () => `found ${headingProducers.length}: ${headingProducers}`,
+  );
   const unknown = headingProducers.filter(
     (n) => spans.scan(`#${n}[x]`).nodes[0]?.role !== "heading",
   );

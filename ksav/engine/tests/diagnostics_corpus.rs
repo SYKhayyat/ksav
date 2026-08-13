@@ -75,9 +75,13 @@ const BROKEN: &[(&str, &str)] = &[
         "a // comment that eats the closing bracket",
         "#הדגשה[אלף // בית]",
     ),
+    // `#הערה(צבע: red)[גוף]` used to be this case and is now a feature: a note
+    // may be styled for itself, so a colour on one is a per-note override rather
+    // than a mistake. The category is still real — a command with a fixed
+    // signature and no style of its own — so it moves to one.
     (
         "an argument the command does not take",
-        "#הערה(צבע: red)[גוף]",
+        "#הדגשה(צבע: red)[שלום]",
     ),
     ("a named argument spelled wrong", "#טבלה(עמודותת: 2)[א][ב]"),
     ("nesting past Typst's limit", "\u{200E}"), // replaced below

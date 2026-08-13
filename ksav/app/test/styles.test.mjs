@@ -6,8 +6,9 @@
 // a writer typed by hand — so every key the UI does not recognise has to survive
 // a write untouched.
 
-import { check, ok } from "./harness.mjs";
+import { check, notOk, ok } from "./harness.mjs";
 import * as styles from "../.tmp-test/styles.mjs";
+import { hasKey } from "../.tmp-test/i18n.mjs";
 
 export async function run() {
   // ------------------------------------------------------------ finding
@@ -173,5 +174,170 @@ Body`;
     const after = styles.setStyleArgs(en, "tables", { "צבע_כותרת": "luma(235)" });
     ok("an unknown key survives verbatim", after.includes("מרווח_מיוחד: 3pt"));
     ok("…alongside the new one in English", after.includes("header_fill: luma(235)"));
+  }
+
+  // ------------------------------------------------ the per-instance layer
+  //
+  // "Global by default, per-instance by override": the document's `#הגדרות_*` sets
+  // the default, one element's own named arguments overrule it, and `כפה` on the
+  // default overrules them back. The engine resolves all three — `engine/tests/
+  // overrides.rs` reads the resolution off the rendered page — and this half is
+  // what lets a control write the middle one.
+
+  {
+    const doc = "פתיחה\n\n#רשימה(פריט[א], פריט[ב])\n";
+    const at = doc.indexOf("פריט");
+    const inst = styles.findInstance(doc, "lists", at);
+    ok("the list the caret is in is found", !!inst);
+    check("…by name", inst.name, "רשימה");
+    check("…and it carries no settings of its own yet", [...inst.args.keys()], []);
+    check("a caret in the prose is inside nothing", styles.findInstance(doc, "lists", 2), null);
+    check("…and there is no heading here either", styles.findInstance(doc, "headings", at), null);
+  }
+
+  {
+    // Innermost, because a note inside a heading is both at once and a control has
+    // to act on the one the caret is actually in.
+    const doc = "#כותרת1[פרק#הערה[הערה קטנה]]\n";
+    const at = doc.indexOf("קטנה");
+    check("the note wins over the heading around it", styles.findInstance(doc, "notes", at).name, "הערה");
+    check("…and the heading is still there when asked for", styles.findInstance(doc, "headings", at).name, "כותרת1");
+  }
+
+  {
+    // Both spellings, because a document may be written in either and a control
+    // that sees only one stops working in English.
+    const doc = "#bullets(item[a])\n";
+    check("an English list is a list", styles.findInstance(doc, "lists", 10).name, "bullets");
+  }
+
+  {
+    // A command with no style of its own has no instance layer to write on.
+    check("emphasis is not a styleable element", styles.findInstance("#הדגשה[חזק]\n", "lists", 8), null);
+  }
+
+  // -------------------------------------- writing one element's own settings
+
+  {
+    // **The property that matters most here.** A list is written across lines,
+    // with a trailing comma, in the writer's own formatting. Adding a setting must
+    // add a setting — not reflow the call, which is what rebuilding the argument
+    // list from parsed pieces would do the first time anybody ticked a box.
+    const doc = "#רשימה(\n  פריט[א],\n  פריט[ב],\n)\n";
+    const inst = styles.findInstance(doc, "lists", doc.indexOf("א"));
+    check(
+      "the setting goes in and the items stay exactly where they were",
+      styles.setInstanceArgs(doc, inst, { סמן: "[◆]" }),
+      "#רשימה(סמן: [◆], \n  פריט[א],\n  פריט[ב],\n)\n",
+    );
+  }
+
+  {
+    const doc = "#רשימה(סמן: [◆], פריט[א])\n";
+    const inst = () => styles.findInstance(doc, "lists", doc.indexOf("א"));
+    check(
+      "an existing setting is replaced in place",
+      styles.setInstanceArgs(doc, inst(), { סמן: "[–]" }),
+      "#רשימה(סמן: [–], פריט[א])\n",
+    );
+    check(
+      "…and cleared with its comma, rather than leaving `(, `",
+      styles.setInstanceArgs(doc, inst(), { סמן: null }),
+      "#רשימה(פריט[א])\n",
+    );
+  }
+
+  {
+    const doc = "#כותרת1[פרק]\n";
+    const inst = styles.findInstance(doc, "headings", 8);
+    check(
+      "a call with no argument list grows one, keeping its body",
+      styles.setInstanceArgs(doc, inst, { גודל: "2em" }),
+      "#כותרת1(גודל: 2em)[פרק]\n",
+    );
+  }
+
+  {
+    // Two at once, computed against the document as passed: an earlier edit that
+    // shifted a later one's offsets would corrupt the call.
+    const doc = "#כותרת1(גודל: 2em)[פרק]\n";
+    const inst = styles.findInstance(doc, "headings", doc.indexOf("פרק"));
+    check(
+      "two settings in one write",
+      styles.setInstanceArgs(doc, inst, { גודל: "3em", קו: "true" }),
+      "#כותרת1(קו: true, גודל: 3em)[פרק]\n",
+    );
+  }
+
+  {
+    // The document's own language wins, the same way it does for the global call:
+    // a control must not turn an English document Hebrew.
+    const doc = "#h1(size: 2em)[Chapter]\n";
+    const inst = styles.findInstance(doc, "headings", doc.indexOf("Chapter"));
+    check("an English argument reads as its Hebrew key", inst.args.get("גודל"), "2em");
+    check(
+      "…and a new one is written in English",
+      styles.setInstanceArgs(doc, inst, { צבע: 'rgb("#b91c1c")' }),
+      '#h1(colour: rgb("#b91c1c"), size: 2em)[Chapter]\n',
+    );
+  }
+
+  {
+    // The conservative property, on this layer too.
+    const doc = "#טבלה(עמודות: 3, מרווח_מיוחד: 3pt, תא[א])\n";
+    const inst = styles.findInstance(doc, "tables", doc.indexOf("תא"));
+    const after = styles.setInstanceArgs(doc, inst, { פסים: "true" });
+    ok("an unknown argument survives", after.includes("מרווח_מיוחד: 3pt"));
+    ok("…and so does the column count", after.includes("עמודות: 3"));
+  }
+
+  // ---------------------------------------------------- the overrule switch
+
+  {
+    notOk("a document with no styling is not overruling", styles.isOverruled("גוף", "lists"));
+    notOk(
+      "…nor is one that merely carries a setting",
+      styles.isOverruled("#הגדרות_רשימות(סמן: [◆])", "lists"),
+    );
+    ok("…and one that says so, is", styles.isOverruled("#הגדרות_רשימות(סמן: [◆], כפה: true)", "lists"));
+    ok("…in English too", styles.isOverruled("#lists_config(marker: [◆], force: true)", "lists"));
+    check(
+      "the switch is written like any other setting",
+      styles.setStyleArgs("גוף", "lists", { [styles.OVERRULE]: "true" }),
+      "#הגדרות_רשימות(כפה: true)\nגוף",
+    );
+    check(
+      "…and in an English document it is `force`",
+      styles.setStyleArgs("#lists_config(marker: [◆])", "lists", { [styles.OVERRULE]: "true" }),
+      "#lists_config(marker: [◆], force: true)",
+    );
+  }
+
+  {
+    // Every knob the panel offers per element has a control and a name, because
+    // the list and the controls are one table. The other direction — that the set
+    // is what the *engine* accepts — is `enginefacts.test.mjs`, reading the prelude.
+    for (const [kind, fields] of Object.entries(styles.INSTANCE_FIELDS)) {
+      check(
+        `every ${kind} knob offered per element has a control and a name`,
+        Object.values(fields).filter((f) => !f.kind || !f.label),
+        [],
+      );
+    }
+    check(
+      "…and the key list is that same table rather than a second one",
+      [...styles.INSTANCE_KEYS.notes],
+      Object.keys(styles.INSTANCE_FIELDS.notes),
+    );
+    // A label is an i18n key, and a key with no entry renders as the key: a row
+    // reading `knobStripeColour` is a control nobody can identify, in the panel
+    // whose last finding was a drawer titled "untitled".
+    const nameless = [];
+    for (const [kind, fields] of Object.entries(styles.INSTANCE_FIELDS)) {
+      for (const [key, f] of Object.entries(fields)) {
+        if (!hasKey(f.label)) nameless.push(`${kind}.${key} → ${f.label}`);
+      }
+    }
+    check("every knob's label is a translated name and not a key", nameless, []);
   }
 }

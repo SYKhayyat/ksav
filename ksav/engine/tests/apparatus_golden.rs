@@ -470,8 +470,11 @@ fn all_three_apparatuses_route_through_the_shared_core() {
         let at = PRELUDE
             .find(&def)
             .unwrap_or_else(|| panic!("`{cmd}` is not defined in ksav.typ"));
-        let tail = &PRELUDE[at..];
-        let body = &tail[..tail.len().min(400)];
+        // The first few lines of the definition, and *lines* rather than a byte
+        // count: `&tail[..400]` panicked the day one of these wrappers grew past
+        // four hundred bytes and the boundary landed inside a Hebrew letter. A
+        // fence that reads Hebrew source may not slice it by bytes.
+        let body: String = PRELUDE[at..].lines().take(8).collect::<Vec<_>>().join("\n");
         assert!(
             body.contains("_ap_note("),
             "`{cmd}` does not go through `_ap_note` — it is collecting notes its own way:\n{}",

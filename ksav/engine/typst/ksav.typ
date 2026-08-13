@@ -52,6 +52,9 @@
   // notes and streams
   stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
   kind: "סוג", name: "שם",
+  // The one switch every `#הגדרות_*` command shares: make the global win over
+  // every per-element override. See `_cfg_with`.
+  force: "כפה",
   // spacing, in the several senses the prelude distinguishes
   spacing: "ריווח", inset: "מרווח", item_spacing: "ריווח_פריט",
   space_between: "ריווח_בין", space_before: "ריווח_לפני",
@@ -115,6 +118,80 @@
 #let _val(v) = if type(v) == str { _en_values.at(v, default: v) } else { v }
 
 // ============================================================
+//  גלובלי כברירת מחדל, פרטי כעקיפה · one override model
+// ------------------------------------------------------------
+//  Every `#הגדרות_*` command sets the default for a KIND of thing — headings,
+//  lists, tables, notes, bands, streams. Every element of that kind also accepts
+//  those same arguments for itself. Three rules, and they are the same for all of
+//  them:
+//
+//    1. the global sets the default;
+//    2. an element's own arguments overrule the global, for that element only;
+//    3. `כפה: true` (`force:`) on the global overrules the elements back — one
+//       switch that makes the document-wide setting win everywhere, which is what
+//       a writer reaches for once a hundred one-off overrides have accumulated
+//       and the sefer has to be made uniform again.
+//
+//  Written once and read by every kind. Nine copies of a two-line merge is nine
+//  chances for one of them to resolve the argument the other way, in the one
+//  construct nobody thought to check.
+//
+//  Before this, the global was the only layer that existed. Every element of
+//  every kind took its style from the state and from nowhere else, so
+//  `#רשימה(סמן: [–])` — the obvious thing to type, and the thing the writer asked
+//  for — did not override the marker for that list. It reached Typst's own `list`,
+//  which has no `סמן` parameter, and stopped the compile on *"unexpected
+//  argument"*. Same for `#הערה(גודל: 1em)`, for `#כותרת1(צבע: red)`, and for six
+//  of the eight table knobs.
+#let _cfg_with(c, own) = {
+  if own == none or own.len() == 0 { c }
+  // Rule 3. Read off the global's own dictionary, so the switch travels with the
+  // setting it belongs to rather than living in a tenth piece of state.
+  else if c.at("כפה", default: false) { c }
+  else { let d = c; for (k, v) in own { d.insert(k, v) }; d }
+}
+
+/// Split an element's named arguments into the ones that override its style and
+/// the ones that are not ours.
+///
+/// `keys` is what **one element** of this kind may overrule. For most kinds that
+/// is every knob the global has — every heading knob is a property of a heading,
+/// every table knob of a table — and those pass `_xx_defaults.keys()` so a knob
+/// added to the defaults is overridable the same day.
+///
+/// Four kinds pass a shorter list, and the exclusions are the point of writing it
+/// down rather than assuming: a knob that belongs to the *arrangement* cannot be
+/// answered by a member of it. A band's column count is the band's. A sidenote
+/// column's width is the column's, and every note on the page is stacked against
+/// the same one. A numbering scheme belongs to the sequence — one note lettered
+/// while its neighbours are numbered is not a style, it is a second apparatus.
+/// Accepting those per instance would be a control that reads back exactly what
+/// the writer typed and changes nothing on the page, which is the whole failure
+/// this change exists to end. Outside the list they are refused, by name.
+///
+/// Everything else is handed on to the Typst element underneath, which is the
+/// half that matters: a misspelled knob still stops the compile with Typst's own
+/// *"unexpected argument"* naming the argument, instead of being quietly dropped
+/// on the floor and leaving the writer to wonder why a control did nothing.
+#let _cfg_split(named, keys) = {
+  let own = (:)
+  let rest = (:)
+  for (k, v) in named { if keys.contains(k) { own.insert(k, v) } else { rest.insert(k, v) } }
+  (own, rest)
+}
+
+/// Stop on a named argument no knob answers to, naming it.
+///
+/// The kinds with a Typst element underneath — a list, a table, a footnote — hand
+/// their strays to it and get Typst's own *"unexpected argument"* for free. The
+/// three banded apparatuses have no such element: a banded note is a piece of
+/// metadata and a query, and metadata accepts anything. So they say it
+/// themselves, rather than accept a misspelled knob and format nothing.
+#let _cfg_strict(name, rest) = if rest.len() > 0 {
+  panic(name + ": ארגומנט לא מוכר · unrecognised argument: " + rest.keys().join(", "))
+}
+
+// ============================================================
 //  הערות שכבתיות · layered (tiered) footnotes — per page
 // ------------------------------------------------------------
 //  A note ON a note becomes its own stacked block at the foot of the page,
@@ -152,6 +229,11 @@
   מספור: none,
 )
 #let _fn_cfg = state("ksav-fn-cfg", _fn_defaults)
+// What one note may overrule: its own text and its own indent. Not `מספור` — the
+// scheme is the sequence's, and a note overriding it with a single value would
+// leave the per-tier rank numbering altogether — and not `ריווח`, which is the gap
+// *between* entries and so belongs to no single entry. See `_cfg_split`.
+#let _fn_own_keys = ("גודל", "סגנון", "צבע", "הזחה", "תוויות")
 // #הגדרות_הערות(סגנון: ("normal","italic","normal"), הזחה: (0em,1em,2em), ריווח: 1em, …)
 #let הגדרות_הערות(..opts) = _fn_cfg.update(c => {
   let d = c
@@ -189,7 +271,20 @@
   }
 }
 
-#let _fn_pick(arr, i, fb) = if type(arr) == array and i >= 1 and i - 1 < arr.len() { arr.at(i - 1) } else { fb }
+// A per-tier value: an array is per-tier, 1-based, falling back outside its
+// range; anything else is one value for every tier.
+//
+// The scalar arm was missing, and a scalar is the shape a writer types first:
+// `#הגדרות_הערות(גודל: 1.2em)` fell past the array test to the fallback, so the
+// size the writer asked for was silently replaced by the shipped default. The
+// panel always wrote nine-element tuples, which is why it never showed there —
+// only to whoever typed the command, which is the writer this markup exists for.
+// `_cfg_pick` (headings) and `_ap_pick` (bands, streams) both accepted a scalar
+// from the day they were written. This was the one picker of the three that did
+// not, on the kind with nine tiers, where nobody writes the tuple by hand.
+#let _fn_pick(arr, i, fb) = if type(arr) == array {
+  if i >= 1 and i - 1 < arr.len() { arr.at(i - 1) } else { fb }
+} else if arr == none { fb } else { arr }
 
 // ---- shared apparatus helpers ----
 // Every collect-then-render apparatus below has the same problem: when a stored
@@ -297,8 +392,17 @@
 
 // הערה_בדרגה(דרגה, body) — a note in tier `דרגה` (1 = a note on the text, 2 = a note
 // ON a tier-1 note, …). Nest freely: #הערה_א[… #הערה_ב[… #הערה_ג[…]]].
-#let הערה_בדרגה(דרגה, body) = context {
-  let cfg = _fn_cfg.get()
+//
+// Named arguments style THIS note: `#הערה(גודל: 1em, צבע: red)[…]` for the one
+// note that has to stand out, without a second `#הגדרות_הערות` line that would
+// restyle every note after it. Per-tier tuples still apply to the tiers this note
+// is not in, so an override is one entry deep and not a fresh apparatus.
+#let הערה_בדרגה(דרגה, body, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
+  let cfg = _cfg_with(_fn_cfg.get(), own)
+  // Not ours: handed to `footnote` at both call sites below, so its own error
+  // names it. A note takes no other named argument, which is precisely why a
+  // silent drop here would be a typo that formats nothing and says nothing.
   let ind = _fn_pick(cfg.at("הזחה", default: ()), דרגה, 0em)
   let lbls = cfg.at("תוויות", default: none)
   let lbl = if type(lbls) == array { _fn_pick(lbls, דרגה, none) } else { none }
@@ -314,7 +418,7 @@
   })
   let schemes = cfg.at("מספור", default: none)
   if type(schemes) != array {
-    footnote(entry)
+    footnote(..rest, entry)
   } else {
     // Per-tier numbering. Typst has ONE footnote counter, and the `numbering`
     // callback is handed that counter's value — so it cannot be used to count a
@@ -328,27 +432,36 @@
       let loc = here()
       let n = _ksav_rank(selector(label("ksav-fnt")), loc, e => e.value == דרגה)
       let scheme = _fn_pick(schemes, דרגה, "1")
-      footnote(numbering: _ => numbering(scheme, n), entry)
+      footnote(numbering: _ => numbering(scheme, n), ..rest, entry)
     }
   }
 }
 
-// tier aliases — Hebrew letters mirror the "block A / block B / block C" model
-#let הערה_א(body) = הערה_בדרגה(1, body)
-#let הערה_ב(body) = הערה_בדרגה(2, body)
-#let הערה_ג(body) = הערה_בדרגה(3, body)
-#let הערה_ד(body) = הערה_בדרגה(4, body)
-#let הערה_ה(body) = הערה_בדרגה(5, body)
-#let הערה_ו(body) = הערה_בדרגה(6, body)
-#let הערה_ז(body) = הערה_בדרגה(7, body)
-#let tier = הערה_בדרגה
-#let tier1 = הערה_א
-#let tier2 = הערה_ב
-#let tier3 = הערה_ג
-#let tier4 = הערה_ד
-#let tier5 = הערה_ה
-#let tier6 = הערה_ו
-#let tier7 = הערה_ז
+// tier aliases — Hebrew letters mirror the "block A / block B / block C" model.
+// Each forwards `..opts`, because an alias that swallowed the per-note override
+// would be a control that works on `#הערה_בדרגה(2, …)` and silently does nothing
+// on `#הערה_ב[…]`, which is the spelling everybody actually writes.
+#let הערה_א(body, ..opts) = הערה_בדרגה(1, body, ..opts)
+#let הערה_ב(body, ..opts) = הערה_בדרגה(2, body, ..opts)
+#let הערה_ג(body, ..opts) = הערה_בדרגה(3, body, ..opts)
+#let הערה_ד(body, ..opts) = הערה_בדרגה(4, body, ..opts)
+#let הערה_ה(body, ..opts) = הערה_בדרגה(5, body, ..opts)
+#let הערה_ו(body, ..opts) = הערה_בדרגה(6, body, ..opts)
+#let הערה_ז(body, ..opts) = הערה_בדרגה(7, body, ..opts)
+// `_en` and not a bare binding, now that these take named arguments: a bare
+// binding is the same function under a second name, so `#tier2(size: 1em)[…]`
+// would arrive as a Hebrew-named knob spelled in English and be rejected. That
+// is the finding this file already recorded once about twelve other aliases —
+// *"an English command taking an English parameter"* — and every command that
+// grows a named argument joins the list.
+#let tier = _en(הערה_בדרגה)
+#let tier1 = _en(הערה_א)
+#let tier2 = _en(הערה_ב)
+#let tier3 = _en(הערה_ג)
+#let tier4 = _en(הערה_ד)
+#let tier5 = _en(הערה_ה)
+#let tier6 = _en(הערה_ו)
+#let tier7 = _en(הערה_ז)
 
 // ============================================================
 //  A banded apparatus, written once
@@ -434,6 +547,12 @@
 #let _ap_fixed_height(h) = {
   if type(h) != ratio { h } else if type(page.height) == length { h * page.height } else { auto }
 }
+// What one note of a banded apparatus may overrule: its own text, and only that.
+// The column count, the fixed heights, the rules, the gaps between bands and
+// between entries, the band labels and the stream order all describe the
+// arrangement, and a single note inside it has no standing to answer them.
+// `מספור` is excluded for the reason given at `_fn_own_keys`. See `_cfg_split`.
+#let _ap_own_keys = ("גודל", "סגנון", "צבע")
 #let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
 #let _ap_wrap(cfg, g, body) = text(
   size: _ap_pick(cfg, "גודל", g, 0.85em),
@@ -450,8 +569,16 @@
 //   lbl    — the label every note of this apparatus carries
 //   scope  — loc ⇒ the selector this note's number is counted within
 //   g      — the group: a tier integer, or a stream name
-#let _ap_note(cfg, lbl, scope, g, body) = {
-  [#metadata((group: g, body: body))#lbl]
+//   own    — this note's own style overrides, travelling with it
+//
+// `own` rides in the metadata rather than being applied here, because a banded
+// note is *styled where it is printed* — down in `_ap_group`, off the collected
+// list — and not where it is written. The marker is the one part styled at the
+// call site, so `cfg` there is already merged; the entry's own size, slant and
+// colour have to reach the band, and this dictionary is the only thing that gets
+// there.
+#let _ap_note(cfg, lbl, scope, g, body, own: (:)) = {
+  [#metadata((group: g, body: body, own: own))#lbl]
   // Force nested groups to register in this same pass, in a zero-size inline box
   // so it can never break the line the marker sits on — including when a band
   // re-displays this body and the machinery runs again inside it.
@@ -473,7 +600,8 @@
 // of its own group *within the numbering scope*: `shown` is what this band
 // prints (this page, or this section), `scope` is what it counts against (the
 // whole document for the footer apparatuses, the section for the in-flow one).
-// Returns (number, body) pairs in document order.
+// Returns (number, body, own) triples in document order — `own` being that one
+// note's style overrides, which the band applies as it prints it.
 // Θ(n) and not Θ(n²), by the same argument `_ksav_real_of` makes at :173-190:
 // **both lists are already in document order**, and `shown` is a subsequence of
 // `mine` — so a number can be *counted* rather than searched for.
@@ -493,14 +621,18 @@
     // Walk forward to this entry. Never backwards: both are in document order,
     // so the cursor only ever advances and the whole loop is one pass of `mine`.
     while i < mine.len() and mine.at(i).location() != e.location() { i += 1 }
+    // `at` with a default and not `.own`: a document compiled before this
+    // argument existed is not a document to crash on, and the apparatus
+    // re-displays its own registrations.
+    let own = e.value.at("own", default: (:))
     if i < mine.len() {
-      out.push((i + 1, e.value.body))
+      out.push((i + 1, e.value.body, own))
       i += 1
     } else {
       // Not found — which cannot happen for a `shown` drawn from `scope`, and if
       // it ever did, a note printed with no number is better than one printed
       // with somebody else's. Restart the cursor so the rest still number.
-      out.push((out.len() + 1, e.value.body))
+      out.push((out.len() + 1, e.value.body, own))
       i = 0
     }
   }
@@ -517,10 +649,14 @@
   above
   let inner = {
     lead
-    for (num, body) in entries {
+    for (num, body, own) in entries {
+      // One entry's own overrides apply to the entry and to nothing else — the
+      // gap between entries and the column count belong to the band, not to a
+      // note inside it, so they stay read off `cfg`.
+      let ecfg = _cfg_with(cfg, own)
       block(
         spacing: cfg.at("ריווח_פריט", default: 0.3em),
-        _ap_wrap(cfg, g, [#super(_ap_mark(cfg, g, num)) #body]),
+        _ap_wrap(ecfg, g, [#super(_ap_mark(ecfg, g, num)) #body]),
       )
     }
   }
@@ -616,9 +752,12 @@
 #let _md_section_notes(loc) = _ksav_real_of(_md_scope(loc))
 
 // מדור_בדרגה(דרגה, body) — collect a section-band note in tier `דרגה`.
-#let מדור_בדרגה(דרגה, body) = context _ap_note(
-  _md_cfg.get(), _md_label, _md_scope, דרגה, body,
-)
+// Named arguments style this one note; see `_cfg_with`.
+#let מדור_בדרגה(דרגה, body, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
+  _cfg_strict("מדור", rest)
+  _ap_note(_cfg_with(_md_cfg.get(), own), _md_label, _md_scope, דרגה, body, own: own)
+}
 // #הערות_מדורגות() — render this section's collected tiers as stacked bands, here.
 // Call it once per section (and/or at the end of the document); each call renders
 // only the notes written since the previous call.
@@ -652,21 +791,24 @@
   // ends here — not the next one.
   [#metadata(none)#_md_dump_label]
 }
-#let מדור_א(body) = מדור_בדרגה(1, body)
-#let מדור_ב(body) = מדור_בדרגה(2, body)
-#let מדור_ג(body) = מדור_בדרגה(3, body)
-#let מדור_ד(body) = מדור_בדרגה(4, body)
-#let מדור_ה(body) = מדור_בדרגה(5, body)
-#let מדור_ו(body) = מדור_בדרגה(6, body)
-#let מדור_ז(body) = מדור_בדרגה(7, body)
-#let band = מדור_בדרגה
-#let band1 = מדור_א
-#let band2 = מדור_ב
-#let band3 = מדור_ג
-#let band4 = מדור_ד
-#let band5 = מדור_ה
-#let band6 = מדור_ו
-#let band7 = מדור_ז
+#let מדור_א(body, ..opts) = מדור_בדרגה(1, body, ..opts)
+#let מדור_ב(body, ..opts) = מדור_בדרגה(2, body, ..opts)
+#let מדור_ג(body, ..opts) = מדור_בדרגה(3, body, ..opts)
+#let מדור_ד(body, ..opts) = מדור_בדרגה(4, body, ..opts)
+#let מדור_ה(body, ..opts) = מדור_בדרגה(5, body, ..opts)
+#let מדור_ו(body, ..opts) = מדור_בדרגה(6, body, ..opts)
+#let מדור_ז(body, ..opts) = מדור_בדרגה(7, body, ..opts)
+// `_en`-wrapped for the reason given at the tier aliases, and with `טורים` as the
+// reading of `columns` — a band's column count, not a table's — matching the
+// `extra` its own config alias already carries.
+#let band = _en(מדור_בדרגה, extra: (columns: "טורים"))
+#let band1 = _en(מדור_א, extra: (columns: "טורים"))
+#let band2 = _en(מדור_ב, extra: (columns: "טורים"))
+#let band3 = _en(מדור_ג, extra: (columns: "טורים"))
+#let band4 = _en(מדור_ד, extra: (columns: "טורים"))
+#let band5 = _en(מדור_ה, extra: (columns: "טורים"))
+#let band6 = _en(מדור_ו, extra: (columns: "טורים"))
+#let band7 = _en(מדור_ז, extra: (columns: "טורים"))
 #let banded_notes = _en(הערות_מדורגות)
 #let banded_config = _en(הגדרות_מדורגות, extra: (columns: "טורים"))
 
@@ -729,9 +871,12 @@
 // following a marker from the text expects.
 #let _pp_scope(loc) = _pp_label
 // מדף_בדרגה(דרגה, body) — collect a per-page-band note in tier `דרגה`.
-#let מדף_בדרגה(דרגה, body) = context _ap_note(
-  _pp_cfg.get(), _pp_label, _pp_scope, דרגה, body,
-)
+// Named arguments style this one note; see `_cfg_with`.
+#let מדף_בדרגה(דרגה, body, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
+  _cfg_strict("מדף", rest)
+  _ap_note(_cfg_with(_pp_cfg.get(), own), _pp_label, _pp_scope, דרגה, body, own: own)
+}
 // Read-only footer: render the bands for the CURRENT page. Called from the
 // wrapper's page footer. Renders nothing (and touches nothing) when the page
 // has no per-page-band notes, so it's free for documents that don't use them.
@@ -762,21 +907,21 @@
     }
   }
 }
-#let מדף_א(body) = מדף_בדרגה(1, body)
-#let מדף_ב(body) = מדף_בדרגה(2, body)
-#let מדף_ג(body) = מדף_בדרגה(3, body)
-#let מדף_ד(body) = מדף_בדרגה(4, body)
-#let מדף_ה(body) = מדף_בדרגה(5, body)
-#let מדף_ו(body) = מדף_בדרגה(6, body)
-#let מדף_ז(body) = מדף_בדרגה(7, body)
-#let pageband = מדף_בדרגה
-#let pageband1 = מדף_א
-#let pageband2 = מדף_ב
-#let pageband3 = מדף_ג
-#let pageband4 = מדף_ד
-#let pageband5 = מדף_ה
-#let pageband6 = מדף_ו
-#let pageband7 = מדף_ז
+#let מדף_א(body, ..opts) = מדף_בדרגה(1, body, ..opts)
+#let מדף_ב(body, ..opts) = מדף_בדרגה(2, body, ..opts)
+#let מדף_ג(body, ..opts) = מדף_בדרגה(3, body, ..opts)
+#let מדף_ד(body, ..opts) = מדף_בדרגה(4, body, ..opts)
+#let מדף_ה(body, ..opts) = מדף_בדרגה(5, body, ..opts)
+#let מדף_ו(body, ..opts) = מדף_בדרגה(6, body, ..opts)
+#let מדף_ז(body, ..opts) = מדף_בדרגה(7, body, ..opts)
+#let pageband = _en(מדף_בדרגה, extra: (columns: "טורים"))
+#let pageband1 = _en(מדף_א, extra: (columns: "טורים"))
+#let pageband2 = _en(מדף_ב, extra: (columns: "טורים"))
+#let pageband3 = _en(מדף_ג, extra: (columns: "טורים"))
+#let pageband4 = _en(מדף_ד, extra: (columns: "טורים"))
+#let pageband5 = _en(מדף_ה, extra: (columns: "טורים"))
+#let pageband6 = _en(מדף_ו, extra: (columns: "טורים"))
+#let pageband7 = _en(מדף_ז, extra: (columns: "טורים"))
 #let pagebands_config = _en(הגדרות_מדפים, extra: (columns: "טורים"))
 
 // ============================================================
@@ -828,9 +973,15 @@
 // הערה_זרם(זרם, body) — a footnote in the named stream `זרם`. The group here is
 // a name rather than a tier integer, which is the whole of the difference
 // between this apparatus and the two banded ones.
-#let הערה_זרם(זרם, body) = context _ap_note(
-  _sf_cfg.get(), _sf_label, _sf_scope, _as_string(זרם), body,
-)
+// Named arguments style this one note; see `_cfg_with`. A stream's own knobs are
+// already per-stream — its settings are dictionaries keyed by stream name — so
+// this is the layer below that: one note inside one stream, set apart from its
+// peers.
+#let הערה_זרם(זרם, body, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
+  _cfg_strict("הערה_זרם", rest)
+  _ap_note(_cfg_with(_sf_cfg.get(), own), _sf_label, _sf_scope, _as_string(זרם), body, own: own)
+}
 // Ordered list of stream names actually present, honouring an explicit order.
 #let _sf_order(cfg, present) = {
   let explicit = cfg.at("זרמים", default: none)
@@ -875,11 +1026,11 @@
     }
   }
 }
-#let הערת_תוכן(body) = הערה_זרם("תוכן", body)
-#let הערת_מקור(body) = הערה_זרם("מקורות", body)
-#let stream_note = הערה_זרם
-#let contentnote = הערת_תוכן
-#let sourcenote_stream = הערת_מקור
+#let הערת_תוכן(body, ..opts) = הערה_זרם("תוכן", body, ..opts)
+#let הערת_מקור(body, ..opts) = הערה_זרם("מקורות", body, ..opts)
+#let stream_note = _en(הערה_זרם, extra: (columns: "טורים"))
+#let contentnote = _en(הערת_תוכן, extra: (columns: "טורים"))
+#let sourcenote_stream = _en(הערת_מקור, extra: (columns: "טורים"))
 #let streams_config = _en(הגדרות_זרמים, extra: (columns: "טורים"))
 
 // ============================================================
@@ -912,13 +1063,16 @@
   מרווח_אותיות: 0pt,    // letter tracking
 )
 #let _hd_cfg = state("ksav-hd-cfg", _hd_defaults)
+// One heading's own overrides, in flight between the call and the show rule.
+// Set by `_hd_styled`, cleared by it, read here. See the note there.
+#let _hd_own = state("ksav-hd-own", (:))
 #let הגדרות_כותרות(..opts) = _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 #let _hd_show(it) = context {
   // In HTML export, leave the heading alone: Typst turns a real heading into an
   // <h1>…<h6>, and replacing it with a styled block would emit a semantically
   // meaningless <div> — losing the document outline that makes the HTML worth
   // exporting in the first place. The page styling below is print styling.
-  let c = _hd_cfg.get()
+  let c = _cfg_with(_hd_cfg.get(), _hd_own.get())
   let lvl = it.level
   if target() == "html" {
     // Emit a real <h1>…<h6> carrying only the heading's own text: the wrapper
@@ -999,6 +1153,9 @@
   גודל: none,              // text size inside tables (none = inherit)
 )
 #let _tb_cfg = state("ksav-tb-cfg", _tb_defaults)
+// One table's own overrides, live for the span of that table, so its cells can
+// read them. See #טבלה.
+#let _tb_own = state("ksav-tb-own", (:))
 #let הגדרות_טבלאות(..opts) = _tb_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 
 #let headings_config = _en(הגדרות_כותרות)
@@ -1401,13 +1558,34 @@
 // ============================================================
 //  כותרות · headings (unlimited depth)
 // ============================================================
-#let כותרת(body, רמה: 1) = heading(level: רמה, body)
-#let כותרת1(body) = heading(level: 1, body)
-#let כותרת2(body) = heading(level: 2, body)
-#let כותרת3(body) = heading(level: 3, body)
-#let כותרת4(body) = heading(level: 4, body)
-#let כותרת5(body) = heading(level: 5, body)
-#let כותרת6(body) = heading(level: 6, body)
+// One heading, styled by the global for its level unless it says otherwise:
+// `#כותרת1(צבע: rgb("#7f1d1d"), קו: true)[פרק א]` is this chapter opening and no
+// other. The global `#הגדרות_כותרות` already took a per-level array for every
+// knob, which is the second layer the writer asked for; this is the third.
+//
+// The override has to travel from here to `_hd_show`, which is where every
+// heading is actually styled — and a show rule receives the heading and nothing
+// else, so there is no argument to hand it. It goes through a state that this
+// call sets immediately before the heading and clears immediately after: the show
+// rule reads it at the heading's own location, which lies between the two. That
+// is also why a plain `= פרק` gets the global and nothing else — nothing set it.
+// Strays go to `heading` itself, so `#כותרת1(outlined: false)[…]` reaches the
+// element and a misspelled knob gets Typst's own error naming it.
+#let _hd_styled(lvl, body, named) = {
+  let (own, rest) = _cfg_split(named, _hd_defaults.keys())
+  if own.len() == 0 { heading(level: lvl, ..rest, body) } else {
+    _hd_own.update(own)
+    heading(level: lvl, ..rest, body)
+    _hd_own.update((:))
+  }
+}
+#let כותרת(body, רמה: 1, ..opts) = _hd_styled(רמה, body, opts.named())
+#let כותרת1(body, ..opts) = _hd_styled(1, body, opts.named())
+#let כותרת2(body, ..opts) = _hd_styled(2, body, opts.named())
+#let כותרת3(body, ..opts) = _hd_styled(3, body, opts.named())
+#let כותרת4(body, ..opts) = _hd_styled(4, body, opts.named())
+#let כותרת5(body, ..opts) = _hd_styled(5, body, opts.named())
+#let כותרת6(body, ..opts) = _hd_styled(6, body, opts.named())
 #let שער(body) = align(center, text(size: 2em, weight: "bold", body))
 #let תת_שער(body) = align(center, text(size: 1.2em, fill: luma(110), body))
 
@@ -1462,12 +1640,12 @@
 // it asked the prelude for `#let hlevel = … כותרת` and the prelude did not have
 // one.
 #let hlevel = _en(כותרת)
-#let h1 = כותרת1
-#let h2 = כותרת2
-#let h3 = כותרת3
-#let h4 = כותרת4
-#let h5 = כותרת5
-#let h6 = כותרת6
+#let h1 = _en(כותרת1)
+#let h2 = _en(כותרת2)
+#let h3 = _en(כותרת3)
+#let h4 = _en(כותרת4)
+#let h5 = _en(כותרת5)
+#let h6 = _en(כותרת6)
 #let title = שער
 #let subtitle = תת_שער
 #let note_heading = _en(כותרת_בהערה)
@@ -1496,30 +1674,55 @@
 // #רשימה / #ממוספרת read #הגדרות_רשימות at their location (marker, indent,
 // spacing, tight, enum numbering). Only keys actually configured are passed, so
 // unset ones inherit the document defaults.
+//
+// Per-list overrides — `#רשימה(סמן: [–], הידוק: true)[…][…]` — are the writer's
+// second layer: `#הגדרות_רשימות` says what lists look like in this sefer, and one
+// list says how it differs. Named arguments the config does not know are handed on
+// to Typst's own `list`/`enum`, so `#רשימה(tight: true)` still works and a
+// misspelled knob still stops the compile naming itself.
 #let רשימה(..פריטים) = context {
-  let c = _ls_cfg.get()
+  let (own, rest) = _cfg_split(פריטים.named(), _ls_defaults.keys())
+  let c = _cfg_with(_ls_cfg.get(), own)
   let a = (indent: c.at("הזחה", default: 1em), tight: c.at("הידוק", default: false))
   let m = c.at("סמן", default: none)
   if m != none { a.insert("marker", m) }
   if c.at("ריווח", default: auto) != auto { a.insert("spacing", c.ריווח) }
   if c.at("הזחת_גוף", default: auto) != auto { a.insert("body-indent", c.הזחת_גוף) }
-  list(..a, ..פריטים)
+  // Merged rather than spread alongside, so a Typst-named argument the writer
+  // gave wins outright instead of arriving twice under the same name.
+  for (k, v) in rest { a.insert(k, v) }
+  list(..a, ..פריטים.pos())
 }
 #let ממוספרת(..פריטים) = context {
-  let c = _ls_cfg.get()
+  let (own, rest) = _cfg_split(פריטים.named(), _ls_defaults.keys())
+  let c = _cfg_with(_ls_cfg.get(), own)
   let a = (indent: c.at("הזחה", default: 1em), tight: c.at("הידוק", default: false))
   if c.at("מספור", default: auto) != auto { a.insert("numbering", c.מספור) }
   if c.at("ריווח", default: auto) != auto { a.insert("spacing", c.ריווח) }
-  enum(..a, ..פריטים)
+  // The gap between a number and the words after it. Declared in the defaults
+  // since the day the config existed and read by nothing, so the one list knob
+  // that only enums have was the one knob that did nothing.
+  if c.at("ריווח_מספור", default: auto) != auto { a.insert("body-indent", c.ריווח_מספור) }
+  for (k, v) in rest { a.insert(k, v) }
+  enum(..a, ..פריטים.pos())
 }
-#let ממוספרת_עברית(..פריטים) = enum(numbering: "א.", ..פריטים)  // Hebrew-lettered
+// Hebrew-lettered, which is what this command *is*: `מספור` here is the
+// definition and not an override, so it is set rather than passed — passed, a
+// writer's own `מספור` would arrive twice under one name. Everything else routes
+// through #ממוספרת, so a Hebrew-lettered list finally follows the document's list
+// settings; it used to go straight to `enum` and ignore all of them.
+#let ממוספרת_עברית(..פריטים) = {
+  let named = פריטים.named()
+  named.insert("מספור", "א.")
+  ממוספרת(..named, ..פריטים.pos())
+}
 #let פריט(body) = body
 #let רשימת_הגדרות(..זוגות) = terms(..זוגות)
 #let הגדרה(מונח, פירוש) = terms.item(מונח, פירוש)
 
-#let bullets = רשימה
-#let numbered = ממוספרת
-#let henum = ממוספרת_עברית
+#let bullets = _en(רשימה)
+#let numbered = _en(ממוספרת)
+#let henum = _en(ממוספרת_עברית)
 #let item = פריט
 #let deflist = רשימת_הגדרות
 #let defitem = הגדרה
@@ -1564,14 +1767,19 @@
 // With the shipped defaults tier 1 is 1em / normal / black / no indent and the
 // numbering is one native running sequence, so this is exactly `footnote(body)`
 // — see `_fn_wrap`, which returns the body untouched in that case.
-#let הערה(body) = הערה_בדרגה(1, body)
-#let fnote = הערה
+#let הערה(body, ..opts) = הערה_בדרגה(1, body, ..opts)
+#let fnote = _en(הערה)
 
 // הערה_על_הערה · a note ON a note (a sub-note) in the *native* apparatus.
 // Typst hoists a footnote nested in a footnote into its own entry, so nesting
 // these gives a separate entry per level in the single (Option-A) apparatus.
-#let הערה_על_הערה(body) = footnote(text(size: 0.94em, style: "italic", body))
-#let subnote = הערה_על_הערה
+// Tier 2 of the tiered apparatus, spelled without the tier: routed through
+// #הערה_בדרגה so it takes the same per-note overrides as every other note, and so
+// its size and slant come from the tier-2 entries of `#הגדרות_הערות` rather than
+// from the two numbers that used to be written here. A knob the writer sets and
+// one construct that ignores it is the same defect as a knob nothing reads.
+#let הערה_על_הערה(body, ..opts) = הערה_בדרגה(2, body, ..opts)
+#let subnote = _en(הערה_על_הערה)
 
 // ---- הערות סיום · endnotes (collected in named streams) ----
 // #הערתסיום[...] places a marker and stores the note; #הערות_בסוף renders the
@@ -1590,6 +1798,12 @@
 // page with nothing to say which was which, and nothing in the product could
 // tell them apart either. `#הגדרות_הערות_סיום(מספור: "א")` gives the back-matter
 // its own shape; the chooser writes it for exactly the layouts that mix the two.
+//
+// The one kind with no per-instance layer, and deliberately: its single knob is a
+// numbering *scheme*, which is a property of the sequence and not of a member of
+// it. "This endnote is lettered and its neighbours are numbered" is not a style,
+// it is two apparatuses — `#הערתסיום(זרם: …)` is how a document says that. So
+// there is nothing here for `כפה` to overrule either.
 #let _es_defaults = (מספור: "1")
 #let _es_cfg = state("ksav-es-cfg", _es_defaults)
 #let הגדרות_הערות_סיום(..opts) = _es_cfg.update(c => {
@@ -1683,6 +1897,12 @@
   ריווח: 0.6em,    // minimum vertical gap between two stacked notes
 )
 #let _sn_cfg = state("ksav-sn-cfg", _sn_defaults)
+// What one sidenote may overrule: its own text. The ratio, the gutter and the
+// minimum gap between notes are the column's geometry, and every note on the page
+// computes the same stack from them — a note answering them for itself would be
+// placed against one arithmetic and measured by its neighbours against another.
+// See `_cfg_split` and `_sn_note`.
+#let _sn_own_keys = ("גודל", "צבע")
 #let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 // Is a side-column wrapper currently open? A sidenote outside one has no column
 // to land in, so it must not be `place`d off the page — see _sn_note.
@@ -1704,10 +1924,21 @@
 // and stacks them greedily (a note sits at its marker's line, or just below the
 // previous note when that would overlap). Every note computes the same stack
 // from the same query, so they agree without sharing any state.
-#let _sn_note(lbl, side, mark, body) = {
-  [#metadata((body: body))#label(lbl)]
+// `own` — this note's own style overrides. They ride in the metadata for a reason
+// particular to this apparatus: every sidenote on a page *measures every other
+// one* to stack them, so a note styled only at its own call site would be
+// measured at the wrong height by its neighbours and the column would overlap.
+// The overrides have to be readable off the query, the same as the body is.
+#let _sn_note(lbl, side, mark, body, own: (:)) = {
+  [#metadata((body: body, own: own))#label(lbl)]
   context {
-  let cfg = _sn_cfg.get()
+  // Two configurations, and the difference is load-bearing. `base` is the
+  // column's: its width, the gutter and the minimum gap between notes are the
+  // page's geometry, and every note on the page has to compute the same stack
+  // from it or they overlap. `cfg` is this note's own text — size and colour —
+  // which is all a single note may overrule.
+  let base = _sn_cfg.get()
+  let cfg = _cfg_with(base, own)
   // here() is read AFTER the metadata above, so the rank counts this note itself.
   let loc0 = here()
   let all = query(label(lbl))
@@ -1722,9 +1953,9 @@
     // since we are inside it — from which the note column's width follows.
     layout(sz => context {
       let loc = here()
-      let gutter = cfg.at("מרווח", default: 1.2em).to-absolute()
-      let colw = sz.width / cfg.at("יחס", default: 2)
-      let gap = cfg.at("ריווח", default: 0.6em).to-absolute()
+      let gutter = base.at("מרווח", default: 1.2em).to-absolute()
+      let colw = sz.width / base.at("יחס", default: 2)
+      let gap = base.at("ריווח", default: 0.6em).to-absolute()
       let mine = all.filter(e => e.location().page() == loc.page())
       let cursor = -1e4pt
       let dy = 0pt
@@ -1735,7 +1966,11 @@
         // rank rather than by index within the page.
         let n = _ksav_rank(label(lbl), e.location(), x => true)
         if n == num { dy = top - loc.position().y }
-        cursor = top + measure(box(width: colw, _sn_wrap(cfg, mark(n), e.value.body))).height + gap
+        // Measured with *that* note's overrides, not with mine: a neighbour set
+        // one size larger is one size taller, and a stack computed off my own
+        // configuration would put the next note on top of it.
+        let ecfg = _cfg_with(base, e.value.at("own", default: (:)))
+        cursor = top + measure(box(width: colw, _sn_wrap(ecfg, mark(n), e.value.body))).height + gap
       }
       // `place` in a flow anchors horizontally to the container's START corner
       // (the RIGHT edge of the column in RTL, the left in LTR) and vertically to
@@ -1759,7 +1994,13 @@
   }
 }
 
-#let הערת_גיליון(body) = _sn_note("ksav-sn", "חוץ", n => [#n], body)
+// Named arguments style this one sidenote — `גודל` and `צבע`, the two knobs that
+// belong to a note rather than to the column. See `_sn_note` and `_cfg_with`.
+#let הערת_גיליון(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
+  _cfg_strict("הערת_גיליון", rest)
+  _sn_note("ksav-sn", "חוץ", n => [#n], body, own: own)
+}
 
 // עם_הערות_צד — reserve the note column beside `עיקר`. The notes themselves are
 // placed by #הערת_גיליון at their own lines; this only narrows the text column so
@@ -1778,7 +2019,7 @@
   }
   _sn_active.update(n => n - 1)
 }
-#let sidenote = הערת_גיליון
+#let sidenote = _en(הערת_גיליון, extra: (gutter: "מרווח"))
 #let sidenotes = _en(עם_הערות_צד)
 #let sidenotes_config = _en(הגדרות_הערות_צד, extra: (gutter: "מרווח"))
 
@@ -1787,8 +2028,16 @@
 // #הערת_ימין[...] feeds the right column (numbered 1,2,3) and #הערת_שמאל[...]
 // the left column (numbered 1′,2′,3′) — two independent apparatuses running down
 // both sides of the centred main text, each note beside its own line.
-#let הערת_ימין(body) = _sn_note("ksav-sn-r", "ימין", n => [#n], body)
-#let הערת_שמאל(body) = _sn_note("ksav-sn-l", "שמאל", n => [#n′], body)
+#let הערת_ימין(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
+  _cfg_strict("הערת_ימין", rest)
+  _sn_note("ksav-sn-r", "ימין", n => [#n], body, own: own)
+}
+#let הערת_שמאל(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
+  _cfg_strict("הערת_שמאל", rest)
+  _sn_note("ksav-sn-l", "שמאל", n => [#n′], body, own: own)
+}
 #let עם_הערות_דו_צד(עיקר, יחס: 2.4) = {
   _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d })
   _sn_active.update(n => n + 1)
@@ -1801,8 +2050,8 @@
   )
   _sn_active.update(n => n - 1)
 }
-#let noteright = הערת_ימין
-#let noteleft = הערת_שמאל
+#let noteright = _en(הערת_ימין, extra: (gutter: "מרווח"))
+#let noteleft = _en(הערת_שמאל, extra: (gutter: "מרווח"))
 #let twosided = _en(עם_הערות_דו_צד)
 
 // ============================================================
@@ -1894,32 +2143,55 @@
 // ============================================================
 //  טבלאות · tables
 // ============================================================
-// Stroke / inset / align / striping / font come from #הגדרות_טבלאות (applied by
-// the global `show table` rule). Per-table overrides: pass יישור, or פסים:
-// true/false to force zebra striping on/off for just this table.
 // #טבלה reads #הגדרות_טבלאות at its location: stroke / inset / align / striping /
-// font / size. Per-table overrides: יישור, or פסים: true/false to force zebra
-// striping on/off just for this table.
-#let טבלה(עמודות: 2, יישור: auto, פסים: none, ..תאים) = context {
-  let c = _tb_cfg.get()
-  let stripe = if פסים == none { c.at("פסים", default: false) } else { פסים }
-  let al = if יישור != auto { יישור } else { c.at("יישור", default: auto) }
-  let t = table(
-    columns: עמודות,
-    align: al,
-    stroke: c.at("קו", default: 0.5pt + luma(160)),
-    inset: c.at("מרווח", default: 8pt),
-    fill: if stripe { (_, row) => if calc.odd(row) { c.at("צבע_פס", default: luma(245)) } else { none } } else { none },
-    ..תאים,
-  )
-  let f = c.at("גופן", default: none)
-  let s = c.at("גודל", default: none)
-  if f != none { t = text(font: f, t) }
-  if s != none { t = text(size: s, t) }
-  t
+// stripe colour / header fill / font / size.
+//
+// **Every one of those** is also a per-table override — `#טבלה(קו: none, מרווח:
+// 4pt)` for the one table that has to be tighter and unruled. Two of the eight
+// were reachable that way and six were not: `יישור` and `פסים` were declared
+// parameters with sentinel defaults, and the other six fell into `..תאים` and
+// reached Typst's `table`, which has no `קו` and stopped the compile. So the
+// per-table layer existed for a quarter of the knobs, and looked broken for the
+// rest — the writer sees one control obey and the next one refuse.
+// Written out in one function and not split into a private renderer, which is
+// where the first version of this went. A diagnostic names the innermost command
+// its span sits inside, so a table whose `עמודות` was given a string reported
+// *"#_tb_render expects a length"* — a helper the writer has never heard of, from
+// the prelude, with no line number in their own file, for an error in their table.
+#let טבלה(עמודות: 2, ..תאים) = {
+  let (own, rest) = _cfg_split(תאים.named(), _tb_defaults.keys())
+  // The override has to be visible to #כותרת_תא, which reads the header fill for
+  // itself: a cell is content built before the table it lands in, so it cannot be
+  // handed anything. Bracketing the table in the state is what lets a per-table
+  // `צבע_כותרת` reach the cells of that table and of no other.
+  if own.len() > 0 { _tb_own.update(own) }
+  context {
+    let c = _cfg_with(_tb_cfg.get(), own)
+    let stripe = c.at("פסים", default: false)
+    let a = (
+      columns: עמודות,
+      align: c.at("יישור", default: auto),
+      stroke: c.at("קו", default: 0.5pt + luma(160)),
+      inset: c.at("מרווח", default: 8pt),
+      fill: if stripe { (_, row) => if calc.odd(row) { c.at("צבע_פס", default: luma(245)) } else { none } } else { none },
+    )
+    // Merged and not spread alongside, so a Typst-named argument the writer gave —
+    // `#טבלה(align: center)` — wins outright instead of arriving twice under `align`.
+    for (k, v) in rest { a.insert(k, v) }
+    let t = table(..a, ..תאים.pos())
+    let f = c.at("גופן", default: none)
+    let s = c.at("גודל", default: none)
+    if f != none { t = text(font: f, t) }
+    if s != none { t = text(size: s, t) }
+    t
+  }
+  if own.len() > 0 { _tb_own.update((:)) }
 }
 #let תא(body) = body
-#let כותרת_תא(body) = context { table.cell(fill: _tb_cfg.get().at("צבע_כותרת", default: luma(235)), strong(body)) }
+#let כותרת_תא(body) = context {
+  let c = _cfg_with(_tb_cfg.get(), _tb_own.get())
+  table.cell(fill: c.at("צבע_כותרת", default: luma(235)), strong(body))
+}
 #let מיזוג(מספר, body) = table.cell(colspan: מספר, body)
 
 #let mktable = _en(טבלה)

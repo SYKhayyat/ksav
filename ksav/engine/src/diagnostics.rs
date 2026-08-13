@@ -782,6 +782,29 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
         "הגופן אינו זמין — בחרו גופן מהרשימה בהגדרות, או צרפו קובץ גופן למסמך · \
          That font isn't available — pick one from the list in Settings, or attach a font file"
             .to_string()
+    } else if let Some(name) = raw
+        .strip_prefix("unexpected argument: ")
+        .map(|n| n.trim().to_string())
+    {
+        // A misspelled *parameter*, which the catch-all below used to answer with
+        // *"check brackets, commas, and the command structure"* — advice about
+        // brackets, to a writer whose brackets are fine, that never says the one
+        // thing only the compiler knows: which word it did not recognise.
+        //
+        // This is the error surface of every per-element style override
+        // (`#רשימה(סמן: …)`, `#הערה(גודל: …)`, `#טבלה(קו: …)`), so a mistyped knob
+        // is the most common way to reach it. Naming the word is the whole message.
+        format!(
+            "אין פרמטר בשם {name} בפקודה הזאת — בדקו את האיות · \
+             This command has no parameter called {name} — check the spelling"
+        )
+    } else if lower.contains("unexpected argument") {
+        // The same family without a name: too many *positional* arguments, which
+        // is a different mistake and gets a different sentence rather than being
+        // folded back into the bracket advice.
+        "נתתם לפקודה הזאת יותר ארגומנטים ממה שהיא מקבלת · \
+         This command was given more arguments than it takes"
+            .to_string()
     } else if lower.contains("expected") || lower.contains("unexpected") {
         "התחביר אינו תקין כאן — בדקו סוגריים, פסיקים ומבנה הפקודה · \
          Invalid syntax here — check brackets, commas, and the command structure"

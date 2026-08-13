@@ -45,6 +45,7 @@ import {
   bothSpellings,
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
+import { INSTANCE_KEYS, instanceCommands } from "../.tmp-test/styles.mjs";
 import { DEFAULTS, defaultPageSetup } from "../.tmp-test/settings.mjs";
 import { CLASSIFIED_NAMES, toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
@@ -239,6 +240,91 @@ export async function run() {
     check("and so does its English twin", toMarkdown("a#tier6[note]").includes("[^1]"), true);
     check("a Hebrew list exports", toMarkdown("#רשימה(פריט[א])").trim(), "- א");
     check("and its English twin", toMarkdown("#bullets(item[a])").trim(), "- a");
+  }
+
+  // ------------------------------- 4½. what one element may overrule, once
+
+  {
+    // `styles.ts` decides which controls the styles panel offers for **one**
+    // heading, list, table or note, and `ksav.typ` decides which of them the
+    // engine accepts. Two lists, one fact, and both failure directions are bad in
+    // a specific way: a control the engine refuses stops the compile the moment
+    // somebody uses it, and a knob the engine accepts and the panel omits is a
+    // setting reachable only by typing the command — which is the complaint that
+    // produced this panel in the first place.
+    //
+    // The prelude is the authority. Three of its lists are written out (`gebundene
+    // #let _xx_own_keys`) and the rest are "every knob this kind's global has",
+    // which is the defaults dictionary.
+    const preludeList = (name) => {
+      const m = new RegExp(`#let ${name} = \\(([^)]*)\\)`, "u").exec(prelude);
+      ok(`the prelude declares ${name}`, !!m, () => `${name} is not in ksav.typ`);
+      return m ? [...m[1].matchAll(/"([^"]+)"/gu)].map((x) => x[1]) : [];
+    };
+    /** The knob names of a `#let _xx_defaults = (…)` block, which spans lines. */
+    const defaultsList = (name) => {
+      const at = prelude.indexOf(`#let ${name} = (`);
+      ok(`the prelude declares ${name}`, at >= 0, () => `${name} is not in ksav.typ`);
+      if (at < 0) return [];
+      const block = prelude.slice(at, prelude.indexOf("\n)", at));
+      return [...block.matchAll(/^\s{2}([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*):/gmu)].map((m) => m[1]);
+    };
+
+    // Which of the prelude's lists each kind is actually split against. Without
+    // this the fence would compare `INSTANCE_KEYS.headings` to `_hd_defaults` while
+    // the prelude quietly split headings against something shorter, and agree with
+    // itself about a list nothing reads.
+    const splitAgainst = {
+      headings: "_hd_defaults.keys()",
+      lists: "_ls_defaults.keys()",
+      tables: "_tb_defaults.keys()",
+      notes: "_fn_own_keys",
+      bands: "_ap_own_keys",
+      streams: "_ap_own_keys",
+    };
+    const want = {
+      headings: defaultsList("_hd_defaults"),
+      lists: defaultsList("_ls_defaults"),
+      tables: defaultsList("_tb_defaults"),
+      notes: preludeList("_fn_own_keys"),
+      bands: preludeList("_ap_own_keys"),
+      streams: preludeList("_ap_own_keys"),
+    };
+    for (const [kind, arg] of Object.entries(splitAgainst)) {
+      ok(
+        `the prelude splits ${kind}'s own arguments against ${arg}`,
+        prelude.includes(`, ${arg})`),
+        () => `no _cfg_split(…, ${arg}) in ksav.typ`,
+      );
+    }
+    for (const [kind, keys] of Object.entries(want)) {
+      ok(`the prelude names something for ${kind}`, keys.length > 0, () => `${kind}: ${keys}`);
+      check(
+        `the panel offers exactly what the engine accepts per ${kind}`,
+        [...INSTANCE_KEYS[kind]].sort(),
+        [...keys].sort(),
+      );
+    }
+    // `review` is the one kind with no element to put a setting on — a document is
+    // read in one view, and the view is not a property of anything in it.
+    check("a document's review view is not a per-element style", [...INSTANCE_KEYS.review], []);
+
+    // And every command the panel will write an override onto has to be one the
+    // prelude actually lets take arguments. `#let X(body)` with no `..opts` would
+    // accept the panel's write and then refuse to compile.
+    const takesOptions = new Set();
+    for (const m of prelude.matchAll(
+      /^#let\s+([A-Za-z֐-׿_][A-Za-z0-9֐-׿_]*)\s*\(([^=]*)\)\s*=/gmu,
+    )) {
+      if (m[2].includes("..")) takesOptions.add(m[1]);
+    }
+    const cannot = [];
+    for (const kind of Object.keys(want)) {
+      for (const name of instanceCommands(kind)) {
+        if (!takesOptions.has(name)) cannot.push(`${kind}: ${name}`);
+      }
+    }
+    check("every command the panel styles per instance takes named arguments", cannot, []);
   }
 
   // ------------------------------------------- 5. "strip the markup", once

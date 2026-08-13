@@ -5806,15 +5806,309 @@ function styleRow(label: string, control: Node): HTMLElement {
 }
 
 function selectControl(
-  options: [string, string][],
+  options: [string, string, boolean?][],
   current: string,
   onPick: (v: string) => void,
 ): HTMLElement {
   return el(
     "select",
     { onChange: (e: Event) => onPick((e.target as HTMLSelectElement).value) },
-    options.map(([v, lbl]) =>
-      el("option", { value: v, ...(current === v ? { selected: "selected" } : {}) }, [lbl]),
+    options.map(([v, lbl, off]) =>
+      el(
+        "option",
+        {
+          value: v,
+          ...(current === v ? { selected: "selected" } : {}),
+          // An option that cannot be chosen says so where the writer is looking,
+          // rather than snapping back after they choose it and explaining nothing.
+          ...(off ? { disabled: "disabled" } : {}),
+        },
+        [lbl],
+      ),
+    ),
+  );
+}
+
+// -------------------------------------------- global by default, per instance
+//
+// The writer's model has three layers and the panel could reach one:
+//
+//   1. the document's default for a kind of thing — every `#הגדרות_*` command;
+//   2. one element's own settings, which overrule the default for that element;
+//   3. `כפה` on the default, which overrules every element back.
+//
+// Layers 2 and 3 are `engine/typst/ksav.typ`'s, resolved there by one shared merge
+// for all of headings, lists, tables, notes, bands and streams. What follows is
+// how a control reaches them: which layer a section of the panel is writing, and a
+// row per knob that the element may answer for itself.
+
+/**
+ * Which sections are writing the element the caret is in rather than the default.
+ *
+ * Panel state and not document state: it is a question about what the writer is
+ * looking at, so it resets with the panel and never appears in the file.
+ */
+const styleScopes = new Set<styles.StyleCommand>();
+
+/** Which heading level the *default* layer is being edited for; 0 = all of them. */
+let headingLevel = 0;
+
+/** The innermost element of this kind the caret is inside, if any. */
+function styleInstance(kind: styles.StyleCommand): styles.InstanceCall | null {
+  const view = runtime.view;
+  if (!view) return null;
+  return styles.findInstance(
+    docTextOf(view.state.doc),
+    kind,
+    view.state.selection.main.head,
+  );
+}
+
+/** The element this section is writing on, or null when it is writing the default. */
+function scopedInstance(kind: styles.StyleCommand): styles.InstanceCall | null {
+  return styleScopes.has(kind) ? styleInstance(kind) : null;
+}
+
+/** Write to whichever layer this section is writing. */
+function setStyleArgsIn(kind: styles.StyleCommand, changes: Record<string, string | null>) {
+  const inst = scopedInstance(kind);
+  if (!inst) {
+    setStyleArgs(kind, changes);
+    return;
+  }
+  const doc = docTextOf(runtime.view.state.doc);
+  const next = styles.setInstanceArgs(doc, inst, changes);
+  if (next === doc) return;
+  editDoc(next);
+  scheduleCompile();
+  renderStylesPanel();
+}
+
+/**
+ * The scope switch and the overrule checkbox, for one section.
+ *
+ * Both belong at the top of a section because both change what every control
+ * under them means. And the overrule state is said out loud in whichever scope
+ * the writer is in: on the default, that individual settings are not applying; on
+ * an element, that what they are about to change will not show. A control that
+ * silently does nothing is the failure this whole change exists to end, and
+ * turning the switch on is the one legitimate way to produce one.
+ */
+function scopeRows(kind: styles.StyleCommand, many: string, one: string): Node[] {
+  const inst = styleInstance(kind);
+  const here = !!scopedInstance(kind);
+  const forced = styles.isOverruled(docTextOf(runtime.view.state.doc), kind);
+  const rows: Node[] = [
+    styleRow(
+      t("styleScope"),
+      selectControl(
+        [
+          ["all", tf("scopeAll", t(many))],
+          ["this", inst ? tf("scopeThis", t(one)) : tf("scopeNoneHere", t(one)), !inst],
+        ],
+        here ? "this" : "all",
+        (v) => {
+          if (v === "this") styleScopes.add(kind);
+          else styleScopes.delete(kind);
+          renderStylesPanel();
+        },
+      ),
+    ),
+  ];
+  if (here) {
+    if (forced) rows.push(el("p", { class: "styles-note" }, [t("overruledHere")]));
+    return rows;
+  }
+  rows.push(
+    styleRow(
+      t("overrule"),
+      toggleControl(forced, (v) =>
+        setStyleArgs(kind, { [styles.OVERRULE]: v ? "true" : null }),
+      ),
+    ),
+  );
+  if (forced) rows.push(el("p", { class: "styles-note" }, [t("overruleOn")]));
+  return rows;
+}
+
+/** A number input that writes `12pt` / `1.5em`, and clears when emptied. */
+function unitControl(
+  raw: string | undefined,
+  unit: "em" | "pt",
+  step: number,
+  set: (v: string | null) => void,
+): HTMLElement {
+  const n = styles.readLength(raw, unit);
+  const input = el("input", {
+    type: "number",
+    step: String(step),
+    value: n === null ? "" : String(n),
+  }) as HTMLInputElement;
+  input.addEventListener("change", () => {
+    const v = parseFloat(input.value);
+    set(input.value.trim() === "" || !Number.isFinite(v) ? null : `${v}${unit}`);
+  });
+  return input;
+}
+
+/** A colour, with the means to unset it — a colour picker alone has no "none". */
+function clearableColour(
+  raw: string | undefined,
+  set: (v: string | null) => void,
+): HTMLElement {
+  const kids: Node[] = [colorControl(styles.readColor(raw) ?? "#000000", (v) => set(styles.typstColor(v)))];
+  if (raw !== undefined) {
+    kids.push(
+      el("button", { class: "knob-clear", title: t("none"), onClick: () => set(null) }, ["×"]),
+    );
+  }
+  return el("span", { class: "knob-colour" }, kids);
+}
+
+/**
+ * One knob, as a control.
+ *
+ * Every one of these has a blank option meaning *not set here*, and that is the
+ * whole point of the layer: an element that says nothing about a knob inherits the
+ * document's answer, and an element that says `false` overrules a document that
+ * said `true`. A checkbox cannot tell those two apart, which is why the booleans
+ * are three-way selects and not tick boxes.
+ */
+function fieldControl(
+  field: styles.Field,
+  raw: string | undefined,
+  set: (v: string | null) => void,
+): HTMLElement {
+  // "Not set", and deliberately not "inherit" or "default": the same control
+  // appears at three scopes, and the blank means the same thing at each of them —
+  // *this layer says nothing, so the one under it answers*.
+  const blank = ["", t("notSet")] as [string, string];
+  const pick = (options: [string, string][], current: string) =>
+    selectControl([blank, ...options], current, (v) => set(v || null));
+  switch (field.kind) {
+    case "size-em":
+      return pick(
+        [["0.8em", "80%"], ["0.9em", "90%"], ["1em", "100%"], ["1.15em", "115%"], ["1.35em", "135%"], ["1.6em", "160%"], ["2em", "200%"]],
+        (raw ?? "").trim(),
+      );
+    case "size-pt":
+    case "length-pt":
+      return unitControl(raw, "pt", 1, set);
+    case "length-em":
+      return unitControl(raw, "em", 0.25, set);
+    case "colour":
+      return clearableColour(raw, set);
+    case "slant":
+      return pick([['"normal"', t("slantUpright")], ['"italic"', t("slantItalic")]], (raw ?? "").trim());
+    case "weight":
+      return pick([['"bold"', t("weightBold")], ['"regular"', t("weightRegular")]], (raw ?? "").trim());
+    case "bool":
+      return pick([["true", t("valueOn")], ["false", t("valueOff")]], (raw ?? "").trim());
+    case "rule":
+      // `none` is a value and absence is not: absent means "whatever the document
+      // says", and `none` means "no border on this one, whatever the document says".
+      return pick([["none", t("valueOff")], ["0.5pt + luma(160)", t("valueOn")]], (raw ?? "").trim());
+    case "marker":
+      return pick([["[•]", "•"], ["[–]", "–"], ["[◆]", "◆"], ["[▪]", "▪"], ["[✦]", "✦"]], (raw ?? "").trim());
+    case "align":
+      return pick([["right", t("right")], ["center", t("center")], ["left", t("left")]], (raw ?? "").trim());
+    case "numbering":
+      return pick(
+        [['"1."', "1. 2. 3."], ['"1.1"', "1.1 1.2"], ['"א."', "א. ב. ג."], ['"I."', "I. II."], ['"a."', "a. b. c."]],
+        (raw ?? "").trim(),
+      );
+    case "text": {
+      const input = el("input", { type: "text", value: styles.readString(raw) ?? "" }) as HTMLInputElement;
+      input.addEventListener("change", () =>
+        set(input.value.trim() === "" ? null : styles.typstString(input.value)),
+      );
+      return input;
+    }
+  }
+}
+
+/** Every knob one element of this kind may answer for itself. */
+function instanceRows(kind: styles.StyleCommand, inst: styles.InstanceCall): Node[] {
+  return Object.entries(styles.INSTANCE_FIELDS[kind]).map(([key, field]) =>
+    styleRow(
+      t(field.label),
+      fieldControl(field, inst.args.get(key), (v) => setStyleArgsIn(kind, { [key]: v })),
+    ),
+  );
+}
+
+// ------------------------------------------------------ headings, per level
+//
+// `#הגדרות_כותרות` has taken a per-level array for every knob since it was
+// written — `גודל: (1.6em, 1.35em, …)` — and the panel wrote scalars only, so
+// every control in the Headings section was "all six levels at once" and the
+// layer the inventory asked for first (*"heading styles per level, then per
+// instance"*) was reachable only by typing the tuple.
+
+/** The engine's own per-level ramps, so writing level 3 cannot restyle level 2. */
+const HEADING_RAMP: Record<string, string[]> = {
+  גודל: ["1.6em", "1.35em", "1.18em", "1.06em", "1em", "0.95em"],
+  ריווח_לפני: ["1.2em", "1.1em", "1em", "0.9em", "0.8em", "0.8em"],
+  ריווח_אחרי: ["0.6em", "0.55em", "0.5em", "0.45em", "0.4em", "0.4em"],
+};
+
+/** And its scalar defaults, for the knobs whose default is one value for all six. */
+const HEADING_FLAT: Record<string, string> = {
+  משקל: '"bold"',
+  צבע: "luma(0)",
+  סגנון: '"normal"',
+  יישור: "none",
+  קו_תחתון: "false",
+  קו: "false",
+  מספור: "none",
+  רברבתי: "false",
+  מרווח_אותיות: "0pt",
+};
+
+/** The value the Headings section is showing for one knob, at the chosen level. */
+function headingArg(key: string): string | undefined {
+  const raw = styleArg("headings", key);
+  if (headingLevel === 0) return raw;
+  const per = styles.readTuple(raw);
+  // A scalar applies to every level, so it is what this level shows.
+  return per ? per[headingLevel - 1] : raw;
+}
+
+/** Write one knob, at the chosen level or at all of them. */
+function setHeadingArg(key: string, value: string | null) {
+  if (headingLevel === 0) {
+    setStyleArgs("headings", { [key]: value });
+    return;
+  }
+  const now = styleArg("headings", key);
+  // What the levels this write does not mention should keep. A tuple already says;
+  // a scalar the writer set says so for every level and must not be thrown away
+  // when one level is changed; and absent means the engine's own ramp.
+  const fill =
+    now !== undefined && styles.readTuple(now) === null
+      ? Array<string>(6).fill(now)
+      : (HEADING_RAMP[key] ?? Array<string>(6).fill(HEADING_FLAT[key] ?? "none"));
+  const v = value ?? fill[headingLevel - 1] ?? "none";
+  setStyleArgs("headings", { [key]: styles.withTier(now, headingLevel, v, fill) });
+}
+
+/** Which level the Headings section is editing. */
+function headingLevelRow(): Node {
+  return styleRow(
+    t("headingLevel"),
+    selectControl(
+      [
+        ["0", t("everyLevel")],
+        ...([1, 2, 3, 4, 5, 6].map((n) => [String(n), tf("oneLevel", String(n))]) as [
+          string,
+          string,
+        ][]),
+      ],
+      String(headingLevel),
+      (v) => {
+        headingLevel = parseInt(v, 10) || 0;
+        renderStylesPanel();
+      },
     ),
   );
 }
@@ -6191,33 +6485,46 @@ function renderStylesPanel() {
   );
 
   // --- headings (in-document) ---
-  const hNumbering = styles.readString(styleArg("headings", "מספור")) ?? "";
-  const hRule = styles.readBool(styleArg("headings", "קו")) ?? false;
-  const hUnderline = styles.readBool(styleArg("headings", "קו_תחתון")) ?? false;
-  const hSmallcaps = styles.readBool(styleArg("headings", "רברבתי")) ?? false;
-  const hColor = styles.readColor(styleArg("headings", "צבע")) ?? "#000000";
-  const hAlign = (styleArg("headings", "יישור") ?? "none").trim();
+  const headInstance = scopedInstance("headings");
+  const hNumbering = styles.readString(headingArg("מספור")) ?? "";
+  const hRule = styles.readBool(headingArg("קו")) ?? false;
+  const hUnderline = styles.readBool(headingArg("קו_תחתון")) ?? false;
+  const hSmallcaps = styles.readBool(headingArg("רברבתי")) ?? false;
+  const hColor = styles.readColor(headingArg("צבע")) ?? "#000000";
+  const hAlign = (headingArg("יישור") ?? "none").trim();
+  const hSize = (headingArg("גודל") ?? "").trim();
 
-  const headings = [
-    styleRow(t("headingNumbering"), selectControl(
-      [["", t("none")], ["1.", "1. 2. 3."], ["1.1", "1.1 1.2"], ["א.", "א. ב. ג."], ["I.", "I. II."]],
-      hNumbering,
-      (v) => setStyleArgs("headings", { "מספור": v ? styles.typstString(v) : null }),
-    )),
-    styleRow(t("headingAlign"), selectControl(
-      [["none", t("inherit")], ["right", t("right")], ["center", t("center")], ["left", t("left")]],
-      hAlign,
-      (v) => setStyleArgs("headings", { "יישור": v === "none" ? null : v }),
-    )),
-    styleRow(t("headingColor"), colorControl(hColor, (v) =>
-      setStyleArgs("headings", { "צבע": v === "#000000" ? null : styles.typstColor(v) }))),
-    styleRow(t("headingRule"), toggleControl(hRule, (v) =>
-      setStyleArgs("headings", { "קו": v ? "true" : null }))),
-    styleRow(t("headingUnderline"), toggleControl(hUnderline, (v) =>
-      setStyleArgs("headings", { "קו_תחתון": v ? "true" : null }))),
-    styleRow(t("headingSmallcaps"), toggleControl(hSmallcaps, (v) =>
-      setStyleArgs("headings", { "רברבתי": v ? "true" : null }))),
-  ];
+  const headings = headInstance
+    ? instanceRows("headings", headInstance)
+    : [
+        headingLevelRow(),
+        // The knob the per-level model exists for, and the one the panel never
+        // offered: a six-level ramp is a ramp of sizes before it is anything else.
+        styleRow(
+          t("knobSize"),
+          fieldControl({ kind: "size-em", label: "knobSize" }, hSize || undefined, (v) =>
+            setHeadingArg("גודל", v),
+          ),
+        ),
+        styleRow(t("headingNumbering"), selectControl(
+          [["", t("none")], ["1.", "1. 2. 3."], ["1.1", "1.1 1.2"], ["א.", "א. ב. ג."], ["I.", "I. II."]],
+          hNumbering,
+          (v) => setHeadingArg("מספור", v ? styles.typstString(v) : null),
+        )),
+        styleRow(t("headingAlign"), selectControl(
+          [["none", t("inherit")], ["right", t("right")], ["center", t("center")], ["left", t("left")]],
+          hAlign,
+          (v) => setHeadingArg("יישור", v === "none" ? null : v),
+        )),
+        styleRow(t("headingColor"), colorControl(hColor, (v) =>
+          setHeadingArg("צבע", v === "#000000" ? null : styles.typstColor(v)))),
+        styleRow(t("headingRule"), toggleControl(hRule, (v) =>
+          setHeadingArg("קו", v ? "true" : null))),
+        styleRow(t("headingUnderline"), toggleControl(hUnderline, (v) =>
+          setHeadingArg("קו_תחתון", v ? "true" : null))),
+        styleRow(t("headingSmallcaps"), toggleControl(hSmallcaps, (v) =>
+          setHeadingArg("רברבתי", v ? "true" : null))),
+      ];
 
   // --- lists (in-document) ---
   const lMarker = styleArg("lists", "סמן") ?? "";
@@ -6230,16 +6537,19 @@ function renderStylesPanel() {
     setStyleArgs("lists", { "הזחה": Number.isFinite(v) && v !== 1 ? `${v}em` : null });
   });
 
-  const lists = [
-    styleRow(t("listMarker"), selectControl(
-      [["", t("default")], ["[•]", "•"], ["[–]", "–"], ["[◆]", "◆"], ["[▪]", "▪"], ["[✦]", "✦"]],
-      lMarker,
-      (v) => setStyleArgs("lists", { "סמן": v || null }),
-    )),
-    styleRow(t("listIndent"), indentInput),
-    styleRow(t("listTight"), toggleControl(lTight, (v) =>
-      setStyleArgs("lists", { "הידוק": v ? "true" : null }))),
-  ];
+  const listInstance = scopedInstance("lists");
+  const lists = listInstance
+    ? instanceRows("lists", listInstance)
+    : [
+        styleRow(t("listMarker"), selectControl(
+          [["", t("default")], ["[•]", "•"], ["[–]", "–"], ["[◆]", "◆"], ["[▪]", "▪"], ["[✦]", "✦"]],
+          lMarker,
+          (v) => setStyleArgs("lists", { "סמן": v || null }),
+        )),
+        styleRow(t("listIndent"), indentInput),
+        styleRow(t("listTight"), toggleControl(lTight, (v) =>
+          setStyleArgs("lists", { "הידוק": v ? "true" : null }))),
+      ];
 
   // --- tables (in-document) ---
   const tStripe = styles.readBool(styleArg("tables", "פסים")) ?? false;
@@ -6252,17 +6562,28 @@ function renderStylesPanel() {
     setStyleArgs("tables", { "מרווח": Number.isFinite(v) && v !== 8 ? `${v}pt` : null });
   });
 
-  const tables = [
-    styleRow(t("tableStripes"), toggleControl(tStripe, (v) =>
-      setStyleArgs("tables", { "פסים": v ? "true" : null }))),
-    styleRow(t("tableHeaderFill"), colorControl(tHeaderFill, (v) =>
-      setStyleArgs("tables", { "צבע_כותרת": styles.typstColor(v) }))),
-    styleRow(t("tableInset"), insetInput),
-    styleRow(t("tableBorder"), toggleControl(
-      (styleArg("tables", "קו") ?? "x") !== "none",
-      (v) => setStyleArgs("tables", { "קו": v ? null : "none" }),
-    )),
-  ];
+  const tableInstance = scopedInstance("tables");
+  const tables = tableInstance
+    ? instanceRows("tables", tableInstance)
+    : [
+        styleRow(t("tableStripes"), toggleControl(tStripe, (v) =>
+          setStyleArgs("tables", { "פסים": v ? "true" : null }))),
+        styleRow(t("tableHeaderFill"), colorControl(tHeaderFill, (v) =>
+          setStyleArgs("tables", { "צבע_כותרת": styles.typstColor(v) }))),
+        styleRow(t("tableInset"), insetInput),
+        styleRow(t("tableBorder"), toggleControl(
+          (styleArg("tables", "קו") ?? "x") !== "none",
+          (v) => setStyleArgs("tables", { "קו": v ? null : "none" }),
+        )),
+      ];
+
+  // The three apparatus sections keep their per-tier and per-stream controls for
+  // the document's default, and swap to the one note's own when the writer scopes
+  // them there: a note has no tiers of its own and a tier selector on one note is
+  // a control for a distinction that does not exist at that scope.
+  const noteInstance = scopedInstance("notes");
+  const bandInstance = scopedInstance("bands");
+  const streamInstance = scopedInstance("streams");
 
   box.replaceChildren(
     panelHead("styles-panel", "stylesTitle"),
@@ -6281,20 +6602,26 @@ function renderStylesPanel() {
     el("p", { class: "styles-note" }, [t("pageStyleNote")]),
 
     el("h3", {}, [t("styleHeadings")]),
+    ...scopeRows("headings", "kindHeading", "kindHeadingOne"),
     ...headings,
     el("h3", {}, [t("styleLists")]),
+    ...scopeRows("lists", "kindList", "kindListOne"),
     ...lists,
     el("h3", {}, [t("styleTables")]),
+    ...scopeRows("tables", "kindTable", "kindTableOne"),
     ...tables,
     el("h3", {}, [t("styleNotes")]),
     el("p", { class: "styles-note" }, [t("styleNotesNote")]),
-    ...noteStyleRows(),
+    ...scopeRows("notes", "kindNote", "kindNoteOne"),
+    ...(noteInstance ? instanceRows("notes", noteInstance) : noteStyleRows()),
     el("h3", {}, [t("styleBands")]),
     el("p", { class: "styles-note" }, [t("styleBandsNote")]),
-    ...bandStyleRows(),
+    ...scopeRows("bands", "kindBand", "kindBandOne"),
+    ...(bandInstance ? instanceRows("bands", bandInstance) : bandStyleRows()),
     el("h3", {}, [t("styleStreams")]),
     el("p", { class: "styles-note" }, [t("styleStreamsNote")]),
-    ...streamStyleRows(),
+    ...scopeRows("streams", "kindStream", "kindStreamOne"),
+    ...(streamInstance ? instanceRows("streams", streamInstance) : streamStyleRows()),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
 }

@@ -22,6 +22,8 @@ import {
   plainText,
   plainTextIn,
   scan,
+  splitArgs,
+  topLevelColon,
   type Group,
   type ListKind,
   type Node,
@@ -671,6 +673,19 @@ function proseDecorations(state: EditorState): ProseValue {
     const ordered = n.listKind === "numbered" || n.listKind === "hebrew";
     ranges.push({ from: cmdStart, to: openParen + 1, deco: hide, side: -1 });
     ranges.push({ from: closeParen, to: closeParen + 1, deco: hide, side: 1 });
+    // A list may now carry its own styling — `#רשימה(סמן: [◆], פריט[א])` — and a
+    // named argument is scaffolding, not an item. Left showing, it printed
+    // "סמן: [◆]," as the first line of a list in the mode whose whole promise is
+    // that it looks like the page. Hidden by argument rather than by "everything
+    // before the first item", because a writer may put one after the items too.
+    for (const g of splitArgs(text, n.args.from, n.args.to)) {
+      if (topLevelColon(text, g.from, g.to) < 0) continue;
+      // The comma and the space after it go too, or the list opens on a stray
+      // indent where the argument used to be.
+      let to = g.to + (text[g.to] === "," ? 1 : 0);
+      while (text[to] === " " || text[to] === "\t") to++;
+      ranges.push({ from: g.from, to, deco: hide, side: -1 });
+    }
     let idx = 0;
     for (const item of n.children) {
       // Items directly inside *this* list; a nested list's items are decorated

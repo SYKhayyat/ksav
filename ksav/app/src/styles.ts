@@ -18,6 +18,7 @@
 // every key it does not recognise verbatim**, so opening the panel can never
 // silently discard styling a writer typed by hand.
 
+import { bothSpellings } from "./engine.gen";
 import { scan, splitArgs, topLevelColon } from "./spans";
 import { typstString } from "./typst-escape";
 
@@ -82,6 +83,7 @@ function canonical(kind: StyleCommand): string {
  * the document is preserved verbatim under whatever name it already had.
  */
 const EN_ARGS: Record<string, string> = {
+  כפה: "force",
   הזחה: "indent",
   הידוק: "tight",
   יישור: "align",
@@ -213,6 +215,333 @@ export function setStyleArgs(
 
 function trimBlankLine(s: string): string {
   return s.replace(/\n{3,}/g, "\n\n");
+}
+
+// ------------------------------------------------------- the per-instance layer
+//
+// The writer's model has three layers, and only the first was reachable from a
+// control:
+//
+//   1. a **global** layer sets the default for a kind of thing;
+//   2. an **individual** setting on one element overrules the global for it;
+//   3. `כפה` (`force`) on the global overrules every individual setting back.
+//
+// Layer 2 is named arguments on the element itself — `#רשימה(סמן: [–], …)`,
+// `#כותרת1(צבע: red)[פרק]`, `#הערה(גודל: 1em)[…]` — which `engine/typst/ksav.typ`
+// resolves through one shared merge for every kind. This half is what lets a
+// control write it: which commands carry the override, which of a kind's knobs one
+// element may answer, and how to put an argument on a call **without reflowing
+// the writer's own text**.
+
+/** The switch that makes the global win over every per-element setting. */
+export const OVERRULE = "כפה";
+
+/**
+ * The commands whose calls carry a per-instance override, per kind.
+ *
+ * Hebrew names only; both spellings are matched, through the generated pairing.
+ * `review` is empty on purpose — which view a document is read in is not a style
+ * of anything, so there is no element to put it on.
+ *
+ * `bands` is the **page** bands and not the section ones: the section apparatus is
+ * `#הגדרות_מדורגות`, a fourth configuration with no panel section of its own, and
+ * writing `#מדור_א`'s override against the page-band global would compare a
+ * setting to the wrong default.
+ */
+const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
+  headings: ["כותרת", "כותרת1", "כותרת2", "כותרת3", "כותרת4", "כותרת5", "כותרת6"],
+  lists: ["רשימה", "ממוספרת", "ממוספרת_עברית"],
+  tables: ["טבלה"],
+  review: [],
+  notes: [
+    "הערה",
+    "הערה_בדרגה",
+    "הערה_א",
+    "הערה_ב",
+    "הערה_ג",
+    "הערה_ד",
+    "הערה_ה",
+    "הערה_ו",
+    "הערה_ז",
+    "הערה_על_הערה",
+  ],
+  bands: ["מדף_בדרגה", "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז"],
+  streams: ["הערה_זרם", "הערת_תוכן", "הערת_מקור"],
+};
+
+/** The Hebrew names, for a caller checking them against the prelude. */
+export function instanceCommands(kind: StyleCommand): readonly string[] {
+  return INSTANCE_COMMANDS[kind];
+}
+
+const INSTANCE_NAMES: Record<StyleCommand, Set<string>> = Object.fromEntries(
+  Object.entries(INSTANCE_COMMANDS).map(([kind, names]) => [
+    kind,
+    new Set(names.flatMap((n) => bothSpellings(n))),
+  ]),
+) as Record<StyleCommand, Set<string>>;
+
+/**
+ * How one knob is shown and what it means — the whole per-instance surface.
+ *
+ * `size-em` and friends name the control, and the *keys of this table* are what
+ * one element of the kind may overrule. One table and not two, deliberately: a
+ * knob listed as overridable with no control beside it is a knob nobody can reach,
+ * and the way to make that impossible is for the list and the controls to be the
+ * same object.
+ */
+export type FieldKind =
+  | "size-em"
+  | "size-pt"
+  | "length-em"
+  | "length-pt"
+  | "colour"
+  | "slant"
+  | "weight"
+  | "bool"
+  /** A border: present, or the word `none`, which is not the same as absent. */
+  | "rule"
+  | "marker"
+  | "align"
+  | "numbering"
+  | "text";
+
+export interface Field {
+  kind: FieldKind;
+  /** The i18n key naming this knob, in the words of a single element. */
+  label: string;
+}
+
+/**
+ * What **one element** of each kind may overrule, and how to show each knob.
+ *
+ * The key sets are the prelude's own lists, which is why
+ * `test/enginefacts.test.mjs` reads them out of `ksav.typ` and fails when the two
+ * disagree. The panel cannot be allowed a second opinion: offering a control the
+ * engine refuses is a control that stops the compile, and hiding one it accepts is
+ * a setting reachable only by typing the command — which is the complaint that
+ * produced this panel in the first place.
+ *
+ * Headings, lists and tables answer for every knob their global has: each one is a
+ * property of a heading, a list, a table. The apparatus kinds answer for their own
+ * text and no more — a band's column count, a sidenote column's gutter and a
+ * sequence's numbering scheme describe the *arrangement*, and one member of it has
+ * no answer to give.
+ */
+export const INSTANCE_FIELDS: Record<StyleCommand, Readonly<Record<string, Field>>> = {
+  headings: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    משקל: { kind: "weight", label: "knobWeight" },
+    צבע: { kind: "colour", label: "knobColour" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    יישור: { kind: "align", label: "knobAlign" },
+    ריווח_לפני: { kind: "length-em", label: "knobSpaceBefore" },
+    ריווח_אחרי: { kind: "length-em", label: "knobSpaceAfter" },
+    קו_תחתון: { kind: "bool", label: "knobUnderline" },
+    קו: { kind: "bool", label: "knobRule" },
+    מספור: { kind: "numbering", label: "knobNumbering" },
+    רברבתי: { kind: "bool", label: "knobSmallcaps" },
+    מרווח_אותיות: { kind: "length-pt", label: "knobTracking" },
+  },
+  lists: {
+    סמן: { kind: "marker", label: "knobMarker" },
+    הזחה: { kind: "length-em", label: "knobIndent" },
+    הזחת_גוף: { kind: "length-em", label: "knobBodyIndent" },
+    ריווח: { kind: "length-em", label: "knobSpacing" },
+    הידוק: { kind: "bool", label: "knobTight" },
+    מספור: { kind: "numbering", label: "knobNumbering" },
+    ריווח_מספור: { kind: "length-em", label: "knobNumberGap" },
+  },
+  tables: {
+    קו: { kind: "rule", label: "knobBorder" },
+    מרווח: { kind: "length-pt", label: "knobInset" },
+    יישור: { kind: "align", label: "knobAlign" },
+    פסים: { kind: "bool", label: "knobStriped" },
+    צבע_פס: { kind: "colour", label: "knobStripeColour" },
+    צבע_כותרת: { kind: "colour", label: "knobHeaderFill" },
+    גופן: { kind: "text", label: "knobFont" },
+    גודל: { kind: "size-pt", label: "knobSize" },
+  },
+  review: {},
+  notes: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    צבע: { kind: "colour", label: "knobColour" },
+    הזחה: { kind: "length-em", label: "knobIndent" },
+    תוויות: { kind: "text", label: "knobLabel" },
+  },
+  bands: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    צבע: { kind: "colour", label: "knobColour" },
+  },
+  streams: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    צבע: { kind: "colour", label: "knobColour" },
+  },
+};
+
+/** The same set as names, for the fence that compares it against the prelude. */
+export const INSTANCE_KEYS: Record<StyleCommand, readonly string[]> = Object.fromEntries(
+  Object.entries(INSTANCE_FIELDS).map(([kind, fields]) => [kind, Object.keys(fields)]),
+) as unknown as Record<StyleCommand, readonly string[]>;
+
+/** One element of a styleable kind, and the arguments it already carries. */
+export interface InstanceCall {
+  kind: StyleCommand;
+  /** The command as the document spells it. */
+  name: string;
+  lang: CommandLang;
+  /** Named arguments already on the call, canonicalised to Hebrew. */
+  args: Map<string, string>;
+  /** The `#`, for a caller that wants to put the caret on the command. */
+  from: number;
+  /** Just past the name, which is where an argument list goes when there is none. */
+  nameTo: number;
+  /** Inside the `(…)`, or null when the call has no argument list at all. */
+  argList: { from: number; to: number } | null;
+}
+
+/**
+ * The innermost element of `kind` that `pos` sits inside, if any.
+ *
+ * Innermost, because a note inside a heading inside a list is all three at once and
+ * a control has to act on the one the caret is actually in. Deepest wins, and among
+ * equals the latest — which for nested calls is the same answer arrived at twice.
+ */
+export function findInstance(doc: string, kind: StyleCommand, pos: number): InstanceCall | null {
+  const names = INSTANCE_NAMES[kind];
+  if (!names.size) return null;
+  let best: InstanceCall | null = null;
+  let bestDepth = -1;
+  for (const n of scan(doc).nodes) {
+    if (!names.has(n.name)) continue;
+    if (pos < n.from || pos > n.to) continue;
+    if (n.depth < bestDepth) continue;
+    const raw = n.args ? argSpans(doc, n.args.from, n.args.to) : [];
+    bestDepth = n.depth;
+    best = {
+      kind,
+      name: n.name,
+      lang: n.lang,
+      args: new Map(raw.map((a) => [canonicalKey(a.key), doc.slice(a.valueFrom, a.valueTo)])),
+      from: n.from,
+      nameTo: n.nameTo,
+      argList: n.args ? { from: n.args.from, to: n.args.to } : null,
+    };
+  }
+  return best;
+}
+
+interface ArgSpan {
+  key: string;
+  /** The whole `name: value` segment, without the commas around it. */
+  from: number;
+  to: number;
+  valueFrom: number;
+  valueTo: number;
+}
+
+/** `[from, to)` with the whitespace at either end left outside it. */
+function tight(doc: string, from: number, to: number): { from: number; to: number } {
+  let a = from;
+  let b = to;
+  while (a < b && /\s/u.test(doc[a])) a++;
+  while (b > a && /\s/u.test(doc[b - 1])) b--;
+  return { from: a, to: b };
+}
+
+/** Every named argument in `[from, to)`, with the ranges a rewrite needs. */
+function argSpans(doc: string, from: number, to: number): ArgSpan[] {
+  const out: ArgSpan[] = [];
+  for (const g of splitArgs(doc, from, to)) {
+    const colon = topLevelColon(doc, g.from, g.to);
+    if (colon < 0) continue; // positional — an item, a cell, a tier number
+    const head = tight(doc, g.from, colon);
+    const value = tight(doc, colon + 1, g.to);
+    if (head.to <= head.from) continue;
+    out.push({
+      key: doc.slice(head.from, head.to),
+      from: head.from,
+      to: value.to,
+      valueFrom: value.from,
+      valueTo: value.to,
+    });
+  }
+  return out;
+}
+
+/**
+ * Set (or, with `null`, remove) named arguments on one element.
+ *
+ * **In place**, argument by argument, and that is the whole design. A list is
+ * written across five lines with a trailing comma; a table across forty. Rebuilding
+ * the argument list from parsed pieces would reflow all of it the first time
+ * somebody ticked a checkbox — the writer's own text rearranged as a side effect of
+ * a styling control, which is the sort of thing that makes a person stop trusting a
+ * panel. So an existing argument has its value replaced, a new one is inserted just
+ * inside the `(`, and every byte the panel was not asked about stays where it is.
+ *
+ * Edits are collected against the document as passed and applied last-first, so
+ * each one's offsets are still the ones it was computed from.
+ */
+export function setInstanceArgs(
+  doc: string,
+  call: InstanceCall,
+  changes: Record<string, string | null>,
+): string {
+  const spans = call.argList ? argSpans(doc, call.argList.from, call.argList.to) : [];
+  const byKey = new Map(spans.map((s) => [canonicalKey(s.key), s]));
+  const edits: { from: number; to: number; text: string }[] = [];
+  const fresh: string[] = [];
+
+  for (const [key, value] of Object.entries(changes)) {
+    const found = byKey.get(key);
+    if (found && value !== null) {
+      edits.push({ from: found.valueFrom, to: found.valueTo, text: value });
+    } else if (found) {
+      // The comma goes with it, or removing the first of two arguments leaves the
+      // call opening on one. Which comma depends on where the argument sits: the
+      // one after it, unless it was the last, in which case the one before.
+      const end = call.argList?.to ?? doc.length;
+      let to = found.to;
+      while (to < end && (doc[to] === "," || doc[to] === " " || doc[to] === "\t")) to++;
+      let from = found.from;
+      if (to >= end) {
+        while (from > 0 && (doc[from - 1] === "," || doc[from - 1] === " " || doc[from - 1] === "\t")) {
+          from--;
+        }
+      }
+      edits.push({ from, to, text: "" });
+    } else if (value !== null) {
+      fresh.push(`${keyIn(call.lang, key)}: ${value}`);
+    }
+  }
+
+  if (fresh.length) {
+    const written = fresh.join(", ");
+    if (!call.argList) {
+      // No argument list at all — `#כותרת1[פרק]`. One is added, and the body it
+      // already carries stays exactly where it was.
+      edits.push({ from: call.nameTo, to: call.nameTo, text: `(${written})` });
+    } else if (spans.length === 0 && doc.slice(call.argList.from, call.argList.to).trim() === "") {
+      edits.push({ from: call.argList.from, to: call.argList.to, text: written });
+    } else {
+      edits.push({ from: call.argList.from, to: call.argList.from, text: `${written}, ` });
+    }
+  }
+
+  let out = doc;
+  for (const e of edits.sort((a, b) => b.from - a.from)) {
+    out = out.slice(0, e.from) + e.text + out.slice(e.to);
+  }
+  return out;
+}
+
+/** Is this kind's global set to overrule every per-element setting? */
+export function isOverruled(doc: string, kind: StyleCommand): boolean {
+  return readBool(findStyleCall(doc, kind)?.args.get(OVERRULE)) === true;
 }
 
 // ---------------------------------------------------------------- value coding

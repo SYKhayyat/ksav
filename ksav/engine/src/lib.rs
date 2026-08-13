@@ -2413,7 +2413,15 @@ mod tests {
              reading the wrong thing. Found: {fam:?}"
         );
 
-        // The aliases: `#let X(..) = Y(..)` or `#let X = Y`, to a fixpoint.
+        // The aliases: `#let X(..) = Y(..)`, `#let X = Y`, or `#let X = _en(Y, …)`
+        // — an alias wrapped so its parameters may be given in English — to a
+        // fixpoint. The `_en` form is not a curiosity: every alias to a command
+        // that takes named arguments has to be wrapped, or its parameters stay
+        // Hebrew on the English spelling. So the moment a footer apparatus grew
+        // per-note style overrides, `#let pageband = מדף_בדרגה` became
+        // `#let pageband = _en(מדף_בדרגה, …)`, this derivation read the target as
+        // `_en`, and the whole `pageband*` family stopped being seen as reserving
+        // page foot at all. Which the fence below caught, in this direction.
         loop {
             let before = fam.len();
             for line in PRELUDE.lines() {
@@ -2427,8 +2435,9 @@ mod tests {
                     .chars()
                     .take_while(|c| c.is_alphanumeric() || *c == '_')
                     .collect();
-                let target: String = rhs
-                    .trim_start()
+                let body = rhs.trim_start();
+                let body = body.strip_prefix("_en(").unwrap_or(body);
+                let target: String = body
                     .chars()
                     .take_while(|c| c.is_alphanumeric() || *c == '_')
                     .collect();

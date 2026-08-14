@@ -102,6 +102,24 @@ fn registry_shape(name: &str) -> Option<String> {
     if !c.insert.contains('|') {
         return None;
     }
+    // Nor does a caret **inside a string literal**, and this is the one that was
+    // answering wrongly rather than not at all.
+    //
+    // Ten commands write their caret between quotes — `#ערוץ("|", מיקום: …)`,
+    // `#אזור("|", …)`, `#הצג_אזור("|")`, `#הערה_בשם("|")`, `#גוף_הערה("|")[]`,
+    // `#ציון_מקור("|", …)`, `#כלול("|")`, `#ערך("|")[]`, `#רשימת_סימונים("|")`,
+    // `#תמונה("|", …)`. Filling that slot produced `#ערוץ("א #מעבר_עמוד ב", …)`,
+    // where the page break is **string content**: Typst never sees a page break,
+    // compiles it happily, and the probe writes down "not a container".
+    //
+    // Eight of the ten were recorded transparent that way — the editor was told a
+    // page break inside them is fine, on the strength of a measurement that
+    // measured nothing. So a quoted caret says nothing about containment either,
+    // and the generic shapes below get their turn, where the break lands in a
+    // real content body.
+    if ksav_engine::commands::caret_in_string(c.insert) {
+        return None;
+    }
     Some(c.insert.replace('|', "א #מעבר_עמוד ב"))
 }
 

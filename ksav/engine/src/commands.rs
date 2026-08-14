@@ -321,3 +321,79 @@ pub fn categories() -> Vec<&'static str> {
     }
     seen
 }
+
+/// Does this snippet's caret slot sit inside a string literal?
+///
+/// # Why the library answers this
+///
+/// `examples/emit-containers.rs` probes each command by filling the caret slot
+/// with a page break and asking Typst whether it refuses — a page break inside a
+/// body Typst will not allow one in is what makes a command a *container*, and
+/// the editor reads the answer to decide whether it may offer one at a caret.
+///
+/// Ten commands write their caret between quotes: `#ערוץ("|", מיקום: …)`,
+/// `#אזור("|", …)`, `#הצג_אזור("|")`, `#הערה_בשם("|")`, `#גוף_הערה("|")[]`,
+/// `#ציון_מקור("|", …)`, `#כלול("|")`, `#ערך("|")[]`, `#רשימת_סימונים("|")` and
+/// `#תמונה("|", …)`. Filling those produced `#ערוץ("א #מעבר_עמוד ב", …)`, where
+/// the page break is **string content** — Typst never sees a page break at all,
+/// compiles it happily, and the probe writes down "not a container".
+///
+/// Eight of the ten were recorded transparent on that basis, which is the
+/// editor being told a page break inside them is fine by a measurement that
+/// measured nothing. `#כלול` was one, and it is a container.
+///
+/// Here rather than in the example so it can be held to the commands it is about:
+/// an example's `#[cfg(test)]` module is not run by `cargo test`.
+///
+/// Counted rather than parsed. These are snippet templates a few characters
+/// long and the only quotes in them are real ones, so an odd number before the
+/// `|` means it is inside one.
+#[must_use]
+pub fn caret_in_string(insert: &str) -> bool {
+    let Some(at) = insert.find('|') else {
+        return false;
+    };
+    insert[..at].matches('"').count() % 2 == 1
+}
+
+#[cfg(test)]
+mod caret_tests {
+    use super::*;
+
+    #[test]
+    fn a_caret_between_quotes_is_no_place_for_a_page_break() {
+        assert!(caret_in_string(r#"#ערוץ("|", מיקום: "רגל")"#));
+        assert!(caret_in_string(r#"#הצג_אזור("|")"#));
+        // A caret in a body, after a string argument, is a real content slot.
+        assert!(!caret_in_string(r#"#סימן("א")[|]"#));
+        assert!(!caret_in_string("#הדגשה[|]"));
+        assert!(!caret_in_string("#תוכן()"));
+    }
+
+    /// The class, over the registry the probe actually reads.
+    #[test]
+    fn every_snippet_with_a_quoted_caret_is_known_to_be_one() {
+        let quoted: Vec<&str> = COMMANDS
+            .iter()
+            .filter(|c| caret_in_string(c.insert))
+            .map(|c| c.he)
+            .collect();
+        // A floor, because a helper that stopped matching would empty this list
+        // and the probe would go back to measuring string contents in silence.
+        assert!(
+            quoted.len() >= 8,
+            "only {} snippets have a quoted caret, which is fewer than the ten this \n\
+             was written for — either the registry changed or `caret_in_string` \n\
+             stopped seeing them, and the container probe is measuring string \n\
+             contents again. Found: {quoted:?}",
+            quoted.len()
+        );
+        for name in ["ערוץ", "הצג_אזור", "כלול"] {
+            assert!(
+                quoted.contains(&name),
+                "#{name} writes its caret inside a string and the probe no longer \n\
+                 knows it. Found: {quoted:?}"
+            );
+        }
+    }
+}

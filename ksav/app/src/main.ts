@@ -10059,6 +10059,47 @@ async function boot() {
     commands: () => actions().map((a) => a.id),
     run: (id) => void runAction(id),
     prompt: () => openPalette(),
+    // The units a sefer is made of, from the same modules the outline pane, the
+    // ribbon and the note register read. A second opinion about where a note
+    // ends would disagree first with the pane sitting beside the text.
+    units: (at) => {
+      const doc = docTextNow();
+      const out: Partial<Record<keymodes.SeferUnit, keymodes.Span>> = {};
+
+      // A note. `a` is the marker with its body; `i` is the prose. A marker with
+      // no body yet has no inside, and `hasBody` is how the register says so.
+      const note = noteAt(doc, at);
+      if (note) {
+        out.note = {
+          from: note.from,
+          to: note.deferred ? note.deferred.defTo : note.to,
+          inner: note.hasBody ? { from: note.bodyFrom, to: note.bodyTo } : undefined,
+        };
+      }
+
+      // A heading, and *its section*: everything under it until the next heading
+      // at the same level or above. `i` is the section without the heading line,
+      // which is what a writer means by "this heading" when they say `dih`.
+      const all = heads.headings(doc);
+      const here = heads.headingAt(doc, at, all);
+      if (here) {
+        const after = all.find((h) => h.from > here.from && h.level <= here.level);
+        const sectionTo = after ? after.from : doc.length;
+        out.heading = {
+          from: here.from,
+          to: sectionTo,
+          inner: { from: here.to, to: sectionTo },
+        };
+      }
+      return out;
+    },
+    heading: (at, forward) => {
+      const all = heads.headings(docTextNow());
+      const next = forward
+        ? all.find((h) => h.from > at)
+        : [...all].reverse().find((h) => h.from < at);
+      return next ? next.from : null;
+    },
   });
   // An error in an included chapter opens *that* chapter and goes to the line.
   onGoToPart((file, line, column) => {

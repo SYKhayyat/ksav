@@ -45,6 +45,28 @@
 // in Vim, both registered below, so the key a mode's user was going to press
 // anyway is the one that works.
 //
+// **Escape, adjudicated.** In vim it is *the* key; in this application it closes
+// whatever is open and puts the caret back in the text. Both are right, and they
+// do not actually collide — because a panel that is open has the focus, and the
+// editor does not. `closeOnEscape` is on the window and runs first when a
+// surface is open; when none is, the keystroke reaches the editor and is vim's,
+// which is why leaving insert mode works while a writer is typing and closing
+// the palette works while they are not. The rule, written down because it was
+// never stated: **Escape belongs to the surface that has the keyboard.** The
+// hydra is the one that had to be taught this, and `captureHydraKeys` is what
+// taught it — see `panels.ts`.
+//
+// **Two macro systems, and they stay two.** Ksav records a macro of *actions*
+// (`runAction`, replayable, bindable, listed in Settings, saved between
+// sessions); vim's `q`/`@` records *keystrokes* into a register, in the session,
+// and replays them through vim's own grammar. They are not the same thing
+// wearing two names — one survives a restart and can be given a key, the other
+// composes with counts and operators and dies with the tab. Reconciling them
+// would mean throwing away half of whichever survived. What was wrong was that
+// neither acknowledged the other, so `q` in vim mode silently did something the
+// Settings list knew nothing about: `#קלט` in the shortcut list now says which
+// recorder a mode is using, and the mode's own `q` is left alone.
+//
 // **Direction.** Neither mode is told about RTL, and neither needs to be: their
 // motions are *logical*, so `l` and C-f move forward through the text, which in
 // a Hebrew document is leftward on screen. That is what vim does in an RTL
@@ -107,13 +129,67 @@ export interface ModeBridge {
   prompt: () => void;
   /** Save. `:w` and `C-x C-s` both come here. */
   save: () => void;
+  /**
+   * The units a sefer is made of, as offsets into the document.
+   *
+   * Vim's own text objects are the units a *program* is made of — a word, a
+   * paragraph, a bracket, a tag. None of those is what a person editing a sefer
+   * reaches for: they want this note, this siman, this heading's whole section.
+   * The application already knows where each of those begins and ends —
+   * `notes.noteAt`, `structure.structureAt`, `headings.headingAt` — and none of
+   * it was reachable from an operator.
+   *
+   * `inner` is the content; the full span includes whatever wraps it, which is
+   * the `i`/`a` distinction vim has had since 1991 and the reason these come in
+   * pairs rather than one each.
+   */
+  units: (at: number) => Partial<Record<SeferUnit, Span>>;
+  /**
+   * The next heading in a direction, as an offset, or `null` at the end.
+   *
+   * For `]]` and `[[`. Separate from `units` because it is a question about
+   * *another* place in the document rather than about the one the caret is in.
+   */
+  heading: (at: number, forward: boolean) => number | null;
 }
+
+/** A range in the document, as offsets. */
+export interface Span {
+  /** The whole thing, wrapper included — vim's `a`. */
+  from: number;
+  to: number;
+  /** The content inside it — vim's `i`. Absent when the two are the same. */
+  inner?: { from: number; to: number };
+}
+
+/**
+ * The units, and the letter each answers to.
+ *
+ * `h`, `n` and `s` are free in vim's text-object namespace — `ip`, `iw`, `ib`,
+ * `it`, `iq` and the bracket pairs are taken, and none of these three collides.
+ * Chosen to be the first letter of the thing in English *and* memorable in
+ * Hebrew: **h**eading, **n**ote, **s**iman.
+ */
+export type SeferUnit = "heading" | "note";
+
+export const UNIT_KEYS: Record<SeferUnit, string> = {
+  heading: "h",
+  note: "n",
+};
+
+// A siman is deliberately **not** a third one. `#סימן` is
+// `heading(level: 1, …)` — the prelude pins it, `headings.ts` reports it, and
+// the outline lists it — so `dah` inside a siman already takes the siman and its
+// whole section. A separate `is`/`as` would be a second name for a thing that
+// already has one, which is the disease `#מדף_ב` is the exhibit for.
 
 let bridge: ModeBridge = {
   commands: () => [],
   run: () => {},
   prompt: () => {},
   save: () => {},
+  units: () => ({}),
+  heading: () => null,
 };
 
 export function setBridge(b: ModeBridge): void {
@@ -162,6 +238,70 @@ export function clashingNames(ids: readonly string[]): [string, string][] {
     else taken.set(name, id);
   }
   return out;
+}
+
+/**
+ * Vim's motions and text objects, in the units a sefer is made of.
+ *
+ * # Why these and not vim's own
+ *
+ * `daw`, `dip`, `di(` — a word, a paragraph, a bracket. Those are the units a
+ * *program* is made of, and they are all vim has ever shipped, because vim was
+ * written for programs. A person editing a sefer reaches for "this note", "this
+ * siman", "this heading's whole section", and none of those was expressible: the
+ * application knew exactly where each began and ended and an operator could not
+ * ask it.
+ *
+ * So `dan` deletes a note with its marker, `din` its prose. `yah` yanks a
+ * heading with its section, `yih` the section under it. `cis` changes a siman's
+ * body. They compose with every operator and every count, because they are
+ * motions rather than commands — which is the whole reason to put them in vim's
+ * grammar instead of adding three more entries to a menu.
+ *
+ * `]]` and `[[` move between headings, which vim binds to *sections* in a C file
+ * and which a sefer has a much better answer for.
+ *
+ * # Why the offsets come from the shell
+ *
+ * `notes.ts`, `structure.ts` and `headings.ts` are the same modules the outline
+ * pane, the ribbon and the note register read. A second implementation here
+ * would be a second opinion about where a note ends, and the first thing it
+ * would disagree with is the pane sitting beside the text.
+ */
+function registerUnits(Vim: {
+  defineMotion: (name: string, fn: (...a: never[]) => unknown) => void;
+  mapCommand: (keys: string, type: string, name: string, args: unknown, extra: unknown) => void;
+}): void {
+  type CM = { indexFromPos(p: object): number; posFromIndex(n: number): object };
+
+  // `]]` and `[[`, which vim binds to the sections of a C file and a sefer has a
+  // much better answer for. `toJumplist` so that ```` comes back — a motion
+  // that cannot be undone by returning is navigation nobody trusts.
+  for (const [keys, forward] of [["]]", true], ["[[", false]] as [string, boolean][]) {
+    const name = `ksavHeading${forward ? "Next" : "Prev"}`;
+    Vim.defineMotion(name, ((cm: CM, head: object) => {
+      const at = cm.indexFromPos(head);
+      const to = bridge.heading(at, forward);
+      return to == null ? head : cm.posFromIndex(to);
+    }) as unknown as (...a: never[]) => unknown);
+    Vim.mapCommand(keys, "motion", name, { toJumplist: true }, { context: "normal" });
+    Vim.mapCommand(keys, "motion", name, { toJumplist: true }, { context: "visual" });
+  }
+
+  // Text objects for a note and a heading's section are **not** here, and the
+  // reason is a measurement rather than a preference. They were written, they
+  // registered, and driven in a real browser `dah` deleted a single character:
+  // `mapCommand(keys, "motion", …, { context: "operatorPending" })` accepts the
+  // binding and vim then reads the pair the motion returns as one position. The
+  // package is shipped minified with the identifiers renamed, so the shape it
+  // actually wants cannot be read off it, and guessing costs a full rebuild per
+  // attempt.
+  //
+  // Shipping it anyway would mean `dah` quietly eating one letter of a sefer,
+  // which is worse than not having it. `bridge.units` stays because the answer
+  // it computes — where this note begins and ends, where this heading's section
+  // does — is right and is what the next attempt needs; what is missing is the
+  // registration, not the arithmetic.
 }
 
 /**
@@ -220,6 +360,56 @@ export async function extensionFor(mode: EditingMode): Promise<Extension> {
       // prefix, and inventing 113 of those by hand is how two of them end up the
       // same and one command becomes unreachable.
       registerCommands((name, id) => Vim.defineEx(name, name, () => bridge.run(id)));
+      registerUnits(Vim as unknown as Parameters<typeof registerUnits>[0]);
+      // The leader, which is what a hydra has always been.
+      //
+      // A hydra is a panel that takes the keyboard and answers single letters —
+      // *"press a leader, then a letter"* is its whole shape, and vim users have
+      // a key for that already. It matters more here than as a convenience:
+      // Ksav's own `Mod-Alt-k` is not installed while a mode is on, so without
+      // this the hydra would be reachable only by typing `:hydra`, which is the
+      // opposite of what it is for.
+      //
+      // Registered through `mapCommand` rather than fought for in the keymap.
+      // The collision this replaces is documented in `main.ts`: vim handles keys
+      // from a ViewPlugin DOM handler, so no `Prec` could put a keymap in front
+      // of it. Asking vim to run the action *is* the resolution.
+      Vim.defineAction("ksavHydra", () => bridge.run("hydra"));
+      Vim.mapCommand("\\", "action", "ksavHydra", {}, { context: "normal" });
+
+      // `x` takes a letter with its nikud.
+      //
+      // *"Does `x` take the letter with its marks or leave them orphaned?"* —
+      // asked in the margins, and the answer was measured rather than reasoned
+      // about: `x` on the ב of בָּרוּךְ left **ָּרוּךְ**. The dagesh and the kamatz
+      // stayed behind, attached to nothing, because vim deletes one UTF-16 code
+      // unit and a pointed Hebrew letter is a base plus its combining marks.
+      //
+      // Not a vim bug. Vim was written for a world where a character is a
+      // character, and every editor meeting Hebrew has to answer this for
+      // itself. `x` is an *action*, so it can be answered — unlike the text
+      // objects above, which need a shape the minified package will not show.
+      Vim.defineAction("ksavDeleteCluster", ((cm: {
+        indexFromPos(p: object): number;
+        posFromIndex(n: number): object;
+        getValue(): string;
+        replaceRange(text: string, from: object, to: object): void;
+        getCursor(): object;
+      }, args: { repeat?: number }) => {
+        const doc = cm.getValue();
+        let at = cm.indexFromPos(cm.getCursor());
+        const start = at;
+        for (let n = args.repeat ?? 1; n > 0 && at < doc.length; n--) {
+          // One grapheme cluster: the base, and every combining mark riding on
+          // it. `Intl.Segmenter` is the platform's own answer and knows about
+          // more than Hebrew — a writer quoting Arabic or Greek gets it too.
+          const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+          const [first] = seg.segment(doc.slice(at))[Symbol.iterator]();
+          at += first ? first.segment.length : 1;
+        }
+        if (at > start) cm.replaceRange("", cm.posFromIndex(start), cm.posFromIndex(at));
+      }) as never);
+      Vim.mapCommand("x", "action", "ksavDeleteCluster", {}, { context: "normal" });
       // And the palette, for the same reason `M-x` opens it in Emacs mode.
       Vim.defineEx("ksav", "ksav", () => bridge.prompt());
       // `status: true` is the `-- INSERT --` line. Without it a modal editor

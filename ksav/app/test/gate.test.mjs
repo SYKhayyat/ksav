@@ -104,7 +104,26 @@ function fencedLines(text) {
  * needs the escape anyway — a line that only calls the runner names no verb.
  */
 function permitted(line) {
-  return /npm test --\s+\S/.test(line);
+  // A filtered run.
+  if (/npm test --\s+\S/.test(line)) return true;
+  // A run that **writes** rather than checks.
+  //
+  // `KSAV_BLESS=1 cargo test --test facts` regenerates
+  // `engine/facts.gen.json`; the gate's engine check runs the same test in its
+  // verifying mode. So this is not a second copy of a check — it is the only
+  // way to perform a different operation, and it is by construction not the
+  // gate for the same reason a filtered run is not.
+  //
+  // Found by writing a contributor guide: the sweep refused it, correctly by
+  // its own rule, and the rule was wrong. What that surfaced is worse than the
+  // refusal — **the bless command was in no living page at all**, so anybody
+  // editing a table in Rust had no documented way to regenerate what depends on
+  // it, and would meet it as a red suite instead.
+  //
+  // Narrow on purpose: the escape is the environment variable, not the verb. A
+  // bare `cargo test` in a page is still refused.
+  if (/\bKSAV_BLESS=1\b/.test(line)) return true;
+  return false;
 }
 
 /** The gate verbs a line names. */

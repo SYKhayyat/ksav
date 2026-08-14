@@ -104,6 +104,14 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
+          # Keep the build even when the run goes red.
+          #
+          # The default throws it away, and on this job that is the expensive
+          # thing in the whole workflow: a failing test run discards the
+          # compilation and the *next* run — the one with the fix in it — pays
+          # for it again from scratch. Nothing about a red test makes the object
+          # files wrong.
+          cache-on-failure: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -159,6 +167,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/wasm -> target"
+          cache-on-failure: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -229,6 +238,14 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
+          # Keep the build even when the run goes red.
+          #
+          # The default throws it away, and on this job that is the expensive
+          # thing in the whole workflow: a failing test run discards the
+          # compilation and the *next* run — the one with the fix in it — pays
+          # for it again from scratch. Nothing about a red test makes the object
+          # files wrong.
+          cache-on-failure: true
 
       - name: Install
         working-directory: ./ksav/app
@@ -258,6 +275,14 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
+          # Keep the build even when the run goes red.
+          #
+          # The default throws it away, and on this job that is the expensive
+          # thing in the whole workflow: a failing test run discards the
+          # compilation and the *next* run — the one with the fix in it — pays
+          # for it again from scratch. Nothing about a red test makes the object
+          # files wrong.
+          cache-on-failure: true
 
       # `emacs-nox` rather than the full package: this suite runs in batch and
       # draws nothing. The one thing a graphical Emacs would add — actually
@@ -322,6 +347,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/app/src-tauri -> target"
+          cache-on-failure: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20

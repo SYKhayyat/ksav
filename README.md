@@ -11,11 +11,18 @@ It is aimed at Hebrew writers, with a first-class Torah/yeshiva path (siddur,
 bentcher, kesubah, get, footnote apparatus, side-column commentary), and it works
 equally for left-to-right English documents.
 
-**If you are here to use it, not to build it:
-[`docs/start-here.md`](docs/start-here.md)** — and
-[`docs/from-word.md`](docs/from-word.md) if that is what you are leaving.
-[`docs/shortcuts.md`](docs/shortcuts.md) is all 71 bindings in both languages,
-generated from the source.
+### Where to go
+
+| You are here to… | Go to |
+|---|---|
+| **use it** | [`docs/start-here.md`](docs/start-here.md) |
+| **switch from Word** | [`docs/from-word.md`](docs/from-word.md) |
+| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 71 bindings in both languages, generated from the source |
+| **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — clone to landed change |
+| **understand the architecture** | [`ksav/README.md`](ksav/README.md) |
+| **work on the seam with Girsa** | [`docs/girsa.md`](docs/girsa.md) |
+| **write in Emacs instead** | [`ksav/editors/emacs/README.md`](ksav/editors/emacs/README.md) |
+| **know why something is the way it is** | [`decisions/README.md`](decisions/README.md) |
 
 ## Download
 
@@ -114,11 +121,50 @@ builds, the command reference, and the architecture.
 - **Command palette, Word-like toolbar, templates, document library, version
   history, custom commands**, and a fully RTL/LTR-aware bilingual UI.
 
+## Girsa, the other half
+
+Ksav has a sibling. **[Girsa](https://github.com/SYKhayyat/girsa) is the
+library; Ksav is the pen.** Girsa holds the corpus — you search it, read it, and
+find the מקור you want; Ksav is where the sefer that quotes it gets written.
+
+They are two applications and one product, and they hand things to each other
+three ways: over a token-gated loopback while both are open, through the system
+clipboard under a real native format, and through a `ksav://` link that starts
+Ksav when it is not running. What crosses is a **Source Packet** — a versioned
+contract that lives in a third repository,
+[`sefer-crates`](https://github.com/SYKhayyat/sefer-crates), alongside the ref
+parser, the citation formatter, the Hebrew normaliser and the code that writes
+Ksav's own markup.
+
+That third repository is the point rather than an accident: a change to what a
+quote *is* has to land on both sides as one edit, not as an agreement in prose
+between two codebases. Every time the two have kept their own copy of a shared
+answer, the copies drifted and the drift was silent.
+
+Ksav is useful on its own and nothing here requires Girsa to be installed. The
+services that need it say so rather than failing.
+[`docs/girsa.md`](docs/girsa.md) is the map of the seam.
+
+## Contributing
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) takes you from a clone to a change that
+lands: what to install, how the three builds differ, the one command that is the
+gate, and the rules — fix the class rather than the instance, mutation-test
+every fence, a broken feature is the finding and the missing message is a
+subordinate clause.
+
+The short version of why this repository is shaped the way it is: **the engine
+is right and the surface lies about it.** That is the bug Ksav keeps having, and
+almost every convention in the codebase exists to make it noticeable by
+something other than a person.
+
 ## Repository layout
 
 | Path | Description |
 | --- | --- |
 | [`ksav/`](ksav) | **The product.** The Rust Typst engine, the CodeMirror SPA (`ksav/app`), the WASM crate (`ksav/wasm`), the Tauri desktop shell (`ksav/app/src-tauri`), and packaging. Start here. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Clone to landed change: the setup, the gate, and the rules every change is bound by. |
+| [`docs/`](docs) | The pages for readers — [starting out](docs/start-here.md), [coming from Word](docs/from-word.md), [the keyboard](docs/shortcuts.md), and [the seam with Girsa](docs/girsa.md). |
 | [`spec.md`](spec.md) | The note options — eleven, and the ground rule that produces exactly eleven. A living document. |
 | [`decisions/`](decisions/README.md) | **The record.** Every dated wave, audit and resolution, each true on its date and never edited afterwards. Kept apart from the documentation on purpose: a spec is edited in place, a log is written once, and every stale number in this repository used to live where the two had been merged. |
 | [`prototypes/`](prototypes) | The two original Gemini-authored **mocks**, archived for history — a React web app and a Flutter + Rust app. Neither ever invoked Typst. See [`prototypes/README.md`](prototypes/README.md). |

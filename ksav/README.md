@@ -9,6 +9,18 @@ This is a ground-up rewrite. The two earlier prototypes
 [`prototypes/flutter-app`](../prototypes/flutter-app)) both *mocked* the renderer —
 neither ever invoked Typst. This engine runs the genuine Typst compiler.
 
+This page is long because it is the reference. You do not read it front to back.
+
+| | |
+|---|---|
+| **Writing in it** | [Using Ksav](#using-ksav) — the first five minutes, the menus, notes, styles, the keyboard |
+| **Why it is built like this** | [Core idea](#core-idea), [Features](#features-engine), [The editor](#the-editor-spa) |
+| **Building it** | [Develop](#develop), [The shared crates](#the-shared-crates), [Test](#test), [Use it](#use-it) |
+| **Shipping it** | [a single binary](#ship-a-single-self-contained-binary-server--desktop), [the browser build](#ship-an-offline-no-server-web-build-wasm), [the desktop app](#desktop-app-tauri) |
+| **Talking to the engine** | [The engine's services](#the-engines-services), [Library API](#library-api), [Storage](#storage) |
+| **Making a change** | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| **The other half of the product** | [`../docs/girsa.md`](../docs/girsa.md) |
+
 ## Using Ksav
 
 **Press `F1`.** The help panel is *generated* from the application — every

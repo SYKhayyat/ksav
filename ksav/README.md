@@ -300,6 +300,39 @@ collapses the sefer to chapters, or to chapters and simanim.
 Every key above is rebindable in Settings, and Settings lists every operation in
 the product because that list is generated too.
 
+### Version control
+
+The `⑂` chip opens a drawer over **the git you already have**. Ksav does not
+bring its own: it drives the `git` on your machine, so the history in this
+drawer and the history in a terminal are the same history, your credentials are
+the ones you already set up, and nothing about a sefer under version control
+stops working outside Ksav.
+
+Everything is there — what has changed, a commit with a message, the history of
+this sefer with compare, restore and revert, branches with switch and merge,
+remotes with fetch, pull and push. A merge that stops on conflicts is reported
+as what it is, with the choice to take one side or walk away, because the
+markers are in your document at that point and being told nothing happened
+would be worse than useless.
+
+Three things it will tell you rather than sit there greyed:
+
+- **the document has not been saved to a file yet** — there is no folder for a
+  repository to be in, so save it and the drawer works;
+- **you are in a browser** — a tab is handed a file *handle* and never a path,
+  and git needs a path. The installed application has one;
+- **git is not installed** — which is the one case Ksav genuinely cannot do
+  anything about, and says so instead of doing nothing quietly.
+
+Comparing with an old version marks the change gutter, exactly as comparing with
+a snapshot does. That is deliberate: one set of marks in the margin, one thing
+to read, whether the version you are comparing against came from `Ctrl+Alt+S` or
+from a commit last Tuesday.
+
+The snapshots are not going anywhere and are not the same feature. A snapshot is
+*this point, kept, automatically*; a commit is *this much is finished, and here
+is what changed and why.* Most writing wants the first and never the second.
+
 ### Where your settings live
 
 Two different things, deliberately kept apart:
@@ -611,7 +644,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,726 editor assertions, 661 engine
+- [x] **CI, running and green** — typecheck, 5,734 editor assertions, 661 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -697,7 +730,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,726 assertions across 91 files |
+| `editor` | the typechecker, then 5,734 assertions across 91 files |
 | `engine` | lints, then 661 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 

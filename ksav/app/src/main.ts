@@ -5698,7 +5698,7 @@ function renderGitPanel(): void {
             el("span", { class: "git-state" }, [t(git.stateKey(f))]),
             el("span", { class: "git-path" }, [f.path]),
             ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
-            ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.staged")])] : []),
+            ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.readyToCommit")])] : []),
           ]),
         ),
       ),

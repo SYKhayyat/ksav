@@ -416,7 +416,7 @@ const HE: Dict = {
   "git.st.added": "נוסף",
   "git.st.renamed": "שם חדש",
   "git.st.conflicted": "סתירה",
-  "git.staged": "מוכן לרישום",
+  "git.readyToCommit": "מוכן לרישום",
   // the repository
   "git.noRepo": "התיקייה הזאת אינה מאגר גיט.",
   "git.init": "יצירת מאגר כאן",
@@ -1480,7 +1480,7 @@ const EN: Dict = {
   "git.st.added": "added",
   "git.st.renamed": "renamed",
   "git.st.conflicted": "conflict",
-  "git.staged": "ready to commit",
+  "git.readyToCommit": "ready to commit",
   // the repository
   "git.noRepo": "This folder is not a git repository.",
   "git.init": "Make one here",

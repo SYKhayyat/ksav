@@ -344,6 +344,69 @@ const RULES = [
     probe: hasControlChar,
     allow: [],
   },
+  {
+    // The class: **another program's internal alphabet, shown to a reader.**
+    //
+    // `git status` reports state as two letters out of `M A D R C U ?` — an
+    // alphabet that is neither English nor Hebrew, and that a writer of a sefer
+    // has no reason to have learned. There are six states and there are six
+    // words for them in both languages, so a drawer printing the letter has
+    // handed the reader a lookup table instead of an answer.
+    //
+    // Written as a property access rather than as the letters themselves,
+    // because forbidding `"M"` would forbid the alphabet in the module whose
+    // job is to translate it. Reading `.staged` or `.worktree` *is* the act of
+    // handling a raw status code, `git.ts` is the one place that may, and
+    // `stateKey` is what everybody else asks. Mutation-tested by moving the
+    // `f.worktree` test out of `git.ts` and into `main.ts`, which goes red
+    // naming `main.ts`.
+    //
+    // TypeScript only, and that is the scope rather than an oversight: the
+    // engine's own `git.rs` builds these fields and cannot be forbidden from
+    // touching them. What the rule is about is the client, where the letters
+    // would reach a screen.
+    // The trailing `(?!["'])` is not decoration. Written without it, this rule
+    // matched the i18n key `"git.staged"` in both dictionaries and named
+    // `i18n.ts` and `main.ts` as violators — a false positive on a *string*,
+    // for a rule about a *property access*. That is how a sweep teaches people
+    // to silence it. An interface key is always inside quotes and always
+    // closed by one immediately after, and a property access never is.
+    // (The key was renamed to `git.readyToCommit` as well, because it reads
+    // better; the guard stays, because the next key is not renamed yet.)
+    what: "only git.ts reads git's status letters",
+    where: /^ksav\/app\/(src|tools)\/.*\.(ts|mjs)$/u,
+    match: /\.(?:staged|worktree)\b(?!["'])/u,
+    allow: ["ksav/app/src/git.ts"],
+  },
+  {
+    // The class: **a second place that starts a program the product already
+    // drives from one.**
+    //
+    // Version control runs `git` as a subprocess, and every invocation has to
+    // carry seven pieces of environment or it can stop and wait for a human
+    // that is not there: terminal prompts off, askpass empty, ssh in batch
+    // mode, the credential manager silenced. `git.rs` sets them in the one
+    // function that spawns, and a test inside it holds that there is exactly
+    // one such function. This is the same claim one level out — a second
+    // module starting git anywhere in the product would be a second place to
+    // forget them, and the symptom is a drawer that hangs rather than an error
+    // anybody can read.
+    //
+    // Scoped to the product's own source. `docfacts.mjs` and
+    // `documentation.test.mjs` run `git ls-files` to enumerate what is tracked,
+    // which is a build-time question about this repository and not version
+    // control for a writer's sefer; they are outside the sweep by path rather
+    // than by exemption, because they are not the thing the rule is about.
+    what: "one place in the product starts git",
+    where: /^ksav\/(app\/src|app\/src-tauri\/src|engine\/src|wasm)\/.*\.(ts|rs)$/u,
+    contains: [
+      String.raw`Command::new("git")`,
+      String.raw`spawn("git"`,
+      String.raw`execFile("git"`,
+      String.raw`execFileSync("git"`,
+    ],
+    allow: ["ksav/engine/src/git.rs"],
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

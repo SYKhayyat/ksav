@@ -1291,6 +1291,76 @@ async function main() {
     `${saidSomething} of ${LISTS.length}`,
   );
 
+  // ------------------------------------------------------------------------
+  step(10, "version control says why it cannot run");
+
+  // The state every reader is in on the day they install this: a document that
+  // has never been saved to a file, in a browser that hands back handles rather
+  // than paths. Version control cannot run, and there are **three** different
+  // reasons it might not be able to — the drawer has to say which one, because
+  // each has a different answer and only one of them is "install git".
+  //
+  // This is the one surface in the application whose ordinary state, for most
+  // of the people who open it, is *unavailable*. Step 8 proves the drawer
+  // appears; step 9 proves lists say what empty means. Neither would notice a
+  // drawer that appears, holds nothing, and explains nothing — which is exactly
+  // what it would look like if `standing()` collapsed its three answers into
+  // one and the caller rendered an empty div for it.
+  await clickVisible("the version-control chip", '[data-chip="git"]');
+  await page.waitForSelector("#git-panel.open", { timeout: 10_000 });
+  try {
+    await page.waitForSelector("#git-panel.open .git-why", { timeout: 10_000 });
+  } catch {
+    check("version control says why it cannot run", false, "no .git-why in the drawer");
+  }
+  {
+    const why = page.locator("#git-panel.open .git-why").first();
+    const text = (await why.textContent().catch(() => "")) ?? "";
+    check("version control says why it cannot run", text.trim().length > 0, JSON.stringify(text));
+    // In words, like every other empty state: `t()` returns the key it was
+    // given when the dictionary has no entry, so a missing string puts
+    // `git.noFile` in front of a reader.
+    // The emptiness is part of the condition, not a separate check above it.
+    // Written as `!/^git\./.test(text)` alone, this **passed on an empty
+    // string** — a check that cannot fail for the reason it is written under,
+    // which is the shape this suite keeps finding in itself. The mutation run
+    // that blanked the drawer is what showed it: four checks went red and this
+    // one reported ok about nothing at all.
+    check(
+      "…and not by printing its own i18n key",
+      text.trim().length > 0 && !/^git\.[A-Za-z]+$/.test(text.trim()),
+      text.trim(),
+    );
+    // And the reason is *named*, not merely present. `data-git` carries which
+    // of the states this is, so a drawer that always rendered the same sentence
+    // — the failure this step exists for — is distinguishable from one that
+    // read the situation.
+    const named = await why.getAttribute("data-git").catch(() => null);
+    check(
+      "…and names which state it is in",
+      typeof named === "string" && named.length > 0,
+      String(named),
+    );
+    // On the server build with an unsaved document there is exactly one honest
+    // answer, and it is not the one about git being missing.
+    // `check` takes a **condition**, not an actual and an expected. Passing
+    // `named` here — which the first draft did — asserts that the attribute is
+    // truthy and nothing more, so it would have been satisfied by `no-git`,
+    // `no-repo`, or any other state the drawer happened to be in. On the server
+    // build with a document that has never been saved there is exactly one
+    // honest answer, and this is it.
+    check(
+      "…which is that the document has nowhere to live yet",
+      named === "unavailable",
+      String(named),
+    );
+    await withoutMotion(() => visible("the reason is on the screen", "#git-panel.open .git-why"));
+  }
+  {
+    const entry = plan.find((e) => e.panel.id === "git-panel");
+    await putAway("git-panel", entry, "#git-panel", false);
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

@@ -1847,7 +1847,22 @@ async function main() {
     await clickVisible("the settings chip", '[data-chip="settings"]');
     await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
     await page.selectOption('[data-setting="editingMode"]', "vim");
-    await page.waitForTimeout(1200);
+    // Waited for, not slept through. The mode is fetched over the network, so
+    // the only honest signal that it arrived is the one step 7c uses: with a
+    // mode installed, every surface that prints a chord prints `M-x name`
+    // instead, and the door into the keys drawer carries `sc-key-mode`. A fixed
+    // delay here would pass on this machine and go red on a cold runner that
+    // took a beat longer to fetch the package — a red job about vim that is
+    // really about the network, which is how three pushes in a row got read as
+    // infrastructure.
+    await page
+      .waitForSelector("#keys-open.sc-key-mode", { state: "attached", timeout: 20_000 })
+      .catch(() => {});
+    check(
+      "vim mode arrives at all",
+      (await page.locator("#keys-open.sc-key-mode").count()) > 0,
+      "the keys door never started printing an M-x command, so no mode was installed",
+    );
     await press("Escape");
 
     for (const pane of [0, 1]) {
@@ -1864,9 +1879,14 @@ async function main() {
       );
     }
 
+    // And out again, on the same condition rather than on a guess, so anything
+    // added after this step starts from plain editing.
     await clickVisible("the settings chip", '[data-chip="settings"]');
     await page.selectOption('[data-setting="editingMode"]', "default");
-    await page.waitForTimeout(600);
+    await page
+      .waitForSelector("#keys-open.sc-key-mode", { state: "detached", timeout: 20_000 })
+      .catch(() => {});
+    await press("Escape");
   }
 
   // ----------------------------------------------------------------- the tally

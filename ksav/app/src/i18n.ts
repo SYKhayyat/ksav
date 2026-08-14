@@ -608,7 +608,7 @@ const HE: Dict = {
   "mode.default": "רגיל",
   "mode.vim": "Vim",
   "mode.emacs": "Emacs",
-  editingModeNote: "Vim ו־Emacs אמיתיים. במצב כזה הם מקבלים את המקשים לפני קיצורי כתב — לשמירה: ‎:w‎ ב־Vim, ‎C-x C-s‎ ב־Emacs.",
+  editingModeNote: "Vim ו־Emacs אמיתיים. כשאחד מהם פועל הוא מקבל את המקלדת כולה וקיצורי כתב אינם מותקנים כלל — אבל כל 113 הפקודות זמינות כפקודת ‎:‎ ב־Vim ותחת ‎M-x‎ ב־Emacs. לשמירה: ‎:w‎ ב־Vim, ‎C-x C-s‎ ב־Emacs.",
   // What the note says when no mode is on, and when one was asked for and did
   // not arrive. The old note asserted the first sentence unconditionally, in a
   // build where the mode was never applied at all.
@@ -1569,7 +1569,7 @@ const EN: Dict = {
   "mode.default": "Normal",
   "mode.vim": "Vim",
   "mode.emacs": "Emacs",
-  editingModeNote: "Real Vim and Emacs. While one is on it gets the keys before Ksav's own shortcuts — to save, :w in Vim, C-x C-s in Emacs.",
+  editingModeNote: "Real Vim and Emacs. While one is on it takes the whole keyboard and Ksav's own shortcuts are not installed at all — but every command is still there as a : command in Vim and under M-x in Emacs. To save, :w in Vim, C-x C-s in Emacs.",
   editingModeNoteOff: "Real Vim and Emacs are available here — pick one and it gets the keys before Ksav's own shortcuts.",
   editingModeFailed: "⚠ The mode you chose did not load, and the keyboard is unchanged. Reason: {0}",
   settingsLost: "⚠ Your saved preferences could not be read, so the settings are back to their defaults. Reason: {0}",

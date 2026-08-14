@@ -444,6 +444,12 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 }
 .sc-key:hover { border-color: var(--accent); color: var(--accent); }
 .sc-key.capturing { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+/* While Vim or Emacs is on, Ksav's own keys are not installed at all and this
+   column shows what to type instead — `:name` or `M-x name`. Not clickable,
+   because rebinding a key that nothing is listening for is a form nobody can
+   fill in truthfully. */
+.sc-key-mode { font-family: var(--mono); opacity: .8; cursor: default; }
+.sc-key-mode:hover { border-color: var(--line); color: var(--muted); }
 .sc-reset {
   margin-top: 12px; width: 100%; padding: 7px; font-size: 13px; cursor: pointer;
   border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--muted);

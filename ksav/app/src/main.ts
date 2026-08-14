@@ -437,7 +437,21 @@ function syncGlobals() {
   });
   // The editing mode is loaded asynchronously, so it is applied rather than
   // reconfigured inline — `applyMode` awaits the import and dispatches itself.
-  void keymodes.applyMode(runtime.view, keymodes.isMode(settings.editingMode) ? settings.editingMode : "default");
+  void setEditingMode(settings.editingMode);
+}
+
+/**
+ * Switch the editing mode, and rebuild Ksav's own keymap around the answer.
+ *
+ * The second half is not bookkeeping. `buildShortcutKeymap` returns nothing at
+ * all while a mode is really installed — that is how the mode wins, instead of
+ * by out-ranking anything — so the keymap has to be rebuilt *after* the import
+ * resolves, and after a failed one too. Three call sites used to invoke
+ * `applyMode` directly, and a fourth would have been added without this.
+ */
+async function setEditingMode(mode: unknown): Promise<void> {
+  await keymodes.applyMode(runtime.view, keymodes.isMode(mode) ? mode : "default");
+  reconfigureShortcuts();
 }
 
 /**
@@ -900,6 +914,21 @@ function keybindings(): Record<string, string> {
   return keybindingsFrom(settings.keybindings);
 }
 function buildShortcutKeymap(): KeyBinding[] {
+  // A mode that is really here takes the whole keyboard.
+  //
+  // Not a precedence, and that is the fix. The mode's keymap and this one were
+  // both `Prec.highest` with the mode placed first, and the promise that the
+  // mode wins rested on CodeMirror breaking that tie by array order. It broke
+  // the other way in the production build and Emacs mode did nothing at all —
+  // `C-k` killed nothing, `Ctrl+K` opened Ksav's palette — while the same page
+  // in Vim mode worked, because vim bypasses the keymap facet entirely. Nothing
+  // that returns no bindings can lose a tie.
+  //
+  // `activeMode`, not the setting: a failed fetch leaves the writer with plain
+  // editing, and standing these down for a mode that never arrived would be an
+  // editor with no keys at all. Every action is still reachable as `:name` and
+  // under `M-x` — see `keymodes.registerCommands`.
+  if (keymodes.activeMode() !== "default") return [];
   const kb = keybindings();
   const bindings: KeyBinding[] = [...nikudKeymap(scheduleCompile)];
   // Which aliases survive is `bindings.aliasesInForce`, not a `claimed` set built
@@ -4387,7 +4416,16 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
   const live = String(now(key) ?? "");
   const sel = el(
     "select",
-    { onChange: (e: Event) => setSetting(key, (e.target as HTMLSelectElement).value as never) },
+    {
+      // A stable name, across languages and themes — the same rule `header.ts`
+      // states for the chips, applied where it was equally missing. Every row in
+      // this drawer was a `<select>` with a localised `<option>` list and nothing
+      // else, so the only way to find one from outside was by its label text: a
+      // selector that works in Hebrew and silently matches nothing in English.
+      // The acceptance run drives the editing-mode row through this.
+      "data-setting": key,
+      onChange: (e: Event) => setSetting(key, (e.target as HTMLSelectElement).value as never),
+    },
     options.map(([value, label]) =>
       el("option", { value, ...(live === value ? { selected: "selected" } : {}) }, [label]),
     ),
@@ -4626,9 +4664,24 @@ function buildSettingsDrawer(): HTMLElement {
     : [el("div", { class: "set-note" }, [t("noAssets")])];
 
   const kb = keybindings();
+  // While a mode is on, none of these keys is live.
+  //
+  // The list would otherwise print `Ctrl+K` beside "command palette" while Emacs
+  // mode has taken `C-k` for kill-line — a screen full of keys that do something
+  // else now, which is worse than an empty column because a reader has no way to
+  // tell. A takeover is only honest if the place people look for the keys says
+  // so, and it says what to press instead: `:name`, or `M-x`.
+  const taken = keymodes.activeMode() !== "default";
   const shortcutRows = actions().map((a) => {
-    const btn = el("button", { class: "sc-key", type: "button" }, [kb[a.id] || "—"]);
-    btn.addEventListener("click", () => captureShortcut(a.id, btn));
+    const label = taken
+      ? (keymodes.activeMode() === "vim" ? ":" : "M-x ") + keymodes.commandName(a.id)
+      : kb[a.id] || "—";
+    const btn = el(
+      "button",
+      { class: "sc-key" + (taken ? " sc-key-mode" : ""), type: "button", disabled: taken ? "true" : null },
+      [label],
+    );
+    if (!taken) btn.addEventListener("click", () => captureShortcut(a.id, btn));
     // A structural operation names itself from the registry, so adding one to
     // `STRUCTURE_ACTIONS` puts it in this list with a real name instead of a
     // raw id — no second string to remember to write.
@@ -9086,8 +9139,12 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     applyPreview();
     scheduleCompile();
   } else if (key === "editingMode") {
-    void keymodes.applyMode(runtime.view, keymodes.isMode(value) ? value : "default");
-    rerenderChrome();
+    // **After**, not beside. The mode is fetched over the network, so a
+    // `rerenderChrome()` on the next line runs while `activeMode()` is still
+    // "default" and the chrome is rebuilt describing the mode that is on its way
+    // out — the shortcut list goes on printing keys the mode is about to take.
+    // Caught by driving it: the settings list never showed a single `M-x` row.
+    void setEditingMode(value).then(rerenderChrome);
   } else if (key === "focusMode" || key === "typewriter") {
     runtime.view.dispatch({
       effects: focusCompartment.reconfigure(
@@ -9991,9 +10048,18 @@ async function boot() {
   // The change gutter needs the document's newest snapshot, and boot does not
   // go through `openDoc`.
   void refreshBaseline();
-  // `:w` in vim and C-x C-s in emacs go through the same save the toolbar uses,
-  // rather than a second path that would one day forget to flush something.
-  keymodes.setSaveCommand(() => void saveFile());
+  // What the modes are lent. Every route is the one the rest of the application
+  // already uses: `:w` and C-x C-s reach the same save as the toolbar, `:name`
+  // and M-x reach the same `runAction` the keyboard and the palette reach — so
+  // the macro recorder sees a command run from `:` exactly as it sees one run
+  // from a key — and `M-x` opens the palette this application already has rather
+  // than a second, worse minibuffer built to be spelled the same way.
+  keymodes.setBridge({
+    save: () => void saveFile(),
+    commands: () => actions().map((a) => a.id),
+    run: (id) => void runAction(id),
+    prompt: () => openPalette(),
+  });
   // An error in an included chapter opens *that* chapter and goes to the line.
   onGoToPart((file, line, column) => {
     const entry = docs.library().find((e) => e.title === file);
@@ -10034,7 +10100,7 @@ async function boot() {
     },
   );
   if (settings.editingMode && settings.editingMode !== "default") {
-    void keymodes.applyMode(runtime.view, settings.editingMode);
+    void setEditingMode(settings.editingMode);
   }
   runCompile();
   // The first check has to be scheduled explicitly: boot compiles directly

@@ -313,6 +313,23 @@ There is a third: **menus reopen at the top** rather than wherever you left
 them, which is what you want unless you are working through one long stretch of
 Insert — in which case turn it off.
 
+**Vim and Emacs are real**, and while one is on it takes the *whole* keyboard:
+Ksav's own shortcuts are not installed at all, so there is no contest to lose.
+That is the fix for a bug this arrangement replaces — both keymaps used to sit at
+the same precedence with the mode placed first, and CodeMirror's tie-break gave
+the keys to Emacs on the dev server and to Ksav in the production build, where
+Emacs mode consequently did nothing whatsoever.
+
+A full takeover is only affordable because nothing is lost with it: **every
+command is a `:` command in Vim and an `M-x` command in Emacs**, generated from
+the same registry the palette and the menus read, so a command added to the
+registry is reachable from both modes without anyone wiring it up. `M-x` opens
+Ksav's own command palette rather than a second minibuffer — it is a prompt over
+that same list, with fuzzy matching and a description beside each row. `:w` and
+`C-x C-s` save. The shortcut list in Settings shows `:name` / `M-x name` in place
+of the keys while a mode is on, because a column of keys that now do something
+else is worse than no column.
+
 ## Core idea
 
 Every Ksav command is a **real Typst function**, defined in
@@ -584,7 +601,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,628 editor assertions, 631 engine
+- [x] **CI, running and green** — typecheck, 5,635 editor assertions, 631 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -670,7 +687,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,628 assertions across 90 files |
+| `editor` | the typechecker, then 5,635 assertions across 90 files |
 | `engine` | lints, then 631 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 

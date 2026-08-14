@@ -27,7 +27,17 @@ import {
   _resetReported,
 } from "../.tmp-test/crash.mjs";
 import { escapeAttr, humanSize } from "../.tmp-test/dom.mjs";
-import { MODES, isMode, loadError, setSaveCommand, extensionFor } from "../.tmp-test/keymodes.mjs";
+import {
+  MODES,
+  activeMode,
+  clashingNames,
+  commandName,
+  extensionFor,
+  isMode,
+  loadError,
+  nameClashes,
+  setBridge,
+} from "../.tmp-test/keymodes.mjs";
 import { createEngineWorker } from "../.tmp-test/wasm-worker-host.stub.mjs";
 import * as realHost from "../.tmp-test/wasm-worker-host.mjs";
 import { readFile } from "node:fs/promises";
@@ -221,7 +231,47 @@ export async function run() {
     // and must not leave an error behind from a previous failed load.
     check("the default mode is no extension at all", await extensionFor("default"), []);
     check("and nothing failed", loadError(), null);
-    setSaveCommand(() => {});
+    // Plain editing leaves Ksav's own keys in place. `buildShortcutKeymap`
+    // returns nothing at all while a mode is really installed — which is how the
+    // mode wins now, rather than by out-ranking anything — so "no mode" has to
+    // keep meaning "the shortcuts are live".
+    check("and no mode has taken the keyboard", activeMode(), "default");
+    setBridge({ commands: () => [], run: () => {}, prompt: () => {}, save: () => {} });
+  }
+
+  {
+    // Every action reachable as a `:` command and under `M-x`, generated from the
+    // registry — which is the half that makes a full takeover affordable rather
+    // than a writer losing the doors to 113 commands.
+    //
+    // The names have to be *distinct*. Vim's ex parser reads a command name as a
+    // run of word characters, so `table.rowBelow` and `table.rowbelow` would
+    // answer to the same `:tablerowbelow`, whichever registered last would win,
+    // and the other would be unreachable under a name that looks like it works.
+    check("a dotted id becomes one word", commandName("table.rowBelow"), "tablerowbelow");
+    check("and a macro id keeps its digits", commandName("macro.m1a2b3"), "macrom1a2b3");
+    check(
+      "two ids that flatten to one name are caught, both named",
+      clashingNames(["table.rowBelow", "footnote", "table.rowbelow"]),
+      [["table.rowBelow", "table.rowbelow"]],
+    );
+    check("and ordinary ids are not", clashingNames(["table.rowBelow", "footnote"]), []);
+
+    // The claim about the real registry, made where it cannot be vacuous.
+    //
+    // `setBridge` computes the clashes there and then rather than waiting for a
+    // mode to be loaded — because no mode is ever loaded in this suite, and an
+    // assertion that `nameClashes()` is empty would otherwise pass by never
+    // having looked at anything.
+    setBridge({
+      commands: () => ["alpha.one", "alpha.One"],
+      run: () => {},
+      prompt: () => {},
+      save: () => {},
+    });
+    check("installing a bridge measures its ids at once", nameClashes(), [["alpha.one", "alpha.One"]]);
+    setBridge({ commands: () => [], run: () => {}, prompt: () => {}, save: () => {} });
+    check("and a clean registry leaves nothing", nameClashes(), []);
   }
 
   // ------------------------------------------------ the module swap

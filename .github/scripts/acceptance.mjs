@@ -926,6 +926,111 @@ async function main() {
     check("Export → Org downloads a file", false, String(e.message).split("\n")[0]);
   }
 
+  // ------------------------------------------- 7c. Emacs mode takes the keyboard
+  //
+  // The one check in this file written from a bug report's own reproduction.
+  //
+  // Emacs mode did nothing at all in the production build: `C-k` killed nothing
+  // and `Ctrl+K` opened Ksav's command palette. The same page in Vim mode worked.
+  // Both keymaps sat at `Prec.highest` with the mode's placed first, and the
+  // whole promise rested on CodeMirror breaking that tie by array order — which
+  // it did, the other way, in the build that ships. Why it went the other way on
+  // the dev server was never established, and does not need to be: Ksav's own
+  // keymap now installs *nothing* while a mode is really on.
+  //
+  // Nothing offline can hold that. `buildShortcutKeymap` is in `main.ts`, the one
+  // module no test can import, and the symptom is a keystroke reaching one of two
+  // keymaps. It is exactly the kind of claim this file exists for.
+  step("7c", "Emacs mode takes the keyboard from Ksav");
+  current = "emacs";
+  await clickVisible("the settings chip", '[data-chip="settings"]');
+  await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
+  await page.selectOption('[data-setting="editingMode"]', "emacs");
+  // The mode is fetched over the network, so the proof that it arrived is the
+  // shortcut list changing: with a mode on, Settings shows `M-x name` in place of
+  // every key, because a column of keys that now do something else is worse than
+  // no column.
+  try {
+    // `attached`, not visible: changing the mode rebuilds the chrome and the
+    // drawer does not survive it. The claim is about what the list *says*, and
+    // the list is built whether or not the drawer is on screen at this instant.
+    await page.waitForSelector(".sc-key-mode", { state: "attached", timeout: 20_000 });
+    const shown = await page.locator(".sc-key-mode").first().textContent();
+    check("the shortcut list stops printing keys the mode has taken", /^M-x /.test(shown ?? ""), shown ?? "");
+  } catch (e) {
+    check("emacs mode arrives", false, String(e.message).split("\n")[0]);
+  }
+  /**
+   * Press a key with the caret in the document.
+   *
+   * Through `clickVisible` like every other click below `step(0` — which is not
+   * a formality: this was `page.locator(".cm-content").click()` and
+   * `visibility.test.mjs` refused it by name and line, two chunks after that
+   * fence was written and by an author who had written it.
+   */
+  const pressInEditor = async (key) => {
+    await page.keyboard.press("Escape");
+    await clickVisible("the editor", ".cm-content");
+    await page.keyboard.press(key);
+  };
+
+  const said = () => page.evaluate(() => document.getElementById("status")?.textContent ?? "");
+
+  // Two keys, and the second is the one that measures the fix.
+  //
+  // `Ctrl+K` is the reported symptom and Emacs *wants* that key — it is
+  // kill-line — so a mode that merely wins a precedence contest passes it. This
+  // step was written with only that check and it stayed green with the takeover
+  // **deleted**, which is a fence proving the wrong thing: the tie happens to
+  // fall the mode's way in this build, and the whole reason for the change is
+  // that nobody knows why it fell the other way in the build that shipped.
+  //
+  // `Ctrl+Alt+O` is Ksav's document switcher and Emacs does not claim it. Under
+  // a tie it fires and writes onlyOneOpen to the status line, because a run that
+  // makes one sefer has one document. Under a takeover nothing is listening and
+  // the status line does not move. That is the difference between the two
+  // designs, and it is the only assertion here that can see it.
+  //
+  // The status is compared against itself rather than against a string, because
+  // the run is in Hebrew and a fence that hard-codes one language is a fence
+  // that goes quiet the day somebody drives it in the other.
+  await pressInEditor("Control+k");
+  check(
+    "Ctrl+K no longer opens Ksav's palette",
+    !(await showing("#palette", false)),
+    "the palette opened, so the mode is not getting keys it claims",
+  );
+  const before = await said();
+  await pressInEditor("Control+Alt+o");
+  check(
+    "and a key Emacs does not claim reaches nothing either",
+    (await said()) === before,
+    `the status line moved to "${await said()}", so Ksav's keymap is still installed ` +
+      "and the mode is only winning a tie",
+  );
+
+  // The other direction, so neither check above can pass by the surface simply
+  // being broken.
+  await page.keyboard.press("Escape");
+  await clickVisible("the settings chip", '[data-chip="settings"]');
+  await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
+  await page.selectOption('[data-setting="editingMode"]', "default");
+  await page.waitForSelector(".sc-key-mode", { state: "detached", timeout: 20_000 }).catch(() => {});
+  await pressInEditor("Control+k");
+  check(
+    "…and the palette opens again with the mode off",
+    await showing("#palette", false),
+    "the palette did not open with no mode on, so the check above proves nothing",
+  );
+  const off = await said();
+  await pressInEditor("Control+Alt+o");
+  check(
+    "…as does the switcher's key",
+    (await said()) !== off,
+    "the status line did not move with no mode on, so the check above proves nothing",
+  );
+  await page.keyboard.press("Escape");
+
   // ------------------------------------------------- 8. every surface, on screen
 
   // The sweep the whole item is about, and the one that is derived rather than

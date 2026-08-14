@@ -9,7 +9,7 @@
 // service reaches all four builds by being added once, in Rust.
 
 /** Every service the engine can be asked for. A typo here is a `tsc` error. */
-export type ServiceName = "compile" | "assemble" | "jump" | "reveal" | "spell" | "suggest" | "commands" | "templates" | "sefarim" | "inbox" | "mekoros" | "linkify" | "refresh" | "clipboard-source" | "saved-here";
+export type ServiceName = "compile" | "assemble" | "jump" | "reveal" | "spell" | "suggest" | "commands" | "templates" | "sefarim" | "inbox" | "mekoros" | "linkify" | "refresh" | "clipboard-source" | "saved-here" | "git";
 
 export interface ServiceDef {
   readonly name: ServiceName;
@@ -39,6 +39,7 @@ export const SERVICES: readonly ServiceDef[] = [
   { name: "refresh", method: "POST", path: "/refresh", cost: "work", nativeOnly: true },
   { name: "clipboard-source", method: "POST", path: "/clipboard-source", cost: "quick", nativeOnly: true },
   { name: "saved-here", method: "POST", path: "/saved-here", cost: "quick", nativeOnly: true },
+  { name: "git", method: "POST", path: "/git", cost: "work", nativeOnly: true },
 ];
 
 /** The path each service answers on, for the two builds that speak HTTP. */
@@ -61,3 +62,15 @@ export const SERVICE_PATH: Readonly<Record<ServiceName, string>> = Object.fromEn
 export const SERVICE: Readonly<Record<ServiceName, ServiceDef>> = Object.fromEntries(
   SERVICES.map((s) => [s.name, s]),
 ) as Record<ServiceName, ServiceDef>;
+
+/**
+ * Every operation the `git` service answers.
+ *
+ * `git` is one service carrying an `op`, so this is the same registry idea one
+ * level down: the engine's `OPERATIONS` in `engine/src/git.rs` is the list, and
+ * a button wired to an operation that is not in it is a `tsc` error instead of
+ * a refusal shown to a writer.
+ */
+export type GitOp = "status" | "init" | "log" | "show" | "commit" | "who" | "restore" | "revert" | "branches" | "switch" | "merge" | "merge-abort" | "resolve" | "remotes" | "remote-add" | "fetch" | "pull" | "push";
+
+export const GIT_OPS: readonly GitOp[] = ["status", "init", "log", "show", "commit", "who", "restore", "revert", "branches", "switch", "merge", "merge-abort", "resolve", "remotes", "remote-add", "fetch", "pull", "push"];

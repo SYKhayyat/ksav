@@ -202,6 +202,15 @@ pub struct Facts {
     pub commands: &'static [Command],
     pub notices: &'static [Notice],
     pub services: Vec<ServiceFact>,
+    /// The operations the `git` service answers.
+    ///
+    /// The registry's own lesson, one level down. `git` is a single service
+    /// with a `op` field, so the *name of the operation* is the wire — and a
+    /// client keeping its own list of what git can be asked for is exactly the
+    /// arrangement `services.rs` exists to have got rid of. Generated into the
+    /// client's typed union, so a button wired to an operation the engine does
+    /// not answer is a `tsc` error rather than a refusal at the writer.
+    pub git_ops: &'static [&'static str],
     /// Read by `tools/build_lexicon.py`, which has no other way to reach
     /// `girsa-hebrew`.
     pub hebrew: HebrewFacts,
@@ -230,6 +239,24 @@ pub struct Facts {
     pub markup_escapes: String,
 }
 
+/// The git operations, from the module that answers them.
+///
+/// `git` is native-only — a browser tab has no folder on disk — so the module
+/// is not linked into the wasm build and there is nothing there to ask. Empty
+/// is the honest answer for that build rather than a second copy of the list
+/// kept here to keep both targets compiling; `emit-services.mjs` refuses an
+/// empty list outright, so a `facts.gen.json` blessed from a wasm build cannot
+/// silently generate a client with no operations in it.
+#[cfg(not(target_arch = "wasm32"))]
+fn git_ops() -> &'static [&'static str] {
+    crate::git::OPERATIONS
+}
+
+#[cfg(target_arch = "wasm32")]
+fn git_ops() -> &'static [&'static str] {
+    &[]
+}
+
 /// Everything, gathered.
 pub fn facts() -> Facts {
     Facts {
@@ -237,6 +264,7 @@ pub fn facts() -> Facts {
         commands: COMMANDS,
         notices: NOTICES,
         services: SERVICES.iter().map(ServiceFact::of).collect(),
+        git_ops: git_ops(),
         hebrew: hebrew_facts(),
         template_fields: template_fields(),
         markup_escapes: crate::escape::MARKUP.iter().collect(),

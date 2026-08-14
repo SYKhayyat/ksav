@@ -68,9 +68,34 @@ function read() {
   return services;
 }
 
-function emit(services) {
+/**
+ * The operations the one `git` service answers.
+ *
+ * A single service with an `op` field means the *operation name* is the wire,
+ * and a client with its own list of them is the arrangement this whole file
+ * exists to have removed — one level down and with the same failure mode. The
+ * same emptiness guard applies for the same reason, with one addition: the wasm
+ * build does not link `git` at all, so a `facts.gen.json` blessed from it would
+ * carry an empty list and generate a client that can ask for nothing.
+ */
+function readGitOps() {
+  const ops = facts().git_ops ?? [];
+  if (ops.length < 2) {
+    console.error(
+      `read ${ops.length} git operations out of ${ARTEFACT}\n` +
+        "Bless it from a native build:\n" +
+        "  KSAV_BLESS=1 cargo test --test facts   (in ksav/engine)",
+    );
+    process.exit(1);
+  }
+  return ops;
+}
+
+function emit(services, gitOps) {
   const q = (s) => JSON.stringify(s);
   const union = services.map((s) => q(s.name)).join(" | ");
+  const gitUnion = gitOps.map(q).join(" | ");
+  const gitRows = gitOps.map(q).join(", ");
   const rows = services
     .map(
       (s) =>
@@ -127,6 +152,18 @@ export const SERVICE_PATH: Readonly<Record<ServiceName, string>> = Object.fromEn
 export const SERVICE: Readonly<Record<ServiceName, ServiceDef>> = Object.fromEntries(
   SERVICES.map((s) => [s.name, s]),
 ) as Record<ServiceName, ServiceDef>;
+
+/**
+ * Every operation the \`git\` service answers.
+ *
+ * \`git\` is one service carrying an \`op\`, so this is the same registry idea one
+ * level down: the engine's \`OPERATIONS\` in \`engine/src/git.rs\` is the list, and
+ * a button wired to an operation that is not in it is a \`tsc\` error instead of
+ * a refusal shown to a writer.
+ */
+export type GitOp = ${gitUnion};
+
+export const GIT_OPS: readonly GitOp[] = [${gitRows}];
 `;
 }
 
@@ -154,7 +191,7 @@ ${rows}
 }
 
 const services = read();
-const built = emit(services);
+const built = emit(services, readGitOps());
 const builtWorker = emitWorker(services);
 
 /** Every generated output, as `[path, wanted, label]`. */

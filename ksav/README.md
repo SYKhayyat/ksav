@@ -999,6 +999,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `refresh` | `POST /refresh` | `{markup, style, nikud}` → one row per citation in the document, as the library has it now |
 | `clipboard-source` | `POST /clipboard-source` | `{}` → `{markup}`, the Source Packet Girsa put on the clipboard, already rendered — or `{markup: null}`, which is the ordinary answer and means *paste as text* |
 | `saved-here` | `POST /saved-here` | `{path, name, forget}` → `{told}`, telling Girsa where a document is so *where did I use this* can find it. `told: false` means the library is not open, which is not an error |
+| `git` | `POST /git` | `{path, op, …}` → version control for the document at `path`, on the git already installed. One service carrying an operation name; the operations are `engine/src/git.rs`'s `OPERATIONS`, generated into the client as `GitOp` |
 
 `GET /` and everything else is the built editor, served as static files.
 

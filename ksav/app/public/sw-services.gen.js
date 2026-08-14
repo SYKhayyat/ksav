@@ -28,4 +28,5 @@ export const SERVICE_PATHS = [
   "/refresh",
   "/clipboard-source",
   "/saved-here",
+  "/git",
 ];

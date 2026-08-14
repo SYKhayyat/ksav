@@ -32,6 +32,11 @@ pub mod escape;
 /// The tables the app generates its own copies from, as serialised values
 /// rather than as Rust source text for a regex to pick at.
 pub mod facts;
+/// Version control for a sefer, on the git that is already on the machine.
+/// Native-only for the same reason `post` is: a browser tab has no folder on
+/// disk to be a repository, and nothing to run.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod git;
 /// A sefer is many files: `#כלול` and the line map that keeps its
 /// diagnostics meaningful.
 pub mod include;

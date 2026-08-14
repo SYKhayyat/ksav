@@ -76,13 +76,19 @@ pub enum Cost {
 
 /// Which builds can answer at all.
 ///
-/// `Native` means the service is backed by the loopback to Girsa, which a
-/// browser tab has neither a listener for nor a token to read. Those services
-/// still appear in this table on every target — the name, path and cost are
-/// facts about the service, not about the build — but on wasm they answer with
-/// a refusal instead of failing to link. The client knows too: the generated
-/// table carries `nativeOnly`, which is why `WasmBackend` implements `Backend`
-/// and not `Sources`.
+/// `Native` means the service needs the *installed* application — something a
+/// browser tab has no way to reach. Two things fall under that, and the second
+/// one arrived with `git`:
+///
+///   - the loopback to Girsa, which a tab has neither a listener for nor a
+///     token to read;
+///   - the machine itself: a folder on disk, and a program to run in it.
+///
+/// Those services still appear in this table on every target — the name, path
+/// and cost are facts about the service, not about the build — but on wasm they
+/// answer with a refusal instead of failing to link. The client knows too: the
+/// generated table carries `nativeOnly`, which is why `WasmBackend` implements
+/// `Backend` and not `Sources`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reach {
     All,
@@ -192,6 +198,10 @@ pub const SERVICES: &[Service] = &[
     // editor's directory and a document written in the real Ksav answered
     // *nothing cites this*.
     svc("saved-here", Post, "/saved-here", Quick, Native, girsa::saved_here),
+    // Version control, on the git the writer already has. `Work` and not
+    // `Quick`: `push` leaves the machine and `status` starts a process, and a
+    // `Quick` service runs on the thread that draws the desktop window.
+    svc("git", Post, "/git", Work, Native, disk::git),
 ];
 
 /// The service with this name, if there is one.
@@ -275,6 +285,27 @@ fn templates(_: &str) -> String {
 
 fn sefarim(_: &str) -> String {
     crate::sefarim::catalog_json()
+}
+
+/// The services that need the machine rather than the sibling application.
+///
+/// Split by target for the same reason `girsa` below is, and answering with a
+/// different sentence: *there is no Girsa here* and *there is no disk here* are
+/// two different things to tell a reader, and the browser build can only ever
+/// be told the second one.
+mod disk {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn git(body: &str) -> String {
+        crate::git::git_request(body)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn git(_: &str) -> String {
+        super::error_json(
+            "ניהול גרסאות זמין ביישום המותקן, שבו למסמך יש מקום בכונן · \
+             version control needs the installed application, where a document has a place on disk",
+        )
+    }
 }
 
 /// The three services that talk to Girsa over the loopback.
@@ -554,6 +585,7 @@ mod tests {
             "refresh",
             "clipboard-source",
             "saved-here",
+            "git",
         ] {
             assert!(find(name).is_some(), "{name} is missing from the registry");
         }
@@ -562,8 +594,8 @@ mod tests {
         // It was there, with the message "add the new service to this list too",
         // which is a test admitting it goes red for a good change and asking to
         // be edited rather than telling anyone anything. The names above are a
-        // real claim — each of those fifteen is a promise to a client that has
-        // already shipped, and removing one has to hurt — but a *sixteenth*
+        // real claim — each of those sixteen is a promise to a client that has
+        // already shipped, and removing one has to hurt — but a *seventeenth*
         // service is not a defect, and a check that cannot tell those two apart
         // trains people to update the number without reading why it moved.
         //
@@ -616,24 +648,44 @@ mod tests {
         assert_eq!(layout, ["compile", "jump", "reveal"]);
     }
 
+    /// The services a browser tab cannot answer say so in the table.
+    ///
+    /// Two reasons, not one. Six of these need Girsa over the loopback; `git`
+    /// needs a folder on disk and a program to run in it. Both are *the
+    /// installed application*, which is what `Native` means and what the
+    /// generated `nativeOnly` tells the client — but they are named separately
+    /// here, because a service moving from one reason to the other is a real
+    /// change and a list of seven names cannot see it.
     #[test]
-    fn the_services_that_need_girsa_say_so() {
+    fn the_services_that_need_the_installed_application_say_so() {
+        for name in [
+            "inbox",
+            "mekoros",
+            "linkify",
+            "refresh",
+            "clipboard-source",
+            "saved-here",
+        ] {
+            assert_eq!(
+                find(name).unwrap().reach,
+                Native,
+                "{name} reaches Girsa over the loopback and a tab cannot"
+            );
+        }
+        assert_eq!(
+            find("git").unwrap().reach,
+            Native,
+            "git needs a folder on disk, which a tab does not have"
+        );
+        // And nothing else claims to need it. A service marked `Native` by
+        // accident is a feature silently missing from the browser build, which
+        // is the failure this column exists to make visible.
         let native: Vec<_> = SERVICES
             .iter()
             .filter(|s| s.reach == Native)
             .map(|s| s.name)
             .collect();
-        assert_eq!(
-            native,
-            [
-                "inbox",
-                "mekoros",
-                "linkify",
-                "refresh",
-                "clipboard-source",
-                "saved-here"
-            ]
-        );
+        assert_eq!(native.len(), 7, "an eighth native-only service: {native:?}");
     }
 
     /// A request with no phrase in it is a refusal with a reason, not a panic

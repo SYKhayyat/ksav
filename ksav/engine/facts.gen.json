@@ -1339,7 +1339,34 @@
       "path": "/saved-here",
       "cost": "quick",
       "reach": "native"
+    },
+    {
+      "name": "git",
+      "method": "post",
+      "path": "/git",
+      "cost": "work",
+      "reach": "native"
     }
+  ],
+  "git_ops": [
+    "status",
+    "init",
+    "log",
+    "show",
+    "commit",
+    "who",
+    "restore",
+    "revert",
+    "branches",
+    "switch",
+    "merge",
+    "merge-abort",
+    "resolve",
+    "remotes",
+    "remote-add",
+    "fetch",
+    "pull",
+    "push"
   ],
   "hebrew": {
     "word_breaking": [

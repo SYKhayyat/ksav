@@ -914,10 +914,10 @@
     },
     {
       "he": "אות",
-      "en": "osource",
+      "en": "os",
       "category": "torah",
-      "desc_he": "אות מודגשת בתחילת קטע",
-      "desc_en": "Bold paragraph letter",
+      "desc_he": "אות פותחת של סעיף, מודגשת עם הנקודה — בתוך פסקה רצה",
+      "desc_en": "The letter that opens a clause, bold with its stop — inline, unlike #סעיף",
       "insert": "#אות[|]",
       "deprecated": false
     },

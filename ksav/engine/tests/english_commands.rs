@@ -594,3 +594,53 @@ fn every_command_that_asks_for_a_slant_says_it_did_not_get_one() {
         "the list of commands under test has emptied out"
     );
 }
+
+/// What `#אות` is for, and the name that says so.
+///
+/// Open question 6 of the UI inventory asked whether `#commentary`, `#gemara`
+/// and `#osource` earn their place — *"to be answered by establishing what each
+/// is for, not by removing them"*. Two of the three earn it outright:
+/// `#גמרא`/`gemara` is a **collectable mark**, filed into the register so
+/// `#רשימת_סימונים("גמרא")` can print מראי המקומות with the pages they landed
+/// on, which is a mechanism and not a style; `#עם_פירוש`/`commentary` is a
+/// **facing-commentary layout**, a continuous parallel column, which is a
+/// different thing from a sidenote anchored to its own marker.
+///
+/// The third earned its place and not its name. `#אות` is the letter that opens
+/// a clause — `#אות[ב]` prints **ב.** and the text runs on — the inline sibling
+/// of `#סעיף`, which is a block. Its English alias was `osource`, which reads as
+/// *other source* and has nothing to do with any of that.
+#[test]
+fn the_letter_that_opens_a_clause_is_named_for_what_it_is() {
+    let by_name = ksav_engine::commands::COMMANDS
+        .iter()
+        .find(|c| c.he == "אות")
+        .expect("#אות is in the registry");
+    assert_eq!(
+        by_name.en, "os",
+        "the English alias should be the transliteration its family uses — \n\
+         `siman`, `seif`, `dh` — and not a word about sources"
+    );
+
+    // All three spellings render the same thing, because the old name is kept.
+    // A sefer written against `#osource` last month is not a mistake to correct.
+    let want = "ב.";
+    for spelling in ["#אות[ב]", "#os[ב]", "#osource[ב]"] {
+        let out = ksav_engine::compile(spelling, &DocConfig::default());
+        assert!(
+            out.ok(),
+            "{spelling} no longer compiles: {:?}",
+            out.diagnostics
+        );
+        let page: String = ksav_engine::probe::text_runs(
+            &ksav_engine::probe::layout(spelling, &DocConfig::default()).expect("it lays out"),
+        )
+        .iter()
+        .map(|r| r.text.clone())
+        .collect();
+        assert!(
+            page.contains(want),
+            "{spelling} printed {page:?} rather than the letter and its stop"
+        );
+    }
+}

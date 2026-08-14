@@ -3367,7 +3367,15 @@
   body
 })
 
-// אות — an inline bold source/paragraph marker, e.g. #אות[ב]
+// אות — the letter that opens a clause, set bold with its full stop: #אות[ב]
+// prints **ב.** and the text runs on from it.
+//
+// *What it is for*, asked in the margins and answered here rather than by
+// deleting it. It is the smaller sibling of `#סעיף`: that one is a **block** — a
+// lettered paragraph with its own spacing — and this one is **inline**, for the
+// letter that opens a clause inside a paragraph that is already running. A sefer
+// uses both on the same page, which is why one is not the other with an
+// argument.
 #let אות(סימן) = strong([#סימן. ])
 
 // פסוק — an emphasized quotation followed by its reference in parentheses.
@@ -4053,6 +4061,14 @@
 
 #let siman = סימן
 #let seif = סעיף
+// `os`, which is what the command is: the Hebrew is אות, "a letter". Its English
+// name was `osource`, which reads as *other source* and has nothing to do with
+// this — it marks a letter, not a citation. The family it belongs to is spelt by
+// transliteration for exactly this reason: `siman`, `seif`, `dh`.
+#let os = אות
+// The old name, kept so that no document written against it stops compiling.
+// Superseded rather than removed, which is what the two note tombstones already
+// do — a sefer somebody wrote last month is not a mistake to be corrected.
 #let osource = אות
 // The four collectable marks take named arguments now — their own styling, and
 // whether they take the class's — so their English spellings have to translate

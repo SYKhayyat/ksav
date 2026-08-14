@@ -194,7 +194,7 @@ export const COMMAND_EN: Readonly<Record<string, string>> = {
   "נוסחה_בשורה": "iformula",
   "סימן": "siman",
   "סעיף": "seif",
-  "אות": "osource",
+  "אות": "os",
   "פסוק": "verse",
   "מראה_מקום": "sourcenote",
   "ציון": "refmark",

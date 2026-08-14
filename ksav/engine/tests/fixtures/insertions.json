@@ -878,7 +878,7 @@
    "ctx": "prose",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "שורה של פרוזה ובה מלים#אות[]אחרות להמשך."
@@ -1994,10 +1994,10 @@
    "ctx": "prose",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "A line of prose with some wor#osource[]ds to continue."
+   "source": "A line of prose with some wor#os[]ds to continue."
   },
   {
    "ctx": "prose",
@@ -3110,7 +3110,7 @@
    "ctx": "heading-body",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #אות[]ראשון]\n\nגוף."
@@ -4226,10 +4226,10 @@
    "ctx": "heading-body",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#h1[Chapter #osource[]One]\n\nBody."
+   "source": "#h1[Chapter #os[]One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5342,7 +5342,7 @@
    "ctx": "note-body",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #אות[]פנימית] המשך."
@@ -6458,10 +6458,10 @@
    "ctx": "note-body",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "Text#fnote[a note #osource[]inside] continues."
+   "source": "Text#fnote[a note #os[]inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7574,7 +7574,7 @@
    "ctx": "list-in-item",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #אות[]כאן],\n  פריט[שני],\n)"
@@ -8690,10 +8690,10 @@
    "ctx": "list-in-item",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #osource[]here],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first #os[]here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9806,7 +9806,7 @@
    "ctx": "list-between-items",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],אות[],\n  פריט[שני],\n)"
@@ -10922,10 +10922,10 @@
    "ctx": "list-between-items",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first],osource[],\n  item[second],\n)"
+   "source": "#bullets(\n  item[first],os[],\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -12038,7 +12038,7 @@
    "ctx": "list-after-open",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#רשימה(אות[],\n  פריט[ראשון],\n  פריט[שני],\n)"
@@ -13154,10 +13154,10 @@
    "ctx": "list-after-open",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#bullets(osource[],\n  item[first],\n  item[second],\n)"
+   "source": "#bullets(os[],\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14270,7 +14270,7 @@
    "ctx": "table-in-cell",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #אות[]כאן], תא[שתים],\n)"
@@ -15386,10 +15386,10 @@
    "ctx": "table-in-cell",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #osource[]here], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #os[]here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -16502,7 +16502,7 @@
    "ctx": "table-between-cells",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],אות[], תא[שתים],\n)"
@@ -17618,10 +17618,10 @@
    "ctx": "table-between-cells",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],osource[], cell[two],\n)"
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],os[], cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -18734,7 +18734,7 @@
    "ctx": "nested-deep",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #אות[]כאן] סוף],\n)"
@@ -19850,10 +19850,10 @@
    "ctx": "nested-deep",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#bullets(\n  item[first #fnote[in a note #osource[]here] end],\n)"
+   "source": "#bullets(\n  item[first #fnote[in a note #os[]here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -20966,7 +20966,7 @@
    "ctx": "deep-heading-body",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #אות[]רביעי]\n\nגוף."
@@ -22082,10 +22082,10 @@
    "ctx": "deep-heading-body",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#h4[Section #osource[]Four]\n\nBody."
+   "source": "#h4[Section #os[]Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -23198,7 +23198,7 @@
    "ctx": "siman-body",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #אות[]תפילה]"
@@ -24314,10 +24314,10 @@
    "ctx": "siman-body",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#siman[1][The laws of #osource[]prayer]"
+   "source": "#siman[1][The laws of #os[]prayer]"
   },
   {
    "ctx": "siman-body",
@@ -25430,7 +25430,7 @@
    "ctx": "title-body",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #אות[]ראשית]\n\nגוף."
@@ -26546,10 +26546,10 @@
    "ctx": "title-body",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#title[The #osource[]Title]\n\nBody."
+   "source": "#title[The #os[]Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -27662,7 +27662,7 @@
    "ctx": "note-heading-body",
    "lang": "he",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#אות[]ת] גוף ההערה]"
@@ -28778,10 +28778,10 @@
    "ctx": "note-heading-body",
    "lang": "en",
    "cmd": "אות",
-   "en": "osource",
+   "en": "os",
    "legal": true,
    "reason": null,
-   "source": "#fnote[#note_heading[Head#osource[]ing] the note body]"
+   "source": "#fnote[#note_heading[Head#os[]ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

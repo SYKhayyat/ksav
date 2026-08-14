@@ -248,7 +248,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מראה_מקום", "sourcenote", "torah", "מראה מקום (הערה)", "Source footnote", "#מראה_מקום[|]"),
     cmd!("ציון", "refmark", "torah", "ציון מקור בסוגריים", "Inline reference", "#ציון[|]"),
     cmd!("גמרא", "gemara", "torah", "מראה מקום לגמרא", "Gemara reference", "#גמרא[|][]"),
-    cmd!("אות", "osource", "torah", "אות מודגשת בתחילת קטע", "Bold paragraph letter", "#אות[|]"),
+    cmd!("אות", "os", "torah", "אות פותחת של סעיף, מודגשת עם הנקודה — בתוך פסקה רצה", "The letter that opens a clause, bold with its stop — inline, unlike #סעיף", "#אות[|]"),
     cmd!("דיבור_המתחיל", "dh", "torah", "דיבור המתחיל", "Lemma (d\"h)", "#דיבור_המתחיל[|]"),
     // The indexes. `ציון_מקור` and `ערך` are marks, and the two `מפתח_` commands
     // print what the marks collected — so they belong at the *back* of the

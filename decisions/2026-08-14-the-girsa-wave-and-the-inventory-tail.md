@@ -74,3 +74,7 @@ and written answers for Escape and for the two macro systems.
 `#27` (git built into Ksav) and `#34` (Ksav as an Emacs mode) are product
 decisions rather than defects, and were held back deliberately. Neither is
 started.
+
+*Both were decided and built the same day; see
+[The two that were held](2026-08-14-the-two-that-were-held.md). The paragraph
+above is left as it was written — a record is a record of a moment.*

@@ -480,8 +480,19 @@ the reasoning, not the reference, and this file is long enough.
     off entirely and taken by hand with `Ctrl+Alt+S`.
   - **Exports** share one page range, at the head of the Export menu. Every route
     either reads it or says why it cannot: Word and web HTML reflow, so the
-    reader decides the pages; Markdown, plain text and `.typ` are the source,
-    which was never laid out. The PDF and the printer read it.
+    reader decides the pages; Markdown, Org, plain text and `.typ` are the
+    source, which was never laid out. The PDF and the printer read it.
+  - **Org mode, both directions** (Export ▸ Org mode, File ▸ Import from Org).
+    Of the interchange formats this is the one whose structure is closest to a
+    sefer's — a tree of headings with footnotes hanging off it — and it has no
+    six-level ceiling, so an outline that Markdown flattens to `######` survives
+    as nine stars. Coming back in it reads headings, both list kinds, tables,
+    both footnote forms (including a reference that appears pages above its
+    definition), quote and source blocks, links and LaTeX fragments. What Ksav
+    has no word for — property drawers, TODO keywords, tags, `#+` keywords
+    nobody reads — is dropped and **named** in the sentence that follows the
+    import, because an import that quietly loses the drawers is the kind of
+    thing somebody finds a month later. See `app/src/org.ts`.
 
 ## Runs in the browser (WASM)
 
@@ -573,7 +584,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,553 editor assertions, 631 engine
+- [x] **CI, running and green** — typecheck, 5,628 editor assertions, 631 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -659,7 +670,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,553 assertions across 89 files |
+| `editor` | the typechecker, then 5,628 assertions across 90 files |
 | `engine` | lints, then 631 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 

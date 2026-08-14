@@ -83,6 +83,21 @@ export async function run() {
     ok("…and keeps the words", out.includes("פרק") && out.includes("חזק") && out.includes("רגיל"));
   }
 
+  // ---------------------------------------------------------- what it produces
+  //
+  // Not only what it must never do. The invariant below — no `#name[` in the
+  // output — is the assertion this file was built around, and for as long as it
+  // was the *only* one over a list, `#רשימה(פריט[א], פריט[ב])` exported as `- א`
+  // followed by a line beginning `, - ב`: the source's own comma, copied through
+  // because it fell between two nodes. A comma is not markup, so the invariant
+  // was perfectly happy. Found by writing the same tests for Org.
+  check("a list has no source punctuation in it", toMarkdown("#רשימה(פריט[א], פריט[ב])").trim(), "- א\n- ב");
+  check(
+    "…including when it is written the way the editor writes it",
+    toMarkdown("#ממוספרת(\n  פריט[א],\n  פריט[ב],\n)").trim(),
+    "1. א\n2. ב",
+  );
+
   // ------------------------------------------------------------ the invariant
   {
     for (const src of [

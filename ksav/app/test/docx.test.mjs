@@ -11,7 +11,10 @@
 // without shipping a binary fixture into the repository.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { convertDocument, parseXml, mostlyHebrew, unzip } from "../.tmp-test/docx.mjs";
+import { convertDocument, parseXml, unzip } from "../.tmp-test/docx.mjs";
+// Not from `docx.mjs`: the direction of an imported document is a question every
+// import route asks, and it moved to `interchange.ts` when Org became the second.
+import { mostlyHebrew } from "../.tmp-test/interchange.mjs";
 
 /** Wrap body XML in the document element Word writes. */
 const doc = (inner) =>

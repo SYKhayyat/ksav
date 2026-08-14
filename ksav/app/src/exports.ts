@@ -12,6 +12,7 @@ import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { download, escapeAttr } from "./dom";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
+import { toOrg } from "./org";
 import * as pagerange from "./pagerange";
 import { currentPages } from "./preview";
 import * as runtime from "./runtime";
@@ -304,6 +305,20 @@ export function exportMarkdown() {
   download(
     runtime.fileStem() + ".md",
     new Blob([toMarkdown(runtime.docText())], { type: "text/markdown;charset=utf-8" }),
+  );
+}
+
+/**
+ * Org, which is Markdown's twin here and differs where it counts.
+ *
+ * `text/org` is not a registered media type and `text/plain` is what every tool
+ * that opens one actually wants; the extension is what Emacs reads.
+ */
+export function exportOrg() {
+  runtime.closeMenus();
+  download(
+    runtime.fileStem() + ".org",
+    new Blob([toOrg(runtime.docText())], { type: "text/plain;charset=utf-8" }),
   );
 }
 

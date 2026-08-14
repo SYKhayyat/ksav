@@ -17,6 +17,7 @@
 // channel and be renamed), styles as styles rather than as their effects, and
 // anything Word calls a "field". `importReport` says what was dropped.
 
+import { mostlyHebrew, type ImportResult } from "./interchange";
 import { typstContent } from "./typst-escape";
 
 // ---------------------------------------------------------------- the zip
@@ -178,13 +179,9 @@ function findAll(node: XmlNode, tag: string): XmlNode[] {
 
 // ---------------------------------------------------------------- conversion
 
-export interface ImportResult {
-  body: string;
-  /** `rtl` when the document is mostly Hebrew — a suggestion for the page setup. */
-  dir: "rtl" | "ltr";
-  /** What was in the file and did not come across, for the writer to be told. */
-  dropped: string[];
-}
+// `ImportResult` and `mostlyHebrew` moved to `interchange.ts` when Org became a
+// second way in: both are about importing, not about Word, and `main.ts` reports
+// what did not come across in one sentence for every route there is.
 
 const HEADING_LEVELS: Record<string, number> = {
   heading1: 1, heading2: 2, heading3: 3, heading4: 4, heading5: 5, heading6: 6,
@@ -442,21 +439,6 @@ function convertTable(tbl: XmlNode, footnotes: Map<string, string>): string {
     lines.push("  " + cells.slice(i, i + columns).join(", ") + ",");
   }
   return `#טבלה(עמודות: ${columns},\n${lines.join("\n")}\n)`;
-}
-
-/** Is this mostly Hebrew? Decides the imported document's direction. */
-export function mostlyHebrew(text: string): boolean {
-  let hebrew = 0;
-  let latin = 0;
-  for (const ch of text) {
-    const c = ch.codePointAt(0) ?? 0;
-    if (c >= 0x0590 && c <= 0x05ff) hebrew++;
-    else if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) latin++;
-  }
-  // Ties go to Hebrew: this is a Hebrew-first application, and the command names
-  // in the converted markup are themselves Hebrew letters — so a document with
-  // no prose at all should not be declared English by its own markup.
-  return hebrew >= latin;
 }
 
 /** Read a `.docx` file into Ksav markup. */

@@ -55,7 +55,11 @@ import {
   englishValue,
 } from "../.tmp-test/channels.mjs";
 import { DEFAULTS, defaultPageSetup } from "../.tmp-test/settings.mjs";
-import { CLASSIFIED_NAMES, toMarkdown } from "../.tmp-test/markdown.mjs";
+// The classification moved to `interchange.ts` when Org arrived and the tables
+// stopped being able to say both what a command means and how one format spells
+// it. `toMarkdown` is still Markdown's own.
+import { CLASSIFIED_NAMES } from "../.tmp-test/interchange.mjs";
+import { toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
 import { dirOf } from "../tools/paths.mjs";
 

@@ -889,6 +889,43 @@ async function main() {
     newProblems(mark).map((p) => p.what).join(" | "),
   );
 
+  // ----------------------------------------------------- 7b. and out as Org
+  //
+  // The other end of the same menu, and the one route in it whose output a
+  // person is going to read as *text*. The PDF check above proves the engine
+  // ran; this proves the converter did, over a document that by now has a
+  // heading, a bulleted list, a table, a footnote and an endnote in it — every
+  // construct `interchange.ts` classifies, produced by the real editor rather
+  // than typed into a fixture.
+  //
+  // The assertion that matters is the last one. `org.test.mjs` makes the same
+  // claim offline over a document somebody wrote by hand; this makes it over one
+  // the application built, which is where a command nobody remembered to
+  // classify would actually come from.
+  current = "org";
+  await clickVisible("the Export menu", '[data-menu="export"] .menu-btn');
+  await page.waitForSelector('[data-export="exportOrg"]', { timeout: 5_000 });
+  const orgWait = page.waitForEvent("download", { timeout: 60_000 });
+  await clickVisible("the Export → Org item", '[data-export="exportOrg"]');
+  try {
+    const download = await orgWait;
+    const to = path.join(os.tmpdir(), `ksav-acceptance-${process.pid}.org`);
+    await download.saveAs(to);
+    const org = fs.readFileSync(to, "utf8");
+    fs.rmSync(to, { force: true });
+    check("the Org file is named after the document", download.suggestedFilename().endsWith(".org"),
+      download.suggestedFilename());
+    check("it has the heading in it", /^\*+ /m.test(org), org.slice(0, 120));
+    check("it has the footnote in it", org.includes("[fn:1]"), org.slice(0, 200));
+    check(
+      "and no Ksav command survived the conversion",
+      !/#[֐-׿\w_]+\[/.test(org),
+      (/#[֐-׿\w_]+\[/.exec(org) ?? [""])[0],
+    );
+  } catch (e) {
+    check("Export → Org downloads a file", false, String(e.message).split("\n")[0]);
+  }
+
   // ------------------------------------------------- 8. every surface, on screen
 
   // The sweep the whole item is about, and the one that is derived rather than

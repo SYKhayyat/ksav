@@ -217,13 +217,29 @@ export function isSep(e: MenuEntry): e is { sep: true } {
  * can only push a copy into the downloads folder. Calling both of those "Save
  * as…" would promise a binding that is not going to exist.
  */
-export function fileItems(realFiles: boolean): MenuEntry[] {
+export type FileItemId =
+  | "newDoc"
+  | "open"
+  | "save"
+  | "saveAs"
+  | "importWord"
+  | "importOrg"
+  | "shareRead"
+  | "shareReview"
+  | "saveAsTemplate";
+
+export function fileItems(realFiles: boolean): (({ id: FileItemId } & MenuRow) | { sep: true })[] {
   return [
     { id: "newDoc", label: t("newDoc") },
     { id: "open", label: t("open") },
     { id: "save", label: t("save") },
     { id: "saveAs", label: realFiles ? t("saveAs") : t("saveCopy") },
     { id: "importWord", label: t("importWord") },
+    // The second way in, and the reason `importWord`'s flow stopped being a
+    // function about Word. Org is where a bochur's notes live when they are not
+    // in Word, and it is the only interchange format on the list whose structure
+    // — a tree of headings with footnotes hanging off it — is this one's own.
+    { id: "importOrg", label: t("importOrg") },
     { id: "shareRead", label: t("shareRead") },
     { id: "shareReview", label: t("shareReview") },
     { id: "saveAsTemplate", label: t("saveAsTemplate") },
@@ -231,10 +247,10 @@ export function fileItems(realFiles: boolean): MenuEntry[] {
 }
 
 /**
- * The Export menu — eight routes, every one addressable.
+ * The Export menu — every route, and every one addressable.
  *
- * Eight, not one. A menu where only the item under test can be found is a menu
- * that will grow a ninth item nothing can reach; the ids are the i18n keys,
+ * All of them, not one. A menu where only the item under test can be found is a
+ * menu that will grow an item nothing can reach; the ids are the i18n keys,
  * which are already each item's identifier, so no second vocabulary was invented
  * for this.
  *
@@ -256,12 +272,30 @@ export const EXPORTS = [
   "copyForWord",
   "exportHtml",
   "exportMarkdown",
+  // Beside Markdown, because it answers the same question — "get this out as
+  // text another tool reads" — and differs in the one way that matters here:
+  // Org has no six-level ceiling on headings, so a sefer's outline survives it
+  // whole. See `org.ts`.
+  "exportOrg",
   "exportText",
   "exportTypst",
   "print",
 ] as const;
 
-export function exportItems(): MenuRow[] {
+/**
+ * Every export route, as a union.
+ *
+ * So that `main.ts`'s table of what each one *does* is checked against this list
+ * by the compiler, exactly as `ChipId` holds `CHIP_RUN`. Without it the table was
+ * a `Record<string, …>`, a route added here got `EXPORT_RUN[id]` of `undefined`,
+ * and `menuItem` wired the button to nothing — a menu entry that looks right,
+ * does nothing when pressed, and says nothing about why. That is the failure
+ * this whole repository is named after, and it was one keystroke away in two
+ * menus. Found by adding a ninth route.
+ */
+export type ExportId = (typeof EXPORTS)[number];
+
+export function exportItems(): ({ id: ExportId } & MenuRow)[] {
   return EXPORTS.map((id) => ({ id, label: t(id) }));
 }
 

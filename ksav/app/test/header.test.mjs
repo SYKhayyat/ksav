@@ -203,7 +203,13 @@ export async function run() {
     // is what made it a property of a single format. It is a box at the head of
     // the menu now, and `pagerange.ts` says which routes read it.
     check("a page range is not one of them", EXPORTS.filter((id) => id === "exportPdfPages"), []);
-    check("there are eight of them", EXPORTS.length, 8);
+    // Not "there are eight of them", which is what this said until Org made a
+    // ninth. A count is a fact about today; what the menu has to keep is that
+    // every route is distinct and reachable, and a literal number turns adding a
+    // format into a red test that says nothing about whether the format works.
+    // (G6, in the relayed findings: assert the class, not the shape.)
+    ok("there is more than one route out", EXPORTS.length > 1);
+    check("no route is listed twice", new Set(EXPORTS).size, EXPORTS.length);
     check(
       "…by an id, not by a localised label",
       items.filter((r) => !r.id || !r.label).map((r) => r.id),

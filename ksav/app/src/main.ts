@@ -161,6 +161,8 @@ import * as keymodes from "./keymodes";
 import * as crash from "./crash";
 import * as share from "./share";
 import * as docx from "./docx";
+import * as interchange from "./interchange";
+import * as org from "./org";
 import * as update from "./update";
 import * as watch from "./watch";
 import { overviewRuler } from "./ruler";
@@ -4236,12 +4238,15 @@ function buildHeader(): HTMLElement {
       }),
   );
 
-  const FILE_RUN: Record<string, () => void> = {
+  // Keyed by the union, not by `string`. See `header.ExportId` for what that
+  // buys and what it was one keystroke away from costing.
+  const FILE_RUN: Record<header.FileItemId, () => void> = {
     newDoc,
     open: openFile,
     save: saveFile,
     saveAs: saveFileAs,
     importWord: () => void importWord(),
+    importOrg: () => void importOrg(),
     shareRead: () => void copyShareLink(false),
     shareReview: () => void copyShareLink(true),
     saveAsTemplate,
@@ -4251,19 +4256,22 @@ function buildHeader(): HTMLElement {
     "📁 " + t("file"),
     header
       .fileItems(files.supportsRealFiles())
-      .filter((e) => !header.isSep(e))
-      .map((e) => menuItem(e as header.MenuRow, FILE_RUN[(e as header.MenuRow).id])),
+      // A type guard rather than a cast, so the id that reaches `FILE_RUN` is
+      // the union and not `string` — which is the whole point of the union.
+      .filter((e): e is { id: header.FileItemId } & header.MenuRow => !header.isSep(e))
+      .map((e) => menuItem(e, FILE_RUN[e.id])),
   );
 
   // The Skins menu is gone: presets now live inside the Styles panel, next to
   // the settings they overwrite, where the relationship is visible.
 
-  const EXPORT_RUN: Record<string, () => void> = {
+  const EXPORT_RUN: Record<header.ExportId, () => void> = {
     exportPdf: () => void exports.exportPdf(),
     exportWord: () => void exports.exportWord(),
     copyForWord: () => void exports.copyForWord(),
     exportHtml: () => void exports.exportHtml(),
     exportMarkdown: exports.exportMarkdown,
+    exportOrg: exports.exportOrg,
     exportText: exports.exportText,
     exportTypst: () => void exports.exportTypst(),
     print: exports.doPrint,
@@ -5840,18 +5848,30 @@ async function maybeCheckForUpdate() {
 }
 
 /**
- * Read a `.docx` in, as a new document.
+ * Read a file in, as a new document.
  *
  * Always a *new* document, never over the open one — importing is not a thing
  * anybody does to the sefer they are in the middle of writing, and getting that
  * wrong once costs somebody an evening.
+ *
+ * One function for every way in rather than one per format. This was
+ * `importWord`, and the shape of it — pick a file, say "importing", convert,
+ * name the document after the file, write the direction onto its page setup,
+ * open it, and say in one sentence what did not come across — is not about Word
+ * at all. Org arriving as the second route is what made that visible, and the
+ * half that would have been copied is the last step: an import that quietly
+ * loses the pictures, or the property drawers, is the kind of thing somebody
+ * discovers at the printer.
  */
-async function importWord() {
+async function importAs(
+  extension: string,
+  convert: (file: File) => Promise<interchange.ImportResult>,
+) {
   closeMenus();
   const picked = await new Promise<File | null>((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".docx";
+    input.accept = extension;
     input.style.display = "none";
     input.addEventListener("change", () => resolve(input.files?.[0] ?? null), { once: true });
     // A dismissed picker fires no event in most browsers.
@@ -5863,25 +5883,28 @@ async function importWord() {
   setStatus(t("importing"), "");
   let result;
   try {
-    result = await docx.importDocx(new Uint8Array(await picked.arrayBuffer()));
+    result = await convert(picked);
   } catch (e) {
     const bad = troubleSaid(e, "general");
     setStatus(`${t("importFailed")} — ${bad.said}`, "err", bad.detail);
     return;
   }
-  const title = picked.name.replace(/\.docx$/i, "") || t("untitled");
+  const title = picked.name.replace(new RegExp(`\\${extension}$`, "i"), "") || t("untitled");
   const created = await docs.createDoc(title, result.body);
   // The direction is read off the text rather than guessed, and written onto the
   // document's own page setup — where it belongs since B26.
   await docs.rememberConfig(created.id, { dir: result.dir });
   await openDoc(created.id);
-  // Say what did not come across. An import that quietly loses the pictures is
-  // the kind of thing somebody discovers at the printer.
   setStatus(
     result.dropped.length ? tf("importedWithGaps", title, result.dropped.join(", ")) : tf("imported", title),
     result.dropped.length ? "warn" : "ok",
   );
 }
+
+const importWord = () =>
+  importAs(".docx", async (f) => docx.importDocx(new Uint8Array(await f.arrayBuffer())));
+
+const importOrg = () => importAs(".org", async (f) => org.fromOrg(await f.text()));
 
 /**
  * Install the service worker, where there is any point in one.

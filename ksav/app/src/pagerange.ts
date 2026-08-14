@@ -149,6 +149,9 @@ const WHY_NOT: Readonly<Record<string, string>> = {
   copyForWord: "noPagesReflow",
   exportHtml: "noPagesReflow",
   exportMarkdown: "noPagesSource",
+  // Org, for the same reason and not a new one: it is a plain-text tree, and a
+  // tree has no page 4.
+  exportOrg: "noPagesSource",
   exportText: "noPagesSource",
   exportTypst: "noPagesSource",
 };

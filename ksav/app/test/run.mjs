@@ -45,6 +45,11 @@ const GENERATORS = [
   ["structure fixtures", "emit-structure-fixtures.mjs"],
   ["insertion fixtures", "emit-insertion-fixtures.mjs"],
   ["scan oracle", "emit-scan-oracle.mjs"],
+  // The fifth target for one registry: `editors/emacs/ksav-services.el`. The
+  // elisp cannot import `services.gen.ts`, so it gets its own generated copy
+  // rather than a hand-written fifth list — see the header of
+  // `tools/emit-emacs.mjs` for what the previous four cost.
+  ["emacs services", "emit-emacs.mjs"],
 ];
 
 /**

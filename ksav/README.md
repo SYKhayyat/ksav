@@ -574,6 +574,24 @@ any OS-specific code — so a build behaves identically everywhere. The editor i
 web tech (browser or Tauri webview), and the wasm build runs in any modern
 browser on any OS.
 
+## In Emacs
+
+[`editors/emacs`](editors/emacs) is an elisp package that opens `.ksav` files in
+`ksav-mode` and drives this engine: `C-c C-c` typesets and shows the page,
+`C-c C-i` inserts a command by name in either language, `C-c C-e` writes a PDF,
+`C-c C-s` runs the Hebrew and English spellers. It starts an engine for you and
+stops it when Emacs exits.
+
+It is a client and nothing more — no elisp here parses Ksav markup, decides what
+a command means or renders anything. That is the only arrangement in which an
+Emacs user gets *Ksav* rather than a mode that approximates it and drifts, and
+it is why the service table there is generated from the same registry the other
+four builds are generated from.
+
+This is separate from the Emacs *mode* inside the application, which is the real
+`@replit/codemirror-emacs` with the whole keyboard and every command on `M-x`.
+One is Emacs inside Ksav; this is Ksav inside Emacs.
+
 ## Status
 
 - [x] Real Typst 0.15 compilation (embedded via `typst-as-lib`)
@@ -644,7 +662,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,734 editor assertions, 661 engine
+- [x] **CI, running and green** — typecheck, 5,821 editor assertions, 661 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -652,8 +670,9 @@ browser on any OS.
 Done since, and worth stating because these were the longest-standing gaps:
 
 - [x] **A git remote, and CI that actually runs.** `ci.yml` runs on every push and
-      is green across all six jobs — editor, engine, formatting and clippy,
-      browser (wasm) engine, the assembled application, desktop shell.
+      is green across all seven jobs — editor, engine, formatting and clippy,
+      browser (wasm) engine, the assembled application, the Emacs package,
+      desktop shell.
 - [x] **The release matrix has run, on every platform.** `v0.1.0` drove
       `release.yml` to success on `windows-latest`, `ubuntu-22.04` and *both*
       macOS architectures, so the `.msi`, `.exe`, `.deb`, `.AppImage` and both
@@ -730,7 +749,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,734 assertions across 91 files |
+| `editor` | the typechecker, then 5,821 assertions across 92 files |
 | `engine` | lints, then 661 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 
@@ -750,13 +769,16 @@ documentation fence over it. A partial tally checked against the documentation
 would fail every single-file run, which is the fastest way to teach everybody to
 ignore the one fence that catches a stale count.
 
-The workflow runs the gate on every push and pull request, plus two jobs that
+The workflow runs the gate on every push and pull request, plus three jobs that
 need more than a plain checkout and are therefore not part of it. It builds the
 wasm engine and then *runs* it (`.github/scripts/wasm-smoke.mjs` — every template
 compiled, both lexicons answered); the built package is git-ignored and produced
 locally, so without that job the entire no-server build could break and every
 other check would still be green. And it builds the app, embeds it in the server,
-and [uses it](#use-it).
+and [uses it](#use-it). And it installs an Emacs and runs
+`ksav/editors/emacs`'s own suite against a real engine — half of that suite skips
+without one, and the job sets `KSAV_EMACS_LIVE` so the skip is an error on the
+machine whose job is to run it.
 
 The editor's runner (`app/test/run.mjs`) builds **every module in `app/src`** and
 executes every `app/test/*.test.mjs`, so **adding a test is adding a file** — that

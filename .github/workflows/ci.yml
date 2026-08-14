@@ -249,6 +249,51 @@ jobs:
         working-directory: ./ksav/app
         run: npm run accept
 
+  emacs:
+    name: the Emacs package
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+
+      # `emacs-nox` rather than the full package: this suite runs in batch and
+      # draws nothing. The one thing a graphical Emacs would add — actually
+      # rasterising an SVG page — is not something a headless runner can check
+      # either way, and `ksav.el` says so in words to a reader whose Emacs
+      # cannot do it rather than showing them an empty buffer.
+      - name: Install Emacs
+        run: sudo apt-get update && sudo apt-get install -y emacs-nox
+
+      # The engine, because half of these tests drive a real one: a real Typst
+      # compile, a real PDF, the real Hebrew speller. Without it that half skips,
+      # and `KSAV_EMACS_LIVE` below turns the skip into an error so it cannot
+      # quietly stop running here — which is the whole reason this job exists
+      # rather than the offline half being considered enough.
+      - name: Build the engine
+        working-directory: ./ksav/engine
+        run: cargo build --release
+
+      - name: Run the package's tests
+        working-directory: ./ksav/editors/emacs
+        env:
+          KSAV_EMACS_LIVE: "1"
+        run: |
+          export PATH="$GITHUB_WORKSPACE/ksav/engine/target/release:$PATH"
+          emacs -Q --batch -L . -l ksav.el -l ksav-tests.el \
+                -f ert-run-tests-batch-and-exit
+
+      # A byte-compile warning in an elisp package is what a `tsc` error is in
+      # the editor: it compiles either way, and the warning is the only thing
+      # that will ever mention a free variable or a function that is not there.
+      - name: Byte-compile it
+        working-directory: ./ksav/editors/emacs
+        run: |
+          emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
+                -f batch-byte-compile ksav-services.el ksav.el ksav-tests.el
+
   desktop:
     name: desktop shell
     runs-on: ubuntu-22.04

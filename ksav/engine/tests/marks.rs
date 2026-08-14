@@ -501,3 +501,138 @@ fn a_knob_the_register_has_no_answer_for_is_refused_by_name() {
         "the refusal should name the argument: {message}"
     );
 }
+
+// ---------------------------------------------------------------- side notes
+
+/// The three things asked of side notes, each measured on the page.
+///
+/// *"Configurable width; the tag's language following the document; and, most
+/// substantially, one side without the other — today the pair is required, so
+/// the body text can only sit between them rather than beside one."*
+///
+/// All three are about geometry and glyphs, so all three are asserted where they
+/// can be seen. A compile that succeeds says nothing here: the arrangement this
+/// replaces compiled perfectly and reserved a margin nobody was writing into.
+///
+/// Runs are told apart by size, which is what the apparatus already uses to
+/// separate its tiers: the body is set at the document size, a sidenote at
+/// `גודל` (0.78em) and its marker as a superscript of that. The folio is neither,
+/// and reading it as one is how the first version of these tests decided that a
+/// Hebrew document had numbered a note "1".
+mod side_notes {
+    use super::*;
+
+    fn body_runs(v: &[TextRun]) -> Vec<&TextRun> {
+        v.iter().filter(|r| r.size > 11.0).collect()
+    }
+    fn note_runs(v: &[TextRun]) -> Vec<&TextRun> {
+        v.iter().filter(|r| r.size > 8.0 && r.size < 10.0).collect()
+    }
+    fn marker_runs(v: &[TextRun]) -> Vec<&TextRun> {
+        v.iter().filter(|r| r.size < 8.0).collect()
+    }
+    fn min_x(v: &[&TextRun]) -> f64 {
+        v.iter().map(|r| r.x).fold(f64::MAX, f64::min)
+    }
+    fn max_x(v: &[&TextRun]) -> f64 {
+        v.iter().map(|r| r.x).fold(f64::MIN, f64::max)
+    }
+
+    /// The ask: one side without the other.
+    ///
+    /// `#עם_הערות_דו_צד` built a three-column grid unconditionally, so a sefer
+    /// with a peirush down one side had the other side reserved anyway — the
+    /// body narrowed for nothing, and no way to say so.
+    #[test]
+    fn one_side_can_be_reserved_without_the_other() {
+        let text = "בראשית#הערת_ימין[עיין שם] ברא אלקים את השמים ואת הארץ.";
+        let both = render(&format!("#עם_הערות_דו_צד[{text}]"));
+        let right = render(&format!("#עם_הערות_דו_צד(צדדים: \"ימין\")[{text}]"));
+
+        // With one side reserved the body reaches into the margin that is no
+        // longer being held empty. With both, it cannot.
+        assert!(
+            min_x(&body_runs(&right)) < min_x(&body_runs(&both)),
+            "reserving only the right margin did not widen the text: the body \n\
+             reaches {} with one side and {} with both, so the left column is \n\
+             still being held.",
+            min_x(&body_runs(&right)),
+            min_x(&body_runs(&both)),
+        );
+        // And the note is still beside the text rather than in it.
+        let notes = note_runs(&right);
+        assert!(
+            !notes.is_empty(),
+            "the note vanished when one side was reserved"
+        );
+        assert!(
+            min_x(&notes) > max_x(&body_runs(&right)),
+            "the note landed inside the body rather than in the reserved column"
+        );
+    }
+
+    /// The ask: the tag's language follows the document.
+    ///
+    /// A sefer numbers its notes א, ב, ג. These were `[#n]` — Arabic digits, in
+    /// every document, in either script.
+    #[test]
+    fn the_marker_is_numbered_the_way_the_document_is() {
+        let body = "#עם_הערות_צד[טקסט#הערת_גיליון[ראשונה] ועוד#הערת_גיליון[שנייה] סוף.]";
+        let hebrew: String = marker_runs(&render(body))
+            .iter()
+            .map(|r| r.text.clone())
+            .collect();
+        assert!(
+            hebrew.contains('א') && hebrew.contains('ב'),
+            "a Hebrew document numbered its sidenotes with something other than \n\
+             Hebrew letters: {hebrew:?}"
+        );
+        assert!(
+            !hebrew.contains('1'),
+            "an Arabic numeral is still being used to mark a note in a Hebrew \n\
+             document: {hebrew:?}"
+        );
+
+        // The other direction, which is what makes it *following* the document
+        // rather than a second Hebrew-only default.
+        let english = DocConfig {
+            lang: "en".to_string(),
+            dir: "ltr".to_string(),
+            ..DocConfig::default()
+        };
+        // Not `marker_runs`, which buckets by the sizes a *Hebrew* page uses.
+        // An English document sets its inline marker at the body size and its
+        // column marker at the note size, so the marker is smaller than the body
+        // and that is the whole of what distinguishes it — from the folio too,
+        // which is a digit and is not smaller.
+        let out = render_with("#עם_הערות_צד[text#הערת_גיליון[first] end.]", &english);
+        assert!(
+            out.iter().any(|r| r.size < 11.0 && r.text.trim() == "1"),
+            "an English document did not number its sidenotes 1, 2, 3: {:?}",
+            out.iter().map(|r| (&r.text, r.size)).collect::<Vec<_>>()
+        );
+    }
+
+    /// The ask: configurable width — and that the configuration is not discarded.
+    ///
+    /// `יחס` has been in `_sn_defaults` and settable with
+    /// `#הגדרות_הערות_צד(יחס: …)` all along. The wrapper's own parameter
+    /// defaulted to a *number* and wrote it over the top, so a document that
+    /// configured the width got the wrapper's default instead — two ways to say
+    /// one thing, and the one nobody passed won.
+    #[test]
+    fn the_configured_width_is_the_width() {
+        let inner = "טקסט#הערת_גיליון[הערה] סוף.";
+        let narrow = render(&format!("#הגדרות_הערות_צד(יחס: 1)\n#עם_הערות_צד[{inner}]"));
+        let wide = render(&format!("#הגדרות_הערות_צד(יחס: 6)\n#עם_הערות_צד[{inner}]"));
+        // A wider ratio is a wider *text* column, so in a right-to-left document
+        // the body reaches further left and the note column shrinks toward it.
+        assert!(
+            min_x(&body_runs(&wide)) < min_x(&body_runs(&narrow)),
+            "the configured ratio changed nothing: the body reaches {} at יחס: 6 \n\
+             and {} at יחס: 1, so the wrapper is still overwriting the setting.",
+            min_x(&body_runs(&wide)),
+            min_x(&body_runs(&narrow)),
+        );
+    }
+}

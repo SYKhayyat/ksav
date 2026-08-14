@@ -2742,6 +2742,23 @@
   [#super[#mark] #body],
 )
 
+// A sidenote's marker, in the document's own numerals.
+//
+// *"The tag's language should follow the document"* — and it can, exactly:
+// `text.lang` is what the page setup set from `שפה`, so a Hebrew document
+// numbers its sidenotes א, ב, ג the way a sefer does, and an English one counts
+// 1, 2, 3. Read rather than configured, because a second switch for the same
+// fact is a second thing to set and to forget.
+//
+// `סימון` on the config overrules it for a writer who wants the other one:
+// "עבריות", "ערביות", or auto to follow the document.
+#let _sn_mark(n, prime: false) = context {
+  let want = _sn_cfg.get().at("סימון", default: auto)
+  let hebrew = if want == auto { text.lang == "he" } else { want == "עבריות" }
+  let m = if hebrew { numbering("א", n) } else { [#n] }
+  if prime [#m′] else [#m]
+}
+
 // The shared sidenote engine. `lbl` names the stream (one per gutter), `mark`
 // renders a number, and `side` is "חוץ" (the far side of the main column),
 // "ימין" or "שמאל" (an absolute page side, for the two-sided layout).
@@ -2828,19 +2845,27 @@
 #let הערת_גיליון(body, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
   _cfg_strict("הערת_גיליון", rest)
-  _sn_note("ksav-sn", "חוץ", n => [#n], body, own: own)
+  _sn_note("ksav-sn", "חוץ", n => _sn_mark(n), body, own: own)
 }
 
 // עם_הערות_צד — reserve the note column beside `עיקר`. The notes themselves are
 // placed by #הערת_גיליון at their own lines; this only narrows the text column so
 // there is empty page for them to land on.
-#let עם_הערות_צד(עיקר, יחס: 2) = {
-  _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d })
+#let עם_הערות_צד(עיקר, יחס: auto) = {
+  // `auto`, not `2`. The ratio is in `_sn_defaults` and settable for a whole
+  // document with `#הגדרות_הערות_צד(יחס: 3)` — and this parameter used to
+  // default to a number and write it over the top, so the configured width was
+  // silently discarded by the wrapper that is supposed to use it. Two ways to
+  // say one thing, and the one nobody passed won.
+  if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
   _sn_active.update(n => n + 1)
   context {
     let cfg = _sn_cfg.get()
+    // The ratio off the configuration, not off the parameter — which is `auto`
+    // when the call did not give one, and `auto * 1fr` is a compile error rather
+    // than a default. Caught by two tests the moment the parameter changed.
     grid(
-      columns: (יחס * 1fr, 1fr),
+      columns: (cfg.at("יחס", default: 2) * 1fr, 1fr),
       column-gutter: cfg.at("מרווח", default: 1.2em),
       עיקר,
       [],
@@ -2860,23 +2885,53 @@
 #let הערת_ימין(body, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
   _cfg_strict("הערת_ימין", rest)
-  _sn_note("ksav-sn-r", "ימין", n => [#n], body, own: own)
+  _sn_note("ksav-sn-r", "ימין", n => _sn_mark(n), body, own: own)
 }
 #let הערת_שמאל(body, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
   _cfg_strict("הערת_שמאל", rest)
-  _sn_note("ksav-sn-l", "שמאל", n => [#n′], body, own: own)
+  _sn_note("ksav-sn-l", "שמאל", n => _sn_mark(n, prime: true), body, own: own)
 }
-#let עם_הערות_דו_צד(עיקר, יחס: 2.4) = {
-  _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d })
+// `צדדים` — which margins to reserve. **This is the layout ask**, and it is a
+// capability rather than a default: the grid below was always three columns, so
+// the body could only ever sit *between* two note columns and never beside one.
+// A sefer with a peirush down one side and nothing down the other had to have
+// the empty side reserved anyway, which narrows the text for nothing.
+//
+//   "שניהם"  both, and the body in the middle — what this always did
+//   "ימין"   one column, on the right; the body takes the rest
+//   "שמאל"   one column, on the left
+//
+// The stream a note goes to is unchanged: `#הערת_ימין` still feeds the right and
+// `#הערת_שמאל` the left. Reserving one side and writing to the other is the
+// writer's mistake to make, and `#הערת_שמאל` in a right-only layout lands where
+// it always did — outside the reserved column — which is what `_sn_active`
+// already guards against off the page.
+#let עם_הערות_דו_צד(עיקר, יחס: auto, צדדים: "שניהם") = {
+  if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
   _sn_active.update(n => n + 1)
-  grid(
-    columns: (1fr, יחס * 1fr, 1fr),
-    column-gutter: 1em,
-    [],
-    עיקר,
-    [],
-  )
+  context {
+    let cfg = _sn_cfg.get()
+    let r = cfg.at("יחס", default: 2.4)
+    let g = cfg.at("מרווח", default: 1.2em)
+    // Which column comes first is a question about the *text direction*, not
+    // about the side: a grid fills from the start edge, so in RTL the first
+    // column is the rightmost one. Reserving "ימין" therefore means the empty
+    // column first in a Hebrew document and second in an English one — and
+    // getting that backwards does not fail, it places the note off the page,
+    // where `_sn_note` measures from the column's start corner and finds no
+    // room. Measured at x=682 on a 595pt page before this line was right.
+    let empty_first = (צדדים == "ימין") == (text.dir == rtl)
+    if צדדים in ("ימין", "שמאל") {
+      if empty_first {
+        grid(columns: (1fr, r * 1fr), column-gutter: g, [], עיקר)
+      } else {
+        grid(columns: (r * 1fr, 1fr), column-gutter: g, עיקר, [])
+      }
+    } else {
+      grid(columns: (1fr, r * 1fr, 1fr), column-gutter: g, [], עיקר, [])
+    }
+  }
   _sn_active.update(n => n - 1)
 }
 #let noteright = _en(הערת_ימין, extra: (gutter: "מרווח"))

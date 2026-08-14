@@ -103,6 +103,16 @@ layouts are the cells of that grid. A combination that does not exist is greyed
 with its reason rather than hidden. Picking a cell renders a real page, set from
 your own text, instead of a diagram.
 
+**Side notes** answer three things a reader asked for. Their width is
+`#הגדרות_הערות_צד(יחס: …)` and the wrapper no longer writes over it — it used to
+default its own parameter to a number, so a document that configured the width
+got the wrapper's default instead. Their marker follows the document: a Hebrew
+sefer numbers them א, ב, ג and an English one 1, 2, 3, read off the document's own
+language rather than set a second time. And `#עם_הערות_דו_צד(צדדים: "ימין")`
+reserves **one** margin instead of two, so the text can sit beside a peirush
+rather than only between a pair of them — which was a layout the apparatus could
+not express at all.
+
 The chooser also writes each layout's *scaffolding*: the dump call that prints
 collected notes, the wrapper the margin layouts need, the configuration line that
 has to sit at the top of the file. Forgetting it is the commonest way one of
@@ -601,7 +611,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,641 editor assertions, 638 engine
+- [x] **CI, running and green** — typecheck, 5,641 editor assertions, 641 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -688,7 +698,7 @@ Four groups, nine checks:
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
 | `editor` | the typechecker, then 5,641 assertions across 90 files |
-| `engine` | lints, then 638 tests across 42 binaries |
+| `engine` | lints, then 641 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 
 **One command, deliberately.** This section used to list six and

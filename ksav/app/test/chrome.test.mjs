@@ -395,6 +395,26 @@ check(
   }
   ok("the files that drive the assembled app were read", wanted.size > 5, `${wanted.size} selectors`);
 
+  /**
+   * A class that belongs to CodeMirror rather than to us.
+   *
+   * `.cm-line` has no rule in `styles.css` and should not be given one — a CSS
+   * rule written to satisfy a fence is the fence marking its own homework. But
+   * an undeclared selector is still a selector that can vanish from under the
+   * acceptance run, so the exemption is a **claim this file executes**: the
+   * class has to be findable in the installed editor package. The day
+   * CodeMirror renames it, this goes red — which is the same day the acceptance
+   * run would start failing for a reason nobody could see from its output.
+   *
+   * Narrow on purpose. Only `cm-` names, and only in that package: this is not
+   * a hole for any class somebody forgot to declare.
+   */
+  const CM_VIEW = readFileSync(
+    path.join(HERE, "..", "node_modules", "@codemirror", "view", "dist", "index.cjs"),
+    "utf8",
+  );
+  const cmOwn = (name) => name.startsWith("cm-") && CM_VIEW.includes(`"${name}"`);
+
   const src = (f) => readFileSync(path.join(HERE, "..", "src", f), "utf8");
   const TS = readdirSync(path.join(HERE, "..", "src"))
     .filter((f) => f.endsWith(".ts"))
@@ -432,7 +452,8 @@ check(
     return (
       new RegExp(`\\.${name}[\\s,:.{>]`).test(CSS) ||
       TS.includes(`classList.add("${name}"`) ||
-      new RegExp(`class: "[^"]*\\b${name}\\b`).test(TS)
+      new RegExp(`class: "[^"]*\\b${name}\\b`).test(TS) ||
+      cmOwn(name)
     );
   };
 

@@ -55,6 +55,17 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // paragraph, stay where you are — and the one that works everywhere takes the
   // combination the more specific one leaves free.
   paraBreak: "Mod-Alt-Enter",
+  // Lock this pane to the section the caret is in, and let it out again. The
+  // same axis as the fold keys — *show me less of this document* — and a pair
+  // rather than a toggle, because a key whose effect depends on a state the
+  // writer has to remember is a key they press twice to find out where they are.
+  //
+  // Adjacent keys for a two-directional pair, which is the whole of the choice:
+  // `,` and `.` sit under the same two fingers and carry `<` and `>` above them,
+  // so the direction is on the keycap. `Mod-.` alone is `spellSuggest`; these
+  // are the Alt forms and neither was taken.
+  narrow: "Mod-Alt-,",
+  widen: "Mod-Alt-.",
   // Fold to a depth — the outline collapsed to chapters, or to simanim. `foldAll`
   // takes everything down at once and answers a different question.
   foldLevel1: "Mod-Alt-1",

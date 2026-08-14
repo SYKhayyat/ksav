@@ -1650,6 +1650,123 @@ async function main() {
     );
   }
 
+  step(13, "a pane can be locked to one siman");
+
+  // The half of narrowing a unit test cannot reach. `narrowing.test.mjs` holds
+  // the span, the anchor's mapping and the refusal as arithmetic; what it cannot
+  // see is whether the lines actually leave the screen and whether an edit that
+  // reaches outside is actually stopped — and "hidden but still writable" is not
+  // narrowing, it is a curtain over the part of the sefer you are not watching.
+  //
+  // The dangerous case is driven deliberately: select the whole document and
+  // type. That is one keystroke away at any moment, it is the one gesture that
+  // can put a 300-page sefer inside a pane restricted to four paragraphs, and a
+  // fence that only tried typing *inside* the section would pass with the guard
+  // deleted.
+  {
+    await pressInEditor("Control+End");
+    await act("typing two simanim", () =>
+      type("\n#כותרת[סימן ראשון]\nגוף הראשון.\n\n#כותרת[סימן שני]\nגוף השני.\n"),
+    );
+    const second = page.locator('.cm-line:has-text("גוף השני")');
+    check("both simanim are on screen to begin with", (await second.count()) > 0, "the second one never arrived");
+
+    await clickVisible("the first siman's body", '.cm-line:has-text("גוף הראשון")');
+    await clickVisible("the narrow control", '[data-narrow="off"]');
+
+    const chip = page.locator('[data-narrow="on"]');
+    check("the pane says it is narrowed", (await chip.count()) === 1, "no pane reported a narrowing");
+    check(
+      "…and says which siman, in the siman's own words",
+      (await chip.first().textContent())?.includes("סימן ראשון") ?? false,
+      (await chip.first().textContent()) ?? "",
+    );
+    check("the other siman has left the screen", (await second.count()) === 0, "it was still rendered");
+
+    // Select everything and type over it. Refused, and *said* to be refused:
+    // an edit that silently does nothing is the same screen as an editor that
+    // has crashed.
+    const before = await said();
+    await press("Control+a");
+    await type("ק");
+    await page
+      .waitForFunction((was) => (document.getElementById("status")?.textContent ?? "") !== was, before, {
+        timeout: 5_000,
+        polling: 20,
+      })
+      .catch(() => {});
+    check("typing over the whole document is refused out loud", (await said()) !== before, `still "${before}"`);
+
+    await clickVisible("the widen control", '[data-narrow="on"]');
+    check(
+      "widening gives the rest of the sefer back",
+      (await page.locator('.cm-line:has-text("גוף השני")').count()) > 0,
+      "the second siman did not come back, so something ate it",
+    );
+
+    // And the sentence the whole feature is: *one pane restricted to a single
+    // siman while another shows the whole sefer*. One pane is not a test of
+    // that, and the bug it hides is not hypothetical — every pane hands its
+    // edits to the primary, so a narrowed primary refused the **other** pane's
+    // typing, which restricted every pane in the window to one section while
+    // showing only one of them as narrowed.
+    await clickVisible("the split control", '.source-pane [data-pane-act="split"]');
+    const panes = await page.locator(".source-pane").count();
+    check("there are two source panes now", panes === 2, `${panes} source panes`);
+    // `type` above drives `.cm-content`, and from here there are two of them —
+    // a locator that matches two elements is a Playwright error, not a coin
+    // toss, which is the right behaviour and the reason this is a second helper
+    // rather than a change to the first.
+    const typeIn = (n, text) =>
+      page.locator(".source-pane").nth(n).locator(".cm-content").pressSequentially(text, { delay: 4 });
+
+    await clickVisible("the first pane's siman", '.source-pane >> nth=0 >> .cm-line:has-text("גוף הראשון")');
+    await clickVisible("the first pane's narrow control", '.source-pane >> nth=0 >> [data-narrow="off"]');
+    check(
+      "one pane is narrowed",
+      (await page.locator('[data-narrow="on"]').count()) === 1,
+      `${await page.locator('[data-narrow="on"]').count()} panes reported a narrowing`,
+    );
+    check(
+      "…and the other still holds the whole sefer",
+      (await page.locator('.source-pane >> nth=1 >> .cm-line:has-text("גוף השני")').count()) > 0,
+      "the second pane lost the section the first one is not showing",
+    );
+
+    // A split opens where you were standing, which is the only reason to split
+    // a sefer you cannot see the whole of. A new pane starting at page 1 has
+    // thrown away the place you split in order to keep.
+    const tail = page.locator('.source-pane >> nth=1 >> .cm-line:has-text("גוף השני")');
+    const box = await tail.first().boundingBox();
+    const win = page.viewportSize();
+    check(
+      "the pane the split made opens where you were reading",
+      !!box && !!win && box.y >= 0 && box.y + box.height <= win.height,
+      box ? `the line is at y=${Math.round(box.y)} in a window ${win?.height} tall` : "the line never rendered",
+    );
+
+    await clickVisible("the second pane's last siman", '.source-pane >> nth=1 >> .cm-line:has-text("גוף השני")');
+    await press("End");
+    await typeIn(1, "ולד");
+    // Two claims, and they were one assertion until the one assertion went red
+    // for the *other* reason. "The edit landed" and "the edit landed the right
+    // way round" are separate, and the second is the one that had been false
+    // since panes were introduced: a mirrored pane's caret is mapped through
+    // the insertion rather than placed after it, so every character a writer
+    // typed in a second pane landed in front of the one before it.
+    const line = (await page.locator('.source-pane >> nth=1 >> .cm-line:has-text("גוף השני")').first().textContent()) ?? "";
+    check(
+      "the un-narrowed pane can still type where the narrowed one cannot",
+      line.length > "גוף השני.".length,
+      `the line is still "${line}", so one pane's narrowing restricted another pane`,
+    );
+    check(
+      "…and its letters arrive in the order they were typed",
+      line.includes("השני.ולד"),
+      `"${line}" — a mirrored pane's caret does not follow the text it inserts`,
+    );
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

@@ -199,6 +199,31 @@ Both directions lay the document out to answer, so they take about as long as a
 compile. That is why the second one is a key you press rather than something
 that follows your cursor around.
 
+## One siman at a time
+
+The window is a tree of panes, and each one shows a document in a role — its
+source or its printed page. Split them, size them, and unlink a pane's scroll
+from its neighbour's when you want to look somewhere other than where you are
+typing. The shipped arrangements are offered as a list rather than as a chip you
+press repeatedly until the right one comes round.
+
+**`Ctrl+Alt+,` locks the pane you are in to the section your cursor is in**, and
+`Ctrl+Alt+.` gives the rest of the sefer back. The strip at the top of the pane
+names the siman it is holding, so a pane showing four paragraphs is never
+mistakable for a short document; click the name to widen it again.
+
+Two things it deliberately does not do. It does not change what compiles — the
+preview is still the whole sefer, with the sefer's own page numbers, note numbers
+and running heads, because a preview that says *page 1* about your fourth siman
+would be wrong in the one place that ends up on paper. And a narrowed pane
+**cannot be edited outside its section**: select everything and type, and the
+edit is refused and says so. That is the difference between narrowing and merely
+hiding, and it is the reason to use it on a sefer you cannot afford to damage
+from the wrong end.
+
+The pane beside it is unaffected. That is the whole point: one siman under your
+hands, the sefer entire next to it.
+
 ## Hebrew and English on one line
 
 Source that mixes scripts used to jump around while you typed in it, and the two
@@ -278,7 +303,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 74 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 76 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is

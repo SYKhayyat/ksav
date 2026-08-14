@@ -24,6 +24,8 @@ rather than leaving two actions on one key.
 | `Ctrl+Shift+/` | Hide passage | הסתרת קטע |
 | `Ctrl+Alt+/` | Hidden line break | מעבר שורה נסתר |
 | `Ctrl+Alt+Enter` | Paragraph break | מעבר פסקה |
+| `Ctrl+Alt+,` | Show only this section | הצג רק את הסימן הזה |
+| `Ctrl+Alt+.` | Show the whole document | הצג את כל המסמך |
 | `Ctrl+Alt+1` | Fold to level 1 | קפל לרמה 1 |
 | `Ctrl+Alt+2` | Fold to level 2 | קפל לרמה 2 |
 | `Ctrl+Alt+3` | Fold to level 3 | קפל לרמה 3 |

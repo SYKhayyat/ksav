@@ -96,6 +96,15 @@ import * as menus from "./menus";
 import { marksIn } from "./marks";
 import * as channels from "./channels";
 import * as apparatus from "./apparatus";
+import {
+  changeReachesOut,
+  insideSpan,
+  narrowedTo,
+  narrowing,
+  setNarrow,
+  spanAt,
+  type Span,
+} from "./narrowing";
 
 // The modules `main.ts` was split into. What is left here is the shell: the
 // editor itself, the chrome around it, the panels, and boot. Everything with a
@@ -376,6 +385,12 @@ async function openDoc(id: string) {
   forgetGit();
   updateTitleBar();
   rerenderChrome();
+  // Narrowing rides with the document, because it is stored in the document's
+  // state and `stashFocused` above put that state away with the anchor still in
+  // it. Coming back to a sefer you were working through one siman at a time
+  // finds you where you were. The strip has to be told, or it goes on naming the
+  // section of the document you just left.
+  refreshPaneHeads();
   runtime.view.focus();
   showPagesFor(id);
   scheduleCompile();
@@ -796,6 +811,12 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
+  // Lock this pane to the section the caret is in, and let it out again. On the
+  // focused pane and nowhere else — `v` is `runtime.view`, which is the pane the
+  // writer is typing in, and narrowing every pane at once would destroy the one
+  // arrangement the feature exists for.
+  { id: "narrow", run: (v) => (narrowHere(v), true) },
+  { id: "widen", run: (v) => (widenHere(v), true) },
   // Fold *to a depth*: chapters only, or chapters and simanim. `foldAll` takes
   // every collapsible thing in the document down at once, which is a different
   // question and the only one this editor could answer.
@@ -1472,10 +1493,15 @@ function toggleIsolateSelection(v: EditorView): boolean {
  * property of the document now: a writer marking up somebody else's source and
  * one composing a sefer want opposite answers and may hold both open at once.
  * The setting remains the default a newly opened document starts from.
+ *
+ * `at` is where the caret starts, and it is optional because most callers are
+ * opening a document rather than opening a second window onto one somebody is
+ * already reading. A split is the case that needs it: see `renderLeaf`.
  */
-function makeState(body: string, prose: boolean): EditorState {
+function makeState(body: string, prose: boolean, at?: number): EditorState {
   return EditorState.create({
     doc: body,
+    ...(at === undefined ? {} : { selection: { anchor: Math.max(0, Math.min(at, body.length)) } }),
     extensions: [
       // In a compartment, and owned by `runtime.ts`, because a document swap
       // has to be able to throw the stack away. See `swapDocument` there.
@@ -1569,6 +1595,11 @@ function makeState(body: string, prose: boolean): EditorState {
       numberingMarks,
       deferredNotes,
       revealAll,
+      // A pane locked to one section. Per state and therefore per pane, which is
+      // the whole feature: the point of narrowing is that the pane beside it is
+      // still showing the whole sefer. See `narrowing.ts` for why the anchor
+      // lives here rather than on the `Leaf` in `panes.ts`.
+      narrowing,
       dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
       // The document's direction above is the *fallback*; every line that has a
       // letter in it answers for itself, and the syntax is held apart from the
@@ -1763,6 +1794,16 @@ const paneViews = new Map<string, EditorView>();
 let focusedPane: string | null = null;
 /** Set while a change is being mirrored, so mirroring does not recurse. */
 let mirroring = false;
+/**
+ * Set while one pane's edit is being handed to the primary.
+ *
+ * The primary's `dispatch` runs for that hand-off exactly as it does for a
+ * keystroke, and nothing in the transaction says which it was. That is only a
+ * distinction worth drawing since narrowing: without this flag a narrowed
+ * primary refuses the *other* pane's edits, so narrowing one pane would quietly
+ * restrict every pane in the window to the same section.
+ */
+let forwarding = false;
 
 /** The view that owns a document's history: the first source pane showing it. */
 function primaryView(): EditorView | undefined {
@@ -1801,18 +1842,63 @@ function makePaneView(host: HTMLElement, state: EditorState): EditorView {
     state,
     parent: host,
     dispatch: (tr) => {
+      // A narrowed pane cannot edit outside its section, and **here** is the
+      // only place that can be enforced.
+      //
+      // Not in a `transactionFilter` inside the state, which is where it
+      // belongs by shape: every pane's state receives every change, mirrored
+      // from the primary (see `mirrorChange`), so a filter there would refuse
+      // the *other* panes' perfectly legal edits and leave this pane holding a
+      // different document from everybody else. That is the document-eating bug
+      // this whole model was built to prevent, reintroduced by a guard.
+      //
+      // `mirroring` and `forwarding` are what tell the three cases apart, and
+      // all three arrive here as the same kind of transaction. Only a change
+      // that is neither — one that started in *this* pane, under this writer's
+      // hands — is this pane's to refuse. Refused before the forward below,
+      // because once the primary has recorded it there is nothing left to
+      // refuse; and skipped for a forward, or a narrowed primary would refuse
+      // the edits of every other pane in the window.
+      if (tr.docChanged && !mirroring && !forwarding) {
+        const span = narrowedTo(view.state);
+        if (span && changeReachesOut(span, tr.changes)) {
+          setStatus(tf("narrowedRefused", titleOfSpan(span)), "warn");
+          return;
+        }
+      }
       // A mirror that is typed into hands the change to the primary, so the
       // edit is recorded once. Everything that is not a document change —
       // moving the caret, folding, scrolling into view — stays local, because
       // those are exactly the things a pane owns.
       const primary = primaryView();
-      if (tr.docChanged && !mirroring && primary && primary !== view) {
+      if (tr.docChanged && !mirroring && !forwarding && primary && primary !== view) {
         const was = tr.annotation(Transaction.userEvent);
-        primary.dispatch({
-          changes: tr.changes,
-          selection: tr.selection,
-          ...(was ? { userEvent: was } : {}),
-        });
+        forwarding = true;
+        try {
+          primary.dispatch({
+            changes: tr.changes,
+            selection: tr.selection,
+            ...(was ? { userEvent: was } : {}),
+          });
+        } finally {
+          forwarding = false;
+        }
+        // The caret comes back, and it has to be given back by hand.
+        //
+        // The change reaches this pane again through `mirrorChange`, which
+        // sends a changeset and nothing else — so this pane's selection is
+        // *mapped* through the insertion rather than placed after it, and a
+        // cursor sitting exactly where text is inserted maps to before it. The
+        // caret therefore did not move, and the next keystroke landed in front
+        // of the last one: typing `ולד` into a second pane produced `דלו`.
+        //
+        // Every character, in reverse, in any pane but the first — since panes
+        // were introduced. It survived because a mirrored pane is the one thing
+        // a unit test on `panes.ts` cannot hold: the tree was right, the text
+        // was right, and the order was decided by a selection nobody sent.
+        if (tr.selection) {
+          view.dispatch({ selection: tr.selection, annotations: Transaction.addToHistory.of(false) });
+        }
         return;
       }
       view.update([tr]);
@@ -1820,6 +1906,60 @@ function makePaneView(host: HTMLElement, state: EditorState): EditorView {
     },
   });
   return view;
+}
+
+/**
+ * Lock the focused pane to the section the caret is in.
+ *
+ * The anchor and the caret move in one transaction. Two dispatches would put a
+ * state on screen — narrowed, with the caret outside the accessible portion —
+ * that this feature exists to make impossible, and it would be visible for a
+ * frame every single time.
+ */
+function narrowHere(v: EditorView): void {
+  const at = v.state.selection.main.head;
+  const span = spanAt(docTextOf(v.state.doc), at);
+  // Above the first heading there is no section, and saying so is the answer.
+  // "Narrow to the whole document" would be a narrowing that narrows nothing,
+  // reported as success.
+  if (!span) {
+    setStatus(t("narrowNoSection"), "warn");
+    return;
+  }
+  v.dispatch({ effects: setNarrow.of(span.anchor), selection: { anchor: insideSpan(span, at) } });
+  setStatus(tf("narrowedTo", titleOfSpan(span)), "ok");
+  refreshPaneHeads();
+}
+
+/** Let it out again. */
+function widenHere(v: EditorView): void {
+  if (!narrowedTo(v.state)) {
+    setStatus(t("notNarrowed"));
+    return;
+  }
+  v.dispatch({ effects: setNarrow.of(null) });
+  setStatus(t("widened"), "ok");
+  refreshPaneHeads();
+}
+
+/** A heading with no title still has to be nameable in a sentence. */
+function titleOfSpan(span: Span): string {
+  return span.title || t("narrowedNoTitle");
+}
+
+/**
+ * Every pane's strip, rebuilt.
+ *
+ * Narrowing is the only thing in the strip that changes without the arrangement
+ * changing, and `renderPanes` is far too big a hammer for it: it destroys every
+ * `EditorView` in the window and builds them again, which a writer would see as
+ * their scroll position jumping in a pane they did not touch.
+ */
+function refreshPaneHeads(): void {
+  for (const pane of panes.leaves(paneTree)) {
+    const head = document.querySelector<HTMLElement>(`[data-pane="${pane.id}"] > .pane-head`);
+    if (head) head.replaceWith(paneHead(pane));
+  }
 }
 
 /**
@@ -1841,6 +1981,17 @@ function renderPanes() {
 
   main.replaceChildren(renderNode(paneTree, held));
   main.setAttribute("data-panes", String(panes.leaves(paneTree).length));
+
+  // A caret is not a view. A pane born with its caret at the place you were
+  // reading still *renders* from the top of the document, so the scroll has to
+  // be asked for — and it has to be asked for here rather than in `renderLeaf`,
+  // because the tree is detached while it is being built and a view with no
+  // height on screen has nothing to scroll.
+  for (const leaf of panes.leaves(paneTree)) {
+    if (leaf.role !== "source" || held.has(leaf.id)) continue;
+    const born = paneViews.get(leaf.id);
+    if (born) born.dispatch({ effects: EditorView.scrollIntoView(born.state.selection.main.head, { y: "center" }) });
+  }
 
   // The focused pane has to be one that still exists.
   const live = panes.leaves(paneTree).filter((l) => l.role === "source");
@@ -1872,12 +2023,23 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
   const section = el(
     "section",
     { class: `pane ${pane.role}-pane`, "data-pane": pane.id, "aria-label": t(pane.role) },
-    [paneHead(pane), host],
+    [host],
   );
   if (pane.role === "source") {
+    // A pane with no held state is a pane that did not exist a moment ago — a
+    // split. It opens **where the pane it was split from is looking**, not at
+    // the head of the document: you split a 300-page sefer to hold two places
+    // at once, and a new pane that starts at page 1 has thrown away the place
+    // you were standing in to get it. `held` still has the focused pane's
+    // state here because it is captured before the views are destroyed.
+    const seed = focusedPane ? held.get(focusedPane) : undefined;
     const state =
       held.get(pane.id) ??
-      makeState(primaryView() ? docTextOf(primaryView()!.state.doc) : runtime.currentDoc.body, proseHere());
+      makeState(
+        primaryView() ? docTextOf(primaryView()!.state.doc) : runtime.currentDoc.body,
+        proseHere(),
+        seed?.selection.main.head,
+      );
     const view = makePaneView(host, state);
     paneViews.set(pane.id, view);
     host.addEventListener("focusin", () => {
@@ -1902,6 +2064,13 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     };
     host.classList.add(LIST_CLASS[pane.role] ?? "notes-list", "panel-pane");
   }
+  // Prepended, not passed in above, and that is the narrowing chip's doing: the
+  // strip reports what this pane is narrowed to, which it can only read off the
+  // `EditorView` that the branch above has just built. Built first, it reported
+  // "not narrowed" for every pane — so carrying a narrowed pane through an
+  // arrangement change lost the one label saying the pane was not showing the
+  // whole document.
+  section.prepend(paneHead(pane));
   wirePaneScroll(pane, host);
   return section;
 }
@@ -1926,15 +2095,48 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     marks: "marksPane",
   };
   const kids: Node[] = [el("span", { class: "pane-name" }, [t(NAME[pane.role])])];
-  if (panes.leaves(paneTree).length > 1) {
+  // Narrowing, and it is **named rather than iconified**. A glyph can say *this
+  // pane is restricted*; only the title can say *to what*, and that is the one
+  // question a writer looking at a pane showing four paragraphs of a 300-page
+  // sefer actually has. The control is present with one pane as well as with
+  // four: working on one siman without the rest of the sefer under the caret is
+  // a reason to narrow that has nothing to do with splitting the window.
+  if (pane.role === "source") {
+    const span = paneNarrow(pane.id);
     kids.push(
       el("button", {
+        class: "pane-btn" + (span ? " pane-narrowed" : ""),
+        // The state, on the element, because it is the one thing about a pane
+        // that cannot be read off its contents: a pane showing four paragraphs
+        // is either a short document or a narrowed one, and nothing on screen
+        // told the two apart. `.github/scripts/acceptance.mjs` drives by this.
+        "data-narrow": span ? "on" : "off",
+        title: span ? t("widenLede") : t("narrowLede"),
+        onClick: () => {
+          const v = paneViews.get(pane.id);
+          if (!v) return;
+          if (span) widenHere(v);
+          else narrowHere(v);
+        },
+      }, [span ? `⊡ ${titleOfSpan(span)} ×` : "⊡"]),
+    );
+  }
+  if (panes.leaves(paneTree).length > 1) {
+    kids.push(
+      // Each control names itself. The strip is the one place in the
+      // application whose buttons are pure glyph, so the only other thing that
+      // could identify them is the `title`, which is translated — and a fence
+      // that reads a Hebrew title is a fence that goes quiet the day the run is
+      // driven in English.
+      el("button", {
         class: "pane-btn",
+        "data-pane-act": "link",
         title: pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
         onClick: () => setTree(panes.update(paneTree, pane.id, { linked: !pane.linked })),
       }, [pane.linked ? "⇅" : "⇵"]),
       el("button", {
         class: "pane-btn",
+        "data-pane-act": "split",
         title: t("splitBeside"),
         onClick: () => setTree(panes.split(paneTree, pane.id, "col", panes.leaf(pane.role, pane.docId, { linked: false }))),
       }, ["⊟"]),
@@ -1942,6 +2144,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
       // meaning, third glyph — see the Documents menu for the other two.
       el("button", {
         class: "pane-btn pane-close",
+        "data-pane-act": "close",
         title: t("closePane"),
         onClick: () => setTree(panes.closePane(paneTree, pane.id)),
       }, ["–"]),
@@ -2021,6 +2224,12 @@ function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
 
 function paneHostOf(id: string): HTMLElement | null {
   return document.getElementById(`pane-host-${id}`);
+}
+
+/** What a pane is narrowed to, asked of the pane rather than of the editor. */
+function paneNarrow(id: string): Span | null {
+  const v = paneViews.get(id);
+  return v ? narrowedTo(v.state) : null;
 }
 
 /**

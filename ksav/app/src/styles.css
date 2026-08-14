@@ -217,6 +217,18 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
    glyphs, and none of them borrowed. */
 .pane-close:hover { color: var(--fg); }
 
+/* A narrowed pane says which section it is holding, in the section's own words.
+   Coloured rather than merely labelled, because this is the one control in the
+   strip that changes what the pane *is* — a reader glancing at four paragraphs
+   where a sefer used to be needs the answer before they go looking for the rest
+   of it. `max-width` with an ellipsis: a siman's title can be a sentence, and a
+   strip that grows to fit one would push the close button off the pane. */
+.pane-narrowed {
+  color: var(--accent); background: var(--accent-soft); font-weight: 600;
+  text-transform: none; letter-spacing: 0; max-width: 22ch;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* A greyed control must also be an unclickable one. `opacity: .4` alone said
    "you cannot press this" and let you press it — see `iconBtn`, which now sets
    the real attribute. `[disabled]` covers every button in the app, not only the

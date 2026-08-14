@@ -138,3 +138,33 @@ opt-level = 3
 # hour. A test suite nobody wants to run is a worse trade than the 5% that was
 # never there.
 lto = "thin"
+
+# The tests do not pay for the link-time optimisation, and the reasoning is the
+# paragraph above, applied again once the situation moved past it.
+#
+# `cargo test --release` compiles test targets under `bench`, which inherits
+# `release` — so every one of this crate's integration tests was being LTO'd.
+# There are forty-odd of them and each statically links the whole Typst
+# compiler, about 40 MB apiece, so a push meant forty-odd whole-program
+# optimisation passes over the same compiler. On the CI runner that was
+# **seventy-five minutes**, measured: one gap in the log between
+# `Compiling ksav-engine` and `Finished release`, with the dependency cache
+# warm and restored in ten seconds. Every other job in the workflow finishes in
+# under six minutes.
+#
+# Caching cannot help. `ksav-engine` changes on every push, so all forty-odd
+# relink whatever is cached.
+#
+# What LTO buys is the *shipped* binary's speed — a third off every
+# keystroke-driven render — and `release` above keeps it, untouched. What it
+# buys a test binary is nothing: the tests assert what the compiler produces,
+# and an optimisation pass does not change that. So this is not a check being
+# weakened. It is a check being run.
+#
+# `debug-assertions` is left where `release` puts it, deliberately. Turning them
+# on here would be a *different* test suite from the one CI has been running,
+# and that is a change to argue on its own rather than to smuggle in beside a
+# build-time fix.
+[profile.bench]
+inherits = "release"
+lto = false

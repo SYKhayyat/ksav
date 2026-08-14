@@ -259,6 +259,67 @@ export async function run() {
     );
   }
 
+  // ------------------------------------------- and the tally cannot flatter it
+
+  // A run that breaks halfway is not a run that passed, and for three
+  // consecutive pushes the tally could not tell them apart: a menu left open
+  // over the editor aborted the script at check 150 of 579, and the last lines
+  // of the red job read `0 failed:` under an empty list. Whoever looked saw a
+  // clean run exiting non-zero and read the redness as infrastructure. The
+  // stack trace was in the log, four hundred lines above the summary, which is
+  // upward of where anybody scrolls.
+  //
+  // Run rather than read. The tally is nine lines of branching at the foot of
+  // the script and a regex over it would assert its spelling; this evaluates
+  // the real source with the counters handed in, which is the only way to hold
+  // *what it says* rather than what it looks like it says.
+  {
+    // Anchored to the shutdown rather than to anything inside the tally: the
+    // tally is *whatever runs after the browser is closed*, so a rewrite of it
+    // still lands in this slice and still gets evaluated. An anchor on a line
+    // of the tally itself would be moved by the same edit that reintroduces the
+    // bug, and this would go quiet exactly when it was needed — the fixed
+    // lookahead mistake, one file over.
+    const after = script.indexOf("await shutdown();");
+    ok("the acceptance script closes the browser at the end", after > 0);
+    const tail = script.slice(script.indexOf("\n}", after) + 2);
+    ok("…and tallies after it", tail.includes("assembled application works"), tail.slice(0, 200));
+    const say = (checks, failures, code) => {
+      const said = [];
+      const fakeConsole = { log: (s) => said.push(String(s)), error: (s) => said.push(String(s)) };
+      const fakeProcess = { exit: (c) => { throw { exited: c }; } };
+      let exited = 0;
+      try {
+        new Function("checks", "failures", "code", "console", "process", tail)(
+          checks, failures, code, fakeConsole, fakeProcess,
+        );
+      } catch (e) {
+        if (typeof e?.exited !== "number") throw e;
+        exited = e.exited;
+      }
+      return { said: said.join("\n"), exited };
+    };
+
+    const broke = say(150, [], 1);
+    ok("a run that stopped early does not report zero failures", !/\bfailed\b/.test(broke.said), broke.said);
+    ok("…it says it stopped, and how far it got", broke.said.includes("150") && /stopped|never ran/.test(broke.said), broke.said);
+    ok("…and it is still an exit code of 1", broke.exited === 1);
+    ok(
+      "…and it does not claim the application works",
+      !broke.said.includes("assembled application works"),
+      broke.said,
+    );
+
+    const red = say(579, ["a check that failed"], 0);
+    ok("a finished run with a failure names it", red.said.includes("a check that failed"), red.said);
+    ok("…and exits 1", red.exited === 1);
+
+    const green = say(579, [], 0);
+    ok("a finished clean run reports its total", green.said.includes("579 checks"), green.said);
+    ok("…and says so", green.said.includes("assembled application works"), green.said);
+    ok("…and does not exit non-zero", green.exited === 0);
+  }
+
   // ----------------------------------------------------------- and CI runs it
 
   // The forward half of `gate.test.mjs`'s shape. A sweep nothing invokes is the

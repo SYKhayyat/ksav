@@ -1790,9 +1790,19 @@ try {
   await shutdown();
 }
 
-console.log(`\n${checks} checks`);
-if (failures.length || code) {
-  console.error(`${failures.length} failed:\n  ${failures.join("\n  ")}`);
-  process.exit(1);
-}
+// Two exits that are not the same thing, and the tally has to say which.
+//
+// A run that breaks halfway — a menu left open over the editor, a selector that
+// stopped resolving — used to end with `0 failed:` and an empty list under a
+// count of however far it got. The tail of a red job therefore read as a clean
+// run that exited non-zero for no reason, which is exactly how three
+// consecutive pushes went out red: the redness looked like infrastructure. The
+// stack trace was there, four hundred lines up, in a log nobody reads upward.
+//
+// `checks` is a count of how far the run got and never a count of the suite, so
+// it is only reported as a total when the run reached the end.
+if (code) console.error(`\nthe run stopped after ${checks} checks; the rest never ran`);
+else console.log(`\n${checks} checks`);
+if (failures.length) console.error(`${failures.length} failed:\n  ${failures.join("\n  ")}`);
+if (failures.length || code) process.exit(1);
 console.log("the assembled application works");

@@ -74,6 +74,7 @@ something in.
 | [2026-08-14 · A door for the library](2026-08-14-a-door-for-the-library.md) | The three Girsa errands get a menu — and with it: two chords decided outside the bindings table, one of them already `left`; Escape not closing a dropdown; an assertion count that could not be measured before the commit that had to contain it; and 2,187 leaked build directories |
 | [2026-08-14 · One pane, one siman](2026-08-14-one-pane-one-siman.md) | Narrowing: why the compile stays whole, why the span is an anchor rather than a range, and why the refusal cannot live where it belongs by shape |
 | [2026-08-14 · Every pane is the editor](2026-08-14-every-pane-is-the-editor.md) | Four settings that reached only the focused pane — the document itself among them — and the rule that separates what a pane owns from what the application owns |
+| [2026-08-14 · One question at a time](2026-08-14-one-question-at-a-time.md) | The notes chooser showed fifty controls for a decision most writers had already made; what it asks now, what was kept behind a preference, and the two counts that were written in files that could not see them |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

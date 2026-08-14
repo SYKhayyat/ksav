@@ -187,6 +187,22 @@ export interface Settings {
   // of inline. A habit, not a document property — the page is identical either
   // way — so it belongs to the person and has to outlive the tab.
   deferNoteBodies?: boolean;
+  /**
+   * How the notes chooser asks its question.
+   *
+   *   `guided` — one question at a time. Where should it print, and then, of the
+   *              arrangements that can print there, how are the layers
+   *              arranged. Six buttons on screen instead of fifty.
+   *   `matrix` — the whole where x how grid at once, refusals included. The view
+   *              for someone comparing arrangements rather than choosing one.
+   *   `cards`  — every arrangement as a card, in two groups by layer count.
+   *
+   * All three reach the same arrangements and write the same commands; this is
+   * only which of them is on screen. Kept as a preference rather than a mode
+   * switch inside the panel alone, because it is a fact about how a person
+   * prefers to be asked and it has to outlive the tab.
+   */
+  notesChooserView?: "guided" | "matrix" | "cards";
   // Per-operation hydra key overrides, `{"table.rowDelete": "r"}`. Generated
   // keys are deterministic; this is how a writer overrules one, the same way
   // `keybindings` overrules a shortcut.
@@ -258,6 +274,10 @@ export const DEFAULTS: Settings = {
   autoSnapshotMinutes: 3,
   editingMode: "default",
   tabCompile: "keep",
+  // One question at a time by default. The grid and the card wall are both real
+  // views and both stay, but neither is what to hand somebody who has opened
+  // this panel because they want a footnote.
+  notesChooserView: "guided",
   focusMode: false,
   typewriter: false,
   checkUpdates: true,

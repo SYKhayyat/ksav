@@ -413,7 +413,15 @@ check(
     path.join(HERE, "..", "node_modules", "@codemirror", "view", "dist", "index.cjs"),
     "utf8",
   );
-  const cmOwn = (name) => name.startsWith("cm-") && CM_VIEW.includes(`"${name}"`);
+  //
+  // Matched as a *name* rather than as a whole string literal, which is where
+  // the first spelling of this was wrong. `cm-focused` is built by
+  // concatenation — `"-editor" + (this.hasFocus ? " cm-focused" : "")` — so it
+  // is in the package seven times and was in it as `"cm-focused"` zero times,
+  // and this refused a class CodeMirror plainly owns. The boundaries are what
+  // keep the exemption narrow: `cm-focus` must not be answered by `cm-focused`.
+  const cmOwn = (name) =>
+    name.startsWith("cm-") && new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(CM_VIEW);
 
   const src = (f) => readFileSync(path.join(HERE, "..", "src", f), "utf8");
   const TS = readdirSync(path.join(HERE, "..", "src"))

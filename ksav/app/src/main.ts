@@ -65,10 +65,7 @@ import * as store from "./store";
 import * as files from "./files";
 import {
   NOTE_CHOICES,
-  NOTE_HOW,
-  NOTE_WHERE,
   applyChoice,
-  choiceAt,
   choiceForCommand,
   convertNote,
   deleteNote,
@@ -78,7 +75,6 @@ import {
   scaffold,
   notesIn,
   tieredNoteAt,
-  whyNot,
   type NoteHow,
   type NoteWhere,
 } from "./notes";
@@ -5247,6 +5243,17 @@ function buildSettingsDrawer(): HTMLElement {
       ["onSwitch", t("tabCompile.onSwitch")],
     ]),
     el("div", { class: "set-note" }, [t("tabCompileNote")]),
+    // Which of the chooser's three presentations opens. The panel carries the
+    // same switch at its own top — that is where anybody actually changes it —
+    // and this row is so that a person who has decided they want the grid can
+    // find the answer where every other durable preference lives, rather than
+    // having to open a panel about notes to discover it is a preference at all.
+    selectRow("notesChooserViewLabel", "notesChooserView", [
+      ["guided", t("notesView.guided")],
+      ["matrix", t("notesView.matrix")],
+      ["cards", t("notesView.cards")],
+    ]),
+    el("div", { class: "set-note" }, [t("notesChooserViewNote")]),
     checkRow("focusModeLabel", "focusMode"),
     checkRow("typewriterLabel", "typewriter"),
     checkRow("autocompleteLabel", "autocomplete"),
@@ -9415,233 +9422,85 @@ async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
 }
 
 /**
- * What to call a marker on its own button.
+ * The chooser's two answers, held here because the panel is redrawn whole.
  *
- * A stream marker names its stream — `#הערה_זרם("מקורות")[|]` — and that name is
- * the only thing about it a writer cares to read. Anything else falls back to
- * the command, which is still shorter and truer than "the second layer".
+ * Not one `{where, how}` object: the two are answered separately, and the pair
+ * has a state — a first answer with no second one — that a single nullable
+ * object cannot spell. `panelviews.pickedChoice` turns them back into an
+ * arrangement, and `howAfterWhere` decides what survives a change of the first,
+ * so neither question is answered in two places.
  */
-function noteMarkerLabel(marker: string): string {
-  const named = /"([^"]+)"/.exec(marker)?.[1];
-  return named ?? /^#([A-Za-z0-9֐-׿_]+)/u.exec(marker)?.[1] ?? marker;
-}
+let notesWhere: NoteWhere | null = null;
+let notesHow: NoteHow | null = null;
 
-function noteCard(c: NoteChoice, live = false): HTMLElement {
-  const he = getLang() === "he";
-  const note = he ? c.noteHe : c.noteEn;
-  // The sketch until the page arrives, and the page after it — so the card is
-  // never empty and never waiting.
-  const preview = el("div", { class: "note-preview" }, [c.sketch.join("\n")]);
-  if (live) void fillNotePreview(preview, c);
-  return el("div", { class: "note-card" + (live ? " picked" : "") }, [
-    preview,
-    el("div", { class: "note-body" }, [
-      el("b", {}, [he ? c.he : c.en]),
-      // Word's name for the same arrangement, beside the sefer's. Someone who
-      // has only ever used Word searches for "footnote"; someone setting a sefer
-      // searches for שער־הציון. Neither should have to learn the other's
-      // vocabulary to find the card they are already looking at.
-      ...(c.word ? [el("span", { class: "note-alias" }, [t("word." + c.word)])] : []),
-      el("p", {}, [he ? c.descHe : c.descEn]),
-      ...(note ? [el("p", { class: "note-caveat" }, [note])] : []),
-      // One button per marker the layout has, not one plus an optional second.
-      // A layout with three streams offered two of them, and the third was
-      // reachable only by typing `#הערה_זרם("נוסחאות")` — which is precisely the
-      // knowledge this chooser exists so nobody needs.
-      el("div", { class: "note-actions" }, [
-        el("button", { class: "note-use", onClick: () => chooseNote(c, 0) }, [t("useThis")]),
-        ...markersOf(c)
-          .slice(1)
-          .map((marker, i) =>
-            el(
-              "button",
-              { class: "note-use secondary", onClick: () => chooseNote(c, i + 1) },
-              // Two layers is "the note on it"; more than two are peers and want
-              // their own names, which the marker itself carries — a stream is
-              // called `#הערה_זרם("מקורות")` and that string is the label.
-              [markersOf(c).length > 2 ? noteMarkerLabel(marker) : t("useSecond")],
-            ),
-          ),
-      ]),
-    ]),
-  ]);
-}
-
-/**
- * The second question the chooser asks: where does the *text* of the note get
- * written?
- *
- * Deliberately not a twelfth card. It is orthogonal to all eleven — the page
- * comes out identical either way — and folding it into the grid would suggest
- * a writer has to give up a layout to get a readable source.
- */
-function bodyPlacementRow(): HTMLElement {
-  const option = (on: boolean, label: string, desc: string) =>
-    el(
-      "button",
-      {
-        class: `defer-option${deferBodies() === on ? " on" : ""}`,
-        onClick: () => {
-          settings.deferNoteBodies = on;
-          saveSettings();
-          renderNotesChooser();
-        },
-      },
-      [el("b", {}, [label]), el("span", {}, [desc])],
-    );
-  return el("div", { class: "defer-row" }, [
-    el("h3", {}, [t("deferBodiesTitle")]),
-    el("div", { class: "defer-options" }, [
-      option(false, t("deferInlineLabel"), t("deferInlineDesc")),
-      option(true, t("deferEndLabel"), t("deferEndDesc")),
-    ]),
-    el(
-      "button",
-      {
-        class: "defer-all",
-        onClick: () => {
-          closeNotesChooser();
-          deferAll(runtime.view);
-          scheduleCompile();
-        },
-      },
-      [t("deferAllAction")],
-    ),
-    // The other direction, and the one that was missing. "Where the note bodies
-    // live" is only *changeable after the notes exist* if it is changeable both
-    // ways: a document could be swept to the org-mode arrangement with one press
-    // and could not be swept back, which is a switch that goes one way.
-    el(
-      "button",
-      {
-        class: "defer-all",
-        onClick: () => {
-          closeNotesChooser();
-          inlineAll(runtime.view);
-          scheduleCompile();
-        },
-      },
-      [t("deferRecallAllAction")],
-    ),
-    // The other half of writing bodies at the end: keeping that list readable.
-    // Filed one at a time, it comes out in the order the notes were *written*,
-    // and a note added to page 1 of a finished chapter lands under the note from
-    // page 40. New bodies are now filed in reading order by construction; this is
-    // for the document that was written before they were.
-    el(
-      "button",
-      {
-        class: "defer-all",
-        onClick: () => {
-          closeNotesChooser();
-          sortDeferredBodies(runtime.view);
-        },
-      },
-      [t("deferSortAction")],
-    ),
-  ]);
-}
-
-/**
- * The two everyday kinds, as one click each.
- *
- * Twelve cards of equal visual weight said "choose your document's note system",
- * and a writer who wanted an ordinary footnote read that as a decision they were
- * not qualified to make. They are the same two cards as in the grid below — this
- * row only says which two a person reaches for ninety-five times out of a
- * hundred, and that reaching for one does not spend the other.
- */
-function quickNotesRow(): HTMLElement {
-  const quick = (id: string, label: string, desc: string, glyph: string) => {
-    const choice = NOTE_CHOICES.find((c) => c.id === id)!;
-    return el("button", { class: "note-quick", onClick: () => chooseNote(choice, 0) }, [
-      el("span", { class: "note-quick-glyph" }, [glyph]),
-      el("span", {}, [el("b", {}, [label]), el("span", {}, [desc])]),
-    ]);
-  };
-  return el("div", { class: "note-quick-row" }, [
-    quick("footnote", t("notesQuickFootnote"), t("notesQuickFootnoteDesc"), "†"),
-    quick("endnote", t("notesQuickEndnote"), t("notesQuickEndnoteDesc"), "⁋"),
-  ]);
-}
-
-/**
- * Which cell of the where × how grid is open. Null until something is picked.
- */
-let notesCell: { where: NoteWhere; how: NoteHow } | null = null;
-
-/**
- * The chooser's two questions, as a matrix.
- *
- * Twelve cards, each encoding a *where* and a *how* at once, and the writer had
- * to work out which was which from a four-line sketch. Nothing said that
- * `#הערות_מדורגות` prints where the prose ends and `#מדף_א`/`#מדף_ב` prints at
- * the foot of every page — a difference that is invisible in a short document,
- * where the "separate blocks" apparatus rendered near the top of the page and
- * looked plainly broken.
- *
- * Rows are where it prints; columns are how the layers are arranged. Cells with
- * no arrangement are greyed **with a reason**, never hidden: a writer who cannot
- * see that "fixed regions at the end of the document" was considered has no way
- * to tell a wrong question from a missing feature.
- */
-function notesMatrix(): HTMLElement {
-  const head = el("div", { class: "nm-row nm-head" }, [
-    el("div", { class: "nm-corner" }, [t("notesAxisHow")]),
-    ...NOTE_HOW.map((how) => el("div", { class: "nm-col-head" }, [t("how." + how)])),
-  ]);
-  const rows = NOTE_WHERE.map((where) =>
-    el("div", { class: "nm-row" }, [
-      el("div", { class: "nm-row-head" }, [t("where." + where)]),
-      ...NOTE_HOW.map((how) => {
-        const choice = choiceAt(where, how);
-        if (!choice) {
-          return el(
-            "div",
-            { class: "nm-cell empty", title: t(whyNot(where, how)) },
-            ["—"],
-          );
-        }
-        const on = notesCell?.where === where && notesCell?.how === how;
-        return el(
-          "button",
-          {
-            class: "nm-cell" + (on ? " on" : ""),
-            title: getLang() === "he" ? choice.descHe : choice.descEn,
-            onClick: () => {
-              notesCell = { where, how };
-              renderNotesChooser();
-            },
-          },
-          [getLang() === "he" ? choice.he : choice.en],
-        );
-      }),
-    ]),
-  );
-  return el("div", { class: "notes-matrix" }, [head, ...rows]);
+/** Which presentation the chooser is in, defaulted where the setting is silent. */
+function notesChooserView(): panelviews.NotesChooserView {
+  const v = settings.notesChooserView;
+  return v === "matrix" || v === "cards" ? v : "guided";
 }
 
 function renderNotesChooser() {
   const box = document.getElementById("notes-chooser-body")!;
-  const picked = notesCell ? choiceAt(notesCell.where, notesCell.how) : null;
   box.replaceChildren(
-    panelHead("notes-chooser", "notesChooserTitle"),
-    el("p", { class: "notes-lede" }, [t("notesChooserLede")]),
-    el("p", { class: "notes-mix" }, [t("notesMix")]),
-    el("h3", {}, [t("notesCommon")]),
-    quickNotesRow(),
-    // Above the grid, not below it: where the prose lives in the *file* applies
-    // to all twelve arrangements equally, and it is the one question here whose
-    // answer a writer already knows. Below the fold it was never found.
-    bodyPlacementRow(),
-    el("h3", {}, [t("notesAxisWhere")]),
-    notesMatrix(),
-    ...(picked ? [noteCard(picked, true)] : [el("p", { class: "notes-mix" }, [t("notesPickCell")])]),
-    el("h3", {}, [t("notesMore")]),
-    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "one").map((c) => noteCard(c))),
-    el("h3", {}, [t("notesTwoLayers")]),
-    el("div", { class: "note-grid" }, NOTE_CHOICES.filter((c) => c.layers === "two").map((c) => noteCard(c))),
+    ...panelviews.notesPanel(
+      {
+        view: notesChooserView(),
+        where: notesWhere,
+        how: notesHow,
+        defer: deferBodies(),
+      },
+      {
+        setView: (v) => {
+          settings.notesChooserView = v;
+          saveSettings();
+          renderNotesChooser();
+        },
+        pickWhere: (where) => {
+          notesWhere = where;
+          notesHow = panelviews.howAfterWhere(where, notesHow);
+          renderNotesChooser();
+        },
+        pickHow: (how) => {
+          notesHow = how;
+          renderNotesChooser();
+        },
+        use: (choice, layer) => chooseNote(choice, layer),
+        setDefer: (on) => {
+          settings.deferNoteBodies = on;
+          saveSettings();
+          renderNotesChooser();
+        },
+        deferAll: () => {
+          closeNotesChooser();
+          deferAll(runtime.view);
+          scheduleCompile();
+        },
+        inlineAll: () => {
+          closeNotesChooser();
+          inlineAll(runtime.view);
+          scheduleCompile();
+        },
+        sortDeferred: () => {
+          closeNotesChooser();
+          sortDeferredBodies(runtime.view);
+        },
+        preview: (host, choice) => void fillNotePreview(host, choice),
+      },
+    ),
   );
+
+  // The answer, brought to where the question was asked.
+  //
+  // Measured in the assembled run, which is the only place a viewport exists:
+  // at 1280×720 the arrangement's card and the button that writes it landed at
+  // y=835 — below the bottom of the screen — so a writer who had just answered
+  // both questions was looking at the space where their answer was not. The run
+  // clicked it anyway, because a driver scrolls and a person does not know there
+  // is anything to scroll to.
+  //
+  // `nearest` rather than `center`: a card that is already on screen must not
+  // jump, and the bottom edge is the one that carries the button.
+  box.querySelector<HTMLElement>("[data-note-card]")?.scrollIntoView?.({ block: "nearest" });
 }
 
 // ---------------------------------------------------------------- assets

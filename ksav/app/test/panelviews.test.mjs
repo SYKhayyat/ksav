@@ -18,9 +18,20 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { installChrome } from "./harness.mjs";
-import { gitPanel, keysPanel, reviewPanel, STYLE_SECTIONS, styleSection } from "../.tmp-test/panelviews.mjs";
+import {
+  gitPanel,
+  keysPanel,
+  reviewPanel,
+  STYLE_SECTIONS,
+  styleSection,
+  NOTES_CHOOSER_VIEWS,
+  howAfterWhere,
+  notesPanel,
+  pickedChoice,
+} from "../.tmp-test/panelviews.mjs";
 import { face } from "../.tmp-test/git.mjs";
 import { setLang, t } from "../.tmp-test/i18n.mjs";
+import { NOTE_CHOICES, NOTE_HOW, NOTE_WHERE, choiceAt, whyNot } from "../.tmp-test/notes.mjs";
 
 /** Every node in a built tree, depth first. */
 function all(nodes) {
@@ -541,7 +552,247 @@ export async function run() {
       notOk("…and prints no i18n keys", /\bgit\.[a-zA-Z]+\b/.test(said), said);
       setLang("en");
     }
+
+    notesChooser();
   } finally {
     chrome.restore();
+  }
+}
+
+// ---------------------------------------------------------------- notes chooser
+//
+// The panel opened onto somewhere past fifty controls: two quick buttons, a
+// body-placement block, a thirty-cell grid, and every one of the fourteen
+// arrangements as a full card with a page sketch, a description, a caveat and up
+// to three buttons — all of it about a decision the person opening the panel has
+// usually already made. None of it was built by any test, in either language,
+// which is the same hole `panelviews.ts` was created for and the reason a
+// rewrite of it could not have been checked before it shipped.
+//
+// What is held here is not the layout but the *questioning*: that the ordinary
+// view asks one question at a time, that the second question offers exactly the
+// arrangements that can print where the first one landed and refuses the rest
+// **in words**, that all three views reach the same fourteen arrangements, and
+// that nothing writes into the document until both questions are answered.
+
+function notesRecorder() {
+  const done = [];
+  return {
+    done,
+    setView: (v) => done.push(["view", v]),
+    pickWhere: (w) => done.push(["where", w]),
+    pickHow: (h) => done.push(["how", h]),
+    use: (c, layer) => done.push(["use", c.id, layer]),
+    setDefer: (on) => done.push(["defer", on]),
+    deferAll: () => done.push(["deferAll"]),
+    inlineAll: () => done.push(["inlineAll"]),
+    sortDeferred: () => done.push(["sortDeferred"]),
+    preview: (host, c) => done.push(["preview", c.id]),
+  };
+}
+
+const notesView = (over = {}) => ({
+  view: over.view ?? "guided",
+  where: over.where ?? null,
+  how: over.how ?? null,
+  defer: over.defer ?? false,
+});
+
+/** The `data-` values of the nodes carrying an attribute, in document order. */
+const marked = (nodes, attr) =>
+  all(nodes)
+    .filter((n) => n[attr] !== undefined)
+    .map((n) => n[attr]);
+
+/**
+ * Is this the class, rather than a class with these letters in it?
+ *
+ * `className.includes("on")` is true of `nq-option` and of `defer-option`, which
+ * is how the first draft of the check below reported five pre-answered buttons
+ * on a panel where nothing was answered at all.
+ */
+const isOn = (n) => (n?.className ?? "").split(" ").includes("on");
+
+function notesChooser() {
+  setLang("en");
+
+  // ------------------------------------------------- one question at a time
+
+  {
+    const built = notesPanel(notesView(), notesRecorder());
+    check("the first question offers every place a note can print", marked(built, "data-where"), [
+      ...NOTE_WHERE,
+    ]);
+    check(
+      "…and none of them is pre-answered",
+      all(built).filter((n) => n["data-where"] && isOn(n)).length,
+      0,
+    );
+    // The second question exists as a question before it can be answered. A
+    // heading with nothing under it reads as a panel that failed to draw.
+    check("the second question is asked but waiting", marked(built, "data-nq"), [
+      "views",
+      "where",
+      "wait",
+      "unpicked",
+    ]);
+    ok("…and says what it is waiting for", words(built).includes(t("notesQ2Wait")));
+    // The sentence under an unanswered second question names the gesture that
+    // is on screen. "Pick a cell in the table" is true of the grid and sends a
+    // reader of the guided view looking for a table that is not there.
+    ok(
+      "the line where the arrangement will go names a control this view has",
+      words(built).includes(t("notesPickHow")),
+      words(built).join(" | ").slice(-160),
+    );
+    ok(
+      "…and the grid names its own",
+      words(notesPanel(notesView({ view: "matrix" }), notesRecorder())).includes(t("notesPickCell")),
+    );
+    check("no arrangement is offered for use yet", marked(built, "data-note-use").length, 0);
+    check("and nothing was asked of the document", notesRecorder().done, []);
+  }
+
+  // ------------------------------------------------- the second question narrows
+
+  for (const where of NOTE_WHERE) {
+    const built = notesPanel(notesView({ where }), notesRecorder());
+    const offered = marked(built, "data-how");
+    const refused = marked(built, "data-how-off");
+    check(
+      `${where}: the arrangements offered are the ones that can print there`,
+      offered,
+      NOTE_HOW.filter((how) => choiceAt(where, how)),
+    );
+    check(
+      `${where}: and every other one is refused rather than missing`,
+      [...offered, ...refused].sort(),
+      [...NOTE_HOW].sort(),
+    );
+    // The reason, in words. The grid puts it in a `title`, which is a tooltip:
+    // absent on a touch screen, absent to anyone not hovering, and absent to a
+    // reader that is reading the button's text.
+    const said = words(built);
+    for (const how of refused) {
+      ok(`${where} x ${how}: the refusal says why, in the panel`, said.includes(t(whyNot(where, how))), how);
+    }
+    ok(`${where}: at least one arrangement can print there`, offered.length > 0);
+  }
+
+  // ------------------------------------------------- the card, once both are in
+
+  {
+    const acts = notesRecorder();
+    const built = notesPanel(notesView({ where: "page", how: "one" }), acts);
+    const cards = marked(built, "data-note-card");
+    check("one arrangement is shown, not fourteen", cards, ["footnote"]);
+    check("…set from the writer's own document", acts.done, [["preview", "footnote"]]);
+    check("…and it is the one the two answers name", pickedChoice(notesView({ where: "page", how: "one" })).id, "footnote");
+    const use = buttons(built).find((b) => b["data-note-use"] === "footnote");
+    ok("its use button is there", !!use);
+    use.click();
+    check("pressing it writes that arrangement's first layer", acts.done.at(-1), ["use", "footnote", 0]);
+  }
+
+  // A `how` that has no arrangement under this `where` names nothing, rather
+  // than falling back to some other card.
+  check("an impossible pair names no arrangement", pickedChoice(notesView({ where: "document", how: "fixed" })), null);
+
+  // ------------------------------------------------- changing the first answer
+
+  check("a second answer that survives the change is kept", howAfterWhere("document", "one"), "one");
+  // `page` x `fixed` is an arrangement and `document` x `fixed` is a stated
+  // refusal. Carried across unexamined, the panel would show a card for a cell
+  // that the question above it has just greyed out.
+  check("one that does not is dropped", howAfterWhere("document", "fixed"), null);
+  check("and nothing is invented when there was no second answer", howAfterWhere("page", null), null);
+
+  // ------------------------------------------------- all three views, one set
+
+  {
+    const reachable = new Set();
+    for (const where of NOTE_WHERE) {
+      for (const how of NOTE_HOW) {
+        const built = notesPanel(notesView({ where, how }), notesRecorder());
+        for (const id of marked(built, "data-note-card")) reachable.add(id);
+      }
+    }
+    check(
+      "every arrangement is reachable by asking the two questions",
+      reachable.size,
+      NOTE_CHOICES.length,
+    );
+
+    const cards = notesPanel(notesView({ view: "cards" }), notesRecorder());
+    check(
+      "…and every one of them is a card in the card view",
+      marked(cards, "data-note-card").sort(),
+      NOTE_CHOICES.map((c) => c.id).sort(),
+    );
+
+    const matrix = notesPanel(notesView({ view: "matrix" }), notesRecorder());
+    const cells = [...marked(matrix, "data-cell"), ...marked(matrix, "data-cell-off")];
+    check("the matrix has a cell for every pair", cells.length, NOTE_WHERE.length * NOTE_HOW.length);
+    // The grid's width is a fact about `NOTE_HOW`, and the stylesheet is told it
+    // rather than carrying its own count — which is what went stale when
+    // `parallel-fixed` became a sixth column and the CSS still said five.
+    const grid = withClass(matrix, "notes-matrix")[0];
+    check("…and it tells the stylesheet how many columns that is", grid.style, `--nm-cols:${NOTE_HOW.length}`);
+
+    check("every view is offered as a way of choosing", marked(matrix, "data-note-view"), [
+      ...NOTES_CHOOSER_VIEWS,
+    ]);
+  }
+
+  // ------------------------------------------------- the wall it replaced
+
+  {
+    const guided = notesPanel(notesView(), notesRecorder());
+    const cards = notesPanel(notesView({ view: "cards" }), notesRecorder());
+    ok(
+      "opening the panel presses fewer buttons on a person than the card wall did",
+      buttons(guided).length * 2 < buttons(cards).length,
+      `${buttons(guided).length} against ${buttons(cards).length}`,
+    );
+    // The two everyday kinds keep their one click in every view: the complaint
+    // this panel exists for is that somebody wanting a footnote was made to
+    // choose a note system, and that is true of the questions too.
+    for (const v of NOTES_CHOOSER_VIEWS) {
+      const built = notesPanel(notesView({ view: v }), notesRecorder());
+      check(`${v}: the everyday two are still one press`, marked(built, "data-note-quick"), [
+        "footnote",
+        "endnote",
+      ]);
+    }
+  }
+
+  // ------------------------------------------------- where the prose is written
+
+  {
+    const acts = notesRecorder();
+    const built = notesPanel(notesView({ defer: true }), acts);
+    const end = all(built).find((n) => n["data-defer"] === "end");
+    ok("the org-mode arrangement is shown as the one in force", isOn(end));
+    const inline = all(built).find((n) => n["data-defer"] === "inline");
+    notOk("…and the other one is not", isOn(inline));
+    inline.click();
+    check("pressing it asks for inline bodies", acts.done.at(-1), ["defer", false]);
+  }
+
+  // ------------------------------------------------- in Hebrew too
+
+  {
+    setLang("he");
+    for (const v of NOTES_CHOOSER_VIEWS) {
+      const built = notesPanel(notesView({ view: v, where: "page", how: "one" }), notesRecorder());
+      const said = words(built).join(" ");
+      ok(`${v}: the chooser speaks Hebrew`, /[֐-׿]/.test(said), said.slice(0, 60));
+      notOk(
+        `${v}: …and prints no i18n keys`,
+        /\b(notes[A-Z][a-zA-Z]*|where\.[a-z]+|how\.[a-z-]+|why[A-Z][a-zA-Z]*)\b/.test(said),
+        said,
+      );
+    }
+    setLang("en");
   }
 }

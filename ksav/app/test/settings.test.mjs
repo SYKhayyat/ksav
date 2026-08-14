@@ -262,4 +262,37 @@ export async function run() {
     ok("justify is page setup", page.includes("justify"));
     ok("and so is the edge", page.includes("text_align"));
   }
+
+  everyPreferenceHasAControl();
+}
+
+// ---------------------------------------------------------------- reachable
+//
+// A preference nothing can change is not a preference, it is a constant with a
+// loader in front of it — and this file already holds one story about a
+// preference that silently reverted for years, which is the same failure seen
+// from the other side.
+//
+// Every shipped default is therefore named as a string somewhere in `main.ts`:
+// as a `selectRow`/`checkRow`/`numberRow` key in the settings drawer, or as the
+// field a purpose-built control writes. That is a weak check on purpose — it
+// cannot tell a live control from a dead mention — but the thing it catches is
+// the thing that actually happens: a field added to `Settings` and `DEFAULTS`
+// with the control forgotten, which reads to a writer as a feature that does not
+// exist.
+function everyPreferenceHasAControl() {
+  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  // The two that are not typed into a row and never will be. `layout` is which
+  // arrangement of panes is on screen — chosen from the view menu by pressing
+  // the arrangement itself — and `previewFrac` is where the divider between the
+  // source and the page was left, which is set by dragging it. Naming them here
+  // is the point: an exemption anybody can read beats a check nobody wrote.
+  const NOT_A_ROW = ["layout", "previewFrac"];
+  const missing = Object.keys(settings.DEFAULTS).filter(
+    (key) => !NOT_A_ROW.includes(key) && !main.includes(`"${key}"`),
+  );
+  check("every shipped preference is reachable from the application", missing, []);
+  for (const key of NOT_A_ROW) {
+    ok(`${key} is still a shipped preference`, key in settings.DEFAULTS);
+  }
 }

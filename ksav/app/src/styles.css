@@ -766,9 +766,11 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 }
 
 /* ---- notes chooser ------------------------------------------------------
-   Eleven note layouts, picked by where the note should land rather than by
-   command name. Cards, not a list: the little page sketch does more to explain
-   a layout than any label could. */
+   Fourteen note arrangements, picked by where the note should land rather than
+   by command name — one question at a time by default, with the whole grid and
+   the full set of cards a press away. The little page sketch does more to
+   explain an arrangement than any label could, which is why the chosen one is
+   still a card. */
 .notes-chooser-box {
   width: min(980px, 94vw); max-height: 88vh; overflow: auto;
   background: var(--panel); border-radius: 12px; padding: 22px 26px;
@@ -837,8 +839,12 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    layers are arranged. An impossible combination is greyed with its reason on
    the tooltip, never hidden — a writer who cannot see that a combination was
    considered has no way to tell a wrong question from a missing feature. */
+/* `--nm-cols` is set on the element from `NOTE_HOW.length`, not written here.
+   This rule said `repeat(5, …)`, which was true until `parallel-fixed` became a
+   sixth column and then laid the last one out in an implicit track of a
+   different width — a count of the axis kept in a file that cannot see it. */
 .notes-matrix { display: grid; gap: 4px; margin: 6px 0 16px; overflow-x: auto; }
-.nm-row { display: grid; grid-template-columns: 150px repeat(5, minmax(96px, 1fr)); gap: 4px; }
+.nm-row { display: grid; grid-template-columns: 150px repeat(var(--nm-cols, 6), minmax(96px, 1fr)); gap: 4px; }
 .nm-corner, .nm-col-head, .nm-row-head {
   font-size: 11px; color: var(--muted); padding: 5px 7px; line-height: 1.35;
 }
@@ -857,6 +863,58 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   border-style: dashed; padding: 8px 9px;
   display: flex; align-items: center; justify-content: center;
 }
+
+/* One question at a time. The buttons are wide because the answers are
+   sentences — "at the foot of every page" is the whole point and truncating it
+   back to "page" would put the writer back in front of an axis label. */
+.nq-ask {
+  margin: 18px 0 8px !important; font-size: 13px !important; font-weight: 700;
+  color: var(--ink) !important; text-transform: none !important; letter-spacing: 0 !important;
+}
+.nq-options {
+  display: grid; gap: 8px; margin-bottom: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.nq-option {
+  display: block; text-align: start; padding: 10px 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-family: var(--hebrew);
+}
+.nq-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.nq-option b { display: block; font-size: 13.5px; line-height: 1.35; }
+.nq-option span { display: block; margin-top: 3px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.nq-option.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.nq-option.on span { color: #fff; opacity: .85; }
+/* A refused arrangement, with its reason in words rather than in a tooltip. Not
+   a button and not focusable: there is nothing here to press. */
+.nq-option.off {
+  cursor: default; border-style: dashed; opacity: .6; background: var(--panel);
+}
+.nq-option.off b { color: var(--muted); font-weight: 600; }
+.nq-wait { margin: 0 0 4px; font-size: 12.5px; color: var(--muted); }
+/* Which of the three presentations is on. Small: it is a preference, not the
+   question the panel is asking.
+
+   Sticky, because it is the control that changes what the whole panel is, and a
+   panel this tall scrolls. The assembled run measured it at y=-55 — scrolled
+   off the top of its own box by the very thing that had just brought the chosen
+   arrangement into view — which is the switcher robbing itself. `.notes-
+   chooser-box` is the scroller, so `top: 0` sticks to its padding edge; the
+   background and the negative margin are what stop the rows underneath showing
+   through it. */
+.nq-views {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 2;
+  margin: 2px -26px 4px; padding: 6px 26px;
+  background: var(--panel);
+}
+.nq-views-label { font-size: 11.5px; color: var(--muted); }
+.nq-view {
+  padding: 4px 10px; cursor: pointer; font-size: 11.5px; font-family: var(--hebrew);
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted);
+}
+.nq-view:hover { border-color: var(--accent); color: var(--accent); }
+.nq-view.on { border-color: var(--accent); background: var(--accent); color: #fff; }
 
 .note-body { min-width: 0; }
 .note-body b { font-size: 14px; }
@@ -924,9 +982,11 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   .notes-chooser-box { width: 96vw; padding: 16px; }
   .note-grid { grid-template-columns: 1fr; }
   .defer-options { grid-template-columns: 1fr; }
-  /* The matrix keeps its own scroller rather than squeezing five columns into
-     a phone: the labels are the point and they cannot be truncated away. */
-  .nm-row { grid-template-columns: 110px repeat(5, 84px); }
+  /* The matrix keeps its own scroller rather than squeezing every column into
+     a phone: the labels are the point and they cannot be truncated away. How
+     many columns there are is still the axis's business, not this rule's. */
+  .nm-row { grid-template-columns: 110px repeat(var(--nm-cols, 6), 84px); }
+  .nq-options { grid-template-columns: 1fr; }
   .tb-name { display: none; }
 }
 

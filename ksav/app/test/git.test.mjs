@@ -14,6 +14,7 @@
 //     nothing happened while their document says otherwise.
 
 import { check, ok, notOk } from "./harness.mjs";
+import * as git from "../.tmp-test/git.mjs";
 import {
   GIT_OPS,
   changed,
@@ -23,6 +24,7 @@ import {
   isStaged,
   outcome,
   position,
+  remoteArgs,
   standing,
   stateKey,
   when,
@@ -219,6 +221,118 @@ export async function run() {
     ok("a commit time is rendered", he.length > 0 && en.length > 0, `${he} / ${en}`);
     ok("…differently per language", he !== en, `${he} / ${en}`);
     check("no time is no string", when(0, "en"), "");
+  }
+
+  // ------------------------------------------------------ what the drawer shows
+  //
+  // These are the assertions the assembled run cannot make. It drives a browser
+  // against `ksav serve`, where a document is bound through a file handle and
+  // has no path, so `standing` is never `ready` there and the whole populated
+  // drawer is unreachable by the one test that looks at the screen. Every
+  // section of it could be wrong and step 10 would still be green.
+
+  const REPO = {
+    ok: true,
+    git: "2.54",
+    root: "/seforim",
+    branch: "main",
+    files: [],
+    who: { name: "פלוני", email: "p@x" },
+  };
+  const READY = { kind: "ready", path: "/seforim/ברכות.ksav" };
+  const ids = (f) => (f.kind === "repo" ? f.sections.map((s) => s.id) : f.kind);
+
+  {
+    check("no file, no drawer", git.face(standing(null, "tauri"), null, [], [], []).kind, "unavailable");
+    check("nothing asked yet is not clean", ids(git.face(READY, null, [], [], [])), "asking");
+    check(
+      "no git on the machine",
+      ids(git.face(READY, { ok: true, git: null, root: null }, [], [], [])),
+      "no-git",
+    );
+    check(
+      "a folder that is not a repository",
+      ids(git.face(READY, { ok: true, git: "2.54", root: null }, [], [], [])),
+      "no-repo",
+    );
+  }
+
+  {
+    // The ordinary repository: five blocks, and no identity form because git
+    // knows who is writing.
+    check(
+      "the ordinary repository's blocks, in order",
+      ids(git.face(READY, REPO, [], [], [])).join(","),
+      "changes,commit,history,branches,remotes",
+    );
+  }
+
+  {
+    // git has not been told who is writing. The form appears *before* the
+    // commit box, because the alternative is a first commit failing with git's
+    // own nine-line lecture about `user.email`, in English, in a drawer.
+    const f = git.face(READY, { ...REPO, who: null }, [], [], []);
+    const order = ids(f);
+    ok("the identity form appears", order.includes("identity"), order.join(","));
+    ok("…before the commit box", order.indexOf("identity") < order.indexOf("commit"), order.join(","));
+  }
+
+  {
+    // A stopped merge comes first, before what would be committed. During a
+    // merge there are always uncommitted changes; the markers in the document
+    // are the thing to deal with.
+    const conflicted = {
+      ...REPO,
+      merging: true,
+      files: [file("ברכות.ksav", "U", "U", "unmerged")],
+    };
+    const order = ids(git.face(READY, conflicted, [], [], []));
+    check("a conflict is the first block", order[0], "conflict");
+    const block = git.face(READY, conflicted, [], [], []).sections[0];
+    check("…and it counts the files that are stuck", block.count, 1);
+  }
+
+  {
+    // The claim step 9 of the assembled run makes about the four list panels it
+    // can reach, made here about the blocks it cannot: a section that can hold
+    // nothing has a sentence for holding nothing.
+    const f = git.face(READY, { ...REPO, who: null }, [], [], []);
+    const speechless = f.sections.filter((s) => s.count === 0 && !s.empty && s.id !== "commit");
+    check("every empty block says what empty means", speechless.map((s) => s.id), []);
+    // …and the sentences are distinct. Four blocks that all said "nothing here"
+    // would be four blanks with a shared caption.
+    const said = f.sections.map((s) => s.empty).filter(Boolean);
+    check("…and no two of them say the same thing", said.filter((k, i) => said.indexOf(k) !== i), []);
+    for (const s of f.sections) {
+      if (s.empty) ok(`${s.id}'s sentence is a key`, s.empty.startsWith("git."), s.empty);
+      if (s.heading) ok(`${s.id}'s heading is a key`, s.heading.startsWith("git."), s.heading);
+    }
+  }
+
+  {
+    // The counts are what is actually there, so a block cannot claim to be
+    // empty while holding rows.
+    const f = git.face(READY, REPO, [{ hash: "a" }, { hash: "b" }], [{ name: "main" }], [{ name: "origin" }]);
+    const by = Object.fromEntries(f.sections.map((s) => [s.id, s.count]));
+    check("the history's count", by.history, 2);
+    check("the branches' count", by.branches, 1);
+    check("the remotes' count", by.remotes, 1);
+  }
+
+  // ------------------------------------------------- which remote gets pushed to
+
+  {
+    // The first remote, not the string "origin". `git clone --origin upstream`
+    // and every fork workflow produce a repository where three buttons would
+    // otherwise fail with git's own message about a remote that does not
+    // exist — in a drawer listing the right name two inches above them.
+    check(
+      "the remote that is actually there",
+      remoteArgs(REPO, [{ name: "upstream" }, { name: "origin" }]),
+      { remote: "upstream", branch: "main" },
+    );
+    check("no remote is no argument", remoteArgs(REPO, []), { branch: "main" });
+    check("no branch either, on a detached head", remoteArgs({ ...REPO, branch: null }, []), {});
   }
 
   // -------------------------------------------- the operations are the engine's

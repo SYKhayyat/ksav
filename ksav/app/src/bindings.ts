@@ -80,6 +80,13 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // because they are the two answers to "which command was it": the modal for
   // when you know, the drawer for when you are looking.
   commandsDrawer: "Mod-Shift-k",
+  // Version control. `Mod-Alt-v` because `Mod-Shift-v` is paste-without-
+  // formatting everywhere and `Mod-Alt-g` is not free — and because the drawer
+  // is the only way into a whole feature, which every other drawer here has a
+  // key for. A surface reachable only by mouse is also a surface that never
+  // appears in the generated shortcut list or in `F1`, which is where a writer
+  // looks for what exists.
+  gitPanel: "Mod-Alt-v",
   find: "Mod-f",
   foldAll: "Mod-Alt-[",
   unfoldAll: "Mod-Alt-]",

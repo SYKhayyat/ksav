@@ -1248,6 +1248,115 @@ mod tests {
         assert!(after["root"].is_string(), "{after}");
     }
 
+    /// The first minute of a repository: made, and holding nothing.
+    ///
+    /// `git log` calls an empty repository a **fatal error** — "does not have
+    /// any commits yet" — and it is not one to a reader who has just pressed
+    /// *Make one here*. Untested until this was written, and the branch that
+    /// answers it is one string match away from being wrong forever.
+    #[test]
+    fn a_repository_with_no_commits_has_an_empty_history_and_not_an_error() {
+        let repo = Repo::new("empty");
+        repo.write("התחלה");
+
+        let log = repo.ask(serde_json::json!({ "op": "log" }));
+        assert_eq!(log["ok"], true, "an empty history is not a failure: {log}");
+        assert_eq!(log["commits"].as_array().unwrap().len(), 0, "{log}");
+
+        // …and the same repository can still say where it is. `status` on a
+        // branch with no commits has no `branch.oid` and no `branch.ab`, which
+        // is a shape the porcelain reader has to survive.
+        let st = repo.ask(serde_json::json!({ "op": "status" }));
+        assert_eq!(st["ok"], true, "{st}");
+        assert_eq!(st["branch"], "main", "{st}");
+        assert_eq!(st["this"]["tracked"], false, "{st}");
+        assert_eq!(st["files"].as_array().unwrap().len(), 1, "{st}");
+
+        // And there are no branches to list yet, which is also not an error:
+        // the first branch is made by the first commit.
+        let branches = repo.ask(serde_json::json!({ "op": "branches" }));
+        assert_eq!(branches["ok"], true, "{branches}");
+        assert_eq!(
+            branches["branches"].as_array().unwrap().len(),
+            0,
+            "{branches}"
+        );
+    }
+
+    /// The other first-minute state: git has not been told who is writing.
+    ///
+    /// Without this the writer's first commit fails with git's own nine-line
+    /// lecture about `user.email`, in English, in a drawer. The panel offers two
+    /// fields instead, and `status` is what tells it to.
+    #[test]
+    fn git_can_be_told_who_is_writing_and_only_for_this_repository() {
+        let repo = Repo::new("who");
+        // Take the identity the fixture set, so this starts where a reader does.
+        assert!(
+            git_run(&repo.0, &["config", "--local", "--unset", "user.name"])
+                .unwrap()
+                .ok
+        );
+        assert!(
+            git_run(&repo.0, &["config", "--local", "--unset", "user.email"])
+                .unwrap()
+                .ok
+        );
+        repo.write("א");
+
+        // `who` is null only when git cannot answer at all — on a machine with a
+        // global identity configured it will still find one, and that is the
+        // correct answer rather than a hole. Both readings are asserted against
+        // what git itself says, so this test means the same thing on a fresh
+        // runner and on a developer's machine.
+        let global = git_run(&repo.0, &["config", "--get", "user.email"])
+            .unwrap()
+            .out
+            .trim()
+            .to_string();
+        let st = repo.ask(serde_json::json!({ "op": "status" }));
+        if global.is_empty() {
+            assert!(st["who"].is_null(), "nobody is configured: {st}");
+        } else {
+            assert_eq!(st["who"]["email"], global, "{st}");
+        }
+
+        let told = repo.ask(serde_json::json!({
+            "op": "who", "name": "רב פלוני", "email": "ploni@ksav.invalid"
+        }));
+        assert_eq!(told["ok"], true, "{told}");
+
+        let st = repo.ask(serde_json::json!({ "op": "status" }));
+        assert_eq!(st["who"]["name"], "רב פלוני", "{st}");
+        assert_eq!(st["who"]["email"], "ploni@ksav.invalid", "{st}");
+
+        // `--local`: the writer's own git configuration belongs to them and to
+        // every other repository on the machine, and Ksav does not touch it.
+        let local = git_run(&repo.0, &["config", "--local", "--get", "user.email"]).unwrap();
+        assert_eq!(local.out.trim(), "ploni@ksav.invalid");
+
+        // And the commit it exists to make possible actually goes through, under
+        // that name.
+        assert_eq!(
+            repo.ask(serde_json::json!({ "op": "commit", "message": "ראשון" }))["ok"],
+            true
+        );
+        let log = repo.ask(serde_json::json!({ "op": "log" }));
+        assert_eq!(log["commits"][0]["author"], "רב פלוני", "{log}");
+
+        // Half an identity is refused before git is asked, because git's own
+        // refusal for this is the lecture.
+        let half = repo.ask(serde_json::json!({ "op": "who", "name": "רק שם" }));
+        assert_eq!(half["ok"], false, "{half}");
+        assert!(
+            half["error"]
+                .as_str()
+                .unwrap()
+                .contains("name and an email"),
+            "{half}"
+        );
+    }
+
     /// The whole reason the porcelain is read with `-z` and `quotepath` off.
     #[test]
     fn a_hebrew_named_sefer_comes_back_spelled_the_way_it_was_written() {

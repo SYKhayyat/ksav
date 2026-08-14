@@ -160,7 +160,36 @@ const SLOW = Number(value("--slow", "0"));
 
 const failures = [];
 let checks = 0;
+/**
+ * One assertion. `condition` is a **boolean**, and the refusal below is why.
+ *
+ * There are two functions called `check` in this repository's test tooling and
+ * they mean different things by their second and third arguments:
+ *
+ *   acceptance.mjs   check(name, condition, detail)   — a boolean
+ *   test/harness.mjs check(name, got, want)           — deep equality
+ *
+ * The confusion is one-directional and therefore quiet. Writing
+ * `check(name, cond, "detail")` in the harness fails loudly every time, because
+ * `true` is not `"detail"`. Writing `check(name, value, expected)` here
+ * **passes whenever `value` is truthy** — it asserts that something exists and
+ * says nothing about what it is. That happened: the version-control step read a
+ * `data-git` attribute and compared it to `"unavailable"` in this position, so
+ * it would have been satisfied by `no-git`, by `no-repo`, by any state at all.
+ *
+ * A sweep found no second instance, and a sweep is the wrong instrument for
+ * this: the next one is written by whoever last used the other `check`. So the
+ * mistake is refused at the call rather than looked for afterwards.
+ */
 function check(name, condition, detail = "") {
+  if (typeof condition !== "boolean") {
+    throw new TypeError(
+      `check(${JSON.stringify(name)}) was handed a ${typeof condition} where it wants a ` +
+        `boolean. This is not test/harness.mjs: here the second argument is the ` +
+        `condition and the third is only shown when it fails. Write ` +
+        `check(name, a === b, String(a)).`,
+    );
+  }
   checks++;
   if (condition) {
     console.log(`  ok    ${name}`);

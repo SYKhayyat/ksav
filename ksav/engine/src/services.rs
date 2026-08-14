@@ -658,34 +658,60 @@ mod tests {
     /// change and a list of seven names cannot see it.
     #[test]
     fn the_services_that_need_the_installed_application_say_so() {
-        for name in [
+        // Girsa over the loopback, which a tab has neither a listener for nor a
+        // token to read.
+        let needs_girsa = [
             "inbox",
             "mekoros",
             "linkify",
             "refresh",
             "clipboard-source",
             "saved-here",
-        ] {
+        ];
+        // A folder on disk and a program to run in it.
+        let needs_the_machine = ["git"];
+
+        for name in needs_girsa {
+            assert_eq!(find(name).unwrap().reach, Native, "{name} reaches Girsa");
+        }
+        for name in needs_the_machine {
+            assert_eq!(find(name).unwrap().reach, Native, "{name} needs the disk");
+        }
+
+        // And every *other* service is reachable everywhere.
+        //
+        // No `assert_eq!(native.len(), 7)`. That is what this was, and it is the
+        // shape G6 rules out — a count of a registry, red for a seventeenth
+        // service whether or not anything is wrong with it, and silent about
+        // which one moved. What it was reaching for is the claim below: a
+        // service marked `Native` by accident is a feature silently missing
+        // from the browser build, and this names it.
+        // A `continue` over a list is a loop that can check nothing, and
+        // `app/test/skips.test.mjs` says so about this one: if the two lists
+        // above ever named every service, the assertion below would never run
+        // and this test would stay green while claiming to hold the column.
+        // So what was actually checked is counted, and there is a floor under
+        // it.
+        let mut checked = 0;
+        for s in SERVICES {
+            if needs_girsa.contains(&s.name) || needs_the_machine.contains(&s.name) {
+                continue;
+            }
+            checked += 1;
             assert_eq!(
-                find(name).unwrap().reach,
-                Native,
-                "{name} reaches Girsa over the loopback and a tab cannot"
+                s.reach, All,
+                "{} is marked native-only, so the browser build answers it with a \
+                 refusal — if that is right, add it to one of the two lists above \
+                 with the reason",
+                s.name
             );
         }
-        assert_eq!(
-            find("git").unwrap().reach,
-            Native,
-            "git needs a folder on disk, which a tab does not have"
+        assert!(
+            checked >= 9,
+            "only {checked} services were checked against `All` — the two lists \
+             above have grown to cover almost the whole registry, and this test \
+             is passing by not looking"
         );
-        // And nothing else claims to need it. A service marked `Native` by
-        // accident is a feature silently missing from the browser build, which
-        // is the failure this column exists to make visible.
-        let native: Vec<_> = SERVICES
-            .iter()
-            .filter(|s| s.reach == Native)
-            .map(|s| s.name)
-            .collect();
-        assert_eq!(native.len(), 7, "an eighth native-only service: {native:?}");
     }
 
     /// A request with no phrase in it is a refusal with a reason, not a panic

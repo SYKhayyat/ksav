@@ -25,6 +25,11 @@
 ;;; Code:
 
 (require 'ert)
+;; `cl-some' below. Required rather than left to an autoload, for the reason
+;; `string-replace' is not used in `ksav.el': what happens to be loaded on the
+;; Emacs a thing was written on is not what is loaded on the oldest one it
+;; claims to support.
+(require 'cl-lib)
 (require 'ksav)
 
 ;;;; ------------------------------------------------------------- the registry

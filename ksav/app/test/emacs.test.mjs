@@ -19,7 +19,7 @@ import { check, ok } from "./harness.mjs";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "../tools/paths.mjs";
-import { SERVICES } from "../src/services.gen.ts";
+import { SERVICES } from "../.tmp-test/services.gen.mjs";
 
 const HOME = path.join(ROOT, "ksav", "editors", "emacs");
 const read = (name) => readFileSync(path.join(HOME, name), "utf8");

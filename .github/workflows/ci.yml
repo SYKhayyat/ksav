@@ -276,6 +276,23 @@ jobs:
         working-directory: ./ksav/engine
         run: cargo build --release
 
+      # A byte-compile warning in an elisp package is what a `tsc` error is in the
+      # editor: it compiles either way, and the warning is the only thing that
+      # will ever mention a free variable or a function that is not there.
+      #
+      # **Before** the tests, and that ordering was paid for. `ksav.el` used
+      # `string-replace`, which is Emacs 28; this package declares 27.1, which is
+      # what this runner has and what the declaration is *for*. The ERT run
+      # failed with a `void-function` backtrace inside a `let` inside an
+      # `unwind-protect`; the byte compiler says the name and the line.
+      - name: Byte-compile it
+        working-directory: ./ksav/editors/emacs
+        run: |
+          emacs --version | head -1
+          emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
+                -f batch-byte-compile ksav-services.el ksav.el ksav-tests.el
+          rm -f ./*.elc
+
       - name: Run the package's tests
         working-directory: ./ksav/editors/emacs
         env:
@@ -284,15 +301,6 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/ksav/engine/target/release:$PATH"
           emacs -Q --batch -L . -l ksav.el -l ksav-tests.el \
                 -f ert-run-tests-batch-and-exit
-
-      # A byte-compile warning in an elisp package is what a `tsc` error is in
-      # the editor: it compiles either way, and the warning is the only thing
-      # that will ever mention a free variable or a function that is not there.
-      - name: Byte-compile it
-        working-directory: ./ksav/editors/emacs
-        run: |
-          emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
-                -f batch-byte-compile ksav-services.el ksav.el ksav-tests.el
 
   desktop:
     name: desktop shell

@@ -404,10 +404,19 @@ that is where point is left."
 
 Exposed rather than inlined because it is what a snippet, a key binding or a
 `ksav-mode' hook of your own would want, and because it is the one piece of
-Ksav's insertion convention this package has to know."
+Ksav's insertion convention this package has to know.
+
+Written with `substring' rather than with `string-replace', which is the
+obvious spelling and is **Emacs 28**. This package declares 27.1 — that is
+where `json-parse-string' arrives, and it is what Ubuntu 22.04 ships — so the
+first draft was void-function on every Emacs it claimed to support and worked
+on the one it was written on. The declared floor is only a claim until
+something runs there; CI does, and that is how this was found."
   (let ((at (string-match-p "|" template)))
-    (insert (string-replace "|" "" template))
-    (when at (goto-char (+ (point) (- at (length (string-replace "|" "" template))))))))
+    (if (not at)
+        (insert template)
+      (insert (substring template 0 at))
+      (save-excursion (insert (substring template (1+ at)))))))
 
 ;;;; --------------------------------------------------------------- the speller
 

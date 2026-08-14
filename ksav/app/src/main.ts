@@ -740,6 +740,7 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "redo", run: (v) => redo(v) },
   { id: "palette", run: () => (openPalette(), true) },
   { id: "commandsDrawer", run: () => (openCommands(), true) },
+  { id: "gitPanel", run: () => (openGit(), true) },
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
@@ -5606,257 +5607,259 @@ function gitButton(label: string, run: () => void, cls = "sc-key"): HTMLElement 
  * here: the alternative is a set of update paths that each have to remember
  * which of six sections a `git merge` can change, and the answer is all of
  * them.
+ *
+ * **Which sections there are is `git.face`'s decision, not this function's.**
+ * That split is not tidiness. The assembled run drives a browser against
+ * `ksav serve`, where a document is bound through a file handle and therefore
+ * has no path — so everything below the first `switch` is unreachable by the
+ * one test in this product that looks at the screen. Every state a writer
+ * actually uses this drawer in could have been wrong and the suite would have
+ * been green. `git.face` can be driven with a status nothing had to produce,
+ * and `git.test.mjs` does.
  */
 function renderGitPanel(): void {
   const box = document.getElementById("git-body");
   if (!box) return;
-  const where = gitStanding();
+  const face = git.face(gitStanding(), gitState, gitCommits, gitBranches, gitRemotes);
   const parts: Node[] = [panelHead("git-panel", "git.title"), el("p", { class: "styles-lede" }, [t("git.lede")])];
 
-  // ---- the three ways this is not available, each with its own answer ----
-  if (where.kind !== "ready") {
-    parts.push(el("p", { class: "git-why", "data-git": "unavailable" }, [t(git.WHY[where.kind])]));
-    box.replaceChildren(...parts);
-    return;
+  // ---- the states with no repository behind them, each with its own answer ----
+  switch (face.kind) {
+    case "unavailable":
+      parts.push(el("p", { class: "git-why", "data-git": "unavailable" }, [t(face.why)]));
+      box.replaceChildren(...parts);
+      return;
+    case "asking":
+      parts.push(el("p", { class: "git-why", "data-git": "asking" }, [t("git.working")]));
+      box.replaceChildren(...parts);
+      return;
+    case "no-git":
+      parts.push(
+        el("p", { class: "git-why", "data-git": "no-git" }, [t("git.noGit")]),
+        el("p", { class: "set-hint" }, [t("git.installGit")]),
+      );
+      box.replaceChildren(...parts);
+      return;
+    case "no-repo":
+      // The one unavailable state with an offer attached.
+      parts.push(
+        el("p", { class: "git-why", "data-git": "no-repo" }, [t("git.noRepo")]),
+        gitButton(t("git.init"), () => void runGit("init"), "sc-key git-init"),
+      );
+      if (gitSaid) parts.push(gitSays());
+      box.replaceChildren(...parts);
+      return;
   }
 
-  if (!gitState) {
-    parts.push(el("p", { class: "git-why" }, [t("git.working")]));
-    box.replaceChildren(...parts);
-    return;
-  }
-
-  // ---- git itself is missing ----
-  if (!gitState.git) {
-    parts.push(
-      el("p", { class: "git-why", "data-git": "no-git" }, [t("git.noGit")]),
-      el("p", { class: "set-hint" }, [t("git.installGit")]),
-    );
-    box.replaceChildren(...parts);
-    return;
-  }
-
-  // ---- a folder that is not a repository: the one state with an offer ----
-  if (!gitState.root) {
-    parts.push(
-      el("p", { class: "git-why", "data-git": "no-repo" }, [t("git.noRepo")]),
-      gitButton(t("git.init"), () => void runGit("init"), "sc-key git-init"),
-    );
-    if (gitSaid) parts.push(gitSays());
-    box.replaceChildren(...parts);
-    return;
-  }
-
-  const where0 = git.position(gitState);
+  const state = gitState!;
+  const at = git.position(state);
   parts.push(
     el("div", { class: "git-where", "data-git": "where" }, [
       el("span", { class: "git-branch" }, [
-        (gitState.detached ? t("git.detached") + " " : "") + (where0.branch || "—"),
+        (state.detached ? t("git.detached") + " " : "") + (at.branch || "—"),
       ]),
       el("span", { class: "git-upstream" }, [
-        where0.upstream ? `${t("git.upstream")} ${where0.upstream}` : t("git.upstreamNone"),
+        at.upstream ? `${t("git.upstream")} ${at.upstream}` : t("git.upstreamNone"),
       ]),
-      ...(where0.ahead ? [el("span", { class: "git-count git-ahead" }, [tf("git.ahead", where0.ahead)])] : []),
-      ...(where0.behind ? [el("span", { class: "git-count git-behind" }, [tf("git.behind", where0.behind)])] : []),
+      ...(at.ahead ? [el("span", { class: "git-count git-ahead" }, [tf("git.ahead", at.ahead)])] : []),
+      ...(at.behind ? [el("span", { class: "git-count git-behind" }, [tf("git.behind", at.behind)])] : []),
     ]),
   );
 
-  // ---- a stopped merge, before anything else ----
-  if (git.health(gitState) === "conflicted") {
-    const stuck = (gitState.files ?? []).filter((f) => f.kind === "unmerged");
-    parts.push(
-      el("h3", {}, [t("git.conflictFiles")]),
-      el("p", { class: "git-why", "data-git": "conflicted" }, [t("git.conflicted")]),
-      el(
-        "ul",
-        { class: "git-files" },
-        stuck.map((f) => el("li", { class: "git-file git-unmerged" }, [f.path])),
-      ),
-      el("div", { class: "rv-tools" }, [
-        gitButton(t("git.takeOurs"), () => void runGit("resolve", { side: "ours" })),
-        gitButton(t("git.takeTheirs"), () => void runGit("resolve", { side: "theirs" })),
-        gitButton(t("git.abortMerge"), () => void runGit("merge-abort")),
-      ]),
-    );
-  }
+  const upstreamBox = checkField(!at.upstream);
 
-  // ---- what would be committed ----
-  const changed = git.changed(gitState);
-  parts.push(el("h3", {}, [t("git.changes")]));
-  if (!changed.length) {
-    // An empty list has to say what empty means. Every list surface in this
-    // application does, and this one has two empty states that look alike and
-    // are not: nothing changed, and nothing is here yet.
-    parts.push(el("p", { class: "outline-empty", "data-empty": "git-changes" }, [t("git.nothingChanged")]));
-  } else {
-    parts.push(
-      el(
-        "ul",
-        { class: "git-files" },
-        changed.map((f) =>
-          el("li", { class: "git-file" }, [
-            el("span", { class: "git-state" }, [t(git.stateKey(f))]),
-            el("span", { class: "git-path" }, [f.path]),
-            ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
-            ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.readyToCommit")])] : []),
+  for (const section of face.sections) {
+    const block: Node[] = [];
+    if (section.heading) block.push(el("h3", {}, [t(section.heading)]));
+
+    // An empty section says what empty means, and the sentence is the one
+    // `git.face` named. Every list surface in this application does this; the
+    // difference here is that the *choice* of sentence is checked by a test
+    // rather than being four literals in a file nothing imports.
+    if (section.count === 0 && section.empty && section.id !== "identity") {
+      block.push(
+        el("p", { class: "outline-empty", "data-empty": `git-${section.id}` }, [t(section.empty)]),
+      );
+    }
+
+    switch (section.id) {
+      case "conflict": {
+        const stuck = (state.files ?? []).filter((f) => f.kind === "unmerged");
+        block.push(
+          el("p", { class: "git-why", "data-git": "conflicted" }, [t("git.conflicted")]),
+          el("ul", { class: "git-files" }, stuck.map((f) => el("li", { class: "git-file git-unmerged" }, [f.path]))),
+          el("div", { class: "rv-tools" }, [
+            gitButton(t("git.takeOurs"), () => void runGit("resolve", { side: "ours" })),
+            gitButton(t("git.takeTheirs"), () => void runGit("resolve", { side: "theirs" })),
+            gitButton(t("git.abortMerge"), () => void runGit("merge-abort")),
           ]),
-        ),
-      ),
-    );
-  }
-
-  // ---- who is writing: asked before the commit that would fail ----
-  if (!gitState.who) {
-    const name = textField("");
-    const email = textField("");
-    parts.push(
-      el("p", { class: "git-why", "data-git": "no-identity" }, [t("git.whoNeeded")]),
-      fieldRow(t("git.whoName"), name),
-      fieldRow(t("git.whoEmail"), email),
-      gitButton(t("git.whoSet"), () => void runGit("who", { name: name.value, email: email.value })),
-      el("p", { class: "set-hint" }, [t("git.whoLocal")]),
-    );
-  }
-
-  // ---- the commit box ----
-  const message = textField("", t("git.message"));
-  const all = checkField(false);
-  parts.push(
-    el("div", { class: "git-commit" }, [
-      message,
-      fieldRow(t("git.commitAll"), all),
-      gitButton(t("git.commit"), () => {
-        const said = message.value.trim();
-        if (!said) return;
-        void runGit("commit", { message: said, all: all.checked });
-      }, "sc-key git-do-commit"),
-    ]),
-  );
-
-  // ---- history ----
-  const scope = checkField(gitWholeRepo);
-  scope.addEventListener("change", () => {
-    gitWholeRepo = scope.checked;
-    void refreshGit();
-  });
-  parts.push(el("h3", {}, [t("git.history")]), fieldRow(t("git.historyAll"), scope));
-  if (!gitCommits.length) {
-    parts.push(el("p", { class: "outline-empty", "data-empty": "git-history" }, [t("git.noCommits")]));
-  } else {
-    parts.push(
-      el(
-        "ul",
-        { class: "git-log" },
-        gitCommits.map((c) =>
-          el("li", { class: "git-commit-row" }, [
-            el("div", { class: "git-subject" }, [c.subject || c.short]),
-            el("div", { class: "git-meta" }, [`${c.author} · ${git.when(c.when, getLang())} · ${c.short}`]),
-            el("div", { class: "rv-actions" }, [
-              gitButton(t("git.compare"), () => void compareWithCommit(c), "rv-yes"),
-              gitButton(t("git.restore"), () => void restoreCommit(c), "rv-yes"),
-              gitButton(t("git.revert"), () => void revertCommit(c), "rv-no"),
-            ]),
+        );
+        break;
+      }
+      case "changes": {
+        const changed = git.changed(state);
+        if (changed.length) {
+          block.push(
+            el(
+              "ul",
+              { class: "git-files" },
+              changed.map((f) =>
+                el("li", { class: "git-file" }, [
+                  el("span", { class: "git-state" }, [t(git.stateKey(f))]),
+                  el("span", { class: "git-path" }, [f.path]),
+                  ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
+                  ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.readyToCommit")])] : []),
+                ]),
+              ),
+            ),
+          );
+        }
+        break;
+      }
+      case "identity": {
+        // Offered *before* the commit that would otherwise fail with git's own
+        // nine-line lecture about `user.email`.
+        const name = textField("");
+        const email = textField("");
+        block.push(
+          el("p", { class: "git-why", "data-git": "no-identity" }, [t(section.empty ?? "git.whoNeeded")]),
+          fieldRow(t("git.whoName"), name),
+          fieldRow(t("git.whoEmail"), email),
+          gitButton(t("git.whoSet"), () => void runGit("who", { name: name.value, email: email.value })),
+          el("p", { class: "set-hint" }, [t("git.whoLocal")]),
+        );
+        break;
+      }
+      case "commit": {
+        const message = textField("", t("git.message"));
+        const all = checkField(false);
+        block.push(
+          el("div", { class: "git-commit" }, [
+            message,
+            fieldRow(t("git.commitAll"), all),
+            gitButton(
+              t("git.commit"),
+              () => {
+                const said = message.value.trim();
+                if (!said) return;
+                void runGit("commit", { message: said, all: all.checked });
+              },
+              "sc-key git-do-commit",
+            ),
           ]),
-        ),
-      ),
-    );
-  }
-
-  // ---- branches ----
-  parts.push(el("h3", {}, [t("git.branches")]));
-  if (!gitBranches.length) {
-    parts.push(el("p", { class: "outline-empty", "data-empty": "git-branches" }, [t("git.noBranches")]));
-  } else {
-    parts.push(
-      el(
-        "ul",
-        { class: "git-branches" },
-        gitBranches.map((b) =>
-          el("li", { class: "git-branch-row" + (b.current ? " current" : "") }, [
-            el("span", { class: "git-path" }, [b.name]),
-            el("small", { class: "git-meta" }, [b.upstream ?? ""]),
-            ...(b.current
-              ? []
-              : [
+        );
+        break;
+      }
+      case "history": {
+        const scope = checkField(gitWholeRepo);
+        scope.addEventListener("change", () => {
+          gitWholeRepo = scope.checked;
+          void refreshGit();
+        });
+        // Before the list, because it is what the list is *of*.
+        block.splice(1, 0, fieldRow(t("git.historyAll"), scope));
+        if (gitCommits.length) {
+          block.push(
+            el(
+              "ul",
+              { class: "git-log" },
+              gitCommits.map((c) =>
+                el("li", { class: "git-commit-row" }, [
+                  el("div", { class: "git-subject" }, [c.subject || c.short]),
+                  el("div", { class: "git-meta" }, [`${c.author} · ${git.when(c.when, getLang())} · ${c.short}`]),
                   el("div", { class: "rv-actions" }, [
-                    gitButton(t("git.switch"), () => void runGit("switch", { name: b.name }), "rv-yes"),
-                    gitButton(t("git.merge"), () => void runGit("merge", { name: b.name }), "rv-yes"),
+                    gitButton(t("git.compare"), () => void compareWithCommit(c), "rv-yes"),
+                    gitButton(t("git.restore"), () => void restoreCommit(c), "rv-yes"),
+                    gitButton(t("git.revert"), () => void revertCommit(c), "rv-no"),
                   ]),
                 ]),
+              ),
+            ),
+          );
+        }
+        break;
+      }
+      case "branches": {
+        if (gitBranches.length) {
+          block.push(
+            el(
+              "ul",
+              { class: "git-branches" },
+              gitBranches.map((b) =>
+                el("li", { class: "git-branch-row" + (b.current ? " current" : "") }, [
+                  el("span", { class: "git-path" }, [b.name]),
+                  el("small", { class: "git-meta" }, [b.upstream ?? ""]),
+                  ...(b.current
+                    ? []
+                    : [
+                        el("div", { class: "rv-actions" }, [
+                          gitButton(t("git.switch"), () => void runGit("switch", { name: b.name }), "rv-yes"),
+                          gitButton(t("git.merge"), () => void runGit("merge", { name: b.name }), "rv-yes"),
+                        ]),
+                      ]),
+                ]),
+              ),
+            ),
+          );
+        }
+        const branchName = textField("", t("git.branchName"));
+        block.push(
+          el("div", { class: "git-new-branch" }, [
+            branchName,
+            gitButton(t("git.create"), () => {
+              const name = branchName.value.trim();
+              if (!name) return;
+              void runGit("switch", { name, create: true });
+            }),
           ]),
-        ),
-      ),
-    );
-  }
-  const branchName = textField("", t("git.branchName"));
-  parts.push(
-    el("div", { class: "git-new-branch" }, [
-      branchName,
-      gitButton(t("git.create"), () => {
-        const name = branchName.value.trim();
-        if (!name) return;
-        void runGit("switch", { name, create: true });
-      }),
-    ]),
-  );
-
-  // ---- remotes ----
-  parts.push(el("h3", {}, [t("git.remotes")]));
-  if (!gitRemotes.length) {
-    parts.push(el("p", { class: "outline-empty", "data-empty": "git-remotes" }, [t("git.noRemotes")]));
-  } else {
-    parts.push(
-      el(
-        "ul",
-        { class: "git-remotes" },
-        gitRemotes.map((r) =>
-          el("li", { class: "git-remote-row" }, [
-            el("span", { class: "git-path" }, [r.name]),
-            el("small", { class: "git-meta" }, [r.url]),
+        );
+        break;
+      }
+      case "remotes": {
+        if (gitRemotes.length) {
+          block.push(
+            el(
+              "ul",
+              { class: "git-remotes" },
+              gitRemotes.map((r) =>
+                el("li", { class: "git-remote-row" }, [
+                  el("span", { class: "git-path" }, [r.name]),
+                  el("small", { class: "git-meta" }, [r.url]),
+                ]),
+              ),
+            ),
+          );
+        }
+        const remoteName = textField("origin", t("git.remoteName"));
+        const remoteUrl = textField("", t("git.remoteUrl"));
+        const args = () => git.remoteArgs(state, gitRemotes);
+        block.push(
+          el("details", { class: "git-add-remote" }, [
+            el("summary", {}, [t("git.addRemote")]),
+            fieldRow(t("git.remoteName"), remoteName),
+            fieldRow(t("git.remoteUrl"), remoteUrl),
+            gitButton(t("git.add"), () => {
+              const url = remoteUrl.value.trim();
+              if (!url) return;
+              void runGit("remote-add", { name: remoteName.value.trim() || "origin", url });
+            }),
           ]),
-        ),
-      ),
-    );
+          el("div", { class: "rv-tools" }, [
+            gitButton(t("git.fetch"), () => void runGit("fetch", args())),
+            gitButton(t("git.pull"), () => void runGit("pull", args())),
+            gitButton(t("git.push"), () => void runGit("push", { ...args(), set_upstream: upstreamBox.checked })),
+          ]),
+          fieldRow(t("git.setUpstream"), upstreamBox),
+        );
+        break;
+      }
+    }
+    parts.push(el("section", { class: "git-section", "data-git-section": section.id }, block));
   }
-  const remoteName = textField("origin", t("git.remoteName"));
-  const remoteUrl = textField("", t("git.remoteUrl"));
-  const upstream = checkField(!where0.upstream);
-  parts.push(
-    el("details", { class: "git-add-remote" }, [
-      el("summary", {}, [t("git.addRemote")]),
-      fieldRow(t("git.remoteName"), remoteName),
-      fieldRow(t("git.remoteUrl"), remoteUrl),
-      gitButton(t("git.add"), () => {
-        const url = remoteUrl.value.trim();
-        if (!url) return;
-        void runGit("remote-add", { name: remoteName.value.trim() || "origin", url });
-      }),
-    ]),
-    el("div", { class: "rv-tools" }, [
-      gitButton(t("git.fetch"), () => void runGit("fetch", gitRemoteArgs())),
-      gitButton(t("git.pull"), () => void runGit("pull", gitRemoteArgs())),
-      gitButton(t("git.push"), () => void runGit("push", { ...gitRemoteArgs(), set_upstream: upstream.checked })),
-    ]),
-    fieldRow(t("git.setUpstream"), upstream),
-  );
 
   if (gitSaid) parts.push(gitSays());
   box.replaceChildren(...parts);
 }
-
-/**
- * Which remote and branch the three network buttons address.
- *
- * The first remote rather than the string "origin": a repository cloned from a
- * host that names it something else is a repository where three buttons would
- * otherwise fail with git's own message about a remote that does not exist.
- */
-function gitRemoteArgs(): Record<string, unknown> {
-  const remote = gitRemotes[0]?.name;
-  const branch = gitState?.branch ?? undefined;
-  return { ...(remote ? { remote } : {}), ...(branch ? { branch } : {}) };
-}
-
 /** git's own words, in a box that says they are git's. */
 function gitSays(): HTMLElement {
   return el("div", { class: "git-said", "data-git": "said" }, [

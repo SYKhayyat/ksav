@@ -231,6 +231,34 @@ export async function run() {
     fresh.slice(0, fresh.indexOf("\n}")).includes("process.exit(1)"),
   );
 
+  // -------------------------------------- an assertion that cannot be vacuous
+
+  // There are two functions called `check` in this repository's test tooling
+  // and they disagree about their own arguments: here it is
+  // `check(name, got, want)`, and in the acceptance script it is
+  // `check(name, condition, detail)`. The confusion is one-directional and
+  // therefore quiet — using this file's shape over there **passes whenever the
+  // value is truthy**, asserting that something exists and nothing about what
+  // it is.
+  //
+  // It happened. The version-control step compared a `data-git` attribute to
+  // `"unavailable"` in the detail position, so it would have been satisfied by
+  // `no-git`, by `no-repo`, by any state at all — and it was only noticed
+  // because a mutation run made the attribute `null`. A sweep found no second
+  // instance and a sweep is the wrong instrument: the next one is written by
+  // whoever last used this file's `check`. So the script refuses it at the
+  // call, and this holds the refusal there.
+  {
+    const at = script.indexOf("function check(");
+    ok("the acceptance script has its own check", at > 0);
+    const body = script.slice(at, script.indexOf("\n}", at));
+    ok(
+      "…which refuses anything but a boolean condition",
+      /typeof condition !== "boolean"/.test(body) && body.includes("throw"),
+      body.slice(0, 200),
+    );
+  }
+
   // ----------------------------------------------------------- and CI runs it
 
   // The forward half of `gate.test.mjs`'s shape. A sweep nothing invokes is the

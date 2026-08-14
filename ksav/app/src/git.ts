@@ -209,6 +209,143 @@ export function outcome(a: GitAnswer | null | undefined): {
   };
 }
 
+// ---------------------------------------------------------------- what is shown
+//
+// # Why these live here and not in the shell
+//
+// They were written inline in `main.ts` — which is exactly what `header.ts`
+// exists because of, and its opening paragraph is about this: *"`buildHeader`
+// was two hundred lines of `main.ts` and every one of the twenty chips made the
+// same three decisions inline. Twenty times, in a file no test can import."*
+//
+// The version-control drawer arrived with about the same again. And it is worse
+// placed than the chipbar was, because of where it can be *reached* from: this
+// application's assembled run drives a browser against `ksav serve`, where a
+// document is bound through a file handle and therefore has no path — so the
+// drawer's whole populated half, every section of it, is unreachable by the one
+// test that looks at the screen. It could have been wrong in every state a
+// writer actually uses it in and the suite would have been green.
+//
+// So the *decisions* are here, where a test can drive them with a status
+// nothing had to produce: which sections appear, in what order, which of them
+// is empty, and what a reader is told when one is. The shell builds the rows.
+
+/** One block of the drawer. */
+export interface Section {
+  /**
+   * What this block is, stable across languages — and the `data-git` attribute
+   * the shell puts on it, so a browser test that one day can reach this drawer
+   * has something to address that is not a localised heading.
+   */
+  id: "conflict" | "changes" | "identity" | "commit" | "history" | "branches" | "remotes";
+  /** The i18n key for its heading, or null for the blocks that are not lists. */
+  heading: string | null;
+  /** How many rows it holds. Zero is a state with a sentence, not a blank. */
+  count: number;
+  /**
+   * What a reader is told when it holds nothing.
+   *
+   * `null` only for the blocks that cannot be empty — a commit box is a form
+   * and has no rows to lack. Everything else has one, and
+   * `git.test.mjs` refuses a section that can be empty and says nothing, which
+   * is the same claim step 9 of the assembled run makes about the four list
+   * panels it can reach.
+   */
+  empty: string | null;
+}
+
+/** The whole drawer, as a description. */
+export type Face =
+  /** One of the three standings, with its own sentence. */
+  | { kind: "unavailable"; why: string }
+  /** A status is in flight; nothing is known yet, which is not "clean". */
+  | { kind: "asking" }
+  /** There is no git on this machine — the one state Ksav cannot fix. */
+  | { kind: "no-git" }
+  /** A folder that is not a repository: the one state with an offer attached. */
+  | { kind: "no-repo" }
+  | { kind: "repo"; sections: Section[] };
+
+/**
+ * What the drawer shows, given everything that is known.
+ *
+ * The order of the sections is the order a reader needs them in, and the first
+ * one is the argument for deciding this in a testable place: a stopped merge
+ * comes before what would be committed, because the markers are in the document
+ * and everything below is about a document in that state.
+ */
+export function face(
+  where: Standing,
+  status: GitStatus | null,
+  commits: readonly unknown[],
+  branches: readonly unknown[],
+  remotes: readonly unknown[],
+): Face {
+  if (where.kind !== "ready") return { kind: "unavailable", why: WHY[where.kind] };
+  if (!status) return { kind: "asking" };
+  if (!status.git) return { kind: "no-git" };
+  if (!status.root) return { kind: "no-repo" };
+
+  const sections: Section[] = [];
+  if (health(status) === "conflicted") {
+    sections.push({
+      id: "conflict",
+      heading: "git.conflictFiles",
+      count: (status.files ?? []).filter((f) => f.kind === "unmerged").length,
+      empty: "git.conflicted",
+    });
+  }
+  sections.push({
+    id: "changes",
+    heading: "git.changes",
+    count: changed(status).length,
+    empty: "git.nothingChanged",
+  });
+  // Only when git has not been told. Asked *before* the commit that would
+  // otherwise fail with git's own nine-line lecture about `user.email`.
+  if (!status.who) {
+    sections.push({ id: "identity", heading: "git.who", count: 0, empty: "git.whoNeeded" });
+  }
+  sections.push({ id: "commit", heading: null, count: 0, empty: null });
+  sections.push({
+    id: "history",
+    heading: "git.history",
+    count: commits.length,
+    empty: "git.noCommits",
+  });
+  sections.push({
+    id: "branches",
+    heading: "git.branches",
+    count: branches.length,
+    empty: "git.noBranches",
+  });
+  sections.push({
+    id: "remotes",
+    heading: "git.remotes",
+    count: remotes.length,
+    empty: "git.noRemotes",
+  });
+  return { kind: "repo", sections };
+}
+
+/**
+ * Which remote and branch the three network buttons address.
+ *
+ * The first remote rather than the string `"origin"`. A repository cloned from
+ * a host that names its remote something else — which `git clone --origin` and
+ * every fork workflow produce — would otherwise have three buttons that fail
+ * with git's own message about a remote that does not exist, in a drawer whose
+ * remotes list is showing the right name two inches above them.
+ */
+export function remoteArgs(
+  status: GitStatus | null,
+  remotes: readonly { name: string }[],
+): { remote?: string; branch?: string } {
+  const remote = remotes[0]?.name;
+  const branch = status?.branch ?? undefined;
+  return { ...(remote ? { remote } : {}), ...(branch ? { branch } : {}) };
+}
+
 /**
  * Every operation this client can name, checked against the engine's list.
  *

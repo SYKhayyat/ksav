@@ -170,6 +170,36 @@ export async function run() {
     check("no test file bundles its own copy of a module", privateBuilds, []);
   }
 
+  // ------------------------------------- 3b. and no test reaches into src/
+
+  {
+    // The other way around the runner, and it is worse than a private build
+    // because it can pass on the machine it was written on.
+    //
+    // `emacs.test.mjs` shipped with `import { SERVICES } from
+    // "../src/services.gen.ts"`. Node 26 strips TypeScript types by itself, so
+    // it ran here; CI pins Node 20, which does not, and the whole editor job
+    // died with `ERR_UNKNOWN_FILE_EXTENSION` before a single assertion — a red
+    // build for a green suite. Every other test imports from `.tmp-test/`,
+    // which is what the runner builds.
+    //
+    // Two reasons this is a rule rather than that one fix. A `.ts` import
+    // depends on the developer's Node version, which is the least reproducible
+    // thing about a checkout; and a module reached directly is a module the
+    // runner did not build, so it arrives without the bundling that makes the
+    // shared singletons in `src/` behave as one copy — which is the fault
+    // `modules.mjs` exists to prevent, arrived at from the other side.
+    const reachIns = [];
+    for (const [f, b] of bodies) {
+      b.split("\n").forEach((line, i) => {
+        const s = line.trim();
+        if (s.startsWith("//") || s.startsWith("*")) return;
+        if (/from\s+["']\.\.\/src\//.test(line)) reachIns.push(`${f}:${i + 1}`);
+      });
+    }
+    check("no test imports out of src/ directly", reachIns, []);
+  }
+
   {
     // The runner reaches `src/` through `modules.mjs` and nowhere else, so
     // there is one statement of what the application consists of.

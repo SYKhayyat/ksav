@@ -10,7 +10,7 @@
 // spelled `sefarim` in a way the worker had never heard of and nothing but a
 // writer noticing could have found it.
 
-import { SERVICE, SERVICE_PATH, type ServiceName } from "./services.gen";
+import { SERVICE, SERVICE_PATH, type GitOp, type ServiceName } from "./services.gen";
 
 export interface DocConfig {
   font: string;
@@ -631,6 +631,107 @@ export interface ClipboardSource {
  *  the shape of what the engine puts on the wire, and that is the shape the
  *  build reads at compile time. Both, deliberately: the generator cannot tell
  *  you the original is wrong. */
+// ---------------------------------------------------------------- version control
+//
+// The wire shapes of the one `git` service. They live here with `Mekoros` and
+// `RefreshResult` because this file is where what-the-engine-puts-on-the-wire
+// is written down; what to *do* about them — whether this build can ask at all,
+// what a status amounts to — is `git.ts`.
+
+/** One path git has something to say about. */
+export interface GitFile {
+  path: string;
+  /** The index against HEAD: `M`, `A`, `D`, `R`, `?`, or `.` for unchanged. */
+  staged: string;
+  /** The working tree against the index, same alphabet. */
+  worktree: string;
+  kind: "ordinary" | "renamed" | "unmerged" | "untracked";
+  /** Where a rename came from. */
+  from?: string;
+}
+
+/** The document itself, which is what the drawer is actually about. */
+export interface GitThis {
+  path: string;
+  /** Has this document ever been committed. Absent from `files` means either
+   *  *unchanged and tracked* or *not in the repository at all*, and those are
+   *  the opposite answer for a reader — so the engine asks separately. */
+  tracked: boolean;
+  staged: string;
+  worktree: string;
+  kind: GitFile["kind"];
+}
+
+export interface GitStatus {
+  ok: boolean;
+  /** The installed git's version. `null` is answered when there is none, and
+   *  is the first thing the drawer says rather than the last thing it fails on. */
+  git: string | null;
+  /** The repository root, or `null` when the document is not inside one. */
+  root: string | null;
+  branch?: string | null;
+  head?: string | null;
+  upstream?: string | null;
+  ahead?: number;
+  behind?: number;
+  detached?: boolean;
+  /** Mid-merge: there is a `MERGE_HEAD`, and the writer has work to do. */
+  merging?: boolean;
+  files?: GitFile[];
+  this?: GitThis | null;
+  /** Who git will record as the author, or `null` when it has not been told —
+   *  which is worth asking, because the alternative is a first commit failing
+   *  with git's own nine-line lecture about `user.email`. */
+  who?: { name: string; email: string } | null;
+  error?: string;
+}
+
+export interface GitCommit {
+  hash: string;
+  short: string;
+  author: string;
+  email: string;
+  /** Unix seconds. */
+  when: number;
+  /** `HEAD -> main, origin/main`, as git formats it. */
+  refs: string;
+  subject: string;
+}
+
+export interface GitBranch {
+  name: string;
+  upstream: string | null;
+  current: boolean;
+  short: string;
+  subject: string;
+}
+
+export interface GitRemote {
+  name: string;
+  url: string;
+}
+
+/**
+ * Any answer from the `git` service.
+ *
+ * One shape for eighteen operations, because every one of them can also be a
+ * refusal and the refusal shape is shared. `merged: false` with a `conflicts`
+ * list is **not** a failure — see `engine/src/git.rs`.
+ */
+export interface GitAnswer extends GitStatus {
+  commits?: GitCommit[];
+  branches?: GitBranch[];
+  remotes?: GitRemote[];
+  /** The document at some commit, for `show`. */
+  text?: string;
+  /** git's own words. Never rephrased: "Permission denied (publickey)" is the
+   *  one string a reader can search for. */
+  said?: string;
+  hash?: string | null;
+  merged?: boolean;
+  conflicts?: string[];
+}
+
 export interface ServiceRow {
   name: string;
   method: string;
@@ -681,6 +782,18 @@ export interface Backend {
    *  can never be two different opinions. */
   sefarim(): Promise<SeferDef[]>;
   templates(): Promise<TemplateDef[]>;
+  /**
+   * Version control for the document at `path`.
+   *
+   * On `Backend` rather than beside `Sources`, and the difference is where the
+   * capability actually lives. A build has a Girsa half or it does not, and
+   * `sourcesOf` answers that once. Git is not a property of the build: the
+   * question is whether *this document* has a place on disk, which a browser
+   * tab never does and a desktop document only does once it has been saved.
+   * `git.ts`'s `standing()` is that decision, it is made per document, and it
+   * has three different answers to give a reader.
+   */
+  git(op: GitOp, path: string, extra?: Record<string, unknown>): Promise<GitAnswer>;
 }
 
 /**
@@ -933,6 +1046,19 @@ abstract class ServiceClient {
 
   async templates(): Promise<TemplateDef[]> {
     return this.ask("templates");
+  }
+
+  /**
+   * One service, eighteen operations, one method.
+   *
+   * No `throw` on a refusal, unlike `linkify` and `refresh`: half of what git
+   * says is a refusal a writer is *meant to read* — nothing to commit, the
+   * branch already exists, the host wants a password — and turning those into
+   * exceptions would mean catching them all again to get the sentence back
+   * out. The answer carries `ok` and the drawer shows what it says.
+   */
+  async git(op: GitOp, path: string, extra: Record<string, unknown> = {}): Promise<GitAnswer> {
+    return this.ask("git", { op, path, ...extra });
   }
 
   async inbox(): Promise<Arrival[]> {

@@ -1230,6 +1230,59 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .rv-yes:hover { background: #dcfce7; color: #14532d; }
 .rv-no:hover { background: #fee2e2; color: #7f1d1d; }
 
+/* ---- version control ---------------------------------------------------
+   The drawer over `engine/src/git.rs`. It borrows the review panel's row
+   furniture — `.rv-tools`, `.rv-actions`, `.rv-yes`/`.rv-no` — deliberately:
+   both are lists of things that happened to the document with a decision
+   attached to each, and a second visual language for the same idea would be a
+   second thing to learn.
+
+   `.git-why` is the one class that matters. Every state this drawer cannot act
+   in — no file, no path, no git, no repository, a stopped merge — renders one
+   of these with a sentence in it, and the sentence names the way out. */
+.git-why {
+  margin: 8px 0; padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  color: var(--fg); background: var(--accent-soft);
+  border: 1px solid var(--line); border-radius: 8px;
+  border-inline-start: 3px solid var(--accent);
+}
+.git-where {
+  display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+  margin-bottom: 10px; font-size: 12px;
+}
+.git-branch { font-weight: 600; }
+.git-upstream, .git-meta, .git-from, .git-staged { color: var(--muted); font-size: 11px; }
+.git-count { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); }
+.git-files, .git-log, .git-branches, .git-remotes { list-style: none; margin: 0 0 12px; padding: 0; }
+.git-file, .git-branch-row, .git-remote-row {
+  display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline;
+  padding: 4px 6px; border-bottom: 1px solid var(--line); font-size: 12px;
+}
+.git-branch-row.current { font-weight: 600; background: var(--accent-soft); }
+.git-state {
+  font-size: 10px; color: var(--muted); min-width: 5em;
+  letter-spacing: .03em;
+}
+.git-unmerged { color: #b91c1c; }
+.git-path { overflow-wrap: anywhere; }
+.git-commit-row {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px; margin-bottom: 6px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.git-commit-row .rv-actions { flex-direction: row; margin-top: 4px; }
+.git-commit-row .rv-actions button { border-inline-start: 0; border: 1px solid var(--line); border-radius: 6px; margin-inline-end: 4px; }
+.git-subject { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.git-commit, .git-new-branch { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.git-commit input[type="text"], .git-new-branch input[type="text"] { width: 100%; }
+.git-add-remote { margin-bottom: 10px; font-size: 12px; }
+/* git's own words, never rephrased — including the newlines it put in them. */
+.git-said {
+  margin-top: 12px; padding: 8px 10px; font-size: 11px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+}
+.git-said pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
+
 /* Review marks in prose mode look like what they mean on the page. */
 .pm-ins { color: #15803d; text-decoration: underline; }
 .pm-del { color: #b91c1c; text-decoration: line-through; }

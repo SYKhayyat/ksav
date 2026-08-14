@@ -67,6 +67,7 @@ something in.
 | [2026-08-11 · Marking up the UI inventory](2026-08-11-marking-up-the-ui-inventory.md) | 156 offers handed over for markup: the seven complaints that were one missing concept, and the documents/panes/tabs model that answers them |
 | [2026-08-12 · No preference ever survived a reload](2026-08-12-no-preference-ever-survived-a-reload.md) | A temporal-dead-zone ReferenceError in `loadSettings`, swallowed by a catch written for corrupt JSON, discarded every stored preference on every boot — which is why emacs mode did nothing |
 | [2026-08-12 · Nothing ever asked what language the interface was](2026-08-12-nothing-ever-asked-what-language-the-interface-was.md) | *"Everything is coming in in Hebrew. I don't know why."* Four faults under one symptom, including a `setLang` that no boot ever called and a prose rule that was a ratchet |
+| [2026-08-14 · The Girsa wave and the tail of the inventory](2026-08-14-the-girsa-wave-and-the-inventory-tail.md) | Fifteen chunks: Org both ways, the keyboard modes made real, the command vocabulary, side notes, and eleven findings relayed from Girsa — including the four that changed what the suite can see |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

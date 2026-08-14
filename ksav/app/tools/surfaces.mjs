@@ -118,6 +118,7 @@ export const RECIPES = new Map([
   ["help-panel", { how: HOW.chip, chip: "help" }],
   ["styles-panel", { how: HOW.chip, chip: "styles" }],
   ["review-panel", { how: HOW.chip, chip: "review" }],
+  ["git-panel", { how: HOW.chip, chip: "git" }],
   ["notes-chooser", { how: HOW.chip, chip: "notesChooser" }],
   ["arrangement", { how: HOW.chip, chip: "arrangement" }],
   ["history-modal", { how: HOW.chip, chip: "history" }],

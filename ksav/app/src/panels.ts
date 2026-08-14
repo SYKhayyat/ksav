@@ -203,6 +203,15 @@ export const PANELS: readonly Panel[] = [
   { id: "help-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "styles-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "review-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
+  // Version control. A drawer and not a modal, for the review panel's reason:
+  // deciding what to commit means reading the document while you decide, and a
+  // window over it would be a window over the thing being described.
+  //
+  // Not persisted. It is a reference surface like the help page rather than a
+  // view of the document like the outline — and, unlike those three, what it
+  // shows costs a subprocess to find out, so leaving it open across launches
+  // would mean starting a `git status` before the writer has asked for one.
+  { id: "git-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
 
   // ---- modals ----
   {

@@ -56,6 +56,7 @@ export type ChipId =
   | "notesPane"
   | "marksPane"
   | "review"
+  | "git"
   | "commands"
   | "language"
   | "foldAll"
@@ -107,8 +108,58 @@ export interface HeaderState {
   marksPane: boolean;
   /** Recording a macro. A mode with no indicator is a mode people leave on. */
   recording: boolean;
+  /**
+   * What version control says about this document, or absent when nothing has
+   * asked yet.
+   *
+   * Optional because "not asked" is a real and common state — the drawer has
+   * never been opened, or the document has no file — and it is a different
+   * thing from "clean". A chip that reads clean before anybody has run a
+   * `git status` is the interface lying about the state it exists to display,
+   * which is the fault this module was written to make impossible.
+   */
+  vcs?: { health: VcsHealth; branch: string; changes: number };
 }
 
+/**
+ * The one word a repository is in, as far as the chipbar is concerned.
+ *
+ * Structurally the same union as `git.ts`'s `Health` and deliberately not
+ * imported from it: this module is pure and imports `i18n` and `Settings`
+ * only, and `git.ts` reaches the wire types. The compiler holds the two
+ * together at the one call site that produces the value.
+ */
+export type VcsHealth = "no-git" | "no-repo" | "conflicted" | "changed" | "ahead" | "behind" | "clean";
+
+/** The glyph for each state. A branch when there is nothing to report, and
+ *  something specific when there is. */
+const VCS_GLYPH: Record<VcsHealth, string> = {
+  "no-git": "⑂",
+  "no-repo": "⑂",
+  conflicted: "⚠",
+  changed: "●",
+  ahead: "↑",
+  behind: "↓",
+  clean: "⑂",
+};
+
+
+/**
+ * The chip's tooltip: the drawer's name, and then what it would tell you.
+ *
+ * Composed here rather than returned as a key, for the reason at the top of
+ * this file — a composition left to the caller is a decision left in the
+ * god-file. The branch name is included because on a sefer with two lines of
+ * work in parallel it is the single most useful thing to be able to read
+ * without opening anything.
+ */
+function vcsTitle(vcs: HeaderState["vcs"]): string {
+  const name = t("git.title");
+  if (!vcs) return name;
+  const what = t("git.h." + vcs.health);
+  const count = vcs.health === "changed" && vcs.changes > 0 ? ` (${vcs.changes})` : "";
+  return vcs.branch ? `${name} · ${vcs.branch} — ${what}${count}` : `${name} — ${what}${count}`;
+}
 
 /**
  * The chipbar, in order.
@@ -133,6 +184,16 @@ export function chips(s: HeaderState): Chip[] {
     // a dagger and a list: the chipbar says which list, not that there is one.
     { id: "marksPane", glyph: "◆☰", title: t("sc.marksPane"), active: s.marksPane },
     { id: "review", glyph: "✎", title: t("reviewTitle") },
+    // Version control. Never disabled, however unavailable it is: each of the
+    // three ways it can be unavailable has a different answer for the reader —
+    // save the document, use the installed application, install git — and a
+    // greyed chip with no way in delivers none of them. The drawer says which.
+    {
+      id: "git",
+      glyph: VCS_GLYPH[s.vcs?.health ?? "clean"],
+      title: vcsTitle(s.vcs),
+      active: s.vcs?.health === "conflicted",
+    },
     // Every command there is, grouped and searchable. The glyph is `#`, which is
     // the character a writer types to start one — the four surfaces that already
     // advertised the registry were a menu, a modal, a completion popup and a

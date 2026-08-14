@@ -50,6 +50,8 @@ import { createBackend, sourcesOf } from "./api";
  *  one lock and an empty vector when there is nothing waiting. */
 const GIRSA_POLL_MS = 1000;
 import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
+import type * as api from "./api";
+import * as git from "./git";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
@@ -352,6 +354,12 @@ async function openDoc(id: string) {
   refreshTabStrip();
   rememberPanes();
   await refreshBaseline();
+  // A different document is a different folder and possibly a different
+  // repository. Anything version control learned about the last one is now a
+  // claim about the wrong file, and a chip reporting three uncommitted changes
+  // that belong to a sefer you closed is precisely the class of lie this
+  // application is being audited for.
+  forgetGit();
   updateTitleBar();
   rerenderChrome();
   runtime.view.focus();
@@ -4132,6 +4140,7 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
   notesPane: toggleNotesPane,
   marksPane: toggleMarksPane,
   review: openReview,
+  git: openGit,
   commands: openCommands,
   language: () => setSetting("lang", getLang() === "he" ? "en" : "he"),
   foldAll: () => void foldAll(runtime.view),
@@ -4160,6 +4169,9 @@ function headerState(): header.HeaderState {
     notesPane: !!settings.notesPane,
     marksPane: !!settings.marksPane,
     recording: !!recording,
+    // Absent until something has actually asked git. See `gitForHeader`: "not
+    // asked" and "clean" are different states, and only one of them is a claim.
+    vcs: gitForHeader(),
   };
 }
 
@@ -5421,6 +5433,478 @@ async function renderHistory() {
   host.prepend(scope);
 }
 
+// ---------------------------------------------------------------- version control
+//
+// The drawer over `engine/src/git.rs`. Three rules run through all of it:
+//
+//   * **Every unavailable state says which one it is.** `git.standing` returns
+//     one of three reasons and each has its own sentence — save the document,
+//     use the installed application, install git. A drawer that greys out with
+//     no explanation is the fault this repository is named after.
+//   * **git's own words are shown, never rephrased.** "Permission denied
+//     (publickey)" is the one string a reader can search for.
+//   * **The comparison is the change gutter.** "Compare with now" sets the same
+//     baseline the snapshot history sets, so a git commit and a snapshot are
+//     read the same way, by one diff, in the margin the writer already knows.
+//     A second diff view over `git diff`'s unified text would be a second
+//     opinion about what changed in one document, in one application.
+
+/** What the drawer last learned, so a redraw does not restart a subprocess. */
+let gitState: api.GitStatus | null = null;
+/** The last thing git said, shown until the next operation replaces it. */
+let gitSaid = "";
+/** An operation is in flight; the buttons are disabled and say so. */
+let gitBusy = false;
+/** `true` while the history list is showing the whole repository. */
+let gitWholeRepo = false;
+let gitCommits: api.GitCommit[] = [];
+let gitBranches: api.GitBranch[] = [];
+let gitRemotes: api.GitRemote[] = [];
+
+/** Where version control stands for the document that is open now. */
+function gitStanding(): git.Standing {
+  return git.standing(runtime.currentBinding, runtime.backend?.kind ?? "");
+}
+
+/**
+ * Ask git one thing.
+ *
+ * Returns `null` when this document cannot be asked about at all, which the
+ * callers treat as "the drawer already says why" rather than as a failure —
+ * every one of them is reached from a button that only exists once `standing`
+ * is `ready`.
+ */
+async function askGit(op: git.GitOp, extra: Record<string, unknown> = {}): Promise<api.GitAnswer | null> {
+  const where = gitStanding();
+  if (where.kind !== "ready" || !runtime.backend) return null;
+  gitBusy = true;
+  renderGitPanel();
+  try {
+    return await runtime.backend.git(op, where.path, extra);
+  } catch (e) {
+    // A transport that threw is not git refusing: the engine went away, or the
+    // desktop command failed. Shown as it arrived, for the same reason git's
+    // own sentences are.
+    return { ok: false, git: null, root: null, error: String((e as Error)?.message ?? e) };
+  } finally {
+    gitBusy = false;
+  }
+}
+
+/**
+ * Re-read the whole state and redraw.
+ *
+ * One `status` and, when there is a repository, the three lists beside it.
+ * Asked together rather than lazily per section: they are four short
+ * subprocesses on a local directory, and a drawer that fills in section by
+ * section as each returns is a drawer that is wrong three times on the way to
+ * being right.
+ */
+async function refreshGit(): Promise<void> {
+  const where = gitStanding();
+  if (where.kind !== "ready") {
+    gitState = null;
+    renderGitPanel();
+    rerenderChrome();
+    return;
+  }
+  const status = (await askGit("status")) as api.GitStatus | null;
+  gitState = status;
+  if (status?.root) {
+    const [log, branches, remotes] = await Promise.all([
+      askGit("log", { scope: gitWholeRepo ? "repo" : "file", limit: 50 }),
+      askGit("branches"),
+      askGit("remotes"),
+    ]);
+    gitCommits = log?.commits ?? [];
+    gitBranches = branches?.branches ?? [];
+    gitRemotes = remotes?.remotes ?? [];
+  } else {
+    gitCommits = [];
+    gitBranches = [];
+    gitRemotes = [];
+  }
+  renderGitPanel();
+  // The chip reports what the drawer found. Without this the state is only
+  // visible while the drawer is open, which is the opposite of what a chip is
+  // for.
+  rerenderChrome();
+}
+
+/** Run an operation, show what git said, and re-read everything. */
+async function runGit(op: git.GitOp, extra: Record<string, unknown> = {}): Promise<api.GitAnswer | null> {
+  const answer = await askGit(op, extra);
+  const said = git.outcome(answer);
+  gitSaid = said.said;
+  await refreshGit();
+  return answer;
+}
+
+function openGit() {
+  closeMenus();
+  openPanel("git-panel");
+}
+
+function isGitOpen(): boolean {
+  return isPanelOpen("git-panel");
+}
+
+/**
+ * Throw away what git said about the *previous* document.
+ *
+ * Called when the open document changes and when it is saved to a new file.
+ * The state here is about one path on disk, and keeping it across a switch
+ * would leave the chip reporting a branch and a change count belonging to a
+ * sefer that is no longer on screen. Re-asked immediately when the drawer is
+ * open, because a drawer that empties and waits for a click is its own small
+ * lie.
+ */
+function forgetGit(): void {
+  gitState = null;
+  gitSaid = "";
+  gitCommits = [];
+  gitBranches = [];
+  gitRemotes = [];
+  if (isGitOpen()) void refreshGit();
+}
+
+/** The file on disk changed under version control's feet: re-read, if open. */
+function gitMayHaveChanged(): void {
+  if (isGitOpen()) void refreshGit();
+}
+
+/**
+ * What the chipbar is told.
+ *
+ * `undefined` until something has actually asked git, because "not asked" and
+ * "clean" are different states and a chip that reads clean before a `git
+ * status` has run is the interface lying about what it displays.
+ */
+function gitForHeader(): header.HeaderState["vcs"] {
+  if (!gitState) return undefined;
+  const h = git.health(gitState);
+  return {
+    health: h,
+    branch: gitState.root ? git.position(gitState).branch : "",
+    changes: git.changed(gitState).length,
+  };
+}
+
+/** A button that runs an operation, disabled while one is already running. */
+function gitButton(label: string, run: () => void, cls = "sc-key"): HTMLElement {
+  return el(
+    "button",
+    { class: cls + (gitBusy ? " disabled" : ""), disabled: gitBusy || undefined, onClick: run },
+    [label],
+  );
+}
+
+/**
+ * The drawer.
+ *
+ * Rebuilt whole on every change rather than patched, like every other panel
+ * here: the alternative is a set of update paths that each have to remember
+ * which of six sections a `git merge` can change, and the answer is all of
+ * them.
+ */
+function renderGitPanel(): void {
+  const box = document.getElementById("git-body");
+  if (!box) return;
+  const where = gitStanding();
+  const parts: Node[] = [panelHead("git-panel", "git.title"), el("p", { class: "styles-lede" }, [t("git.lede")])];
+
+  // ---- the three ways this is not available, each with its own answer ----
+  if (where.kind !== "ready") {
+    parts.push(el("p", { class: "git-why", "data-git": "unavailable" }, [t(git.WHY[where.kind])]));
+    box.replaceChildren(...parts);
+    return;
+  }
+
+  if (!gitState) {
+    parts.push(el("p", { class: "git-why" }, [t("git.working")]));
+    box.replaceChildren(...parts);
+    return;
+  }
+
+  // ---- git itself is missing ----
+  if (!gitState.git) {
+    parts.push(
+      el("p", { class: "git-why", "data-git": "no-git" }, [t("git.noGit")]),
+      el("p", { class: "set-hint" }, [t("git.installGit")]),
+    );
+    box.replaceChildren(...parts);
+    return;
+  }
+
+  // ---- a folder that is not a repository: the one state with an offer ----
+  if (!gitState.root) {
+    parts.push(
+      el("p", { class: "git-why", "data-git": "no-repo" }, [t("git.noRepo")]),
+      gitButton(t("git.init"), () => void runGit("init"), "sc-key git-init"),
+    );
+    if (gitSaid) parts.push(gitSays());
+    box.replaceChildren(...parts);
+    return;
+  }
+
+  const where0 = git.position(gitState);
+  parts.push(
+    el("div", { class: "git-where", "data-git": "where" }, [
+      el("span", { class: "git-branch" }, [
+        (gitState.detached ? t("git.detached") + " " : "") + (where0.branch || "—"),
+      ]),
+      el("span", { class: "git-upstream" }, [
+        where0.upstream ? `${t("git.upstream")} ${where0.upstream}` : t("git.upstreamNone"),
+      ]),
+      ...(where0.ahead ? [el("span", { class: "git-count git-ahead" }, [tf("git.ahead", where0.ahead)])] : []),
+      ...(where0.behind ? [el("span", { class: "git-count git-behind" }, [tf("git.behind", where0.behind)])] : []),
+    ]),
+  );
+
+  // ---- a stopped merge, before anything else ----
+  if (git.health(gitState) === "conflicted") {
+    const stuck = (gitState.files ?? []).filter((f) => f.kind === "unmerged");
+    parts.push(
+      el("h3", {}, [t("git.conflictFiles")]),
+      el("p", { class: "git-why", "data-git": "conflicted" }, [t("git.conflicted")]),
+      el(
+        "ul",
+        { class: "git-files" },
+        stuck.map((f) => el("li", { class: "git-file git-unmerged" }, [f.path])),
+      ),
+      el("div", { class: "rv-tools" }, [
+        gitButton(t("git.takeOurs"), () => void runGit("resolve", { side: "ours" })),
+        gitButton(t("git.takeTheirs"), () => void runGit("resolve", { side: "theirs" })),
+        gitButton(t("git.abortMerge"), () => void runGit("merge-abort")),
+      ]),
+    );
+  }
+
+  // ---- what would be committed ----
+  const changed = git.changed(gitState);
+  parts.push(el("h3", {}, [t("git.changes")]));
+  if (!changed.length) {
+    // An empty list has to say what empty means. Every list surface in this
+    // application does, and this one has two empty states that look alike and
+    // are not: nothing changed, and nothing is here yet.
+    parts.push(el("p", { class: "outline-empty", "data-empty": "git-changes" }, [t("git.nothingChanged")]));
+  } else {
+    parts.push(
+      el(
+        "ul",
+        { class: "git-files" },
+        changed.map((f) =>
+          el("li", { class: "git-file" }, [
+            el("span", { class: "git-state" }, [t(git.stateKey(f))]),
+            el("span", { class: "git-path" }, [f.path]),
+            ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
+            ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.staged")])] : []),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ---- who is writing: asked before the commit that would fail ----
+  if (!gitState.who) {
+    const name = textField("");
+    const email = textField("");
+    parts.push(
+      el("p", { class: "git-why", "data-git": "no-identity" }, [t("git.whoNeeded")]),
+      fieldRow(t("git.whoName"), name),
+      fieldRow(t("git.whoEmail"), email),
+      gitButton(t("git.whoSet"), () => void runGit("who", { name: name.value, email: email.value })),
+      el("p", { class: "set-hint" }, [t("git.whoLocal")]),
+    );
+  }
+
+  // ---- the commit box ----
+  const message = textField("", t("git.message"));
+  const all = checkField(false);
+  parts.push(
+    el("div", { class: "git-commit" }, [
+      message,
+      fieldRow(t("git.commitAll"), all),
+      gitButton(t("git.commit"), () => {
+        const said = message.value.trim();
+        if (!said) return;
+        void runGit("commit", { message: said, all: all.checked });
+      }, "sc-key git-do-commit"),
+    ]),
+  );
+
+  // ---- history ----
+  const scope = checkField(gitWholeRepo);
+  scope.addEventListener("change", () => {
+    gitWholeRepo = scope.checked;
+    void refreshGit();
+  });
+  parts.push(el("h3", {}, [t("git.history")]), fieldRow(t("git.historyAll"), scope));
+  if (!gitCommits.length) {
+    parts.push(el("p", { class: "outline-empty", "data-empty": "git-history" }, [t("git.noCommits")]));
+  } else {
+    parts.push(
+      el(
+        "ul",
+        { class: "git-log" },
+        gitCommits.map((c) =>
+          el("li", { class: "git-commit-row" }, [
+            el("div", { class: "git-subject" }, [c.subject || c.short]),
+            el("div", { class: "git-meta" }, [`${c.author} · ${git.when(c.when, getLang())} · ${c.short}`]),
+            el("div", { class: "rv-actions" }, [
+              gitButton(t("git.compare"), () => void compareWithCommit(c), "rv-yes"),
+              gitButton(t("git.restore"), () => void restoreCommit(c), "rv-yes"),
+              gitButton(t("git.revert"), () => void revertCommit(c), "rv-no"),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ---- branches ----
+  parts.push(el("h3", {}, [t("git.branches")]));
+  if (!gitBranches.length) {
+    parts.push(el("p", { class: "outline-empty", "data-empty": "git-branches" }, [t("git.noBranches")]));
+  } else {
+    parts.push(
+      el(
+        "ul",
+        { class: "git-branches" },
+        gitBranches.map((b) =>
+          el("li", { class: "git-branch-row" + (b.current ? " current" : "") }, [
+            el("span", { class: "git-path" }, [b.name]),
+            el("small", { class: "git-meta" }, [b.upstream ?? ""]),
+            ...(b.current
+              ? []
+              : [
+                  el("div", { class: "rv-actions" }, [
+                    gitButton(t("git.switch"), () => void runGit("switch", { name: b.name }), "rv-yes"),
+                    gitButton(t("git.merge"), () => void runGit("merge", { name: b.name }), "rv-yes"),
+                  ]),
+                ]),
+          ]),
+        ),
+      ),
+    );
+  }
+  const branchName = textField("", t("git.branchName"));
+  parts.push(
+    el("div", { class: "git-new-branch" }, [
+      branchName,
+      gitButton(t("git.create"), () => {
+        const name = branchName.value.trim();
+        if (!name) return;
+        void runGit("switch", { name, create: true });
+      }),
+    ]),
+  );
+
+  // ---- remotes ----
+  parts.push(el("h3", {}, [t("git.remotes")]));
+  if (!gitRemotes.length) {
+    parts.push(el("p", { class: "outline-empty", "data-empty": "git-remotes" }, [t("git.noRemotes")]));
+  } else {
+    parts.push(
+      el(
+        "ul",
+        { class: "git-remotes" },
+        gitRemotes.map((r) =>
+          el("li", { class: "git-remote-row" }, [
+            el("span", { class: "git-path" }, [r.name]),
+            el("small", { class: "git-meta" }, [r.url]),
+          ]),
+        ),
+      ),
+    );
+  }
+  const remoteName = textField("origin", t("git.remoteName"));
+  const remoteUrl = textField("", t("git.remoteUrl"));
+  const upstream = checkField(!where0.upstream);
+  parts.push(
+    el("details", { class: "git-add-remote" }, [
+      el("summary", {}, [t("git.addRemote")]),
+      fieldRow(t("git.remoteName"), remoteName),
+      fieldRow(t("git.remoteUrl"), remoteUrl),
+      gitButton(t("git.add"), () => {
+        const url = remoteUrl.value.trim();
+        if (!url) return;
+        void runGit("remote-add", { name: remoteName.value.trim() || "origin", url });
+      }),
+    ]),
+    el("div", { class: "rv-tools" }, [
+      gitButton(t("git.fetch"), () => void runGit("fetch", gitRemoteArgs())),
+      gitButton(t("git.pull"), () => void runGit("pull", gitRemoteArgs())),
+      gitButton(t("git.push"), () => void runGit("push", { ...gitRemoteArgs(), set_upstream: upstream.checked })),
+    ]),
+    fieldRow(t("git.setUpstream"), upstream),
+  );
+
+  if (gitSaid) parts.push(gitSays());
+  box.replaceChildren(...parts);
+}
+
+/**
+ * Which remote and branch the three network buttons address.
+ *
+ * The first remote rather than the string "origin": a repository cloned from a
+ * host that names it something else is a repository where three buttons would
+ * otherwise fail with git's own message about a remote that does not exist.
+ */
+function gitRemoteArgs(): Record<string, unknown> {
+  const remote = gitRemotes[0]?.name;
+  const branch = gitState?.branch ?? undefined;
+  return { ...(remote ? { remote } : {}), ...(branch ? { branch } : {}) };
+}
+
+/** git's own words, in a box that says they are git's. */
+function gitSays(): HTMLElement {
+  return el("div", { class: "git-said", "data-git": "said" }, [
+    el("strong", {}, [t("git.said")]),
+    el("pre", {}, [gitSaid]),
+  ]);
+}
+
+/**
+ * Compare the document with how it was at a commit.
+ *
+ * The change gutter's baseline, which is the same mechanism the snapshot
+ * history uses — one diff, one set of marks in the margin, one thing to learn.
+ * It holds until the next snapshot resets it, which is what `refreshBaseline`
+ * already does and is worth saying rather than leaving to be discovered.
+ */
+async function compareWithCommit(c: api.GitCommit): Promise<void> {
+  const answer = await askGit("show", { rev: c.hash });
+  if (!answer || answer.ok === false || typeof answer.text !== "string") {
+    gitSaid = git.outcome(answer).said;
+    renderGitPanel();
+    return;
+  }
+  runtime.view.dispatch({ effects: setBaseline.of(answer.text) });
+  setStatus(`${t("git.compare")} · ${c.short}`, "ok");
+}
+
+async function restoreCommit(c: api.GitCommit): Promise<void> {
+  const stamp = git.when(c.when, getLang());
+  if (!confirm(tf("git.confirmRestore", stamp))) return;
+  // A snapshot first, exactly as restoring a snapshot takes one: whatever is in
+  // the editor now must survive being replaced.
+  await takeSnapshot(true);
+  const answer = await askGit("show", { rev: c.hash });
+  if (!answer || answer.ok === false || typeof answer.text !== "string") {
+    gitSaid = git.outcome(answer).said;
+    renderGitPanel();
+    return;
+  }
+  loadBody(answer.text);
+  setStatus(tf("git.restored", stamp), "ok");
+  await refreshGit();
+}
+
+async function revertCommit(c: api.GitCommit): Promise<void> {
+  if (!confirm(tf("git.confirmRevert", c.subject || c.short))) return;
+  await runGit("revert", { rev: c.hash });
+}
 // ---------------------------------------------------------------- command palette
 function openPalette() {
   openPanel("palette");
@@ -5762,6 +6246,9 @@ async function saveFile() {
       save.clearConflict();
       await watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
       tellGirsaWhereItIs();
+      // The document on disk just moved out from under `git status`. Re-read
+      // it, if anybody is looking.
+      gitMayHaveChanged();
       setStatus(tf("savedTo", runtime.currentBinding.name), "ok");
       return;
     }
@@ -6106,6 +6593,9 @@ async function saveFileAs() {
   await watch.markInSync(runtime.currentDoc.id, binding);
   tellGirsaWhereItIs();
   updateTitleBar();
+  // A Save-As binds the document to a *different* place on disk, which may be a
+  // different repository or none at all.
+  forgetGit();
   setStatus(
     files.canWriteBack(binding) ? tf("savedTo", binding.name) : tf("savedCopy", binding.name),
     "ok",
@@ -9370,6 +9860,11 @@ function render() {
     el("aside", { id: "review-panel", class: "drawer drawer-styles", "aria-label": t("reviewTitle"), "data-i18n-label": "reviewTitle" }, [
       el("div", { id: "review-body" }),
     ]),
+    // version control (a drawer for the review panel's reason: deciding what to
+    // commit means reading the document while you decide)
+    el("aside", { id: "git-panel", class: "drawer drawer-styles", "aria-label": t("git.title"), "data-i18n-label": "git.title" }, [
+      el("div", { id: "git-body" }),
+    ]),
     // a shared form modal (section page setup, formulas)
     overlayPanel("form-modal", "palette-box form-modal-box", [el("div", { id: "form-modal-body" })]),
     buildCommandsDrawer(),
@@ -9765,6 +10260,9 @@ function wirePanels() {
   });
   wirePanel("styles-panel", { open: renderStylesPanel });
   wirePanel("review-panel", { open: renderReviewPanel });
+  // Opening it is what asks git. Nothing polls: `git status` is a subprocess,
+  // and a drawer nobody has opened must not be starting one every second.
+  wirePanel("git-panel", { open: () => void refreshGit() });
 
   wirePanel("palette", {
     open: () => {

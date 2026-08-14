@@ -83,6 +83,12 @@ const CALLS = [
   // `told: false` is the ordinary answer — Girsa is not open — and is not a
   // failure. A save must never fail because the sibling application is closed.
   ["saved-here", (b) => b.savedHere("/tmp/shiur.ksav", "shiur"), { told: false }],
+  // One service and eighteen operations, so the row drives the door rather than
+  // each operation — the operations are held to the engine's own list by
+  // `GitOp`, which is generated, and by `git.test.mjs`. What is being asserted
+  // here is what every other row asserts: that this method reaches `/git` by
+  // POST, on all three transports, and does not throw on the way.
+  ["git", (b) => b.git("status", "C:/seforim/ברכות.ksav"), { ok: true, git: "2.54", root: null }],
 ];
 
 export async function run() {

@@ -45,7 +45,25 @@ export async function run() {
 
   {
     const bar = chips(OFF);
-    ok("the chipbar has every chip", bar.length === 21, `${bar.length} chips`);
+    // No `bar.length === 21`.
+    //
+    // It was there, and it is the shape of check G6 rules out: a
+    // twenty-second chip is not a defect, and a test that goes red for a good
+    // change teaches people to edit the number without reading why it moved.
+    // What is a real promise is that each of these doors is still in the bar —
+    // every one of them is the only way to a whole surface — and that is what
+    // the list below claims. The properties every chip must have follow it, and
+    // they hold for a twenty-second as much as for these.
+    const promised = [
+      "undo", "redo", "styles", "find", "outline", "notesChooser", "notesPane",
+      "marksPane", "review", "git", "commands", "language", "foldAll", "unfoldAll",
+      "prose", "arrangement", "theme", "nikud", "history", "record", "help", "settings",
+    ];
+    check(
+      "every promised chip is in the bar",
+      promised.filter((id) => !bar.some((c) => c.id === id)),
+      [],
+    );
     check(
       "…each with an id, a glyph and a name",
       bar.filter((c) => !c.id || !c.glyph || !c.title).map((c) => c.id ?? "(none)"),

@@ -127,7 +127,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // Both live in the app, which is where their dependencies are: `load.mjs`
 // reaches for esbuild and this directory has no `node_modules` of its own.
 import { load } from "../../ksav/app/tools/load.mjs";
-import { CORE, HOW, measurable, planFor, reallyOpen } from "../../ksav/app/tools/surfaces.mjs";
+import {
+  CORE,
+  EMPTY_ROW,
+  HOW,
+  LISTS,
+  measurable,
+  planFor,
+  reallyOpen,
+} from "../../ksav/app/tools/surfaces.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../..");
@@ -1213,6 +1221,74 @@ async function main() {
     "the run looked at the screen at all",
     looked >= CORE.length + reachable,
     `${looked} nodes measured, ${CORE.length + reachable} is the floor`,
+  );
+
+  // ------------------------------------------- 9. the first hour, with nothing
+  //
+  // G5, relayed from Girsa: what a reader meets on a fresh install, before there
+  // is anything. Every list-shaped surface in this application has a designed
+  // empty state — `panelrows.ts` returns an `empty` key from all five builders
+  // and `drawList` renders it — and **nothing had ever looked at one**. The eight
+  // steps above fill the document with a heading, a list, a table, a footnote and
+  // an endnote before the panes are ever opened, so the sweep in step 8 measures
+  // them full. The state a reader actually starts in was the one state never
+  // driven.
+  //
+  // A brand-new document reproduces it exactly for these four: no headings, no
+  // notes, no marks, no snapshots. What it does not reproduce — an empty library,
+  // an empty dictionary — is what step 0 already boots into, because the run gets
+  // a fresh browser context every time and has no stored anything.
+  step(9, "a document with nothing in it still says something");
+  current = "empty";
+  await pressInEditor("Control+Alt+n");
+  await settled(await compiles()).catch(() => {});
+
+  let saidSomething = 0;
+  for (const id of LISTS) {
+    // The chip comes from the same recipe step 8 opens it with, so there is one
+    // statement of how each surface is reached rather than two that must agree.
+    const entry = plan.find((e) => e.panel.id === id);
+    if (!entry || entry.how !== HOW.chip) {
+      check(`${id} can be opened for the empty check`, false, `no chip recipe for ${id}`);
+      continue;
+    }
+    const chip = entry.chip;
+    const root = `#${id}`;
+    await clickVisible(`the ${chip} chip`, `[data-chip="${chip}"]`);
+    try {
+      await page.waitForSelector(`${root}.open ${EMPTY_ROW}`, { timeout: 10_000 });
+    } catch {
+      check(`${id} says what empty means`, false, `no ${EMPTY_ROW} in ${root} — a blank panel`);
+      await press("Escape");
+      continue;
+    }
+    saidSomething++;
+    const text = (await page.locator(`${root}.open ${EMPTY_ROW}`).first().textContent()) ?? "";
+    check(`${id} says what empty means`, text.trim().length > 0, JSON.stringify(text));
+    // And says it in words. `t()` falls back to returning the key it was given,
+    // so a dictionary that lost an entry puts `notesPaneEmpty` in front of the
+    // reader — which looks like a string somebody forgot to write, because it is.
+    check(
+      `…and not by printing its own i18n key`,
+      !/^[a-z][A-Za-z]+$/.test(text.trim()),
+      text.trim(),
+    );
+    // It has to be *on the screen*, not merely in the document: an empty state
+    // rendered inside a pane nobody can see is the same silence as no empty
+    // state at all.
+    await withoutMotion(() => visible(`${id}'s empty state`, `${root}.open ${EMPTY_ROW}`));
+    // Through the declared exits, not by pressing the chip again. Two of these
+    // four decline Escape on purpose — a persisted layout choice must not be
+    // thrown away by a keystroke — and `outline-drawer` sits over the chip that
+    // opened it, so a second press lands on the drawer. `putAway` already knows
+    // all of that; a second closing routine here is how one of them comes to be
+    // wrong.
+    await putAway(id, entry, root, false);
+  }
+  check(
+    "every list with nothing in it was asked",
+    saidSomething === LISTS.length,
+    `${saidSomething} of ${LISTS.length}`,
   );
 
   // ----------------------------------------------------------------- the tally

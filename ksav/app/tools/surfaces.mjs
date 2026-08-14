@@ -346,6 +346,29 @@ export const CORE = [
 ];
 
 /**
+ * The surfaces that are lists, and the row that says a list is empty.
+ *
+ * G5, relayed from Girsa: what a reader meets on a fresh install, before there
+ * is anything. All five of `panelrows.ts`'s builders return an `empty` key when
+ * they produce no rows, and `drawList` renders it — the mechanism is there and
+ * is good. What was never done is *look at one*: the assembled run fills the
+ * document with a heading, a list, a table and two notes before it opens a pane,
+ * so every measurement of these four has been of a full one. The state a reader
+ * starts in was the only state nothing drove.
+ *
+ * Named here rather than guessed at in the browser, because the alternative is a
+ * silent skip: a panel that shows no empty row would be indistinguishable from a
+ * panel that is not a list, which is exactly how a blank box survives. These
+ * four are lists; the claim is that each says something when it holds nothing.
+ * The palette is the fifth builder and is not here — it empties on a *query*
+ * that matches nothing, which is a different sentence and a different moment.
+ */
+export const LISTS = ["outline-drawer", "notes-drawer", "marks-drawer", "history-modal"];
+
+/** The row `drawList` renders in place of rows. One class, all four surfaces. */
+export const EMPTY_ROW = ".outline-empty";
+
+/**
  * The plan: one entry per declared surface, in registry order.
  *
  * Throws rather than returning a partial plan. A sweep that silently drops a

@@ -123,7 +123,7 @@ claims fails by omission and a regex over prose fails by leaking:
 card was always unable to disagree with the application and was simply never
 re-run. Relative links must resolve to tracked paths, and so must file paths
 named in prose, which is a separate sweep because the ones that rot mostly are
-not links: `LICENSE` argued its whole case on the behaviour of the Hebrew spell
+not links: `COPYRIGHT` argued its whole case on the behaviour of the Hebrew spell
 checker and named a path that stopped existing when that module became a
 directory — a sentence, not a link, and wrapped across a line break besides.
 

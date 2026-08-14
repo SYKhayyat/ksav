@@ -1,6 +1,6 @@
 # Third-party notices
 
-Ksav itself is dual-licensed MIT OR Apache-2.0 (see `LICENSE`). This file covers
+Ksav itself is dual-licensed MIT OR Apache-2.0 (see `COPYRIGHT`). This file covers
 everything else that ships inside a Ksav binary or installer.
 
 It exists because it has to. Six font files and two word lists are embedded in

@@ -185,6 +185,52 @@ export async function run() {
   // helper merely to exist.
   ok("clickVisible measures before it clicks", /async function clickVisible[\s\S]{0,400}await visible\(/.test(script));
 
+  // ----------------------------------------------------------- ruling out me
+  //
+  // G7: rule out your own setup before filing a finding. Both of these were paid
+  // for in this session rather than imagined.
+  //
+  // A key pressed as `Control+Shift+k` makes Playwright send `key: "k"` with
+  // `shiftKey: true`, which no browser does — a real one sends `"K"`. CodeMirror
+  // reads its binding name off `event.key`, so the run tested `Ctrl-k`, opened
+  // the command palette, and thirteen shortcuts were filed as broken. They were
+  // not. The driver was.
+  const rawPresses = [];
+  lines.forEach((line, i) => {
+    if (i <= zero) return;
+    if (line.trim().startsWith("//") || line.trim().startsWith("*")) return;
+    if (/page\.keyboard\.press\(/.test(line)) rawPresses.push(`${SCRIPT}:${i + 1} — ${line.trim()}`);
+  });
+  ok(
+    "every keypress in the steps goes through the guard" +
+      (rawPresses.length
+        ? `\n    ${rawPresses.join("\n    ")}\n    Use press(), which refuses a shape a browser` +
+          " would not send."
+        : ""),
+    rawPresses.length === 0,
+  );
+  ok(
+    "…and the guard refuses Shift with a lowercase letter",
+    /function press\([\s\S]{0,600}Shift\\\+\(\[a-z\]\)/.test(script),
+  );
+
+  // And the setup error that costs the most: `include_dir!` bakes `app/dist`
+  // into the server at compile time, so a binary older than `dist/` drives the
+  // previous build and every result is about code nobody is looking at.
+  ok("the run refuses a server older than the app inside it", script.includes("function assertFresh"));
+  // Inside that function, not merely somewhere after it.
+  //
+  // The first spelling was `/assertFresh[\s\S]{0,1800}process\.exit\(1\)/`, and
+  // it stayed green when the exit was deleted — because the *next* function's
+  // exit was within reach of the window. A guard with a fixed lookahead over
+  // source is a guard that matches whatever happens to be nearby, which is the
+  // same mistake `chrome.test.mjs` records about a 70%-of-the-file window.
+  const fresh = script.slice(script.indexOf("function assertFresh"));
+  ok(
+    "…and exits rather than warning",
+    fresh.slice(0, fresh.indexOf("\n}")).includes("process.exit(1)"),
+  );
+
   // ----------------------------------------------------------- and CI runs it
 
   // The forward half of `gate.test.mjs`'s shape. A sweep nothing invokes is the

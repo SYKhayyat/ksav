@@ -178,6 +178,45 @@ function ksavBinary() {
   process.exit(1);
 }
 
+/**
+ * Refuse to run against yesterday's application.
+ *
+ * G7, relayed from Girsa: rule out your own setup before filing a finding. This
+ * is the setup error that costs the most, and it has been paid for twice.
+ *
+ * `include_dir!` copies `app/dist` into the binary at *compile* time, so editing
+ * `src/`, running `npm run build` and then running this drives the app the binary
+ * was built with — not the one on disk. Every check passes or fails about code
+ * that is not the code in front of you. The Emacs-mode report went a long way on
+ * exactly this shape: the failing application was "a locally built release
+ * binary" and establishing that the mode was even inside it took a rebuild, a
+ * hash comparison and a search for chunk names in the executable.
+ *
+ * A warning would not do. A run that prints a note and then reports twelve
+ * failures about a build nobody is looking at is worse than no run, because the
+ * failures look like findings. So it exits, and says which two commands fix it.
+ */
+function assertFresh(bin) {
+  const dist = path.join(APP, "dist");
+  if (!fs.existsSync(dist)) return; // `--url` runs and dev servers have no dist
+  const built = fs.statSync(bin).mtimeMs;
+  const newest = fs
+    .readdirSync(dist, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => fs.statSync(path.join(e.parentPath ?? e.path, e.name)).mtimeMs)
+    .reduce((a, b) => Math.max(a, b), 0);
+  if (newest <= built) return;
+  console.error(
+    `the server binary is older than app/dist, so this would drive the previous build.\n` +
+      `  binary   ${new Date(built).toISOString()}  ${path.relative(ROOT, bin)}\n` +
+      `  app/dist ${new Date(newest).toISOString()}\n` +
+      `  the app is compiled *into* the server by include_dir!, so rebuild both:\n` +
+      `    cd ksav/app && npm run build\n` +
+      `    cd ksav/engine && cargo build --release --features embed-ui`,
+  );
+  process.exit(1);
+}
+
 // The fallback editor is not the product.
 //
 // `embed-ui` is an optional feature, and a binary built without it answers `/`
@@ -224,7 +263,11 @@ async function main() {
 
   if (!EXTERNAL) {
     const bin = ksavBinary();
-    console.log(`booting ${path.relative(ROOT, bin)} on ${url}`);
+    assertFresh(bin);
+    console.log(
+      `booting ${path.relative(ROOT, bin)} on ${url}` +
+        ` (built ${new Date(fs.statSync(bin).mtimeMs).toISOString()})`,
+    );
     server = spawn(bin, ["serve", `127.0.0.1:${PORT}`], { stdio: ["ignore", "pipe", "pipe"] });
     // Kept, not printed. The server is chatty about Girsa on a desk with no
     // Girsa running, and that noise is not this test's subject — but if a check
@@ -552,8 +595,8 @@ async function main() {
    */
   async function newLine() {
     await clickVisible("the editor", ".cm-content");
-    await page.keyboard.press("Control+End");
-    await page.keyboard.press("Enter");
+    await press("Control+End");
+    await press("Enter");
   }
 
   /** The page gestures a `drive` recipe in `surfaces.mjs` may use. */
@@ -569,7 +612,7 @@ async function main() {
     // opacity and where in the viewport it was — which is the difference between
     // a flake and a finding, and is the whole subject of this file.
     click: (sel) => clickVisible(sel, sel),
-    press: (key) => page.keyboard.press(key),
+    press: (key) => press(key),
     /** Put the keyboard back in the editor, where `bindings.ts` is listening. */
     focus: () => page.click(".cm-content"),
     /** Do something, and wait for the compile it causes to finish. */
@@ -580,8 +623,36 @@ async function main() {
     },
     waitFor: (sel, ms) => page.waitForSelector(sel, { timeout: ms }),
     rightClick: (sel) => page.click(sel, { button: "right", timeout: 15_000 }),
-    escape: () => page.keyboard.press("Escape"),
+    escape: () => press("Escape"),
   };
+
+  /**
+   * Press a key, in a shape a browser would actually produce.
+   *
+   * G7, and this one was paid for in this file. `keyboard.press("Control+Shift+k")`
+   * — a lowercase letter with Shift — makes Playwright send `key: "k"` with
+   * `shiftKey: true`. **No browser does that**; a real one sends `"K"`. CodeMirror
+   * builds its binding name from `event.key`, so it looked up `Ctrl-k`, found the
+   * command palette, and opened it. The conclusion drawn from that was that
+   * `Mod-Shift-k` was dead and running the wrong command, and it was filed as a
+   * defect against thirteen shortcuts. It was a defect in the driver: pressed as
+   * `Control+Shift+K`, the commands drawer opens exactly as it should.
+   *
+   * So the shape is refused rather than documented. A comment saying "remember to
+   * capitalise" is a comment somebody reads after losing the afternoon.
+   */
+  function press(key) {
+    const m = /(?:^|\+)Shift\+([a-z])$/.exec(key);
+    if (m) {
+      throw new Error(
+        `press("${key}"): a browser sends "${m[1].toUpperCase()}" for Shift and a letter, not ` +
+          `"${m[1]}", and CodeMirror reads the binding off event.key — so this would test ` +
+          `Ctrl-${m[1]} and quietly run whatever answers to that. Write ` +
+          `"${key.slice(0, -1)}${m[1].toUpperCase()}".`,
+      );
+    }
+    return page.keyboard.press(key);
+  }
 
   /** Is it showing, by the same test `isPanelOpen` uses? */
   const showing = (sel, mounted) =>
@@ -616,7 +687,15 @@ async function main() {
     const tried = [];
     // A way out that cannot even be clicked is a way out that does not exist, so
     // the reach is short and the failure is the same one either way.
-    const press = async (what, sel, opts) => {
+    //
+    // Named `tryExit` and not `press`, which is what it was called until `press`
+    // became the keyboard guard at the top of this file. The two then differed
+    // only in their arguments, this one shadowed that one inside this function,
+    // and `press("Escape")` became `page.click(undefined)` — every surface with
+    // no other way out failing to close, with a message about a selector. Caught
+    // by the run rather than by a fence, because both spellings are `press(` and
+    // no sweep over the text could have told them apart.
+    const tryExit = async (what, sel, opts) => {
       tried.push(what);
       await page.click(sel, { timeout: 5_000, ...opts }).catch((e) => {
         tried[tried.length - 1] = `${what} (${String(e.message).split("\n")[0]})`;
@@ -625,7 +704,7 @@ async function main() {
 
     if (p.escape) {
       tried.push("Escape");
-      await page.keyboard.press("Escape");
+      await press("Escape");
     }
     // A surface that follows the caret is put back by writing somewhere else,
     // and that is a reset rather than a dismissal — see the note below on why
@@ -636,15 +715,15 @@ async function main() {
       await type("סוף");
     }
     if (p.exits.some((x) => x.via === "head") && (await still())) {
-      await press("the ×", `${root} .styles-close`);
+      await tryExit("the ×", `${root} .styles-close`);
     }
     if (p.exits.some((x) => x.via === "scrim") && (await still())) {
       // At the very corner, which is scrim and never the box inside it —
       // `overlayPanel` dismisses on `target.id === id` exactly.
-      await press("the backdrop", root, { position: { x: 2, y: 2 } });
+      await tryExit("the backdrop", root, { position: { x: 2, y: 2 } });
     }
     if (entry.how === HOW.chip && (await still())) {
-      await press("the chip again", `[data-chip="${entry.chip}"]`, { force: true });
+      await tryExit("the chip again", `[data-chip="${entry.chip}"]`, { force: true });
     }
 
     // And the assertion, for the surfaces that can actually be dismissed.
@@ -690,7 +769,7 @@ async function main() {
    * than swallowed, so the failure that caused it says what it left behind.
    */
   async function recover() {
-    await page.keyboard.press("Escape");
+    await press("Escape");
     return await page.evaluate(() => {
       // Every `open` there is, which is blunter than anything else in this file
       // and is meant to be: `panels.ts` is the only code that spells this class,
@@ -819,7 +898,7 @@ async function main() {
   // Through the palette, which is where a structural operation lives: it is
   // offered only when the caret is actually inside a table, so finding it here
   // is itself the check that the caret landed in the table the ribbon inserted.
-  await page.keyboard.press("Control+k"); // `palette: "Mod-k"`, from bindings.ts
+  await press("Control+k"); // `palette: "Mod-k"`, from bindings.ts
   await page.fill("#palette-input", "table.rowBelow");
   await page.waitForSelector('#palette-list [data-action="table.rowBelow"]', { timeout: 5_000 });
   await act("adding a row below", () =>
@@ -969,9 +1048,9 @@ async function main() {
    * fence was written and by an author who had written it.
    */
   const pressInEditor = async (key) => {
-    await page.keyboard.press("Escape");
+    await press("Escape");
     await clickVisible("the editor", ".cm-content");
-    await page.keyboard.press(key);
+    await press(key);
   };
 
   const said = () => page.evaluate(() => document.getElementById("status")?.textContent ?? "");
@@ -1011,7 +1090,7 @@ async function main() {
 
   // The other direction, so neither check above can pass by the surface simply
   // being broken.
-  await page.keyboard.press("Escape");
+  await press("Escape");
   await clickVisible("the settings chip", '[data-chip="settings"]');
   await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
   await page.selectOption('[data-setting="editingMode"]', "default");
@@ -1029,7 +1108,7 @@ async function main() {
     (await said()) !== off,
     "the status line did not move with no mode on, so the check above proves nothing",
   );
-  await page.keyboard.press("Escape");
+  await press("Escape");
 
   // ------------------------------------------------- 8. every surface, on screen
 

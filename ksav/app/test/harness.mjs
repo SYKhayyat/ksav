@@ -225,14 +225,35 @@ export function installChrome(extra = {}) {
     getElementById: (id) => nodes[id] ?? null,
     // `closeMenus` sweeps the header dropdowns on the way out of most actions.
     querySelectorAll: () => [],
+    // Listeners are *recorded*, not discarded.
+    //
+    // They used to be dropped on the floor, which was fine while nothing built
+    // a control and then used it. `panelviews.test.mjs` does: it is the first
+    // test in this product that asserts what a panel contains, and half of what
+    // a panel contains is buttons — a *Push* that asks for the wrong remote is
+    // exactly the kind of fault that had no way of being caught, and it cannot
+    // be caught by looking at the tree alone.
+    //
+    // `click()` fires them, so a test presses a control the way a writer does
+    // rather than reaching for the handler it happens to know is there.
     createElement: (tag) => ({
       tagName: String(tag).toUpperCase(),
       className: "",
       children: [],
-      setAttribute(k, v) { this[k] = v; },
-      addEventListener() {},
+      listeners: {},
+      // A form control has a value and a checkedness whether or not anybody set
+      // one, and a stub without them reads `undefined` where a browser reads
+      // `""` and `false`. `dom.ts`'s `checkField` writes the *attribute*
+      // `checked="checked"` and every caller reads the *property* `.checked`,
+      // which the browser keeps in step and this has to as well — otherwise a
+      // test of a panel with a checkbox in it asserts against `undefined` and
+      // learns nothing.
+      value: "",
+      checked: false,
+      setAttribute(k, v) { this[k] = k === "checked" ? v !== null && v !== "false" : v; },
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
       append(...c) { this.children.push(...c); },
-      click() {},
+      click() { for (const fn of this.listeners.click ?? []) fn({ target: this }); },
     }),
     body: { append() {} },
     ...extra.document,

@@ -52,6 +52,7 @@ const GIRSA_POLL_MS = 1000;
 import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
 import type * as api from "./api";
 import * as git from "./git";
+import * as panelviews from "./panelviews";
 import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
@@ -5591,15 +5592,6 @@ function gitForHeader(): header.HeaderState["vcs"] {
   };
 }
 
-/** A button that runs an operation, disabled while one is already running. */
-function gitButton(label: string, run: () => void, cls = "sc-key"): HTMLElement {
-  return el(
-    "button",
-    { class: cls + (gitBusy ? " disabled" : ""), disabled: gitBusy || undefined, onClick: run },
-    [label],
-  );
-}
-
 /**
  * The drawer.
  *
@@ -5620,254 +5612,31 @@ function gitButton(label: string, run: () => void, cls = "sc-key"): HTMLElement 
 function renderGitPanel(): void {
   const box = document.getElementById("git-body");
   if (!box) return;
-  const face = git.face(gitStanding(), gitState, gitCommits, gitBranches, gitRemotes);
-  const parts: Node[] = [panelHead("git-panel", "git.title"), el("p", { class: "styles-lede" }, [t("git.lede")])];
-
-  // ---- the states with no repository behind them, each with its own answer ----
-  switch (face.kind) {
-    case "unavailable":
-      parts.push(el("p", { class: "git-why", "data-git": "unavailable" }, [t(face.why)]));
-      box.replaceChildren(...parts);
-      return;
-    case "asking":
-      parts.push(el("p", { class: "git-why", "data-git": "asking" }, [t("git.working")]));
-      box.replaceChildren(...parts);
-      return;
-    case "no-git":
-      parts.push(
-        el("p", { class: "git-why", "data-git": "no-git" }, [t("git.noGit")]),
-        el("p", { class: "set-hint" }, [t("git.installGit")]),
-      );
-      box.replaceChildren(...parts);
-      return;
-    case "no-repo":
-      // The one unavailable state with an offer attached.
-      parts.push(
-        el("p", { class: "git-why", "data-git": "no-repo" }, [t("git.noRepo")]),
-        gitButton(t("git.init"), () => void runGit("init"), "sc-key git-init"),
-      );
-      if (gitSaid) parts.push(gitSays());
-      box.replaceChildren(...parts);
-      return;
-  }
-
-  const state = gitState!;
-  const at = git.position(state);
-  parts.push(
-    el("div", { class: "git-where", "data-git": "where" }, [
-      el("span", { class: "git-branch" }, [
-        (state.detached ? t("git.detached") + " " : "") + (at.branch || "—"),
-      ]),
-      el("span", { class: "git-upstream" }, [
-        at.upstream ? `${t("git.upstream")} ${at.upstream}` : t("git.upstreamNone"),
-      ]),
-      ...(at.ahead ? [el("span", { class: "git-count git-ahead" }, [tf("git.ahead", at.ahead)])] : []),
-      ...(at.behind ? [el("span", { class: "git-count git-behind" }, [tf("git.behind", at.behind)])] : []),
-    ]),
-  );
-
-  const upstreamBox = checkField(!at.upstream);
-
-  for (const section of face.sections) {
-    const block: Node[] = [];
-    if (section.heading) block.push(el("h3", {}, [t(section.heading)]));
-
-    // An empty section says what empty means, and the sentence is the one
-    // `git.face` named. Every list surface in this application does this; the
-    // difference here is that the *choice* of sentence is checked by a test
-    // rather than being four literals in a file nothing imports.
-    if (section.count === 0 && section.empty && section.id !== "identity") {
-      block.push(
-        el("p", { class: "outline-empty", "data-empty": `git-${section.id}` }, [t(section.empty)]),
-      );
-    }
-
-    switch (section.id) {
-      case "conflict": {
-        const stuck = (state.files ?? []).filter((f) => f.kind === "unmerged");
-        block.push(
-          el("p", { class: "git-why", "data-git": "conflicted" }, [t("git.conflicted")]),
-          el("ul", { class: "git-files" }, stuck.map((f) => el("li", { class: "git-file git-unmerged" }, [f.path]))),
-          el("div", { class: "rv-tools" }, [
-            gitButton(t("git.takeOurs"), () => void runGit("resolve", { side: "ours" })),
-            gitButton(t("git.takeTheirs"), () => void runGit("resolve", { side: "theirs" })),
-            gitButton(t("git.abortMerge"), () => void runGit("merge-abort")),
-          ]),
-        );
-        break;
-      }
-      case "changes": {
-        const changed = git.changed(state);
-        if (changed.length) {
-          block.push(
-            el(
-              "ul",
-              { class: "git-files" },
-              changed.map((f) =>
-                el("li", { class: "git-file" }, [
-                  el("span", { class: "git-state" }, [t(git.stateKey(f))]),
-                  el("span", { class: "git-path" }, [f.path]),
-                  ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
-                  ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.readyToCommit")])] : []),
-                ]),
-              ),
-            ),
-          );
-        }
-        break;
-      }
-      case "identity": {
-        // Offered *before* the commit that would otherwise fail with git's own
-        // nine-line lecture about `user.email`.
-        const name = textField("");
-        const email = textField("");
-        block.push(
-          el("p", { class: "git-why", "data-git": "no-identity" }, [t(section.empty ?? "git.whoNeeded")]),
-          fieldRow(t("git.whoName"), name),
-          fieldRow(t("git.whoEmail"), email),
-          gitButton(t("git.whoSet"), () => void runGit("who", { name: name.value, email: email.value })),
-          el("p", { class: "set-hint" }, [t("git.whoLocal")]),
-        );
-        break;
-      }
-      case "commit": {
-        const message = textField("", t("git.message"));
-        const all = checkField(false);
-        block.push(
-          el("div", { class: "git-commit" }, [
-            message,
-            fieldRow(t("git.commitAll"), all),
-            gitButton(
-              t("git.commit"),
-              () => {
-                const said = message.value.trim();
-                if (!said) return;
-                void runGit("commit", { message: said, all: all.checked });
-              },
-              "sc-key git-do-commit",
-            ),
-          ]),
-        );
-        break;
-      }
-      case "history": {
-        const scope = checkField(gitWholeRepo);
-        scope.addEventListener("change", () => {
-          gitWholeRepo = scope.checked;
+  box.replaceChildren(
+    ...panelviews.gitPanel(
+      {
+        face: git.face(gitStanding(), gitState, gitCommits, gitBranches, gitRemotes),
+        status: gitState,
+        commits: gitCommits,
+        branches: gitBranches,
+        remotes: gitRemotes,
+        said: gitSaid,
+        busy: gitBusy,
+        wholeRepo: gitWholeRepo,
+      },
+      {
+        run: (op, extra) => void runGit(op, extra),
+        compare: (c) => void compareWithCommit(c),
+        restore: (c) => void restoreCommit(c),
+        revert: (c) => void revertCommit(c),
+        setScope: (whole) => {
+          gitWholeRepo = whole;
           void refreshGit();
-        });
-        // Before the list, because it is what the list is *of*.
-        block.splice(1, 0, fieldRow(t("git.historyAll"), scope));
-        if (gitCommits.length) {
-          block.push(
-            el(
-              "ul",
-              { class: "git-log" },
-              gitCommits.map((c) =>
-                el("li", { class: "git-commit-row" }, [
-                  el("div", { class: "git-subject" }, [c.subject || c.short]),
-                  el("div", { class: "git-meta" }, [`${c.author} · ${git.when(c.when, getLang())} · ${c.short}`]),
-                  el("div", { class: "rv-actions" }, [
-                    gitButton(t("git.compare"), () => void compareWithCommit(c), "rv-yes"),
-                    gitButton(t("git.restore"), () => void restoreCommit(c), "rv-yes"),
-                    gitButton(t("git.revert"), () => void revertCommit(c), "rv-no"),
-                  ]),
-                ]),
-              ),
-            ),
-          );
-        }
-        break;
-      }
-      case "branches": {
-        if (gitBranches.length) {
-          block.push(
-            el(
-              "ul",
-              { class: "git-branches" },
-              gitBranches.map((b) =>
-                el("li", { class: "git-branch-row" + (b.current ? " current" : "") }, [
-                  el("span", { class: "git-path" }, [b.name]),
-                  el("small", { class: "git-meta" }, [b.upstream ?? ""]),
-                  ...(b.current
-                    ? []
-                    : [
-                        el("div", { class: "rv-actions" }, [
-                          gitButton(t("git.switch"), () => void runGit("switch", { name: b.name }), "rv-yes"),
-                          gitButton(t("git.merge"), () => void runGit("merge", { name: b.name }), "rv-yes"),
-                        ]),
-                      ]),
-                ]),
-              ),
-            ),
-          );
-        }
-        const branchName = textField("", t("git.branchName"));
-        block.push(
-          el("div", { class: "git-new-branch" }, [
-            branchName,
-            gitButton(t("git.create"), () => {
-              const name = branchName.value.trim();
-              if (!name) return;
-              void runGit("switch", { name, create: true });
-            }),
-          ]),
-        );
-        break;
-      }
-      case "remotes": {
-        if (gitRemotes.length) {
-          block.push(
-            el(
-              "ul",
-              { class: "git-remotes" },
-              gitRemotes.map((r) =>
-                el("li", { class: "git-remote-row" }, [
-                  el("span", { class: "git-path" }, [r.name]),
-                  el("small", { class: "git-meta" }, [r.url]),
-                ]),
-              ),
-            ),
-          );
-        }
-        const remoteName = textField("origin", t("git.remoteName"));
-        const remoteUrl = textField("", t("git.remoteUrl"));
-        const args = () => git.remoteArgs(state, gitRemotes);
-        block.push(
-          el("details", { class: "git-add-remote" }, [
-            el("summary", {}, [t("git.addRemote")]),
-            fieldRow(t("git.remoteName"), remoteName),
-            fieldRow(t("git.remoteUrl"), remoteUrl),
-            gitButton(t("git.add"), () => {
-              const url = remoteUrl.value.trim();
-              if (!url) return;
-              void runGit("remote-add", { name: remoteName.value.trim() || "origin", url });
-            }),
-          ]),
-          el("div", { class: "rv-tools" }, [
-            gitButton(t("git.fetch"), () => void runGit("fetch", args())),
-            gitButton(t("git.pull"), () => void runGit("pull", args())),
-            gitButton(t("git.push"), () => void runGit("push", { ...args(), set_upstream: upstreamBox.checked })),
-          ]),
-          fieldRow(t("git.setUpstream"), upstreamBox),
-        );
-        break;
-      }
-    }
-    parts.push(el("section", { class: "git-section", "data-git-section": section.id }, block));
-  }
-
-  if (gitSaid) parts.push(gitSays());
-  box.replaceChildren(...parts);
+        },
+      },
+    ),
+  );
 }
-/** git's own words, in a box that says they are git's. */
-function gitSays(): HTMLElement {
-  return el("div", { class: "git-said", "data-git": "said" }, [
-    el("strong", {}, [t("git.said")]),
-    el("pre", {}, [gitSaid]),
-  ]);
-}
-
 /**
  * Compare the document with how it was at a commit.
  *
@@ -8722,10 +8491,12 @@ function renderStylesPanel() {
   // the document's default, and swap to the one note's own when the writer scopes
   // them there: a note has no tiers of its own and a tier selector on one note is
   // a control for a distinction that does not exist at that scope.
-  const noteInstance = scopedInstance("notes");
-  const bandInstance = scopedInstance("bands");
-  const streamInstance = scopedInstance("streams");
-  const markInstance = scopedInstance("marks");
+  const DEFAULT_STYLE_ROWS: Record<string, () => Node[]> = {
+    notes: noteStyleRows,
+    bands: bandStyleRows,
+    streams: streamStyleRows,
+    marks: markStyleRows,
+  };
 
   box.replaceChildren(
     panelHead("styles-panel", "stylesTitle"),
@@ -8743,34 +8514,30 @@ function renderStylesPanel() {
     el("h3", {}, [t("stylePage")]),
     el("p", { class: "styles-note" }, [t("pageStyleNote")]),
 
-    el("h3", {}, [t("styleHeadings")]),
-    ...scopeRows("headings", "kindHeading", "kindHeadingOne"),
-    ...headings,
-    el("h3", {}, [t("styleLists")]),
-    ...scopeRows("lists", "kindList", "kindListOne"),
-    ...lists,
-    el("h3", {}, [t("styleTables")]),
-    ...scopeRows("tables", "kindTable", "kindTableOne"),
-    ...tables,
-    el("h3", {}, [t("styleChannels")]),
-    el("p", { class: "styles-note" }, [t("styleChannelsNote")]),
-    ...channelRows(),
-    el("h3", {}, [t("styleNotes")]),
-    el("p", { class: "styles-note" }, [t("styleNotesNote")]),
-    ...scopeRows("notes", "kindNote", "kindNoteOne"),
-    ...(noteInstance ? instanceRows("notes", noteInstance) : noteStyleRows()),
-    el("h3", {}, [t("styleBands")]),
-    el("p", { class: "styles-note" }, [t("styleBandsNote")]),
-    ...scopeRows("bands", "kindBand", "kindBandOne"),
-    ...(bandInstance ? instanceRows("bands", bandInstance) : bandStyleRows()),
-    el("h3", {}, [t("styleStreams")]),
-    el("p", { class: "styles-note" }, [t("styleStreamsNote")]),
-    ...scopeRows("streams", "kindStream", "kindStreamOne"),
-    ...(streamInstance ? instanceRows("streams", streamInstance) : streamStyleRows()),
-    el("h3", {}, [t("styleMarks")]),
-    el("p", { class: "styles-note" }, [t("styleMarksNote")]),
-    ...scopeRows("marks", "kindMark", "kindMarkOne"),
-    ...(markInstance ? instanceRows("marks", markInstance) : markStyleRows()),
+    // Eight sections, from the table in `panelviews.ts` rather than written out
+    // here. The rows are still built here — see `styleSection` for what moving
+    // them would cost and why it has not been paid — but *which* sections there
+    // are, in what order, with which note and which scope selector, is data a
+    // test can hold.
+    ...panelviews.STYLE_SECTIONS.map((section) => {
+      const inst = scopedInstance(section.kind as styles.StyleCommand);
+      const scope = section.scope
+        ? scopeRows(section.kind as styles.StyleCommand, section.scope[0], section.scope[1])
+        : [];
+      const rows =
+        section.kind === "headings"
+          ? headings
+          : section.kind === "lists"
+            ? lists
+            : section.kind === "tables"
+              ? tables
+              : section.kind === "channels"
+                ? channelRows()
+                : inst
+                  ? instanceRows(section.kind as styles.StyleCommand, inst)
+                  : DEFAULT_STYLE_ROWS[section.kind]();
+      return panelviews.styleSection(section, scope, rows);
+    }),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
 }
@@ -8892,97 +8659,29 @@ function setReviewView(v: review.ReviewView) {
   replaceDoc(next);
 }
 
-const MARK_ICON: Record<review.MarkKind, string> = { insert: "＋", delete: "－", comment: "✎" };
-
 function renderReviewPanel() {
   const box = document.getElementById("review-body");
   if (!box || !runtime.view) return;
-  const doc = docTextOf(runtime.view.state.doc);
-  const marks = review.scanMarks(doc);
-  const changes = marks.filter((m) => m.kind !== "comment").length;
-  const view0 = reviewView();
-
-  const viewButtons = el(
-    "div",
-    { class: "style-presets" },
-    (["markup", "final", "original"] as review.ReviewView[]).map((v) =>
-      el(
-        "button",
-        {
-          class: "style-preset" + (v === view0 ? " active" : ""),
-          onClick: () => setReviewView(v),
-        },
-        [t("rv." + v)],
-      ),
-    ),
-  );
-
-  const markRow = (m: review.ReviewMark) =>
-    el("div", { class: `rv-item rv-${m.kind}` }, [
-      el(
-        "button",
-        {
-          class: "rv-main",
-          title: m.body,
-          // Clicking the entry puts the cursor on the mark, so "which one is
-          // this?" is answered by looking at the document, not by guessing.
-          onClick: () => jumpTo(m.from),
-        },
-        [
-          el("span", { class: "rv-kind" }, [MARK_ICON[m.kind] + " " + t("rv." + m.kind)]),
-          el("span", { class: "rv-text" }, [review.excerpt(m.body) || "—"]),
-          ...(m.author ? [el("span", { class: "rv-author" }, [m.author])] : []),
-        ],
-      ),
-      el("div", { class: "rv-actions" }, [
-        el("button", { class: "rv-yes", title: t("accept"), onClick: () => decideMark(m, "accept") }, [
-          m.kind === "comment" ? t("resolve") : t("accept"),
-        ]),
-        ...(m.kind === "comment"
-          ? []
-          : [
-              el("button", { class: "rv-no", title: t("reject"), onClick: () => decideMark(m, "reject") }, [
-                t("reject"),
-              ]),
-            ]),
-      ]),
-    ]);
-
   box.replaceChildren(
-    panelHead("review-panel", "reviewTitle"),
-    el("p", { class: "styles-lede" }, [t("reviewLede")]),
-
-    el("h3", {}, [t("reviewView")]),
-    viewButtons,
-
-    el("h3", {}, [t("review")]),
-    el("div", { class: "rv-tools" }, [
-      el("button", { class: "sc-key", onClick: () => markReview("insert") }, ["＋ " + t("markInsert")]),
-      el("button", { class: "sc-key", onClick: () => markReview("delete") }, ["－ " + t("markDelete")]),
-      el("button", { class: "sc-key", onClick: addComment }, ["✎ " + t("addComment")]),
-    ]),
-    fieldRow(
-      t("reviewerName"),
-      (() => {
-        const input = textField(settings.reviewer ?? "");
-        input.addEventListener("input", () => {
-          settings.reviewer = input.value;
+    ...panelviews.reviewPanel(
+      {
+        marks: review.scanMarks(docTextOf(runtime.view.state.doc)),
+        reading: reviewView(),
+        reviewer: settings.reviewer ?? "",
+      },
+      {
+        setReading: setReviewView,
+        mark: markReview,
+        comment: addComment,
+        setReviewer: (name) => {
+          settings.reviewer = name;
           saveSettings();
-        });
-        return input;
-      })(),
+        },
+        goTo: (m) => jumpTo(m.from),
+        decide: decideMark,
+        decideAll: decideEverything,
+      },
     ),
-
-    el("h3", {}, [tf("reviewCount", String(changes), String(marks.length - changes))]),
-    ...(marks.length
-      ? [
-          el("div", { class: "rv-tools" }, [
-            el("button", { class: "sc-key", onClick: () => decideEverything("accept") }, [t("acceptAll")]),
-            el("button", { class: "sc-key", onClick: () => decideEverything("reject") }, [t("rejectAll")]),
-          ]),
-          ...marks.map(markRow),
-        ]
-      : [el("div", { class: "set-note" }, [t("reviewEmpty")])]),
   );
 }
 

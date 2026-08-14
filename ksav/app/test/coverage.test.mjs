@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { commands } from "../tools/commands.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
+import { STYLE_SECTIONS } from "../.tmp-test/panelviews.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 // Is it reachable from the chrome at all?
@@ -236,7 +237,16 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
 // cannot say is a model nobody can use. Which is this file's own thesis, applied
 // to the thing this file's thesis was written about.
 {
-  ok("the Styles panel has a channels section", MAIN.includes('t("styleChannels")'));
+  // Asserted against the section table rather than against `main.ts` as text.
+  // It was `MAIN.includes('t("styleChannels")')`, and it went red when the
+  // section list moved into a module — correctly, because a check that reads a
+  // file for a string cannot tell "this section is gone" from "this section is
+  // declared somewhere better". `panels.test.mjs` opens with a longer version
+  // of this complaint about reading `main.ts` as text.
+  ok(
+    "the Styles panel has a channels section",
+    STYLE_SECTIONS.some((s) => s.kind === "channels"),
+  );
   ok("…which reads the document's own channels", MAIN.includes("channels.channelsIn("));
   ok("…and writes a declaration back", MAIN.includes("channels.writeChannel("));
   // The payoff, as a control: a placement chooser over the three placements the

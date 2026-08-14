@@ -1110,12 +1110,38 @@ async function main() {
   // The status is compared against itself rather than against a string, because
   // the run is in Hebrew and a fence that hard-codes one language is a fence
   // that goes quiet the day somebody drives it in the other.
+  const beforeKill = await compiles();
   await pressInEditor("Control+k");
   check(
     "Ctrl+K no longer opens Ksav's palette",
     !(await showing("#palette", false)),
     "the palette opened, so the mode is not getting keys it claims",
   );
+  // Take the reading only once nothing is in flight.
+  //
+  // `Ctrl+K` is kill-line: it *edits*, so a compile is on its way, and the
+  // status line will move from `rendering` to `✓ N pages · 812ms` entirely on
+  // its own. Read mid-flight, the comparison below is a coin toss, and when it
+  // lands wrong it reports "Ksav's keymap is still installed" about a keymap
+  // that is not installed. Caught on a local run where every other check in 477
+  // was green — the mirror image of the defect this file keeps finding in
+  // itself, and worse: a check that cannot fail for the reason it names is
+  // merely useless, and one that *can* fail for a reason it does not name sends
+  // the reader after the wrong thing.
+  //
+  // Bounded rather than awaited outright, because a kill-line with nothing to
+  // its right removes nothing and schedules nothing, and this step must not
+  // hang on the day the caret lands at the end of a line.
+  await page
+    .waitForFunction(
+      (n) =>
+        /** @type {any} */ (window).__ksavStatus.filter(
+          (e) => e.cls === "ok" || e.cls === "warn" || e.cls === "err",
+        ).length > n,
+      beforeKill,
+      { timeout: 6_000, polling: 50 },
+    )
+    .catch(() => {});
   const before = await said();
   await pressInEditor("Control+Alt+o");
   check(
@@ -1388,6 +1414,155 @@ async function main() {
   {
     const entry = plan.find((e) => e.panel.id === "git-panel");
     await putAway("git-panel", entry, "#git-panel", false);
+  }
+
+  // ------------------------------------------- 11. switching between documents
+
+  step(11, "switching documents does not leave the last one's pages on screen");
+
+  // The seam this step exists for cannot be reached from a unit test, because
+  // the decision is `openDoc`'s and `main.ts` boots the application when it is
+  // evaluated. `test/tabpages.test.mjs` holds the mechanism — what is kept, what
+  // is evicted, what `idle` compiles — and nothing held the **wiring**.
+  //
+  // What it is: `openDoc` used to end at `scheduleCompile()`, and a compile is
+  // 0.4–3 seconds away. For that whole time every preview pane went on showing
+  // the document you had just left, under the incoming document's title and
+  // beside its outline. A pane naming one sefer and drawing another.
+  //
+  // The 250 ms debounce is what makes this measurable rather than racy: no
+  // compile of the incoming document can possibly have landed within a few
+  // milliseconds of the click, so what the pane holds in that window is exactly
+  // what the switch decided to put there and nothing else.
+  {
+    /**
+     * The Documents menu, open — and idempotent, which is the whole of it.
+     *
+     * The button is a *toggle*, so calling this on an already-open menu closes
+     * it and then waits ten seconds for rows that are in the document and
+     * invisible. That is what the first run of this step did, and the log said
+     * so precisely: "resolved to 8 elements", none of them visible.
+     */
+    async function openDocsMenu() {
+      const row = page.locator('[data-menu="documents"] [data-doc]').first();
+      if (await row.isVisible().catch(() => false)) return;
+      await clickVisible("the Documents menu", '[data-menu="documents"] .menu-btn');
+      await page.waitForSelector('[data-menu="documents"] [data-doc]', { timeout: 10_000 });
+    }
+    /** Whichever document row is marked as the one we are in. */
+    async function currentDocId() {
+      await openDocsMenu();
+      return await page.evaluate(
+        () =>
+          document
+            .querySelector('[data-menu="documents"] [data-doc].active')
+            ?.getAttribute("data-doc") ?? null,
+      );
+    }
+    /**
+     * Switch, and read the pane in the window between the switch landing and
+     * the fresh layout arriving.
+     *
+     * Timed off the status line, and it has to be. Reading straight after the
+     * click reads *too early*: `openDoc` awaits storage, the file binding and
+     * the baseline before it touches the preview, so the pane is still the one
+     * we came from and every assertion below reports the previous document's
+     * page count. The first run of this step failed twice for exactly that, and
+     * both numbers were one switch stale.
+     *
+     * `scheduleCompile()` is the last line of `openDoc` and its debounce is
+     * 250 ms, so `rendering` appearing on the status line brackets the window
+     * from both sides: the switch has finished, and the layout that will
+     * replace these pages has not landed. A compile is 0.4–3 s; a round trip to
+     * read the count is a handful of milliseconds.
+     */
+    async function switchTo(id) {
+      await openDocsMenu();
+      const mark = await page.evaluate(() => /** @type {any} */ (window).__ksavStatus.length);
+      // Taken before the click, and handed back, so a caller wanting to see the
+      // switch's compile *finish* has a mark from before it started. Reading the
+      // count after the wait below is too late — by then the layout may already
+      // have landed, and `settled` would sit for thirty seconds waiting for a
+      // second compile that nothing is going to ask for. It did exactly that.
+      const before = await compiles();
+      await clickVisible(`the row for ${id}`, `[data-menu="documents"] [data-doc="${id}"]`);
+      await page.waitForFunction(
+        (n) =>
+          /** @type {any} */ (window).__ksavStatus.slice(n).some((e) => e.cls === ""),
+        mark,
+        { timeout: 15_000, polling: 20 },
+      );
+      const pages = await page.evaluate(
+        () => document.querySelectorAll(".preview-host .page").length,
+      );
+      return { pages, before };
+    }
+
+    const idA = await currentDocId();
+    check("the document we have been working in has an id", typeof idA === "string", String(idA));
+    // Measured, not assumed. The first draft gave the second document a fixed
+    // four pages, and the document built by steps 1–10 happened to lay out to
+    // four as well — so the one comparison this step exists for was `4 !== 4`
+    // and reported a failure about a mechanism that was working. A test whose
+    // discriminator is a coincidence is not a test.
+    const wasA = await page.evaluate(
+      () => document.querySelectorAll(".preview-host .page").length,
+    );
+
+    // A second sefer, deliberately a different length from the first, so "whose
+    // pages are these" is a question the page *count* can answer. `#מעבר_עמוד`
+    // is the prelude's page break; `weak: true` means it needs text on both
+    // sides, which is why there is a letter between each one.
+    page.once("dialog", (d) => void d.accept("השני"));
+    await act("a second document", async () => {
+      await openDocsMenu();
+      await clickVisible("New document", '[data-menu="documents"] [data-doc-action="new"]');
+    });
+    const idB = await currentDocId();
+    check("the second document is a different one", typeof idB === "string" && idB !== idA, `${idA} / ${idB}`);
+
+    const want = wasA + 3;
+    const body = Array.from({ length: want }, (_, i) => String.fromCharCode(0x05d0 + i)).join(
+      "\n#מעבר_עמוד\n",
+    );
+    const filled = await act(`filling the second document to ${want} pages`, () => type(body));
+    check(
+      "the second document is a different length from the first",
+      (filled?.pages ?? 0) > wasA,
+      `${filled?.pages} against ${wasA}`,
+    );
+    const pagesB = filled?.pages ?? 0;
+
+    // The bug, stated: the second document is longer than the first by
+    // construction, so the first document's pane showing the second's page count
+    // is the outgoing layout standing under the incoming document's name.
+    const arrival = await switchTo(idA);
+    check(
+      "switching back does not leave the other document's pages on screen",
+      arrival.pages !== pagesB,
+      `${arrival.pages} pages, and the document we left had ${pagesB}`,
+    );
+    const backA = await settled(arrival.before);
+    check("…and the document we switched to then draws its own", (backA?.pages ?? 0) >= 1, `${backA?.pages}`);
+    const pagesA = backA?.pages ?? 0;
+
+    // The other half, and the reason the pane is not simply blanked: a document
+    // that has been seen before comes back **immediately**, with its own pages,
+    // rather than with a blank rectangle for the length of a layout.
+    const returning = await switchTo(idB);
+    check(
+      "returning to a document shows its own pages at once, with no wait",
+      returning.pages === pagesB,
+      `${returning.pages} pages, and it had ${pagesB} when we left it`,
+    );
+    check(
+      "…which is not simply the pages of the document we came from",
+      pagesA !== pagesB,
+      `both documents laid out to ${pagesA} pages, so this step proves nothing`,
+    );
+    // Let the last switch's own compile finish, so the run does not end with one
+    // in flight. `returning.before` is the mark from before that switch.
+    await settled(returning.before);
   }
 
   // ----------------------------------------------------------------- the tally

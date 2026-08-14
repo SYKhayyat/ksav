@@ -208,6 +208,103 @@ const windows = new WeakMap<Element, Windowed>();
 let current: { pages: string[]; hashes: string[] } | null = null;
 
 /**
+ * The last page set each document was seen with — so coming back to one shows
+ * it rather than a blank pane and a wait.
+ *
+ * # Why a document is not blanked when you leave it
+ *
+ * A tab that is not on screen compiles nothing, which is the right answer for a
+ * laptop with six seforim open. The wrong answer that usually comes with it is
+ * an empty pane on the way back, for as long as a layout takes — 0.4 to 3
+ * seconds, and the longer end is exactly the long sefer somebody keeps in a
+ * second tab.
+ *
+ * So the pages are kept. Switching draws the ones this document had when it was
+ * last looked at, immediately, and the fresh compile replaces them when it
+ * lands. It is the same rule the Emacs package follows for a document that has
+ * stopped compiling, and for the same reason: **a writer moves through states
+ * where the page is not current, continuously, and blanking it makes the
+ * preview useless exactly when it is being used.**
+ *
+ * Capped, because these are megabytes of SVG. The cap is generous next to the
+ * number of documents anybody has open at once, and evicting the least recently
+ * seen is the only policy that cannot throw away the tab you are about to
+ * return to.
+ */
+const remembered = new Map<string, { pages: string[]; hashes: string[] }>();
+
+/** How many documents' pages are kept. */
+export const REMEMBERED_DOCUMENTS = 8;
+
+/**
+ * File a page set under the document it belongs to.
+ *
+ * The one writer of `remembered`, so the eviction policy is stated once. Both
+ * callers reach it: leaving a document files what is on screen, and a background
+ * compile files a page set that was never on screen at all.
+ */
+export function filePages(docId: string, pages: string[], hashes: string[] | undefined): void {
+  if (!docId || !pages.length) return;
+  // Names or no names: `render` copes with either, and a page set with no hashes
+  // is still the right thing to show. An engine too old to send them would
+  // otherwise remember nothing at all.
+  hashes = hashes && hashes.length === pages.length ? hashes : [];
+  // Deleted first so the re-insert moves it to the end: a `Map` keeps insertion
+  // order, which is the whole of the eviction policy.
+  remembered.delete(docId);
+  remembered.set(docId, { pages, hashes });
+  while (remembered.size > REMEMBERED_DOCUMENTS) {
+    const oldest = remembered.keys().next();
+    if (oldest.done) break;
+    remembered.delete(oldest.value);
+  }
+}
+
+/** Keep what is on screen now, filed under the document it belongs to. */
+export function rememberPages(docId: string): void {
+  if (!current) return;
+  filePages(docId, current.pages, current.hashes);
+}
+
+/**
+ * Draw what this document last looked like. `false` when nothing is kept, which
+ * is the caller's cue to blank the pane rather than leave the last document's
+ * pages standing under a different document's name.
+ */
+export function drawRemembered(docId: string): boolean {
+  const had = remembered.get(docId);
+  if (!had?.pages.length) return false;
+  drawPagesEverywhere(had.pages, had.hashes);
+  return true;
+}
+
+/**
+ * Empty every preview pane.
+ *
+ * Used when there is nothing true to show — a document opened for the first
+ * time, or the `onSwitch` policy, where the writer has asked for no kept pages.
+ * The alternative is not "a blank pane" but "the previous sefer's pages under
+ * this sefer's name", which is the defect this whole mechanism exists to close.
+ */
+export function clearPages(): void {
+  drawPagesEverywhere([], []);
+  for (const host of previewHosts()) {
+    host.innerHTML = "";
+    windows.delete(host);
+  }
+}
+
+/** A document that is gone takes its pages with it. */
+export function forgetPages(docId: string): void {
+  remembered.delete(docId);
+}
+
+/** For tests, and for a reader wanting to know what is being held. */
+export function rememberedCount(): number {
+  return remembered.size;
+}
+
+/**
  * A rendered page's own dimensions, read from the SVG's header.
  *
  * Typst writes `viewBox="0 0 595.28 841.89"` at the front of every page, so this
@@ -256,13 +353,21 @@ function empty(w: Windowed, node: HTMLElement, i: number) {
  * no names to give — everything is drawn at once, which is what this always did.
  */
 export function drawPages(host: HTMLElement, pages: string[], hashes?: string[]) {
-  // Recorded whether or not there are names for the pages. This used to be
-  // `null` without them, which was right for `drawCurrentInto` — a second pane
-  // reuses the windowing and the windowing needs hashes — and wrong for
-  // `currentPages`, which is about *what is on the screen* and is what Print
-  // reads. An engine too old to send hashes would have printed nothing.
-  current = { pages, hashes: hashes && hashes.length === pages.length ? hashes : [] };
+  setCurrent(pages, hashes);
   render(host, pages, hashes);
+}
+
+/**
+ * Record what the open document's pages now are.
+ *
+ * Recorded whether or not there are names for them. This used to be `null`
+ * without them, which was right for `drawCurrentInto` — a second pane reuses the
+ * windowing and the windowing needs hashes — and wrong for `currentPages`, which
+ * is about *what is on the screen* and is what Print reads. An engine too old to
+ * send hashes would have printed nothing.
+ */
+function setCurrent(pages: string[], hashes?: string[]) {
+  current = { pages, hashes: hashes && hashes.length === pages.length ? hashes : [] };
 }
 
 /** Draw the open document's pages into another pane — the full-screen preview. */
@@ -288,10 +393,19 @@ export function previewHosts(): HTMLElement[] {
 /** Draw a fresh compile into every preview pane there is. */
 export function drawPagesEverywhere(pages: string[], hashes?: string[]) {
   const hosts = previewHosts();
-  // The first call records what is on screen (see `currentPages`); the rest
-  // reuse it, so a document with four previews still compiles once.
+  // Recorded **before** the early return, and this is not a tidy-up.
+  //
+  // A source-only layout has no preview host at all, and this used to return
+  // without touching `current` — so with the preview pane closed, `current` went
+  // on holding whatever was last drawn while a preview was open. `currentPages`
+  // is what Print and the page-range chooser read, so printing from a
+  // source-only pane printed the pages of a document you had since left, at the
+  // length of a document you were not looking at. The one output that is paper.
+  setCurrent(pages, hashes);
   if (!hosts.length) return;
-  drawPages(hosts[0], pages, hashes);
+  // The first pane draws; the rest reuse what it recorded, so a document with
+  // four previews still compiles once.
+  render(hosts[0], pages, hashes);
   for (const host of hosts.slice(1)) drawCurrentInto(host);
 }
 

@@ -288,20 +288,52 @@ function registerUnits(Vim: {
     Vim.mapCommand(keys, "motion", name, { toJumplist: true }, { context: "visual" });
   }
 
-  // Text objects for a note and a heading's section are **not** here, and the
-  // reason is a measurement rather than a preference. They were written, they
-  // registered, and driven in a real browser `dah` deleted a single character:
-  // `mapCommand(keys, "motion", …, { context: "operatorPending" })` accepts the
-  // binding and vim then reads the pair the motion returns as one position. The
-  // package is shipped minified with the identifiers renamed, so the shape it
-  // actually wants cannot be read off it, and guessing costs a full rebuild per
-  // attempt.
+  // Text objects for the units a sefer is made of: `in`/`an` for the note at
+  // the caret, `ih`/`ah` for the heading's whole section.
   //
-  // Shipping it anyway would mean `dah` quietly eating one letter of a sefer,
-  // which is worse than not having it. `bridge.units` stays because the answer
-  // it computes — where this note begins and ends, where this heading's section
-  // does — is right and is what the next attempt needs; what is missing is the
-  // registration, not the arithmetic.
+  // # The half of this that was given up on, and should not have been
+  //
+  // These were written once, `dah` deleted a single character, and they were
+  // withdrawn with a paragraph here saying the package "is shipped minified
+  // with the identifiers renamed, so the shape it actually wants cannot be read
+  // off it". That was wrong, and wrong in the laziest possible way:
+  // `@replit/codemirror-vim` re-exports `@replit/codemirror-vim-core`, which
+  // ships `vim.js` **unminified**, a quarter of a megabyte of it, with its own
+  // test suite beside it. The contract was one directory away the whole time.
+  //
+  // What it says, and what the first attempt could not have guessed:
+  //
+  //   * a text object is an ordinary motion that returns `[start, end]`. The
+  //     dispatcher reads a returned array as anchor-and-head — there is no
+  //     separate kind of command to register.
+  //   * `var exclusive = !motionArgs.inclusive` — so with `inclusive` unset the
+  //     end is **exclusive**, which is exactly what a half-open span already is.
+  //     Setting `inclusive` here would take one character too many.
+  //   * `_mapCommand` **unshifts** onto the keymap, so `an` wins over the
+  //     built-in `a<character>` rather than losing to it.
+  //
+  // The symptom is explained by that too: with no mapping in force, `dah` is
+  // read as `d` `a` `h` — and `h` is *one character left*. It was never a
+  // broken text object; it was no text object at all.
+  //
+  // Registered in `visual` as well as in `operatorPending`, because `van` is
+  // how you look at what `dan` would take before taking it.
+  for (const [unit, letter] of Object.entries(UNIT_KEYS) as [SeferUnit, string][]) {
+    for (const inner of [true, false]) {
+      const name = `ksav${inner ? "Inner" : "Whole"}${unit}`;
+      Vim.defineMotion(name, ((cm: CM, head: object) => {
+        const span = bridge.units(cm.indexFromPos(head))[unit];
+        // No note here, no note to take. `null` leaves the caret alone, which
+        // makes `dan` outside a note do nothing rather than something.
+        if (!span) return null;
+        const range = inner && span.inner ? span.inner : span;
+        return [cm.posFromIndex(range.from), cm.posFromIndex(range.to)];
+      }) as unknown as (...a: never[]) => unknown);
+      for (const context of ["operatorPending", "visual"]) {
+        Vim.mapCommand((inner ? "i" : "a") + letter, "motion", name, {}, { context });
+      }
+    }
+  }
 }
 
 /**

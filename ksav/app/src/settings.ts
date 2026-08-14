@@ -198,6 +198,20 @@ export interface Settings {
   // person, not of the sefer — a document opened on someone else's machine must
   // not put them into vim.
   editingMode?: "default" | "vim" | "emacs";
+  /**
+   * What a tab that is not on screen does about its page.
+   *
+   *   `keep`     — nothing compiles while you are elsewhere, and coming back
+   *                shows the page this document had when you left it while the
+   *                fresh one is computed. No wait, no background work, and
+   *                never a blank pane.
+   *   `idle`     — unfocused documents recompile quietly whenever you stop
+   *                typing, so every tab is always current. Real background CPU:
+   *                six open seforim are six layouts nobody asked for.
+   *   `onSwitch` — nothing is kept and nothing runs unseen. Switching blanks
+   *                the pane until the compile lands.
+   */
+  tabCompile?: "keep" | "idle" | "onSwitch";
   // Dim everything but the paragraph being written, and keep the caret line
   // vertically centred.
   focusMode?: boolean;
@@ -243,6 +257,7 @@ export const DEFAULTS: Settings = {
   autoSnapshot: true,
   autoSnapshotMinutes: 3,
   editingMode: "default",
+  tabCompile: "keep",
   focusMode: false,
   typewriter: false,
   checkUpdates: true,
@@ -635,7 +650,18 @@ export function readPageSetup(raw: unknown): PageSetup | undefined {
  * changed.
  */
 export function docConfig(): DocConfig {
-  return pageSetup(runtime.currentDoc?.config, defaultPageSetup());
+  return docConfigFor(runtime.currentDoc?.config);
+}
+
+/**
+ * The same question about a document that is **not** the one on screen.
+ *
+ * The background compiles that keep unfocused tabs current lay out documents
+ * `runtime.currentDoc` is not pointing at, and laying those out with the focused
+ * document's page setup would put one sefer's margins on another's pages.
+ */
+export function docConfigFor(own: PageSetup | undefined): DocConfig {
+  return pageSetup(own, defaultPageSetup());
 }
 
 // ---------------------------------------------------------------- presets

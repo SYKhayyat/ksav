@@ -13,8 +13,9 @@ import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import * as parts from "./parts";
 import { t, tf } from "./i18n";
-import { applyPreview, drawPagesEverywhere } from "./preview";
-import { docConfig } from "./settings";
+import * as opendocs from "./opendocs";
+import { applyPreview, drawPagesEverywhere, filePages } from "./preview";
+import { docConfig, docConfigFor, settings } from "./settings";
 import * as runtime from "./runtime";
 import type { AssembledSource, CompileResult, DocConfig } from "./api";
 
@@ -44,8 +45,85 @@ let timer: number | undefined;
 
 export function scheduleCompile() {
   clearTimeout(timer);
+  clearTimeout(quietTimer);
   timer = window.setTimeout(runCompile, 250);
   alsoSchedule();
+}
+
+// ------------------------------------------------------- the unfocused tabs
+//
+// A document that is not on screen compiles nothing, which is the right answer
+// for a laptop with six seforim open and the wrong one for the moment you switch
+// back: the pane is a blank rectangle for however long a layout takes.
+//
+// `preview.ts` holds the pages each document was last seen with, so `keep` — the
+// default — needs no compiling at all. `idle` is for the writer who would rather
+// spend the CPU and never see a stale page: it lays the other open documents out
+// quietly, once the typing has stopped, and files the result where a switch will
+// find it. Nothing here touches the status bar, the diagnostics, `lastResult` or
+// the compile generation. The writer did not ask for this work and must not be
+// shown it.
+
+let quietTimer: number | undefined;
+let quietRunning = false;
+
+/** Two seconds after a compile lands — long enough that it is not a pause in
+ *  typing, short enough to be done before anybody switches tabs. */
+const QUIET_DELAY = 2000;
+
+function scheduleQuiet() {
+  clearTimeout(quietTimer);
+  if (settings.tabCompile !== "idle") return;
+  quietTimer = window.setTimeout(() => void compileUnfocused(), QUIET_DELAY);
+}
+
+/**
+ * Lay out every open document that is not the focused one. Returns how many
+ * produced pages, for the test and for nobody else.
+ *
+ * The body comes from the **open editor state**, not from storage: a document
+ * with unsaved edits is the one case where the two differ, and laying out the
+ * saved copy would file pages that do not match what switching back will show.
+ * Everything else — page setup, images, fonts — comes from the stored record,
+ * because that is where it lives.
+ */
+export async function compileUnfocused(): Promise<number> {
+  const backend = runtime.backend;
+  if (!backend || quietRunning || settings.tabCompile !== "idle") return 0;
+  const focused = opendocs.focusedId();
+  const others = opendocs.openDocs().filter((d) => d.id !== focused);
+  if (!others.length) return 0;
+  quietRunning = true;
+  const startedAt = generation;
+  let laid = 0;
+  try {
+    for (const entry of others) {
+      // The writer came back. Everything still queued is work nobody is waiting
+      // for, and the foreground compile is waiting behind it.
+      if (generation !== startedAt || opendocs.focusedId() !== focused) break;
+      const stored = await docs.getDoc(entry.id);
+      if (!stored) continue;
+      const text = entry.state.doc.toString();
+      const { problems, healed } = analyze(text);
+      const { body } = withPreamble(problems.length ? healed : text);
+      const res = await backend.compile(
+        body,
+        docConfigFor(stored.config),
+        { ...docs.requestAssets(stored.assets ?? []), parts: await includedParts(body) },
+      );
+      if (res.pages_svg.length) {
+        filePages(entry.id, res.pages_svg, res.pages_hash);
+        laid++;
+      }
+    }
+  } catch {
+    // A background layout that fails is a background layout that fails. Nobody
+    // asked for it, so nobody is told; switching to that document falls back to
+    // its kept pages, exactly as `keep` does.
+  } finally {
+    quietRunning = false;
+  }
+  return laid;
 }
 
 /** The user's document with their own `#let` preamble in front of it.
@@ -143,6 +221,7 @@ export async function runCompile() {
     // once, for every backend (`engine/src/diagnostics.rs`).
     drawDiagnostics(diag, shown(worst, offset));
     afterCompile();
+    scheduleQuiet();
   } catch (e) {
     if (mine !== generation) return;
     const bad = troubleSaid(e, "compile");

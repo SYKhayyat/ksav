@@ -69,6 +69,7 @@ something in.
 | [2026-08-12 · Nothing ever asked what language the interface was](2026-08-12-nothing-ever-asked-what-language-the-interface-was.md) | *"Everything is coming in in Hebrew. I don't know why."* Four faults under one symptom, including a `setLang` that no boot ever called and a prose rule that was a ratchet |
 | [2026-08-14 · The Girsa wave and the tail of the inventory](2026-08-14-the-girsa-wave-and-the-inventory-tail.md) | Fifteen chunks: Org both ways, the keyboard modes made real, the command vocabulary, side notes, and eleven findings relayed from Girsa — including the four that changed what the suite can see |
 | [2026-08-14 · The two that were held](2026-08-14-the-two-that-were-held.md) | Version control on the git the machine already has, and an Emacs package that drives the engine — plus the three faults that only showed up when the elisp was actually run |
+| [2026-08-14 · Seventy-five minutes of linking](2026-08-14-seventy-five-minutes-of-linking.md) | The remote green again, a CI job that was forty LTO passes over the same compiler, sefer text objects, per-document preview pages — and four measurements that were assumed rather than taken |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

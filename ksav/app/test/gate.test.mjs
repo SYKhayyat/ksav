@@ -217,6 +217,48 @@ export async function run() {
     strays.length === 0,
   );
 
+  // ------------------------------------- the release engine check is not an hour
+  //
+  // `--release` brings `lto = "thin"` with it, and `ksav/engine/tests/` is forty
+  // files, so cargo links forty binaries and each one is a whole-program
+  // optimisation pass over the whole Typst compiler. Measured on the runner:
+  // seventy-five minutes, of which clippy is 31 seconds and the tests are
+  // eleven. `CARGO_PROFILE_RELEASE_LTO` on the step is what takes it off.
+  //
+  // Swept rather than written once, because there are three of these steps
+  // across two workflows and the fourth one is the one that will be added
+  // without it — a step that is merely *slow* fails no check and nobody reads a
+  // green job's duration. This is the only thing here that would notice.
+  {
+    const LTO_OFF = "CARGO_PROFILE_RELEASE_LTO";
+    const missing = [];
+    for (const file of files) {
+      const text = readFileSync(path.join(ROOT, file), "utf8");
+      // Steps are list items at six spaces in both workflows; splitting there
+      // gives one string per step, which is the scope the `env:` belongs to.
+      for (const step of text.split(/^ {6}- /m).slice(1)) {
+        if (!/gate\.mjs\s+engine\s+--release/.test(step)) continue;
+        if (!step.includes(LTO_OFF)) missing.push(`${file}: ${step.split("\n")[0].trim()}`);
+      }
+    }
+    ok(
+      `every release engine check turns link-time optimisation off` +
+        (missing.length
+          ? `\n    ${missing.join("\n    ")}\n    Without ${LTO_OFF}: "false" that step links forty` +
+            " test binaries with thin LTO, which measured seventy-five minutes."
+          : ""),
+      missing.length === 0,
+    );
+    // And the sweep has something to sweep. Written after the first draft passed
+    // on a regex that matched no step at all — the same shape as the `#preview`
+    // selector that reported `0 pages` for thirteen runs.
+    const found = files
+      .map((f) => readFileSync(path.join(ROOT, f), "utf8"))
+      .flatMap((t) => t.split(/^ {6}- /m).slice(1))
+      .filter((s) => /gate\.mjs\s+engine\s+--release/.test(s));
+    ok(`there are release engine checks to sweep (${found.length})`, found.length >= 3);
+  }
+
   // ------------------------------------------------ and the README points at it
 
   const readme = readFileSync(path.join(ROOT, "ksav/README.md"), "utf8");

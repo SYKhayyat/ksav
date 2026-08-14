@@ -139,32 +139,40 @@ opt-level = 3
 # never there.
 lto = "thin"
 
-# The tests do not pay for the link-time optimisation, and the reasoning is the
-# paragraph above, applied again once the situation moved past it.
+# The tests do not pay for the link-time optimisation — and **this block alone
+# did not achieve that**, which is the part worth writing down.
 #
-# `cargo test --release` compiles test targets under `bench`, which inherits
-# `release` — so every one of this crate's integration tests was being LTO'd.
-# There are forty-odd of them and each statically links the whole Typst
-# compiler, about 40 MB apiece, so a push meant forty-odd whole-program
-# optimisation passes over the same compiler. On the CI runner that was
-# **seventy-five minutes**, measured: one gap in the log between
-# `Compiling ksav-engine` and `Finished release`, with the dependency cache
-# warm and restored in ten seconds. Every other job in the workflow finishes in
-# under six minutes.
+# The situation. `ksav/engine/tests/` holds forty integration test files, and
+# Rust builds each one as its own binary statically linking the whole Typst
+# compiler. Under `lto = "thin"` that is forty whole-program optimisation passes
+# over the same compiler, per push. Measured on the CI runner: seventy-five
+# minutes, of which clippy is 31 seconds and the tests themselves are about
+# eleven. The dependency cache restores in ten seconds and holds — the log shows
+# fifteen `Compiling` lines, then seventy-three and a half minutes with nothing
+# being compiled at all. It is the linking. Every other job in the workflow
+# finishes in under six minutes.
 #
-# Caching cannot help. `ksav-engine` changes on every push, so all forty-odd
-# relink whatever is cached.
+# Caching cannot help: `ksav-engine` changes on every push, so all forty relink
+# whatever was restored.
 #
-# What LTO buys is the *shipped* binary's speed — a third off every
-# keystroke-driven render — and `release` above keeps it, untouched. What it
-# buys a test binary is nothing: the tests assert what the compiler produces,
-# and an optimisation pass does not change that. So this is not a check being
-# weakened. It is a check being run.
+# What this block was, and what it measured. The Cargo book's profile table says
+# `cargo test --release` builds test targets under `bench`, which inherits
+# `release` — so `lto = false` here should have taken the LTO off all forty. It
+# was pushed on that reasoning and the run before it took 74m55s, the run with
+# it 74m12s. Thirty-four seconds, which is noise on a shared runner. Whatever
+# cargo is doing, this override is not reaching the link.
 #
-# `debug-assertions` is left where `release` puts it, deliberately. Turning them
-# on here would be a *different* test suite from the one CI has been running,
-# and that is a change to argue on its own rather than to smuggle in beside a
-# build-time fix.
+# So the override that CI actually relies on is an environment variable on the
+# step (`CARGO_PROFILE_RELEASE_LTO`), which names the profile the log says was
+# used. This block stays because it is correct by the documented behaviour and
+# costs nothing; it is no longer load-bearing, and the comment says so rather
+# than leaving a future reader to trust it.
+#
+# None of this weakens a check. LTO buys the *shipped* binary a third off every
+# keystroke-driven render, and `release` above keeps it untouched. What it buys a
+# test binary is nothing: the tests assert what the compiler produces, and
+# `opt-level = 3` — the reason the runner uses `--release` at all — is untouched
+# either way.
 [profile.bench]
 inherits = "release"
 lto = false

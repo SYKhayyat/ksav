@@ -120,8 +120,34 @@ jobs:
       # a debug Typst is slow enough to matter here, and nowhere else. That is
       # the whole reason the runner takes `--release` rather than deciding a
       # profile for everybody.
+      #
+      # `--release` brings `lto = "thin"` with it, and that is what made this job
+      # seventy-five minutes long. There are forty integration test files, so
+      # cargo builds forty binaries, and each one statically links the whole
+      # Typst compiler — forty whole-program optimisation passes over the same
+      # compiler, every push. The log is unambiguous about it: the dependency
+      # cache restores in ten seconds, fifteen crates compile, and then
+      # seventy-three and a half minutes pass with nothing being compiled at all.
+      # Clippy is 31 seconds and the tests themselves are eleven.
+      #
+      # Both names, because the two profiles cargo could be using here disagree
+      # with each other and the measurement disagrees with the documentation —
+      # see the long note in `engine/Cargo.toml`, where the `[profile.bench]`
+      # form of this was tried and moved the number by 34 seconds. Naming both
+      # costs nothing and removes the question.
+      #
+      # This is a build setting, not a check. `opt-level = 3` is untouched, so
+      # the reason `--release` is here in the first place survives; what goes is
+      # an optimisation pass whose only product is a faster binary. The shipped
+      # desktop application is unaffected either way — it is built from
+      # `app/src-tauri`, a separate package, and cargo honours only the profile
+      # of the package it is building, so `src-tauri/Cargo.toml` carries its own
+      # `lto = "thin"` and this variable never reaches it.
       - name: Check
         working-directory: ./ksav
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_BENCH_LTO: "false"
         run: node tools/gate.mjs engine --release
 
   # Formatting, across every Rust tree in this repository.

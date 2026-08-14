@@ -674,7 +674,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,944 editor assertions, 663 engine
+- [x] **CI, running and green** — typecheck, 5,976 editor assertions, 663 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -761,7 +761,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,944 assertions across 93 files |
+| `editor` | the typechecker, then 5,976 assertions across 94 files |
 | `engine` | lints, then 663 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 

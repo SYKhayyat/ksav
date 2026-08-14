@@ -155,7 +155,16 @@ import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, onSchedule, bodyOnScreen } from "./compile";
 import * as commands from "./commands";
-import { applyPreview, currentPages, drawCurrentInto, pageBox } from "./preview";
+import {
+  applyPreview,
+  clearPages,
+  currentPages,
+  drawCurrentInto,
+  drawRemembered,
+  forgetPages,
+  pageBox,
+  rememberPages,
+} from "./preview";
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { changeGutter, changeHighlight, changes, nameMarks, setBaseline } from "./changes";
@@ -326,6 +335,10 @@ async function openDoc(id: string) {
   runtime.setSwitching(true);
   stashFocused();
   const leaving = runtime.currentDoc?.id ?? null;
+  // Keep this document's pages before anything points somewhere else, so coming
+  // back to it shows it rather than a blank pane and a wait. See `showPagesFor`
+  // for the other half, and `preview.ts` for why the pages are kept at all.
+  if (leaving) rememberPages(leaving);
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
   runtime.setCurrentBinding(await files.recallBinding(next.id));
@@ -364,7 +377,36 @@ async function openDoc(id: string) {
   updateTitleBar();
   rerenderChrome();
   runtime.view.focus();
+  showPagesFor(id);
   scheduleCompile();
+}
+
+/**
+ * What the preview shows in the second before the incoming document's compile
+ * lands.
+ *
+ * There used to be no answer to this: `openDoc` ended at `scheduleCompile`, and
+ * a compile is 0.4–3 s away, so for that whole time every preview pane went on
+ * showing **the sefer you just left** — under the new document's title, with the
+ * new document's outline beside it, and click-to-jump measuring against pages
+ * belonging to neither. A pane stating one document while the editor holds
+ * another is the exact family this application is audited for.
+ *
+ * The three answers are the writer's to choose (`tabCompile`); what none of them
+ * may do is leave the last document's pages standing.
+ */
+function showPagesFor(id: string) {
+  // `onSwitch`: the writer has asked for nothing kept, so there is nothing to
+  // draw and the empty pane is the honest report.
+  if (settings.tabCompile === "onSwitch") {
+    clearPages();
+    return;
+  }
+  // Otherwise: this document's own last pages if we have them — under `idle`
+  // they are a current layout, under `keep` they are as of when it was last on
+  // screen — and an empty pane if we do not, which is a document being opened
+  // for the first time this session.
+  if (!drawRemembered(id)) clearPages();
 }
 
 /**
@@ -484,12 +526,17 @@ async function closeOpenDoc(id: string) {
     // is still the document just closed. One path in, so a document arriving on
     // screen always arrives the same way.
     await openDoc(next);
+    // *After* the switch, not before: leaving a document is what files its
+    // pages, so releasing them first would be undone one line later. They are
+    // megabytes of SVG for a tab that is no longer there.
+    forgetPages(id);
     return;
   }
   // The last one. An editor with no document is not a state this application
   // has, so closing the only open document opens a new empty one rather than
   // leaving a writer looking at nothing.
   await newNamedDoc();
+  forgetPages(id);
 }
 
 /**
@@ -569,6 +616,9 @@ async function removeDoc(id: string) {
   } else {
     rerenderChrome();
   }
+  // A deleted document's kept pages are a layout of text that no longer exists.
+  // After the switch, for the reason `closeOpenDoc` gives.
+  forgetPages(id);
 }
 
 function renameDoc() {
@@ -3575,7 +3625,13 @@ function buildDocsMenu(): HTMLElement {
  */
 function docsMenuItems(): (Node | string)[] {
   const items: (Node | string)[] = [
-    el("button", { class: "menu-item", onClick: () => void newNamedDoc() }, [t("newDoc")]),
+    el("button", {
+      class: "menu-item",
+      // Named for the same reason the rows below carry `data-doc`: the label is
+      // translated, and the acceptance run has to be able to say *this* item.
+      "data-doc-action": "new",
+      onClick: () => void newNamedDoc(),
+    }, [t("newDoc")]),
     el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
     // "Save as" already existed, in the File menu. The margin comment asking
     // *"do we have a save as something else.ksav option?"* was written by
@@ -3605,6 +3661,11 @@ function docsMenuItems(): (Node | string)[] {
             "button",
             {
               class: "menu-item menu-item-main" + (here ? " active" : ""),
+              // Which document this row switches to, for anything outside this
+              // file that has to say *that* one — the acceptance run's tab
+              // switch, today. The title is not an identity: two documents may
+              // share one, and it is translated besides.
+              "data-doc": entry.id,
               onClick: () => {
                 closeMenus();
                 void openDoc(entry.id);
@@ -3639,6 +3700,7 @@ function docsMenuItems(): (Node | string)[] {
           "button",
           {
             class: "menu-item menu-item-main" + (here ? " active" : ""),
+            "data-doc": entry.id,
             onClick: () => {
               closeMenus();
               void openDoc(entry.id);
@@ -4840,6 +4902,12 @@ function buildSettingsDrawer(): HTMLElement {
       ["emacs", t("mode.emacs")],
     ]),
     el("div", { class: "set-note" }, [editingModeNote()]),
+    selectRow("tabCompileLabel", "tabCompile", [
+      ["keep", t("tabCompile.keep")],
+      ["idle", t("tabCompile.idle")],
+      ["onSwitch", t("tabCompile.onSwitch")],
+    ]),
+    el("div", { class: "set-note" }, [t("tabCompileNote")]),
     checkRow("focusModeLabel", "focusMode"),
     checkRow("typewriterLabel", "typewriter"),
     checkRow("autocompleteLabel", "autocomplete"),
@@ -10280,8 +10348,20 @@ async function boot() {
       // A heading, and *its section*: everything under it until the next heading
       // at the same level or above. `i` is the section without the heading line,
       // which is what a writer means by "this heading" when they say `dih`.
+      // `sectionAt`, not `headingAt`. The difference is the whole feature:
+      // `headingAt` matches only while the caret is *on the heading line*, so
+      // `dah` did nothing from inside the section it is named after — which is
+      // where a writer always is. `headings.ts` has carried the right function
+      // all along, with a comment saying it is what "move this section" and
+      // "fold this section" mean when the caret is in the body text.
+      //
+      // Recorded because the previous attempt at these text objects was
+      // withdrawn with a note saying the arithmetic here was "right and is what
+      // the next attempt needs". It was not; it was one function call wrong,
+      // and calling the registration the only missing piece is what stopped
+      // anybody looking.
       const all = heads.headings(doc);
-      const here = heads.headingAt(doc, at, all);
+      const here = heads.sectionAt(doc, at, all);
       if (here) {
         const after = all.find((h) => h.from > here.from && h.level <= here.level);
         const sectionTo = after ? after.from : doc.length;

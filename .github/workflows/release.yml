@@ -56,10 +56,17 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
-      # The engine, in release, because that is what the installers carry and a
-      # debug-only pass would not be the same binary.
+      # The engine, in release, because a debug Typst lays documents out slowly
+      # enough to change what this step costs. `opt-level = 3` is the whole of
+      # that reason, and it is untouched; the link-time optimisation is turned
+      # off here for the same reason `ci.yml` turns it off, where the long note
+      # and the measurement live. Forty test binaries, each an LTO pass over the
+      # whole Typst compiler, is seventy-five minutes of a release.
       - name: Check the engine
         working-directory: ./ksav
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_BENCH_LTO: "false"
         run: node tools/gate.mjs engine --release
 
   build:
@@ -130,9 +137,17 @@ jobs:
         working-directory: ./ksav
         run: node tools/gate.mjs editor
 
+      # Same setting, same reason as the job above and as `ci.yml`. Note that it
+      # reaches only this check: `tauri-action` below builds `app/src-tauri`,
+      # which is a separate package with its own `[profile.release]`, and cargo
+      # honours only the profile of the package it is building. The installer is
+      # linked exactly as it was.
       - name: Check the engine
         if: matrix.platform == 'ubuntu-22.04'
         working-directory: ./ksav
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_BENCH_LTO: "false"
         run: node tools/gate.mjs engine --release
 
       - uses: tauri-apps/tauri-action@v0

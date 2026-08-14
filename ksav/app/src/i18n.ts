@@ -703,6 +703,12 @@ const HE: Dict = {
   // build where the mode was never applied at all.
   editingModeNoteOff: "Vim ו־Emacs אמיתיים זמינים כאן — בחרו אחד מהם והם יקבלו את המקשים לפני קיצורי כתב.",
   editingModeFailed: "⚠ המצב שנבחר לא נטען, והמקלדת נשארה רגילה. הסיבה: {0}",
+  tabCompileLabel: "לשונית שאינה על המסך",
+  "tabCompile.keep": "לשמור את העמוד האחרון (ברירת מחדל)",
+  "tabCompile.idle": "לעבד ברקע בזמן מנוחה",
+  "tabCompile.onSwitch": "לעבד רק בעת המעבר",
+  tabCompileNote:
+    "מעבר בין ספרים פתוחים לוקח בין 0.4 לשלוש שניות של עימוד. ברירת המחדל מציגה מיד את העמוד שהספר הזה הראה לאחרונה ומחליפה אותו כשהעימוד החדש מגיע. «ברקע» מעדכן את שאר הלשוניות שתי שניות אחרי שהפסקתם להקליד — תמיד עדכני, במחיר עימוד לכל ספר פתוח. «רק בעת המעבר» אינו שומר דבר, והחלונית ריקה עד שהעימוד מסתיים.",
   settingsLost: "⚠ ההעדפות השמורות לא נקראו, וההגדרות חזרו לברירת המחדל. הסיבה: {0}",
   focusModeLabel: "מצב ריכוז (עמעום שאר הטקסט)",
   typewriterLabel: "גלילת מכונת כתיבה (השורה במרכז)",
@@ -1751,6 +1757,12 @@ const EN: Dict = {
   editingModeNote: "Real Vim and Emacs. While one is on it takes the whole keyboard and Ksav's own shortcuts are not installed at all — but every command is still there as a : command in Vim and under M-x in Emacs. To save, :w in Vim, C-x C-s in Emacs.",
   editingModeNoteOff: "Real Vim and Emacs are available here — pick one and it gets the keys before Ksav's own shortcuts.",
   editingModeFailed: "⚠ The mode you chose did not load, and the keyboard is unchanged. Reason: {0}",
+  tabCompileLabel: "A tab that is not on screen",
+  "tabCompile.keep": "Keep its last page (default)",
+  "tabCompile.idle": "Recompile it while you pause",
+  "tabCompile.onSwitch": "Compile it only when you switch",
+  tabCompileNote:
+    "Switching between open seforim costs a layout — 0.4 to 3 seconds. The default shows the page that sefer last had, straight away, and replaces it when the fresh layout lands. \"While you pause\" brings every other tab up to date two seconds after you stop typing: always current, at the cost of a layout per open sefer. \"Only when you switch\" keeps nothing, and the pane is empty until the compile finishes.",
   settingsLost: "⚠ Your saved preferences could not be read, so the settings are back to their defaults. Reason: {0}",
   focusModeLabel: "Focus mode (dim the rest)",
   typewriterLabel: "Typewriter scrolling (keep the line centred)",

@@ -1580,9 +1580,92 @@ fn families_with_italic(fonts: &[&[u8]]) -> std::collections::BTreeSet<String> {
     out
 }
 
-/// Where the body first asks for italics, as a byte offset into it.
+/// Every command in the prelude that asks for a slant, read off the prelude.
 ///
-/// Through Typst's own parse rather than a search for `#נטוי`, for the reason
+/// # Why this is derived and was not
+///
+/// The warning below was written for `#נטוי` and looked for that name and its
+/// English alias. `#נטוי` is not the only command that asks: `#מקור` sets
+/// `style: "italic"` outright, the marks table gives `גמרא`, `פסוק` and
+/// `ציון_מקור` an italic default, and the note apparatus defaults **every tier
+/// past the first** to italic — so a sefer with sub-notes asks for a slant it
+/// never gets, and the one command that warned about it was the one command
+/// nobody had used.
+///
+/// A list of the other names here would be the same mistake with more rows in
+/// it. The prelude is the authority: a `#let` whose body reaches `emph(` or
+/// `style: "italic"` is asking, and so is any name the marks table gives an
+/// italic style to. Add a command to `ksav.typ` that slants and it is covered
+/// without this file changing.
+///
+/// Names only — the apparatus tiers are a *configuration* default rather than a
+/// command, and are handled where the configuration is read, below.
+fn slanting_commands() -> &'static std::collections::BTreeSet<String> {
+    static ONCE: std::sync::OnceLock<std::collections::BTreeSet<String>> =
+        std::sync::OnceLock::new();
+    ONCE.get_or_init(|| {
+        let mut out = std::collections::BTreeSet::new();
+        // `#let name(...) = …` whose right-hand side slants, up to the next
+        // `#let` at the start of a line. Two spellings of the request, which are
+        // the two Typst has: `emph` and an explicit style.
+        for chunk in PRELUDE.split("\n#let ").skip(1) {
+            let Some(name) = chunk
+                .split(['(', ' ', '='])
+                .next()
+                .filter(|n| !n.is_empty())
+            else {
+                continue;
+            };
+            let body = chunk.split("\n#let ").next().unwrap_or(chunk);
+            if body.contains("emph(") || body.contains("style: \"italic\"") {
+                out.insert(name.to_string());
+            }
+        }
+        // And the marks, whose style is data rather than code: a row of the
+        // marks table with an italic style is the same promise made in a
+        // different grammar.
+        for entry in PRELUDE.split('"').collect::<Vec<_>>().windows(5) {
+            if entry[2].contains(": (סגנון: ") && entry[3] == "italic" {
+                out.insert(entry[1].to_string());
+            }
+        }
+        // Then the aliases, to a fixed point.
+        //
+        // Every command in this prelude has an English name given as `#let
+        // italic = נטוי` — a body with no `emph(` in it, so the pass above sees
+        // nothing. Missing this meant `#italic` stopped warning while `#נטוי`
+        // still did, which is the same bug as the one being fixed with the two
+        // scripts swapped, and the suite said so immediately.
+        loop {
+            let mut added = false;
+            for line in PRELUDE.lines() {
+                let Some(rest) = line.strip_prefix("#let ") else {
+                    continue;
+                };
+                let mut halves = rest.splitn(2, " = ");
+                let (Some(name), Some(points_at)) = (halves.next(), halves.next()) else {
+                    continue;
+                };
+                // An alias only: a name, a space, an equals, and one bare name.
+                let target = points_at.trim();
+                if name.contains('(') || target.contains('(') || target.contains(' ') {
+                    continue;
+                }
+                if out.contains(target) && out.insert(name.to_string()) {
+                    added = true;
+                }
+            }
+            if !added {
+                break;
+            }
+        }
+        out
+    })
+}
+
+/// Where the body first asks for a slant, as a byte offset into it.
+///
+/// Through Typst's own parse rather than a search for a name, for the reason
 /// `spans.ts` gives on the other side of the seam: the name inside a string
 /// literal is not a call, and a warning about a command the writer never wrote
 /// is worse than the silence it replaces.
@@ -1591,13 +1674,13 @@ fn families_with_italic(fonts: &[&[u8]]) -> std::collections::BTreeSet<String> {
 /// place is a diagnostic the writer has to go looking for. With one, the status
 /// bar's entry becomes a button that goes there and the line is marked, which
 /// is the whole difference between being told and being able to act.
-fn first_italic(body: &str) -> Option<usize> {
+fn first_italic(body: &str) -> Option<(usize, String)> {
     use typst::syntax::{LinkedNode, SyntaxKind};
-    fn walk(node: &LinkedNode) -> Option<usize> {
+    fn walk(node: &LinkedNode) -> Option<(usize, String)> {
         if node.kind() == SyntaxKind::Ident {
             let name = node.get().leaf_text();
-            if name == "נטוי" || name == "italic" {
-                return Some(node.offset());
+            if slanting_commands().contains(name.as_str()) {
+                return Some((node.offset(), name.to_string()));
             }
         }
         node.children().find_map(|child| walk(&child))
@@ -1716,7 +1799,7 @@ fn line_column(body: &str, offset: usize) -> (usize, usize) {
 /// What must not happen is that they keep pressing a button which does nothing
 /// and are never told.
 pub(crate) fn italic_warning(body: &str, cfg: &DocConfig, assets: &Assets) -> Option<Diagnostic> {
-    let at = first_italic(body)?;
+    let (at, command) = first_italic(body)?;
     let mut fonts = bundled_fonts();
     fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
     if families_with_italic(&fonts).contains(&cfg.font.to_lowercase()) {
@@ -1727,19 +1810,23 @@ pub(crate) fn italic_warning(body: &str, cfg: &DocConfig, assets: &Assets) -> Op
         "warning",
         format!(
             concat!(
-                "לגופן {font} אין גרסה נטויה, ולכן #נטוי משאיר את הטקסט זקוף. ",
+                "לגופן {font} אין גרסה נטויה, ולכן #{cmd} משאיר את הטקסט זקוף. ",
                 "בחרו גופן שיש לו אחת, צרפו קובץ גופן, או השתמשו ב#הדגשה · ",
-                "{font} has no italic face, so #italic leaves the text upright. ",
+                "{font} has no italic face, so #{cmd} leaves the text upright. ",
                 "Choose a font that has one, attach a font file, or use bold instead",
             ),
             font = cfg.font,
+            // The command the *writer* used, not the one this check was first
+            // written for. A warning that says `#נטוי` to somebody who typed
+            // `#מקור` is a warning about a command they cannot find.
+            cmd = command,
         ),
     );
     said.line = Some(line);
     said.column = Some(column);
     // The command it is about, so the diagnostics view can name it the way it
     // names every other one.
-    said.about = Some("#נטוי".to_string());
+    said.about = Some(format!("#{command}"));
     Some(said)
 }
 

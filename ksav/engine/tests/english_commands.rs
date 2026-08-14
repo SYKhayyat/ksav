@@ -533,3 +533,64 @@ fn the_warning_names_the_line_the_command_is_on() {
     assert_eq!(said.line, Some(3), "{said:?}");
     assert_eq!(said.about.as_deref(), Some("#נטוי"));
 }
+
+/// Every command that asks for a slant warns, not only the one that was checked.
+///
+/// The warning above was written for `#נטוי` and looked for that name. It is not
+/// the only command that asks. `#מקור` sets `style: "italic"` outright, and the
+/// marks table gives `גמרא`, `פסוק` and `ציון_מקור` an italic default — so four
+/// more commands promised a slant no bundled family can produce, and said
+/// nothing at all, while the one command that did warn was covered.
+///
+/// The set is read off `ksav.typ` rather than listed here, so a command added to
+/// the prelude that slants is covered without this test changing. What this
+/// holds is the class: whatever asks, warns — and names *itself* while doing it,
+/// because a warning that says `#נטוי` to somebody who typed `#מקור` is a
+/// warning about a command they cannot find.
+#[test]
+fn every_command_that_asks_for_a_slant_says_it_did_not_get_one() {
+    let asked = ["מקור", "גמרא", "פסוק", "ציון_מקור"];
+    for name in asked {
+        let body = format!("רגיל #{name}[טקסט] סוף");
+        let out = ksav_engine::compile(&body, &DocConfig::default());
+        let said = out
+            .diagnostics
+            .iter()
+            .find(|d| d.about.as_deref() == Some(&format!("#{name}")))
+            .unwrap_or_else(|| {
+                panic!(
+                    "#{name} asks for an italic face and no bundled family has one, \n\
+                     and the compile said nothing about it. The warning knows only the \n\
+                     commands `slanting_commands()` finds in ksav.typ — if this one \n\
+                     stopped being found, the reader presses a button that does nothing \n\
+                     and is never told. Diagnostics were: {:?}",
+                    out.diagnostics
+                        .iter()
+                        .map(|d| &d.message)
+                        .collect::<Vec<_>>()
+                )
+            });
+        assert!(
+            said.message.contains(&format!("#{name}")),
+            "the warning for #{name} names a different command: {}",
+            said.message
+        );
+    }
+
+    // And the one it was originally written for still works, so the sweep did
+    // not trade one instance for four.
+    let out = ksav_engine::compile("רגיל #נטוי[נטוי] סוף", &DocConfig::default());
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.about.as_deref() == Some("#נטוי")),
+        "the command the check was written for stopped warning"
+    );
+
+    // The floor: a loop over a list that a bad derivation could empty would
+    // assert nothing, which is the failure this repository has a file about.
+    assert!(
+        asked.len() >= 4,
+        "the list of commands under test has emptied out"
+    );
+}

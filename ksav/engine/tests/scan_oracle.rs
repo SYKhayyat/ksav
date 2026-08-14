@@ -69,6 +69,8 @@ struct Doc {
     comments: Vec<(usize, usize)>,
     /// `[…]` groups, contents only.
     groups: Vec<(usize, usize)>,
+    /// Raw regions, backticks included — what Typst calls a `Raw` node.
+    raws: Vec<(usize, usize)>,
 }
 
 fn ranges(v: &serde_json::Value, key: &str) -> Vec<(usize, usize)> {
@@ -98,6 +100,7 @@ fn docs() -> Vec<Doc> {
             strings: ranges(d, "strings"),
             comments: ranges(d, "comments"),
             groups: ranges(d, "groups"),
+            raws: ranges(d, "raws"),
         })
         .collect()
 }
@@ -296,6 +299,56 @@ fn a_comment_is_one_to_both_of_them() {
         }
     });
     s.assert_clean("comments");
+}
+
+/// A raw block is one to both of them.
+///
+/// # The finding
+///
+/// Inside `` `…` `` and ```` ```…``` ```` Typst reads literal text — a `#command`
+/// there is characters, not a call. This scanner did not have that rule, so
+/// `` `#הדגשה[x]` `` was a call to every surface in the editor: coloured as one,
+/// folded as one, completed as one, counted by the notes pane when the sample
+/// contained `#הערה`, and converted by the Markdown and Org exporters into
+/// emphasis nobody asked for. A document showing its own documentation showed it
+/// wrong.
+///
+/// # Why this file did not catch it
+///
+/// It compares code ranges, string literals, comments and content groups, and
+/// raw is none of those. And the corpus had the matching hole: of 3,395
+/// documents generated from the templates, the starters and the insertion grid,
+/// **one** contained a backtick — because none of those sources documents Ksav
+/// *in* Ksav, which is the first thing anybody does with it. Six documents were
+/// added to `REGRESSIONS` with this test.
+#[test]
+fn a_raw_block_is_one_to_both_of_them() {
+    let s = sweep(|d, p, map, wrong| {
+        // The nodes, not the leaves. Typst wraps a raw region in a `Raw` whose
+        // children are the delimiters and the text, so `of_kind` — which walks
+        // leaves — finds nothing at all, and the first version of this test
+        // reported that Typst had seen no raw in a document made of it.
+        let mut typst: Vec<(usize, usize)> = p.raws.iter().map(|r| (r.from, r.to)).collect();
+        let mut theirs = to_bytes(map, &d.raws);
+        typst.retain(|&(a, b)| !p.touches_math(a, b));
+        theirs.retain(|&(a, b)| !p.touches_math(a, b));
+        typst.sort_unstable();
+        theirs.sort_unstable();
+        if typst != theirs {
+            wrong.push(format!(
+                "raw differs — Typst {:?}, the scanner {:?}",
+                typst
+                    .iter()
+                    .map(|&(a, b)| &d.text[a..b])
+                    .collect::<Vec<_>>(),
+                theirs
+                    .iter()
+                    .map(|&(a, b)| &d.text[a..b])
+                    .collect::<Vec<_>>(),
+            ));
+        }
+    });
+    s.assert_clean("raw blocks");
 }
 
 #[test]

@@ -601,7 +601,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,641 editor assertions, 635 engine
+- [x] **CI, running and green** — typecheck, 5,641 editor assertions, 636 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -688,7 +688,7 @@ Four groups, nine checks:
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
 | `editor` | the typechecker, then 5,641 assertions across 90 files |
-| `engine` | lints, then 635 tests across 42 binaries |
+| `engine` | lints, then 636 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 
 **One command, deliberately.** This section used to list six and
@@ -741,7 +741,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,395**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **3,401**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

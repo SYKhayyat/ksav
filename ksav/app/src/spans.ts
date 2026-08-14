@@ -261,6 +261,15 @@ export interface Scan {
   /** The calls that sit inside no other call. */
   roots: Node[];
   comments: Comment[];
+  /**
+   * Raw regions — `` `…` `` and ```` ```…``` ```` — backticks included.
+   *
+   * Literal text to Typst, and now to this scanner: a command written inside a
+   * code sample is not a call. Kept apart from `comments` because a code sample
+   * **prints**, so `plainText` must keep it and colouring it as a comment would
+   * grey out the one thing the writer put there to be read.
+   */
+  raws: Comment[];
   /** Code-mode string literals, contents only. Brackets in here are inert. */
   strings: Group[];
   /**
@@ -589,6 +598,7 @@ function lexCore(
   opts: LexOpts,
 ): {
   comments: Comment[];
+  raws: Comment[];
   strings: Group[];
   contentGroups: Group[];
   /** Opener index → closer index, for every delimiter that closes. */
@@ -598,6 +608,8 @@ function lexCore(
   delims: Delimiter[];
 } {
   const comments: Comment[] = [];
+  /** Raw regions — literal text, and not commands. See the backtick branch. */
+  const raws: Comment[] = [];
   const strings: Group[] = [];
   const contentGroups: Group[] = [];
   const closes = new Map<number, number>();
@@ -661,6 +673,45 @@ function lexCore(
     }
 
     if (ctx === "content") {
+      // ---- raw, where nothing is a command ----
+      //
+      // A run of backticks opens a raw block and the next run of the same length
+      // closes it, and everything between is *literal text* — that is Typst's
+      // rule, and this scanner did not have it. So `` `#הדגשה[x]` `` was read as
+      // a call: coloured as one, folded as one, offered completions as one,
+      // counted by the notes pane when the sample happened to contain `#הערה`,
+      // and converted by the Markdown and Org exporters into emphasis a reader
+      // never asked for. Every one of those is a document that shows its own
+      // documentation wrong.
+      //
+      // Skipped the way a comment is skipped — by moving `i` past it — so no
+      // head, delimiter or group inside it exists to be filtered out later. The
+      // region is recorded separately rather than added to `comments`, because a
+      // code sample **prints**: `plainText` must keep it, and colouring it as a
+      // comment would grey out the one thing the writer put there to be read.
+      if (c === 0x60 /* ` */) {
+        let run = 1;
+        while (text.charCodeAt(i + run) === 0x60) run++;
+        const fence = "`".repeat(run);
+        // The closer is a run of *exactly* this length: in ```` ```…``` ```` a
+        // stray double backtick inside is not the end.
+        let end = -1;
+        for (let at = text.indexOf(fence, i + run); at >= 0; at = text.indexOf(fence, at + 1)) {
+          if (text.charCodeAt(at + run) === 0x60) continue;
+          end = at + run;
+          break;
+        }
+        if (end < 0) {
+          // Unterminated, and it runs to the end of the document — which is what
+          // Typst does with it too, so the editor and the compiler agree about
+          // where the writer's mistake begins.
+          raws.push({ from: i, to: n, unterminated: true });
+          break;
+        }
+        raws.push({ from: i, to: end });
+        i = end - 1;
+        continue;
+      }
       // A backslash escapes the character after it, so `\]` is a literal `]` and
       // not a closer. `headings.ts` and `lists.ts` knew this; the other eight did
       // not, which is why the same document had two different shapes.
@@ -810,7 +861,7 @@ function lexCore(
   // `frames` is already in document order: a frame is pushed at its opener, and
   // openers arrive left to right. Nested frames therefore run outermost-first,
   // which is the order `framesAt` hands back.
-  return { comments, strings, contentGroups, closes, heads, frames, delims };
+  return { comments, raws, strings, contentGroups, closes, heads, frames, delims };
 }
 
 // ----------------------------------------------------------------- assembly
@@ -1187,7 +1238,7 @@ export function clearScanCache(): void {
 }
 
 function scanUncached(text: string): Scan {
-  const { comments, strings, contentGroups, closes, heads, frames } = lexCore(text, {
+  const { comments, raws, strings, contentGroups, closes, heads, frames } = lexCore(text, {
     recover: false,
     delims: false,
   });
@@ -1266,7 +1317,7 @@ function scanUncached(text: string): Scan {
       .filter((a) => !CELL_ARG.test(a) && !COLS_ARG_HEAD.test(a));
   }
 
-  return { nodes, roots, comments, strings, contentGroups, byStart, closes, frames, text };
+  return { nodes, roots, comments, raws, strings, contentGroups, byStart, closes, frames, text };
 }
 
 // ------------------------------------------------------------------- context

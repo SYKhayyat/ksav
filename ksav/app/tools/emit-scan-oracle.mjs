@@ -87,6 +87,26 @@ const REGRESSIONS = {
   "comment-inside-a-body": "#הדגשה[אלף]\n// הערה על השורה\nבית",
   "let-then-prose": "#let ר = [רבי]\n#ר יוחנן אמר (בגמרא) כך.",
   "math-beside-prose": "הנוסחה $x^2 + 1$ ואחריה (הסבר) בעברית.",
+  // Raw, where nothing is a command.
+  //
+  // These six are here because the sweep had a hole exactly the shape of the
+  // bug. Of 3,395 documents the oracle compares against Typst's own parser,
+  // **one** contained a backtick — so `` `#הדגשה[x]` `` was read as a call by
+  // every surface in the editor, and the one check that exists precisely to
+  // catch the scanner disagreeing with the compiler had nothing to disagree
+  // over. The templates do not use raw, the starters do not, and the insertion
+  // grid inserts commands rather than code samples.
+  //
+  // A corpus generated from what the product happens to contain is a corpus with
+  // the product's blind spots in it. These are the constructions a writer types
+  // when they are documenting Ksav *in* Ksav, which is the first thing anybody
+  // does with it.
+  "raw-inline-holds-a-command": "לפני `#הדגשה[טקסט]` אחרי",
+  "raw-block-holds-a-command": "לפני\n```\n#הדגשה[טקסט]\n#הערה[גם זו]\n```\nאחרי",
+  "raw-with-a-language-tag": "```typst\n#כותרת1[ראש]\n```",
+  "raw-inside-a-body": "#הדגשה[ראה `#נטוי[כך]` בהמשך]",
+  "raw-with-nested-ticks": "```\nא ``ב`` ג #הערה[ד]\n```",
+  "raw-unterminated": "לפני `#הדגשה[טקסט] ואין סוגר",
 };
 
 /** `[id, text]` for every document the oracle sweeps. */
@@ -165,6 +185,12 @@ function beliefs(text) {
     strings: s.strings.map((g) => [g.from, g.to]),
     comments: s.comments.map((c) => [c.from, c.to]),
     groups: s.contentGroups.map((g) => [g.from, g.to]),
+    // The whole raw region, backticks included, which is what Typst's own
+    // `Raw` node spans. Emitted so the oracle can compare it: the scanner read
+    // every command inside a code sample as a call, and the one check that
+    // exists to catch it disagreeing with the compiler was not looking at raw
+    // at all.
+    raws: s.raws.map((r) => [r.from, r.to]),
   };
 }
 

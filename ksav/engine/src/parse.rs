@@ -91,6 +91,13 @@ pub struct ContentBlock {
 pub struct Partition {
     pub leaves: Vec<Leaf>,
     pub content_blocks: Vec<ContentBlock>,
+    /// Every raw region, backticks included.
+    ///
+    /// A *node*, not a leaf, which is why `of_kind(SyntaxKind::Raw)` finds
+    /// nothing: Typst wraps the delimiters and the text inside a `Raw` and only
+    /// its children reach `leaves`. The oracle needs the whole span, because
+    /// what it is comparing is the region in which nothing is a command.
+    pub raws: Vec<ContentBlock>,
 }
 
 /// The kinds that are markup's own children.
@@ -176,6 +183,12 @@ pub fn partition(text: &str) -> Partition {
 
 fn walk(node: &SyntaxNode, at: usize, outer: Mode, out: &mut Partition) {
     let mode = mode_of(node.kind(), outer);
+    if node.kind() == SyntaxKind::Raw {
+        out.raws.push(ContentBlock {
+            from: at,
+            to: at + node.len(),
+        });
+    }
     if node.kind() == SyntaxKind::ContentBlock {
         // `[` and `]` are the first and last children; the group is what is
         // between them, which is the range `spans.ts` records.

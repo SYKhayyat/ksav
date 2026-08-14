@@ -357,7 +357,7 @@ async function openDoc(id: string) {
     opendocs.put({ id, state: makeState(next.body, !!settings.prose), scrollTop: 0, prose: !!settings.prose });
   }
   const entry = opendocs.focus(id)!;
-  runtime.view.setState(entry.state);
+  showInEveryPane(entry.state);
   syncGlobals();
   runtime.view.scrollDOM.scrollTop = entry.scrollTop;
   runtime.setSwitching(false);
@@ -489,18 +489,22 @@ function stashFocused() {
  * stored state whenever a setting changes, and it runs once per switch.
  */
 function syncGlobals() {
-  runtime.view.dispatch({
-    effects: [
-      themeCompartment.reconfigure(editorTheme(settings.theme === "dark")),
-      focusCompartment.reconfigure(focusExtension(!!settings.focusMode, !!settings.typewriter)),
-      shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
-      autoCompartment.reconfigure(autoExtension()),
-      structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
-      // The document's own, and it has to be re-read rather than inherited:
-      // this is the incoming document's direction, not the outgoing one's.
-      dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })),
-    ],
-  });
+  const effects = [
+    themeCompartment.reconfigure(editorTheme(settings.theme === "dark")),
+    focusCompartment.reconfigure(focusExtension(!!settings.focusMode, !!settings.typewriter)),
+    shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
+    autoCompartment.reconfigure(autoExtension()),
+    structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
+    // The document's own, and it has to be re-read rather than inherited:
+    // this is the incoming document's direction, not the outgoing one's.
+    dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })),
+  ];
+  // Every source pane, because every source pane was just handed the incoming
+  // document's state and a state carries the compartment values it was built
+  // with. Reconfiguring only the focused one left the pane beside it on the
+  // outgoing document's direction — a Hebrew sefer's panes rendering an English
+  // one right-to-left, in the half of the window nobody was looking at.
+  for (const v of sourceViews()) v.dispatch({ effects });
   // The editing mode is loaded asynchronously, so it is applied rather than
   // reconfigured inline — `applyMode` awaits the import and dispatches itself.
   void setEditingMode(settings.editingMode);
@@ -516,7 +520,17 @@ function syncGlobals() {
  * `applyMode` directly, and a fourth would have been added without this.
  */
 async function setEditingMode(mode: unknown): Promise<void> {
-  await keymodes.applyMode(runtime.view, keymodes.isMode(mode) ? mode : "default");
+  const want = keymodes.isMode(mode) ? mode : "default";
+  // Every source pane, and this one is not a tidiness argument.
+  //
+  // A mode was installed into `runtime.view` alone, so a writer in vim who
+  // split the window got a second pane with no vim in it — and a pane with no
+  // vim does not lack a feature, it **writes your commands into the sefer**.
+  // `i` was typed as the letter `i`, `dd` as the letters `dd`. Measured, not
+  // reasoned about: `iCHET` in the new pane produced `iCHET` on the line while
+  // the same keys in the pane beside it produced `CHET`.
+  const views = sourceViews();
+  for (const v of views.length ? views : [runtime.view]) await keymodes.applyMode(v, want);
   reconfigureShortcuts();
 }
 
@@ -1090,14 +1104,17 @@ function buildShortcutKeymap(): KeyBinding[] {
 }
 const shortcutCompartment = new Compartment();
 function reconfigureShortcuts() {
-  runtime.view.dispatch({
-    effects: [
-      shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
-      // Both, or rebinding Tab in Settings would change the shortcut list and
-      // leave the editor still doing the old thing.
-      structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
-    ],
-  });
+  const effects = [
+    shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
+    // Both, or rebinding Tab in Settings would change the shortcut list and
+    // leave the editor still doing the old thing.
+    structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
+  ];
+  // Every source pane. A binding is a property of the application, not of the
+  // pane that happened to have focus when it was changed — rebinding a key with
+  // the window split used to leave the other pane on the old one, which is a
+  // shortcut list that is true of half the screen.
+  for (const v of sourceViews()) v.dispatch({ effects });
 }
 
 /** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k"). */
@@ -1805,6 +1822,53 @@ let mirroring = false;
  */
 let forwarding = false;
 
+/** Every source pane's editor, in tree order, the focused one included. */
+function sourceViews(): EditorView[] {
+  const out: EditorView[] = [];
+  for (const l of panes.leaves(paneTree)) {
+    if (l.role !== "source") continue;
+    const v = paneViews.get(l.id);
+    if (v) out.push(v);
+  }
+  return out;
+}
+
+/**
+ * Show a document in every source pane at once.
+ *
+ * Switching documents used to re-state `runtime.view` — **the focused pane, and
+ * only it**. Every other source pane went on holding the sefer you had just
+ * left, while `retargetPanes` relabelled its tab with the name of the one you
+ * had switched to, so the window showed two documents and claimed to show one.
+ *
+ * Typing into the pane that was left behind was worse than reading it. The edit
+ * is forwarded to the primary and mirrored back by changesets carrying the
+ * primary's positions, so the moment the two documents were different lengths
+ * every keystroke threw `Applying change set to a document with the wrong
+ * length` — uncaught, once per character, with nothing on screen changing and
+ * nothing said. A writer typing into a pane that has silently stopped being an
+ * editor is the exact shape this application is being audited for.
+ *
+ * The panes share one `EditorState`, which is what they are: mirrors onto one
+ * text with one undo history. They diverge from the first keystroke, and
+ * `mirrorChange` is what keeps the text from diverging with them.
+ *
+ * What is *not* preserved is where each pane was standing in the document being
+ * returned to — every pane comes back to the focused pane's caret, because the
+ * open set stores one state per document rather than one per pane per document.
+ * That is a real limit and it is filed as its own item rather than left here as
+ * a comment nobody will find.
+ */
+function showInEveryPane(state: EditorState): void {
+  const views = sourceViews();
+  if (!views.length) {
+    // Before the first render there are no panes, only the boot view.
+    runtime.view.setState(state);
+    return;
+  }
+  for (const v of views) v.setState(state);
+}
+
 /** The view that owns a document's history: the first source pane showing it. */
 function primaryView(): EditorView | undefined {
   for (const l of panes.leaves(paneTree)) {
@@ -1992,6 +2056,14 @@ function renderPanes() {
     const born = paneViews.get(leaf.id);
     if (born) born.dispatch({ effects: EditorView.scrollIntoView(born.state.selection.main.head, { y: "center" }) });
   }
+
+  // And the editing mode, which a newborn pane has none of: `makeState` builds
+  // the mode compartment empty, so a pane made by splitting a window that is in
+  // vim starts in plain editing. Applied to the whole arrangement rather than to
+  // the new pane alone because the call is per view anyway and the import is
+  // cached, so there is nothing to be gained by being clever about which panes
+  // already have it.
+  void setEditingMode(settings.editingMode);
 
   // The focused pane has to be one that still exists.
   const live = panes.leaves(paneTree).filter((l) => l.role === "source");

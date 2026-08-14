@@ -1767,6 +1767,108 @@ async function main() {
     );
   }
 
+  step(14, "switching documents takes every pane with it");
+
+  // Step 11 already switches documents, and it passes, because it switches them
+  // with one pane open. The whole finding lives in the arrangement: `openDoc`
+  // re-stated the focused pane and `retargetPanes` relabelled *every* pane, so
+  // the window showed two documents under one name.
+  //
+  // The reading half of that is bad. The writing half is worse: edits are
+  // forwarded to the primary and mirrored back as changesets carrying the
+  // primary's positions, so once the two documents were different lengths every
+  // keystroke in the left-behind pane threw `Applying change set to a document
+  // with the wrong length` — uncaught, once per character, nothing changing on
+  // screen and nothing said. That is why the last check here is about the
+  // console: a pane that has silently stopped being an editor looks exactly
+  // like a pane whose writer has stopped typing.
+  {
+    await clickVisible("the widen control", '[data-narrow="on"]');
+
+    const textIn = (n) => page.locator(`.source-pane >> nth=${n} >> .cm-content`).textContent();
+    const typeIn = (n, text) =>
+      page.locator(".source-pane").nth(n).locator(".cm-content").pressSequentially(text, { delay: 4 });
+
+    // Non-vacuous first: both panes are on the sefer before anything switches,
+    // so "neither pane holds it afterwards" is a claim about the switch rather
+    // than about a marker that was never there.
+    check("both panes are on the sefer to begin with",
+      ((await textIn(0)) ?? "").includes("סימן") && ((await textIn(1)) ?? "").includes("סימן"),
+      `pane 0: ${((await textIn(0)) ?? "").slice(0, 40)} | pane 1: ${((await textIn(1)) ?? "").slice(0, 40)}`,
+    );
+
+    const mark = since();
+    await clickVisible("the Documents menu", '[data-menu="documents"] .menu-btn');
+    await clickVisible("New document", '[data-menu="documents"] [data-doc-action="new"]');
+    await page.waitForFunction(
+      () => (document.querySelector(".source-pane .cm-content")?.textContent ?? "x").length < 5,
+      undefined,
+      { timeout: 10_000, polling: 50 },
+    ).catch(() => {});
+
+    const still = await page.locator(".source-pane").count();
+    check("the arrangement survives the switch", still === 2, `${still} source panes`);
+    const left = ((await textIn(0)) ?? "").includes("סימן");
+    const right = ((await textIn(1)) ?? "").includes("סימן");
+    check(
+      "no pane is left holding the document you switched away from",
+      !left && !right,
+      `${left ? "pane 0" : "pane 1"} is still showing the sefer, under the new document's name`,
+    );
+
+    // And it is still an editor. A pane that shows the right document and
+    // refuses to be typed into has moved the bug rather than fixed it.
+    await clickVisible("the second pane", '.source-pane >> nth=1 >> .cm-content');
+    await typeIn(1, "בדיקה");
+    const typed = (await textIn(1)) ?? "";
+    check("the pane beside the focused one can still be typed into", typed.includes("בדיקה"), `it holds "${typed}"`);
+    check(
+      "…and typing into it raises nothing on the console",
+      newProblems(mark).length === 0,
+      newProblems(mark).map((p) => p.what).join(" | "),
+    );
+  }
+
+  step(15, "an editing mode holds every pane, not the one that had focus");
+
+  // The same class as the step above, and the reason it is worth its own step is
+  // that the failure is not a missing feature. A pane with no vim in it does not
+  // decline to move the cursor — it **writes the commands into the sefer**. `i`
+  // arrives as the letter `i` and `dd` as the letters `dd`, in a document the
+  // writer believes they are navigating.
+  //
+  // Measured before it was fixed, by the discriminator used here: in vim, `i`
+  // opens insert and is not written; without vim it is.
+  {
+    const typeIn = (n, text) =>
+      page.locator(".source-pane").nth(n).locator(".cm-content").pressSequentially(text, { delay: 4 });
+    const firstLine = (n) => page.locator(".source-pane").nth(n).locator(".cm-line").first().textContent();
+
+    await clickVisible("the settings chip", '[data-chip="settings"]');
+    await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
+    await page.selectOption('[data-setting="editingMode"]', "vim");
+    await page.waitForTimeout(1200);
+    await press("Escape");
+
+    for (const pane of [0, 1]) {
+      await clickVisible(`pane ${pane}`, `.source-pane >> nth=${pane} >> .cm-content`);
+      await press("Control+Home");
+      await press("Escape");
+      await typeIn(pane, `iP${pane}`);
+      await press("Escape");
+      const line = (await firstLine(pane)) ?? "";
+      check(
+        `pane ${pane} is in vim: the i opened insert rather than being written`,
+        line.startsWith(`P${pane}`),
+        `the line begins "${line.slice(0, 12)}" — an i on the line means this pane has no mode in it`,
+      );
+    }
+
+    await clickVisible("the settings chip", '[data-chip="settings"]');
+    await page.selectOption('[data-setting="editingMode"]', "default");
+    await page.waitForTimeout(600);
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

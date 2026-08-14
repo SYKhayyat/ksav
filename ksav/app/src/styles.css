@@ -324,6 +324,11 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 /* A page that has been filled in takes its height from its own drawing, which
    is the same height the ratio above reserved for it. */
 .page:has(svg) { aspect-ratio: auto; }
+/* A page a narrowed preview is not showing. The `hidden` attribute already means
+   this; it is stated because `.page` is one `display:` away from overriding the
+   browser's own rule, and the failure would be a preview that says it is holding
+   one siman while showing the whole sefer. */
+.page[hidden] { display: none; }
 .page svg { width: 100%; height: auto; display: block; }
 
 /* Forward search: "your cursor printed *here*".
@@ -1534,3 +1539,11 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .panel-pane { padding: 6px 4px; background: var(--panel); }
 .pane-name { flex: 1; }
 .pane-head { display: flex; align-items: center; gap: 2px; }
+/* What a narrowed preview is holding: the siman, and how many pages it printed
+   on. Empty for a preview showing the whole document, which is why it collapses
+   rather than reserving a gap. */
+.pane-window { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+.pane-window:empty { display: none; }
+/* Nothing printed. Said in the strip rather than left to a blank pane, and said
+   in the colour the rest of the application says "look at this" in. */
+.pane-window[data-pages="0"] { color: var(--warn, #b26a00); }

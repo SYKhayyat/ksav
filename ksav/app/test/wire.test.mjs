@@ -81,16 +81,16 @@ const SEAM = [
     file: "lib.rs",
     at: '"ok": true, "html": html',
     ts: "CompileResult",
-    // Nothing is laid out for HTML: no pages, no fingerprints, no PDF, and no
-    // assembled source. What the caller reads is `html`.
-    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source"],
+    // Nothing is laid out for HTML: no pages, no fingerprints, no PDF, no
+    // assembled source and no page runs. What the caller reads is `html`.
+    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines"],
   },
   {
     what: "an html compile that failed",
     file: "lib.rs",
     at: '"html": serde_json::Value::Null',
     ts: "CompileResult",
-    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source"],
+    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines"],
   },
   {
     what: "assemble: the document as Typst, with nothing laid out",
@@ -134,9 +134,9 @@ const SEAM = [
     ts: "CompileResult",
     // The refusal is deliberately a superset of the compile shape, so a failed
     // `/compile` reads identically whatever produced it. It carries no
-    // fingerprints, no html and no missing assets, because nothing was laid
-    // out; `error` is the key it adds, and it is in `EXTRA_SENT`.
-    optional: ["pages_hash", "html", "missing_assets"],
+    // fingerprints, no html, no missing assets and no page runs, because nothing
+    // was laid out; `error` is the key it adds, and it is in `EXTRA_SENT`.
+    optional: ["pages_hash", "html", "missing_assets", "pages_lines"],
   },
   {
     what: "linkify: the markup with its mareh mekomos linked",

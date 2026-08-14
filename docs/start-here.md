@@ -212,17 +212,25 @@ press repeatedly until the right one comes round.
 names the siman it is holding, so a pane showing four paragraphs is never
 mistakable for a short document; click the name to widen it again.
 
-Two things it deliberately does not do. It does not change what compiles — the
-preview is still the whole sefer, with the sefer's own page numbers, note numbers
-and running heads, because a preview that says *page 1* about your fourth siman
-would be wrong in the one place that ends up on paper. And a narrowed pane
-**cannot be edited outside its section**: select everything and type, and the
-edit is refused and says so. That is the difference between narrowing and merely
-hiding, and it is the reason to use it on a sefer you cannot afford to damage
-from the wrong end.
+**The preview beside it follows.** A preview pane whose scroll is linked to a
+narrowed source pane shows the pages that siman printed on and hides the rest;
+its strip says which siman and how many pages, so a short preview is a stated
+short preview. Unlink the scroll and it goes back to the whole sefer. A siman
+that has not printed anything yet — a document mid-keystroke, a section holding
+only commands — says so rather than going quietly blank.
 
-The pane beside it is unaffected. That is the whole point: one siman under your
-hands, the sefer entire next to it.
+Two things it deliberately does not do. It does not change what compiles: the
+pages you are shown are the sefer's own pages, with the sefer's page numbers,
+note numbers and running heads, and the first of them still carries the tail of
+the siman before it. A preview that said *page 1* about your fourth siman would
+be wrong in the one place that ends up on paper. And a narrowed pane **cannot be
+edited outside its section**: select everything and type, and the edit is refused
+and says so. That is the difference between narrowing and merely hiding, and it
+is the reason to use it on a sefer you cannot afford to damage from the wrong
+end.
+
+The panes you did not narrow are unaffected. That is the whole point: one siman
+under your hands, the sefer entire next to it.
 
 ## Hebrew and English on one line
 

@@ -224,6 +224,29 @@ fn span_site(span: Span, main: &Source) -> Option<Site> {
     }
 }
 
+/// A site as an offset into the writer's own text, or `None` for anywhere else.
+///
+/// The writer's own text is `main.typ` after the two-line header. A span in the
+/// header itself — the import, the `#show` wrapper — is no more a line the
+/// writer has than a span in the prelude is.
+fn in_body(s: &Site, body_offset: usize) -> Option<usize> {
+    match s {
+        Site::Main(r) if r.start >= body_offset => Some(r.start - body_offset),
+        _ => None,
+    }
+}
+
+/// The same question of a bare span: where in the writer's own text is this?
+///
+/// [`crate::pagelines`] asks it of every glyph on a page. It is here rather than
+/// there because the two halves of the answer — which of the compile's files a
+/// span names, and where the writer's text starts inside `main.typ` — are this
+/// module's, and a second reading of either is how a coordinate correction comes
+/// to be right in one place and wrong in the other.
+pub(crate) fn body_byte_of(span: Span, main: &Source, body_offset: usize) -> Option<usize> {
+    in_body(&span_site(span, main)?, body_offset)
+}
+
 /// Where in the writer's own text a diagnostic actually happened, and what call
 /// took it there.
 ///
@@ -245,13 +268,7 @@ fn where_it_happened(
 ) -> (Option<usize>, Option<String>) {
     let text = main.text();
     let body = &text[body_offset.min(text.len())..];
-    // The writer's own text is `main.typ` after the two-line header. A span in
-    // the header itself — the import, the `#show` wrapper — is no more a line
-    // the writer has than a span in the prelude is.
-    let in_body = |s: &Site| match s {
-        Site::Main(r) if r.start >= body_offset => Some(r.start - body_offset),
-        _ => None,
-    };
+    let in_body = |s: &Site| in_body(s, body_offset);
 
     let own = diag_site(d, main);
     if let Some(at) = own.as_ref().and_then(in_body) {

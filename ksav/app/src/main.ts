@@ -95,6 +95,7 @@ import * as apparatus from "./apparatus";
 import {
   changeReachesOut,
   insideSpan,
+  lineWindowOf,
   narrowedTo,
   narrowing,
   setNarrow,
@@ -158,7 +159,7 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 import * as settings_ from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, onSchedule, bodyOnScreen } from "./compile";
+import { scheduleCompile, runCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
 import * as commands from "./commands";
 import {
   applyPreview,
@@ -167,8 +168,11 @@ import {
   drawCurrentInto,
   drawRemembered,
   forgetPages,
+  hasPageLines,
+  narrowPreview,
   pageBox,
   rememberPages,
+  type LineWindow,
 } from "./preview";
 import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
@@ -1989,6 +1993,7 @@ function narrowHere(v: EditorView): void {
   v.dispatch({ effects: setNarrow.of(span.anchor), selection: { anchor: insideSpan(span, at) } });
   setStatus(tf("narrowedTo", titleOfSpan(span)), "ok");
   refreshPaneHeads();
+  applyPreviewWindows();
 }
 
 /** Let it out again. */
@@ -2000,6 +2005,7 @@ function widenHere(v: EditorView): void {
   v.dispatch({ effects: setNarrow.of(null) });
   setStatus(t("widened"), "ok");
   refreshPaneHeads();
+  applyPreviewWindows();
 }
 
 /** A heading with no title still has to be nameable in a sentence. */
@@ -2020,6 +2026,67 @@ function refreshPaneHeads(): void {
     const head = document.querySelector<HTMLElement>(`[data-pane="${pane.id}"] > .pane-head`);
     if (head) head.replaceWith(paneHead(pane));
   }
+}
+
+/**
+ * The stretch of the document a preview pane is following, or `null` for all of
+ * it.
+ *
+ * A preview follows the pane it was split from, which is what `linked` has
+ * always meant for scrolling — *"we also should make that you can optionally
+ * unlink the scrolling"* — and narrowing is the same relationship asked a second
+ * question. Unlinking a preview widens it, which is the escape hatch: a reader
+ * who wants the sefer beside a narrowed source presses the same button they
+ * already press to stop the scroll following.
+ *
+ * The offset is the custom-command preamble. The pane counts in the writer's own
+ * lines and the engine answers in the body it was sent, and the two differ by
+ * exactly that — the same correction `diagview` makes to a diagnostic, made
+ * here for the same reason and read from the same place.
+ */
+function previewWindowOf(pane: panes.Leaf): { win: LineWindow; title: string } | null {
+  if (pane.role !== "preview" || !pane.linked) return null;
+  const beside = panes.sibling(paneTree, pane.id);
+  if (!beside || beside.role !== "source") return null;
+  const v = paneViews.get(beside.id);
+  const span = v ? narrowedTo(v.state) : null;
+  if (!v || !span) return null;
+  const win = lineWindowOf(docTextOf(v.state.doc), span);
+  const shift = preambleOffset();
+  return {
+    win: { file: win.file, from: win.from + shift, to: win.to + shift },
+    title: titleOfSpan(span),
+  };
+}
+
+/**
+ * Tell every preview pane which siman it is following, if any.
+ *
+ * Called wherever the answer can change: the arrangement, the narrowing, and the
+ * scroll link. Not on a compile — the *window* does not move when the document
+ * is laid out again, only which pages it lands on, and `drawPagesEverywhere`
+ * redraws for that.
+ */
+function applyPreviewWindows(): void {
+  let narrowed = false;
+  for (const pane of panes.leaves(paneTree)) {
+    if (pane.role !== "preview") continue;
+    const host = document.getElementById(`pane-host-${pane.id}`);
+    if (!host) continue;
+    const on = previewWindowOf(pane);
+    narrowed ||= !!on;
+    narrowPreview(host, on?.win ?? null, on?.title);
+  }
+  // A preview that has just been narrowed has no runs to narrow *by*: the
+  // compile that drew what is on screen was never asked for them. So ask, once,
+  // rather than leaving a pane claiming to hold one siman while showing forty
+  // pages until the writer's next keystroke.
+  //
+  // Asked of the pages on screen, not of `runtime.lastResult`. The two disagree
+  // exactly when a compile has failed — `lastResult` is stored unconditionally
+  // and the redraw is skipped — and the first spelling of this read the wrong
+  // one of them.
+  if (narrowed && !hasPageLines()) scheduleCompile();
 }
 
 /**
@@ -2067,6 +2134,9 @@ function renderPanes() {
   const v = focusedPane ? paneViews.get(focusedPane) : undefined;
   if (v) runtime.setView(v);
   applyPreview();
+  // Before the draw, not after: a preview that is following a narrowed siman
+  // must not show the whole sefer for the frame between the two.
+  applyPreviewWindows();
   drawCurrentIntoAll();
   // The side panels, now that their hosts are in the document. Both are cheap
   // and both are wrong to leave blank: an outline pane that fills in on the
@@ -2187,6 +2257,20 @@ function paneHead(pane: panes.Leaf): HTMLElement {
           else narrowHere(v);
         },
       }, [span ? `⊡ ${titleOfSpan(span)} ×` : "⊡"]),
+    );
+  }
+  // A preview following a narrowed pane shows four pages where a sefer was, and
+  // until this element nothing on screen admitted to it. Left empty here and
+  // written by `preview.ts` after each draw: the siman's name does not change
+  // between draws but the number of pages it printed on does, and one writer of
+  // one element is the rule this repository keeps having to re-learn.
+  if (pane.role === "preview") {
+    kids.push(
+      el("span", {
+        class: "pane-window",
+        "data-preview-window": "",
+        title: t("previewFollowsLede"),
+      }),
     );
   }
   if (panes.leaves(paneTree).length > 1) {

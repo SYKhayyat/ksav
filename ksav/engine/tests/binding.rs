@@ -284,8 +284,10 @@ fn pdf_of(cfg: &DocConfig) -> ksav_engine::Compiled {
         &long_body(),
         cfg,
         &ksav_engine::assets::Assets::default(),
-        true,
-        false,
+        ksav_engine::Wants {
+            pdf: true,
+            ..Default::default()
+        },
         &Default::default(),
     )
 }
@@ -494,8 +496,7 @@ fn rashi_script_falls_back_rather_than_failing() {
         "#כתב_רשי[ופירש רש״י שם]",
         &DocConfig::default(),
         &ksav_engine::assets::Assets::default(),
-        false,
-        false,
+        ksav_engine::Wants::default(),
         &Default::default(),
     );
     assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);

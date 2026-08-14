@@ -45,6 +45,9 @@ pub mod jump;
 /// What the engine embeds and the notice each embedding owes — one table, tied
 /// to the `include_bytes!` lines below and to `THIRD-PARTY-NOTICES.md`.
 pub mod notices;
+/// Which of the writer's lines printed on each page — the fact a preview
+/// narrowed to one siman is drawn from.
+pub mod pagelines;
 /// What Typst's own parser says a document is made of — the authority the
 /// editor's hand-written scanner is checked against offline, since it cannot
 /// ask for the answer mid-keystroke.
@@ -1242,6 +1245,46 @@ pub struct Compiled {
     /// 4 KB was the page. Exactly one caller reads it — "export .typ" — and that
     /// one compiles for itself. Same story as `pdf`, same answer.
     pub typst_source: String,
+    /// Which of the writer's lines printed on each page, in page order.
+    ///
+    /// Empty unless [`Wants::lines`] asked for it. See [`crate::pagelines`] for
+    /// what a run is and why a page reports several of them.
+    pub pages_lines: Vec<Vec<pagelines::LineRun>>,
+}
+
+/// What a compile should carry back, as opposed to what it compiles.
+///
+/// Three flags that were three positional booleans, which is one more than a
+/// reader can hold: `compile_parts(body, &cfg, &assets, false, false, &have)`
+/// says nothing about which `false` is the PDF. None of these changes what is
+/// laid out — every one of them is about a part of the answer that costs real
+/// time to produce and that most callers throw away.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Wants {
+    /// The PDF bytes. Around 300 KB per keystroke-driven compile of a 16-page
+    /// document, never read by a preview.
+    pub pdf: bool,
+    /// The assembled Typst source: the prelude plus the document, so never
+    /// smaller than 75 KB. One caller, and it compiles for itself.
+    pub source: bool,
+    /// Which lines printed on which page. One walk over the laid-out frames and
+    /// one re-parse of the main source; read only by a narrowed preview.
+    pub lines: bool,
+}
+
+impl Wants {
+    /// What an export asks for: the bytes and the Typst behind them.
+    ///
+    /// Not "everything". `lines` is off here on purpose — an export produces a
+    /// file, and which of the writer's lines landed on which page is a question
+    /// only a pane on a screen has.
+    pub fn export() -> Self {
+        Self {
+            pdf: true,
+            source: true,
+            lines: false,
+        }
+    }
 }
 
 impl Compiled {
@@ -1927,30 +1970,34 @@ pub fn compile(body: &str, cfg: &DocConfig) -> Compiled {
 
 /// `compile`, with the request's images and fonts available to the document.
 pub fn compile_with(body: &str, cfg: &DocConfig, assets: &Assets) -> Compiled {
-    compile_parts(body, cfg, assets, true, true, &Default::default())
+    compile_parts(body, cfg, assets, Wants::export(), &Default::default())
 }
 
-/// Compile, optionally skipping the PDF and the assembled source.
+/// Compile, carrying back only the parts of the answer that were asked for.
 ///
 /// The live preview consumes the SVGs and nothing else, yet a PDF was rendered
 /// and base64-encoded into every response — around 300 KB per keystroke-driven
-/// compile of a 16-page document, none of it ever read. `want_pdf` is off for
+/// compile of a 16-page document, none of it ever read. `Wants::pdf` is off for
 /// previews and on for export and print, which is the only place the bytes are
 /// actually wanted.
 ///
-/// `want_source` is the same argument about the same mistake, found later in the
-/// same response: the assembled Typst source is the 75 KB prelude plus the
+/// `Wants::source` is the same argument about the same mistake, found later in
+/// the same response: the assembled Typst source is the 75 KB prelude plus the
 /// document, it was returned unconditionally, and the only caller that reads it
 /// ("export .typ") runs its own compile to get it. On a one-page document that
 /// was 75 KB of an 84 KB response.
 ///
-/// Neither flag changes what is compiled — both are about what is *carried back*.
+/// `Wants::lines` is the third, asked for before it could become the fourth
+/// instance: a narrowed preview needs to know which lines printed on which page
+/// and every other caller does not.
+///
+/// No flag changes what is compiled — every one of them is about what is
+/// *carried back*.
 pub fn compile_parts(
     body: &str,
     cfg: &DocConfig,
     assets: &Assets,
-    want_pdf: bool,
-    want_source: bool,
+    wants: Wants,
     // Fingerprints of pages the caller is already holding. A page whose
     // fingerprint is in here is **never serialised** — see `pages_hash` on
     // `Compiled`. Pass an empty set to get every page.
@@ -1997,12 +2044,22 @@ pub fn compile_parts(
             // PDF/A it matters a great deal, because the standards refuse
             // documents for real, nameable reasons — an unembeddable font, a
             // missing title — that they are entitled to be told about.
-            let pdf = if want_pdf {
+            let pdf = if wants.pdf {
                 let (bytes, notes) = pdf_bytes(&doc, cfg);
                 diagnostics.extend(notes);
                 bytes
             } else {
                 None
+            };
+            // The main source is re-parsed here, and only here, because
+            // resolving a span means holding a `Source` numbered the same way
+            // Typst numbered it — the same trick `Located` uses and the same
+            // reason it is built lazily. What gets parsed is the two-line header
+            // and the writer's own text; the prelude is a different file.
+            let pages_lines = if wants.lines {
+                pagelines::page_lines(&doc, &typst::syntax::Source::detached(source.clone()), body)
+            } else {
+                Vec::new()
             };
             // Fingerprint the **page**, then serialise only what the caller
             // has not got.
@@ -2048,11 +2105,12 @@ pub fn compile_parts(
                 pages_svg,
                 pages_hash,
                 diagnostics,
-                typst_source: if want_source {
+                typst_source: if wants.source {
                     assemble_source(body, cfg)
                 } else {
                     String::new()
                 },
+                pages_lines,
             }
         }
         Err(err) => {
@@ -2072,7 +2130,8 @@ pub fn compile_parts(
                 pages_svg: Vec::new(),
                 pages_hash: Vec::new(),
                 diagnostics,
-                typst_source: if want_source {
+                pages_lines: Vec::new(),
+                typst_source: if wants.source {
                     assemble_source(body, cfg)
                 } else {
                     String::new()
@@ -2187,6 +2246,7 @@ fn malformed_request(reason_he: &str, reason_en: &str) -> String {
             "message": format!("{reason_he} · {reason_en}"),
         }],
         "typst_source": "",
+        "pages_lines": [],
         "missing_assets": [],
     })
     .to_string()
@@ -2340,11 +2400,14 @@ pub fn compile_request(input_json: &str) -> String {
 
     // Previews don't want a PDF or the assembled source; export and print do,
     // and say so.
-    let want_pdf = v.get("want_pdf").and_then(|x| x.as_bool()).unwrap_or(false);
-    let want_source = v
-        .get("want_source")
-        .and_then(|x| x.as_bool())
-        .unwrap_or(false);
+    let flag = |k: &str| v.get(k).and_then(|x| x.as_bool()).unwrap_or(false);
+    let wants = Wants {
+        pdf: flag("want_pdf"),
+        source: flag("want_source"),
+        // Asked for by a preview pane that is following a narrowed source pane,
+        // and by nothing else.
+        lines: flag("want_lines"),
+    };
     // Pages the client already has, by fingerprint.
     //
     // A one-character edit in a 48-page document leaves 47 pages byte-identical
@@ -2366,10 +2429,15 @@ pub fn compile_request(input_json: &str) -> String {
                 .collect()
         })
         .unwrap_or_default();
-    let mut result = compile_parts(body, &cfg, &assets, want_pdf, want_source, &have);
+    let mut result = compile_parts(body, &cfg, &assets, wants, &have);
     // Back into each chapter's own coordinates, and say out loud what the
     // expansion could not do — a name nothing answers to, a loop.
     include::relabel(&expanded, &mut result.diagnostics);
+    // The same translation for the page runs, and it is a separate call rather
+    // than a line inside the one above because the two carry different things:
+    // a diagnostic has one line to move, and a run has to be *split* where a
+    // page holds the end of one chapter and the head of the next.
+    pagelines::relabel(&expanded, &mut result.pages_lines);
     for problem in &expanded.problems {
         result
             .diagnostics
@@ -2420,6 +2488,10 @@ pub fn compile_request(input_json: &str) -> String {
         "pdf_base64": pdf_b64,
         "diagnostics": diags,
         "typst_source": result.typst_source,
+        // Which of the writer's lines printed on each page — empty unless
+        // `want_lines` asked. One entry per page, in page order, so the client
+        // can index it by page number; see `pagelines`.
+        "pages_lines": result.pages_lines,
         // Hashes the client thought were cached but the engine no longer holds;
         // it re-sends their bytes on the next compile.
         "missing_assets": missing_assets,
@@ -3220,8 +3292,7 @@ mod tests {
             "שלום",
             &DocConfig::default(),
             &Assets::default(),
-            false,
-            false,
+            Wants::default(),
             &Default::default(),
         );
         assert!(out.ok());
@@ -3301,8 +3372,7 @@ mod tests {
                 body,
                 &DocConfig::default(),
                 &Assets::default(),
-                false,
-                false,
+                Wants::default(),
                 &Default::default(),
             )
             .pages_hash
@@ -3329,8 +3399,7 @@ mod tests {
             "שלום",
             &cfg,
             &Assets::default(),
-            false,
-            false,
+            Wants::default(),
             &Default::default(),
         );
         assert!(
@@ -3339,11 +3408,76 @@ mod tests {
         );
 
         let have: std::collections::HashSet<String> = first.pages_hash.iter().cloned().collect();
-        let again = compile_parts("שלום", &cfg, &Assets::default(), false, false, &have);
+        let again = compile_parts("שלום", &cfg, &Assets::default(), Wants::default(), &have);
         assert_eq!(again.pages_hash, first.pages_hash, "the fingerprint moved");
         assert!(
             again.pages_svg[0].is_empty(),
             "a page the caller already holds was serialised anyway"
+        );
+    }
+
+    /// The third `Wants` flag, held to the same bargain as the other two: off by
+    /// default, and *actually* off.
+    ///
+    /// A flag that is read but never gates anything costs exactly what it was
+    /// introduced to save, silently, on every keystroke-driven compile in the
+    /// application — which is the shape of the mistake `want_pdf` and
+    /// `want_source` were each introduced to undo, and there is no way to notice
+    /// it from the outside because the answer is correct either way.
+    #[test]
+    fn the_page_runs_are_only_computed_when_they_are_asked_for() {
+        let cfg = DocConfig::default();
+        let body = "שורה ראשונה\n\n#מעבר_עמוד\n\nשורה אחרונה";
+        let quiet = compile_parts(body, &cfg, &Assets::default(), Wants::default(), &Default::default());
+        assert!(
+            quiet.pages_lines.is_empty(),
+            "a compile nobody asked walked every frame anyway: {:?}",
+            quiet.pages_lines
+        );
+
+        let asked = compile_parts(
+            body,
+            &cfg,
+            &Assets::default(),
+            Wants {
+                lines: true,
+                ..Default::default()
+            },
+            &Default::default(),
+        );
+        assert_eq!(
+            asked.pages_lines.len(),
+            asked.pages_svg.len(),
+            "one answer per page: {:?}",
+            asked.pages_lines
+        );
+        assert!(
+            asked.pages_lines.iter().any(|p| !p.is_empty()),
+            "asked for and answered with nothing: {:?}",
+            asked.pages_lines
+        );
+    }
+
+    /// And the same across the wire, which is the only route the editor takes.
+    #[test]
+    fn the_wire_carries_the_page_runs_when_asked() {
+        let ask = |extra: serde_json::Value| {
+            let mut v = serde_json::json!({ "body": "א\n\n#מעבר_עמוד\n\nב" });
+            for (k, val) in extra.as_object().unwrap() {
+                v[k] = val.clone();
+            }
+            let out: serde_json::Value = serde_json::from_str(&compile_request(&v.to_string())).unwrap();
+            out["pages_lines"].as_array().cloned().unwrap_or_default()
+        };
+        assert!(
+            ask(serde_json::json!({})).is_empty(),
+            "the runs rode on a request that did not ask for them"
+        );
+        let asked = ask(serde_json::json!({ "want_lines": true }));
+        assert_eq!(asked.len(), 2, "one entry per page: {asked:?}");
+        assert!(
+            asked[0].as_array().is_some_and(|r| !r.is_empty()),
+            "the first page reported no lines at all: {asked:?}"
         );
     }
 

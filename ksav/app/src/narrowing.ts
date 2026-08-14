@@ -48,6 +48,7 @@
 import { EditorState, StateEffect, StateField, type ChangeSet, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { headings, sectionAt, sectionEnd, type HeadingInfo } from "./headings";
+import type { LineWindow } from "./preview";
 import { docTextOf } from "./spans";
 
 /** The stretch of source a narrowed pane can see, and what to call it. */
@@ -213,6 +214,18 @@ export const narrowing: Extension = [
   EditorView.decorations.compute([narrowAnchor, "doc"], hidden),
   EditorView.atomicRanges.of((view) => hidden(view.state)),
 ];
+
+/**
+ * The window a span covers, in the lines of a document.
+ *
+ * `to` is the line the span's last character is on, not the line after it: a
+ * section that ends at the very start of a line does not print on that line,
+ * and counting it would hand the next siman's first page to this one.
+ */
+export function lineWindowOf(doc: string, span: Span, file: string | null = null): LineWindow {
+  const upto = (at: number) => doc.slice(0, at).split("\n").length;
+  return { file, from: upto(span.from), to: upto(Math.max(span.from, span.to - 1)) };
+}
 
 /**
  * Put the caret inside the section, so narrowing does not leave it stranded.

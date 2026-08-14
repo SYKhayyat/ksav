@@ -14,6 +14,9 @@ import {
   MAX_FIT,
   currentPages,
   drawPages,
+  hasPageLines,
+  narrowPreview,
+  pagesOfLines,
   previewGeometry,
   visibleWindow,
   lineStartVisible,
@@ -138,5 +141,124 @@ export async function run() {
 
     drawPages(host, [], []);
     check("and drawing nothing does empty it", currentPages().length, 0);
+  }
+
+  narrowedPreview();
+}
+
+/**
+ * A preview holding the pages of one siman while the pane beside it holds the
+ * sefer.
+ *
+ * Two halves, and the first is the whole decision: `pagesOfLines` takes what the
+ * engine saw — which of the writer's lines printed on which page — and answers
+ * which pages a stretch of the document reached. Everything else is drawing.
+ */
+function narrowedPreview() {
+  const run = (from, to, file = null) => ({ file, from, to });
+  // A four-page document. Page 3 carries a running head repeating line 2, which
+  // is the case the whole "runs, not a range" design exists for.
+  const LINES = [
+    [run(1, 12)],
+    [run(13, 30)],
+    [run(2, 2), run(31, 44)],
+    [run(45, 60)],
+  ];
+
+  check("a siman inside one page is one page", pagesOfLines(LINES, run(4, 9)), [0]);
+  check("a siman that spans two pages is two", pagesOfLines(LINES, run(10, 20)), [0, 1]);
+  check("the last page is reachable", pagesOfLines(LINES, run(50, 60)), [3]);
+
+  // The heading that the running head repeats. Line 2 printed on page 1 and,
+  // as a running head, on page 3 — and it says so. Collapsed to a minimum and a
+  // maximum, page 3 would have claimed lines 2 through 44, and a siman anywhere
+  // in that range would have dragged page 3 in behind it.
+  check("a line repeated in a running head is on both its pages", pagesOfLines(LINES, run(2, 2)), [0, 2]);
+  check(
+    "…and the pages between them are not claimed by it",
+    pagesOfLines(LINES, run(20, 22)),
+    [1],
+  );
+
+  // A sefer that includes chapters is one compile of one concatenation, so the
+  // same line numbers belong to different text. Without the file comparison
+  // this is the pages of a chapter the pane is not narrowed to.
+  const SEFER = [[run(1, 20, "פרק א.ksav")], [run(1, 20, "פרק ב.ksav")], [run(1, 20)]];
+  check("lines are matched within their own file", pagesOfLines(SEFER, run(5, 8, "פרק ב.ksav")), [1]);
+  check("…and the sefer's own lines are a third file again", pagesOfLines(SEFER, run(5, 8)), [2]);
+
+  // Nothing printed. A real answer, and the one the pane has to say out loud:
+  // an empty list drawn as "every page" would be a pane claiming to hold a
+  // siman while showing the sefer.
+  check("a siman that printed nowhere is no pages", pagesOfLines(LINES, run(300, 400)), []);
+
+  // ------------------------------------------------------------- the drawing
+  {
+    const host = new globalThis.FakeElement("div");
+    const pages = ["<svg>1</svg>", "<svg>2</svg>", "<svg>3</svg>", "<svg>4</svg>"];
+    const hidden = () => host.children.map((c) => !!c.hidden);
+
+    drawPages(host, pages, ["a", "b", "c", "d"], LINES);
+    check("an un-narrowed preview hides nothing", hidden(), [false, false, false, false]);
+    // The question `main.ts` asks before deciding whether narrowing has to make
+    // the engine answer one. Asked of what was drawn, never of the last compile
+    // — see `prohibitions.test.mjs`, where that is the rule rather than a note.
+    ok("the runs belong to the pages that were drawn", hasPageLines());
+
+    narrowPreview(host, run(13, 30), "סימן ב");
+    check("a narrowed preview hides the pages its siman did not reach", hidden(), [
+      true,
+      false,
+      true,
+      true,
+    ]);
+    check("…and every page is still there to be numbered", host.children.length, 4);
+
+    // The siman that printed nowhere. An empty answer must draw as *nothing*,
+    // and the temptation is to treat it as "no information, show everything" —
+    // which produces a pane holding the whole sefer under a strip naming one
+    // siman, and no way for a reader to tell that from a working narrowing.
+    narrowPreview(host, run(300, 400), "סימן שלא נדפס");
+    check("a siman that printed nowhere draws no pages at all", hidden(), [true, true, true, true]);
+
+    // The runs describe *those* pages. Switching documents draws a page set the
+    // engine was never asked about, and hiding by the last document's simanim
+    // would show a reader pages chosen by where the sections were in the sefer
+    // they just left.
+    narrowPreview(host, run(13, 30), "סימן ב");
+    drawPages(host, ["<svg>other</svg>", "<svg>other</svg>"], ["x", "y"]);
+    check(
+      "a page set that arrives with no runs is not narrowed by the last one's",
+      hidden(),
+      [false, false],
+    );
+    notOk("…and the runs go with the pages they described", hasPageLines());
+
+    drawPages(host, pages, ["a", "b", "c", "d"], LINES);
+    narrowPreview(host, null);
+    check("widening gives them back", hidden(), [false, false, false, false]);
+  }
+
+  // The same, without the observer. A webview too old to report what is on
+  // screen draws every page at once through a different branch of `render`, and
+  // that branch has to narrow too — a reader on an old build would otherwise get
+  // the whole sefer in a pane that says it is holding one siman.
+  {
+    const had = globalThis.IntersectionObserver;
+    delete globalThis.IntersectionObserver;
+    try {
+      const host = new globalThis.FakeElement("div");
+      narrowPreview(host, run(31, 44), "סימן ג");
+      drawPages(host, ["<svg>1</svg>", "<svg>2</svg>", "<svg>3</svg>", "<svg>4</svg>"], undefined, LINES);
+      check(
+        "an engine with no page names narrows as well",
+        host.children.map((c) => !!c.hidden),
+        [true, true, false, true],
+      );
+      narrowPreview(host, null);
+      check("…and widens", host.children.map((c) => !!c.hidden), [false, false, false, false]);
+    } finally {
+      globalThis.IntersectionObserver = had;
+    }
   }
 }

@@ -418,6 +418,22 @@ async function main() {
       attributes: true,
     });
     note();
+
+    // How many compiles asked which lines printed on which page.
+    //
+    // Recorded out here for the same reason as the status: it is a property of
+    // the *request*, and a narrowed preview that quietly stopped asking would
+    // still look right for as long as the last answer happened to fit — which is
+    // exactly what step 17 caught. Read off the wire rather than out of the app,
+    // so it stays a test hook rather than a hook the product carries.
+    const fetched = w.fetch.bind(w);
+    w.__ksavAskedForLines = 0;
+    w.fetch = async (input, init) => {
+      if (String(input).includes("/compile") && String(init?.body ?? "").includes('"want_lines":true')) {
+        w.__ksavAskedForLines++;
+      }
+      return await fetched(input, init);
+    };
   });
 
   /** How many compiles have finished so far. */
@@ -2077,6 +2093,173 @@ async function main() {
       newProblems(mark).join(" | "),
     );
     await press("Escape");
+  }
+
+  step(17, "a preview shows the pages of the siman beside it");
+
+  // The other half of narrowing, and the half that cannot be checked anywhere
+  // but here. `preview.test.mjs` holds the decision — which pages a stretch of
+  // lines printed on — as arithmetic over a table somebody wrote down. What it
+  // cannot see is whether the engine's answer about a real layout agrees with
+  // it: whether `want_lines` was actually asked for, whether the runs came back
+  // in the writer's own line numbers rather than the compiled body's, and
+  // whether the pages a reader can see are the ones the siman is on.
+  //
+  // The preamble offset is the specific thing a unit test cannot catch. The
+  // pane counts in the writer's lines and the engine answers in the body it was
+  // sent, and the difference is the custom-command preamble — nothing on either
+  // side of that subtraction is visible to a test that supplies both halves.
+  {
+    const mark = since();
+    // The preview follows the first source pane: `panes.sibling` takes the first
+    // leaf of the other subtree, and step 13 left two source panes in one split
+    // beside the preview.
+    const onScreen = () => page.locator(".preview-host .page:not([hidden])").count();
+    const allPages = () => page.locator(".preview-host .page").count();
+    const strip = page.locator("[data-preview-window]").first();
+    const askedForLines = () =>
+      page.evaluate(() => /** @type {any} */ (window).__ksavAskedForLines);
+    const askedBefore = await askedForLines();
+
+    await pressInEditor("Control+End");
+    // Two simanim with a page break between them, so "the pages of this siman"
+    // is a question the page *count* can answer. A document whose simanim share
+    // a page would pass a narrowed preview that did nothing at all.
+    await act("a siman of its own on a page", () =>
+      type("\n\n#כותרת[סימן התצוגה]\nגוף אחד.\n\n#מעבר_עמוד\n\n#כותרת[סימן אחרון]\nגוף שני.\n"),
+    );
+
+    const total = await allPages();
+    check("the sefer runs to more than one page", total > 1, `${total} pages`);
+    check(
+      "every page is on screen before anything is narrowed",
+      (await onScreen()) === total,
+      `${await onScreen()} of ${total} pages visible with nothing narrowed`,
+    );
+    check(
+      "…and the preview's strip says nothing about a siman",
+      ((await strip.textContent()) ?? "") === "",
+      `the strip already reads "${await strip.textContent()}"`,
+    );
+
+    await clickVisible("the siman's body", '.source-pane >> nth=0 >> .cm-line:has-text("גוף אחד")');
+    await clickVisible("the narrow control", '.source-pane >> nth=0 >> [data-narrow="off"]');
+
+    // Waited on the promise the feature makes, not on "a compile finished".
+    //
+    // `act` was the first spelling and it is the wrong instrument here.
+    // Narrowing a preview asks the engine a question the compile on screen was
+    // never asked, so the answer arrives one *round trip* later — and `act`
+    // returns at the first compile to finish after the click, which can be one
+    // that was already in flight and knew nothing about any of this. It passed
+    // and it measured the wrong moment: the run reported the preview blank while
+    // the compile that would have filled it had not been sent.
+    const narrowedOk = await page
+      .waitForFunction(
+        (n) => {
+          const boxes = Array.from(document.querySelectorAll(".preview-host .page"));
+          const on = boxes.filter((b) => !(/** @type {HTMLElement} */ (b).hidden)).length;
+          return boxes.length === n && on > 0 && on < n;
+        },
+        total,
+        { timeout: 30_000, polling: 50 },
+      )
+      .then(() => true)
+      .catch(() => false);
+
+    const shown = await onScreen();
+    check(
+      "the preview drops the pages the siman is not on",
+      narrowedOk,
+      `${shown} of ${total} pages visible after 30s, so the preview ${
+        shown === total ? "never narrowed" : "went blank"
+      }`,
+    );
+    // The request, not just the picture. A preview that stopped asking would go
+    // on looking right for as long as the last answer happened to fit the pages
+    // in front of it — which is a narrowing drawn from a document you have since
+    // left, and it is what the first version of this actually did.
+    check(
+      "…and it asked the engine which lines printed where",
+      (await askedForLines()) > askedBefore,
+      "no compile carried want_lines, so the pages on screen were chosen from a stale answer",
+    );
+    check(
+      "…and every page is still there to be numbered",
+      (await allPages()) === total,
+      `${await allPages()} page boxes, of ${total} — a dropped page renumbers every click after it`,
+    );
+    const saidWindow = (await strip.textContent()) ?? "";
+    check(
+      "the preview says which siman it is holding",
+      saidWindow.includes("סימן התצוגה"),
+      saidWindow ? `the strip reads "${saidWindow}"` : "the strip is empty, so nothing says why the pages went",
+    );
+    check(
+      "…and how many pages that came to",
+      (await strip.getAttribute("data-pages")) === String(shown),
+      `the strip counts ${await strip.getAttribute("data-pages")} and ${shown} pages are drawn`,
+    );
+
+    // Which pages, not how many — and the only honest way to ask it from out
+    // here is to narrow to a *different* siman and watch the answer move. A
+    // rendered page carries no readable text: Typst draws glyphs as `<use>`
+    // references to outlines, so `textContent` is empty for every page of every
+    // document, and the first version of this check asked it anyway and failed
+    // while the feature worked.
+    const onPages = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll(".preview-host .page"))
+          .map((p, i) => (/** @type {HTMLElement} */ (p).hidden ? -1 : Number(p.dataset.page ?? i)))
+          .filter((i) => i >= 0),
+      );
+    const first = await onPages();
+
+    await clickVisible("the widen control", '.source-pane >> nth=0 >> [data-narrow="on"]');
+    await clickVisible("the last siman's body", '.source-pane >> nth=0 >> .cm-line:has-text("גוף שני")');
+    await clickVisible("the narrow control again", '.source-pane >> nth=0 >> [data-narrow="off"]');
+    const moved = await page
+      .waitForFunction(
+        (was) => {
+          const boxes = Array.from(document.querySelectorAll(".preview-host .page"));
+          const on = boxes
+            .map((p, i) => (/** @type {HTMLElement} */ (p).hidden ? -1 : i))
+            .filter((i) => i >= 0);
+          return on.length > 0 && on.join() !== was;
+        },
+        first.join(),
+        { timeout: 30_000, polling: 50 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    const second = await onPages();
+    check(
+      "a different siman is a different page",
+      moved && second.length > 0 && !second.every((p) => first.includes(p)),
+      `both simanim resolved to pages [${first}] and [${second}] — the choice does not follow the siman`,
+    );
+    check(
+      "…and the second one is further into the sefer",
+      Math.max(...second) > Math.max(...first),
+      `[${first}] then [${second}], with the page break between the two simanim`,
+    );
+
+    await clickVisible("the widen control", '.source-pane >> nth=0 >> [data-narrow="on"]');
+    check(
+      "widening gives the whole sefer back to the preview",
+      (await onScreen()) === total,
+      `${await onScreen()} of ${total} pages came back`,
+    );
+    check(
+      "…and the strip stops naming a siman",
+      ((await strip.textContent()) ?? "") === "",
+      `the strip still reads "${await strip.textContent()}"`,
+    );
+    check(
+      "…and none of it raised anything on the console",
+      newProblems(mark).length === 0,
+      newProblems(mark).join(" | "),
+    );
   }
 
   // ----------------------------------------------------------------- the tally

@@ -455,6 +455,36 @@ const RULES = [
     ],
     allow: ["ksav/engine/src/git.rs"],
   },
+  {
+    // The class: **the last compile is not the pages on screen, and reaching
+    // for the wrong one of them is invisible until a compile fails.**
+    //
+    // `runtime.lastResult` is stored unconditionally, failed compiles included,
+    // and a failed compile carries `pages_svg: []`. The redraw is deliberately
+    // skipped in that case — a writer mid-keystroke keeps looking at the last
+    // good page rather than at a blank rectangle — so from that moment the two
+    // records disagree, and everything that wanted *the pages* and reached for
+    // the compile got the empty one.
+    //
+    // Two instances, found nine days apart and identical in shape. Print read
+    // `lastResult.pages_svg` and produced a **blank sheet**, silently, on the
+    // one output that is paper; `preview.ts` grew `currentPages()` for it. Then
+    // the narrowed preview asked `lastResult.pages_lines` whether it needed to
+    // ask the engine anything, got a stale non-empty answer, never asked, and
+    // hid every page of a document using the section boundaries of one the
+    // writer had already left. Neither is a bug in the reader; both are the
+    // same reader reading the wrong record.
+    //
+    // So `pages_*` off `lastResult` is the shape, and there is no owner: the
+    // record of what is drawn is written by drawing, in `preview.ts`, and
+    // `currentPages()` and `hasPageLines()` are what everything asks — including
+    // `preview.ts` itself, which never looks at the compile at all. `lastResult`
+    // keeps its other consumers, which want the *compile* and not the pages:
+    // the diagnostics, the healed count, and whether it succeeded at all.
+    what: "the pages on screen are asked of the preview, not of the last compile",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    match: /lastResult[?.\s]*\.\s*pages_/u,
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

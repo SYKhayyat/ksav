@@ -12,6 +12,7 @@ import { EditorState } from "@codemirror/state";
 import {
   changeReachesOut,
   insideSpan,
+  lineWindowOf,
   narrowAnchor,
   narrowedTo,
   narrowing,
@@ -157,6 +158,29 @@ export async function run() {
   check("a caret above the section is pulled to its start", insideSpan(span, 0), span.from);
   check("one below it is pulled to its end", insideSpan(span, DOC.length), span.to);
   check("and one already inside is left alone", insideSpan(span, span.from + 3), span.from + 3);
+}
+
+// ------------------------------------------------- the same span, in lines
+//
+// What the preview beside a narrowed pane follows. The pane counts in byte
+// offsets and the engine answers in lines, so this is the one conversion between
+// them — and `to` is the line the last character is on, never the line after it.
+
+{
+  const span = spanAt(DOC, at("גוף הסימן הראשון"));
+  const win = lineWindowOf(DOC, span);
+  const lineOf = (needle) => DOC.slice(0, at(needle)).split("\n").length;
+  check("the window starts on the heading's own line", win.from, lineOf("#כותרת[סימן א]"));
+  check("…and ends on the last line of the section", win.to, lineOf("תת־סעיף שבתוך הסימן הראשון"));
+  check("the open document is not an included file", win.file, null);
+
+  // A section that ends exactly at a line break does not print on the line after
+  // it, and counting that line would hand the next siman's first page to this
+  // one — a page the reader would see in a pane that says it is holding one
+  // siman. The section above ends at a newline, so this is that case.
+  ok("the line after the section is outside the window", win.to < lineOf("#כותרת[סימן ב]"));
+
+  check("a chapter says which file it is", lineWindowOf(DOC, span, "פרק א.ksav").file, "פרק א.ksav");
 }
 
 }

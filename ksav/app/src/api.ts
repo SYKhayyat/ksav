@@ -166,6 +166,16 @@ export interface RequestAssets {
    * for itself.
    */
   want_source?: boolean;
+  /**
+   * Ask which of the writer's lines printed on each page.
+   *
+   * Off by default, and the third flag with this shape. One preview asks for it:
+   * the one following a source pane narrowed to a siman, which has to know which
+   * pages that siman reached. The alternative was two `reveal` calls — a full
+   * layout each, restated on every keystroke — so this rides on the layout that
+   * has already happened. See `engine/src/pagelines.rs`.
+   */
+  want_lines?: boolean;
 }
 
 export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
@@ -198,6 +208,21 @@ export interface Diagnostic {
   file?: string | null;
 }
 
+/**
+ * A stretch of one file that printed on a page: 1-based lines, inclusive.
+ *
+ * `file` is the included document (`#כלול`) the lines belong to, or `null` for
+ * the writer's own open document. It is not decoration: a page can hold the end
+ * of one chapter and the head of the next, and without the name, lines 10–20 of
+ * a chapter would be indistinguishable from lines 10–20 of the sefer that
+ * included it.
+ */
+export interface LineRun {
+  file: string | null;
+  from: number;
+  to: number;
+}
+
 export interface CompileResult {
   ok: boolean;
   /** Every page of the document, in order — filled in by `CompileCache` for any
@@ -213,6 +238,15 @@ export interface CompileResult {
   typst_source: string;
   /** Set only for a `format: "html"` request. */
   html?: string;
+  /**
+   * Which of the writer's lines printed on each page, one entry per page.
+   *
+   * Empty unless `want_lines` asked. A page reports *runs* rather than one
+   * range because a running head repeats a heading from far above it, and a
+   * page collapsed to a minimum and a maximum would claim to hold everything in
+   * between. See `engine/src/pagelines.rs`.
+   */
+  pages_lines?: LineRun[][];
   /** Hashes the client omitted bytes for but the engine did not hold; the client
    *  re-sends them. Absent from older engines, which is treated as "none". */
   missing_assets?: string[];

@@ -14,7 +14,7 @@ import * as docs from "./docs";
 import * as parts from "./parts";
 import { t, tf } from "./i18n";
 import * as opendocs from "./opendocs";
-import { applyPreview, drawPagesEverywhere, filePages } from "./preview";
+import { anyPreviewNarrowed, applyPreview, drawPagesEverywhere, filePages } from "./preview";
 import { docConfig, docConfigFor, settings } from "./settings";
 import * as runtime from "./runtime";
 import type { AssembledSource, CompileResult, DocConfig } from "./api";
@@ -147,6 +147,21 @@ function withPreamble(body: string): { body: string; offset: number } {
 }
 
 /**
+ * How many lines sit in front of the writer's first one in what the engine is
+ * sent.
+ *
+ * A narrowed preview asks: it holds line numbers in the writer's document and
+ * the engine answers in the body it was handed, and the two differ by exactly
+ * the custom-command preamble. Asked through `withPreamble` rather than computed
+ * again, because the preamble in force depends on which document is open — the
+ * distinction B27 was about — and a second reader of that is how the two came to
+ * disagree the last time.
+ */
+export function preambleOffset(): number {
+  return withPreamble("").offset;
+}
+
+/**
  * The exact text the pages on screen were rendered from, and its line offset.
  *
  * Both directions of jump (`jump.ts`) ask about a *layout*, so they have to ask
@@ -187,17 +202,20 @@ export async function runCompile() {
   // has the test that keeps that true.
   const { body, offset } = withPreamble(healedCount ? healed : userDoc);
   try {
-    const res = await backend.compile(
-      body,
-      docConfig(),
-      { ...docs.requestAssets(runtime.currentDoc?.assets ?? []), parts: await includedParts(body) },
-    );
+    const res = await backend.compile(body, docConfig(), {
+      ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
+      parts: await includedParts(body),
+      // Only when a preview on screen is following a narrowed source pane. The
+      // runs cost a walk over every laid-out frame and a re-parse of the source,
+      // and nothing else in the application reads them.
+      want_lines: anyPreviewNarrowed(),
+    });
     if (mine !== generation) return; // superseded while we were waiting
     runtime.setLastResult(res);
     const ms = Math.round(performance.now() - t0);
     if (res.pages_svg.length) {
       // Every preview pane, from one compile. See `previewHosts`.
-      drawPagesEverywhere(res.pages_svg, res.pages_hash);
+      drawPagesEverywhere(res.pages_svg, res.pages_hash, res.pages_lines);
       applyPreview();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");

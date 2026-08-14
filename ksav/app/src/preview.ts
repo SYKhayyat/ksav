@@ -23,7 +23,62 @@
 // Nothing in this module touches the DOM except `applyPreview`, so the geometry
 // is testable without a browser.
 
+import type { LineRun } from "./api";
+import { tf } from "./i18n";
 import { docConfig, settings } from "./settings";
+
+/**
+ * The stretch of a document a narrowed preview is following, in lines.
+ *
+ * Lines rather than the byte offsets a narrowed pane's `Span` carries, because
+ * the other half of the answer — which lines printed on which page — is the
+ * engine's, and the engine counts in lines. `file` is the included document
+ * these lines belong to, or `null` for the one the writer has open.
+ *
+ * Declared here rather than in `narrowing.ts`, where the rest of narrowing
+ * lives, for one reason: that module is built on CodeMirror and this one is
+ * deliberately free of it. `narrowing.ts` imports the type back — which costs
+ * nothing, being erased — so the direction of the dependency is the one that
+ * keeps the geometry testable without a browser.
+ */
+export interface LineWindow {
+  file: string | null;
+  from: number;
+  to: number;
+}
+
+/**
+ * Which pages a stretch of lines printed on.
+ *
+ * The whole of the narrowed preview's decision, and deliberately the smallest
+ * rule that can be right: a page is in when any run of the writer's lines on it
+ * overlaps the window, **in the same file**.
+ *
+ * The file check is not a formality. A sefer that includes chapters is one
+ * compile of one concatenation, so lines 10–20 of chapter two and lines 10–20 of
+ * the sefer itself are different text with the same numbers. Dropping the
+ * comparison would show a reader the pages of a chapter they are not narrowed
+ * to, which is the failure this feature exists to prevent, arrived at from the
+ * other side.
+ *
+ * An empty answer is a real answer and means what it says: this siman printed
+ * nowhere. That happens while a document is broken, and while a section holds
+ * nothing but commands that produce no ink. The caller says so out loud rather
+ * than falling back to every page — a preview quietly showing the whole sefer is
+ * indistinguishable from one that was never narrowed.
+ */
+export function pagesOfLines(
+  pages: readonly (readonly LineRun[])[],
+  win: LineWindow,
+): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < pages.length; i++) {
+    if (pages[i].some((r) => r.file === win.file && r.from <= win.to && win.from <= r.to)) {
+      out.push(i);
+    }
+  }
+  return out;
+}
 
 /** The drawn width of an A4 page at 100%, in CSS pixels. */
 export const PAGE_PX = 820;
@@ -208,6 +263,99 @@ const windows = new WeakMap<Element, Windowed>();
 let current: { pages: string[]; hashes: string[] } | null = null;
 
 /**
+ * Which lines printed on which page, from the last compile that said.
+ *
+ * Kept beside `current` rather than read off `runtime.lastResult`, and for the
+ * same reason `current` exists at all: a failed compile is stored there with no
+ * pages and no runs, while the *pages on screen* are still the last good ones.
+ * A narrowed preview reading the failed result would decide that this siman
+ * printed nowhere and blank itself, mid-keystroke, on every unbalanced bracket.
+ */
+let currentLines: LineRun[][] = [];
+
+/**
+ * What each preview host is narrowed to, if anything.
+ *
+ * A property of the *host* and not of the application: the point of the whole
+ * feature is one preview holding one siman while the preview beside it holds the
+ * sefer. Empty for a host showing everything, which is almost all of them.
+ */
+const windows_of = new WeakMap<Element, LineWindow>();
+
+/**
+ * Narrow a preview host to a stretch of the document, or widen it with `null`.
+ *
+ * Only records and redraws. *Which* stretch is `main.ts`'s question — it is the
+ * one that holds the pane tree and can see that this preview is following a
+ * narrowed source pane — and *which pages* is `narrowing.pagesOfLines`.
+ */
+export function narrowPreview(host: HTMLElement, win: LineWindow | null, label = ""): void {
+  const had = windows_of.get(host);
+  if (!win) {
+    windows_of.delete(host);
+    labels.delete(host);
+    if (!had) return;
+  } else {
+    labels.set(host, label);
+    windows_of.set(host, win);
+    if (had && had.file === win.file && had.from === win.from && had.to === win.to) {
+      // The same window as before, but the pages under it may have moved and
+      // the strip is written from the count. Redrawn rather than returned on.
+      drawCurrentInto(host);
+      return;
+    }
+  }
+  drawCurrentInto(host);
+}
+
+/** What each narrowed preview calls the siman it is following. */
+const labels = new WeakMap<Element, string>();
+
+/**
+ * Is any preview on screen narrowed?
+ *
+ * What `compile.ts` asks before setting `want_lines`. The runs cost a walk over
+ * every laid-out frame and a re-parse of the source, and with no narrowed
+ * preview open nothing would read them — the same argument as `want_pdf`, asked
+ * by the same request.
+ */
+export function anyPreviewNarrowed(): boolean {
+  return previewHosts().some((h) => windows_of.has(h));
+}
+
+/**
+ * Are there runs for the pages currently drawn?
+ *
+ * What `main.ts` asks to decide whether narrowing a preview has to ask the
+ * engine a question it has not asked yet. It used to ask `runtime.lastResult`
+ * instead, which is the *last compile* and not *what is on screen* — the same
+ * two records `currentPages` exists to keep apart, and reading the wrong one
+ * here means a preview that is narrowed and never told which pages that is.
+ */
+export function hasPageLines(): boolean {
+  return currentLines.length > 0;
+}
+
+/**
+ * The pages this host draws: every page, or the ones its siman printed on.
+ *
+ * `null` means *all of them*, which is not the same as *an empty list*. An empty
+ * list is a narrowed preview whose siman printed nowhere, and it must show
+ * nothing rather than quietly showing the whole sefer — see `pagesOfLines`.
+ */
+function shownBy(host: Element, pages: string[]): Set<number> | null {
+  const win = windows_of.get(host);
+  if (!win) return null;
+  // No runs at all means the engine was never asked, or the answer has not
+  // arrived. Showing every page is right for that moment and wrong afterwards:
+  // it is what an un-narrowed preview looks like, and the strip beside it still
+  // names the siman. `compile.ts` asks on the very next compile, so this is the
+  // one frame between narrowing and being told.
+  if (!currentLines.length) return null;
+  return new Set(pagesOfLines(currentLines.slice(0, pages.length), win));
+}
+
+/**
  * The last page set each document was seen with — so coming back to one shows
  * it rather than a blank pane and a wait.
  *
@@ -352,8 +500,8 @@ function empty(w: Windowed, node: HTMLElement, i: number) {
  * `hashes` names each page. Without them — an older engine, or any caller with
  * no names to give — everything is drawn at once, which is what this always did.
  */
-export function drawPages(host: HTMLElement, pages: string[], hashes?: string[]) {
-  setCurrent(pages, hashes);
+export function drawPages(host: HTMLElement, pages: string[], hashes?: string[], lines?: LineRun[][]) {
+  setCurrent(pages, hashes, lines);
   render(host, pages, hashes);
 }
 
@@ -366,13 +514,33 @@ export function drawPages(host: HTMLElement, pages: string[], hashes?: string[])
  * is about *what is on the screen* and is what Print reads. An engine too old to
  * send hashes would have printed nothing.
  */
-function setCurrent(pages: string[], hashes?: string[]) {
+function setCurrent(pages: string[], hashes?: string[], lines?: LineRun[][]) {
   current = { pages, hashes: hashes && hashes.length === pages.length ? hashes : [] };
+  // Replaced, never merged, and emptied when a page set arrives without them.
+  //
+  // The runs describe *these* pages. Keeping the last set alive across a page
+  // set that has none would mean a narrowed preview hiding pages of the document
+  // you just switched to according to where the simanim were in the one you
+  // left — which is the same defect the kept-pages cache was built to close, one
+  // field along. Empty is the honest state, `shownBy` reads it as *not told yet*,
+  // and the compile that follows says.
+  currentLines = lines ?? [];
 }
 
-/** Draw the open document's pages into another pane — the full-screen preview. */
+/**
+ * Draw the open document's pages into another pane — a second preview, the
+ * full-screen one, or a preview whose window has just changed.
+ *
+ * Guarded on *having drawn something*, not on having names for it. The guard
+ * used to be `current?.hashes.length`, on the reasoning that a second pane
+ * reuses the windowing and the windowing needs names — but `render` has a whole
+ * branch for having none, and with that guard it could never be reached from
+ * here. An engine that sends no fingerprints therefore left every second preview
+ * blank, and, once a preview could narrow, left a widened one still holding the
+ * pages of a siman it was no longer following.
+ */
 export function drawCurrentInto(host: HTMLElement) {
-  if (current?.hashes.length) render(host, current.pages, current.hashes);
+  if (current) render(host, current.pages, current.hashes);
 }
 
 /**
@@ -390,8 +558,14 @@ export function previewHosts(): HTMLElement[] {
   return out;
 }
 
-/** Draw a fresh compile into every preview pane there is. */
-export function drawPagesEverywhere(pages: string[], hashes?: string[]) {
+/**
+ * Draw a fresh compile into every preview pane there is.
+ *
+ * `lines` is the compile's answer to *which of the writer's lines printed on
+ * which page*, when one was asked for — which is when a preview on screen is
+ * narrowed, and not otherwise.
+ */
+export function drawPagesEverywhere(pages: string[], hashes?: string[], lines?: LineRun[][]) {
   const hosts = previewHosts();
   // Recorded **before** the early return, and this is not a tidy-up.
   //
@@ -401,10 +575,11 @@ export function drawPagesEverywhere(pages: string[], hashes?: string[]) {
   // is what Print and the page-range chooser read, so printing from a
   // source-only pane printed the pages of a document you had since left, at the
   // length of a document you were not looking at. The one output that is paper.
-  setCurrent(pages, hashes);
+  setCurrent(pages, hashes, lines);
   if (!hosts.length) return;
   // The first pane draws; the rest reuse what it recorded, so a document with
-  // four previews still compiles once.
+  // four previews still compiles once. Each of them still decides for itself
+  // *which* of the pages to show — one compile, and a window per pane.
   render(hosts[0], pages, hashes);
   for (const host of hosts.slice(1)) drawCurrentInto(host);
 }
@@ -436,11 +611,37 @@ export function currentPages(): readonly string[] {
 }
 
 function render(host: HTMLElement, pages: string[], hashes?: string[]) {
+  // Which of them this host is showing. `null` is every page.
+  //
+  // The pages it is *not* showing are hidden rather than left out, and that is
+  // the whole of how narrowing a preview stays honest. A sliced list would
+  // renumber every page after the first one dropped — and the page number is
+  // what a click sends to `jump`, what the page-range chooser counts in, and
+  // what the reader is reading. Hiding keeps `data-page` true, costs nothing
+  // (a hidden box never intersects, so its SVG is never built), and needs no
+  // second coordinate system to undo.
+  const only = shownBy(host, pages);
+  const shown = (i: number) => !only || only.has(i);
+
   // No names, or no observer to tell us what is on screen (a very old webview):
   // draw the lot, exactly as this did before either mechanism existed.
   if (!hashes || hashes.length !== pages.length || typeof IntersectionObserver === "undefined") {
     host.innerHTML = pages.map((s) => `<div class="page">${s}</div>`).join("");
     windows.delete(host);
+    // Hidden afterwards rather than written into the markup, so both paths
+    // through this function narrow by setting the same property on the same
+    // node — one rule, and no `hidden=""` for a reader of the markup to notice
+    // is missing from the other branch.
+    //
+    // Only when there is a window. The nodes were built by the assignment above
+    // and are visible by construction, so an un-narrowed host has nothing to
+    // clear and this does not have to walk it.
+    if (only) {
+      for (let i = 0; i < host.children.length; i++) {
+        (host.children[i] as HTMLElement).hidden = !shown(i);
+      }
+    }
+    sayWindow(host, only);
     return;
   }
 
@@ -507,10 +708,48 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
     // The empty box has to be exactly as tall as the full one, or filling it in
     // shoves everything below it down under the reader's eyes.
     node.style.aspectRatio = String(pageAspect(pages[i]));
-    // A page already on screen is refreshed here rather than left to the
-    // observer, which would not fire for a node that never moved.
-    if (w.showing[i]) fill(w, node, i);
+    // The property rather than `setAttribute`, because it reflects the attribute
+    // both ways on a real element and is a plain assignment everywhere else.
+    node.hidden = !shown(i);
+    if (shown(i)) {
+      // A page already on screen is refreshed here rather than left to the
+      // observer, which would not fire for a node that never moved.
+      if (w.showing[i]) fill(w, node, i);
+    } else {
+      // Emptied as well as hidden. The observer will not fire for a box with no
+      // layout, so a page that was on screen when the pane narrowed would keep
+      // its megabyte of SVG for as long as the session lasted.
+      empty(w, node, i);
+    }
   }
+  sayWindow(host, only);
+}
+
+/**
+ * Write what this preview is holding into its pane's strip.
+ *
+ * A preview showing four pages of a forty-page sefer, with nothing anywhere
+ * saying why, is the failure this whole repository keeps finding: a working
+ * mechanism behind a surface that does not admit to it. The strip names the
+ * siman and counts the pages, so a short pane is a *stated* short pane.
+ *
+ * The empty case is the one that earns it. A siman that has printed nowhere —
+ * a broken document, or a section holding nothing that leaves ink — gives a
+ * blank pane, and a blank pane is what a crash looks like. It says so instead.
+ */
+function sayWindow(host: HTMLElement, only: Set<number> | null) {
+  const strip = host.parentElement?.querySelector?.<HTMLElement>("[data-preview-window]");
+  if (!strip) return;
+  const label = labels.get(host) ?? "";
+  // `""` rather than removing the attribute: `.pane-window:empty` is what makes
+  // the strip collapse when nothing is narrowed, and the count is only ever read
+  // as `[data-pages="0"]`.
+  strip.dataset.pages = only ? String(only.size) : "";
+  strip.textContent = !only
+    ? ""
+    : only.size
+      ? tf(only.size === 1 ? "previewOfOnePage" : "previewOfPages", label, only.size)
+      : tf("previewOfNothing", label);
 }
 
 /**

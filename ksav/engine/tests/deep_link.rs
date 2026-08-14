@@ -265,3 +265,108 @@ fn the_shell_still_hands_arrivals_to_the_engine() {
         shown(&root, &manifest),
     );
 }
+
+/// G9. Whichever copy ran last must not own the scheme.
+///
+/// `register_all()` used to run in `setup` unconditionally, and on Windows that
+/// rewrites `HKCU\Software\Classes\ksav\shell\open\command` to the running
+/// executable every single start. The most recently launched build wins, and on
+/// the machine of anybody working on this that is a `cargo run` out of
+/// `target/debug` — so a source sent from Girsa opens a development build, or a
+/// build that has since been deleted, and nothing says so.
+///
+/// The plugin does not intend that use: its own doc calls `register_all` a
+/// repair for *"an AppImage that was not properly registered"*. So the shell
+/// asks first, and `scheme.rs` holds the rule. This test is what stops the
+/// unconditional call coming back — it is one line to write and it looks
+/// harmless.
+#[test]
+fn the_scheme_is_not_claimed_on_every_start() {
+    let root = root();
+    let dir = root.join("ksav").join("app").join("src-tauri").join("src");
+    let lib = dir.join("lib.rs");
+    // Comments stripped, because the paragraph above `scheme::decide` explains
+    // what `register_all()` used to do and names it while doing so.
+    let text = uncommented(&lib);
+
+    assert!(
+        text.contains("register_all"),
+        "{}: the shell no longer registers `ksav://` at all. An AppImage, or any \n\
+         copy the installer never touched, then answers no URL and the pairing is \n\
+         a feature nobody can reach.",
+        shown(&root, &lib)
+    );
+    // With the parenthesis. Without it a renamed `scheme::decideX` satisfies the
+    // check by containing the old name as a substring — which is how the first
+    // spelling of this passed its own mutation test.
+    assert!(
+        text.contains("scheme::decide("),
+        "{}: `register_all()` is being called without asking who owns the scheme \n\
+         first. It rewrites the registration to the running executable, so the most \n\
+         recently launched build takes it — which is a development build, on every \n\
+         machine where one exists. `src/scheme.rs` holds the rule.",
+        shown(&root, &lib)
+    );
+
+    let scheme = dir.join("scheme.rs");
+    let rule = std::fs::read_to_string(&scheme)
+        .unwrap_or_else(|_| panic!("{}: the rule is gone", shown(&root, &scheme)));
+    // The four answers. A rule that loses one of them has lost a finding: without
+    // `Theirs` the development build takes it back, and without `Stale` an
+    // uninstall leaves the scheme pointing at nothing for good.
+    for arm in ["Ours", "Vacant", "Stale", "Theirs"] {
+        assert!(
+            rule.contains(arm),
+            "{}: the ownership rule no longer has a `{arm}` answer.",
+            shown(&root, &scheme)
+        );
+    }
+}
+
+/// G10. An uninstall has to take the registration with it.
+///
+/// The installer registers the scheme from `tauri.conf.json` and the uninstaller
+/// removes what the installer wrote — but the application also wrote one, at
+/// runtime, into `HKCU`, and nothing has ever removed *that*. So `ksav://`
+/// survived the uninstall pointing at an executable that was gone, and the next
+/// source sent from Girsa opened nothing with no error anywhere.
+#[test]
+fn uninstalling_takes_the_registration_away() {
+    let root = root();
+    let base = root.join("ksav").join("app").join("src-tauri");
+    let conf = base.join("tauri.conf.json");
+    let value: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&conf).expect("tauri.conf.json is readable"))
+            .expect("tauri.conf.json is valid JSON");
+
+    let hooks = value
+        .pointer("/bundle/windows/nsis/installerHooks")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_else(|| {
+            panic!(
+                "{}: no bundle.windows.nsis.installerHooks. The uninstaller removes \n\
+                 the keys the installer wrote and knows nothing about the one the \n\
+                 application wrote at runtime, so `ksav://` outlives the uninstall.",
+                shown(&root, &conf)
+            )
+        });
+
+    let hook = base.join(hooks.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let text = std::fs::read_to_string(&hook)
+        .unwrap_or_else(|_| panic!("{}: the hook it names is not there", shown(&root, &hook)));
+    assert!(
+        text.contains("NSIS_HOOK_PREUNINSTALL"),
+        "{}: the hook file defines no uninstall macro, so it runs at no point.",
+        shown(&root, &hook)
+    );
+    // Both, and the second is the one that is easy to forget: the marker records
+    // which copy holds the scheme, and a marker outliving the executable it names
+    // is a claim nothing can answer for.
+    for line in [r"Software\Classes\ksav", "scheme-owner.txt"] {
+        assert!(
+            text.contains(line),
+            "{}: the uninstall hook no longer removes `{line}`.",
+            shown(&root, &hook)
+        );
+    }
+}

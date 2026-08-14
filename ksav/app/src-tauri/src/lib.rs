@@ -37,6 +37,10 @@
 //! what that pool is for. Which calls need it is [`Cost`] on the service rather
 //! than a decision taken again per command — that is what got it wrong before.
 
+/// Who owns `ksav://`. Its own module because the rule is worth arguing with
+/// away from a `setup` closure — see the table in its header.
+mod scheme;
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -418,8 +422,50 @@ pub fn run() {
             #[cfg(any(windows, target_os = "linux"))]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
-                if let Err(e) = app.deep_link().register_all() {
-                    eprintln!("could not register ksav:// with the system: {e}");
+                // Claimed when it is free or stale, never taken from a copy that
+                // is still there. `register_all` used to run here on every start,
+                // which made the most recently launched build the owner — and on
+                // the machine of anybody working on this, that is a `cargo run`
+                // out of `target/debug`. See `scheme.rs` for the table.
+                let me = tauri::utils::platform::current_exe().unwrap_or_default();
+                let marker = app
+                    .path()
+                    .app_data_dir()
+                    .map(|d| crate::scheme::marker_path(&d))
+                    .unwrap_or_default();
+                let handler = app.deep_link().is_registered("ksav").unwrap_or(false);
+                let claim = crate::scheme::decide(
+                    handler,
+                    crate::scheme::read_marker(&marker).as_deref(),
+                    &me,
+                    &|p| p.exists(),
+                );
+                match &claim {
+                    crate::scheme::Claim::Ours => {
+                        let _ = crate::scheme::write_marker(&marker, &me);
+                    }
+                    crate::scheme::Claim::Vacant | crate::scheme::Claim::Stale { .. } => {
+                        if let crate::scheme::Claim::Stale { was } = &claim {
+                            eprintln!(
+                                "ksav:// was registered to {}, which is gone — taking it back",
+                                was.display()
+                            );
+                        }
+                        if let Err(e) = app.deep_link().register_all() {
+                            eprintln!("could not register ksav:// with the system: {e}");
+                        } else {
+                            let _ = crate::scheme::write_marker(&marker, &me);
+                        }
+                    }
+                    // Said rather than done. A pairing that changes owner in
+                    // silence is the whole of this finding, and a line here is
+                    // the difference between "Girsa opens the wrong Ksav" and
+                    // "Girsa opens the Ksav that claimed the scheme, which is
+                    // this one, and here is its path".
+                    crate::scheme::Claim::Theirs { owner } => eprintln!(
+                        "ksav:// belongs to {} — leaving it. Sources sent from Girsa will open that one.",
+                        owner.display()
+                    ),
                 }
                 // The URL that *started* this process, which on these platforms
                 // arrives in argv and does not raise an open-url event at all.

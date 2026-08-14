@@ -113,6 +113,42 @@ function strip(s) {
  */
 const RULES = [
   {
+    // G6, relayed from Girsa — the class: **a test that asserts the size of a
+    // registry instead of the property the registry must have.**
+    //
+    // `services.rs` had `assert_eq!(SERVICES.len(), 15)` with the message *"add
+    // the new service to this list too"*, which is a test admitting it will go
+    // red for a good change and asking to be edited rather than telling anyone
+    // anything. `header.test.mjs` had `check("there are eight of them",
+    // EXPORTS.length, 8)`, and adding an Org export turned it red while saying
+    // nothing whatever about whether Org export works.
+    //
+    // Both are the same mistake: a count is a fact about today, and a registry
+    // that is *supposed* to grow makes it a tripwire on the wrong wire. What
+    // survives a sixteenth service — names are distinct, paths are distinct,
+    // every name is spellable in all four targets — is what those tests assert
+    // now, and a floor (`>= 15`) is how a suite says "this is populated"
+    // without saying "this is finished".
+    //
+    // Only ALL-CAPS registries are swept, and the scoping is the rule rather
+    // than a convenience. `problems.length, 0` is a fact about one input and is
+    // exactly right. `SERVICES.len(), 15` is a fact about the product's size.
+    // In this codebase a registry is a screaming-case constant, so the case is
+    // the difference between the two.
+    //
+    // That also leaves `manifests.rs` outside, where it belongs: its count is
+    // over a *local* — `girsa-…` dependency lines found by a scan that provably
+    // cannot see the `[dependencies.girsa-…]` table form — so the number is a
+    // tripwire for the scan's blind spot rather than a claim about how many
+    // dependencies there ought to be, and the exact names are asserted
+    // immediately below it. It carries no exemption here because it never
+    // matches; an exemption that is never exercised is a name on a skip list,
+    // which this file's header refuses.
+    what: "no test pins the exact size of a registry",
+    where: /\.(rs|mjs|ts)$/u,
+    match: /\b[A-Z][A-Z0-9_]{2,}\s*(?:\.len\(\)|\.length|\.size)\s*,\s*\d+\s*[,)]/u,
+  },
+  {
     // §1 #2 and dup §1.1 — the class: **the Hebrew mark block, written out by
     // hand.** `U+0591–U+05C7` is not "the marks": four characters in it are
     // punctuation that separates words (maqaf ־, paseq ׀, sof pasuq ׃, nun
@@ -342,8 +378,13 @@ export async function run() {
     const looked = files.filter(([f]) => rule.where.test(f));
     ok(`${rule.what}: the sweep reached some files`, looked.length > 0, `${looked.length}`);
 
+    // A rule with no exemptions says so by having none. `rule.allow` was
+    // required, so the first prohibition that genuinely applied everywhere had
+    // to write `allow: []` to say "nothing" — and an empty list reads like an
+    // exemption somebody removed rather than one that never existed.
+    const allow = rule.allow ?? [];
     const guilty = looked
-      .filter(([f]) => !rule.allow.includes(f))
+      .filter(([f]) => !allow.includes(f))
       .filter(([, s]) => breaks(rule, s))
       .map(([f]) => f);
     check(rule.what, guilty, []);
@@ -353,7 +394,7 @@ export async function run() {
     // authority nobody updated here, or a rule that has quietly stopped
     // matching anything at all — and the second is how a green sweep comes to
     // guard nothing.
-    for (const owner of rule.allow) {
+    for (const owner of allow) {
       const found = looked.find(([f]) => f === owner);
       ok(`…and ${owner} is in the sweep`, !!found);
       if (found) {

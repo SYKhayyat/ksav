@@ -557,7 +557,50 @@ mod tests {
         ] {
             assert!(find(name).is_some(), "{name} is missing from the registry");
         }
-        assert_eq!(SERVICES.len(), 15, "add the new service to this list too");
+        // No `assert_eq!(SERVICES.len(), 15)`.
+        //
+        // It was there, with the message "add the new service to this list too",
+        // which is a test admitting it goes red for a good change and asking to
+        // be edited rather than telling anyone anything. The names above are a
+        // real claim — each of those fifteen is a promise to a client that has
+        // already shipped, and removing one has to hurt — but a *sixteenth*
+        // service is not a defect, and a check that cannot tell those two apart
+        // trains people to update the number without reading why it moved.
+        //
+        // What holds for a sixteenth as much as for these is below. (G6, in the
+        // relayed findings: assert the class, not the shape.)
+        let mut names: Vec<_> = SERVICES.iter().map(|s| s.name).collect();
+        names.sort_unstable();
+        let count = names.len();
+        names.dedup();
+        assert_eq!(names.len(), count, "two services share a name");
+
+        let mut paths: Vec<_> = SERVICES.iter().map(|s| s.path).collect();
+        paths.sort_unstable();
+        let routes = paths.len();
+        paths.dedup();
+        assert_eq!(paths.len(), routes, "two services share an HTTP path");
+
+        for s in SERVICES {
+            assert!(!s.name.is_empty(), "a service with no name");
+            assert!(
+                s.path.starts_with('/'),
+                "{}: {:?} is not a path the dev proxy can forward",
+                s.name,
+                s.path
+            );
+            // The name is what every target keys on — the wasm export's
+            // argument, the Tauri command's, and the generated TypeScript union
+            // — so a name that is not a plain identifier breaks a build nobody
+            // is looking at when it does.
+            assert!(
+                s.name
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
+                "{}: a service name reaches four targets and has to be plain",
+                s.name
+            );
+        }
     }
 
     /// A layout is the only thing that needs the server's deadline and the

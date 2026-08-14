@@ -476,3 +476,109 @@ fn the_buffer_girsa_wrote_reads_back_with_its_structure_intact() {
         "the mekor did not come back as a citation: {blocks:#?}"
     );
 }
+
+// ---------------------------------------------------------------- the drift
+
+/// G11. The fixture is a photograph, and nothing here noticed it ageing.
+///
+/// The packet above was captured from a real Girsa and copied in verbatim,
+/// which is the whole reason it is worth having — it proves what the library
+/// *puts on the clipboard* is what the pen *reads*, which a packet built by hand
+/// in a unit test cannot. What it cannot do by itself is stay true. The shared
+/// crate is pinned by commit in `engine/Cargo.toml`, so `cargo update` or a new
+/// rev can change the wire format underneath this file, and every test above
+/// goes on passing against a packet the current Girsa would never send.
+///
+/// The check for that lived only in Girsa's CI. Ksav could break the contract
+/// and stay green, which is the wrong way round: Ksav is the *reader*, and a
+/// reader that cannot tell it is reading a stale shape is the one that renders
+/// a citation looking reasonable and being wrong.
+///
+/// Nothing here needs Girsa's corpus. Both applications compile against the same
+/// `girsa-source`, so the crate is the authority and the fixture can be held to
+/// it three ways.
+#[test]
+fn the_fixture_is_still_the_packet_this_build_would_be_sent() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(PACKET).expect("the fixture is valid JSON");
+    let keys: std::collections::BTreeSet<&str> = fixture
+        .as_object()
+        .expect("a packet is an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+
+    // One. The schema the crate writes today.
+    //
+    // This is the field the format's own rules turn on: `PacketError` refuses a
+    // packet from a newer Girsa outright, precisely because serde would
+    // otherwise supply defaults for the fields this build does not know about
+    // and the citation would render looking reasonable and being wrong. A bump
+    // in the crate is that rule addressed to this fixture.
+    assert_eq!(
+        fixture["schema"].as_u64(),
+        Some(u64::from(girsa_source::PACKET_SCHEMA_VERSION)),
+        "the fixture is schema v{} and this build writes v{}. Regenerate it — the \n\
+         command is in this file's module note — because every test above is now \n\
+         reading a packet the current Girsa would not send.",
+        fixture["schema"],
+        girsa_source::PACKET_SCHEMA_VERSION,
+    );
+
+    // Two. Every field the crate writes for a packet with nothing optional set.
+    //
+    // Derived by serialising, not listed here: a list would be a fourth copy of
+    // the packet's shape, and the shape is exactly the thing under test.
+    let parsed = SourcePacket::from_json(PACKET).expect("the fixture parses");
+    let mut bare = parsed.clone();
+    bare.note = None;
+    bare.range = None;
+    let required: std::collections::BTreeSet<String> = serde_json::to_value(&bare)
+        .expect("a packet serialises")
+        .as_object()
+        .expect("into an object")
+        .keys()
+        .cloned()
+        .collect();
+    for field in &required {
+        assert!(
+            keys.contains(field.as_str()),
+            "the crate writes `{field}` and the fixture has no such key, so this \n\
+             file has been testing a shape Girsa stopped sending. Regenerate it.",
+        );
+    }
+
+    // Three. And nothing in the fixture the crate has never heard of.
+    //
+    // serde ignores an unknown field in silence, which is what makes this
+    // direction worth asserting at all: a fixture captured from a *newer* Girsa
+    // would parse, drop the field, and pass every test above while the real
+    // application received something this build cannot use.
+    let mut full = parsed;
+    full.note = Some(String::from("a note"));
+    let known: std::collections::BTreeSet<String> = serde_json::to_value(&full)
+        .expect("a packet serialises")
+        .as_object()
+        .expect("into an object")
+        .keys()
+        .cloned()
+        .collect();
+    for key in &keys {
+        assert!(
+            known.contains(*key),
+            "the fixture carries `{key}` and `girsa-source` has no such field. It was \n\
+             captured from a newer Girsa than this build compiles against, and serde \n\
+             drops it without a word.",
+        );
+    }
+
+    // And the floor, because all three loops above are `for` loops over sets
+    // that a bundling accident could empty.
+    assert!(
+        required.len() >= 5 && keys.len() >= 5,
+        "the packet's shape came back nearly empty ({} declared, {} in the fixture), \n\
+         so the comparison above compared almost nothing.",
+        required.len(),
+        keys.len(),
+    );
+}

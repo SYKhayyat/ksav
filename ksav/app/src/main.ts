@@ -849,6 +849,22 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
     run: () => (void refreshSources(), true),
   },
   {
+    // Look this phrase up in the library (spec.md §10.4). It answered to
+    // `Ctrl+Shift+M` from a literal `e.key` test on the window, which is the
+    // same "no entry anywhere" the comment above describes — one rung further
+    // down, because a key that is not in `DEFAULT_KEYS` is not merely
+    // unlisted: it cannot be rebound, it survives a keyboard mode that has
+    // taken the whole keyboard, and no test can see it.
+    id: "citePhrase",
+    run: () => (void askForMekor(), true),
+  },
+  {
+    // The citations in the selection, made live (spec.md §10.5). Same story,
+    // and worse: its chord was `left`'s. Both ran.
+    id: "linkifyCitations",
+    run: () => (void linkifySelection(), true),
+  },
+  {
     // The hydra for whatever the caret is in.
     id: "hydra",
     run: () => (openHydra(), true),
@@ -3940,6 +3956,44 @@ function buildFormatMenu(): HTMLElement {
   ]);
 }
 
+/**
+ * The three errands that go to the library, given a door.
+ *
+ * Inventory item 73: the service that justifies a whole process boundary with
+ * Girsa had no caller at all for a long stretch, and when it got one, the one
+ * it got was the command palette — which answers *"I know what I want, get me
+ * there"* and cannot answer *"what is there?"*. Two of the three were worse
+ * than palette-only: they were a literal `e.key` comparison in `wireKeys`,
+ * which is a shortcut with no name, no entry and no way to find out it exists.
+ *
+ * A menu of their own rather than rows added to Insert or Format, because the
+ * rule those two menus follow is about the *page* — Insert puts something new
+ * on it, Format changes what is there — and not one of these does either. They
+ * all ask the library a question about the words already written.
+ *
+ * Nothing here is hidden when Girsa is absent. Every one of them says
+ * `girsaNeedsApp` when it is, which is a sentence a writer can act on; a menu
+ * that quietly loses three items in the browser build is a product that looks
+ * different for no stated reason.
+ */
+function buildSourcesMenu(): HTMLElement {
+  return lazyMenu("sources", "⚯ " + t("sourcesMenu"), () => {
+    const kb = keybindings();
+    const item = (id: string, glyph: string, run: () => void) =>
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), run()) }, [
+        el("b", {}, [`${glyph} ${t("sc." + id)}`]),
+        keyCode(id, kb),
+        el("span", { class: "menu-desc" }, [t(id + "Lede")]),
+      ]);
+    return [
+      item("citePhrase", "⌕", () => void askForMekor()),
+      item("linkifyCitations", "⚯", () => void linkifySelection()),
+      el("div", { class: "menu-sep" }),
+      item("refreshSources", "↻", () => void refreshSources()),
+    ];
+  });
+}
+
 function buildTableMenu(): HTMLElement {
   return lazyMenu("table", "▦ " + t("tableMenu"), () => [
     el("button", {
@@ -4455,6 +4509,7 @@ function buildHeader(): HTMLElement {
       buildInsertMenu(),
       buildFormatMenu(),
       buildTableMenu(),
+      buildSourcesMenu(),
       buildMacroMenu(),
       buildDocsMenu(),
       fileMenu,
@@ -9918,15 +9973,14 @@ function runShortcutOutsideEditor(e: KeyboardEvent): boolean {
 
 function wireKeys() {
   window.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") {
-      // Linkify the selection (spec.md §10.5).
-      e.preventDefault();
-      void linkifySelection();
-    } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "m") {
-      // Cite on selection (spec.md §10.4).
-      e.preventDefault();
-      void askForMekor();
-    } else if (e.key === "Escape") {
+    // The two Girsa errands used to be answered here, by comparing `e.key` to a
+    // letter. They are `citePhrase` and `linkifyCitations` in `DEFAULT_KEYS`
+    // now, which is the only place a combination is allowed to be decided —
+    // `prohibitions.test.mjs` holds that. What that arrangement cost: neither
+    // was rebindable, neither reached the card, the key list or `F1`, both
+    // fired straight through a keyboard mode that had taken the keyboard, and
+    // `Ctrl+Shift+L` ran `left` *as well*, because that is what it is bound to.
+    if (e.key === "Escape") {
       // Every surface that says Escape closes it, and nothing else. This used to
       // be twelve close calls written out by hand, which meant the answer to
       // "does Escape reach this panel?" was "did somebody remember" — and for

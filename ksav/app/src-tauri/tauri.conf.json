@@ -38,9 +38,9 @@
     "publisher": "Ksav",
     "category": "Productivity",
     "copyright": "Copyright (c) 2026 The Ksav Authors. MIT OR Apache-2.0. Bundled fonts are separately licensed — see THIRD-PARTY-NOTICES.md.",
-    "licenseFile": "../../../LICENSE",
+    "licenseFile": "../../../COPYRIGHT",
     "resources": {
-      "../../../LICENSE": "LICENSE",
+      "../../../COPYRIGHT": "COPYRIGHT",
       "../../../LICENSE-MIT": "LICENSE-MIT",
       "../../../LICENSE-APACHE": "LICENSE-APACHE",
       "../../../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md",

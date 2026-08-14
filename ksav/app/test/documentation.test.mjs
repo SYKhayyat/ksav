@@ -186,7 +186,7 @@ export async function run() {
         .filter(Boolean)
         .map((p) => p.replace(/\\/g, "/")),
     );
-    for (const file of [...tracked, "LICENSE"]) {
+    for (const file of [...tracked, "COPYRIGHT"]) {
       const body = readFileSync(path.join(ROOT, file), "utf8");
       const dir = path.posix.dirname(file);
       for (const m of body.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/gu)) {
@@ -218,7 +218,7 @@ export async function run() {
     // `spell.rs` was telling the truth in June; a page a reader is sent to today
     // is not.
     const missing = [];
-    for (const file of [...living, "LICENSE"]) {
+    for (const file of [...living, "COPYRIGHT"]) {
       const body = readFileSync(path.join(ROOT, file), "utf8")
         .replace(/^```[\s\S]*?^```/gmu, "")
         // A path wrapped across a line still names one file.

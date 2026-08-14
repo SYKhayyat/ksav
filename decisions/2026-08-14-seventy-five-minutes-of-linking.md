@@ -57,6 +57,12 @@ all three release-engine steps across `ci.yml` and `release.yml`, and
 `gate.test.mjs` sweeps for a fourth arriving without it — because a step that is
 merely *slow* fails no check, and nobody reads a green job's duration.
 
+**Measured, on the next push.** The engine job: **386 seconds.** Seventy-five
+minutes to six and a half, from one environment variable, on the reasoning that
+the first attempt disproved. The other six jobs are unchanged, which is what
+"nothing is weakened" has to mean if it is going to mean anything — the same
+suite, the same `--release`, the same 663 engine assertions.
+
 Nothing is weakened. `opt-level = 3` is the whole reason the runner uses
 `--release`, and it is untouched. The shipped desktop application is untouched
 for a separate reason worth stating, because it was checked rather than assumed:

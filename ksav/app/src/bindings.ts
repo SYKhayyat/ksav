@@ -113,6 +113,21 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Moved off `Mod-Alt-d` to give the endnote Word's own key. See `endnote`.
   markDelete: "Mod-Alt-Shift-d",
   addComment: "Mod-Alt-m",
+  // The two errands that go to Girsa, and they are here because until now they
+  // were not anywhere: `wireKeys` answered `Ctrl+Shift+L` and `Ctrl+Shift+M`
+  // with a literal `e.key` test on the window, outside this table entirely. So
+  // neither was rebindable, neither appeared on the generated card, in the key
+  // list or in `F1` — and both went on firing while Vim or Emacs held the
+  // keyboard, which is precisely what `buildShortcutKeymap` returning nothing
+  // exists to prevent.
+  //
+  // `Ctrl+Shift+M` is kept, because it was free. `Ctrl+Shift+L` could not be:
+  // it is `left`, and has been since alignment was bound. Both ran — the editor
+  // aligned the paragraph and the window handler linkified the selection, two
+  // actions on one combination, which is the one rule this table has. Linkify
+  // moves to `Mod-Alt-l`, beside the other application-scale errands.
+  citePhrase: "Mod-Shift-m",
+  linkifyCitations: "Mod-Alt-l",
   // Structural keys. Bare Enter/Tab rather than a modifier chord because that
   // is what they are in Word and in every outliner — and they are only consulted
   // while the caret is inside a list, falling through to ordinary Enter and Tab

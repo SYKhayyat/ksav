@@ -74,7 +74,14 @@ breaks, lists and the table of contents are under Insert; bold, colour,
 alignment and the rest of the ways to dress existing text are under Format,
 alongside the heading and list operations; and a table has its own menu because
 it brings twenty operations with it. Every row that has a keyboard shortcut
-prints it, as you have it bound — not as it shipped.
+prints it, as you have it bound — not as it shipped, and not as a chord a
+keyboard mode has taken.
+
+**Sources** is the fourth, and it follows from the same rule by not fitting
+either half of it: looking a phrase up in the library, making the citations in
+a selection live, and asking the library for every citation in the document
+again are all questions *about* words already written. None of them puts
+something on the page and none of them changes how text looks.
 
 If you would rather not think about which menu, press `Ctrl+Shift+K` or the `#`
 chip: that drawer holds every command the registry offers, grouped, searchable,
@@ -679,7 +686,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 6,033 editor assertions, 663 engine
+- [x] **CI, running and green** — typecheck, 6,045 editor assertions, 663 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -766,7 +773,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 6,033 assertions across 94 files |
+| `editor` | the typechecker, then 6,045 assertions across 94 files |
 | `engine` | lints, then 663 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 
@@ -1190,7 +1197,7 @@ again, with a **Download a backup** button on it.
 ## Licence
 
 Dual-licensed **MIT OR Apache-2.0**, at your option — see
-[`../LICENSE`](../LICENSE), [`../LICENSE-MIT`](../LICENSE-MIT) and
+[`../COPYRIGHT`](../COPYRIGHT), [`../LICENSE-MIT`](../LICENSE-MIT) and
 [`../LICENSE-APACHE`](../LICENSE-APACHE).
 
 The six bundled fonts are **separately licensed** (SIL OFL 1.1 and the GUST Font

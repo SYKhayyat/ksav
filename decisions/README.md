@@ -71,6 +71,7 @@ something in.
 | [2026-08-14 · The two that were held](2026-08-14-the-two-that-were-held.md) | Version control on the git the machine already has, and an Emacs package that drives the engine — plus the three faults that only showed up when the elisp was actually run |
 | [2026-08-14 · Seventy-five minutes of linking](2026-08-14-seventy-five-minutes-of-linking.md) | The remote green again, a CI job that was forty LTO passes over the same compiler, sefer text objects, per-document preview pages — and four measurements that were assumed rather than taken |
 | [2026-08-14 · The only surface that knew](2026-08-14-the-only-surface-that-knew.md) | The shortcut list moved to a drawer of its own, and moving it exposed that twenty other surfaces printed chords no keyboard mode had left installed |
+| [2026-08-14 · A door for the library](2026-08-14-a-door-for-the-library.md) | The three Girsa errands get a menu — and with it: two chords decided outside the bindings table, one of them already `left`; Escape not closing a dropdown; an assertion count that could not be measured before the commit that had to contain it; and 2,187 leaked build directories |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

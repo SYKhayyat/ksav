@@ -463,6 +463,24 @@ withDom((root) => {
   ok("the persisted panes survived it", isPanelOpen("outline-drawer") && isPanelOpen("notes-drawer"));
 });
 
+// The header's dropdowns, which are not in `PANELS` and were not in this either.
+//
+// The argument for leaving them out was that "a click anywhere closes them",
+// which is true of a mouse and only of a mouse: opened from the keyboard, a
+// menu stayed open on the one key every other surface here answers to. It cost
+// a red remote to notice — a menu left open over the editor swallowed the next
+// step's click and Playwright retried it thirty times before giving up.
+withDom((root) => {
+  const list = new FakeEl("div");
+  list.className = "menu-list open";
+  root.append(list);
+  const closed = closeOnEscape();
+  notOk("Escape closes an open dropdown", list.classList.contains("open"));
+  // And it is not named in the return value, which is a list of panel ids —
+  // a dropdown has none, which is half of why it is not in `PANELS`.
+  check("…without claiming to have closed a panel", closed, []);
+});
+
 // A second Escape must be free to mean something else.
 withDom((root) => {
   place(root, "palette");

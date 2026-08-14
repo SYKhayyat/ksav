@@ -53,6 +53,8 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+I` | Mark as inserted | סמן כהוספה |
 | `Ctrl+Alt+Shift+D` | Mark as deleted | סמן כמחיקה |
 | `Ctrl+Alt+M` | Comment | הערת עורך |
+| `Ctrl+Shift+M` | Find the source of the selected phrase | חיפוש מקור לביטוי המסומן |
+| `Ctrl+Alt+L` | Make the citations in the selection live | הפיכת הציטוטים שבסימון לקישורים |
 | `Enter` | Split the item | פיצול הפריט |
 | `Shift+Enter` | New line inside this item | שורה חדשה בתוך הפריט |
 | `Ctrl+Enter` | New paragraph in this item | פסקה חדשה באותו פריט |

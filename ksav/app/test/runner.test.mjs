@@ -29,10 +29,11 @@
 import { check, ok } from "./harness.mjs";
 import { build } from "esbuild";
 import { readdir, readFile } from "node:fs/promises";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { UNBUILDABLE, NOT_IMPORTABLE, sourceModules, buildableModules } from "./modules.mjs";
 import { dirOf, TEST, TOOLS } from "../tools/paths.mjs";
+import { staleLoad } from "../tools/load.mjs";
 import { facts, disagreements } from "../tools/facts.mjs";
 
 const HERE = dirOf(import.meta.url);
@@ -323,5 +324,30 @@ export function nothingIsCopiedBackIn() {
       f.services.length >= 10 && f.notices.length >= 4 &&
       Object.keys(f.doc_defaults).length >= 25);
     check("…and it agrees with the Rust it was serialised from", disagreements(), []);
+  }
+
+  // ------------------------------------------ and the suite cleans up after itself
+  //
+  // `tools/load.mjs` builds each module into `app/.tmp-load-XXXXXX` and deleted
+  // it on an unref'd two-second timer — in processes that exit in eighty
+  // milliseconds. The timer never fired. **2,187** of those directories had
+  // accumulated in `app/`, each holding an esbuild of part of the application,
+  // and on this project a full disk does not fail cleanly: rustc leaves
+  // truncated rlibs whose errors read exactly like code faults.
+  //
+  // What is asserted is the rule the sweep runs on, because the sweep itself
+  // cannot be: another test process may be holding a directory of its own
+  // right now, so *age* is the only safe test, and getting the age wrong in
+  // either direction is the whole bug — too eager deletes a live build, too
+  // lax leaves the pile.
+  {
+    const now = 1_000_000_000_000;
+    const hour = 60 * 60 * 1000;
+    ok("a directory from a finished run is swept", staleLoad(".tmp-load-abc", now - 2 * hour, now));
+    ok("…one a live run may still be using is not", !staleLoad(".tmp-load-abc", now - 1000, now));
+    ok("…and nothing else in app/ is touched", !staleLoad("src", 0, now));
+    check("no build directory is left over from this suite", readdirSync(APP)
+      .filter((n) => n.startsWith(".tmp-load-"))
+      .filter((n) => staleLoad(n, statSync(path.join(APP, n)).mtimeMs, Date.now())), []);
   }
 }

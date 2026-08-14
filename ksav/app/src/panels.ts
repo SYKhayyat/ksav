@@ -492,6 +492,19 @@ export function closeOnEscape(): string[] {
     closePanel(p.id);
     closed.push(p.id);
   }
+  // The header's dropdowns as well, and here rather than at the call site
+  // because the call site may not have a list: `chrome.test.mjs` forbids any
+  // second `close…()` in the Escape branch, on the grounds that a hand-written
+  // list of closers is what left the hydra out of this in the first place. It
+  // is right, so the sweep grows instead.
+  //
+  // The dropdowns are deliberately not in `PANELS` — see `closeMenus` below —
+  // and the argument for leaving them out of *this* was that "a click anywhere
+  // closes them". True of a mouse, and only of a mouse: a menu opened from the
+  // keyboard stayed open, on the one key every other surface in the
+  // application answers to. They are not named in the return value because
+  // they have no ids to name.
+  closeMenus();
   return closed;
 }
 

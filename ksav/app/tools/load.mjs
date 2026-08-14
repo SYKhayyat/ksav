@@ -21,7 +21,7 @@
 //   perfectly on the machine that wrote it.
 
 import { build } from "esbuild";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { APP, SRC } from "./paths.mjs";
@@ -55,6 +55,7 @@ export async function loadMany(names) {
   // original copies had this, and none of them had ever loaded such a module;
   // `test/run.mjs` builds into `.tmp-test/` for exactly this reason and the
   // reason had not travelled with the code.
+  sweepStaleLoads();
   const dir = mkdtempSync(join(APP, ".tmp-load-"));
   await build({
     entryPoints: names.map((n) => join(SRC, `${n}.ts`)),
@@ -77,5 +78,43 @@ export async function loadMany(names) {
   // the files during `import`, and two of the four copies deleted the directory
   // out from under it. The timer is unref'd so it cannot hold the process open.
   setTimeout(() => rmSync(dir, { recursive: true, force: true }), 2000).unref?.();
+  // And on the way out, because an unref'd two-second timer in a process that
+  // exits in eighty milliseconds never fires at all — which is every unit test
+  // here. **2,187** `.tmp-load-*` directories had accumulated in `app/` before
+  // anybody counted them, each an esbuild of part of the application, and a
+  // full disk on this project does not fail cleanly: rustc leaves truncated
+  // rlibs whose errors read like code faults.
+  //
+  // `exit` is safe where the `finally` was not: nothing can still be importing
+  // by then, since no further asynchronous work can run.
+  process.once("exit", () => rmSync(dir, { recursive: true, force: true }));
   return out;
+}
+
+/**
+ * Is this leftover directory old enough that nothing can still be using it?
+ *
+ * Whoever left it behind is long gone — but another test process may be
+ * running *right now* with a directory of its own, so age is the only honest
+ * test. An hour is far beyond any run of this suite and far below anything
+ * that would still be a problem.
+ */
+export function staleLoad(name, mtimeMs, now) {
+  return name.startsWith(".tmp-load-") && now - mtimeMs > 60 * 60 * 1000;
+}
+
+/** Whatever earlier runs left behind. Best-effort: a race here costs nothing. */
+export function sweepStaleLoads(now = Date.now()) {
+  let gone = 0;
+  for (const name of readdirSync(APP)) {
+    const full = join(APP, name);
+    try {
+      if (!staleLoad(name, statSync(full).mtimeMs, now)) continue;
+      rmSync(full, { recursive: true, force: true });
+      gone++;
+    } catch {
+      // Being swept by somebody else, or not ours to remove. Either is fine.
+    }
+  }
+  return gone;
 }

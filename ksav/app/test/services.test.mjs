@@ -25,6 +25,7 @@ import { HttpBackend, TauriBackend, WasmBackend, sourcesOf } from "../.tmp-test/
 import { SERVICE, SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
 import { HEADER_ONLY, metaPolicy } from "../../policy/meta.mjs";
 import { readFile } from "node:fs/promises";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -396,6 +397,39 @@ export async function run() {
       "report-uri",
       "sandbox",
     ]);
+
+    // Every file the installer is told to carry is a file.
+    //
+    // The class: **a path written in configuration, pointing at a file some
+    // other change is free to rename.** `LICENSE` was renamed to `COPYRIGHT`
+    // so GitHub's licence detector would stop reporting NOASSERTION, and the
+    // links in the prose were updated with it — but `licenseFile` and one
+    // resource here were not, and neither was the literal in
+    // `documentation.test.mjs`. Nothing said so until the desktop bundle
+    // failed in CI three minutes into a job, which is a slow and expensive way
+    // to be told a filename is wrong.
+    //
+    // Resolved against `src-tauri/`, which is what Tauri does. A `*` is
+    // checked as its directory holding something, since that is the whole
+    // claim a glob makes.
+    const bundleDir = path.join(APP, "src-tauri");
+    const declared = [
+      conf.bundle?.licenseFile,
+      ...Object.keys(conf.bundle?.resources ?? {}),
+      ...(Array.isArray(conf.bundle?.icon) ? conf.bundle.icon : []),
+    ].filter(Boolean);
+    ok("the installer is told to carry something", declared.length >= 4, `${declared.length}`);
+    const missing = [];
+    for (const rel of declared) {
+      const full = path.resolve(bundleDir, rel);
+      if (!rel.includes("*")) {
+        if (!existsSync(full)) missing.push(rel);
+        continue;
+      }
+      const dir = path.dirname(full);
+      if (!existsSync(dir) || readdirSync(dir).length === 0) missing.push(rel);
+    }
+    check("and every one of them is on disk", missing, []);
   }
 
   // ------------------------------------------- and every door is in the list

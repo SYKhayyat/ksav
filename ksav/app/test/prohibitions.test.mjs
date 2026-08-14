@@ -295,6 +295,30 @@ const RULES = [
     allow: [],
   },
   {
+    // The class: **a key combination decided somewhere other than
+    // `DEFAULT_KEYS`.** There were two, and they were the two errands that go
+    // to Girsa.
+    //
+    // `wireKeys` answered `Ctrl+Shift+L` and `Ctrl+Shift+M` by comparing
+    // `e.key` to a letter on the window. Four things follow from that and every
+    // one of them is invisible from the code that does it: neither chord could
+    // be rebound; neither reached `tools/card.mjs`, the key list or `F1`, all
+    // three of which read the table; both went on firing while Vim or Emacs
+    // held the keyboard, since `buildShortcutKeymap` returning nothing only
+    // stands down *this* table; and `Ctrl+Shift+L` is `left`, so the editor
+    // aligned the paragraph and the window linkified the selection — two
+    // actions on one combination, which is the single rule the table has.
+    //
+    // A *bare* key is not this class and is not forbidden: the hydra reads
+    // `q` and `Escape` with no modifier at all, having deliberately taken the
+    // keyboard, and it lets every modified key through untouched. What is
+    // forbidden is a modifier flag and a letter, together, outside the table.
+    what: "no combination is decided outside the bindings table",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    match: /(ctrlKey|metaKey|altKey)[\s\S]{0,200}?\.key(\.toLowerCase\(\))?\s*===\s*["'][A-Za-z0-9]["']/u,
+    allow: [],
+  },
+  {
     // The class: **a surface prints a chord without asking whether a mode has
     // taken the keyboard.** There were twenty.
     //

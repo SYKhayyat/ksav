@@ -1096,7 +1096,21 @@ async function main() {
     (inMenu ?? "").startsWith("M-x "),
     inMenu === null ? "no key was printed in the Insert menu at all" : inMenu,
   );
+  // Escape closes it — asserted, not assumed, and it is asserted because
+  // assuming it is what broke this run on the remote. The dropdowns are not in
+  // `PANELS`, so `closeOnEscape` never touched them: a menu opened from the
+  // keyboard stayed open, the next step's click on the editor landed on the
+  // menu instead, and Playwright retried it thirty times and gave up. The
+  // product answer is that Escape closes menus too; this is the check that says
+  // so, and it stands between two steps that would otherwise pass or fail on
+  // whether the dropdown happens to overlap the editor at this window size.
   await press("Escape");
+  await page.waitForSelector(".menu-list.open", { state: "detached", timeout: 5_000 }).catch(() => {});
+  check(
+    "and Escape closes a menu, the way it closes everything else",
+    (await page.locator(".menu-list.open").count()) === 0,
+    "the Insert menu was still open after Escape",
+  );
   /**
    * Press a key with the caret in the document.
    *
@@ -1592,6 +1606,48 @@ async function main() {
     // Let the last switch's own compile finish, so the run does not end with one
     // in flight. `returning.before` is the mark from before that switch.
     await settled(returning.before);
+  }
+
+  step(12, "the errands that go to the library have a door");
+
+  // Inventory item 73: the service that justifies a whole process boundary with
+  // Girsa had no caller at all for a long stretch. It has three now, and until
+  // this step none of them was reachable by anything a reader could see —
+  // `refreshSources` was in the command palette, which answers *"get me there"*
+  // and not *"what is there?"*, and the other two were a literal `e.key` test
+  // on the window: no name, no entry, no way to find out they exist.
+  //
+  // What is checked is not that three buttons exist. It is that each one **does
+  // something when pressed** — with no selection, the answer is *select a
+  // phrase first*, which is a sentence only the wired-up action can produce.
+  // A menu of three items that are decoration would pass "the item is on the
+  // screen" and fail this.
+  {
+    await clickVisible("the Sources menu", '[data-menu="sources"] .menu-btn');
+    const items = page.locator('[data-menu="sources"] .menu-item');
+    const count = await items.count();
+    check("all three errands are in it", count === 3, `${count} items in the menu`);
+    const words = (await items.allTextContents()).join(" ");
+    for (const each of ["citePhrase", "linkifyCitations", "refreshSources"]) {
+      // `t()` hands back the key it was given when the dictionary has no entry,
+      // so an unnamed row puts `sc.citePhrase` in front of a reader. This is
+      // the same check `bindings.test.mjs` makes over the table, made again
+      // where the words actually land.
+      check(`${each} is named rather than keyed`, !words.includes("sc." + each), words);
+    }
+    const before = await said();
+    await clickVisible("the first errand", '[data-menu="sources"] .menu-item');
+    await page.waitForFunction(
+      (was) => (document.getElementById("status")?.textContent ?? "") !== was,
+      before,
+      { timeout: 10_000, polling: 20 },
+    ).catch(() => {});
+    const answer = await said();
+    check(
+      "pressing one gets an answer rather than nothing",
+      answer !== before && answer.trim().length > 0,
+      `the status line stayed at "${before}"`,
+    );
   }
 
   // ----------------------------------------------------------------- the tally

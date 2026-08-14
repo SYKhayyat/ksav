@@ -342,7 +342,8 @@ export const NOUNS = [
 ];
 
 /**
- * Every `.md` git tracks, which is the set a reader can actually reach.
+ * Every `.md` git is not ignoring, which is the set a reader can actually reach
+ * — and, deliberately, the set *this change* will hand them.
  *
  * One spawn per run. `coveredBy` and `livingPages` both default to calling this,
  * and `documentation.test.mjs` calls all three — so a suite that spawns `git`
@@ -351,7 +352,20 @@ export const NOUNS = [
 let trackedCache = null;
 export function trackedMarkdown() {
   if (trackedCache) return trackedCache;
-  trackedCache = execFileSync("git", ["ls-files", "*.md"], { cwd: ROOT, encoding: "utf8" })
+  // `--cached --others --exclude-standard` — everything but the ignored, which
+  // is the same list the link sweep in `documentation.test.mjs` takes and for
+  // the same reason, written there and not swept to here: a page written in
+  // this change is part of this change, staged or not. Reading only the index
+  // made this list **shorter before `git add` than after it**, and one
+  // assertion is raised per page — so the suite reported one total to whoever
+  // ran it before committing and a different one to CI afterwards. The
+  // documentation fence then demanded a number that could not be measured
+  // until the commit that would have to contain it already existed. It cost a
+  // red remote to notice.
+  trackedCache = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "*.md"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  })
     .split("\n")
     .filter(Boolean)
     .map((p) => p.replace(/\\/g, "/"));

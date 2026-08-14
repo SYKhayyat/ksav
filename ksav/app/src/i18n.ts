@@ -703,6 +703,18 @@ const HE: Dict = {
   // build where the mode was never applied at all.
   editingModeNoteOff: "Vim ו־Emacs אמיתיים זמינים כאן — בחרו אחד מהם והם יקבלו את המקשים לפני קיצורי כתב.",
   editingModeFailed: "⚠ המצב שנבחר לא נטען, והמקלדת נשארה רגילה. הסיבה: {0}",
+  keysTitle: "מקשים",
+  keysOpen: "פתיחת רשימת המקשים",
+  keysNote:
+    "כל פעולה שאפשר לקשור למקש. לחיצה על המקש שליד הפעולה לוכדת צירוף חדש; ה־× מסיר את הצירוף מפעולה אחת בלבד.",
+  keysSearch: "חיפוש פעולה או צירוף",
+  keysShowing: "{0} מתוך {1}",
+  keysNothing: "אין פעולה או צירוף שמתאים לחיפוש.",
+  keysClear: "הסרת הצירוף מפעולה זו",
+  keysTakenVim:
+    "מצב Vim פועל, ואף אחד מהצירופים כאן אינו פעיל. כל פעולה זמינה כפקודת ‎:‎ — השם מופיע במקום הצירוף.",
+  keysTakenEmacs:
+    "מצב Emacs פועל, ואף אחד מהצירופים כאן אינו פעיל. כל פעולה זמינה תחת ‎M-x‎ — השם מופיע במקום הצירוף.",
   tabCompileLabel: "לשונית שאינה על המסך",
   "tabCompile.keep": "לשמור את העמוד האחרון (ברירת מחדל)",
   "tabCompile.idle": "לעבד ברקע בזמן מנוחה",
@@ -980,6 +992,7 @@ const HE: Dict = {
   "sc.palette": "פקודות",
   "sc.commandsDrawer": "כל הפקודות",
   "sc.gitPanel": "ניהול גרסאות",
+  "sc.keysDrawer": "רשימת המקשים",
   "sc.find": "חיפוש",
   "sc.markInsert": "סמן כהוספה",
   "sc.markDelete": "סמן כמחיקה",
@@ -1757,6 +1770,18 @@ const EN: Dict = {
   editingModeNote: "Real Vim and Emacs. While one is on it takes the whole keyboard and Ksav's own shortcuts are not installed at all — but every command is still there as a : command in Vim and under M-x in Emacs. To save, :w in Vim, C-x C-s in Emacs.",
   editingModeNoteOff: "Real Vim and Emacs are available here — pick one and it gets the keys before Ksav's own shortcuts.",
   editingModeFailed: "⚠ The mode you chose did not load, and the keyboard is unchanged. Reason: {0}",
+  keysTitle: "Keys",
+  keysOpen: "Open the key list",
+  keysNote:
+    "Every action a key can be put on. Click the key beside an action to capture a new chord; the × takes the chord off that one action.",
+  keysSearch: "Search an action or a chord",
+  keysShowing: "{0} of {1}",
+  keysNothing: "No action or chord matches that.",
+  keysClear: "Take the chord off this action",
+  keysTakenVim:
+    "Vim mode is on, and none of these chords is live. Every action is still there as a : command — the name is printed where the chord would be.",
+  keysTakenEmacs:
+    "Emacs mode is on, and none of these chords is live. Every action is still there under M-x — the name is printed where the chord would be.",
   tabCompileLabel: "A tab that is not on screen",
   "tabCompile.keep": "Keep its last page (default)",
   "tabCompile.idle": "Recompile it while you pause",
@@ -2004,6 +2029,7 @@ const EN: Dict = {
   "sc.palette": "Commands",
   "sc.commandsDrawer": "Every command",
   "sc.gitPanel": "Version control",
+  "sc.keysDrawer": "The key list",
   "sc.find": "Find",
   "sc.markInsert": "Mark as inserted",
   "sc.markDelete": "Mark as deleted",

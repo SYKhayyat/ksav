@@ -42,6 +42,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Shift+L` | Left | שמאל |
 | `Ctrl+K` | Commands | פקודות |
 | `Ctrl+Shift+K` | Every command | כל הפקודות |
+| `Shift+F1` | The key list | רשימת המקשים |
 | `Ctrl+Alt+V` | Version control | ניהול גרסאות |
 | `Ctrl+F` | Find | חיפוש |
 | `Ctrl+Alt+[` | Fold all | קפל הכל |
@@ -93,6 +94,13 @@ people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
 one does. There are 124 of them and none is worth memorising.
+
+**Vim and Emacs mode take the whole keyboard.** With either one on, not one
+combination in the table above is installed — that is how the mode wins, rather
+than by out-ranking anything. Nothing is lost: every action answers to `:name`
+in Vim and `M-x name` in Emacs, and the application prints those in place of the
+chords everywhere it would have shown a key. The name is the action's id with
+the punctuation taken out — `table.rowBelow` is `M-x tablerowbelow`.
 
 **Nikud** has its own keymap while you are typing pointed Hebrew. It is not in
 this table because it is not one binding — it is a layer, and it is documented

@@ -381,9 +381,14 @@ the same registry the palette and the menus read, so a command added to the
 registry is reachable from both modes without anyone wiring it up. `M-x` opens
 Ksav's own command palette rather than a second minibuffer — it is a prompt over
 that same list, with fuzzy matching and a description beside each row. `:w` and
-`C-x C-s` save. The shortcut list in Settings shows `:name` / `M-x name` in place
-of the keys while a mode is on, because a column of keys that now do something
-else is worse than no column.
+`C-x C-s` save.
+
+And **every surface that shows a key shows that instead**, while a mode is on:
+the key list, the menus, the toolbar tooltips, the help page, the command
+palette's rows. A key that now does something else is worse than no key at all,
+and for a long time only one of those surfaces knew — the rule is
+`bindings.keyHint` now, and `prohibitions.test.mjs` holds it as the only way to
+spell a key anywhere in `app/src`.
 
 ## Core idea
 
@@ -674,7 +679,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,976 editor assertions, 663 engine
+- [x] **CI, running and green** — typecheck, 6,033 editor assertions, 663 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -761,7 +766,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,976 assertions across 94 files |
+| `editor` | the typechecker, then 6,033 assertions across 94 files |
 | `engine` | lints, then 663 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 

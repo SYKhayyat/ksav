@@ -201,6 +201,12 @@ export const PANELS: readonly Panel[] = [
     exits: [{ via: "head" }],
   },
   { id: "help-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
+  // Every rebindable action and the chord it holds. A reference surface, beside
+  // the command list and the help page for the same reason they are here: it is
+  // consulted while working, not while setting the application up, which is
+  // where sixty rows of it used to live — below the paper size, the margins and
+  // the asset list, in one drawer with two subjects.
+  { id: "keys-drawer", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "styles-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "review-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   // Version control. A drawer and not a modal, for the review panel's reason:

@@ -50,7 +50,7 @@ import type { Snapshot } from "./docs";
 import type { Available } from "./commands";
 import { matches } from "./commands";
 import { actionForCommand } from "./actions";
-import { readable } from "./bindings";
+import { commandName, keyHint } from "./bindings";
 
 /** What a row is for. The shell performs these; nothing here does. */
 export type RowAction =
@@ -364,13 +364,17 @@ export interface CommandGroup {
  * palette's `hidden` count exists to confess to.
  *
  * `bound` is the live bindings by action id — the writer's over the shipped
- * table — so a row shows the key that actually runs it today.
+ * table — so a row shows the key that actually runs it today. `mode` is which
+ * editing mode holds the keyboard, and it is required rather than defaulted:
+ * under Vim or Emacs none of those chords is installed, and a caller that
+ * forgot to say so would print a column of keys that do nothing.
  */
 export function commandGroups(
   commands: readonly Available[],
   bound: Record<string, string>,
   query: string,
   lang: "he" | "en",
+  mode: string,
 ): { groups: CommandGroup[]; empty: string | null; shown: number } {
   const groups: CommandGroup[] = [];
   const byTitle = new Map<string, CommandGroup>();
@@ -392,14 +396,15 @@ export function commandGroups(
       byTitle.set(title, group);
       groups.push(group);
     }
-    const key = bound[actionForCommand(c.name) ?? ""];
+    const action = actionForCommand(c.name);
+    const hint = action ? keyHint(bound[action] ?? "", mode, commandName(action)) : "";
     group.rows.push({
       does: { kind: "insert", snippet: c.insert },
       indent: 0,
       // The shortcut, where there is one. Thirteen commands have had a key
       // since the beginning and no surface that lists commands has ever
       // printed it beside one.
-      note: key ? readable(key) : undefined,
+      note: hint || undefined,
       label:
         (c.from === "registry" ? (lang === "he" ? c.desc_he : c.desc_en) : undefined) ?? c.name,
       trailing: "#" + c.name + (c.en ? " · " + c.en : ""),

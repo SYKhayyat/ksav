@@ -295,6 +295,30 @@ const RULES = [
     allow: [],
   },
   {
+    // The class: **a surface prints a chord without asking whether a mode has
+    // taken the keyboard.** There were twenty.
+    //
+    // `buildShortcutKeymap` returns nothing at all while Vim or Emacs is really
+    // installed — that is *how* a mode wins, rather than by out-ranking
+    // anything — but `keybindings()` goes on returning the whole table, and
+    // every menu's `<code>`, every toolbar tooltip, the snapshot note, the
+    // spelling tooltip, the switcher heading, the fold levels, the help panel
+    // and the palette rows printed it. Under a mode, all twenty named a key
+    // that did nothing. The shortcut list was the single surface that knew,
+    // because it was the single surface that had been told, and even it went on
+    // reading the chord to answer its own search box.
+    //
+    // So `readable` is now reachable in `src/` from one module: whoever wants to
+    // print a key calls `keyHint`, which is given the mode and cannot answer
+    // without it. `tools/card.mjs` is outside this sweep and stays outside — the
+    // card is a printed page, there is no mode to ask about, and chords are the
+    // whole content.
+    what: "no surface spells a chord without going through keyHint",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    contains: ["readable("],
+    allow: ["ksav/app/src/bindings.ts"],
+  },
+  {
     // dup §1.3 — the class: **a hand-written table of which commands are
     // headings.** There were five. `spans.ts` derives it from the document and
     // is the authority; `markdown.ts` keeps the two rows that are deliberately

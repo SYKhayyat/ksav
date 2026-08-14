@@ -80,6 +80,22 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // because they are the two answers to "which command was it": the modal for
   // when you know, the drawer for when you are looking.
   commandsDrawer: "Mod-Shift-k",
+  // The keyboard itself: every action, what it is bound to, and a way to change
+  // it.
+  //
+  // Beside `F1` rather than in the `k` family with the two above, and both
+  // halves of that are decisions. The `k` family is full — `Mod-k`,
+  // `Mod-Shift-k` and `Mod-Alt-k` are the palette, the command list and the
+  // hydra. `Shift-F1` is what Windows has meant by "tell me about this" since
+  // long before any of us, so a reader who knows `F1` opens the help can guess
+  // this one, which is the only kind of key worth choosing.
+  //
+  // It was `Mod-Alt-/` for about ten minutes, which is **already the hidden
+  // line break**. Two things caught that and neither was the survey: a grep of
+  // this file for `Mod-...-[A-Za-z0-9]` cannot see a `/`, so it reported the
+  // chord free. `bindings.test.mjs` counted seventy-one distinct combinations
+  // where seventy-two actions ship one, and said so in one line.
+  keysDrawer: "Shift-F1",
   // Version control. `Mod-Alt-v` because `Mod-Shift-v` is paste-without-
   // formatting everywhere and `Mod-Alt-g` is not free — and because the drawer
   // is the only way into a whole feature, which every other drawer here has a
@@ -285,4 +301,46 @@ export function readable(binding: string): string {
       })
       .join("+")
   );
+}
+
+/**
+ * An action id as a `:` command or an `M-x` name.
+ *
+ * Lowercase letters and digits only. Vim's ex parser reads a command name as a
+ * run of word characters, so `table.rowBelow` would be read as `table` and the
+ * rest thrown away — silently running the wrong command, which is worse than
+ * running none.
+ *
+ * Here rather than in `keymodes.ts`, which is where it was and which re-exports
+ * it: `keyHint` below needs it, and so does every view that draws a key. This
+ * module imports nothing, so all of them can reach it; `keymodes` imports
+ * CodeMirror, so none of them could.
+ */
+export const commandName = (id: string): string => id.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * What to print where a key goes — which is not always a key.
+ *
+ * `buildShortcutKeymap` returns *nothing at all* while an editing mode is
+ * really installed: that is how Vim and Emacs win the keyboard, rather than by
+ * out-ranking anything. But `keybindings()` goes on handing out the chords, and
+ * twenty surfaces printed them — every menu's `<code>`, the toolbar tooltips,
+ * the snapshot note, the spelling tooltip, the switcher's heading, the fold
+ * levels, the help panel, the palette rows. Under a mode, every one of those
+ * named a chord that does nothing. The shortcut list was the only surface that
+ * knew, because it was the only one that had been told.
+ *
+ * So the rule lives here, once, and the answer under a mode is not a blank: it
+ * is the way the action is actually reached, `:makelist` or `M-x makelist`.
+ * Blanking would be honest and useless — the writer who came looking for a key
+ * would learn only that there isn't one, which is false.
+ *
+ * `name` is passed in rather than derived from the id, because two of the three
+ * callers already have it: `commandName` above spells it, and
+ * `keymodes.nameClashes` is what holds those names distinct from each other.
+ */
+export function keyHint(key: string, mode: string, name: string): string {
+  if (mode === "vim") return ":" + name;
+  if (mode === "emacs") return "M-x " + name;
+  return key ? readable(key) : "";
 }

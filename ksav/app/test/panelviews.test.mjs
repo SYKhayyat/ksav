@@ -18,7 +18,7 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { installChrome } from "./harness.mjs";
-import { gitPanel, reviewPanel, STYLE_SECTIONS, styleSection } from "../.tmp-test/panelviews.mjs";
+import { gitPanel, keysPanel, reviewPanel, STYLE_SECTIONS, styleSection } from "../.tmp-test/panelviews.mjs";
 import { face } from "../.tmp-test/git.mjs";
 import { setLang, t } from "../.tmp-test/i18n.mjs";
 
@@ -397,10 +397,144 @@ export async function run() {
       ok("a section with a note shows it", words(withNote).includes(t("styleNotesNote")));
     }
 
+    // ---------------------------------------------------------------- the keys
+    //
+    // Sixty-odd rows of key capture used to be built inside the settings drawer,
+    // where nothing could reach them. What is asserted here is everything the
+    // move was *for*: that the search answers both halves of the question people
+    // bring to a key list, that a single action can be unbound without resetting
+    // the application, and that a keyboard mode says so once at the top rather
+    // than sixty times by implication.
+
+    const ROWS = [
+      { id: "palette", name: "Command palette", key: "Mod-k", command: "palette" },
+      { id: "gitPanel", name: "Version control", key: "Mod-Alt-v", command: "gitpanel" },
+      { id: "foldAll", name: "Fold everything", key: "", command: "foldall" },
+      { id: "macro.m1a2b3", name: "בס\"ד at the top", key: "F7", command: "macrom1a2b3" },
+    ];
+
+    /** A recorder in place of the shell, for the keys drawer's four callbacks. */
+    function keyActs() {
+      const done = [];
+      return {
+        done,
+        search: (q) => done.push(["search", q]),
+        capture: (id) => done.push(["capture", id]),
+        clear: (id) => done.push(["clear", id]),
+        reset: () => done.push(["reset"]),
+      };
+    }
+
+    const keysView = (over = {}) => ({
+      rows: over.rows ?? ROWS,
+      query: over.query ?? "",
+      mode: over.mode ?? null,
+    });
+
+    {
+      const acts = keyActs();
+      const built = keysPanel(keysView(), acts);
+      check("every action gets a row", withAttr(built, "data-key-row").length, ROWS.length);
+      check(
+        "an action with no chord shows an em-dash rather than a blank",
+        (withAttr(built, "data-key-for", "foldAll")[0].children ?? [])[0],
+        "—",
+      );
+      check(
+        "a bound action shows the chord as a person would read it",
+        (withAttr(built, "data-key-for", "palette")[0].children ?? [])[0],
+        "Ctrl+K",
+      );
+      // A macro is an action like any other, and it is named by its own title.
+      // A row reading `sc.macro.m1a2b3` is the "shipped unnamed" failure.
+      ok("a macro is listed under its own name", words(built).includes('בס"ד at the top'));
+      ok("and the count says how many of how many", words(built).includes("4 of 4"));
+    }
+
+    // The search, and it has to answer both questions: "what is the key for X"
+    // and "what has Ctrl+G". A filter over names alone answers only the first,
+    // and the second is the one asked with a finger already on the key.
+    {
+      const byName = keysPanel(keysView({ query: "version" }), keyActs());
+      check("searching the words finds the action", withAttr(byName, "data-key-row").length, 1);
+      check(
+        "…and it is the right one",
+        withAttr(byName, "data-key-row")[0]["data-key-row"],
+        "gitPanel",
+      );
+      const byChord = keysPanel(keysView({ query: "ctrl+alt" }), keyActs());
+      check("searching the chord finds it too", withAttr(byChord, "data-key-row").length, 1);
+      const anyCase = keysPanel(keysView({ query: "VERSION" }), keyActs());
+      check("and the search does not care about case", withAttr(anyCase, "data-key-row").length, 1);
+      const none = keysPanel(keysView({ query: "zzzz" }), keyActs());
+      check("nothing matching is nothing shown", withAttr(none, "data-key-row").length, 0);
+      // In words. A drawer that renders an empty list for a query with no
+      // answers reads as a drawer that is broken.
+      ok("…and it says so", withAttr(none, "data-empty", "keys").length === 1);
+      ok("in a sentence", words(none).includes(t("keysNothing")));
+    }
+
+    // Taking a chord off one action. There was no way to do this: capture
+    // assigns, and the only removal was the reset that discards every custom
+    // chord in the application.
+    {
+      const acts = keyActs();
+      const built = keysPanel(keysView(), acts);
+      check(
+        "only the bound actions offer a way to unbind",
+        withAttr(built, "data-key-clear").length,
+        3,
+      );
+      withAttr(built, "data-key-clear", "palette")[0].click();
+      check("and pressing it names the action", acts.done, [["clear", "palette"]]);
+    }
+
+    {
+      const acts = keyActs();
+      const built = keysPanel(keysView(), acts);
+      withAttr(built, "data-key-for", "gitPanel")[0].click();
+      check("pressing a chord asks for a new one", acts.done, [["capture", "gitPanel"]]);
+      buttonSaying(built, t("resetShortcuts")).click();
+      check("and reset asks for all of them", acts.done[1], ["reset"]);
+    }
+
+    // A mode has the whole keyboard. Said once, at the top, and every row shows
+    // what to type instead — because a screen of chords that now do something
+    // else is worse than an empty column: a reader cannot tell.
+    {
+      const acts = keyActs();
+      const built = keysPanel(
+        keysView({ mode: { kind: "emacs" } }),
+        acts,
+      );
+      ok("the drawer says a mode has the keyboard", words(built).includes(t("keysTakenEmacs")));
+      check(
+        "a row shows what to type instead of a chord that is not live",
+        (withAttr(built, "data-key-for", "palette")[0].children ?? [])[0],
+        "M-x palette",
+      );
+      check("the chord buttons are refused", withAttr(built, "data-key-for", "palette")[0].disabled, "true");
+      withAttr(built, "data-key-for", "palette")[0].click();
+      check("…and pressing one asks for nothing", acts.done, []);
+      // Unbinding is withdrawn too: taking a chord off while a mode holds the
+      // keyboard is a control whose effect nobody can see until the mode is off.
+      check("nor is there anything to unbind", withAttr(built, "data-key-clear").length, 0);
+      const vim = keysPanel(keysView({ mode: { kind: "vim" } }), keyActs());
+      check(
+        "vim says it with vim's colon",
+        (withAttr(vim, "data-key-for", "palette")[0].children ?? [])[0],
+        ":palette",
+      );
+    }
+
     // ------------------------------------------------------------ in Hebrew too
 
     {
       setLang("he");
+      const keys = keysPanel(keysView(), keyActs());
+      const inHebrew = words(keys).join(" ");
+      ok("the keys drawer speaks Hebrew", /[֐-׿]/.test(inHebrew), inHebrew.slice(0, 80));
+      notOk("…and prints no i18n keys", /\bkeys[A-Z][a-zA-Z]*\b/.test(inHebrew), inHebrew);
       const built = gitPanel(view(), recorder());
       const said = words(built).join(" ");
       ok("the drawer speaks Hebrew", /[֐-׿]/.test(said), said.slice(0, 80));

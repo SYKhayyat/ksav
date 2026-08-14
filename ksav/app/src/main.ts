@@ -82,7 +82,7 @@ import {
   type NoteHow,
   type NoteWhere,
 } from "./notes";
-import { aliasesInForce, keybindingsFrom, readable, whoHolds } from "./bindings";
+import { aliasesInForce, keyHint, keybindingsFrom, whoHolds } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
 import { printedPrefix, fractionAtLine, lineAtFraction } from "./scrollmap";
@@ -792,6 +792,7 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "palette", run: () => (openPalette(), true) },
   { id: "commandsDrawer", run: () => (openCommands(), true) },
   { id: "gitPanel", run: () => (openGit(), true) },
+  { id: "keysDrawer", run: () => (openKeys(), true) },
   { id: "find", run: (v) => openSearchPanel(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
@@ -973,6 +974,43 @@ function actions(): { id: string; run: (v: EditorView) => boolean }[] {
 function keybindings(): Record<string, string> {
   return keybindingsFrom(settings.keybindings);
 }
+
+/**
+ * The key to print beside an action — or, under a mode, the way to reach it.
+ *
+ * Every surface that shows a chord goes through here, and `prohibitions.test.mjs`
+ * holds it that way: `readable(keybindings()…)` at a twenty-first call site
+ * would print a chord that `buildShortcutKeymap` has just refused to install.
+ * The rule itself is `bindings.keyHint`, where it is pure and testable; this is
+ * the shell's half — which mode is on, and what this action is called in it.
+ */
+function hintFor(id: string, kb: Record<string, string> = keybindings()): string {
+  return keyHint(kb[id] ?? "", keymodes.activeMode(), keymodes.commandName(id));
+}
+
+/** Whether what `hintFor` returns is a mode's name rather than a chord. */
+function hintIsMode(): boolean {
+  return keymodes.activeMode() !== "default";
+}
+
+/**
+ * The `<code>` that goes beside a menu item, or an empty slot.
+ *
+ * The empty `<span>` is not decoration: the rows are a grid, and a missing cell
+ * shifts everything after it left. It survives because an action can still be
+ * deliberately unbound — under a mode there is always something to say.
+ *
+ * `kb` is taken rather than read, so the callers that hoist it out of a loop go
+ * on hoisting it: `keybindings()` rebuilds the whole map from settings on every
+ * call, and the context bar asks seventeen times for one table.
+ */
+function keyCode(id: string, kb?: Record<string, string>, cls?: string): HTMLElement {
+  const hint = hintFor(id, kb);
+  if (!hint) return el("span");
+  const classes = [cls, hintIsMode() ? "sc-key-mode" : ""].filter(Boolean).join(" ");
+  return classes ? el("code", { class: classes }, [hint]) : el("code", {}, [hint]);
+}
+
 function buildShortcutKeymap(): KeyBinding[] {
   // A mode that is really here takes the whole keyboard.
   //
@@ -1238,8 +1276,7 @@ function snapshotNote(): string {
   // Unbound is a state a writer can put this in from the Shortcuts list below,
   // and "press  to keep a point" is the sort of sentence that gets shipped. The
   // fallback names the button, which is always there.
-  const bound = keybindings().snapshot;
-  const key = bound ? readable(bound) : t("snapshotNow");
+  const key = hintFor("snapshot") || t("snapshotNow");
   return settings.autoSnapshot === false
     ? tf("autoSnapshotOffNote", key)
     : tf("autoSnapshotOnNote", key);
@@ -1534,7 +1571,7 @@ function makeState(body: string, prose: boolean): EditorState {
       // the bindings, so rebinding `spellSuggest` moves the sentence with it.
       spell.spellTooltip((m) => {
         const which = m.lang === "en" ? t("spellLexEn") : t("spellLexHe");
-        return tf("spellTip", which, readable(keybindings().spellSuggest));
+        return tf("spellTip", which, hintFor("spellSuggest"));
       }),
       errorLines,
       errorLineDecorations,
@@ -3521,8 +3558,8 @@ function highlightControl(writing: Lang): HTMLElement {
  * way one button can mean "a note on this".
  */
 function noteBtn(action: string, glyph: string, snippet: string | null): HTMLElement {
-  const key = keybindings()[action];
-  const title = t("sc." + action) + (key ? ` · ${readable(key)}` : "");
+  const hint = hintFor(action);
+  const title = t("sc." + action) + (hint ? ` · ${hint}` : "");
   return iconBtn(
     glyph,
     title,
@@ -3650,7 +3687,7 @@ function docsMenuItems(): (Node | string)[] {
   const open = opendocs.openDocs();
   if (open.length > 1) {
     items.push(el("div", { class: "menu-sep" }));
-    items.push(el("div", { class: "menu-cat" }, [`${t("openDocs")} · ${readable(keybindings().switcher)}`]));
+    items.push(el("div", { class: "menu-cat" }, [`${t("openDocs")} · ${hintFor("switcher")}`]));
     for (const entry of open) {
       const meta = docs.library().find((e) => e.id === entry.id);
       if (!meta) continue;
@@ -3763,7 +3800,6 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
       // out by running the operation and looking at the wreckage.
       const why = structure.whyNot(action, doc, pos);
       const enabled = why === null;
-      const key = kb[action.id];
       items.push(
         el(
           "button",
@@ -3778,7 +3814,7 @@ function structureMenuItems(structures: structure.Structure[]): (Node | string)[
           },
           [
             el("b", {}, [`${action.glyph}  ${t(action.label)}`]),
-            key ? el("code", {}, [readable(key)]) : el("span"),
+            keyCode(action.id, kb),
             // On screen, not on a tooltip. A greyed item says "this exists, and
             // not here"; without the second half the writer is left to guess
             // which of eighteen greyed arrows is greyed for its own reason and
@@ -3820,7 +3856,7 @@ function buildMacroMenu(): HTMLElement {
       return items;
     }
     for (const m of all) {
-      const key = kb[macros.actionIdOf(m)];
+      const hint = hintFor(macros.actionIdOf(m), kb);
       items.push(
         el("div", { class: "menu-item-row" }, [
           el("button", {
@@ -3829,7 +3865,7 @@ function buildMacroMenu(): HTMLElement {
           }, [
             el("b", {}, [m.name]),
             el("span", { class: "menu-desc" }, [
-              macros.describe(m, macroName) + (key ? "  ·  " + readable(key) : ""),
+              macros.describe(m, macroName) + (hint ? "  ·  " + hint : ""),
             ]),
           ]),
           // Repeat, which is the reason a macro exists: the writer did the thing
@@ -3876,7 +3912,7 @@ function buildFormatMenu(): HTMLElement {
     // who had none and no way to make one out of what they had typed.
     el("button", { class: "menu-item", onClick: () => (closeMenus(), makeListHere()) }, [
       el("b", {}, ["≔ " + t("makeList")]),
-      keybindings().makeList ? el("code", {}, [readable(keybindings().makeList)]) : el("span"),
+      keyCode("makeList"),
       el("span", { class: "menu-desc" }, [t("makeListLede")]),
     ]),
     el("div", { class: "menu-sep" }),
@@ -3888,14 +3924,12 @@ function buildFormatMenu(): HTMLElement {
     ...[1, 2, 3].map((level) =>
       el("button", { class: "menu-item", onClick: () => (closeMenus(), foldToLevel(runtime.view, level)) }, [
         el("b", {}, [`⊟ ${tf("foldLevel", String(level))}`]),
-        keybindings()[`foldLevel${level}`]
-          ? el("code", {}, [readable(keybindings()[`foldLevel${level}`])])
-          : el("span"),
+        keyCode(`foldLevel${level}`),
       ]),
     ),
     el("button", { class: "menu-item", onClick: () => (closeMenus(), void unfoldAll(runtime.view)) }, [
       el("b", {}, ["⊞ " + t("unfoldAll")]),
-      keybindings().unfoldAll ? el("code", {}, [readable(keybindings().unfoldAll)]) : el("span"),
+      keyCode("unfoldAll"),
     ]),
     el("div", { class: "menu-sep" }),
     // Bold, italic, the colours and the three alignments. They were in Insert,
@@ -3963,7 +3997,7 @@ function insertMenuItems(): (Node | string)[] {
       },
       [
         el("b", {}, [`${glyph} ${t("sc." + action)}`]),
-        kb[action] ? el("code", {}, [readable(kb[action])]) : el("span"),
+        keyCode(action, kb),
         ...(why ? [el("span", { class: "menu-why" }, [t(why)])] : []),
       ],
     );
@@ -4023,7 +4057,7 @@ function insertMenuItems(): (Node | string)[] {
         },
         [
           el("b", {}, ["☰ " + t("sc.toc")]),
-          kb.toc ? el("code", {}, [readable(kb.toc)]) : el("span"),
+          keyCode("toc", kb),
           ...(already ? [el("span", { class: "menu-why" }, [t("why.contentsAlready")])] : []),
         ],
       );
@@ -4060,7 +4094,7 @@ function insertMenuItems(): (Node | string)[] {
     ].map((c) =>
       el("button", { class: "menu-item", onClick: () => (closeMenus(), c.run()) }, [
         el("b", {}, [`${c.glyph} ${t(c.name)}`]),
-        kb[c.name] ? el("code", {}, [readable(kb[c.name])]) : el("span"),
+        keyCode(c.name, kb),
         el("span", { class: "menu-desc" }, [t(c.name + "Lede")]),
       ]),
     ),
@@ -4099,7 +4133,7 @@ function commandRows(cats: readonly string[]): (Node | string)[] {
       // The live binding, when an action is the door to this command. Read
       // through `keybindings()` and never `DEFAULT_KEYS`, so a writer who
       // rebound `Ctrl+B` is shown the key they chose. See `actions.ts`.
-      const key = kb[actionForCommand(c.he) ?? ""];
+      const action = actionForCommand(c.he);
       items.push(
         el(
           "button",
@@ -4114,7 +4148,7 @@ function commandRows(cats: readonly string[]): (Node | string)[] {
             // The name the writer will find in their own source, which is the
             // document's language and not the menu's. See `buildToolbar`.
             el("code", {}, ["#" + (writing === "he" ? c.he : c.en)]),
-            ...(key ? [el("code", { class: "menu-key" }, [readable(key)])] : []),
+            ...(action && hintFor(action, kb) ? [keyCode(action, kb, "menu-key")] : []),
             // The reason, where it can be read. `insertions.json` has carried a
             // `reason` per command for as long as the grid has existed and it
             // reached a tooltip; the item dropped to 38% opacity and said
@@ -4739,37 +4773,6 @@ function buildSettingsDrawer(): HTMLElement {
       )
     : [el("div", { class: "set-note" }, [t("noAssets")])];
 
-  const kb = keybindings();
-  // While a mode is on, none of these keys is live.
-  //
-  // The list would otherwise print `Ctrl+K` beside "command palette" while Emacs
-  // mode has taken `C-k` for kill-line — a screen full of keys that do something
-  // else now, which is worse than an empty column because a reader has no way to
-  // tell. A takeover is only honest if the place people look for the keys says
-  // so, and it says what to press instead: `:name`, or `M-x`.
-  const taken = keymodes.activeMode() !== "default";
-  const shortcutRows = actions().map((a) => {
-    const label = taken
-      ? (keymodes.activeMode() === "vim" ? ":" : "M-x ") + keymodes.commandName(a.id)
-      : kb[a.id] || "—";
-    const btn = el(
-      "button",
-      { class: "sc-key" + (taken ? " sc-key-mode" : ""), type: "button", disabled: taken ? "true" : null },
-      [label],
-    );
-    if (!taken) btn.addEventListener("click", () => captureShortcut(a.id, btn));
-    // A structural operation names itself from the registry, so adding one to
-    // `STRUCTURE_ACTIONS` puts it in this list with a real name instead of a
-    // raw id — no second string to remember to write.
-    // `macroName` covers all three kinds: a structural operation names itself
-    // from the registry, a macro from its own title, and everything else from
-    // its `sc.` string. Without this a bound macro appeared in Settings as the
-    // raw text `sc.macro.m1a2b3` — a row nobody could identify, which is the
-    // same "shipped unnamed" failure the bindings test exists to catch.
-    const name = macroName(a.id);
-    return el("label", { class: "set-row" }, [el("span", {}, [name]), btn]);
-  });
-
   return el("aside", { id: "settings-drawer", class: "drawer", "aria-label": t("settings") }, [
     // Every other panel in the app closes with × and with Escape; this one used
     // to close only by finding the ⚙ chip again — and below 720px the drawer is
@@ -4943,9 +4946,31 @@ function buildSettingsDrawer(): HTMLElement {
     el("h3", { style: "margin-top:18px" }, [t("customization")]),
     textAreaRow("customCommandsLabel", "customCommands", "#let דגש(x) = text(fill: red, strong(x))"),
     textAreaRow("snippetsLabel", "snippets", "בסד = בס\"ד\nסי = #סימן[|][]"),
+    // A door, not the room.
+    //
+    // Sixty-odd rows of key capture used to be printed here, below the paper
+    // size, the margins, the dictionary and the asset list — one scrolling
+    // drawer with two subjects in it, which is the first half of inventory item
+    // 126. They live in `keys-drawer` now, searchable, with a key of their own.
+    // What stays is this line, because Settings is where somebody who has not
+    // learned the key will look first.
     el("h3", { style: "margin-top:18px" }, [t("shortcuts")]),
-    ...shortcutRows,
-    el("button", { class: "sc-reset", type: "button", onClick: resetShortcuts }, [t("resetShortcuts")]),
+    el("label", { class: "set-row" }, [
+      el("span", {}, [t("keysOpen")]),
+      el("button", {
+        // The mode class here too, and for the same reason it is on every menu's
+        // `<code>`: under Vim or Emacs this button goes on working — it is a
+        // click — but the chord it used to print stopped, so what it prints now
+        // is `M-x keysdrawer`, which is how the keyboard actually reaches it.
+        class: "sc-key" + (hintIsMode() ? " sc-key-mode" : ""),
+        type: "button",
+        id: "keys-open",
+        onClick: () => {
+          closePanel("settings-drawer");
+          openKeys();
+        },
+      }, [hintFor("keysDrawer") || t("keysTitle")]),
+    ]),
     ...buildAboutSection(),
   ]);
 }
@@ -5677,6 +5702,75 @@ function gitForHeader(): header.HeaderState["vcs"] {
  * been green. `git.face` can be driven with a status nothing had to produce,
  * and `git.test.mjs` does.
  */
+/** What the keys drawer's search box holds. Lives here because the view is a
+ *  pure function of it and the drawer is rebuilt on every keystroke. */
+let keysQuery = "";
+
+/**
+ * Every rebindable action, drawn into the keys drawer.
+ *
+ * The rows come from `actions()` — the same function the keymap is built from
+ * and the palette is filled from — so a macro recorded a minute ago is in this
+ * list without any further wiring, and an action that cannot be bound cannot
+ * appear here.
+ *
+ * `macroName` covers all three kinds of name: a structural operation names
+ * itself from `STRUCTURE_ACTIONS`, a macro from its own title, and everything
+ * else from its `sc.` string. Without it a bound macro appeared as the raw text
+ * `sc.macro.m1a2b3` — a row nobody could identify, which is the same "shipped
+ * unnamed" failure `bindings.test.mjs` exists to catch. Resolved here rather
+ * than in the view, because all three registries are the shell's.
+ */
+function renderKeysPanel(): void {
+  const box = document.getElementById("keys-body");
+  if (!box) return;
+  const kb = keybindings();
+  const mode = keymodes.activeMode();
+  box.replaceChildren(
+    ...panelviews.keysPanel(
+      {
+        rows: actions().map((a) => ({
+          id: a.id,
+          name: macroName(a.id),
+          key: kb[a.id] ?? "",
+          // What this action answers to under a mode. Carried on the row rather
+          // than resolved in the view, so the view spells a key exactly one way:
+          // `bindings.keyHint`, the same call every menu makes.
+          command: keymodes.commandName(a.id),
+        })),
+        query: keysQuery,
+        mode: mode === "default" ? null : { kind: mode },
+      },
+      {
+        search: (q) => {
+          keysQuery = q;
+          renderKeysPanel();
+          // The box is rebuilt with the rows, so the caret has to be put back —
+          // and at the end, or typing a second character moves it to the front.
+          const input = document.getElementById("keys-search") as HTMLInputElement | null;
+          input?.focus();
+          input?.setSelectionRange(q.length, q.length);
+        },
+        capture: (id, button) => captureShortcut(id, button as HTMLButtonElement),
+        clear: (id) => {
+          // The empty string, not a delete: `keybindingsFrom` reads an empty
+          // value as *this action is deliberately unbound* and a missing key as
+          // *use the default*, and deleting it would put the shipped chord back
+          // rather than take it off.
+          settings.keybindings = { ...(settings.keybindings || {}), [id]: "" };
+          saveSettings();
+          reconfigureShortcuts();
+          renderKeysPanel();
+        },
+        reset: () => {
+          resetShortcuts();
+          renderKeysPanel();
+        },
+      },
+    ),
+  );
+}
+
 function renderGitPanel(): void {
   const box = document.getElementById("git-body");
   if (!box) return;
@@ -6632,7 +6726,7 @@ function updateContextBar() {
     // read as three things rather than one wall of glyphs.
     if (group && action.group !== group) children.push(el("span", { class: "tb-sep" }));
     group = action.group;
-    const key = keys[action.id];
+    const hint = hintFor(action.id, keys);
     const name = t(action.label);
     // Why this one is greyed, when it is. On the ribbon the caret is always
     // inside the structure already, so this is never "you are not in a table" —
@@ -6647,7 +6741,7 @@ function updateContextBar() {
           // same as no shortcut — the same rule the nikud bar follows. When the
           // button cannot act, the reason takes the tooltip's place: the key is
           // no use to somebody who has just been refused.
-          title: why ? `${name} — ${t(why)}` : key ? `${name} · ${readable(key)}` : name,
+          title: why ? `${name} — ${t(why)}` : hint ? `${name} · ${hint}` : name,
           "aria-label": name,
           // `aria-disabled`, not `disabled`. A `disabled` button cannot be
           // clicked, cannot be focused and — with `pointer-events: none` on top
@@ -6718,6 +6812,7 @@ function renderHelp(query: string) {
     help.helpSections({
       t,
       keys: keybindings(),
+      mode: keymodes.activeMode(),
       macros: settings.macros,
       commands: runtime.commandsReg,
       lang: getLang(),
@@ -6777,6 +6872,11 @@ function openCommands() {
   openPanel("commands-drawer");
 }
 
+function openKeys() {
+  closeMenus();
+  openPanel("keys-drawer");
+}
+
 function renderCommands(query: string) {
   const box = document.getElementById("commands-body");
   if (!box) return;
@@ -6785,6 +6885,7 @@ function renderCommands(query: string) {
     keybindings(),
     query,
     getLang(),
+    keymodes.activeMode(),
   );
   if (empty) {
     box.replaceChildren(el("div", { class: "outline-empty" }, [t(empty)]));
@@ -9635,6 +9736,13 @@ function render() {
     el("aside", { id: "git-panel", class: "drawer drawer-styles", "aria-label": t("git.title"), "data-i18n-label": "git.title" }, [
       el("div", { id: "git-body" }),
     ]),
+    // The keyboard. A drawer for the reason the command list is one: it is read
+    // while working — "what is the key for this" is asked mid-sentence — and a
+    // window over the document would hide the thing the question is about.
+    el("aside", { id: "keys-drawer", class: "drawer drawer-styles", "aria-label": t("keysTitle"), "data-i18n-label": "keysTitle" }, [
+      panelHead("keys-drawer", "keysTitle", { level: "h3" }),
+      el("div", { id: "keys-body" }),
+    ]),
     // a shared form modal (section page setup, formulas)
     overlayPanel("form-modal", "palette-box form-modal-box", [el("div", { id: "form-modal-body" })]),
     buildCommandsDrawer(),
@@ -10033,6 +10141,16 @@ function wirePanels() {
   // Opening it is what asks git. Nothing polls: `git status` is a subprocess,
   // and a drawer nobody has opened must not be starting one every second.
   wirePanel("git-panel", { open: () => void refreshGit() });
+  wirePanel("keys-drawer", {
+    open: () => {
+      // A fresh search every time. A drawer that reopens holding the last query
+      // is a drawer that looks empty for a reason nobody can see.
+      keysQuery = "";
+      renderKeysPanel();
+      (document.getElementById("keys-search") as HTMLInputElement | null)?.focus();
+    },
+    close: () => runtime.view?.focus(),
+  });
 
   wirePanel("palette", {
     open: () => {

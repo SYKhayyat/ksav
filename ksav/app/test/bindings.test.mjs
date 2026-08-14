@@ -16,6 +16,8 @@ import {
   keybindingsFrom,
   aliasesInForce,
   whoHolds,
+  commandName,
+  keyHint,
   readable,
 } from "../.tmp-test/bindings.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
@@ -130,6 +132,42 @@ export function run() {
       .map(([id, key]) => [id, readable(key)])
       .filter(([, printed]) => !printed || printed.includes("Mod") || printed.endsWith("+"));
     check("every shipped binding prints readably", bad, []);
+  }
+
+  // --------------------------------------------------- and what a mode does to it
+  //
+  // `buildShortcutKeymap` returns *nothing at all* while Vim or Emacs is really
+  // installed — that is how a mode wins the keyboard, rather than by
+  // out-ranking anything. Twenty surfaces went on printing the chord anyway.
+  // This is the rule they all go through now, and `prohibitions.test.mjs` holds
+  // `readable` unreachable from anywhere else in `src/`.
+  check("with no mode, a key is a key", keyHint("Mod-k", "default", "palette"), "Ctrl+K");
+  check("under Emacs it is what to type", keyHint("Mod-k", "emacs", "palette"), "M-x palette");
+  check("under Vim it is the ex command", keyHint("Mod-k", "vim", "palette"), ":palette");
+  // The one that matters: a mode does not merely blank the column. An action
+  // that is deliberately unbound is still reachable by name, and saying nothing
+  // would be honest and useless.
+  check("an unbound action still has a way in", keyHint("", "emacs", "foldall"), "M-x foldall");
+  check("…and without a mode it has nothing to print", keyHint("", "default", "foldall"), "");
+
+  // The name is `commandName`'s, and it moved here from `keymodes.ts` so that
+  // the panel views — which no test can give a CodeMirror to — can reach it.
+  check("a dotted id becomes one word", commandName("table.rowBelow"), "tablerowbelow");
+  check("every shipped action has a name to be reached by", [
+    ...new Set(Object.keys(DEFAULT_KEYS).filter((id) => !commandName(id))),
+  ], []);
+  {
+    // Distinct, or two actions answer to one `M-x` name and the second is
+    // unreachable under a name that looks like it works. `keymodes.test.mjs`
+    // holds the live registry to this; here it is the shipped table.
+    const seen = new Map();
+    const clash = [];
+    for (const id of Object.keys(DEFAULT_KEYS)) {
+      const name = commandName(id);
+      if (seen.has(name)) clash.push([seen.get(name), id]);
+      else seen.set(name, id);
+    }
+    check("no two shipped actions answer to the same name", clash, []);
   }
 
   // ...and as something a person can read, in both languages. An action with no

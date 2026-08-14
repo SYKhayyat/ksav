@@ -1062,20 +1062,41 @@ async function main() {
   await clickVisible("the settings chip", '[data-chip="settings"]');
   await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
   await page.selectOption('[data-setting="editingMode"]', "emacs");
-  // The mode is fetched over the network, so the proof that it arrived is the
-  // shortcut list changing: with a mode on, Settings shows `M-x name` in place of
-  // every key, because a column of keys that now do something else is worse than
-  // no column.
+  // The mode is fetched over the network, so the proof that it arrived is a key
+  // display changing: with a mode on, every surface that prints a chord prints
+  // `M-x name` instead, because `buildShortcutKeymap` has just stopped
+  // installing that chord and a column of dead keys is worse than no column.
+  //
+  // The door into the keys drawer is what is watched, and it is watched because
+  // it is in Settings — where the sixty-row list used to be, and where this
+  // check used to read it. When the list moved out to its own drawer this step
+  // went red, which is the right answer to a surface that was the only one in
+  // the application that knew about modes: the fix was to make it not the only
+  // one. See `bindings.keyHint`.
   try {
     // `attached`, not visible: changing the mode rebuilds the chrome and the
-    // drawer does not survive it. The claim is about what the list *says*, and
-    // the list is built whether or not the drawer is on screen at this instant.
-    await page.waitForSelector(".sc-key-mode", { state: "attached", timeout: 20_000 });
-    const shown = await page.locator(".sc-key-mode").first().textContent();
-    check("the shortcut list stops printing keys the mode has taken", /^M-x /.test(shown ?? ""), shown ?? "");
+    // drawer does not survive it. The claim is about what the button *says*,
+    // and it is built whether or not the drawer is on screen at this instant.
+    await page.waitForSelector("#keys-open.sc-key-mode", { state: "attached", timeout: 20_000 });
+    const shown = await page.locator("#keys-open").first().textContent();
+    check("the way into the keys stops printing a key the mode has taken", /^M-x /.test(shown ?? ""), shown ?? "");
   } catch (e) {
     check("emacs mode arrives", false, String(e.message).split("\n")[0]);
   }
+  // And a menu, which is the half of the sweep that no unit test can reach:
+  // `structureMenuItems`, `insertMenuItems` and the toolbar tooltips are all
+  // built in `main.ts`. Nineteen surfaces printed a chord here and one of them
+  // is enough to show the rule is in force, because they now share the call.
+  await press("Escape");
+  await clickVisible("the Insert menu", '[data-menu="insert"] .menu-btn');
+  const inMenu = await page.locator('[data-menu="insert"] code.sc-key-mode').first().textContent()
+    .catch(() => null);
+  check(
+    "a menu prints the mode's command where its chord used to be",
+    (inMenu ?? "").startsWith("M-x "),
+    inMenu === null ? "no key was printed in the Insert menu at all" : inMenu,
+  );
+  await press("Escape");
   /**
    * Press a key with the caret in the document.
    *
@@ -1157,7 +1178,9 @@ async function main() {
   await clickVisible("the settings chip", '[data-chip="settings"]');
   await page.waitForSelector('[data-setting="editingMode"]', { timeout: 10_000 });
   await page.selectOption('[data-setting="editingMode"]', "default");
-  await page.waitForSelector(".sc-key-mode", { state: "detached", timeout: 20_000 }).catch(() => {});
+  await page
+    .waitForSelector("#keys-open.sc-key-mode", { state: "detached", timeout: 20_000 })
+    .catch(() => {});
   await pressInEditor("Control+k");
   check(
     "…and the palette opens again with the mode off",
@@ -1536,6 +1559,12 @@ async function main() {
     // The bug, stated: the second document is longer than the first by
     // construction, so the first document's pane showing the second's page count
     // is the outgoing layout standing under the incoming document's name.
+    //
+    // **This is the check that carries the step.** Verified by neutering
+    // `showPagesFor` and running the whole thing: this one goes red and names
+    // the numbers, and the "returning shows its own pages" check below stayed
+    // green. So that one is worth having and is not evidence — said here rather
+    // than left for somebody to assume the pair of them holds the mechanism up.
     const arrival = await switchTo(idA);
     check(
       "switching back does not leave the other document's pages on screen",

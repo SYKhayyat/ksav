@@ -13,7 +13,7 @@
 // somehow escapes every section fails the build rather than quietly going
 // undocumented.
 
-import { DEFAULT_KEYS, readable } from "./bindings";
+import { DEFAULT_KEYS, commandName, keyHint } from "./bindings";
 import { allHydras } from "./hydra";
 import { actionIdOf, describe as describeMacro, parseAll } from "./macros";
 import type { Macro } from "./macros";
@@ -62,6 +62,17 @@ export interface HelpInput {
   t: (key: string) => string;
   /** Bindings in force — the shipped table with the writer's changes over it. */
   keys: Record<string, string>;
+  /**
+   * Which editing mode holds the keyboard, if one does.
+   *
+   * Optional, and `"default"` when it is left out, which is the one concession
+   * in this sweep: help is also read by a test that has no editor at all. In
+   * the application it is passed, because under Vim or Emacs not one of these
+   * chords is installed — help that confidently prints a dead key costs the
+   * reader the time to disbelieve it, which is the argument the section above
+   * already makes about a *rebound* key.
+   */
+  mode?: string;
   /** Whatever is in settings, unparsed. */
   macros?: unknown;
   /**
@@ -107,7 +118,7 @@ function shortcuts(input: HelpInput): HelpSection {
     entries.push({
       id,
       what: labelOf(id, input.t),
-      how: readable(key),
+      how: keyHint(key, input.mode ?? "default", commandName(id)),
       does: { kind: "action", id },
     });
   }
@@ -128,7 +139,7 @@ function structures(input: HelpInput): HelpSection[] {
         what: input.t(a.label),
         // The key if it has one, otherwise the ribbon glyph — which is what the
         // reader is looking at when they come here asking "what is that button".
-        how: key ? readable(key) : a.glyph,
+        how: keyHint(key, input.mode ?? "default", commandName(a.id)) || a.glyph,
         does: { kind: "action", id: a.id },
       };
     }),
@@ -160,9 +171,9 @@ function macroSection(input: HelpInput): HelpSection {
     entries: all.map((m) => ({
       id: actionIdOf(m),
       what: m.name,
-      how: input.keys[actionIdOf(m)]
-        ? readable(input.keys[actionIdOf(m)])
-        : describeMacro(m, (id) => labelOf(id, input.t)),
+      how:
+        keyHint(input.keys[actionIdOf(m)] ?? "", input.mode ?? "default", commandName(actionIdOf(m))) ||
+        describeMacro(m, (id) => labelOf(id, input.t)),
       does: { kind: "action", id: actionIdOf(m) },
     })),
   };

@@ -37,6 +37,7 @@
 // the four list surfaces `drawList` renders. This decides whole panels that are
 // not lists.
 
+import { keyHint } from "./bindings";
 import { el, fieldRow, textField, checkField } from "./dom";
 import { t, tf, getLang } from "./i18n";
 import { panelHead } from "./panels";
@@ -536,4 +537,168 @@ export function styleSection(section: StyleSection, scopeRows: Node[], rows: Nod
     ...scopeRows,
     ...rows,
   ]);
+}
+
+// ---------------------------------------------------------------- the keys
+
+/** One rebindable action, as the keys drawer needs it. */
+export interface KeyRow {
+  /** The action's id, so a press can name it back to the shell. */
+  id: string;
+  /** What it does, in words. Resolved by the shell — a structural operation
+   *  names itself from its registry, a macro from its own title. */
+  name: string;
+  /** The chord it holds, or the empty string for none. */
+  key: string;
+  /** What it answers to under a mode: `makelist`, for `:makelist` and `M-x
+   *  makelist`. Spelled by `keymodes.commandName`, which is the shell's. */
+  command: string;
+}
+
+/** Everything the keys drawer draws itself from. */
+export interface KeysView {
+  rows: readonly KeyRow[];
+  /** What the search box holds. */
+  query: string;
+  /**
+   * A keyboard mode has the whole keyboard, so none of these chords is live.
+   *
+   * `null` when none has. When one has, the drawer prints what to type instead —
+   * `:name` in vim, `M-x name` in Emacs — because a screen full of chords that
+   * now do something else is worse than an empty column: a reader has no way to
+   * tell. The naming is the shell's, since it is `keymodes` that decides it.
+   */
+  mode: { kind: "vim" | "emacs" } | null;
+}
+
+export interface KeysActions {
+  /** The search box moved. */
+  search(query: string): void;
+  /** Take the next chord for this action. The button is passed because capture
+   *  writes its progress into it — "press a key", then the key. */
+  capture(id: string, button: HTMLElement): void;
+  /** Leave this action with no chord at all. */
+  clear(id: string): void;
+  /** Every chord back to what it shipped as. */
+  reset(): void;
+}
+
+/**
+ * Does this row answer the search? Its words or its key, either way.
+ *
+ * `shown` is what the row actually prints — `Ctrl+K`, or `M-x palette` while a
+ * mode holds the keyboard. Searching the *printed* text rather than the stored
+ * chord is the difference between a box that finds what is on screen and one
+ * that finds what used to be: under Emacs there is no `Ctrl+K` in this list to
+ * find.
+ */
+function keyMatches(row: KeyRow, shown: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    row.name.toLowerCase().includes(q) ||
+    shown.toLowerCase().includes(q) ||
+    row.id.toLowerCase().includes(q)
+  );
+}
+
+/**
+ * The keyboard, as a surface of its own.
+ *
+ * Sixty-odd rows of key capture used to sit at the bottom of the settings
+ * drawer, below the paper size, the margins, the dictionary and the asset list —
+ * one scroll, two subjects. Inventory item 126 is about the half of that which
+ * is a placement problem: *"what does each key do"* is a reference question, of
+ * the same kind as the command list and the help page, and it is asked while
+ * working rather than while setting the application up.
+ *
+ * Two things arrive with the move, and both are the reason it is not only a
+ * move:
+ *
+ *   - **a search box.** Sixty rows in document order is a list you read rather
+ *     than a list you use, and the question people actually bring to it is "what
+ *     is the key for X" or "what has Ctrl+G". Both are answerable now, because
+ *     the chord is searchable as well as the name.
+ *   - **unbinding one action.** There was no way to take a key off a single
+ *     action: capture assigns, and the only removal was the reset that discards
+ *     every custom chord in the application. The row's `×` does exactly this
+ *     one.
+ */
+export function keysPanel(view: KeysView, act: KeysActions): Node[] {
+  const search = textField(view.query, t("keysSearch"));
+  search.setAttribute("id", "keys-search");
+  search.addEventListener("input", (e) => act.search((e.target as HTMLInputElement).value));
+
+  // One spelling of a key, for the whole application, computed once per row and
+  // used for both the search and the button. `keyHint` is what the menus, the
+  // toolbar tooltips and the settings door all call, so this list cannot go on
+  // being the only surface that knows a mode has taken the keyboard — which is
+  // exactly what it was.
+  const labelled = view.rows.map(
+    (r) => [r, keyHint(r.key, view.mode?.kind ?? "default", r.command)] as const,
+  );
+  const shown = labelled.filter(([r, label]) => keyMatches(r, label, view.query));
+  const out: Node[] = [
+    el("div", { class: "set-note" }, [t("keysNote")]),
+    fieldRow(t("keysSearch"), search),
+  ];
+
+  // What a mode has done to this list, said once at the top rather than implied
+  // sixty times by a disabled button.
+  if (view.mode) {
+    out.push(
+      el("div", { class: "set-note sc-key-mode-note", "data-mode": view.mode.kind }, [
+        t(view.mode.kind === "vim" ? "keysTakenVim" : "keysTakenEmacs"),
+      ]),
+    );
+  }
+
+  out.push(
+    el("div", { class: "set-note", id: "keys-count" }, [
+      tf("keysShowing", shown.length, view.rows.length),
+    ]),
+  );
+
+  // The empty state is a sentence, not an absence. A drawer that renders nothing
+  // for a query with no answers reads as a drawer that is broken.
+  if (!shown.length) {
+    out.push(el("div", { class: "set-note", "data-empty": "keys" }, [t("keysNothing")]));
+    return out;
+  }
+
+  for (const [row, hint] of shown) {
+    const label = hint || "—";
+    const button = el(
+      "button",
+      {
+        class: "sc-key" + (view.mode ? " sc-key-mode" : ""),
+        type: "button",
+        "data-key-for": row.id,
+        disabled: view.mode ? "true" : null,
+      },
+      [label],
+    );
+    if (!view.mode) button.addEventListener("click", () => act.capture(row.id, button));
+    const kids: Node[] = [el("span", {}, [row.name]), button];
+    // Offered only where there is something to take off, and never while a mode
+    // holds the keyboard: unbinding a chord that is not in force would be a
+    // control whose effect is invisible until the mode is turned off again.
+    if (row.key && !view.mode) {
+      const off = el(
+        "button",
+        { class: "mini", type: "button", "data-key-clear": row.id, title: t("keysClear") },
+        ["×"],
+      );
+      off.addEventListener("click", () => act.clear(row.id));
+      kids.push(off);
+    }
+    out.push(el("label", { class: "set-row", "data-key-row": row.id }, kids));
+  }
+
+  const reset = el("button", { class: "sc-reset", type: "button", id: "keys-reset" }, [
+    t("resetShortcuts"),
+  ]);
+  reset.addEventListener("click", () => act.reset());
+  out.push(reset);
+  return out;
 }

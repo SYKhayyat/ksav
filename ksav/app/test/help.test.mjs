@@ -81,6 +81,24 @@ export async function run() {
   ok("but it is still reachable elsewhere if it is structural", flat.length > 0);
 }
 
+{
+  // The same argument, one step further. A key the writer *rebound* is wrong to
+  // print; a key an editing mode has taken is wrong in the identical way and
+  // was printed for far longer, because `buildShortcutKeymap` installs nothing
+  // at all while Vim or Emacs is on. Help that prints `Ctrl+B` to somebody in
+  // Emacs mode is help that has never been tried in Emacs mode.
+  const inEmacs = helpSections({ ...base, mode: "emacs" }).flatMap((s) => s.entries);
+  check("under a mode, help says what to type", inEmacs.find((e) => e.id === "bold").how, "M-x bold");
+  const inVim = helpSections({ ...base, mode: "vim" }).flatMap((s) => s.entries);
+  check("…and vim gets vim's colon", inVim.find((e) => e.id === "bold").how, ":bold");
+  // A structural row falls back to the ribbon glyph when there is no key. Under
+  // a mode there is always something to type, so the glyph gives way to it —
+  // the reader who came to this page asking "how do I do that from the
+  // keyboard" gets an answer rather than a picture of a button.
+  const structural = inEmacs.find((e) => e.id.startsWith("table."));
+  ok("a structural row names its command too", structural.how.startsWith("M-x "), structural.how);
+}
+
 // ---------------------------------------------------------------- the sections
 
 {

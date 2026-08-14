@@ -72,6 +72,7 @@
 // a Hebrew document is leftward on screen. That is what vim does in an RTL
 // terminal too.
 
+import { commandName } from "./bindings";
 import { Compartment, Prec } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -203,14 +204,15 @@ export function setBridge(b: ModeBridge): void {
 }
 
 /**
- * An action id as a `:` command or an `M-x` name.
+ * An action id as a `:` command or an `M-x` name — see `bindings.commandName`.
  *
- * Lowercase letters and digits only. Vim's ex parser reads a command name as a
- * run of word characters, so `table.rowBelow` would be read as `table` and the
- * rest thrown away — silently running the wrong command, which is worse than
- * running none.
+ * Re-exported, not defined here, and it moved for one reason: every surface that
+ * prints a key has to print this instead while a mode is on, and none of them
+ * can import this module — it pulls in CodeMirror, and the panel views are
+ * built in a test runner that has no editor. `bindings.ts` imports nothing at
+ * all, which is what makes it the one place both spellings can live.
  */
-export const commandName = (id: string): string => id.toLowerCase().replace(/[^a-z0-9]/g, "");
+export { commandName };
 
 /**
  * Two action ids that would answer to the same `:` command.

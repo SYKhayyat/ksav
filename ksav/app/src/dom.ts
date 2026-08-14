@@ -25,7 +25,12 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
-    if (k === "class") n.className = v as string;
+    // `v != null` here as well as below. Every other attribute drops out when it
+    // is null — the idiom the whole file is written in — and `class` alone did
+    // not, so a conditional class spelled the ordinary way put the literal
+    // string `null` in the attribute and a `.null` rule one CSS file away from
+    // being real.
+    if (k === "class") { if (v != null) n.className = v as string; }
     else if (k === "style") n.setAttribute("style", v as string);
     else if (k.startsWith("on") && typeof v === "function")
       n.addEventListener(k.slice(2).toLowerCase(), v as EventListener);

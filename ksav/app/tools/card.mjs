@@ -126,6 +126,16 @@ lines.push("");
 lines.push("**`#`** in the editor offers every command, in both languages, with what each");
 lines.push(`one does. There are ${await commandCount()} of them and none is worth memorising.`);
 lines.push("");
+// The one thing a printed card cannot know. It has no mode to ask about, so it
+// states the rule instead of a chord — and the rule is the whole of it: under
+// Vim or Emacs, *nothing* in the table above is installed.
+lines.push("**Vim and Emacs mode take the whole keyboard.** With either one on, not one");
+lines.push("combination in the table above is installed — that is how the mode wins, rather");
+lines.push("than by out-ranking anything. Nothing is lost: every action answers to `:name`");
+lines.push("in Vim and `M-x name` in Emacs, and the application prints those in place of the");
+lines.push("chords everywhere it would have shown a key. The name is the action's id with");
+lines.push("the punctuation taken out — `table.rowBelow` is `M-x tablerowbelow`.");
+lines.push("");
 lines.push("**Nikud** has its own keymap while you are typing pointed Hebrew. It is not in");
 lines.push("this table because it is not one binding — it is a layer, and it is documented");
 lines.push("where it is implemented.");

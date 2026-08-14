@@ -269,7 +269,7 @@ export async function run() {
       command("הערה", { category: "footnote", en: "fnote" }),
       command("שלי", { from: "yours", category: "", desc_he: undefined, desc_en: undefined }),
     ];
-    const { groups, empty, shown } = commandGroups(cmds, { bold: "Mod-b" }, "", "he");
+    const { groups, empty, shown } = commandGroups(cmds, { bold: "Mod-b" }, "", "he", "default");
     check("nothing is left out", shown, 4);
     check("the groups are the registry's categories", groups.map((g) => g.title), [
       "cat.style",
@@ -285,15 +285,33 @@ export async function run() {
     // beginning and no surface listing commands has ever said so.
     check("a command with a key prints it", groups[0].rows[0].note, "Ctrl+B");
     check("…and one without prints nothing", groups[0].rows[1].note, undefined);
-    check("a rebound key is the one shown", commandGroups(cmds, { bold: "F9" }, "", "he").groups[0].rows[0].note, "F9");
+    check("a rebound key is the one shown", commandGroups(cmds, { bold: "F9" }, "", "he", "default").groups[0].rows[0].note, "F9");
+    // Under a mode that chord is not installed at all — `buildShortcutKeymap`
+    // returns nothing — so printing it would be this list telling a writer to
+    // press a key that does nothing. What it prints instead is the way in.
+    check(
+      "under Emacs the row names the command, not the dead chord",
+      commandGroups(cmds, { bold: "Mod-b" }, "", "he", "emacs").groups[0].rows[0].note,
+      "M-x bold",
+    );
+    check(
+      "…and under Vim it is the ex command",
+      commandGroups(cmds, { bold: "Mod-b" }, "", "he", "vim").groups[0].rows[0].note,
+      ":bold",
+    );
+    check(
+      "a command with no action of its own still says nothing",
+      commandGroups(cmds, {}, "", "he", "emacs").groups[2].rows[0].note,
+      undefined,
+    );
     check("a row names the command in both languages", groups[0].rows[0].trailing, "#הדגשה · bold");
     check("nothing is said about a cap", empty, null);
   }
   {
     const cmds = [command("הדגשה"), command("נטוי")];
-    check("a query filters", commandGroups(cmds, {}, "נטוי", "he").shown, 1);
-    check("…and empty groups do not appear", commandGroups(cmds, {}, "נטוי", "he").groups.length, 1);
-    const none = commandGroups(cmds, {}, "zzzz", "he");
+    check("a query filters", commandGroups(cmds, {}, "נטוי", "he", "default").shown, 1);
+    check("…and empty groups do not appear", commandGroups(cmds, {}, "נטוי", "he", "default").groups.length, 1);
+    const none = commandGroups(cmds, {}, "zzzz", "he", "default");
     check("nothing matched is said out loud", none.empty, "paletteNothing");
     check("…and no group is drawn", none.groups, []);
   }
@@ -301,6 +319,6 @@ export async function run() {
     // No cap, and this is the point of the surface: an inventory that stops at
     // sixty is the failure the palette's `hidden` count exists to confess to.
     const many = Array.from({ length: PALETTE_COMMANDS + 40 }, (_, i) => command("פקודה" + i));
-    check("every command is listed", commandGroups(many, {}, "", "he").shown, many.length);
+    check("every command is listed", commandGroups(many, {}, "", "he", "default").shown, many.length);
   }
 }

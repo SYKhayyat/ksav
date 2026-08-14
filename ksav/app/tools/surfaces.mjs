@@ -137,6 +137,23 @@ export const RECIPES = new Map([
     },
   ],
   [
+    "keys-drawer",
+    {
+      how: HOW.driven,
+      why:
+        "No chip, deliberately: the chipbar is two dozen controls already and this " +
+        "is a reference surface rather than a mode. " +
+        '`bindings.ts` calls it `keysDrawer: "Shift-F1"`, beside the help panel\'s ' +
+        "F1, and a drawer with a key is a drawer that appears in the generated " +
+        "shortcut card and in F1 — which is the argument `gitPanel` makes for " +
+        "having one at all.",
+      drive: async (p) => {
+        await p.press("Shift+F1");
+        await p.waitFor("#keys-drawer.open", 10_000);
+      },
+    },
+  ],
+  [
     "switcher",
     {
       how: HOW.driven,

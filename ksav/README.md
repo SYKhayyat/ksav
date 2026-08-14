@@ -573,7 +573,7 @@ browser on any OS.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 5,466 editor assertions, 631 engine
+- [x] **CI, running and green** — typecheck, 5,553 editor assertions, 631 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -659,7 +659,7 @@ Four groups, nine checks:
 | group | what it runs |
 |---|---|
 | `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 5,466 assertions across 88 files |
+| `editor` | the typechecker, then 5,553 assertions across 89 files |
 | `engine` | lints, then 631 tests across 42 binaries |
 | `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
 
@@ -742,6 +742,25 @@ is zero. But the weaker version — "`#status` says ok afterwards" — is nearly
 worthless, because it said ok before too, so a button doing nothing at all would
 pass. A recorder installed on boot watches `#status` blank itself at the start of
 every compile, and each step insists on a compile that began after it did.
+
+**And it looks at the screen**, which is a different question from the one the
+paragraph above declines. Every other guard in this repository reads source, and
+the two worst bugs the sibling application ever shipped were a commentary block
+at `opacity: 0` and a pane title measured at 0px — facts about a layout, with
+both files saying exactly what they should say. The browser was already here and
+was never asked. It is now: every declared surface is opened the way a reader
+opens it and measured for a non-zero box, an effective opacity above zero
+computed **through its ancestors**, no `display: none` or `visibility: hidden`
+anywhere in that chain, and a box that intersects the viewport. Nothing is
+compared against an expected colour, position or size, so a font update still
+changes nothing.
+
+Which surfaces comes from `app/src/panels.ts` rather than from a list here, and
+`app/tools/surfaces.mjs` says how each one is opened — a chip, a keystroke, or a
+written reason why neither. A twenty-third panel fails `app/test/visibility.test.mjs`
+by name until somebody classifies it, and no click in the run may skip the
+measurement: Playwright's own visibility check passes an element at `opacity: 0`,
+so a bare click proves nothing about the screen and the fence rejects one.
 
 The dependency is `playwright-core`, not `playwright`: the full package downloads
 a ~150 MB browser on every install, and this drives the Chrome already on the

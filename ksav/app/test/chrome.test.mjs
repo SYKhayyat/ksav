@@ -357,26 +357,43 @@ check(
 // `src/`. Cheap, textual, and it can only ever produce a loud refusal.
 {
   const HERE = dirOf(import.meta.url);
-  const accept = readFileSync(
+  // Both files, because the run now drives by selectors in two of them.
+  //
+  // `tools/surfaces.mjs` holds the gesture that opens each declared surface —
+  // the chip to click, the keystroke, the thing to wait for — and it arrived
+  // carrying more selectors than the script does. A guard aimed at one file
+  // while the other grew is this same check going stale a second time, in the
+  // same decade.
+  const driving = [
     path.join(HERE, "..", "..", "..", ".github", "scripts", "acceptance.mjs"),
-    "utf8",
-  );
+    path.join(HERE, "..", "tools", "surfaces.mjs"),
+  ].map((p) => readFileSync(p, "utf8"));
+
   // Only the strings that are selectors, and only the parts of them that name
   // something `src/` is responsible for.
   // Read out of the calls that take one, rather than out of every string that
   // starts with a dot — `endsWith(".pdf")` is not a selector, and a guard that
   // reports it is a guard people learn to ignore.
   const wanted = new Set();
-  const CALLS = /(?:locator|click|fill|waitForSelector|querySelectorAll|selectOption)\(\s*["'`]([^"'`]+)["'`]/g;
-  for (const m of accept.matchAll(CALLS)) {
-    for (const part of m[1].split(/\s+/)) {
-      if (part.startsWith("#") || part.startsWith(".")) wanted.add(part);
+  const CALLS =
+    /(?:locator|click|rightClick|fill|waitFor|waitForSelector|querySelectorAll|selectOption)\(\s*["'`]([^"'`]+)["'`]/g;
+  for (const text of driving) {
+    for (const m of text.matchAll(CALLS)) {
+      // Every simple selector inside the compound, not the compound.
+      //
+      // Splitting on whitespace alone was enough while the script only ever
+      // named one thing at a time, and it stopped being enough the moment a
+      // recipe waited for `#palette.open`: that is a real id and a real class
+      // and the guard read it as one name, found nothing declared under it, and
+      // was right for the wrong reason. `:not(.mekoros)` has the same shape and
+      // would have been read as part of `.spell-menu`.
+      for (const part of m[1].match(/[#.][A-Za-z_][\w-]*/g) ?? []) wanted.add(part);
+    }
+    for (const m of text.matchAll(/\[data-(?:action|command|menu|export|chip)="([^"]+)"\]/g)) {
+      wanted.add(m[1]);
     }
   }
-  for (const m of accept.matchAll(/\[data-(?:action|command|menu|export|chip)="([^"]+)"\]/g)) {
-    wanted.add(m[1]);
-  }
-  ok("the acceptance script was read", wanted.size > 5, `${wanted.size} selectors`);
+  ok("the files that drive the assembled app were read", wanted.size > 5, `${wanted.size} selectors`);
 
   const src = (f) => readFileSync(path.join(HERE, "..", "src", f), "utf8");
   const TS = readdirSync(path.join(HERE, "..", "src"))

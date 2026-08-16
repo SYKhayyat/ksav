@@ -238,6 +238,60 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת1(גודל: 2em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת2(גודל: 1.5em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת3(גודל: 1.25em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת4(גודל: 1.1em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת5(גודל: 1em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת6(גודל: 0.95em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -1440,6 +1494,60 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h1_config(size: 2em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h2_config(size: 1.5em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h3_config(size: 1.25em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h4_config(size: 1.1em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h5_config(size: 1em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h6_config(size: 0.95em)ds to continue."
   },
   {
    "ctx": "prose",
@@ -2650,6 +2758,60 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת1(גודל: 2em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת2(גודל: 1.5em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת3(גודל: 1.25em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת4(גודל: 1.1em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת5(גודל: 1em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת6(גודל: 0.95em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -3852,6 +4014,60 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h1_config(size: 2em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h2_config(size: 1.5em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h3_config(size: 1.25em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h4_config(size: 1.1em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h5_config(size: 1em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h6_config(size: 0.95em)One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5062,6 +5278,60 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת1(גודל: 2em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת2(גודל: 1.5em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת3(גודל: 1.25em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת4(גודל: 1.1em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת5(גודל: 1em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת6(גודל: 0.95em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -6264,6 +6534,60 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h1_config(size: 2em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h2_config(size: 1.5em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h3_config(size: 1.25em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h4_config(size: 1.1em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h5_config(size: 1em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h6_config(size: 0.95em)inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7474,6 +7798,60 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת1(גודל: 2em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת2(גודל: 1.5em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת3(גודל: 1.25em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת4(גודל: 1.1em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת5(גודל: 1em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת6(גודל: 0.95em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -8676,6 +9054,60 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h1_config(size: 2em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h2_config(size: 1.5em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h3_config(size: 1.25em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h4_config(size: 1.1em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h5_config(size: 1em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h6_config(size: 0.95em)here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9886,6 +10318,60 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת1(גודל: 2em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת2(גודל: 1.5em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת3(גודל: 1.25em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת4(גודל: 1.1em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת5(גודל: 1em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת6(גודל: 0.95em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -11088,6 +11574,60 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false)),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h1_config(size: 2em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h2_config(size: 1.5em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h3_config(size: 1.25em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h4_config(size: 1.1em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h5_config(size: 1em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h6_config(size: 0.95em),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -12298,6 +12838,60 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת1(גודל: 2em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת2(גודל: 1.5em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת3(גודל: 1.25em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת4(גודל: 1.1em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת5(גודל: 1em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת6(גודל: 0.95em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -13500,6 +14094,60 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false)),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h1_config(size: 2em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h2_config(size: 1.5em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h3_config(size: 1.25em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h4_config(size: 1.1em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h5_config(size: 1em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h6_config(size: 0.95em),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14710,6 +15358,60 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת1(גודל: 2em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת2(גודל: 1.5em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת3(גודל: 1.25em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת4(גודל: 1.1em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת5(גודל: 1em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת6(גודל: 0.95em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -15912,6 +16614,60 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h1_config(size: 2em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h2_config(size: 1.5em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h3_config(size: 1.25em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h4_config(size: 1.1em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h5_config(size: 1em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h6_config(size: 0.95em)here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -17122,6 +17878,60 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת1(גודל: 2em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת2(גודל: 1.5em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת3(גודל: 1.25em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת4(גודל: 1.1em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת5(גודל: 1em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת6(גודל: 0.95em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -18324,6 +19134,60 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false)), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h1_config(size: 2em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h2_config(size: 1.5em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h3_config(size: 1.25em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h4_config(size: 1.1em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h5_config(size: 1em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h6_config(size: 0.95em), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -19534,6 +20398,60 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת1(גודל: 2em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת2(גודל: 1.5em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת3(גודל: 1.25em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת4(גודל: 1.1em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת5(גודל: 1em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת6(גודל: 0.95em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -20736,6 +21654,60 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h1_config(size: 2em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h2_config(size: 1.5em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h3_config(size: 1.25em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h4_config(size: 1.1em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h5_config(size: 1em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h6_config(size: 0.95em)here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -21946,6 +22918,60 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת1(גודל: 2em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת2(גודל: 1.5em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת3(גודל: 1.25em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת4(גודל: 1.1em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת5(גודל: 1em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת6(גודל: 0.95em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -23148,6 +24174,60 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h1_config(size: 2em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h2_config(size: 1.5em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h3_config(size: 1.25em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h4_config(size: 1.1em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h5_config(size: 1em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h6_config(size: 0.95em)Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -24358,6 +25438,60 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת1(גודל: 2em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת2(גודל: 1.5em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת3(גודל: 1.25em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת4(גודל: 1.1em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת5(גודל: 1em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת6(גודל: 0.95em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -25560,6 +26694,60 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h1_config(size: 2em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h2_config(size: 1.5em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h3_config(size: 1.25em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h4_config(size: 1.1em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h5_config(size: 1em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h6_config(size: 0.95em)prayer]"
   },
   {
    "ctx": "siman-body",
@@ -26770,6 +27958,60 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת1(גודל: 2em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת2(גודל: 1.5em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת3(גודל: 1.25em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת4(גודל: 1.1em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת5(גודל: 1em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת6(גודל: 0.95em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -27972,6 +29214,60 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h1_config(size: 2em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h2_config(size: 1.5em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h3_config(size: 1.25em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h4_config(size: 1.1em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h5_config(size: 1em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h6_config(size: 0.95em)Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -29182,6 +30478,60 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת1(גודל: 2em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת2(גודל: 1.5em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת3(גודל: 1.25em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת4(גודל: 1.1em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת5(גודל: 1em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת6(גודל: 0.95em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -30384,6 +31734,60 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#headings_config(size: (2em, 1.4em), colour: (rgb(\"#b91c1c\"), luma(40)), numbering: \"1.1\", rule: (true, false))ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת1",
+   "en": "h1_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h1_config(size: 2em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת2",
+   "en": "h2_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h2_config(size: 1.5em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת3",
+   "en": "h3_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h3_config(size: 1.25em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת4",
+   "en": "h4_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h4_config(size: 1.1em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת5",
+   "en": "h5_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h5_config(size: 1em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת6",
+   "en": "h6_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h6_config(size: 0.95em)ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

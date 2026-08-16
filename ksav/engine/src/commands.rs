@@ -116,6 +116,16 @@ pub static COMMANDS: &[Command] = &[
     cmd!("כותרת", "hlevel", "heading", "כותרת בכל רמה", "Heading at any level", "#כותרת(רמה: 4)[|]"),
     cmd!("כותרת_בהערה", "note_heading", "heading", "כותרת בתוך הערה — נראית ככותרת, אינה נכנסת לתוכן ואינה מקדמת מספור", "Heading inside a note — looks like one, but stays out of the outline and the numbering", "#כותרת_בהערה[|]"),
     cmd!("הגדרות_כותרות", "headings_config", "heading", "עיצוב הכותרות (גודל/צבע/יישור/מספור/קו לכל רמה)", "Configure headings (size/colour/align/numbering/rule per level)", "#הגדרות_כותרות(גודל: (2em, 1.4em), צבע: (rgb(\"#b91c1c\"), luma(40)), מספור: \"1.1\", קו: (true, false))|"),
+    // One for each level, because a heading level is a command of its own and
+    // the rule covers it: until these, saying anything about level 2 meant
+    // writing the whole six-entry ramp and hoping the other five entries were
+    // what they already were.
+    cmd!("הגדרות_כותרת1", "h1_config", "heading", "עיצוב כותרות רמה 1", "How level 1 headings are set", "#הגדרות_כותרת1(גודל: 2em)|"),
+    cmd!("הגדרות_כותרת2", "h2_config", "heading", "עיצוב כותרות רמה 2", "How level 2 headings are set", "#הגדרות_כותרת2(גודל: 1.5em)|"),
+    cmd!("הגדרות_כותרת3", "h3_config", "heading", "עיצוב כותרות רמה 3", "How level 3 headings are set", "#הגדרות_כותרת3(גודל: 1.25em)|"),
+    cmd!("הגדרות_כותרת4", "h4_config", "heading", "עיצוב כותרות רמה 4", "How level 4 headings are set", "#הגדרות_כותרת4(גודל: 1.1em)|"),
+    cmd!("הגדרות_כותרת5", "h5_config", "heading", "עיצוב כותרות רמה 5", "How level 5 headings are set", "#הגדרות_כותרת5(גודל: 1em)|"),
+    cmd!("הגדרות_כותרת6", "h6_config", "heading", "עיצוב כותרות רמה 6", "How level 6 headings are set", "#הגדרות_כותרת6(גודל: 0.95em)|"),
     // ---- align / direction ----
     cmd!("מרכז", "center_", "align", "יישור למרכז", "Center align", "#מרכז[|]"),
     cmd!("ימין", "right_", "align", "יישור לימין", "Right align", "#ימין[|]"),

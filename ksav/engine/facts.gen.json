@@ -274,6 +274,60 @@
       "deprecated": false
     },
     {
+      "he": "הגדרות_כותרת1",
+      "en": "h1_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 1",
+      "desc_en": "How level 1 headings are set",
+      "insert": "#הגדרות_כותרת1(גודל: 2em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת2",
+      "en": "h2_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 2",
+      "desc_en": "How level 2 headings are set",
+      "insert": "#הגדרות_כותרת2(גודל: 1.5em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת3",
+      "en": "h3_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 3",
+      "desc_en": "How level 3 headings are set",
+      "insert": "#הגדרות_כותרת3(גודל: 1.25em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת4",
+      "en": "h4_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 4",
+      "desc_en": "How level 4 headings are set",
+      "insert": "#הגדרות_כותרת4(גודל: 1.1em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת5",
+      "en": "h5_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 5",
+      "desc_en": "How level 5 headings are set",
+      "insert": "#הגדרות_כותרת5(גודל: 1em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת6",
+      "en": "h6_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 6",
+      "desc_en": "How level 6 headings are set",
+      "insert": "#הגדרות_כותרת6(גודל: 0.95em)|",
+      "deprecated": false
+    },
+    {
       "he": "מרכז",
       "en": "center_",
       "category": "align",

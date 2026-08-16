@@ -302,6 +302,49 @@ fn a_gemara_reference_sets_its_masechta_and_its_daf_apart() {
 }
 
 #[test]
+fn a_siman_can_say_a_different_word_or_none() {
+    // The word `סימן` and the em dash are the command's own, not the writer's,
+    // and a sefer that opens `סי׳ א׳` should be able to say so.
+    let body = "#סימן[א׳][דין נטילת ידים]\n";
+    let plain: String = runs(body).iter().map(|r| r.text.clone()).collect();
+    assert!(plain.contains("סימן"), "it ships with the word: {plain}");
+
+    let short = format!("#הגדרות_סימן(קידומת: (טקסט: \"סי׳\"))\n{body}");
+    let out = compile(&short, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let page: String = runs(&short).iter().map(|r| r.text.clone()).collect();
+    assert!(page.contains("סי׳"), "the writer's word prints: {page}");
+    assert!(
+        page.contains("דין נטילת ידים"),
+        "and the title is untouched: {page}"
+    );
+
+    // Dropped entirely, number and all still there.
+    let none_ = format!("#הגדרות_סימן(קידומת: (טקסט: \"\"), מפריד: (טקסט: \"\"))\n{body}");
+    let out = compile(&none_, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let page: String = runs(&none_).iter().map(|r| r.text.clone()).collect();
+    assert!(!page.contains("סימן א"), "the word is gone: {page}");
+    assert!(page.contains("א׳"), "the number is not: {page}");
+}
+
+#[test]
+fn a_piece_that_prints_the_writers_words_has_no_text_of_its_own() {
+    // `טקסט` on the title would be accepted and ignored, which is the failure
+    // this whole mechanism is against.
+    let out = compile(
+        "#הגדרות_סימן(כותרת: (טקסט: \"משהו\"))\n#סימן[א׳][כותרת]\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "text on a writer's own piece compiled");
+    let said = format!("{:?}", out.diagnostics);
+    assert!(
+        said.contains("כותרת"),
+        "the message names the piece: {said}"
+    );
+}
+
+#[test]
 fn a_part_nobody_declared_stops_the_compile_and_names_the_ones_there_are() {
     let out = compile(
         "#הגדרות_סימן(כותרות: (גודל: 1.2em))\n#סימן[א׳][כותרת]\n",
@@ -327,6 +370,61 @@ fn the_parts_do_not_reach_the_indexes_either() {
     assert!(
         page.matches("דין נטילת ידים").count() >= 2,
         "printed and listed: {page}"
+    );
+}
+
+// -------------------------------------------------------- one for each header
+//
+// Heading levels had values per level and no way to *say* one: a writer wanting
+// level 2 larger wrote the whole six-entry ramp as a tuple and hoped the other
+// five were what they already were.
+
+#[test]
+fn each_heading_level_has_a_door() {
+    let body = "#כותרת1[ראשונה]\n#כותרת2[שניה]\n";
+    let styled = format!("#הגדרות_כותרת2(גודל: 2em)\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let one_before = size_of(body, "ראשונה").expect("level 1 printed");
+    let two_before = size_of(body, "שניה").expect("level 2 printed");
+    assert!(
+        size_of(&styled, "שניה").expect("still there") > two_before,
+        "level 2 took its own setting"
+    );
+    assert_eq!(
+        one_before,
+        size_of(&styled, "ראשונה").expect("still there"),
+        "and level 1 was left where it was"
+    );
+}
+
+#[test]
+fn setting_one_level_does_not_flatten_the_ramp() {
+    // The knob that is a *scalar* — weight is one value for every level — has to
+    // spread into a ramp before one entry is written, or saying something about
+    // level 3 says it about all six.
+    let body = "#כותרת1[ראשונה]\n#כותרת3[שלישית]\n";
+    let styled = format!("#הגדרות_כותרת3(משקל: \"regular\")\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    // Both still print, and level 1's size ramp is untouched by a weight write.
+    assert_eq!(
+        size_of(body, "ראשונה"),
+        size_of(&styled, "ראשונה"),
+        "level 1 is as it was"
+    );
+}
+
+#[test]
+fn a_heading_door_refuses_a_knob_it_has_no_answer_for() {
+    let out = compile(
+        "#הגדרות_כותרת1(גדול: 2em)\n#כותרת1[א]\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "an unknown heading knob compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "the message names it"
     );
 }
 

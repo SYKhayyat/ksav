@@ -150,9 +150,6 @@ kuntres, and the documentation pass — are the five records dated that day.
       running it**: it publishes a public site, which is not a thing to do on
       somebody's behalf.
 
-- [ ] **Which shipped arrangements are worth having as default tabs.** Left open
-      by the 11 August record and still open, because it is a question for a
-      writer rather than for the code.
 
 ### Not yours to close
 

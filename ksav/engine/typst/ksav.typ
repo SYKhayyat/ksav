@@ -61,6 +61,12 @@
   // it here, so a list could not begin at 0 without leaving the language.
   start: "התחלה",
   style: "סגנון", labels: "תוויות", layout: "פריסה", display: "תצוגה",
+  // What a *generated* piece of a command says. A siman prints the word
+  // `סימן` and an em dash that no writer typed, and both are its to change:
+  // `#הגדרות_סימן(קידומת: (טקסט: "סי׳"))`, or `""` to drop the word entirely.
+  // Only pieces whose text the command invents take it; on a piece that prints
+  // the writer's own words it is refused, because it would silently do nothing.
+  text_: "טקסט",
   heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
   // notes and streams
   stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
@@ -1638,6 +1644,51 @@
 // Set by `_hd_styled`, cleared by it, read here. See the note there.
 #let _hd_own = state("ksav-hd-own", (:))
 #let הגדרות_כותרות(..opts) = _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+
+/// How many levels the ramps carry, which is how many doors there are below.
+#let _hd_levels = 6
+
+/// Set one level's own look — the door each heading level gets.
+///
+/// The rule that anything which is a separate command has a style of its own
+/// applies to the six heading commands as much as to anything else, and until
+/// this they had *values* per level with no way to say so per level: a writer
+/// wanting level 2 larger wrote the whole ramp as a tuple and hoped the other
+/// five entries were what they already were.
+///
+/// A knob whose value is a scalar means *every level*, so setting one level has
+/// to spread it into a ramp first — otherwise saying something about level 2
+/// would quietly say it about all six. The ramp is grown from what is in force,
+/// which is the current value if there is one and the shipped default if not.
+#let _hd_set(level, named) = _hd_cfg.update(c => {
+  let d = c
+  for (k, v) in named {
+    if not _hd_defaults.keys().contains(k) {
+      panic(
+        "הגדרות_כותרת" + str(level) + ": ארגומנט לא מוכר · unrecognised argument: " + k,
+      )
+    }
+    let cur = d.at(k, default: _hd_defaults.at(k, default: none))
+    let arr = if type(cur) == array { cur } else { (cur,) * _hd_levels }
+    while arr.len() < _hd_levels { arr.push(arr.last()) }
+    arr.at(level - 1) = v
+    d.insert(k, arr)
+  }
+  d
+})
+
+#let הגדרות_כותרת1(..opts) = _hd_set(1, opts.named())
+#let h1_config = _en(הגדרות_כותרת1)
+#let הגדרות_כותרת2(..opts) = _hd_set(2, opts.named())
+#let h2_config = _en(הגדרות_כותרת2)
+#let הגדרות_כותרת3(..opts) = _hd_set(3, opts.named())
+#let h3_config = _en(הגדרות_כותרת3)
+#let הגדרות_כותרת4(..opts) = _hd_set(4, opts.named())
+#let h4_config = _en(הגדרות_כותרת4)
+#let הגדרות_כותרת5(..opts) = _hd_set(5, opts.named())
+#let h5_config = _en(הגדרות_כותרת5)
+#let הגדרות_כותרת6(..opts) = _hd_set(6, opts.named())
+#let h6_config = _en(הגדרות_כותרת6)
 #let _hd_show(it) = context {
   // In HTML export, leave the heading alone: Typst turns a real heading into an
   // <h1>…<h6>, and replacing it with a styled block would emit a semantically
@@ -3311,9 +3362,15 @@
 #let _mk_part_defaults = (
   "סימן": (
     // The word `סימן`, the number, the em dash between them, and the title.
-    "קידומת": (:),
+    //
+    // Two of these are text the *command* invents rather than text the writer
+    // typed, so they ship a `טקסט` and it is theirs to change: a sefer that
+    // opens its simanim `סי׳ א׳` says so, and `טקסט: ""` drops the word
+    // altogether. The number and the title are the writer's words and take no
+    // such key — offering one there would be a control that changes nothing.
+    "קידומת": (טקסט: "סימן"),
     "מספר": (:),
-    "מפריד": (:),
+    "מפריד": (טקסט: " — "),
     "כותרת": (:),
   ),
   "פסוק": ("מקור": (גודל: 0.82em, צבע: luma(95))),
@@ -3373,6 +3430,15 @@
     }
     if type(v) != dictionary {
       panic("הגדרות_" + cls + ": " + k + " מקבל מילון של הגדרות · takes a dictionary of settings")
+    }
+    // `טקסט` only where the command invents the words. On a piece that prints
+    // what the writer typed it would be accepted and ignored, which is the one
+    // thing a control must never be.
+    if "טקסט" in v and "טקסט" not in parts.at(k) {
+      panic(
+        "הגדרות_" + cls + ": " + k + " מדפיס את מה שנכתב, ואין לו טקסט משלו · "
+          + k + " prints what you wrote, so it has no text of its own",
+      )
     }
     mine.insert(k, _cfg_with(mine.at(k, default: (:)), v))
     touched = true
@@ -3551,11 +3617,17 @@
     // command's own look wraps all of it, so a size on the siman still scales
     // the whole heading.
     context _mk_render(_mk_conf("סימן", own), {
-      _mk_piece("סימן", "קידומת", [סימן])
-      [ ]
+      // The word and the dash are the command's own words, so they come out of
+      // their parts rather than out of this line — which is what lets a sefer
+      // print `סי׳ א׳` or drop the word and keep the number.
+      let pre = _mk_part("סימן", "קידומת")
+      let word = pre.at("טקסט", default: "")
+      if word != "" { _mk_render(pre, word); [ ] }
       _mk_piece("סימן", "מספר", מספר)
       if כותרת != none {
-        _mk_piece("סימן", "מפריד", [ — ])
+        let sep = _mk_part("סימן", "מפריד")
+        let dash = sep.at("טקסט", default: "")
+        if dash != "" { _mk_render(sep, dash) }
         _mk_piece("סימן", "כותרת", כותרת)
       }
     })

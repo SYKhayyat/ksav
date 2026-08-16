@@ -1,5 +1,13 @@
 import { check, ok } from "./harness.mjs";
-import { modeAt, withMode, snippetAt, insertionAt, legalAt, enclosing } from "../.tmp-test/mode.mjs";
+import {
+  modeAt,
+  withMode,
+  snippetAt,
+  insertionAt,
+  legalAt,
+  enclosing,
+  orphanChildren,
+} from "../.tmp-test/mode.mjs";
 
 // The rule the UI never knew: `#` is required in content mode and illegal in
 // code mode. Clicking "list" with the caret between two list items wrote
@@ -234,9 +242,27 @@ check("a non-command snippet is untouched", withMode("//{ אזור", "content"),
     legalAt(table, betweenCells, "מיזוג").ok,
     false,
   );
+  // A merge *inside a cell body* is not a cell of anything — it is a
+  // `table.cell(colspan:)` nested in another cell's content, which the engine
+  // badges. This asserted the opposite, on the reasoning that the raw command is
+  // "for writing a merge into a cell you are composing"; a writer does that by
+  // replacing `תא[…]` with `מיזוג(2)[…]`, not by nesting one in the other.
   check(
-    "but composing one inside a cell is fine",
-    legalAt(table, table.indexOf("אחד"), "מיזוג").ok,
+    "a merge inside a cell body is refused",
+    legalAt(table, table.indexOf("אחד"), "מיזוג").reason,
+    "illegalChildOutside",
+  );
+  // And the position that actually works is allowed. Between the two rules the
+  // command used to be offered nowhere at all: refused throughout the one place
+  // it is valid, offered in the one place it does nothing.
+  check(
+    "appending a merge to a table is fine",
+    legalAt("#טבלה(עמודות: 2, תא[א],)", "#טבלה(עמודות: 2, תא[א],".length, "מיזוג").ok,
+    true,
+  );
+  check(
+    "and so is one in an empty table",
+    legalAt("#טבלה(עמודות: 2,)", "#טבלה(עמודות: 2,".length, "מיזוג").ok,
     true,
   );
 }
@@ -257,6 +283,99 @@ check("a non-command snippet is untouched", withMode("//{ אזור", "content"),
     enclosing("#גמרא[ברכות][ב.]", 14).join(","),
     "גמרא",
   );
+}
+
+// ------------------------------------------------- 11. children of a container
+
+// `#פריט` is one entry of a `#רשימה` and `#תא` is one cell of a `#טבלה`: they
+// are arguments, not commands, and outside their parent they used to be the
+// identity function — `#פריט[א]` printed the word, drew no bullet, and said
+// nothing at all. Of the five, `#מיזוג` alone was guarded here, and for an
+// unrelated question; the other four were offered everywhere.
+//
+// The parents come from `STRUCTURAL_CHILDREN`, generated from the prelude's own
+// `_kd_parents`, so this asserts the same fact the engine draws its badge on.
+
+{
+  check("an item at the top of a document is refused", legalAt("שלום", 2, "פריט").ok, false);
+  check(
+    "and names what is wrong",
+    legalAt("שלום", 2, "פריט").reason,
+    "illegalChildOutside",
+  );
+  {
+    // In the argument list, not inside an item's body — one frame further in and
+    // the item is content, not an argument.
+    const d = "#רשימה(פריט[א],)";
+    check("an item inside a list is fine", legalAt(d, d.indexOf(",") + 1, "פריט").ok, true);
+    check(
+      "but not inside another item's body",
+      legalAt(d, d.indexOf("א"), "פריט").reason,
+      "illegalChildOutside",
+    );
+  }
+  check(
+    "an item inside a bracketed list is fine too",
+    legalAt("#רשימה[#פריט[א]]", 9, "פריט").ok,
+    true,
+  );
+  {
+    const d = "#ממוספרת(פריט[א],)";
+    check("an item inside a numbered list is fine", legalAt(d, d.indexOf(",") + 1, "פריט").ok, true);
+  }
+  check("a cell inside a list is refused", legalAt("#רשימה(פריט[א],)", 12, "תא").ok, false);
+  {
+    const d = "#טבלה(עמודות: 2, תא[א],)";
+    check("a cell inside a table is fine", legalAt(d, d.lastIndexOf(",") + 1, "תא").ok, true);
+    check(
+      "but not inside another cell's body",
+      legalAt(d, d.indexOf("א]"), "תא").reason,
+      "illegalChildOutside",
+    );
+  }
+  check(
+    "the English spelling is the same command",
+    legalAt("hello", 2, "item").reason,
+    "illegalChildOutside",
+  );
+  {
+    const d = "#bullets(item[a],)";
+    check("and an English list is a parent for it", legalAt(d, d.indexOf(",") + 1, "item").ok, true);
+  }
+  // The merge rule is a second and narrower question about one of the five, and
+  // both have to pass — a merge outside a table is refused by this new rule and
+  // a merge between two existing cells by the old one.
+  check("a merge outside a table is refused", legalAt("שלום", 2, "מיזוג").ok, false);
+}
+
+{
+  // The linter's half: what a writer *typed*, rather than what a button may
+  // write. This is the case that actually happens — every automated path in the
+  // product already emits the paren form.
+  const found = orphanChildren("יתום: #פריט[בודד] וזהו");
+  check("a typed orphan is found", found.length, 1);
+  check("and named", found[0]?.name, "פריט");
+  check("and pointed at", found[0]?.from, "יתום: ".length);
+  check("a correct list is clean", orphanChildren("#רשימה(פריט[א], פריט[ב])").length, 0);
+  check("a bracketed list is clean", orphanChildren("#רשימה[#פריט[א] #פריט[ב]]").length, 0);
+  check(
+    "a correct table is clean",
+    orphanChildren("#טבלה(עמודות: 2, כותרת_תא[א], תא[ב])").length,
+    0,
+  );
+  // Correct, compiles, and sits in the exact position `legalAt`'s merge rule
+  // refuses — so linting through `legalAt` would underline a working table.
+  check(
+    "a merge written into a table is not an orphan",
+    orphanChildren("#טבלה(עמודות: 2, מיזוג(2)[רחב], תא[א], תא[ב])").length,
+    0,
+  );
+  check(
+    "a definition row inside its list is clean",
+    orphanChildren("#רשימת_הגדרות(הגדרה[א][ב])").length,
+    0,
+  );
+  check("but outside it is not", orphanChildren("#הגדרה[א][ב]").length, 1);
 }
 
 }

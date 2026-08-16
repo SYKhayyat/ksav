@@ -356,6 +356,7 @@ const HE: Dict = {
   illegalPageLevel: "אי אפשר להתחיל עמוד חדש מתוך רשימה, טבלה, כותרת או הערה — סגרו אותה קודם.",
   illegalInHeading: "תוכן העניינים מציג את הכותרות, ולכן אינו יכול לשבת בתוך כותרת.",
   illegalMergeBetweenCells: "מיזוג בין תאים קיימים מרחיב את השורה מעבר למספר העמודות — השתמשו ב\"מיזוג ימינה\" בסרגל הטבלה.",
+  illegalChildOutside: "פקודה זו היא חלק מפקודה אחרת ואינה עומדת בפני עצמה — פתחו תחילה את הרשימה או הטבלה שאליה היא שייכת.",
   // the notes pane
   notesPane: "הערות",
   marksPane: "סימונים",
@@ -831,6 +832,9 @@ const HE: Dict = {
     "מנגנון ההערות המורכב (זרמים, מדפים, הערות צד) משתטח ב‑Word. טקסט, כותרות, הדגשות, רשימות, טבלאות והערות שוליים רגילות עוברים.",
   // bracket healing
   lintUnclosedCmd: "‏#{0} נפתח כאן ואינו נסגר.",
+  lintOrphanChild: "‏#{0} היא חלק מפקודה אחרת ואינה עומדת בפני עצמה — אין כאן רשימה או טבלה שאליה תישויך.",
+  lintBracketList: "‏#{0} כתובה בסוגריים מרובעים. היא נדפסת כראוי, אבל כלי הרשימה פועלים על צורת הארגומנטים.",
+  lintBracketListAction: "המרה לצורת הארגומנטים",
   lintUnclosed: "הסוגר ‏{0}‏ נפתח כאן ואינו נסגר.",
   lintStray: "סוגר ‏{0}‏ עודף — אין לו פותח.",
   lintUnterminatedComment: "הערה ‏/*‏ שלא נסגרה — היא בולעת את שאר המסמך.",
@@ -1523,6 +1527,8 @@ const EN: Dict = {
     "A table of contents prints the headings, so it cannot sit inside one.",
   illegalMergeBetweenCells:
     "Merging between existing cells makes the row wider than the table — use \"merge right\" on the table ribbon.",
+  illegalChildOutside:
+    "This command is part of another one and does not stand on its own — open the list or table it belongs to first.",
   notesPane: "Footnotes",
   marksPane: "Marks",
   expandRow: "Show the whole note",
@@ -1987,6 +1993,11 @@ const EN: Dict = {
   wordFlattenNote:
     "The multi-layer apparatus (streams, bands, side notes) flattens in Word. Text, headings, emphasis, lists, tables and plain footnotes carry across.",
   lintUnclosedCmd: "#{0} is opened here and never closed.",
+  lintOrphanChild:
+    "#{0} is part of another command and does not stand on its own — there is no list or table here for it to belong to.",
+  lintBracketList:
+    "#{0} is written with body brackets. It prints correctly, but the list tools work on the argument form.",
+  lintBracketListAction: "Convert to the argument form",
   lintUnclosed: "This {0} is opened here and never closed.",
   lintStray: "Stray {0} — nothing is open for it to close.",
   lintUnterminatedComment: "Unterminated /* comment — it swallows the rest of the document.",

@@ -104,20 +104,23 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
-- [ ] **A structural argument outside its container is the identity, silently.**
-      `#פריט` and `#תא` are `#let פריט(body) = body`: they mean something only
-      as arguments of `#רשימה(…)` and `#טבלה(…)`, which is why the registry
-      spells them without a `#`. Written in prose — `#רשימה[#פריט[א] #פריט[ב]]`
-      — the compile succeeds, says nothing, and prints a one-item list holding
-      both. A table does the same and comes out one row. Both happened while
-      writing the 16 August kuntres and the page was quietly wrong.
+- [x] **A structural argument outside its container is the identity, silently.**
+      Answered on 16 August 2026, the whole way. `#פריט`, `#הגדרה`, `#תא`,
+      `#כותרת_תא` and `#מיזוג` are arguments of their parent, not commands, and
+      two of them were `#let פריט(body) = body`. So `#רשימה[#פריט[א] #פריט[ב]]`
+      printed one bullet holding both words and `#פריט[א]` in prose printed the
+      word with no bullet, both without a sound.
 
-      `legalAt` in `mode.ts` greys a page break inside a container and a merge
-      between two cells, and has no rule for this; nor has the engine. Whether
-      it should is a question about the language rather than a bug with an
-      obvious fix — `#פריט` in markup is a misuse the grammar permits, and the
-      toolbar never writes it. **Ask before deciding.** See
-      [`decisions/2026-08-16-where-the-trouble-is.md`](decisions/2026-08-16-where-the-trouble-is.md).
+      A child now carries a mark holding its own body and its own red badge:
+      the parent takes the body and drops the badge, so correct usage renders
+      byte-identical and only an unconsumed child says anything. The bracket
+      form is taken rather than refused — it has one possible reading — and a
+      stray keeps printing its words beside the badge. `_kd_parents` is the one
+      list; `mode.ts` greys from a generated copy of it and the lint marks a
+      typed one. Where it changed something already decided — `#מיזוג` was
+      offered in the one position it does nothing and refused throughout the
+      only one where it works — the record says so.
+      [`decisions/2026-08-16-arguments-not-commands.md`](decisions/2026-08-16-arguments-not-commands.md).
 
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
       most important line on the page. Two kuntres-length sittings — 7 and 16

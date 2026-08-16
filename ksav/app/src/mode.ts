@@ -97,7 +97,14 @@
 // named arguments, so a command whose name is English and whose parameters are
 // Hebrew is not English and is not what anybody would type.
 
-import { COMMAND_EN, CONTAINERS, bothSpellings, paramsOf, withAliases } from "./engine.gen";
+import {
+  COMMAND_EN,
+  CONTAINERS,
+  STRUCTURAL_CHILDREN,
+  bothSpellings,
+  paramsOf,
+  withAliases,
+} from "./engine.gen";
 import { ctxAt, framesAt, langOf, scan, splitArgs, topLevelColon } from "./spans";
 
 export type Mode = "code" | "content";
@@ -137,8 +144,13 @@ export function enclosing(doc: string, pos: number): string[] {
  * fix: one place that knows, and every insertion path routed through it.
  *
  * A snippet that is already bare (`תא[|]`, `פריט[|]` — the ones only ever used
- * inside an argument list) gains a hash in content mode, so that inserting a
- * cell outside a table is legal markup instead of stray text.
+ * inside an argument list) gains a hash in content mode, so that it is legal
+ * markup rather than stray text.
+ *
+ * That used to be justified as making "a cell outside a table" legal markup, and
+ * `legalAt` now refuses to offer one there at all. The rewrite still matters, and
+ * for a case that is not the exception: `#רשימה[#פריט[א]]` puts an item in a
+ * *body*, which is content mode, and the engine takes it.
  */
 export function withMode(snippet: string, m: Mode): string {
   const bare = snippet.startsWith("#") ? snippet.slice(1) : snippet;
@@ -526,6 +538,83 @@ const IN_CONTAINER = withAliases(Object.fromEntries(CONTAINERS.map((n) => [n, tr
 /** The table command, in both languages — a merge has to be inside one. */
 const TABLES = [...bothSpellings("טבלה")];
 
+/**
+ * Each structural child, in both languages, against its legal parents.
+ *
+ * `#פריט` is one entry of a `#רשימה` and `#תא` is one cell of a `#טבלה`: they
+ * are arguments, not commands, and outside their parent they mean nothing. The
+ * prelude decides this in `_kd_parents` and the engine now draws a badge on a
+ * child that got out; this is the same fact reaching the chrome, so the button
+ * is greyed before it can write one.
+ *
+ * Of these five, `#מיזוג` alone was already handled below — and for a different
+ * question ("not *between* two existing cells"), which composes with this one
+ * rather than replacing it: a merge is legal inside a cell you are composing and
+ * nowhere else. The other four were offered everywhere.
+ */
+const CHILD_PARENTS: Record<string, readonly string[]> = Object.fromEntries(
+  Object.entries(STRUCTURAL_CHILDREN).flatMap(([child, parents]) => {
+    const legal = parents.flatMap((p) => [...bothSpellings(p)]);
+    return [...bothSpellings(child)].map((name) => [name, legal] as const);
+  }),
+);
+
+/**
+ * Is a child written at `pos` a child *of* something, rather than merely inside
+ * one somewhere?
+ *
+ * The **innermost** frame, not any frame on the stack. A child is a positional
+ * argument of its parent, so one frame is the whole question: an argument list
+ * (`#רשימה(…|…)`) or the parent's own body (`#רשימה[…|…]`, which the engine
+ * takes too). One frame further in and it is inside something else's content —
+ * an item's body, a cell's body, a note nested in an item — where it is not an
+ * argument of anything and the engine badges it.
+ *
+ * Written first as "any enclosing frame is a parent", which is wrong in exactly
+ * the cases a writer is most likely to be standing in. `insertion.rs`'s
+ * `every_offered_insertion_lands_somewhere_it_belongs` had it in ten positions
+ * on the first run — `#רשימה(פריט[ראשון #פריט[]כאן])` among them — because that
+ * grid compiles what the chrome offers and now reads the page for the badge.
+ */
+function isChildOf(frames: readonly { name: string }[], parents: readonly string[]): boolean {
+  const inner = frames[frames.length - 1];
+  return !!inner && parents.includes(inner.name);
+}
+
+/** A structural child written where it has no parent. */
+export interface Orphan {
+  from: number;
+  to: number;
+  name: string;
+}
+
+/**
+ * Every `#פריט` / `#תא` / `#הגדרה` / `#כותרת_תא` / `#מיזוג` outside its parent.
+ *
+ * The gate above stops the *buttons* from writing one; this catches the one a
+ * writer types, which is the way it actually happens — the toolbar, the docx
+ * importer and the list ribbon all emit the paren form, so every automated path
+ * was already right and only the hand-typed one was on its own.
+ *
+ * Deliberately not `legalAt`: that function also carries the rule that a
+ * `#מיזוג` may not be *spliced between* two existing cells, which is a
+ * statement about where a button may write one and not about whether a document
+ * is wrong. `#טבלה(מיזוג(2)[רחב], תא[א])` is correct, compiles, and sits in
+ * exactly the position that rule refuses — linting through `legalAt` would put
+ * a red underline under a working table.
+ */
+export function orphanChildren(doc: string): Orphan[] {
+  const sc = scan(doc);
+  const out: Orphan[] = [];
+  for (const n of sc.nodes) {
+    const parents = CHILD_PARENTS[n.name];
+    if (!parents) continue;
+    if (isChildOf(framesAt(sc, n.from), parents)) continue;
+    out.push({ from: n.from, to: n.nameTo, name: n.name });
+  }
+  return out;
+}
+
 export interface Legality {
   ok: boolean;
   /** An i18n key naming what is wrong, for the tooltip on the greyed control. */
@@ -568,17 +657,50 @@ export function legalAt(doc: string, pos: number, command: string): Legality {
     const inHeading = sc.nodes.some((n) => n.role === "heading" && pos > n.from && pos < n.to);
     return inHeading ? { ok: false, reason: "illegalInHeading" } : LEGAL;
   }
+  // A child of a list or a table, anywhere but inside one. Tested before the
+  // merge rule below, which is a second and narrower question about the same
+  // command; both have to pass.
+  const parents = CHILD_PARENTS[command];
+  if (parents && !isChildOf(frames, parents)) {
+    return { ok: false, reason: "illegalChildOutside" };
+  }
   if (command === "מיזוג" || command === "colspan_") {
-    // A merged cell spliced between two existing cells overflows the row — the
+    // A merged cell spliced *between two existing cells* overflows the row — the
     // table has as many columns as it has, and a cell claiming two of them is
     // one cell too wide. The span-aware operation on the table ribbon does this
-    // properly (it consumes the neighbour it merges with); the raw command is
-    // for writing a merge into a cell you are composing, so that is where it
-    // stays offered.
+    // properly, consuming the neighbour it merges with; this refusal points at
+    // it.
+    //
+    // What that rule used to say was "anywhere in a table's argument list", with
+    // the note that the raw command is instead "for writing a merge into a cell
+    // you are composing, so that is where it stays offered" — and both halves
+    // were wrong, in opposite directions:
+    //
+    //   - **A merge inside a cell body does nothing.** `#מיזוג` is a
+    //     `table.cell(colspan:)`; nested in another cell's content it is not a
+    //     cell of anything. The engine badges it, which is how this surfaced —
+    //     `insertion.rs` compiles what the chrome offers and now reads the page.
+    //     A writer turns a cell into a merge by replacing `תא[…]` with
+    //     `מיזוג(2)[…]`, not by writing one inside the other.
+    //   - **The argument list is the only place it works.**
+    //     `#טבלה(עמודות: 2, מיזוג(2)[רחב], תא[א], תא[ב])` is correct and lays
+    //     out (`children.rs`). Refusing all of it left the command offered in
+    //     the one position where it cannot work and refused in the only one
+    //     where it can — which is to say offered nowhere at all.
+    //
+    // So the refusal is narrowed to what it always described: a cell already
+    // before the caret and another already after it, in this table. Appending a
+    // merge to a table, or writing one into an empty table, is a writer
+    // composing a row, and it is allowed.
     const inner = frames[frames.length - 1];
-    return inner && inner.ctx === "code" && TABLES.includes(inner.name)
-      ? { ok: false, reason: "illegalMergeBetweenCells" }
-      : LEGAL;
+    if (inner && inner.ctx === "code" && TABLES.includes(inner.name)) {
+      const cells = scan(doc).nodes.filter(
+        (n) => n.role === "cell" && n.from >= inner.open && n.to <= inner.close,
+      );
+      const between = cells.some((c) => c.to <= pos) && cells.some((c) => c.from >= pos);
+      if (between) return { ok: false, reason: "illegalMergeBetweenCells" };
+    }
+    return LEGAL;
   }
   return LEGAL;
 }

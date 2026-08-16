@@ -63,6 +63,37 @@ fn compiles(source: &str) -> Result<(), String> {
     }
 }
 
+/// The badge the engine draws on a structural child that reached the page with
+/// no list or table around it. See `engine/tests/children.rs`.
+const BADGE: &str = "outside its container";
+
+/// What a source actually put on the page, or `None` if it did not compile.
+fn page_text(source: &str) -> Option<String> {
+    let doc = probe::layout(source, &DocConfig::default()).ok()?;
+    Some(
+        probe::text_runs(&doc)
+            .iter()
+            .map(|r| r.text.as_str())
+            .collect(),
+    )
+}
+
+/// Whether a refusal for this reason is a claim about compiling or about sense.
+///
+/// `legalAt` used to answer one question — *would Typst reject this here* — so
+/// the grid could settle every refusal by compiling it. It now answers two.
+/// `#פריט` outside a list compiles perfectly well; it is wrong for a different
+/// reason, and the engine says so by drawing a badge rather than by failing.
+///
+/// Conflating the two would have cost the test its teeth in either direction:
+/// demanding a compile failure would have called 168 correct refusals
+/// over-refusal, and dropping the demand would have let *any* refusal through
+/// unexamined, which is the "grey the whole toolbar" hole the assertion exists
+/// to close. So the reason chooses the evidence, and both kinds stay falsifiable.
+fn refusal_must_show_a_badge(reason: Option<&str>) -> bool {
+    reason == Some("illegalChildOutside")
+}
+
 /// Nothing the editor offers may produce markup that will not compile.
 #[test]
 fn every_offered_insertion_compiles_where_it_is_offered() {
@@ -94,6 +125,43 @@ fn every_offered_insertion_compiles_where_it_is_offered() {
     );
 }
 
+/// Nothing the editor offers may land somewhere it does not belong.
+///
+/// Compiling is the low bar, and for the five structural children it was never
+/// the bar at all: `#פריט` outside a list has always compiled, printed its
+/// words, drawn no bullet and said nothing. The engine draws a badge on one now,
+/// so "did this insertion make sense where it was offered" is a question the
+/// grid can finally ask — of every command at every position, in both languages.
+///
+/// This is the half that proves the two sides agree. `legalAt` greys a control
+/// from `STRUCTURAL_CHILDREN`, generated from the prelude's `_kd_parents`; the
+/// badge is drawn by `_kd_items` reading that same dictionary. Nine hundred-odd
+/// positions where the chrome and the engine have to reach the same verdict, and
+/// before this there was no test that could have noticed them disagreeing.
+#[test]
+fn every_offered_insertion_lands_somewhere_it_belongs() {
+    let mut wrong: Vec<String> = Vec::new();
+    for c in cases().iter().filter(|c| c.legal) {
+        if let Some(page) = page_text(&c.source) {
+            if page.contains(BADGE) {
+                wrong.push(format!(
+                    "  {}/{}/{}  offered here, and the page says it does not belong\n     {}",
+                    c.ctx,
+                    c.lang,
+                    c.cmd,
+                    c.source.replace('\n', "⏎")
+                ));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} offered insertions are badged on the page:\n{}",
+        wrong.len(),
+        wrong.join("\n"),
+    );
+}
+
 /// A control the product greys out has to be genuinely unusable there.
 ///
 /// A grey button is a promise that the thing would not have worked. If it would
@@ -104,13 +172,25 @@ fn every_refused_insertion_would_really_have_failed() {
     let mut refused = 0;
     for c in cases().iter().filter(|c| !c.legal) {
         refused += 1;
-        if compiles(&c.source).is_ok() {
+        let why = c.reason.as_deref().unwrap_or("(no reason)");
+        if refusal_must_show_a_badge(c.reason.as_deref()) {
+            // Compiles — and has to, or the refusal is being justified by the
+            // wrong evidence — but reaches the page carrying the badge.
+            match page_text(&c.source) {
+                None => wrong.push(format!(
+                    "  {}/{}/{}  refused as {why:?}, and does not compile at all",
+                    c.ctx, c.lang, c.cmd
+                )),
+                Some(page) if !page.contains(BADGE) => wrong.push(format!(
+                    "  {}/{}/{}  refused as {why:?}, but the page is clean",
+                    c.ctx, c.lang, c.cmd
+                )),
+                Some(_) => {}
+            }
+        } else if compiles(&c.source).is_ok() {
             wrong.push(format!(
-                "  {}/{}/{}  refused as {:?}, but it compiles fine",
-                c.ctx,
-                c.lang,
-                c.cmd,
-                c.reason.as_deref().unwrap_or("(no reason)")
+                "  {}/{}/{}  refused as {why:?}, but it compiles fine",
+                c.ctx, c.lang, c.cmd
             ));
         }
     }

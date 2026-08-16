@@ -125,4 +125,31 @@ export async function run() {
     ok("an unknown command keeps its content", out.includes("התוכן שלי"));
     notOk("…without printing its name", out.includes("פקודה_שלי"));
   }
+
+// ------------------------------------------------- lists written every way
+//
+// The engine takes three spellings of a list and lays them out identically, so
+// an export that understands one of them loses the writer's words in the one
+// direction where nothing on the page can show it. `#רשימה[א][ב]` — two bodies,
+// no item command, two perfectly good bullets on the page — exported as the
+// empty string: the second body was never visited, and the first had its text
+// suppressed for not being inside an item.
+
+{
+  const want = ["- א", "- ב", ""].join("\n");
+  check("the argument form", toMarkdown("#רשימה(פריט[א], פריט[ב])"), want);
+  check("items inside the body", toMarkdown("#רשימה[#פריט[א] #פריט[ב]]"), want);
+  check("bodies as items", toMarkdown("#רשימה[א][ב]"), want);
+  check(
+    "and numbered across the whole list, not per body",
+    toMarkdown("#ממוספרת[א][ב]"),
+    ["1. א", "2. ב", ""].join("\n"),
+  );
+  check(
+    "a table written as bodies keeps its cells",
+    toMarkdown("#טבלה(עמודות: 2)[א][ב]"),
+    toMarkdown("#טבלה(עמודות: 2, תא[א], תא[ב])"),
+  );
+}
+
 }

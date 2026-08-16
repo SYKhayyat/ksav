@@ -473,6 +473,23 @@ export const CONTAINERS: readonly string[] = [
 ];
 
 /**
+ * The five commands that are arguments rather than commands, and what they are
+ * arguments *of*.
+ *
+ * `#פריט` is one entry of a `#רשימה`; `#תא`, `#כותרת_תא` and `#מיזוג` are cells
+ * of a `#טבלה`; `#הגדרה` is a row of a `#רשימת_הגדרות`. Written anywhere else
+ * they used to be the identity function — `#פריט[א]` at the top of a document
+ * printed the word, drew no bullet, and said nothing.
+ *
+ * From `_kd_parents` in the prelude, which is the same dictionary
+ * `_kd_items` consults when deciding whether a child gets the "outside its
+ * container" badge. So the editor greys exactly what the engine flags, rather
+ * than the state this replaced: `legalAt` guarded one of the five, for an
+ * unrelated reason, and nothing noticed the other four.
+ */
+export const STRUCTURAL_CHILDREN: Readonly<Record<string, readonly string[]>> = {"פריט":["רשימה","ממוספרת","ממוספרת_עברית"],"הגדרה":["רשימת_הגדרות"],"תא":["טבלה"],"כותרת_תא":["טבלה"],"מיזוג":["טבלה"]};
+
+/**
  * Which Hebrew characters are marks, which separate words, which fold to what.
  *
  * From `girsa-hebrew` by way of `engine/facts.gen.json`, because a browser tab

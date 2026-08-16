@@ -375,8 +375,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "שורה של פרוזה ובה מלים#פריט[]אחרות להמשך."
   },
   {
@@ -411,8 +411,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "שורה של פרוזה ובה מלים#תא[]אחרות להמשך."
   },
   {
@@ -420,8 +420,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "שורה של פרוזה ובה מלים#כותרת_תא[]אחרות להמשך."
   },
   {
@@ -438,8 +438,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "שורה של פרוזה ובה מלים#מיזוג(2)[]אחרות להמשך."
   },
   {
@@ -1788,8 +1788,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "A line of prose with some wor#item[]ds to continue."
   },
   {
@@ -1824,8 +1824,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "A line of prose with some wor#cell[]ds to continue."
   },
   {
@@ -1833,8 +1833,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "A line of prose with some wor#headcell[]ds to continue."
   },
   {
@@ -1851,8 +1851,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "A line of prose with some wor#colspan_(2)[]ds to continue."
   },
   {
@@ -3201,8 +3201,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת1[פרק #פריט[]ראשון]\n\nגוף."
   },
   {
@@ -3237,8 +3237,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת1[פרק #תא[]ראשון]\n\nגוף."
   },
   {
@@ -3246,8 +3246,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת1[פרק #כותרת_תא[]ראשון]\n\nגוף."
   },
   {
@@ -3264,8 +3264,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת1[פרק #מיזוג(2)[]ראשון]\n\nגוף."
   },
   {
@@ -4614,8 +4614,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h1[Chapter #item[]One]\n\nBody."
   },
   {
@@ -4650,8 +4650,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h1[Chapter #cell[]One]\n\nBody."
   },
   {
@@ -4659,8 +4659,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h1[Chapter #headcell[]One]\n\nBody."
   },
   {
@@ -4677,8 +4677,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h1[Chapter #colspan_(2)[]One]\n\nBody."
   },
   {
@@ -6027,8 +6027,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "טקסט#הערה[הערה #פריט[]פנימית] המשך."
   },
   {
@@ -6063,8 +6063,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "טקסט#הערה[הערה #תא[]פנימית] המשך."
   },
   {
@@ -6072,8 +6072,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "טקסט#הערה[הערה #כותרת_תא[]פנימית] המשך."
   },
   {
@@ -6090,8 +6090,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "טקסט#הערה[הערה #מיזוג(2)[]פנימית] המשך."
   },
   {
@@ -7440,8 +7440,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "Text#fnote[a note #item[]inside] continues."
   },
   {
@@ -7476,8 +7476,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "Text#fnote[a note #cell[]inside] continues."
   },
   {
@@ -7485,8 +7485,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "Text#fnote[a note #headcell[]inside] continues."
   },
   {
@@ -7503,8 +7503,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "Text#fnote[a note #colspan_(2)[]inside] continues."
   },
   {
@@ -8853,8 +8853,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #פריט[]כאן],\n  פריט[שני],\n)"
   },
   {
@@ -8889,8 +8889,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #תא[]כאן],\n  פריט[שני],\n)"
   },
   {
@@ -8898,8 +8898,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #כותרת_תא[]כאן],\n  פריט[שני],\n)"
   },
   {
@@ -8916,8 +8916,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #מיזוג(2)[]כאן],\n  פריט[שני],\n)"
   },
   {
@@ -10266,8 +10266,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #item[]here],\n  item[second],\n)"
   },
   {
@@ -10302,8 +10302,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #cell[]here],\n  item[second],\n)"
   },
   {
@@ -10311,8 +10311,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #headcell[]here],\n  item[second],\n)"
   },
   {
@@ -10329,8 +10329,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #colspan_(2)[]here],\n  item[second],\n)"
   },
   {
@@ -11715,8 +11715,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון],תא[],\n  פריט[שני],\n)"
   },
   {
@@ -11724,8 +11724,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון],כותרת_תא[],\n  פריט[שני],\n)"
   },
   {
@@ -11742,8 +11742,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון],מיזוג(2)[],\n  פריט[שני],\n)"
   },
   {
@@ -13128,8 +13128,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first],cell[],\n  item[second],\n)"
   },
   {
@@ -13137,8 +13137,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first],headcell[],\n  item[second],\n)"
   },
   {
@@ -13155,8 +13155,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first],colspan_(2)[],\n  item[second],\n)"
   },
   {
@@ -14541,8 +14541,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(תא[],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
@@ -14550,8 +14550,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(כותרת_תא[],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
@@ -14568,8 +14568,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(מיזוג(2)[],\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
@@ -15954,8 +15954,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(cell[],\n  item[first],\n  item[second],\n)"
   },
   {
@@ -15963,8 +15963,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(headcell[],\n  item[first],\n  item[second],\n)"
   },
   {
@@ -15981,8 +15981,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(colspan_(2)[],\n  item[first],\n  item[second],\n)"
   },
   {
@@ -17331,8 +17331,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #פריט[]כאן], תא[שתים],\n)"
   },
   {
@@ -17367,8 +17367,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #תא[]כאן], תא[שתים],\n)"
   },
   {
@@ -17376,8 +17376,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #כותרת_תא[]כאן], תא[שתים],\n)"
   },
   {
@@ -17394,8 +17394,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #מיזוג(2)[]כאן], תא[שתים],\n)"
   },
   {
@@ -18744,8 +18744,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #item[]here], cell[two],\n)"
   },
   {
@@ -18780,8 +18780,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #cell[]here], cell[two],\n)"
   },
   {
@@ -18789,8 +18789,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #headcell[]here], cell[two],\n)"
   },
   {
@@ -18807,8 +18807,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #colspan_(2)[]here], cell[two],\n)"
   },
   {
@@ -20157,8 +20157,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],פריט[], תא[שתים],\n)"
   },
   {
@@ -21570,8 +21570,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],item[], cell[two],\n)"
   },
   {
@@ -22983,8 +22983,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #פריט[]כאן] סוף],\n)"
   },
   {
@@ -23019,8 +23019,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #תא[]כאן] סוף],\n)"
   },
   {
@@ -23028,8 +23028,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #כותרת_תא[]כאן] סוף],\n)"
   },
   {
@@ -23046,8 +23046,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #מיזוג(2)[]כאן] סוף],\n)"
   },
   {
@@ -24396,8 +24396,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #fnote[in a note #item[]here] end],\n)"
   },
   {
@@ -24432,8 +24432,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #fnote[in a note #cell[]here] end],\n)"
   },
   {
@@ -24441,8 +24441,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #fnote[in a note #headcell[]here] end],\n)"
   },
   {
@@ -24459,8 +24459,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#bullets(\n  item[first #fnote[in a note #colspan_(2)[]here] end],\n)"
   },
   {
@@ -25809,8 +25809,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת4[פרק #פריט[]רביעי]\n\nגוף."
   },
   {
@@ -25845,8 +25845,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת4[פרק #תא[]רביעי]\n\nגוף."
   },
   {
@@ -25854,8 +25854,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת4[פרק #כותרת_תא[]רביעי]\n\nגוף."
   },
   {
@@ -25872,8 +25872,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#כותרת4[פרק #מיזוג(2)[]רביעי]\n\nגוף."
   },
   {
@@ -27222,8 +27222,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h4[Section #item[]Four]\n\nBody."
   },
   {
@@ -27258,8 +27258,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h4[Section #cell[]Four]\n\nBody."
   },
   {
@@ -27267,8 +27267,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h4[Section #headcell[]Four]\n\nBody."
   },
   {
@@ -27285,8 +27285,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#h4[Section #colspan_(2)[]Four]\n\nBody."
   },
   {
@@ -28635,8 +28635,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#סימן[א׳][דיני #פריט[]תפילה]"
   },
   {
@@ -28671,8 +28671,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#סימן[א׳][דיני #תא[]תפילה]"
   },
   {
@@ -28680,8 +28680,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#סימן[א׳][דיני #כותרת_תא[]תפילה]"
   },
   {
@@ -28698,8 +28698,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#סימן[א׳][דיני #מיזוג(2)[]תפילה]"
   },
   {
@@ -30048,8 +30048,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#siman[1][The laws of #item[]prayer]"
   },
   {
@@ -30084,8 +30084,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#siman[1][The laws of #cell[]prayer]"
   },
   {
@@ -30093,8 +30093,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#siman[1][The laws of #headcell[]prayer]"
   },
   {
@@ -30111,8 +30111,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#siman[1][The laws of #colspan_(2)[]prayer]"
   },
   {
@@ -31461,8 +31461,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#שער[כותרת #פריט[]ראשית]\n\nגוף."
   },
   {
@@ -31497,8 +31497,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#שער[כותרת #תא[]ראשית]\n\nגוף."
   },
   {
@@ -31506,8 +31506,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#שער[כותרת #כותרת_תא[]ראשית]\n\nגוף."
   },
   {
@@ -31524,8 +31524,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#שער[כותרת #מיזוג(2)[]ראשית]\n\nגוף."
   },
   {
@@ -32874,8 +32874,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#title[The #item[]Title]\n\nBody."
   },
   {
@@ -32910,8 +32910,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#title[The #cell[]Title]\n\nBody."
   },
   {
@@ -32919,8 +32919,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#title[The #headcell[]Title]\n\nBody."
   },
   {
@@ -32937,8 +32937,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#title[The #colspan_(2)[]Title]\n\nBody."
   },
   {
@@ -34287,8 +34287,8 @@
    "lang": "he",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#הערה[#כותרת_בהערה[ראשי#פריט[]ת] גוף ההערה]"
   },
   {
@@ -34323,8 +34323,8 @@
    "lang": "he",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#הערה[#כותרת_בהערה[ראשי#תא[]ת] גוף ההערה]"
   },
   {
@@ -34332,8 +34332,8 @@
    "lang": "he",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#הערה[#כותרת_בהערה[ראשי#כותרת_תא[]ת] גוף ההערה]"
   },
   {
@@ -34350,8 +34350,8 @@
    "lang": "he",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#הערה[#כותרת_בהערה[ראשי#מיזוג(2)[]ת] גוף ההערה]"
   },
   {
@@ -35700,8 +35700,8 @@
    "lang": "en",
    "cmd": "פריט",
    "en": "item",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#fnote[#note_heading[Head#item[]ing] the note body]"
   },
   {
@@ -35736,8 +35736,8 @@
    "lang": "en",
    "cmd": "תא",
    "en": "cell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#fnote[#note_heading[Head#cell[]ing] the note body]"
   },
   {
@@ -35745,8 +35745,8 @@
    "lang": "en",
    "cmd": "כותרת_תא",
    "en": "headcell",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#fnote[#note_heading[Head#headcell[]ing] the note body]"
   },
   {
@@ -35763,8 +35763,8 @@
    "lang": "en",
    "cmd": "מיזוג",
    "en": "colspan_",
-   "legal": true,
-   "reason": null,
+   "legal": false,
+   "reason": "illegalChildOutside",
    "source": "#fnote[#note_heading[Head#colspan_(2)[]ing] the note body]"
   },
   {

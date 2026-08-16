@@ -1,5 +1,6 @@
 import { check, ok, notOk } from "./harness.mjs";
 import {
+  bracketLists,
   listAt,
   itemAt,
   addItem,
@@ -346,6 +347,47 @@ export async function run() {
   notOk("make: refused inside a list", canMakeList(L, L.indexOf("ראשון"), L.indexOf("ראשון")));
   ok("make: and it does not act", makeList(L, L.indexOf("ראשון"), L.indexOf("ראשון"), "auto", "he") === null);
   notOk("make: refused with nothing to make", canMakeList("   \n  \n", 0, 6));
+}
+
+// ------------------------------------------------- the bracket form of a list
+//
+// The engine takes three spellings and lays them out identically. This module
+// operates on one of them, because every operation in it writes into the
+// argument list — so a bracket-form list is offered a conversion rather than
+// half-adopted, which would corrupt it on the first click of the ribbon.
+
+{
+  const b = bracketLists("#רשימה[#פריט[אלף] #פריט[בית]]");
+  check("a bracketed list is offered a conversion", b.length, 1);
+  check("into the argument form", b[0]?.text, "#רשימה(פריט[אלף], פריט[בית])");
+  check("the argument form is left alone", bracketLists("#רשימה(פריט[א], פריט[ב])").length, 0);
+  check(
+    "bodies with no item command are items too",
+    bracketLists("#רשימה[הא][ואו]")[0]?.text,
+    "#רשימה(פריט[הא], פריט[ואו])",
+  );
+  check(
+    "named arguments are carried across",
+    bracketLists("#רשימה(סמן: [–])[א][ב]")[0]?.text,
+    "#רשימה(סמן: [–], פריט[א], פריט[ב])",
+  );
+  check(
+    "an English list keeps its own spelling",
+    bracketLists("#bullets[#item[a] #item[b]]")[0]?.text,
+    "#bullets(item[a], item[b])",
+  );
+  check(
+    "a numbered list keeps its own command",
+    bracketLists("#ממוספרת[#פריט[א]]")[0]?.text,
+    "#ממוספרת(פריט[א])",
+  );
+  // The conversion has to be a real document, not a plausible string: an
+  // offer that produces something the ribbon still refuses is worse than no
+  // offer, because the writer has now been told the problem is fixed.
+  const converted = bracketLists("#רשימה[#פריט[אלף] #פריט[בית]]")[0].text;
+  const l = listAt(converted, converted.indexOf("אלף"));
+  ok("and the ribbon can then see the list", l !== null);
+  check("with both its items", l?.items.length, 2);
 }
 
 }

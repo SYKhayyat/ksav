@@ -214,6 +214,30 @@ function readContainers() {
   return j.containers ?? [];
 }
 
+/**
+ * Which parents each structural child is legal inside, from `_kd_parents`.
+ *
+ * Five commands in the language — `#פריט`, `#הגדרה`, `#תא`, `#כותרת_תא`,
+ * `#מיזוג` — mean nothing outside their parent, and the prelude is where that
+ * is decided: `_kd_items` reads this same dictionary to choose whether a child
+ * gets the "outside its container" badge. Generated rather than retyped for the
+ * usual reason, which bit here already — `legalAt` guarded exactly one of the
+ * five (`#מיזוג`, and for an unrelated reason), so the editor and the engine
+ * disagreed about four commands and nothing said so.
+ */
+function readChildren() {
+  const src = readFileSync(PRELUDE, "utf8");
+  const at = src.indexOf("#let _kd_parents = (");
+  if (at < 0) throw new Error("emit-engine: the prelude has no _kd_parents");
+  const block = parenBlock(src, src.indexOf("(", at));
+  const out = {};
+  for (const m of block.matchAll(/"([^"]+)"\s*:\s*\(([^)]*)\)/g)) {
+    out[m[1]] = [...m[2].matchAll(/"([^"]+)"/g)].map((p) => p[1]);
+  }
+  if (!Object.keys(out).length) throw new Error("emit-engine: _kd_parents read empty");
+  return out;
+}
+
 /** Every name the prelude binds at all, alias or definition. */
 function preludeNames() {
   const src = readFileSync(PRELUDE, "utf8");
@@ -276,7 +300,7 @@ function readNotices() {
 
 // ---------------------------------------------------------------- emitting
 
-function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields) {
+function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields, children) {
   const q = (v) => JSON.stringify(v);
   const settable = defaults.filter((d) => !(d.name in NOT_A_SETTING) && !d.absent);
   const omitted = defaults.filter((d) => d.absent).map((d) => d.name);
@@ -389,6 +413,23 @@ export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
 export const CONTAINERS: readonly string[] = [
 ${containerRows}
 ];
+
+/**
+ * The five commands that are arguments rather than commands, and what they are
+ * arguments *of*.
+ *
+ * \`#פריט\` is one entry of a \`#רשימה\`; \`#תא\`, \`#כותרת_תא\` and \`#מיזוג\` are cells
+ * of a \`#טבלה\`; \`#הגדרה\` is a row of a \`#רשימת_הגדרות\`. Written anywhere else
+ * they used to be the identity function — \`#פריט[א]\` at the top of a document
+ * printed the word, drew no bullet, and said nothing.
+ *
+ * From \`_kd_parents\` in the prelude, which is the same dictionary
+ * \`_kd_items\` consults when deciding whether a child gets the "outside its
+ * container" badge. So the editor greys exactly what the engine flags, rather
+ * than the state this replaced: \`legalAt\` guarded one of the five, for an
+ * unrelated reason, and nothing noticed the other four.
+ */
+export const STRUCTURAL_CHILDREN: Readonly<Record<string, readonly string[]>> = ${q(children)};
 
 /**
  * Which Hebrew characters are marks, which separate words, which fold to what.
@@ -509,6 +550,7 @@ export const BUNDLED_FONTS: readonly string[] = BUNDLED_NOTICES.filter(
 const aliases = readAliases();
 const params = readParams();
 const containers = readContainers();
+const children = readChildren();
 const commands = readCommands();
 const defaults = readDefaults();
 const notices = readNotices();
@@ -586,7 +628,7 @@ if (notices.some((n) => !n.name || !n.copyright)) {
   process.exit(1);
 }
 
-const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields);
+const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields, children);
 
 /** Every generated output, as `[path, wanted, label]`. */
 export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];

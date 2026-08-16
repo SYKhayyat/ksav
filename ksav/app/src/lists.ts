@@ -532,3 +532,76 @@ export function moveItem(doc: string, list: ListInfo, pos: number, by: -1 | 1): 
   const moved = by < 0 ? a.from : a.from + (b.to - b.from) + (b.from - a.to);
   return { text, caret: moved + 1 };
 }
+
+// ---------------------------------------------------------------- bracket form
+//
+// A list can be written two ways, and only one of them is a list as far as this
+// module is concerned:
+//
+//   #רשימה(פריט[א], פריט[ב])      the argument form — items are arguments
+//   #רשימה[#פריט[א] #פריט[ב]]      the bracket form — items are in the body
+//   #רשימה[א][ב]                   the same, without the item command at all
+//
+// The engine takes all three and lays them out identically. `allLists` above
+// takes the first only (`if (n.role !== "list" || !n.args) continue`), because
+// every operation in this file writes into the argument list: `addItem` splices
+// `,\n  פריט[…]` between two arguments, `moveItem` swaps two argument ranges,
+// `indentItem` re-nests one. Pointed at a list that has no argument list, each
+// of them would write its comma into a body and produce prose.
+//
+// So the bracket form is not quietly adopted here — it is offered a conversion.
+// Recognising it far enough to enable the ribbon, without teaching six
+// operations a second syntax, would turn a list that renders correctly into a
+// list the ribbon corrupts on the first click, which is worse than the ribbon
+// staying grey.
+
+/** A list written in body brackets, and the same list as an argument list. */
+export interface Normalisable {
+  /** The whole call, `#` included. */
+  from: number;
+  to: number;
+  /** The command name, for the message. */
+  name: string;
+  /** The argument form, ready to replace the range. */
+  text: string;
+}
+
+/**
+ * Every list in `doc` whose items are in its body rather than its argument list.
+ *
+ * Named arguments are carried across, so `#רשימה(סמן: [–])[א][ב]` — which has an
+ * argument list *and* keeps its items outside it, and which `allLists` therefore
+ * reports as a list with zero items — comes out as
+ * `#רשימה(סמן: [–], פריט[א], פריט[ב])`.
+ */
+export function bracketLists(doc: string): Normalisable[] {
+  const out: Normalisable[] = [];
+  for (const n of scan(doc).nodes) {
+    if (n.role !== "list" || n.bodies.length === 0) continue;
+    const kids = childrenOfRole(n, "item");
+    const args = n.args;
+    // Items already where the ribbon expects them: nothing to offer.
+    if (args && kids.some((c) => c.from >= args.from && c.to <= args.to)) continue;
+    const item = n.lang === "en" ? "item" : "פריט";
+    const parts: string[] = [];
+    for (const b of n.bodies) {
+      const inside = kids.filter((c) => c.from >= b.from && c.to <= b.to);
+      if (inside.length > 0) {
+        for (const k of inside) {
+          const kb = k.bodies[0];
+          parts.push(`${item}[${kb ? doc.slice(kb.from, kb.to) : ""}]`);
+        }
+      } else {
+        // A body with no item command in it is itself one item — `#רשימה[א][ב]`.
+        const body = doc.slice(b.from, b.to).trim();
+        if (body !== "") parts.push(`${item}[${body}]`);
+      }
+    }
+    if (parts.length === 0) continue;
+    const named = args ? doc.slice(args.from, args.to).trim() : "";
+    const inner = named === "" ? parts.join(", ") : `${named}, ${parts.join(", ")}`;
+    const hash = doc[n.from] === "#" ? "#" : "";
+    out.push({ from: n.from, to: n.to, name: n.name, text: `${hash}${n.name}(${inner})` });
+  }
+  return out;
+}

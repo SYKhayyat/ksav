@@ -281,13 +281,22 @@ export function render(source: string, d: Dialect): string {
    */
   const tableOf = (node: Node, walk: (a: number, b: number) => string): string => {
     const cols = node.cols ?? 2;
+    const clean = (a: number, b: number) =>
+      walk(a, b).trim().replace(/\|/g, "\\|").replace(/\n+/g, " ");
     const cells: { text: string; header: boolean }[] = [];
     for (const c of node.children) {
       if (c.role !== "cell" || !c.bodies[0]) continue;
-      cells.push({
-        text: walk(c.bodies[0].from, c.bodies[0].to).trim().replace(/\|/g, "\\|").replace(/\n+/g, " "),
-        header: c.header === true,
-      });
+      cells.push({ text: clean(c.bodies[0].from, c.bodies[0].to), header: c.header === true });
+    }
+    // A table whose cells are bodies rather than `#תא` calls —
+    // `#טבלה(עמודות: 2)[א][ב]`, which lays out as a two-cell table. With no cell
+    // node to find, this returned "" and the table vanished from the export
+    // entirely: the same silent loss as the list above, from the same cause.
+    if (cells.length === 0) {
+      for (const b of node.bodies) {
+        const text = clean(b.from, b.to);
+        if (text !== "") cells.push({ text, header: false });
+      }
     }
     if (!cells.length) return "";
     const rows: string[][] = [];
@@ -363,7 +372,37 @@ export function render(source: string, d: Dialect): string {
       } else if (s.role === "table") {
         out += "\n\n" + tableOf(s, walk) + "\n\n";
       } else if (LISTS[s.name] != null) {
-        out += "\n" + walk(bodyFrom, bodyTo, LISTS[s.name]) + "\n";
+        // Every group, and a group with no `#פריט` in it is one item.
+        //
+        // This walked `bodies[0]` alone, with `listKind` set — which suppresses
+        // every character that is not inside an item, on the correct argument
+        // that the commas and indentation between `פריט[…]` calls are punctuation
+        // of the source and not of the document. Put together, a list written
+        // `#רשימה[א][ב]` — two bodies, no item command, which the engine lays out
+        // as two perfectly good bullets — exported as **nothing at all**: the
+        // second body was never visited and the first had its text suppressed for
+        // not being in an item.
+        //
+        // Silent loss of the writer's words on export, in the one direction where
+        // it cannot be noticed by looking at the page.
+        const kind = LISTS[s.name];
+        const groups = hasBody ? s.bodies : s.args ? [s.args] : [];
+        const items: string[] = [];
+        for (const g of groups) {
+          const kids = s.children.filter((c) => c.role === "item" && c.from >= g.from && c.to <= g.to);
+          if (kids.length > 0) {
+            for (const k of kids) {
+              const kb = k.bodies[0];
+              items.push(kb ? walk(kb.from, kb.to).trim() : "");
+            }
+          } else {
+            const text = walk(g.from, g.to).trim();
+            if (text !== "") items.push(text);
+          }
+        }
+        // Numbered one to n across the whole list rather than per group, which a
+        // walk per body could not do — its counter is local to the call.
+        out += "\n" + items.map((text, n) => d.listItem(n + 1, kind, text)).join("") + "\n";
       } else if ((s.name === "פריט" || s.name === "item") && listKind) {
         itemIndex++;
         out += d.listItem(itemIndex, listKind, inner().trim());

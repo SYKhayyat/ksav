@@ -3034,6 +3034,148 @@
 #let ltr_ = משמאל_לימין
 
 // ============================================================
+//  ילדים מבניים · structural children
+// ============================================================
+//
+// Five commands in this language mean nothing on their own. `#פריט` is one entry
+// of a `#רשימה`, `#תא` and `#כותרת_תא` and `#מיזוג` are cells of a `#טבלה`, and
+// `#הגדרה` is a row of a `#רשימת_הגדרות`. They are arguments, not commands: the
+// structure lives entirely in the parent, which takes its children as
+// **positional arguments** and hands them to Typst's `list` / `table` / `terms`.
+// One positional argument in, one bullet or one cell out.
+//
+// # What that cost
+//
+// `#פריט` and `#תא` were written `#let פריט(body) = body` — the identity
+// function — so the commas and parentheses were the entire mechanism and the
+// command name was decoration around them. Which meant:
+//
+//   #רשימה(פריט[א], פריט[ב])      two bullets, the shape every toolbar writes
+//   #רשימה[#פריט[א] #פריט[ב]]      ONE bullet, both words inside it
+//   #פריט[א]                       body text, no bullet, no complaint
+//
+// The second is what a writer types coming from Typst, where `#list[…]` is
+// idiomatic. It compiled, it rendered, and it silently collapsed the list. The
+// third printed the word and said nothing at all. Neither has ever been caught
+// by anything, because nothing in the product *writes* the wrong form — the
+// toolbar, the docx importer and the list ribbon all emit the paren form, so
+// every automated path was correct and every hand-typed one was on its own.
+//
+// # The mark
+//
+// A child now returns three things in a row: a `metadata` carrying its kind and
+// its real body, a red badge naming itself, and the body. Two consequences, and
+// they are the whole design:
+//
+//   - **A parent that consumes it takes `.גוף` out of the metadata** and drops
+//     the rest, so the badge exists only in a document where nobody consumed it.
+//     Correct usage renders byte-identical to what it always did.
+//   - **A parent can find the marks inside a content block**, so the bracket
+//     form is no longer a silent collapse — it lays out the list the writer
+//     obviously meant. Being liberal here is not guessing: `#רשימה[#פריט[א]
+//     #פריט[ב]]` has exactly one possible reading.
+//
+// Deliberately **not** a `#show metadata:` rule at document level, which was the
+// first design and is the one to avoid. This prelude runs its entire apparatus
+// on `metadata` + `query` + convergence — a note re-emits its metadata on every
+// layout pass and the footer counts on the introspection settling. A show rule
+// over every metadata element in the document puts a hand on exactly that, to
+// catch a case the mark can announce by itself.
+//
+// A stray also keeps printing its body. A badge beside the words is a writer
+// noticing; a badge *instead of* the words is a writer losing a paragraph.
+#let _kd_key = "ksav_child"
+#let _kd_seq = [].func()
+/// Which parents each structural child is legal inside — **the one list**.
+///
+/// Read by `_kd_items` below, so it is not a comment that can drift from the
+/// code: a child in the wrong parent wears the badge, and a child in the right
+/// one does not, both decided here. `app/tools/emit-engine.mjs` generates the
+/// editor's copy from this dictionary, which is what lets `mode.ts` grey a
+/// `#תא` button outside a table without a second list saying the same thing in
+/// TypeScript. Of these five, exactly one — `#מיזוג` — was guarded before, and
+/// for an unrelated reason (a merged cell spliced between two others overflows
+/// the row). The language had one opinion out of five.
+#let _kd_parents = (
+  "פריט": ("רשימה", "ממוספרת", "ממוספרת_עברית"),
+  "הגדרה": ("רשימת_הגדרות",),
+  "תא": ("טבלה",),
+  "כותרת_תא": ("טבלה",),
+  "מיזוג": ("טבלה",),
+)
+/// The badge an unconsumed child wears.
+#let _kd_stray(kind) = box(
+  inset: (x: 3pt, y: 1pt),
+  radius: 2pt,
+  fill: rgb("#fef2f2"),
+  stroke: 0.6pt + rgb("#dc2626"),
+  text(size: 0.75em, fill: rgb("#b91c1c"))[#kind מחוץ למקומו · outside its container],
+)
+/// A structural child: the mark, the badge, and the body.
+#let _kd(kind, body) = [#metadata((ksav_child: kind, גוף: body))#_kd_stray(kind)#body]
+/// Which kind of child `c` is, or `none` if it is ordinary content.
+#let _kd_kind(c) = {
+  if c.func() != _kd_seq {
+    none
+  } else {
+    let h = c.children.first()
+    if h.func() == metadata and type(h.value) == dictionary {
+      h.value.at(_kd_key, default: none)
+    } else {
+      none
+    }
+  }
+}
+/// The body a child was given — read off the mark, never sliced off the front,
+/// so the badge cannot leak into a consumed child by an index being wrong.
+#let _kd_body(c) = c.children.first().value.גוף
+/// One positional argument, as the children it holds.
+///
+/// Three shapes, in the order they are tested: the argument *is* a child; the
+/// argument is a block *containing* children (the bracket form); or it is
+/// ordinary content and therefore one child, which is what every list written
+/// before these marks existed looks like and must keep doing.
+/// A child's body, with the badge kept if this is not a parent it belongs in.
+///
+/// Consumed either way — a `#תא` inside a `#רשימה` still becomes one item, so
+/// the rest of the list keeps its shape — but it says so on the page.
+#let _kd_take(c, parent) = {
+  let k = _kd_kind(c)
+  if _kd_parents.at(k, default: ()).contains(parent) {
+    _kd_body(c)
+  } else {
+    _kd_stray(k) + _kd_body(c)
+  }
+}
+#let _kd_items(c, parent) = {
+  if _kd_kind(c) != none {
+    (_kd_take(c, parent),)
+  } else if c.func() == _kd_seq and c.children.any(x => _kd_kind(x) != none) {
+    // Content between the marks joins the child before it — the usual case is
+    // the whitespace and line breaks of a block written over several lines, and
+    // a stray word is better carried than dropped on the floor.
+    let out = ()
+    let cur = none
+    for ch in c.children {
+      if _kd_kind(ch) != none {
+        if cur != none { out.push(cur) }
+        cur = _kd_take(ch, parent)
+      } else if cur != none {
+        cur = cur + ch
+      } else if not (ch == [ ] or ch == parbreak() or ch == linebreak()) {
+        cur = ch
+      }
+    }
+    if cur != none { out.push(cur) }
+    out
+  } else {
+    (c,)
+  }
+}
+/// Every positional argument of a parent, as its children.
+#let _kd_all(args, parent) = args.map(c => _kd_items(c, parent)).flatten()
+
+// ============================================================
 //  רשימות · lists (nest freely)
 // ============================================================
 // #רשימה / #ממוספרת read #הגדרות_רשימות at their location (marker, indent,
@@ -3080,7 +3222,7 @@
   for (k, v) in rest { a.insert(k, v) }
   let (deep, shallow) = _ls_deep(a, "list")
   set list(..deep)
-  list(..shallow, ..פריטים.pos())
+  list(..shallow, .._kd_all(פריטים.pos(), "רשימה"))
 }
 #let ממוספרת(..פריטים) = context {
   let (own, rest) = _cfg_split(פריטים.named(), _ls_defaults.keys())
@@ -3099,7 +3241,7 @@
   for (k, v) in rest { a.insert(k, v) }
   let (deep, shallow) = _ls_deep(a, "enum")
   set enum(..deep)
-  enum(..shallow, ..פריטים.pos())
+  enum(..shallow, .._kd_all(פריטים.pos(), "ממוספרת"))
 }
 // Hebrew-lettered, which is what this command *is*: `מספור` here is the
 // definition and not an override, so it is set rather than passed — passed, a
@@ -3111,9 +3253,9 @@
   named.insert("מספור", "א.")
   ממוספרת(..named, ..פריטים.pos())
 }
-#let פריט(body) = body
-#let רשימת_הגדרות(..זוגות) = terms(..זוגות)
-#let הגדרה(מונח, פירוש) = terms.item(מונח, פירוש)
+#let פריט(body) = _kd("פריט", body)
+#let רשימת_הגדרות(..זוגות) = terms(..זוגות.named(), .._kd_all(זוגות.pos(), "רשימת_הגדרות"))
+#let הגדרה(מונח, פירוש) = _kd("הגדרה", terms.item(מונח, פירוש))
 
 #let bullets = _en(רשימה)
 #let numbered = _en(ממוספרת)
@@ -3668,7 +3810,7 @@
     // Merged and not spread alongside, so a Typst-named argument the writer gave —
     // `#טבלה(align: center)` — wins outright instead of arriving twice under `align`.
     for (k, v) in rest { a.insert(k, v) }
-    let t = table(..a, ..תאים.pos())
+    let t = table(..a, .._kd_all(תאים.pos(), "טבלה"))
     let f = c.at("גופן", default: none)
     let s = c.at("גודל", default: none)
     if f != none { t = text(font: f, t) }
@@ -3677,12 +3819,12 @@
   }
   if own.len() > 0 { _tb_own.update((:)) }
 }
-#let תא(body) = body
-#let כותרת_תא(body) = context {
+#let תא(body) = _kd("תא", body)
+#let כותרת_תא(body) = _kd("כותרת_תא", context {
   let c = _cfg_with(_tb_cfg.get(), _tb_own.get())
   table.cell(fill: c.at("צבע_כותרת", default: luma(235)), strong(body))
-}
-#let מיזוג(מספר, body) = table.cell(colspan: מספר, body)
+})
+#let מיזוג(מספר, body) = _kd("מיזוג", table.cell(colspan: מספר, body))
 
 #let mktable = _en(טבלה)
 #let cell = תא

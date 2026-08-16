@@ -61,6 +61,7 @@ import { DEFAULTS, defaultPageSetup } from "../.tmp-test/settings.mjs";
 import { CLASSIFIED_NAMES } from "../.tmp-test/interchange.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
 import { plainText } from "../.tmp-test/spans.mjs";
+import { commands } from "../tools/commands.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
@@ -436,6 +437,123 @@ export async function run() {
         () => `_rg_own is ${regionOwn}`,
       );
     }
+  }
+
+  // ------------------- 4¾. every separate command has a look of its own
+  //
+  // The rule, stated on 16 August 2026: **anything that is a separate command
+  // has a look of its own, and the writer can set it — whether heading, source
+  // footnote, siman, seif.**
+  //
+  // What it rules out is the answer this product gave twice: *that is really a
+  // footnote / really a heading, so style all your footnotes / all your
+  // headings*. True about the mechanism and no use to the writer, who wanted
+  // their mareh mekomos set apart from their notes and their simanim from their
+  // other headings.
+  //
+  // The rule cannot be held by a regex over the prelude, because "has a look"
+  // is answered by five different authorities — a per-level ramp for headings,
+  // a per-tier one for notes, per-band, per-stream, and the class register that
+  // `_mk_defaults` holds. So this is a sweep over the *registry*: every command
+  // the engine offers is either drawn with a look somebody can set, or it is
+  // one of the kinds below, by name and with the reason.
+  //
+  // The last kind is the inventory of what is left. It is a claim and not a
+  // skip list: every name in it must still be a command, and must still be
+  // absent from `_mk_defaults` — so giving one a look turns this red until the
+  // row is removed, which is how the list can only shrink.
+
+  {
+    const styled = new Set([
+      // The five authorities, each named where it lives.
+      ...["כותרת", "כותרת1", "כותרת2", "כותרת3", "כותרת4", "כותרת5", "כותרת6"],
+      ...["רשימה", "ממוספרת", "ממוספרת_עברית"],
+      "טבלה",
+      ...["הערה", "הערה_בדרגה", "הערה_על_הערה"],
+      ...["א", "ב", "ג", "ד", "ה", "ו", "ז"].map((x) => `הערה_${x}`),
+      ...["בדרגה", "א", "ב", "ג", "ד", "ה", "ו", "ז"].map((x) => `מדף_${x}`),
+      ...["הערה_זרם", "הערת_תוכן", "הערת_מקור"],
+      ...STYLED_CLASSES,
+    ]);
+
+    /** Commands that are not a thing with a look, and why. */
+    const NOT_A_LOOK = {
+      "is itself a style": [
+        "הדגשה", "נטוי", "קו_תחתון", "קו_חוצה", "עיצוב", "סימון", "רברבתי",
+        "כתב_רשי", "עילי", "תחתי", "גדול", "קטן", "צבע", "רקע", "גופן_שונה",
+        "קוד", "גודל_גופן", "מרווח_אותיות",
+      ],
+      "a position, not a look": [
+        "מרכז", "ימין", "שמאל", "משמאל_לימין", "מימין_לשמאל", "הזחה",
+        "מעבר_עמוד", "מעבר_שורה", "מעבר_פסקה", "מעבר_טור", "מרווח",
+        "רווח_אופקי", "חסר", "טורים_בלוק",
+      ],
+      "styled by the thing it is part of": [
+        "פריט", "תא", "כותרת_תא", "מיזוג", "רשימת_הגדרות",
+      ],
+      "prints nothing at all": [
+        "כלול", "סמן", "הפניה", "גופי_הערות", "גוף_הערה", "הערה_בשם",
+        "הצג_אזור",
+      ],
+      "a configuration or an index": [
+        "תוכן", "רשימת_סימונים", "מפתח_מקורות",
+        "מפתח_ענינים", "ערוץ", "אזור", "מקטע_עמוד", "כותרת_עליונה",
+        "כותרת_תחתונה", "הערות_מדורגות", "הערות_בסוף", "הערות_בסוף_צד",
+        "עם_הערות_צד", "עם_הערות_דו_צד", "עם_פירוש",
+      ],
+      // What the rule still owes. Each of these draws something a writer would
+      // want to set and has no channel — see HANDOFF.md.
+      "no look of its own yet": [
+        "שער", "תת_שער", "כותרת_בהערה", "ציטוט", "הערת_צד", "אזהרה", "הצלחה",
+        "תיבה", "מקור", "קו_מפריד", "תמונה", "נוסחה", "נוסחה_בשורה",
+        "הערת_ימין", "הערת_שמאל", "הערת_גיליון", "מדור_א", "מדור_ב", "מדור_ג",
+        "מדור_בדרגה", "הערתסיום", "הוספה", "מחיקה", "הערת_עורך",
+      ],
+    };
+
+    const names = new Set(commands().filter((c) => !c.deprecated).map((c) => c.he));
+    const classified = new Map();
+    for (const [why, list] of Object.entries(NOT_A_LOOK)) {
+      for (const he of list) classified.set(he, why);
+    }
+
+    // Every name in the table is still a command. A row for something that has
+    // been renamed is an exemption guarding nothing, which this file's
+    // neighbours refuse by name.
+    check(
+      "every command excused from the rule still exists",
+      [...classified.keys()].filter((he) => !names.has(he)),
+      [],
+    );
+    // …and nothing is excused twice, under two different reasons.
+    const twice = [];
+    for (const [why, list] of Object.entries(NOT_A_LOOK)) {
+      for (const he of list) if (classified.get(he) !== why) twice.push(he);
+    }
+    check("and no command is excused under two reasons", twice, []);
+
+    // The rule itself.
+    const unclassified = [...names].filter(
+      (he) => !styled.has(he) && !classified.has(he) && !he.startsWith("הגדרות_"),
+    );
+    check(
+      "every command either has a look of its own or is excused by name",
+      unclassified,
+      [],
+    );
+
+    // And the inventory is honest in the other direction: a command listed as
+    // having no look yet must genuinely have none.
+    check(
+      "nothing listed as having no look yet already has one",
+      NOT_A_LOOK["no look of its own yet"].filter((he) => styled.has(he)),
+      [],
+    );
+    ok(
+      "the rule still owes something, and says how much",
+      NOT_A_LOOK["no look of its own yet"].length > 0,
+      `${NOT_A_LOOK["no look of its own yet"].length} commands`,
+    );
   }
 
   // ------------------------------------------- 5. "strip the markup", once

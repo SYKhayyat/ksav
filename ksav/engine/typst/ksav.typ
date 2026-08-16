@@ -3240,6 +3240,34 @@
   "פסוק": (סגנון: "italic"),
   "ציון_מקור": (סגנון: "italic"),
   "ערך": (:),
+  // The source note, whose whole complaint was that it *looks exactly like a
+  // footnote*. The 0.92em it has always been set at is written here now rather
+  // than inline in `מראה_מקום`, so the value a writer sees in the panel is the
+  // one the page uses — and every document written before this reads the same,
+  // because the number has not changed.
+  //
+  // It is styled through this register rather than through a channel of its
+  // own, and that is the whole reason the earlier answer was *no*: what a mareh
+  // makom looks like is one fact, and two commands able to set it is the drift
+  // this product keeps paying for. What was wrong was the conclusion, not the
+  // rule — a class of marks already has one authority for its look, with a
+  // per-instance override and `כפה` to sweep the one-offs back, and a source
+  // note is a class of marks. It belongs *in* that authority, not beside it.
+  //
+  // The size compounds with the footnote's own, deliberately: this is the
+  // difference between a mareh makom and the footnotes around it, which is what
+  // was asked for, and it stays that difference when the note styles change.
+  "מראה_מקום": (גודל: 0.92em),
+  // The structure of a sefer, which is a separate command and therefore has a
+  // look of its own — the rule this table is now the register for. A siman is a
+  // heading and a seif is a block, so what they take from here is what a piece
+  // of *text* can take; where they sit on the page is still the heading's and
+  // the block's. Both ship with exactly what they printed before: a siman with
+  // nothing of its own over the level-1 heading, a seif and an os with the bold
+  // letter they were written with.
+  "סימן": (:),
+  "סעיף": (משקל: "bold"),
+  "אות": (משקל: "bold"),
 )
 
 /// What `#רשימת_סימונים` calls a class when the writer does not title it.
@@ -3353,19 +3381,44 @@
 // a paragraph before every siman is vertical space nobody asked for; inside, it
 // is invisible and its location is still the heading's, which is what the page
 // number in the list is read off.
-#let סימן(מספר, כותרת) = heading(
-  level: 1,
-  [סימן #מספר#if כותרת != none [ — #כותרת]#metadata((
-    class: "סימן",
-    entry: "סימן " + _as_string(מספר) + if כותרת != none { " — " + _as_string(כותרת) } else { "" },
-  ))#_mk_label],
-)
+// A siman is a heading, and it is not *an* ordinary heading — which is the
+// whole of why it takes a look of its own. `#הגדרות_כותרות` sets every level-1
+// heading in the sefer; a writer who wants the simanim larger than the other
+// level-1 headings had nothing to say. It resolves through the same three
+// layers as every other named class — the shipped default, the class, this one
+// — over whatever the heading level says, so a sefer that has never mentioned
+// simanim reprints exactly as it did.
+//
+// The metadata stays outside the styled body: it is what `#רשימת_סימונים`
+// collects, and a look is not allowed to decide what is in an index.
+#let סימן(מספר, כותרת, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("סימן", rest)
+  let entry = "סימן " + _as_string(מספר) + if כותרת != none { " — " + _as_string(כותרת) } else { "" }
+  heading(level: 1, {
+    if own.at("ברשימה", default: true) != false {
+      [#metadata((class: "סימן", entry: entry))#_mk_label]
+    }
+    context _mk_render(_mk_conf("סימן", own), [סימן #מספר#if כותרת != none [ — #כותרת]])
+  })
+}
 
 // סעיף — a lettered/numbered halachic paragraph: "א. גוף ההלכה"
-#let סעיף(אות, body) = block(spacing: 0.85em, {
-  strong([#אות. ])
-  body
-})
+//
+// The look belongs to **the letter**, not to the paragraph. `#סעיף` has always
+// set it with `strong`, which is `משקל: "bold"` written as a shipped default
+// here — so it prints as it always has and a writer can now say otherwise. The
+// body is the writer's prose and is left alone: a class default that swallowed
+// it would restyle the halacha along with its letter, which is not what anybody
+// asking for this means.
+#let סעיף(אות, body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("סעיף", rest)
+  block(spacing: 0.85em, context {
+    _mk_render(_mk_conf("סעיף", own), [#אות. ])
+    body
+  })
+}
 
 // אות — the letter that opens a clause, set bold with its full stop: #אות[ב]
 // prints **ב.** and the text runs on from it.
@@ -3376,7 +3429,14 @@
 // letter that opens a clause inside a paragraph that is already running. A sefer
 // uses both on the same page, which is why one is not the other with an
 // argument.
-#let אות(סימן) = strong([#סימן. ])
+// The inline sibling takes the same look through the same three layers, and
+// separately from `#סעיף` — a sefer that sets its blocks apart from its inline
+// letters is the reason both commands exist.
+#let אות(סימן, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("אות", rest)
+  context _mk_render(_mk_conf("אות", own), [#סימן. ])
+}
 
 // פסוק — an emphasized quotation followed by its reference in parentheses.
 //
@@ -3411,11 +3471,27 @@
 // It registers in the mark register (`_mk_label`) like every other collectable
 // mark, and carries its `ref` and `chars` alongside the entry — which is why
 // the register's value is a dictionary a class may add to rather than a fixed
-// pair. Collect-only: what a mareh makom looks like is a footnote's question,
-// answered by `#הגדרות_הערות`, and a second styling channel over the same text
-// would be two authorities for one fact.
-#let מראה_מקום(body, מקור: none, תווים: none) = {
-  if מקור != none {
+// pair.
+//
+// It takes its **look** from that register too, which it did not use to: the
+// margin note that produced this said a source note *looks exactly like a
+// footnote*, and the answer was that a footnote is what it is, so
+// `#הגדרות_הערות` already styles it. True, and no use to the writer who wants
+// this one apparatus set apart from the ordinary notes without dragging every
+// note with it. `_mk_defaults` says why the register is where that belongs.
+//
+// So: `#הגדרות_סימונים(גודל: ("מראה_מקום": 0.8em))` for the class,
+// `#מראה_מקום(סגנון: "italic")[…]` for this one, `פטור` to hold one out of the
+// class's look, and `כפה` on the global to sweep the one-offs back — the same
+// three layers every other class of marks has had.
+//
+// `ברשימה: false` keeps a citation out of `#מראה_מקומות()` while leaving it a
+// footnote, which is why the registration below reads it. Without a `מקור:`
+// there is nothing to file either way, and that has not changed.
+#let מראה_מקום(body, מקור: none, תווים: none, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("מראה_מקום", rest)
+  if מקור != none and own.at("ברשימה", default: true) != false {
     [#metadata((
       class: "מראה_מקום",
       entry: _as_string(body).trim(),
@@ -3424,7 +3500,7 @@
       printed: body,
     ))#_mk_label]
   }
-  footnote(text(size: 0.92em, body))
+  footnote(context _mk_render(_mk_conf("מראה_מקום", own), body))
 }
 
 // מקור_חי — a citation in the flow of the prose that keeps its ref.

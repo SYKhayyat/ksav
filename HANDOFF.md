@@ -97,6 +97,23 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
+- [ ] **A look of its own, for the twenty-four that still have none.** The rule
+      is that anything which is a separate command has a style the writer can
+      set — `#מראה_מקום`, `#סימן`, `#סעיף` and `#אות` have one now, and
+      `enginefacts.test.mjs` names the rest under *no look of its own yet*: the
+      boxes (`#ציטוט`, `#אזהרה`, `#תיבה`…), the side notes — whose configurable
+      width the margins asked for by name — the three review marks a reader sees
+      most and cannot touch, the title page, the rules and the formulas.
+
+      Each is four lines: a row in `_mk_defaults` shipping exactly what it
+      prints today, and rendering through `_mk_conf`. The fence goes red until
+      its name is taken off the list, so the list can only shrink. See
+      [`decisions/2026-08-16-a-look-of-its-own.md`](decisions/2026-08-16-a-look-of-its-own.md).
+
+      Two of them are not four lines, and are worth doing anyway: a `#קו_מפריד`
+      wants thickness and width rather than a text look, and `#תמונה` wants its
+      caption's. Neither fits the class register as it stands.
+
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
       most important line on the page. Two kuntres-length sittings — 7 and 16
       August — found four bugs the whole suite was green over, and neither of

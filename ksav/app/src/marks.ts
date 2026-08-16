@@ -22,11 +22,26 @@ import type { Group } from "./spans";
  *
  * These are the class names the document itself uses — a class is named by its
  * own command — which is why they are Hebrew here and translated only for
- * display. `#סימן` and `#מראה_מקום` are deliberately not among them: they
- * register for the collecting and take their look from what they already are, a
- * heading and a footnote, so a second styling channel over the same text would be
- * two authorities for one fact. The prelude's `_mk_defaults` is the authority and
+ * display. The prelude's `_mk_defaults` is the authority and
  * `test/enginefacts.test.mjs` reads it.
+ *
+ * `#סימן` and `#מראה_מקום` used not to be among them, on the grounds that both
+ * take their look from what they already are — a heading and a footnote — so a
+ * second styling channel over the same text would be two authorities for one
+ * fact. That is right about the *rule* and was the wrong conclusion, twice: the
+ * complaints it dismissed were *a source note looks exactly like a footnote* and
+ * a siman that cannot be set apart from the other headings in its own sefer, and
+ * *style all your footnotes* is not an answer to either.
+ *
+ * The rule the product holds now is the general one: **anything that is a
+ * separate command has a look of its own, and the writer can set it.** There is
+ * still exactly one authority per class — this register, with a per-instance
+ * override and `כפה` over the top — and a command that draws something belongs
+ * *in* it rather than beside it. `_mk_defaults` in the prelude is that
+ * authority; `test/enginefacts.test.mjs` holds this list to it.
+ *
+ * Styled and *collected* are two different registers now. A `#סעיף` has a look
+ * and is in no index; a `#סימן` has both. See `MARK_CLASSES`.
  */
 export const STYLED_CLASSES = [
   "ציון",
@@ -35,18 +50,35 @@ export const STYLED_CLASSES = [
   "פסוק",
   "ציון_מקור",
   "ערך",
+  "מראה_מקום",
+  "סימן",
+  "סעיף",
+  "אות",
 ] as const;
 
 /**
- * Every class the register collects, in the order the marks list offers them.
+ * Every class the register **collects**, in the order the marks list offers them.
  *
- * The two extra ones are the collect-only classes. They are in *this* list and
- * not the styling one because a writer looking for "every siman" or "every mareh
- * makom" is asking the question this list answers, and being unstyleable has
- * nothing to do with it.
+ * Not the same list as the styled one, and no longer a superset of it. They were
+ * one list with two extras on the end for as long as *having a look* and *being
+ * in an index* happened to coincide; they are two questions, and since the rule
+ * that every separate command has its own look they visibly diverge:
+ *
+ *   - `#סעיף` and `#אות` have a look and are in no index — a sefer does not want
+ *     a list of its own seifim, it wants them set the way it sets them.
+ *   - every other styled class is also collected, and `#סימן` is the one that
+ *     was collected first and styled later.
+ *
+ * The prelude's `_mk_titles` is the authority for this half, exactly as
+ * `_mk_defaults` is for the other, and `test/enginefacts.test.mjs` reads both.
  */
 export const MARK_CLASSES: readonly string[] = [
-  ...STYLED_CLASSES,
+  "ציון",
+  "גמרא",
+  "דיבור_המתחיל",
+  "פסוק",
+  "ציון_מקור",
+  "ערך",
   "סימן",
   "מראה_מקום",
 ];

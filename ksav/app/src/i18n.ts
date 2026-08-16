@@ -208,6 +208,8 @@ const HE: Dict = {
   "markClass.ערך": "ערך במפתח",
   "markClass.סימן": "סימן",
   "markClass.מראה_מקום": "מראה מקום",
+  "markClass.סעיף": "סעיף",
+  "markClass.אות": "אות פותחת",
   // The knobs, named as one element's own — "size", not "heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "גודל",
@@ -1316,6 +1318,8 @@ const EN: Dict = {
   "markClass.ערך": "Index term",
   "markClass.סימן": "Siman",
   "markClass.מראה_מקום": "Source note",
+  "markClass.סעיף": "Seif",
+  "markClass.אות": "Opening letter",
   // The knobs, named as one element's own — "Size", not "Heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "Size",

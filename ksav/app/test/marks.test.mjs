@@ -20,16 +20,39 @@ const found = (doc) => marks.marksIn(doc).map((m) => [m.cls, m.text]);
 export async function run() {
   // ---------------------------------------------------------------- the classes
   {
-    ok("every styled class is a collected class", marks.STYLED_CLASSES.every((c) => marks.MARK_CLASSES.includes(c)));
+    // Styled and collected are two registers, and they no longer nest. They did
+    // while *having a look* and *being in an index* happened to coincide; the
+    // rule that every separate command has its own look separates them, and the
+    // claim worth holding is that each list is exactly what the prelude says —
+    // which `enginefacts.test.mjs` does against `_mk_defaults` and `_mk_titles`.
+    // What is asserted here is that neither list is empty and neither has a
+    // duplicate, because a class listed twice is a chooser with two identical
+    // rows and nothing else would notice.
+    ok("both registers are populated", marks.STYLED_CLASSES.length > 5 && marks.MARK_CLASSES.length > 5);
+    for (const [what, list] of [
+      ["styled", marks.STYLED_CLASSES],
+      ["collected", marks.MARK_CLASSES],
+    ]) {
+      check(`no class is ${what} twice`, [...list].filter((c, i) => list.indexOf(c) !== i), []);
+    }
+    // The two directions the split actually has, named. Both used to be
+    // impossible: every styled class was collected and two collected classes
+    // were unstyleable, which is the arrangement the rule replaced.
     ok(
-      "the collect-only classes are listed and not styled",
-      ["סימן", "מראה_מקום"].every(
-        (c) => marks.MARK_CLASSES.includes(c) && !marks.STYLED_CLASSES.includes(c),
-      ),
+      "a seif has a look and is in no index",
+      marks.STYLED_CLASSES.includes("סעיף") && !marks.MARK_CLASSES.includes("סעיף"),
+    );
+    ok(
+      "a siman has both",
+      marks.STYLED_CLASSES.includes("סימן") && marks.MARK_CLASSES.includes("סימן"),
     );
     // Every class needs a name a reader can see, in both languages. A class with
-    // no key would show its own Hebrew identifier in an English interface.
-    const missing = marks.MARK_CLASSES.filter((c) => !hasKey("markClass." + c));
+    // no key would show its own Hebrew identifier in an English interface —
+    // and *both* registers are shown: the marks pane lists the collected ones,
+    // the Styles drawer's chooser offers the styled ones, and a class in one and
+    // not the other is exactly what the rule about separate commands produced.
+    const shown = [...new Set([...marks.MARK_CLASSES, ...marks.STYLED_CLASSES])];
+    const missing = shown.filter((c) => !hasKey("markClass." + c));
     check("every class has a name in both languages", missing, []);
   }
 

@@ -686,7 +686,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 6,181 editor assertions, 674 engine
+- [x] **CI, running and green** — typecheck, 6,202 editor assertions, 674 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -764,18 +764,31 @@ other repository, and how to bump it are in [DESIGN.md](DESIGN.md#the-shared-cra
 
 ```sh
 node tools/gate.mjs                         # the whole gate
-node tools/gate.mjs fmt editor              # or a group at a time
+node tools/gate.mjs engine                  # or one part of it
 cd app && npm test -- panels spans          # the inner loop: those files, by substring
 ```
 
-Four groups, nine checks:
+Nine checks. A name selects them on either of two axes — the **kind** of check,
+which is what CI splits jobs on, or the **tree** the check is about:
 
-| group | what it runs |
-|---|---|
-| `fmt` | `rustfmt`, over all three Rust trees |
-| `editor` | the typechecker, then 6,181 assertions across 95 files |
-| `engine` | lints, then 674 tests across 42 binaries |
-| `shell` | the desktop shell: lints, then the path allowlist and the Girsa desk |
+| name | kind | what it runs |
+|---|---|---|
+| `fmt` | kind | `rustfmt`, over all three Rust trees |
+| `editor` | both | the typechecker, then 6,202 assertions across 95 files |
+| `engine` | both | formatting, lints, then 674 tests across 42 binaries |
+| `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
+| `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
+
+Two axes because one was not enough, and the shortfall was measured: `fmt` and
+`engine` were sibling group names, so `node tools/gate.mjs engine` ran clippy and
+the engine tests and skipped a one-second `cargo fmt -- --check` **on the same
+crate**. It reported the gate green, and `formatting` was the only red job on
+`main` — the same failure this section is about, one level in. A name that reads
+as "check the engine" now checks the engine.
+
+**A partial run says so.** Selecting a name is normal — CI does it in five jobs —
+but the run ends by naming every check it did not run, because "the gate is green
+— 2 checks" is a two-of-nine answer wearing a nine-of-nine sentence.
 
 **One command, deliberately.** This section used to list six and
 `.github/workflows/ci.yml` spelled nine steps out again beside them. Nobody runs
@@ -783,8 +796,10 @@ six commands, and it showed: for four consecutive pushes the *only* red job on
 `main` was `formatting`, failing at its first step in eleven seconds while every
 other job went green, with fifty-four unformatted hunks accumulating under it.
 `tools/gate.mjs` is now the one place a check command is written — the workflow
-selects a group by name, and `app/test/gate.test.mjs` fails if a check command
-reappears as a literal in the workflow or in any living page.
+selects by name, and `app/test/gate.test.mjs` fails if a check command reappears
+as a literal in the workflow or in any living page, if a check the runner
+declares is run by no job in the workflow, or if naming a tree leaves a check on
+that tree unrun.
 
 A filtered run is the exception, and it is not an oversight: `npm test -- panels`
 is what a developer runs forty times an hour, and it says so and skips the two

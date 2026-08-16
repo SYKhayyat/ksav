@@ -36,7 +36,7 @@
 import { check, ok } from "./harness.mjs";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { CHECKS, GROUPS, GATE_VERBS, KSAV } from "../../tools/gate.mjs";
+import { CHECKS, GROUPS, TREES, NAMES, GATE_VERBS, KSAV, select, summarise } from "../../tools/gate.mjs";
 import { ROOT, livingPages } from "./docfacts.mjs";
 
 /** The workflow the *forward* sweep is about: the one that runs on every push. */
@@ -146,6 +146,88 @@ export async function run() {
     // two of them — went missing because nothing said what they were for.
     ok(`${c.id} says what it is for`, typeof c.why === "string" && c.why.length > 20);
     ok(`${c.id} belongs to a group`, GROUPS.includes(c.group));
+    ok(`${c.id} belongs to a tree`, TREES.includes(c.tree));
+  }
+
+  // --------------------------------------- naming a tree checks the whole tree
+  //
+  // The finding, and it is the file header's own finding recurring one level in:
+  // `gate.mjs engine` ran clippy and the engine tests and skipped `fmt-engine`,
+  // a one-second `cargo fmt -- --check` **in the same crate**. It printed "the
+  // gate is green", the push went out, and `formatting` was the only red job on
+  // `main` — which is verbatim the four-push failure this runner was built to
+  // end. The cause was one namespace holding two axes: `fmt` names a kind of
+  // check, `engine` names a body of code, and selecting on one silently dropped
+  // the other's checks over the very same source.
+  //
+  // So: every check about a tree runs when that tree is named. Not a property of
+  // today's list — a property `select` has to keep as checks are added, which is
+  // why it is swept rather than spot-checked.
+  {
+    const missed = [];
+    for (const c of CHECKS) {
+      if (!select([c.tree]).includes(c)) missed.push(`${c.id} is about ${c.tree} and \`gate.mjs ${c.tree}\` does not run it`);
+    }
+    ok(
+      "naming a tree runs every check about that tree" +
+        (missed.length
+          ? `\n    ${missed.join("\n    ")}\n    A name that reads as "check the engine" has to check the engine;` +
+            " the last time it did not, the only red job on main was formatting."
+          : ""),
+      missed.length === 0,
+    );
+    // The same for a group, which is the axis `ci.yml` selects on.
+    const dropped = CHECKS.filter((c) => !select([c.group]).includes(c));
+    ok(`naming a group runs every check in it`, dropped.length === 0);
+    // Same cwd, same tree. Two checks over one directory that disagreed about
+    // which tree they are about would reopen the hole from the other side.
+    for (const cwd of new Set(CHECKS.map((c) => c.cwd))) {
+      const trees = new Set(CHECKS.filter((c) => c.cwd === cwd).map((c) => c.tree));
+      ok(`every check in ${cwd} names the same tree`, trees.size === 1);
+    }
+    ok("every name selects something", NAMES.every((n) => select([n]).length > 0));
+  }
+
+  // ------------------------------------ a partial run says what it did not run
+  //
+  // "the gate is green — 2 checks" is what a two-of-nine run used to print. The
+  // sentence is false and it is false in the direction that matters: it is the
+  // answer a developer reads immediately before pushing. Same shape as the
+  // acceptance run that stopped halfway and reported that nothing had failed —
+  // a partial result wearing a complete one's words.
+  //
+  // Selecting a group stays correct and normal; `ci.yml` does it in five jobs.
+  // What changed is that the summary now names the checks that did not run.
+  {
+    const green = (checks) =>
+      summarise(
+        checks.map((check) => ({ check, ok: true, secs: 0.1, shown: check.command.join(" ") })),
+        CHECKS.filter((c) => !checks.includes(c)),
+      ).join("\n");
+
+    const whole = green(CHECKS);
+    ok("a whole green run says the gate is green", whole.includes("the gate is green"));
+
+    const part = green(select(["editor"]));
+    ok("a partial green run does not claim the gate is green", !part.includes("the gate is green"));
+    const unrun = CHECKS.filter((c) => c.group !== "editor" && c.tree !== "editor");
+    ok("there are checks a partial run misses", unrun.length > 0);
+    const unnamed = unrun.filter((c) => !part.includes(c.id));
+    ok(
+      "a partial green run names every check it did not run" +
+        (unnamed.length ? `\n    unnamed: ${unnamed.map((c) => c.id).join(", ")}\n    ${part}` : ""),
+      unnamed.length === 0,
+    );
+
+    // A red run reports the failure and nothing else — the reproduction command
+    // is the only thing anybody reads at that point, and burying it under six
+    // lines of what-did-not-run is how it stops being read.
+    const red = summarise(
+      [{ check: CHECKS[0], ok: false, secs: 0.1, shown: CHECKS[0].command.join(" ") }],
+      CHECKS.slice(1),
+    ).join("\n");
+    ok("a red run leads with the failure", red.includes("failed. To reproduce:"));
+    ok("a red run does not call itself green", !red.includes("the gate is green"));
   }
 
   // ------------------------------------------------------- forward: CI runs them
@@ -164,23 +246,92 @@ export async function run() {
     invocations += 1;
     const after = line.slice(line.indexOf(RUNNER) + RUNNER.length).trim();
     const named = after.split(/\s+/).filter((w) => w && !w.startsWith("-"));
-    if (!named.length) for (const g of GROUPS) invoked.add(g);
+    if (!named.length) for (const g of NAMES) invoked.add(g);
     for (const w of named) invoked.add(w);
   }
 
   ok("the workflow calls the runner", invocations > 0);
 
-  // A group named in the workflow that the runner does not have runs nothing at
+  // A name in the workflow that the runner does not have selects nothing at
   // all, and a step that runs nothing exits 0. That is the failure shape G3 is
   // about: a check that passes because it could not run.
   for (const g of invoked) {
-    ok(`ci.yml names a real group: ${g}`, GROUPS.includes(g));
+    ok(`ci.yml names something real: ${g}`, NAMES.includes(g));
   }
 
   // And the other direction, which is the one a new check gets wrong: added to
   // the runner, run on the desk, never run on the remote.
-  for (const g of GROUPS) {
-    ok(`ci.yml runs the ${g} group`, invoked.has(g));
+  //
+  // Per **check**, not per group. Asking whether every group name appears is a
+  // weaker question than it looks — a check can be added to an existing group
+  // whose name is already in the workflow, and the group sweep goes green
+  // without the new check having run anywhere. The union of what the jobs
+  // select has to be the whole gate, and nothing less says that.
+  {
+    const unrun = CHECKS.filter((c) => !invoked.has(c.group) && !invoked.has(c.tree));
+    ok(
+      "every check in the runner is run by some job in ci.yml" +
+        (unrun.length
+          ? `\n    ${unrun.map((c) => `${c.id} — no job selects ${c.group} or ${c.tree}`).join("\n    ")}` +
+            `\n    ci.yml selects: ${[...invoked].join(" ")}`
+          : ""),
+      unrun.length === 0,
+    );
+  }
+
+  // ------------------------------ a job installs the components its checks need
+  //
+  // `cargo clippy` and `cargo fmt` are rustup components, not part of a minimal
+  // toolchain, and `dtolnay/rust-toolchain` installs a minimal one. Every job
+  // that selects a check needing a component has to ask for it — and until this
+  // swept, the desktop job had been running clippy for weeks on nothing but the
+  // runner image happening to ship it, which is a green that belongs to Azure's
+  // packaging decisions rather than to this repository.
+  //
+  // It bit for real when a name started selecting on the tree axis: `engine` and
+  // `shell` began pulling their formatting checks in, and three jobs across two
+  // workflows would have started running `cargo fmt` without declaring rustfmt.
+  // Per job, because that is the scope an installed component has.
+  {
+    const NEEDS = [
+      ["cargo clippy", "clippy"],
+      ["cargo fmt", "rustfmt"],
+    ];
+    const undeclared = [];
+    let jobsSweeping = 0;
+    for (const file of workflows()) {
+      const text = readFileSync(path.join(ROOT, file), "utf8");
+      // Jobs are the two-space keys under `jobs:`; everything below one, until
+      // the next, is its steps — which is the scope a toolchain install has.
+      const after = text.slice(text.indexOf("\njobs:"));
+      for (const block of after.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)) {
+        const job = block.split(":")[0];
+        const names = new Set();
+        for (const line of block.split(/\r?\n/)) {
+          if (!line.includes(RUNNER) || line.trim().startsWith("#")) continue;
+          const rest = line.slice(line.indexOf(RUNNER) + RUNNER.length).trim();
+          const said = rest.split(/\s+/).filter((w) => w && !w.startsWith("-"));
+          for (const n of said.length ? said : NAMES) names.add(n);
+        }
+        if (!names.size) continue;
+        jobsSweeping += 1;
+        const commands = select([...names]).map((c) => c.command.join(" "));
+        for (const [verb, component] of NEEDS) {
+          if (!commands.some((c) => c.startsWith(verb))) continue;
+          if (new RegExp(`components:.*\\b${component}\\b`).test(block)) continue;
+          undeclared.push(`${file} · ${job}: runs \`${verb}\` and never installs ${component}`);
+        }
+      }
+    }
+    ok(`there are gate jobs to sweep for components (${jobsSweeping})`, jobsSweeping >= 4);
+    ok(
+      "every job installs the rustup components its checks need" +
+        (undeclared.length
+          ? `\n    ${undeclared.join("\n    ")}\n    dtolnay/rust-toolchain installs a minimal toolchain;` +
+            " clippy and rustfmt are components and have to be asked for by name."
+          : ""),
+      undeclared.length === 0,
+    );
   }
 
   // -------------------------------------------- backward: nobody else lists them

@@ -100,8 +100,11 @@ One command, and it is the whole of what has to pass before you push:
 cd ksav && node tools/gate.mjs
 ```
 
-It runs four groups — `fmt`, `editor`, `engine`, `shell` — and you can run one
-of them while you work (`node tools/gate.mjs editor`).
+It runs nine checks, and you can select a part of it while you work
+(`node tools/gate.mjs editor`). A name is a kind of check — `fmt` — or a body of
+code — `editor`, `engine`, `shell`, `wasm` — and naming a tree runs *every* check
+about that tree, formatting included. A partial run ends by listing the checks it
+did not run, so a green subset is never mistakable for a green gate.
 
 **Do not spell the check commands out yourself.** They live in
 `ksav/tools/gate.mjs` and nowhere else, and `app/test/gate.test.mjs` fails if a

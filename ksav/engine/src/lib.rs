@@ -3428,7 +3428,13 @@ mod tests {
     fn the_page_runs_are_only_computed_when_they_are_asked_for() {
         let cfg = DocConfig::default();
         let body = "שורה ראשונה\n\n#מעבר_עמוד\n\nשורה אחרונה";
-        let quiet = compile_parts(body, &cfg, &Assets::default(), Wants::default(), &Default::default());
+        let quiet = compile_parts(
+            body,
+            &cfg,
+            &Assets::default(),
+            Wants::default(),
+            &Default::default(),
+        );
         assert!(
             quiet.pages_lines.is_empty(),
             "a compile nobody asked walked every frame anyway: {:?}",
@@ -3466,7 +3472,8 @@ mod tests {
             for (k, val) in extra.as_object().unwrap() {
                 v[k] = val.clone();
             }
-            let out: serde_json::Value = serde_json::from_str(&compile_request(&v.to_string())).unwrap();
+            let out: serde_json::Value =
+                serde_json::from_str(&compile_request(&v.to_string())).unwrap();
             out["pages_lines"].as_array().cloned().unwrap_or_default()
         };
         assert!(

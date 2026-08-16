@@ -369,7 +369,12 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev \
             librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev \
             libayatana-appindicator3-dev
+      # Both components named, because this job's checks now need both and the
+      # runner image happening to carry them is not a declaration. `clippy` ran
+      # here for weeks on nothing but that luck.
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/app/src-tauri -> target"
@@ -377,10 +382,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Compiles the Tauri commands, lints them, and runs the path-allowlist and
-      # deep-link tests. The bundlers are release.yml's job; this only has to
-      # prove the shell builds. Clippy came with the runner — it was gated on
-      # one of the three Rust trees, the same shape as the formatting gap.
+      # Compiles the Tauri commands, lints them, formats them, and runs the
+      # path-allowlist and deep-link tests. The bundlers are release.yml's job;
+      # this only has to prove the shell builds. Clippy came with the runner —
+      # it was gated on one of the three Rust trees, the same shape as the
+      # formatting gap.
+      #
+      # `shell` names a tree, so it selects `fmt-shell` as well. The overlap
+      # with the `formatting` job is deliberate and it is cheap — one second of
+      # a three-minute job — and it buys the property that a name reading
+      # "check the shell" checks the shell. `formatting` stays a separate job
+      # because it is the *faster answer*, not because it is the only one.
       - name: Check
         working-directory: ./ksav
         run: node tools/gate.mjs shell

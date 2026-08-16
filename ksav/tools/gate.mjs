@@ -1,8 +1,13 @@
 // Everything that has to pass before a push, as one command.
 //
 //   node tools/gate.mjs                 every check
-//   node tools/gate.mjs fmt engine      only those groups
+//   node tools/gate.mjs engine          every check about the engine crate
+//   node tools/gate.mjs fmt             every formatting check, all three trees
 //   node tools/gate.mjs engine --release  as `ci.yml` runs it
+//
+// A name is a group (`fmt`, `editor`, `engine`, `shell`) or a tree (`engine`,
+// `wasm`, `shell`, `editor`), and a partial run always ends by naming the
+// checks it did not run.
 //
 // # The finding
 //
@@ -52,11 +57,31 @@ export const KSAV = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
  * tests are run that way on the remote — compiling documents through a debug
  * Typst is slow enough to matter there — and a developer's warm debug target is
  * the faster answer locally. One command, one flag, rather than two lists.
+ *
+ * # Two axes, and why a check carries both
+ *
+ * `group` is the *kind* of check and answers "what does this cost" — it is what
+ * `ci.yml` splits jobs on, because formatting needs no build and the engine
+ * tests need the whole Typst compiler. `tree` is the *code* the check is about.
+ *
+ * They were one field, and the collision cost a red build. `fmt-engine` and
+ * `engine-tests` run in the same crate and answer about the same source, but
+ * one was in the `fmt` group and the other in `engine`, so `gate.mjs engine`
+ * ran clippy and the tests and skipped the one-second formatting check **on the
+ * crate it had just been asked about**. It went green, the push went out, and
+ * `formatting` was the only red job on `main` — which is, to the letter, the
+ * finding this whole file was written to end. A name that reads as "check the
+ * engine" has to check the engine.
+ *
+ * So a name selects on either axis and the union runs. `gate.mjs engine` is
+ * every check about the engine crate; `gate.mjs fmt` is still every formatting
+ * check across the three Rust trees, which is what `ci.yml`'s cheap job wants.
  */
 export const CHECKS = [
   {
     id: "fmt-engine",
     group: "fmt",
+    tree: "engine",
     name: "engine formatting",
     cwd: "engine",
     command: ["cargo", "fmt", "--", "--check"],
@@ -65,6 +90,7 @@ export const CHECKS = [
   {
     id: "fmt-wasm",
     group: "fmt",
+    tree: "wasm",
     name: "browser engine formatting",
     cwd: "wasm",
     command: ["cargo", "fmt", "--", "--check"],
@@ -73,6 +99,7 @@ export const CHECKS = [
   {
     id: "fmt-shell",
     group: "fmt",
+    tree: "shell",
     name: "desktop shell formatting",
     cwd: "app/src-tauri",
     command: ["cargo", "fmt", "--", "--check"],
@@ -81,6 +108,7 @@ export const CHECKS = [
   {
     id: "editor-types",
     group: "editor",
+    tree: "editor",
     name: "editor typecheck",
     cwd: "app",
     command: ["npx", "tsc", "--noEmit"],
@@ -89,6 +117,7 @@ export const CHECKS = [
   {
     id: "editor-suite",
     group: "editor",
+    tree: "editor",
     name: "editor suite",
     cwd: "app",
     // Not `npm test`: one process fewer, and the filtered form (`npm test --
@@ -99,6 +128,7 @@ export const CHECKS = [
   {
     id: "engine-clippy",
     group: "engine",
+    tree: "engine",
     name: "engine lints",
     cwd: "engine",
     command: ["cargo", "clippy", "--all-targets", "--", "-D", "warnings"],
@@ -107,6 +137,7 @@ export const CHECKS = [
   {
     id: "engine-tests",
     group: "engine",
+    tree: "engine",
     name: "engine tests",
     cwd: "engine",
     command: ["cargo", "test"],
@@ -116,6 +147,7 @@ export const CHECKS = [
   {
     id: "shell-clippy",
     group: "shell",
+    tree: "shell",
     name: "desktop shell lints",
     cwd: "app/src-tauri",
     command: ["cargo", "clippy", "--all-targets", "--", "-D", "warnings"],
@@ -127,6 +159,7 @@ export const CHECKS = [
   {
     id: "shell-tests",
     group: "shell",
+    tree: "shell",
     name: "desktop shell tests",
     cwd: "app/src-tauri",
     command: ["cargo", "test"],
@@ -136,6 +169,59 @@ export const CHECKS = [
 
 /** The groups, in the order they appear above. */
 export const GROUPS = [...new Set(CHECKS.map((c) => c.group))];
+
+/** The trees, in the order they appear above. */
+export const TREES = [...new Set(CHECKS.map((c) => c.tree))];
+
+/** Every name the command line accepts. */
+export const NAMES = [...new Set([...GROUPS, ...TREES])];
+
+/**
+ * The checks a list of names asks for. No names means the whole gate.
+ *
+ * A name matches on either axis, so `engine` is the engine group *and* the
+ * engine tree. The union, never the intersection — the failure this replaces
+ * was a selection that quietly returned less than the name promised.
+ */
+export function select(names) {
+  if (!names.length) return CHECKS;
+  return CHECKS.filter((c) => names.includes(c.group) || names.includes(c.tree));
+}
+
+/**
+ * What to say when the run is over.
+ *
+ * Split out of `main` so it can be tested, and it needs testing because the
+ * sentence it used to print was false. A run of two checks out of nine ended
+ * with **"the gate is green"**, which is the same shape as the acceptance run
+ * that stopped halfway and reported that nothing had failed: a partial answer
+ * wearing a complete one's words. Selecting a group is a normal, correct thing
+ * to do — `ci.yml` does it in five jobs — so the fix is not to forbid it but to
+ * say which checks did not run, every time, by name.
+ */
+export function summarise(results, skipped) {
+  const failed = results.filter((r) => !r.ok);
+  const lines = results.map(
+    (r) => `${r.ok ? "✓" : "✗"} ${r.check.name.padEnd(32)} ${r.secs.toFixed(1)}s`,
+  );
+
+  if (failed.length) {
+    lines.push(`\n${failed.length} of ${results.length} failed. To reproduce:`);
+    for (const r of failed) lines.push(`  cd ksav/${r.check.cwd} && ${r.shown}`);
+    return lines;
+  }
+  if (!skipped.length) {
+    lines.push(`\nthe gate is green — ${results.length} checks`);
+    return lines;
+  }
+  lines.push(
+    `\n${results.length} of ${CHECKS.length} checks passed. This was not the whole gate —` +
+      ` ${skipped.length} did not run:`,
+  );
+  for (const c of skipped) lines.push(`  ${c.id.padEnd(16)} ${c.cwd}: ${c.command.join(" ")}`);
+  lines.push(`\nnode tools/gate.mjs   — all of them`);
+  return lines;
+}
 
 /**
  * The command shapes that belong to this file and nowhere else.
@@ -182,13 +268,13 @@ function main() {
   const release = args.includes("--release");
   const wanted = args.filter((a) => !a.startsWith("-"));
 
-  const unknown = wanted.filter((g) => !GROUPS.includes(g));
+  const unknown = wanted.filter((g) => !NAMES.includes(g));
   if (unknown.length) {
-    console.error(`no such group: ${unknown.join(", ")}\ngroups: ${GROUPS.join(" ")}`);
+    console.error(`no such group or tree: ${unknown.join(", ")}\nnames: ${NAMES.join(" ")}`);
     process.exit(2);
   }
 
-  const chosen = wanted.length ? CHECKS.filter((c) => wanted.includes(c.group)) : CHECKS;
+  const chosen = select(wanted);
   console.log(
     `${chosen.length} check${chosen.length === 1 ? "" : "s"}` +
       (wanted.length ? ` in ${wanted.join(", ")}` : "") +
@@ -202,19 +288,11 @@ function main() {
   const results = [];
   for (const check of chosen) results.push(runCheck(check, release));
 
-  const failed = results.filter((r) => !r.ok);
   console.log("\n" + "-".repeat(60));
-  for (const r of results) {
-    console.log(`${r.ok ? "✓" : "✗"} ${r.check.name.padEnd(32)} ${r.secs.toFixed(1)}s`);
-  }
+  const skipped = CHECKS.filter((c) => !chosen.includes(c));
+  for (const line of summarise(results, skipped)) console.log(line);
 
-  if (!failed.length) {
-    console.log(`\nthe gate is green — ${results.length} checks`);
-    return;
-  }
-  console.log(`\n${failed.length} of ${results.length} failed. To reproduce:`);
-  for (const r of failed) console.log(`  cd ksav/${r.check.cwd} && ${r.shown}`);
-  process.exit(1);
+  if (results.some((r) => !r.ok)) process.exit(1);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

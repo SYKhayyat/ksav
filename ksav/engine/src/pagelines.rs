@@ -219,8 +219,16 @@ mod tests {
         assert_eq!(
             runs(vec![7, 3, 1, 2, 3]),
             vec![
-                LineRun { file: None, from: 1, to: 3 },
-                LineRun { file: None, from: 7, to: 7 },
+                LineRun {
+                    file: None,
+                    from: 1,
+                    to: 3
+                },
+                LineRun {
+                    file: None,
+                    from: 7,
+                    to: 7
+                },
             ]
         );
     }
@@ -304,9 +312,13 @@ mod tests {
             second.len() >= 2,
             "the second page came back as one run, so the running head swallowed the document: {second:?}"
         );
-        let covers = |page: &[LineRun], line: usize| page.iter().any(|r| r.from <= line && line <= r.to);
+        let covers =
+            |page: &[LineRun], line: usize| page.iter().any(|r| r.from <= line && line <= r.to);
         assert!(covers(second, 1), "the running head's own line: {second:?}");
-        assert!(covers(second, 8), "the text actually on the page: {second:?}");
+        assert!(
+            covers(second, 8),
+            "the text actually on the page: {second:?}"
+        );
         assert!(
             !covers(second, 4),
             "the second page claims the first page's siman: {second:?}"
@@ -340,14 +352,30 @@ mod tests {
             ],
             problems: Vec::new(),
         };
-        let mut pages = vec![vec![LineRun { file: None, from: 1, to: 4 }]];
+        let mut pages = vec![vec![LineRun {
+            file: None,
+            from: 1,
+            to: 4,
+        }]];
         relabel(&expanded, &mut pages);
         assert_eq!(
             pages[0],
             vec![
-                LineRun { file: None, from: 11, to: 11 },
-                LineRun { file: Some("פרק א.ksav".into()), from: 11, to: 12 },
-                LineRun { file: None, from: 13, to: 13 },
+                LineRun {
+                    file: None,
+                    from: 11,
+                    to: 11
+                },
+                LineRun {
+                    file: Some("פרק א.ksav".into()),
+                    from: 11,
+                    to: 12
+                },
+                LineRun {
+                    file: None,
+                    from: 13,
+                    to: 13
+                },
             ],
             "the sefer's own line was merged into the chapter above it"
         );
@@ -358,7 +386,11 @@ mod tests {
     /// every client compare a null against a string.
     #[test]
     fn without_inclusions_relabelling_changes_nothing() {
-        let before = vec![vec![LineRun { file: None, from: 2, to: 5 }]];
+        let before = vec![vec![LineRun {
+            file: None,
+            from: 2,
+            to: 5,
+        }]];
         let mut after = before.clone();
         relabel(&Expanded::default(), &mut after);
         assert_eq!(after, before);

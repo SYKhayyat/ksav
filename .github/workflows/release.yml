@@ -52,7 +52,12 @@ jobs:
       - name: Check the editor
         working-directory: ./ksav
         run: node tools/gate.mjs editor
+      # `engine` names a tree, so it selects the engine's formatting check as
+      # well as its lints and tests. Both components declared rather than
+      # inherited from whatever the runner image happens to carry.
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
@@ -116,6 +121,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ contains(matrix.args, 'aarch64') && 'aarch64-apple-darwin' || contains(matrix.args, 'x86_64-apple') && 'x86_64-apple-darwin' || '' }}
+          # For the engine check below, which selects the engine tree's
+          # formatting and lints along with its tests.
+          components: clippy, rustfmt
 
       # The Rust cache is worth having: this workspace builds the whole Typst
       # compiler, which is not a quick compile from cold.

@@ -58,10 +58,10 @@ and you never reach a compiler.
 ### Nix, and NixOS
 
 `flake.nix` is the same four toolchains as a shell you can enter, which is the
-only way to get them on NixOS: there is no `/usr/bin` there, and the
-`curl | sh` installer the workflows use for wasm-pack downloads a prebuilt
-dynamically-linked binary that cannot run. The shell takes wasm-pack from
-nixpkgs instead.
+only way to get them on NixOS: a prebuilt dynamically-linked binary does not run
+there out of the box, and the `curl | sh` installer the workflows use for
+wasm-pack downloads exactly one of those. The shell takes wasm-pack from nixpkgs
+instead.
 
 ```sh
 nix develop           # engine + editor + wasm + Emacs

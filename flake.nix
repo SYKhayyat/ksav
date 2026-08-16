@@ -5,9 +5,17 @@
 # statement of which versions those are was `.github/workflows/ci.yml`, which is
 # a description of GitHub's runners rather than something a person can enter. On
 # a distribution that follows the FHS you can paper over that by installing the
-# four by hand and being roughly right. On NixOS you cannot: there is no
-# `/usr/bin`, and a prebuilt dynamically-linked binary does not run at all
-# because the ELF interpreter it names is not there.
+# four by hand and being roughly right. On NixOS you cannot: a prebuilt
+# dynamically-linked binary does not run out of the box. Measured rather than
+# assumed — a stock `node` tarball there answers
+#
+#     Could not start dynamically linked executable: …/bin/node
+#     NixOS cannot run dynamically linked executables intended for generic
+#     linux environments out of the box.
+#
+# The interpreter path `/lib64/ld-linux-x86-64.so.2` does exist, which is the
+# detail the first draft of this comment got wrong: it is a stub that refuses
+# and says so, rather than a file that is missing. The consequence is the same.
 #
 # That is not hypothetical for this repository. `ci.yml` and `deploy.yml` both
 # install wasm-pack with
@@ -68,6 +76,22 @@
             clippy
             wasm-pack
             wasm-bindgen-cli
+            # The linker the `wasm32-unknown-unknown` target reaches for.
+            #
+            # Not obvious, and not caught by having wasm-pack: rustc normally
+            # ships `rust-lld` inside its own sysroot, and the nixpkgs build does
+            # not, so `wasm-pack build` got all the way through compiling every
+            # dependency and then stopped on
+            #
+            #     error: linker `lld` not found
+            #
+            # Which is the joke of this file finding itself out — its stated
+            # reason for existing is that the workflows install wasm-pack with a
+            # `curl | sh` binary that cannot run on NixOS, and the first shell
+            # that fixed that shipped the tool without the linker under it. The
+            # engine's own 761 tests passed on NixOS in the same run, because a
+            # native build uses the stdenv cc and never wants lld at all.
+            lld
             pkg-config
             git
           ];

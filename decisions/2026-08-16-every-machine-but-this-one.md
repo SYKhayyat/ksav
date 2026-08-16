@@ -10,22 +10,33 @@ and a Tauri desktop shell — and the only statement of which versions those are
 was `.github/workflows/ci.yml`. That is a description of GitHub's runners, not
 something a person can enter. It is enough on a distribution that follows the
 FHS, where you install the four by hand and are roughly right. It is not enough
-on NixOS, where there is no `/usr/bin` and a prebuilt dynamically-linked binary
-does not run at all, because the ELF interpreter it names is not there.
+on NixOS, where a prebuilt dynamically-linked binary does not run out of the box
+— a stock `node` tarball there answers *"NixOS cannot run dynamically linked
+executables intended for generic linux environments"* and stops.
 
 ## What was actually checked, rather than reasoned about
 
-Everything below was run, not inferred. Two WSL distributions were already on
-this machine and one of them had Nix, which is the only reason any of this is
-evidence rather than a plausible file.
+Everything below was run, not inferred, and the last four rows are on **NixOS
+itself** — NixOS-WSL 2605.7.2, installed for this, because a Nix shell on Fedora
+proves the derivations and not the thing that actually distinguishes NixOS.
 
 | claim | how it was settled |
 |---|---|
 | line endings survive a Linux checkout | `git clone` into WSL; **0 CR bytes** in the prelude, `mode.ts`, `children.rs` |
 | the engine passes on Linux | `cargo test` in WSL Ubuntu: **761 tests, 44 binaries, 0 failures** — identical to Windows |
 | the dev shell evaluates everywhere | `nix flake check --all-systems` |
-| the dev shell *builds* | `nix develop` → Node 24.19.0, cargo 1.97.0, wasm-pack 0.15.0, Emacs 30.2 |
-| the editor passes inside it | `npm ci && npm test` in the shell, in a clean clone |
+| a generic prebuilt binary really does fail there | a stock `node` tarball on NixOS: *"NixOS cannot run dynamically linked executables intended for generic linux environments"* |
+| the dev shell builds **on NixOS** | `nix develop` → Node 24.19.0, cargo 1.97.0, wasm-pack 0.15.0, Emacs 30.2 |
+| the editor passes **on NixOS** | `npm ci` exit 0, then **6,444 assertions, 0 failed** |
+| the engine passes **on NixOS** | **761 tests, 44 binaries, 0 failures** |
+| the wasm bundle builds **on NixOS** | `wasm-pack build --release` → a 29 MB artefact |
+| the desktop shell resolves **on NixOS** | `nix develop .#desktop` → `pkg-config` finds webkit2gtk-4.1, GTK 3.24.52, and Tauri's `cargo check` is clean |
+
+The `npm ci` row is the one worth pausing on. It downloads prebuilt binaries —
+esbuild among them — in a shell where, minutes earlier, a prebuilt `node` had
+been refused outright. They run because they are static or because the shell
+supplies what they link against; the point is that this was a question with a
+real chance of going the other way, and it was answered by running it.
 
 ## The flake
 
@@ -40,8 +51,21 @@ absent claim beats a broken one.
 
 wasm-pack comes from nixpkgs rather than from the `curl | sh` installer the
 workflows use. That installer is right for a GitHub runner and cannot work on
-NixOS, for the ELF-interpreter reason above. The workflows keep it; the shell
-does not need it.
+NixOS, for the reason above. The workflows keep it; the shell does not need it.
+
+**And that was not enough, which is the whole argument for testing on the real
+thing.** The first shell shipped wasm-pack and no linker: `wasm-pack build` on
+NixOS compiled every dependency and then stopped on
+
+```
+error: linker `lld` not found
+```
+
+rustc normally carries `rust-lld` in its own sysroot and the nixpkgs build does
+not. So this file's stated reason for existing — the wasm build is unreachable
+on NixOS — was still true of the file itself, one layer down, and nothing
+noticed because the engine's 761 tests passed in the same shell: a native build
+uses the stdenv cc and never wants lld at all. `lld` is in the shell now.
 
 ## What the flake found on its way in
 
@@ -79,12 +103,6 @@ than the rule it was written for. Both now.
 
 ## Not settled
 
-- **NixOS itself.** The shells were built with Nix on Fedora, which validates
-  the derivations and the package set. It is not the same as booting NixOS,
-  where the absence of FHS bites things the shell does not provide.
-- **`nix develop .#desktop` was evaluated, not built.** webkitgtk is a large
-  download and nothing here needed it yet; a Tauri build on Linux is the thing
-  that would prove it.
 - **The Emacs client** is in the shell but its live tests were not run there.
   CI runs `emacs-nox` 27.1; the shell gets 30.2, and `HANDOFF.md` already notes
   those two disagree about `image-size`.

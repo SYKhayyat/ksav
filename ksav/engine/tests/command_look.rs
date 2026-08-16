@@ -45,8 +45,8 @@ fn a_source_note_prints_at_the_size_it_always_did() {
     let out = compile("שלום#מראה_מקום[ברכות לט:]\n", &DocConfig::default());
     assert!(out.ok(), "{:?}", out.diagnostics);
     let plain = size_of("שלום#הערה[ברכות לט:]\n", "ברכות לט:").expect("the footnote printed");
-    let source = size_of("שלום#מראה_מקום[ברכות לט:]\n", "ברכות לט:")
-        .expect("the source note printed");
+    let source =
+        size_of("שלום#מראה_מקום[ברכות לט:]\n", "ברכות לט:").expect("the source note printed");
     assert!(
         source < plain,
         "a source note is set smaller than a footnote: {source} vs {plain}"
@@ -88,7 +88,10 @@ fn one_source_note_can_differ_from_its_class() {
     assert!(out.ok(), "{:?}", out.diagnostics);
     let class = size_of(body, "ברכות לט:").expect("the first printed");
     let mine = size_of(body, "שבת קיח.").expect("the second printed");
-    assert!(mine < class, "the instance override reached it: {mine} vs {class}");
+    assert!(
+        mine < class,
+        "the instance override reached it: {mine} vs {class}"
+    );
 }
 
 #[test]
@@ -223,8 +226,14 @@ fn a_misspelled_knob_stops_the_compile_and_names_itself() {
     // The one thing worse than a control that does nothing is an argument that
     // silently does nothing. `_cfg_strict` is what the three banded apparatuses
     // already do, and a footnote-backed mark needs it for the same reason.
-    let out = compile("שלום#מראה_מקום(גדול: 0.6em)[ברכות לט:]\n", &DocConfig::default());
+    let out = compile(
+        "שלום#מראה_מקום(גדול: 0.6em)[ברכות לט:]\n",
+        &DocConfig::default(),
+    );
     assert!(!out.ok(), "a knob nothing answers to compiled");
     let said = format!("{:?}", out.diagnostics);
-    assert!(said.contains("גדול"), "the message names the argument: {said}");
+    assert!(
+        said.contains("גדול"),
+        "the message names the argument: {said}"
+    );
 }

@@ -485,6 +485,51 @@ const RULES = [
     where: /^ksav\/app\/src\/.*\.ts$/u,
     match: /lastResult[?.\s]*\.\s*pages_/u,
   },
+  {
+    // The class: **a file is handed to the writer and nothing says so.**
+    //
+    // Found by exporting a PDF from the assembled application on 16 August and
+    // watching the status bar read *rendering…* for eleven seconds while the
+    // file sat in the downloads folder. `exportPdf` announced its *start* and
+    // then said something only if something was wrong; Markdown, Org and plain
+    // text said nothing at all, so they left standing whatever the last
+    // operation had put there.
+    //
+    // `handOver` in `exports.ts` is the answer for the seven export routes, and
+    // `exports.test.mjs` holds them to it. It could not see the eighth:
+    // `exportDictionary` in `main.ts` wrote `ksav-dictionary.txt` and returned
+    // in silence, one module outside that file's reach — which is this
+    // repository's own habit, named in this file's header, of scoping the sweep
+    // to where the instance was found.
+    //
+    // So the rule is about the *gesture*: a `download(` and the sentence that
+    // names the file live within a few lines of each other. Not the enclosing
+    // function, which would mean parsing one out of a ten-thousand-line file; a
+    // window is enough, because the announcement belongs next to the handover
+    // anyway.
+    //
+    // What it looks for is `exported` — the one message that says a file's name
+    // back — rather than a particular surface, because the surface is not
+    // always the status bar. The crash panel's rescue button relabels *itself*,
+    // and it is right to: the writer is looking at a dialog covering an
+    // application that has just crashed, and a line on the status bar behind it
+    // is not an answer to *did my words reach the disk*.
+    //
+    // `dom.ts` and `files.ts` are out of scope rather than exempt, and the
+    // difference matters: they *define* the mechanism, and `files.ts`'s own call
+    // is the fallback inside `saveAs`, whose announcement is `save.ts`'s — a
+    // save that reports itself twice is worse than one that reports itself once.
+    what: "a file handed to the writer is announced beside the handover",
+    where: /^ksav\/app\/src\/(main|exports)\.ts$/u,
+    probe: (body) => {
+      const lines = body.split("\n");
+      return lines.some((line, i) => {
+        if (!/(?<![\w.])(?:files\.)?download\(/u.test(line)) return false;
+        const near = lines.slice(Math.max(0, i - 3), i + 8).join("\n");
+        return !/"exported"|handOver\(/u.test(near);
+      });
+    },
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

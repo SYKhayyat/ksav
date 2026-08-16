@@ -5605,7 +5605,12 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
   window.addEventListener("keydown", handler, true);
 }
 function exportDictionary() {
-  files.download("ksav-dictionary.txt", spell.exportUserWords());
+  const name = "ksav-dictionary.txt";
+  files.download(name, spell.exportUserWords());
+  // Said, like every other file that leaves. This one is outside `exports.ts`
+  // and was therefore outside the fence there, which is the whole reason the
+  // rule now lives in `prohibitions.test.mjs` instead.
+  setStatus(`✓ ${tf("exported", name)}`, "ok");
 }
 
 async function importDictionary() {
@@ -6764,14 +6769,22 @@ async function reloadFromDisk() {
  */
 function showCrashPanel(detail: string) {
   const body = runtime.docText();
+  // Said in the panel rather than in the status bar. Every other file that
+  // leaves says so on the status line, and this is the one moment that is
+  // wrong: the writer is looking at a dialog covering the application, which
+  // has just crashed, and the one thing they need to know is whether their
+  // words reached the disk. The button answers itself.
+  const rescue = el("button", { class: "primary", type: "button" }, [t("crashDownload")]);
+  rescue.addEventListener("click", () => {
+    const name = (runtime.currentDoc?.title || "ksav") + ".ksav";
+    files.download(name, body);
+    rescue.textContent = tf("exported", name);
+  });
   const panel = el("div", { id: "crash-panel", role: "alertdialog" }, [
     el("h3", {}, [t("crashTitle")]),
     el("p", {}, [t("crashLede")]),
     el("div", { class: "crash-acts" }, [
-      el("button", {
-        class: "primary", type: "button",
-        onClick: () => files.download((runtime.currentDoc?.title || "ksav") + ".ksav", body),
-      }, [t("crashDownload")]),
+      rescue,
       el("button", { type: "button", onClick: () => location.reload() }, [t("crashReload")]),
     ]),
     el("details", {}, [el("summary", {}, [t("crashDetails")]), el("pre", {}, [detail])]),

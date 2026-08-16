@@ -31,6 +31,20 @@ happen to share a number. CI pins 20 because that is the floor the editor
 claims; the local machine runs 26, which is why `HANDOFF.md` says green here is
 not evidence.
 
+> **Amended later the same day.** `node-version` moved to 24 after all, and the
+> reason is one this section did not have: **Node 20 reached End-of-Life on
+> 2026-04-30**, three and a half months before this was written. The pin was not
+> holding a floor, it was holding a runtime nobody upstream supports — which
+> surfaced from an unrelated direction, when a Nix dev shell could not be built
+> because current nixpkgs has removed `nodejs_20` outright.
+>
+> The floor argument does not survive inspection either. `package.json` declares
+> no `engines`, so nothing in the repository claimed 20; and the rule the pin was
+> thought to protect — that a test imports from `.tmp-test/` and never `../src/`
+> — has had its own sweep in `runner.test.mjs` since the day it was written. It
+> never depended on the runtime. See
+> [Every machine but this one](2026-08-16-every-machine-but-this-one.md).
+
 The Pages actions in `deploy.yml` moved too — `configure-pages@v6`,
 `upload-pages-artifact@v5`, `deploy-pages@v5` — on the same reasoning. They were
 not in the annotation because **`deploy.yml` has never run**: it triggers on

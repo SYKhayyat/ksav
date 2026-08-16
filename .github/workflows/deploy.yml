@@ -75,7 +75,7 @@ jobs:
           workspaces: "./ksav/wasm -> target"
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
       # The same installer `ci.yml` uses, for the reason given there.

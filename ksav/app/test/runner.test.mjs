@@ -195,7 +195,13 @@ export async function run() {
       b.split("\n").forEach((line, i) => {
         const s = line.trim();
         if (s.startsWith("//") || s.startsWith("*")) return;
-        if (/from\s+["']\.\.\/src\//.test(line)) reachIns.push(`${f}:${i + 1}`);
+        // A dynamic `import("../src/x")` as well as a static one. It reaches the
+        // same unbundled module by the same relative path and was not covered:
+        // the sweep read the spelling that had gone wrong once rather than the
+        // rule it was written for.
+        if (/from\s+["']\.\.\/src\/|import\s*\(\s*["']\.\.\/src\//.test(line)) {
+          reachIns.push(`${f}:${i + 1}`);
+        }
       });
     }
     check("no test imports out of src/ directly", reachIns, []);
@@ -350,4 +356,5 @@ export function nothingIsCopiedBackIn() {
       .filter((n) => n.startsWith(".tmp-load-"))
       .filter((n) => staleLoad(n, statSync(path.join(APP, n)).mtimeMs, Date.now())), []);
   }
+
 }

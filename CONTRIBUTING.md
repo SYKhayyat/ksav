@@ -48,12 +48,34 @@ test against it.
 | | |
 |---|---|
 | **Rust** | stable, with `clippy` and `rustfmt` |
-| **Node** | 20 or later — the gate runs on it |
+| **Node** | 24, which is what CI pins — see the note under *Nix* below |
 | **git** | not only to clone: four dependencies are fetched from git, and version control inside Ksav drives the `git` on your machine |
 | **Linux only, for the desktop shell** | `libwebkit2gtk-4.1-dev librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev` |
 
 Not `libappindicator3-dev`. It and the ayatana package conflict, apt exits 100,
 and you never reach a compiler.
+
+### Nix, and NixOS
+
+`flake.nix` is the same four toolchains as a shell you can enter, which is the
+only way to get them on NixOS: there is no `/usr/bin` there, and the
+`curl | sh` installer the workflows use for wasm-pack downloads a prebuilt
+dynamically-linked binary that cannot run. The shell takes wasm-pack from
+nixpkgs instead.
+
+```sh
+nix develop           # engine + editor + wasm + Emacs
+nix develop .#desktop # the above, plus the Tauri GTK/WebKit deps
+```
+
+`x86_64-linux`, `aarch64-linux` and `aarch64-darwin`. An Intel Mac is not
+offered because nixpkgs has dropped it, and a shell that cannot evaluate is a
+worse answer than an absent one.
+
+Node is pinned to the same version as the workflows, in both places, and they
+move together. This repository has been bitten by a local Node accepting
+TypeScript syntax that the CI Node rejected, so a shell on a different version
+would make "green on my machine" mean less than it says.
 
 ### Clone and build
 
@@ -229,8 +251,10 @@ that had stopped growing, and nineteen modules had no test between them.
 A few conventions worth knowing before you write one:
 
 - **Import from `.tmp-test/`, never from `../src/`.** The runner bundles the
-  modules; a direct `.ts` import depends on your Node version stripping types,
-  which Node 20 does not, and kills the whole job before a single assertion.
+  modules; a module reached directly arrives without the bundling that makes the
+  shared singletons in `src/` behave as one copy, and a `.ts` import depends on
+  your Node version stripping types, which is the least reproducible thing about
+  a checkout. `runner.test.mjs` sweeps for both spellings, static and dynamic.
 - **Assert the class, not the shape.** `SERVICES.len() == 15` is a tripwire on
   the wrong wire: it goes red for a sixteenth service, which is not a defect,
   and says nothing about whether any of them work. Assert what has to survive

@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
       - name: Install
@@ -154,7 +154,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install front-end dependencies
         working-directory: ./ksav/app
@@ -253,7 +253,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
       - id: read
         working-directory: ./ksav/app
         run: echo "matrix=$(node tools/emit-release-assets.mjs --matrix)" >> "$GITHUB_OUTPUT"
@@ -277,7 +277,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
@@ -336,7 +336,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
       - name: Install Emacs
         run: sudo apt-get update && sudo apt-get install -y emacs-nox
 

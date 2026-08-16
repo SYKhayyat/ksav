@@ -42,13 +42,21 @@ export async function run() {
   const services = read("ksav-services.el");
   const tests = read("ksav-tests.el");
 
+  // The package is six files now rather than one, so a claim about "the elisp"
+  // has to be a claim about all of it. Reading `ksav.el` alone is how a check
+  // survives a split and stops covering the thing it was written for: two of
+  // these went green by moving.
+  const shipped = files.filter((f) => f.endsWith(".el") && f !== "ksav-tests.el");
+  const packageSource = shipped.map((f) => code(read(f))).join("\n");
+
   // ------------------------------------------------- it asks for real services
 
   {
-    // Every `(ksav-call "name" …)` in the package, against the engine's
-    // registry. A name nothing answers is a 404 at the keyboard, and the elisp
-    // spells these as literals so they are checkable from here.
-    const names = [...code(el).matchAll(/\(ksav-call\s+"([^"]+)"/gu)].map((m) => m[1]);
+    // Every `(ksav-call "name" …)` and `(ksav-ask "name" …)` in the package,
+    // against the engine's registry. A name nothing answers is a 404 at the
+    // keyboard, and the elisp spells these as literals so they are checkable
+    // from here.
+    const names = [...packageSource.matchAll(/\(ksav-(?:call|ask)\s+"([^"]+)"/gu)].map((m) => m[1]);
     ok("the package calls services", names.length > 0, `${names.length}`);
     const known = new Set(SERVICES.map((s) => s.name));
     check(
@@ -56,15 +64,78 @@ export async function run() {
       names.filter((n) => !known.has(n)),
       [],
     );
-    // And it does not ask for one the browser build cannot reach without
-    // meaning to: this client always has a machine under it, so `nativeOnly` is
-    // not a bar — but a call to a Girsa service from Emacs would be a feature
-    // nobody has designed, and it should show up here as a decision rather than
-    // as a surprise.
-    const native = new Set(SERVICES.filter((s) => s.nativeOnly).map((s) => s.name));
+
+    // And the other direction, which is the one that was not being asked.
+    //
+    // # The exemption list is empty, and that is the whole check
+    //
+    // What used to be here was the opposite claim: that the package asks for
+    // *no* service needing Girsa or a repository, "as a decision rather than a
+    // surprise". Read once, that is a sentence about deliberateness. Read
+    // twice, it is a test asserting that twelve of the engine's sixteen
+    // services have no door in Emacs — and passing, for months, while the
+    // reason was that nobody had written them.
+    //
+    // The desktop application reaches all sixteen. A client that reaches three
+    // is not a smaller client, it is one that cannot tell its reader whether
+    // Ksav cannot do a thing or Emacs was never taught to ask; and this
+    // package reported the first as the second every time.
+    //
+    // `settings.test.mjs` is the shape copied here: it names every preference
+    // no control reaches, and its list is empty. So is this one. A service that
+    // genuinely should have no Emacs door goes in it *with the reason*, and
+    // adding a name here should feel like what it is.
+    const NO_DOOR_IN_EMACS = [];
     check(
-      "…and none of them is one that needs Girsa or a repository",
-      names.filter((n) => native.has(n)),
+      "every service the engine answers has a door in Emacs",
+      SERVICES.filter((s) => !names.includes(s.name)).map((s) => s.name),
+      NO_DOOR_IN_EMACS,
+    );
+
+    // The registry's fourth column, read by something other than its own unit
+    // test. It is the difference between "this cannot be done here" and
+    // "something went wrong", which in Emacs is the difference between a
+    // `user-error' and an `error' — one line, or a backtrace about a bug that
+    // is not there. It was documented at length and called nowhere.
+    const callers = shipped.filter(
+      (f) => f !== "ksav-services.el" && /\(ksav-service-native-p\b/u.test(code(read(f))),
+    );
+    ok(
+      "something reads whether a service needs the installed application",
+      callers.length > 0,
+      callers.join(", ") || "nothing outside the generated table calls it",
+    );
+  }
+
+  // ------------------------------------------------ one service, eighteen ops
+  //
+  // `git` carries an `op`, so the same registry one level down. The list is
+  // generated into the elisp; what cannot be generated is what each operation
+  // wants on the request, because the engine does not publish that. So the
+  // hand-written table is held against the generated one — here as well as in
+  // `ksav-tests.el`, because this check runs in the gate with no Emacs.
+
+  {
+    const git = read("ksav-git.el");
+    // `\)*` for the same reason the services table above needs it: elisp puts
+    // the list's closing paren on the last row rather than on a line of its
+    // own, so a pattern anchored to the quote reads seventeen of eighteen and
+    // is blind to the one most recently added.
+    const ops = [...services.matchAll(/^\s*"([a-z-]+)"\)*$/gmu)].map((m) => m[1]);
+    ok("the git operations are generated into the elisp", ops.length >= 15, `${ops.length}`);
+    // Unanchored: the first row of an elisp table shares its line with the
+    // quote and the opening parens of the list itself, so a pattern anchored to
+    // the start of a line reads every row but the first — and "status", the one
+    // every reader meets before any other, was the row it could not see.
+    const rows = [...git.matchAll(/\("([a-z-]+)"\s*\./gu)].map((m) => m[1]);
+    check(
+      "every git operation says what it wants",
+      ops.filter((op) => !rows.includes(op)),
+      [],
+    );
+    check(
+      "…and nothing is described that the engine does not answer",
+      rows.filter((op) => !ops.includes(op)),
       [],
     );
   }
@@ -102,7 +173,7 @@ export async function run() {
   // ------------------------------------------------ the mode is a Ksav mode
 
   {
-    const src = code(el);
+    const src = packageSource;
     ok("it opens .ksav files", src.includes(String.raw`"\\.ksav\\'"`));
     // Hebrew-first, and the two lines that make it so. Both have been wrong in
     // other editors' Hebrew support and neither is visible in a screenshot.
@@ -152,6 +223,16 @@ export async function run() {
     for (const key of ["C-c C-c", "C-c C-i", "C-c C-e", "C-c C-s"]) {
       ok(`the README documents ${key}`, readme.includes(key));
     }
+    // And every service is named there with the key that reaches it. The
+    // package having a door is half of it; a door nobody is told about is a
+    // feature that exists for whoever wrote it. Same empty exemption list, for
+    // the same reason.
+    const UNDOCUMENTED = [];
+    check(
+      "every service is named in the README",
+      SERVICES.filter((s) => !readme.includes(`\`${s.name}\``)).map((s) => s.name),
+      UNDOCUMENTED,
+    );
     // Every key the mode binds is in the table. A binding nobody is told about
     // is a feature that does not exist for anybody who did not write it.
     const bound = [...code(el).matchAll(/\(define-key map \(kbd "([^"]+)"\)/gu)].map((m) => m[1]);

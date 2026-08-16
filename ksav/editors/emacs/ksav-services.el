@@ -65,5 +65,31 @@ can be in.  Returning nil would turn it into a URL of \"nil\" and a 404."
   "Does service NAME need the installed application?"
   (and (nth 3 (ksav-service name)) t))
 
+(defconst ksav-git-operations
+  '(
+    "status"
+    "init"
+    "log"
+    "show"
+    "commit"
+    "who"
+    "restore"
+    "revert"
+    "branches"
+    "switch"
+    "merge"
+    "merge-abort"
+    "resolve"
+    "remotes"
+    "remote-add"
+    "fetch"
+    "pull"
+    "push")
+  "Every operation the `git' service answers.
+
+One service carrying an `op', so this is the same registry one level down:
+`OPERATIONS' in engine/src/git.rs is the list, and an operation this package
+spells wrong is an error at the call rather than a refusal a writer is shown.")
+
 (provide 'ksav-services)
 ;;; ksav-services.el ends here

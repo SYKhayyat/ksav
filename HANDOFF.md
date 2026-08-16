@@ -90,24 +90,21 @@ cd ksav/app && npm run accept
 
 ### The live tracker
 
-- [ ] **Emacs as a first-class citizen.** The package reaches three of the
-      engine's sixteen services — `compile`, `commands`, `spell`. There is no
-      door in Emacs for `assemble`, `jump`, `reveal`, `suggest`, `templates`,
-      `sefarim`, `git`, `inbox`, `mekoros`, `linkify`, `refresh`,
-      `clipboard-source` or `saved-here`. `ksav-service-native-p` is documented
-      at length and has no caller outside its own unit test, so the client
-      cannot tell *this engine cannot do that* from *something went wrong* and
-      reports the first as the second.
-
-      Everything the desktop application reaches, Emacs reaches. The fence for
-      it should end with an **empty** exemption list, not a documented one —
-      `settings.test.mjs` naming every preference no control reaches is the
-      model. `ksav.el` is around six hundred lines; splitting it is probably
-      right.
+- [x] **Emacs as a first-class citizen.** All sixteen services have a door, the
+      exemption lists in `emacs.test.mjs` are empty, and `ksav.el` is seven
+      files. See
+      [`decisions/2026-08-16-three-of-sixteen.md`](decisions/2026-08-16-three-of-sixteen.md).
 
 - [ ] **A pane should remember its own place in each document.** The open set
       stores one `EditorState` per document, so returning to a sefer puts every
       pane at the focused pane's caret.
+
+- [ ] **`deploy.yml` has never run.** The workflow that publishes the browser
+      build triggers on tags, and the one tag this repository has predates the
+      file — so the wasm build, the service worker, the manifest and every share
+      link point at a site that has never been built once. The workflow is
+      written and its action pins are current; what is missing is a tag, or a
+      `workflow_dispatch` run, and then reading what comes out.
 
 ### Reconcile the 2026-08-11 list
 

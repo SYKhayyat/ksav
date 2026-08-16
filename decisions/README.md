@@ -78,6 +78,7 @@ something in.
 | [2026-08-15 · A package that could not be installed](2026-08-15-a-package-that-could-not-be-installed.md) | The Emacs package worked and nobody could install it, and underneath that there was no `ksav` binary on any machine at all: what a release attaches now, why the engine assets are bare binaries, and why the tarball is installed rather than inspected |
 | [2026-08-14 · The pages of one siman](2026-08-14-the-pages-of-one-siman.md) | A preview that follows the narrowed pane beside it: why the answer rides on the compile instead of on `reveal`, why a page reports runs rather than a range, and why the pages it drops are hidden rather than removed |
 | [2026-08-16 · The pins nobody was watching](2026-08-16-the-pins-nobody-was-watching.md) | Every CI job carried a Node 20 deprecation notice for weeks — a red remote on a date GitHub picks — and the sweep for it cannot live in this repository, because whether a pin is behind is a fact about somebody else's releases |
+| [2026-08-16 · Three of sixteen](2026-08-16-three-of-sixteen.md) | The Emacs package reached three of the engine's sixteen services, and one test was holding the gap open by asserting it; what the other thirteen doors are, and the empty exemption list that now says so |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

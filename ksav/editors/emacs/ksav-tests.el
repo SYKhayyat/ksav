@@ -64,6 +64,102 @@
   "A typo in elisp is an error at the call, not a URL of nil and a 404."
   (should-error (ksav-service-path "nonesuch")))
 
+(ert-deftest ksav-every-service-has-a-door ()
+  "Every service in the registry is asked for somewhere in this package.
+
+The claim the whole of this package's last revision failed: it reached three of
+sixteen services, and a reader had no way to tell a thing Ksav cannot do from a
+thing Emacs was never taught to ask for.  `app/test/emacs.test.mjs' makes the
+same check by reading the source, which is the half that can run with no Emacs;
+this one is made from inside a loaded package, where a name is a name rather
+than a match in a file."
+  (let ((asked (ksav-tests--services-asked-for)))
+    (dolist (row ksav-services)
+      (should (member (car row) asked)))))
+
+(defun ksav-tests--services-asked-for ()
+  "Every service name this package passes to `ksav-call' or `ksav-ask'.
+
+Read out of the sources rather than out of the loaded functions, because a
+service name in elisp is a literal string inside a compiled body and there is
+no supported way to ask a function what strings it holds."
+  (let ((here (or (and load-file-name (file-name-directory load-file-name))
+                  default-directory))
+        (found '()))
+    (dolist (file (directory-files here t "\\`ksav.*\\.el\\'") found)
+      (unless (string-match-p "ksav-tests\\.el\\'" file)
+        (with-temp-buffer
+          (insert-file-contents file)
+          (goto-char (point-min))
+          (while (re-search-forward "(ksav-\\(?:call\\|ask\\) +\"\\([^\"]+\\)\"" nil t)
+            (push (match-string 1) found)))))))
+
+(ert-deftest ksav-a-refusal-from-a-service-that-needs-the-machine-is-not-a-fault ()
+  "The registry's fourth column, finally read by something.
+
+Emacs already has the two signals this distinction needs: a `user-error' is a
+state the reader is in and prints one line, an `error' is a fault and offers a
+backtrace.  A service that needs the installed application can be refused
+because Girsa is not open — which is not a bug in a typesetter, and used to be
+reported as one."
+  (cl-letf (((symbol-function 'ksav-call)
+             (lambda (&rest _) '((ok . nil) (error . "Girsa is not open")))))
+    ;; `inbox' needs the machine…
+    (should-error (ksav-ask "inbox" nil) :type 'user-error)
+    ;; …and `compile' does not, so a refusal from it is a fault.
+    (should-error (ksav-ask "compile" nil) :type 'error :exclude-subtypes t))
+  ;; And an answer that is not a refusal comes straight back.
+  (cl-letf (((symbol-function 'ksav-call) (lambda (&rest _) '((ok . t) (told . t)))))
+    (should (eq t (alist-get 'told (ksav-ask "saved-here" nil))))))
+
+;;;; ------------------------------------------------------------------- git
+
+(ert-deftest ksav-git-operations-are-the-engines ()
+  (should (> (length ksav-git-operations) 10))
+  (should (member "status" ksav-git-operations))
+  (should (ksav-git-operation-p "commit"))
+  (should-not (ksav-git-operation-p "rebase")))
+
+(ert-deftest ksav-git-every-operation-says-what-it-wants ()
+  "The one hand-written table in this package, held to a generated one.
+
+`ksav-git-arguments' cannot be generated — the engine publishes the list of
+operations and not what each of them reads off the request — so it is checked
+instead.  An operation added in Rust and not given a row here would otherwise be
+offered by `ksav-git' and then refused for want of an argument nobody was asked
+for."
+  (dolist (op ksav-git-operations)
+    (should (assoc op ksav-git-arguments))
+    (dolist (arg (cdr (assoc op ksav-git-arguments)))
+      ;; Every argument has a prompt, or `ksav-git' would ask for it with nil.
+      (should (stringp (alist-get arg ksav-git-prompts)))))
+  ;; And nothing in the table is an operation the engine does not have.
+  (dolist (row ksav-git-arguments)
+    (should (member (car row) ksav-git-operations)))
+  ;; Every flag is an argument something actually asks for.
+  (dolist (flag ksav-git-flags)
+    (should (cl-some (lambda (row) (memq flag (cdr row))) ksav-git-arguments))))
+
+(ert-deftest ksav-git-refuses-an-operation-the-engine-does-not-have ()
+  (should-error (ksav-git--call "rebase")))
+
+(ert-deftest ksav-git-reads-an-answer-of-any-shape ()
+  "One reader for eighteen answers, so a new operation prints something useful
+on the day it arrives rather than nothing."
+  (let ((lines (ksav-git--lines
+                '((ok . t) (git . "2.43.0") (root . "/tmp/sefer") (branch . "main")
+                  (ahead . 2) (behind . 0)
+                  (who . ((name . "A Writer") (email . "a@example.com")))
+                  (this . ((tracked . t) (staged . ".") (worktree . "M")))
+                  (commits . (((short . "abc1234") (author . "A Writer")
+                               (subject . "A first siman"))))
+                  (said . "Everything up-to-date")))))
+    (should (cl-some (lambda (l) (string-match-p "git 2\\.43\\.0" l)) lines))
+    (should (cl-some (lambda (l) (string-match-p "2 to push" l)) lines))
+    (should (cl-some (lambda (l) (string-match-p "A first siman" l)) lines))
+    ;; git's own words, never rephrased.
+    (should (cl-some (lambda (l) (string-match-p "Everything up-to-date" l)) lines))))
+
 ;;;; ------------------------------------------------------------------ the mode
 
 (ert-deftest ksav-mode-is-hebrew-first ()
@@ -155,6 +251,98 @@ sites, one of them produced \"1 page were typeset\"."
   (should (string= "1 page was" (ksav--pages-said 1)))
   (should (string= "3 pages were" (ksav--pages-said 3)))
   (should (string= "0 pages were" (ksav--pages-said 0))))
+
+;;;; ------------------------------------------------------------- the page
+
+(ert-deftest ksav-a-page-is-measured-in-its-own-coordinates ()
+  "The `viewBox' is Typst points, which is what `jump' and `reveal' speak.
+
+Without it a click would have to be converted through the window size, the
+zoom, and whatever Emacs decided to scale the image to — three numbers, any one
+of which can be wrong on its own."
+  (let ((box (ksav--view-box "<svg xmlns=\"…\" viewBox=\"0 0 595.28 841.89\" width=\"100\">")))
+    (should box)
+    (should (< (abs (- (car box) 595.28)) 0.01))
+    (should (< (abs (- (cdr box) 841.89)) 0.01)))
+  ;; A page with no box is not a crash: it is a page that cannot be clicked on.
+  (should-not (ksav--view-box "<svg width=\"100\"></svg>")))
+
+(ert-deftest ksav-a-mark-goes-inside-the-page ()
+  "Emacs can overlay an image and cannot overlay a place *within* one, so the
+mark is drawn into the SVG in the coordinates the answer came back in."
+  (let ((marked (ksav--svg-marked "<svg viewBox=\"0 0 10 10\"><g/></svg>" 100 200)))
+    (should (string-match-p "<rect" marked))
+    (should (string-suffix-p "</svg>" marked))
+    ;; Inside the page, not appended after it.
+    (should (< (string-match-p "<rect" marked) (string-match-p "</svg>" marked))))
+  ;; Something that is not an SVG comes back untouched rather than corrupted.
+  (should (string= "not a page" (ksav--svg-marked "not a page" 1 1))))
+
+;;;; -------------------------------------------------------------- the sefarim
+
+(defmacro ksav-tests--with-catalogue (&rest body)
+  "Run BODY with a small, known sefarim catalogue in place of the engine's."
+  (declare (indent 0))
+  `(let ((ksav--sefarim '(((canonical . "בבא מציעא") (kind . "shas") (order . 30)
+                           (aliases . ("ב\"מ" "בבא מציעה")))
+                          ((canonical . "שולחן ערוך") (kind . "posek") (order . 90)
+                           (aliases . ("שו\"ע"))))))
+     ,@body))
+
+(ert-deftest ksav-an-alias-completes-to-the-name-the-index-files-it-under ()
+  "The whole value of the catalogue.  A sefer written as it is abbreviated is a
+sefer the source index files somewhere else."
+  (ksav-tests--with-catalogue
+    (let ((names (ksav--sefer-names)))
+      (should (equal "בבא מציעא" (cdr (assoc "ב\"מ" names))))
+      (should (equal "בבא מציעא" (cdr (assoc "בבא מציעא" names))))
+      (should (equal "שולחן ערוך" (cdr (assoc "שו\"ע" names)))))))
+
+(ert-deftest ksav-sefer-completion-is-offered-inside-a-string-and-not-outside ()
+  (ksav-tests--with-catalogue
+    (with-temp-buffer
+      (ksav-mode)
+      (insert "#ציון_מקור(\"בבא")
+      (should (ksav-sefer-completion-at-point))
+      ;; …and the same buffer with point outside the string offers nothing, so
+      ;; this never fights with whatever else the writer has on TAB.
+      (insert "\")")
+      (should-not (ksav-sefer-completion-at-point)))))
+
+;;;; ------------------------------------------------------------------- the mode
+
+(ert-deftest ksav-mode-wires-up-the-catalogue-and-the-library ()
+  "Two hooks, both of which are the only way their feature is ever reached."
+  (with-temp-buffer
+    (ksav-mode)
+    (should (memq #'ksav-sefer-completion-at-point completion-at-point-functions))
+    (should (memq #'ksav--tell-girsa-on-save after-save-hook))))
+
+(ert-deftest ksav-mode-binds-a-key-for-every-part-of-the-product ()
+  "Not a count: the commands that would otherwise be reachable only by somebody
+who read the source."
+  (dolist (command '(ksav-compile ksav-export-pdf ksav-export-typst
+                     ksav-new-from-template ksav-insert-command ksav-insert-sefer
+                     ksav-spell-buffer ksav-correct-word ksav-reveal
+                     ksav-inbox ksav-yank-source ksav-mekoros ksav-search-in-girsa
+                     ksav-linkify ksav-refresh-sources
+                     ksav-git-status ksav-git-commit ksav-git-log ksav-git))
+    (should (where-is-internal command ksav-mode-map))))
+
+(ert-deftest ksav-telling-girsa-needs-no-engine-of-its-own ()
+  "A courtesy errand must not boot a typesetter.
+
+`ksav-tell-girsa-saved' runs from `after-save-hook', and going through
+`ksav-call' would start an engine on the first save of any `.ksav' file — a
+hundred megabytes of Typst, to deliver a message that nothing is listening for."
+  (let ((called nil))
+    (cl-letf (((symbol-function 'ksav-running-p) (lambda () nil))
+              ((symbol-function 'ksav-call) (lambda (&rest _) (setq called t) nil)))
+      (with-temp-buffer
+        (setq buffer-file-name "/tmp/a-sefer.ksav")
+        (ksav-tell-girsa-saved)
+        (set-buffer-modified-p nil))
+      (should-not called))))
 
 ;;;; ---------------------------------------------------------------- with an engine
 
@@ -272,6 +460,178 @@ longer exists."
                 (insert-file-contents-literally file))
               (should (string-prefix-p "%PDF" (buffer-string)))))
         (ignore-errors (delete-file file))))))
+
+(ert-deftest ksav-live-assembles-without-laying-anything-out ()
+  "`assemble' is the `format!' a compile does before the layout starts.
+
+Asked for through `compile' it would cost a full typesetting run and a base64
+PDF to obtain a string that was ready before either began."
+  (ksav-tests--with-engine
+    (let* ((answer (ksav-call "assemble" '((body . "#כותרת1[פרק ראשון]\n\nשלום.\n"))))
+           (source (alist-get 'typst_source answer)))
+      (should (stringp source))
+      ;; The prelude and the writer's words, in one string.
+      (should (> (length source) 100))
+      (should (string-match-p "פרק ראשון" source))
+      ;; And no pages: nothing was laid out.
+      (should-not (alist-get 'pages_svg answer)))))
+
+(ert-deftest ksav-live-writes-the-typst-source-as-utf-8 ()
+  "The bytes, not the length.
+
+Emacs picks a coding system for a new file from the locale, and a buffer of
+Hebrew is not representable in a Latin-1 one — so an Emacs on such a machine
+stops in the middle of an export to ask which coding system to use, and a batch
+one fails reading from stdin.  The same trap as writing a PDF, one file over."
+  (ksav-tests--with-engine
+    (let ((file (make-temp-file "ksav-emacs-" nil ".typ")))
+      (unwind-protect
+          (with-temp-buffer
+            (insert "#כותרת1[פרק ראשון]\n\nשלום.\n")
+            (ksav-export-typst file)
+            (should (file-exists-p file))
+            (with-temp-buffer
+              (set-buffer-multibyte nil)
+              (let ((coding-system-for-read 'no-conversion))
+                (insert-file-contents-literally file))
+              ;; ש is D7 A9 in UTF-8, and one unrepresentable byte in Latin-1.
+              (should (string-match-p "\xd7\xa9" (buffer-string)))))
+        (ignore-errors (delete-file file))))))
+
+(ert-deftest ksav-live-goes-from-the-text-to-the-page-and-back ()
+  "The two directions agree about where a line of the document is.
+
+Checked as *near*, not as *equal*, and the difference is a fact about the two
+questions rather than a slack tolerance.  `reveal' answers where a place in the
+source is, and a cursor position is a zero-width place between glyphs — at
+column 1 of a right-to-left line it is the outer edge of the run.  `jump'
+answers what is *under* a point, which needs a glyph to be there.  Handing the
+first answer straight to the second lands just outside the text and is told,
+correctly, that there is nothing there.
+
+So what is asserted is what the pair is for: a click within a glyph's width of
+where `reveal' pointed comes back with the line `reveal' was asked about.  A
+desynchronisation worth catching — the wrong page, the wrong line, a stale
+layout — moves that answer far further than a glyph.
+
+Worth writing down while it is fresh: `reveal' gives the same point for every
+column of a line, so it is line-granular in this document shape whatever the
+column says.  That is `typst-ide''s own resolution and not something this
+package can improve on from here."
+  (ksav-tests--with-engine
+    (let* ((body "#כותרת1[פרק ראשון]\n\nשורה ראשונה.\n\nשורה שניה.\n")
+           (points (alist-get 'points (ksav-call "reveal" `((body . ,body)
+                                                            (line . 3)
+                                                            (column . 1))))))
+      (should points)
+      (let* ((at (car points))
+             (page (alist-get 'page at))
+             (x (alist-get 'x_pt at))
+             (y (alist-get 'y_pt at))
+             (found '()))
+        (should (equal 0 page))
+        (dolist (dx '(-14 -8 -4 4 8 14))
+          (dolist (dy '(-4 0 4))
+            (let ((back (ksav-call "jump" `((body . ,body) (page . ,page)
+                                            (x_pt . ,(+ x dx)) (y_pt . ,(+ y dy))))))
+              (when (alist-get 'line back)
+                (push (alist-get 'line back) found)))))
+        (should found)
+        ;; Every hit near that point is the line that was asked about — not
+        ;; merely "some line", which a wrong-by-one-line answer would satisfy.
+        (should (equal '(3) (delete-dups (sort found #'<))))))))
+
+(ert-deftest ksav-live-offers-the-engines-templates ()
+  (ksav-tests--with-engine
+    (let ((templates (ksav-templates)))
+      (should (> (length templates) 3))
+      (dolist (tpl templates)
+        (should (stringp (alist-get 'he tpl)))
+        (should (stringp (alist-get 'en tpl)))
+        (should (member (alist-get 'lang tpl) '("he" "en")))
+        ;; A template with no body is a menu entry that opens an empty buffer.
+        (should (> (length (alist-get 'body tpl)) 0))))))
+
+(ert-deftest ksav-live-knows-the-sefarim-and-their-aliases ()
+  (ksav-tests--with-engine
+    (let ((ksav--sefarim nil))
+      (let ((catalogue (ksav-sefarim)))
+        (should (> (length catalogue) 20))
+        (let ((names (ksav--sefer-names)))
+          ;; Every alias resolves to a canonical name that is itself in the
+          ;; table — an alias pointing at a sefer nobody has is a completion
+          ;; that inserts a name the source index cannot file.
+          (dolist (row names)
+            (should (assoc (cdr row) names))))))))
+
+(ert-deftest ksav-live-suggests-a-correction ()
+  (ksav-tests--with-engine
+    ;; A word one letter away from a real one, so there is something to say.
+    (let ((suggestions (ksav-suggestions "שלוס")))
+      (should (listp suggestions)))))
+
+(ert-deftest ksav-live-git-answers-about-a-document ()
+  "A repository made for the occasion, so this says something on any machine.
+
+The engine runs the git that is already there — there is no library linked in —
+so a test that only ran inside Ksav's own checkout would be a test of Ksav's own
+checkout."
+  (ksav-tests--with-engine
+    (let* ((dir (make-temp-file "ksav-git-" t))
+           (file (expand-file-name "sefer.ksav" dir)))
+      (unwind-protect
+          (with-temp-buffer
+            (setq buffer-file-name file)
+            (insert "שלום.\n")
+            ;; `utf-8-unix', or an Emacs whose locale is not UTF-8 stops to ask
+            ;; which coding system can hold these letters — a question with
+            ;; nobody to answer it in batch.  The same trap `ksav-export-typst'
+            ;; has to avoid, found here first.
+            (let ((coding-system-for-write 'utf-8-unix))
+              (write-region (point-min) (point-max) file nil 'silent))
+            ;; Not in a repository yet, and the answer says which of the three
+            ;; things is missing rather than failing.
+            (let ((before (ksav-git--call "status")))
+              (should (alist-get 'git before))
+              (should-not (alist-get 'root before)))
+            (ksav-git--call "init")
+            (let ((after (ksav-git--call "status")))
+              (should (alist-get 'root after))
+              (should (alist-get 'this after))
+              ;; A file that has never been committed says so, which is a
+              ;; different answer from "unchanged".
+              (should-not (eq t (alist-get 'tracked (alist-get 'this after)))))
+            ;; The buffer is visiting a file and `with-temp-buffer' kills it on
+            ;; the way out, which asks "modified; kill anyway?" — a question
+            ;; with nobody to answer it in batch, and a test that fails with
+            ;; `end-of-file' about stdin.
+            (set-buffer-modified-p nil))
+        (ignore-errors (delete-directory dir t))))))
+
+(ert-deftest ksav-live-every-errand-answers-or-says-why ()
+  "The six services that need the library beside Ksav, with no library there.
+
+This is the state almost every reader is in — Girsa closed, or not installed —
+and what it must never produce is silence.  Each of these either answers or
+signals a `user-error' with words in it: *broken and unannounced* is the one
+outcome that is worse than either."
+  (ksav-tests--with-engine
+    (dolist (errand '(("inbox" . nil)
+                      ("clipboard-source" . nil)
+                      ("mekoros" . ((phrase . "בראשית ברא")))
+                      ("linkify" . ((text . "עיין בבא מציעא נט.")))
+                      ("refresh" . ((markup . "שלום.\n")))
+                      ("saved-here" . ((path . "/tmp/a-sefer.ksav")))))
+      (let* ((name (car errand))
+             (said nil))
+        (should (ksav-service-native-p name))
+        (condition-case err
+            (ksav-ask name (cdr errand))
+          (user-error (setq said (cadr err))))
+        (when said
+          ;; A refusal with nothing in it is the failure this whole product is
+          ;; being audited for.
+          (should (> (length said) 10)))))))
 
 ;;;; --------------------------------------------------------- getting an engine
 

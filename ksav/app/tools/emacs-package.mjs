@@ -17,13 +17,7 @@
 //
 //   node tools/emacs-package.mjs <dir>   # stage <dir>/ksav-<version>/
 //
-// # What is in it, and what is not
-//
-// `ksav-tests.el` is left out. It is a real suite and it is the *package's*
-// suite, run by CI against a real engine, but it requires `ert` and exists to
-// be run from the checkout; shipping it to every installation adds a file
-// nobody loads and a byte-compile of code about the package rather than of the
-// package. MELPA's own convention is the same.
+// What is in it, and what is not, is `PACKAGE_FILES` below.
 //
 // # The version
 //
@@ -33,7 +27,7 @@
 // installed and another in its own source. One of them has to be derived from
 // the other, and the header is the one Emacs already treats as authoritative.
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isMain } from "./generated.mjs";
@@ -41,8 +35,41 @@ import { isMain } from "./generated.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 export const EMACS = join(here, "..", "..", "editors", "emacs");
 
-/** What ships. In load order, which is also the order `-pkg.el` wants them. */
-export const PACKAGE_FILES = ["ksav-services.el", "ksav-release.el", "ksav.el", "README.md"];
+/**
+ * What ships: every elisp file in the package directory, and the README.
+ *
+ * Swept, not listed. It was a list of three, written when there were three,
+ * and the package then grew from one file to six — the exact shape
+ * `HANDOFF.md` calls out as the thing that goes stale, and the exact failure
+ * this whole tool exists because of. A file left out of the tarball passes the
+ * byte-compile, passes the whole ERT suite and passes every check in
+ * `emacs.test.mjs`, because all of those run the package out of the checkout
+ * with `-L .`; it fails on the first machine that installs it, with a
+ * `void-function` for code that is plainly right there in the repository.
+ *
+ * `ksav-tests.el` is the one exclusion. It is a real suite and it is the
+ * *package's* suite, run by CI against a real engine, but it requires `ert` and
+ * exists to be run from the checkout; shipping it adds a file nobody loads and
+ * a byte-compile of code about the package rather than of the package. MELPA's
+ * own convention is the same.
+ *
+ * Ordered dependencies-first — the generated tables, then the files that use
+ * them, then the front door — which is what `-pkg.el` and a reader both want.
+ * Nothing depends on it: every file `require`s what it uses.
+ */
+const NOT_SHIPPED = ["ksav-tests.el"];
+const LOAD_ORDER = ["ksav-services.el", "ksav-release.el", "ksav-engine.el"];
+
+export const PACKAGE_FILES = [
+  ...readdirSync(EMACS)
+    .filter((f) => f.endsWith(".el") && !NOT_SHIPPED.includes(f))
+    .sort((a, b) => {
+      // The front door last, the generated tables first, the rest alphabetical.
+      const rank = (f) => (f === "ksav.el" ? 2 : LOAD_ORDER.includes(f) ? 0 : 1);
+      return rank(a) - rank(b) || LOAD_ORDER.indexOf(a) - LOAD_ORDER.indexOf(b) || a.localeCompare(b);
+    }),
+  "README.md",
+];
 
 /** One header field of an elisp file, as `lisp-mnt` would read it. */
 export function header(file, field) {

@@ -153,13 +153,10 @@ the first as the second, every time.
 This package is a client and the engine is the product; see *What this is*
 below. So an Emacs with only this package installed has a door and no room.
 
-That used to be a much worse sentence than it is now. A Ksav release attached
-four desktop installers and nothing else, and the desktop shell links the engine
-as a **library** — so installing Ksav put no `ksav` program anywhere on your
-machine, and this README told you to run `cargo build --release`, which is a
-compile of the whole Typst compiler, offered to somebody whose stated toolchain
-is Emacs. A release now attaches the engine itself, per platform, and
-`M-x ksav-install-engine` is the two words that fetch it.
+Installing the desktop application does not help: the shell links the engine as
+a **library**, so it puts no `ksav` program anywhere on your machine. A release
+attaches the engine itself, per platform, and `M-x ksav-install-engine` is the
+two words that fetch it — no Rust toolchain, no compile of the Typst compiler.
 
 The downloaded binary is the whole of Ksav, not a cut-down piece of it: `ksav
 serve` also opens the full editor in a browser, and `ksav document.ksav` writes

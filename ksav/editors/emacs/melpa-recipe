@@ -7,6 +7,14 @@
 ;; wrong — the package is in a subdirectory of a monorepo, so the default
 ;; (top-level *.el) would find nothing at all.
 ;;
+;; The list below is the same set `tools/emacs-package.mjs` puts in the release
+;; tarball, and `emacs.test.mjs` fails if the two disagree. They did: this
+;; recipe named three files where the package loads eight, so `ksav.el`'s own
+;; `(require 'ksav-engine)` would have failed on the first load of a MELPA
+;; install — in the one file whose comment is about `:files' being the field
+;; that gets it wrong. The generator uses a denylist and maintains itself; a
+;; hand-kept allowlist here is what drifted.
+;;
 ;; `ksav-tests.el' is deliberately outside the glob. It is the package's real
 ;; suite and CI runs it against a live engine, but it wants `ert' and exists to
 ;; be run from a checkout; shipping it to every installation is a file nobody
@@ -15,6 +23,13 @@
 
 (ksav :fetcher github
       :repo "SYKhayyat/ksav"
-      :files ("ksav/editors/emacs/ksav.el"
+      :files (
               "ksav/editors/emacs/ksav-services.el"
-              "ksav/editors/emacs/ksav-release.el"))
+              "ksav/editors/emacs/ksav-release.el"
+              "ksav/editors/emacs/ksav-engine.el"
+              "ksav/editors/emacs/ksav-girsa.el"
+              "ksav/editors/emacs/ksav-git.el"
+              "ksav/editors/emacs/ksav-preview.el"
+              "ksav/editors/emacs/ksav-write.el"
+              "ksav/editors/emacs/ksav.el"
+              "ksav/editors/emacs/README.md"))

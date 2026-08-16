@@ -362,6 +362,32 @@ export async function run() {
     check("the tarball's version is the package's", packageVersion(), declaredVersion(el));
     ok("the package says which Emacs it needs", /^\d+\.\d+$/u.test(requiredEmacs() ?? ""));
   }
+
+  // ------------------------------------------------- the MELPA recipe agrees
+  //
+  // MELPA builds from a recipe in *its* repository, so this file is a copy kept
+  // here to submit from — and a copy is the thing this project keeps paying for.
+  // The two lists had already drifted: the generator ships every `.el` except
+  // `ksav-tests.el` (a denylist, which maintains itself), and the recipe named
+  // three files by hand. `ksav.el` requires five of the missing ones, so a MELPA
+  // install would have died on the first `(require 'ksav-engine)` — in the one
+  // file whose own comment says `:files` is the field that gets it wrong.
+  //
+  // Nothing could have caught it: MELPA has never built this package, and the
+  // release tarball is built from the generator, so the working path and the
+  // broken one never met.
+  {
+    const { PACKAGE_FILES } = await import("../tools/emacs-package.mjs");
+    const recipe = readFileSync(path.join(ROOT, "ksav/editors/emacs/melpa-recipe"), "utf8");
+    const listed = [...recipe.matchAll(/"ksav\/editors\/emacs\/([^"]+)"/gu)].map((m) => m[1]);
+    ok("the recipe lists files at all", listed.length > 0);
+    check("the recipe ships exactly what the package ships", listed, [...PACKAGE_FILES]);
+    // And the half that actually breaks: every `require` has a file behind it.
+    const front = readFileSync(path.join(ROOT, "ksav/editors/emacs/ksav.el"), "utf8");
+    const needed = [...front.matchAll(/^\(require '(ksav[^)\s]*)\)/gmu)].map((m) => `${m[1]}.el`);
+    ok("the front door requires something", needed.length > 0);
+    check("and the recipe carries every file it requires", needed.filter((f) => !listed.includes(f)), []);
+  }
 }
 
 /** The `;; Version:` header of an elisp file. */

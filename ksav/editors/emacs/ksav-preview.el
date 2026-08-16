@@ -28,6 +28,18 @@
 (require 'subr-x)
 (require 'ksav-engine)
 
+;; `image-size' is defined in image.c, and **only in an Emacs built with a
+;; window system** — so on the `emacs-nox' CI runs it does not exist and the
+;; byte compiler is right to say so. Declared rather than guarded with
+;; `fboundp': the one caller is reached from a mouse click on a drawn page,
+;; which is a thing that cannot happen in an Emacs that cannot draw one.
+;;
+;; This is the local-is-laxer-than-CI trap, exactly. The machine this was
+;; written on has a graphical Emacs 30, where the function is simply there;
+;; Ubuntu's `emacs-nox' 27.1 is the floor this package claims, and it is the
+;; only place the claim is ever tested.
+(declare-function image-size "image.c" (spec &optional pixels frame))
+
 (defconst ksav-preview-buffer "*ksav page*"
   "Where the typeset document is shown.")
 

@@ -137,6 +137,28 @@ click within a glyph's width of where `reveal` pointed comes back with the line
 `reveal` was asked about. A desynchronisation worth catching moves that answer
 much further than a glyph.
 
+## And then CI found the third
+
+The byte-compile went red on `emacs-nox` 27.1:
+
+```
+ksav-preview.el:344:1:Error: the function ‘image-size’ is not known to be defined.
+```
+
+`image-size` lives in `image.c` and is compiled in **only for an Emacs with a
+window system**. The machine this was written on has a graphical Emacs 30, where
+it is simply there; Ubuntu's `emacs-nox` 27.1 is the floor this package claims,
+and CI is the only place that claim is ever tested. `HANDOFF.md` names this
+exact trap — *local is more permissive than CI* — and it caught the previous
+revision of this package too, with `string-replace`.
+
+Declared rather than guarded with `fboundp`: the one caller is reached from a
+mouse click on a drawn page, which cannot happen in an Emacs that cannot draw
+one. The fix could not be reproduced locally, so the *mechanism* was checked
+instead — a file calling a function that exists nowhere, compiled with and
+without a `declare-function`, producing exactly the CI error and exactly
+nothing.
+
 ## What ran
 
 49 ERT tests, of which 16 drive a real engine, plus the offline half in

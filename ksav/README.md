@@ -606,6 +606,16 @@ browser on any OS.
 `C-c C-s` runs the Hebrew and English spellers. It starts an engine for you and
 stops it when Emacs exits.
 
+Those four are the daily keys and not the extent of it. **Every service this
+engine answers has a door in Emacs** — the assembled Typst source, click-to-jump
+on the drawn page and its inverse, the speller's suggestions, the templates, the
+sefarim catalogue as a `completion-at-point`, all eighteen git operations, and
+the six errands to Girsa. That is a claim `app/test/emacs.test.mjs` holds with
+an exemption list that is **empty**, because the version before it reached three
+of sixteen and a client that quietly cannot do thirteen of the things the
+product does cannot tell its reader *Ksav cannot do that* from *something went
+wrong*. It reported the first as the second, every time.
+
 It is a client and nothing more — no elisp here parses Ksav markup, decides what
 a command means or renders anything. That is the only arrangement in which an
 Emacs user gets *Ksav* rather than a mode that approximates it and drifts, and

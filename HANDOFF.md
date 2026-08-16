@@ -88,61 +88,36 @@ cd ksav/app && npm run accept
 
 ## 4 · What is left
 
+Finished items are **deleted from here**, not ticked. A section called *what is
+left* full of `- [x]` is the log this page says it is not; what was done on a
+day belongs in [`decisions/`](decisions/README.md), which is indexed and which
+this page links to instead. The five items that stood here on 16 August 2026 —
+the Emacs client, per-pane places, the 11 August reconciliation, writing a
+kuntres, and the documentation pass — are the five records dated that day.
+
 ### The live tracker
 
-- [x] **Emacs as a first-class citizen.** All sixteen services have a door, the
-      exemption lists in `emacs.test.mjs` are empty, and `ksav.el` is seven
-      files. See
-      [`decisions/2026-08-16-three-of-sixteen.md`](decisions/2026-08-16-three-of-sixteen.md).
-
-- [x] **A pane should remember its own place in each document.** `paneplaces.ts`
-      keys a place by pane *and* document — source panes and previews alike. See
-      [`decisions/2026-08-16-three-panes-one-caret.md`](decisions/2026-08-16-three-panes-one-caret.md).
+- [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
+      most important line on the page. Two kuntres-length sittings — 7 and 16
+      August — found four bugs the whole suite was green over, and neither of
+      them is a sefer. The next one should be **long**: enough pages for the
+      apparatus to break across them, enough simanim for the numbering to be
+      re-read, a real export sent to somebody who will open it. Nothing else has
+      ever found this class of bug. Every bug goes to the top of the queue and
+      gets the class treatment.
 
 - [ ] **`deploy.yml` has never run.** The workflow that publishes the browser
       build triggers on tags, and the one tag this repository has predates the
       file — so the wasm build, the service worker, the manifest and every share
       link point at a site that has never been built once. The workflow is
       written and its action pins are current; what is missing is a tag, or a
-      `workflow_dispatch` run, and then reading what comes out.
+      `workflow_dispatch` run, and then reading what comes out. **Ask before
+      running it**: it publishes a public site, which is not a thing to do on
+      somebody's behalf.
 
-### Reconcile the 2026-08-11 list
-
-- [x] All seventy-seven read against the code: seventy-six done, one open and
-      fixed in the same pass, and nothing inherited into this file. See
-      [`decisions/2026-08-16-reading-the-seventy-seven.md`](decisions/2026-08-16-reading-the-seventy-seven.md),
-      which also answers four of that record's six open questions. The two that
-      stand are which arrangements should be default tabs — a question for a
-      writer — and inventory items 59 to 156, which are below.
-
-### Write a real sefer in it
-
-- [x] A second sitting, 16 August: a kuntres on lechem mishneh written in the
-      assembled application — simanim, a footnote, a source note, gershayim
-      inside parentheses, a table, two apparatus bands, an `.org` import and a
-      PDF. The three bugs of 7 August are gone; it found a fourth, and the fix
-      is the class rather than the instance. See
-      [`decisions/2026-08-16-writing-a-kuntres-in-it.md`](decisions/2026-08-16-writing-a-kuntres-in-it.md).
-
-- [ ] **Keep writing in it.** `ksav/README.md`'s box stays open and should: two
-      kuntres-length sittings are not a sefer, and the only thing that has ever
-      found this class of bug is somebody writing rather than testing. The next
-      one should be *long* — enough pages for the apparatus to break across
-      them, enough simanim for the numbering to be re-read, a real export sent
-      to somebody. Every bug goes to the top of the queue and gets the class
-      treatment.
-
-### Documentation and onboarding
-
-- [x] All five read as the person arriving with no context. What that found:
-      `docs/start-here.md` — the page the front door sends a *reader* to — never
-      said how to get Ksav in front of you, and opened on *"it opens with one"*;
-      it has the three doors now, one line each. And the count fence was
-      enforcing the wrong number onto three sentences: the registry declares
-      more commands than the editor offers, because a deprecated one still
-      compiles and is no longer put in front of anybody — so every sentence
-      about what `#` offers was carrying the registry's total. See
-      [`decisions/2026-08-16-two-numbers-under-one-noun.md`](decisions/2026-08-16-two-numbers-under-one-noun.md).
+- [ ] **Which shipped arrangements are worth having as default tabs.** Left open
+      by the 11 August record and still open, because it is a question for a
+      writer rather than for the code.
 
 ### Not yours to close
 

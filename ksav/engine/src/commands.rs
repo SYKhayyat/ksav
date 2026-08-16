@@ -312,6 +312,9 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מחיקה", "deleted", "review", "סימון מחיקה (שינוי עקוב)", "Mark a deletion (tracked change)", "#מחיקה[|]"),
     cmd!("הערת_עורך", "comment_", "review", "הערת עורך בשוליים", "Editorial margin comment", "#הערת_עורך[|]"),
     cmd!("הגדרות_סקירה", "review_config", "review", "תצוגת הסקירה (סימון / סופי / מקורי)", "Review view (markup / final / original)", "#הגדרות_סקירה(תצוגה: \"סופי\")"),
+    cmd!("הגדרות_הוספה", "inserted_config", "review", "עיצוב סימוני ההוספה", "How insertions are set", "#הגדרות_הוספה(צבע: green)|"),
+    cmd!("הגדרות_מחיקה", "deleted_config", "review", "עיצוב סימוני המחיקה", "How deletions are set", "#הגדרות_מחיקה(קו_חוצה: false)|"),
+    cmd!("הגדרות_הערת_עורך", "comment_config", "review", "עיצוב הערות העורך", "How editorial comments are set", "#הגדרות_הערת_עורך(גודל: 0.9em)|"),
     // ---- section page setup ----
     cmd!("מקטע_עמוד", "page_section", "layout", "מקטע עם הגדרות עמוד משלו (טורים/שוליים/כותרות/סימן מים)", "Section with its own page setup (columns/margins/headers/watermark)", "#מקטע_עמוד(טורים: 2)[|]"),
     // The running heads, as document content rather than as two boxes in the

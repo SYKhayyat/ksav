@@ -57,7 +57,7 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-The registry declares 148 commands and `#` in the editor offers all 146 of them
+The registry declares 151 commands and `#` in the editor offers all 149 of them
 that are still current, with what each one does, so none is worth memorising.
 The other two still compile — they are in documents people have already written
 — and are simply no longer put in front of anybody.

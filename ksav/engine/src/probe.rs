@@ -143,6 +143,64 @@ fn walk_fills(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Fill>) {
     }
 }
 
+/// One stroked line on the page: a rule, an underline, a strike, a border.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stroke {
+    /// 1-based page number.
+    pub page: usize,
+    /// Absolute position on the page, in points, from the top-left corner.
+    pub x: f64,
+    pub y: f64,
+    /// The stroke colour as `#rrggbb`, lowercase, alpha dropped — as `Fill`.
+    pub colour: String,
+    /// How thick it is drawn, in points.
+    pub thickness: f64,
+}
+
+/// Every stroked shape in the document, in layout order.
+///
+/// The other half of what `text_runs` cannot see, and it was missing entirely.
+/// `fills` reads `shape.fill`, so it finds a highlight — a rectangle *filled*
+/// behind the words — and finds nothing at all for a line, which Typst draws as
+/// a stroked shape with no fill. That covers `#קו_תחתון`, `#קו_חוצה`,
+/// `#קו_מפריד` and every border a block draws, none of which any test could
+/// previously see: a strike that silently stopped being drawn passed every
+/// assertion in this repository, because the words it goes through are still
+/// there and the run reports nothing about the line.
+pub fn strokes(doc: &PagedDocument) -> Vec<Stroke> {
+    let mut out = Vec::new();
+    for (i, page) in doc.pages().iter().enumerate() {
+        walk_strokes(&page.frame, Point::zero(), i + 1, &mut out);
+    }
+    out
+}
+
+fn walk_strokes(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Stroke>) {
+    for (pos, item) in frame.items() {
+        let at = origin + *pos;
+        match item {
+            FrameItem::Group(g) => walk_strokes(&g.frame, at, page, out),
+            FrameItem::Shape(shape, _) => {
+                let Some(stroke) = shape.stroke.as_ref() else {
+                    continue;
+                };
+                let Paint::Solid(colour) = &stroke.paint else {
+                    continue;
+                };
+                let [r, g, b, _] = colour.to_vec4_u8();
+                out.push(Stroke {
+                    page,
+                    x: at.x.to_pt(),
+                    y: at.y.to_pt(),
+                    colour: format!("#{r:02x}{g:02x}{b:02x}"),
+                    thickness: stroke.thickness.to_pt(),
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Each page's (width, height) in points — so a test can assert that nothing
 /// (apparatus, page number) was laid out past the edge of the paper.
 pub fn page_sizes(doc: &PagedDocument) -> Vec<(f64, f64)> {

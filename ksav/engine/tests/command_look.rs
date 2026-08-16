@@ -596,3 +596,181 @@ fn a_misspelled_knob_stops_the_compile_and_names_itself() {
         "the message names the argument: {said}"
     );
 }
+
+// ------------------------------------------------------------------ the review
+//
+// The three review marks are the clearest case the rule has, because they had a
+// channel already and it was the wrong one twice over. `#הגדרות_סקירה` took
+// `צבע_הוספה`, `צבע_מחיקה` and `צבע_הערה` — three colours and nothing else, so a
+// reviewer could recolour a deletion and not unstrike it, nor set it smaller,
+// nor set one deletion differently from the rest. And it was a *second* table
+// deciding what a mark looks like, beside the register that decides it for
+// everything else.
+//
+// They are classes now. The switch still answers to the three colour names,
+// because documents say them — but it writes into the register rather than into
+// a store of its own, which is what makes it one setting with two spellings
+// instead of two settings that agree until somebody uses both.
+
+/// Every line drawn on the page. A strike and an underline are stroked shapes,
+/// not glyphs, so `text_runs` cannot see either of them: a test written against
+/// the runs passes exactly as happily when the line is dropped.
+///
+/// `probe::strokes` did not exist before these tests wanted it. `probe::fills`
+/// reads `shape.fill` and finds a highlight; a line has no fill, so it found
+/// nothing — which means no test in this repository could see an underline, a
+/// strike, a horizontal rule or a block's border, on a page where all four are
+/// among the things a reader notices first.
+fn lines_on(body: &str) -> Vec<probe::Stroke> {
+    let doc = probe::layout(body, &DocConfig::default()).expect("it lays out");
+    probe::strokes(&doc)
+}
+
+#[test]
+fn a_deletion_still_prints_struck_and_in_its_own_red() {
+    // The values moved out of `#מחיקה` and into `_mk_defaults`. If that move
+    // changed either of them, every review anybody has open redraws.
+    let f = lines_on("הטקסט #מחיקה[הזה] נשאר.\n");
+    assert!(
+        f.iter().any(|f| f.colour == "#b91c1c"),
+        "the strike is gone or is a different red: {f:?}"
+    );
+}
+
+#[test]
+fn an_insertion_still_prints_underlined_and_green() {
+    let f = lines_on("הטקסט #הוספה[הזה] נוסף.\n");
+    assert!(
+        f.iter().any(|f| f.colour == "#15803d"),
+        "the underline is gone or is a different green: {f:?}"
+    );
+}
+
+#[test]
+fn a_deletion_can_be_recoloured_through_a_door_of_its_own() {
+    let f = lines_on("#הגדרות_מחיקה(צבע: rgb(\"#0000ff\"))\nהטקסט #מחיקה[הזה] נשאר.\n");
+    assert!(f.iter().any(|f| f.colour == "#0000ff"), "{f:?}");
+    assert!(
+        !f.iter().any(|f| f.colour == "#b91c1c"),
+        "the shipped red is still being drawn as well: {f:?}"
+    );
+}
+
+#[test]
+fn the_review_switch_and_the_class_door_are_one_setting() {
+    // The whole point of routing the old spelling rather than keeping it. Two
+    // stores would pass every test either of them was written for and disagree
+    // the moment a document used both.
+    let door = lines_on("#הגדרות_מחיקה(צבע: rgb(\"#0000ff\"))\nה#מחיקה[זה].\n");
+    let switch = lines_on("#הגדרות_סקירה(צבע_מחיקה: rgb(\"#0000ff\"))\nה#מחיקה[זה].\n");
+    assert!(switch.iter().any(|f| f.colour == "#0000ff"), "{switch:?}");
+    assert_eq!(
+        door.iter().map(|f| &f.colour).collect::<Vec<_>>(),
+        switch.iter().map(|f| &f.colour).collect::<Vec<_>>(),
+        "the old spelling paints something else"
+    );
+    // …and the switch's own settings are still its own.
+    let out = compile(
+        "#הגדרות_סקירה(תצוגה: \"סופי\")\nה#מחיקה[זה] נשאר.\n",
+        &DocConfig::default(),
+    );
+    assert!(out.ok(), "{:?}", out.diagnostics);
+}
+
+#[test]
+fn a_deletion_can_lose_the_stroke_it_could_never_reach() {
+    // A knob that did not exist an hour ago. `#הגדרות_סקירה` had three colours
+    // and no way to say *show me deletions in red without the line through
+    // them*, because the `strike(` was written into the command.
+    let f = lines_on("#הגדרות_מחיקה(קו_חוצה: false)\nהטקסט #מחיקה[הזה] נשאר.\n");
+    assert!(
+        !f.iter().any(|f| f.colour == "#b91c1c"),
+        "the strike is still drawn: {f:?}"
+    );
+    // The words are still on the page. Losing the line must not lose the text.
+    let out = compile(
+        "#הגדרות_מחיקה(קו_חוצה: false)\nהטקסט #מחיקה[הזה] נשאר.\n",
+        &DocConfig::default(),
+    );
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    assert!(
+        runs("#הגדרות_מחיקה(קו_חוצה: false)\nהטקסט #מחיקה[הזה] נשאר.\n")
+            .iter()
+            .any(|r| r.text.contains("הזה")),
+        "the deleted words went with the line"
+    );
+}
+
+#[test]
+fn a_comment_takes_a_size_and_the_marker_keeps_its_own() {
+    // A comment rides the sidenote engine, so it prints a `✎` marker in the
+    // line and its body in the margin. The class's size belongs to the body: a
+    // comment set at 1.5em with a 1.5em pencil in the middle of the sentence is
+    // not what anybody meant by *make my comments bigger*.
+    let body = "שורה #הערת_עורך[הערה כאן] המשך.\n";
+    let big = "#הגדרות_הערת_עורך(גודל: 1.5em)\nשורה #הערת_עורך[הערה כאן] המשך.\n";
+    let before = size_of(body, "הערה כאן").expect("the comment printed");
+    let after = size_of(big, "הערה כאן").expect("it still prints");
+    assert!(
+        after > before,
+        "the comment kept its size: {after} vs {before}"
+    );
+    let marker_before = size_of(body, "✎").expect("the marker printed");
+    let marker_after = size_of(big, "✎").expect("the marker still prints");
+    assert_eq!(marker_before, marker_after, "the marker grew with the body");
+}
+
+#[test]
+fn one_review_mark_can_differ_from_the_rest_of_its_class() {
+    // The layer the old switch had no room for at all: three colours held one
+    // value each, so *this* deletion could not be set apart from the others.
+    let f = lines_on("ה#מחיקה(צבע: rgb(\"#0000ff\"))[זה] וגם ה#מחיקה[זה].\n");
+    assert!(f.iter().any(|f| f.colour == "#0000ff"), "{f:?}");
+    assert!(
+        f.iter().any(|f| f.colour == "#b91c1c"),
+        "the other one lost its class colour: {f:?}"
+    );
+}
+
+#[test]
+fn the_views_still_decide_what_prints() {
+    // The half of `#הגדרות_סקירה` that is not a look, and had better not have
+    // moved with the half that is.
+    let src = "ה#הוספה[חדש] וה#מחיקה[ישן].\n";
+    let final_ = format!("#הגדרות_סקירה(תצוגה: \"סופי\")\n{src}");
+    let original = format!("#הגדרות_סקירה(תצוגה: \"מקורי\")\n{src}");
+    let text_of = |s: &str| {
+        runs(s)
+            .iter()
+            .map(|r| r.text.clone())
+            .collect::<Vec<_>>()
+            .join("")
+    };
+    assert!(
+        text_of(&final_).contains("חדש"),
+        "the final view lost the insertion"
+    );
+    assert!(
+        !text_of(&final_).contains("ישן"),
+        "the final view kept the deletion"
+    );
+    assert!(
+        text_of(&original).contains("ישן"),
+        "the original view lost the deletion"
+    );
+    assert!(
+        !text_of(&original).contains("חדש"),
+        "the original view kept the insertion"
+    );
+}
+
+#[test]
+fn a_review_knob_nothing_answers_to_stops_the_compile() {
+    let out = compile("ה#מחיקה(גדול: 2em)[זה].\n", &DocConfig::default());
+    assert!(!out.ok(), "a knob nothing answers to compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "{:?}",
+        out.diagnostics
+    );
+}

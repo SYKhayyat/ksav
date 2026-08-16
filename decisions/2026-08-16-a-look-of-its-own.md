@@ -172,3 +172,44 @@ no daf.
 The side notes are the ones the margins already asked for by name — *configurable
 width* — and the three review marks are the ones a reader sees most often
 without being able to touch. `HANDOFF.md` carries the item.
+
+**Eleven of the twenty-four are done since.** The eight blocks — `#ציטוט`,
+`#הערת_צד`, `#אזהרה`, `#הצלחה`, `#תיבה`, `#מקור`, `#שער`, `#תת_שער` — took the
+block knobs and a door each; the three review marks are below. Thirteen left,
+and `test/enginefacts.test.mjs` holds the list so this paragraph cannot drift
+away from it.
+
+## The review marks, and a channel that was the wrong shape
+
+`#הוספה`, `#מחיקה` and `#הערת_עורך` were the interesting case, because they were
+the one group in the twenty-four that had a channel already:
+
+```typst
+#הגדרות_סקירה(צבע_הוספה: …, צבע_מחיקה: …, צבע_הערה: …)
+```
+
+Three colours. It was wrong twice over, and the two are worth separating.
+
+**Not granular enough.** A reviewer could recolour a deletion and could not
+unstrike it, could not set it smaller, and could not set *this* deletion apart
+from the others — because three keys held one value each and there was no
+instance layer at all. The strike itself was written into the command, where
+nothing could reach it. `קו_חוצה` is a register knob now, beside `קו_תחתון`,
+which is where a line through a word belonged from the start.
+
+**And a second authority.** This is the failure the register exists to end: two
+tables deciding what a mark looks like, agreeing right up until a document uses
+both. So the switch keeps the three names — documents say them — and *routes*
+them: `#הגדרות_סקירה(צבע_מחיקה: red)` and `#הגדרות_מחיקה(צבע: red)` are one
+setting with two spellings, and a test asserts the two paint identical pages.
+
+What stayed in `_rv_cfg` is what is genuinely not a look: which view the document
+is in (markup, final, original) and whether a comment prints its reviewer's name.
+An insertion being absent from the original view is not a style — it is what the
+mark means.
+
+One thing that had to be decided rather than derived: a comment rides the
+sidenote engine, so it prints a `✎` in the line and its body in the margin. The
+class's size goes to the body only. A comment set at 1.5em with a 1.5em pencil in
+the middle of the sentence is not what anybody means by *make my comments
+bigger*.

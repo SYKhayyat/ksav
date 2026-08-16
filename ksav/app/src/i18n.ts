@@ -218,6 +218,9 @@ const HE: Dict = {
   "markClass.מקור": "ציטוט מקור",
   "markClass.שער": "שער",
   "markClass.תת_שער": "תת שער",
+  "markClass.הוספה": "סימון הוספה",
+  "markClass.מחיקה": "סימון מחיקה",
+  "markClass.הערת_עורך": "הערת עורך",
   // The knobs, named as one element's own — "size", not "heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "גודל",
@@ -228,6 +231,7 @@ const HE: Dict = {
   knobSpaceBefore: "ריווח לפני",
   knobSpaceAfter: "ריווח אחרי",
   knobUnderline: "קו תחתון",
+  knobStrike: "קו חוצה",
   knobRule: "קו מתחת",
   knobNumbering: "מספור",
   knobSmallcaps: "אותיות רבתי",
@@ -1341,6 +1345,9 @@ const EN: Dict = {
   "markClass.מקור": "Source citation",
   "markClass.שער": "Title",
   "markClass.תת_שער": "Subtitle",
+  "markClass.הוספה": "Insertion",
+  "markClass.מחיקה": "Deletion",
+  "markClass.הערת_עורך": "Editorial comment",
   // The knobs, named as one element's own — "Size", not "Heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "Size",
@@ -1351,6 +1358,7 @@ const EN: Dict = {
   knobSpaceBefore: "Space before",
   knobSpaceAfter: "Space after",
   knobUnderline: "Underline",
+  knobStrike: "Strikethrough",
   knobRule: "Rule under it",
   knobNumbering: "Numbering",
   knobSmallcaps: "Small caps",

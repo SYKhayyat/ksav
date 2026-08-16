@@ -1264,6 +1264,33 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_הוספה(צבע: green)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_מחיקה(קו_חוצה: false)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_הערת_עורך(גודל: 0.9em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": true,
@@ -2592,6 +2619,33 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#review_config(display: \"final\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#inserted_config(colour: green)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#deleted_config(strike: false)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#comment_config(size: 0.9em)ds to continue."
   },
   {
    "ctx": "prose",
@@ -3928,6 +3982,33 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_הוספה(צבע: green)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_מחיקה(קו_חוצה: false)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_הערת_עורך(גודל: 0.9em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -5256,6 +5337,33 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #review_config(display: \"final\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #inserted_config(colour: green)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #deleted_config(strike: false)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #comment_config(size: 0.9em)One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -6592,6 +6700,33 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_הוספה(צבע: green)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_מחיקה(קו_חוצה: false)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_הערת_עורך(גודל: 0.9em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -7920,6 +8055,33 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #review_config(display: \"final\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #inserted_config(colour: green)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #deleted_config(strike: false)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #comment_config(size: 0.9em)inside] continues."
   },
   {
    "ctx": "note-body",
@@ -9256,6 +9418,33 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_הוספה(צבע: green)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_מחיקה(קו_חוצה: false)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_הערת_עורך(גודל: 0.9em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -10584,6 +10773,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #review_config(display: \"final\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #inserted_config(colour: green)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #deleted_config(strike: false)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #comment_config(size: 0.9em)here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -11920,6 +12136,33 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_הוספה(צבע: green),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_מחיקה(קו_חוצה: false),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_הערת_עורך(גודל: 0.9em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -13248,6 +13491,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],review_config(display: \"final\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],inserted_config(colour: green),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],deleted_config(strike: false),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],comment_config(size: 0.9em),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -14584,6 +14854,33 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_הוספה(צבע: green),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_מחיקה(קו_חוצה: false),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_הערת_עורך(גודל: 0.9em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -15912,6 +16209,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(review_config(display: \"final\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(inserted_config(colour: green),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(deleted_config(strike: false),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(comment_config(size: 0.9em),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -17248,6 +17572,33 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_הוספה(צבע: green)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_מחיקה(קו_חוצה: false)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_הערת_עורך(גודל: 0.9em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -18576,6 +18927,33 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #review_config(display: \"final\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #inserted_config(colour: green)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #deleted_config(strike: false)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #comment_config(size: 0.9em)here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -19912,6 +20290,33 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_הוספה(צבע: green), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_מחיקה(קו_חוצה: false), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_הערת_עורך(גודל: 0.9em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -21240,6 +21645,33 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],review_config(display: \"final\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],inserted_config(colour: green), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],deleted_config(strike: false), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],comment_config(size: 0.9em), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -22576,6 +23008,33 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_הוספה(צבע: green)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_מחיקה(קו_חוצה: false)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_הערת_עורך(גודל: 0.9em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -23904,6 +24363,33 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #review_config(display: \"final\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #inserted_config(colour: green)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #deleted_config(strike: false)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #comment_config(size: 0.9em)here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -25240,6 +25726,33 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_הוספה(צבע: green)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_מחיקה(קו_חוצה: false)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_הערת_עורך(גודל: 0.9em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -26568,6 +27081,33 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #review_config(display: \"final\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #inserted_config(colour: green)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #deleted_config(strike: false)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #comment_config(size: 0.9em)Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -27904,6 +28444,33 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_הוספה(צבע: green)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_מחיקה(קו_חוצה: false)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_הערת_עורך(גודל: 0.9em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -29232,6 +29799,33 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #review_config(display: \"final\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #inserted_config(colour: green)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #deleted_config(strike: false)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #comment_config(size: 0.9em)prayer]"
   },
   {
    "ctx": "siman-body",
@@ -30568,6 +31162,33 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_הוספה(צבע: green)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_מחיקה(קו_חוצה: false)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_הערת_עורך(גודל: 0.9em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": true,
@@ -31896,6 +32517,33 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #review_config(display: \"final\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #inserted_config(colour: green)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #deleted_config(strike: false)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #comment_config(size: 0.9em)Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -33232,6 +33880,33 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_הוספה(צבע: green)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_מחיקה(קו_חוצה: false)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_הערת_עורך(גודל: 0.9em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מקטע_עמוד",
    "en": "page_section",
    "legal": false,
@@ -34560,6 +35235,33 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#review_config(display: \"final\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הוספה",
+   "en": "inserted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#inserted_config(colour: green)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מחיקה",
+   "en": "deleted_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#deleted_config(strike: false)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערת_עורך",
+   "en": "comment_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#comment_config(size: 0.9em)ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

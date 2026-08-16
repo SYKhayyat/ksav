@@ -1300,6 +1300,33 @@
       "deprecated": false
     },
     {
+      "he": "הגדרות_הוספה",
+      "en": "inserted_config",
+      "category": "review",
+      "desc_he": "עיצוב סימוני ההוספה",
+      "desc_en": "How insertions are set",
+      "insert": "#הגדרות_הוספה(צבע: green)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מחיקה",
+      "en": "deleted_config",
+      "category": "review",
+      "desc_he": "עיצוב סימוני המחיקה",
+      "desc_en": "How deletions are set",
+      "insert": "#הגדרות_מחיקה(קו_חוצה: false)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_הערת_עורך",
+      "en": "comment_config",
+      "category": "review",
+      "desc_he": "עיצוב הערות העורך",
+      "desc_en": "How editorial comments are set",
+      "insert": "#הגדרות_הערת_עורך(גודל: 0.9em)|",
+      "deprecated": false
+    },
+    {
       "he": "מקטע_עמוד",
       "en": "page_section",
       "category": "layout",

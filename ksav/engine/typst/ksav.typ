@@ -89,6 +89,7 @@
   space_after: "ריווח_אחרי", number_spacing: "ריווח_מספור",
   note_spacing: "ריווח_הערות", rule_between: "קו_בין",
   tracking: "מרווח_אותיות", underline: "קו_תחתון", smallcaps: "רברבתי",
+  strike: "קו_חוצה",
   // citations and indexes — the seven that had no English spelling at all.
   // Twelve English aliases were plain bindings rather than `_en` wrappers, so
   // their parameters stayed Hebrew: `#sourceref("ב״ב", מקום: "ב.")` is not
@@ -3312,6 +3313,19 @@
   "תת_שער": (גודל: 1.2em, צבע: luma(110), יישור: "center"),
   // A block citation, which is a look and nothing else: 0.85em, italic, grey.
   "מקור": (גודל: 0.85em, סגנון: "italic", צבע: luma(90)),
+  // The three review marks. These had a channel already — `#הגדרות_סקירה` takes
+  // `צבע_הוספה`, `צבע_מחיקה` and `צבע_הערה` — and it was the wrong shape twice
+  // over: three colours and nothing else, so a reviewer could recolour a
+  // deletion and not unstrike it or set it smaller; and a second table deciding
+  // what a mark looks like, which is the drift this register exists to end.
+  //
+  // The switch still takes those three names — a document that sets them keeps
+  // working — but it writes *here* now rather than beside here. What stayed in
+  // `_rv_cfg` is what is genuinely not a look: which view the document is in,
+  // and whether a comment prints its reviewer's name.
+  "הוספה": (צבע: rgb("#15803d"), קו_תחתון: true),
+  "מחיקה": (צבע: rgb("#b91c1c"), קו_חוצה: true),
+  "הערת_עורך": (צבע: rgb("#b45309")),
 )
 
 /// What `#רשימת_סימונים` calls a class when the writer does not title it.
@@ -3327,7 +3341,13 @@
 )
 
 /// What a mark's own arguments may say about how it looks.
-#let _mk_knobs = ("גודל", "סגנון", "משקל", "צבע", "קו_תחתון", "סוגריים")
+///
+/// `קו_חוצה` arrived with the review marks. A tracked deletion is struck
+/// through, and that stroke was written into `#מחיקה` where no writer could
+/// reach it — which is the same shape as every other value this register has
+/// taken over, and there is no reason a line through a word should be a knob any
+/// less than a line under one.
+#let _mk_knobs = ("גודל", "סגנון", "משקל", "צבע", "קו_תחתון", "קו_חוצה", "סוגריים")
 
 /// …plus the two that are not a look at all: `פטור` takes this mark out of its
 /// class's styling, and `ברשימה: false` takes it out of the class's list. Two
@@ -3565,6 +3585,7 @@
   let out = body
   if c.at("סוגריים", default: false) { out = [(#out)] }
   if c.at("קו_תחתון", default: false) { out = underline(out) }
+  if c.at("קו_חוצה", default: false) { out = strike(out) }
   let a = (:)
   if "גודל" in c { a.insert("size", c.גודל) }
   if "צבע" in c { a.insert("fill", c.צבע) }
@@ -4353,64 +4374,101 @@
 // ============================================================
 #let _rv_defaults = (
   תצוגה: "סימון",              // "סימון" · "סופי" · "מקורי"
-  צבע_הוספה: rgb("#15803d"),   // insertions
-  צבע_מחיקה: rgb("#b91c1c"),   // deletions
-  צבע_הערה: rgb("#b45309"),    // comments
   שמות: true,                   // print the reviewer's name on a comment
 )
 #let _rv_cfg = state("ksav-rv-cfg", _rv_defaults)
-#let הגדרות_סקירה(..opts) = _rv_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+
+/// The three colour names this switch used to own, and the class each belongs to.
+///
+/// Kept because documents say them, routed because they should never have been a
+/// second authority. `#הגדרות_סקירה(צבע_מחיקה: red)` and
+/// `#הגדרות_מחיקה(צבע: red)` are one setting written two ways now, rather than
+/// two settings that agreed until somebody used both.
+#let _rv_colours = (צבע_הוספה: "הוספה", צבע_מחיקה: "מחיקה", צבע_הערה: "הערת_עורך")
+
+#let הגדרות_סקירה(..opts) = {
+  let named = opts.named()
+  let mine = (:)
+  for (k, v) in named {
+    if k in _rv_colours { _mk_set(_rv_colours.at(k), (צבע: v)) } else { mine.insert(k, v) }
+  }
+  _rv_cfg.update(c => { let d = c; for (k, v) in mine { d.insert(k, v) }; d })
+}
 #let _rv_mode(c) = _val(c.at("תצוגה", default: "סימון"))
 #let _rv_by(c, מאת) = if מאת != none and c.at("שמות", default: true) {
   text(size: 0.8em, fill: luma(110), [ ‏(#מאת)])
 } else { none }
 
 // הוספה — text the reviewer added.
-#let הוספה(body, מאת: none) = context {
-  let c = _rv_cfg.get()
-  let m = _rv_mode(c)
-  if m == "מקורי" {
-    // It was not there before this review, so the "original" view has none of it.
-  } else if m == "סופי" {
-    body
-  } else {
-    underline(text(fill: c.at("צבע_הוספה", default: rgb("#15803d")), body))
+//
+// The three marks below take their look from the register, like every other
+// command that draws something. What they keep of their own is the *view*: an
+// insertion is absent from the original, a deletion is absent from the final,
+// and neither of those is a style — they are what the mark means.
+#let הוספה(body, מאת: none, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("הוספה", rest)
+  context {
+    let m = _rv_mode(_rv_cfg.get())
+    if m == "מקורי" {
+      // It was not there before this review, so the "original" view has none of it.
+    } else if m == "סופי" {
+      body
+    } else {
+      _mk_render(_mk_conf("הוספה", own), body)
+    }
   }
 }
 
 // מחיקה — text the reviewer wants removed. Struck through, not gone: the point
 // of a tracked deletion is that the author can still read what would go.
-#let מחיקה(body, מאת: none) = context {
-  let c = _rv_cfg.get()
-  let m = _rv_mode(c)
-  if m == "סופי" {
-    // Accepted, the text is gone.
-  } else if m == "מקורי" {
-    body
-  } else {
-    strike(text(fill: c.at("צבע_מחיקה", default: rgb("#b91c1c")), body))
+#let מחיקה(body, מאת: none, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("מחיקה", rest)
+  context {
+    let m = _rv_mode(_rv_cfg.get())
+    if m == "סופי" {
+      // Accepted, the text is gone.
+    } else if m == "מקורי" {
+      body
+    } else {
+      _mk_render(_mk_conf("מחיקה", own), body)
+    }
   }
 }
 
 // הערת_עורך — a comment ABOUT the text. Never part of the document, so it shows
 // only in the markup view.
-#let הערת_עורך(body, מאת: none) = context {
-  let c = _rv_cfg.get()
-  if _rv_mode(c) == "סימון" {
-    let tint = c.at("צבע_הערה", default: rgb("#b45309"))
-    _sn_note(
-      "ksav-rv",
-      "חוץ",
-      n => text(fill: tint)[✎#n],
-      text(fill: tint, { body; _rv_by(c, מאת) }),
-    )
+#let הערת_עורך(body, מאת: none, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("הערת_עורך", rest)
+  context {
+    let c = _rv_cfg.get()
+    if _rv_mode(c) == "סימון" {
+      let look = _mk_conf("הערת_עורך", own)
+      _sn_note(
+        "ksav-rv",
+        "חוץ",
+        // The marker takes the colour and not the rest: a comment set at 1.4em
+        // would otherwise put a 1.4em pencil in the middle of a line of text.
+        n => _mk_render((צבע: look.at("צבע", default: rgb("#b45309"))), [✎#n]),
+        _mk_render(look, { body; _rv_by(c, מאת) }),
+      )
+    }
   }
 }
+
+#let הגדרות_הוספה(..opts) = _mk_set("הוספה", opts.named())
+#let הגדרות_מחיקה(..opts) = _mk_set("מחיקה", opts.named())
+#let הגדרות_הערת_עורך(..opts) = _mk_set("הערת_עורך", opts.named())
 
 #let review_config = _en(הגדרות_סקירה)
 #let inserted = _en(הוספה)
 #let deleted = _en(מחיקה)
 #let comment_ = _en(הערת_עורך)
+#let inserted_config = _en(הגדרות_הוספה)
+#let deleted_config = _en(הגדרות_מחיקה)
+#let comment_config = _en(הגדרות_הערת_עורך)
 
 // ============================================================
 //  מקטע עמוד · section-level page setup

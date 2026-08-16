@@ -72,8 +72,15 @@ cd ksav/app && npm run accept
 ### Things about this machine
 
 - Emacs is at `/c/msys64/mingw64/bin/emacs`, and a release engine usually sits
-  at `ksav/engine/target/release/ksav.exe`, so `KSAV_EMACS_LIVE=1` works locally
-  and the Emacs package's live tests really run.
+  at `ksav/engine/target/release/ksav.exe`. The live tests look for `ksav` on
+  `exec-path` rather than at a path you can pass, so the whole line is:
+
+  ```sh
+  cd ksav/editors/emacs && PATH="$PWD/../../engine/target/release:$PATH"     KSAV_EMACS_LIVE=1 /c/msys64/mingw64/bin/emacs -Q --batch -L .     -l ksav-tests.el -f ert-run-tests-batch-and-exit
+  ```
+
+  Without the `PATH`, the sixteen live tests fail rather than skip — which is
+  the guard working, and looks exactly like sixteen broken tests.
 - **Local is more permissive than CI.** Node 26 here against 20 there; Emacs
   30.2 here against 27.1 there. Green locally is not evidence.
 - Never pipe a `cargo` test run through another command — redirect it to a file.

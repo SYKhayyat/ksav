@@ -37,7 +37,7 @@ name: release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch: # so the matrix can be exercised without cutting a release
+  workflow_dispatch: # builds everything and publishes nothing; see `tagName`
 
 jobs:
   # Nothing was checked before the installers were built.
@@ -196,8 +196,21 @@ jobs:
           # reading a workflow file.
         with:
           projectPath: ./ksav/app
-          tagName: ${{ github.ref_name }}
-          releaseName: "Ksav ${{ github.ref_name }}"
+          # Empty on anything that is not a tag, which is what makes
+          # `workflow_dispatch` mean what it says. `tauri-action` documents the
+          # pair: *"If you only want to build the app without having the action
+          # upload any assets … simply omit `tagName`, `releaseName` and
+          # `releaseId`."* So a dispatch builds all four installers and creates
+          # nothing.
+          #
+          # This was `github.ref_name` unconditionally, which on a dispatch from
+          # `main` is the string `main` — so the one documented way to rehearse a
+          # release cut a release named "Ksav main", tagged `main`, and the two
+          # `gh release upload` steps below filled it with installers. A draft
+          # rather than a public release, because `releaseDraft` is true below,
+          # which made it quiet rather than harmless.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Ksav {0}', github.ref_name) || '' }}
           # The installers are unsigned, so every operating system shows a scary
           # warning the first time. Saying nothing here is what actually costs
           # adoption: the writer concludes the download is broken and goes back to
@@ -316,7 +329,10 @@ jobs:
         shell: bash
         run: ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }} --version
 
+      # Only on a tag. Everything above it — the build, the matrix, the
+      # toolchain — still runs on a dispatch, which is the point of one.
       - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -361,6 +377,7 @@ jobs:
                     (error "installed, and ksav-install-engine is not there")))'
 
       - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

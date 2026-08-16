@@ -11,6 +11,9 @@ It is aimed at Hebrew writers, with a first-class Torah/yeshiva path (siddur,
 bentcher, kesubah, get, footnote apparatus, side-column commentary), and it works
 equally for left-to-right English documents.
 
+Your documents stay on your machine. Ksav has no account, no server, and uploads
+nothing.
+
 ### Where to go
 
 | You are here to… | Go to |
@@ -30,12 +33,6 @@ Installers for Windows, macOS (Apple Silicon and Intel) and Linux are attached t
 the [latest release](https://github.com/SYKhayyat/ksav/releases). You do not need
 Rust, Node, or a terminal to use Ksav — those are only for building it yourself.
 
-`v0.1.0` is **published**, with nine installers on it: `.msi` and `.exe` for
-Windows, `.dmg` for both Mac architectures, `.deb`, `.rpm` and `.AppImage` for
-Linux, and the two `.app.tar.gz` bundles. `/releases/latest` was a 404 for as long
-as the release sat as a draft, which three consecutive audits called the single
-most consequential open item — it is a button, and it has been pressed.
-
 **The installers are not code-signed, so the first launch is blocked on every
 system.** The download is not broken; a certificate is a cost Ksav has not paid
 yet. Getting past it:
@@ -47,26 +44,8 @@ yet. Getting past it:
 | macOS | "Ksav is damaged" | `xattr -dr com.apple.quarantine /Applications/Ksav.app` |
 | Linux (`.AppImage`) | nothing happens | `chmod +x Ksav_*.AppImage` |
 
-Every one of those four lines is also in the release body itself, because that is
-the page somebody who clicked *Download* is actually looking at — a workaround that
-only exists in a README is a workaround nobody reads.
-
-### Without the desktop application
-
-The same release attaches the **engine** on its own — `ksav-engine-<platform>`,
-one file, nothing to install. It is not a cut-down piece of Ksav: it carries the
-editor inside it, so `ksav serve` opens the whole thing in a browser, and
-`ksav sefer.ksav` writes a PDF from a shell.
-
-That used to be missing in a way nothing here would have told you about. The
-desktop shell links the engine as a *library*, so installing Ksav put no `ksav`
-program on the machine at all, and anybody who wanted one — an Emacs user, a
-script, a server, a platform the shell does not build for — was pointed at
-`cargo build --release`, a compile of the whole Typst compiler.
-
-And **Emacs**: `ksav-<version>.tar` on the same release is an installable
-package. `M-x package-install-file`, then `M-x ksav-install-engine`, and that is
-the entire setup — see [`ksav/editors/emacs`](ksav/editors/emacs/README.md).
+The same four lines are in the release body, which is the page somebody who
+clicked *Download* is actually looking at.
 
 <details>
 <summary><b>When a certificate is bought, this becomes a signed build with no other change</b></summary>
@@ -85,22 +64,39 @@ already names the secrets; setting them is the whole of it, and nothing in
 | `WINDOWS_CERTIFICATE_PASSWORD` | its password | Windows |
 | `TAURI_SIGNING_PRIVATE_KEY` | the updater's key, if the updater is ever turned on | all |
 
-Until then the table above is the honest answer rather than a fix, and it is the
-one every unsigned application ships with.
-
 </details>
 
-Your documents stay on your machine — Ksav has no account, no server, and uploads
-nothing.
+### In a browser, with nothing installed
 
-## Start here → [`ksav/`](ksav)
+[**sykhayyat.github.io/ksav**](https://sykhayyat.github.io/ksav/) is the same
+editor with the engine compiled to WebAssembly: Typst runs in the tab, there is
+no server, and it works offline once loaded.
 
-**The product is [`ksav/`](ksav).** It has its own detailed
-[README](ksav/README.md). The same Rust engine runs three ways from one codebase:
+### Without the desktop application
 
-- **`ksav serve`** — a local HTTP server that hosts the editor SPA and compiles on
+Releases also attach the **engine** on its own — `ksav-engine-<platform>`, one
+file, nothing to install. It is not a cut-down piece of Ksav: it carries the
+editor inside it, so `ksav serve` opens the whole thing in a browser, and
+`ksav sefer.ksav` writes a PDF from a shell. This matters because the desktop
+shell links the engine as a *library*, so installing Ksav puts no `ksav` program
+on the machine — an Emacs user, a script, a server, or a platform the shell does
+not build for needs the standalone binary.
+
+For **Emacs**, `ksav-<version>.tar` on the same release is an installable
+package: `M-x package-install-file`, then `M-x ksav-install-engine`. See
+[`ksav/editors/emacs`](ksav/editors/emacs/README.md).
+
+> The engine binaries and the Emacs package are attached from **v0.1.1 onward**.
+> `v0.1.0` predates the jobs that build them and carries the nine installers
+> only, so `M-x ksav-install-engine` cannot find an engine on that tag.
+
+## Building it yourself
+
+The same Rust engine runs three ways from one codebase:
+
+- **`ksav serve`** — a local HTTP server that hosts the editor and compiles on
   the machine.
-- **In-browser (WebAssembly)** — the engine compiled to WASM, running Typst
+- **In-browser (WebAssembly)** — the engine compiled to wasm, running Typst
   entirely in the tab with no server.
 - **Desktop (Tauri)** — a native app (Windows / macOS / Linux) with the engine
   in-process.
@@ -111,17 +107,16 @@ cd ../engine
 cargo run --release --features embed-ui -- serve   # then open the printed URL
 ```
 
-Those two steps are both of them: a clone builds. That was not true until 6
-August 2026 — the shared `girsa-*` crates were reached through a *sibling*
-checkout of a second repository, so `cargo build` failed inside `cargo metadata`
-before any compiler ran, `--features embed-ui` needed an editor nobody had told
-you to build, and no page here mentioned either. See
-[**The shared crates**](ksav/README.md#the-shared-crates) for what Ksav borrows
-from [`sefer-crates`](https://github.com/SYKhayyat/sefer-crates), how it is
-pinned, and how to edit both halves at once.
+The order matters: `embed-ui` bakes `app/dist` into the binary at compile time.
 
-See [`ksav/README.md`](ksav/README.md) for the browser, desktop, and development
-builds, the command reference, and the architecture.
+On NixOS, or anywhere else you would rather not install four toolchains by hand,
+`nix develop` gives you all of them at the versions CI uses.
+
+Ksav borrows its Hebrew reference parser, citation formatter and normaliser from
+[`sefer-crates`](https://github.com/SYKhayyat/sefer-crates), pinned by commit.
+See [**The shared crates**](ksav/README.md#the-shared-crates) for how to edit both
+halves at once, and [`ksav/README.md`](ksav/README.md) for the browser, desktop
+and development builds, the command reference, and the architecture.
 
 ## What it does
 
@@ -151,12 +146,9 @@ Ksav when it is not running. What crosses is a **Source Packet** — a versioned
 contract that lives in a third repository,
 [`sefer-crates`](https://github.com/SYKhayyat/sefer-crates), alongside the ref
 parser, the citation formatter, the Hebrew normaliser and the code that writes
-Ksav's own markup.
-
-That third repository is the point rather than an accident: a change to what a
-quote *is* has to land on both sides as one edit, not as an agreement in prose
-between two codebases. Every time the two have kept their own copy of a shared
-answer, the copies drifted and the drift was silent.
+Ksav's own markup. It lives there so that a change to what a quote *is* lands on
+both sides as one edit rather than as an agreement in prose between two
+codebases.
 
 Ksav is useful on its own and nothing here requires Girsa to be installed. The
 services that need it say so rather than failing.
@@ -182,17 +174,11 @@ something other than a person.
 | [`ksav/`](ksav) | **The product.** The Rust Typst engine, the CodeMirror SPA (`ksav/app`), the WASM crate (`ksav/wasm`), the Tauri desktop shell (`ksav/app/src-tauri`), and packaging. Start here. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Clone to landed change: the setup, the gate, and the rules every change is bound by. |
 | [`docs/`](docs) | The pages for readers — [starting out](docs/start-here.md), [coming from Word](docs/from-word.md), [the keyboard](docs/shortcuts.md), and [the seam with Girsa](docs/girsa.md). |
+| [`flake.nix`](flake.nix) | A Nix dev shell carrying the engine, editor, wasm and Emacs toolchains at the versions CI pins. |
 | [`spec.md`](spec.md) | The note options — eleven, and the ground rule that produces exactly eleven. A living document. |
-| [`decisions/`](decisions/README.md) | **The record.** Every dated wave, audit and resolution, each true on its date and never edited afterwards. Kept apart from the documentation on purpose: a spec is edited in place, a log is written once, and every stale number in this repository used to live where the two had been merged. |
+| [`decisions/`](decisions/README.md) | **The record.** Every dated wave, audit and resolution, each true on its date and never edited afterwards. Kept apart from the documentation on purpose: a spec is edited in place, a log is written once. |
 | [`prototypes/`](prototypes) | The two original Gemini-authored **mocks**, archived for history — a React web app and a Flutter + Rust app. Neither ever invoked Typst. See [`prototypes/README.md`](prototypes/README.md). |
 | `assets/` (per-crate), `licenses/`, `THIRD-PARTY-NOTICES.md` | Bundled fonts and lexicons live under `ksav/engine/assets`; third-party license texts and notices are at the repo root. |
-
-> **On the prototypes.** An earlier version of this repository had a React
-> prototype at the top level whose `server.ts` was an **open, unauthenticated
-> Gemini API-key proxy** bound to `0.0.0.0`. That server has been removed and the
-> mocks moved under `prototypes/`; see [`prototypes/README.md`](prototypes/README.md)
-> for the full account. If you cloned this expecting the AI proxy at the front
-> door, it is intentionally gone.
 
 ## License
 

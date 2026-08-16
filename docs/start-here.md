@@ -59,8 +59,7 @@ Hebrew one:
 
 The registry declares 157 commands and `#` in the editor offers all 154 of them
 that are still current, with what each one does, so none is worth memorising.
-The other two still compile — they are in documents people have already written
-— and are simply no longer put in front of anybody.
+The rest still compile, so an older document keeps working; they are not offered.
 
 ## Where a note goes is a setting, not a command
 
@@ -252,15 +251,11 @@ under your hands, the sefer entire next to it.
 
 ## Hebrew and English on one line
 
-Source that mixes scripts used to jump around while you typed in it, and the two
-reasons were separate.
-
-**Every line now reads its own way.** A paragraph of English inside a Hebrew
-sefer is laid out left-to-right, with its full stop on the correct side. A line
-with no letters in it — a blank one, or a line holding only `]` — takes the
-direction of whatever it sits inside, rather than the direction of your operating
-system. That last one is what used to make the caret behave strangely on the
-blank line between two Hebrew paragraphs.
+**Every line reads its own way.** A paragraph of English inside a Hebrew sefer is
+laid out left-to-right, with its full stop on the correct side. A line with no
+letters in it — a blank one, or a line holding only `]` — takes the direction of
+whatever it sits inside, rather than the direction of your operating system, so
+the caret stays where you expect it between two Hebrew paragraphs.
 
 **The commands are held apart from your prose.** `#צבע(rgb("#b91c1c"))` in the
 middle of a Hebrew sentence stays in one piece instead of scattering its brackets

@@ -131,12 +131,9 @@ did not run, so a green subset is never mistakable for a green gate.
 
 **Do not spell the check commands out yourself.** They live in
 `ksav/tools/gate.mjs` and nowhere else, and `app/test/gate.test.mjs` fails if a
-check command reappears as a literal in a workflow or in any living page. That
-is not tidiness: this repository once listed six commands in a README beside
-nine steps in a workflow, and for four consecutive pushes the *only* red job was
-formatting — eleven seconds, first step — with fifty-four unformatted hunks
-piling up under it. A gate nobody can run in one command gets read as a
-suggestion.
+check command reappears as a literal in a workflow or in any living page. A gate
+spelled out in several places drifts, and a gate nobody can run in one command
+gets read as a suggestion.
 
 Three things CI does that the gate deliberately does not, because they need a
 toolchain, a browser or an Emacs that a plain checkout should not have to have:
@@ -170,10 +167,9 @@ guards — `git stash`, check out the pre-fix file, write a deliberately bad one
 and confirm two things: that it fails, and that its message **names the
 instance**. Say so in the commit.
 
-This is not ceremony. A guard here once matched its own function definitions and
-stayed green while the entire global Escape handler was deleted. Another looked
-for `process.exit(1)` within 1,800 characters of a function name and found the
-*next* function's exit. Both were written by someone confident they were right.
+This is not ceremony. Guards here have matched their own function definitions
+and stayed green while the thing they guarded was deleted. Confidence that a
+fence works is not evidence that it does.
 
 ### Broken beats unannounced
 
@@ -245,8 +241,8 @@ not decide what a reader is told.
 
 `ksav/app/test/run.mjs` builds **every module in `src/`** and runs every
 `test/*.test.mjs`, so adding a test is adding a file. The module list is read
-off the directory rather than written down — it used to be a hand-written array
-that had stopped growing, and nineteen modules had no test between them.
+off the directory rather than written down, so a list cannot stop growing while
+the application does.
 
 A few conventions worth knowing before you write one:
 

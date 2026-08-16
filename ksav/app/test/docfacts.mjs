@@ -31,7 +31,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
-import { commandCount } from "../tools/commands.mjs";
+import { commandCount, offeredCount } from "../tools/commands.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
@@ -123,6 +123,12 @@ export function facts() {
     // A counter that cannot see what it is counting is worth less than no
     // counter, because it is believed.
     commands: commandCount(),
+    // What the editor *offers*, which is a different number and was being
+    // reported as this one. A deprecated command still compiles and is no
+    // longer put in front of anybody, so three pages saying "there are N
+    // commands and `#` offers all of them" were wrong by exactly the count of
+    // deprecations — and the fence was enforcing the half that was wrong.
+    offered: offeredCount(),
     // Keyboard bindings the application ships with, from the object the editor
     // itself installs — which is what makes the card unable to disagree with it.
     bindings: Object.keys(DEFAULT_KEYS).length,
@@ -277,7 +283,7 @@ export function logDate(file) {
 export const CLAIMS = [
   ["README.md", "bindings", (n) => `all ${n} bindings`],
   ["ksav/README.md", "commands", (n) => `**${n} commands**`],
-  ["ksav/README.md", "commands", (n) => `searches all ${n} commands`],
+  ["ksav/README.md", "offered", (n) => `searches all ${n} commands`],
   ["ksav/README.md", "templates", (n) => `${n} templates (all compile)`],
   ["ksav/README.md", "noteLayouts", (n) => `all ${word(n)} note layouts`],
   ["ksav/README.md", "ciJobs", (n) => `green across all ${word(n)} jobs`],
@@ -289,13 +295,16 @@ export const CLAIMS = [
   // fence, so the reverse sweep declines it and the marker is what closes the
   // gap. See `markedClaimsIn`.
   ["ksav/README.md", "oracleDocuments", (n) => `over **${group(n)}**<!--=oracleDocuments--> documents`],
-  ["docs/start-here.md", "commands", (n) => `There are ${n} commands`],
+  // Both numbers, because the page says both and they are different facts: the
+  // registry declares them, the editor offers the ones that are current.
+  ["docs/start-here.md", "commands", (n) => `declares ${n} commands`],
+  ["docs/start-here.md", "offered", (n) => `offers all ${n} of them`],
   ["docs/start-here.md", "hebrewEntries", (n) => `${group(n)} Hebrew entries`],
   ["docs/start-here.md", "englishEntries", (n) => `${group(n)} English`],
   ["docs/start-here.md", "bindings", (n) => `all ${n} bindings`],
   ["docs/from-word.md", "commands", (n) => `has ${n} bilingual commands`],
   ["docs/from-word.md", "templates", (n) => `${word(n)} templates that all build`],
-  ["docs/shortcuts.md", "commands", (n) => `There are ${n} of them`],
+  ["docs/shortcuts.md", "offered", (n) => `There are ${n} of them`],
 ];
 
 /** Small numbers read as words in prose, which is how these pages write them. */
@@ -323,7 +332,18 @@ export function group(n) {
 // that it starts matching across sentences. Markdown emphasis around either half
 // is stripped first, so `**116 commands**` is seen the same as `116 commands`.
 export const NOUNS = [
-  ["commands?", "commands"],
+  // Two facts, one noun, and they are two different true numbers: the registry
+  // declares 124 commands and the editor offers the 122 that are not
+  // deprecated. A sweep that knew only the first *enforced* it onto three
+  // sentences about what a reader can reach, which is the surface contradicting
+  // the mechanism with a test holding the surface in place.
+  //
+  // A claim is accepted when it matches a declaration for **either** fact in
+  // that file. That is weaker than one noun per fact and it is what the English
+  // supports: nothing in "searches all 122 commands" says which of the two
+  // numbers it is, and inventing a second noun to disambiguate would be prose
+  // written for the fence.
+  ["commands?", ["commands", "offered"]],
   ["bindings?", "bindings"],
   ["templates?", "templates"],
   ["note layouts?", "noteLayouts"],
@@ -435,7 +455,12 @@ export function numericClaimsIn(text) {
       "gu",
     );
     for (const m of flat.matchAll(re)) {
-      out.push({ number: Number(m[1].replace(/,/g, "")), noun: m[2], fact, said: m[0] });
+      // `facts` plural: a noun can name more than one measured thing, and the
+      // caller decides whether *any* of them was declared. Written as one fact
+      // it forced a sentence about what the editor offers to carry the number
+      // of what the registry declares.
+      const facts = Array.isArray(fact) ? fact : [fact];
+      out.push({ number: Number(m[1].replace(/,/g, "")), noun: m[2], facts, said: m[0] });
     }
   }
   return out;

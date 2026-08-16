@@ -11,6 +11,22 @@ them. This page is Ksav on its own.
 
 ---
 
+## Getting it in front of you
+
+Three doors, and they are the same Ksav: one engine, one command vocabulary, one
+set of documents.
+
+| | |
+|---|---|
+| **The desktop app** | An installer from the [latest release](https://github.com/SYKhayyat/ksav/releases) — Windows, macOS, Linux. Nothing else to install. It is unsigned, so the first launch is blocked; the [README](../README.md#download) has the four sentences that get past it. |
+| **A browser** | The same release attaches the engine on its own — one file, `ksav-engine-<platform>`. Run `ksav serve` and open the address it prints: the editor is *inside* the binary, so there is nothing to build and nothing to host. |
+| **Emacs** | `ksav-<version>.tar` on the same release. `M-x package-install-file`, then `M-x ksav-install-engine`, and `.ksav` files open in `ksav-mode`. See [the package's README](../ksav/editors/emacs/README.md). |
+
+A shell will also write a PDF without opening anything: `ksav sefer.ksav`.
+
+Building it from source is [`CONTRIBUTING.md`](../CONTRIBUTING.md), and is only
+for changing Ksav rather than using it.
+
 ## The first document
 
 It opens with one. Type into it.
@@ -41,8 +57,10 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-There are 124 commands. `#` in the editor offers all of them with what each one
-does, so none is worth memorising.
+The registry declares 124 commands and `#` in the editor offers all 122 of them
+that are still current, with what each one does, so none is worth memorising.
+The other two still compile — they are in documents people have already written
+— and are simply no longer put in front of anybody.
 
 ## Where a note goes is a setting, not a command
 
@@ -301,8 +319,12 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## What this does not do
 
-- **Nobody has written a real sefer in it.** Three separate audits call that the
-  most important line in any of them. It is still true.
+- **Nobody has written a whole sefer in it.** Three separate audits call that the
+  most important line in any of them, and it is still true. What has happened is
+  two deliberate sittings — 7 and 16 August 2026 — of writing a kuntres in the
+  assembled application rather than testing it. Between them they found four
+  bugs the whole suite was green over, which is roughly the rate you should
+  expect until somebody writes something long in it.
 - **No real-time collaboration**, and none is planned. Review comments are per
   reviewer and a document travels as a file.
 - **`.docx` is an exit, not a workflow.** See above.

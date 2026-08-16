@@ -56,8 +56,29 @@ export function commands() {
  *
  * The number the documentation is fenced against. It is a function rather than
  * a constant so that nothing can cache a stale one, and it goes through the same
- * artefact as everything else so it cannot disagree with what the app offers.
+ * artefact as everything else.
+ *
+ * It is **not** the number the editor offers. See [`offeredCount`].
  */
 export function commandCount() {
   return commands().length;
+}
+
+/**
+ * How many commands the editor actually offers.
+ *
+ * The registry declares more than it offers, and the difference is deliberate:
+ * a deprecated command still compiles — it is in documents somebody has already
+ * written — and is no longer put in front of a new writer. `commands.available`
+ * is where that filter lives, in one place, for the palette and the `#`
+ * completion; `main.ts` applies the same rule to the Insert menu, and the Emacs
+ * package's `ksav-commands` to its own.
+ *
+ * This exists because three living pages said *"there are N commands and the
+ * editor offers all of them"* with the registry's N, which the editor
+ * contradicts by two — and the count fence was enforcing the wrong half of it.
+ * The sentence a reader can check is the one about what they can reach.
+ */
+export function offeredCount() {
+  return commands().filter((c) => !c.deprecated).length;
 }

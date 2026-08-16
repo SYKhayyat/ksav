@@ -117,27 +117,32 @@ cd ksav/app && npm run accept
 
 ### Write a real sefer in it
 
-- [ ] `ksav/README.md`'s last open box, and it calls this the most important
-      line on the page. An hour of real use on 7 August 2026 found three bugs
-      the whole suite was green over: a sefer numbered from the toolbar came out
-      **סימן א׳** three times, the gershayim you press for רש״י produced Typst's
-      raw `unclosed string`, and the Mekoros panel dropped the reference that is
-      the entire argument for the Girsa pairing. See
-      `decisions/2026-08-07-writing-a-kuntres.md`.
+- [x] A second sitting, 16 August: a kuntres on lechem mishneh written in the
+      assembled application — simanim, a footnote, a source note, gershayim
+      inside parentheses, a table, two apparatus bands, an `.org` import and a
+      PDF. The three bugs of 7 August are gone; it found a fourth, and the fix
+      is the class rather than the instance. See
+      [`decisions/2026-08-16-writing-a-kuntres-in-it.md`](decisions/2026-08-16-writing-a-kuntres-in-it.md).
 
-      Build the assembled application and actually write in it: simanim,
-      footnotes, a source note, a gershayim inside parentheses, a table, two
-      apparatus bands, an import, and a PDF out the other end. Every bug you hit
-      goes to the top of the queue and gets the class treatment.
+- [ ] **Keep writing in it.** `ksav/README.md`'s box stays open and should: two
+      kuntres-length sittings are not a sefer, and the only thing that has ever
+      found this class of bug is somebody writing rather than testing. The next
+      one should be *long* — enough pages for the apparatus to break across
+      them, enough simanim for the numbering to be re-read, a real export sent
+      to somebody. Every bug goes to the top of the queue and gets the class
+      treatment.
 
 ### Documentation and onboarding
 
-- [ ] A full pass on `README.md`, `ksav/README.md`, `CONTRIBUTING.md`,
-      `docs/start-here.md` and `ksav/editors/emacs/README.md`. Somebody arriving
-      with no context should be able to install Ksav, write a sefer, and find
-      their way around — on the desktop, in a browser, and in Emacs. Read them
-      as that person, not as their author. Counts in living pages are swept, so
-      correct a number rather than hedging it.
+- [x] All five read as the person arriving with no context. What that found:
+      `docs/start-here.md` — the page the front door sends a *reader* to — never
+      said how to get Ksav in front of you, and opened on *"it opens with one"*;
+      it has the three doors now, one line each. And the count fence was
+      enforcing the wrong number onto three sentences: the registry declares
+      more commands than the editor offers, because a deprecated one still
+      compiles and is no longer put in front of anybody — so every sentence
+      about what `#` offers was carrying the registry's total. See
+      [`decisions/2026-08-16-two-numbers-under-one-noun.md`](decisions/2026-08-16-two-numbers-under-one-noun.md).
 
 ### Not yours to close
 

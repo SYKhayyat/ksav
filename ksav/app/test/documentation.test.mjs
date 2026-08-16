@@ -110,9 +110,16 @@ export async function run() {
     for (const file of living) {
       const body = readFileSync(path.join(ROOT, file), "utf8");
       for (const c of numericClaimsIn(body)) {
-        const runtime = RUNTIME.includes(c.fact);
-        const key = `${file}::${c.fact}::${runtime ? null : c.number}`;
-        if (!declared.has(key)) stray.push(`${file}: "${c.said}"`);
+        // Any of the noun's facts. One noun can name two measured things — the
+        // registry's command count and the number the editor offers — and the
+        // English does not say which, so a claim is fine when it matches a
+        // declaration for either. Still per file and per number: this only
+        // widens which *fact* a sentence may be about, never which numbers a
+        // page may state.
+        const known = c.facts.some((f) =>
+          declared.has(`${file}::${f}::${RUNTIME.includes(f) ? null : c.number}`),
+        );
+        if (!known) stray.push(`${file}: "${c.said}"`);
       }
     }
     check("no living page states a fenced count that nothing checks", stray, []);
@@ -252,7 +259,13 @@ export async function run() {
     /** Every counted claim in a page that is no longer true. */
     const staleIn = (file) =>
       numericClaimsIn(readFileSync(path.join(ROOT, file), "utf8")).filter((c) =>
-        RUNTIME.includes(c.fact) ? true : c.number !== F[c.fact],
+        // A runtime fact counts as stale here whatever it says, exactly as
+        // before — this file cannot know the live number. Otherwise stale means
+        // it matches *none* of the facts its noun can name, which is the same
+        // widening as the sweep above and for the same reason.
+        c.facts.some((f) => RUNTIME.includes(f))
+          ? true
+          : !c.facts.some((f) => c.number === F[f]),
       );
 
     const idle = [];

@@ -108,18 +108,12 @@ cd ksav/app && npm run accept
 
 ### Reconcile the 2026-08-11 list
 
-- [ ] `decisions/2026-08-11-marking-up-the-ui-inventory.md` carries seventy-seven
-      unchecked boxes and was the source of most of the last month's work. It is
-      a **log**: never edited after its date, by that directory's own contract.
-      So its boxes are stale in *both* directions — "Emacs mode does nothing",
-      the open set, panes, tabs, git, the keyboard modes and Org in both
-      directions are all done and still read `- [ ]`, while others have never
-      been touched. Nothing distinguishes them.
-
-      Read all seventy-seven against the code as it is now, decide each one, and
-      bring the genuinely open ones into this file. **Do not edit that file to
-      tick them** — the record is not rewritten. And do not assume a box is done
-      because it sounds familiar; check.
+- [x] All seventy-seven read against the code: seventy-six done, one open and
+      fixed in the same pass, and nothing inherited into this file. See
+      [`decisions/2026-08-16-reading-the-seventy-seven.md`](decisions/2026-08-16-reading-the-seventy-seven.md),
+      which also answers four of that record's six open questions. The two that
+      stand are which arrangements should be default tabs — a question for a
+      writer — and inventory items 59 to 156, which are below.
 
 ### Write a real sefer in it
 

@@ -80,6 +80,7 @@ something in.
 | [2026-08-16 · The pins nobody was watching](2026-08-16-the-pins-nobody-was-watching.md) | Every CI job carried a Node 20 deprecation notice for weeks — a red remote on a date GitHub picks — and the sweep for it cannot live in this repository, because whether a pin is behind is a fact about somebody else's releases |
 | [2026-08-16 · Three of sixteen](2026-08-16-three-of-sixteen.md) | The Emacs package reached three of the engine's sixteen services, and one test was holding the gap open by asserting it; what the other thirteen doors are, and the empty exemption list that now says so |
 | [2026-08-16 · Three panes, one caret](2026-08-16-three-panes-one-caret.md) | Returning to a sefer put every pane at the focused pane's caret; why the fix is a third table rather than a field on either of the two that exist, and why the preview is the same complaint one pane over |
+| [2026-08-16 · Reading the seventy-seven](2026-08-16-reading-the-seventy-seven.md) | Every box of the 11 August inventory read against the code as it is now: seventy-six done, how each verdict was reached, the one that was open, and the four open questions that have answers |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

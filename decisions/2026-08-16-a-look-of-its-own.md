@@ -410,3 +410,54 @@ That is three things the probe could not see, found in one day: a line, a
 picture, and before them a fill. The pattern is worth stating plainly — **the
 probe reads what it was last asked about**, so a feature whose output is a new
 kind of frame item arrives untested by construction.
+
+## Every marker, which was the rest of the parts
+
+The tracker's last styling item said to walk the prelude for hardcoded looks
+inside a styled command's own rendering — *each one is a look with no setting
+behind it*. Walked, and it found one shape, three times.
+
+A command that prints a **number in the running text and a note somewhere else**
+is drawing two things, and they are two decisions. The note sits at the foot of
+the page in its band; the number sits in the middle of a sentence somebody is
+reading. A peirush set 0.8em and grey wants its markers legible, and there was
+no way to ask:
+
+| | drew its marker as |
+|---|---|
+| the banded apparatuses (tiers, page bands, streams, channels) | a bare `super`, with no look at all |
+| the side column | whatever the note in the margin got |
+| the editorial comment | `✎` in the class's colour, written into the command |
+
+All three answer to a `סימן` now — the ordinary text knobs, rendered through the
+same `_mk_render` a mark class uses, which is why that function is not private
+to the register. For the comment it is a register **part**, so the part chooser
+added an hour earlier already offers it, including its `טקסט`: a reviewer who
+wants a different mark, or none, says so.
+
+The comment's old behaviour was right and was not a setting. A comment set at
+1.4em would put a 1.4em pencil in the middle of a line, so the marker took the
+colour and dropped the rest — a decision written into the command with no way to
+disagree with it. It is a default now, and the piece can be sized on its own.
+
+**Not the tiered footnotes.** `#הערה` is Typst's own `footnote`, so its marker is
+the document's footnote marker; giving it a second channel would be the two
+authorities this whole day has been about. It stays where it is.
+
+### A reader that sprang a trap its own neighbour documents
+
+The fence comparing `PART_TEXT` against the prelude read a class's entry by
+searching for `  "class": (` from the top of the file and slicing to the next
+`\n  ),`. Two things wrong, cancelling:
+
+- every class in `_mk_part_defaults` is also a row of `_mk_defaults` a few
+  hundred lines above, so the search found the wrong table;
+- the end-of-entry search then ran far enough past it to land in the right one.
+
+Adding a class written **inline** — `"הערת_עורך": ("סימן": (טקסט: "✎"))` — broke
+the accident and the fence went red saying the panel claimed words the engine
+did not have. The reader immediately above it carries a comment about exactly
+this: *"a reader that knew only the first shape saw `גמרא` as having a masechta
+and no daf, which is this fence catching its own reader before it caught
+anything else."* Written three days earlier, in the same file, about the same
+table.

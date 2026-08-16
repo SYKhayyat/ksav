@@ -213,6 +213,7 @@ const HE: Dict = {
   "markPart.גמרא.מסכת": "המסכת",
   "markPart.גמרא.דף": "הדף",
   "markPart.ציון_מקור.מקום": "המקום",
+  "markPart.הערת_עורך.סימן": "הסימן שבשורה",
   "markClass.ציון": "ציון",
   "markClass.גמרא": "מראה מקום בגמרא",
   "markClass.דיבור_המתחיל": "דיבור המתחיל",
@@ -404,6 +405,7 @@ const HE: Dict = {
   sidenoteRatio: "יחס רוחב (טקסט : טור)",
   sidenoteGutter: "מרווח בין הטורים",
   sidenoteGap: "מרווח מזערי בין הערות",
+  apparatusMarker: "הסימן שבתוך הטקסט",
   styleChannels: "ערוצי הערות",
   styleChannelsNote:
     "ערוץ הוא זרם הערות: הוא מחזיק את המספור שלו, ורק הערות באותו ערוץ מתמספרות יחד. לכל ערוץ יש מקור — הטקסט עצמו או ערוץ אחר, וזו הערה על הערה — ומיקום: תחתית העמוד, סוף המדור או סוף המסמך. המיקום נקבע כאן ולא בפקודה שנכתבה, ולכן אפשר להעביר מנגנון שלם ממקום למקום בלי לגעת בהערה אחת.",
@@ -1371,6 +1373,7 @@ const EN: Dict = {
   "markPart.גמרא.מסכת": "The masechta",
   "markPart.גמרא.דף": "The daf",
   "markPart.ציון_מקור.מקום": "The place",
+  "markPart.הערת_עורך.סימן": "The mark in the line",
   "markClass.ציון": "Inline reference",
   "markClass.גמרא": "Gemara reference",
   "markClass.דיבור_המתחיל": "Dibbur hamaschil (d’h)",
@@ -1567,6 +1570,7 @@ const EN: Dict = {
   sidenoteRatio: "Width ratio (text : column)",
   sidenoteGutter: "Gutter between the columns",
   sidenoteGap: "Least gap between two notes",
+  apparatusMarker: "The number in the text",
   streamDefaultName: "stream {0}",
   styleChannels: "Note channels",
   styleChannelsNote:

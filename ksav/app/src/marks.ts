@@ -97,6 +97,10 @@ export const CLASS_PARTS: Readonly<Record<string, readonly string[]>> = {
   פסוק: ["מקור"],
   גמרא: ["מסכת", "דף"],
   ציון_מקור: ["מקום"],
+  // The pencil an editorial comment leaves in the line. A comment rides the
+  // side column, so the class's own look belongs to the body in the margin;
+  // the marker stands in the middle of a sentence and is its own decision.
+  הערת_עורך: ["סימן"],
 };
 
 /**
@@ -192,6 +196,9 @@ export function knobsOf(cls: string): readonly string[] {
  */
 export const PART_TEXT: Readonly<Record<string, readonly string[]>> = {
   סימן: ["קידומת", "מפריד"],
+  // The glyph itself, so a reviewer who wants a different mark — or none —
+  // can say so instead of living with a pencil.
+  הערת_עורך: ["סימן"],
 };
 
 /** Every class the register **collects**, in the order the marks list offers them.

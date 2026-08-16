@@ -97,12 +97,6 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
-- [ ] **The rest of the parts.** Four commands have them. The others draw one
-      thing each *as far as anybody has looked* — which is exactly the sentence
-      that was true of `#פסוק`'s reference for a year. Worth walking the
-      prelude for `text(` calls inside a styled command's own rendering: each
-      one is a look with no setting behind it.
-
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
       most important line on the page. Two kuntres-length sittings — 7 and 16
       August — found four bugs the whole suite was green over, and neither of

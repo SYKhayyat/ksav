@@ -8684,6 +8684,7 @@ function bandStyleRows(): Node[] {
       ),
     );
   }
+  rows.push(...markerRows("bands"));
   return rows;
 }
 
@@ -8802,6 +8803,7 @@ function streamStyleRows(): Node[] {
       ),
     ),
   );
+  rows.push(...markerRows("streams"));
   return rows;
 }
 
@@ -8931,6 +8933,56 @@ function markPartRow(): Node | null {
  * `styles.ts` — *a fourth configuration with no panel section of its own* —
  * which is a finding written down and left where it was found.
  */
+/**
+ * The rows for one apparatus's marker — its number, wherever that prints.
+ *
+ * A separate decision from the note's own look, and it had none at all: the
+ * note sits at the foot of the page in its band and the number sits in the
+ * middle of a sentence somebody is reading. A peirush set small and grey wants
+ * its markers legible, and until this there was no way to ask.
+ *
+ * Written as a dictionary under one key, so an apparatus that gains a knob
+ * gains it here and in the prelude and nowhere else.
+ */
+function markerRows(kind: styles.SectionCommand): Node[] {
+  const read = (key: string) =>
+    styles.readDict(styleArg(kind, "סימן"))?.find(([k]) => k === key)?.[1];
+  const set = (key: string, v: string | null) =>
+    setStyleArgs(kind, { סימן: styles.withDictKey(styleArg(kind, "סימן"), key, v) });
+  return [
+    el("h4", { class: "style-tier" }, [t("apparatusMarker")]),
+    styleRow(
+      t("noteTierSize"),
+      selectControl(
+        [["0.8em", "80%"], ["0.9em", "90%"], ["1em", "100%"], ["1.2em", "120%"]],
+        read("גודל") ?? "1em",
+        (v) => set("גודל", v),
+      ),
+    ),
+    styleRow(
+      t("noteTierStyle"),
+      selectControl(
+        [['"normal"', t("styleNormal")], ['"italic"', t("styleItalic")]],
+        read("סגנון") ?? '"normal"',
+        (v) => set("סגנון", v),
+      ),
+    ),
+    styleRow(
+      t("knobWeight"),
+      selectControl(
+        [['"regular"', t("weightRegular")], ['"bold"', t("weightBold")]],
+        read("משקל") ?? '"regular"',
+        (v) => set("משקל", v),
+      ),
+    ),
+    styleRow(
+      t("noteTierColor"),
+      colorControl(styles.readColor(read("צבע")) ?? "#000000", (v) =>
+        set("צבע", styles.typstColor(v)),
+      ),
+    ),
+  ];
+}
 function tierStyleRows(): Node[] {
   const rows: Node[] = [];
   // Engine defaults, so filling in a gap in a short tuple restyles nothing.
@@ -9003,6 +9055,7 @@ function tierStyleRows(): Node[] {
       ),
     );
   }
+  rows.push(...markerRows("tiers"));
   return rows;
 }
 
@@ -9068,6 +9121,7 @@ function sidenoteStyleRows(): Node[] {
         setStyleArgs("sidenotes", { צבע: styles.typstColor(v) }),
       ),
     ),
+    ...markerRows("sidenotes"),
   ];
 }
 

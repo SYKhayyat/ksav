@@ -660,8 +660,26 @@ export async function run() {
     // offered it on the number would write a call that stops the compile.
     const engineText = {};
     for (const [cls, parts] of Object.entries(enginePartsRaw)) {
-      const at = prelude.indexOf(`  "${cls}": (`);
-      const block = prelude.slice(at, prelude.indexOf("\n  ),", at) + 4);
+      // The entry, in both shapes the table is written in — the same trap
+      // `partsIn` above documents, sprung a second time by a reader written
+      // three days later. A class with several parts is spread over lines and
+      // ends at a closing `),` of its own; one with a single part is written
+      // inline and ends where the next class begins. Reading only the first
+      // shape found no words at all on an inline entry and called that
+      // agreement with a panel that said there were some.
+      // …and searched inside `_mk_part_defaults`, not from the top of the file.
+      // Every class in this table is also a row of `_mk_defaults` a few hundred
+      // lines above, so a bare `indexOf` finds the wrong one — and did, and the
+      // old end-of-entry search happened to run far enough past it to land in
+      // the right table anyway. Two accidents cancelling.
+      const table = prelude.indexOf("#let _mk_part_defaults = (");
+      const at = prelude.indexOf(`  "${cls}": (`, table);
+      const spread = prelude.indexOf("\n  ),", at);
+      const next = prelude.indexOf(`\n  "`, at + 1);
+      const block = prelude.slice(
+        at,
+        Math.min(spread >= 0 ? spread + 4 : Infinity, next >= 0 ? next : Infinity),
+      );
       const has = parts.filter((p) => new RegExp(`"${p}":\\s*\\(טקסט:`, "u").test(block));
       if (has.length) engineText[cls] = has.sort();
     }

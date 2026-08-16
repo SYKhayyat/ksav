@@ -1359,3 +1359,107 @@ fn a_picture_knob_nothing_answers_to_stops_the_compile() {
         out.diagnostics
     );
 }
+
+// -------------------------------------------------------------- every marker
+//
+// The last look with nothing behind it. Several commands print a *number* in the
+// running text and a *note* somewhere else, and those are two decisions: the
+// note sits at the foot of the page in its band, and the number sits in the
+// middle of a sentence somebody is reading. A peirush set 0.8em and grey wants
+// its markers legible, and until now the number had no look at all — the banded
+// apparatuses drew a bare `super`, and the side column gave its marker whatever
+// the note in the margin got.
+//
+// The editorial comment is the same shape and had it decided for it: the pencil
+// took the class's colour and nothing else, written into the command. That is
+// the right default and was not a setting.
+
+#[test]
+fn a_banded_apparatus_marker_can_be_set_apart_from_its_note() {
+    let body = "הטקסט#מדור_א[ההערה] נמשך.\n\n#הערות_מדורגות()\n";
+    let set = format!("#הגדרות_מדורגות(סימן: (משקל: \"bold\"))\n{body}");
+    let out = compile(&set, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let f = runs(&set);
+    // The number, which prints twice — in the line and in the band. Both are the
+    // marker, so both take the setting.
+    let heavy = f.iter().filter(|r| r.weight >= 700).count();
+    assert!(heavy >= 2, "the marker did not take the weight: {f:?}");
+    // …and the note itself did not.
+    let note = f
+        .iter()
+        .find(|r| r.text.contains("ההערה"))
+        .expect("the note printed");
+    assert!(note.weight < 700, "it reached the note as well: {note:?}");
+}
+
+#[test]
+fn a_side_columns_marker_can_be_set_apart_from_its_note() {
+    let body = "#עם_הערות_צד[גוף#הערת_גיליון[בצד] הטקסט]\n";
+    let set =
+        "#עם_הערות_צד[#הגדרות_הערות_צד(סימן: (משקל: \"bold\"))\nגוף#הערת_גיליון[בצד] הטקסט]\n";
+    let out = compile(set, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let before = runs(body).iter().filter(|r| r.weight >= 700).count();
+    let after = runs(set).iter().filter(|r| r.weight >= 700).count();
+    assert!(
+        after > before,
+        "the marker did not take the weight: {after} vs {before}"
+    );
+    let note = runs(set)
+        .iter()
+        .find(|r| r.text.contains("בצד"))
+        .expect("the note printed")
+        .weight;
+    assert!(note < 700, "it reached the note in the column as well");
+}
+
+#[test]
+fn an_editors_pencil_is_a_piece_with_a_setting() {
+    // It had a look and no way to reach it. The glyph is settable too, because a
+    // reviewer who wants a different mark should not have to accept a pencil.
+    let body = "הטקסט #הערת_עורך[שאלה] נמשך.\n";
+    let plain: String = runs(body).iter().map(|r| r.text.clone()).collect();
+    assert!(plain.contains('✎'), "the pencil is gone: {plain}");
+    let changed: String = runs(&format!("#הגדרות_הערת_עורך(סימן: (טקסט: \"*\"))\n{body}"))
+        .iter()
+        .map(|r| r.text.clone())
+        .collect();
+    assert!(
+        changed.contains('*') && !changed.contains('✎'),
+        "the glyph could not be changed: {changed}"
+    );
+}
+
+#[test]
+fn an_editors_pencil_keeps_its_own_size_when_the_comment_grows() {
+    // The reason it is a piece rather than part of the class's own look: a
+    // comment set at 1.4em would otherwise put a 1.4em pencil in the middle of a
+    // line of running text.
+    let body = "#הגדרות_הערת_עורך(גודל: 2em)\nהטקסט #הערת_עורך[שאלה] נמשך.\n";
+    let f = runs(body);
+    let pencil = f
+        .iter()
+        .find(|r| r.text.contains('✎'))
+        .expect("the pencil printed");
+    let plain = f
+        .iter()
+        .find(|r| r.text.contains("נמשך"))
+        .expect("the prose printed");
+    assert!(
+        pencil.size <= plain.size * 1.2,
+        "the class's size reached the pencil: {pencil:?} vs {plain:?}"
+    );
+    // …and the piece can still be sized on its own.
+    let bigger = runs("#הגדרות_הערת_עורך(סימן: (גודל: 2em))\nהטקסט #הערת_עורך[שאלה] נמשך.\n");
+    let grown = bigger
+        .iter()
+        .find(|r| r.text.contains('✎'))
+        .expect("the pencil printed")
+        .size;
+    assert!(
+        grown > pencil.size * 1.5,
+        "the piece has no size of its own: {grown} vs {}",
+        pencil.size
+    );
+}

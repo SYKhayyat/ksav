@@ -504,6 +504,14 @@
   "פסוק": ("מקור": (גודל: 0.82em, צבע: luma(95))),
   "גמרא": ("מסכת": (:), "דף": (:)),
   "ציון_מקור": ("מקום": (:)),
+  // The pencil an editorial comment leaves in the line. Its own piece, and
+  // not because it is decorative: a comment rides the side column, so the
+  // class's size belongs to the body in the margin, and applying it to the
+  // marker as well puts a 1.4em pencil in the middle of a sentence. That was
+  // decided by writing the colour into the command and dropping the rest,
+  // which is a decision with no way to disagree with it. This is the same
+  // decision as a default.
+  "הערת_עורך": ("סימן": (טקסט: "✎")),
 )
 
 /// Where a part's settings live inside `_mk_cfg`, keyed by class then by part.
@@ -1123,6 +1131,13 @@
 // `מספור` is excluded for the reason given at `_fn_own_keys`. See `_cfg_split`.
 #let _ap_own_keys = ("גודל", "סגנון", "צבע", "משקל")
 #let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
+/// One apparatus's marker, in whatever look the apparatus gave its numbers.
+///
+/// `סימן` is a dictionary of the ordinary text knobs, so it renders through
+/// the same `_mk_render` a mark class does — one renderer for every look in
+/// this prelude, which is the whole reason that function is not private to the
+/// register.
+#let _ap_piece(cfg, body) = _mk_render(cfg.at("סימן", default: (:)), body)
 #let _ap_wrap(cfg, g, body) = text(
   size: _ap_pick(cfg, "גודל", g, 0.85em),
   style: _ap_pick(cfg, "סגנון", g, "normal"),
@@ -1162,7 +1177,15 @@
   // so an apparatus re-display cannot count itself.
   context {
     let loc = here()
-    super(_ap_mark(cfg, g, _ksav_rank(scope(loc), loc, e => e.value.group == g)))
+    // Through the apparatus's own `סימן`, which is a look for the *number*
+    // rather than for the note. They are two decisions: the note sits at the
+    // foot of the page in its band, and the number sits in the middle of a
+    // sentence the reader is reading — a peirush set 0.8em and grey wants its
+    // markers legible, and until this the number had no look at all.
+    _ap_piece(
+      cfg,
+      super(_ap_mark(cfg, g, _ksav_rank(scope(loc), loc, e => e.value.group == g))),
+    )
   }
 }
 
@@ -1243,7 +1266,7 @@
       let ecfg = _cfg_with(cfg, own)
       block(
         spacing: cfg.at("ריווח_פריט", default: 0.3em),
-        _ap_wrap(ecfg, g, [#super(_ap_mark(ecfg, g, num)) #body]),
+        _ap_wrap(ecfg, g, [#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #body]),
       )
     }
   }
@@ -1519,6 +1542,7 @@
   ריווח_בין: 0.5em,     // gap between bands
   ריווח_פריט: 0.35em,   // gap between entries within a band
   משקל: "regular",      // per-tier weight (or one value for every tier)
+  סימן: (:),            // how the note's number is set, wherever it prints
   תוויות: false,        // show a small "· tier ·" label above each band
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
@@ -1693,6 +1717,7 @@
   ריווח_בין: 0.35em,    // gap between bands
   ריווח_פריט: 0.25em,   // gap between entries within a band
   משקל: "regular",      // per-tier weight (or one value for every tier)
+  סימן: (:),            // how the note's number is set, wherever it prints
   גבהים: none,          // fixed per-tier band heights, e.g. (2cm, 1cm) — the
                         //   "fixed regions" layout: a band always occupies its
                         //   height, empty space stays empty, overflow is clipped.
@@ -1803,6 +1828,8 @@
   קו_בין: true,         // divider between stacked streams
   ריווח_בין: 0.45em,    // gap between streams
   ריווח_פריט: 0.22em,   // gap between entries in a stream
+  משקל: "regular",      // per-stream weight (or one value for every stream)
+  סימן: (:),            // how the note s number is set, wherever it prints
 )
 #let _sf_cfg = state("ksav-sf-cfg", _sf_defaults)
 #let הגדרות_זרמים(..opts) = _sf_cfg.update(c => {
@@ -3293,6 +3320,7 @@
   משקל: "regular", // "regular" | "bold"
   צבע: luma(65),
   ריווח: 0.6em,    // minimum vertical gap between two stacked notes
+  סימן: (:),       // how the note's number is set in the running text
 )
 #let _sn_cfg = state("ksav-sn-cfg", _sn_defaults)
 // What one sidenote may overrule: its own text. The ratio, the gutter and the
@@ -3364,7 +3392,10 @@
   let loc0 = here()
   let all = query(label(lbl))
   let num = _ksav_rank(label(lbl), loc0, e => true)
-  super[#mark(num)]
+  // The marker in the running text, through the column's own `סימן`. Not
+  // through `cfg`: the note's size and colour are the column's, and the
+  // number is standing in the sentence being annotated.
+  _mk_render(base.at("סימן", default: (:)), super[#mark(num)])
   if _sn_active.get() == 0 {
     // No side column is open, so there is nowhere to put the note. Fall back to
     // a real footnote rather than placing it off the edge of the paper.
@@ -4631,9 +4662,17 @@
       _sn_note(
         "ksav-rv",
         "חוץ",
-        // The marker takes the colour and not the rest: a comment set at 1.4em
-        // would otherwise put a 1.4em pencil in the middle of a line of text.
-        n => _mk_render((צבע: look.at("צבע", default: rgb("#b45309"))), [✎#n]),
+        // The marker takes the colour and not the rest, which is still the
+        // right default — a comment set at 1.4em would otherwise put a 1.4em
+        // pencil in the middle of a line of text — and is a default now
+        // rather than a decision written into the command. The piece can be
+        // set, including its glyph: a reviewer who wants a different mark, or
+        // none at all, says so with `#הגדרות_הערת_עורך(סימן: (טקסט: "*"))`.
+        n => {
+          let piece = _mk_part("הערת_עורך", "סימן")
+          let base = (צבע: look.at("צבע", default: rgb("#b45309")))
+          _mk_render(_cfg_with(base, piece), [#piece.at("טקסט", default: "✎")#n])
+        },
         _mk_render(look, { body; _rv_by(c, מאת) }),
       )
     }

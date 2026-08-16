@@ -97,14 +97,14 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
-- [ ] **A look of its own, for the thirteen that still have none.** The rule
-      is that anything which is a separate command has a style the writer can
-      set. Eleven of the twenty-four are done — `#מראה_מקום`, `#סימן`, `#סעיף`,
-      `#אות`, the eight blocks and the three review marks —
-      and `enginefacts.test.mjs` names what is left under *no look of its own
-      yet*: the side notes, whose configurable width the margins asked for by
-      name; the banded apparatus tiers; the note heading; the endnote; the
-      rules, the images and the formulas.
+- [ ] **A look of its own, for the nine that still have none.** The rule is
+      that anything which is a separate command has a style the writer can set.
+      Fifteen of the twenty-four are done — `#מראה_מקום`, `#סימן`, `#סעיף`,
+      `#אות`, the eight blocks, the three review marks, the note heading, the
+      endnote mark and the two formulas — and `enginefacts.test.mjs` names what
+      is left under *no look of its own yet*: the side notes, whose configurable
+      width the margins asked for by name; the banded apparatus tiers; the rules
+      and the images.
 
       Each is four lines: a row in `_mk_defaults` shipping exactly what it
       prints today, and rendering through `_mk_conf`. The fence goes red until

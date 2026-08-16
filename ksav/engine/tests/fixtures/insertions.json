@@ -229,6 +229,15 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת_בהערה(צבע: luma(60))אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "הגדרות_כותרות",
    "en": "headings_config",
    "legal": true,
@@ -585,6 +594,15 @@
    "legal": true,
    "reason": null,
    "source": "שורה של פרוזה ובה מלים#הערתסיום[]אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_הערתסיום(צבע: luma(90))אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -1336,6 +1354,24 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_נוסחה(גודל: 0.95em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_נוסחה_בשורה(גודל: 0.95em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -1584,6 +1620,15 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#note_heading[]ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#note_heading_config(colour: luma(60))ds to continue."
   },
   {
    "ctx": "prose",
@@ -1944,6 +1989,15 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#endnote[]ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#endnote_config(colour: luma(90))ds to continue."
   },
   {
    "ctx": "prose",
@@ -2695,6 +2749,24 @@
   {
    "ctx": "prose",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#formula_config(size: 0.95em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#iformula_config(size: 0.95em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -2943,6 +3015,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #כותרת_בהערה[]ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת_בהערה(צבע: luma(60))ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -3303,6 +3384,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #הערתסיום[]ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_הערתסיום(צבע: luma(90))ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -4054,6 +4144,24 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_נוסחה(גודל: 0.95em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_נוסחה_בשורה(גודל: 0.95em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": false,
@@ -4302,6 +4410,15 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #note_heading[]One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #note_heading_config(colour: luma(60))One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -4662,6 +4779,15 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #endnote[]One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #endnote_config(colour: luma(90))One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5413,6 +5539,24 @@
   {
    "ctx": "heading-body",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #formula_config(size: 0.95em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #iformula_config(size: 0.95em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": false,
@@ -5661,6 +5805,15 @@
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #כותרת_בהערה[]פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת_בהערה(צבע: luma(60))פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -6021,6 +6174,15 @@
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #הערתסיום[]פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_הערתסיום(צבע: luma(90))פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -6772,6 +6934,24 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_נוסחה(גודל: 0.95em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_נוסחה_בשורה(גודל: 0.95em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -7020,6 +7200,15 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #note_heading[]inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #note_heading_config(colour: luma(60))inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7380,6 +7569,15 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #endnote[]inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #endnote_config(colour: luma(90))inside] continues."
   },
   {
    "ctx": "note-body",
@@ -8131,6 +8329,24 @@
   {
    "ctx": "note-body",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #formula_config(size: 0.95em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #iformula_config(size: 0.95em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -8379,6 +8595,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #כותרת_בהערה[]כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת_בהערה(צבע: luma(60))כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -8739,6 +8964,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערתסיום[]כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_הערתסיום(צבע: luma(90))כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9490,6 +9724,24 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_נוסחה(גודל: 0.95em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_נוסחה_בשורה(גודל: 0.95em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -9738,6 +9990,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #note_heading[]here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #note_heading_config(colour: luma(60))here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -10098,6 +10359,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #endnote[]here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #endnote_config(colour: luma(90))here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -10849,6 +11119,24 @@
   {
    "ctx": "list-in-item",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #formula_config(size: 0.95em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #iformula_config(size: 0.95em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -11097,6 +11385,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],כותרת_בהערה[],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת_בהערה(צבע: luma(60)),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -11457,6 +11754,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],הערתסיום[],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_הערתסיום(צבע: luma(90)),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -12208,6 +12514,24 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_נוסחה(גודל: 0.95em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_נוסחה_בשורה(גודל: 0.95em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -12456,6 +12780,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],note_heading[],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],note_heading_config(colour: luma(60)),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -12816,6 +13149,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],endnote[],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],endnote_config(colour: luma(90)),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -13567,6 +13909,24 @@
   {
    "ctx": "list-between-items",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],formula_config(size: 0.95em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],iformula_config(size: 0.95em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -13815,6 +14175,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(כותרת_בהערה[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת_בהערה(צבע: luma(60)),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14175,6 +14544,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(הערתסיום[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_הערתסיום(צבע: luma(90)),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14926,6 +15304,24 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_נוסחה(גודל: 0.95em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_נוסחה_בשורה(גודל: 0.95em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -15174,6 +15570,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(note_heading[],\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(note_heading_config(colour: luma(60)),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -15534,6 +15939,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(endnote[],\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(endnote_config(colour: luma(90)),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -16285,6 +16699,24 @@
   {
    "ctx": "list-after-open",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(formula_config(size: 0.95em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(iformula_config(size: 0.95em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -16533,6 +16965,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #כותרת_בהערה[]כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת_בהערה(צבע: luma(60))כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -16893,6 +17334,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערתסיום[]כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_הערתסיום(צבע: luma(90))כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -17644,6 +18094,24 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_נוסחה(גודל: 0.95em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_נוסחה_בשורה(גודל: 0.95em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -17892,6 +18360,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #note_heading[]here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #note_heading_config(colour: luma(60))here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -18252,6 +18729,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #endnote[]here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #endnote_config(colour: luma(90))here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -19003,6 +19489,24 @@
   {
    "ctx": "table-in-cell",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #formula_config(size: 0.95em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #iformula_config(size: 0.95em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -19251,6 +19755,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],כותרת_בהערה[], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת_בהערה(צבע: luma(60)), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -19611,6 +20124,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערתסיום[], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_הערתסיום(צבע: luma(90)), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -20362,6 +20884,24 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_נוסחה(גודל: 0.95em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_נוסחה_בשורה(גודל: 0.95em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -20610,6 +21150,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],note_heading[], cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],note_heading_config(colour: luma(60)), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -20970,6 +21519,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],endnote[], cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],endnote_config(colour: luma(90)), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -21721,6 +22279,24 @@
   {
    "ctx": "table-between-cells",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],formula_config(size: 0.95em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],iformula_config(size: 0.95em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -21969,6 +22545,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #כותרת_בהערה[]כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת_בהערה(צבע: luma(60))כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -22329,6 +22914,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערתסיום[]כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_הערתסיום(צבע: luma(90))כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -23080,6 +23674,24 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_נוסחה(גודל: 0.95em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_נוסחה_בשורה(גודל: 0.95em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -23328,6 +23940,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #note_heading[]here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #note_heading_config(colour: luma(60))here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -23688,6 +24309,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #endnote[]here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #endnote_config(colour: luma(90))here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -24439,6 +25069,24 @@
   {
    "ctx": "nested-deep",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #formula_config(size: 0.95em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #iformula_config(size: 0.95em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -24687,6 +25335,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #כותרת_בהערה[]רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת_בהערה(צבע: luma(60))רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -25047,6 +25704,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #הערתסיום[]רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_הערתסיום(צבע: luma(90))רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -25798,6 +26464,24 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_נוסחה(גודל: 0.95em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_נוסחה_בשורה(גודל: 0.95em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": false,
@@ -26046,6 +26730,15 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #note_heading[]Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #note_heading_config(colour: luma(60))Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -26406,6 +27099,15 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #endnote[]Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #endnote_config(colour: luma(90))Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -27157,6 +27859,24 @@
   {
    "ctx": "deep-heading-body",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #formula_config(size: 0.95em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #iformula_config(size: 0.95em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": false,
@@ -27405,6 +28125,15 @@
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #כותרת_בהערה[]תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת_בהערה(צבע: luma(60))תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -27765,6 +28494,15 @@
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #הערתסיום[]תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_הערתסיום(צבע: luma(90))תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -28516,6 +29254,24 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_נוסחה(גודל: 0.95em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_נוסחה_בשורה(גודל: 0.95em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": false,
@@ -28764,6 +29520,15 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #note_heading[]prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #note_heading_config(colour: luma(60))prayer]"
   },
   {
    "ctx": "siman-body",
@@ -29124,6 +29889,15 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #endnote[]prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #endnote_config(colour: luma(90))prayer]"
   },
   {
    "ctx": "siman-body",
@@ -29875,6 +30649,24 @@
   {
    "ctx": "siman-body",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #formula_config(size: 0.95em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #iformula_config(size: 0.95em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": false,
@@ -30123,6 +30915,15 @@
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #כותרת_בהערה[]ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת_בהערה(צבע: luma(60))ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -30483,6 +31284,15 @@
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #הערתסיום[]ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_הערתסיום(צבע: luma(90))ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -31234,6 +32044,24 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_נוסחה(גודל: 0.95em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_נוסחה_בשורה(גודל: 0.95em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -31482,6 +32310,15 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #note_heading[]Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #note_heading_config(colour: luma(60))Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -31842,6 +32679,15 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #endnote[]Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #endnote_config(colour: luma(90))Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -32593,6 +33439,24 @@
   {
    "ctx": "title-body",
    "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #formula_config(size: 0.95em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #iformula_config(size: 0.95em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -32841,6 +33705,15 @@
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#כותרת_בהערה[]ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת_בהערה(צבע: luma(60))ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -33201,6 +34074,15 @@
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#הערתסיום[]ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_הערתסיום(צבע: luma(90))ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -33952,6 +34834,24 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_נוסחה(גודל: 0.95em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_נוסחה_בשורה(גודל: 0.95em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "תוכן",
    "en": "toc",
    "legal": true,
@@ -34200,6 +35100,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#note_heading[]ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת_בהערה",
+   "en": "note_heading_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#note_heading_config(colour: luma(60))ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -34560,6 +35469,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#endnote[]ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_הערתסיום",
+   "en": "endnote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#endnote_config(colour: luma(90))ing] the note body]"
   },
   {
    "ctx": "note-heading-body",
@@ -35307,6 +36225,24 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#iformula(\"x^2 + 1\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה",
+   "en": "formula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#formula_config(size: 0.95em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_נוסחה_בשורה",
+   "en": "iformula_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#iformula_config(size: 0.95em)ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

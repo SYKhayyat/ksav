@@ -97,7 +97,7 @@ prose again — the markup is one key away, which is the right distance for the
 people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
-one does. There are 149 of them and none is worth memorising.
+one does. There are 153 of them and none is worth memorising.
 
 **Vim and Emacs mode take the whole keyboard.** With either one on, not one
 combination in the table above is installed — that is how the mode wins, rather

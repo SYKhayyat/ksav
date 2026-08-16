@@ -240,6 +240,451 @@
   panic(name + ": ארגומנט לא מוכר · unrecognised argument: " + rest.keys().join(", "))
 }
 
+// The mark register and the alignment reader both sit here — above every
+// command rather than beside the block commands they were written for —
+// because Typst has no forward references. A `#let` is visible only after its
+// own line, so a command defined before `_mk_render` cannot render through it,
+// and half the commands that need a look of their own are defined early: the
+// banded tiers, the sidenotes, a heading inside a note. The register is the
+// authority for what a command looks like, so it belongs ahead of the
+// commands, and the block commands that used to sit under it stay where they
+// are.
+
+// _doc_align(v) — the alignment half of מסמך's יישור, or `none`.
+//
+// `none` for `true` and `false`, which are the justify half, and `none` for a
+// name that means nothing — an unrecognised alignment falls back to what the
+// document already said rather than to an edge nobody chose. Both spellings of
+// each edge, and a real Typst alignment passes straight through, so
+// `#מסמך(יישור: center)` and `#document(align: "center")` are the same request.
+#let _doc_align(v) = {
+  if type(v) == alignment { v }
+  else if type(v) != str { none }
+  else if v in ("ימין", "right") { right }
+  else if v in ("מרכז", "אמצע", "center", "centre") { center }
+  else if v in ("שמאל", "left") { left }
+  else { none }
+}
+
+// ============================================================
+//  סימונים · the mark register
+// ------------------------------------------------------------
+//  A semantic mark that nothing ever collects is decoration. `#דיבור_המתחיל`
+//  was `strong(body)` and `#ציון` was small grey text in brackets: the only
+//  thing separating either from typing the formatting by hand was a name in the
+//  source, and a name no surface reads is a comment with syntax.
+//
+//  So a mark of a class registers itself where it stands, and three things
+//  follow at once:
+//
+//    · `#רשימת_סימונים("גמרא")` prints every mark of that class with the pages
+//      it landed on — ONE printer over a class of marks, rather than a bespoke
+//      index command per mark, which is what the two `#מפתח_*` commands were;
+//    · `#הגדרות_סימונים(סגנון: ("גמרא": "italic"))` styles the whole class;
+//    · `#גמרא("ברכות", "ב.", צבע: red)` overrules that for one of them, and
+//      `פטור: true` opts one out of the class's styling altogether.
+//
+//  That is `_cfg_with`'s three-layer model applied to a **set** rather than to a
+//  kind: the class is the global, the mark is the instance, and `כפה` on the
+//  global overrules both the per-mark settings and the exemptions — because an
+//  exemption is exactly one of the hundred one-off overrides that switch exists
+//  to sweep up.
+//
+//  Eight classes, six of them styled here. The other two are styled by whatever
+//  they already are — a `#סימן` is a heading and takes heading styles, a
+//  `#מראה_מקום` is a footnote and takes the note styles — and giving either a
+//  second styling channel would be two authorities for one fact. They register
+//  for the collecting and no more.
+#let _mk_label = label("ksav-mark")
+
+/// The classes, and the look each one ships with. A class absent from here is
+/// collected and printed exactly as its own command draws it.
+#let _mk_defaults = (
+  "ציון": (גודל: 0.85em, צבע: luma(95), סוגריים: true),
+  "גמרא": (סגנון: "italic"),
+  "דיבור_המתחיל": (משקל: "bold"),
+  "פסוק": (סגנון: "italic"),
+  "ציון_מקור": (סגנון: "italic"),
+  "ערך": (:),
+  // The source note, whose whole complaint was that it *looks exactly like a
+  // footnote*. The 0.92em it has always been set at is written here now rather
+  // than inline in `מראה_מקום`, so the value a writer sees in the panel is the
+  // one the page uses — and every document written before this reads the same,
+  // because the number has not changed.
+  //
+  // It is styled through this register rather than through a channel of its
+  // own, and that is the whole reason the earlier answer was *no*: what a mareh
+  // makom looks like is one fact, and two commands able to set it is the drift
+  // this product keeps paying for. What was wrong was the conclusion, not the
+  // rule — a class of marks already has one authority for its look, with a
+  // per-instance override and `כפה` to sweep the one-offs back, and a source
+  // note is a class of marks. It belongs *in* that authority, not beside it.
+  //
+  // The size compounds with the footnote's own, deliberately: this is the
+  // difference between a mareh makom and the footnotes around it, which is what
+  // was asked for, and it stays that difference when the note styles change.
+  "מראה_מקום": (גודל: 0.92em),
+  // The structure of a sefer, which is a separate command and therefore has a
+  // look of its own — the rule this table is now the register for. A siman is a
+  // heading and a seif is a block, so what they take from here is what a piece
+  // of *text* can take; where they sit on the page is still the heading's and
+  // the block's. Both ship with exactly what they printed before: a siman with
+  // nothing of its own over the level-1 heading, a seif and an os with the bold
+  // letter they were written with.
+  "סימן": (:),
+  "סעיף": (משקל: "bold"),
+  "אות": (משקל: "bold"),
+  // The blocks. Every value here was written inline in the command a moment ago
+  // — a callout's blue, a box's grey border, the 12pt padding all of them share
+  // — so a writer could see it on the page and reach none of it.
+  "ציטוט": (:),
+  "הערת_צד": (גוון: rgb("#eff6ff"), קו: rgb("#2563eb"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  "אזהרה": (גוון: rgb("#fef2f2"), קו: rgb("#dc2626"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  "הצלחה": (גוון: rgb("#f0fdf4"), קו: rgb("#16a34a"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  "תיבה": (מסגרת: 0.75pt + luma(150), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  // The title page's two lines, which were `text(size: 2em, weight: "bold")`
+  // and `text(size: 1.2em, fill: luma(110))` inside an `align(center, …)`.
+  "שער": (גודל: 2em, משקל: "bold", יישור: "center"),
+  "תת_שער": (גודל: 1.2em, צבע: luma(110), יישור: "center"),
+  // A block citation, which is a look and nothing else: 0.85em, italic, grey.
+  "מקור": (גודל: 0.85em, סגנון: "italic", צבע: luma(90)),
+  // The three review marks. These had a channel already — `#הגדרות_סקירה` takes
+  // `צבע_הוספה`, `צבע_מחיקה` and `צבע_הערה` — and it was the wrong shape twice
+  // over: three colours and nothing else, so a reviewer could recolour a
+  // deletion and not unstrike it or set it smaller; and a second table deciding
+  // what a mark looks like, which is the drift this register exists to end.
+  //
+  // The switch still takes those three names — a document that sets them keeps
+  // working — but it writes *here* now rather than beside here. What stayed in
+  // `_rv_cfg` is what is genuinely not a look: which view the document is in,
+  // and whether a comment prints its reviewer's name.
+  "הוספה": (צבע: rgb("#15803d"), קו_תחתון: true),
+  "מחיקה": (צבע: rgb("#b91c1c"), קו_חוצה: true),
+  "הערת_עורך": (צבע: rgb("#b45309")),
+  // A heading inside a note, which had a look and borrowed it. It read its
+  // weight and its colour off `#הגדרות_כותרות` — the *document's* headings — so
+  // a sefer that coloured its chapter titles coloured the lemmas in its
+  // footnotes too, and there was no way to say otherwise.
+  //
+  // Nothing here, because what it ships is per level and computed: the
+  // compressed size ramp, and the document's own heading weight and colour at
+  // that level. Those stay the base, so nothing written before this changes;
+  // the class sits over them and this heading's own arguments over that. See
+  // `כותרת_בהערה` itself.
+  "כותרת_בהערה": (:),
+  // The endnote's reference mark — the superscript number `#הערתסיום` leaves in
+  // the text. What it prints, and the only thing it prints: the note's body is
+  // set by `#הערות_בסוף`, which is a command of its own.
+  "הערתסיום": (:),
+  // The two formulas. A formula is set in the document's own face at the
+  // document's own size, which is fine as a default and is not a decision
+  // anybody made — a displayed equation a shade smaller than the body, or a
+  // grey one, or a heavier inline one, could not be asked for at all.
+  "נוסחה": (:),
+  "נוסחה_בשורה": (:),
+)
+
+/// What `#רשימת_סימונים` calls a class when the writer does not title it.
+#let _mk_titles = (
+  "ציון": "רשימת הציונים",
+  "גמרא": "מראי המקומות בגמרא",
+  "דיבור_המתחיל": "רשימת הדיבורים המתחילים",
+  "פסוק": "רשימת הפסוקים",
+  "ציון_מקור": "רשימת המקורות",
+  "ערך": "רשימת הערכים",
+  "סימן": "רשימת הסימנים",
+  "מראה_מקום": "רשימת מראי המקומות",
+)
+
+/// What a mark's own arguments may say about how it looks.
+///
+/// `קו_חוצה` arrived with the review marks. A tracked deletion is struck
+/// through, and that stroke was written into `#מחיקה` where no writer could
+/// reach it — which is the same shape as every other value this register has
+/// taken over, and there is no reason a line through a word should be a knob any
+/// less than a line under one.
+#let _mk_knobs = ("גודל", "סגנון", "משקל", "צבע", "קו_תחתון", "קו_חוצה", "סוגריים")
+
+/// …plus the two that are not a look at all: `פטור` takes this mark out of its
+/// class's styling, and `ברשימה: false` takes it out of the class's list. Two
+/// separate wants — *this one is set differently on purpose* and *this one is
+/// not worth listing* — and conflating them would make each unreachable half
+/// the time.
+/// The knobs a command that draws a *block* has, on top of the text ones.
+///
+/// A quotation, a callout, a box and a warning are not runs of text with a
+/// colour: what a writer wants to set on them is the fill, the border, the
+/// padding and the corner. Those cannot be said with `text()`, so they are a
+/// second set, and only the classes that draw a block carry them —
+/// `_mk_knobs_of` is what makes that per class rather than a flat list with six
+/// controls that mean nothing on a gemara reference.
+#let _mk_block_knobs = ("גוון", "קו", "מסגרת", "מרווח", "רדיוס", "רוחב", "יישור")
+
+/// Which classes draw a block, and therefore answer to the knobs above.
+#let _mk_block_classes = ("ציטוט", "הערת_צד", "אזהרה", "הצלחה", "תיבה", "שער", "תת_שער")
+
+/// The knobs one class answers to.
+#let _mk_knobs_of(cls) = if _mk_block_classes.contains(cls) {
+  _mk_knobs + _mk_block_knobs
+} else { _mk_knobs }
+
+#let _mk_own_keys = _mk_knobs + _mk_block_knobs + ("פטור", "ברשימה")
+
+/// The pieces a command draws separately, and the look each ships with.
+///
+/// *As granular as it can be*: a command's own look covers the whole of what it
+/// prints, and several of them print more than one thing. A siman prints the
+/// word, the number, the separator and the title; a pasuk prints the quotation
+/// and then its reference in parentheses; a gemara reference prints a masechta
+/// and a daf. Setting "the siman" larger should make all of it larger, and
+/// setting *the number* bold should bold the number — which is two settings,
+/// not one, and there was one.
+///
+/// Two of these were **hardcoded looks with no way to reach them**: a pasuk's
+/// reference has always been `text(size: 0.82em, fill: luma(95))` written
+/// inline, and that is what a part is for. Everything here ships exactly what it
+/// printed before.
+///
+/// A part's look nests *inside* its command's, so it carries only what differs.
+#let _mk_part_defaults = (
+  "סימן": (
+    // The word `סימן`, the number, the em dash between them, and the title.
+    //
+    // Two of these are text the *command* invents rather than text the writer
+    // typed, so they ship a `טקסט` and it is theirs to change: a sefer that
+    // opens its simanim `סי׳ א׳` says so, and `טקסט: ""` drops the word
+    // altogether. The number and the title are the writer's words and take no
+    // such key — offering one there would be a control that changes nothing.
+    "קידומת": (טקסט: "סימן"),
+    "מספר": (:),
+    "מפריד": (טקסט: " — "),
+    "כותרת": (:),
+  ),
+  "פסוק": ("מקור": (גודל: 0.82em, צבע: luma(95))),
+  "גמרא": ("מסכת": (:), "דף": (:)),
+  "ציון_מקור": ("מקום": (:)),
+)
+
+/// Where a part's settings live inside `_mk_cfg`, keyed by class then by part.
+/// A reserved key rather than a tenth piece of state, for the reason
+/// `_cfg_with` gives about `כפה`: the setting travels with the thing it belongs
+/// to.
+#let _mk_parts_key = "חלקים"
+
+/// The class styling, knob-major: `גודל: ("ציון": 0.8em)` — one dictionary per
+/// knob, keyed by class, exactly as `#הגדרות_זרמים` keys its knobs by stream.
+/// A plain value instead of a dictionary applies to every class.
+#let _mk_cfg = state("ksav-mk-cfg", (:))
+#let הגדרות_סימונים(..opts) = _mk_cfg.update(c => {
+  let d = c
+  for (k, v) in opts.named() { d.insert(k, v) }
+  d
+})
+#let marks_config = _en(הגדרות_סימונים)
+
+/// Set one thing's look, by name — the door each command gets of its own.
+///
+/// The rule is that anything which is a separate command has a style you can
+/// set, and *set it inside the marks configuration* is not that: a writer
+/// setting how a siman looks should say so about simanim, not name one inside a
+/// command about something else. So every styled command has a
+/// `#הגדרות_<שמו>` of its own, three lines each, and they all write here.
+///
+/// One authority per class is untouched, and that is the point of routing them
+/// through one setter: the doors are how you say it, `_mk_cfg` is where it is
+/// said, and two doors cannot disagree because there is one place to disagree
+/// in.
+///
+/// The store stays knob-major — `גודל: ("סימן": 1.6em)` — because that is what
+/// `_mk_pick` reads and what `#הגדרות_סימונים` writes when a sefer sets six
+/// classes at once. This turns a class-major call into that.
+#let _mk_set(cls, named) = _mk_cfg.update(c => {
+  let d = c
+  // The parts first — `#הגדרות_סימן(מספר: (משקל: "bold"))`. A key that is
+  // neither a knob nor one of this command's parts stops the compile naming
+  // itself, because the alternative is a control that reads back what was typed
+  // and changes nothing on the page.
+  let parts = _mk_part_defaults.at(cls, default: (:))
+  let mine = d.at(_mk_parts_key, default: (:)).at(cls, default: (:))
+  let touched = false
+  for (k, v) in named {
+    if _mk_knobs_of(cls).contains(k) or k == "כפה" { continue }
+    if not parts.keys().contains(k) {
+      panic(
+        "הגדרות_" + cls + ": ארגומנט לא מוכר · unrecognised argument: " + k
+          + if parts.len() > 0 { " — " + parts.keys().join(", ") } else { "" },
+      )
+    }
+    if type(v) != dictionary {
+      panic("הגדרות_" + cls + ": " + k + " מקבל מילון של הגדרות · takes a dictionary of settings")
+    }
+    // `טקסט` only where the command invents the words. On a piece that prints
+    // what the writer typed it would be accepted and ignored, which is the one
+    // thing a control must never be.
+    if "טקסט" in v and "טקסט" not in parts.at(k) {
+      panic(
+        "הגדרות_" + cls + ": " + k + " מדפיס את מה שנכתב, ואין לו טקסט משלו · "
+          + k + " prints what you wrote, so it has no text of its own",
+      )
+    }
+    mine.insert(k, _cfg_with(mine.at(k, default: (:)), v))
+    touched = true
+  }
+  if touched {
+    let all = d.at(_mk_parts_key, default: (:))
+    all.insert(cls, mine)
+    d.insert(_mk_parts_key, all)
+  }
+  for (k, v) in named {
+    if not (_mk_knobs_of(cls).contains(k) or k == "כפה") { continue }
+    let cur = d.at(k, default: none)
+    // A plain value is *every class*, and a per-class write must not silently
+    // discard it: it becomes that class's entry, and every other class keeps
+    // the value it already had.
+    let per = if type(cur) == dictionary { cur } else if cur == none { (:) } else {
+      let m = (:)
+      for name in _mk_defaults.keys() { m.insert(name, cur) }
+      m
+    }
+    per.insert(cls, v)
+    d.insert(k, per)
+  }
+  d
+})
+
+// One door per command, which is the rule: *anything that is a separate command
+// has a style you can set*. Each is the same three lines and each names exactly
+// one thing, so `#הגדרות_סימן(גודל: 1.6em)` is a sentence about simanim rather
+// than a class name buried in a call about marks.
+//
+// They are written out rather than generated because a `#let` name in Typst is a
+// literal — there is no way to bind thirty names from a loop — and
+// `app/test/enginefacts.test.mjs` holds the list against the registry so a
+// styled command without a door is a red test rather than a missing control.
+#let הגדרות_ציון(..opts) = _mk_set("ציון", opts.named())
+#let ref_config = _en(הגדרות_ציון)
+#let הגדרות_גמרא(..opts) = _mk_set("גמרא", opts.named())
+#let gemara_config = _en(הגדרות_גמרא)
+#let הגדרות_דיבור_המתחיל(..opts) = _mk_set("דיבור_המתחיל", opts.named())
+#let dh_config = _en(הגדרות_דיבור_המתחיל)
+#let הגדרות_פסוק(..opts) = _mk_set("פסוק", opts.named())
+#let verse_config = _en(הגדרות_פסוק)
+#let הגדרות_ציון_מקור(..opts) = _mk_set("ציון_מקור", opts.named())
+#let sourceref_config = _en(הגדרות_ציון_מקור)
+#let הגדרות_ערך(..opts) = _mk_set("ערך", opts.named())
+#let indexentry_config = _en(הגדרות_ערך)
+#let הגדרות_מראה_מקום(..opts) = _mk_set("מראה_מקום", opts.named())
+#let sourcenote_config = _en(הגדרות_מראה_מקום)
+#let הגדרות_סימן(..opts) = _mk_set("סימן", opts.named())
+#let siman_config = _en(הגדרות_סימן)
+#let הגדרות_סעיף(..opts) = _mk_set("סעיף", opts.named())
+#let seif_config = _en(הגדרות_סעיף)
+#let הגדרות_אות(..opts) = _mk_set("אות", opts.named())
+#let os_config = _en(הגדרות_אות)
+#let הגדרות_ציטוט(..opts) = _mk_set("ציטוט", opts.named())
+#let blockquote_config = _en(הגדרות_ציטוט)
+#let הגדרות_הערת_צד(..opts) = _mk_set("הערת_צד", opts.named())
+#let callout_config = _en(הגדרות_הערת_צד)
+#let הגדרות_אזהרה(..opts) = _mk_set("אזהרה", opts.named())
+#let warnbox_config = _en(הגדרות_אזהרה)
+#let הגדרות_הצלחה(..opts) = _mk_set("הצלחה", opts.named())
+#let okbox_config = _en(הגדרות_הצלחה)
+#let הגדרות_תיבה(..opts) = _mk_set("תיבה", opts.named())
+#let framebox_config = _en(הגדרות_תיבה)
+#let הגדרות_מקור(..opts) = _mk_set("מקור", opts.named())
+#let cite_config = _en(הגדרות_מקור)
+#let הגדרות_שער(..opts) = _mk_set("שער", opts.named())
+#let title_config = _en(הגדרות_שער)
+#let הגדרות_תת_שער(..opts) = _mk_set("תת_שער", opts.named())
+#let subtitle_config = _en(הגדרות_תת_שער)
+
+/// One knob's value for one class. The dictionary may be keyed in either
+/// language — `("gemara": …)` in an English document — which is what `_val`
+/// answers, so a class name is data like every other value in this prelude.
+#let _mk_pick(cfg, key, cls) = {
+  let a = cfg.at(key, default: none)
+  if type(a) != dictionary { a } else {
+    let out = none
+    for (k, v) in a { if _val(k) == cls { out = v } }
+    out
+  }
+}
+
+/// The three layers, resolved for one mark: shipped default, class, this mark.
+#let _mk_conf(cls, own) = {
+  let base = _mk_defaults.at(cls, default: (:))
+  let mine = (:)
+  for (k, v) in own { if _mk_knobs_of(cls).contains(k) { mine.insert(k, v) } }
+  let g = _mk_cfg.get()
+  let c = base
+  for k in _mk_knobs_of(cls) {
+    let v = _mk_pick(g, k, cls)
+    if v != none { c.insert(k, v) }
+  }
+  // Rule 3 first, and ahead of the exemption as well as of the override: `כפה`
+  // is the switch for making a sefer uniform again, and it would not do that if
+  // every `פטור: true` in it survived. See `_cfg_with`.
+  //
+  // Read per class as well as globally, because each command has a door of its
+  // own now: `#הגדרות_סימן(כפה: true)` means *every siman, no exceptions* and
+  // has nothing to say about the gemara references. Written through
+  // `#הגדרות_סימונים` it is still one switch over everything, which is what a
+  // writer setting six classes at once means by it.
+  let forced = _mk_pick(g, "כפה", cls)
+  if forced == true { c }
+  else if own.at("פטור", default: false) { _cfg_with(base, mine) }
+  else { _cfg_with(c, mine) }
+}
+
+#let _mk_render(c, body) = {
+  if body == none { return }
+  let out = body
+  if c.at("סוגריים", default: false) { out = [(#out)] }
+  if c.at("קו_תחתון", default: false) { out = underline(out) }
+  if c.at("קו_חוצה", default: false) { out = strike(out) }
+  let a = (:)
+  if "גודל" in c { a.insert("size", c.גודל) }
+  if "צבע" in c { a.insert("fill", c.צבע) }
+  if "סגנון" in c { a.insert("style", _val(c.סגנון)) }
+  if "משקל" in c { a.insert("weight", _val(c.משקל)) }
+  text(..a, out)
+}
+
+/// One part's look: its shipped default, then whatever the writer set.
+///
+/// It does **not** fold in the class's look, because it is drawn inside it —
+/// `_mk_render(class, … _mk_render(part, piece) …)` — so a size on the command
+/// scales the part too and the part carries only its difference.
+/// Draw a block command's frame: fill, border, padding, corner, width, align.
+///
+/// Nothing is passed to `block` that the class did not ship or the writer did
+/// not set, so a class with none of these is its body and no box at all.
+///
+/// `מסגרת` is a border all the way round and `קו` is the accent edge a callout
+/// has on one side. They are two different things a writer means, and a command
+/// that shipped one can be given the other.
+#let _mk_frame(c, body) = {
+  let args = (:)
+  if "גוון" in c { args.insert("fill", c.גוון) }
+  if "מרווח" in c { args.insert("inset", c.מרווח) }
+  if "רדיוס" in c { args.insert("radius", c.רדיוס) }
+  if "רוחב" in c { args.insert("width", c.רוחב) }
+  if "מסגרת" in c { args.insert("stroke", c.מסגרת) }
+  else if "קו" in c { args.insert("stroke", (right: 3pt + c.קו)) }
+  let out = if args.len() == 0 { body } else { block(..args, body) }
+  // Through `_doc_align`, which is the one place a written alignment becomes an
+  // alignment — `"מרכז"`, `"center"` and `center` all mean the same thing and
+  // this is not the second table that decides so.
+  let al = if "יישור" in c { _doc_align(c.יישור) } else { none }
+  if al != none { align(al, out) } else { out }
+}
+
+/// A block command, drawn: its text look inside its frame.
+#let _mk_draw(cls, own, body) = {
+  let c = _mk_conf(cls, own)
+  _mk_frame(c, _mk_render(c, body))
+}
+
 // ============================================================
 //  הערות שכבתיות · layered (tiered) footnotes — per page
 // ------------------------------------------------------------
@@ -1891,21 +2336,6 @@
   if from_doc != none { from_doc } else { _rc_head(p, זוגי, אי_זוגי, אחיד) }
 }
 
-// _doc_align(v) — the alignment half of מסמך's יישור, or `none`.
-//
-// `none` for `true` and `false`, which are the justify half, and `none` for a
-// name that means nothing — an unrecognised alignment falls back to what the
-// document already said rather than to an edge nobody chose. Both spellings of
-// each edge, and a real Typst alignment passes straight through, so
-// `#מסמך(יישור: center)` and `#document(align: "center")` are the same request.
-#let _doc_align(v) = {
-  if type(v) == alignment { v }
-  else if type(v) != str { none }
-  else if v in ("ימין", "right") { right }
-  else if v in ("מרכז", "אמצע", "center", "centre") { center }
-  else if v in ("שמאל", "left") { left }
-  else { none }
-}
 
 #let מסמך(
   גופן: "Frank Ruhl Hofshi",
@@ -2434,15 +2864,27 @@
 // 0.85em note is still half again the size of the text being annotated. This
 // ramp is compressed to stay inside the note it belongs to.
 #let _nh_sizes = (1.12em, 1.06em, 1.02em, 1em, 1em, 1em)
-#let כותרת_בהערה(body, רמה: 1) = context {
+#let כותרת_בהערה(body, רמה: 1, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("כותרת_בהערה", rest)
   let c = _hd_cfg.get()
   let lvl = calc.max(רמה, 1)
-  let styled = text(
-    size: _nh_sizes.at(calc.min(lvl - 1, _nh_sizes.len() - 1)),
-    weight: _cfg_pick(c, "משקל", lvl, "bold"),
-    fill: _cfg_pick(c, "צבע", lvl, luma(0)),
-    body,
+  // Three layers under the register's own three, and in this order: the
+  // document's headings at this level, then the class, then this heading.
+  //
+  // The document's headings are the *base* rather than a rival, which is the
+  // whole reason this reads them at all. A note heading has looked like the
+  // sefer's headings since it was written, and a sefer that colours its chapter
+  // titles means its lemmas too until it says otherwise — `#הגדרות_כותרת_בהערה`
+  // is how it says otherwise, and `#כותרת_בהערה(צבע: …)` is how one of them
+  // does. What was missing was not a different default, it was any way to
+  // disagree with this one.
+  let shipped = (
+    גודל: _nh_sizes.at(calc.min(lvl - 1, _nh_sizes.len() - 1)),
+    משקל: _cfg_pick(c, "משקל", lvl, "bold"),
+    צבע: _cfg_pick(c, "צבע", lvl, luma(0)),
   )
+  let styled = _mk_render(_cfg_with(shipped, _mk_conf("כותרת_בהערה", own)), body)
   // Inline text and a line break AFTER — never a `block`, and nothing at all
   // before. A footnote entry lays out as «number» «body», and anything that
   // breaks the line at the start of the body drops the body to the next line and
@@ -2480,6 +2922,8 @@
 #let h5 = _en(כותרת5)
 #let h6 = _en(כותרת6)
 #let note_heading = _en(כותרת_בהערה)
+#let הגדרות_כותרת_בהערה(..opts) = _mk_set("כותרת_בהערה", opts.named())
+#let note_heading_config = _en(הגדרות_כותרת_בהערה)
 
 // ============================================================
 //  יישור · alignment
@@ -2698,16 +3142,25 @@
 #let _en_section(זרם, loc) = _ksav_real_of(
   _ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc)
 )
-#let הערתסיום(body, זרם: "הערות") = {
+#let הערתסיום(body, זרם: "הערות", ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("הערתסיום", rest)
   [#metadata((body: body))#_en_label(זרם)]
   context {
     let loc = here()
-    super[#numbering(
+    // The class covers the *mark* — the superscript number this command leaves
+    // in the text, which is all this command prints. The note's body is set
+    // where it is printed, by `#הערות_בסוף`, and that is a command of its own
+    // with a door of its own; one command styling another's output is the
+    // second authority this register exists to prevent.
+    _mk_render(_mk_conf("הערתסיום", own), super[#numbering(
       _es_scheme(),
       _ksav_rank(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc), loc, e => true),
-    )]
+    )])
   }
 }
+#let הגדרות_הערתסיום(..opts) = _mk_set("הערתסיום", opts.named())
+#let endnote_config = _en(הגדרות_הערתסיום)
 // The rendered block for one stream's notes in the section around `loc`.
 #let _en_block(זרם, loc) = {
   let items = _en_section(זרם, loc).map(e => e.value.body)
@@ -3231,403 +3684,6 @@
 #let cols = טורים_בלוק
 #let img = _en(תמונה)
 
-// ============================================================
-//  סימונים · the mark register
-// ------------------------------------------------------------
-//  A semantic mark that nothing ever collects is decoration. `#דיבור_המתחיל`
-//  was `strong(body)` and `#ציון` was small grey text in brackets: the only
-//  thing separating either from typing the formatting by hand was a name in the
-//  source, and a name no surface reads is a comment with syntax.
-//
-//  So a mark of a class registers itself where it stands, and three things
-//  follow at once:
-//
-//    · `#רשימת_סימונים("גמרא")` prints every mark of that class with the pages
-//      it landed on — ONE printer over a class of marks, rather than a bespoke
-//      index command per mark, which is what the two `#מפתח_*` commands were;
-//    · `#הגדרות_סימונים(סגנון: ("גמרא": "italic"))` styles the whole class;
-//    · `#גמרא("ברכות", "ב.", צבע: red)` overrules that for one of them, and
-//      `פטור: true` opts one out of the class's styling altogether.
-//
-//  That is `_cfg_with`'s three-layer model applied to a **set** rather than to a
-//  kind: the class is the global, the mark is the instance, and `כפה` on the
-//  global overrules both the per-mark settings and the exemptions — because an
-//  exemption is exactly one of the hundred one-off overrides that switch exists
-//  to sweep up.
-//
-//  Eight classes, six of them styled here. The other two are styled by whatever
-//  they already are — a `#סימן` is a heading and takes heading styles, a
-//  `#מראה_מקום` is a footnote and takes the note styles — and giving either a
-//  second styling channel would be two authorities for one fact. They register
-//  for the collecting and no more.
-#let _mk_label = label("ksav-mark")
-
-/// The classes, and the look each one ships with. A class absent from here is
-/// collected and printed exactly as its own command draws it.
-#let _mk_defaults = (
-  "ציון": (גודל: 0.85em, צבע: luma(95), סוגריים: true),
-  "גמרא": (סגנון: "italic"),
-  "דיבור_המתחיל": (משקל: "bold"),
-  "פסוק": (סגנון: "italic"),
-  "ציון_מקור": (סגנון: "italic"),
-  "ערך": (:),
-  // The source note, whose whole complaint was that it *looks exactly like a
-  // footnote*. The 0.92em it has always been set at is written here now rather
-  // than inline in `מראה_מקום`, so the value a writer sees in the panel is the
-  // one the page uses — and every document written before this reads the same,
-  // because the number has not changed.
-  //
-  // It is styled through this register rather than through a channel of its
-  // own, and that is the whole reason the earlier answer was *no*: what a mareh
-  // makom looks like is one fact, and two commands able to set it is the drift
-  // this product keeps paying for. What was wrong was the conclusion, not the
-  // rule — a class of marks already has one authority for its look, with a
-  // per-instance override and `כפה` to sweep the one-offs back, and a source
-  // note is a class of marks. It belongs *in* that authority, not beside it.
-  //
-  // The size compounds with the footnote's own, deliberately: this is the
-  // difference between a mareh makom and the footnotes around it, which is what
-  // was asked for, and it stays that difference when the note styles change.
-  "מראה_מקום": (גודל: 0.92em),
-  // The structure of a sefer, which is a separate command and therefore has a
-  // look of its own — the rule this table is now the register for. A siman is a
-  // heading and a seif is a block, so what they take from here is what a piece
-  // of *text* can take; where they sit on the page is still the heading's and
-  // the block's. Both ship with exactly what they printed before: a siman with
-  // nothing of its own over the level-1 heading, a seif and an os with the bold
-  // letter they were written with.
-  "סימן": (:),
-  "סעיף": (משקל: "bold"),
-  "אות": (משקל: "bold"),
-  // The blocks. Every value here was written inline in the command a moment ago
-  // — a callout's blue, a box's grey border, the 12pt padding all of them share
-  // — so a writer could see it on the page and reach none of it.
-  "ציטוט": (:),
-  "הערת_צד": (גוון: rgb("#eff6ff"), קו: rgb("#2563eb"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
-  "אזהרה": (גוון: rgb("#fef2f2"), קו: rgb("#dc2626"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
-  "הצלחה": (גוון: rgb("#f0fdf4"), קו: rgb("#16a34a"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
-  "תיבה": (מסגרת: 0.75pt + luma(150), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
-  // The title page's two lines, which were `text(size: 2em, weight: "bold")`
-  // and `text(size: 1.2em, fill: luma(110))` inside an `align(center, …)`.
-  "שער": (גודל: 2em, משקל: "bold", יישור: "center"),
-  "תת_שער": (גודל: 1.2em, צבע: luma(110), יישור: "center"),
-  // A block citation, which is a look and nothing else: 0.85em, italic, grey.
-  "מקור": (גודל: 0.85em, סגנון: "italic", צבע: luma(90)),
-  // The three review marks. These had a channel already — `#הגדרות_סקירה` takes
-  // `צבע_הוספה`, `צבע_מחיקה` and `צבע_הערה` — and it was the wrong shape twice
-  // over: three colours and nothing else, so a reviewer could recolour a
-  // deletion and not unstrike it or set it smaller; and a second table deciding
-  // what a mark looks like, which is the drift this register exists to end.
-  //
-  // The switch still takes those three names — a document that sets them keeps
-  // working — but it writes *here* now rather than beside here. What stayed in
-  // `_rv_cfg` is what is genuinely not a look: which view the document is in,
-  // and whether a comment prints its reviewer's name.
-  "הוספה": (צבע: rgb("#15803d"), קו_תחתון: true),
-  "מחיקה": (צבע: rgb("#b91c1c"), קו_חוצה: true),
-  "הערת_עורך": (צבע: rgb("#b45309")),
-)
-
-/// What `#רשימת_סימונים` calls a class when the writer does not title it.
-#let _mk_titles = (
-  "ציון": "רשימת הציונים",
-  "גמרא": "מראי המקומות בגמרא",
-  "דיבור_המתחיל": "רשימת הדיבורים המתחילים",
-  "פסוק": "רשימת הפסוקים",
-  "ציון_מקור": "רשימת המקורות",
-  "ערך": "רשימת הערכים",
-  "סימן": "רשימת הסימנים",
-  "מראה_מקום": "רשימת מראי המקומות",
-)
-
-/// What a mark's own arguments may say about how it looks.
-///
-/// `קו_חוצה` arrived with the review marks. A tracked deletion is struck
-/// through, and that stroke was written into `#מחיקה` where no writer could
-/// reach it — which is the same shape as every other value this register has
-/// taken over, and there is no reason a line through a word should be a knob any
-/// less than a line under one.
-#let _mk_knobs = ("גודל", "סגנון", "משקל", "צבע", "קו_תחתון", "קו_חוצה", "סוגריים")
-
-/// …plus the two that are not a look at all: `פטור` takes this mark out of its
-/// class's styling, and `ברשימה: false` takes it out of the class's list. Two
-/// separate wants — *this one is set differently on purpose* and *this one is
-/// not worth listing* — and conflating them would make each unreachable half
-/// the time.
-/// The knobs a command that draws a *block* has, on top of the text ones.
-///
-/// A quotation, a callout, a box and a warning are not runs of text with a
-/// colour: what a writer wants to set on them is the fill, the border, the
-/// padding and the corner. Those cannot be said with `text()`, so they are a
-/// second set, and only the classes that draw a block carry them —
-/// `_mk_knobs_of` is what makes that per class rather than a flat list with six
-/// controls that mean nothing on a gemara reference.
-#let _mk_block_knobs = ("גוון", "קו", "מסגרת", "מרווח", "רדיוס", "רוחב", "יישור")
-
-/// Which classes draw a block, and therefore answer to the knobs above.
-#let _mk_block_classes = ("ציטוט", "הערת_צד", "אזהרה", "הצלחה", "תיבה", "שער", "תת_שער")
-
-/// The knobs one class answers to.
-#let _mk_knobs_of(cls) = if _mk_block_classes.contains(cls) {
-  _mk_knobs + _mk_block_knobs
-} else { _mk_knobs }
-
-#let _mk_own_keys = _mk_knobs + _mk_block_knobs + ("פטור", "ברשימה")
-
-/// The pieces a command draws separately, and the look each ships with.
-///
-/// *As granular as it can be*: a command's own look covers the whole of what it
-/// prints, and several of them print more than one thing. A siman prints the
-/// word, the number, the separator and the title; a pasuk prints the quotation
-/// and then its reference in parentheses; a gemara reference prints a masechta
-/// and a daf. Setting "the siman" larger should make all of it larger, and
-/// setting *the number* bold should bold the number — which is two settings,
-/// not one, and there was one.
-///
-/// Two of these were **hardcoded looks with no way to reach them**: a pasuk's
-/// reference has always been `text(size: 0.82em, fill: luma(95))` written
-/// inline, and that is what a part is for. Everything here ships exactly what it
-/// printed before.
-///
-/// A part's look nests *inside* its command's, so it carries only what differs.
-#let _mk_part_defaults = (
-  "סימן": (
-    // The word `סימן`, the number, the em dash between them, and the title.
-    //
-    // Two of these are text the *command* invents rather than text the writer
-    // typed, so they ship a `טקסט` and it is theirs to change: a sefer that
-    // opens its simanim `סי׳ א׳` says so, and `טקסט: ""` drops the word
-    // altogether. The number and the title are the writer's words and take no
-    // such key — offering one there would be a control that changes nothing.
-    "קידומת": (טקסט: "סימן"),
-    "מספר": (:),
-    "מפריד": (טקסט: " — "),
-    "כותרת": (:),
-  ),
-  "פסוק": ("מקור": (גודל: 0.82em, צבע: luma(95))),
-  "גמרא": ("מסכת": (:), "דף": (:)),
-  "ציון_מקור": ("מקום": (:)),
-)
-
-/// Where a part's settings live inside `_mk_cfg`, keyed by class then by part.
-/// A reserved key rather than a tenth piece of state, for the reason
-/// `_cfg_with` gives about `כפה`: the setting travels with the thing it belongs
-/// to.
-#let _mk_parts_key = "חלקים"
-
-/// The class styling, knob-major: `גודל: ("ציון": 0.8em)` — one dictionary per
-/// knob, keyed by class, exactly as `#הגדרות_זרמים` keys its knobs by stream.
-/// A plain value instead of a dictionary applies to every class.
-#let _mk_cfg = state("ksav-mk-cfg", (:))
-#let הגדרות_סימונים(..opts) = _mk_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  d
-})
-#let marks_config = _en(הגדרות_סימונים)
-
-/// Set one thing's look, by name — the door each command gets of its own.
-///
-/// The rule is that anything which is a separate command has a style you can
-/// set, and *set it inside the marks configuration* is not that: a writer
-/// setting how a siman looks should say so about simanim, not name one inside a
-/// command about something else. So every styled command has a
-/// `#הגדרות_<שמו>` of its own, three lines each, and they all write here.
-///
-/// One authority per class is untouched, and that is the point of routing them
-/// through one setter: the doors are how you say it, `_mk_cfg` is where it is
-/// said, and two doors cannot disagree because there is one place to disagree
-/// in.
-///
-/// The store stays knob-major — `גודל: ("סימן": 1.6em)` — because that is what
-/// `_mk_pick` reads and what `#הגדרות_סימונים` writes when a sefer sets six
-/// classes at once. This turns a class-major call into that.
-#let _mk_set(cls, named) = _mk_cfg.update(c => {
-  let d = c
-  // The parts first — `#הגדרות_סימן(מספר: (משקל: "bold"))`. A key that is
-  // neither a knob nor one of this command's parts stops the compile naming
-  // itself, because the alternative is a control that reads back what was typed
-  // and changes nothing on the page.
-  let parts = _mk_part_defaults.at(cls, default: (:))
-  let mine = d.at(_mk_parts_key, default: (:)).at(cls, default: (:))
-  let touched = false
-  for (k, v) in named {
-    if _mk_knobs_of(cls).contains(k) or k == "כפה" { continue }
-    if not parts.keys().contains(k) {
-      panic(
-        "הגדרות_" + cls + ": ארגומנט לא מוכר · unrecognised argument: " + k
-          + if parts.len() > 0 { " — " + parts.keys().join(", ") } else { "" },
-      )
-    }
-    if type(v) != dictionary {
-      panic("הגדרות_" + cls + ": " + k + " מקבל מילון של הגדרות · takes a dictionary of settings")
-    }
-    // `טקסט` only where the command invents the words. On a piece that prints
-    // what the writer typed it would be accepted and ignored, which is the one
-    // thing a control must never be.
-    if "טקסט" in v and "טקסט" not in parts.at(k) {
-      panic(
-        "הגדרות_" + cls + ": " + k + " מדפיס את מה שנכתב, ואין לו טקסט משלו · "
-          + k + " prints what you wrote, so it has no text of its own",
-      )
-    }
-    mine.insert(k, _cfg_with(mine.at(k, default: (:)), v))
-    touched = true
-  }
-  if touched {
-    let all = d.at(_mk_parts_key, default: (:))
-    all.insert(cls, mine)
-    d.insert(_mk_parts_key, all)
-  }
-  for (k, v) in named {
-    if not (_mk_knobs_of(cls).contains(k) or k == "כפה") { continue }
-    let cur = d.at(k, default: none)
-    // A plain value is *every class*, and a per-class write must not silently
-    // discard it: it becomes that class's entry, and every other class keeps
-    // the value it already had.
-    let per = if type(cur) == dictionary { cur } else if cur == none { (:) } else {
-      let m = (:)
-      for name in _mk_defaults.keys() { m.insert(name, cur) }
-      m
-    }
-    per.insert(cls, v)
-    d.insert(k, per)
-  }
-  d
-})
-
-// One door per command, which is the rule: *anything that is a separate command
-// has a style you can set*. Each is the same three lines and each names exactly
-// one thing, so `#הגדרות_סימן(גודל: 1.6em)` is a sentence about simanim rather
-// than a class name buried in a call about marks.
-//
-// They are written out rather than generated because a `#let` name in Typst is a
-// literal — there is no way to bind thirty names from a loop — and
-// `app/test/enginefacts.test.mjs` holds the list against the registry so a
-// styled command without a door is a red test rather than a missing control.
-#let הגדרות_ציון(..opts) = _mk_set("ציון", opts.named())
-#let ref_config = _en(הגדרות_ציון)
-#let הגדרות_גמרא(..opts) = _mk_set("גמרא", opts.named())
-#let gemara_config = _en(הגדרות_גמרא)
-#let הגדרות_דיבור_המתחיל(..opts) = _mk_set("דיבור_המתחיל", opts.named())
-#let dh_config = _en(הגדרות_דיבור_המתחיל)
-#let הגדרות_פסוק(..opts) = _mk_set("פסוק", opts.named())
-#let verse_config = _en(הגדרות_פסוק)
-#let הגדרות_ציון_מקור(..opts) = _mk_set("ציון_מקור", opts.named())
-#let sourceref_config = _en(הגדרות_ציון_מקור)
-#let הגדרות_ערך(..opts) = _mk_set("ערך", opts.named())
-#let indexentry_config = _en(הגדרות_ערך)
-#let הגדרות_מראה_מקום(..opts) = _mk_set("מראה_מקום", opts.named())
-#let sourcenote_config = _en(הגדרות_מראה_מקום)
-#let הגדרות_סימן(..opts) = _mk_set("סימן", opts.named())
-#let siman_config = _en(הגדרות_סימן)
-#let הגדרות_סעיף(..opts) = _mk_set("סעיף", opts.named())
-#let seif_config = _en(הגדרות_סעיף)
-#let הגדרות_אות(..opts) = _mk_set("אות", opts.named())
-#let os_config = _en(הגדרות_אות)
-#let הגדרות_ציטוט(..opts) = _mk_set("ציטוט", opts.named())
-#let blockquote_config = _en(הגדרות_ציטוט)
-#let הגדרות_הערת_צד(..opts) = _mk_set("הערת_צד", opts.named())
-#let callout_config = _en(הגדרות_הערת_צד)
-#let הגדרות_אזהרה(..opts) = _mk_set("אזהרה", opts.named())
-#let warnbox_config = _en(הגדרות_אזהרה)
-#let הגדרות_הצלחה(..opts) = _mk_set("הצלחה", opts.named())
-#let okbox_config = _en(הגדרות_הצלחה)
-#let הגדרות_תיבה(..opts) = _mk_set("תיבה", opts.named())
-#let framebox_config = _en(הגדרות_תיבה)
-#let הגדרות_מקור(..opts) = _mk_set("מקור", opts.named())
-#let cite_config = _en(הגדרות_מקור)
-#let הגדרות_שער(..opts) = _mk_set("שער", opts.named())
-#let title_config = _en(הגדרות_שער)
-#let הגדרות_תת_שער(..opts) = _mk_set("תת_שער", opts.named())
-#let subtitle_config = _en(הגדרות_תת_שער)
-
-/// One knob's value for one class. The dictionary may be keyed in either
-/// language — `("gemara": …)` in an English document — which is what `_val`
-/// answers, so a class name is data like every other value in this prelude.
-#let _mk_pick(cfg, key, cls) = {
-  let a = cfg.at(key, default: none)
-  if type(a) != dictionary { a } else {
-    let out = none
-    for (k, v) in a { if _val(k) == cls { out = v } }
-    out
-  }
-}
-
-/// The three layers, resolved for one mark: shipped default, class, this mark.
-#let _mk_conf(cls, own) = {
-  let base = _mk_defaults.at(cls, default: (:))
-  let mine = (:)
-  for (k, v) in own { if _mk_knobs_of(cls).contains(k) { mine.insert(k, v) } }
-  let g = _mk_cfg.get()
-  let c = base
-  for k in _mk_knobs_of(cls) {
-    let v = _mk_pick(g, k, cls)
-    if v != none { c.insert(k, v) }
-  }
-  // Rule 3 first, and ahead of the exemption as well as of the override: `כפה`
-  // is the switch for making a sefer uniform again, and it would not do that if
-  // every `פטור: true` in it survived. See `_cfg_with`.
-  //
-  // Read per class as well as globally, because each command has a door of its
-  // own now: `#הגדרות_סימן(כפה: true)` means *every siman, no exceptions* and
-  // has nothing to say about the gemara references. Written through
-  // `#הגדרות_סימונים` it is still one switch over everything, which is what a
-  // writer setting six classes at once means by it.
-  let forced = _mk_pick(g, "כפה", cls)
-  if forced == true { c }
-  else if own.at("פטור", default: false) { _cfg_with(base, mine) }
-  else { _cfg_with(c, mine) }
-}
-
-#let _mk_render(c, body) = {
-  if body == none { return }
-  let out = body
-  if c.at("סוגריים", default: false) { out = [(#out)] }
-  if c.at("קו_תחתון", default: false) { out = underline(out) }
-  if c.at("קו_חוצה", default: false) { out = strike(out) }
-  let a = (:)
-  if "גודל" in c { a.insert("size", c.גודל) }
-  if "צבע" in c { a.insert("fill", c.צבע) }
-  if "סגנון" in c { a.insert("style", _val(c.סגנון)) }
-  if "משקל" in c { a.insert("weight", _val(c.משקל)) }
-  text(..a, out)
-}
-
-/// One part's look: its shipped default, then whatever the writer set.
-///
-/// It does **not** fold in the class's look, because it is drawn inside it —
-/// `_mk_render(class, … _mk_render(part, piece) …)` — so a size on the command
-/// scales the part too and the part carries only its difference.
-/// Draw a block command's frame: fill, border, padding, corner, width, align.
-///
-/// Nothing is passed to `block` that the class did not ship or the writer did
-/// not set, so a class with none of these is its body and no box at all.
-///
-/// `מסגרת` is a border all the way round and `קו` is the accent edge a callout
-/// has on one side. They are two different things a writer means, and a command
-/// that shipped one can be given the other.
-#let _mk_frame(c, body) = {
-  let args = (:)
-  if "גוון" in c { args.insert("fill", c.גוון) }
-  if "מרווח" in c { args.insert("inset", c.מרווח) }
-  if "רדיוס" in c { args.insert("radius", c.רדיוס) }
-  if "רוחב" in c { args.insert("width", c.רוחב) }
-  if "מסגרת" in c { args.insert("stroke", c.מסגרת) }
-  else if "קו" in c { args.insert("stroke", (right: 3pt + c.קו)) }
-  let out = if args.len() == 0 { body } else { block(..args, body) }
-  // Through `_doc_align`, which is the one place a written alignment becomes an
-  // alignment — `"מרכז"`, `"center"` and `center` all mean the same thing and
-  // this is not the second table that decides so.
-  let al = if "יישור" in c { _doc_align(c.יישור) } else { none }
-  if al != none { align(al, out) } else { out }
-}
-
-/// A block command, drawn: its text look inside its frame.
-#let _mk_draw(cls, own, body) = {
-  let c = _mk_conf(cls, own)
-  _mk_frame(c, _mk_render(c, body))
-}
 
 // The blocks, each with a look of its own.
 //
@@ -4548,15 +4604,38 @@
 // who **types** — which is the writer this markup language exists for.
 //
 // `_as_string` is the shared flattener; see its note near the top.
-#let נוסחה(תוכן, ממוספרת: false) = text(dir: ltr, math.equation(
-  block: true,
-  numbering: if ממוספרת { "(1)" } else { none },
-  eval(_as_string(תוכן), mode: "math"),
-))
-#let נוסחה_בשורה(תוכן) = text(
-  dir: ltr,
-  math.equation(block: false, eval(_as_string(תוכן), mode: "math")),
-)
+// Both take a look of their own, and they take it separately. A displayed
+// formula and one set inside a sentence are two commands and two decisions: a
+// sefer that wants its displayed equations a shade smaller than the prose is
+// not saying anything about the `x` in the middle of a line, and the sizes that
+// would read well are not the same size.
+//
+// `dir: ltr` is not a knob and is not negotiable — mathematics is written left
+// to right in a right-to-left document, which is what this wrapper is for.
+#let נוסחה(תוכן, ממוספרת: false, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("נוסחה", rest)
+  text(dir: ltr, _mk_render(_mk_conf("נוסחה", own), math.equation(
+    block: true,
+    numbering: if ממוספרת { "(1)" } else { none },
+    eval(_as_string(תוכן), mode: "math"),
+  )))
+}
+#let נוסחה_בשורה(תוכן, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("נוסחה_בשורה", rest)
+  text(
+    dir: ltr,
+    _mk_render(
+      _mk_conf("נוסחה_בשורה", own),
+      math.equation(block: false, eval(_as_string(תוכן), mode: "math")),
+    ),
+  )
+}
+#let הגדרות_נוסחה(..opts) = _mk_set("נוסחה", opts.named())
+#let formula_config = _en(הגדרות_נוסחה)
+#let הגדרות_נוסחה_בשורה(..opts) = _mk_set("נוסחה_בשורה", opts.named())
+#let iformula_config = _en(הגדרות_נוסחה_בשורה)
 #let formula = _en(נוסחה)
 #let iformula = נוסחה_בשורה
 

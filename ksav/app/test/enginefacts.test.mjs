@@ -511,9 +511,9 @@ export async function run() {
       // What the rule still owes. Each of these draws something a writer would
       // want to set and has no channel — see HANDOFF.md.
       "no look of its own yet": [
-        "כותרת_בהערה", "קו_מפריד", "תמונה", "נוסחה", "נוסחה_בשורה",
+        "קו_מפריד", "תמונה",
         "הערת_ימין", "הערת_שמאל", "הערת_גיליון", "מדור_א", "מדור_ב", "מדור_ג",
-        "מדור_בדרגה", "הערתסיום",
+        "מדור_בדרגה",
       ],
     };
 

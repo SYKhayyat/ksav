@@ -774,3 +774,196 @@ fn a_review_knob_nothing_answers_to_stops_the_compile() {
         out.diagnostics
     );
 }
+
+// ----------------------------------------------- the four that print elsewhere
+//
+// A heading inside a note, an endnote's reference mark, and the two formulas.
+// What they have in common is that none of them is the thing it looks like: a
+// note heading is not one of the document's headings, an endnote mark is not the
+// endnote, and a formula is not prose. Each drew a look nobody could reach, and
+// one of them drew somebody else's.
+//
+// `#כותרת_בהערה` is the one worth reading twice. It read its weight and its
+// colour off `#הגדרות_כותרות` — the document's real headings — which is a
+// sensible default and was the only setting there was. Those stay the base, so
+// nothing written before this reprints; what is new is that a sefer can now
+// disagree with them.
+
+#[test]
+fn a_note_heading_still_follows_the_documents_headings() {
+    let body = "#הגדרות_כותרות(צבע: rgb(\"#0000ff\"))\n#הערה[#כותרת_בהערה[פתיחה] הגוף]\n";
+    let f = runs(body);
+    let head = f
+        .iter()
+        .find(|r| r.text.contains("פתיחה"))
+        .expect("the note heading printed");
+    // The heading colour is not on a text run; it is what the run was filled
+    // with, and `TextRun` carries no fill — so the assertion that can be made
+    // here is the one that matters for the base: the heading is still bold and
+    // still larger than the note body around it.
+    let gof = f
+        .iter()
+        .find(|r| r.text.contains("הגוף"))
+        .expect("the note body printed");
+    assert!(
+        head.weight >= 700,
+        "the note heading lost its bold: {head:?}"
+    );
+    assert!(
+        head.size > gof.size,
+        "the note heading is no longer larger than its note: {head:?} vs {gof:?}"
+    );
+}
+
+#[test]
+fn a_note_heading_can_be_set_apart_from_the_documents_headings() {
+    // The whole complaint. A sefer whose chapter titles are set one way and
+    // whose lemmas in the notes are set another could not say so — and the two
+    // have to move independently, which is two assertions rather than one.
+    //
+    // Not *larger than the chapter title*: a note heading is sized in ems of the
+    // note it sits in, and a note is already 0.85 of the prose. A comparison
+    // across the two measures the footnote size and calls it a control.
+    let doc = "#כותרת1[פרק]\n\n#הערה[#כותרת_בהערה[פתיחה] הגוף]\n";
+    let set = format!("#הגדרות_כותרת_בהערה(גודל: 2em)\n{doc}");
+    let (before, after) = (runs(doc), runs(&set));
+    let at = |f: &[probe::TextRun], needle: &str| {
+        f.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} printed"))
+            .size
+    };
+    assert!(
+        at(&after, "פתיחה") > at(&before, "פתיחה") * 1.5,
+        "the note heading did not take its own size: {} vs {}",
+        at(&after, "פתיחה"),
+        at(&before, "פתיחה")
+    );
+    assert!(
+        (at(&after, "פרק") - at(&before, "פרק")).abs() < 0.01,
+        "setting the note headings moved the document's headings: {} vs {}",
+        at(&after, "פרק"),
+        at(&before, "פרק")
+    );
+}
+
+#[test]
+fn one_note_heading_can_differ_from_the_rest() {
+    let f =
+        runs("#הערה[#כותרת_בהערה(משקל: \"regular\")[רכה] הגוף] #הערה[#כותרת_בהערה[עבה] הגוף]\n");
+    let soft = f.iter().find(|r| r.text.contains("רכה")).expect("printed");
+    let hard = f.iter().find(|r| r.text.contains("עבה")).expect("printed");
+    assert!(
+        soft.weight < hard.weight,
+        "the instance override did not reach the page: {soft:?} vs {hard:?}"
+    );
+}
+
+#[test]
+fn a_note_heading_refuses_a_knob_nothing_answers_to() {
+    let out = compile(
+        "#הערה[#כותרת_בהערה(גדול: 2em)[פתיחה] הגוף]\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "a knob nothing answers to compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "{:?}",
+        out.diagnostics
+    );
+}
+
+#[test]
+fn an_endnote_mark_takes_a_size_and_the_note_body_does_not() {
+    // The class covers the mark this command leaves in the text, and nothing
+    // else: the body is printed by `#הערות_בסוף`, which is its own command. One
+    // command styling another's output is the second authority this register is
+    // here to prevent, so the assertion is in two directions.
+    let body = "#הגדרות_הערתסיום(גודל: 2em)\nהטקסט#הערתסיום[גוף ההערה] נמשך.\n\n#הערות_בסוף()\n";
+    let f = runs(body);
+    let note = f
+        .iter()
+        .find(|r| r.text.contains("גוף ההערה"))
+        .expect("the endnote body printed");
+    let plain = f
+        .iter()
+        .find(|r| r.text.contains("נמשך"))
+        .expect("the prose printed");
+    assert!(
+        (note.size - plain.size).abs() < 0.6,
+        "the mark's size leaked into the endnote body: {note:?} vs {plain:?}"
+    );
+    // …and the door reaches the mark, which is the half that would otherwise
+    // pass by doing nothing at all.
+    assert!(
+        f.iter().any(|r| r.size > plain.size * 1.5),
+        "nothing on the page took the mark's size: {f:?}"
+    );
+}
+
+#[test]
+fn a_displayed_formula_and_an_inline_one_are_set_separately() {
+    // Two commands, two decisions. A sefer that wants its displayed equations
+    // smaller than the prose is saying nothing about the `x` mid-sentence, and
+    // there was one control for both — which is to say, none.
+    let body =
+        "#הגדרות_נוסחה(גודל: 2em)\n#נוסחה(\"alpha\")\n\nהטקסט #נוסחה_בשורה(\"beta\") נמשך.\n";
+    let f = runs(body);
+    // The glyphs are the mathematical-italic codepoints rather than the plain
+    // letters — `alpha` in math mode lays out as U+1D6FC — so a search for "α"
+    // finds nothing, which is a passing test looking for a missing formula.
+    let math = |c: u32| char::from_u32(c).unwrap();
+    let big = f
+        .iter()
+        .find(|r| r.text.contains(math(0x1D6FC)))
+        .expect("the displayed formula printed");
+    let small = f
+        .iter()
+        .find(|r| r.text.contains(math(0x1D6FD)))
+        .expect("the inline formula printed");
+    assert!(
+        big.size > small.size * 1.5,
+        "one door moved both formulas, or neither: {big:?} vs {small:?}"
+    );
+}
+
+#[test]
+fn a_formula_is_still_set_left_to_right() {
+    // `dir: ltr` is not a knob and the register must not have swallowed it.
+    // Mathematics reads left to right inside a right-to-left document, which is
+    // the entire reason this command wraps `math.equation` at all.
+    // Not on the order of `a` and `b`: Typst lays an equation's own glyphs out
+    // left to right whatever the surrounding direction, so that assertion is
+    // green with the wrapper removed — a test that cannot fail for the reason it
+    // was written under, which this repository calls `ONLY_AT_TOP`.
+    //
+    // What the wrapper actually holds is everything *around* the mathematics.
+    // Drop it and the equation goes flush to the left margin instead of centred,
+    // and its number comes out `)1(` — the parentheses mirrored, because they
+    // are ordinary text in a right-to-left paragraph. Both are on the page, so
+    // both are asserted.
+    let f = runs("טקסט\n\n#נוסחה(\"a + b\", ממוספרת: true)\n");
+    assert!(
+        f.iter().any(|r| r.text.contains("(1)")),
+        "the equation number came out mirrored: {f:?}"
+    );
+    let eq = f
+        .iter()
+        .find(|r| r.text.contains(char::from_u32(0x1D44E).unwrap()))
+        .expect("the formula printed");
+    assert!(
+        eq.x > 100.0,
+        "the equation went flush to the left margin: {eq:?}"
+    );
+}
+
+#[test]
+fn a_formula_knob_nothing_answers_to_stops_the_compile() {
+    let out = compile("#נוסחה(\"x\", גדול: 2em)\n", &DocConfig::default());
+    assert!(!out.ok(), "a knob nothing answers to compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "{:?}",
+        out.diagnostics
+    );
+}

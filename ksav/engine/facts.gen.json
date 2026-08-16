@@ -265,6 +265,15 @@
       "deprecated": false
     },
     {
+      "he": "הגדרות_כותרת_בהערה",
+      "en": "note_heading_config",
+      "category": "heading",
+      "desc_he": "עיצוב הכותרות שבתוך ההערות",
+      "desc_en": "How headings inside notes are set",
+      "insert": "#הגדרות_כותרת_בהערה(צבע: luma(60))|",
+      "deprecated": false
+    },
+    {
       "he": "הגדרות_כותרות",
       "en": "headings_config",
       "category": "heading",
@@ -622,6 +631,15 @@
       "desc_he": "הערת סיום (נאספת בסוף)",
       "desc_en": "Endnote (collected at end)",
       "insert": "#הערתסיום[|]",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_הערתסיום",
+      "en": "endnote_config",
+      "category": "footnote",
+      "desc_he": "עיצוב סימני הערות הסיום",
+      "desc_en": "How endnote marks are set",
+      "insert": "#הגדרות_הערתסיום(צבע: luma(90))|",
       "deprecated": false
     },
     {
@@ -1369,6 +1387,24 @@
       "desc_he": "נוסחה בתוך השורה",
       "desc_en": "Inline formula",
       "insert": "#נוסחה_בשורה(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_נוסחה",
+      "en": "formula_config",
+      "category": "math",
+      "desc_he": "עיצוב הנוסחאות המוצגות",
+      "desc_en": "How displayed formulas are set",
+      "insert": "#הגדרות_נוסחה(גודל: 0.95em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_נוסחה_בשורה",
+      "en": "iformula_config",
+      "category": "math",
+      "desc_he": "עיצוב הנוסחאות שבתוך השורה",
+      "desc_en": "How inline formulas are set",
+      "insert": "#הגדרות_נוסחה_בשורה(גודל: 0.95em)|",
       "deprecated": false
     },
     {

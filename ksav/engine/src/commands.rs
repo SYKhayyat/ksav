@@ -115,6 +115,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("כותרת3", "h3", "heading", "כותרת רמה 3", "Heading level 3", "#כותרת3[|]"),
     cmd!("כותרת", "hlevel", "heading", "כותרת בכל רמה", "Heading at any level", "#כותרת(רמה: 4)[|]"),
     cmd!("כותרת_בהערה", "note_heading", "heading", "כותרת בתוך הערה — נראית ככותרת, אינה נכנסת לתוכן ואינה מקדמת מספור", "Heading inside a note — looks like one, but stays out of the outline and the numbering", "#כותרת_בהערה[|]"),
+    cmd!("הגדרות_כותרת_בהערה", "note_heading_config", "heading", "עיצוב הכותרות שבתוך ההערות", "How headings inside notes are set", "#הגדרות_כותרת_בהערה(צבע: luma(60))|"),
     cmd!("הגדרות_כותרות", "headings_config", "heading", "עיצוב הכותרות (גודל/צבע/יישור/מספור/קו לכל רמה)", "Configure headings (size/colour/align/numbering/rule per level)", "#הגדרות_כותרות(גודל: (2em, 1.4em), צבע: (rgb(\"#b91c1c\"), luma(40)), מספור: \"1.1\", קו: (true, false))|"),
     // One for each level, because a heading level is a command of its own and
     // the rule covers it: until these, saying anything about level 2 meant
@@ -204,6 +205,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הערות_מדורגות", "banded_notes", "footnote", "הצגת המדורים כבלוקים נערמים (בסוף הקטע)", "Render the bands, stacked (at end of section)", "#הערות_מדורגות(כותרת: [הערות])"),
     cmd!("הגדרות_מדורגות", "banded_config", "footnote", "עיצוב המדורים (מספור/טורים/צבע לכל דרגה)", "Configure bands (numbering/columns/colour per tier)", "#הגדרות_מדורגות(טורים: (2, 1, 1))"),
     cmd!("הערתסיום", "endnote", "footnote", "הערת סיום (נאספת בסוף)", "Endnote (collected at end)", "#הערתסיום[|]"),
+    cmd!("הגדרות_הערתסיום", "endnote_config", "footnote", "עיצוב סימני הערות הסיום", "How endnote marks are set", "#הגדרות_הערתסיום(צבע: luma(90))|"),
     cmd!("הערות_בסוף", "endnotes", "footnote", "הצגת הערות הסיום", "Render collected endnotes", "#הערות_בסוף(כותרת: [הערות])"),
     cmd!("הגדרות_הערות_סיום", "endnotes_config", "footnote", "מספור הערות הסיום — כדי שיֵראו אחרת מהערות השוליים", "Endnote numbering — so they do not look identical to the footnotes", "#הגדרות_הערות_סיום(מספור: \"א\")"),
     cmd!("הערות_בסוף_צד", "endnotes_side", "footnote", "הערות סיום — כמה זרמים זה לצד זה", "Endnotes — several streams side by side", "#הערות_בסוף_צד(זרמים: (\"א\", \"ב\"), כותרות: (\"א\": [ביאורים], \"ב\": [מקורות]))"),
@@ -328,6 +330,8 @@ pub static COMMANDS: &[Command] = &[
     // ---- math ----
     cmd!("נוסחה", "formula", "math", "נוסחה מוצגת (שורה משלה)", "Displayed formula (own line)", "#נוסחה(\"|\")"),
     cmd!("נוסחה_בשורה", "iformula", "math", "נוסחה בתוך השורה", "Inline formula", "#נוסחה_בשורה(\"|\")"),
+    cmd!("הגדרות_נוסחה", "formula_config", "math", "עיצוב הנוסחאות המוצגות", "How displayed formulas are set", "#הגדרות_נוסחה(גודל: 0.95em)|"),
+    cmd!("הגדרות_נוסחה_בשורה", "iformula_config", "math", "עיצוב הנוסחאות שבתוך השורה", "How inline formulas are set", "#הגדרות_נוסחה_בשורה(גודל: 0.95em)|"),
     // ---- cross-references ----
     //
     // The table of contents lives here, and it used to live under `list`. Nobody

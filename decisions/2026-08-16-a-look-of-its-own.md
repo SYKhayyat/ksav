@@ -213,3 +213,59 @@ sidenote engine, so it prints a `✎` in the line and its body in the margin. Th
 class's size goes to the body only. A comment set at 1.5em with a 1.5em pencil in
 the middle of the sentence is not what anybody means by *make my comments
 bigger*.
+
+## The register moved, because Typst has no forward references
+
+Four more commands took a class after the review marks — a heading inside a
+note, an endnote's reference mark, and the two formulas — and the first of them
+would not compile.
+
+`#let` in Typst is visible only after its own line. The register was written for
+the block commands and sits with them, two thirds of the way down the prelude,
+and half the commands that need a look of their own are defined above it: the
+banded tiers, the sidenotes, a heading inside a note. `#כותרת_בהערה` calling
+`_mk_render` is *"unknown variable"*, and no amount of `context` defers it —
+`context` defers evaluation, not name resolution.
+
+So the register machinery moved to the top, above every command, with
+`_doc_align` (its one dependency further down) beside it. The commands that
+render through it did not move. The order now says what was always true: the
+register is the authority for what a command looks like, so it comes before the
+commands.
+
+## The four, and the one that was drawing somebody else's look
+
+`#הערתסיום`, `#נוסחה` and `#נוסחה_בשורה` are the plain case — a look nobody
+could reach, now a class and a door each. Two notes on them:
+
+- The endnote's class covers the **mark**, the superscript number the command
+  leaves in the text, because that is all this command prints. The body is set
+  by `#הערות_בסוף`, which is a separate command with a door of its own. One
+  command styling another's output is exactly the second authority this register
+  exists to prevent, and the test asserts it in both directions.
+- The two formulas are two classes, not one. A sefer that wants its displayed
+  equations a shade smaller than the prose is saying nothing about the `x` in
+  the middle of a sentence, and the size that reads well is not the same size.
+
+`#כותרת_בהערה` is the interesting one. It had a look and it was **borrowing**
+it: weight and colour came off `#הגדרות_כותרות`, the document's real headings,
+so a sefer that coloured its chapter titles coloured the lemmas in its footnotes
+too and had no way to say otherwise.
+
+The fix is not a different default. The document's headings are a good base and
+stay the base — per level, so nothing written before this reprints — with the
+class over them and the heading's own arguments over that. What was missing was
+never a value; it was any way to disagree with the one it had.
+
+### A test that could not fail, caught by mutating it
+
+`a_formula_is_still_set_left_to_right` first asserted that `a` lays out to the
+left of `b`. It passes with the `text(dir: ltr, …)` wrapper deleted: Typst sets
+an equation's own glyphs left to right whatever the paragraph around them does.
+`ONLY_AT_TOP` again — the fifth instance this repository has found, and the
+mutation pass is the only reason it was found at all.
+
+What the wrapper actually holds is everything *around* the mathematics. Without
+it a numbered equation goes flush to the left margin instead of centred, and its
+number prints `)1(`, because parentheses are ordinary text in a right-to-left
+paragraph. Both are on the page and both are now asserted.

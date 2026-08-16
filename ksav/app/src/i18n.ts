@@ -221,6 +221,10 @@ const HE: Dict = {
   "markClass.הוספה": "סימון הוספה",
   "markClass.מחיקה": "סימון מחיקה",
   "markClass.הערת_עורך": "הערת עורך",
+  "markClass.כותרת_בהערה": "כותרת בתוך הערה",
+  "markClass.הערתסיום": "סימן הערת סיום",
+  "markClass.נוסחה": "נוסחה מוצגת",
+  "markClass.נוסחה_בשורה": "נוסחה בתוך השורה",
   // The knobs, named as one element's own — "size", not "heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "גודל",
@@ -1348,6 +1352,10 @@ const EN: Dict = {
   "markClass.הוספה": "Insertion",
   "markClass.מחיקה": "Deletion",
   "markClass.הערת_עורך": "Editorial comment",
+  "markClass.כותרת_בהערה": "Heading inside a note",
+  "markClass.הערתסיום": "Endnote mark",
+  "markClass.נוסחה": "Displayed formula",
+  "markClass.נוסחה_בשורה": "Inline formula",
   // The knobs, named as one element's own — "Size", not "Heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "Size",

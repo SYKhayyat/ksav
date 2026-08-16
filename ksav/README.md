@@ -481,7 +481,7 @@ the reasoning, not the reference, and this file is long enough.
 
 ## Features (engine)
 
-- **151 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **155 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -514,7 +514,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 149 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 153 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -696,7 +696,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 6,293 editor assertions, 713 engine
+- [x] **CI, running and green** — typecheck, 6,293 editor assertions, 721 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -794,7 +794,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
 | `editor` | both | the typechecker, then 6,293 assertions across 96 files |
-| `engine` | both | formatting, lints, then 713 tests across 43 binaries |
+| `engine` | both | formatting, lints, then 721 tests across 43 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
@@ -864,7 +864,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **4,103**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **4,207**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

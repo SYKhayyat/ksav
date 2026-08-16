@@ -3292,6 +3292,41 @@
 /// the time.
 #let _mk_own_keys = _mk_knobs + ("פטור", "ברשימה")
 
+/// The pieces a command draws separately, and the look each ships with.
+///
+/// *As granular as it can be*: a command's own look covers the whole of what it
+/// prints, and several of them print more than one thing. A siman prints the
+/// word, the number, the separator and the title; a pasuk prints the quotation
+/// and then its reference in parentheses; a gemara reference prints a masechta
+/// and a daf. Setting "the siman" larger should make all of it larger, and
+/// setting *the number* bold should bold the number — which is two settings,
+/// not one, and there was one.
+///
+/// Two of these were **hardcoded looks with no way to reach them**: a pasuk's
+/// reference has always been `text(size: 0.82em, fill: luma(95))` written
+/// inline, and that is what a part is for. Everything here ships exactly what it
+/// printed before.
+///
+/// A part's look nests *inside* its command's, so it carries only what differs.
+#let _mk_part_defaults = (
+  "סימן": (
+    // The word `סימן`, the number, the em dash between them, and the title.
+    "קידומת": (:),
+    "מספר": (:),
+    "מפריד": (:),
+    "כותרת": (:),
+  ),
+  "פסוק": ("מקור": (גודל: 0.82em, צבע: luma(95))),
+  "גמרא": ("מסכת": (:), "דף": (:)),
+  "ציון_מקור": ("מקום": (:)),
+)
+
+/// Where a part's settings live inside `_mk_cfg`, keyed by class then by part.
+/// A reserved key rather than a tenth piece of state, for the reason
+/// `_cfg_with` gives about `כפה`: the setting travels with the thing it belongs
+/// to.
+#let _mk_parts_key = "חלקים"
+
 /// The class styling, knob-major: `גודל: ("ציון": 0.8em)` — one dictionary per
 /// knob, keyed by class, exactly as `#הגדרות_זרמים` keys its knobs by stream.
 /// A plain value instead of a dictionary applies to every class.
@@ -3302,6 +3337,97 @@
   d
 })
 #let marks_config = _en(הגדרות_סימונים)
+
+/// Set one thing's look, by name — the door each command gets of its own.
+///
+/// The rule is that anything which is a separate command has a style you can
+/// set, and *set it inside the marks configuration* is not that: a writer
+/// setting how a siman looks should say so about simanim, not name one inside a
+/// command about something else. So every styled command has a
+/// `#הגדרות_<שמו>` of its own, three lines each, and they all write here.
+///
+/// One authority per class is untouched, and that is the point of routing them
+/// through one setter: the doors are how you say it, `_mk_cfg` is where it is
+/// said, and two doors cannot disagree because there is one place to disagree
+/// in.
+///
+/// The store stays knob-major — `גודל: ("סימן": 1.6em)` — because that is what
+/// `_mk_pick` reads and what `#הגדרות_סימונים` writes when a sefer sets six
+/// classes at once. This turns a class-major call into that.
+#let _mk_set(cls, named) = _mk_cfg.update(c => {
+  let d = c
+  // The parts first — `#הגדרות_סימן(מספר: (משקל: "bold"))`. A key that is
+  // neither a knob nor one of this command's parts stops the compile naming
+  // itself, because the alternative is a control that reads back what was typed
+  // and changes nothing on the page.
+  let parts = _mk_part_defaults.at(cls, default: (:))
+  let mine = d.at(_mk_parts_key, default: (:)).at(cls, default: (:))
+  let touched = false
+  for (k, v) in named {
+    if _mk_knobs.contains(k) or k == "כפה" { continue }
+    if not parts.keys().contains(k) {
+      panic(
+        "הגדרות_" + cls + ": ארגומנט לא מוכר · unrecognised argument: " + k
+          + if parts.len() > 0 { " — " + parts.keys().join(", ") } else { "" },
+      )
+    }
+    if type(v) != dictionary {
+      panic("הגדרות_" + cls + ": " + k + " מקבל מילון של הגדרות · takes a dictionary of settings")
+    }
+    mine.insert(k, _cfg_with(mine.at(k, default: (:)), v))
+    touched = true
+  }
+  if touched {
+    let all = d.at(_mk_parts_key, default: (:))
+    all.insert(cls, mine)
+    d.insert(_mk_parts_key, all)
+  }
+  for (k, v) in named {
+    if not (_mk_knobs.contains(k) or k == "כפה") { continue }
+    let cur = d.at(k, default: none)
+    // A plain value is *every class*, and a per-class write must not silently
+    // discard it: it becomes that class's entry, and every other class keeps
+    // the value it already had.
+    let per = if type(cur) == dictionary { cur } else if cur == none { (:) } else {
+      let m = (:)
+      for name in _mk_defaults.keys() { m.insert(name, cur) }
+      m
+    }
+    per.insert(cls, v)
+    d.insert(k, per)
+  }
+  d
+})
+
+// One door per command, which is the rule: *anything that is a separate command
+// has a style you can set*. Each is the same three lines and each names exactly
+// one thing, so `#הגדרות_סימן(גודל: 1.6em)` is a sentence about simanim rather
+// than a class name buried in a call about marks.
+//
+// They are written out rather than generated because a `#let` name in Typst is a
+// literal — there is no way to bind thirty names from a loop — and
+// `app/test/enginefacts.test.mjs` holds the list against the registry so a
+// styled command without a door is a red test rather than a missing control.
+#let הגדרות_ציון(..opts) = _mk_set("ציון", opts.named())
+#let ref_config = _en(הגדרות_ציון)
+#let הגדרות_גמרא(..opts) = _mk_set("גמרא", opts.named())
+#let gemara_config = _en(הגדרות_גמרא)
+#let הגדרות_דיבור_המתחיל(..opts) = _mk_set("דיבור_המתחיל", opts.named())
+#let dh_config = _en(הגדרות_דיבור_המתחיל)
+#let הגדרות_פסוק(..opts) = _mk_set("פסוק", opts.named())
+#let verse_config = _en(הגדרות_פסוק)
+#let הגדרות_ציון_מקור(..opts) = _mk_set("ציון_מקור", opts.named())
+#let sourceref_config = _en(הגדרות_ציון_מקור)
+#let הגדרות_ערך(..opts) = _mk_set("ערך", opts.named())
+#let indexentry_config = _en(הגדרות_ערך)
+#let הגדרות_מראה_מקום(..opts) = _mk_set("מראה_מקום", opts.named())
+#let sourcenote_config = _en(הגדרות_מראה_מקום)
+#let הגדרות_סימן(..opts) = _mk_set("סימן", opts.named())
+#let siman_config = _en(הגדרות_סימן)
+#let הגדרות_סעיף(..opts) = _mk_set("סעיף", opts.named())
+#let seif_config = _en(הגדרות_סעיף)
+#let הגדרות_אות(..opts) = _mk_set("אות", opts.named())
+#let os_config = _en(הגדרות_אות)
 
 /// One knob's value for one class. The dictionary may be keyed in either
 /// language — `("gemara": …)` in an English document — which is what `_val`
@@ -3329,7 +3455,14 @@
   // Rule 3 first, and ahead of the exemption as well as of the override: `כפה`
   // is the switch for making a sefer uniform again, and it would not do that if
   // every `פטור: true` in it survived. See `_cfg_with`.
-  if g.at("כפה", default: false) { c }
+  //
+  // Read per class as well as globally, because each command has a door of its
+  // own now: `#הגדרות_סימן(כפה: true)` means *every siman, no exceptions* and
+  // has nothing to say about the gemara references. Written through
+  // `#הגדרות_סימונים` it is still one switch over everything, which is what a
+  // writer setting six classes at once means by it.
+  let forced = _mk_pick(g, "כפה", cls)
+  if forced == true { c }
   else if own.at("פטור", default: false) { _cfg_with(base, mine) }
   else { _cfg_with(c, mine) }
 }
@@ -3346,6 +3479,20 @@
   if "משקל" in c { a.insert("weight", _val(c.משקל)) }
   text(..a, out)
 }
+
+/// One part's look: its shipped default, then whatever the writer set.
+///
+/// It does **not** fold in the class's look, because it is drawn inside it —
+/// `_mk_render(class, … _mk_render(part, piece) …)` — so a size on the command
+/// scales the part too and the part carries only its difference.
+#let _mk_part(cls, part) = {
+  let shipped = _mk_part_defaults.at(cls, default: (:)).at(part, default: (:))
+  let chosen = _mk_cfg.get().at(_mk_parts_key, default: (:)).at(cls, default: (:))
+  _cfg_with(shipped, chosen.at(part, default: (:)))
+}
+
+/// Draw one piece of a command in its own look.
+#let _mk_piece(cls, part, body) = _mk_render(_mk_part(cls, part), body)
 
 /// Register one mark where it stands, and print it in its class's style.
 ///
@@ -3399,7 +3546,19 @@
     if own.at("ברשימה", default: true) != false {
       [#metadata((class: "סימן", entry: entry))#_mk_label]
     }
-    context _mk_render(_mk_conf("סימן", own), [סימן #מספר#if כותרת != none [ — #כותרת]])
+    // Four pieces, each settable on its own — `#הגדרות_סימן(מספר: (משקל:
+    // "bold"))` bolds the numbers and says nothing about the titles. The
+    // command's own look wraps all of it, so a size on the siman still scales
+    // the whole heading.
+    context _mk_render(_mk_conf("סימן", own), {
+      _mk_piece("סימן", "קידומת", [סימן])
+      [ ]
+      _mk_piece("סימן", "מספר", מספר)
+      if כותרת != none {
+        _mk_piece("סימן", "מפריד", [ — ])
+        _mk_piece("סימן", "כותרת", כותרת)
+      }
+    })
   })
 }
 
@@ -3446,7 +3605,10 @@
 // looks them up in.
 #let פסוק(מקור, body, ..opts) = {
   _mk_mark("פסוק", מקור, body, opts.named())
-  [ #text(size: 0.82em, fill: luma(95))[(#מקור)]]
+  // The reference was `text(size: 0.82em, fill: luma(95))` written here, with
+  // no way for a writer to reach it — the plainest case of a look that is not a
+  // setting. It is a part now, shipping those exact two values.
+  [ #context _mk_piece("פסוק", "מקור", [(#מקור)])]
 }
 
 // מראה_מקום — a source citation set as a footnote (the mekoros apparatus)
@@ -3818,7 +3980,14 @@
     // The writer's own spelling is *not* what prints. Somebody who wrote ב״ב in
     // one place and בבא בתרא in another gets one spelling throughout, which is
     // the copy-editing pass nobody has time for.
-    canon + if place != "" { " " + place } else { "" }
+    //
+    // The **place** is drawn as a part of its own: `ברכות ב.` is a sefer and a
+    // daf, and a sefer set in small caps with the daf plain is one setting away
+    // rather than impossible. A writer who passed their own text gets exactly
+    // that text, parts and all — it is theirs.
+    if place == "" { canon } else {
+      [#canon #context _mk_piece("ציון_מקור", "מקום", place)]
+    }
   }
   _mk_mark(
     "ציון_מקור",
@@ -3893,10 +4062,13 @@
 #let דיבור_המתחיל(body, ..opts) = _mk_mark("דיבור_המתחיל", body, body, opts.named())
 
 // גמרא — format a Talmudic reference, e.g. #גמרא("ברכות", "ב.")
+// The masechta and the daf are set separately — a sefer that prints מסכתות in
+// small caps and dapim plain is asking for two settings, and the reference as a
+// whole still takes the class's.
 #let גמרא(מסכת, דף, ..opts) = _mk_mark(
   "גמרא",
   _as_string(מסכת).trim() + " " + _as_string(דף).trim(),
-  [#מסכת #דף],
+  [#context _mk_piece("גמרא", "מסכת", מסכת) #context _mk_piece("גמרא", "דף", דף)],
   opts.named(),
 )
 

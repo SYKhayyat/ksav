@@ -91,6 +91,78 @@ the fence red until its row is removed. It can only shrink. Mutated in both
 directions — a command dropped from the table was named as unclassified, and one
 listed as having no look after it had been given one was named as a lie.
 
+## A door for each, added the same day
+
+The first cut of this made every styled command customizable and left one way to
+say so: name the class inside `#הגדרות_סימונים`. That was answered plainly —
+
+> each thing which is its own command should have its own styling you can
+> customize, so one for siman, one for seif, one for mareh makom, one for each
+> header, one for each custom style
+
+— and *set it inside the marks configuration* is not that. So every styled
+command has a `#הגדרות_<שמו>` of its own: `#הגדרות_סימן(גודל: 1.6em)` is a
+sentence about simanim, and `#הגדרות_גמרא(סגנון: "italic")` about gemara
+references. Ten of them, three lines each.
+
+They are doors, not authorities. All of them write through one setter into one
+store, so the per-command spelling and the several-at-once spelling are two ways
+of saying one thing and cannot disagree — asserted, because that is the property
+worth having and the one that would rot quietly. The store stays knob-major, so
+a class-major write merges rather than replaces: setting the siman must not wipe
+a size the sefer set for its gemara references two lines earlier.
+
+`כפה` is read per class as well as globally now. Through a door it means *every
+siman, no exceptions* and says nothing about the other classes; through the
+shared command it is still one switch over everything, which is what a writer
+setting six classes at once means by it.
+
+They are written out rather than generated because a `#let` name in Typst is a
+literal. What keeps the list honest is the fence: every styled class must have a
+door in the registry *and* a binding in the prelude, so a class added without one
+is red. Mutated by deleting a row, which named `ערך`.
+
+**What is not done yet**: the Styles drawer still writes the several-at-once
+spelling. Nothing is broken by that — it sets the same store — but a document
+styled from the panel reads worse than one styled by hand, which is backwards.
+`HANDOFF.md` carries it.
+
+## And then: as granular as it goes
+
+The door is the command; the command is not always one thing. Asked how granular
+this should be, the answer was *as granular as you can* — so the pieces a
+command draws separately are settable separately:
+
+| | |
+|---|---|
+| `#סימן` | the word `סימן`, the number, the separator, the title |
+| `#פסוק` | the reference in parentheses, apart from the quotation |
+| `#גמרא` | the masechta and the daf |
+| `#ציון_מקור` | the place, apart from the sefer |
+
+Two of those were **looks with no way to reach them at all**. A pasuk's
+reference has been `text(size: 0.82em, fill: luma(95))` written inline in the
+prelude since it was first drawn; the place after a cited sefer was half of a
+concatenated string. Both are parts now, shipping exactly the values they
+printed.
+
+A part's look nests *inside* its command's, which is the property that makes it
+worth having: `#הגדרות_סימן(גודל: 1.4em)` scales the whole heading, and
+`#הגדרות_סימן(מספר: (משקל: "bold"))` bolds the numbers and says nothing about
+the titles. So a part carries only its difference, and the two settings compose
+instead of fighting.
+
+A part name nothing declares stops the compile and **names the ones that exist**
+— `כותרות` for `כותרת` is a typo a writer will make, and a control that reads
+back what was typed and changes nothing on the page is the failure this whole
+mechanism is against.
+
+The parts are declared once, in `_mk_part_defaults`, and `marks.ts` holds the
+same list for the panel. The fence compares them and caught its own reader
+first: `#גמרא`'s two parts are written on one line, and a reader that knew only
+the spread-over-lines shape reported that a gemara reference has a masechta and
+no daf.
+
 ## What the twenty-four are
 
 `שער`, `תת_שער`, `כותרת_בהערה`, `ציטוט`, `הערת_צד`, `אזהרה`, `הצלחה`, `תיבה`,

@@ -958,6 +958,96 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_סימן(גודל: 1.2em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_סעיף(משקל: \"bold\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_אות(משקל: \"bold\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_מראה_מקום(גודל: 0.9em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_ציון(גודל: 0.85em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_גמרא(סגנון: \"italic\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_דיבור_המתחיל(משקל: \"bold\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_פסוק(סגנון: \"italic\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_ציון_מקור(סגנון: \"italic\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_ערך(גודל: 1em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -2070,6 +2160,96 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#marks_config(style: (\"\": \"italic\"))ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#siman_config(size: 1.2em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#seif_config(weight: \"bold\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#os_config(weight: \"bold\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#sourcenote_config(size: 0.9em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#ref_config(size: 0.85em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#gemara_config(style: \"italic\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#dh_config(weight: \"bold\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#verse_config(style: \"italic\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#sourceref_config(style: \"italic\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#indexentry_config(size: 1em)ds to continue."
   },
   {
    "ctx": "prose",
@@ -3190,6 +3370,96 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_סימן(גודל: 1.2em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_סעיף(משקל: \"bold\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_אות(משקל: \"bold\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_מראה_מקום(גודל: 0.9em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_ציון(גודל: 0.85em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_גמרא(סגנון: \"italic\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_דיבור_המתחיל(משקל: \"bold\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_פסוק(סגנון: \"italic\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_ציון_מקור(סגנון: \"italic\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_ערך(גודל: 1em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -4302,6 +4572,96 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #marks_config(style: (\"\": \"italic\"))One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #siman_config(size: 1.2em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #seif_config(weight: \"bold\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #os_config(weight: \"bold\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #sourcenote_config(size: 0.9em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #ref_config(size: 0.85em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #gemara_config(style: \"italic\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #dh_config(weight: \"bold\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #verse_config(style: \"italic\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #sourceref_config(style: \"italic\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #indexentry_config(size: 1em)One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5422,6 +5782,96 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_סימן(גודל: 1.2em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_סעיף(משקל: \"bold\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_אות(משקל: \"bold\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_מראה_מקום(גודל: 0.9em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_ציון(גודל: 0.85em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_גמרא(סגנון: \"italic\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_דיבור_המתחיל(משקל: \"bold\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_פסוק(סגנון: \"italic\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_ציון_מקור(סגנון: \"italic\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_ערך(גודל: 1em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -6534,6 +6984,96 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #marks_config(style: (\"\": \"italic\"))inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #siman_config(size: 1.2em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #seif_config(weight: \"bold\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #os_config(weight: \"bold\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #sourcenote_config(size: 0.9em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #ref_config(size: 0.85em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #gemara_config(style: \"italic\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #dh_config(weight: \"bold\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #verse_config(style: \"italic\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #sourceref_config(style: \"italic\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #indexentry_config(size: 1em)inside] continues."
   },
   {
    "ctx": "note-body",
@@ -7654,6 +8194,96 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_סימן(גודל: 1.2em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_סעיף(משקל: \"bold\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_אות(משקל: \"bold\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_מראה_מקום(גודל: 0.9em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_ציון(גודל: 0.85em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_גמרא(סגנון: \"italic\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_דיבור_המתחיל(משקל: \"bold\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_פסוק(סגנון: \"italic\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_ציון_מקור(סגנון: \"italic\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_ערך(גודל: 1em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -8766,6 +9396,96 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #marks_config(style: (\"\": \"italic\"))here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #siman_config(size: 1.2em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #seif_config(weight: \"bold\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #os_config(weight: \"bold\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #sourcenote_config(size: 0.9em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #ref_config(size: 0.85em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #gemara_config(style: \"italic\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #dh_config(weight: \"bold\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #verse_config(style: \"italic\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #sourceref_config(style: \"italic\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #indexentry_config(size: 1em)here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -9886,6 +10606,96 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_סימן(גודל: 1.2em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_סעיף(משקל: \"bold\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_אות(משקל: \"bold\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_מראה_מקום(גודל: 0.9em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_ציון(גודל: 0.85em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_גמרא(סגנון: \"italic\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_דיבור_המתחיל(משקל: \"bold\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_פסוק(סגנון: \"italic\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_ציון_מקור(סגנון: \"italic\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_ערך(גודל: 1em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -10998,6 +11808,96 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],marks_config(style: (\"\": \"italic\")),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],siman_config(size: 1.2em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],seif_config(weight: \"bold\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],os_config(weight: \"bold\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],sourcenote_config(size: 0.9em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],ref_config(size: 0.85em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],gemara_config(style: \"italic\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],dh_config(weight: \"bold\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],verse_config(style: \"italic\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],sourceref_config(style: \"italic\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],indexentry_config(size: 1em),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -12118,6 +13018,96 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_סימן(גודל: 1.2em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_סעיף(משקל: \"bold\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_אות(משקל: \"bold\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_מראה_מקום(גודל: 0.9em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_ציון(גודל: 0.85em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_גמרא(סגנון: \"italic\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_דיבור_המתחיל(משקל: \"bold\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_פסוק(סגנון: \"italic\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_ציון_מקור(סגנון: \"italic\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_ערך(גודל: 1em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -13230,6 +14220,96 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(marks_config(style: (\"\": \"italic\")),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(siman_config(size: 1.2em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(seif_config(weight: \"bold\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(os_config(weight: \"bold\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(sourcenote_config(size: 0.9em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(ref_config(size: 0.85em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(gemara_config(style: \"italic\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(dh_config(weight: \"bold\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(verse_config(style: \"italic\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(sourceref_config(style: \"italic\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(indexentry_config(size: 1em),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -14350,6 +15430,96 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_סימן(גודל: 1.2em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_סעיף(משקל: \"bold\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_אות(משקל: \"bold\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_מראה_מקום(גודל: 0.9em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_ציון(גודל: 0.85em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_גמרא(סגנון: \"italic\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_דיבור_המתחיל(משקל: \"bold\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_פסוק(סגנון: \"italic\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_ציון_מקור(סגנון: \"italic\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_ערך(גודל: 1em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -15462,6 +16632,96 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #marks_config(style: (\"\": \"italic\"))here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #siman_config(size: 1.2em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #seif_config(weight: \"bold\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #os_config(weight: \"bold\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #sourcenote_config(size: 0.9em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #ref_config(size: 0.85em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #gemara_config(style: \"italic\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #dh_config(weight: \"bold\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #verse_config(style: \"italic\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #sourceref_config(style: \"italic\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #indexentry_config(size: 1em)here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -16582,6 +17842,96 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_סימן(גודל: 1.2em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_סעיף(משקל: \"bold\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_אות(משקל: \"bold\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_מראה_מקום(גודל: 0.9em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_ציון(גודל: 0.85em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_גמרא(סגנון: \"italic\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_דיבור_המתחיל(משקל: \"bold\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_פסוק(סגנון: \"italic\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_ציון_מקור(סגנון: \"italic\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_ערך(גודל: 1em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -17694,6 +19044,96 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],marks_config(style: (\"\": \"italic\")), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],siman_config(size: 1.2em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],seif_config(weight: \"bold\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],os_config(weight: \"bold\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],sourcenote_config(size: 0.9em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],ref_config(size: 0.85em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],gemara_config(style: \"italic\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],dh_config(weight: \"bold\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],verse_config(style: \"italic\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],sourceref_config(style: \"italic\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],indexentry_config(size: 1em), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -18814,6 +20254,96 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_סימן(גודל: 1.2em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_סעיף(משקל: \"bold\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_אות(משקל: \"bold\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_מראה_מקום(גודל: 0.9em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_ציון(גודל: 0.85em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_גמרא(סגנון: \"italic\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_דיבור_המתחיל(משקל: \"bold\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_פסוק(סגנון: \"italic\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_ציון_מקור(סגנון: \"italic\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_ערך(גודל: 1em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -19926,6 +21456,96 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #marks_config(style: (\"\": \"italic\"))here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #siman_config(size: 1.2em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #seif_config(weight: \"bold\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #os_config(weight: \"bold\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #sourcenote_config(size: 0.9em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #ref_config(size: 0.85em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #gemara_config(style: \"italic\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #dh_config(weight: \"bold\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #verse_config(style: \"italic\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #sourceref_config(style: \"italic\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #indexentry_config(size: 1em)here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -21046,6 +22666,96 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_סימן(גודל: 1.2em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_סעיף(משקל: \"bold\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_אות(משקל: \"bold\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_מראה_מקום(גודל: 0.9em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_ציון(גודל: 0.85em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_גמרא(סגנון: \"italic\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_דיבור_המתחיל(משקל: \"bold\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_פסוק(סגנון: \"italic\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_ציון_מקור(סגנון: \"italic\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_ערך(גודל: 1em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -22158,6 +23868,96 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #marks_config(style: (\"\": \"italic\"))Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #siman_config(size: 1.2em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #seif_config(weight: \"bold\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #os_config(weight: \"bold\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #sourcenote_config(size: 0.9em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #ref_config(size: 0.85em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #gemara_config(style: \"italic\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #dh_config(weight: \"bold\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #verse_config(style: \"italic\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #sourceref_config(style: \"italic\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #indexentry_config(size: 1em)Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -23278,6 +25078,96 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_סימן(גודל: 1.2em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_סעיף(משקל: \"bold\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_אות(משקל: \"bold\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_מראה_מקום(גודל: 0.9em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_ציון(גודל: 0.85em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_גמרא(סגנון: \"italic\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_דיבור_המתחיל(משקל: \"bold\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_פסוק(סגנון: \"italic\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_ציון_מקור(סגנון: \"italic\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_ערך(גודל: 1em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -24390,6 +26280,96 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #marks_config(style: (\"\": \"italic\"))prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #siman_config(size: 1.2em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #seif_config(weight: \"bold\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #os_config(weight: \"bold\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #sourcenote_config(size: 0.9em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #ref_config(size: 0.85em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #gemara_config(style: \"italic\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #dh_config(weight: \"bold\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #verse_config(style: \"italic\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #sourceref_config(style: \"italic\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #indexentry_config(size: 1em)prayer]"
   },
   {
    "ctx": "siman-body",
@@ -25510,6 +27490,96 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_סימן(גודל: 1.2em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_סעיף(משקל: \"bold\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_אות(משקל: \"bold\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_מראה_מקום(גודל: 0.9em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_ציון(גודל: 0.85em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_גמרא(סגנון: \"italic\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_דיבור_המתחיל(משקל: \"bold\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_פסוק(סגנון: \"italic\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_ציון_מקור(סגנון: \"italic\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_ערך(גודל: 1em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -26622,6 +28692,96 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #marks_config(style: (\"\": \"italic\"))Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #siman_config(size: 1.2em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #seif_config(weight: \"bold\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #os_config(weight: \"bold\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #sourcenote_config(size: 0.9em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #ref_config(size: 0.85em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #gemara_config(style: \"italic\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #dh_config(weight: \"bold\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #verse_config(style: \"italic\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #sourceref_config(style: \"italic\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #indexentry_config(size: 1em)Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -27742,6 +29902,96 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_סימן(גודל: 1.2em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_סעיף(משקל: \"bold\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_אות(משקל: \"bold\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_מראה_מקום(גודל: 0.9em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_ציון(גודל: 0.85em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_גמרא(סגנון: \"italic\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_דיבור_המתחיל(משקל: \"bold\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_פסוק(סגנון: \"italic\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_ציון_מקור(סגנון: \"italic\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_ערך(גודל: 1em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "עם_פירוש",
    "en": "commentary",
    "legal": true,
@@ -28854,6 +31104,96 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#marks_config(style: (\"\": \"italic\"))ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סימן",
+   "en": "siman_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#siman_config(size: 1.2em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_סעיף",
+   "en": "seif_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#seif_config(weight: \"bold\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_אות",
+   "en": "os_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#os_config(weight: \"bold\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מראה_מקום",
+   "en": "sourcenote_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#sourcenote_config(size: 0.9em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון",
+   "en": "ref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#ref_config(size: 0.85em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_גמרא",
+   "en": "gemara_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#gemara_config(style: \"italic\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_דיבור_המתחיל",
+   "en": "dh_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#dh_config(weight: \"bold\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_פסוק",
+   "en": "verse_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#verse_config(style: \"italic\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ציון_מקור",
+   "en": "sourceref_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#sourceref_config(style: \"italic\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_ערך",
+   "en": "indexentry_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#indexentry_config(size: 1em)ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

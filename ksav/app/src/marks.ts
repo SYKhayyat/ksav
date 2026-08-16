@@ -57,6 +57,32 @@ export const STYLED_CLASSES = [
 ] as const;
 
 /**
+ * The pieces a command draws separately, each with a look of its own.
+ *
+ * *As granular as it goes.* A command's own look covers everything it prints,
+ * and several of them print more than one thing: a siman prints the word, the
+ * number, the separator and the title; a pasuk prints the quotation and then
+ * its reference in parentheses; a gemara reference prints a masechta and a daf.
+ * Making the siman larger should make all of it larger and bolding *the number*
+ * should bold the number — two settings, where there was one.
+ *
+ * Two of these were looks with no way to reach them at all: a pasuk's reference
+ * has always been `text(size: 0.82em, fill: luma(95))` written inline in the
+ * prelude, and the place after a cited sefer was part of one string.
+ *
+ * `_mk_part_defaults` in the prelude is the authority and
+ * `test/enginefacts.test.mjs` holds this to it. A part is set inside its
+ * command's own door — `#הגדרות_פסוק(מקור: (גודל: 1.2em))` — and a part name
+ * nothing declares stops the compile naming the ones that exist.
+ */
+export const CLASS_PARTS: Readonly<Record<string, readonly string[]>> = {
+  סימן: ["קידומת", "מספר", "מפריד", "כותרת"],
+  פסוק: ["מקור"],
+  גמרא: ["מסכת", "דף"],
+  ציון_מקור: ["מקום"],
+};
+
+/**
  * Every class the register **collects**, in the order the marks list offers them.
  *
  * Not the same list as the styled one, and no longer a superset of it. They were

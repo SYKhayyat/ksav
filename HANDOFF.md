@@ -114,6 +114,24 @@ kuntres, and the documentation pass — are the five records dated that day.
       wants thickness and width rather than a text look, and `#תמונה` wants its
       caption's. Neither fits the class register as it stands.
 
+- [ ] **The Styles drawer writes the wrong spelling, and cannot reach the
+      parts.** Every styled command has a door of its own — `#הגדרות_סימן` — and
+      the panel still writes `#הגדרות_סימונים(גודל: ("סימן": …))`, which sets
+      the same store and reads worse in the document than what a writer would
+      type by hand. Backwards, and it is `styles.ts`'s `COMMAND_NAMES` plus the
+      marks section in `main.ts`.
+
+      The parts are the other half: `#הגדרות_פסוק(מקור: (גודל: 1.2em))` is
+      reachable only by typing. `marks.CLASS_PARTS` is the list, fenced against
+      the prelude, so the panel has what it needs — what is missing is a part
+      chooser beside the class chooser, and the same knob rows under it.
+
+- [ ] **The rest of the parts.** Four commands have them. The others draw one
+      thing each *as far as anybody has looked* — which is exactly the sentence
+      that was true of `#פסוק`'s reference for a year. Worth walking the
+      prelude for `text(` calls inside a styled command's own rendering: each
+      one is a look with no setting behind it.
+
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
       most important line on the page. Two kuntres-length sittings — 7 and 16
       August — found four bugs the whole suite was green over, and neither of

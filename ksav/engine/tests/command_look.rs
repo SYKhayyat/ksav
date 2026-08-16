@@ -142,6 +142,194 @@ fn a_citation_can_be_kept_out_of_the_list_and_stay_a_footnote() {
     );
 }
 
+// ------------------------------------------------------- a door of its own
+//
+// *Set it inside the marks configuration* is not "each thing has its own
+// style". A writer setting how a siman looks says so about simanim.
+
+#[test]
+fn each_command_has_a_door_named_for_it() {
+    let body = "#כותרת1[פרק]\n#סימן[א׳][דין נטילת ידים]\nגוף.\n";
+    let styled = format!("#הגדרות_סימן(גודל: 1.6em)\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let before = size_of(body, "דין נטילת ידים").expect("the siman printed");
+    let after = size_of(&styled, "דין נטילת ידים").expect("it still printed");
+    assert!(
+        after > before,
+        "the siman's own door reached it: {after} vs {before}"
+    );
+    // And says nothing about anything else.
+    assert_eq!(
+        size_of(body, "פרק"),
+        size_of(&styled, "פרק"),
+        "the ordinary heading was left alone"
+    );
+}
+
+#[test]
+fn the_doors_and_the_shared_command_are_one_store() {
+    // One authority per class is the whole reason the doors are three lines
+    // each: they are how you say it, and `_mk_cfg` is where it is said. Two
+    // ways of writing one fact must not be able to disagree.
+    let body = "#סימן[א׳][כותרת הסימן]\n";
+    let by_door = format!("#הגדרות_סימן(גודל: 1.4em)\n{body}");
+    let by_class = format!("#הגדרות_סימונים(גודל: (\"סימן\": 1.4em))\n{body}");
+    assert_eq!(
+        size_of(&by_door, "כותרת הסימן"),
+        size_of(&by_class, "כותרת הסימן"),
+        "the two spellings set the same thing"
+    );
+}
+
+#[test]
+fn a_per_class_write_leaves_the_other_classes_alone() {
+    // The store is knob-major, so a class-major write has to merge rather than
+    // replace: setting the siman must not wipe a size the sefer set for its
+    // gemara references two lines earlier.
+    let body = "#סימן[א׳][כותרת]\nו#גמרא[ברכות][ב.] כאן.\n";
+    let both = format!("#הגדרות_גמרא(גודל: 0.7em)\n#הגדרות_סימן(גודל: 1.5em)\n{body}");
+    let out = compile(&both, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let gemara_alone = size_of(&format!("#הגדרות_גמרא(גודל: 0.7em)\n{body}"), "ברכות")
+        .expect("the gemara reference printed");
+    let gemara_after = size_of(&both, "ברכות").expect("it still printed");
+    assert_eq!(
+        gemara_alone, gemara_after,
+        "the second door left the first one's setting standing"
+    );
+}
+
+#[test]
+fn a_door_can_sweep_its_own_class_and_no_other() {
+    // `כפה` through a per-command door is *every siman, no exceptions* — and it
+    // has nothing to say about the other classes, which is the difference
+    // between a door and the shared command.
+    let body = "#סימן[א׳][ראשון]\n#סימן(גודל: 2em)[ב׳][שני]\nו#גמרא[ברכות][ב.] כאן.\n";
+    let forced = format!("#הגדרות_סימן(גודל: 1.2em, כפה: true)\n#הגדרות_גמרא(גודל: 0.7em)\n{body}");
+    let a = size_of(&forced, "ראשון").expect("the first printed");
+    let b = size_of(&forced, "שני").expect("the second printed");
+    assert_eq!(a, b, "the overrule swept this class's one-off back");
+    let gemara = size_of(&forced, "ברכות").expect("the gemara reference printed");
+    let alone =
+        size_of(&format!("#הגדרות_גמרא(גודל: 0.7em)\n{body}"), "ברכות").expect("it printed");
+    assert_eq!(gemara, alone, "and left the other class exactly as it was");
+}
+
+// ------------------------------------------------------------------ the parts
+//
+// As granular as it goes: a command's own look covers everything it prints, and
+// several of them print more than one thing. Setting *the siman* larger should
+// make all of it larger; setting *the number* bold should bold the number and
+// leave the title alone. That is two settings, and there was one.
+
+#[test]
+fn a_pasuks_reference_is_settable_and_was_not() {
+    // The plainest case in the prelude: `text(size: 0.82em, fill: luma(95))`
+    // written inline, with no way for a writer to reach it.
+    let body = "#פסוק[ברכות ב.][שמע ישראל]\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let quote = size_of(body, "שמע ישראל").expect("the quotation printed");
+    let refr = size_of(body, "ברכות ב.").expect("the reference printed");
+    assert!(
+        refr < quote,
+        "it ships smaller, as it always has: {refr} vs {quote}"
+    );
+
+    let styled = format!("#הגדרות_פסוק(מקור: (גודל: 1.2em))\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let after = size_of(&styled, "ברכות ב.").expect("it still printed");
+    assert!(
+        after > refr,
+        "and the writer can now reach it: {after} vs {refr}"
+    );
+    assert_eq!(
+        quote,
+        size_of(&styled, "שמע ישראל").expect("the quotation still printed"),
+        "without touching the quotation"
+    );
+}
+
+#[test]
+fn a_simans_four_pieces_are_four_settings() {
+    let body = "#סימן[א׳][דין נטילת ידים]\n";
+    let title = size_of(body, "דין נטילת ידים").expect("the title printed");
+    let word = size_of(body, "סימן").expect("the word printed");
+
+    // The title alone.
+    let styled = format!("#הגדרות_סימן(כותרת: (גודל: 1.5em))\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    assert!(
+        size_of(&styled, "דין נטילת ידים").expect("still there") > title,
+        "the title took its own setting"
+    );
+    assert_eq!(
+        word,
+        size_of(&styled, "סימן").expect("still there"),
+        "and the word `סימן` was left alone"
+    );
+
+    // …and the command's own look still covers all of it.
+    let whole = format!("#הגדרות_סימן(גודל: 1.4em)\n{body}");
+    assert!(
+        size_of(&whole, "סימן").expect("still there") > word,
+        "a size on the siman scales the word too"
+    );
+}
+
+#[test]
+fn a_gemara_reference_sets_its_masechta_and_its_daf_apart() {
+    let body = "ועיין #גמרא[ברכות][ב.] שם.\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let styled = format!("#הגדרות_גמרא(מסכת: (גודל: 1.4em))\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let masechta_before = size_of(body, "ברכות").expect("the masechta printed");
+    let daf_before = size_of(body, "ב.").expect("the daf printed");
+    assert!(
+        size_of(&styled, "ברכות").expect("still there") > masechta_before,
+        "the masechta took the setting"
+    );
+    assert_eq!(
+        daf_before,
+        size_of(&styled, "ב.").expect("still there"),
+        "and the daf did not"
+    );
+}
+
+#[test]
+fn a_part_nobody_declared_stops_the_compile_and_names_the_ones_there_are() {
+    let out = compile(
+        "#הגדרות_סימן(כותרות: (גודל: 1.2em))\n#סימן[א׳][כותרת]\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "a misspelled part compiled");
+    let said = format!("{:?}", out.diagnostics);
+    assert!(
+        said.contains("כותרות"),
+        "the message names what was written: {said}"
+    );
+    assert!(said.contains("מספר"), "and what it could have been: {said}");
+}
+
+#[test]
+fn the_parts_do_not_reach_the_indexes_either() {
+    // A siman is collected by its entry string, which is built before any of
+    // this and must stay exactly what it was: the index is not a rendering.
+    let body = "#הגדרות_סימן(מספר: (משקל: \"bold\"))\n#סימן[א׳][דין נטילת ידים]\n#רשימת_סימונים(\"סימן\")\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let page: String = runs(body).iter().map(|r| r.text.clone()).collect();
+    assert!(
+        page.matches("דין נטילת ידים").count() >= 2,
+        "printed and listed: {page}"
+    );
+}
+
 // ---------------------------------------------------------------- the structure
 //
 // A siman is a heading and a seif is a block, and *"style all your level-1

@@ -263,7 +263,22 @@ pub static COMMANDS: &[Command] = &[
     // command lists any of them and one command styles a whole class. The class
     // is the first argument, and it is the command's own name.
     cmd!("רשימת_סימונים", "marklist", "torah", "רשימת כל הסימונים מסוג אחד (בסוף הספר)", "List every mark of one kind (at the back)", "#רשימת_סימונים(\"|\")"),
-    cmd!("הגדרות_סימונים", "marks_config", "torah", "עיצוב סוג של סימונים", "Style a kind of mark", "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))"),
+    cmd!("הגדרות_סימונים", "marks_config", "torah", "עיצוב כמה סוגים בבת אחת", "Style several kinds at once", "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))"),
+    // A door per command, which is the rule: anything that is a separate
+    // command has a style you can set, said about *that* command rather than
+    // named inside a call about marks in general. They all write to one store,
+    // so `#הגדרות_סימן(גודל: 1.6em)` and the row for `"סימן"` in the command
+    // above are two spellings of one fact and cannot disagree.
+    cmd!("הגדרות_סימן", "siman_config", "torah", "עיצוב הסימנים", "How simanim are set", "#הגדרות_סימן(גודל: 1.2em)|"),
+    cmd!("הגדרות_סעיף", "seif_config", "torah", "עיצוב אות הסעיף", "How a seif's letter is set", "#הגדרות_סעיף(משקל: \"bold\")|"),
+    cmd!("הגדרות_אות", "os_config", "torah", "עיצוב האות הפותחת", "How the opening letter is set", "#הגדרות_אות(משקל: \"bold\")|"),
+    cmd!("הגדרות_מראה_מקום", "sourcenote_config", "torah", "עיצוב מראי המקומות", "How source notes are set", "#הגדרות_מראה_מקום(גודל: 0.9em)|"),
+    cmd!("הגדרות_ציון", "ref_config", "torah", "עיצוב הציונים", "How inline references are set", "#הגדרות_ציון(גודל: 0.85em)|"),
+    cmd!("הגדרות_גמרא", "gemara_config", "torah", "עיצוב מראי המקומות בגמרא", "How gemara references are set", "#הגדרות_גמרא(סגנון: \"italic\")|"),
+    cmd!("הגדרות_דיבור_המתחיל", "dh_config", "torah", "עיצוב הדיבורים המתחילים", "How dibburim hamaschilim are set", "#הגדרות_דיבור_המתחיל(משקל: \"bold\")|"),
+    cmd!("הגדרות_פסוק", "verse_config", "torah", "עיצוב הפסוקים", "How verses are set", "#הגדרות_פסוק(סגנון: \"italic\")|"),
+    cmd!("הגדרות_ציון_מקור", "sourceref_config", "torah", "עיצוב ציוני המקור", "How cited sefarim are set", "#הגדרות_ציון_מקור(סגנון: \"italic\")|"),
+    cmd!("הגדרות_ערך", "indexentry_config", "torah", "עיצוב ערכי המפתח", "How index terms are set", "#הגדרות_ערך(גודל: 1em)|"),
     cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [])"),
     cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
     cmd!("הערת_גיליון", "sidenote", "torah", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),

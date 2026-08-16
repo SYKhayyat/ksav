@@ -46,7 +46,7 @@ import {
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
 import { INSTANCE_KEYS, instanceCommands } from "../.tmp-test/styles.mjs";
-import { MARK_CLASSES, STYLED_CLASSES } from "../.tmp-test/marks.mjs";
+import { CLASS_PARTS, MARK_CLASSES, STYLED_CLASSES } from "../.tmp-test/marks.mjs";
 import {
   DEFAULT_CHANNEL,
   PLACEMENTS,
@@ -554,6 +554,64 @@ export async function run() {
       NOT_A_LOOK["no look of its own yet"].length > 0,
       `${NOT_A_LOOK["no look of its own yet"].length} commands`,
     );
+
+    // …and the other half of the rule: a thing with a look has a **door of its
+    // own** to set it through. Naming a class inside a call about marks in
+    // general is not "each thing has its own style", which is what this was
+    // before — one command, ten classes keyed inside it.
+    const noDoor = [...STYLED_CLASSES].filter((cls) => !names.has(`הגדרות_${cls}`));
+    check("every styled command has a configuration named for it", noDoor, []);
+
+    // …and the pieces inside it. `_mk_part_defaults` is the authority for which
+    // commands draw more than one thing and what each piece is called; the app
+    // has to agree, or the panel offers a part the engine will refuse and misses
+    // one it would accept.
+    /**
+     * The two-level table, read in both the shapes the prelude writes it in.
+     *
+     * A class with several parts is spread over lines; one with one or two is
+     * written inline — `"גמרא": ("מסכת": (:), "דף": (:))`. A reader that knew
+     * only the first shape saw `גמרא` as having a masechta and no daf, which is
+     * this fence catching its own reader before it caught anything else.
+     */
+    const partsIn = (name) => {
+      const at = prelude.indexOf(`#let ${name} = (`);
+      ok(`the prelude declares ${name}`, at >= 0, () => `${name} is not in ksav.typ`);
+      if (at < 0) return {};
+      const block = prelude.slice(at, prelude.indexOf("\n)\n", at));
+      const out = {};
+      let cls = null;
+      for (const line of block.split("\n")) {
+        const outer = /^ {2}"([^"]+)":\s*\((.*)$/u.exec(line);
+        if (outer) {
+          cls = outer[1];
+          // Everything named on the same line, which is all of them when the
+          // class is written inline and none when it is spread.
+          out[cls] = [...outer[2].matchAll(/"([^"]+)":/gu)].map((m) => m[1]);
+          if (outer[2].trimEnd().endsWith("),") || outer[2].trimEnd().endsWith(")")) cls = null;
+          continue;
+        }
+        if (!cls) continue;
+        const inner = /^ {4}"([^"]+)":/u.exec(line);
+        if (inner) out[cls].push(inner[1]);
+        else if (/^ {2}\)/u.test(line)) cls = null;
+      }
+      return out;
+    };
+    const enginePartsRaw = partsIn("_mk_part_defaults");
+    const sorted = (o) =>
+      Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v].sort()]));
+    check("the panel knows exactly the parts the engine draws", sorted(CLASS_PARTS), sorted(enginePartsRaw));
+    // A part belongs to a command that has a look at all.
+    check(
+      "…and every one of them is on a styled command",
+      Object.keys(CLASS_PARTS).filter((cls) => !STYLED_CLASSES.includes(cls)),
+      [],
+    );
+    // The door has to exist in the prelude as well as in the registry: a row in
+    // Rust with no `#let` behind it is a palette entry that stops the compile.
+    const undefined_ = [...STYLED_CLASSES].filter((cls) => !defined.has(`הגדרות_${cls}`));
+    check("…and the prelude defines each of them", undefined_, []);
   }
 
   // ------------------------------------------- 5. "strip the markup", once

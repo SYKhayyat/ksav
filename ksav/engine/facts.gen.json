@@ -988,9 +988,99 @@
       "he": "הגדרות_סימונים",
       "en": "marks_config",
       "category": "torah",
-      "desc_he": "עיצוב סוג של סימונים",
-      "desc_en": "Style a kind of mark",
+      "desc_he": "עיצוב כמה סוגים בבת אחת",
+      "desc_en": "Style several kinds at once",
       "insert": "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_סימן",
+      "en": "siman_config",
+      "category": "torah",
+      "desc_he": "עיצוב הסימנים",
+      "desc_en": "How simanim are set",
+      "insert": "#הגדרות_סימן(גודל: 1.2em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_סעיף",
+      "en": "seif_config",
+      "category": "torah",
+      "desc_he": "עיצוב אות הסעיף",
+      "desc_en": "How a seif's letter is set",
+      "insert": "#הגדרות_סעיף(משקל: \"bold\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_אות",
+      "en": "os_config",
+      "category": "torah",
+      "desc_he": "עיצוב האות הפותחת",
+      "desc_en": "How the opening letter is set",
+      "insert": "#הגדרות_אות(משקל: \"bold\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מראה_מקום",
+      "en": "sourcenote_config",
+      "category": "torah",
+      "desc_he": "עיצוב מראי המקומות",
+      "desc_en": "How source notes are set",
+      "insert": "#הגדרות_מראה_מקום(גודל: 0.9em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_ציון",
+      "en": "ref_config",
+      "category": "torah",
+      "desc_he": "עיצוב הציונים",
+      "desc_en": "How inline references are set",
+      "insert": "#הגדרות_ציון(גודל: 0.85em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_גמרא",
+      "en": "gemara_config",
+      "category": "torah",
+      "desc_he": "עיצוב מראי המקומות בגמרא",
+      "desc_en": "How gemara references are set",
+      "insert": "#הגדרות_גמרא(סגנון: \"italic\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_דיבור_המתחיל",
+      "en": "dh_config",
+      "category": "torah",
+      "desc_he": "עיצוב הדיבורים המתחילים",
+      "desc_en": "How dibburim hamaschilim are set",
+      "insert": "#הגדרות_דיבור_המתחיל(משקל: \"bold\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_פסוק",
+      "en": "verse_config",
+      "category": "torah",
+      "desc_he": "עיצוב הפסוקים",
+      "desc_en": "How verses are set",
+      "insert": "#הגדרות_פסוק(סגנון: \"italic\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_ציון_מקור",
+      "en": "sourceref_config",
+      "category": "torah",
+      "desc_he": "עיצוב ציוני המקור",
+      "desc_en": "How cited sefarim are set",
+      "insert": "#הגדרות_ציון_מקור(סגנון: \"italic\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_ערך",
+      "en": "indexentry_config",
+      "category": "torah",
+      "desc_he": "עיצוב ערכי המפתח",
+      "desc_en": "How index terms are set",
+      "insert": "#הגדרות_ערך(גודל: 1em)|",
       "deprecated": false
     },
     {

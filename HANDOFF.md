@@ -95,9 +95,9 @@ cd ksav/app && npm run accept
       files. See
       [`decisions/2026-08-16-three-of-sixteen.md`](decisions/2026-08-16-three-of-sixteen.md).
 
-- [ ] **A pane should remember its own place in each document.** The open set
-      stores one `EditorState` per document, so returning to a sefer puts every
-      pane at the focused pane's caret.
+- [x] **A pane should remember its own place in each document.** `paneplaces.ts`
+      keys a place by pane *and* document — source panes and previews alike. See
+      [`decisions/2026-08-16-three-panes-one-caret.md`](decisions/2026-08-16-three-panes-one-caret.md).
 
 - [ ] **`deploy.yml` has never run.** The workflow that publishes the browser
       build triggers on tags, and the one tag this repository has predates the

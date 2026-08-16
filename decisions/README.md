@@ -79,6 +79,7 @@ something in.
 | [2026-08-14 · The pages of one siman](2026-08-14-the-pages-of-one-siman.md) | A preview that follows the narrowed pane beside it: why the answer rides on the compile instead of on `reveal`, why a page reports runs rather than a range, and why the pages it drops are hidden rather than removed |
 | [2026-08-16 · The pins nobody was watching](2026-08-16-the-pins-nobody-was-watching.md) | Every CI job carried a Node 20 deprecation notice for weeks — a red remote on a date GitHub picks — and the sweep for it cannot live in this repository, because whether a pin is behind is a fact about somebody else's releases |
 | [2026-08-16 · Three of sixteen](2026-08-16-three-of-sixteen.md) | The Emacs package reached three of the engine's sixteen services, and one test was holding the gap open by asserting it; what the other thirteen doors are, and the empty exemption list that now says so |
+| [2026-08-16 · Three panes, one caret](2026-08-16-three-panes-one-caret.md) | Returning to a sefer put every pane at the focused pane's caret; why the fix is a third table rather than a field on either of the two that exist, and why the preview is the same complaint one pane over |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

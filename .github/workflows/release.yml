@@ -179,7 +179,7 @@ jobs:
           CARGO_PROFILE_BENCH_LTO: "false"
         run: node tools/gate.mjs engine --release
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signing is not configured. Unsigned, Windows SmartScreen shows

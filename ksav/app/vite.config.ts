@@ -12,6 +12,7 @@ import { MODE_PACKAGES, stripStatementPure } from "./tools/pure-annotations.mjs"
 // @ts-expect-error — plain JS beside `csp.txt`, which is where the rule about
 // how that file may be delivered belongs. No types, and nothing to type.
 import { metaPolicy } from "../policy/meta.mjs";
+import { assetBaseOf } from "./tools/paths.mjs";
 
 // The Ksav engine (cargo run -- serve) runs on :7878 and exposes the compile +
 // registry endpoints. In dev we proxy to it; in production the Rust binary
@@ -64,7 +65,12 @@ const META_ONLY_CSP = metaPolicy(CSP);
 // so every asset URL in the built HTML needs that prefix or the page loads a
 // blank body and a fistful of 404s.
 const publicBase = (process.env.VITE_PUBLIC_BASE ?? "").trim();
-const assetBase = publicBase ? new URL(publicBase).pathname : "/";
+// Through `assetBaseOf`, which is where the trailing slash is put back on.
+// `configure-pages` hands out `https://user.github.io/ksav` with no slash, so
+// this used to resolve to `/ksav` — harmless for every asset URL, because Vite
+// joins those itself, and fatal for the one the application joins by hand:
+// `${import.meta.env.BASE_URL}sw.js` became `/ksavsw.js`. See the note there.
+const assetBase = assetBaseOf(publicBase);
 
 export default defineConfig({
   base: assetBase,

@@ -8,7 +8,7 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { encodeShare, decodeShare, shareLink, TOO_LONG } from "../.tmp-test/share.mjs";
-import { APP, SRC } from "../tools/paths.mjs";
+import { APP, SRC, assetBaseOf } from "../tools/paths.mjs";
 
 export function run() {
   return (async () => {
@@ -178,7 +178,42 @@ export function run() {
       ok("it comes from the environment", vite.includes("VITE_PUBLIC_BASE"));
       // And it is the *same* value the assets are built against, or a link can
       // point at a copy of the app that is not there.
-      ok("the asset base is derived from it", vite.includes("new URL(publicBase).pathname"));
+      ok("the asset base is derived from it", vite.includes("assetBaseOf(publicBase)"));
+
+      // ------------------------------------------------ the trailing slash
+      //
+      // `configure-pages` hands out `https://user.github.io/ksav` with **no**
+      // trailing slash, so the pathname off it is `/ksav`, and Vite passes that
+      // through as `import.meta.env.BASE_URL` untouched. Every asset URL was
+      // fine — Vite joins those itself — and the one place the application
+      // joins a path by hand was not:
+      //
+      //     `${import.meta.env.BASE_URL}sw.js`   ->   /ksavsw.js
+      //
+      // The service worker 404'd on every load of the published site and said
+      // nothing, because its registration swallows failures by design. So the
+      // offline-and-installable half of the browser build was dead on the only
+      // host it has, and no test could have found it: this file asserted the
+      // base was *derived* from the right value, never that it was usable.
+      //
+      // Found by publishing the site and reading the console. Fixed at the
+      // source rather than at the call site, so a second reader of `BASE_URL`
+      // cannot inherit it.
+      for (const [given, want] of [
+        ["https://user.github.io/ksav", "/ksav/"],
+        ["https://user.github.io/ksav/", "/ksav/"],
+        ["https://ksav.app", "/"],
+        ["https://ksav.app/", "/"],
+        ["", "/"],
+      ]) {
+        check(`the base of ${given || "(unset)"} ends in a slash`, assetBaseOf(given), want);
+      }
+      // The instance that was broken, asserted as the reader writes it.
+      check(
+        "so joining a filename onto it stays under the base",
+        `${assetBaseOf("https://user.github.io/ksav")}sw.js`,
+        "/ksav/sw.js",
+      );
     }
   })();
 }

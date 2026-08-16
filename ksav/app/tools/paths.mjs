@@ -45,3 +45,32 @@ export const ENGINE = path.resolve(APP, "..", "engine");
 
 /** Where the test build puts the bundled modules. */
 export const TMP_TEST = path.join(APP, ".tmp-test");
+
+/**
+ * The path a hosted build is served under, always ending in a slash.
+ *
+ * `deploy.yml` passes `VITE_PUBLIC_BASE` from `actions/configure-pages`, and
+ * that output has **no trailing slash** — `https://user.github.io/ksav`. Taking
+ * `new URL(...).pathname` off it gives `/ksav`, and Vite hands that back
+ * unchanged as `import.meta.env.BASE_URL`.
+ *
+ * Which was fine for every asset URL, because Vite joins those itself, and
+ * wrong for the one place the application joins one by hand:
+ *
+ *     `${import.meta.env.BASE_URL}sw.js`   ->   /ksavsw.js
+ *
+ * The service worker 404'd on every load of the published site, silently — its
+ * registration deliberately swallows failures, on the argument that offline
+ * support is a bonus and not worth interrupting a writer over. So the whole
+ * offline-and-installable half of the browser build was dead on the host, and
+ * the only way to find out was to publish it and look, which is what the first
+ * run of `deploy.yml` was for.
+ *
+ * Normalised here rather than at the one call site, because the call site is
+ * not the bug: any future reader of `BASE_URL` would have inherited it.
+ */
+export const assetBaseOf = (publicBase) => {
+  const trimmed = (publicBase ?? "").trim();
+  if (!trimmed) return "/";
+  return new URL(trimmed).pathname.replace(/\/*$/, "/");
+};

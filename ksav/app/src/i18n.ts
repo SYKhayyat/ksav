@@ -772,6 +772,7 @@ const HE: Dict = {
   exportWord: "Word ‏(.doc)",
   copyForWord: "העתקה ל‑Word",
   copiedForWord: "הועתק — הדביקו בתוך Word.",
+  exported: "‏{0} נשמר.",
   copyFailed: "ההעתקה נכשלה — נסו \"ייצוא ל‑Word\" במקום.",
   wordNoHtml: "ייצוא ל‑Word דורש HTML זורם, והמסמך הזה אינו מתקמפל אליו. לא נוצר קובץ.",
   wordFlattenNote:
@@ -1876,6 +1877,7 @@ const EN: Dict = {
   exportWord: "Word (.doc)",
   copyForWord: "Copy for Word",
   copiedForWord: "Copied — paste into Word.",
+  exported: "Wrote {0}.",
   copyFailed: "Copy failed — use \"Word (.doc)\" instead.",
   wordNoHtml: "The Word handoff needs reflowable HTML, and this document does not compile to it. No file was produced.",
   wordFlattenNote:

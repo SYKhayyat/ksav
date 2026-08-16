@@ -59,8 +59,8 @@ jobs:
     name: check before shipping
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -125,7 +125,7 @@ jobs:
       # hole and hit it first, and nothing had noticed because neither had ever
       # run. The manifests now pin those crates by commit, so cargo fetches them
       # like any other dependency. See `ksav/engine/Cargo.toml`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # webkit2gtk is the webview Tauri renders into on Linux; the ayatana
       # appindicator and librsvg are what the .deb and .AppImage bundlers link
@@ -152,7 +152,7 @@ jobs:
         with:
           workspaces: "./ksav/app/src-tauri -> target"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
 
@@ -250,8 +250,8 @@ jobs:
     outputs:
       matrix: ${{ steps.read.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       - id: read
@@ -274,8 +274,8 @@ jobs:
         target: ${{ fromJSON(needs.targets.outputs.matrix) }}
     runs-on: ${{ matrix.target.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -333,8 +333,8 @@ jobs:
       contents: write
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       - name: Install Emacs

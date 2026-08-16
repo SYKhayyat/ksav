@@ -1,0 +1,34 @@
+# Keep the workflow pins from rotting quietly.
+#
+# Every job in `ci.yml` carried this annotation, on every run, for weeks:
+#
+#     Node.js 20 is deprecated. The following actions target Node.js 20 but are
+#     being forced to run on Node.js 24: actions/checkout@v4,
+#     actions/setup-node@v4, jetli/wasm-pack-action@v0.4.0
+#
+# A warning today and a red workflow on a date somebody else picks. Nothing in
+# this repository was watching for it, because an action pin is a hand-kept list
+# — the shape `HANDOFF.md` names as the thing that goes stale — and there is no
+# check that can be written here for it: whether `actions/checkout@v4` is behind
+# is a fact about GitHub, not about this checkout, and the gate has no network.
+#
+# So the sweep is delegated to the one thing that does have that fact. Weekly,
+# grouped into a single pull request, because a solo repository does not want
+# five open branches that each move one line.
+#
+# Only `github-actions`. The npm and cargo trees are pinned by lockfiles that
+# `ci.yml` already builds from and that a person updates on purpose; the failure
+# being guarded against here is specifically a pin that is fine until a runtime
+# somewhere else is switched off.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"

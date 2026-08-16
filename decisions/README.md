@@ -77,6 +77,7 @@ something in.
 | [2026-08-14 · One question at a time](2026-08-14-one-question-at-a-time.md) | The notes chooser showed fifty controls for a decision most writers had already made; what it asks now, what was kept behind a preference, and the two counts that were written in files that could not see them |
 | [2026-08-15 · A package that could not be installed](2026-08-15-a-package-that-could-not-be-installed.md) | The Emacs package worked and nobody could install it, and underneath that there was no `ksav` binary on any machine at all: what a release attaches now, why the engine assets are bare binaries, and why the tarball is installed rather than inspected |
 | [2026-08-14 · The pages of one siman](2026-08-14-the-pages-of-one-siman.md) | A preview that follows the narrowed pane beside it: why the answer rides on the compile instead of on `reveal`, why a page reports runs rather than a range, and why the pages it drops are hidden rather than removed |
+| [2026-08-16 · The pins nobody was watching](2026-08-16-the-pins-nobody-was-watching.md) | Every CI job carried a Node 20 deprecation notice for weeks — a red remote on a date GitHub picks — and the sweep for it cannot live in this repository, because whether a pin is behind is a fact about somebody else's releases |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

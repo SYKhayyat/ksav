@@ -75,8 +75,8 @@ jobs:
     name: editor
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -95,7 +95,7 @@ jobs:
     name: engine
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -112,7 +112,7 @@ jobs:
           # for it again from scratch. Nothing about a red test makes the object
           # files wrong.
           cache-on-failure: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
 
@@ -168,11 +168,11 @@ jobs:
     name: formatting
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       # All three Rust trees. `prototypes/flutter-app/rust` is deliberately
@@ -186,7 +186,7 @@ jobs:
     name: browser engine
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -194,12 +194,21 @@ jobs:
         with:
           workspaces: "./ksav/wasm -> target"
           cache-on-failure: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
-      - uses: jetli/wasm-pack-action@v0.4.0
+      # wasm-pack's own installer, rather than `jetli/wasm-pack-action`.
+      #
+      # That action is a JavaScript action pinned to the Node 20 runtime, which
+      # GitHub is removing, and its newest release is from 2023 — so it was
+      # named in the deprecation annotation on every run of this workflow and
+      # nothing upstream is going to fix it. What it does underneath is run this
+      # script, which fetches the prebuilt binary for the runner; doing it here
+      # is the same install with one fewer third party in the chain.
+      - name: Install wasm-pack
+        run: curl -sSfL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
       # The in-browser build is one of the three ways Ksav ships, and it was the
       # only one nothing checked: `app/src/wasmpkg/` is git-ignored and built
@@ -254,8 +263,8 @@ jobs:
     name: the assembled app
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -296,7 +305,7 @@ jobs:
     name: the Emacs package
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
@@ -321,7 +330,7 @@ jobs:
       # For the packaging step at the end of this job. Declared rather than
       # taken from whatever the runner image ships, for the same reason the
       # rustup components are.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
 
@@ -398,7 +407,7 @@ jobs:
     name: desktop shell
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # libappindicator3-dev and libayatana-appindicator3-dev CONFLICT: the
       # ayatana package Replaces: the old one, so asking for both makes apt exit
       # 100 and the job never reaches a compiler. Tauri v2 wants ayatana; install
@@ -420,7 +429,7 @@ jobs:
         with:
           workspaces: "./ksav/app/src-tauri -> target"
           cache-on-failure: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
       # Compiles the Tauri commands, lints them, formats them, and runs the

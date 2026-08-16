@@ -363,3 +363,50 @@ there is a test that sets a siman's size both ways and compares the pages.
 One thing worth knowing about all of this: `state.update` runs its closure when
 the state is *read*. A document that sets a knob and never uses the class never
 reaches the check. That is how every `#הגדרות_*` in this prelude behaves.
+
+## The last two, and a picture nobody could see
+
+`#קו_מפריד` and `#תמונה` came last because neither is a run of text, and the
+list is empty now.
+
+**A rule prints no glyphs.** A size, a slant or a weight on it would be a control
+with nothing behind it, so it answers to four knobs of its own — thickness,
+colour, how far it runs, where it sits — and to none of the text ones.
+`_mk_knobs_of` grew a third branch for it, and the panel offers four controls
+rather than fourteen because the engine refuses the other ten by name.
+
+It is also **the one class with no per-instance layer**, and that is a property
+of the command rather than of the register. Typst prints a bare function name as
+text: make `#קו_מפריד` take arguments and every document, template, Org import
+and docx import that writes the bare form prints the word *קו_מפריד* across the
+page instead of a line. Measured before deciding, not assumed.
+
+**A picture draws two things**, and the register already had the shape: the block
+knobs frame the picture, the text knobs reach the caption — which is the only
+text a figure prints, so a caption's size needs no second name. `רוחב` and
+`יישור` were parameters and are knobs now, so a sefer can say once that its
+pictures are 60% and centred; the parameters still work and still win.
+
+### The alignment that was accepted and ignored
+
+Writing that turned up a bug older than any of this work: `#תמונה(…, יישור: …,
+כיתוב: …)` **did nothing**. A figure is a block that fills the column and centres
+itself, so the `align` the command wrapped it in moved nothing. Every captioned
+picture in every sefer has been centred regardless of what the writer asked for,
+silently, since the command was written.
+
+Nothing could have caught it. A picture is neither a glyph nor a shape, so
+`probe` could not find one at all — the same gap `strokes` filled for lines, one
+element along. The test that covered this asserted that the document compiled and
+that the caption printed, and both were true the whole time.
+
+`probe::pictures` exists now, and the fix is conditional on purpose: the figure
+is wrapped in a block sized to the picture **only when there is an alignment to
+apply**, because a figure with none is centred by Typst and that is what every
+sefer with a picture in it currently prints. Both halves are asserted — the
+aligned one moves, the unaligned one lands exactly where it always did.
+
+That is three things the probe could not see, found in one day: a line, a
+picture, and before them a fill. The pattern is worth stating plainly — **the
+probe reads what it was last asked about**, so a feature whose output is a new
+kind of frame item arrives untested by construction.

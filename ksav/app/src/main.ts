@@ -9081,6 +9081,9 @@ function sidenoteStyleRows(): Node[] {
 const MARK_FIELDS: Readonly<Record<string, styles.Field>> = {
   ...styles.INSTANCE_FIELDS.marks,
   טקסט: { kind: "text", label: "knobText" },
+  // A rule's thickness, which no *mark* carries either: `#קו_מפריד` takes no
+  // arguments at all, so it has a class and no per-instance layer.
+  עובי: { kind: "length-pt", label: "knobThickness" },
 };
 
 function markStyleRows(): Node[] {

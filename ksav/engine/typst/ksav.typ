@@ -33,6 +33,7 @@
   size: "גודל", font: "גופן", colour: "צבע", color: "צבע", align: "יישור",
   page_width: "רוחב_עמוד", page_height: "גובה_עמוד",
   weight: "משקל", paper: "נייר", margin: "שוליים", lang: "שפה", dir: "כיוון",
+  thickness: "עובי",
   landscape: "לרוחב", watermark: "סימן_מים", header: "כותרת_עליונה",
   footer: "כותרת_תחתונה", numbering: "מספור", hebrew_numbering: "מספור_עברי",
   // `justify` is **not** here, and `align` is. Both used to be, both mapping to
@@ -382,6 +383,24 @@
   // grey one, or a heavier inline one, could not be asked for at all.
   "נוסחה": (:),
   "נוסחה_בשורה": (:),
+  // The last two, and neither is a run of text.
+  //
+  // A rule is a line: thickness, colour, how far across the page it goes and
+  // where it sits. Setting a *weight* or a *slant* on it would be a control
+  // with nothing behind it, so it answers to four knobs of its own and to
+  // none of the text ones — see `_mk_knobs_of`. Every value here is what it
+  // has drawn since it was written.
+  "קו_מפריד": (עובי: 0.5pt, צבע: luma(180), רוחב: 100%),
+  // A picture draws two things and the register already has a shape for
+  // that: the block knobs frame the picture, and the text knobs reach the
+  // caption, which is the only text a figure prints. Ships nothing, because
+  // an unframed picture under Typst's own caption is what it draws today.
+  //
+  // `רוחב` and `יישור` were parameters of the call and are knobs now, so a
+  // sefer can say once that its pictures are 60% and centred instead of
+  // saying it at every one of them. The parameters still work and win, which
+  // is what an instance override is.
+  "תמונה": (:),
 )
 
 /// What `#רשימת_סימונים` calls a class when the writer does not title it.
@@ -421,10 +440,32 @@
 #let _mk_block_knobs = ("גוון", "קו", "מסגרת", "מרווח", "רדיוס", "רוחב", "יישור")
 
 /// Which classes draw a block, and therefore answer to the knobs above.
-#let _mk_block_classes = ("ציטוט", "הערת_צד", "אזהרה", "הצלחה", "תיבה", "שער", "תת_שער")
+#let _mk_block_classes = (
+  "ציטוט",
+  "הערת_צד",
+  "אזהרה",
+  "הצלחה",
+  "תיבה",
+  "שער",
+  "תת_שער",
+  // A figure is a block: what a writer wants to set on a picture is how wide
+  // it is, where it sits, and whether it is framed. Its text knobs reach the
+  // caption, because a caption is the only text it prints.
+  "תמונה",
+)
+
+/// …and the knobs a *line* has, which are none of the above.
+///
+/// A rule prints no glyphs, so every text knob on it is a control with
+/// nothing behind it, and it is not a box either — `רוחב` here is how far the
+/// line runs, not how wide a block is. Four knobs, and they are its own.
+#let _mk_rule_knobs = ("עובי", "צבע", "רוחב", "יישור")
+#let _mk_rule_classes = ("קו_מפריד",)
 
 /// The knobs one class answers to.
-#let _mk_knobs_of(cls) = if _mk_block_classes.contains(cls) {
+#let _mk_knobs_of(cls) = if _mk_rule_classes.contains(cls) {
+  _mk_rule_knobs
+} else if _mk_block_classes.contains(cls) {
   _mk_knobs + _mk_block_knobs
 } else { _mk_knobs }
 
@@ -3624,7 +3665,27 @@
 // ============================================================
 //  פריסה · layout helpers
 // ============================================================
-#let קו_מפריד = line(length: 100%, stroke: 0.5pt + luma(180))
+// A rule with a look of its own — and it stays a **value**, not a function.
+//
+// Typst prints a bare function name as text: `#קו_מפריד` where the binding is
+// a function puts the letters on the page. Documents, templates, the Org and
+// docx importers and the prose view all write the bare form, so making this
+// take arguments would silently print the word in every one of them.
+//
+// Which is why it has no per-instance layer, unlike every other class here:
+// a command with no argument list has nowhere to put one. That is a property
+// of this command, not of the register.
+#let קו_מפריד = context {
+  let c = _mk_conf("קו_מפריד", (:))
+  let drawn = line(
+    length: c.at("רוחב", default: 100%),
+    stroke: c.at("עובי", default: 0.5pt) + c.at("צבע", default: luma(180)),
+  )
+  let al = if "יישור" in c { _doc_align(c.יישור) } else { none }
+  if al != none { align(al, drawn) } else { drawn }
+}
+#let הגדרות_קו_מפריד(..opts) = _mk_set("קו_מפריד", opts.named())
+#let hrule_config = _en(הגדרות_קו_מפריד)
 #let מרווח(מידה: 1em) = v(מידה)
 #let רווח_אופקי(מידה: 1em) = h(מידה)
 // חסר_הכללה — what prints where an inclusion could not be made.
@@ -3679,21 +3740,56 @@
 // reporting "file not found" about a path they were never asked for. (That was
 // six of the 384 failures in the insertion sweep, and the only family where the
 // error message named something the writer had not written.)
-#let תמונה(נתיב, רוחב: auto, יישור: none, כיתוב: none) = {
+#let תמונה(נתיב, רוחב: auto, יישור: none, כיתוב: none, ..opts) = context {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("תמונה", rest)
+  // The two parameters this command has always taken are instance overrides
+  // now, so they beat the class the way `#מחיקה(צבע: …)` beats `#הגדרות_מחיקה`
+  // — and a document that sets neither takes whatever the sefer said.
+  let mine = own
+  if רוחב != auto { mine.insert("רוחב", רוחב) }
+  if יישור != none { mine.insert("יישור", יישור) }
+  let c = _mk_conf("תמונה", mine)
+  let wide = c.at("רוחב", default: auto)
+  // The width goes to the picture, not to a block around it: a block at 60%
+  // holding a full-size image is a full-size image sticking out of a narrow
+  // box. So the frame is drawn from everything else.
+  let framing = (:)
+  for (k, v) in c { if k != "רוחב" { framing.insert(k, v) } }
   if _as_string(נתיב).trim() == "" {
     box(
-      width: if רוחב == auto { 60% } else { רוחב },
+      width: if wide == auto { 60% } else { wide },
       height: 4em,
       stroke: (paint: luma(160), dash: "dashed", thickness: 0.8pt),
       fill: luma(247),
       align(center + horizon, text(size: 0.85em, fill: luma(110))[🖼 (תמונה — בחרו קובץ)]),
     )
   } else {
-  let pic = image(נתיב, width: רוחב)
-  let out = if כיתוב != none { figure(pic, caption: כיתוב) } else { pic }
-  if יישור != none { align(יישור, out) } else { out }
+    let pic = image(נתיב, width: wide)
+    // The caption through the class's text look, which is the only text a
+    // figure prints — so `#הגדרות_תמונה(גודל: 0.85em)` is a sentence about
+    // captions and needs no second name for one.
+    let out = if כיתוב != none {
+      let fig = figure(pic, caption: _mk_render(c, כיתוב))
+      // A figure is a block that fills the column and centres itself, so an
+      // alignment *around* it moves nothing — which is why `יישור` has been
+      // accepted and silently ignored on every captioned picture since this
+      // command was written, with a test beside it asserting only that the
+      // document compiled and the caption printed. No test could see otherwise:
+      // a picture is neither a glyph nor a shape, so `probe` could not find one
+      // at all until `pictures` was added for this.
+      //
+      // Sized to the picture it becomes something an alignment can move. Only
+      // when there is an alignment to apply, because a figure with none is
+      // centred by Typst and that is what every sefer with a picture in it
+      // currently prints.
+      if "יישור" in framing { block(width: wide, fig) } else { fig }
+    } else { pic }
+    _mk_frame(framing, out)
   }
 }
+#let הגדרות_תמונה(..opts) = _mk_set("תמונה", opts.named())
+#let image_config = _en(הגדרות_תמונה)
 
 // חסר — a fill-in blank line (form field), e.g. for a kesubah or letter
 #let חסר(רוחב: 3em) = box(width: רוחב, stroke: (bottom: 0.6pt + luma(60)))

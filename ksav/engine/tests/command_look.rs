@@ -1166,3 +1166,196 @@ fn the_door_and_the_command_it_replaced_still_agree() {
         "the two spellings drew different pages"
     );
 }
+
+// ------------------------------------------------------- the rule and the image
+//
+// The last two, and neither is a run of text — which is why they came last.
+//
+// A rule prints no glyphs at all. A size, a slant or a weight on it would be a
+// control with nothing behind it, so it answers to four knobs of its own and to
+// none of the text ones. It is also the one class in the register with **no
+// per-instance layer**: `#קו_מפריד` takes no arguments, and it cannot be given
+// any, because Typst prints a bare function name as text and every surface that
+// writes this command writes the bare form.
+//
+// A picture draws two things, and the register already had the shape: the block
+// knobs frame the picture and the text knobs reach the caption, which is the
+// only text a figure prints.
+
+#[test]
+fn a_rule_still_draws_the_line_it_always_drew() {
+    // Bare, with no parentheses. If this command ever becomes a function, this
+    // test finds the word `קו_מפריד` printed across the page instead of a line.
+    let f = lines_on("לפני\n\n#קו_מפריד\n\nאחרי\n");
+    assert!(
+        f.iter()
+            .any(|s| s.colour == "#b4b4b4" && (s.thickness - 0.5).abs() < 0.01),
+        "the rule is gone, or is drawn differently: {f:?}"
+    );
+    let words: String = runs("לפני\n\n#קו_מפריד\n\nאחרי\n")
+        .iter()
+        .map(|r| r.text.clone())
+        .collect();
+    assert!(
+        !words.contains("קו_מפריד"),
+        "the command printed its own name: {words}"
+    );
+}
+
+#[test]
+fn a_rule_takes_a_thickness_and_a_colour() {
+    let f =
+        lines_on("#הגדרות_קו_מפריד(עובי: 2pt, צבע: rgb(\"#0000ff\"))\nלפני\n\n#קו_מפריד\n\nאחרי\n");
+    let mine = f
+        .iter()
+        .find(|s| s.colour == "#0000ff")
+        .unwrap_or_else(|| panic!("the rule did not take the colour: {f:?}"));
+    assert!(
+        (mine.thickness - 2.0).abs() < 0.01,
+        "…nor the thickness: {mine:?}"
+    );
+}
+
+#[test]
+fn a_rule_refuses_a_knob_that_would_mean_nothing_on_a_line() {
+    // A weight on a line. The class exists so that the panel can offer four
+    // controls rather than fourteen, and the engine has to agree or the panel is
+    // the only thing enforcing it.
+    let out = compile(
+        "#הגדרות_קו_מפריד(משקל: \"bold\")\n#קו_מפריד\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "a weight on a line compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("משקל"),
+        "{:?}",
+        out.diagnostics
+    );
+}
+
+/// A 1×1 PNG, so a picture can actually be drawn. Ksav has no file system: an
+/// image arrives with the compile request, which is why this is bytes rather
+/// than a path. The same asset the assets suite uses.
+fn png() -> ksav_engine::assets::Assets {
+    use base64::Engine as _;
+    ksav_engine::assets::Assets {
+        files: vec![ksav_engine::assets::Asset {
+            name: "logo.png".to_string(),
+            bytes: base64::engine::general_purpose::STANDARD
+                .decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                )
+                .expect("decode test png"),
+        }],
+        fonts: vec![],
+    }
+}
+
+/// The runs of a document compiled with that picture available.
+fn runs_with_picture(body: &str) -> Vec<probe::TextRun> {
+    let doc = ksav_engine::compile_doc_with(body, &DocConfig::default(), &png())
+        .unwrap_or_else(|d| panic!("layout failed: {d:?}"));
+    probe::text_runs(&doc)
+}
+
+/// Where the pictures in a document landed, and how wide they came out.
+fn pictures_in(body: &str) -> Vec<probe::Picture> {
+    let doc = ksav_engine::compile_doc_with(body, &DocConfig::default(), &png())
+        .unwrap_or_else(|d| panic!("layout failed: {d:?}"));
+    probe::pictures(&doc)
+}
+
+#[test]
+fn a_picture_sets_its_caption_through_its_own_door() {
+    // A figure prints exactly one piece of text, so the class's text knobs are
+    // the caption's and there is no second name for a caption's size.
+    let body = "#תמונה(\"logo.png\", רוחב: 2cm, כיתוב: [הכיתוב])\n";
+    let set = format!("#הגדרות_תמונה(גודל: 2em)\n{body}");
+    let at = |src: &str| {
+        runs_with_picture(src)
+            .iter()
+            .find(|r| r.text.contains("הכיתוב"))
+            .unwrap_or_else(|| panic!("the caption did not print: {src}"))
+            .size
+    };
+    assert!(
+        at(&set) > at(body) * 1.5,
+        "the caption did not take the size: {} vs {}",
+        at(&set),
+        at(body)
+    );
+}
+
+#[test]
+fn a_picture_takes_a_width_from_the_sefer_and_from_the_call() {
+    // A sefer can say once that its pictures are a certain width, and one
+    // picture can still say otherwise — the same two layers everything else in
+    // this register has.
+    let one = &pictures_in("#הגדרות_תמונה(רוחב: 4cm)\n#תמונה(\"logo.png\")\n")[0];
+    let other = &pictures_in("#הגדרות_תמונה(רוחב: 4cm)\n#תמונה(\"logo.png\", רוחב: 2cm)\n")[0];
+    assert!(
+        (one.width - 113.4).abs() < 1.0,
+        "the sefer's width did not reach the picture: {one:?}"
+    );
+    assert!(
+        (other.width - 56.7).abs() < 1.0,
+        "the call's own width lost to the sefer's: {other:?}"
+    );
+}
+
+#[test]
+fn a_captioned_picture_can_finally_be_aligned() {
+    // It could not before, and said nothing about it. A figure is a block that
+    // fills the column and centres itself, so the `align` this command wrapped
+    // it in moved nothing: `#תמונה(…, יישור: left, כיתוב: …)` was accepted and
+    // ignored for as long as the command has existed.
+    //
+    // Nothing could see it. A picture is neither a glyph nor a shape, so the
+    // probe could not find one at all — the test that covered this asserted
+    // that the document compiled and the caption printed, both of which were
+    // true the whole time.
+    let at = |a: &str| {
+        pictures_in(&format!(
+            "#תמונה(\"logo.png\", רוחב: 2cm, יישור: {a}, כיתוב: [הכיתוב])\n"
+        ))[0]
+            .x
+    };
+    assert!(
+        at("left") < at("right"),
+        "a captioned picture still ignores its alignment: {} vs {}",
+        at("left"),
+        at("right")
+    );
+    // …and a bare one, which always could.
+    let bare =
+        |a: &str| pictures_in(&format!("#תמונה(\"logo.png\", רוחב: 2cm, יישור: {a})\n"))[0].x;
+    assert!(
+        bare("left") < bare("right"),
+        "a bare picture lost its alignment"
+    );
+}
+
+#[test]
+fn a_picture_with_no_alignment_prints_where_it_always_did() {
+    // The other half, and the reason the block above is conditional. A figure
+    // with no alignment is centred by Typst, and that is what every sefer with a
+    // picture in it currently prints; a picture with no caption sits at the
+    // start of the line. Wrapping either unconditionally would reflow both.
+    let captioned = &pictures_in("לפני\n\n#תמונה(\"logo.png\", רוחב: 2cm, כיתוב: [הכיתוב])\n")[0];
+    let bare = &pictures_in("לפני\n\n#תמונה(\"logo.png\", רוחב: 2cm)\n")[0];
+    assert!(
+        captioned.x < bare.x,
+        "the captioned picture is no longer centred: {captioned:?} vs {bare:?}"
+    );
+}
+
+#[test]
+fn a_picture_knob_nothing_answers_to_stops_the_compile() {
+    let out = compile("#תמונה(\"\", גדול: 2em)\n", &DocConfig::default());
+    assert!(!out.ok(), "a knob nothing answers to compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "{:?}",
+        out.diagnostics
+    );
+}

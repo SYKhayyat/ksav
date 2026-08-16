@@ -201,6 +201,52 @@ fn walk_strokes(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Stroke>
     }
 }
 
+/// One picture on the page, where it landed and how big it came out.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Picture {
+    /// 1-based page number.
+    pub page: usize,
+    /// Absolute position on the page, in points, from the top-left corner.
+    pub x: f64,
+    pub y: f64,
+    /// The size it was drawn at, in points.
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Every picture in the document, in layout order.
+///
+/// The third thing `text_runs` cannot see, and it was missing for the same
+/// reason `strokes` was: a picture is neither a glyph nor a shape. So no test in
+/// this repository could ask where a picture landed or how wide it came out —
+/// which is how `#תמונה(…, יישור: …)` was accepted and ignored for as long as
+/// the command has existed, with a test beside it asserting only that the
+/// document still compiled and the caption still printed.
+pub fn pictures(doc: &PagedDocument) -> Vec<Picture> {
+    let mut out = Vec::new();
+    for (i, page) in doc.pages().iter().enumerate() {
+        walk_pictures(&page.frame, Point::zero(), i + 1, &mut out);
+    }
+    out
+}
+
+fn walk_pictures(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Picture>) {
+    for (pos, item) in frame.items() {
+        let at = origin + *pos;
+        match item {
+            FrameItem::Group(g) => walk_pictures(&g.frame, at, page, out),
+            FrameItem::Image(_, size, _) => out.push(Picture {
+                page,
+                x: at.x.to_pt(),
+                y: at.y.to_pt(),
+                width: size.x.to_pt(),
+                height: size.y.to_pt(),
+            }),
+            _ => {}
+        }
+    }
+}
+
 /// Each page's (width, height) in points — so a test can assert that nothing
 /// (apparatus, page number) was laid out past the edge of the paper.
 pub fn page_sizes(doc: &PagedDocument) -> Vec<(f64, f64)> {

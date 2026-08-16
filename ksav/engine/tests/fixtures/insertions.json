@@ -805,6 +805,15 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_קו_מפריד(עובי: 1pt)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -891,6 +900,15 @@
    "legal": true,
    "reason": null,
    "source": "שורה של פרוזה ובה מלים#תמונה(\"\", רוחב: 60%)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_תמונה(רוחב: 60%, יישור: \"center\")אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -2200,6 +2218,15 @@
   {
    "ctx": "prose",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#hrule_config(thickness: 1pt)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -2286,6 +2313,15 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#img(\"\", width: 60%)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#image_config(width: 60%, align: \"center\")ds to continue."
   },
   {
    "ctx": "prose",
@@ -3595,6 +3631,15 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_קו_מפריד(עובי: 1pt)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -3681,6 +3726,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #תמונה(\"\", רוחב: 60%)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -4990,6 +5044,15 @@
   {
    "ctx": "heading-body",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #hrule_config(thickness: 1pt)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -5076,6 +5139,15 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #img(\"\", width: 60%)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #image_config(width: 60%, align: \"center\")One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -6385,6 +6457,15 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_קו_מפריד(עובי: 1pt)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -6471,6 +6552,15 @@
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #תמונה(\"\", רוחב: 60%)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -7780,6 +7870,15 @@
   {
    "ctx": "note-body",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #hrule_config(thickness: 1pt)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -7866,6 +7965,15 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #img(\"\", width: 60%)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #image_config(width: 60%, align: \"center\")inside] continues."
   },
   {
    "ctx": "note-body",
@@ -9175,6 +9283,15 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_קו_מפריד(עובי: 1pt)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -9261,6 +9378,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #תמונה(\"\", רוחב: 60%)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -10570,6 +10696,15 @@
   {
    "ctx": "list-in-item",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #hrule_config(thickness: 1pt)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -10656,6 +10791,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #img(\"\", width: 60%)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #image_config(width: 60%, align: \"center\")here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -11965,6 +12109,15 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_קו_מפריד(עובי: 1pt),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -12051,6 +12204,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],תמונה(\"\", רוחב: 60%),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_תמונה(רוחב: 60%, יישור: \"center\"),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -13360,6 +13522,15 @@
   {
    "ctx": "list-between-items",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],hrule_config(thickness: 1pt),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -13446,6 +13617,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],img(\"\", width: 60%),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],image_config(width: 60%, align: \"center\"),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -14755,6 +14935,15 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_קו_מפריד(עובי: 1pt),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -14841,6 +15030,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(תמונה(\"\", רוחב: 60%),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_תמונה(רוחב: 60%, יישור: \"center\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -16150,6 +16348,15 @@
   {
    "ctx": "list-after-open",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(hrule_config(thickness: 1pt),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -16236,6 +16443,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(img(\"\", width: 60%),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(image_config(width: 60%, align: \"center\"),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -17545,6 +17761,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_קו_מפריד(עובי: 1pt)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -17631,6 +17856,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #תמונה(\"\", רוחב: 60%)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -18940,6 +19174,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #hrule_config(thickness: 1pt)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -19026,6 +19269,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #img(\"\", width: 60%)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #image_config(width: 60%, align: \"center\")here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -20335,6 +20587,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_קו_מפריד(עובי: 1pt), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -20421,6 +20682,15 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],תמונה(\"\", רוחב: 60%), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_תמונה(רוחב: 60%, יישור: \"center\"), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -21730,6 +22000,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],hrule_config(thickness: 1pt), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -21816,6 +22095,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],img(\"\", width: 60%), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],image_config(width: 60%, align: \"center\"), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -23125,6 +23413,15 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_קו_מפריד(עובי: 1pt)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -23211,6 +23508,15 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #תמונה(\"\", רוחב: 60%)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -24520,6 +24826,15 @@
   {
    "ctx": "nested-deep",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #hrule_config(thickness: 1pt)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -24606,6 +24921,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #img(\"\", width: 60%)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #image_config(width: 60%, align: \"center\")here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -25915,6 +26239,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_קו_מפריד(עובי: 1pt)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -26001,6 +26334,15 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #תמונה(\"\", רוחב: 60%)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -27310,6 +27652,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #hrule_config(thickness: 1pt)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -27396,6 +27747,15 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #img(\"\", width: 60%)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #image_config(width: 60%, align: \"center\")Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -28705,6 +29065,15 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_קו_מפריד(עובי: 1pt)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -28791,6 +29160,15 @@
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #תמונה(\"\", רוחב: 60%)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -30100,6 +30478,15 @@
   {
    "ctx": "siman-body",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #hrule_config(thickness: 1pt)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -30186,6 +30573,15 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #img(\"\", width: 60%)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #image_config(width: 60%, align: \"center\")prayer]"
   },
   {
    "ctx": "siman-body",
@@ -31495,6 +31891,15 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_קו_מפריד(עובי: 1pt)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -31581,6 +31986,15 @@
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #תמונה(\"\", רוחב: 60%)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_תמונה(רוחב: 60%, יישור: \"center\")ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -32890,6 +33304,15 @@
   {
    "ctx": "title-body",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #hrule_config(thickness: 1pt)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -32976,6 +33399,15 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #img(\"\", width: 60%)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #image_config(width: 60%, align: \"center\")Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -34285,6 +34717,15 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_קו_מפריד(עובי: 1pt)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -34371,6 +34812,15 @@
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#תמונה(\"\", רוחב: 60%)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_תמונה(רוחב: 60%, יישור: \"center\")ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -35680,6 +36130,15 @@
   {
    "ctx": "note-heading-body",
    "lang": "en",
+   "cmd": "הגדרות_קו_מפריד",
+   "en": "hrule_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#hrule_config(thickness: 1pt)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
    "cmd": "מרווח",
    "en": "vspace",
    "legal": true,
@@ -35766,6 +36225,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#img(\"\", width: 60%)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_תמונה",
+   "en": "image_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#image_config(width: 60%, align: \"center\")ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

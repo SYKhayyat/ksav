@@ -841,6 +841,15 @@
       "deprecated": false
     },
     {
+      "he": "הגדרות_קו_מפריד",
+      "en": "hrule_config",
+      "category": "layout",
+      "desc_he": "עיצוב הקווים המפרידים (עובי/צבע/רוחב/יישור)",
+      "desc_en": "How horizontal rules are set (thickness/colour/width/alignment)",
+      "insert": "#הגדרות_קו_מפריד(עובי: 1pt)|",
+      "deprecated": false
+    },
+    {
       "he": "מרווח",
       "en": "vspace",
       "category": "layout",
@@ -928,6 +937,15 @@
       "desc_he": "הוספת תמונה",
       "desc_en": "Insert an image",
       "insert": "#תמונה(\"|\", רוחב: 60%)",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_תמונה",
+      "en": "image_config",
+      "category": "image",
+      "desc_he": "עיצוב התמונות והכיתובים",
+      "desc_en": "How pictures and their captions are set",
+      "insert": "#הגדרות_תמונה(רוחב: 60%, יישור: \"center\")|",
       "deprecated": false
     },
     {

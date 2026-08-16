@@ -126,7 +126,7 @@ const COMMAND_NAMES: Record<SectionCommand, string> = {
  * Re-exported under the name the panel uses.
  */
 export { STYLED_CLASSES as MARK_CLASSES } from "./marks";
-import { STYLED_CLASSES } from "./marks";
+import { NO_INSTANCE, STYLED_CLASSES } from "./marks";
 
 /** The canonical (Hebrew) name we write. */
 function canonical(target: StyleTarget): string {
@@ -201,6 +201,7 @@ const EN_ARGS: Record<string, string> = {
   מסגרת: "frame",
   רדיוס: "radius",
   רוחב: "width",
+  עובי: "thickness",
   מיון: "sort",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
@@ -377,7 +378,10 @@ const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
   streams: ["הערה_זרם", "הערת_תוכן", "הערת_מקור"],
   tiers: ["מדור_בדרגה", "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה"],
   sidenotes: ["הערת_גיליון", "הערת_ימין", "הערת_שמאל"],
-  marks: [...STYLED_CLASSES],
+  // Every styled class except the ones whose command takes no arguments —
+  // see `marks.NO_INSTANCE`. A panel that offered to overrule `#קו_מפריד`
+  // where it stands would write a call the command cannot accept.
+  marks: STYLED_CLASSES.filter((c) => !NO_INSTANCE.includes(c)),
 };
 
 /** The Hebrew names, for a caller checking them against the prelude. */

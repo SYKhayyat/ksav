@@ -69,6 +69,8 @@ export const STYLED_CLASSES = [
   "הערתסיום",
   "נוסחה",
   "נוסחה_בשורה",
+  "קו_מפריד",
+  "תמונה",
 ] as const;
 
 /**
@@ -139,10 +141,43 @@ export const BLOCK_CLASSES: readonly string[] = [
   "תיבה",
   "שער",
   "תת_שער",
+  // A figure is a block: how wide the picture is, where it sits, whether it
+  // is framed. Its text knobs reach the caption, which is the only text a
+  // figure prints — so there is no second name for a caption's size.
+  "תמונה",
 ];
+
+/**
+ * …and the knobs a *line* has, which are none of the above.
+ *
+ * A rule prints no glyphs, so a weight or a slant on it is a control with
+ * nothing behind it. Its width is how far the line runs rather than how wide
+ * a block is, which is why this is its own list and not a subset.
+ */
+export const RULE_KNOBS: readonly string[] = ["עובי", "צבע", "רוחב", "יישור"];
+
+/** Which classes draw a line. */
+export const RULE_CLASSES: readonly string[] = ["קו_מפריד"];
+
+/**
+ * Classes whose command takes no arguments, and so have no per-instance layer.
+ *
+ * Every other styled command can be overruled where it stands —
+ * `#מחיקה(צבע: …)` — and `#קו_מפריד` cannot, because it takes no argument
+ * list at all. It cannot be given one either: Typst prints a bare function
+ * name as text, and the documents, the templates and both importers all write
+ * the bare form, so making it a function would print the word across the page
+ * in every one of them.
+ *
+ * A property of the command, not of the register. `test/enginefacts.test.mjs`
+ * checks both halves against the prelude — that these take no named arguments
+ * and that every other styled class does.
+ */
+export const NO_INSTANCE: readonly string[] = ["קו_מפריד"];
 
 /** What this class answers to. */
 export function knobsOf(cls: string): readonly string[] {
+  if (RULE_CLASSES.includes(cls)) return RULE_KNOBS;
   return BLOCK_CLASSES.includes(cls) ? [...TEXT_KNOBS, ...BLOCK_KNOBS] : TEXT_KNOBS;
 }
 

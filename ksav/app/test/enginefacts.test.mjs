@@ -51,6 +51,7 @@ import {
   BLOCK_KNOBS,
   CLASS_PARTS,
   MARK_CLASSES,
+  NO_INSTANCE,
   PART_TEXT,
   STYLED_CLASSES,
   TEXT_KNOBS,
@@ -372,6 +373,16 @@ export async function run() {
     }
     check("every command the panel styles per instance takes named arguments", cannot, []);
 
+    // …and the other half of that: a styled class left out of the per-instance
+    // layer has to be one the prelude really cannot overrule. Otherwise the
+    // exemption is a way of quietly dropping a control.
+    const wrongly = [...NO_INSTANCE].filter((cls) => takesOptions.has(cls));
+    check("a class exempt from the per-instance layer really takes no arguments", wrongly, []);
+    const missing = [...STYLED_CLASSES].filter(
+      (cls) => !NO_INSTANCE.includes(cls) && !takesOptions.has(cls),
+    );
+    check("…and every other styled class takes them", missing, []);
+
     // The mark classes, which are a second list the panel could get wrong in the
     // same way. `_mk_defaults` is the prelude's set of *styled* classes and
     // `_mk_titles` its set of *collected* ones — the difference is deliberate (a
@@ -532,9 +543,9 @@ export async function run() {
       ],
       // What the rule still owes. Each of these draws something a writer would
       // want to set and has no channel — see HANDOFF.md.
-      "no look of its own yet": [
-        "קו_מפריד", "תמונה",
-      ],
+      // Empty, and it stays declared: the assertion below is that nothing is
+      // owed, which is a different claim from the list not existing.
+      "no look of its own yet": [],
     };
 
     const names = new Set(commands().filter((c) => !c.deprecated).map((c) => c.he));
@@ -575,10 +586,15 @@ export async function run() {
       NOT_A_LOOK["no look of its own yet"].filter((he) => styled.has(he)),
       [],
     );
-    ok(
-      "the rule still owes something, and says how much",
-      NOT_A_LOOK["no look of its own yet"].length > 0,
-      `${NOT_A_LOOK["no look of its own yet"].length} commands`,
+    // Inverted rather than deleted, on the day the list emptied. It used to say
+    // *the rule still owes something, and how much*, which is the assertion that
+    // keeps a list from being emptied by hand instead of by the work — and the
+    // moment it is satisfied it becomes the wrong assertion. What replaces it is
+    // the claim the rule was always making.
+    check(
+      "the rule owes nothing, and a new command cannot quietly join the list",
+      [...NOT_A_LOOK["no look of its own yet"]],
+      [],
     );
 
     // …and the other half of the rule: a thing with a look has a **door of its

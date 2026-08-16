@@ -233,6 +233,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("מקור", "cite_", "block", "ציטוט מקור (אפור)", "Source citation", "#מקור[|]"),
     // ---- layout ----
     cmd!("קו_מפריד", "hrule", "layout", "קו מפריד", "Horizontal rule", "#קו_מפריד"),
+    cmd!("הגדרות_קו_מפריד", "hrule_config", "layout", "עיצוב הקווים המפרידים (עובי/צבע/רוחב/יישור)", "How horizontal rules are set (thickness/colour/width/alignment)", "#הגדרות_קו_מפריד(עובי: 1pt)|"),
     cmd!("מרווח", "vspace", "layout", "רווח אנכי", "Vertical space", "#מרווח(מידה: 1em)"),
     cmd!("מעבר_עמוד", "pbreak", "layout", "מעבר עמוד", "Page break", "#מעבר_עמוד"),
     cmd!("הזחה", "indent_", "layout", "בלוק מוזח", "Indented block", "#הזחה[|]"),
@@ -253,6 +254,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("רווח_אופקי", "hspace", "layout", "רווח אופקי", "Horizontal space", "#רווח_אופקי(מידה: 1em)"),
     // ---- images ----
     cmd!("תמונה", "img", "image", "הוספת תמונה", "Insert an image", "#תמונה(\"|\", רוחב: 60%)"),
+    cmd!("הגדרות_תמונה", "image_config", "image", "עיצוב התמונות והכיתובים", "How pictures and their captions are set", "#הגדרות_תמונה(רוחב: 60%, יישור: \"center\")|"),
     // ---- torah / yeshiva ----
     cmd!("סימן", "siman", "torah", "כותרת סימן", "Siman heading", "#סימן[א׳][|]"),
     cmd!("סעיף", "seif", "torah", "סעיף הלכתי ממוספר", "Lettered halacha", "#סעיף[א][|]"),

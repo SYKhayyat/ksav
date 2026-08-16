@@ -97,34 +97,6 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
-- [ ] **A look of its own, for the two that still have none.** The rule is that
-      anything which is a separate command has a style the writer can set.
-      Twenty-two of the twenty-four are done, and `enginefacts.test.mjs` names
-      what is left under *no look of its own yet*: `#קו_מפריד` and `#תמונה`.
-
-      Neither is the usual four lines — a row in `_mk_defaults` shipping exactly
-      what it prints today, rendering through `_mk_conf` — and both are worth
-      doing anyway. A rule wants thickness and width rather than a text look,
-      and an image wants its caption's; neither fits the class register as it
-      stands. `probe::strokes` exists now, so at least a test can see the line.
-      See [`decisions/2026-08-16-a-look-of-its-own.md`](decisions/2026-08-16-a-look-of-its-own.md).
-
-      When the list empties, the assertion that it is *not* empty has to invert
-      rather than be deleted. It is what stops the list being emptied by hand
-      instead of by the work.
-
-- [ ] **The Styles drawer writes the wrong spelling, and cannot reach the
-      parts.** Every styled command has a door of its own — `#הגדרות_סימן` — and
-      the panel still writes `#הגדרות_סימונים(גודל: ("סימן": …))`, which sets
-      the same store and reads worse in the document than what a writer would
-      type by hand. Backwards, and it is `styles.ts`'s `COMMAND_NAMES` plus the
-      marks section in `main.ts`.
-
-      The parts are the other half: `#הגדרות_פסוק(מקור: (גודל: 1.2em))` is
-      reachable only by typing. `marks.CLASS_PARTS` is the list, fenced against
-      the prelude, so the panel has what it needs — what is missing is a part
-      chooser beside the class chooser, and the same knob rows under it.
-
 - [ ] **The rest of the parts.** Four commands have them. The others draw one
       thing each *as far as anybody has looked* — which is exactly the sentence
       that was true of `#פסוק`'s reference for a year. Worth walking the
@@ -170,6 +142,15 @@ Leave these open, and do not report them as done or work around them.
 ## 5 · Lessons
 
 Each of these was paid for. They are in rough order of how much.
+
+**The probe reads what it was last asked about.** Three kinds of thing on the
+page were invisible to every test in this repository until somebody needed one:
+a fill, a stroke, and an image. A strike that stopped being drawn passed every
+assertion, because the words it goes through are still there; a picture that
+ignored its alignment passed a test asserting the document compiled and the
+caption printed, both true the whole time. A feature whose output is a new kind
+of frame item arrives **untested by construction**. Before writing a test about
+something drawn, check that `probe` can see it at all.
 
 **A green subset is not a green gate.** `node tools/gate.mjs engine` used to run
 the engine's lints and tests and skip a one-second formatting check *in the same

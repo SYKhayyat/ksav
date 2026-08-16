@@ -238,6 +238,8 @@ const HE: Dict = {
   "markClass.הערתסיום": "סימן הערת סיום",
   "markClass.נוסחה": "נוסחה מוצגת",
   "markClass.נוסחה_בשורה": "נוסחה בתוך השורה",
+  "markClass.קו_מפריד": "קו מפריד",
+  "markClass.תמונה": "תמונה",
   // The knobs, named as one element's own — "size", not "heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "גודל",
@@ -273,6 +275,7 @@ const HE: Dict = {
   knobFont: "גופן",
   knobLabel: "תווית",
   knobBrackets: "בסוגריים",
+  knobThickness: "עובי",
   knobText: "הטקסט הקבוע",
   knobExempt: "פטור מעיצוב הסוג",
   knobListed: "נכנס לרשימה",
@@ -1393,6 +1396,8 @@ const EN: Dict = {
   "markClass.הערתסיום": "Endnote mark",
   "markClass.נוסחה": "Displayed formula",
   "markClass.נוסחה_בשורה": "Inline formula",
+  "markClass.קו_מפריד": "Horizontal rule",
+  "markClass.תמונה": "Picture",
   // The knobs, named as one element's own — "Size", not "Heading size", because
   // the row is inside a section that already says which element it is about.
   knobSize: "Size",
@@ -1428,6 +1433,7 @@ const EN: Dict = {
   knobFont: "Font",
   knobLabel: "Label",
   knobBrackets: "In brackets",
+  knobThickness: "Thickness",
   knobText: "Its own words",
   knobExempt: "Exempt from the kind’s styling",
   knobListed: "Include in the list",

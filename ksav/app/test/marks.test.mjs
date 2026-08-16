@@ -191,8 +191,18 @@ export async function run() {
     ok("a block command answers to the block knobs", marks.knobsOf("תיבה").includes("גוון"));
     notOk("a run of text does not", marks.knobsOf("גמרא").includes("גוון"));
     for (const cls of marks.STYLED_CLASSES) {
+      // …except a rule, which prints no glyphs: a size on a line is a control
+      // with nothing behind it, and the prelude refuses one by name.
+      if (marks.RULE_CLASSES.includes(cls)) continue;
       ok(cls + " answers to a size", marks.knobsOf(cls).includes("גודל"));
     }
+    check("a rule answers to four knobs of its own", [...marks.knobsOf("קו_מפריד")], [
+      "עובי",
+      "צבע",
+      "רוחב",
+      "יישור",
+    ]);
+    notOk("…and to no text knob", marks.knobsOf("קו_מפריד").includes("משקל"));
     // The two switches are a mark's own and never a class's: a class that exempts
     // itself from its own styling is a class with no styling.
     for (const cls of marks.STYLED_CLASSES) {

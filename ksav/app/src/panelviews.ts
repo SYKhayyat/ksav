@@ -513,7 +513,8 @@ export interface StyleSection {
  * Three kinds up front — headings, lists, tables — because they are what a
  * writer touches first and what a word processor would call styles at all. The
  * apparatus follows: channels (which are not scopeable, being a document-wide
- * arrangement), then notes, bands, streams and marks.
+ * arrangement), then notes, bands, streams, the section tiers, the side column,
+ * and marks.
  */
 export const STYLE_SECTIONS: readonly StyleSection[] = [
   { kind: "headings", heading: "styleHeadings", note: null, scope: ["kindHeading", "kindHeadingOne"] },
@@ -525,6 +526,8 @@ export const STYLE_SECTIONS: readonly StyleSection[] = [
   { kind: "notes", heading: "styleNotes", note: "styleNotesNote", scope: ["kindNote", "kindNoteOne"] },
   { kind: "bands", heading: "styleBands", note: "styleBandsNote", scope: ["kindBand", "kindBandOne"] },
   { kind: "streams", heading: "styleStreams", note: "styleStreamsNote", scope: ["kindStream", "kindStreamOne"] },
+  { kind: "tiers", heading: "styleTiers", note: "styleTiersNote", scope: ["kindTier", "kindTierOne"] },
+  { kind: "sidenotes", heading: "styleSidenotes", note: "styleSidenotesNote", scope: ["kindSidenote", "kindSidenoteOne"] },
   { kind: "marks", heading: "styleMarks", note: "styleMarksNote", scope: ["kindMark", "kindMarkOne"] },
 ];
 
@@ -532,7 +535,7 @@ export const STYLE_SECTIONS: readonly StyleSection[] = [
  * A section's frame: its heading, its note, and its scope selector.
  *
  * The rows themselves stay in the shell, and that is stated rather than
- * quietly true. Behind these eight sections are 650 lines of controls — 
+ * quietly true. Behind these ten sections are 800 lines of controls — 
  * `noteStyleRows` alone is 78 and `channelRows` 121 — every one of which reads
  * a Typst argument out of the open document and writes one back. Moving them
  * would mean an interface of some sixty values and sixty setters, which is a

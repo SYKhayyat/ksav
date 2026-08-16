@@ -300,6 +300,10 @@ export async function run() {
       notes: "_fn_own_keys",
       bands: "_ap_own_keys",
       streams: "_ap_own_keys",
+      // The section tiers split against the same list the page bands do,
+      // because they are the same apparatus at a different scope.
+      tiers: "_ap_own_keys",
+      sidenotes: "_sn_own_keys",
       marks: "_mk_own_keys",
     };
     const want = {
@@ -309,6 +313,8 @@ export async function run() {
       notes: preludeList("_fn_own_keys"),
       bands: preludeList("_ap_own_keys"),
       streams: preludeList("_ap_own_keys"),
+      tiers: preludeList("_ap_own_keys"),
+      sidenotes: preludeList("_sn_own_keys"),
       // Composed the way the prelude composes it: `_mk_own_keys = _mk_knobs +
       // ("פטור", "ברשימה")`, the six knobs plus the two switches
       // that are not a look at all. Reading only the line would find the two and
@@ -480,6 +486,14 @@ export async function run() {
       ...["א", "ב", "ג", "ד", "ה", "ו", "ז"].map((x) => `הערה_${x}`),
       ...["בדרגה", "א", "ב", "ג", "ד", "ה", "ו", "ז"].map((x) => `מדף_${x}`),
       ...["הערה_זרם", "הערת_תוכן", "הערת_מקור"],
+      // The section tiers and the side column. Both have had a configuration of
+      // their own for as long as they have existed — per-tier size, slant,
+      // weight and colour for the tiers; the ratio, the gutter and the note's
+      // own look for the column — and neither had a panel section, which is why
+      // they read for a while as commands with no look at all. They had one; it
+      // was reachable only by typing the command.
+      ...["בדרגה", "א", "ב", "ג", "ד", "ה"].map((x) => `מדור_${x}`),
+      ...["הערת_גיליון", "הערת_ימין", "הערת_שמאל"],
       ...STYLED_CLASSES,
     ]);
 
@@ -512,8 +526,6 @@ export async function run() {
       // want to set and has no channel — see HANDOFF.md.
       "no look of its own yet": [
         "קו_מפריד", "תמונה",
-        "הערת_ימין", "הערת_שמאל", "הערת_גיליון", "מדור_א", "מדור_ב", "מדור_ג",
-        "מדור_בדרגה",
       ],
     };
 

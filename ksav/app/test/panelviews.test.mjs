@@ -373,8 +373,9 @@ export async function run() {
 
     {
       const kinds = STYLE_SECTIONS.map((s) => s.kind);
-      check("the eight sections, in order", kinds, [
-        "headings", "lists", "tables", "channels", "notes", "bands", "streams", "marks",
+      check("the ten sections, in order", kinds, [
+        "headings", "lists", "tables", "channels", "notes", "bands", "streams",
+        "tiers", "sidenotes", "marks",
       ]);
       // A scope selector is what lets a writer style *this* heading differently
       // from the rest. Every kind that can be scoped has one, and the one that

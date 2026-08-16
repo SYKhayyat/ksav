@@ -97,24 +97,21 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
-- [ ] **A look of its own, for the nine that still have none.** The rule is
-      that anything which is a separate command has a style the writer can set.
-      Fifteen of the twenty-four are done — `#מראה_מקום`, `#סימן`, `#סעיף`,
-      `#אות`, the eight blocks, the three review marks, the note heading, the
-      endnote mark and the two formulas — and `enginefacts.test.mjs` names what
-      is left under *no look of its own yet*: the side notes, whose configurable
-      width the margins asked for by name; the banded apparatus tiers; the rules
-      and the images.
+- [ ] **A look of its own, for the two that still have none.** The rule is that
+      anything which is a separate command has a style the writer can set.
+      Twenty-two of the twenty-four are done, and `enginefacts.test.mjs` names
+      what is left under *no look of its own yet*: `#קו_מפריד` and `#תמונה`.
 
-      Each is four lines: a row in `_mk_defaults` shipping exactly what it
-      prints today, and rendering through `_mk_conf`. The fence goes red until
-      its name is taken off the list, so the list can only shrink. See
-      [`decisions/2026-08-16-a-look-of-its-own.md`](decisions/2026-08-16-a-look-of-its-own.md).
+      Neither is the usual four lines — a row in `_mk_defaults` shipping exactly
+      what it prints today, rendering through `_mk_conf` — and both are worth
+      doing anyway. A rule wants thickness and width rather than a text look,
+      and an image wants its caption's; neither fits the class register as it
+      stands. `probe::strokes` exists now, so at least a test can see the line.
+      See [`decisions/2026-08-16-a-look-of-its-own.md`](decisions/2026-08-16-a-look-of-its-own.md).
 
-      Two of them are not four lines, and are worth doing anyway: a `#קו_מפריד`
-      wants thickness and width rather than a text look, and `#תמונה` wants its
-      caption's. Neither fits the class register as it stands — though
-      `probe::strokes` now exists, so at least a test can see the line.
+      When the list empties, the assertion that it is *not* empty has to invert
+      rather than be deleted. It is what stops the list being emptied by hand
+      instead of by the work.
 
 - [ ] **The Styles drawer writes the wrong spelling, and cannot reach the
       parts.** Every styled command has a door of its own — `#הגדרות_סימן` — and

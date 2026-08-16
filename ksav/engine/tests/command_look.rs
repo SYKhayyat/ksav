@@ -967,3 +967,124 @@ fn a_formula_knob_nothing_answers_to_stops_the_compile() {
         out.diagnostics
     );
 }
+
+// ------------------------------------------- the two apparatuses with no panel
+//
+// The section tiers and the side column. Neither was missing an authority: the
+// tiers have had per-tier size, slant, colour, numbering, columns, rules and
+// gaps since the apparatus existed, and the column has had its ratio, its
+// gutter, its size and its colour. What both were missing was a *surface* —
+// there was no section in the Styles drawer for either, so every one of those
+// controls was reachable only by typing the command. `styles.ts` said so about
+// the tiers in a comment and left it there.
+//
+// The engine's half of the repair is the knob each was short of: a weight for
+// the banded apparatuses, and a slant and a weight for the column, so that what
+// the new sections offer is what the engine accepts.
+
+#[test]
+fn a_tier_takes_a_weight_of_its_own() {
+    let body = "#הגדרות_מדורגות(משקל: (\"regular\", \"bold\"))\nהטקסט#מדור_א[ראשון]#מדור_ב[שני] נמשך.\n\n#הערות_מדורגות()\n";
+    let f = runs(body);
+    let at = |needle: &str| {
+        f.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} printed, runs: {f:?}"))
+            .weight
+    };
+    assert!(at("ראשון") < 700, "the first tier was bolded too: {f:?}");
+    assert!(
+        at("שני") >= 700,
+        "the second tier did not take the weight: {f:?}"
+    );
+}
+
+#[test]
+fn one_banded_note_can_differ_from_its_tier() {
+    let body = "הטקסט#מדור_א[רגיל]#מדור_א(משקל: \"bold\")[עבה] נמשך.\n\n#הערות_מדורגות()\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let f = runs(body);
+    let at = |needle: &str| {
+        f.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} printed"))
+            .weight
+    };
+    assert!(
+        at("רגיל") < at("עבה"),
+        "the one note's own weight did not reach the page: {f:?}"
+    );
+}
+
+#[test]
+fn the_section_tiers_and_the_page_bands_are_two_stores() {
+    // The reason they are two panel sections and not one. Setting the tiers must
+    // say nothing about the page bands, or a writer with both gets the wrong
+    // default compared to the wrong setting.
+    let body = "הטקסט#מדור_א[במקום]#מדף_א[בתחתית] נמשך.\n\n#הערות_מדורגות()\n";
+    let set = format!("#הגדרות_מדורגות(משקל: \"bold\")\n{body}");
+    let f = runs(&set);
+    let at = |needle: &str| {
+        f.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} printed, runs: {f:?}"))
+            .weight
+    };
+    assert!(
+        at("במקום") >= 700,
+        "the tier did not take the weight: {f:?}"
+    );
+    assert!(
+        at("בתחתית") < 700,
+        "it reached the page bands as well: {f:?}"
+    );
+}
+
+#[test]
+fn a_side_column_takes_a_weight_and_the_text_beside_it_does_not() {
+    let body = "#עם_הערות_צד[#הגדרות_הערות_צד(משקל: \"bold\")\nגוף#הערת_גיליון[בצד] הטקסט]\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let f = runs(body);
+    let at = |needle: &str| {
+        f.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} printed, runs: {f:?}"))
+            .weight
+    };
+    assert!(at("בצד") >= 700, "the note did not take the weight: {f:?}");
+    assert!(at("הטקסט") < 700, "it reached the main column too: {f:?}");
+}
+
+#[test]
+fn one_side_note_can_differ_from_the_column() {
+    let body = "#עם_הערות_צד[גוף#הערת_גיליון[רגילה] עוד#הערת_גיליון(משקל: \"bold\")[עבה] הטקסט]\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let f = runs(body);
+    let at = |needle: &str| {
+        f.iter()
+            .find(|r| r.text.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} printed, runs: {f:?}"))
+            .weight
+    };
+    assert!(
+        at("רגילה") < at("עבה"),
+        "the one note's own weight did not reach the page: {f:?}"
+    );
+}
+
+#[test]
+fn a_side_column_knob_nothing_answers_to_stops_the_compile() {
+    let out = compile(
+        "#עם_הערות_צד[גוף#הערת_גיליון(גדול: 2em)[בצד] הטקסט]\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "a knob nothing answers to compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "{:?}",
+        out.diagnostics
+    );
+}

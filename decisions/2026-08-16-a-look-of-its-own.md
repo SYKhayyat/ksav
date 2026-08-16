@@ -269,3 +269,45 @@ What the wrapper actually holds is everything *around* the mathematics. Without
 it a numbered equation goes flush to the left margin instead of centred, and its
 number prints `)1(`, because parentheses are ordinary text in a right-to-left
 paragraph. Both are on the page and both are now asserted.
+
+## Two apparatuses that were never missing an authority
+
+The last seven on the list — `#מדור_א` through `#מדור_ה` and `#מדור_בדרגה`, and
+`#הערת_גיליון`, `#הערת_ימין`, `#הערת_שמאל` — turned out not to be the case the
+list said they were.
+
+They were on it as *no look of its own yet*, and both had one:
+
+| | the configuration that already existed |
+|---|---|
+| the section tiers | `#הגדרות_מדורגות` — per tier: numbering, columns, size, slant, colour; and the rules, the gaps between bands and between entries, the band labels |
+| the side column | `#הגדרות_הערות_צד` — the ratio, the gutter, the least gap between notes, the size, the colour |
+
+What they were missing is a **surface**. The Styles drawer had eight sections —
+headings, lists, tables, channels, notes, page bands, streams, marks — and
+neither of these two. Every one of those controls was reachable only by typing
+the command into the document.
+
+This is the same complaint that produced the *fixed regions* and *streams*
+sections a few days earlier, in the same panel, and it was already written down.
+`styles.ts` has carried this sentence since:
+
+> `bands` is the **page** bands and not the section ones: the section apparatus
+> is `#הגדרות_מדורגות`, a fourth configuration with no panel section of its own
+
+A finding, correctly diagnosed, recorded in a comment beside the code it was
+about, and left there. That is the failure mode this repository has now named
+four times — *the class is stated in prose, one instance is fixed, the siblings
+are never swept*.
+
+So: two sections, ten in all, and the engine gained the knob each apparatus was
+short of — a weight for the three banded apparatuses (a nusachos band set
+lighter than the peirush above it says which is which faster than a size does),
+and a slant and a weight for the side column (a peirush running down the margin
+in italic is an ordinary arrangement, and until now the writer wrote `#נטוי`
+inside every note by hand).
+
+The tiers and the page bands stay two kinds and two stores, which is the thing
+the old comment was right about: writing `#מדור_א`'s override against the
+page-band global would compare a setting to the wrong default. There is a test
+that sets one and reads the other.

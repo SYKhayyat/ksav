@@ -30,6 +30,13 @@ export type StyleCommand =
   | "notes"
   | "bands"
   | "streams"
+  // The two apparatuses that had every control an apparatus can have and no
+  // section to reach them from. Written down in this file at INSTANCE_COMMANDS
+  // as "a fourth configuration with no panel section of its own", and left
+  // there: the in-flow tiers a sefer stacks under its text, and the notes that
+  // run down a side column. Typing the command was the whole interface.
+  | "tiers"
+  | "sidenotes"
   | "marks";
 
 /**
@@ -75,6 +82,12 @@ const COMMAND_NAMES: Record<StyleCommand, string> = {
   // `#ערך`. Its knobs are keyed by *class* rather than by tier or by stream, so
   // the section has a class chooser where the Headings section has a level one;
   // the value shapes are the same dictionaries the streams section already reads.
+  // The section apparatus, which is the one a sefer with a peirush under the
+  // text actually uses. Its knobs are per tier, exactly as the page bands' are.
+  tiers: "הגדרות_מדורגות",
+  // The side column. Its ratio and gutter are page geometry rather than ink —
+  // the same shape as the bands' heights, and offered on the same terms.
+  sidenotes: "הגדרות_הערות_צד",
   marks: "הגדרות_סימונים",
 };
 
@@ -309,10 +322,11 @@ export const OVERRULE = "כפה";
  * `review` is empty on purpose — which view a document is read in is not a style
  * of anything, so there is no element to put it on.
  *
- * `bands` is the **page** bands and not the section ones: the section apparatus is
- * `#הגדרות_מדורגות`, a fourth configuration with no panel section of its own, and
- * writing `#מדור_א`'s override against the page-band global would compare a
- * setting to the wrong default.
+ * `bands` is the **page** bands and not the section ones, and the section ones
+ * are `tiers` — which for a while was "a fourth configuration with no panel
+ * section of its own", written in this comment and left there. Writing
+ * `#מדור_א`'s override against the page-band global would compare a setting to
+ * the wrong default, which is why they are two kinds and not one.
  */
 const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
   headings: ["כותרת", "כותרת1", "כותרת2", "כותרת3", "כותרת4", "כותרת5", "כותרת6"],
@@ -333,6 +347,8 @@ const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
   ],
   bands: ["מדף_בדרגה", "מדף_א", "מדף_ב", "מדף_ג", "מדף_ד", "מדף_ה", "מדף_ו", "מדף_ז"],
   streams: ["הערה_זרם", "הערת_תוכן", "הערת_מקור"],
+  tiers: ["מדור_בדרגה", "מדור_א", "מדור_ב", "מדור_ג", "מדור_ד", "מדור_ה"],
+  sidenotes: ["הערת_גיליון", "הערת_ימין", "הערת_שמאל"],
   marks: [...STYLED_CLASSES],
 };
 
@@ -453,10 +469,27 @@ export const INSTANCE_FIELDS: Record<StyleCommand, Readonly<Record<string, Field
     גודל: { kind: "size-em", label: "knobSize" },
     סגנון: { kind: "slant", label: "knobSlant" },
     צבע: { kind: "colour", label: "knobColour" },
+    משקל: { kind: "weight", label: "knobWeight" },
   },
   streams: {
     גודל: { kind: "size-em", label: "knobSize" },
     סגנון: { kind: "slant", label: "knobSlant" },
+    צבע: { kind: "colour", label: "knobColour" },
+    משקל: { kind: "weight", label: "knobWeight" },
+  },
+  // The same three the bands take, because they are the same apparatus with a
+  // different scope — `_ap_own_keys` is one list in the prelude and the fence in
+  // `enginefacts.test.mjs` holds all three kinds to it.
+  tiers: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    צבע: { kind: "colour", label: "knobColour" },
+    משקל: { kind: "weight", label: "knobWeight" },
+  },
+  sidenotes: {
+    גודל: { kind: "size-em", label: "knobSize" },
+    סגנון: { kind: "slant", label: "knobSlant" },
+    משקל: { kind: "weight", label: "knobWeight" },
     צבע: { kind: "colour", label: "knobColour" },
   },
   // The two at the end are not a look at all, and they are two wants and not one:

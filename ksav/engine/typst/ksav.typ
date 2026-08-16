@@ -1065,12 +1065,17 @@
 // between entries, the band labels and the stream order all describe the
 // arrangement, and a single note inside it has no standing to answer them.
 // `מספור` is excluded for the reason given at `_fn_own_keys`. See `_cfg_split`.
-#let _ap_own_keys = ("גודל", "סגנון", "צבע")
+#let _ap_own_keys = ("גודל", "סגנון", "צבע", "משקל")
 #let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
 #let _ap_wrap(cfg, g, body) = text(
   size: _ap_pick(cfg, "גודל", g, 0.85em),
   style: _ap_pick(cfg, "סגנון", g, "normal"),
   fill: _ap_pick(cfg, "צבע", g, luma(0)),
+  // Weight, per tier or per stream like the other three. It was the one thing a
+  // band could not be given and the one a peirush most often wants: a nusachos
+  // apparatus set lighter than the commentary above it says which is which
+  // faster than a size does, and a size is what the writer had.
+  weight: _ap_pick(cfg, "משקל", g, "regular"),
   body,
 )
 
@@ -1457,6 +1462,7 @@
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.5em,     // gap between bands
   ריווח_פריט: 0.35em,   // gap between entries within a band
+  משקל: "regular",      // per-tier weight (or one value for every tier)
   תוויות: false,        // show a small "· tier ·" label above each band
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
@@ -1630,6 +1636,7 @@
   קו_בין: true,         // rule between adjacent bands
   ריווח_בין: 0.35em,    // gap between bands
   ריווח_פריט: 0.25em,   // gap between entries within a band
+  משקל: "regular",      // per-tier weight (or one value for every tier)
   גבהים: none,          // fixed per-tier band heights, e.g. (2cm, 1cm) — the
                         //   "fixed regions" layout: a band always occupies its
                         //   height, empty space stays empty, overflow is clipped.
@@ -3226,6 +3233,8 @@
   יחס: 2,          // main-column : note-column width ratio
   מרווח: 1.2em,    // gutter between the two columns
   גודל: 0.78em,
+  סגנון: "normal", // "normal" | "italic"
+  משקל: "regular", // "regular" | "bold"
   צבע: luma(65),
   ריווח: 0.6em,    // minimum vertical gap between two stacked notes
 )
@@ -3235,13 +3244,19 @@
 // computes the same stack from them — a note answering them for itself would be
 // placed against one arithmetic and measured by its neighbours against another.
 // See `_cfg_split` and `_sn_note`.
-#let _sn_own_keys = ("גודל", "צבע")
+#let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע")
 #let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 // Is a side-column wrapper currently open? A sidenote outside one has no column
 // to land in, so it must not be `place`d off the page — see _sn_note.
 #let _sn_active = state("ksav-sn-active", 0)
 #let _sn_wrap(cfg, mark, body) = text(
   size: cfg.at("גודל", default: 0.78em),
+  // Slant and weight, which a side column had no way to ask for. A peirush
+  // running down the margin set in italic is an ordinary arrangement in a
+  // printed sefer, and this apparatus offered size and colour — so the writer
+  // who wanted it wrote a slant command inside every note by hand.
+  style: cfg.at("סגנון", default: "normal"),
+  weight: cfg.at("משקל", default: "regular"),
   fill: cfg.at("צבע", default: luma(65)),
   [#super[#mark] #body],
 )

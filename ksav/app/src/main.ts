@@ -8849,6 +8849,160 @@ function markClassRow(): Node {
  * collection exists and the only way to see it is to know the command's name.
  * It is offered per class, because a list of everything is not a list.
  */
+/**
+ * Styles › Tiers in the flow — `#הגדרות_מדורגות`.
+ *
+ * The in-flow apparatus: `#מדור_א` under the text, `#מדור_ב` under that, printed
+ * where they are written rather than at the foot of the page. Every knob it has
+ * — per-tier numbering, size, slant, weight, colour, and the rules and gaps
+ * between the bands — has been in the engine since the apparatus was, and none
+ * of it was reachable except by typing the command.
+ *
+ * This is the same complaint that produced the fixed regions and the streams
+ * sections, and this file said so about this very command in a comment in
+ * `styles.ts` — *a fourth configuration with no panel section of its own* —
+ * which is a finding written down and left where it was found.
+ */
+function tierStyleRows(): Node[] {
+  const rows: Node[] = [];
+  // Engine defaults, so filling in a gap in a short tuple restyles nothing.
+  const D = {
+    גודל: ["1em", "0.9em", "0.82em"],
+    סגנון: ['"normal"', '"italic"', '"italic"'],
+    משקל: ['"regular"', '"regular"', '"regular"'],
+    צבע: ["luma(0)", "luma(55)", "luma(85)"],
+    מספור: ['"א"', '"1"', '"a"'],
+  };
+  const tierOf = (key: keyof typeof D, tier: number): string | undefined =>
+    styles.readTuple(styleArg("tiers", key))?.[tier - 1];
+  const set = (key: keyof typeof D, tier: number, value: string) =>
+    setStyleArgs("tiers", { [key]: styles.withTier(styleArg("tiers", key), tier, value, D[key]) });
+
+  for (const tier of [1, 2, 3]) {
+    rows.push(el("h4", { class: "style-tier" }, [tf("tierTier", String(tier))]));
+    rows.push(
+      styleRow(
+        t("noteTierNumbering"),
+        selectControl(
+          [
+            ['"א"', "א ב ג"],
+            ['"1"', "1 2 3"],
+            ['"a"', "a b c"],
+            ['"i"', "i ii iii"],
+            ['"*"', "* † ‡"],
+          ],
+          tierOf("מספור", tier) ?? D["מספור"][tier - 1],
+          (v) => set("מספור", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierSize"),
+        selectControl(
+          [["1em", "100%"], ["0.9em", "90%"], ["0.82em", "82%"], ["0.75em", "75%"]],
+          tierOf("גודל", tier) ?? D["גודל"][tier - 1],
+          (v) => set("גודל", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierStyle"),
+        selectControl(
+          [['"normal"', t("styleNormal")], ['"italic"', t("styleItalic")]],
+          tierOf("סגנון", tier) ?? D["סגנון"][tier - 1],
+          (v) => set("סגנון", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("knobWeight"),
+        selectControl(
+          [['"regular"', t("weightRegular")], ['"bold"', t("weightBold")]],
+          tierOf("משקל", tier) ?? D["משקל"][tier - 1],
+          (v) => set("משקל", tier, v),
+        ),
+      ),
+    );
+    rows.push(
+      styleRow(
+        t("noteTierColor"),
+        colorControl(styles.readColor(tierOf("צבע", tier)) ?? "#000000", (v) =>
+          set("צבע", tier, styles.typstColor(v)),
+        ),
+      ),
+    );
+  }
+  return rows;
+}
+
+/**
+ * Styles › The side column — `#הגדרות_הערות_צד`.
+ *
+ * Flat rather than per tier: a side column is one apparatus, and `#הערת_ימין`
+ * and `#הערת_שמאל` are two sides of it rather than two depths.
+ *
+ * The first two rows move page geometry and the rest move ink. The ratio is the
+ * main column's width against the note column's, so lowering it narrows the
+ * text the reader is reading — the same kind of control as the bands' heights,
+ * and offered on the same terms rather than hidden because it is consequential.
+ */
+function sidenoteStyleRows(): Node[] {
+  const em = (key: string, fallback: string, label: string) =>
+    styleRow(
+      t(label),
+      selectControl(
+        [["0.4em", "0.4em"], ["0.6em", "0.6em"], ["1em", "1em"], ["1.2em", "1.2em"], ["1.6em", "1.6em"]],
+        styleArg("sidenotes", key) ?? fallback,
+        (v) => setStyleArgs("sidenotes", { [key]: v }),
+      ),
+    );
+  return [
+    styleRow(
+      t("sidenoteRatio"),
+      selectControl(
+        [["1", "1 : 1"], ["1.5", "3 : 2"], ["2", "2 : 1"], ["3", "3 : 1"], ["4", "4 : 1"]],
+        styleArg("sidenotes", "יחס") ?? "2",
+        (v) => setStyleArgs("sidenotes", { יחס: v }),
+      ),
+    ),
+    em("מרווח", "1.2em", "sidenoteGutter"),
+    em("ריווח", "0.6em", "sidenoteGap"),
+    styleRow(
+      t("noteTierSize"),
+      selectControl(
+        [["0.7em", "70%"], ["0.78em", "78%"], ["0.85em", "85%"], ["1em", "100%"]],
+        styleArg("sidenotes", "גודל") ?? "0.78em",
+        (v) => setStyleArgs("sidenotes", { גודל: v }),
+      ),
+    ),
+    styleRow(
+      t("noteTierStyle"),
+      selectControl(
+        [['"normal"', t("styleNormal")], ['"italic"', t("styleItalic")]],
+        styleArg("sidenotes", "סגנון") ?? '"normal"',
+        (v) => setStyleArgs("sidenotes", { סגנון: v }),
+      ),
+    ),
+    styleRow(
+      t("knobWeight"),
+      selectControl(
+        [['"regular"', t("weightRegular")], ['"bold"', t("weightBold")]],
+        styleArg("sidenotes", "משקל") ?? '"regular"',
+        (v) => setStyleArgs("sidenotes", { משקל: v }),
+      ),
+    ),
+    styleRow(
+      t("noteTierColor"),
+      colorControl(styles.readColor(styleArg("sidenotes", "צבע")) ?? "#414141", (v) =>
+        setStyleArgs("sidenotes", { צבע: styles.typstColor(v) }),
+      ),
+    ),
+  ];
+}
+
 function markStyleRows(): Node[] {
   const rows: Node[] = [markClassRow()];
   for (const [key, field] of Object.entries(styles.INSTANCE_FIELDS.marks)) {
@@ -9214,6 +9368,8 @@ function renderStylesPanel() {
     notes: noteStyleRows,
     bands: bandStyleRows,
     streams: streamStyleRows,
+    tiers: tierStyleRows,
+    sidenotes: sidenoteStyleRows,
     marks: markStyleRows,
   };
 
@@ -9233,7 +9389,7 @@ function renderStylesPanel() {
     el("h3", {}, [t("stylePage")]),
     el("p", { class: "styles-note" }, [t("pageStyleNote")]),
 
-    // Eight sections, from the table in `panelviews.ts` rather than written out
+    // Ten sections, from the table in `panelviews.ts` rather than written out
     // here. The rows are still built here — see `styleSection` for what moving
     // them would cost and why it has not been paid — but *which* sections there
     // are, in what order, with which note and which scope selector, is data a

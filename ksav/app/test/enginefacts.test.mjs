@@ -313,7 +313,14 @@ export async function run() {
       // ("פטור", "ברשימה")`, the six knobs plus the two switches
       // that are not a look at all. Reading only the line would find the two and
       // silently stop asking about the six.
-      marks: [...preludeList("_mk_knobs"), ...quotedOn("_mk_own_keys")],
+      // Three lines, because the prelude composes it from three: the text knobs
+      // every class has, the block knobs only the ones that draw a block answer
+      // to, and the two switches that are not a look at all.
+      marks: [
+        ...preludeList("_mk_knobs"),
+        ...preludeList("_mk_block_knobs"),
+        ...quotedOn("_mk_own_keys"),
+      ],
     };
     for (const [kind, arg] of Object.entries(splitAgainst)) {
       ok(
@@ -504,8 +511,7 @@ export async function run() {
       // What the rule still owes. Each of these draws something a writer would
       // want to set and has no channel — see HANDOFF.md.
       "no look of its own yet": [
-        "שער", "תת_שער", "כותרת_בהערה", "ציטוט", "הערת_צד", "אזהרה", "הצלחה",
-        "תיבה", "מקור", "קו_מפריד", "תמונה", "נוסחה", "נוסחה_בשורה",
+        "כותרת_בהערה", "קו_מפריד", "תמונה", "נוסחה", "נוסחה_בשורה",
         "הערת_ימין", "הערת_שמאל", "הערת_גיליון", "מדור_א", "מדור_ב", "מדור_ג",
         "מדור_בדרגה", "הערתסיום", "הוספה", "מחיקה", "הערת_עורך",
       ],

@@ -289,6 +289,18 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_פסוק", "verse_config", "torah", "עיצוב הפסוקים", "How verses are set", "#הגדרות_פסוק(סגנון: \"italic\")|"),
     cmd!("הגדרות_ציון_מקור", "sourceref_config", "torah", "עיצוב ציוני המקור", "How cited sefarim are set", "#הגדרות_ציון_מקור(סגנון: \"italic\")|"),
     cmd!("הגדרות_ערך", "indexentry_config", "torah", "עיצוב ערכי המפתח", "How index terms are set", "#הגדרות_ערך(גודל: 1em)|"),
+    // The blocks, whose looks were written into the commands themselves — a
+    // callout's blue, a box's grey border, the padding they share. What a block
+    // wants set is not a text look, so these take a fill, a border, padding, a
+    // corner, a width and an alignment as well.
+    cmd!("הגדרות_ציטוט", "blockquote_config", "block", "עיצוב הציטוטים", "How block quotations are set", "#הגדרות_ציטוט(סגנון: \"italic\")|"),
+    cmd!("הגדרות_הערת_צד", "callout_config", "block", "עיצוב הערות הצד", "How callouts are set", "#הגדרות_הערת_צד(קו: rgb(\"#2563eb\"))|"),
+    cmd!("הגדרות_אזהרה", "warnbox_config", "block", "עיצוב האזהרות", "How warnings are set", "#הגדרות_אזהרה(גוון: rgb(\"#fef2f2\"))|"),
+    cmd!("הגדרות_הצלחה", "okbox_config", "block", "עיצוב תיבות ההצלחה", "How success boxes are set", "#הגדרות_הצלחה(גוון: rgb(\"#f0fdf4\"))|"),
+    cmd!("הגדרות_תיבה", "framebox_config", "block", "עיצוב התיבות", "How boxes are set", "#הגדרות_תיבה(מסגרת: 1pt + luma(120))|"),
+    cmd!("הגדרות_מקור", "cite_config", "block", "עיצוב ציטוטי המקור", "How source citations are set", "#הגדרות_מקור(סגנון: \"italic\")|"),
+    cmd!("הגדרות_שער", "title_config", "heading", "עיצוב השער", "How the title is set", "#הגדרות_שער(גודל: 2em)|"),
+    cmd!("הגדרות_תת_שער", "subtitle_config", "heading", "עיצוב תת השער", "How the subtitle is set", "#הגדרות_תת_שער(גודל: 1.2em)|"),
     cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [])"),
     cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
     cmd!("הערת_גיליון", "sidenote", "torah", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),

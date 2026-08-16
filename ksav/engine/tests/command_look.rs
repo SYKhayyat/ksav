@@ -373,6 +373,79 @@ fn the_parts_do_not_reach_the_indexes_either() {
     );
 }
 
+// ------------------------------------------------------------------ the blocks
+//
+// A quotation, a callout, a box, a warning and the title page's two lines drew
+// with values written into the call — a callout's blue, a box's grey border,
+// the padding they share — which a writer could see on the page and reach in no
+// other way. What a block wants set is not a text look, so these have knobs of
+// their own: fill, border, padding, corner, width, alignment.
+
+#[test]
+fn the_blocks_still_print_what_they_printed() {
+    for body in [
+        "#ציטוט[דברי הרב]\n",
+        "#תיבה[בתוך התיבה]\n",
+        "#הערת_צד[שימו לב]\n",
+        "#אזהרה[זהירות]\n",
+        "#הצלחה[יפה]\n",
+        "#מקור[מן הספר]\n",
+        "#שער[שם הספר]\n",
+        "#תת_שער[תת כותרת]\n",
+    ] {
+        let out = compile(body, &DocConfig::default());
+        assert!(out.ok(), "{body} — {:?}", out.diagnostics);
+        let page: String = runs(body).iter().map(|r| r.text.clone()).collect();
+        assert!(!page.trim().is_empty(), "{body} printed nothing");
+    }
+}
+
+#[test]
+fn a_box_takes_its_own_border_and_leaves_the_callout_alone() {
+    let body = "#תיבה[בתוך התיבה]\n#הערת_צד[שימו לב]\n";
+    let styled = format!("#הגדרות_תיבה(מסגרת: 3pt + luma(0))\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    // A border is not a text run, so what is asserted is that it compiles and
+    // the text is where it was: the layout probe reads runs, and a stroke that
+    // reached the wrong element would move them.
+    assert_eq!(
+        size_of(body, "שימו לב"),
+        size_of(&styled, "שימו לב"),
+        "the callout was left alone"
+    );
+}
+
+#[test]
+fn the_title_page_can_be_set() {
+    let body = "#שער[שם הספר]\n#תת_שער[תת כותרת]\n";
+    let styled = format!("#הגדרות_שער(גודל: 3em)\n{body}");
+    let out = compile(&styled, &DocConfig::default());
+    assert!(out.ok(), "{:?}", out.diagnostics);
+    let before = size_of(body, "שם הספר").expect("the title printed");
+    let after = size_of(&styled, "שם הספר").expect("it still printed");
+    assert!(
+        after > before,
+        "the title took the setting: {after} vs {before}"
+    );
+    assert_eq!(
+        size_of(body, "תת כותרת"),
+        size_of(&styled, "תת כותרת"),
+        "and the subtitle did not"
+    );
+}
+
+#[test]
+fn a_callouts_own_arguments_still_mean_what_they_meant() {
+    // `#הערת_צד(גוון: …, קו: …)` was two parameters of one call and is two
+    // knobs now. The same sentence in the same words has to keep working.
+    let out = compile(
+        "#הערת_צד(גוון: rgb(\"#fff7ed\"), קו: rgb(\"#ea580c\"))[שימו לב]\n",
+        &DocConfig::default(),
+    );
+    assert!(out.ok(), "{:?}", out.diagnostics);
+}
+
 // -------------------------------------------------------- one for each header
 //
 // Heading levels had values per level and no way to *say* one: a writer wanting

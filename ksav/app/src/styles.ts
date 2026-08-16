@@ -154,6 +154,11 @@ const EN_ARGS: Record<string, string> = {
   סוגריים: "brackets",
   פטור: "exempt",
   ברשימה: "listed",
+  // The block knobs, which the classes that draw a block answer to.
+  גוון: "tint",
+  מסגרת: "frame",
+  רדיוס: "radius",
+  רוחב: "width",
   מיון: "sort",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
@@ -459,6 +464,16 @@ export const INSTANCE_FIELDS: Record<StyleCommand, Readonly<Record<string, Field
   // and a writer who wants one kept out of the index are not the same writer.
   marks: {
     גודל: { kind: "size-em", label: "knobSize" },
+    // The block knobs, which only the classes that draw a block answer to —
+    // a fill on a gemara reference is a control with nothing behind it, and
+    // `_mk_knobs_of` in the prelude is what makes that per class.
+    גוון: { kind: "colour", label: "knobTint" },
+    קו: { kind: "colour", label: "knobAccent" },
+    מסגרת: { kind: "rule", label: "knobBorder" },
+    מרווח: { kind: "length-pt", label: "knobPadding" },
+    רדיוס: { kind: "length-pt", label: "knobRadius" },
+    רוחב: { kind: "text", label: "knobWidth" },
+    יישור: { kind: "align", label: "knobAlign" },
     סגנון: { kind: "slant", label: "knobSlant" },
     משקל: { kind: "weight", label: "knobWeight" },
     צבע: { kind: "colour", label: "knobColour" },

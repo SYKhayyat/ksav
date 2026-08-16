@@ -84,6 +84,7 @@ something in.
 | [2026-08-16 · Writing a kuntres in it](2026-08-16-writing-a-kuntres-in-it.md) | An hour of real writing in the assembled application — simanim, bands, a table, an import, a PDF: the three bugs of 7 August are gone, and the status bar said *rendering…* after the file had landed |
 | [2026-08-16 · Two numbers under one noun](2026-08-16-two-numbers-under-one-noun.md) | The five onboarding pages read as the newcomer: the page that says *use it* never said how to get it, and the count fence was enforcing the registry's number onto three sentences about what the editor offers |
 | [2026-08-16 · A look of its own](2026-08-16-a-look-of-its-own.md) | Anything that is a separate command has a style the writer can set: why the source note and the siman were refused one twice, why the answer is the register that already exists rather than a channel each, and the twenty-four commands the rule still owes |
+| [2026-08-16 · Green here, red there](2026-08-16-green-here-red-there.md) | A locator that read the page twice and disagreed with itself, a warning that only found the commands asking for italics *first*, and the platform the README claims in the present tense that nothing had ever run |
 
 Every file in this directory is in that table, and a test says so: an index
 edited by whoever remembers is an index two entries behind, which is what this

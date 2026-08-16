@@ -1138,6 +1138,78 @@
       "deprecated": false
     },
     {
+      "he": "הגדרות_ציטוט",
+      "en": "blockquote_config",
+      "category": "block",
+      "desc_he": "עיצוב הציטוטים",
+      "desc_en": "How block quotations are set",
+      "insert": "#הגדרות_ציטוט(סגנון: \"italic\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_הערת_צד",
+      "en": "callout_config",
+      "category": "block",
+      "desc_he": "עיצוב הערות הצד",
+      "desc_en": "How callouts are set",
+      "insert": "#הגדרות_הערת_צד(קו: rgb(\"#2563eb\"))|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_אזהרה",
+      "en": "warnbox_config",
+      "category": "block",
+      "desc_he": "עיצוב האזהרות",
+      "desc_en": "How warnings are set",
+      "insert": "#הגדרות_אזהרה(גוון: rgb(\"#fef2f2\"))|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_הצלחה",
+      "en": "okbox_config",
+      "category": "block",
+      "desc_he": "עיצוב תיבות ההצלחה",
+      "desc_en": "How success boxes are set",
+      "insert": "#הגדרות_הצלחה(גוון: rgb(\"#f0fdf4\"))|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_תיבה",
+      "en": "framebox_config",
+      "category": "block",
+      "desc_he": "עיצוב התיבות",
+      "desc_en": "How boxes are set",
+      "insert": "#הגדרות_תיבה(מסגרת: 1pt + luma(120))|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מקור",
+      "en": "cite_config",
+      "category": "block",
+      "desc_he": "עיצוב ציטוטי המקור",
+      "desc_en": "How source citations are set",
+      "insert": "#הגדרות_מקור(סגנון: \"italic\")|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_שער",
+      "en": "title_config",
+      "category": "heading",
+      "desc_he": "עיצוב השער",
+      "desc_en": "How the title is set",
+      "insert": "#הגדרות_שער(גודל: 2em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_תת_שער",
+      "en": "subtitle_config",
+      "category": "heading",
+      "desc_he": "עיצוב תת השער",
+      "desc_en": "How the subtitle is set",
+      "insert": "#הגדרות_תת_שער(גודל: 1.2em)|",
+      "deprecated": false
+    },
+    {
       "he": "עם_פירוש",
       "en": "commentary",
       "category": "torah",

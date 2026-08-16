@@ -254,6 +254,53 @@ function assertFresh(bin) {
   process.exit(1);
 }
 
+/**
+ * Whatever Chromium this machine already has.
+ *
+ * `playwright-core` ships no browser (see the header), so this needs one that is
+ * installed — and *which* one is the only part of this file that differs by
+ * platform. It used to name `chrome` and nothing else, which is right on a
+ * GitHub runner and on this desk, and wrong on the two machines a contributor is
+ * most likely to have: a Mac without Chrome, and WSL, where the Chrome that is
+ * installed belongs to Windows and is not reachable from inside the distro.
+ *
+ * So: try the channels in order and take the first that starts. They are all
+ * Chromium and this run asserts on the DOM rather than on pixels, so which one
+ * answers changes nothing about what is measured.
+ *
+ * `--no-sandbox` only when running as root, which is Chrome's own condition for
+ * refusing to start at all — the default WSL and container account. Narrow on
+ * purpose: it is a real weakening of the browser, and every other case gets the
+ * sandbox it should have.
+ */
+async function launchBrowser(chromium) {
+  const channels = ["chrome", "msedge", "chromium"];
+  const root = process.platform !== "win32" && process.getuid?.() === 0;
+  const args = root ? ["--no-sandbox"] : [];
+  const why = [];
+  for (const channel of channels) {
+    const browser = await chromium
+      .launch({ channel, headless: !HEADED, slowMo: SLOW, args })
+      .catch((e) => {
+        why.push(`  ${channel}: ${String(e.message).split("\n")[0]}`);
+        return null;
+      });
+    if (browser) return browser;
+  }
+  const install = {
+    darwin: "brew install --cask google-chrome",
+    linux: "sudo apt-get install -y google-chrome-stable   # or: chromium",
+    win32: "install Chrome or Edge",
+  };
+  console.error(
+    `no Chromium would start — this drives a browser that is already installed rather than downloading one.\n` +
+      `${why.join("\n")}\n` +
+      `  on this platform (${process.platform}): ${install[process.platform] ?? install.linux}\n` +
+      `  under WSL that means installing it *inside* the distro; the Windows Chrome is not reachable from here.`,
+  );
+  process.exit(1);
+}
+
 // The fallback editor is not the product.
 //
 // `embed-ui` is an optional feature, and a binary built without it answers `/`
@@ -345,17 +392,7 @@ async function main() {
     process.exit(1);
   }
   const { chromium } = await import(pathToFileURL(from).href);
-  browser = await chromium.launch({
-    channel: "chrome",
-    headless: !HEADED,
-    slowMo: SLOW,
-  }).catch((e) => {
-    console.error(
-      `could not launch Chrome: ${e.message}\n` +
-        "  this drives the Chrome that is already installed rather than downloading one.",
-    );
-    process.exit(1);
-  });
+  browser = await launchBrowser(chromium);
 
   const context = await browser.newContext({ acceptDownloads: true, locale: "he-IL" });
   const page = await context.newPage();
@@ -502,10 +539,57 @@ async function main() {
    * saying it. CodeMirror marks the focused editor `cm-focused`, which *is*
    * "wherever the caret already is", and the first pane is the fallback for the
    * moment before anything has been focused.
+   *
+   * The second bug was the same sentence written as a locator. `cm-focused` is
+   * a class the browser adds and removes, and a Playwright locator is a *query*
+   * rather than an element: naming that class meant `count()` asked the page one
+   * question and `pressSequentially` asked it again a moment later, and step 11
+   * is where the two answers differ. Switching documents rebuilds the editor, so
+   * the outgoing view still carried `cm-focused` when the count was taken and
+   * had dropped it before the keystrokes went out — leaving the run waiting
+   * thirty seconds for a class that was never coming back. Green on this desk,
+   * red on CI, which is what a race looks like from the outside.
+   *
+   * So the class is read *once*, per pane, off a selector that does not mention
+   * it; and having chosen a pane this takes the focus rather than hoping for it.
+   * `.focus()` on the contenteditable leaves CodeMirror's selection where it
+   * was, which is what makes this still mean "wherever the caret already is".
    */
   const type = async (text) => {
-    const focused = page.locator(".cm-editor.cm-focused .cm-content");
-    const where = (await focused.count()) ? focused.first() : page.locator(".cm-content").first();
+    const panes = page.locator(".cm-content");
+    const count = await panes.count();
+    let where = panes.first();
+    for (let i = 0; i < count; i += 1) {
+      const pane = panes.nth(i);
+      const focused = await pane.evaluate(
+        (el) => el.closest(".cm-editor")?.classList.contains("cm-focused") ?? false,
+      );
+      if (focused) {
+        where = pane;
+        break;
+      }
+    }
+    // How that race is reproduced on a desk, since it only ever happened on CI:
+    // `KSAV_ACCEPT_BLUR=1 npm run accept` drops the focus between choosing a
+    // pane and typing into it, which is the CI timing made deliberate and
+    // relentless. Against the locator this replaced it stops at check 500 with
+    // the runner's own error, word for word; against this it runs to the end.
+    if (process.env.KSAV_ACCEPT_BLUR) await page.evaluate(() => document.activeElement?.blur());
+    const node = await where.elementHandle();
+    await node.evaluate((el) => el.focus());
+    // Waited for rather than asserted: `.focus()` moves the browser's focus at
+    // once, and `cm-focused` is CodeMirror noticing — a separate handler, a
+    // separate turn of the loop. Asserting it in the same expression was this
+    // bug's own mistake made a second time, one call further down.
+    await page
+      .waitForFunction(
+        (el) => el.closest(".cm-editor")?.classList.contains("cm-focused") ?? false,
+        node,
+        { timeout: 5000 },
+      )
+      .catch(() => {
+        throw new Error(`type(${JSON.stringify(text.slice(0, 20))}…): no editor took the focus`);
+      });
     await where.pressSequentially(text, { delay: 4 });
   };
 

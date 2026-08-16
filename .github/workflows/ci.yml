@@ -6,7 +6,9 @@
 # exists this is the file that starts earning its keep.
 #
 # Deliberately not the release matrix: this has to be fast enough that people
-# wait for it. It builds the engine once on Linux and runs everything.
+# wait for it. It builds the engine on Linux and runs everything there, and
+# builds it a second time on macOS to run the half a platform can break — see
+# the `macos` job for why that is one job rather than a matrix over all of them.
 #
 # # One checkout
 #
@@ -181,6 +183,53 @@ jobs:
       - name: Check
         working-directory: ./ksav
         run: node tools/gate.mjs fmt
+
+  # The other platform this ships to, checked rather than assumed.
+  #
+  # Everything above runs on Linux, and until this job existed that was the whole
+  # of what any push proved. macOS appeared in exactly one place — the release
+  # matrix — where it is *built* and never run, so "runs on Linux, macOS and
+  # Windows" was a claim resting on a compiler exiting zero on tag day. The
+  # README says it in the present tense on every other day of the year.
+  #
+  # This runs the engine group, which is where a platform difference would
+  # actually live: paths, the filesystem, the `git` on the machine, the loopback
+  # desk, the deep-link scheme. The editor suite is Node and the same Node, and
+  # the fonts are compiled into the binary — those two are why this is one job
+  # and not a matrix over every job above.
+  #
+  # Windows is not here and is not an oversight: it is the desk this is written
+  # on, so it is checked before every push by the same gate, and a runner would
+  # be paying for a third copy of the slowest job in the file to learn what the
+  # commit already knows.
+  macos:
+    name: engine on macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # Both, because `engine` names a group *and* a tree and the union
+          # runs — so this selects `cargo fmt` along with the tests. Written
+          # with `clippy` alone first, and `gate.test.mjs` said so by name
+          # before a runner ever saw it.
+          components: clippy, rustfmt
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+          cache-on-failure: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      # The same command and the same reason as the Linux engine job: forty test
+      # binaries, each statically linking the whole Typst compiler, and the
+      # optimisation pass is the only thing this turns off.
+      - name: Check
+        working-directory: ./ksav
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_BENCH_LTO: "false"
+        run: node tools/gate.mjs engine --release
 
   wasm:
     name: browser engine

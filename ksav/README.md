@@ -481,7 +481,7 @@ the reasoning, not the reference, and this file is long enough.
 
 ## Features (engine)
 
-- **140 commands**, each bilingual (Hebrew + English), across styles, headings,
+- **148 commands**, each bilingual (Hebrew + English), across styles, headings,
   alignment, direction (RTL/LTR runs), lists, definition lists, tables, the whole
   note apparatus, blocks (quote / callout / warning / success / framed box),
   layout, images, cross-references, **review** (`הוספה`, `מחיקה`, `הערת_עורך`),
@@ -514,7 +514,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 138 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 146 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -696,7 +696,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 6,291 editor assertions, 700 engine
+- [x] **CI, running and green** — typecheck, 6,292 editor assertions, 704 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -704,9 +704,9 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 Done since, and worth stating because these were the longest-standing gaps:
 
 - [x] **A git remote, and CI that actually runs.** `ci.yml` runs on every push and
-      is green across all seven jobs — editor, engine, formatting and clippy,
-      browser (wasm) engine, the assembled application, the Emacs package,
-      desktop shell.
+      is green across all eight jobs — editor, engine, formatting and clippy,
+      the engine again on macOS, browser (wasm) engine, the assembled
+      application, the Emacs package, desktop shell.
 - [x] **The release matrix has run, on every platform.** `v0.1.0` drove
       `release.yml` to success on `windows-latest`, `ubuntu-22.04` and *both*
       macOS architectures, so the `.msi`, `.exe`, `.deb`, `.AppImage` and both
@@ -793,8 +793,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 6,291 assertions across 96 files |
-| `engine` | both | formatting, lints, then 700 tests across 43 binaries |
+| `editor` | both | the typechecker, then 6,292 assertions across 96 files |
+| `engine` | both | formatting, lints, then 704 tests across 43 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
@@ -864,7 +864,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **3,817**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **4,025**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 Nothing had ever booted the product and used it. One hour of clicking on 6 August

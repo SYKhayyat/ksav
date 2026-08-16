@@ -1672,9 +1672,24 @@ fn slanting_commands() -> &'static std::collections::BTreeSet<String> {
         // And the marks, whose style is data rather than code: a row of the
         // marks table with an italic style is the same promise made in a
         // different grammar.
-        for entry in PRELUDE.split('"').collect::<Vec<_>>().windows(5) {
-            if entry[2].contains(": (סגנון: ") && entry[3] == "italic" {
-                out.insert(entry[1].to_string());
+        //
+        // Keyed off the row rather than off its first key. This used to count
+        // quotation marks — `": (סגנון: "` followed by `italic` — which reads
+        // `"פסוק": (סגנון: "italic")` and is blind to
+        // `"מקור": (גודל: 0.85em, סגנון: "italic", …)`, because there the slant
+        // is the second thing said. `#מקור` slants, no bundled family has an
+        // italic face, and it warned about that until the day it was given a
+        // size as well. A test whose subject is *every* command that asks was
+        // reading only the ones that ask first.
+        for line in PRELUDE.lines() {
+            let Some(rest) = line.trim_start().strip_prefix('"') else {
+                continue;
+            };
+            let Some((name, row)) = rest.split_once("\": (") else {
+                continue;
+            };
+            if row.contains("סגנון: \"italic\"") {
+                out.insert(name.to_string());
             }
         }
         // Then the aliases, to a fixed point.

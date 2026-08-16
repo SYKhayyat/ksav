@@ -68,6 +68,9 @@
   // the writer's own words it is refused, because it would silently do nothing.
   text_: "טקסט",
   heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
+  // A rounded corner, which a box has and nothing else did until the blocks
+  // took looks of their own.
+  radius: "רדיוס",
   // notes and streams
   stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
   kind: "סוג", name: "שם",
@@ -2417,8 +2420,6 @@
 #let כותרת4(body, ..opts) = _hd_styled(4, body, opts.named())
 #let כותרת5(body, ..opts) = _hd_styled(5, body, opts.named())
 #let כותרת6(body, ..opts) = _hd_styled(6, body, opts.named())
-#let שער(body) = align(center, text(size: 2em, weight: "bold", body))
-#let תת_שער(body) = align(center, text(size: 1.2em, fill: luma(110), body))
 
 // כותרת_בהערה(body, רמה: 1) — a heading INSIDE a note, a box, or a table cell:
 // it looks like a heading and it deliberately is not one. A real #כותרת there is
@@ -2477,8 +2478,6 @@
 #let h4 = _en(כותרת4)
 #let h5 = _en(כותרת5)
 #let h6 = _en(כותרת6)
-#let title = שער
-#let subtitle = תת_שער
 #let note_heading = _en(כותרת_בהערה)
 
 // ============================================================
@@ -3137,26 +3136,6 @@
 // ============================================================
 //  בלוקים · blocks, quotes, callouts, boxes
 // ============================================================
-#let ציטוט(body) = quote(block: true, body)
-#let הערת_צד(body, גוון: rgb("#eff6ff"), קו: rgb("#2563eb")) = block(
-  fill: גוון,
-  inset: 12pt,
-  radius: 6pt,
-  width: 100%,
-  stroke: (right: 3pt + קו),
-  body,
-)
-#let תיבה(body) = block(stroke: 0.75pt + luma(150), inset: 12pt, radius: 6pt, width: 100%, body)
-#let אזהרה(body) = הערת_צד(body, גוון: rgb("#fef2f2"), קו: rgb("#dc2626"))
-#let הצלחה(body) = הערת_צד(body, גוון: rgb("#f0fdf4"), קו: rgb("#16a34a"))
-#let מקור(body) = text(size: 0.85em, style: "italic", fill: luma(90), body)
-
-#let blockquote = ציטוט
-#let callout = _en(הערת_צד, extra: (accent: "קו"))
-#let framebox = תיבה
-#let warnbox = _en(אזהרה)
-#let okbox = _en(הצלחה)
-#let cite_ = מקור
 
 // ============================================================
 //  פריסה · layout helpers
@@ -3319,6 +3298,20 @@
   "סימן": (:),
   "סעיף": (משקל: "bold"),
   "אות": (משקל: "bold"),
+  // The blocks. Every value here was written inline in the command a moment ago
+  // — a callout's blue, a box's grey border, the 12pt padding all of them share
+  // — so a writer could see it on the page and reach none of it.
+  "ציטוט": (:),
+  "הערת_צד": (גוון: rgb("#eff6ff"), קו: rgb("#2563eb"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  "אזהרה": (גוון: rgb("#fef2f2"), קו: rgb("#dc2626"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  "הצלחה": (גוון: rgb("#f0fdf4"), קו: rgb("#16a34a"), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  "תיבה": (מסגרת: 0.75pt + luma(150), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%),
+  // The title page's two lines, which were `text(size: 2em, weight: "bold")`
+  // and `text(size: 1.2em, fill: luma(110))` inside an `align(center, …)`.
+  "שער": (גודל: 2em, משקל: "bold", יישור: "center"),
+  "תת_שער": (גודל: 1.2em, צבע: luma(110), יישור: "center"),
+  // A block citation, which is a look and nothing else: 0.85em, italic, grey.
+  "מקור": (גודל: 0.85em, סגנון: "italic", צבע: luma(90)),
 )
 
 /// What `#רשימת_סימונים` calls a class when the writer does not title it.
@@ -3341,7 +3334,25 @@
 /// separate wants — *this one is set differently on purpose* and *this one is
 /// not worth listing* — and conflating them would make each unreachable half
 /// the time.
-#let _mk_own_keys = _mk_knobs + ("פטור", "ברשימה")
+/// The knobs a command that draws a *block* has, on top of the text ones.
+///
+/// A quotation, a callout, a box and a warning are not runs of text with a
+/// colour: what a writer wants to set on them is the fill, the border, the
+/// padding and the corner. Those cannot be said with `text()`, so they are a
+/// second set, and only the classes that draw a block carry them —
+/// `_mk_knobs_of` is what makes that per class rather than a flat list with six
+/// controls that mean nothing on a gemara reference.
+#let _mk_block_knobs = ("גוון", "קו", "מסגרת", "מרווח", "רדיוס", "רוחב", "יישור")
+
+/// Which classes draw a block, and therefore answer to the knobs above.
+#let _mk_block_classes = ("ציטוט", "הערת_צד", "אזהרה", "הצלחה", "תיבה", "שער", "תת_שער")
+
+/// The knobs one class answers to.
+#let _mk_knobs_of(cls) = if _mk_block_classes.contains(cls) {
+  _mk_knobs + _mk_block_knobs
+} else { _mk_knobs }
+
+#let _mk_own_keys = _mk_knobs + _mk_block_knobs + ("פטור", "ברשימה")
 
 /// The pieces a command draws separately, and the look each ships with.
 ///
@@ -3421,7 +3432,7 @@
   let mine = d.at(_mk_parts_key, default: (:)).at(cls, default: (:))
   let touched = false
   for (k, v) in named {
-    if _mk_knobs.contains(k) or k == "כפה" { continue }
+    if _mk_knobs_of(cls).contains(k) or k == "כפה" { continue }
     if not parts.keys().contains(k) {
       panic(
         "הגדרות_" + cls + ": ארגומנט לא מוכר · unrecognised argument: " + k
@@ -3449,7 +3460,7 @@
     d.insert(_mk_parts_key, all)
   }
   for (k, v) in named {
-    if not (_mk_knobs.contains(k) or k == "כפה") { continue }
+    if not (_mk_knobs_of(cls).contains(k) or k == "כפה") { continue }
     let cur = d.at(k, default: none)
     // A plain value is *every class*, and a per-class write must not silently
     // discard it: it becomes that class's entry, and every other class keeps
@@ -3494,6 +3505,22 @@
 #let seif_config = _en(הגדרות_סעיף)
 #let הגדרות_אות(..opts) = _mk_set("אות", opts.named())
 #let os_config = _en(הגדרות_אות)
+#let הגדרות_ציטוט(..opts) = _mk_set("ציטוט", opts.named())
+#let blockquote_config = _en(הגדרות_ציטוט)
+#let הגדרות_הערת_צד(..opts) = _mk_set("הערת_צד", opts.named())
+#let callout_config = _en(הגדרות_הערת_צד)
+#let הגדרות_אזהרה(..opts) = _mk_set("אזהרה", opts.named())
+#let warnbox_config = _en(הגדרות_אזהרה)
+#let הגדרות_הצלחה(..opts) = _mk_set("הצלחה", opts.named())
+#let okbox_config = _en(הגדרות_הצלחה)
+#let הגדרות_תיבה(..opts) = _mk_set("תיבה", opts.named())
+#let framebox_config = _en(הגדרות_תיבה)
+#let הגדרות_מקור(..opts) = _mk_set("מקור", opts.named())
+#let cite_config = _en(הגדרות_מקור)
+#let הגדרות_שער(..opts) = _mk_set("שער", opts.named())
+#let title_config = _en(הגדרות_שער)
+#let הגדרות_תת_שער(..opts) = _mk_set("תת_שער", opts.named())
+#let subtitle_config = _en(הגדרות_תת_שער)
 
 /// One knob's value for one class. The dictionary may be keyed in either
 /// language — `("gemara": …)` in an English document — which is what `_val`
@@ -3511,10 +3538,10 @@
 #let _mk_conf(cls, own) = {
   let base = _mk_defaults.at(cls, default: (:))
   let mine = (:)
-  for (k, v) in own { if _mk_knobs.contains(k) { mine.insert(k, v) } }
+  for (k, v) in own { if _mk_knobs_of(cls).contains(k) { mine.insert(k, v) } }
   let g = _mk_cfg.get()
   let c = base
-  for k in _mk_knobs {
+  for k in _mk_knobs_of(cls) {
     let v = _mk_pick(g, k, cls)
     if v != none { c.insert(k, v) }
   }
@@ -3551,6 +3578,102 @@
 /// It does **not** fold in the class's look, because it is drawn inside it —
 /// `_mk_render(class, … _mk_render(part, piece) …)` — so a size on the command
 /// scales the part too and the part carries only its difference.
+/// Draw a block command's frame: fill, border, padding, corner, width, align.
+///
+/// Nothing is passed to `block` that the class did not ship or the writer did
+/// not set, so a class with none of these is its body and no box at all.
+///
+/// `מסגרת` is a border all the way round and `קו` is the accent edge a callout
+/// has on one side. They are two different things a writer means, and a command
+/// that shipped one can be given the other.
+#let _mk_frame(c, body) = {
+  let args = (:)
+  if "גוון" in c { args.insert("fill", c.גוון) }
+  if "מרווח" in c { args.insert("inset", c.מרווח) }
+  if "רדיוס" in c { args.insert("radius", c.רדיוס) }
+  if "רוחב" in c { args.insert("width", c.רוחב) }
+  if "מסגרת" in c { args.insert("stroke", c.מסגרת) }
+  else if "קו" in c { args.insert("stroke", (right: 3pt + c.קו)) }
+  let out = if args.len() == 0 { body } else { block(..args, body) }
+  // Through `_doc_align`, which is the one place a written alignment becomes an
+  // alignment — `"מרכז"`, `"center"` and `center` all mean the same thing and
+  // this is not the second table that decides so.
+  let al = if "יישור" in c { _doc_align(c.יישור) } else { none }
+  if al != none { align(al, out) } else { out }
+}
+
+/// A block command, drawn: its text look inside its frame.
+#let _mk_draw(cls, own, body) = {
+  let c = _mk_conf(cls, own)
+  _mk_frame(c, _mk_render(c, body))
+}
+
+// The blocks, each with a look of its own.
+//
+// Every value these used to draw with was written into the call — a callout's
+// blue, a box's grey border, the padding they share — so a writer could see it
+// and change none of it. They ship exactly those values from `_mk_defaults` now
+// and take the same three layers as everything else: the class, this one, and
+// `כפה` over the top.
+//
+// `#הערת_צד(גוון: …, קו: …)` still means what it always did, because `גוון` and
+// `קו` are knobs: what was a parameter of one call is an override on one
+// instance, which is the same sentence in the same words.
+#let ציטוט(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("ציטוט", rest)
+  quote(block: true, context _mk_draw("ציטוט", own, body))
+}
+#let הערת_צד(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("הערת_צד", rest)
+  context _mk_draw("הערת_צד", own, body)
+}
+#let תיבה(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("תיבה", rest)
+  context _mk_draw("תיבה", own, body)
+}
+#let אזהרה(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("אזהרה", rest)
+  context _mk_draw("אזהרה", own, body)
+}
+#let הצלחה(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("הצלחה", rest)
+  context _mk_draw("הצלחה", own, body)
+}
+#let מקור(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("מקור", rest)
+  context _mk_draw("מקור", own, body)
+}
+
+// The title page, whose two lines were `text(size: 2em, weight: "bold")` and
+// `text(size: 1.2em, fill: luma(110))` inside an `align(center, …)`. Down here
+// rather than up with the headings because a look that resolves through the
+// register has to be defined after it.
+#let שער(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("שער", rest)
+  context _mk_draw("שער", own, body)
+}
+#let title = שער
+#let תת_שער(body, ..opts) = {
+  let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
+  _cfg_strict("תת_שער", rest)
+  context _mk_draw("תת_שער", own, body)
+}
+#let subtitle = תת_שער
+
+#let blockquote = ציטוט
+#let callout = _en(הערת_צד, extra: (accent: "קו"))
+#let framebox = תיבה
+#let warnbox = _en(אזהרה)
+#let okbox = _en(הצלחה)
+#let cite_ = מקור
+
 #let _mk_part(cls, part) = {
   let shipped = _mk_part_defaults.at(cls, default: (:)).at(part, default: (:))
   let chosen = _mk_cfg.get().at(_mk_parts_key, default: (:)).at(cls, default: (:))

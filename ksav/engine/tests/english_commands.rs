@@ -549,8 +549,25 @@ fn the_warning_names_the_line_the_command_is_on() {
 /// warning about a command they cannot find.
 #[test]
 fn every_command_that_asks_for_a_slant_says_it_did_not_get_one() {
-    let asked = ["מקור", "גמרא", "פסוק", "ציון_מקור"];
-    for name in asked {
+    // Read off the prelude, which is what the docstring above has always said
+    // and what the code above it did not do: this was `["מקור", "גמרא", "פסוק",
+    // "ציון_מקור"]`, four names typed out under a paragraph promising they were
+    // derived. The list happened to stay right, so nothing said otherwise — and
+    // the day `"מקור"` gained a size and stopped being *found* by the engine,
+    // this test failed for the right reason by luck rather than by construction.
+    //
+    // Deliberately a different parse from `slanting_commands()`: any row of any
+    // table that asks for an italic style, by the plainest reading there is. Two
+    // readers of one file agreeing is worth something; one reader checked
+    // against a copy of its own output is worth nothing.
+    let prelude = include_str!("../typst/ksav.typ");
+    let asked = prelude
+        .lines()
+        .filter(|l| l.contains("סגנון: \"italic\""))
+        .filter_map(|l| l.trim_start().strip_prefix('"'))
+        .filter_map(|l| l.split_once("\": (").map(|(name, _)| name))
+        .collect::<Vec<_>>();
+    for &name in &asked {
         let body = format!("רגיל #{name}[טקסט] סוף");
         let out = ksav_engine::compile(&body, &DocConfig::default());
         let said = out

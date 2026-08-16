@@ -276,6 +276,13 @@ exists because Playwright's own actionability check passes an element at
 `opacity: 0`, so eight steps of clicking had proved nothing about whether
 anything was visible.
 
+The browser is one you already have. `playwright-core` ships none (14 MB against
+150), so this drives Chrome, then Edge, then Chromium, whichever answers first —
+and if none does it says which to install for the platform you are on. Under WSL
+that means installing one **inside the distro**: the Chrome on the Windows side
+of the same machine is not reachable from a Linux Playwright, and the failure it
+produces if you try says only that no browser started.
+
 ---
 
 ## 8 · Documentation, and the two kinds of page

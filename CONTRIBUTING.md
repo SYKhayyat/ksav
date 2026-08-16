@@ -12,6 +12,7 @@ about the shape of the code without having seen the thing it is shaped for.
 | **Working on the seam with Girsa?** | [`docs/girsa.md`](docs/girsa.md) |
 | **Want to know *why* something is like that?** | [`decisions/README.md`](decisions/README.md) |
 | **Writing in Emacs rather than in the app?** | [`ksav/editors/emacs/README.md`](ksav/editors/emacs/README.md) |
+| **Looking for what to work on?** | [`HANDOFF.md`](HANDOFF.md) — what is open, what is deliberately not yours to close, and the lessons that were paid for |
 
 ---
 

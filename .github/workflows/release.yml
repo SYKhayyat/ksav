@@ -1,5 +1,6 @@
-# Build the Ksav desktop app for Windows, macOS and Linux, and attach the
-# installers to a GitHub release.
+# Build everything Ksav ships and attach it to a GitHub release: the desktop
+# app for Windows, macOS and Linux, the engine as a standalone binary, and the
+# Emacs package as an installable tarball.
 #
 # Why this exists: a bochur cannot install Ksav today, and that — not any missing
 # feature — is the largest single reason to keep using Word. The bundlers were
@@ -8,6 +9,26 @@
 # macOS is the only platform that *needs* CI. Windows and Linux installers can be
 # produced locally (Linux through Docker over WSL), but a .dmg cannot be
 # cross-built, so it can only come from a macOS runner.
+#
+# # The other two things Ksav is
+#
+# For a long time this file's answer to "how do I get Ksav" was four desktop
+# installers, and that answer was incomplete in a way that was invisible from
+# here. The desktop shell links the engine as a *library*, so installing the
+# application put no `ksav` program anywhere on the machine — and the engine is
+# the product. Anybody who wanted Ksav without the Tauri shell (an Emacs user, a
+# script, a server, a person on a machine the shell does not build for) was told
+# to run `cargo build --release`, which is a compile of the whole Typst
+# compiler.
+#
+# So `engine` below attaches the binary itself, per platform, built with the web
+# editor inside it — the same `--features embed-ui` build the acceptance job
+# runs, so one downloaded file is the whole product: `ksav serve` and a browser,
+# or `ksav document.ksav` and a PDF, or an editor talking to it over HTTP.
+#
+# And `elisp` attaches `editors/emacs` as a tarball that `M-x
+# package-install-file` accepts, because until it did, every route into that
+# package began "clone the monorepo".
 #
 # Trigger: push a tag, e.g.  git tag v0.1.0 && git push origin v0.1.0
 
@@ -213,3 +234,134 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  # Which engines to build, read out of the one table that names them.
+  #
+  # `ksav/app/tools/emit-release-assets.mjs` holds the platform list, generates
+  # `editors/emacs/ksav-release.el` from it, and prints this matrix. So the
+  # workflow that uploads an asset and the elisp that downloads it cannot
+  # disagree about what it is called — which is the fifth instance in this
+  # repository of one table written twice, and the previous four all drifted
+  # silently.
+  targets:
+    name: which engines to build
+    needs: check
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.read.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - id: read
+        working-directory: ./ksav/app
+        run: echo "matrix=$(node tools/emit-release-assets.mjs --matrix)" >> "$GITHUB_OUTPUT"
+
+  # The engine, as a program somebody can run.
+  #
+  # `needs: build` rather than running beside it: `tauri-action` is what creates
+  # the release these upload into, so starting before it means `gh release
+  # upload` has no release to find.
+  engine:
+    name: engine for ${{ matrix.target.id }}
+    needs: [build, targets]
+    permissions:
+      contents: write # to attach the binaries to the release
+    strategy:
+      fail-fast: false # one platform failing must not hide the others
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.matrix) }}
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target.triple }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+          cache-on-failure: true
+
+      - name: Install front-end dependencies
+        working-directory: ./ksav/app
+        run: npm ci
+
+      # `dist/` is git-ignored and `include_dir!` reads it at compile time, so
+      # this order is a hard dependency and not a preference: building the
+      # engine first fails inside a proc macro with a message about a missing
+      # directory.
+      - name: Build the app
+        working-directory: ./ksav/app
+        run: npm run build
+
+      # With the editor inside it, so the downloaded file is the whole product
+      # and not half of it. A binary that can compile a document but cannot show
+      # anybody the page is a strange thing to hand someone as "Ksav".
+      - name: Build the engine with the editor inside it
+        working-directory: ./ksav/engine
+        run: cargo build --release --features embed-ui --bin ksav --target ${{ matrix.target.triple }}
+
+      # It has to *run*, not merely link. A cross-compiled binary that starts and
+      # dies is the failure this catches, and `--version` is the cheapest thing
+      # that proves a process got as far as its own main. Skipped where the
+      # binary is not for this machine, which is only the Intel macOS build.
+      - name: Run it
+        if: matrix.target.triple != 'x86_64-apple-darwin'
+        shell: bash
+        run: ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }} --version
+
+      - name: Attach it to the release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp "ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }}" \
+             "${{ matrix.target.asset }}"
+          gh release upload "${{ github.ref_name }}" "${{ matrix.target.asset }}" --clobber
+
+  # The Emacs package, as a tarball `M-x package-install-file` accepts.
+  elisp:
+    name: the Emacs package
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Emacs
+        run: sudo apt-get update && sudo apt-get install -y emacs-nox
+
+      - name: Build the tarball
+        id: pack
+        shell: bash
+        run: |
+          dir="$(node ksav/app/tools/emacs-package.mjs "$RUNNER_TEMP/elpa")"
+          tar -cf "$RUNNER_TEMP/$(basename "$dir").tar" -C "$RUNNER_TEMP/elpa" "$(basename "$dir")"
+          echo "tar=$RUNNER_TEMP/$(basename "$dir").tar" >> "$GITHUB_OUTPUT"
+
+      # Installed, not inspected. `ci.yml` runs this same check on every push —
+      # see the long note there for why a listing of the tarball's contents is
+      # not the same question.
+      - name: Install it into a clean Emacs
+        run: >
+          emacs -Q --batch --eval
+          '(progn (require (quote package)) (package-initialize)
+                  (package-install-file "${{ steps.pack.outputs.tar }}")
+                  (require (quote ksav))
+                  (unless (fboundp (quote ksav-install-engine))
+                    (error "installed, and ksav-install-engine is not there")))'
+
+      - name: Attach it to the release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" "${{ steps.pack.outputs.tar }}" --clobber

@@ -1,0 +1,20 @@
+;; The MELPA recipe for this package.
+;;
+;; MELPA's recipes live in its own repository, one file per package, named after
+;; the package and with no extension. Submitting is a pull request there with a
+;; copy of the form below; keeping the copy here means the submission is a copy
+;; rather than a fresh guess about `:files', which is the field that gets it
+;; wrong — the package is in a subdirectory of a monorepo, so the default
+;; (top-level *.el) would find nothing at all.
+;;
+;; `ksav-tests.el' is deliberately outside the glob. It is the package's real
+;; suite and CI runs it against a live engine, but it wants `ert' and exists to
+;; be run from a checkout; shipping it to every installation is a file nobody
+;; loads. `ksav-services.el' and `ksav-release.el' are generated and must ship —
+;; they are what the package requires of itself.
+
+(ksav :fetcher github
+      :repo "SYKhayyat/ksav"
+      :files ("ksav/editors/emacs/ksav.el"
+              "ksav/editors/emacs/ksav-services.el"
+              "ksav/editors/emacs/ksav-release.el"))

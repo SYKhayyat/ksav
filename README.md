@@ -51,6 +51,23 @@ Every one of those four lines is also in the release body itself, because that i
 the page somebody who clicked *Download* is actually looking at — a workaround that
 only exists in a README is a workaround nobody reads.
 
+### Without the desktop application
+
+The same release attaches the **engine** on its own — `ksav-engine-<platform>`,
+one file, nothing to install. It is not a cut-down piece of Ksav: it carries the
+editor inside it, so `ksav serve` opens the whole thing in a browser, and
+`ksav sefer.ksav` writes a PDF from a shell.
+
+That used to be missing in a way nothing here would have told you about. The
+desktop shell links the engine as a *library*, so installing Ksav put no `ksav`
+program on the machine at all, and anybody who wanted one — an Emacs user, a
+script, a server, a platform the shell does not build for — was pointed at
+`cargo build --release`, a compile of the whole Typst compiler.
+
+And **Emacs**: `ksav-<version>.tar` on the same release is an installable
+package. `M-x package-install-file`, then `M-x ksav-install-engine`, and that is
+the entire setup — see [`ksav/editors/emacs`](ksav/editors/emacs/README.md).
+
 <details>
 <summary><b>When a certificate is bought, this becomes a signed build with no other change</b></summary>
 

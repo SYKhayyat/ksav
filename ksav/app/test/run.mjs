@@ -50,6 +50,11 @@ const GENERATORS = [
   // rather than a hand-written fifth list — see the header of
   // `tools/emit-emacs.mjs` for what the previous four cost.
   ["emacs services", "emit-emacs.mjs"],
+  // The asset names a release attaches, which `release.yml` reads as its build
+  // matrix and `ksav-release.el` is generated from — a workflow that uploads
+  // files and elisp that downloads them, agreeing by construction rather than
+  // by somebody noticing a 404.
+  ["release assets", "emit-release-assets.mjs"],
 ];
 
 /**

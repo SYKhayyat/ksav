@@ -162,4 +162,128 @@ export async function run() {
       [],
     );
   }
+
+  // -------------------------------------------------------- and it can be got
+  //
+  // The package worked and could not be installed, which is a strange pair of
+  // sentences to hold at once and it held for as long as nothing asked. Every
+  // route in began "clone the monorepo", and underneath that there was no `ksav`
+  // binary to be had on any machine at all: a release attached four desktop
+  // installers, and the desktop shell links the engine as a *library*.
+  //
+  // Three claims are now agreed between files that cannot see each other, which
+  // is the arrangement this repository has been burned by five times.
+
+  {
+    const release = read("ksav-release.el");
+    const workflow = readFileSync(path.join(ROOT, ".github", "workflows", "release.yml"), "utf8");
+
+    // 1. The names the elisp downloads are the names the workflow uploads.
+    //
+    // Both sides are generated from `tools/emit-release-assets.mjs` now, so this
+    // asks whether that is still true rather than comparing two hand-written
+    // lists — but the failure it guards against is the hand-written one, and it
+    // is a 404 in somebody's `M-x ksav-install-engine` and nowhere else.
+    const assets = [...code(release).matchAll(/"(ksav-engine-[\w.-]+)"/gu)].map((m) => m[1]);
+    ok("the elisp knows what to download", assets.length >= 4, `${assets.length}`);
+    ok(
+      "the workflow uploads what the elisp downloads",
+      // The workflow names them through `matrix.target.asset`, which comes from
+      // the same table; what is checked here is that it goes through the table
+      // at all rather than spelling a name of its own.
+      /matrix\.target\.asset/u.test(workflow) && /emit-release-assets\.mjs --matrix/u.test(workflow),
+    );
+
+    // 2. Every platform that can install the application can also get an engine.
+    //
+    // The desktop matrix and the engine matrix are two lists of the same four
+    // machines, and a platform that has an installer and no engine is exactly
+    // the gap this work closed — it would reopen as a quiet one, because
+    // nothing about a missing asset is visible from the release page unless you
+    // already know to look for it.
+    const arches = ["windows", "aarch64-apple-darwin", "x86_64-apple-darwin", "ubuntu"];
+    const table = readFileSync(
+      path.join(ROOT, "ksav", "app", "tools", "emit-release-assets.mjs"),
+      "utf8",
+    );
+    for (const a of arches) {
+      ok(`the engine is built for ${a}`, table.includes(a));
+    }
+
+    // 3. The package declares one version, and it is the product's.
+    //
+    // One tag ships the engine, the desktop application and this package, so a
+    // reader who installs `ksav 0.1.0` in Emacs and downloads the engine from
+    // `v0.4.0` has been told two different things by one release. Four files
+    // declare it and nothing compared them.
+    const version = (text, re) => (re.exec(text) ?? [])[1] ?? null;
+    const declared = {
+      "editors/emacs/ksav.el": version(el, /^;;\s*Version:\s*(\S+)/mu),
+      "engine/Cargo.toml": version(
+        readFileSync(path.join(ROOT, "ksav", "engine", "Cargo.toml"), "utf8"),
+        /^version\s*=\s*"([^"]+)"/mu,
+      ),
+      "app/package.json": version(
+        readFileSync(path.join(ROOT, "ksav", "app", "package.json"), "utf8"),
+        /"version":\s*"([^"]+)"/u,
+      ),
+      "app/src-tauri/tauri.conf.json": version(
+        readFileSync(path.join(ROOT, "ksav", "app", "src-tauri", "tauri.conf.json"), "utf8"),
+        /"version":\s*"([^"]+)"/u,
+      ),
+    };
+    ok("every version was found", Object.values(declared).every(Boolean), JSON.stringify(declared));
+    const distinct = new Set(Object.values(declared));
+    ok(
+      "one release, one version number" +
+        (distinct.size > 1
+          ? `\n    ${Object.entries(declared)
+              .map(([f, v]) => `${f}: ${v}`)
+              .join("\n    ")}\n    One tag ships all four; they cannot say different things.`
+          : ""),
+      distinct.size === 1,
+    );
+  }
+
+  // ------------------------------------------- the tarball is the whole package
+  //
+  // What is *in* the tarball is the claim a byte-compile in the checkout cannot
+  // reach. Every other check here, and the whole ERT suite, runs the package out
+  // of the source tree with `-L .` — so a file that exists in the repository and
+  // is missing from `PACKAGE_FILES` passes all of them and fails on the first
+  // machine that installs it, with a `void-function` for code that is plainly
+  // right there. CI installs the tarball into a clean Emacs for this reason;
+  // this is the same question asked from a plain checkout, with no Emacs.
+
+  {
+    const { PACKAGE_FILES, requiredFeatures, packageVersion, requiredEmacs } = await import(
+      "../tools/emacs-package.mjs"
+    );
+
+    ok("the package ships files", PACKAGE_FILES.length >= 3, PACKAGE_FILES.join(" "));
+    check(
+      "everything the package ships is really there",
+      PACKAGE_FILES.filter((f) => !files.includes(f)),
+      [],
+    );
+
+    // Every `(require 'ksav-…)` between the shipped files resolves to a shipped
+    // file. `ksav.el` requires `ksav-services` and `ksav-release`; leaving
+    // either out of the tarball is an install that loads nothing.
+    const shipped = new Set(PACKAGE_FILES.map((f) => f.replace(/\.el$/u, "")));
+    check(
+      "every feature the package requires of itself is in the tarball",
+      requiredFeatures().filter((f) => !shipped.has(f)),
+      [],
+    );
+
+    // And the metadata it is packaged with is the metadata it declares.
+    check("the tarball's version is the package's", packageVersion(), declaredVersion(el));
+    ok("the package says which Emacs it needs", /^\d+\.\d+$/u.test(requiredEmacs() ?? ""));
+  }
+}
+
+/** The `;; Version:` header of an elisp file. */
+function declaredVersion(elisp) {
+  return (/^;;\s*Version:\s*(\S+)/mu.exec(elisp) ?? [])[1] ?? null;
 }

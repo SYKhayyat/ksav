@@ -273,5 +273,75 @@ longer exists."
               (should (string-prefix-p "%PDF" (buffer-string)))))
         (ignore-errors (delete-file file))))))
 
+;;;; --------------------------------------------------------- getting an engine
+
+(ert-deftest ksav-release-knows-this-machine ()
+  "Every machine the tests run on is one Ksav publishes an engine for.
+
+Not a tautology: the table lists four, and CI runs on the one this most needs
+to be right about.  A row that stopped matching would send `ksav-start' down
+the \"Ksav publishes none for your platform\" path on a platform it publishes
+for, which is a refusal a reader would believe."
+  (let ((row (ksav-release-this-machine)))
+    (should row)
+    (should (stringp (ksav-release-asset row)))
+    (should (member (ksav-release-binary row) '("ksav" "ksav.exe")))))
+
+(ert-deftest ksav-release-every-row-is-well-formed ()
+  (should (>= (length ksav-release-targets) 4))
+  (dolist (row ksav-release-targets)
+    (should (stringp (nth 0 row)))
+    (should (symbolp (nth 1 row)))
+    (should (consp (nth 2 row)))
+    (should (string-prefix-p "ksav-engine-" (ksav-release-asset row)))))
+
+(ert-deftest ksav-release-url-is-the-newest-unless-a-tag-is-named ()
+  "No tag means the newest release; a tag means that one.
+
+Both spellings are GitHub's and they are not interchangeable — `latest/download'
+has no tag in it and `download/TAG' has no `latest'.  Getting this wrong is a
+404 at the one moment a new user is deciding whether this works."
+  (let ((row (car ksav-release-targets)))
+    (should (string-match-p "/releases/latest/download/" (ksav-release-url row nil)))
+    (should (string-match-p "/releases/download/v9\\.9\\.9/" (ksav-release-url row "v9.9.9")))
+    (should (string-suffix-p (ksav-release-asset row) (ksav-release-url row nil)))))
+
+(ert-deftest ksav-with-no-engine-anywhere-the-message-names-the-command ()
+  "The one message a reader with nothing installed will ever see.
+
+It used to say \"set `ksav-executable' to the Ksav binary\", which is advice
+about a variable given to the one person certain not to have a file to put in
+it — there was no `ksav' binary published anywhere, for anybody, on any
+platform.  True, and useless."
+  (let ((ksav-executable "ksav-no-such-program-anywhere")
+        (ksav-install-directory "/nonexistent/ksav")
+        (ksav-server-url nil))
+    (should-not (ksav-engine-program))
+    (let ((message (cadr (should-error (ksav-start) :type 'user-error))))
+      (should (string-match-p "ksav-install-engine" message)))))
+
+(ert-deftest ksav-an-engine-on-exec-path-wins-over-a-downloaded-one ()
+  "Order matters: a Ksav somebody installed deliberately is never shadowed."
+  (let ((ksav-executable "emacs")) ; something that certainly exists
+    (should (equal (ksav-engine-program) (executable-find "emacs")))))
+
+(ert-deftest ksav-live-a-refused-download-is-not-written-to-disk ()
+  "A 404 must not become a file.
+
+`url-copy-file' — the obvious spelling — writes whatever comes back, so a
+release with no such asset would produce a file containing an error page,
+`ksav-install-engine' would mark it executable, and the failure would surface
+much later as an engine that starts and dies.  Asked of the local engine rather
+than of the network: it answers 404 for a path it does not route, which is the
+same question without leaving the machine."
+  (ksav-tests--with-engine
+    (let ((file (make-temp-name (expand-file-name "ksav-refused" temporary-file-directory))))
+      (unwind-protect
+          (progn
+            (should-error (ksav--download (concat (ksav-start) "/no-such-asset") file)
+                          :type 'user-error)
+            (should-not (file-exists-p file)))
+        (ignore-errors (delete-file file))))))
+
 (provide 'ksav-tests)
 ;;; ksav-tests.el ends here

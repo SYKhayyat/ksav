@@ -2,12 +2,57 @@
 
 Write a sefer in Emacs; Ksav's own engine typesets it.
 
+## Install
+
+Two steps, and neither needs a checkout of this repository or a Rust toolchain.
+
+**1 · The package.** Download `ksav-<version>.tar` from the
+[latest release](https://github.com/SYKhayyat/ksav/releases/latest) and:
+
+```
+M-x package-install-file RET ksav-0.1.0.tar RET
+```
+
+On Emacs 29 or newer you can install it from git instead, without downloading
+anything:
+
 ```elisp
-(add-to-list 'load-path "/path/to/ksav/editors/emacs")
+(package-vc-install '(ksav :url "https://github.com/SYKhayyat/ksav"
+                           :lisp-dir "ksav/editors/emacs"))
+```
+
+<details>
+<summary>straight.el, elpaca, or a plain <code>load-path</code></summary>
+
+```elisp
+;; straight.el
+(straight-use-package
+ '(ksav :host github :repo "SYKhayyat/ksav"
+        :files ("ksav/editors/emacs/ksav*.el")))
+
+;; elpaca
+(elpaca (ksav :host github :repo "SYKhayyat/ksav"
+              :files ("ksav/editors/emacs/ksav*.el")))
+
+;; from a checkout
+(add-to-list 'load-path "/path/to/ksav/ksav/editors/emacs")
 (require 'ksav)
 ```
 
-`.ksav` files open in `ksav-mode`. Then:
+`melpa-recipe` in this directory is the same thing in MELPA's format.
+</details>
+
+**2 · The engine.**
+
+```
+M-x ksav-install-engine
+```
+
+That downloads the engine for your machine from the same release and puts it
+under your Emacs directory. Nothing is written to a system path and nothing is
+put on `exec-path`; if you already have a `ksav` binary of your own, it wins.
+
+That is the whole install. `.ksav` files now open in `ksav-mode`:
 
 | | |
 |---|---|
@@ -18,11 +63,28 @@ Write a sefer in Emacs; Ksav's own engine typesets it.
 | `C-c C-k` | stop the engine |
 
 The engine starts the first time you need it and stops when Emacs exits. Point
-it at one you are already running with `ksav-server-url`.
+it at one you are already running — a desktop Ksav, or another Emacs — with
+`ksav-server-url`.
 
-You need the `ksav` binary on `exec-path` — the same single self-contained
-binary the desktop application ships, built with `cargo build --release` in
-`ksav/engine`. Set `ksav-executable` if it lives somewhere unusual.
+### Why there are two steps
+
+This package is a client and the engine is the product; see *What this is*
+below. So an Emacs with only this package installed has a door and no room.
+
+That used to be a much worse sentence than it is now. A Ksav release attached
+four desktop installers and nothing else, and the desktop shell links the engine
+as a **library** — so installing Ksav put no `ksav` program anywhere on your
+machine, and this README told you to run `cargo build --release`, which is a
+compile of the whole Typst compiler, offered to somebody whose stated toolchain
+is Emacs. A release now attaches the engine itself, per platform, and
+`M-x ksav-install-engine` is the two words that fetch it.
+
+The downloaded binary is the whole of Ksav, not a cut-down piece of it: `ksav
+serve` also opens the full editor in a browser, and `ksav document.ksav` writes
+a PDF from a shell.
+
+Set `ksav-executable` if you have an engine somewhere unusual, and
+`ksav-install-directory` to put the downloaded one somewhere else.
 
 ## What this is
 

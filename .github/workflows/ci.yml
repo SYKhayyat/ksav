@@ -318,6 +318,13 @@ jobs:
       - name: Install Emacs
         run: sudo apt-get update && sudo apt-get install -y emacs-nox
 
+      # For the packaging step at the end of this job. Declared rather than
+      # taken from whatever the runner image ships, for the same reason the
+      # rustup components are.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       # The engine, because half of these tests drive a real one: a real Typst
       # compile, a real PDF, the real Hebrew speller. Without it that half skips,
       # and `KSAV_EMACS_LIVE` below turns the skip into an error so it cannot
@@ -340,8 +347,12 @@ jobs:
         working-directory: ./ksav/editors/emacs
         run: |
           emacs --version | head -1
+          # Every `.el` in the directory, not a list of three. The list was
+          # written when there were three and a fourth arrived generated, which
+          # is exactly when a hand-kept list stops covering the file most likely
+          # to be wrong.
           emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
-                -f batch-byte-compile ksav-services.el ksav.el ksav-tests.el
+                -f batch-byte-compile ./*.el
           rm -f ./*.elc
 
       - name: Run the package's tests
@@ -352,6 +363,36 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/ksav/engine/target/release:$PATH"
           emacs -Q --batch -L . -l ksav.el -l ksav-tests.el \
                 -f ert-run-tests-batch-and-exit
+
+      # And then install it the way a person would.
+      #
+      # Every step above this one runs the package **out of the checkout**, with
+      # `-L .` pointing at the source tree. That is not how anybody gets it, and
+      # it cannot see the thing most likely to be wrong with a package: what is
+      # and is not in the tarball. A file left out of `PACKAGE_FILES` — a newly
+      # generated one, say — passes the byte-compile and the whole ERT suite
+      # here and fails on the first machine that installs it, with a
+      # `void-function` for something that is right there in the repository.
+      #
+      # So the tarball is built and handed to `package-install-file` in a clean
+      # batch Emacs, and the package is required from the *installed* copy.
+      # Deliberately not a listing of the archive's contents: that asks whether
+      # the file is present, and the question is whether the package loads.
+      #
+      # On every push rather than only on a tag. Packaging that is exercised
+      # once per release is packaging that is broken on release day, and
+      # `release.yml` runs this same check immediately before uploading it.
+      - name: Build the tarball and install it into a clean Emacs
+        shell: bash
+        run: |
+          dir="$(node ksav/app/tools/emacs-package.mjs "$RUNNER_TEMP/elpa")"
+          tar -cf "$RUNNER_TEMP/pkg.tar" -C "$RUNNER_TEMP/elpa" "$(basename "$dir")"
+          emacs -Q --batch --eval '(progn
+            (require (quote package)) (package-initialize)
+            (package-install-file "'"$RUNNER_TEMP"'/pkg.tar")
+            (require (quote ksav))
+            (unless (fboundp (quote ksav-install-engine))
+              (error "installed, and ksav-install-engine is not there")))'
 
   desktop:
     name: desktop shell

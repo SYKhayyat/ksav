@@ -270,3 +270,90 @@ fn parameter_names_come_from_the_prelude() {
         assert!(said.message.chars().any(is_hebrew), "{}", said.message);
     }
 }
+
+// ------------------------------------------------- (b) *the line they can act on*
+//
+// The header's rule has three parts and the middle one was only half kept. Every
+// diagnostic here carries a line, a column, the command it is about and — when
+// the name was misspelled — a suggestion, because the browser editor puts a mark
+// in its gutter from exactly those fields.
+//
+// Two of the three surfaces that show a diagnostic threw all of them away. The
+// command line printed `[error] {message}`; the Emacs client printed
+// `error: {message}`. So a writer compiling a sefer in a terminal read *the
+// command here is missing an argument: body* with no idea which command it was
+// or which of three hundred lines. Found by compiling a real kuntres.
+//
+// `Diagnostic::one_line` is where the formatting lives now, so a surface with no
+// gutter asks for a line of text rather than inventing one.
+
+#[test]
+fn a_diagnostic_can_say_where_it_is() {
+    // `#סעיף` takes a letter and a halacha. One bracket is the commonest way a
+    // sefer fails to compile, and the message alone does not say which command.
+    let body = "פתיחה.\n\nעוד שורה.\n\n#סעיף[א] הטקסט ממשיך.\n";
+    let out = compile(body, &DocConfig::default());
+    assert!(!out.ok(), "the document compiled");
+    let d = out
+        .diagnostics
+        .iter()
+        .find(|d| d.severity == "error")
+        .expect("an error");
+    let line = d.one_line("kuntres.ksav");
+    assert!(
+        line.starts_with("kuntres.ksav:5:"),
+        "it does not say where: {line}"
+    );
+    assert!(line.contains("error: "), "nor how bad: {line}");
+    // `[#סעיף]`, with one hash. `about` carries its own and this printed
+    // `[##סעיף]` until somebody read the output instead of the assertion.
+    assert!(
+        line.contains("[#סעיף]") && !line.contains("##"),
+        "nor which command, which the engine knows: {line}"
+    );
+}
+
+#[test]
+fn a_misspelled_command_offers_the_name_it_meant() {
+    let out = compile("#כותרת11[פרק]\n", &DocConfig::default());
+    assert!(!out.ok(), "the document compiled");
+    let d = out
+        .diagnostics
+        .iter()
+        .find(|d| d.did_you_mean.is_some())
+        .expect("a suggestion");
+    let line = d.one_line("kuntres.ksav");
+    assert!(
+        line.contains("did you mean #"),
+        "the suggestion never reaches a surface with no gutter: {line}"
+    );
+}
+
+#[test]
+fn a_diagnostic_with_nowhere_to_point_says_only_what_it_is() {
+    // Ours rather than Typst's: no span, so no `file:line:` prefix invented for
+    // it. A position that is not a position is worse than none — it sends the
+    // reader to a line that has nothing wrong with it.
+    let d = Diagnostic::ours("error", "אין קובץ · no file".into());
+    let line = d.one_line("kuntres.ksav");
+    assert!(
+        !line.contains("kuntres.ksav"),
+        "it invented a place: {line}"
+    );
+    assert_eq!(line, "error: אין קובץ · no file");
+}
+
+#[test]
+fn a_line_from_an_included_document_names_that_document() {
+    // The reason `file` exists at all: a sefer assembled from twelve chapters
+    // reports at a line number in a document that exists nowhere. The one-line
+    // form has to keep that, or the field is computed for nobody.
+    let mut d = Diagnostic::ours("error", "משהו · something".into());
+    d.line = Some(7);
+    d.column = Some(3);
+    d.file = Some("perek-b.ksav".into());
+    assert_eq!(
+        d.one_line("kuntres.ksav"),
+        "perek-b.ksav:7:3: error: משהו · something"
+    );
+}

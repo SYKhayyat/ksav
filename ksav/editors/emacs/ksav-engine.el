@@ -326,12 +326,41 @@ reached only when there really is nothing else."
      (t nil))))
 
 (defun ksav--diagnostics (answer)
-  "Every diagnostic in ANSWER, as lines of text."
-  (mapcar (lambda (d)
-            (format "%s: %s"
-                    (or (alist-get 'severity d) "error")
-                    (or (alist-get 'message d) "")))
-          (alist-get 'diagnostics answer)))
+  "Every diagnostic in ANSWER, as lines of text.
+
+Each one says **where it is**, which for a long time none of them did.  The
+engine computes a line, a column, the command the trouble is about and a
+spelling suggestion for every diagnostic — the browser editor puts a mark in
+its gutter from exactly those fields — and this printed the severity and the
+message and dropped the rest.  So a writer with a three-hundred-line sefer read
+\"the command here is missing an argument: body\" and went looking by eye.
+
+The shape is `file:line:column: severity: message', which is what every
+compiler has printed since the seventies and what `compilation-mode' and
+`next-error' already know how to walk.  `whose' is the buffer's own file, since
+`file' is set only for a line that came out of an included document."
+  (let ((whose (or (and buffer-file-name (file-name-nondirectory buffer-file-name))
+                   "")))
+    (mapcar
+     (lambda (d)
+       (let ((line (alist-get 'line d))
+             (column (alist-get 'column d))
+             (about (alist-get 'about d))
+             (mean (alist-get 'did_you_mean d))
+             (file (or (alist-get 'file d) whose)))
+         (concat
+          (when line
+            (format "%s:%d%s: " file line (if column (format ":%d" column) "")))
+          (format "%s: %s"
+                  (or (alist-get 'severity d) "error")
+                  (or (alist-get 'message d) ""))
+          ;; `about` carries its own hash and `did_you_mean` does not.  Both
+          ;; halves of this were written twice — once here and once in the
+          ;; engine — and both drafts printed `[##סעיף]`, which is the argument
+          ;; for the format being one authority rather than two agreeing.
+          (when about (format " [%s]" about))
+          (when mean (format " — did you mean #%s?" mean)))))
+     (alist-get 'diagnostics answer))))
 
 ;;;; --------------------------------------------------- saying what came back
 

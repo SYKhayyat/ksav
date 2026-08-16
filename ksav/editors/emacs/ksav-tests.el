@@ -245,6 +245,44 @@ contradicting itself in adjacent lines."
   (should (equal '("error: line 3")
                  (ksav--diagnostics '((diagnostics . (((severity . "error") (message . "line 3")))))))))
 
+(ert-deftest ksav-a-diagnostic-says-where-it-is ()
+  "The engine computes a line, a column, the command and a suggestion for every
+diagnostic — the browser editor puts a mark in its gutter from exactly those —
+and this printed the severity and the message and dropped the rest.  So a writer
+with a three-hundred-line sefer read \"the command here is missing an argument\"
+and went looking by eye.
+
+The shape is the one `compilation-mode` and `next-error` already walk."
+  (let ((buffer-file-name "/seforim/kuntres.ksav"))
+    (should (equal '("kuntres.ksav:5:2: error: חסר ארגומנט [#סעיף]")
+                   (ksav--diagnostics
+                    '((diagnostics . (((severity . "error")
+                                       (message . "חסר ארגומנט")
+                                       (line . 5) (column . 2)
+                                       (about . "#סעיף")))))))))
+  ;; A misspelling carries the name it meant, which is the whole value of the
+  ;; field and reached nobody outside the browser.
+  (let ((buffer-file-name "/seforim/kuntres.ksav"))
+    (should (equal '("kuntres.ksav:1: error: אין פקודה — did you mean #כותרת1?")
+                   (ksav--diagnostics
+                    '((diagnostics . (((severity . "error")
+                                       (message . "אין פקודה")
+                                       (line . 1)
+                                       (did_you_mean . "כותרת1")))))))))
+  ;; …and a diagnostic with nowhere to point invents nothing. A position that is
+  ;; not a position sends the reader to a line with nothing wrong with it.
+  (should (equal '("error: אין קובץ")
+                 (ksav--diagnostics
+                  '((diagnostics . (((severity . "error") (message . "אין קובץ"))))))))
+  ;; A line out of an included document names that document rather than the
+  ;; buffer, which is the reason the engine computes the field at all.
+  (let ((buffer-file-name "/seforim/kuntres.ksav"))
+    (should (equal '("perek-b.ksav:7:3: error: משהו")
+                   (ksav--diagnostics
+                    '((diagnostics . (((severity . "error") (message . "משהו")
+                                       (line . 7) (column . 3)
+                                       (file . "perek-b.ksav"))))))))))
+
 (ert-deftest ksav-a-count-of-pages-agrees-with-itself ()
   "One page is singular in both halves of the sentence.  Written inline at two
 sites, one of them produced \"1 page were typeset\"."

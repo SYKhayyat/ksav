@@ -87,9 +87,20 @@ fn main() -> ExitCode {
     let result = compile(&body, &DocConfig::default());
     let elapsed = started.elapsed();
 
-    // Report diagnostics from the real Typst compiler.
+    // Report diagnostics from the real Typst compiler, *where they are*.
+    //
+    // This printed `[severity] message` and nothing else, for as long as the CLI
+    // has existed — while the engine was computing a line, a column, the command
+    // the trouble is about and a spelling suggestion for every one of them,
+    // because the browser editor puts a mark in its gutter. So a writer
+    // compiling a sefer here read "the command here is missing an argument:
+    // body" with no idea which command or which of three hundred lines.
+    //
+    // `Diagnostic::one_line` is where that is written now, once, so the Emacs
+    // client says the same thing.
+    let whose = input.display().to_string();
     for d in &result.diagnostics {
-        eprintln!("[{}] {}", d.severity, d.message);
+        eprintln!("{}", d.one_line(&whose));
     }
 
     if let Some(pdf) = &result.pdf {

@@ -104,6 +104,59 @@ impl Diagnostic {
             ..Self::default()
         }
     }
+
+    /// One line of text, for a surface that has no gutter to put a mark in.
+    ///
+    /// # Why this is here and not in the caller
+    ///
+    /// Every field above this exists so a reader can be told **where** the
+    /// trouble is, and two of the three surfaces that show a diagnostic were
+    /// throwing all of them away: the command line printed
+    /// `[error] {message}` and the Emacs client printed `error: {message}`.
+    /// The browser editor used them, so nothing looked broken — the engine
+    /// computed a line, a column, the command it was about and a spelling
+    /// suggestion, and a writer compiling a sefer from a terminal read *the
+    /// command here is missing an argument: body* and went looking through
+    /// three hundred lines by eye.
+    ///
+    /// So the formatting is the engine's, once, and a surface that wants a
+    /// line of text asks for one. `file` is the included document the line came
+    /// from; `whose` is what to call the main body when it is not one.
+    ///
+    /// The shape is the one every compiler and editor already knows how to
+    /// parse — `file:line:column: severity: message` — which is what makes the
+    /// output navigable in Emacs, in Vim and in a CI log rather than merely
+    /// more detailed.
+    pub fn one_line(&self, whose: &str) -> String {
+        let mut out = String::new();
+        if let Some(line) = self.line {
+            out.push_str(self.file.as_deref().unwrap_or(whose));
+            out.push(':');
+            out.push_str(&line.to_string());
+            if let Some(column) = self.column {
+                out.push(':');
+                out.push_str(&column.to_string());
+            }
+            out.push_str(": ");
+        }
+        out.push_str(&self.severity);
+        out.push_str(": ");
+        out.push_str(&self.message);
+        // `about` already carries its own `#`; `did_you_mean` is a bare registry
+        // name and does not. They read identically in the message, which is how
+        // the first draft of this printed `[##סעיף]`.
+        if let Some(about) = &self.about {
+            out.push_str(" [");
+            out.push_str(about);
+            out.push(']');
+        }
+        if let Some(mean) = &self.did_you_mean {
+            out.push_str(" — did you mean #");
+            out.push_str(mean);
+            out.push('?');
+        }
+        out
+    }
 }
 
 /// Where the writer's own text starts inside a main source — **the
@@ -403,16 +456,35 @@ fn sole_call(body: &str, name: &str) -> Option<usize> {
 /// a call it says nothing rather than guessing, and rule 4 of the project's own
 /// rules is that a wrong name is worse than no name.
 fn enclosing_command(body: &str, byte: usize) -> Option<String> {
+    // The span is often the call itself rather than something inside it: a
+    // missing argument is reported *at* `#סעיף`, not between its brackets. Read
+    // the name forwards from the nearest `#` that the byte is standing on or in.
+    if let Some(name) = command_at(body, byte) {
+        return Some(name);
+    }
     let upto = &body[..byte.min(body.len())];
-    let mut depth = 0i32;
+    let mut round = 0i32;
+    let mut square = 0i32;
     let bytes = upto.as_bytes();
     let mut i = bytes.len();
     while i > 0 {
         i -= 1;
         match bytes[i] {
-            b')' => depth += 1,
-            b'(' => {
-                if depth == 0 {
+            b')' => round += 1,
+            b']' => square += 1,
+            // `[` as well as `(`, which it did not have and which is most of
+            // this language: `#טבלה(עמודות: "שתיים")` was findable and
+            // `#סעיף[א]` was not, so every argument error on a command called
+            // the ordinary Ksav way read *"the command here"* and named
+            // nothing. `#name[…]` is the idiom; the parenthesised form is the
+            // exception.
+            b'(' | b'[' => {
+                let depth = if bytes[i] == b'(' {
+                    &mut round
+                } else {
+                    &mut square
+                };
+                if *depth == 0 {
                     // The name runs from here back to the `#`.
                     let head = &upto[..i];
                     let hash = head.rfind('#')?;
@@ -422,12 +494,44 @@ fn enclosing_command(body: &str, byte: usize) -> Option<String> {
                     }
                     return Some(format!("#{name}"));
                 }
-                depth -= 1;
+                *depth -= 1;
             }
             _ => {}
         }
     }
     None
+}
+
+/// The command whose `#name` the byte is standing on, or in.
+///
+/// Typst spans a missing-argument error at the call, which means the byte lands
+/// inside the name rather than inside the brackets — so the backwards bracket
+/// scan above has nothing to find and every one of those errors named nothing.
+fn command_at(body: &str, byte: usize) -> Option<String> {
+    let at = byte.min(body.len());
+    // Back to the start of the run of name characters the byte is inside.
+    let mut start = at;
+    while start > 0 && body.is_char_boundary(start - 1) {
+        let c = body[start - 1..].chars().next()?;
+        if !(c.is_alphanumeric() || c == '_') {
+            break;
+        }
+        start -= c.len_utf8();
+    }
+    if start == 0 || !body[..start].ends_with('#') {
+        return None;
+    }
+    let rest = &body[start..];
+    let end = rest
+        .char_indices()
+        .find(|(_, c)| !(c.is_alphanumeric() || *c == '_'))
+        .map(|(i, _)| i)
+        .unwrap_or(rest.len());
+    let name = &rest[..end];
+    if name.is_empty() || !is_command_name(name) {
+        return None;
+    }
+    Some(format!("#{name}"))
 }
 
 /// Whether a run of text could be a command name — letters, digits, underscore.

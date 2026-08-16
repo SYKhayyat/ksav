@@ -97,6 +97,21 @@ kuntres, and the documentation pass — are the five records dated that day.
 
 ### The live tracker
 
+- [ ] **A structural argument outside its container is the identity, silently.**
+      `#פריט` and `#תא` are `#let פריט(body) = body`: they mean something only
+      as arguments of `#רשימה(…)` and `#טבלה(…)`, which is why the registry
+      spells them without a `#`. Written in prose — `#רשימה[#פריט[א] #פריט[ב]]`
+      — the compile succeeds, says nothing, and prints a one-item list holding
+      both. A table does the same and comes out one row. Both happened while
+      writing the 16 August kuntres and the page was quietly wrong.
+
+      `legalAt` in `mode.ts` greys a page break inside a container and a merge
+      between two cells, and has no rule for this; nor has the engine. Whether
+      it should is a question about the language rather than a bug with an
+      obvious fix — `#פריט` in markup is a misuse the grammar permits, and the
+      toolbar never writes it. **Ask before deciding.** See
+      [`decisions/2026-08-16-where-the-trouble-is.md`](decisions/2026-08-16-where-the-trouble-is.md).
+
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
       most important line on the page. Two kuntres-length sittings — 7 and 16
       August — found four bugs the whole suite was green over, and neither of

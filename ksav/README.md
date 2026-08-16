@@ -514,7 +514,7 @@ the reasoning, not the reference, and this file is long enough.
   cursor, and everything while **Alt** is held, reveal their raw markup so you
   can always edit.
 - **Live preview** — real Typst SVG, ~20-90ms round-trip.
-- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 124 commands
+- **Word-like toolbar**, **command palette** (Ctrl+K, searches all 122 commands
   in Hebrew or English), **templates** menu, **export** menu (PDF / **Word** /
   HTML / Markdown / text / Typst / print).
 - **Bracket healing** (`app/src/brackets.ts`) — Typst can only report an unclosed
@@ -606,6 +606,16 @@ browser on any OS.
 `C-c C-s` runs the Hebrew and English spellers. It starts an engine for you and
 stops it when Emacs exits.
 
+Those four are the daily keys and not the extent of it. **Every service this
+engine answers has a door in Emacs** — the assembled Typst source, click-to-jump
+on the drawn page and its inverse, the speller's suggestions, the templates, the
+sefarim catalogue as a `completion-at-point`, all eighteen git operations, and
+the six errands to Girsa. That is a claim `app/test/emacs.test.mjs` holds with
+an exemption list that is **empty**, because the version before it reached three
+of sixteen and a client that quietly cannot do thirteen of the things the
+product does cannot tell its reader *Ksav cannot do that* from *something went
+wrong*. It reported the first as the second, every time.
+
 It is a client and nothing more — no elisp here parses Ksav markup, decides what
 a command means or renders anything. That is the only arrangement in which an
 Emacs user gets *Ksav* rather than a mode that approximates it and drifts, and
@@ -686,7 +696,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 6,223 editor assertions, 674 engine
+- [x] **CI, running and green** — typecheck, 6,277 editor assertions, 674 engine
       tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
       the browser (wasm) engine, and a run of the assembled application in a real
       browser, on every push. See [Test](#test) and [Use it](#use-it).
@@ -723,7 +733,16 @@ Not done:
       `unclosed string`, and the Mekoros panel dropped the ref that is the
       whole argument for the Girsa pairing. All three fixed; see
       [`decisions/2026-08-07-writing-a-kuntres.md`](../decisions/2026-08-07-writing-a-kuntres.md).
-      Most of a siman is not a sefer, so the box stays open.
+
+      A second sitting on 16 August wrote a kuntres on lechem mishneh in the
+      assembled application — three simanim, a footnote, a source note,
+      gershayim inside parentheses, a table, two apparatus bands stacked at the
+      foot of the page, an `.org` import and a PDF. The three above are gone,
+      and it found a fourth: the status bar read *rendering…* for as long as
+      nothing else happened, after the PDF had already been written. See
+      [`decisions/2026-08-16-writing-a-kuntres-in-it.md`](../decisions/2026-08-16-writing-a-kuntres-in-it.md).
+
+      Two kuntres-length sittings are not a sefer, so the box stays open.
 
 ## Checking how something renders
 
@@ -774,7 +793,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 6,223 assertions across 95 files |
+| `editor` | both | the typechecker, then 6,277 assertions across 96 files |
 | `engine` | both | formatting, lints, then 674 tests across 42 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |

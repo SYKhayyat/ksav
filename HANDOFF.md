@@ -88,62 +88,36 @@ cd ksav/app && npm run accept
 
 ## 4 · What is left
 
+Finished items are **deleted from here**, not ticked. A section called *what is
+left* full of `- [x]` is the log this page says it is not; what was done on a
+day belongs in [`decisions/`](decisions/README.md), which is indexed and which
+this page links to instead. The five items that stood here on 16 August 2026 —
+the Emacs client, per-pane places, the 11 August reconciliation, writing a
+kuntres, and the documentation pass — are the five records dated that day.
+
 ### The live tracker
 
-- [x] **Emacs as a first-class citizen.** All sixteen services have a door, the
-      exemption lists in `emacs.test.mjs` are empty, and `ksav.el` is seven
-      files. See
-      [`decisions/2026-08-16-three-of-sixteen.md`](decisions/2026-08-16-three-of-sixteen.md).
-
-- [ ] **A pane should remember its own place in each document.** The open set
-      stores one `EditorState` per document, so returning to a sefer puts every
-      pane at the focused pane's caret.
+- [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
+      most important line on the page. Two kuntres-length sittings — 7 and 16
+      August — found four bugs the whole suite was green over, and neither of
+      them is a sefer. The next one should be **long**: enough pages for the
+      apparatus to break across them, enough simanim for the numbering to be
+      re-read, a real export sent to somebody who will open it. Nothing else has
+      ever found this class of bug. Every bug goes to the top of the queue and
+      gets the class treatment.
 
 - [ ] **`deploy.yml` has never run.** The workflow that publishes the browser
       build triggers on tags, and the one tag this repository has predates the
       file — so the wasm build, the service worker, the manifest and every share
       link point at a site that has never been built once. The workflow is
       written and its action pins are current; what is missing is a tag, or a
-      `workflow_dispatch` run, and then reading what comes out.
+      `workflow_dispatch` run, and then reading what comes out. **Ask before
+      running it**: it publishes a public site, which is not a thing to do on
+      somebody's behalf.
 
-### Reconcile the 2026-08-11 list
-
-- [ ] `decisions/2026-08-11-marking-up-the-ui-inventory.md` carries seventy-seven
-      unchecked boxes and was the source of most of the last month's work. It is
-      a **log**: never edited after its date, by that directory's own contract.
-      So its boxes are stale in *both* directions — "Emacs mode does nothing",
-      the open set, panes, tabs, git, the keyboard modes and Org in both
-      directions are all done and still read `- [ ]`, while others have never
-      been touched. Nothing distinguishes them.
-
-      Read all seventy-seven against the code as it is now, decide each one, and
-      bring the genuinely open ones into this file. **Do not edit that file to
-      tick them** — the record is not rewritten. And do not assume a box is done
-      because it sounds familiar; check.
-
-### Write a real sefer in it
-
-- [ ] `ksav/README.md`'s last open box, and it calls this the most important
-      line on the page. An hour of real use on 7 August 2026 found three bugs
-      the whole suite was green over: a sefer numbered from the toolbar came out
-      **סימן א׳** three times, the gershayim you press for רש״י produced Typst's
-      raw `unclosed string`, and the Mekoros panel dropped the reference that is
-      the entire argument for the Girsa pairing. See
-      `decisions/2026-08-07-writing-a-kuntres.md`.
-
-      Build the assembled application and actually write in it: simanim,
-      footnotes, a source note, a gershayim inside parentheses, a table, two
-      apparatus bands, an import, and a PDF out the other end. Every bug you hit
-      goes to the top of the queue and gets the class treatment.
-
-### Documentation and onboarding
-
-- [ ] A full pass on `README.md`, `ksav/README.md`, `CONTRIBUTING.md`,
-      `docs/start-here.md` and `ksav/editors/emacs/README.md`. Somebody arriving
-      with no context should be able to install Ksav, write a sefer, and find
-      their way around — on the desktop, in a browser, and in Emacs. Read them
-      as that person, not as their author. Counts in living pages are swept, so
-      correct a number rather than hedging it.
+- [ ] **Which shipped arrangements are worth having as default tabs.** Left open
+      by the 11 August record and still open, because it is a question for a
+      writer rather than for the code.
 
 ### Not yours to close
 

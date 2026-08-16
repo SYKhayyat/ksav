@@ -235,8 +235,12 @@ if (!fail && !broke && !silent.length && !FILTER.length) {
   for (const file of livingPages()) {
     const body = await readFile(path.join(ROOT, file), "utf8");
     for (const c of numericClaimsIn(body)) {
-      if (!RUNTIME.includes(c.fact)) continue;
-      if (c.number !== measured[c.fact]) wrong.push(`${file}: "${c.said}" — it was ${group(measured[c.fact])}`);
+      // A noun can name more than one fact; only the runtime ones are this
+      // run's business, and a claim about any of them has to match.
+      for (const f of c.facts) {
+        if (!RUNTIME.includes(f)) continue;
+        if (c.number !== measured[f]) wrong.push(`${file}: "${c.said}" — it was ${group(measured[f])}`);
+      }
     }
   }
   if (wrong.length) {

@@ -62,7 +62,15 @@ const GIRSA_START_HERE = "https://github.com/SYKhayyat/girsa/blob/main/docs/star
  * is not enough; there has to be one thing that counts. That is
  * `tools/commands.mjs`, and it is the only reader of this table left.
  */
-const commandCount = () => commands().length;
+/**
+ * The commands this card is about: the ones a reader can reach.
+ *
+ * Not `commands().length`, which is the registry and includes the deprecated
+ * ones the palette and the `#` completion deliberately drop. This sentence is
+ * about what `#` offers, so it counts what `#` offers — the same distinction
+ * `tools/commands.mjs` draws between `commandCount` and `offeredCount`.
+ */
+const commandCount = () => commands().filter((c) => !c.deprecated).length;
 
 /** A label in one language, or the action's id if nobody named it. */
 function label(id, lang) {

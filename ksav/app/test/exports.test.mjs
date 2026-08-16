@@ -25,6 +25,9 @@
 // bar says afterwards — because both bugs consisted of the status bar and the
 // filesystem disagreeing, and a test of either alone is green while it is wrong.
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { check, ok, notOk } from "./harness.mjs";
 import * as exports_ from "../.tmp-test/exports.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
@@ -55,6 +58,18 @@ function onScreen(pages) {
 // `globalThis` is enough to convince `@codemirror/view` it is in a browser, and
 // the next test file is imported after this one has run. The harness has the
 // same note on it, from the other direction.
+
+/**
+ * The module's own source, read now rather than inside `run`.
+ *
+ * `installDom` replaces the global `URL` with a fake carrying only the two
+ * object-URL methods, so `new URL(…)` throws for as long as the fakes are up —
+ * which is the whole of `run`.
+ */
+const EXPORTS_TS = readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "exports.ts"),
+  "utf8",
+);
 
 /** What was handed to the browser as a download, and what was printed. */
 const captured = { downloads: [], printed: null, clipboard: null, status: null };
@@ -363,6 +378,60 @@ export async function run() {
         captured.downloads.map((d) => d.name.slice(d.name.lastIndexOf("."))),
         [".md", ".txt"],
       );
+      // …and each of them says so. These two, and Org, produced a file and set
+      // no status at all, so the status bar went on saying whatever the last
+      // operation had put there. Found by exporting a PDF and then watching the
+      // bar read "rendering…" for eleven seconds while the file sat in the
+      // downloads folder.
+      ok("the last one names the file it wrote", statusText().includes(".txt"), statusText());
+    }
+
+    // ------------------------------------ 4b. a file never leaves in silence
+    //
+    // The class, rather than the four instances. Seven routes hand a file over
+    // and two of them remembered to say so; the announcement belongs to the act
+    // of handing it over, which is `handOver` in `exports.ts`. This is the
+    // executable half of that: a route that reaches for the bare `download`
+    // goes quiet again, and nothing else in the suite would notice.
+
+    {
+      // The three that take no backend and flush nothing. `exportTypst` and
+      // `exportPdf` are asserted where they already run, deliberately: both
+      // begin with `flushSaves()`, and a save inside these fakes genuinely
+      // fails — which is the right behaviour and leaves `save.ts` holding a
+      // recorded failure that the next *file* in the suite reads as its own.
+      // The structural check below covers all seven anyway.
+      const routes = [
+        ["exportMarkdown", ".md"],
+        ["exportOrg", ".org"],
+        ["exportText", ".txt"],
+      ];
+      const silent = [];
+      for (const [name, ext] of routes) {
+        withDoc("#כותרת1[פרק א]\nטקסט.\n");
+        captured.downloads.length = 0;
+        globalThis.document.getElementById("status").textContent = "";
+        await exports_[name]();
+        const said = statusText();
+        const wrote = captured.downloads.some((d) => d.name.endsWith(ext));
+        if (wrote && !said.includes(ext)) silent.push(`${name}: "${said}"`);
+      }
+      check("no route hands a file over without saying so", silent, []);
+
+      // And the source says it too, so the next route added cannot be the one
+      // that forgets: `handOver` is the only caller of `download` in this file.
+      const bare = EXPORTS_TS
+        .split("\n")
+        .map((l, i) => [i + 1, l])
+        .filter(([, l]) => /(?<![\w.])download\(/u.test(l))
+        // The import, and the one line inside `handOver` that is allowed to.
+        .filter(([, l]) => !l.trim().startsWith("import "))
+        .filter(([, l]) => l.trim() !== "download(name, blob);");
+      check(
+        "and only one function in exports.ts reaches for `download`",
+        bare.map(([n, l]) => `${n}: ${l.trim()}`),
+        [],
+      );
     }
 
     // ------------------------------------------------ 5. the .typ, uncompiled
@@ -399,6 +468,9 @@ export async function run() {
       ok("with the right extension", captured.downloads[0].name.endsWith(".typ"));
       check("assembled once", assembles, 1);
       check("and nothing was compiled to get it", compiles, 0);
+      // …and it says the file went out. Asserted here rather than in the sweep
+      // above, for the reason given there.
+      ok("and it names what it wrote", statusText().includes(".typ"), statusText());
     }
 
     {

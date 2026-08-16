@@ -69,6 +69,38 @@ function warnIfHealed() {
   if (n) runtime.setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
 }
 
+/**
+ * Hand a file to the writer, and say so.
+ *
+ * # Found by exporting a PDF
+ *
+ * `exportPdf` sets the status to *rendering…*, compiles, downloads, and then
+ * says something **only if something was wrong**: a warning diagnostic, or a
+ * healed bracket. On the ordinary path — the document is fine, the file is in
+ * the writer's downloads — nothing cleared it. The status bar read *rendering…*
+ * indefinitely, until the next keystroke happened to trigger a compile. Measured
+ * at eleven seconds after the file had already landed, and it would have been
+ * ten minutes.
+ *
+ * Three more routes were worse: Markdown, Org and plain text produce a file and
+ * say **nothing at all**, so they left whatever the last operation had put
+ * there — which, right after a PDF export, was *rendering…* about a PDF.
+ *
+ * # Why it is here rather than at each call site
+ *
+ * Because there were seven call sites and two of them remembered. Announcing
+ * belongs to the act of handing a file over, not to each route's memory of
+ * doing so, and `exports.test.mjs` fails on a route that reaches for the bare
+ * `download` — which is the only way a new export can go quiet again.
+ *
+ * A warning after this one wins, deliberately: both sentences are true, and *a
+ * file went out but read this first* is the more useful of the two.
+ */
+function handOver(name: string, blob: Blob) {
+  download(name, blob);
+  runtime.setStatus(`✓ ${tf("exported", name)}`, "ok");
+}
+
 export async function exportPdf() {
   runtime.closeMenus();
   await flushSaves();
@@ -93,7 +125,7 @@ export async function exportPdf() {
     return;
   }
   const bytes = Uint8Array.from(atob(res.pdf_base64), (c) => c.charCodeAt(0));
-  download(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
+  handOver(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
   // Dropped tags on a page-range export, and anything else the export chose to
   // do rather than fail over — worth a line, since the file is already on disk.
   const note = res.diagnostics?.find((d) => d.severity === "warning")?.message;
@@ -125,7 +157,7 @@ export async function exportTypst() {
     runtime.setStatus(`${t("compileError")} — ${why}`, "err");
     return;
   }
-  download(runtime.fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
+  handOver(runtime.fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
   warnIfHealed();
 }
 
@@ -176,7 +208,7 @@ function healedCount(): number {
 export async function exportHtml() {
   runtime.closeMenus();
   const { html, why } = await reflowableHtml();
-  download(
+  handOver(
     runtime.fileStem() + ".html",
     new Blob([html ?? pageImageHtml()], { type: "text/html;charset=utf-8" }),
   );
@@ -271,7 +303,7 @@ export async function exportWord() {
   const { inner, styles } = splitHtml(html);
   // `.doc` (not `.docx`): Word opens HTML under this extension and converts it,
   // and the writer can then Save As a genuine .docx from inside Word.
-  download(
+  handOver(
     runtime.fileStem() + ".doc",
     new Blob([wordEnvelope(inner, styles)], { type: "application/msword;charset=utf-8" }),
   );
@@ -302,7 +334,7 @@ export async function copyForWord() {
 
 export function exportMarkdown() {
   runtime.closeMenus();
-  download(
+  handOver(
     runtime.fileStem() + ".md",
     new Blob([toMarkdown(runtime.docText())], { type: "text/markdown;charset=utf-8" }),
   );
@@ -316,7 +348,7 @@ export function exportMarkdown() {
  */
 export function exportOrg() {
   runtime.closeMenus();
-  download(
+  handOver(
     runtime.fileStem() + ".org",
     new Blob([toOrg(runtime.docText())], { type: "text/plain;charset=utf-8" }),
   );
@@ -324,7 +356,7 @@ export function exportOrg() {
 
 export function exportText() {
   runtime.closeMenus();
-  download(
+  handOver(
     runtime.fileStem() + ".txt",
     new Blob([toPlainText(runtime.docText())], { type: "text/plain;charset=utf-8" }),
   );

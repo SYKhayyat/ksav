@@ -58,6 +58,7 @@ import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
 import * as panes from "./panes";
+import * as paneplaces from "./paneplaces";
 import * as tabs from "./tabs";
 import type { DocAsset } from "./docs";
 import { ACTION_COMMAND, PLACED_COMMANDS, actionForCommand } from "./actions";
@@ -344,6 +345,9 @@ async function openDoc(id: string) {
   runtime.setSwitching(true);
   stashFocused();
   const leaving = runtime.currentDoc?.id ?? null;
+  // Where each pane is standing, before the document is taken out from under
+  // them. The open set has one caret per document; a window has one per pane.
+  rememberPlaces(leaving);
   // Keep this document's pages before anything points somewhere else, so coming
   // back to it shows it rather than a blank pane and a wait. See `showPagesFor`
   // for the other half, and `preview.ts` for why the pages are kept at all.
@@ -360,6 +364,9 @@ async function openDoc(id: string) {
   showInEveryPane(entry.state);
   syncGlobals();
   runtime.view.scrollDOM.scrollTop = entry.scrollTop;
+  // …and then each pane that has been in this document before goes back to
+  // where it was, which the line above can only answer for the focused one.
+  restorePlaces(id);
   runtime.setSwitching(false);
   // **Not** `save.markFileSaved()`. That used to be here, and with one global
   // flag for a library of documents it cleared the mark on the document being
@@ -393,6 +400,9 @@ async function openDoc(id: string) {
   refreshPaneHeads();
   runtime.view.focus();
   showPagesFor(id);
+  // After the pages are drawn, for the reason `restorePreviewPlaces` gives:
+  // there is nothing to scroll through until they are.
+  restorePreviewPlaces(id);
   scheduleCompile();
 }
 
@@ -549,6 +559,10 @@ async function setEditingMode(mode: unknown): Promise<void> {
 async function closeOpenDoc(id: string) {
   await flushSaves();
   if (opendocs.focusedId() === id) stashFocused();
+  // No pane is standing in a document that is not open, and one that is
+  // reopened is opened at its own caret. Keeping the rows would put a pane back
+  // at a place in a sefer measured against a text edited since.
+  paneplaces.forgetDoc(id);
   const next = opendocs.close(id);
   if (next) {
     // `openDoc` does the whole switch, and it proceeds because `runtime.currentDoc`
@@ -633,6 +647,7 @@ async function removeDoc(id: string) {
   const wasFocused = opendocs.focusedId() === id;
   await docs.deleteDoc(id);
   await files.rememberBinding(id, null);
+  paneplaces.forgetDoc(id);
   const next = opendocs.close(id);
   if (wasFocused) {
     // Whatever was next in the open set, or the library's newest, or a new one.
@@ -1853,11 +1868,11 @@ function sourceViews(): EditorView[] {
  * text with one undo history. They diverge from the first keystroke, and
  * `mirrorChange` is what keeps the text from diverging with them.
  *
- * What is *not* preserved is where each pane was standing in the document being
- * returned to — every pane comes back to the focused pane's caret, because the
- * open set stores one state per document rather than one per pane per document.
- * That is a real limit and it is filed as its own item rather than left here as
- * a comment nobody will find.
+ * Where each pane was *standing* in the document being returned to is restored
+ * afterwards, by `restorePlaces`. One state per document is still the right
+ * shape — there is one text and one undo history — and a caret per pane per
+ * document is the part that is not a property of the document at all. See
+ * `paneplaces.ts`.
  */
 function showInEveryPane(state: EditorState): void {
   const views = sourceViews();
@@ -1867,6 +1882,79 @@ function showInEveryPane(state: EditorState): void {
     return;
   }
   for (const v of views) v.setState(state);
+}
+
+/**
+ * Remember where every source pane is standing in the document it is showing.
+ *
+ * Called before a switch takes the document away. `stashFocused` above does the
+ * same thing for the *document* — its text, its history, and the focused
+ * pane's caret — and this is the half that is per pane: three panes onto one
+ * sefer are three places in it, and the open set has one slot.
+ */
+function rememberPlaces(docId: string | null): void {
+  if (!docId) return;
+  for (const l of panes.leaves(paneTree)) {
+    const v = l.role === "source" ? paneViews.get(l.id) : undefined;
+    if (l.role === "source" && !v) continue;
+    const sel = v?.state.selection.main;
+    paneplaces.remember(l.id, docId, {
+      anchor: sel?.anchor ?? 0,
+      head: sel?.head ?? 0,
+      // A preview has no caret, and `l.scrollTop` is what `wirePaneScroll`
+      // keeps for it. Every pane role is remembered, not only the two that can
+      // be typed in: coming back to a sefer with the source at siman fifty and
+      // the printed page at page one is the same complaint one pane over.
+      scrollTop: v ? v.scrollDOM.scrollTop : l.scrollTop,
+    });
+  }
+}
+
+/**
+ * Put every source pane back where it was in this document, if it has been here.
+ *
+ * A pane with nothing remembered is left alone, holding the document's own
+ * caret — which is where the writer last was in it. That is deliberately not
+ * "the top": a pane opening a sefer for the first time this session should land
+ * where the document says, and only a pane that has genuinely stood somewhere
+ * else in *this* document has a better answer than that.
+ *
+ * The scroll is set from the same record rather than left to
+ * `scrollIntoView`, because the two are different facts: a caret three lines
+ * above the fold and a caret centred are the same selection and not the same
+ * screen, and the writer arranged one of them.
+ */
+function restorePlaces(docId: string): void {
+  for (const l of panes.leaves(paneTree)) {
+    if (l.role !== "source") continue;
+    const v = paneViews.get(l.id);
+    const place = v && paneplaces.recall(l.id, docId);
+    if (!v || !place) continue;
+    const { anchor, head, scrollTop } = paneplaces.within(place, v.state.doc.length);
+    v.dispatch({ selection: { anchor, head } });
+    v.scrollDOM.scrollTop = scrollTop;
+  }
+}
+
+/**
+ * Put every preview pane back to the page it was showing in this document.
+ *
+ * Separate from the source panes above, and later, because a preview cannot be
+ * scrolled to somewhere it has no pages: `showPagesFor` is what draws them, and
+ * a scroll set before that is a scroll into an empty element, silently clamped
+ * to zero. So this runs after the pages are up, and does nothing when there are
+ * none — a document being opened for the first time this session has no page to
+ * return to, and the top of a blank pane is the honest answer.
+ */
+function restorePreviewPlaces(docId: string): void {
+  for (const l of panes.leaves(paneTree)) {
+    if (l.role === "source") continue;
+    const place = paneplaces.recall(l.id, docId);
+    const host = paneHostOf(l.id);
+    if (!place || !host || !host.scrollHeight) continue;
+    l.scrollTop = place.scrollTop;
+    host.scrollTop = place.scrollTop;
+  }
 }
 
 /** The view that owns a document's history: the first source pane showing it. */
@@ -2508,7 +2596,29 @@ function setTree(next: panes.PaneNode) {
   paneTree = next;
   renderPanes();
   rememberPanes();
+  forgetClosedPanes();
   scheduleCompile();
+}
+
+/**
+ * Drop the remembered places of panes that no longer exist.
+ *
+ * Swept from the tabs rather than wired into `closePane`, because closing a
+ * pane is not the only way one goes: picking a different arrangement replaces
+ * the whole tree, and a hand-wired forget at the one obvious call site is the
+ * shape this repository keeps paying for. Every tab's tree, not this one's —
+ * the other tabs' panes are alive and merely not on screen, and forgetting
+ * them here would make switching tabs lose exactly what this whole item is
+ * about.
+ *
+ * Run after `rememberPanes`, which stashes the current tree into the active
+ * tab: before it, the tab still holds the arrangement that has just been
+ * replaced and every new pane would look like a stranger.
+ */
+function forgetClosedPanes(): void {
+  const live = new Set<string>();
+  for (const tab of tabs.all()) for (const l of panes.leaves(tab.tree)) live.add(l.id);
+  for (const pane of paneplaces.panesKnown()) if (!live.has(pane)) paneplaces.forgetPane(pane);
 }
 
 /** Persist the arrangement, so a restart comes back to the same window. */
@@ -5495,7 +5605,12 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
   window.addEventListener("keydown", handler, true);
 }
 function exportDictionary() {
-  files.download("ksav-dictionary.txt", spell.exportUserWords());
+  const name = "ksav-dictionary.txt";
+  files.download(name, spell.exportUserWords());
+  // Said, like every other file that leaves. This one is outside `exports.ts`
+  // and was therefore outside the fence there, which is the whole reason the
+  // rule now lives in `prohibitions.test.mjs` instead.
+  setStatus(`✓ ${tf("exported", name)}`, "ok");
 }
 
 async function importDictionary() {
@@ -6654,14 +6769,22 @@ async function reloadFromDisk() {
  */
 function showCrashPanel(detail: string) {
   const body = runtime.docText();
+  // Said in the panel rather than in the status bar. Every other file that
+  // leaves says so on the status line, and this is the one moment that is
+  // wrong: the writer is looking at a dialog covering the application, which
+  // has just crashed, and the one thing they need to know is whether their
+  // words reached the disk. The button answers itself.
+  const rescue = el("button", { class: "primary", type: "button" }, [t("crashDownload")]);
+  rescue.addEventListener("click", () => {
+    const name = (runtime.currentDoc?.title || "ksav") + ".ksav";
+    files.download(name, body);
+    rescue.textContent = tf("exported", name);
+  });
   const panel = el("div", { id: "crash-panel", role: "alertdialog" }, [
     el("h3", {}, [t("crashTitle")]),
     el("p", {}, [t("crashLede")]),
     el("div", { class: "crash-acts" }, [
-      el("button", {
-        class: "primary", type: "button",
-        onClick: () => files.download((runtime.currentDoc?.title || "ksav") + ".ksav", body),
-      }, [t("crashDownload")]),
+      rescue,
       el("button", { type: "button", onClick: () => location.reload() }, [t("crashReload")]),
     ]),
     el("details", {}, [el("summary", {}, [t("crashDetails")]), el("pre", {}, [detail])]),

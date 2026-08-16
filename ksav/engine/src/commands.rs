@@ -249,7 +249,7 @@ pub static COMMANDS: &[Command] = &[
     cmd!("ציון", "refmark", "torah", "ציון מקור בסוגריים", "Inline reference", "#ציון[|]"),
     cmd!("גמרא", "gemara", "torah", "מראה מקום לגמרא", "Gemara reference", "#גמרא[|][]"),
     cmd!("אות", "os", "torah", "אות פותחת של סעיף, מודגשת עם הנקודה — בתוך פסקה רצה", "The letter that opens a clause, bold with its stop — inline, unlike #סעיף", "#אות[|]"),
-    cmd!("דיבור_המתחיל", "dh", "torah", "דיבור המתחיל", "Lemma (d\"h)", "#דיבור_המתחיל[|]"),
+    cmd!("דיבור_המתחיל", "dh", "torah", "דיבור המתחיל", "Dibbur hamaschil (d\"h)", "#דיבור_המתחיל[|]"),
     // The indexes. `ציון_מקור` and `ערך` are marks, and the two `מפתח_` commands
     // print what the marks collected — so they belong at the *back* of the
     // document, which is the one thing about them a writer has to be told.

@@ -40,6 +40,38 @@ export type StyleCommand =
   | "marks";
 
 /**
+ * A section that has one `#הגדרות_*` command behind it.
+ *
+ * Every kind but `marks`. A mark class is styled through a door named for it —
+ * `#הגדרות_סימן`, `#הגדרות_פסוק` — so the Marks section has one command per
+ * class rather than one command with the class keyed inside it, and asking for
+ * "the marks command" is a question with no answer.
+ */
+export type SectionCommand = Exclude<StyleCommand, "marks">;
+
+/**
+ * One mark class's own door, as a target this panel can read and write.
+ *
+ * `markDoor("סימן")` is `#הגדרות_סימן`. The prefix keeps a class name from
+ * colliding with a section kind, and makes a target that is not one of the two
+ * a type error rather than a lookup that returns undefined.
+ */
+export type MarkDoor = `door:${string}`;
+
+/** What the panel reads and writes against: a section's command, or a door. */
+export type StyleTarget = SectionCommand | MarkDoor;
+
+/** One mark class's door. */
+export function markDoor(cls: string): MarkDoor {
+  return `door:${cls}`;
+}
+
+/** The class behind a door, or `null` for a section command. */
+export function doorClass(target: StyleTarget): string | null {
+  return target.startsWith("door:") ? target.slice("door:".length) : null;
+}
+
+/**
  * The `#הגדרות_*` command each section reads and writes, by its Hebrew name.
  *
  * Hebrew only, and the English spelling comes from the generated pairing rather
@@ -48,7 +80,7 @@ export type StyleCommand =
  * refuses in any module — and it refused this one the moment the eighth section
  * was added, which is the fence doing precisely its job.
  */
-const COMMAND_NAMES: Record<StyleCommand, string> = {
+const COMMAND_NAMES: Record<SectionCommand, string> = {
   headings: "הגדרות_כותרות",
   lists: "הגדרות_רשימות",
   tables: "הגדרות_טבלאות",
@@ -78,17 +110,12 @@ const COMMAND_NAMES: Record<StyleCommand, string> = {
   // side, the heights) was reachable only by typing the command, which is the
   // same complaint that produced `bands` one entry up.
   streams: "הגדרות_זרמים",
-  // The mark register — `#ציון`, `#גמרא`, `#דיבור_המתחיל`, `#פסוק`, `#ציון_מקור`,
-  // `#ערך`. Its knobs are keyed by *class* rather than by tier or by stream, so
-  // the section has a class chooser where the Headings section has a level one;
-  // the value shapes are the same dictionaries the streams section already reads.
   // The section apparatus, which is the one a sefer with a peirush under the
   // text actually uses. Its knobs are per tier, exactly as the page bands' are.
   tiers: "הגדרות_מדורגות",
   // The side column. Its ratio and gutter are page geometry rather than ink —
   // the same shape as the bands' heights, and offered on the same terms.
   sidenotes: "הגדרות_הערות_צד",
-  marks: "הגדרות_סימונים",
 };
 
 /**
@@ -102,13 +129,14 @@ export { STYLED_CLASSES as MARK_CLASSES } from "./marks";
 import { STYLED_CLASSES } from "./marks";
 
 /** The canonical (Hebrew) name we write. */
-function canonical(kind: StyleCommand): string {
-  return COMMAND_NAMES[kind];
+function canonical(target: StyleTarget): string {
+  const cls = doorClass(target);
+  return cls === null ? COMMAND_NAMES[target as SectionCommand] : `הגדרות_${cls}`;
 }
 
 /** Both spellings of this section's command — Hebrew first, then the alias. */
-function spellings(kind: StyleCommand): readonly string[] {
-  return bothSpellings(COMMAND_NAMES[kind]);
+function spellings(target: StyleTarget): readonly string[] {
+  return bothSpellings(canonical(target));
 }
 
 /**
@@ -234,13 +262,13 @@ function splitStyleArgs(src: string): Map<string, string> {
 }
 
 /** Find the document's `#הגדרות_*` call of this kind, if it has one. */
-export function findStyleCall(doc: string, kind: StyleCommand): StyleCall | null {
-  for (const name of spellings(kind)) {
+export function findStyleCall(doc: string, target: StyleTarget): StyleCall | null {
+  for (const name of spellings(target)) {
     const node = scan(doc).nodes.find((n) => n.hash && n.name === name && n.args);
     if (!node) continue; // absent, or unbalanced — leave it alone
     const raw = splitStyleArgs(doc.slice(node.args!.from, node.args!.to));
     const args = new Map([...raw].map(([k, v]) => [canonicalKey(k), v]));
-    return { from: node.from, to: node.args!.to + 1, args, lang: name === canonical(kind) ? "he" : "en" };
+    return { from: node.from, to: node.args!.to + 1, args, lang: name === canonical(target) ? "he" : "en" };
   }
   return null;
 }
@@ -258,11 +286,11 @@ export function findStyleCall(doc: string, kind: StyleCommand): StyleCall | null
  */
 export function setStyleArgs(
   doc: string,
-  kind: StyleCommand,
+  target: StyleTarget,
   changes: Record<string, string | null>,
   lang: CommandLang = "he",
 ): string {
-  const existing = findStyleCall(doc, kind);
+  const existing = findStyleCall(doc, target);
   const args = existing ? new Map(existing.args) : new Map<string, string>();
   for (const [k, v] of Object.entries(changes)) {
     if (v === null) args.delete(k);
@@ -277,7 +305,7 @@ export function setStyleArgs(
   }
 
   const out = existing ? existing.lang : lang;
-  const name = out === "en" ? (spellings(kind)[1] ?? canonical(kind)) : canonical(kind);
+  const name = out === "en" ? (spellings(target)[1] ?? canonical(target)) : canonical(target);
   const rendered =
     "#" +
     name +
@@ -676,9 +704,9 @@ export function setInstanceArgs(
   return out;
 }
 
-/** Is this kind's global set to overrule every per-element setting? */
-export function isOverruled(doc: string, kind: StyleCommand): boolean {
-  return readBool(findStyleCall(doc, kind)?.args.get(OVERRULE)) === true;
+/** Is this target's global set to overrule every per-element setting? */
+export function isOverruled(doc: string, target: StyleTarget): boolean {
+  return readBool(findStyleCall(doc, target)?.args.get(OVERRULE)) === true;
 }
 
 // ---------------------------------------------------------------- value coding

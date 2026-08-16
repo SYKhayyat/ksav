@@ -1088,3 +1088,81 @@ fn a_side_column_knob_nothing_answers_to_stops_the_compile() {
         out.diagnostics
     );
 }
+
+// ------------------------------------------------- what a door will not accept
+//
+// The reason the Styles drawer now writes `#הגדרות_סימן(גודל: 1.6em)` rather
+// than `#הגדרות_סימונים(גודל: ("סימן": 1.6em))` is not only that it reads better
+// in the document. A door **refuses** a knob its class has no answer for; the
+// shared command could not, because it stored a knob-major dictionary and let
+// `_mk_conf` ignore whatever did not apply. A fill written onto a gemara
+// reference was accepted, kept, and never read — a control that reads back what
+// was typed and changes nothing, which is the failure this register exists to
+// end one level quieter than the one it is famous for.
+
+#[test]
+fn a_door_refuses_a_knob_its_class_cannot_answer() {
+    // A gemara reference is a run of text. It has no fill, no border and no
+    // padding, and asking for one is a mistake worth hearing about.
+    //
+    // With a mark in the document: `state.update` runs its closure when the
+    // state is *read*, so a document that sets a knob and never uses the class
+    // does not reach the check at all. That is how every `#הגדרות_*` in this
+    // prelude behaves, and it is the mechanism rather than a decision.
+    let out = compile(
+        "#הגדרות_גמרא(גוון: red)\n#גמרא[ברכות][ב.]\n",
+        &DocConfig::default(),
+    );
+    assert!(!out.ok(), "a block knob on a run of text compiled");
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גוון"),
+        "{:?}",
+        out.diagnostics
+    );
+    // …and the same knob on a command that does draw a block is accepted.
+    let ok = compile(
+        "#הגדרות_תיבה(גוון: red)\n#תיבה[גוף]\n",
+        &DocConfig::default(),
+    );
+    assert!(ok.ok(), "{:?}", ok.diagnostics);
+}
+
+#[test]
+fn a_part_knob_nothing_answers_to_stops_the_compile() {
+    // The half that was missing. A part's own dictionary was read and never
+    // checked, so a misspelling inside it was accepted, stored, and changed
+    // nothing on the page — indistinguishable from a setting that did not take.
+    let out = compile(
+        "#הגדרות_פסוק(מקור: (גדול: 2em))\n#פסוק[בראשית][א א]\n",
+        &DocConfig::default(),
+    );
+    assert!(
+        !out.ok(),
+        "a knob nothing answers to compiled inside a part"
+    );
+    assert!(
+        format!("{:?}", out.diagnostics).contains("גדול"),
+        "{:?}",
+        out.diagnostics
+    );
+    let ok = compile(
+        "#הגדרות_פסוק(מקור: (גודל: 1.2em))\n#פסוק[בראשית][א א]\n",
+        &DocConfig::default(),
+    );
+    assert!(ok.ok(), "{:?}", ok.diagnostics);
+}
+
+#[test]
+fn the_door_and_the_command_it_replaced_still_agree() {
+    // `#הגדרות_סימונים` is deprecated, not removed: documents have it. Both
+    // spellings write the same store, so a sefer that has the old line and a
+    // writer who clicks the new panel are not two authorities disagreeing.
+    let body = "#כותרת1[פרק]\n#סימן[א׳][דין נטילת ידים]\nגוף.\n";
+    let old = format!("#הגדרות_סימונים(גודל: (\"סימן\": 1.6em))\n{body}");
+    let new = format!("#הגדרות_סימן(גודל: 1.6em)\n{body}");
+    assert_eq!(
+        size_of(&old, "דין נטילת ידים"),
+        size_of(&new, "דין נטילת ידים"),
+        "the two spellings drew different pages"
+    );
+}

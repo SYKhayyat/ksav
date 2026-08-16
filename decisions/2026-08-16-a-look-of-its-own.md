@@ -311,3 +311,55 @@ The tiers and the page bands stay two kinds and two stores, which is the thing
 the old comment was right about: writing `#מדור_א`'s override against the
 page-band global would compare a setting to the wrong default. There is a test
 that sets one and reads the other.
+
+## The panel writes the door now, and the several-at-once does not survive
+
+The rule was *anything that is a separate command has a style the writer can
+set*, and half of it was done in the engine while the Styles drawer still wrote
+the shape the doors replaced:
+
+```typst
+#הגדרות_סימונים(גודל: ("סימן": 1.6em))   ← what the panel wrote
+#הגדרות_סימן(גודל: 1.6em)                ← what a writer would type
+```
+
+Backwards, and it reads in the finished document as a class name buried in a
+call about marks in general rather than as a sentence about simanim.
+
+But the spelling is the smaller half.
+
+**A door refuses a knob. The shared command could not.** `_mk_set` stops the
+compile on a knob its class has no answer for; `#הגדרות_סימונים` stored a
+knob-major dictionary and let `_mk_conf` ignore whatever did not apply. So a
+fill written onto a gemara reference was accepted, kept in the store, and never
+read — and the panel offered fourteen controls whatever the class was, most of
+them doing nothing for most of them. A control that reads back what was typed
+and changes nothing is the failure this register exists to end; it was inside
+the register, one level quieter than the one it is known for.
+
+The knobs are the class's now — `marks.knobsOf`, held against `_mk_knobs`,
+`_mk_block_knobs` and `_mk_block_classes` in the prelude — and the migration
+*forced* that: with a door, offering the wrong knob writes a document that will
+not compile, which is a harder failure than the silent one it replaced.
+
+**The parts are reachable.** A siman prints four things and a pasuk two, and
+`#הגדרות_פסוק(מקור: (גודל: 1.2em))` could be reached only by typing it. There is
+a part chooser under the class chooser and the same knob rows under that. A
+part carries a text look and, where the command invents the words rather than
+printing what was typed, its own `טקסט`.
+
+Which found a hole underneath: a part's dictionary was read and **never
+checked**, so `#הגדרות_פסוק(מקור: (גדול: 2em))` was accepted, stored and changed
+nothing on the page — a misspelling that looks exactly like a setting that did
+not take. The same check the outer level had, one level in.
+
+**`#הגדרות_סימונים` is deprecated, not deleted.** *Still compiles, no longer
+advertised*, which is the field this registry already has and the argument for
+it is already written in its doc comment: a command that exists in documents
+cannot simply be removed. It is out of the toolbar, the Insert menu and the
+palette, and a document that has the line goes on printing what it always did —
+there is a test that sets a siman's size both ways and compares the pages.
+
+One thing worth knowing about all of this: `state.update` runs its closure when
+the state is *read*. A document that sets a knob and never uses the class never
+reaches the check. That is how every `#הגדרות_*` in this prelude behaves.

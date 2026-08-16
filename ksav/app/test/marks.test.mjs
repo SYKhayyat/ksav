@@ -181,4 +181,38 @@ export async function run() {
     check("an empty mark is labelled by its command", list.rows[1].label, "#גמרא");
     notOk("and carries no full text", list.rows[1].full);
   }
+
+  {
+    // What the Styles drawer may offer for one class. A door stops the compile
+    // on a knob its class has no answer for, so this is not a tidiness question:
+    // a panel that offers a fill on a gemara reference writes a document that
+    // does not compile. The shared command it replaced could not refuse one — it
+    // stored the fill and never read it, which is the same failure quieter.
+    ok("a block command answers to the block knobs", marks.knobsOf("תיבה").includes("גוון"));
+    notOk("a run of text does not", marks.knobsOf("גמרא").includes("גוון"));
+    for (const cls of marks.STYLED_CLASSES) {
+      ok(cls + " answers to a size", marks.knobsOf(cls).includes("גודל"));
+    }
+    // The two switches are a mark's own and never a class's: a class that exempts
+    // itself from its own styling is a class with no styling.
+    for (const cls of marks.STYLED_CLASSES) {
+      notOk(cls + " has no exemption of its own", marks.knobsOf(cls).includes("פטור"));
+    }
+  }
+
+  {
+    // Every part the panel offers has a label in both languages, and only the
+    // parts that print words the command invents are offered a text of their own.
+    for (const [cls, parts] of Object.entries(marks.CLASS_PARTS)) {
+      for (const part of parts) {
+        ok("the part " + cls + "." + part + " is named", hasKey("markPart." + cls + "." + part));
+      }
+    }
+    check("a siman invents two of its four pieces", [...marks.PART_TEXT["סימן"]], ["קידומת", "מפריד"]);
+    for (const cls of Object.keys(marks.PART_TEXT)) {
+      for (const part of marks.PART_TEXT[cls]) {
+        ok(part + " is a part of " + cls, marks.CLASS_PARTS[cls].includes(part));
+      }
+    }
+  }
 }

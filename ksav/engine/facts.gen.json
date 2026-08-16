@@ -1063,7 +1063,7 @@
       "desc_he": "עיצוב כמה סוגים בבת אחת",
       "desc_en": "Style several kinds at once",
       "insert": "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))",
-      "deprecated": false
+      "deprecated": true
     },
     {
       "he": "הגדרות_סימן",

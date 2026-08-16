@@ -527,6 +527,21 @@
           + k + " prints what you wrote, so it has no text of its own",
       )
     }
+    // …and the same check one level in, which was missing. The knobs on a part
+    // were read and never checked, so `#הגדרות_פסוק(מקור: (גדול: 2em))` was
+    // accepted, stored, and changed nothing on the page — a misspelling that
+    // looks exactly like a setting that did not take. A part is drawn through
+    // `_mk_render`, so what it answers to is the text knobs, plus its own words
+    // where it has any.
+    for (kk, _) in v {
+      if kk == "טקסט" { continue }
+      if not _mk_knobs.contains(kk) {
+        panic(
+          "הגדרות_" + cls + ": " + k + ": ארגומנט לא מוכר · unrecognised argument: " + kk
+            + " — " + _mk_knobs.join(", "),
+        )
+      }
+    }
     mine.insert(k, _cfg_with(mine.at(k, default: (:)), v))
     touched = true
   }

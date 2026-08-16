@@ -46,7 +46,15 @@ import {
   withAliases,
 } from "../.tmp-test/engine.gen.mjs";
 import { INSTANCE_KEYS, instanceCommands } from "../.tmp-test/styles.mjs";
-import { CLASS_PARTS, MARK_CLASSES, STYLED_CLASSES } from "../.tmp-test/marks.mjs";
+import {
+  BLOCK_CLASSES,
+  BLOCK_KNOBS,
+  CLASS_PARTS,
+  MARK_CLASSES,
+  PART_TEXT,
+  STYLED_CLASSES,
+  TEXT_KNOBS,
+} from "../.tmp-test/marks.mjs";
 import {
   DEFAULT_CHANNEL,
   PLACEMENTS,
@@ -630,6 +638,46 @@ export async function run() {
     // Rust with no `#let` behind it is a palette entry that stops the compile.
     const undefined_ = [...STYLED_CLASSES].filter((cls) => !defined.has(`הגדרות_${cls}`));
     check("…and the prelude defines each of them", undefined_, []);
+
+    // Which parts print words the *command* invents. `טקסט` is offered there and
+    // refused everywhere else — by name, in the prelude — so a panel that
+    // offered it on the number would write a call that stops the compile.
+    const engineText = {};
+    for (const [cls, parts] of Object.entries(enginePartsRaw)) {
+      const at = prelude.indexOf(`  "${cls}": (`);
+      const block = prelude.slice(at, prelude.indexOf("\n  ),", at) + 4);
+      const has = parts.filter((p) => new RegExp(`"${p}":\\s*\\(טקסט:`, "u").test(block));
+      if (has.length) engineText[cls] = has.sort();
+    }
+    check("the panel knows which parts have words of their own", sorted(PART_TEXT), engineText);
+
+    // The knobs, split the way the prelude splits them — and it is a *split*
+    // now, not one flat list, because a door refuses a knob its class has no
+    // answer for. The panel that offers one writes a document that will not
+    // compile, which is a harder failure than the silent one it replaced.
+    const listed = (name) => {
+      const m = new RegExp(`#let ${name} = \(([^)]*)\)`, "u").exec(prelude);
+      ok(`the prelude declares ${name}`, !!m, () => `${name} is not in ksav.typ`);
+      return m ? [...m[1].matchAll(/"([^"]+)"/gu)].map((x) => x[1]) : [];
+    };
+    check("the panel splits the text knobs as the prelude does", [...TEXT_KNOBS], listed("_mk_knobs"));
+    check("…and the block knobs", [...BLOCK_KNOBS], listed("_mk_block_knobs"));
+    check("…and knows which classes draw a block", [...BLOCK_CLASSES], listed("_mk_block_classes"));
+    // …and the per-instance table is composed of exactly those two plus the two
+    // switches, so the split above cannot drift from the list the panel offers.
+    check(
+      "the two lists compose the per-instance table",
+      [...INSTANCE_KEYS.marks].sort(),
+      [...TEXT_KNOBS, ...BLOCK_KNOBS, "פטור", "ברשימה"].sort(),
+    );
+    // And the panel no longer has a command that styles several classes at once:
+    // it writes one door per class. The command still resolves, because
+    // documents have it, and is no longer offered anywhere.
+    ok(
+      "styling several classes at once is not offered",
+      commands().find((c) => c.he === "הגדרות_סימונים")?.deprecated === true,
+      "הגדרות_סימונים is still advertised",
+    );
   }
 
   // ------------------------------------------- 5. "strip the markup", once

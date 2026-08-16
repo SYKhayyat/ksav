@@ -60,6 +60,12 @@ const NOT_OFFERED = {
   // switch to before a note can hang off one". Nothing has required that since
   // the engine adopted the plain note.
   הערה_א: { kind: "deprecated" },
+  // Styling several mark classes in one call. Every styled command has a door
+  // named for it now — `#הגדרות_סימן`, not `#הגדרות_סימונים(גודל: ("סימן": …))`
+  // — and a door refuses a knob its class has no answer for, which this could
+  // not: it stored a fill on a gemara reference and never read it. Documents
+  // have the line, so it still compiles; it is no longer offered anywhere.
+  הגדרות_סימונים: { kind: "deprecated" },
   // Written by the Styles panel, from controls, never as a raw snippet. The
   // evidence is two-sided: `styles.ts` has to know the command, *and* main.ts
   // has to have a control that writes that kind. Either alone would pass on a

@@ -98,7 +98,68 @@ export const CLASS_PARTS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * Every class the register **collects**, in the order the marks list offers them.
+ * The knobs a mark class answers to, split the way the prelude splits them.
+ *
+ * Not decoration: `_mk_set` **stops the compile** on a knob its class has no
+ * answer for, so a panel that offers a fill on a gemara reference writes a
+ * document that does not compile. It used to write it into `#הגדרות_סימונים`,
+ * which stored it and never read it — a control that reads back what was typed
+ * and changes nothing, which is the same failure one layer quieter.
+ *
+ * `test/enginefacts.test.mjs` holds all three of these against `_mk_knobs`,
+ * `_mk_block_knobs` and `_mk_block_classes` in the prelude.
+ */
+export const TEXT_KNOBS: readonly string[] = [
+  "גודל",
+  "סגנון",
+  "משקל",
+  "צבע",
+  "קו_תחתון",
+  "קו_חוצה",
+  "סוגריים",
+];
+
+/** …and the ones only a command that draws a block can answer. */
+export const BLOCK_KNOBS: readonly string[] = [
+  "גוון",
+  "קו",
+  "מסגרת",
+  "מרווח",
+  "רדיוס",
+  "רוחב",
+  "יישור",
+];
+
+/** Which classes draw a block. */
+export const BLOCK_CLASSES: readonly string[] = [
+  "ציטוט",
+  "הערת_צד",
+  "אזהרה",
+  "הצלחה",
+  "תיבה",
+  "שער",
+  "תת_שער",
+];
+
+/** What this class answers to. */
+export function knobsOf(cls: string): readonly string[] {
+  return BLOCK_CLASSES.includes(cls) ? [...TEXT_KNOBS, ...BLOCK_KNOBS] : TEXT_KNOBS;
+}
+
+/**
+ * The parts that print words the *command* invents rather than words the writer
+ * typed, and may therefore be given different ones.
+ *
+ * A siman prints `סימן` and an em dash around what was typed; a sefer that opens
+ * its simanim `סי׳ א׳` says so here, and `טקסט: ""` drops the word. Offering the
+ * same key on the number or the title would be a control that changes nothing,
+ * and the prelude refuses it by name.
+ */
+export const PART_TEXT: Readonly<Record<string, readonly string[]>> = {
+  סימן: ["קידומת", "מפריד"],
+};
+
+/** Every class the register **collects**, in the order the marks list offers them.
  *
  * Not the same list as the styled one, and no longer a superset of it. They were
  * one list with two extras on the end for as long as *having a look* and *being

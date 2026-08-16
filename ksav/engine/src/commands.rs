@@ -275,7 +275,19 @@ pub static COMMANDS: &[Command] = &[
     // command lists any of them and one command styles a whole class. The class
     // is the first argument, and it is the command's own name.
     cmd!("רשימת_סימונים", "marklist", "torah", "רשימת כל הסימונים מסוג אחד (בסוף הספר)", "List every mark of one kind (at the back)", "#רשימת_סימונים(\"|\")"),
-    cmd!("הגדרות_סימונים", "marks_config", "torah", "עיצוב כמה סוגים בבת אחת", "Style several kinds at once", "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))"),
+    // Deprecated: every styled command has a door named for it, and this is the
+    // one that named none of them. `#הגדרות_סימונים(גודל: ("סימן": 1.6em))` and
+    // `#הגדרות_סימן(גודל: 1.6em)` are one setting written two ways, and the
+    // second is what a writer setting how simanim look would type — the first
+    // reads as a class name buried in a call about marks in general.
+    //
+    // It also could not refuse a knob. A door stops the compile on one its class
+    // has no answer for; this wrote a fill onto a gemara reference, stored it,
+    // and never read it. So the panel offered fourteen controls whatever the
+    // class was, half of them doing nothing for most of them.
+    //
+    // Still compiles, because documents have it. No longer offered.
+    cmd!("הגדרות_סימונים", "marks_config", "torah", "עיצוב כמה סוגים בבת אחת", "Style several kinds at once", "#הגדרות_סימונים(סגנון: (\"|\": \"italic\"))", true),
     // A door per command, which is the rule: anything that is a separate
     // command has a style you can set, said about *that* command rather than
     // named inside a call about marks in general. They all write to one store,

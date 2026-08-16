@@ -427,20 +427,39 @@ Body`;
   }
 
   {
-    // The section is the eighth, and it is the same machinery: one `#הגדרות_*` call
-    // read and written, in either language.
+    // The Marks section is the same machinery as the other nine, one door along:
+    // its command is named for the *class*, so there is one per class rather
+    // than one with the class keyed inside it. `#הגדרות_סימונים(גודל: ("סימן":
+    // 1.6em))` is what this used to read and write, and it read worse in the
+    // document than what a writer would type by hand.
+    const door = styles.markDoor("סימן");
     check(
-      "the marks global is found in Hebrew",
-      styles.findStyleCall('#הגדרות_סימונים(גודל: ("ציון": 0.8em))', "marks").args.get("גודל"),
-      '("ציון": 0.8em)',
+      "a class's own door is found in Hebrew",
+      styles.findStyleCall("#הגדרות_סימן(גודל: 1.6em)", door).args.get("גודל"),
+      "1.6em",
     );
-    const en = styles.findStyleCall('#marks_config(size: ("refmark": 0.8em))', "marks");
-    check("…and in English, under the Hebrew key", en.args.get("גודל"), '("refmark": 0.8em)');
+    const en = styles.findStyleCall("#siman_config(size: 1.6em)", door);
+    check("…and in English, under the Hebrew key", en.args.get("גודל"), "1.6em");
     check("…keeping the language it was written in", en.lang, "en");
     check(
-      "a new marks setting is written in the document's language",
-      styles.setStyleArgs("Body", "marks", { גודל: '("refmark": 0.8em)' }, "en"),
-      '#marks_config(size: ("refmark": 0.8em))\nBody',
+      "a new class setting is written in the document's language",
+      styles.setStyleArgs("Body", door, { גודל: "1.6em" }, "en"),
+      "#siman_config(size: 1.6em)\nBody",
+    );
+    // One class's door says nothing about another's, which is the whole reason
+    // there are twenty-five of them.
+    check(
+      "…and one class's door is not another's",
+      styles.findStyleCall("#הגדרות_סימן(גודל: 1.6em)", styles.markDoor("פסוק")),
+      null,
+    );
+    // A part is a dictionary under the class's own door.
+    check(
+      "a part is set inside the class's call",
+      styles.setStyleArgs("Body", styles.markDoor("פסוק"), {
+        מקור: styles.withDictKey(undefined, "גודל", "1.2em"),
+      }),
+      '#הגדרות_פסוק(מקור: ("גודל": 1.2em))\nBody',
     );
   }
 

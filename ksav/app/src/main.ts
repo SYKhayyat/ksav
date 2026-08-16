@@ -8032,9 +8032,20 @@ function openStyleEditor(name: string) {
 
 
 /** Read the document's current value for one styling argument. */
-function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
-  const call = styles.findStyleCall(docTextOf(runtime.view.state.doc), kind);
+function styleArg(target: styles.StyleTarget, key: string): string | undefined {
+  const call = styles.findStyleCall(docTextOf(runtime.view.state.doc), target);
   return call?.args.get(key);
+}
+
+/**
+ * The command a section is reading and writing right now.
+ *
+ * Every section but Marks has one, fixed. Marks has one **per class** — a door
+ * named for the command, `#הגדרות_סימן` — so which command the section is about
+ * depends on what the class chooser says.
+ */
+function styleTargetOf(kind: styles.StyleCommand): styles.StyleTarget {
+  return kind === "marks" ? styles.markDoor(markClass) : kind;
 }
 
 /** Write styling arguments into the document, replacing the existing call.
@@ -8043,9 +8054,9 @@ function styleArg(kind: styles.StyleCommand, key: string): string | undefined {
  *  the document is being set in, so clicking a control in an English document
  *  does not drop a Hebrew command into it. An existing call keeps whatever
  *  language it was already written in. */
-function setStyleArgs(kind: styles.StyleCommand, changes: Record<string, string | null>) {
+function setStyleArgs(target: styles.StyleTarget, changes: Record<string, string | null>) {
   const doc = docTextOf(runtime.view.state.doc);
-  const next = styles.setStyleArgs(doc, kind, changes, docLang());
+  const next = styles.setStyleArgs(doc, target, changes, docLang());
   if (next === doc) return;
   editDoc(next);
   scheduleCompile();
@@ -8189,7 +8200,7 @@ function scopedInstance(kind: styles.StyleCommand): styles.InstanceCall | null {
 function setStyleArgsIn(kind: styles.StyleCommand, changes: Record<string, string | null>) {
   const inst = scopedInstance(kind);
   if (!inst) {
-    setStyleArgs(kind, changes);
+    setStyleArgs(styleTargetOf(kind), changes);
     return;
   }
   const doc = docTextOf(runtime.view.state.doc);
@@ -8213,7 +8224,11 @@ function setStyleArgsIn(kind: styles.StyleCommand, changes: Record<string, strin
 function scopeRows(kind: styles.StyleCommand, many: string, one: string): Node[] {
   const inst = styleInstance(kind);
   const here = !!scopedInstance(kind);
-  const forced = styles.isOverruled(docTextOf(runtime.view.state.doc), kind);
+  // Through the target rather than the kind, so `כפה` on the Marks section is
+  // *this class's* overrule — `#הגדרות_סימן(כפה: true)` means every siman and
+  // says nothing about the gemara references.
+  const target = styleTargetOf(kind);
+  const forced = styles.isOverruled(docTextOf(runtime.view.state.doc), target);
   const rows: Node[] = [
     styleRow(
       t("styleScope"),
@@ -8239,7 +8254,7 @@ function scopeRows(kind: styles.StyleCommand, many: string, one: string): Node[]
     styleRow(
       t("overrule"),
       toggleControl(forced, (v) =>
-        setStyleArgs(kind, { [styles.OVERRULE]: v ? "true" : null }),
+        setStyleArgs(target, { [styles.OVERRULE]: v ? "true" : null }),
       ),
     ),
   );
@@ -8792,35 +8807,68 @@ function streamStyleRows(): Node[] {
 
 // ------------------------------------------------------------ Styles › marks
 //
-// The mark register, which is the collection layer for `#ציון`, `#גמרא`,
-// `#דיבור_המתחיל`, `#פסוק`, `#ציון_מקור` and `#ערך`. Its globals are keyed by
-// *class* rather than by tier or by stream — `גודל: ("ציון": 0.8em)` — so this
-// section has a class chooser where the Headings section has a level one, and
-// "every kind" writes the plain value that the engine reads as the answer for all
-// of them.
+// The mark register — the styling and collection layer behind `#ציון`, `#סימן`,
+// `#פסוק` and the rest of them.
+//
+// This section used to write one command with the class keyed inside it:
+// `#הגדרות_סימונים(גודל: ("סימן": 1.6em))`. Every styled command has a door
+// named for it now, and this writes that instead — `#הגדרות_סימן(גודל: 1.6em)`,
+// which is what a writer setting how simanim look would type, and reads in the
+// document as a sentence about simanim rather than a class name buried in a
+// call about marks in general.
+//
+// Two things follow from the door, and both are the point of it:
+//
+//   · **The knobs are the class's.** `_mk_set` stops the compile on a knob its
+//     class has no answer for. The old spelling did not — it stored a fill on a
+//     gemara reference and never read it — so this section offered fourteen
+//     controls whatever the class was, half of them doing nothing for most of
+//     them. `marks.knobsOf` is the split, held against the prelude.
+//   · **The parts are reachable.** A siman prints four things and a pasuk two,
+//     and `#הגדרות_פסוק(מקור: (גודל: 1.2em))` could be reached only by typing
+//     it. The part chooser sits under the class chooser and the same knob rows
+//     sit under that.
+//
+// `כפה` goes through `scopeRows`, which reads the same door, so the overrule is
+// this class's rather than every class's — which is what a writer pressing it
+// inside a section headed *siman* means by it.
 
-/** Which mark class the *default* layer is being edited for; "" = all of them. */
-let markClass = "";
+/** Which mark class the *default* layer is being edited for. */
+let markClass: string = marks.STYLED_CLASSES[0];
 
-/** The value the Marks section is showing for one knob, at the chosen class. */
-function markArg(key: string): string | undefined {
-  const raw = styleArg("marks", key);
-  if (markClass === "") {
-    // A dictionary is not one answer for every class, so "every kind" shows
-    // nothing set rather than picking one of six and calling it the document's.
-    return styles.readDict(raw) ? undefined : raw;
-  }
-  return styles.classValue(raw, markClass);
+/** Which piece of it; "" = the command as a whole. */
+let markPart = "";
+
+/** The door this section is reading and writing: `#הגדרות_<class>`. */
+function markTarget(): styles.StyleTarget {
+  return styles.markDoor(markClass);
 }
 
-/** Write one knob, for the chosen class or for all of them. */
+/** The knob rows to offer, which depend on the class and on the part. */
+function markKnobs(): readonly string[] {
+  if (markPart === "") return marks.knobsOf(markClass);
+  // A part is drawn inside its command's own look, so what it can carry is a
+  // text look and nothing else — a part of a callout does not draw a second
+  // box. Plus the invented words, where the part has any.
+  const text = (marks.PART_TEXT[markClass] ?? []).includes(markPart) ? ["טקסט"] : [];
+  return [...marks.TEXT_KNOBS, ...text];
+}
+
+/** The value the Marks section is showing for one knob. */
+function markArg(key: string): string | undefined {
+  if (markPart === "") return styleArg(markTarget(), key);
+  const dict = styles.readDict(styleArg(markTarget(), markPart));
+  return dict?.find(([k]) => k === key)?.[1];
+}
+
+/** Write one knob, on the class or on the part of it. */
 function setMarkArg(key: string, value: string | null) {
-  if (markClass === "") {
-    setStyleArgs("marks", { [key]: value });
+  if (markPart === "") {
+    setStyleArgs(markTarget(), { [key]: value });
     return;
   }
-  setStyleArgs("marks", {
-    [key]: styles.withClassKey(styleArg("marks", key), markClass, value, styles.MARK_CLASSES),
+  setStyleArgs(markTarget(), {
+    [markPart]: styles.withDictKey(styleArg(markTarget(), markPart), key, value),
   });
 }
 
@@ -8828,13 +8876,33 @@ function markClassRow(): Node {
   return styleRow(
     t("markClass"),
     selectControl(
-      [
-        ["", t("everyClass")],
-        ...(styles.MARK_CLASSES.map((c) => [c, t("markClass." + c)]) as [string, string][]),
-      ],
+      marks.STYLED_CLASSES.map((c) => [c, t("markClass." + c)] as [string, string]),
       markClass,
       (v) => {
         markClass = v;
+        // A part belongs to the class that draws it, so it cannot survive the
+        // class changing: `מקור` under `#פסוק` is not `מקור` under anything else.
+        markPart = "";
+        renderStylesPanel();
+      },
+    ),
+  );
+}
+
+/** The part chooser, for the classes that draw more than one thing. */
+function markPartRow(): Node | null {
+  const parts = marks.CLASS_PARTS[markClass];
+  if (!parts || parts.length === 0) return null;
+  return styleRow(
+    t("markPart"),
+    selectControl(
+      [
+        ["", t("wholeCommand")],
+        ...(parts.map((p) => [p, t("markPart." + markClass + "." + p)]) as [string, string][]),
+      ],
+      markPart,
+      (v) => {
+        markPart = v;
         renderStylesPanel();
       },
     ),
@@ -9003,18 +9071,38 @@ function sidenoteStyleRows(): Node[] {
   ];
 }
 
+/**
+ * The control for each knob this section can offer.
+ *
+ * `styles.INSTANCE_FIELDS.marks` is the authority for everything a *mark* takes,
+ * and it is fenced against `_mk_own_keys` — so `טקסט` cannot live there: it is a
+ * part's key and no mark carries it.
+ */
+const MARK_FIELDS: Readonly<Record<string, styles.Field>> = {
+  ...styles.INSTANCE_FIELDS.marks,
+  טקסט: { kind: "text", label: "knobText" },
+};
+
 function markStyleRows(): Node[] {
   const rows: Node[] = [markClassRow()];
-  for (const [key, field] of Object.entries(styles.INSTANCE_FIELDS.marks)) {
+  const part = markPartRow();
+  if (part) rows.push(part);
+  const offered = markKnobs();
+  for (const key of offered) {
     // `פטור` and `ברשימה` belong to one mark and to nothing else: a class that
     // exempts itself from its own styling is a class with no styling, and one
-    // that leaves itself out of its own list is a list of nothing.
+    // that leaves itself out of its own list is a list of nothing. They are not
+    // in `knobsOf` for that reason, and this says so rather than relying on it.
     if (key === "פטור" || key === "ברשימה") continue;
+    const field = MARK_FIELDS[key];
+    if (!field) continue;
     rows.push(
       styleRow(t(field.label), fieldControl(field, markArg(key), (v) => setMarkArg(key, v))),
     );
   }
-  if (markClass !== "") {
+  // The list button is about the *class*, not about a piece of it, and only the
+  // classes the register collects have a list to print.
+  if (markPart === "" && marks.MARK_CLASSES.includes(markClass)) {
     rows.push(
       styleRow(
         "",

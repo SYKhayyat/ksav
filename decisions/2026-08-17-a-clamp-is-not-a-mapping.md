@@ -157,20 +157,27 @@ So the panel whose job is *find the note you are looking at* prints an ordinal
 that appears nowhere in the document. A writer reading footnote `ב` at the foot
 of the page and opening the drawer to find it will not find a `ב`.
 
-`panelrows.noteList` sets `chip: String(i + 1)` — the row's position in a flat
-list — into the slot the reader takes for the note's number. Not fixed here, and
-deliberately, because the fix is a design decision and there are two:
+`panelrows.noteList` set `chip: String(i + 1)` — the row's position in a flat
+list — into the slot the reader takes for the note's number.
 
-- **Reimplement the numbering in the editor.** Group by channel, read
-  `#הגדרות_זרמים`'s `מספור`, format. It is the complete answer and it is a
-  second spelling of a rule the engine already owns — the exact seam this
-  repository is named for.
-- **Ask the engine.** A compile already knows every marker it drew; carrying
-  them back on the response makes the drawer's number *the* number by
-  construction, and no rule is written twice.
+The fix splits cleanly in two, and only one half belongs in the editor.
+**Which series a note is in** is a fact about the source: `channels.seriesOf`
+resolves the four spellings that say it — a named `ערוץ:` argument, a positional
+stream (`#הערה_זרם("מקורות")`, which the existing named-argument read could not
+see), the two commands that name their stream in their own name, and the tier
+commands — into one answer, `NoteSpan` carries it off the scan that already
+happened, and the drawer counts within it and labels the row. **Which glyph that
+count prints as** is not: a stream set to `מספור: "א"` still counts 1, 2 in the
+drawer where the page prints א, ב, and reproducing that here would be a second
+spelling of a rule the engine owns — the exact seam this repository is named
+for.
 
-The second is almost certainly right and it is not a one-line change, so it is
-written down rather than started at the end of a sitting.
+So the lie is gone and the remaining half is a feature with a shape: every
+laid-out glyph carries the `Span` of the source it came from, which is what
+`pagelines.rs` already leans on, so a `Wants` flag and a walk over the frames
+can carry (marker, source offset) pairs back on the compile. Then the drawer's
+number is *the* number by construction, and so is every other surface that shows
+a note.
 
 ## 6 · Nine English words in the one panel a writer opens to search their sefer
 
@@ -228,19 +235,42 @@ parentheses — `(ברכות נ״א ע״ב)` — compiled, which is the shape th
 produce Typst's `unclosed string`. An English footnote in a Hebrew document set
 left-to-right in the same series.
 
+## 8 · A table could not be filled in from the keyboard
+
+Lists own `Enter`, `Tab`, `Shift+Tab` and `Alt`+arrows. Tables had eighteen
+ribbon operations and no navigation at all: `Tab` inside a cell was bound to
+nothing table-shaped, so it fell through and put indentation into the markup.
+In Word, `Tab` is how every table is filled — and without it the only way into
+the next cell here is a mouse click on the source between two brackets, which
+is not writing. Found by having to do exactly that, twice, while filling the
+kuntres's own table.
+
+The design was not free, which is why it was nearly deferred.
+`bindings.test.mjs` holds *no two actions ship on one combination* and
+`list.indent` already holds `Tab`. The invariant is loosened rather than dodged:
+a **structure** action is already scoped — `list.indent` cannot fire outside a
+list — `structureAt` resolves the *innermost* structure, and `structureKeymap`
+binds without `preventDefault`, so at any caret at most one of them applies and
+the keystroke still has exactly one effect. The rule is about one keystroke
+having one effect; it had been written as one key having one action, which is
+the stronger claim. The exception is named in the fence and the exclusion it
+rests on is **proved over a corpus** — including a list inside a table cell,
+where `Tab` is the list's — rather than argued.
+
+The other invariant in the way was the sweep's *nothing is offered that cannot
+change the document*, which is what stops a live control from silently doing
+nothing. Navigation is the one thing a writer asks a structure for that is not
+an edit, so the two new actions carry a `moves` flag — declared rather than
+excused, because the same sweep now asserts its inverse: an action marked that
+way never edits the document and never leaves the caret where it was.
+
 ## What is still open from it
 
-**A table cannot be filled in from the keyboard.** Lists own `Enter`, `Tab`,
-`Shift+Tab` and `Alt`+arrows. Tables have eighteen ribbon operations and no
-navigation at all: `Tab` inside a cell is not bound to anything table-shaped, so
-it falls through and inserts indentation into the markup. In Word, `Tab` is how
-every table is filled, and it is the single most-used key a table has.
+**The engine should hand back the markers it drew.** The notes drawer now counts
+in the right series and says which one; what it cannot do is print that series'
+own scheme. See §5 — it is a feature with a known shape, not an unfixed bug.
 
-The design is not free. `bindings.test.mjs` holds *no two actions ship on one
-combination*, and `list.indent` already holds `Tab`. The honest resolution is
-that a **structure** action is already scoped — `list.indent` cannot fire
-outside a list — so two structure actions of different structures may share a
-key when the caret can only be in one of them, which `structureAt`'s
-innermost-wins rule guarantees. That is a change to the invariant and to the
-dispatcher, not a new binding, and it is written down here rather than slipped
-in.
+Two items that were written here as deferred are not, on a second reading of the
+standing brief: *a deferred or documented gap is not done*. Both are §5 and §8
+above, fixed. What is left is the one thing that genuinely wants a new fact from
+the compiler.

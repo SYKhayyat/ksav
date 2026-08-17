@@ -159,38 +159,20 @@ and the sitting that followed the release is
       of bug. Every bug goes to the top of the queue and gets the class
       treatment.
 
-- [ ] **The notes drawer numbers notes in a series that is on no page.** Ten
-      notes, numbered 1 to 10, in a document whose page numbers them 1, 2 in the
-      ביאור band and א, ב in the mareh-mekomos band — because parallel streams
-      number independently and in their own schemes, which the engine does
-      correctly and now has tests for. `panelrows.noteList` puts `String(i + 1)`
-      — the row's position in a flat list — into the slot a reader takes for the
-      note's number, so a writer looking for footnote `ב` will not find a `ב`.
+- [ ] **Carry the notes' printed markers back on the compile.** Not a bug — the
+      drawer now counts within each note's own series and says which series that
+      is, so nothing false is claimed. What it still cannot do is print the
+      series' own *scheme*: a stream configured `מספור: "א"` counts 1, 2 in the
+      drawer where the page prints א, ב.
 
-      Two fixes, and the choice is the work. Reimplementing the numbering in the
-      editor is complete and is a second spelling of a rule the engine owns.
-      Carrying the markers back on the compile response makes the drawer's number
-      *the* number by construction and writes no rule twice; it is also not a
-      one-line change. The second looks right. See
-      [`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
-
-- [ ] **A table cannot be filled in from the keyboard, and fixing it changes an
-      invariant.** Lists own `Enter`, `Tab`, `Shift+Tab` and `Alt`+arrows. Tables
-      have eighteen ribbon operations and no navigation at all, so `Tab` in a
-      cell falls through and puts indentation in the markup — and `Tab` is how
-      every table in every word processor is filled.
-
-      The blocker is not the feature, it is `bindings.test.mjs`'s *no two actions
-      ship on one combination*, and `list.indent` already holds `Tab`. The
-      argument for loosening it: a **structure** action is already scoped —
-      `list.indent` cannot fire outside a list — so two structure actions of
-      different structures may share a key exactly when the caret can only be in
-      one of them, which `structureAt`'s innermost-wins rule guarantees. That is
-      a change to the invariant, its fence and the dispatcher, plus the generated
-      shortcut card. Left here rather than slipped in, because a key that means
-      two things is precisely what that rule exists to prevent and the exception
-      should be argued out loud. See
-      [`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
+      Closing that in the editor means a second implementation of numbering the
+      engine already owns, which is the one thing this codebase is named after
+      not doing. The right shape is a `Wants` flag and a walk over the laid-out
+      frames — every glyph carries the `Span` of the source it came from, which
+      is what `pagelines.rs` already leans on — so the response can carry
+      (marker, source offset) pairs and the drawer's number becomes *the* number
+      by construction. Then `#הערה` gets a real marker everywhere it is shown,
+      not only in the drawer.
 
 - [ ] **Open the MELPA pull request.** Everything it needs is written down in
       [`ksav/editors/emacs/melpa-submission.md`](ksav/editors/emacs/melpa-submission.md)

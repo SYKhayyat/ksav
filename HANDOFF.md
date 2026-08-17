@@ -112,8 +112,8 @@ The state on 17 August 2026, so nothing has to be re-derived:
 
 | | |
 |---|---|
-| **Published** | [sykhayyat.github.io/ksav](https://sykhayyat.github.io/ksav/) — the wasm build, service worker registering, offline cache warm. GitHub Pages is on, source *GitHub Actions*. |
-| **Released** | `v0.1.1`, carrying the installers **and** the engine binaries **and** the Emacs tarball — `v0.1.0` predated the jobs that build the last two. |
+| **Published** | [sykhayyat.github.io/ksav](https://sykhayyat.github.io/ksav/) — the wasm build, service worker registering, offline cache warm. Two switches, not one: Pages is on with source *GitHub Actions*, **and** the `github-pages` environment carries a deployment policy for `tag`/`v*`. Without the second, a workflow that only fires on tags is refused before it runs a step. |
+| **Released** | `v0.1.1`, tagged, built and **published** — fourteen assets: the installers, the engine binaries per platform, and the Emacs tarball. `v0.1.0` predated the jobs that build the last two. |
 | **CI** | green, on Node 24, nine jobs. The Emacs package runs twice: at its declared floor (27.1, with a live engine) and on a current Emacs. |
 | **`release.yml`** | a `workflow_dispatch` builds everything and publishes nothing; rehearsed, eleven jobs green, no second release created. |
 | **Toolchains** | verified on Windows, WSL Ubuntu and NixOS; macOS through CI's own job. The Emacs suite has now run on Linux, which it never had. |

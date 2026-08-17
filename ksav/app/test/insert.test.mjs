@@ -1,5 +1,10 @@
 import { check, ok } from "./harness.mjs";
 import { plan, commandOf } from "../.tmp-test/insert.mjs";
+import { dirOf } from "../tools/paths.mjs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
 
 // What a click on the toolbar turns into, asked directly.
 //
@@ -118,4 +123,37 @@ export async function run() {
   check("…including an English one", commandOf("#bold[|]"), "bold");
   check("…and underscores are part of it", commandOf("#קו_תחתון[|]"), "קו_תחתון");
   check("plain text names no command", commandOf("שלום"), null);
+
+  // --------------------------------------------------- a refusal that survives
+  //
+  // `plan` can refuse, and `insertSnippet` turns a refusal into the one thing
+  // the writer needs: a sentence in the status bar saying why. Three callers
+  // then ran `scheduleCompile()` unconditionally, and a compile that had nothing
+  // to compile writes `✓ 3 עמ׳ · 18ms` over that sentence a few milliseconds
+  // later.
+  //
+  // What that was, from a chair: put the caret on a `#סעיף` line, open Insert ▸
+  // *a section with its own page*, fill in the form, press **Add**. The dialog
+  // closes, the document does not change, and nothing anywhere says why. The
+  // refusal had been computed, displayed and erased.
+  //
+  // Read off the source because `main.ts` is the one module no test can import —
+  // the same reason this file exists. A source check is weaker than a behavioural
+  // one and it is the strongest thing available at this seam.
+
+  {
+    const main = await readFile(path.join(SRC, "main.ts"), "utf8");
+    const unguarded = [...main.matchAll(/^([ \t]*)insertSnippet\([^\n]*\n[ \t]*scheduleCompile\(\)/gmu)].map(
+      (m) => main.slice(m.index, m.index + 60).split("\n")[0].trim(),
+    );
+    check("no caller compiles after an insertion it did not check", unguarded, []);
+    ok(
+      "…and the guarded form is what they use instead",
+      /if \(insertSnippet\([^\n]*\)\) scheduleCompile\(\);/u.test(main),
+    );
+    ok(
+      "insertSnippet says whether anything went in",
+      /function insertSnippet\(rawSnippet: string\): boolean/u.test(main),
+    );
+  }
 }

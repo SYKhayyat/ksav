@@ -3497,8 +3497,18 @@ function dirLang(): "he" | "en" {
  *    sefer written the way the toolbar invites you to write one came out
  *    numbered א׳, א׳, א׳ — the caret is placed past the number, in the title,
  *    so the writer never visits the field that is wrong.
+ *
+ * **Returns whether anything went in**, and the three callers that follow it
+ * with `scheduleCompile()` must ask. A refusal is a `setStatus(…, "warn")` — the
+ * sentence the writer needs — and a compile that had nothing to compile
+ * overwrites it with `✓ 3 עמ׳` a few milliseconds later. So the page-section
+ * dialog refused correctly, wiped its own refusal, and closed: the writer got a
+ * form, filled it in, pressed *Add*, and the document did not change and nothing
+ * said why. A control that is offered, enabled, pressed and silent is the exact
+ * failure this codebase keeps producing, and here it was one unconditional line
+ * after a function that had already done the right thing.
  */
-function insertSnippet(rawSnippet: string) {
+function insertSnippet(rawSnippet: string): boolean {
   // Recorded here rather than at each of the toolbar's, the Insert menu's and
   // the palette's call sites, because "a command reached the document" is one
   // event and three places to remember it is how it came to be recorded in
@@ -3513,11 +3523,11 @@ function insertSnippet(rawSnippet: string) {
   const plan = planInsertion(doc, sel.from, sel.to, selText, rawSnippet, dirLang());
   if (plan.kind === "refuse") {
     setStatus(t(plan.reason), "warn");
-    return;
+    return false;
   }
   if (plan.kind === "note") {
     applyNoteChoice(plan.choice, plan.layer, { to: sel.to, text: selText, marker: plan.marker });
-    return;
+    return true;
   }
   // "Make this a real list" — the bullet button pressed over paragraphs. A
   // whole-document rewrite because it reaches past the selection to the ends of
@@ -3525,7 +3535,7 @@ function insertSnippet(rawSnippet: string) {
   if (plan.kind === "rewrite") {
     editDoc(plan.text, plan.caret);
     runtime.view.focus();
-    return;
+    return true;
   }
   // A siman or a se'if added in the middle leaves every one after it holding
   // the wrong number, because a siman's number is written in the source by hand
@@ -3540,7 +3550,7 @@ function insertSnippet(rawSnippet: string) {
       editDoc(done.text, done.caret);
       if (done.changed > 1) setStatus(tf("renumbered", done.changed), "ok");
       runtime.view.focus();
-      return;
+      return true;
     }
   }
   runtime.view.dispatch({
@@ -3548,6 +3558,7 @@ function insertSnippet(rawSnippet: string) {
     selection: { anchor: sel.from + plan.cursor },
   });
   runtime.view.focus();
+  return true;
 }
 
 /**
@@ -9613,8 +9624,7 @@ function closeModal() {
 function markReview(kind: "insert" | "delete") {
   const cmd = kind === "insert" ? "הוספה" : "מחיקה";
   const by = settings.reviewer?.trim();
-  insertSnippet(by ? `#${cmd}(מאת: ${typstString(by)})[|]` : `#${cmd}[|]`);
-  scheduleCompile();
+  if (insertSnippet(by ? `#${cmd}(מאת: ${typstString(by)})[|]` : `#${cmd}[|]`)) scheduleCompile();
   if (isReviewOpen()) renderReviewPanel();
 }
 
@@ -9752,8 +9762,7 @@ function openSectionSetup() {
     if (numbering.value) args.push(`מספור: ${q(numbering.value)}`);
     if (border.checked) args.push("מסגרת: true");
     if (watermark.value.trim()) args.push(`סימן_מים: ${q(watermark.value.trim())}`);
-    insertSnippet(`#מקטע_עמוד(${args.join(", ")})[\n|\n]`);
-    scheduleCompile();
+    if (insertSnippet(`#מקטע_עמוד(${args.join(", ")})[\n|\n]`)) scheduleCompile();
   });
 }
 
@@ -10078,8 +10087,7 @@ async function insertImage() {
   if (!f) return;
   const name = await attachAsset(f, "image");
   if (!name) return;
-  insertSnippet(`#תמונה("${name}", רוחב: 60%)`);
-  scheduleCompile();
+  if (insertSnippet(`#תמונה("${name}", רוחב: 60%)`)) scheduleCompile();
 }
 
 async function addFont() {

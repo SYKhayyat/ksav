@@ -437,15 +437,20 @@ withDom((root) => {
     place(root, p.id);
     openPanel(p.id);
   }
-  // Every mounted surface except the second anchored menu: opening one of those
-  // deliberately closes the other, which §8 checks on its own terms.
-  for (const p of PANELS.filter((x) => x.presence === "mounted" && x.id !== "mekoros")) {
+  // Every mounted surface, but **only one anchored menu**: opening a popup
+  // deliberately closes every other popup, which §8 checks on its own terms.
+  // Derived from the registry rather than naming the ones to leave out — this
+  // read `id !== "mekoros"` while there were exactly two, and adding a third
+  // (a pane's ⋯ menu) turned a rule into a list that was quietly one short.
+  const popups = PANELS.filter((p) => p.kind === "popup");
+  const skip = new Set(popups.slice(1).map((p) => p.id));
+  for (const p of PANELS.filter((x) => x.presence === "mounted" && !skip.has(x.id))) {
     const n = new FakeEl("div");
     n.setAttribute("id", p.id);
     if (p.selector) n.className = selectorParts(p.selector).want.join(" ");
     mountPanel(p.id, n, root);
   }
-  const up = PANELS.filter((p) => p.id !== "mekoros");
+  const up = PANELS.filter((p) => !skip.has(p.id));
   ok("every surface is open", up.every((p) => isPanelOpen(p.id)));
 
   const closed = closeOnEscape();

@@ -242,10 +242,67 @@ export function lineStartVisible(
 // aspect ratio, taken from the SVG it would hold, so an empty page occupies
 // precisely the height a full one would. Nothing moves under the reader when a
 // page fills in, and the scrollbar means the same thing at every moment.
+//
+// # What the first version of that got wrong, and what it cost
+//
+// Both savings above are real and both are kept. What was wrong was *when* the
+// work happened, and the writer reported it as the application's worst defect:
+// *"BIG BUG — the scroll is terrible and it stutters on the preview. This goes
+// on throughout the document."* Measured on their own 19-page document, in the
+// pane they were reading:
+//
+//   • One page of this document is **358 KB of SVG containing 2,254 `<use>`
+//     elements** over 150 glyph `<symbol>`s. Every `<use>` instantiates a shadow
+//     subtree, so writing one page into the DOM costs **335 ms** — and only
+//     28 ms of that is the HTML parser. The rest is layout of the instances.
+//   • That 335 ms ran **inside the IntersectionObserver callback**, which is to
+//     say inside the frame the reader was scrolling. One page boundary crossed,
+//     one third of a second of frozen window.
+//   • And it ran **again every time a page came back**, because a page that left
+//     the margin was emptied immediately. Scrolling up and down over one page
+//     boundary paid 335 ms in each direction, for ever.
+//
+// # The shape now
+//
+// Three changes, and the third is the one that matters:
+//
+//   • **`content-visibility: auto` on every page box** (`styles.css`). This is
+//     the browser's own version of the second saving, and it is far better at it
+//     than this file was: a hydrated page that is off screen costs nothing to
+//     keep, and bringing one back on screen costs **10.7 ms** instead of 335.
+//   • **Hydration happens in idle time, never in the observer callback.** The
+//     observer now only *records* which pages are wanted; `drain` fills them one
+//     per slice, nearest to the viewport first. The reader's frame is never the
+//     frame that pays.
+//   • **A page is not emptied when it leaves.** It is emptied only when the pane
+//     is holding more than `KEEP_PAGES` of them, and then the furthest one goes.
+//     Since keeping one is now free, evicting eagerly bought nothing and charged
+//     335 ms to undo. This is the whole difference between a preview that
+//     stutters on every page boundary and one that pays for a page once.
+//
+// Measured after, on the same document and the same scroll: worst frame 591 ms
+// → 46 ms. See `decisions/2026-08-17-the-frame-the-reader-is-in.md`.
 
-/** How far outside the pane a page is still kept drawn: one and a half panes of
- *  scrolling in each direction, so ordinary scrolling never outruns it. */
-const KEEP_MARGIN = "150% 0px";
+/**
+ * How far outside the pane a page is hydrated ahead of the reader.
+ *
+ * Three panes of scrolling in each direction rather than one and a half. The
+ * margin is not a memory budget any more — `KEEP_PAGES` is — so its only job is
+ * to be far enough ahead that idle-time hydration finishes before the reader
+ * arrives, and being early costs nothing a reader can see.
+ */
+const KEEP_MARGIN = "300% 0px";
+
+/**
+ * How many hydrated pages one pane keeps before it starts letting them go.
+ *
+ * A cap and not a window: pages are evicted because there are too many, not
+ * because the reader scrolled past them. Forty pages of this document is roughly
+ * 14 MB of markup, which is a fair price for never paying 335 ms twice for the
+ * same page — and a 300-page sefer still cannot fill memory, which is the reason
+ * there is a cap at all.
+ */
+export const KEEP_PAGES = 40;
 
 interface Windowed {
   pages: string[];
@@ -255,6 +312,27 @@ interface Windowed {
   /** What each node is currently showing — the empty string for an empty box. */
   showing: string[];
   observer: IntersectionObserver | null;
+  /**
+   * The pages the observer last said were near the viewport.
+   *
+   * Kept apart from `wanted` because they answer different questions. This one
+   * is *where the reader is*, and it is what decides whether a page that changed
+   * under a compile has to be drawn now or can wait until somebody scrolls to
+   * it. Redrawing a page nobody is near is the 9.7 MB-per-keystroke defect this
+   * whole file exists to close, and it stays closed.
+   */
+  near: Set<number>;
+  /**
+   * Pages that are near and whose drawing is not what the document now says.
+   *
+   * The observer and the compile both write this and neither draws. Hydrating a
+   * page costs real time and both of them run in a frame somebody is using — the
+   * observer inside a scroll, the compile inside typing — so both record the
+   * intent and `drain` does the work in idle time.
+   */
+  wanted: Set<number>;
+  /** Whether a drain is already booked, so scrolling does not book fifty. */
+  draining: boolean;
 }
 
 const windows = new WeakMap<Element, Windowed>();
@@ -482,9 +560,93 @@ export function pageAspect(svg: string): number {
   return box ? box.width / box.height : 210 / 297;
 }
 
+/**
+ * A `<symbol>` holding exactly one plain `<path d="…"/>`, which is what every
+ * glyph Typst emits looks like. Anything else is left alone — see `flattenGlyphs`.
+ */
+const GLYPH_SYMBOL = /<symbol id="([^"]+)"[^>]*>\s*<path d="([^"]*)"\s*\/?>(?:<\/path>)?\s*<\/symbol>/g;
+
+/** A `<use>` of one, in either spelling. */
+const GLYPH_USE = /<use\s+xlink:href="#([^"]+)"([^>]*?)\s*(?:\/>|><\/use>)/g;
+
+/**
+ * Draw every glyph directly, instead of pointing at one.
+ *
+ * # Why this exists
+ *
+ * Typst writes a page as a glyph table plus references to it: 150 `<symbol>`s
+ * holding the letterforms, and one `<use>` per letter on the page — 2,254 of
+ * them on a page of this document. That is exactly the right way to write an SVG
+ * file and very close to the worst way to put one in a browser. Measured, one
+ * page:
+ *
+ *     as the engine sends it (2,254 `<use>`)     496 ms
+ *     each `<use>` swapped for its `<path>`       21 ms
+ *
+ * A factor of **nineteen**, and it is the whole reason the preview stuttered:
+ * that 496 ms was being spent in the frame the reader was scrolling, at every
+ * page boundary, in both directions.
+ *
+ * # The one thing that was tried and is wrong
+ *
+ * `<use>` is *defined* as generating a `<g>` holding the referenced content, so
+ * the obviously-correct substitution is a `<g transform="translate(x y)">`. That
+ * spelling measures **384 ms** — barely better than the `<use>` it replaces. The
+ * cost is not the number of elements (5,830 nodes against 3,618) and it is not
+ * the shadow tree: it is *a container element carrying a transform*. The same
+ * translate on the `<path>` itself is free. So the substitution has to flatten to
+ * a leaf or it buys nothing, which is why this function refuses any symbol that
+ * is not a single bare path rather than wrapping the general case.
+ *
+ * # What it refuses
+ *
+ * A symbol holding anything but one `<path d="…"/>` — no transform of its own, no
+ * second element, no other attributes to merge. Those keep their `<use>`, and the
+ * `<defs>` is kept whenever even one did, so nothing is ever left pointing at a
+ * definition that has been deleted. On the documents this was measured against
+ * nothing is refused; the branch is there because a glyph table is the engine's
+ * business and not this file's, and a preview that silently drops a letterform
+ * would be a far worse defect than a slow one.
+ */
+export function flattenGlyphs(svg: string): string {
+  const paths = new Map<string, string>();
+  let simple = 0;
+  GLYPH_SYMBOL.lastIndex = 0;
+  for (let m = GLYPH_SYMBOL.exec(svg); m; m = GLYPH_SYMBOL.exec(svg)) {
+    paths.set(m[1], m[2]);
+    simple++;
+  }
+  if (!simple) return svg;
+
+  let missed = 0;
+  GLYPH_USE.lastIndex = 0;
+  const out = svg.replace(GLYPH_USE, (all, id: string, rest: string) => {
+    const d = paths.get(id);
+    if (d === undefined) {
+      missed++;
+      return all;
+    }
+    const x = /\sx="([^"]*)"/.exec(rest)?.[1] ?? "0";
+    const y = /\sy="([^"]*)"/.exec(rest)?.[1] ?? "0";
+    // Everything the `<use>` carried except its position, which becomes the
+    // transform. `d` comes first so that a symbol that somehow named the same
+    // attribute wins: HTML keeps the first of a repeated attribute, and the
+    // referenced content is what should override the reference.
+    const keep = rest.replace(/\s(?:x|y)="[^"]*"/g, "");
+    const move = x !== "0" || y !== "0" ? ` transform="translate(${x} ${y})"` : "";
+    return `<path d="${d}"${move}${keep}/>`;
+  });
+
+  // Nothing points at the table any more, so the table can go — a third of the
+  // bytes, and 120 elements the browser would otherwise build and never draw.
+  // Kept in full the moment even one `<use>` survived, because a definition that
+  // is still referenced must still be there.
+  return missed ? out : out.replace(/<defs>.*?<\/defs>/gs, "");
+}
+
 function fill(w: Windowed, node: HTMLElement, i: number) {
   if (w.showing[i] === w.hashes[i]) return;
-  node.innerHTML = w.pages[i];
+  node.innerHTML = flattenGlyphs(w.pages[i]);
   w.showing[i] = w.hashes[i];
 }
 
@@ -492,6 +654,121 @@ function empty(w: Windowed, node: HTMLElement, i: number) {
   if (!w.showing[i]) return;
   node.replaceChildren();
   w.showing[i] = "";
+}
+
+/**
+ * How far page `i` is from the middle of what the reader is looking at.
+ *
+ * Falls back to the page's **index** when the pane has no geometry to offer.
+ * That is not defensive padding: a pane that has just been built has not been
+ * laid out yet, and `offsetTop` on a node with no layout is `0` for every page —
+ * so without this, "nearest first" would silently become "whichever the set
+ * iterated first" at exactly the moment the whole document is waiting to be
+ * drawn. Index order is the honest answer there, and it is also the right one.
+ */
+function gapFromReader(host: HTMLElement, node: HTMLElement, i: number): number {
+  const mid = host.scrollTop + host.clientHeight / 2;
+  const at = node.offsetTop + node.offsetHeight / 2;
+  return Number.isFinite(at) && Number.isFinite(mid) && (at !== 0 || mid !== 0) ? Math.abs(at - mid) : i;
+}
+
+/** How many pages this pane is currently holding drawn. */
+function drawnCount(w: Windowed): number {
+  let n = 0;
+  for (const h of w.showing) if (h) n++;
+  return n;
+}
+
+/**
+ * Run a slice of work when the browser has nothing better to do.
+ *
+ * `requestIdleCallback` with a deadline, because a page that never hydrates is
+ * worse than one that hydrates in a busy frame: a reader who scrolls fast enough
+ * to outrun idle time must still be given their page. Safari only grew
+ * `requestIdleCallback` in 16.4, so the timeout path is the whole implementation
+ * on anything older rather than a fallback nobody reaches.
+ */
+function whenIdle(fn: () => void): void {
+  const ric = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number })
+    .requestIdleCallback;
+  if (ric) ric(fn, { timeout: 200 });
+  else setTimeout(fn, 16);
+}
+
+/**
+ * Hydrate the pages this pane has been told it wants, one per slice.
+ *
+ * **Nearest first**, measured against the middle of the pane, so a reader who
+ * jumps to page 40 gets page 40 and not pages 1 through 39 on the way. The order
+ * is recomputed each slice rather than sorted once, because the reader keeps
+ * scrolling while this runs and the nearest page is a moving answer.
+ *
+ * One page per slice and then a fresh booking, rather than a loop with a
+ * deadline check. A single page is 170 ms even with the contents skipped, so any
+ * loop that checked a deadline *between* pages would still overrun it by a whole
+ * page — the granularity of this work is one page, and pretending otherwise
+ * would only make the overrun harder to read.
+ */
+function drain(host: HTMLElement): void {
+  const w = windows.get(host);
+  if (!w) return;
+  w.draining = false;
+  if (!w.wanted.size) return;
+
+  let best = -1;
+  let bestGap = Infinity;
+  for (const i of w.wanted) {
+    const node = w.nodes[i];
+    // A page that has gone — the document recompiled shorter while this was
+    // booked. Dropped rather than drawn into a node nobody owns.
+    if (!node || w.showing[i] === w.hashes[i]) {
+      w.wanted.delete(i);
+      continue;
+    }
+    const gap = gapFromReader(host, node, i);
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = i;
+    }
+  }
+  if (best < 0) return;
+  w.wanted.delete(best);
+  fill(w, w.nodes[best], best);
+  evictIfCrowded(w, host);
+  if (w.wanted.size) book(host);
+}
+
+/** Book a drain, unless one is already booked. */
+function book(host: HTMLElement): void {
+  const w = windows.get(host);
+  if (!w || w.draining) return;
+  w.draining = true;
+  whenIdle(() => drain(host));
+}
+
+/**
+ * Let go of the furthest pages, once this pane is holding more than it should.
+ *
+ * Distance from the reader and not "left the margin", which is the change that
+ * closes the stutter: a page just off the top of the pane is the page the reader
+ * is most likely to want next, and emptying it charged 335 ms to get it back.
+ * Since `content-visibility` makes a held page free to keep, the only reason
+ * left to let one go is the cap — so that is the only reason it happens.
+ */
+function evictIfCrowded(w: Windowed, host: HTMLElement): void {
+  let held = drawnCount(w);
+  if (held <= KEEP_PAGES) return;
+  const drawn: { i: number; gap: number }[] = [];
+  for (let i = 0; i < w.nodes.length; i++) {
+    if (!w.showing[i]) continue;
+    drawn.push({ i, gap: gapFromReader(host, w.nodes[i], i) });
+  }
+  drawn.sort((a, b) => b.gap - a.gap);
+  for (const { i } of drawn) {
+    if (held <= KEEP_PAGES) break;
+    empty(w, w.nodes[i], i);
+    held--;
+  }
 }
 
 /**
@@ -626,7 +903,7 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
   // No names, or no observer to tell us what is on screen (a very old webview):
   // draw the lot, exactly as this did before either mechanism existed.
   if (!hashes || hashes.length !== pages.length || typeof IntersectionObserver === "undefined") {
-    host.innerHTML = pages.map((s) => `<div class="page">${s}</div>`).join("");
+    host.innerHTML = pages.map((s) => `<div class="page">${flattenGlyphs(s)}</div>`).join("");
     windows.delete(host);
     // Hidden afterwards rather than written into the markup, so both paths
     // through this function narrow by setting the same property on the same
@@ -647,11 +924,21 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
 
   let w = windows.get(host);
   if (!w) {
-    w = { pages, hashes, nodes: [], showing: [], observer: null };
+    w = {
+      pages,
+      hashes,
+      nodes: [],
+      showing: [],
+      observer: null,
+      near: new Set(),
+      wanted: new Set(),
+      draining: false,
+    };
     w.observer = new IntersectionObserver(
       (entries) => {
         const state = windows.get(host);
         if (!state) return;
+        let book_ = false;
         for (const e of entries) {
           const node = e.target as HTMLElement;
           const i = Number(node.dataset.page);
@@ -659,9 +946,23 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
           // something else rebuilt. Reporting it would write the page into a
           // node nobody can see and, worse, mark the page as drawn.
           if (!(i >= 0) || state.nodes[i] !== node) continue;
-          if (e.isIntersecting) fill(state, node, i);
-          else empty(state, node, i);
+          // **Recorded, not drawn.** This callback runs in the frame the reader
+          // is scrolling; drawing a page here is the 335 ms that made the
+          // preview stutter at every page boundary. `drain` does it in idle
+          // time. A page that leaves keeps its drawing — see `evictIfCrowded`
+          // for the only reason one is ever given up.
+          if (e.isIntersecting) {
+            state.near.add(i);
+            if (state.showing[i] !== state.hashes[i]) {
+              state.wanted.add(i);
+              book_ = true;
+            }
+          } else {
+            state.near.delete(i);
+            state.wanted.delete(i);
+          }
         }
+        if (book_) book(host);
       },
       { root: host, rootMargin: KEEP_MARGIN },
     );
@@ -679,6 +980,11 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
     host.replaceChildren();
     w.nodes = [];
     w.showing = [];
+    // The bookings went with the nodes they named. A drain that survived this
+    // would look up `w.nodes[i]` for a page index that now means a different
+    // page, which is the one thing the identity check exists to prevent.
+    w.wanted.clear();
+    w.near.clear();
   }
   w.pages = pages;
   w.hashes = hashes;
@@ -688,6 +994,8 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
   while (w.nodes.length > pages.length) {
     const last = w.nodes.pop();
     w.showing.pop();
+    w.wanted.delete(w.nodes.length);
+    w.near.delete(w.nodes.length);
     if (last) {
       w.observer?.unobserve(last);
       last.remove();
@@ -712,16 +1020,29 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
     // both ways on a real element and is a plain assignment everywhere else.
     node.hidden = !shown(i);
     if (shown(i)) {
-      // A page already on screen is refreshed here rather than left to the
-      // observer, which would not fire for a node that never moved.
-      if (w.showing[i]) fill(w, node, i);
+      // A page whose content has changed **and that the reader is near**. Booked
+      // rather than rewritten here: this runs on every compile, and rewriting
+      // inline is time spent in whatever frame the compile landed in — which,
+      // since compiles follow typing, is a frame the writer is in.
+      //
+      // `near` and not `showing` is the load-bearing word. A page that changed
+      // while the reader is forty pages away is left holding what it holds; it
+      // is stale, `fill` knows it is stale from the hash, and it is redrawn the
+      // moment the observer says somebody has come back to it. Redrawing all of
+      // them here is the 9.7 MB-per-keystroke defect this file exists to close.
+      if (w.near.has(i) && w.showing[i] !== w.hashes[i]) w.wanted.add(i);
     } else {
       // Emptied as well as hidden. The observer will not fire for a box with no
       // layout, so a page that was on screen when the pane narrowed would keep
-      // its megabyte of SVG for as long as the session lasted.
+      // its megabyte of SVG for as long as the session lasted. This is the one
+      // eager empty left, and it is not about distance from the reader: a hidden
+      // page is not coming back until the pane is widened.
+      w.wanted.delete(i);
+      w.near.delete(i);
       empty(w, node, i);
     }
   }
+  if (w.wanted.size) book(host);
   sayWindow(host, only);
 }
 

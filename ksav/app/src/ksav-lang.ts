@@ -561,6 +561,23 @@ class TableWidget extends WidgetType {
 interface ProseValue {
   deco: DecorationSet;
   touch: { from: number; to: number }[];
+  /**
+   * The selection these decorations were computed for.
+   *
+   * Not the previous transaction's — the last *recompute's*. Once a selection
+   * move is allowed to defer its recompute (see `proseReveal`), several moves
+   * can pass between one recompute and the next, and each of them can be a
+   * no-flip step relative to the one before it while the journey as a whole
+   * flips a span. Comparing against the transaction's start state would then
+   * miss the flip entirely and leave a command hidden under the cursor.
+   */
+  at: EditorSelection;
+  /**
+   * Whether a span's reveal has flipped since `at` and has not been drawn yet.
+   *
+   * Set by the field, cleared by the recompute, and acted on by `proseReveal`.
+   */
+  stale: boolean;
 }
 
 /**
@@ -895,7 +912,7 @@ function proseDecorations(state: EditorState): ProseValue {
     ranges.map((r) => r.deco.range(r.from, r.to)),
     true,
   );
-  return { deco, touch };
+  return { deco, touch, at: sel, stale: false };
 }
 
 // ---- folding (org-mode style: headings + lists + any multi-line command) ----
@@ -1141,14 +1158,93 @@ export const ksavFolding = codeFolding({
   },
 });
 
+/**
+ * *Draw the reveal now* — the deferred half of a cursor move.
+ *
+ * Dispatched by `proseReveal`, never by anything else. A `StateField` may not
+ * hold a timer, so the field records that a reveal is owed (`stale`) and this
+ * effect is how the answer comes back.
+ */
+const drawProseReveal = StateEffect.define<null>();
+
+/**
+ * How long the caret must stop for before the reveal is drawn.
+ *
+ * A recompute is a pass over the whole document — it builds a coverage mask per
+ * predicate and walks every command — so it costs in proportion to the sefer:
+ * **5.5 ms** on a 52 KB document and **17.3 ms** on a 520 KB one, measured. One
+ * of those per arrow key is a frame per keystroke, and holding the key down at
+ * the usual repeat rate spends more than half the main thread redrawing a
+ * highlight nobody is looking at yet, because the caret is still moving.
+ *
+ * So the first move after a pause draws immediately — a single arrow key must
+ * reveal the command it lands on with no lag anybody can feel — and moves that
+ * arrive while the caret is still travelling only push this timer along. A held
+ * key now costs one recompute when it is released instead of thirty a second.
+ */
+const REVEAL_QUIET_MS = 90;
+
+/**
+ * Draw the reveal the field has decided is owed, once the caret settles.
+ *
+ * The timing lives here rather than in the field because a field is a pure
+ * function of transactions and cannot own a clock. What it *can* do is say that
+ * the drawing on screen no longer matches where the cursor is, which is `stale`.
+ *
+ * Both edges are deliberate. Without the leading edge, every reveal would lag by
+ * `REVEAL_QUIET_MS` and the feature would feel broken on a single keypress;
+ * without the trailing edge, a held arrow key would recompute on every repeat,
+ * which is the cost this exists to avoid. Between them, the only case that pays
+ * repeatedly is a caret that moves continuously for a long time — and that one
+ * pays once, at the end, when the writer stops to read.
+ */
+export const proseReveal = ViewPlugin.fromClass(
+  class {
+    private timer: number | undefined;
+    private frame = 0;
+    constructor(private view: EditorView) {}
+    update(u: ViewUpdate) {
+      if (!u.state.field(proseMode, false)?.stale) return;
+      // Quiet until now: draw on the next frame, so a single keypress reveals
+      // immediately. Mid-flight: only push the trailing timer along.
+      if (this.timer === undefined && !this.frame) {
+        this.frame = requestAnimationFrame(() => {
+          this.frame = 0;
+          this.draw();
+        });
+      }
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => {
+        this.timer = undefined;
+        this.draw();
+      }, REVEAL_QUIET_MS);
+    }
+    private draw() {
+      // Asked again rather than assumed: an edit may have landed since this was
+      // booked, and an edit recomputes on its own. Dispatching anyway would pay
+      // for the pass twice.
+      if (!this.view.state.field(proseMode, false)?.stale) return;
+      this.view.dispatch({ effects: drawProseReveal.of(null) });
+    }
+    destroy() {
+      clearTimeout(this.timer);
+      if (this.frame) cancelAnimationFrame(this.frame);
+    }
+  },
+);
+
 // Prose mode is a StateField (not a ViewPlugin) because it emits block widgets
 // (rendered tables) and line-break-spanning replaces, which CodeMirror only
-// permits from a field. It recomputes on edits, selection moves, and the
-// reveal-all (Alt) toggle — it doesn't depend on the viewport.
+// permits from a field. It recomputes on edits, on the reveal-all (Alt) toggle,
+// and — once the caret settles — on a cursor move; it doesn't depend on the
+// viewport. See `proseReveal` for why a cursor move is the one that waits.
 export const proseMode = StateField.define<ProseValue>({
   create: (state) => proseDecorations(state),
   update(prev, tr) {
-    if (tr.docChanged || tr.effects.some((e) => e.is(setRevealAll)))
+    if (
+      tr.docChanged ||
+      tr.effects.some((e) => e.is(setRevealAll) || e.is(drawProseReveal))
+    )
       return proseDecorations(tr.state);
     if (tr.selection) {
       // A cursor move only changes the view if it reveals or hides a span. If no
@@ -1157,14 +1253,72 @@ export const proseMode = StateField.define<ProseValue>({
       // holding a key down) through a long document from paying for a full
       // recompute on every event. This was the second, cheaper half of the
       // quadratic-latency fix.
-      const before = tr.startState.selection;
+      //
+      // Compared against `prev.at` — the selection the decorations were computed
+      // for — and **not** `tr.startState.selection`. They were the same thing
+      // while every flip recomputed at once. They are not any more: `proseReveal`
+      // defers the recompute, so several moves can pass in between, and a
+      // sequence of steps that each fail to flip against their immediate
+      // predecessor can still have flipped against the last drawing. Comparing
+      // against the previous transaction would lose the flip and leave a command
+      // hidden underneath the cursor.
       const after = tr.state.selection;
-      const flips = prev.touch.some(
-        (s) => overlapsSel(before, s.from, s.to) !== overlapsSel(after, s.from, s.to),
-      );
-      return flips ? proseDecorations(tr.state) : prev;
+      // The two directions are not the same, and only one of them may wait.
+      //
+      // **Entering** a span is the caret moving *into* markup that is currently
+      // replaced — hidden text with no DOM of its own. A selection there has
+      // nowhere to be, and CodeMirror's tile walker runs off the end of the tree
+      // trying to place it. Firefox logs a `parents.pop() is undefined` per
+      // keypress; the caret is inside content that is not on screen either way.
+      // So entering redraws in this transaction, before the selection is
+      // applied to a DOM that has no room for it.
+      //
+      // **Leaving** is the markup closing up behind the caret. Nothing depends
+      // on it having happened yet — the caret is somewhere that exists — so that
+      // is the half that waits for the writer to stop moving, which is where the
+      // saving lives: a held arrow key runs through prose, and prose is mostly
+      // not commands.
+      const entered: { from: number; to: number }[] = [];
+      let leaves = false;
+      for (const s of prev.touch) {
+        const was = overlapsSel(prev.at, s.from, s.to);
+        const now = overlapsSel(after, s.from, s.to);
+        if (was === now) continue;
+        if (now) entered.push(s);
+        else leaves = true;
+      }
+      // Entering is answered here, and answered *narrowly*: every decoration
+      // touching the entered span is dropped, which is what uncovering markup
+      // looks like, and costs a range-set update over that span rather than a
+      // pass over the sefer. The exact drawing — which marks the uncovered text
+      // should carry, whether a widget belongs beside it — arrives a frame later
+      // with the deferred recompute, and until then the writer is looking at
+      // their own source, which is the thing they moved the caret there to see.
+      //
+      // `at` deliberately does not move. These are not the decorations a full
+      // pass would produce, so the next flip must still be measured against the
+      // last real one.
+      if (entered.length) {
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const s of entered) {
+          if (s.from < lo) lo = s.from;
+          if (s.to > hi) hi = s.to;
+        }
+        return {
+          ...prev,
+          deco: prev.deco.update({
+            filterFrom: lo,
+            filterTo: hi,
+            filter: (from, to) => !entered.some((s) => from <= s.to && to >= s.from),
+          }),
+          stale: true,
+        };
+      }
+      // Marked, not drawn. See `proseReveal` for who draws it and when.
+      return leaves ? { ...prev, stale: true } : prev;
     }
-    return { deco: prev.deco.map(tr.changes), touch: prev.touch };
+    return { ...prev, deco: prev.deco.map(tr.changes) };
   },
   provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });

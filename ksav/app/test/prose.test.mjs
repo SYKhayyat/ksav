@@ -132,4 +132,57 @@ export async function run() {
     ok("prose: the masechta is marked", covered.includes("ברכות"));
     ok("prose: and so is the daf", covered.includes("ב."));
   }
+
+  // ---- moving the caret never leaves it buried -----------------------------
+  //
+  // Everything above builds a state at a position. A writer *moves* to one, and
+  // a move takes a different path through the field: the recompute is deferred
+  // so that holding an arrow key down through a sefer does not pay for a pass
+  // over the whole document per repeat.
+  //
+  // What may not be deferred is the caret arriving inside markup that is
+  // currently replaced. A replaced range has no DOM of its own, so a selection
+  // there has nowhere to be — CodeMirror's tile walker runs off the end of the
+  // tree looking for it, which Firefox reports as `parents.pop() is undefined`,
+  // once per keypress, from inside the library. Nothing threw, nothing turned
+  // red, and the caret was inside text nobody could see.
+  //
+  // So: after a move, no range still hiding text may contain the caret unless a
+  // freshly computed state at that position hides it too. Subset rather than
+  // equality on purpose — revealing *more* than a fresh pass would is what the
+  // narrow uncover does for one frame, and it is not a defect.
+  const hidingAt = (state, at) => {
+    const found = [];
+    const it = state.field(proseMode).deco.iter();
+    while (it.value) {
+      // `point` with a non-empty range is `Decoration.replace` — the only kind
+      // that takes text off the screen. Marks style what is there; line and
+      // widget decorations are empty ranges.
+      if (it.value.point && it.from < at && it.to > at) found.push(`${it.from}-${it.to}`);
+      it.next();
+    }
+    return found;
+  };
+  // The caret is *walked* rather than placed, one position at a time, from a
+  // single state — which is the arrangement the deferral creates and the only
+  // one in which this can go wrong. Placed fresh at a position, the caret is
+  // never inside hidden markup, because the state that computed the decorations
+  // already knew where it was; `touchedAt` uncovered the span on the way in. A
+  // pair of fresh states cannot see this bug at all, and the first version of
+  // this check was written that way and could not fail.
+  let buried = null;
+  let moves = 0;
+  for (const [name, doc] of Object.entries(DOCS)) {
+    let st = EditorState.create({ doc, selection: { anchor: 0 }, extensions: [proseMode] });
+    for (let pos = 1; pos <= doc.length && !buried; pos++) {
+      st = st.update({ selection: { anchor: pos } }).state;
+      const fresh = EditorState.create({ doc, selection: { anchor: pos }, extensions: [proseMode] });
+      const should = new Set(hidingAt(fresh, pos));
+      const extra = hidingAt(st, pos).filter((r) => !should.has(r));
+      if (extra.length) buried = `${name} @${pos}: still hidden ${extra.join(",")}`;
+      moves++;
+    }
+  }
+  check("prose: a caret walked into markup is never left buried inside it", buried, null);
+  ok("prose: and it was walked over the whole corpus", moves > 400);
 }

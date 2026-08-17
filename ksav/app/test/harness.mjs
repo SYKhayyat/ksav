@@ -156,6 +156,27 @@ FakeIntersectionObserver.live = [];
 globalThis.IntersectionObserver = FakeIntersectionObserver;
 
 /**
+ * Idle time, which in a test is now.
+ *
+ * `preview.ts` hydrates pages in `requestIdleCallback` rather than inside the
+ * observer callback — writing a page is real layout, and the observer fires in
+ * the frame the reader is scrolling, which is what made the preview stutter at
+ * every page boundary. That is a scheduling decision and not a behavioural one:
+ * *which* page is drawn and *what it holds* must be identical either way, and
+ * this is what lets a test assert that without waiting on a real idle callback.
+ *
+ * Synchronous, so `drawPages(...)` followed by an assertion still reads what the
+ * pane holds. The drain redraws one page per slice and books the next itself, so
+ * a synchronous callback drains the whole queue by recursion — which is exactly
+ * what "the browser had time" means, and the state a test wants to check.
+ */
+globalThis.requestIdleCallback = (fn) => {
+  fn({ didTimeout: false, timeRemaining: () => 50 });
+  return 0;
+};
+globalThis.cancelIdleCallback = () => {};
+
+/**
  * Wipe both stores so tests cannot leak state into each other.
  *
  * The buckets are emptied rather than the database deleted. `deleteDatabase`

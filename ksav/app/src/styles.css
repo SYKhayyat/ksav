@@ -11,7 +11,48 @@
   --editor-bg: #fbfbfd;
   --hebrew: "Frank Ruhl Libre", "David Libre", "Segoe UI", sans-serif;
   --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+
+  /* ---- what sits in front of what -------------------------------------
+     One scale, in the order a reader meets these surfaces, because the
+     alternative is what this file had: twelve numbers between 2 and 9999,
+     each chosen against whatever it happened to overlap on the day, and no
+     way to answer "is this in front of that" without reading all of them.
+
+     The defect that made it a scale: **the editor's own find bar covered the
+     toolbar menus.** CodeMirror's base theme puts `.cm-panels` at `z-index:
+     300` and this file put dropdowns at `40`, so a menu opened *after* a
+     search was still painted behind it — reported exactly that way, *"the
+     search is over the dropdowns, even though I clicked them later"*. 300 was
+     never a considered number here; it is a third-party default that happened
+     to be larger than every number in this file.
+
+     The rule the order encodes: a surface a writer opened **on purpose and
+     last** goes in front. The editor's panels are chrome the editor manages,
+     so they sit above the text and below anything the writer opened. */
+  --z-editor-marks: 2;      /* jump marks, sticky heads inside a scroller */
+  --z-cm-panels: 5;         /* CodeMirror's find bar and friends */
+  --z-menu: 40;             /* the toolbar's dropdown menus */
+  --z-float-btn: 45;        /* the floating preview button */
+  --z-hydra: 47;            /* the transient keymap, docked above the status */
+  --z-drawer: 50;           /* settings, outline, notes, marks, help */
+  --z-overlay: 60;          /* the palette and the modals, over the drawers */
+  --z-popup: 80;            /* pointer-anchored menus: spell, pane, citations */
+  --z-crash: 999;           /* the crash panel, over everything but a notice */
+  --z-notice: 9999;         /* durable failure banners, over the crash panel */
 }
+
+/* CodeMirror ships `.cm-panels { z-index: 300 }` in its base theme, which is
+   above every surface this application has. Brought into the scale rather than
+   raising all of ours past it: the find bar belongs above the text it searches
+   and below the menus a writer opens over it, and that is a statement about
+   this window rather than about CodeMirror's defaults.
+
+   `#app` is not decoration. CodeMirror's base theme is injected with a generated
+   scope class — the rule is `.ͼ1 .cm-panels`, specificity (0,2,0) — so a bare
+   `.cm-panels` here loses and the find bar goes on covering the menus. The id
+   takes it to (1,1,0), which wins without an `!important` that would then have
+   to be worked around by anything wanting the panel higher for a good reason. */
+#app .cm-panels { z-index: var(--z-cm-panels); }
 :root[data-theme="dark"] {
   --bg: #0f172a;
   --panel: #1e293b;
@@ -109,7 +150,7 @@ header {
 /* ---- dropdown menus ---- */
 .menu { position: relative; }
 .menu-list {
-  position: absolute; top: 36px; inset-inline-start: 0; z-index: 40;
+  position: absolute; top: 36px; inset-inline-start: 0; z-index: var(--z-menu);
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 12px 30px rgba(0,0,0,.18); min-width: 240px; padding: 6px;
   display: none; max-height: 70vh; overflow: auto;
@@ -273,7 +314,7 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 
 /* floating preview button + modal (page mode) */
 .float-preview-btn {
-  position: fixed; bottom: 46px; inset-inline-start: 22px; z-index: 45; display: none;
+  position: fixed; bottom: 46px; inset-inline-start: 22px; z-index: var(--z-float-btn); display: none;
   width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #fff;
   border: none; box-shadow: 0 5px 16px rgba(0,0,0,.28); cursor: pointer; font-size: 20px;
 }
@@ -286,16 +327,46 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
   font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
   padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
+/* The pane's number, which the ⋯ menu's "swap with pane 3" refers to by name.
+   A badge rather than plain text, because it has to be findable at a glance in a
+   window of six panes — that is the whole reason it is on screen. */
+.pane-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 3px; margin-inline-end: 6px;
+  border-radius: 5px; background: var(--line); color: var(--ink);
+  font-size: 10px; font-weight: 700; letter-spacing: 0;
+}
 /* The strip is the handle a pane is dragged by, so it says so under the pointer.
-   Only when there is a second pane to trade with — `paneHead` sets the attribute
+   Only when there is a second pane to trade with — `paneHead` adds the class
    then and not otherwise, which keeps the cursor from promising a gesture that
    has nowhere to land. */
-.pane-head[draggable="true"] { cursor: grab; }
-.pane-head[draggable="true"]:active { cursor: grabbing; }
+.pane-grab { cursor: grab; }
+body.dragging-pane { cursor: grabbing; user-select: none; }
+/* Nothing under the pointer may swallow the drag. The pointer is captured on the
+   strip so the events arrive regardless, but a text caret blinking over a
+   CodeMirror pane you are dropping onto reads as "this is not a drop target". */
+body.dragging-pane * { cursor: grabbing !important; }
 /* Where a dragged pane would land. An inset outline rather than a border: a
    border would change the pane's size mid-drag and shove the text under the
    pointer. */
 .pane.pane-drop { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* And *what* the drop would do, which the outline alone cannot say. Dropping in
+   the middle trades the two panes; dropping along an edge moves the carried pane
+   to that side. The band is drawn where the pane would go, so the picture is the
+   answer rather than a legend for it. */
+.pane.pane-drop::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+/* Physical sides, not logical ones, and deliberately: `main` is forced
+   `direction: ltr` so that pane *positions* are physical while the text inside
+   each pane reads in its own direction (see `paneLayout` in `main.ts`). A band
+   drawn with `inset-inline` would mirror while the pane it promises did not. */
+.pane { position: relative; }
+.pane.pane-drop[data-drop="left"]::after { right: 70%; }
+.pane.pane-drop[data-drop="right"]::after { left: 70%; }
+.pane.pane-drop[data-drop="up"]::after { bottom: 70%; }
+.pane.pane-drop[data-drop="down"]::after { top: 70%; }
 .source-pane .pane-host { background: var(--editor-bg); }
 .cm-editor { height: 100%; background: var(--editor-bg); color: var(--ink); }
 
@@ -330,10 +401,33 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
   /* The containing block for `.jump-mark`, which is positioned as a fraction of
      the page rather than in pixels so it survives a zoom. */
   position: relative;
+  /* Let the browser skip the work of a page that is off screen.
+
+     This is the single line that took the preview's worst scroll frame from
+     591 ms to 46 ms, and it is doing the same job `preview.ts` does with an
+     IntersectionObserver — far better, because it skips *layout* rather than
+     avoiding *markup*. One page of a real document is 358 KB of SVG holding
+     2,254 `<use>` elements; laying that out is 335 ms, and until this line the
+     browser did it for every page held, on screen or not.
+
+     With it, a page that is drawn but off screen costs nothing to keep — which
+     is what let `preview.ts` stop emptying pages the moment the reader scrolls
+     past them, and stop paying 335 ms to get each one back. */
+  content-visibility: auto;
+  /* The size to assume while the contents are skipped. `auto` means *the size it
+     was when it last rendered*, so a page that has been seen once reserves its
+     true height rather than an estimate; the lengths are the first-time guess,
+     an A4 page at the default width. */
+  contain-intrinsic-size: auto 820px auto 1160px;
 }
-/* A page that has been filled in takes its height from its own drawing, which
-   is the same height the ratio above reserved for it. */
-.page:has(svg) { aspect-ratio: auto; }
+/* NOTE: there is deliberately no `.page:has(svg) { aspect-ratio: auto }` any
+   more. It used to let a filled page take its height from its own drawing, on
+   the reasoning that the drawing is the truth — but a skipped subtree has no
+   drawing to be measured, so with `content-visibility` that rule collapsed every
+   off-screen page to nothing and the scrollbar with it. The ratio is set per
+   page by `drawPages` from the very `viewBox` the SVG is drawn with, so keeping
+   it costs no accuracy: the reserved height and the drawn height are computed
+   from the same two numbers. */
 /* A page a narrowed preview is not showing. The `hidden` attribute already means
    this; it is stated because `.page` is one `display:` away from overriding the
    browser's own rule, and the failure would be a preview that says it is holding
@@ -349,7 +443,7 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
    is an answer, not a target, and a click landing on it instead of on the page
    would break the other direction. */
 .jump-mark {
-  position: absolute; width: 0; height: 0; pointer-events: none; z-index: 2;
+  position: absolute; width: 0; height: 0; pointer-events: none; z-index: var(--z-editor-marks);
 }
 .jump-mark::before {
   content: ""; position: absolute; left: 50%; top: 50%;
@@ -398,7 +492,7 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 
 /* ---- settings drawer ---- */
 .drawer {
-  position: fixed; top: 0; inset-inline-end: 0; height: 100vh; width: 300px; z-index: 50;
+  position: fixed; top: 0; inset-inline-end: 0; height: 100vh; width: 300px; z-index: var(--z-drawer);
   background: var(--panel); border-inline-start: 1px solid var(--line);
   box-shadow: -8px 0 30px rgba(0,0,0,.15);
   /* No padding at the top: the sticky head supplies its own, and a sticky
@@ -487,7 +581,7 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 
 /* ---- command palette ---- */
 .overlay {
-  position: fixed; inset: 0; z-index: 60; background: rgba(15,23,42,.45);
+  position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(15,23,42,.45);
   display: none; align-items: flex-start; justify-content: center; padding-top: 12vh;
 }
 .overlay.open { display: flex; }
@@ -527,7 +621,7 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
    first — see `noticeHost` in dom.ts. The container is what is pinned; the
    banners inside it are ordinary blocks. */
 .notices {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 9999;
+  position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-notice);
   display: flex; flex-direction: column;
 }
 .save-error {
@@ -566,6 +660,24 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
   background: var(--accent-soft); padding: 2px 6px; border-radius: 5px; min-width: 62px; text-align: center;
 }
 .pal-item code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+/* A row that is mostly one choice with a small destructive action beside it —
+   a saved arrangement and the × that forgets it. The × is a sibling rather than
+   a child, so clicking it can never be read as choosing the row. */
+.pal-row { display: flex; align-items: center; gap: 2px; }
+.pal-row .pal-item { flex: 1; }
+.pal-x {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 15px; line-height: 1; padding: 6px 8px; border-radius: 7px;
+}
+.pal-x:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+
+/* A pane's ⋯ menu. It borrows `.spell-menu`'s box — pointer-anchored, floating,
+   dismissed by a click outside — and only widens it, because its rows are
+   sentences ("Move this pane to the bottom edge") rather than single words. */
+.pane-menu { min-width: 232px; max-width: 320px; padding: 6px; }
+.pane-menu .pal-item { padding: 6px 9px; }
+.pane-menu .pal-item b { font-size: 13px; font-weight: 500; }
+.pane-menu .menu-desc { padding: 0 9px 4px; }
 
 /* welcome / onboarding */
 .welcome-box { padding: 26px 28px; max-width: 540px; text-align: center; }
@@ -919,7 +1031,7 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    through it. */
 .nq-views {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: 0; z-index: var(--z-editor-marks);
   margin: 2px -26px 4px; padding: 6px 26px;
   background: var(--panel);
 }
@@ -1085,7 +1197,7 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 }
 
 .spell-menu {
-  position: fixed; z-index: 80; min-width: 160px; max-width: 260px;
+  position: fixed; z-index: var(--z-popup); min-width: 160px; max-width: 260px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 8px 28px rgba(0,0,0,.22); padding: 5px; font-size: 13px;
 }
@@ -1152,7 +1264,7 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    every one of these, and one of them being fixed and the next not is how this
    became a report in the first place. */
 .drawer .styles-head {
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: 0; z-index: var(--z-editor-marks);
   background: var(--panel);
   margin: 0 -18px 10px; padding: 16px 18px 8px;
   border-block-end: 1px solid var(--line);
@@ -1252,7 +1364,7 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    than floating over the text: the writer is looking at the thing they are
    operating on, and a panel that covers it defeats the point of staying open. */
 .hydra {
-  display: none; position: fixed; inset-inline: 0; bottom: 30px; z-index: 47;
+  display: none; position: fixed; inset-inline: 0; bottom: 30px; z-index: var(--z-hydra);
   background: var(--panel); border-top: 1px solid var(--accent);
   box-shadow: 0 -6px 22px rgba(0,0,0,.16); padding: 7px 12px 9px;
 }
@@ -1436,7 +1548,7 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .cm-changed-line { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 
 .cm-overview-ruler {
-  position: absolute; top: 0; bottom: 0; width: 10px; z-index: 2;
+  position: absolute; top: 0; bottom: 0; width: 10px; z-index: var(--z-editor-marks);
   /* Pinned to the inline end, not to the right: the editor's direction is the
    * document's, and a Hebrew sefer puts its scrollbar on the left. */
   inset-inline-end: 0;
@@ -1482,7 +1594,7 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
  * this hands it to them as a file without asking them to trust that it worked.
  */
 #crash-panel {
-  position: fixed; inset: 0; z-index: 999; overflow: auto;
+  position: fixed; inset: 0; z-index: var(--z-crash); overflow: auto;
   background: var(--panel); color: var(--ink);
   padding: 28px 26px; font-family: var(--hebrew);
 }

@@ -238,6 +238,23 @@ export const RECIPES = new Map([
   ],
 
   [
+    "pane-menu",
+    {
+      how: HOW.driven,
+      why:
+        "A pane's own ⋯ menu, anchored under the button in its strip. It is not a " +
+        "chip because it is not one surface: every pane has one, and each is built " +
+        "from the arrangement as it stands — which panes there are to swap with, " +
+        "which tabs there are to move to. The gesture is the button, and the first " +
+        "pane's is the one measured; they are the same builder.",
+      drive: async (p) => {
+        await p.click('[data-pane-act="menu"]');
+        await p.waitFor(".pane-menu", 10_000);
+      },
+    },
+  ],
+
+  [
     "context-bar",
     {
       how: HOW.driven,

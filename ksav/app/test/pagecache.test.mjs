@@ -12,7 +12,7 @@
 // discovers when they print.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { drawPages, drawCurrentInto, pageAspect, previewStyle, previewGeometry } from "../.tmp-test/preview.mjs";
+import { drawPages, drawCurrentInto, pageAspect, previewStyle, previewGeometry, KEEP_PAGES } from "../.tmp-test/preview.mjs";
 import { CompileCache } from "../.tmp-test/api.mjs";
 
 /** A `#preview`-shaped host from the harness's minimal DOM. */
@@ -79,18 +79,51 @@ export async function run() {
   }
 
   {
-    // Scrolling away empties a page, and scrolling back fills it again — with
-    // whatever it says *now*, not what it said when the reader left it.
+    // Scrolling away used to empty a page, and scrolling back filled it again.
+    // It does not any more, and that is the fix for the worst defect this
+    // application had: writing one page into the DOM is 335 ms of layout, so
+    // emptying eagerly meant paying it again in each direction every time the
+    // reader crossed a page boundary. Keeping a page is now free — `.page` is
+    // `content-visibility: auto`, so the browser skips a held page that is off
+    // screen — and pages are given up only when there are too many of them.
+    //
+    // What must still be true is the thing the cache is *for*: a page nobody is
+    // near is not redrawn because a compile happened, and a reader who comes
+    // back gets what the document says now rather than what it said when they
+    // left.
     const h = host();
     drawPages(h, ["A", "B", "C"], ["a", "b", "c"]);
     allVisible(h);
     onlyVisible(h, 0, 0);
-    check("pages the reader left are emptied", shown(h), ["A", "", ""]);
-    // The document changes while page 2 is out of sight.
+    check("a page the reader left keeps its drawing", shown(h), ["A", "B", "C"]);
+    // The document changes while pages 2 and 3 are out of sight.
+    const before = h.children.map((c) => c.writes);
     drawPages(h, ["A", "B!", "C"], ["a", "b2", "c"]);
-    check("an off-screen page is not drawn just because it changed", shown(h)[1], "");
+    check("an off-screen page is not redrawn just because it changed", h.children[1].writes, before[1]);
+    check("so it is still holding what it held", shown(h)[1], "B");
     onlyVisible(h, 0, 2);
     check("and it comes back current, not stale", shown(h), ["A", "B!", "C"]);
+    ok("coming back cost exactly one write", h.children[1].writes === before[1] + 1);
+  }
+
+  {
+    // The cap. Pages are kept because keeping is free, but "free" is not
+    // "unbounded": a 300-page sefer scrolled end to end would otherwise hold
+    // every page it ever drew. Past `KEEP_PAGES` the furthest from the reader
+    // are let go, which is the only reason a page is ever emptied now.
+    const n = KEEP_PAGES + 6;
+    const pages = Array.from({ length: n }, (_, i) => `p${i}`);
+    const hashes = Array.from({ length: n }, (_, i) => `h${i}`);
+    const h = host();
+    drawPages(h, pages, hashes);
+    allVisible(h);
+    const held = shown(h).filter((s) => s !== "").length;
+    check("a pane never holds more pages than the cap", held, KEEP_PAGES);
+    // And what it let go of is the far end, not the near one. With no layout to
+    // measure — these nodes have never been on a screen — distance is page
+    // order, so the pages it keeps are the first ones.
+    check("the pages it kept are the ones nearest the reader", shown(h)[0], "p0");
+    check("and the ones it let go are the furthest", shown(h)[n - 1], "");
   }
 
   {

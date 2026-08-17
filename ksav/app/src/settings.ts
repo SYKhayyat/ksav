@@ -77,6 +77,19 @@ export interface Settings {
    */
   tabs?: unknown;
   /**
+   * Arrangements the writer built and named, beside the ones Ksav ships.
+   *
+   * `unknown` for the same reason `panes` and `tabs` are: this module is loaded
+   * before anything that knows what a pane tree is, and the reader checks the
+   * shape rather than trusting storage.
+   *
+   * Kept because an arrangement is *work*. Six shipped shapes cover the common
+   * cases and nothing covers "the one I built for learning a sugya — gemara left,
+   * my notes right, the printed page underneath". Rebuilding that by hand every
+   * session is the sort of tax that makes a writer stop using the feature.
+   */
+  savedArrangements?: unknown;
+  /**
    * Whether the outline and the notes list **float over** the document or take
    * a pane of their own.
    *

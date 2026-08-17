@@ -314,9 +314,12 @@ collapses the sefer to chapters, or to chapters and simanim.
 - **Ctrl+Alt+Shift+←/→/↑/↓** — swap the pane you are in with the one on that
   side of it, the way a tiling window manager moves a window. The direction is
   the one on screen, so `←` takes the pane visibly to the left and pressing it
-  again puts things back. Dragging a pane by the strip at its top onto another
-  pane does the same thing with the mouse, and the arrangement picker lists the
-  four commands with their keys.
+  again puts things back. The mouse does both halves of that: drag a pane by the
+  strip at its top and drop it **in the middle** of another pane to trade places,
+  or **on one of its edges** to move the pane there, which changes the shape
+  rather than exchanging two panes. The strip also carries the pane's number, a
+  split across, a split down, a `⋯` menu — swap with pane *N*, move to an edge,
+  move to another tab, save this arrangement — and an `×` that closes it.
 - **`Ctrl+Alt+S`** — keep this version. Automatic snapshots are on by default and
   switchable off in Settings, which is the point of a key for the manual one: a
   history of *the points you chose* is only useful if you can choose them.
@@ -686,13 +689,21 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Off the UI thread** — the desktop commands are `async` + `spawn_blocking`,
       the wasm engine runs in a Web Worker, and the server serves on a thread
       pool. A 0.4–2.9 s compile no longer freezes the window or the tab.
+- [x] **Scrolling a long document, measured** — a nineteen-page sefer with
+      comments used to stutter in both panes at once. Three separate causes, all
+      fixed and all measured: the linked-scroll mirror fed itself (scroll events
+      arrive at frame time, so a synchronous guard never guarded), a page was
+      hydrated *inside* the IntersectionObserver callback, and Typst's glyph
+      tables reach the browser as `<use>` elements whose shadow trees cost more
+      to instantiate than the paths they point at. See
+      [17 August](../decisions/2026-08-17-the-scroll-that-fought-itself.md).
 - [x] **Accessible chrome** — every control has a name, the toolbar is seven
       labelled ribbon groups, the page has landmarks, and the status bar is a
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 6,576 editor assertions, 778 engine
+      all nine jobs: the typechecker and 6,593 editor assertions, 778 engine
       tests, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -771,7 +782,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 6,576 assertions across 96 files |
+| `editor` | both | the typechecker, then 6,593 assertions across 96 files |
 | `engine` | both | formatting, lints, then 778 tests across 44 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |

@@ -14,7 +14,7 @@ import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
 import { toOrg } from "./org";
 import * as pagerange from "./pagerange";
-import { currentPages } from "./preview";
+import { currentPages, flattenGlyphs } from "./preview";
 import * as runtime from "./runtime";
 import { docConfig } from "./settings";
 import { flushSaves } from "./save";
@@ -179,9 +179,14 @@ function pageImageHtml(banner = ""): string {
   // pages, one SVG each, so "pages 4 to 9" is a filter and nothing more. It
   // covers print — which is where the question is actually asked — and the HTML
   // fallback, which is the same pictures under a different extension.
+  // Flattened, for the same reason the preview flattens: a page as the engine
+  // writes it is 2,254 `<use>` elements and half a second of layout, and this
+  // path lays out *every* page at once with a `print()` waiting on it. See
+  // `flattenGlyphs`. A fifty-page document was twenty-five seconds of frozen
+  // window between pressing Print and the dialog appearing.
   const pages = pagerange
     .select(range, currentPages())
-    .map((s) => `<div class="page">${s}</div>`)
+    .map((s) => `<div class="page">${flattenGlyphs(s)}</div>`)
     .join("\n");
   return `<!doctype html><html dir="${docConfig().dir}"><head><meta charset="utf-8">
 <title>${escapeAttr(runtime.currentDoc?.title ?? "Ksav")}</title><style>body{background:#e5e7eb;margin:0;padding:24px}

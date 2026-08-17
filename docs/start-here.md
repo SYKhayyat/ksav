@@ -198,6 +198,12 @@ If something does not compile, the message says **which line** and offers what t
 do about it — and if it can be repaired mechanically, there is a button that
 repairs it.
 
+**The preview only draws the pages you are near**, and only draws a page once —
+scrolling back over something you have already read costs nothing. A page you
+have not reached yet holds its space rather than collapsing, so the scrollbar
+means what it says on a three-hundred-page sefer, and reaching a fresh page draws
+it between frames instead of on one.
+
 ## Finding your place, both ways
 
 **Click a word in the preview and the cursor goes to that word.** Not near it —
@@ -224,16 +230,40 @@ from its neighbour's when you want to look somewhere other than where you are
 typing. The shipped arrangements are offered as a list rather than as a chip you
 press repeatedly until the right one comes round.
 
+**The strip at the top of a pane is its controls.** Reading along it: the pane's
+**number**, a **split across** and a **split down** — both, always, so a single
+pane can become two side by side or one above the other without your having to
+find which button is which — a **`⋯`** menu, and an **`×`** that closes the pane.
+
 **Any two panes can trade places.** **Ctrl+Alt+Shift+←** swaps the pane you are
 in with the one to its left, and the other three arrows do the other three
 directions — so putting the page on the side you want it is one keystroke, not a
-different arrangement. Or drag a pane by the strip at its top and drop it on
-another pane; they exchange. The direction is the direction on your screen: the
-pane visibly to the left is the one `←` picks, and pressing the same key again
-puts everything back. Sizes stay with the *place*, not with the pane, which is
-what makes that true — swap a wide pane with a narrow one and the wide slot is
-still wide, now holding the other pane. The same four commands are listed, with
-their keys, at the bottom of the arrangement picker.
+different arrangement. The direction is the direction on your screen: the pane
+visibly to the left is the one `←` picks, and pressing the same key again puts
+everything back. Sizes stay with the *place*, not with the pane, which is what
+makes that true — swap a wide pane with a narrow one and the wide slot is still
+wide, now holding the other pane.
+
+**The mouse does two different things, and the difference is where you let go.**
+Pick a pane up by its strip and drop it **in the middle** of another pane: they
+trade places, exactly as the arrow keys do. Drop it **on one of that pane's
+edges** — the outer quarter, which lights up as a band while you hover it — and
+the pane *moves* there, splitting along the edge you chose. Trading places
+rearranges a shape you already have; moving changes the shape. Four panes is
+where you start needing the second one.
+
+**And when the window is too full to aim at,** the `⋯` menu says all of it in
+words. *Swap with pane 3.* *Move to the left edge.* *Move to another tab* —
+including one that does not exist yet, which makes it. *Save this arrangement*,
+under a name, after which it is a row in that same menu for every document you
+open afterwards.
+
+A tab here is **an arrangement, not a document.** Every document you have open is
+open in all of them; a tab is one way of looking at them, so *research* can be
+three sources beside each other and *writing* can be one source and its page, and
+switching between the two is switching desks rather than switching files. That is
+why moving a pane to another tab moves a view and never a file — and why nothing
+is closed by it.
 
 **`Ctrl+Alt+,` locks the pane you are in to the section your cursor is in**, and
 `Ctrl+Alt+.` gives the rest of the sefer back. The strip at the top of the pane

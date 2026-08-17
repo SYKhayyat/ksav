@@ -126,6 +126,10 @@ const HE: Dict = {
   moveColEnd: "העברת העמודה לסוף",
   deleteTable: "מחיקת הטבלה",
   "paragraphStyle": "סגנון הפסקה",
+  // The ribbon group holding the paragraph-style dropdown. Named for what the
+  // dropdown offers — body text, the heading levels, and the writer's own
+  // styles — and not for one of the three.
+  styleGroup: "סגנונות",
   highlightColour: "צבע ההדגשה",
   "bodyText": "טקסט רגיל",
   "format": "עיצוב",
@@ -1228,7 +1232,14 @@ const HE: Dict = {
   scrollLinked: "הגלילה קשורה לחלון שלצדו — לחצו לניתוק",
   scrollUnlinked: "הגלילה עצמאית — לחצו לקישור",
   splitBeside: "פיצול: חלון נוסף על אותו מסמך",
+  // Two splits, because there are two of them. One button that only ever made a
+  // top-and-bottom split was reported as "I can't see how to split it
+  // vertically, only horizontally" — and it was right, there was no other door.
+  splitDown: "פיצול לרוחב: חלון נוסף מתחת",
+  splitAcross: "פיצול לאורך: חלון נוסף לצד",
   closePane: "סגירת החלון (המסמך נשאר פתוח)",
+  paneNumbered: "חלונית {0}",
+  paneMenu: "עוד פעולות לחלונית הזאת",
   // Swapping panes: the four commands, the drag, and what happens when there is
   // nothing on that side.
   swapPanes: "החלפת חלוניות",
@@ -1240,6 +1251,34 @@ const HE: Dict = {
   "side.right": "מימין",
   "side.top": "למעלה",
   "side.bottom": "למטה",
+  // The same four directions as an *edge* of the window, which needs the
+  // adjective and not the adverb: "לקצה משמאל" is not Hebrew, "לקצה השמאלי" is.
+  "edge.left": "השמאלי",
+  "edge.right": "הימני",
+  "edge.top": "העליון",
+  "edge.bottom": "התחתון",
+  // Picking a pane by number, for an arrangement too deep for "the one on the
+  // left" to mean anything.
+  swapWithPane: "החלפה עם חלונית {0}",
+  swapWithWhich: "החלפה עם חלונית…",
+  swapWithWhichDesc: "בכל סידור, ולא רק בזה שלצדו",
+  movePaneTo: "העברת החלונית…",
+  movePaneToDesc: "לקצה החלון, ולא החלפה עם חלונית אחרת",
+  movePaneEdge: "לקצה {0}",
+  paneMoved: "החלונית הועברה",
+  // Moving a pane out of this arrangement and into another one.
+  movePaneToTab: "העברה ללשונית…",
+  movePaneToTabDesc: "החלונית עוברת לסידור אחר, והמסמך נשאר פתוח",
+  movePaneToNewTab: "ללשונית חדשה",
+  movedToTab: "החלונית הועברה אל ״{0}״",
+  cannotMoveLastPane: "זו החלונית האחרונה בסידור הזה",
+  // Arrangements a writer built and wants back.
+  saveArrangement: "שמירת הסידור הזה…",
+  saveArrangementDesc: "הסידור נשמר ברשימה, לצד אלה שמגיעים עם התוכנה",
+  arrangementName: "שם הסידור",
+  arrangementSaved: "הסידור ״{0}״ נשמר",
+  myArrangements: "הסידורים שלי",
+  forgetArrangement: "מחיקת הסידור",
 };
 
 const EN: Dict = {
@@ -1347,6 +1386,7 @@ const EN: Dict = {
   moveColEnd: "Move column toward the end",
   deleteTable: "Delete the table",
   "paragraphStyle": "Paragraph style",
+  styleGroup: "Styles",
   highlightColour: "Highlight colour",
   "bodyText": "Body text",
   "format": "Format",
@@ -2401,7 +2441,11 @@ const EN: Dict = {
   scrollLinked: "Scroll follows the pane beside it — click to unlink",
   scrollUnlinked: "Scrolls on its own — click to link",
   splitBeside: "Split: another pane on this document",
+  splitDown: "Split down: another pane below this one",
+  splitAcross: "Split across: another pane beside this one",
   closePane: "Close this pane (the document stays open)",
+  paneNumbered: "Pane {0}",
+  paneMenu: "More for this pane",
   swapPanes: "Swap panes",
   swapPanesDesc: "Any pane trades places with the one beside it — by key, or by dragging its strip",
   swapPaneDrag: "Drag this strip onto another pane to trade places",
@@ -2411,6 +2455,30 @@ const EN: Dict = {
   "side.right": "Right",
   "side.top": "Top",
   "side.bottom": "Bottom",
+  // Lowercase: these land inside a sentence ("To the left edge"), where the
+  // capitalised list forms above would read as a proper noun.
+  "edge.left": "left",
+  "edge.right": "right",
+  "edge.top": "top",
+  "edge.bottom": "bottom",
+  swapWithPane: "Swap with pane {0}",
+  swapWithWhich: "Swap with pane…",
+  swapWithWhichDesc: "Any pane in any arrangement, not only the one beside it",
+  movePaneTo: "Move this pane…",
+  movePaneToDesc: "To an edge of the window, rather than trading with another pane",
+  movePaneEdge: "To the {0} edge",
+  paneMoved: "Pane moved",
+  movePaneToTab: "Move to tab…",
+  movePaneToTabDesc: "The pane moves to another arrangement; the document stays open",
+  movePaneToNewTab: "To a new tab",
+  movedToTab: "Pane moved to “{0}”",
+  cannotMoveLastPane: "This is the last pane in this arrangement",
+  saveArrangement: "Save this arrangement…",
+  saveArrangementDesc: "Kept in the list beside the ones that ship with Ksav",
+  arrangementName: "Arrangement name",
+  arrangementSaved: "Arrangement “{0}” saved",
+  myArrangements: "My arrangements",
+  forgetArrangement: "Delete this arrangement",
 };
 
 /**

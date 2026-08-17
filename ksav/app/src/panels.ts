@@ -306,6 +306,18 @@ export const PANELS: readonly Panel[] = [
     selector: ".mekoros",
   },
   {
+    // A pane's own ⋯ menu: swap with a numbered pane, move it to an edge, move
+    // it to another tab, keep this arrangement. Anchored under the button that
+    // opened it, so it is a popup and not a drawer — it is read and dismissed in
+    // one gesture, and it describes *this* pane, which the writer is looking at.
+    id: "pane-menu",
+    kind: "popup",
+    presence: "mounted",
+    escape: true,
+    exits: [{ via: "outside" }],
+    selector: ".pane-menu",
+  },
+  {
     // Every citation in the document, as the library has it now — spec.md
     // §10.2's promise about a *document* rather than about a place.
     //

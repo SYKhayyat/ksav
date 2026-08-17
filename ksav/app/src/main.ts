@@ -25,6 +25,7 @@ import {
   ksavFold,
   ksavFolding,
   proseMode,
+  proseReveal,
   revealAll,
   setRevealAll,
   outline,
@@ -1503,7 +1504,13 @@ function autoExtension() {
  * that impossible instead of forbidden.
  */
 function proseOrRaw(prose = proseHere()) {
-  return prose ? proseMode : visibleBidiMarks(bidiMarkName);
+  // The field and the plugin that drives its deferred reveal go in together:
+  // `proseReveal` is the only thing that draws what a cursor move owes, so a
+  // prose view installed without it would hide a command under the caret and
+  // never take it back. They are one extension for the same reason the two
+  // halves of this compartment are one slot — the pairing is enforced by there
+  // being nowhere to install one of them alone.
+  return prose ? [proseMode, proseReveal] : visibleBidiMarks(bidiMarkName);
 }
 
 /**
@@ -2275,11 +2282,40 @@ function renderPanes() {
   // What each pane was holding, so rebuilding does not reset it.
   const held = new Map<string, EditorState>();
   for (const [id, v] of paneViews) held.set(id, v.state);
+  // And **where each pane was looking**, which the state does not carry.
+  //
+  // An `EditorState` holds the text and the caret and no scroll at all, so
+  // every pane that survived a rebuild came back at the top of the document.
+  // That made every arrangement change — closing a pane, splitting one, even
+  // toggling the scroll-link chip — throw a reader on page 40 of a sefer back
+  // to page 1. Read here, before the views are destroyed, and asked for again
+  // once the new tree is on screen.
+  const wasAt = new Map<string, number>();
+  for (const [id, v] of paneViews) wasAt.set(id, v.scrollDOM.scrollTop);
+  for (const pane of panes.leaves(paneTree)) {
+    if (pane.role === "source") continue;
+    const host = paneHostOf(pane.id);
+    if (host) wasAt.set(pane.id, host.scrollTop);
+  }
   for (const v of paneViews.values()) v.destroy();
   paneViews.clear();
 
   main.replaceChildren(renderNode(paneTree, held));
   main.setAttribute("data-panes", String(panes.leaves(paneTree).length));
+
+  // Put every surviving source pane back where it was looking. A pane that is
+  // new has no entry and is left alone — `renderLeaf` opens it where the pane it
+  // was split from is looking, which is a different and deliberate answer.
+  //
+  // The previews cannot be restored here: their pages are not drawn until
+  // `drawCurrentIntoAll` at the end of this function, and a scroll into a pane
+  // with no content in it yet is clamped to zero. They are done there.
+  for (const pane of panes.leaves(paneTree)) {
+    const at = wasAt.get(pane.id);
+    if (at === undefined || pane.role !== "source") continue;
+    const view = paneViews.get(pane.id);
+    if (view) view.scrollDOM.scrollTop = at;
+  }
 
   // A caret is not a view. A pane born with its caret at the place you were
   // reading still *renders* from the top of the document, so the scroll has to
@@ -2310,6 +2346,21 @@ function renderPanes() {
   // must not show the whole sefer for the frame between the two.
   applyPreviewWindows();
   drawCurrentIntoAll();
+  // Now the previews have pages, so now they can be put back where they were.
+  // Written straight rather than through the link, because this is not a follow:
+  // the pane is being restored to the place it was already at, and routing it
+  // through `syncLinkedScroll` would move it to wherever the source happens to
+  // be instead.
+  for (const pane of panes.leaves(paneTree)) {
+    const at = wasAt.get(pane.id);
+    if (at === undefined || pane.role === "source") continue;
+    const host = paneHostOf(pane.id);
+    if (!host) continue;
+    host.scrollTop = at;
+    // And it must not read as a person scrolling, or the pane it is linked to
+    // will follow it and both will end up somewhere neither was.
+    scrollWritten.set(pane.id, host.scrollTop);
+  }
   // The side panels, now that their hosts are in the document. Both are cheap
   // and both are wrong to leave blank: an outline pane that fills in on the
   // next keystroke is an outline pane that looks broken until you type.
@@ -2389,7 +2440,6 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
   // was focused a minute ago. `pointerdown` on the section catches every pane and
   // every role, and it is passive — it decides nothing and cancels nothing.
   section.addEventListener("pointerdown", () => { activePane = pane.id; }, { passive: true });
-  wirePaneSwapDrop(pane, section);
   return section;
 }
 
@@ -2412,7 +2462,21 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     notes: "notesPaneRole",
     marks: "marksPane",
   };
-  const kids: Node[] = [el("span", { class: "pane-name" }, [t(NAME[pane.role])])];
+  // The pane's number, and it is on screen rather than implied.
+  //
+  // *"I don't know if I can switch other than top bottom and left right — what
+  // if it gets more complicated?"* — which is the right question, because the
+  // directional commands genuinely run out: in a tree three levels deep "the one
+  // on the left" stops picking out a pane a person can point at. A number does,
+  // at any depth, and it is the same answer Emacs' `ace-window` and every tiling
+  // manager reached. It has to be *visible* to be usable: a picker offering
+  // "pane 3" is worth nothing if nothing on screen says which pane is 3.
+  const kids: Node[] = [
+    el("span", { class: "pane-no", title: tf("paneNumbered", String(paneNumberOf(pane.id))) }, [
+      String(paneNumberOf(pane.id)),
+    ]),
+    el("span", { class: "pane-name" }, [t(NAME[pane.role])]),
+  ];
   // Narrowing, and it is **named rather than iconified**. A glyph can say *this
   // pane is restricted*; only the title can say *to what*, and that is the one
   // question a writer looking at a pane showing four paragraphs of a 300-page
@@ -2453,33 +2517,82 @@ function paneHead(pane: panes.Leaf): HTMLElement {
       }),
     );
   }
+  // Each control names itself. The strip is the one place in the application
+  // whose buttons are pure glyph, so the only other thing that could identify
+  // them is the `title`, which is translated — and a fence that reads a Hebrew
+  // title is a fence that goes quiet the day the run is driven in English.
   if (panes.leaves(paneTree).length > 1) {
     kids.push(
-      // Each control names itself. The strip is the one place in the
-      // application whose buttons are pure glyph, so the only other thing that
-      // could identify them is the `title`, which is translated — and a fence
-      // that reads a Hebrew title is a fence that goes quiet the day the run is
-      // driven in English.
       el("button", {
         class: "pane-btn",
         "data-pane-act": "link",
         title: pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
-        onClick: () => setTree(panes.update(paneTree, pane.id, { linked: !pane.linked })),
+        // **Not `setTree`.** Linking changes one field on one leaf and nothing
+        // about the shape, and `setTree` rebuilds every `EditorView` in the
+        // window — which used to throw a reader on page 40 back to page 1 for
+        // pressing a chip that has nothing to do with where they are.
+        onClick: () => {
+          paneTree = panes.update(paneTree, pane.id, { linked: !pane.linked });
+          rememberPanes();
+          refreshPaneHeads();
+          applyPreviewWindows();
+        },
       }, [pane.linked ? "⇅" : "⇵"]),
-      el("button", {
-        class: "pane-btn",
-        "data-pane-act": "split",
-        title: t("splitBeside"),
-        onClick: () => setTree(panes.split(paneTree, pane.id, "col", panes.leaf(pane.role, pane.docId, { linked: false }))),
-      }, ["⊟"]),
-      // Closing a *pane* is not closing a document and not deleting one. Third
-      // meaning, third glyph — see the Documents menu for the other two.
+    );
+  }
+  // **Both splits, always.**
+  //
+  // There used to be one button, it was only offered once the window already had
+  // two panes, and it only ever made one of the two splits. All three of those
+  // were reported at once: *"I can't see how to split it vertically, only
+  // horizontally"*. The tree has handled both directions since it was written
+  // (`panes.split` takes a `dir`); nothing in the window ever asked for the
+  // other one. A single pane can be split too, which is the case a writer is
+  // most likely to want it in.
+  kids.push(
+    el("button", {
+      class: "pane-btn",
+      "data-pane-act": "split-across",
+      title: t("splitAcross"),
+      onClick: () => splitHere(pane, "row"),
+    }, ["◫"]),
+    el("button", {
+      class: "pane-btn",
+      "data-pane-act": "split-down",
+      title: t("splitDown"),
+      onClick: () => splitHere(pane, "col"),
+    }, ["⊟"]),
+    el("button", {
+      class: "pane-btn",
+      "data-pane-act": "menu",
+      title: t("paneMenu"),
+      onClick: (e: Event) => {
+        // **Stopped here.** `window`'s click listener calls
+        // `closeOnOutsideClick`, and the click that opens this menu is, to that
+        // listener, a click on a button that is not inside `.pane-menu` — so
+        // without this the menu is dismissed by the very gesture that opened it
+        // and the button does nothing at all. The header's dropdowns are closed
+        // by hand for the same reason: that sweep rides on the same listener.
+        e.stopPropagation();
+        closeMenus();
+        openPaneMenu(pane, e.currentTarget as HTMLElement);
+      },
+    }, ["⋯"]),
+  );
+  if (panes.leaves(paneTree).length > 1) {
+    kids.push(
+      // Closing a *pane* is not closing a document and not deleting one. It was
+      // spelled `–` to keep the three apart, and the writer read the strip
+      // exactly as the glyph was drawn: *"i dont see how to close one, only
+      // minimise"*. A dash means minimise in every window manager there has ever
+      // been. The three meanings are told apart by the `title` and by which
+      // surface the control is on — never by making the commonest one unreadable.
       el("button", {
         class: "pane-btn pane-close",
         "data-pane-act": "close",
         title: t("closePane"),
         onClick: () => setTree(panes.closePane(paneTree, pane.id)),
-      }, ["–"]),
+      }, ["×"]),
     );
   }
   const head = el("div", { class: "pane-head" }, kids);
@@ -2492,53 +2605,201 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // select text with the mouse — which is the gesture this one is spelled with.
   // A one-pane window has nothing to trade with, so the handle is not offered.
   if (panes.leaves(paneTree).length > 1) {
-    head.draggable = true;
     head.title = t("swapPaneDrag");
-    head.addEventListener("dragstart", (e) => {
-      e.dataTransfer?.setData(PANE_DRAG, pane.id);
-      // `move`, because that is what it is: no copy of the pane is made, and the
-      // cursor should not promise one.
-      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-      activePane = pane.id;
-    });
+    head.classList.add("pane-grab");
+    wirePaneDrag(pane, head);
   }
   return head;
 }
 
-/**
- * The drag type that means *a pane is being carried*.
- *
- * Its own MIME type rather than `text/plain`, and every handler below tests for
- * it before touching the event. A source pane is a CodeMirror editor with its
- * own drag-and-drop — dragging a selection within a document, and dropping text
- * from another application into it — and a drop target that called
- * `preventDefault` on everything would have quietly eaten both.
- */
-const PANE_DRAG = "application/x-ksav-pane";
+/** This pane's number, as the strip prints it and the pickers ask for it. */
+function paneNumberOf(id: string): number {
+  return panes.leaves(paneTree).findIndex((l) => l.id === id) + 1;
+}
 
-/** Let this pane be the far end of a swap drag. */
-function wirePaneSwapDrop(pane: panes.Leaf, section: HTMLElement) {
-  const carried = (e: DragEvent) => !!e.dataTransfer?.types.includes(PANE_DRAG);
-  section.addEventListener("dragover", (e) => {
-    if (!carried(e)) return; // text being dropped into the editor: not ours
-    e.preventDefault();
-    e.dataTransfer!.dropEffect = "move";
-    section.classList.add("pane-drop");
+/**
+ * Split this pane, in the direction asked for.
+ *
+ * The new pane shows the same thing the old one does, unlinked — splitting is
+ * how you get a second place in one document, and a second view that follows the
+ * first is the first view again. Both directions come through here so there is
+ * one answer to what a split *is* and only the axis differs.
+ */
+function splitHere(pane: panes.Leaf, dir: "row" | "col") {
+  setTree(panes.split(paneTree, pane.id, dir, panes.leaf(pane.role, pane.docId, { linked: false })));
+}
+
+// ------------------------------------------------------------ dragging a pane
+//
+// # Why this is pointer events and not HTML5 drag-and-drop
+//
+// It was drag-and-drop: `head.draggable = true`, a private MIME type, and
+// `dragover`/`drop` on each pane. It was reported as simply not working —
+// *"I would like to use the mouse to switch, but that does not work, I cannot
+// drag it"* — and it does not, for a reason that is structural rather than a
+// bug to find:
+//
+//   • **The drop target is a text editor.** A source pane's section contains a
+//     CodeMirror view, which registers its own `drop` handling for dragging text
+//     about, and it is the innermost handler. Dropping a pane onto the *text* —
+//     which is nearly all of the target a person aims at — never reached the
+//     section's listener at all. Only the strip and the margins worked, which
+//     from the outside is a feature that does nothing.
+//   • **Nothing said it was draggable.** No cursor change, no ghost, no lit
+//     drop target until the pointer happened to cross a working strip. A gesture
+//     whose whole discoverability is "try dragging and see" has to answer on the
+//     first pixel of movement.
+//
+// Pointer events have none of that: one capture, no negotiation with any other
+// handler, and every pane is a drop target whatever is inside it. It also
+// unlocks the thing a swap cannot express — dropping onto an *edge* of a pane
+// moves the pane there instead of trading places, which is the second half of
+// what the margin asked for.
+
+/** How far the pointer must travel before this is a drag and not a click. */
+const DRAG_SLOP = 4;
+
+/**
+ * How much of a pane counts as its edge rather than its middle.
+ *
+ * Drop in the middle and the two panes trade places; drop along an edge and the
+ * carried pane is *moved* to that side of the target. A quarter is wide enough
+ * to hit without aiming and narrow enough that the middle is still the easy
+ * target, since trading places is the commoner intent.
+ */
+const DROP_EDGE = 0.25;
+
+/** What a drop at this point over this pane would do. */
+function dropIntent(section: HTMLElement, x: number, y: number): panes.Side | "swap" {
+  const box = section.getBoundingClientRect();
+  const fx = (x - box.left) / box.width;
+  const fy = (y - box.top) / box.height;
+  // The nearest edge wins, and only if the pointer is actually in its band.
+  const near: [panes.Side, number][] = [
+    ["left", fx],
+    ["right", 1 - fx],
+    ["up", fy],
+    ["down", 1 - fy],
+  ];
+  near.sort((a, b) => a[1] - b[1]);
+  return near[0][1] < DROP_EDGE ? near[0][0] : "swap";
+}
+
+/** The pane the pointer is over, if it is over one. */
+function paneUnderPointer(x: number, y: number): { id: string; section: HTMLElement } | null {
+  for (const node of document.elementsFromPoint(x, y)) {
+    const section = (node as HTMLElement).closest?.<HTMLElement>("[data-pane]");
+    if (section) return { id: section.dataset.pane!, section };
+  }
+  return null;
+}
+
+/**
+ * Carry this pane by its strip.
+ *
+ * The pointer is captured on the strip, so every move and the release come back
+ * here whatever they pass over — including the middle of another pane's editor,
+ * which is the target that drag-and-drop could never be given.
+ */
+function wirePaneDrag(pane: panes.Leaf, head: HTMLElement) {
+  head.addEventListener("pointerdown", (e: PointerEvent) => {
+    // Left button only, and never from a control: the strip is full of buttons
+    // and a press on one of them is a press on it.
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+    let lit: HTMLElement | null = null;
+    activePane = pane.id;
+
+    const clear = () => {
+      lit?.classList.remove("pane-drop");
+      lit?.removeAttribute("data-drop");
+      lit = null;
+    };
+
+    const move = (m: PointerEvent) => {
+      if (!dragging) {
+        if (Math.abs(m.clientX - startX) < DRAG_SLOP && Math.abs(m.clientY - startY) < DRAG_SLOP) return;
+        dragging = true;
+        // Capture so the move and the release come back here whatever they pass
+        // over — including the middle of another pane's editor, which is the
+        // target the old drag-and-drop could never be given. Guarded because a
+        // pointer that has already been released or cancelled makes this throw,
+        // and a throw here would leave the drag half-started with no way out.
+        try {
+          head.setPointerCapture(m.pointerId);
+        } catch {
+          /* the pointer is gone; the window listeners still finish the drag */
+        }
+        document.body.classList.add("dragging-pane");
+      }
+      const over = paneUnderPointer(m.clientX, m.clientY);
+      if (!over || over.id === pane.id) {
+        clear();
+        return;
+      }
+      if (lit !== over.section) clear();
+      lit = over.section;
+      lit.classList.add("pane-drop");
+      // Which of the two things a release would do, said on the target itself
+      // so the reader is never guessing. `styles.css` draws the edge bands.
+      lit.dataset.drop = dropIntent(over.section, m.clientX, m.clientY);
+    };
+
+    const up = (u: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      document.body.classList.remove("dragging-pane");
+      if (head.hasPointerCapture?.(u.pointerId)) head.releasePointerCapture(u.pointerId);
+      const intent = lit?.dataset.drop as panes.Side | "swap" | undefined;
+      const target = lit?.dataset.pane;
+      clear();
+      if (!dragging || !target || target === pane.id) return;
+      if (intent === "swap") swapPanes(pane.id, target);
+      else if (intent) movePaneBeside(pane.id, target, intent);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   });
-  // `dragleave` fires when the pointer crosses into a *child* as well, so the
-  // highlight is cleared on the element the pointer actually left rather than on
-  // every crossing — otherwise it flickers off over every button in the strip.
-  section.addEventListener("dragleave", (e) => {
-    if (e.target === section) section.classList.remove("pane-drop");
-  });
-  section.addEventListener("drop", (e) => {
-    if (!carried(e)) return;
-    e.preventDefault();
-    section.classList.remove("pane-drop");
-    const from = e.dataTransfer!.getData(PANE_DRAG);
-    if (from && from !== pane.id) swapPanes(from, pane.id);
-  });
-  section.addEventListener("dragend", () => section.classList.remove("pane-drop"));
+}
+
+/**
+ * Put one pane on a given side of another, rather than trading them.
+ *
+ * The drop-on-an-edge gesture, and the operation `swap` cannot express: the
+ * carried pane leaves its split — which collapses behind it — and takes its
+ * place in a new split beside the target. `panes.moveToEdge` does the same thing
+ * against the whole window; this does it against one pane, which is what a
+ * pointer over that pane means.
+ */
+function movePaneBeside(id: string, targetId: string, side: panes.Side) {
+  const moved = panes.find(paneTree, id);
+  if (!moved || id === targetId) return;
+  const without = panes.closePane(paneTree, id);
+  // The only pane there is: nothing to move it beside.
+  if (without === paneTree) return;
+  // The target may have been the sibling that took the collapsed split's space,
+  // so it is looked for in the tree the move actually starts from.
+  if (!panes.find(without, targetId)) return;
+  const vertical = side === "up" || side === "down";
+  const layout = paneLayout();
+  const first = vertical ? side === "up" : layout.rtl ? side === "right" : side === "left";
+  const next = panes.replaceLeaf(without, targetId, (target) => ({
+    kind: "split" as const,
+    id: panes.paneId(),
+    dir: vertical ? ("col" as const) : ("row" as const),
+    frac: 0.5,
+    a: first ? moved : target,
+    b: first ? target : moved,
+  }));
+  setTree(next);
+  activePane = id;
+  paneViews.get(id)?.focus();
+  setStatus(t("paneMoved"), "ok");
 }
 
 /**
@@ -2643,29 +2904,138 @@ function splitterFor(node: panes.Split): HTMLElement {
  * to look somewhere else, which is the only default that makes the feature worth
  * having: a second view whose scroll follows the first is the first view again.
  */
+// ---------------------------------------------------------------- linked scroll
+//
+// # The defect this shape exists to close
+//
+// Linked scrolling used to be guarded by a boolean: set `mirroring`, write the
+// other pane's `scrollTop`, clear `mirroring` in a `finally`. **That guard never
+// guarded anything**, and the writer reported the result as the worst thing in
+// the application: *"the scroll is terrible and it stutters on the preview. This
+// makes the source also stutter."*
+//
+// A scroll event is not dispatched when `scrollTop` is assigned. It is queued
+// and delivered later, at frame time — so by the time the other pane's handler
+// ran, the `finally` had already put `mirroring` back to `false`. Every write
+// therefore came back as an event indistinguishable from a person scrolling,
+// and the two panes spent the whole scroll answering each other. Measured on a
+// real document, forty wheel notches of 50px each:
+//
+//   • **67 scroll events for 40 notches**, and the two panes converging on each
+//     other in between.
+//   • The source travelled **1086px of the 2000px asked for** — the sync ate
+//     nearly half of every scroll, because each echo dragged the reader back
+//     toward where the *preview* thought they should be.
+//   • Worst frame **591 ms**, against 38 ms with the link switched off. The
+//     echoes were forcing CodeMirror to re-measure and the preview to re-draw
+//     pages several times per frame.
+//
+// # The shape now: somebody is driving
+//
+// A boolean cannot express this because the question is not *are we inside a
+// mirror* — it is *whose scroll is this*. So:
+//
+//   • The pane a person is actually scrolling **takes the floor**, and holds it
+//     for `SCROLL_FLOOR_MS` past its last event. While it is held, every other
+//     pane's scroll events are echoes by definition and are ignored.
+//   • A write is also **remembered exactly**, and an event arriving at that
+//     value is an echo whoever holds the floor. This is what makes the floor
+//     short: the timer is a backstop for rounding, not the mechanism.
+//   • The follow itself is **batched into one animation frame**. Scroll events
+//     can outpace frames, and syncing per event meant several `lineBlockAtHeight`
+//     measurements — each of which can force layout — for one frame of movement.
+//
+// The two together mean a linked pane follows and never talks back, which is
+// what "linked" was always supposed to mean.
+
+/**
+ * How long the pane being scrolled keeps the floor after its last event.
+ *
+ * Long enough to cover the gap between a scroll event and the echo it provokes,
+ * which is a frame or two; short enough that moving the mouse to the other pane
+ * and scrolling it does not feel refused. Renewed on every event of the pane
+ * that holds it, so a continuous scroll holds the floor for as long as it lasts.
+ */
+const SCROLL_FLOOR_MS = 150;
+
+/** The pane whose scroll everything else is currently following. */
+let scrollFloor: { pane: string; until: number } | null = null;
+
+/**
+ * What was last written into each pane's scroller, by us and not by a person.
+ *
+ * Read back after the assignment rather than stored as the value asked for: the
+ * browser clamps a scroll to the scrollable range, so asking for 90,000 and
+ * remembering 90,000 would leave the echo at 16,000 looking like a person.
+ */
+const scrollWritten = new Map<string, number>();
+
+/** The follow booked for the next frame, if one is booked. */
+let scrollBooked: { from: panes.Leaf; to: panes.Leaf; top: number } | null = null;
+let scrollFrame = 0;
+
 function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
   const scroller = () =>
     pane.role === "source" ? (paneViews.get(pane.id)?.scrollDOM ?? host) : host;
   host.addEventListener(
     "scroll",
     () => {
-      if (mirroring) return;
       const top = scroller().scrollTop;
+      const now = performance.now();
+
+      // Our own write coming back. Recorded — this pane really is at that
+      // position — but it claims no floor and starts no follow, because the
+      // only reason it moved is that some other pane moved first.
+      const echo = scrollWritten.get(pane.id);
+      if (echo !== undefined && Math.abs(top - echo) <= 1) {
+        scrollWritten.delete(pane.id);
+        pane.scrollTop = top;
+        return;
+      }
+      // Somebody else is driving and this is not the value we wrote — a
+      // rounding-off echo, or a follow that overshot into another follow.
+      // Either way it is not a person, and treating it as one is the loop.
+      if (scrollFloor && scrollFloor.pane !== pane.id && now < scrollFloor.until) return;
+
+      scrollWritten.delete(pane.id);
+      scrollFloor = { pane: pane.id, until: now + SCROLL_FLOOR_MS };
       pane.scrollTop = top;
       if (!pane.linked) return;
       const other = panes.sibling(paneTree, pane.id);
       if (!other || !other.linked) return;
-      const target = other.role === "source" ? paneViews.get(other.id)?.scrollDOM : paneHostOf(other.id);
-      if (!target) return;
-      mirroring = true;
-      try {
-        syncLinkedScroll(pane, other, top, target);
-      } finally {
-        mirroring = false;
-      }
+      bookLinkedScroll(pane, other, top);
     },
     true,
   );
+}
+
+/**
+ * Follow, once, on the next frame.
+ *
+ * Overwritten rather than queued: two scroll events in one frame mean the reader
+ * is somewhere newer, and following the older position first would be work done
+ * to be immediately undone.
+ */
+function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number) {
+  scrollBooked = { from, to, top };
+  if (scrollFrame) return;
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0;
+    const job = scrollBooked;
+    scrollBooked = null;
+    if (!job) return;
+    // Re-read the panes: an arrangement can change between the event and the
+    // frame, and writing into a pane that has been closed is a null dereference
+    // in the middle of a scroll.
+    const live = panes.find(paneTree, job.to.id);
+    if (!live || !live.linked || !panes.find(paneTree, job.from.id)) return;
+    const target = live.role === "source" ? paneViews.get(live.id)?.scrollDOM : paneHostOf(live.id);
+    if (!target) return;
+    syncLinkedScroll(job.from, live, job.top, target);
+    // What we wrote, as the browser actually clamped it, so the echo is
+    // recognised. See `scrollWritten`.
+    scrollWritten.set(live.id, target.scrollTop);
+  });
 }
 
 function paneHostOf(id: string): HTMLElement | null {
@@ -2710,6 +3080,308 @@ function syncLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, target:
   }
 }
 
+// ------------------------------------------------------------ the pane menu
+//
+// Everything a pane can do that is not worth a glyph in its strip. The strip
+// carries what a writer reaches for while writing — split, close, link — and
+// this carries what they reach for while *arranging*, which is a rarer and more
+// deliberate act.
+//
+// The reason it exists at all is the question the window could not answer:
+// *"what if it gets more complicated?"*. The directional commands are fine for
+// two panes and meaningless for six, so the operations here are all named by
+// **number** instead of by side. A number works at any depth, and the strip
+// prints each pane's own so the list can be read against the window.
+
+/**
+ * Open the ⋯ menu for a pane, under its button.
+ *
+ * Rebuilt on every open rather than kept: every row in it is a statement about
+ * the arrangement as it stands right now, and a menu built once would offer to
+ * swap with panes that have since been closed.
+ */
+function openPaneMenu(pane: panes.Leaf, at: HTMLElement) {
+  const others = panes.leaves(paneTree).filter((l) => l.id !== pane.id);
+  const layout = paneLayout();
+  // The edge forms, not the list forms: these land inside a sentence.
+  const SIDES: [panes.Side, string][] = [
+    ["left", "edge.left"],
+    ["right", "edge.right"],
+    ["up", "edge.top"],
+    ["down", "edge.bottom"],
+  ];
+  const rows: Node[] = [];
+
+  // Swap with any pane, by number.
+  if (others.length) {
+    rows.push(el("div", { class: "menu-cat" }, [t("swapWithWhich")]));
+    rows.push(el("div", { class: "menu-desc" }, [t("swapWithWhichDesc")]));
+    for (const other of others) {
+      rows.push(
+        el("button", {
+          class: "pal-item",
+          "data-swap-with": String(paneNumberOf(other.id)),
+          onClick: () => {
+            closeFloating();
+            swapPanes(pane.id, other.id);
+          },
+        }, [
+          el("b", {}, [tf("swapWithPane", String(paneNumberOf(other.id)))]),
+          el("span", { class: "menu-desc" }, [t(PANE_ROLE_NAME[other.role])]),
+        ]),
+      );
+    }
+    rows.push(el("div", { class: "menu-sep" }));
+
+    // Move to an edge of the whole window — the operation a swap cannot express.
+    rows.push(el("div", { class: "menu-cat" }, [t("movePaneTo")]));
+    rows.push(el("div", { class: "menu-desc" }, [t("movePaneToDesc")]));
+    for (const [side, label] of SIDES) {
+      rows.push(
+        el("button", {
+          class: "pal-item",
+          "data-move-edge": side,
+          onClick: () => {
+            closeFloating();
+            const next = panes.moveToEdge(paneTree, pane.id, side, layout);
+            if (next === paneTree) return;
+            setTree(next);
+            activePane = pane.id;
+            setStatus(t("paneMoved"), "ok");
+          },
+        }, [el("b", {}, [tf("movePaneEdge", t(label))])]),
+      );
+    }
+    rows.push(el("div", { class: "menu-sep" }));
+  }
+
+  // Move the pane out of this arrangement altogether.
+  rows.push(el("div", { class: "menu-cat" }, [t("movePaneToTab")]));
+  rows.push(el("div", { class: "menu-desc" }, [t("movePaneToTabDesc")]));
+  const titleOf = (id: string) => docs.library().find((e) => e.id === id)?.title;
+  tabs.all().forEach((tab, i) => {
+    if (i === tabs.activeIndex()) return;
+    rows.push(
+      el("button", {
+        class: "pal-item",
+        "data-move-tab": String(i),
+        onClick: () => {
+          closeFloating();
+          movePaneToTab(pane, i);
+        },
+      }, [el("b", {}, [tabs.label(tab, titleOf, t("untitled"))])]),
+    );
+  });
+  rows.push(
+    el("button", {
+      class: "pal-item",
+      "data-move-tab": "new",
+      onClick: () => {
+        closeFloating();
+        movePaneToTab(pane, -1);
+      },
+    }, [el("b", {}, [t("movePaneToNewTab")])]),
+    el("div", { class: "menu-sep" }),
+    el("button", {
+      class: "pal-item",
+      "data-save-arrangement": "",
+      onClick: () => {
+        closeFloating();
+        void saveArrangementHere();
+      },
+    }, [
+      el("b", {}, [t("saveArrangement")]),
+      el("span", { class: "menu-desc" }, [t("saveArrangementDesc")]),
+    ]),
+  );
+
+  // Anchored under the button, and clamped to the window: the strip of the
+  // bottom-right pane is a few pixels from two edges, and a menu that opened
+  // off-screen there would be a menu that pane never has.
+  const box = el("div", { class: "spell-menu pane-menu" }, rows) as HTMLElement;
+  const anchor = at.getBoundingClientRect();
+  box.style.visibility = "hidden";
+  mountPanel("pane-menu", box, document.body);
+  const size = box.getBoundingClientRect();
+  const pad = 8;
+  const left = Math.max(pad, Math.min(anchor.left, window.innerWidth - size.width - pad));
+  const top =
+    anchor.bottom + size.height + pad < window.innerHeight
+      ? anchor.bottom + 4
+      : Math.max(pad, anchor.top - size.height - 4);
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+  box.style.visibility = "";
+}
+
+/** Shut the pane menu, from a row that has just done something. */
+function closeFloating() {
+  closePanel("pane-menu");
+}
+
+/** The pane roles, named for a list rather than for a strip. */
+const PANE_ROLE_NAME: Record<string, string> = {
+  source: "source",
+  preview: "preview",
+  outline: "outlinePane",
+  notes: "notesPaneRole",
+  marks: "marksPane",
+};
+
+/**
+ * Move a pane into another arrangement — an existing tab, or a new one.
+ *
+ * **The document is not touched.** A tab holds a pane tree and nothing else that
+ * matters (see `tabs.ts`), and the open set is global, so a pane arriving in
+ * another tab arrives showing a document that was already open. That is what
+ * makes this a window operation rather than a document one, and why the pane
+ * keeps its id: `paneplaces` remembers where it was standing in each document,
+ * and a pane that changed identity on the way would forget.
+ *
+ * Refused for the last pane in an arrangement. A tab with no panes is not a
+ * state this application has — the same rule `closePane` holds — and saying so
+ * is more useful than silently leaving the pane where it is.
+ */
+function movePaneToTab(pane: panes.Leaf, index: number) {
+  const without = panes.closePane(paneTree, pane.id);
+  if (without === paneTree) {
+    setStatus(t("cannotMoveLastPane"), "warn");
+    return;
+  }
+  const carried = panes.find(paneTree, pane.id);
+  if (!carried) return;
+  // This arrangement first, so the tab being left is stored without the pane
+  // before anything switches. `stash` writes into the active tab, which is still
+  // this one.
+  paneTree = without;
+  tabs.stash(paneTree, focusedPane);
+
+  const named = (tab: tabs.Tab) =>
+    tabs.label(tab, (id) => docs.library().find((e) => e.id === id)?.title, t("untitled"));
+  const all = tabs.all();
+  if (index < 0 || index >= all.length) {
+    // A new tab holding just this pane. `add` puts it after the current one and
+    // makes it active, which is what "move it there" means — you go with it, so
+    // there is no `selectTab` to call and the window is drawn from here.
+    const made = tabs.add(carried, carried.id);
+    paneTree = made.tree;
+    focusedPane = made.focusedPane;
+    renderPanes();
+    refreshTabStrip();
+    rememberPanes();
+    scheduleCompile();
+    setStatus(tf("movedToTab", named(made)), "ok");
+    return;
+  }
+  const target = all[index];
+  // Down the side of whatever is already there, which is the one answer that
+  // needs no question asked: it is where a new pane goes when the window is
+  // split, and it never displaces what the tab was arranged to show.
+  target.tree = {
+    kind: "split",
+    id: panes.paneId(),
+    dir: "row",
+    frac: 1 - panes.EDGE_SHARE,
+    a: target.tree,
+    b: carried,
+  };
+  target.focusedPane = carried.id;
+  selectTab(index);
+  setStatus(tf("movedToTab", named(target)), "ok");
+}
+
+// ------------------------------------------------- arrangements of one's own
+//
+// The shipped six are the common shapes. What they cannot be is *the one this
+// writer built* — gemara in one pane, their kuntres in another, the printed page
+// underneath — and an arrangement that takes four gestures to build and is gone
+// at the next restart is one nobody builds twice.
+//
+// Stored as the tree itself, with fresh ids minted on the way back in. Two tabs
+// opened from one saved arrangement must not share pane ids: `paneplaces` is
+// keyed by pane id, and two panes claiming to be the same one would each be
+// standing where the other left off.
+
+interface SavedArrangement {
+  id: string;
+  name: string;
+  tree: panes.PaneNode;
+}
+
+/** The writer's own arrangements, as storage has them. */
+function savedArrangements(): SavedArrangement[] {
+  const raw = settings.savedArrangements;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (a): a is SavedArrangement =>
+      !!a && typeof a === "object" && typeof (a as SavedArrangement).name === "string" && !!(a as SavedArrangement).tree?.kind,
+  );
+}
+
+/**
+ * Every pane id in a tree replaced with a new one.
+ *
+ * Not an optimisation and not tidiness: pane ids key `paneplaces`, the table of
+ * where each pane was standing in each document, and the renderer decides which
+ * editors it may leave alone by comparing leaves. A saved tree used twice with
+ * its stored ids would give two live panes one identity, and they would fight
+ * over one remembered place.
+ */
+function withFreshIds(node: panes.PaneNode): panes.PaneNode {
+  if (node.kind === "leaf") return { ...node, id: panes.paneId() };
+  return { ...node, id: panes.paneId(), a: withFreshIds(node.a), b: withFreshIds(node.b) };
+}
+
+/** Keep the window as it stands now, under a name. */
+function saveArrangementHere() {
+  const name = prompt(t("arrangementName"), "")?.trim();
+  if (!name) return;
+  const list = savedArrangements();
+  // A name used twice replaces, rather than making two rows a writer cannot
+  // tell apart. Saving over one is what somebody typing the same name means.
+  const kept: SavedArrangement = { id: `sa${Date.now().toString(36)}`, name, tree: withFreshIds(paneTree) };
+  const at = list.findIndex((a) => a.name === name);
+  if (at >= 0) list[at] = { ...kept, id: list[at].id };
+  else list.push(kept);
+  settings.savedArrangements = list;
+  saveSettings();
+  setStatus(tf("arrangementSaved", name), "ok");
+}
+
+/** The writer's own arrangements, as rows in the picker. */
+function savedArrangementRows(): Node[] {
+  const mine = savedArrangements();
+  if (!mine.length) return [];
+  return [
+    el("div", { class: "menu-cat" }, [t("myArrangements")]),
+    ...mine.map((a) =>
+      el("div", { class: "pal-row" }, [
+        el("button", {
+          class: "pal-item",
+          "data-saved-arrangement": a.name,
+          onClick: () => {
+            closePanel("arrangement");
+            settings.pageView = false;
+            applyPageView();
+            setTree(withFreshIds(a.tree));
+            rerenderChrome();
+          },
+        }, [el("b", {}, [a.name])]),
+        el("button", {
+          class: "pal-x",
+          title: t("forgetArrangement"),
+          onClick: () => {
+            settings.savedArrangements = savedArrangements().filter((x) => x.id !== a.id);
+            saveSettings();
+            openArrangements();
+          },
+        }, ["×"]),
+      ]),
+    ),
+    el("div", { class: "menu-sep" }),
+  ];
+}
+
 /**
  * The arrangements this application ships, as a list to choose from.
  *
@@ -2747,6 +3419,24 @@ function openArrangements() {
           el("span", { class: "menu-desc" }, [t("arrDesc." + a.id)]),
         ],
       ),
+    ),
+    el("div", { class: "menu-sep" }),
+    ...savedArrangementRows(),
+    // Keeping the window as it stands, beside the list it will appear in.
+    el(
+      "button",
+      {
+        class: "pal-item",
+        "data-save-arrangement": "",
+        onClick: () => {
+          closePanel("arrangement");
+          saveArrangementHere();
+        },
+      },
+      [
+        el("b", {}, [t("saveArrangement")]),
+        el("span", { class: "menu-desc" }, [t("saveArrangementDesc")]),
+      ],
     ),
     el("div", { class: "menu-sep" }),
     // Swapping, where the arrangements are — because "which pane is on which
@@ -4361,7 +5051,18 @@ function buildToolbar(): HTMLElement {
     // widget and which Ksav did not have. Three fixed buttons could only reach
     // three of nine levels, and could not tell the writer which one they were
     // standing in — a dropdown does both, and is where a Word user looks first.
-    tbGroup(t("cat.heading"), [paragraphStyleControl()]),
+    // **"Styles", not "Headings".** Reported from the writing side: *"it says
+    // Heading, when it should be styles"*, and they were right about what the
+    // group holds. The dropdown under this label offers body text, the nine
+    // heading levels, **every style the writer has defined in this document**,
+    // and "new style…" — so a label naming one of those four was telling a
+    // writer their own styles were somewhere else. It is the Styles group in
+    // every word processor there is, for the same reason.
+    //
+    // Its own key rather than a changed one: `cat.heading` is the *command
+    // registry's* category, and the Insert menu's Headings section is correctly
+    // named by it.
+    tbGroup(t("styleGroup"), [paragraphStyleControl()]),
     tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
     // The toolbar told the truth about one of these three.
     //

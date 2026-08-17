@@ -151,6 +151,18 @@ function replace(node: PaneNode, id: string, make: (n: PaneNode) => PaneNode): P
 }
 
 /**
+ * Put something else where a node is, keeping every other pane identical.
+ *
+ * `replace` under a name callers may use. It is what `split` and `moveToEdge`
+ * are both spelled with, and a caller building a split of its own — dropping a
+ * pane onto the edge of another one — needs the same structural sharing or it
+ * pays for its own cleverness in rebuilt editors.
+ */
+export function replaceLeaf(tree: PaneNode, id: string, make: (n: PaneNode) => PaneNode): PaneNode {
+  return replace(tree, id, make);
+}
+
+/**
  * Split a pane in two, putting the new pane on one side of it.
  *
  * `before` puts the new pane first — left of, or above — which is what "split
@@ -243,6 +255,59 @@ export function swap(tree: PaneNode, idA: string, idB: string): PaneNode {
     return x === n.a && y === n.b ? n : { ...n, a: x, b: y };
   };
   return put(tree);
+}
+
+/**
+ * How much of the window a pane moved to an edge takes.
+ *
+ * A margin, not a half. Somebody moving a pane to the side is putting it
+ * *beside* their work; a splitter drag changes it in one gesture and the
+ * fraction is remembered from then on.
+ */
+export const EDGE_SHARE = 0.3;
+
+/**
+ * Take a pane out of wherever it is and put it down along one edge of the window.
+ *
+ * The other half of what a tiling manager does, and the half a swap cannot do:
+ * *"there should be a way to move from one to another"*. Swapping trades two
+ * panes and leaves the shape alone, so a preview buried two levels down inside a
+ * column can be exchanged with its neighbours for ever and never become the
+ * right-hand third of the window. This **re-parents** it: the pane leaves its
+ * split — which collapses behind it, exactly as closing would — and the whole of
+ * what remains becomes its sibling.
+ *
+ * Refused, by returning the tree untouched, when there is nothing to move it out
+ * of — a window of one pane has no edges that are not already this pane's, and
+ * inventing a second pane to satisfy the request would be answering a different
+ * question.
+ */
+export function moveToEdge(tree: PaneNode, id: string, side: Side, layout: Layout = {}): PaneNode {
+  if (tree.kind === "leaf") return tree;
+  const moved = find(tree, id);
+  if (!moved) return tree;
+  const rest = closePane(tree, id);
+  // `closePane` refuses to remove the last pane, so an unchanged tree here means
+  // the caller asked to move the only pane there is.
+  if (rest === tree) return tree;
+  const vertical = side === "up" || side === "down";
+  // Which child of the new split the moved pane is. A row lays its first child
+  // out on the *right* when the container is right-to-left, so the answer for
+  // left and right flips with the direction — the same fact `rects` encodes, and
+  // read from the same place rather than assumed.
+  const first = vertical ? side === "up" : layout.rtl ? side === "right" : side === "left";
+  // `stacked` is deliberately not consulted. Under the narrow breakpoint every
+  // split renders as a column whatever it says, but that is a fact about the
+  // stylesheet at this width — storing "col" for a sideways move would leave the
+  // pane stacked for ever once the window was widened again.
+  return {
+    kind: "split",
+    id: paneId(),
+    dir: vertical ? "col" : "row",
+    frac: first ? EDGE_SHARE : 1 - EDGE_SHARE,
+    a: first ? moved : rest,
+    b: first ? rest : moved,
+  };
 }
 
 // ---------------------------------------------------------------- geometry

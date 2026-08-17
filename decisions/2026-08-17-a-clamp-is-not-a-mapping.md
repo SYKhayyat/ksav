@@ -111,6 +111,67 @@ now says both, with the part that makes them different: **Pages being off fails
 loudly at the top of the workflow with a sentence; the environment policy fails
 silently at the bottom with nothing at all.**
 
+## 4 · A dialog that refused, wiped its own refusal, and closed
+
+Put the caret on a `#סעיף` line, open Insert ▸ *a section with its own page*,
+fill the form in, press **Add**. The dialog closes, the document does not
+change, and nothing anywhere says why.
+
+Everything up to the last step was right. `#מקטע_עמוד` sets up a page and cannot
+do that inside a container; `mode.ts` says so; `insertSnippet` turns the refusal
+into the sentence the writer needs — *you cannot start a new page from inside a
+list, table, heading or note; close it first* — in the status bar. Then the
+dialog ran `scheduleCompile()` unconditionally, and a compile with nothing to
+compile wrote `✓ 3 עמ׳ · 18ms` over that sentence a few milliseconds later.
+
+`insertSnippet` now returns whether anything went in, and the three callers that
+follow it with a compile ask. Fenced by reading `main.ts` from
+`insert.test.mjs`: a source check is weaker than a behavioural one, and it is
+the strongest thing available at a seam whose whole problem is that no test can
+import it — which is why that file exists at all.
+
+## The exports, which are the part the tracker asks for
+
+Both ran. **PDF** hands the browser `קונטרס-הבדלה.pdf`, named from the document
+rather than `document.pdf`. **Typst source** hands over 281 KB — the whole
+prelude inlined plus the document, importing nothing — and it compiles on its
+own, through an engine with no source resolver on it at all, to the same three
+pages, with the title, the table, the English footnote and the mareh-mekomos
+band all on them. That is `assemble_source`'s claim, checked on a real sefer
+rather than the three-line corpus in `tests/assemble.rs`.
+
+The status bar says nothing after an export. Not the 16 August failure — it is
+not stuck on *rendering…* — it simply does not mention that a file was handed
+over. Left alone: a browser download is its own confirmation, and inventing a
+message for it is not obviously an improvement.
+
+## 5 · The notes drawer numbers notes in a series that is on no page
+
+Open the notes list on this kuntres and it shows ten rows numbered **1 to 10**.
+The page numbers those same notes **1, 2** in the ביאור band and **א, ב** in the
+mareh-mekomos band, because parallel streams number independently and in their
+own schemes — which the engine does correctly, and which now has the two tests
+it never had.
+
+So the panel whose job is *find the note you are looking at* prints an ordinal
+that appears nowhere in the document. A writer reading footnote `ב` at the foot
+of the page and opening the drawer to find it will not find a `ב`.
+
+`panelrows.noteList` sets `chip: String(i + 1)` — the row's position in a flat
+list — into the slot the reader takes for the note's number. Not fixed here, and
+deliberately, because the fix is a design decision and there are two:
+
+- **Reimplement the numbering in the editor.** Group by channel, read
+  `#הגדרות_זרמים`'s `מספור`, format. It is the complete answer and it is a
+  second spelling of a rule the engine already owns — the exact seam this
+  repository is named for.
+- **Ask the engine.** A compile already knows every marker it drew; carrying
+  them back on the response makes the drawer's number *the* number by
+  construction, and no rule is written twice.
+
+The second is almost certainly right and it is not a one-line change, so it is
+written down rather than started at the end of a sitting.
+
 ## What the sitting did not find
 
 The apparatus held. Two parallel streams in fixed regions — ביאור and

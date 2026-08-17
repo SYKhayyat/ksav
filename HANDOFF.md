@@ -152,6 +152,29 @@ and the sitting that followed the release is
       ever found this class of bug. Every bug goes to the top of the queue and
       gets the class treatment.
 
+- [ ] **The notes drawer numbers notes in a series that is on no page.** Ten
+      notes, numbered 1 to 10, in a document whose page numbers them 1, 2 in the
+      ביאור band and א, ב in the mareh-mekomos band — because parallel streams
+      number independently and in their own schemes, which the engine does
+      correctly and now has tests for. `panelrows.noteList` puts `String(i + 1)`
+      — the row's position in a flat list — into the slot a reader takes for the
+      note's number, so a writer looking for footnote `ב` will not find a `ב`.
+
+      Two fixes, and the choice is the work. Reimplementing the numbering in the
+      editor is complete and is a second spelling of a rule the engine owns.
+      Carrying the markers back on the compile response makes the drawer's number
+      *the* number by construction and writes no rule twice; it is also not a
+      one-line change. The second looks right. See
+      [`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
+
+- [ ] **The find/replace panel is CodeMirror's, in English.** `Find`, `Replace`,
+      `next`, `previous`, `all`, `match case`, `regexp`, `by word`,
+      `replace all` — every label, in a product whose every other surface is
+      Hebrew and right-to-left. CodeMirror's search extension takes a `phrases`
+      table for exactly this and `i18n.ts` already holds the vocabulary, so this
+      one is small; it is here rather than done because it was found at the end
+      of a sitting, not because it is hard.
+
 - [ ] **A table cannot be filled in from the keyboard, and fixing it changes an
       invariant.** Lists own `Enter`, `Tab`, `Shift+Tab` and `Alt`+arrows. Tables
       have eighteen ribbon operations and no navigation at all, so `Tab` in a

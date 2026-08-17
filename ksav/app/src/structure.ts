@@ -745,14 +745,18 @@ const TABLE_ACTIONS: StructureAction[] = [
  */
 function onHeading(
   can: (h: heads.HeadingInfo, ctx: StructureContext) => boolean,
-  fn: (doc: string, h: heads.HeadingInfo) => Edit | null,
+  // `pos` because an operation that rewrites the section around the caret has to
+  // put the caret back, and only the caller knows where it was. Moving a section
+  // used to land on its first character — the `#` — so the next keystroke wrote
+  // `ץ#כותרת2[…]` and the heading became prose.
+  fn: (doc: string, h: heads.HeadingInfo, pos: number) => Edit | null,
 ): Pick<StructureAction, "enabled" | "run"> {
   return op(
     (ctx) => {
       const h = ctx.section();
       return h !== null && can(h, ctx);
     },
-    (ctx) => fn(ctx.doc, ctx.section()!),
+    (ctx) => fn(ctx.doc, ctx.section()!, ctx.pos),
   );
 }
 
@@ -810,7 +814,7 @@ const HEADING_ACTIONS: StructureAction[] = [
     label: "headingMoveUp",
     ...onHeading(
       (h, ctx) => heads.canMoveSection(ctx.doc, h, -1, ctx.headings()),
-      (doc, h) => heads.moveSection(doc, h, -1),
+      (doc, h, pos) => heads.moveSection(doc, h, -1, pos),
     ),
   },
   {
@@ -822,7 +826,7 @@ const HEADING_ACTIONS: StructureAction[] = [
     label: "headingMoveDown",
     ...onHeading(
       (h, ctx) => heads.canMoveSection(ctx.doc, h, 1, ctx.headings()),
-      (doc, h) => heads.moveSection(doc, h, 1),
+      (doc, h, pos) => heads.moveSection(doc, h, 1, pos),
     ),
   },
   {
@@ -857,7 +861,7 @@ const HEADING_ACTIONS: StructureAction[] = [
       (ctx) => !!ctx.headingHere() && heads.canToggleInContents(),
       (ctx) => {
         const h = ctx.headingHere();
-        return h ? heads.toggleInContents(ctx.doc, h) : null;
+        return h ? heads.toggleInContents(ctx.doc, h, ctx.pos) : null;
       },
     ),
   },

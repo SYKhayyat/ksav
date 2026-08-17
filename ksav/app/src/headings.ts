@@ -218,24 +218,29 @@ export function demote(doc: string, h: HeadingInfo): Edit | null {
  * a paste across an arbitrary span of text, and the span is exactly what a
  * writer misjudges.
  */
-export function moveSection(doc: string, h: HeadingInfo, by: -1 | 1): Edit | null {
+export function moveSection(doc: string, h: HeadingInfo, by: -1 | 1, pos = -1): Edit | null {
   const swap = sectionSwap(doc, h, by);
   if (!swap) return null;
   const { mine, theirs } = swap;
+  // Where the writer was inside their own section, so the caret arrives with it
+  // rather than at its first character. Landing on the `#` meant the keystroke
+  // after a move wrote `ץ#כותרת2[…]` and the heading became prose. `-1` is "no
+  // opinion", for the callers that only have a heading.
+  const into = pos < mine.from || pos > mine.to ? 0 : pos - mine.from;
   if (by === 1) {
     const text =
       doc.slice(0, mine.from) +
       doc.slice(theirs.from, theirs.to) +
       doc.slice(mine.from, mine.to) +
       doc.slice(theirs.to);
-    return { text, caret: mine.from + (theirs.to - theirs.from) };
+    return { text, caret: mine.from + (theirs.to - theirs.from) + into };
   }
   const text =
     doc.slice(0, theirs.from) +
     doc.slice(mine.from, mine.to) +
     doc.slice(theirs.from, theirs.to) +
     doc.slice(mine.to);
-  return { text, caret: theirs.from };
+  return { text, caret: theirs.from + into };
 }
 
 interface Span {
@@ -498,8 +503,14 @@ export function inContents(doc: string, h: HeadingInfo): boolean {
  * contents is still a heading, still numbered, still foldable, still in the
  * outline pane. It is one line of the contents that is not printed.
  */
-export function toggleInContents(doc: string, h: HeadingInfo): Edit | null {
+export function toggleInContents(doc: string, h: HeadingInfo, pos = -1): Edit | null {
   const arg = `${IN_CONTENTS_ARG[h.lang]}: false`;
+  // The writer is in the heading's text, not in its argument list. Parking the
+  // caret on the argument this writes left it between `)` and `[`, where the
+  // next character typed splits the call in two — so a caret already past the
+  // edit moves with it and everything else keeps the old behaviour.
+  const carry = (from: number, delta: number, fallback: number) =>
+    pos >= from ? pos + delta : fallback;
   if (!inContents(doc, h)) {
     // Put it back: strip the argument, and the empty `()` with it if that is
     // all there was. `#כותרת1()` is legal and ugly, and it is not what the
@@ -508,17 +519,17 @@ export function toggleInContents(doc: string, h: HeadingInfo): Edit | null {
     const from = inner ? h.argsFrom! : h.nameTo;
     const to = inner ? h.argsTo! : h.argsTo! + 1;
     const text = doc.slice(0, from) + inner + doc.slice(to);
-    return { text, caret: from + inner.length };
+    return { text, caret: carry(to, inner.length - (to - from), from + inner.length) };
   }
   if (h.argsFrom === null || h.argsTo === null) {
     // No argument list at all: give it one, immediately after the name.
     const text = `${doc.slice(0, h.nameTo)}(${arg})${doc.slice(h.nameTo)}`;
-    return { text, caret: h.nameTo + arg.length + 2 };
+    return { text, caret: carry(h.nameTo, arg.length + 2, h.nameTo + arg.length + 2) };
   }
   const inner = doc.slice(h.argsFrom, h.argsTo).trim();
   const merged = inner ? `${inner}, ${arg}` : arg;
   const text = doc.slice(0, h.argsFrom) + merged + doc.slice(h.argsTo);
-  return { text, caret: h.argsFrom + merged.length };
+  return { text, caret: carry(h.argsTo, merged.length - (h.argsTo - h.argsFrom), h.argsFrom + merged.length) };
 }
 
 /**

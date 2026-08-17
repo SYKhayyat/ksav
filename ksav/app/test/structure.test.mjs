@@ -299,6 +299,24 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
    * corpus entry drops out rather than counting as a pass.
    */
   function inABody(kind, text, at) {
+    if (kind === "heading") {
+      // A heading's body is the last bracket pair of its call, which is what the
+      // scanner already knows; matching it here rather than importing the whole
+      // heading model keeps this predicate one thing a reader can check.
+      const bodies = [...text.matchAll(/#(?:כותרת\d|כותרת|סימן|h\d|hlevel|siman)\s*(?:\([^)]*\))?\[/gu)].map((m) => {
+        let depth = 1;
+        let i = m.index + m[0].length;
+        const from = i;
+        while (i < text.length && depth > 0) {
+          if (text[i] === "[") depth++;
+          else if (text[i] === "]") depth--;
+          i++;
+        }
+        return [from, i - 1];
+      });
+      if (bodies.length === 0) return null;
+      return bodies.some(([from, to]) => at >= from && at <= to);
+    }
     if (kind === "table") {
       const start = text.indexOf("#טבלה") < 0 ? text.indexOf("#mktable") : text.indexOf("#טבלה");
       if (start < 0) return null;
@@ -333,7 +351,6 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   for (const [name, doc] of CORPUS) {
     for (let pos = 0; pos <= doc.length; pos++) {
       for (const action of STRUCTURE_ACTIONS) {
-        if (action.structure === "heading") continue;
         // Not every position inside a structure is one a character can be typed
         // into — the gap *before* a cell call is inside the table and outside
         // every cell, and typing there breaks the cell whether an operation ran
@@ -344,7 +361,7 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
         // name, which is not.
         if (inABody(action.structure, doc, pos) !== true) continue;
         // Deleting the whole structure is the one operation with no body left.
-        if (action.id === "table.delete") continue;
+        if (action.id === "table.delete" || action.id === "heading.delete") continue;
         const did = action.run(doc, pos);
         if (!did) continue;
         const after = inABody(action.structure, did.text, did.caret);
@@ -364,7 +381,7 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
       }
     }
   }
-  ok(`the sweep typed something (${typed})`, typed > 1400);
+  ok(`the sweep typed something (${typed})`, typed > 1800);
   check("no operation leaves the caret outside the body it was in", wrong.slice(0, 8), []);
 }
 

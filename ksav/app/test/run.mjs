@@ -216,7 +216,7 @@ if (silent.length) {
 // documentation would fail every single-file run and teach everybody to ignore
 // the one fence that catches a stale count.
 if (!fail && !broke && !silent.length && !FILTER.length) {
-  const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, ROOT } = await import(
+  const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, says, ROOT } = await import(
     pathToFileURL(path.join(HERE, "docfacts.mjs")).href
   );
   const measured = { appAssertions: pass + fail, appTestFiles: files.length };
@@ -226,7 +226,7 @@ if (!fail && !broke && !silent.length && !FILTER.length) {
     if (!RUNTIME.includes(factName)) continue;
     const want = text(measured[factName]);
     const body = await readFile(path.join(ROOT, file), "utf8");
-    if (!body.includes(want)) wrong.push(`${file} does not say "${want}"`);
+    if (!says(body, want)) wrong.push(`${file} does not say "${want}"`);
   }
   // Backward: and no living page may state a *different* one somewhere else.
   // `documentation.test.mjs`'s sweep has to wave these two through — it cannot

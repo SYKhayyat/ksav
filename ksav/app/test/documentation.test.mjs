@@ -33,6 +33,7 @@ import {
   NOUNS,
   numericClaimsIn,
   markedClaimsIn,
+  says,
   trackedMarkdown,
   livingPages,
   isLog,
@@ -92,8 +93,20 @@ export async function run() {
       );
       const want = text(n);
       const body = readFileSync(path.join(ROOT, file), "utf8");
-      ok(`${file} says "${want}"`, body.includes(want));
+      ok(`${file} says "${want}"`, says(body, want));
     }
+
+    // And a claim is found across a line break, because the pages this sweep
+    // reads are wrapped at eighty columns and a paragraph gets rewritten. A
+    // literal `includes` fails here, which is how this assertion came to exist.
+    ok(
+      "a claim wrapped onto the next line is still found",
+      says("…is green across\n      all eight jobs: the typechecker…", "green across all eight jobs"),
+    );
+    ok(
+      "and a claim that is simply absent is not",
+      !says("…is green across all nine jobs…", "green across all eight jobs"),
+    );
   }
 
   // Backward: a number standing beside a fenced noun in a living page must be

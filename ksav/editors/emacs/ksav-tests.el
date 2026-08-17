@@ -382,6 +382,25 @@ hundred megabytes of Typst, to deliver a message that nothing is listening for."
         (set-buffer-modified-p nil))
       (should-not called))))
 
+(ert-deftest ksav-nothing-listening-is-not-an-engine-running ()
+  "`ksav-running-p' says no when nothing is listening.
+
+Needs no engine and is therefore the one assertion in this file that runs
+everywhere, which is the point of it: the live tests below cannot detect this
+themselves.  When this returns t wrongly, `ksav-start' takes its
+already-answering branch, starts nothing, and hands back an address — so every
+live test fails at its first call and none of them says why.
+
+Not a hypothetical.  Reading the buffer `url-retrieve-synchronously' returns,
+rather than an HTTP status, is t on GNU/Linux under Emacs 30.2 and nil on
+Windows under the same version.  CI runs 27.1, the declared minimum, and was
+green throughout."
+  (let ((ksav-server-url nil)
+        ;; A port in the ephemeral range and not `ksav-port', so a real engine
+        ;; started by a live test below cannot make this pass.
+        (ksav-port 47893))
+    (should-not (ksav-running-p))))
+
 ;;;; ---------------------------------------------------------------- with an engine
 
 (defun ksav-tests--engine-wanted-p ()

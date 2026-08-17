@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.1.1"
 description = "Ksav — Hebrew-first writing and typesetting on real Typst"
 authors = ["The Ksav Authors"]
 license = "MIT OR Apache-2.0"

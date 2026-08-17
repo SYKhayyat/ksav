@@ -81,9 +81,13 @@ cd ksav/app && npm run accept
 
   Without the `PATH`, the sixteen live tests fail rather than skip — which is
   the guard working, and looks exactly like sixteen broken tests.
-- **Local is more permissive than CI.** Node 26 here against 24 there; Emacs
-  30.2 here against 27.1 there. Green locally is not evidence. `nix develop`
-  gives you CI's exact Node, which is what that shell is for.
+- **Local and CI differ, and neither direction is safe.** Node 26 here against
+  24 there, so green locally is not evidence — `nix develop` gives you CI's
+  exact Node, which is what that shell is for. Emacs runs the other way: 30.2
+  here, and CI pins 27.1 because that is what the package declares. A fault that
+  only exists above the floor is invisible to a job that only tests the floor,
+  which is how a package that started no engine on any current Emacs stayed
+  green through fifty tests. `ci.yml` runs both now.
 - Never pipe a `cargo` test run through another command — redirect it to a file.
   A full engine test run needs tens of gigabytes; run it near a full disk and
   the compiler leaves truncated artefacts whose errors look like code faults.
@@ -104,15 +108,15 @@ cd ksav/app && npm run accept
 
 ## 4 · Where things stand
 
-The state on 16 August 2026, so nothing has to be re-derived:
+The state on 17 August 2026, so nothing has to be re-derived:
 
 | | |
 |---|---|
 | **Published** | [sykhayyat.github.io/ksav](https://sykhayyat.github.io/ksav/) — the wasm build, service worker registering, offline cache warm. GitHub Pages is on, source *GitHub Actions*. |
-| **Released** | `v0.1.0` only, from 24 July, carrying the nine desktop installers and **no** engine binaries and **no** Emacs tarball. |
-| **CI** | green, on Node 24 across all three workflows. |
-| **`release.yml`** | a `workflow_dispatch` now builds everything and publishes nothing. It did not before — it cut a draft release named after the branch. |
-| **Toolchains** | verified on Windows, WSL Ubuntu and NixOS; macOS through CI's own job. |
+| **Released** | `v0.1.1`, carrying the installers **and** the engine binaries **and** the Emacs tarball — `v0.1.0` predated the jobs that build the last two. |
+| **CI** | green, on Node 24, nine jobs. The Emacs package runs twice: at its declared floor (27.1, with a live engine) and on a current Emacs. |
+| **`release.yml`** | a `workflow_dispatch` builds everything and publishes nothing; rehearsed, eleven jobs green, no second release created. |
+| **Toolchains** | verified on Windows, WSL Ubuntu and NixOS; macOS through CI's own job. The Emacs suite has now run on Linux, which it never had. |
 
 ---
 
@@ -121,36 +125,10 @@ The state on 16 August 2026, so nothing has to be re-derived:
 Finished items are **deleted from here**, not ticked. A section called *what is
 left* full of `- [x]` is the log this page says it is not; what was done on a
 day belongs in [`decisions/`](decisions/README.md), which is indexed and which
-this page links to instead. The five items that stood here on 16 August 2026 —
-the Emacs client, per-pane places, the 11 August reconciliation, writing a
-kuntres, and the documentation pass — are the five records dated that day.
-
-### In flight when this was written
-
-- [ ] **Read the release rehearsal.** `gh run list --workflow=release.yml`
-      — a `workflow_dispatch` was started at the end of the session to prove
-      that the new guards build everything and publish nothing. It runs on
-      GitHub, so closing the session did not affect it. Two things to check:
-      that every job is green, and that `gh release list` still shows
-      **exactly one** release (`v0.1.0`). If a second one appeared, the guard
-      is wrong and that is the top of the queue — delete it and re-read
-      `tagName` in `release.yml`.
-
-- [ ] **Finish the documentation pass.** It was asked for as "the readme and
-      the onboarding docs — not a narrative, not overemphasising later
-      developments", and four pages were done: the root `README.md`,
-      `docs/start-here.md`, `CONTRIBUTING.md` and
-      `ksav/editors/emacs/README.md`. **Not** done, and the largest of them:
-      `ksav/README.md` at ~1,250 lines, plus `docs/from-word.md` and
-      `docs/girsa.md`, neither of which was read. The rule applied to the
-      others: a living page describes what is, and what changed on a day
-      belongs in `decisions/`. Where an anecdote justifies a rule a reader
-      must follow, it survives as a clause rather than a paragraph.
-
-- [ ] **Run the Emacs live tests inside the Nix shell.** They are the one
-      part of the suite never run on Linux. The shell carries Emacs 30.2 and
-      CI uses `emacs-nox` 27.1, and those two already disagree about
-      `image-size`, so it is a real question rather than a formality.
+this page links to instead. What stood here on 17 August 2026 — the release
+rehearsal, the documentation pass, the Emacs suite on Linux, v0.1.1, the MELPA
+draft and the `#פריט` badge — is
+[`decisions/2026-08-17-the-version-nobody-runs.md`](decisions/2026-08-17-the-version-nobody-runs.md).
 
 ### Checked, and not bugs — do not re-report
 
@@ -172,35 +150,18 @@ kuntres, and the documentation pass — are the five records dated that day.
       ever found this class of bug. Every bug goes to the top of the queue and
       gets the class treatment.
 
-- [ ] **Cut v0.1.1, and it is not routine.** Three of the four ways an Emacs
-      user can install Ksav are 404s right now, all from one cause: `v0.1.0` was
-      cut on 24 July, before the `engine` and `elisp` jobs existed, so the only
-      release carries the nine desktop installers and nothing else.
-      `M-x ksav-install-engine` resolves `releases/latest/download/…` and finds
-      nothing; `package-install-file ksav-0.1.0.tar` names an asset that is not
-      there. `package-vc-install` from git is the one path that works. Cutting a
-      release fixes all three at once.
+- [ ] **Open the MELPA pull request.** Everything it needs is written down in
+      [`ksav/editors/emacs/melpa-submission.md`](ksav/editors/emacs/melpa-submission.md)
+      — the recipe, the body, and every checklist line answered with what was
+      actually run. Two reasons it is still open here and not there. It is a pull
+      request to somebody else's repository under the user's name, so a person
+      opens it. And **MELPA asks for a public repository of one month or more**,
+      which this one is from **23 August 2026** and not before. Until it lands
+      there is no `M-x package-install ksav`.
 
-      Everything is at `0.1.0` — `ksav/app/package.json`, `ksav/engine/Cargo.toml`,
-      `ksav/wasm/Cargo.toml` — so the bump comes first, then the tag. A tag fires
-      `release.yml` **and** `deploy.yml` together.
-
-      A dispatch of `release.yml` now builds everything and publishes nothing
-      (see below), so rehearse before tagging rather than after.
-
-- [ ] **Submit the MELPA recipe.** `ksav/editors/emacs/melpa-recipe` is correct
-      and fenced now, and MELPA still returns 404 for `ksav` because nobody has
-      opened the pull request against `melpa/melpa`. Until that lands there is no
-      `M-x package-install ksav`, which is the actual bar for an Emacs user being
-      a first-class one. It is a PR to somebody else's repository under the
-      user's name: **draft it, do not open it.**
-
-- [ ] **The `#פריט`-family question that stayed open.** Nothing outstanding in
-      the engine — see the record — but the badge names the Hebrew command in an
-      English document, because `#item` is an alias and the prelude cannot know
-      which spelling was typed. The editor lint says it in the writer's language,
-      so the gap is cosmetic. Worth a look if a second English writer meets it.
-
+      Read `melpa/melpa`'s `CONTRIBUTING.org` when opening it. The
+      `Assisted-by:` requirement for AI-written code is recent enough that the
+      exact form is worth re-reading rather than copying from the draft.
 
 ### Not yours to close
 
@@ -222,6 +183,16 @@ Leave these open, and do not report them as done or work around them.
 ## 6 · Lessons
 
 Each of these was paid for. They are in rough order of how much.
+
+**A version pinned as the floor is the only version tested.** `ci.yml` ran the
+Emacs package on 27.1, which is what `Package-Requires` declares — the right way
+to prove a floor is real, and it meant the version nearly every reader actually
+has was the one nothing here executed. `url-retrieve-synchronously` against a
+dead port returns a live empty buffer on GNU/Linux under 30.2 and nil under
+27.1, so `ksav-running-p` said an engine was answering, `ksav-start` started
+none, and the package did not work at all on a current Emacs while fifty tests
+were green. Test the floor *and* the ceiling; the gap between them is where the
+readers are.
 
 **A thing nobody has run is not a thing that works.** Publishing the browser
 build for the first time found the service worker registering `/ksavsw.js` — a

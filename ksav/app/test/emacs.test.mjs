@@ -16,7 +16,7 @@
 // own registry helpers are still the ones it uses.
 
 import { check, ok } from "./harness.mjs";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "../tools/paths.mjs";
 import { SERVICES } from "../.tmp-test/services.gen.mjs";
@@ -293,17 +293,46 @@ export async function run() {
 
     // 3. The package declares one version, and it is the product's.
     //
-    // One tag ships the engine, the desktop application and this package, so a
-    // reader who installs `ksav 0.1.0` in Emacs and downloads the engine from
-    // `v0.4.0` has been told two different things by one release. Four files
-    // declare it and nothing compared them.
+    // One tag ships the engine, the desktop application, the browser build and
+    // this package, so a reader who installs `ksav 0.1.0` in Emacs and downloads
+    // the engine from `v0.4.0` has been told two different things by one
+    // release.
+    //
+    // The crates are **swept, not listed**. This named `engine/Cargo.toml` and
+    // stopped there, so `wasm/Cargo.toml` and `app/src-tauri/Cargo.toml` — both
+    // tracked, both carrying the version, both shipped by the same tag — were
+    // outside the one check whose subject is that the versions agree. A
+    // hand-kept list of four covering six sites is the shape this repository
+    // keeps paying for; the byte-compile step named three `.el` files while the
+    // package loaded eight, and it is the same defect.
     const version = (text, re) => (re.exec(text) ?? [])[1] ?? null;
+    const crates = {};
+    for (const rel of ["engine", "wasm", path.join("app", "src-tauri")]) {
+      const file = path.join(ROOT, "ksav", rel, "Cargo.toml");
+      crates[`${rel.replace(/\\/gu, "/")}/Cargo.toml`] = version(
+        readFileSync(file, "utf8"),
+        /^version\s*=\s*"([^"]+)"/mu,
+      );
+    }
+    // Every crate in the tree is covered, so adding one cannot quietly opt out.
+    const onDisk = readdirSync(path.join(ROOT, "ksav"), { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .flatMap((e) => {
+        const here = path.join(ROOT, "ksav", e.name, "Cargo.toml");
+        const nested = path.join(ROOT, "ksav", e.name, "src-tauri", "Cargo.toml");
+        return [
+          ...(existsSync(here) ? [`${e.name}/Cargo.toml`] : []),
+          ...(existsSync(nested) ? [`${e.name}/src-tauri/Cargo.toml`] : []),
+        ];
+      });
+    ok(
+      `every crate in ksav/ is checked (${onDisk.join(", ")})`,
+      onDisk.every((f) => f in crates),
+      `unchecked: ${onDisk.filter((f) => !(f in crates)).join(", ")}`,
+    );
     const declared = {
       "editors/emacs/ksav.el": version(el, /^;;\s*Version:\s*(\S+)/mu),
-      "engine/Cargo.toml": version(
-        readFileSync(path.join(ROOT, "ksav", "engine", "Cargo.toml"), "utf8"),
-        /^version\s*=\s*"([^"]+)"/mu,
-      ),
+      ...crates,
       "app/package.json": version(
         readFileSync(path.join(ROOT, "ksav", "app", "package.json"), "utf8"),
         /"version":\s*"([^"]+)"/u,
@@ -320,7 +349,7 @@ export async function run() {
         (distinct.size > 1
           ? `\n    ${Object.entries(declared)
               .map(([f, v]) => `${f}: ${v}`)
-              .join("\n    ")}\n    One tag ships all four; they cannot say different things.`
+              .join("\n    ")}\n    One tag ships all of them; they cannot say different things.`
           : ""),
       distinct.size === 1,
     );

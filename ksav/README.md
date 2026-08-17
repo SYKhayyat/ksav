@@ -122,15 +122,12 @@ layouts are the cells of that grid. A combination that does not exist is greyed
 with its reason rather than hidden. Picking a cell renders a real page, set from
 your own text, instead of a diagram.
 
-**Side notes** answer three things a reader asked for. Their width is
-`#הגדרות_הערות_צד(יחס: …)` and the wrapper no longer writes over it — it used to
-default its own parameter to a number, so a document that configured the width
-got the wrapper's default instead. Their marker follows the document: a Hebrew
-sefer numbers them א, ב, ג and an English one 1, 2, 3, read off the document's own
+**Side notes** take three settings worth knowing. Their width is
+`#הגדרות_הערות_צד(יחס: …)`. Their marker follows the document: a Hebrew sefer
+numbers them א, ב, ג and an English one 1, 2, 3, read off the document's own
 language rather than set a second time. And `#עם_הערות_דו_צד(צדדים: "ימין")`
 reserves **one** margin instead of two, so the text can sit beside a peirush
-rather than only between a pair of them — which was a layout the apparatus could
-not express at all.
+rather than only between a pair of them.
 
 The chooser also writes each layout's *scaffolding*: the dump call that prints
 collected notes, the wrapper the margin layouts need, the configuration line that
@@ -138,18 +135,17 @@ has to sit at the top of the file. Forgetting it is the commonest way one of
 these looks broken — the notes are collected and then never printed.
 
 You can mix them freely: footnotes at the foot of the page and endnotes at the
-back, in the same document, exactly as in Word — and they no longer both print
-`¹`, since the back matter takes a numbering of its own.
+back, in the same document, exactly as in Word. The back matter takes a
+numbering of its own, so the two series do not both print `¹`.
 
 ### Channels
 
-Those fourteen layouts used to be spelt as eighteen different commands, and they
-were never eighteen ideas — they are a cross product of three arrangements by
-three tiers, exposed as cells rather than as axes. `#מדף_ב` is not something a
-writer would want to say; it is *tier two, printed at the foot of the page*,
-which is two settings wearing a command's clothes.
+Those fourteen layouts are a cross product of three arrangements by three tiers.
+Eighteen commands spell out its cells — `#מדף_ב` is *tier two, printed at the
+foot of the page*, which is two settings wearing a command's clothes — and one
+concept sits underneath them all.
 
-So there is one concept underneath them. A **channel** is a note stream: it owns
+A **channel** is a note stream: it owns
 its numbering, and **only notes in the same channel number together** — that is
 what makes it a channel rather than a style. Two things describe one:
 
@@ -170,10 +166,9 @@ what makes it a channel rather than a style. Two things describe one:
 
 The whole point is the line you do not have to touch. Move that peirush from the
 foot of the page to the back of the sefer and one word changes — `מיקום: "סוף"` —
-and not one of three hundred notes is retyped. That could not be done while the
-arrangement was welded to the command that got typed, which is also why *"change
-where the note bodies live after the notes exist"* was possible in one direction
-only.
+and not one of three hundred notes is retyped. That is what separating the
+arrangement from the command buys, and it is why *where a note prints* can be
+changed after the notes exist.
 
 **Styles ▸ Note channels** is that model as controls: pick a channel, see what it
 hangs off and where it prints, change either. The eighteen commands still work
@@ -189,8 +184,8 @@ panel all go through one producer. It is changeable **after** the notes exist,
 in both directions: send every note's prose to the end, bring every one back,
 and sort the list at the foot of the file into the order of the text.
 
-The rest of the editor cannot tell the difference either, which took a second
-pass to be true: the notes pane lists a deferred note under the marker where it
+The rest of the editor cannot tell the difference either: the notes pane lists a
+deferred note under the marker where it
 prints and jumps to its prose at the end of the file, `⁑` inside a deferred body
 writes the next tier down, right-click converts it by rewriting where it prints
 and deletes both halves at once, and the "collected and never rendered" warning
@@ -206,10 +201,10 @@ drifting apart.
 **Styles ▸ Fixed regions** does the same for the band heights, and that one moves
 the page rather than the ink: the engine reserves exactly the declared total at
 the foot of every page, so the text area shortens to match and the page number
-stays where a document with no apparatus puts it. Add and remove regions there as
-you like — the engine has never had a limit of three — and give each one a height
-in centimetres or as a **percentage of the page**, which is the one that survives
-the sefer moving from A4 to A5.
+stays where a document with no apparatus puts it. Add and remove as many regions
+as you like — there is no limit — and give each one a height in centimetres or as
+a **percentage of the page**, which is the one that survives the sefer moving
+from A4 to A5.
 
 **Styles ▸ Parallel streams** is the same panel for the other page-foot
 apparatus. A stream is an independent apparatus with its own numbering — a
@@ -231,9 +226,9 @@ commentary lettered and the he'aros on it numbered.
 
 A list numbers itself, so the numbering is a setting rather than something you
 type. **Styles ▸ Lists** sets it **per level** — digits for the simanim, letters
-for the se'ifim under them, roman numerals under those — which is how Typst has
-always read a nested list's pattern and which no control could write until now.
-The same section says which number a list starts at, for the people who want 0.
+for the se'ifim under them, roman numerals under those — which is how Typst reads
+a nested list's pattern. The same section says which number a list starts at, for
+the people who want 0.
 
 Paragraphs you have already typed become a list by selecting them and pressing
 the bullet or number button. **Format ▸ Make this a real list** is the one that
@@ -281,11 +276,6 @@ it can be collapsed while writing, and every word of it prints. Name it on the
 opening line and the name is what the collapsed line shows. Type `//{` and the
 editor writes the closing mark, so it costs three keystrokes once; the marks are
 comments, which is why they can never reach the paper.
-
-All three shipped for as long as there has been an editor. The line comment had
-no door of any kind, and the fold's one door was a toolbar button labelled
-*Region* — a word that says nothing about folding, nothing about printing, and
-which `#אזור` now uses for a fixed area on the page.
 
 Folding is not only by hand: a heading folds its section from the gutter,
 `Ctrl+Alt+[` and `Ctrl+Alt+]` take everything down and put it back, and
@@ -376,11 +366,9 @@ them, which is what you want unless you are working through one long stretch of
 Insert — in which case turn it off.
 
 **Vim and Emacs are real**, and while one is on it takes the *whole* keyboard:
-Ksav's own shortcuts are not installed at all, so there is no contest to lose.
-That is the fix for a bug this arrangement replaces — both keymaps used to sit at
-the same precedence with the mode placed first, and CodeMirror's tie-break gave
-the keys to Emacs on the dev server and to Ksav in the production build, where
-Emacs mode consequently did nothing whatsoever.
+Ksav's own shortcuts are not installed at all, so there is no contest to lose —
+two keymaps at equal precedence resolve by a tie-break that differs between the
+dev server and a production build, which is not a thing to leave to chance.
 
 A full takeover is only affordable because nothing is lost with it: **every
 command is a `:` command in Vim and an `M-x` command in Emacs**, generated from
@@ -393,9 +381,8 @@ that same list, with fuzzy matching and a description beside each row. `:w` and
 And **every surface that shows a key shows that instead**, while a mode is on:
 the key list, the menus, the toolbar tooltips, the help page, the command
 palette's rows. A key that now does something else is worse than no key at all,
-and for a long time only one of those surfaces knew — the rule is
-`bindings.keyHint` now, and `prohibitions.test.mjs` holds it as the only way to
-spell a key anywhere in `app/src`.
+so `bindings.keyHint` is the only way to spell a key anywhere in `app/src`, and
+`prohibitions.test.mjs` holds that.
 
 ## Core idea
 
@@ -420,11 +407,11 @@ The engine hands Typst a two-line document — `#import "ksav.typ": *`, then a
 `#show: מסמך.with(...)` wrapper driven by editor settings (font / size / margins /
 direction / numbering / columns / line-spacing) — with the writer's text after
 it, and compiles with real Typst. **The prelude is a resolved file**, not a
-prefix: it used to be concatenated onto the front of every compile, which meant
-Typst re-parsed 111 KB of unchanged Hebrew on every keystroke (3.7 ms of it, see
-`cargo run --release --example bench-prelude`) and every diagnostic's line number
-was that prefix's length subtracted from a byte offset. Now a span carries which
-file it came from.
+prefix concatenated onto the front of every compile. That buys two things: Typst
+does not re-parse 111 KB of unchanged Hebrew on every keystroke (3.7 ms of it,
+measurable with `cargo run --release --example bench-prelude`), and a diagnostic's
+line number is a line number rather than a prefix length subtracted from a byte
+offset, because a span carries which file it came from.
 
 "Export .typ" still inlines the prelude, because a self-contained file is the
 whole point of that button; both arrangements come off the same `prelude_text`
@@ -457,20 +444,15 @@ page and 5.6 s at 170; `typst::syntax::Source::detached` parses with no world,
 no fonts and no layout. So the scanner stays exactly as it is at runtime — and
 offline, **`engine/tests/scan_oracle.rs`** sweeps every document in the
 repository and asks Typst's own parser whether the scanner was right about it:
-the twelve templates, both starter documents, every note layout and structural edit
-the app produces, and the whole insertion grid — in both languages, since the
-grid learned to ask its questions in English as well. Three thousand documents,
-and the point of the grid is that nobody chose them.
+the twelve templates, both starter documents, every note layout and structural
+edit the app produces, and the whole insertion grid, in both languages.
 
-It is the only check here that does not depend on somebody thinking of the case.
-The scanner's own fourteen unit tests were all green while a bare `(` in prose
-opened code mode, because each was written by somebody who held the wrong rule.
-On its first sweep the oracle found a second one nobody had asked about: a
-`#let` line pushed a frame that was never closed, so every surface reading the
-scan believed the prose after the first `#set` in a document was code.
-`app/tools/emit-scan-oracle.mjs` writes what the scanner believes and `npm test`
-fails if it is stale, which is what makes changing the scanner force the
-comparison.
+It is the only check here that does not depend on somebody thinking of the case,
+which is the whole point of the grid — nobody chose those documents. A scanner's
+own unit tests are all written by whoever holds the rule, so they agree with each
+other whether or not the rule is right. `app/tools/emit-scan-oracle.mjs` writes
+what the scanner believes and `npm test` fails if it is stale, which is what
+makes changing the scanner force the comparison.
 
 ### Why it is built this way
 
@@ -547,9 +529,8 @@ the reasoning, not the reference, and this file is long enough.
     this*. Each name is drawn in its own face, and a family none of the three
     knows can still be named by hand.
   - **Text alignment** is one control with four answers: justified, right,
-    centred, left. It was a `justify` tick box, which could say *justified or
-    not* and had no word for *which edge* — so a centred sheet meant wrapping
-    every paragraph by hand.
+    centred, left. Four and not a `justify` tick box, which can say *justified
+    or not* and has no word for *which edge*.
   - **Running heads** can stay in Settings as plain text, or move into the
     document as `#כותרת_עליונה[…]` / `#כותרת_תחתונה[…]`. In the document they
     take content, so a bold word or a mixed run works — and a document may set
@@ -610,11 +591,10 @@ Those four are the daily keys and not the extent of it. **Every service this
 engine answers has a door in Emacs** — the assembled Typst source, click-to-jump
 on the drawn page and its inverse, the speller's suggestions, the templates, the
 sefarim catalogue as a `completion-at-point`, all eighteen git operations, and
-the six errands to Girsa. That is a claim `app/test/emacs.test.mjs` holds with
-an exemption list that is **empty**, because the version before it reached three
-of sixteen and a client that quietly cannot do thirteen of the things the
-product does cannot tell its reader *Ksav cannot do that* from *something went
-wrong*. It reported the first as the second, every time.
+the six errands to Girsa. `app/test/emacs.test.mjs` holds that claim against the
+service registry with an exemption list that is **empty**: a client missing a
+service cannot tell its reader *Ksav cannot do that* from *something went
+wrong*, and reports the first as the second every time.
 
 It is a client and nothing more — no elisp here parses Ksav markup, decides what
 a command means or renders anything. That is the only arrangement in which an
@@ -664,12 +644,9 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       Squiggles, suggestions, and a one-click user dictionary.
 - [x] **Exports** — PDF, real reflowable HTML (Typst's own HTML backend),
       Markdown, plain text, Typst source.
-- [x] **Responsive** down to a phone, and on a laptop.
-
-  It was true on a phone and false on a laptop: at 1366×768 the split gave the
-  preview 680 px, an A4 page drew at 860, and the pane scrolled to the *end* of
-  every Hebrew line. The page fits the pane by default now and the pane reads in
-  the document's own direction — see `app/src/preview.ts`.
+- [x] **Responsive** down to a phone, and on a laptop — the page fits the pane by
+      default rather than overflowing it, and the pane scrolls in the document's
+      own direction. See `app/src/preview.ts`.
 - [x] **Review tools** — tracked insertions and deletions, editorial margin
       comments, accept/reject per change, and three ways to read the document
       (markup / as-if-accepted / original).
@@ -696,29 +673,17 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       live region.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
-- [x] **CI, running and green** — typecheck, 6,448 editor assertions, 761 engine
-      tests, `clippy -D warnings`, the desktop shell, a build-and-run check of
-      the browser (wasm) engine, and a run of the assembled application in a real
-      browser, on every push. See [Test](#test) and [Use it](#use-it).
-
-Done since, and worth stating because these were the longest-standing gaps:
-
-- [x] **A git remote, and CI that actually runs.** `ci.yml` runs on every push and
-      is green across all eight jobs — editor, engine, formatting and clippy,
-      the engine again on macOS, browser (wasm) engine, the assembled
-      application, the Emacs package, desktop shell.
-- [x] **The release matrix has run, on every platform.** `v0.1.0` drove
-      `release.yml` to success on `windows-latest`, `ubuntu-22.04` and *both*
-      macOS architectures, so the `.msi`, `.exe`, `.deb`, `.AppImage` and both
-      `.dmg`s have all genuinely been produced by a runner.
-
-- [x] **The release is published.** `release.yml` sets `releaseDraft: true`
-      deliberately, so a release is reviewed before it is public — and the
-      `v0.1.0` draft then sat unpublished, which three consecutive audits called
-      the single most consequential open item, because `/releases/latest`
-      returned 404 and the Download link in the root README led to an empty
-      page. The button has been pressed: nine installers are on it and the tag
-      resolves.
+- [x] **CI, running and green** — `ci.yml` runs on every push and is green across
+      all nine jobs: the typechecker and 6,452 editor assertions, 763 engine
+      tests, formatting and `clippy -D warnings`, the engine again on macOS, a
+      build-and-run check of the browser (wasm) engine, the assembled
+      application in a real browser, the Emacs package against a live engine on
+      the Emacs version it declares, the same package on a current Emacs, and
+      the desktop shell. See [Test](#test) and [Use it](#use-it).
+- [x] **Installers, produced by a runner on every platform.** `release.yml`
+      builds `windows-latest`, `ubuntu-22.04` and *both* macOS architectures, so
+      the `.msi`, `.exe`, `.deb`, `.AppImage` and both `.dmg`s are real files on
+      a published release rather than a configuration that has never run.
 
 Not done:
 
@@ -726,23 +691,19 @@ Not done:
       macOS says "unidentified developer". The fix is a certificate ($99/yr Apple,
       ~$200–400/yr Windows OV), not a workaround; `release.yml` names the secrets.
 - [ ] **Nobody has written a real *sefer* in it yet.** The most important line
-      here. Nothing above substitutes for it, and an hour of it on 7 August
-      2026 found three bugs that the whole suite was green over — a sefer
-      numbered by the toolbar came out **סימן א׳** three times,
-      a gershayim (the key you press for רש״י) produced Typst's raw
-      `unclosed string`, and the Mekoros panel dropped the ref that is the
-      whole argument for the Girsa pairing. All three fixed; see
-      [`decisions/2026-08-07-writing-a-kuntres.md`](../decisions/2026-08-07-writing-a-kuntres.md).
+      here, and nothing above substitutes for it. Two kuntres-length sittings —
+      three simanim, an apparatus, a table, an import and a PDF each — have
+      found four bugs the whole suite was green over, of a class no other check
+      in this repository has ever produced: a toolbar that numbered three
+      simanim **סימן א׳**, a gershayim that reached Typst as an unclosed string,
+      a Mekoros panel that dropped the ref the Girsa pairing exists for, and a
+      status bar left reading *rendering…* after the PDF was written. All four
+      are fixed; the records are
+      [7 August](../decisions/2026-08-07-writing-a-kuntres.md) and
+      [16 August](../decisions/2026-08-16-writing-a-kuntres-in-it.md).
 
-      A second sitting on 16 August wrote a kuntres on lechem mishneh in the
-      assembled application — three simanim, a footnote, a source note,
-      gershayim inside parentheses, a table, two apparatus bands stacked at the
-      foot of the page, an `.org` import and a PDF. The three above are gone,
-      and it found a fourth: the status bar read *rendering…* for as long as
-      nothing else happened, after the PDF had already been written. See
-      [`decisions/2026-08-16-writing-a-kuntres-in-it.md`](../decisions/2026-08-16-writing-a-kuntres-in-it.md).
-
-      Two kuntres-length sittings are not a sefer, so the box stays open.
+      Two sittings are not a sefer, so the box stays open, and the next one
+      should be long enough for the apparatus to break across pages.
 
 ## Checking how something renders
 
@@ -767,10 +728,9 @@ cd app && npm install && npm run dev        # http://localhost:5173
 ```
 
 The dev proxy is built from the engine's service registry, so every route the
-engine answers is forwarded. It was a hand-written list of five for a while, and
-`/jump`, `/reveal`, `/sefarim`, `/inbox`, `/mekoros` and `/linkify` all 404'd
-against Vite itself — features that worked in production and looked broken in the
-one place they are developed.
+engine answers is forwarded — a hand-written list here 404s against Vite for
+whichever routes it forgets, which looks like a broken feature in the one place
+the feature is developed.
 
 ## The shared crates
 
@@ -793,32 +753,28 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 6,448 assertions across 96 files |
-| `engine` | both | formatting, lints, then 761 tests across 44 binaries |
+| `editor` | both | the typechecker, then 6,452 assertions across 96 files |
+| `engine` | both | formatting, lints, then 763 tests across 44 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
-Two axes because one was not enough, and the shortfall was measured: `fmt` and
-`engine` were sibling group names, so `node tools/gate.mjs engine` ran clippy and
-the engine tests and skipped a one-second `cargo fmt -- --check` **on the same
-crate**. It reported the gate green, and `formatting` was the only red job on
-`main` — the same failure this section is about, one level in. A name that reads
-as "check the engine" now checks the engine.
+Two axes because a name that reads as "check the engine" has to check the engine:
+with kind as the only axis, `fmt` and `engine` are siblings, and asking for
+`engine` runs clippy and the engine tests while skipping a one-second
+`cargo fmt -- --check` **on the same crate**.
 
 **A partial run says so.** Selecting a name is normal — CI does it in five jobs —
 but the run ends by naming every check it did not run, because "the gate is green
 — 2 checks" is a two-of-nine answer wearing a nine-of-nine sentence.
 
-**One command, deliberately.** This section used to list six and
-`.github/workflows/ci.yml` spelled nine steps out again beside them. Nobody runs
-six commands, and it showed: for four consecutive pushes the *only* red job on
-`main` was `formatting`, failing at its first step in eleven seconds while every
-other job went green, with fifty-four unformatted hunks accumulating under it.
-`tools/gate.mjs` is now the one place a check command is written — the workflow
-selects by name, and `app/test/gate.test.mjs` fails if a check command reappears
-as a literal in the workflow or in any living page, if a check the runner
-declares is run by no job in the workflow, or if naming a tree leaves a check on
-that tree unrun.
+**One command, deliberately.** `tools/gate.mjs` is the one place a check command
+is written; the workflow selects by name rather than spelling the steps out a
+second time. `app/test/gate.test.mjs` fails if a check command reappears as a
+literal in the workflow or in any living page, if a check the runner declares is
+run by no job in the workflow, or if naming a tree leaves a check on that tree
+unrun. Six commands in a README and nine steps beside them in `ci.yml` is how
+`formatting` stays the only red job on `main` for four consecutive pushes while
+everything else goes green.
 
 A filtered run is the exception, and it is not an oversight: `npm test -- panels`
 is what a developer runs forty times an hour, and it says so and skips the two
@@ -843,15 +799,13 @@ executes every `app/test/*.test.mjs`, so **adding a test is adding a file** — 
 friction is how a suite ends up with one file in it, which is where this one
 started.
 
-The module list is read off the directory, and that is a fix rather than a
-convenience: it used to be a hand-written array, nothing compared it to `src/`, it
-had stopped growing at 43 of 62 names, and **no test imported any of the other
-nineteen** — `exports.ts`, `compile.ts`, `save.ts`, `files.ts` and `ksav-lang.ts`
-among them. `app/test/runner.test.mjs` is what keeps it honest: every module is
+The module list is read off the directory rather than hand-written, because a
+hand-written array is not compared to `src/` by anything and stops growing
+without saying so. `app/test/runner.test.mjs` keeps it honest: every module is
 built or declared unbuildable in `app/test/modules.mjs` *with a reason that file
 executes*, every module is imported by at least one test, and no test may bundle
-its own private copy of a module — which was the visible symptom last time. A
-module added to `src/` with no test turns the suite red, by name.
+its own private copy of a module. A module added to `src/` with no test turns the
+suite red, by name.
 
 `app/test/harness.mjs` installs `localStorage` and IndexedDB shims — its
 `localStorage.quota` is settable, because the bug most of these tests exist to
@@ -867,11 +821,10 @@ that compiles every legal insertion the UI can produce, an oracle that checks th
 editor's scanner against Typst's own parser over **4,165**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
-Nothing had ever booted the product and used it. One hour of clicking on 6 August
-found three bugs on a day the whole suite was green, because the bugs a reader
-cannot find are the ones in the seams — a button wired to nothing, a menu item
-that throws, a template that loads into an editor that cannot compile it — and a
-seam is only observable when both sides are present.
+The bugs a reader meets are the ones in the seams — a button wired to nothing, a
+menu item that throws, a template that loads into an editor that cannot compile
+it — and a seam is only observable when both sides are present. So the product
+gets booted and used:
 
 ```sh
 cd app && npm run build                     # dist/, which the server embeds
@@ -896,15 +849,13 @@ every compile, and each step insists on a compile that began after it did.
 
 **And it looks at the screen**, which is a different question from the one the
 paragraph above declines. Every other guard in this repository reads source, and
-the two worst bugs the sibling application ever shipped were a commentary block
-at `opacity: 0` and a pane title measured at 0px — facts about a layout, with
-both files saying exactly what they should say. The browser was already here and
-was never asked. It is now: every declared surface is opened the way a reader
-opens it and measured for a non-zero box, an effective opacity above zero
-computed **through its ancestors**, no `display: none` or `visibility: hidden`
-anywhere in that chain, and a box that intersects the viewport. Nothing is
-compared against an expected colour, position or size, so a font update still
-changes nothing.
+a panel at `opacity: 0` or a title measured at 0px is a fact about a layout with
+every file saying exactly what it should say. So every declared surface is opened
+the way a reader opens it and measured for a non-zero box, an effective opacity
+above zero computed **through its ancestors**, no `display: none` or
+`visibility: hidden` anywhere in that chain, and a box that intersects the
+viewport. Nothing is compared against an expected colour, position or size, so a
+font update still changes nothing.
 
 Which surfaces comes from `app/src/panels.ts` rather than from a list here, and
 `app/tools/surfaces.mjs` says how each one is opened — a chip, a keystroke, or a
@@ -919,10 +870,8 @@ machine. 14 MB, no postinstall.
 
 **And the rule, which is the other half and the half no script enforces: a
 feature is not done until it has been used once, by a person, in the assembled
-application.** Ten waves of reading produced mechanisms better than most
-codebases have and a set of surfaces nobody had ever touched. The seven paths
-above are the ones that now cannot rot; every other one is still on the honour
-system.
+application.** The seven paths above are the ones that cannot rot; every other
+one is on the honour system.
 
 ## Measure it
 
@@ -934,18 +883,17 @@ cd app && npm run bench
 what one keystroke costs: the scan, everything the editor asks after it, the memo
 probe, one caret move, and a fold query at the *last* heading in the document.
 
-It used to measure one operation on documents up to 18 KB with `doc` held fixed,
-and both of those made it blind. 18 KB is one twenty-eighth of a real sefer. And
-a fixed document means `scan()` is a memo *hit* in every iteration after the
-first — so the benchmark never once measured typing, which is the only thing the
-per-keystroke costs are paid against.
+Three rules if you change it, each of which makes the numbers meaningless when
+broken. The documents have to be sefer-sized: 18 KB is one twenty-eighth of a
+real one. The document has to *change* between iterations, or `scan()` is a memo
+hit every time after the first and the benchmark never measures typing at all.
+And there has to be a warm-up, because the first measured loop pays for V8
+compiling everything under it and reports a keystroke at three times its cost.
 
-Two things it taught while being rewritten, both general: without a warm-up the
-**first row of the table** reported a keystroke at three times its true cost,
-because the first measured loop pays for V8 compiling everything under it. And
+One more, which is a fact about the string rather than about the harness:
 `a + ch + b` on a long string builds a cons string, flattened later by whoever
-walks it — so a benchmark that concatenates charges the flattening to the scan
-and overstates a keystroke by 40%. CodeMirror hands the scanner a flat string.
+walks it, so a benchmark that concatenates charges the flattening to the scan and
+overstates a keystroke by 40%. CodeMirror hands the scanner a flat string.
 
 Read down a column, not across a row: the shape to watch for is a number growing
 faster than the document does.
@@ -1009,8 +957,8 @@ until somebody has made it.
 
 One value for both, so a link can never point at a copy of the app that is not
 there. Unset — which is every local build — the assets are rooted at `/` and
-"copy a link" refuses in words rather than guessing a host. It used to guess
-`https://ksav.app/`, a domain that appears nowhere else in this repository.
+"copy a link" refuses in words rather than guessing a host — a guessed host is a
+share link that resolves to somebody else's server or to nothing.
 
 ## Desktop app (Tauri)
 
@@ -1051,26 +999,21 @@ the cargo target directory live in named volumes, so the Linux build never
 overwrites the host's Windows-native `node_modules` and never recompiles Typst
 from cold twice. Installers are copied out to `ksav/packaging/out/`.
 
-Only this repository is mounted into the container, at `/work`, which is the
-right thing and used to be fatal: while the shared crates were reached through a
-sibling checkout, the desktop shell's `girsa-post` resolved to `/sefer-crates`,
-a directory that was never in the image. This script could not have produced an
-installer. The two CI workflows hid the same hole behind a second checkout; here
-there was nothing to hide it with, and nothing tried. See
+Only this repository is mounted into the container, at `/work`, which is why the
+shared crates have to be reachable without a sibling checkout: a dependency
+resolved through `../../../` is a directory that is not in the image, and cargo
+fails inside `cargo metadata` before a compiler runs. See
 [The shared crates](#the-shared-crates).
 
 **macOS cannot be cross-built at all** — a `.dmg` only comes from a macOS
-machine, which is the whole reason `release.yml` exists. It builds all four
-targets on tag push and attaches them to a **draft** release. It has run: the
-`v0.1.0` tag drove it to success on `windows-latest`, `ubuntu-22.04` and both
-macOS architectures, so every installer this project ships has now been produced
-by a runner.
+machine, which is the whole reason `release.yml` exists. On a tag it builds all
+four targets and attaches them to a **draft** release.
 
-`releaseDraft: true` is the right default and the wrong resting place:
-`v0.1.0` sat as an unpublished draft for long enough that `/releases/latest`
-returned 404 while every installer already existed, which is the same as having
-no release at all. It has been published. Cutting the next one means pressing
-the button as well as pushing the tag.
+`releaseDraft: true` is deliberate, so a release is reviewed before it is public,
+and it is also a step somebody has to take: a draft left unpublished makes
+`/releases/latest` a 404 while every installer already exists, which is the same
+as having no release at all. **Cutting a release means pressing the button as
+well as pushing the tag.**
 
 > **The installers are unsigned.** Windows SmartScreen will say "unrecognized
 > app" and macOS will say "unidentified developer". That is a genuine adoption
@@ -1098,7 +1041,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | Service | HTTP | In / out |
 |---|---|---|
 | `compile` | `POST /compile` | `{body, font, size_pt, margin_cm, dir, numbering, justify, line_spacing_em, columns}` → `{ok, pages_svg[], pdf_base64, diagnostics[], typst_source}` |
-| `assemble` | `POST /assemble` | `{body, parts, …DocConfig}` → `{ok, typst_source, diagnostics[]}` — the same source a compile would carry, without the compile. "Export .typ" used to ask for a full render *with the PDF* and read one field off it |
+| `assemble` | `POST /assemble` | `{body, parts, …DocConfig}` → `{ok, typst_source, diagnostics[]}` — the same source a compile would carry, without the compile, so "Export .typ" does not pay for a full render and a PDF to read one field off |
 | `jump` | `POST /jump` | inverse search: `{body, page, x_pt, y_pt, …DocConfig}` → `{line, column}`, or `{}` for a point the writer did not type (a margin, a running head, a note-band rule) |
 | `reveal` | `POST /reveal` | forward search: `{body, line, column, …DocConfig}` → `{points: [{page, x_pt, y_pt}]}`, empty when it printed nowhere and several when it printed more than once |
 | `spell` | `POST /spell` | `{text, user_words, suggest}` → `{misspellings[], lexicon_sizes}` |
@@ -1121,8 +1064,8 @@ rather than a webview call for the same reason Girsa writes it from Rust: a
 `paste` event exposes `text/plain`, `text/html` and files, and a **custom native
 clipboard format is not among them** on any platform. Girsa takes eighty-six
 lines of care to put the packet down as a real format precisely so a native
-application can read it; for a long time nothing did, and that careful
-three-flavour copy landed in an editor that only ever took the plain text.
+application can read it, and the read therefore has to happen in the process that
+can open the real clipboard.
 
 It answers with **markup**, not the packet — rendered by `ksav_engine::source`,
 the same renderer the loopback arrivals go through — so a quote that arrives on
@@ -1130,22 +1073,18 @@ the clipboard and one that arrives over the loopback are the same document. A
 second renderer on the client is what spec.md §10.3 rules out.
 
 `saved-here` is spec.md §10.4's *"standing on a passage, see which of **your
-own documents** cite it"*, from the sending end. Girsa's registry, its query and
-its tests were all built and nothing ever sent it a path — so the query walked
-Girsa's **own toy editor's** directory, and a `.ksav` written in the real Ksav
-answered *nothing cites this*. There is nowhere for Girsa to walk instead: a
-reader's documents live wherever they keep documents. A path and a name, never
+own documents** cite it"*, from the sending end. Girsa holds the registry and the
+query; only Ksav knows where a document was saved, and there is nowhere for Girsa
+to walk instead, because a reader's documents live wherever they keep documents.
+A path and a name, never
 the text; only for a real file path, since a browser handle is not a place Girsa
 can open; and on an autosave as much as on a Ctrl+S, because a registry that
 only heard about hand-made saves would miss most documents.
 
 `refresh` is spec.md §10.2's promise about a **document** rather than about a
-place, and it is reachable now — *רענון המקורות* in the palette, or bound to a
-key like anything else. It had a generated client, a generated table row and no
-caller in `src/`: the errand Girsa's own `post.rs` calls *"the clearest of
-them"*, and this README calls *"the errand that pays for the loopback"*, had no
-way in. forty citations at once, in the order they appear, each re-read against
-the corpus as it stands. A citation naming a sefer that shelf does not have
+place: *רענון המקורות* in the palette, or bound to a key like anything else.
+Forty citations at once, in the order they appear, each re-read against the
+corpus as it stands. A citation naming a sefer that shelf does not have
 comes back as a row with a reason in it — the other thirty-nine still refresh,
 and that decision is made once, in Girsa, rather than forty times here. What
 comes back is rows and not a rewritten file: a correction somebody else made
@@ -1175,15 +1114,12 @@ One line in `engine/src/services.rs`, then `node tools/emit-services.mjs` in
 dispatch, the desktop command and the TypeScript name union all come from that
 table, and `npm test` fails if the generated copy is stale.
 
-It used to be eight files and eleven sites, of which exactly one was visible to a
-compiler. Four of the silent ten had already been forgotten by the time anybody
-counted: `sefarim` never reached the wasm worker's dispatch table, so citation
-autocomplete was dead in the offline build with nothing reporting it; the dev
-proxy carried five of twelve routes, so click-to-jump 404'd under `npm run dev`;
-and the Content-Security-Policy existed as three copies that had diverged, which
-killed the update check in both builds that ship an installer. That policy is now
-`policy/csp.txt` — see `policy/README.md` — and the desktop build fails rather
-than delivering a different one.
+Spelled out by hand this is eleven sites across eight files, of which exactly one
+is visible to a compiler — so a service reaches the HTTP router and never the
+wasm worker's dispatch table, and the offline build simply does not answer it.
+The Content-Security-Policy is the same shape and is handled the same way: it is
+`policy/csp.txt` (see `policy/README.md`), one copy, and the desktop build fails
+rather than delivering a different one.
 
 ## Library API
 
@@ -1201,17 +1137,18 @@ live in `localStorage`.
 
 That split is not a preference. `localStorage` gives a page roughly 4.5 MB in
 total, is synchronous, and signals exhaustion by throwing from the middle of a
-setter — and Ksav filled it routinely: a 4 MB image is 5.3 MB once base64-encoded,
-and the history was eighty whole copies of the document under one key. The throw
-landed inside the compile path where nothing caught it, so the editor said
-"rendering…" forever and every keystroke after that was lost. IndexedDB is
-asynchronous, is measured in hundreds of megabytes, and reports failure as a
-rejected promise the writer can actually be shown.
+setter — and a sefer fills it routinely, since a 4 MB image is 5.3 MB once
+base64-encoded and a version history is whole copies of the document. A throw
+from inside the compile path is caught by nothing, which reads as "rendering…"
+forever with every keystroke after it lost. IndexedDB is asynchronous, is
+measured in hundreds of megabytes, and reports failure as a rejected promise the
+writer can actually be shown.
 
 **Asset bytes live in their own bucket, keyed by content hash.** IndexedDB
 structured-clones a record whole on every write, and autosave runs 600 ms after
-a pause in typing — so a sefer with one 4 MB photo in it wrote 5.5 MB of base64
-per pause, for a change of one character. The document record carries hashes;
+a pause in typing — so bytes held inline mean a sefer with one 4 MB photo in it
+writes 5.5 MB of base64 per pause, for a change of one character. The document
+record carries hashes;
 the blobs are written once, shared between documents that use the same image,
 and swept when nothing refers to them any more. Blobs are written *before* the
 record that names them, so a failed write leaves the previous version intact.

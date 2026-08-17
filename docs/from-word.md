@@ -93,8 +93,7 @@ by its author and not by its use.
    closing the tab asks first.
 3. `#` in the editor offers every command, in both languages, with what each does.
 4. The toolbar inserts the right form of everything, so you never have to learn that
-   `#נוסחה` takes brackets *or* a string. (Both work. That was a bug and it is
-   fixed.)
+   `#נוסחה` takes brackets *or* a string. Both work.
 5. **Page setup is per document.** Font, paper, margins and direction are properties
    of the sefer, not of the application — so opening an English document and then a
    Hebrew one does not mean changing the direction by hand. *Set as default for new

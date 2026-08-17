@@ -1,11 +1,11 @@
-;;; ksav.el --- Write a sefer in Emacs, typeset by Ksav  -*- lexical-binding: t; -*-
+;;; ksav.el --- Write a sefer, typeset by the Ksav engine  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 The Ksav Authors
 ;; SPDX-License-Identifier: MIT OR Apache-2.0
 
 ;; Author: The Ksav Authors
 ;; URL: https://github.com/SYKhayyat/ksav
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: languages, wp, hebrew
 

@@ -155,7 +155,7 @@ disk.")
   (car (split-string system-configuration "-")))
 
 (defun ksav-release-this-machine ()
-  "The row in \`ksav-release-targets' for the machine this Emacs runs on.
+  "The row in \`ksav-release-targets' for the machine running this Emacs.
 
 Nil when there is none — a platform Ksav does not publish an engine for is a
 real answer, and the caller says so by name rather than downloading something

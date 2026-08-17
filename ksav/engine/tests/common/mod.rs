@@ -62,6 +62,23 @@ pub fn page_text(body: &str) -> String {
     text(&render(body))
 }
 
+/// The badge an unconsumed structural child wears, in either language.
+///
+/// The prelude prints one phrase or the other, chosen from the document's own
+/// `text.lang` — a badge in an English sefer that reads `פריט מחוץ למקומו`
+/// names a command in a language that reader is not writing in. So a test that
+/// searches for the English half alone cannot fail on a Hebrew document, and
+/// every document in the insertion grid is Hebrew: `insertion.rs` asserts that
+/// a *refused* insertion carries the badge, and searching for the wrong half
+/// would have turned that into an assertion that passes on nothing.
+pub const BADGE_HE: &str = "מחוץ למקומו";
+pub const BADGE_EN: &str = "outside its container";
+
+/// Did this page draw the badge, whichever language it drew it in?
+pub fn has_badge(page: &str) -> bool {
+    page.contains(BADGE_HE) || page.contains(BADGE_EN)
+}
+
 /// Every filled shape a body puts on the page — highlights, cell backgrounds.
 pub fn page_fills(body: &str) -> Vec<Fill> {
     let doc = probe::layout(body, &DocConfig::default())

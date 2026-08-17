@@ -44,13 +44,13 @@ one edit instead of as an agreement in prose between two repositories.
 | `girsa-post` | The loopback between the two: token-gated, localhost, no network. |
 | `girsa-hebrew` | What a Hebrew letter, mark, prefix and word boundary *are*. |
 
-`girsa-hebrew` is the one worth pausing on. Ksav's speller had written those
-tables out by hand and got the word boundaries wrong — maqaf, paseq and sof
-pasuq were deleted rather than broken on, so `אֶת־הַשָּׁמַיִם` was absorbed as the single
-non-word `אתהשמים` and the shipped dictionary carried eighty-odd of them. The
-crate was **already in the binary**, resolved through `girsa-source`, and
-nothing referenced it. The correct definition of a word shipped inside Ksav for
-months while a wrong copy did the work.
+`girsa-hebrew` is the one worth pausing on, because it is the easiest to
+reimplement by accident. Hand-written boundary tables get maqaf, paseq and sof
+pasuq wrong in the same way every time — deleted rather than broken on, so
+`אֶת־הַשָּׁמַיִם` is absorbed as the single non-word `אתהשמים` — and that mistake reaches
+the shipped dictionary. Anything in Ksav that needs to know what a Hebrew word
+is asks this crate. It is already in the binary, resolved through
+`girsa-source`; there is nothing to add and nothing to write a second time.
 
 ### How they are pinned, and how you edit both halves
 
@@ -59,19 +59,16 @@ Every one of them is a git dependency pinned by commit SHA, in
 deliberate: edit the rev in both, and `engine/tests/manifests.rs` fails if the
 two ever disagree, because one product must not compile two `sefer-crates`.
 
-They used to be `path = "../../../sefer-crates/crates/…"`, which resolves to a
-sibling of the *checkout root*. `git clone ksav && cargo build` therefore failed
-inside `cargo metadata`, before a compiler ran, naming a directory the reader
-had never heard of — and four CI jobs carried a second checkout purely to fake
+A pin rather than `path = "../../../sefer-crates/crates/…"`, because that
+resolves to a sibling of the *checkout root*: `git clone ksav && cargo build`
+fails inside `cargo metadata`, before a compiler runs, naming a directory the
+reader has never heard of, and every CI job needs a second checkout to fake
 somebody's desk layout.
 
-What the path dependency really bought was editing both halves at once, and that
-is kept. Copy `.cargo/config.toml.example` to `config.toml` beside it, and a
-local `sefer-crates` checkout overrides the pinned one for every crate. The
-example is committed; the copy you make is ignored — which is also why this
-paragraph does not spell its name as a path, since a page naming a file that is
-not in the tree is a thing the documentation fence refuses, and it refused this
-one.
+What the path dependency bought was editing both halves at once, and that is
+kept. Copy `.cargo/config.toml.example` to `config.toml` beside it, and a local
+`sefer-crates` checkout overrides the pinned one for every crate. The example is
+committed; the copy you make is ignored.
 
 ---
 
@@ -106,10 +103,10 @@ Three details that are each load-bearing:
   would be a second renderer in TypeScript, and the two would drift.
 - **`/inbox` is a `POST` and it looks like a read.** It *drains* — it empties
   the queue and truncates the file behind it, because two windows asking would
-  otherwise each insert the same source. As a `GET` it was drainable by
-  `<img src="http://localhost:7878/inbox">` on any page the writer had open; an
-  image load sends no `Origin`, so no CORS check anywhere could have refused it.
-  The method is what makes the request unforgeable.
+  otherwise each insert the same source. The method is not cosmetic: as a `GET`
+  it is drainable by `<img src="http://localhost:7878/inbox">` on any page the
+  writer has open, and an image load sends no `Origin`, so no CORS check
+  anywhere can refuse it. The method is what makes the request unforgeable.
 
 ### 2 · The clipboard — a source, one application at a time
 
@@ -134,22 +131,22 @@ exists to prevent.
 A deep link. Girsa fires `ksav://insert?packet=…`, the operating system starts
 Ksav, and the packet arrives on the way up.
 
-This is three files agreeing or it is nothing, and it has been wrong in each of
-them:
+This is three files agreeing or it is nothing, and each of the three fails
+silently on its own:
 
-- With Ksav already open, the URL used to start a **second Ksav**. On Windows
-  and Linux the deep-link plugin only ever hears a cold start; handing a URL to
-  a running process is a companion plugin's job. The packet then waited in a
-  window nobody was typing in, and — worse — the duplicate published its own
-  endpoint file and **took over the pairing**, so every later send went to it,
-  and when it closed Girsa reported that Ksav was not running while the writer
-  was looking straight at it.
-- The scheme was re-registered on every start, so whichever copy ran last owned
-  `ksav://`. It is claimed once, with the claim recorded, and
-  `app/src-tauri/src/scheme.rs` decides between *ours*, *vacant*, *stale* and
-  *theirs* as a pure function with tests.
-- Uninstalling left the registration behind, pointing at a binary that was no
-  longer there. The NSIS uninstall hook removes it.
+- **A running Ksav has to receive it.** On Windows and Linux the deep-link
+  plugin only ever hears a cold start; handing a URL to a running process is a
+  companion plugin's job. Without it the URL starts a *second* Ksav, the packet
+  waits in a window nobody is typing in, and the duplicate publishes its own
+  endpoint file and takes over the pairing — so every later send goes to it, and
+  when it closes Girsa reports that Ksav is not running while the writer is
+  looking straight at it.
+- **The scheme is claimed once, not on every start**, with the claim recorded,
+  or whichever copy ran last owns `ksav://`. `app/src-tauri/src/scheme.rs`
+  decides between *ours*, *vacant*, *stale* and *theirs* as a pure function with
+  tests.
+- **Uninstalling takes the registration away**, through the NSIS uninstall hook.
+  Left behind, it points at a binary that is no longer there.
 
 ---
 
@@ -172,15 +169,14 @@ rather than not existing.
 `refresh` is the one that pays for the process boundary. It comes back as rows
 the editor shows the writer, offered and never applied: a correction somebody
 else made silently rewriting the words in a sefer being written is the one
-surprise the whole arrangement exists to avoid. It had a generated client, a
-generated registry row, and **no caller in `src/`** — the service that justifies
-the seam had no interface at all.
+surprise the whole arrangement exists to avoid.
 
-`saved-here` is the mirror of it, and had the same fault from the other end:
-Girsa's document registry, its *who cites this* query and its tests were all
-built, and nothing ever sent it a path — so the query walked Girsa's own toy
-editor's directory and a document written in the real Ksav answered *nothing
-cites this*.
+`saved-here` is its mirror, and the two share a failure mode worth naming,
+because both have had it: a service can be generated on both sides — client,
+registry row, query, tests — and still have no caller. Girsa cannot discover
+where a reader keeps documents, so if Ksav never sends the path, *who cites
+this* searches the wrong directory and answers *nothing cites this* about a
+document that cites it.
 
 ---
 
@@ -196,11 +192,10 @@ because each half can be green about its own copy.
 | `engine/tests/pairing.rs` | the desk, and the moment it is let go of |
 | `engine/tests/deep_link.rs` | the scheme is claimed once, and uninstalling takes it away |
 
-The packet-drift check is worth its own sentence, because it was found by
-noticing where it *ran*: the fixture proving the two halves agree was checked
-only in **Girsa's** CI, so a change on Ksav's side could break the contract and
-every job in this repository would still be green. It runs here now, against the
-same fixture.
+The packet-drift check is worth its own sentence, and the sentence is about
+*where it runs*. A fixture proving the two halves agree, checked only in Girsa's
+CI, lets a change on Ksav's side break the contract with every job in this
+repository green. It runs here as well, against the same fixture.
 
 ---
 

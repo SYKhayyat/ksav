@@ -29,7 +29,7 @@
 ;;;; ------------------------------------------------------------- the commands
 
 (defun ksav-commands ()
-  "Every command the engine offers, asked for rather than listed here.
+  "Every command the engine has, asked for rather than listed here.
 
 This is the one registry that is *not* generated into this package, and the
 difference is deliberate: the services are a contract between this code and an
@@ -76,10 +76,10 @@ Exposed rather than inlined because it is what a snippet, a key binding or a
 Ksav's insertion convention this package has to know.
 
 Written with `substring' rather than with `string-replace', which is the
-obvious spelling and is **Emacs 28**. This package declares 27.1 — that is
+obvious spelling and is **Emacs 28**.  This package declares 27.1 — that is
 where `json-parse-string' arrives, and it is what Ubuntu 22.04 ships — so the
 first draft was void-function on every Emacs it claimed to support and worked
-on the one it was written on. The declared floor is only a claim until
+on the one it was written on.  The declared floor is only a claim until
 something runs there; CI does, and that is how this was found."
   (let ((at (string-match-p "|" template)))
     (if (not at)

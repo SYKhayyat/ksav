@@ -22,10 +22,8 @@
 //! list in the world. `a_consumed_child_leaves_nothing_behind` is that test.
 
 mod common;
-use common::{page_text, render, visual_lines};
-
-/// The badge an unconsumed child wears, in the half a test can search for.
-const BADGE: &str = "outside its container";
+use common::{has_badge, page_text, render, visual_lines, BADGE_EN, BADGE_HE};
+use ksav_engine::DocConfig;
 
 fn bullets(body: &str) -> usize {
     page_text(body).matches('•').count()
@@ -109,7 +107,7 @@ fn a_merged_cell_survives_the_split() {
         out.contains("רחב") && out.contains("ה") && out.contains("ו"),
         "{out}"
     );
-    assert!(!out.contains(BADGE), "a correct merge wore a badge: {out}");
+    assert!(!has_badge(&out), "a correct merge wore a badge: {out}");
 }
 
 #[test]
@@ -118,7 +116,7 @@ fn a_definition_list_takes_its_rows() {
     for word in ["מונח", "פירוש", "שני", "שלישי"] {
         assert!(out.contains(word), "{word} missing: {out}");
     }
-    assert!(!out.contains(BADGE), "{out}");
+    assert!(!has_badge(&out), "{out}");
 }
 
 #[test]
@@ -141,22 +139,90 @@ fn a_consumed_child_leaves_nothing_behind() {
         "#רשימת_הגדרות(הגדרה[א][ב])",
     ] {
         let out = page_text(doc);
-        assert!(!out.contains(BADGE), "badge leaked into {doc}: {out}");
-        assert!(
-            !out.contains("מחוץ למקומו"),
-            "badge leaked into {doc}: {out}"
-        );
+        assert!(!has_badge(&out), "badge leaked into {doc}: {out}");
     }
 }
 
 #[test]
 fn a_child_with_no_parent_says_so() {
     let out = page_text("יתום: #פריט[בודד] וזהו");
-    assert!(out.contains(BADGE), "no badge: {out}");
+    assert!(has_badge(&out), "no badge: {out}");
     assert!(
         out.contains("פריט"),
         "the badge does not name the command: {out}"
     );
+}
+
+#[test]
+fn the_badge_speaks_the_document_s_language() {
+    // A diagnostic in a language the reader is not writing in.
+    //
+    // `#item` and `#פריט` are the same command, and by the time the badge is
+    // drawn the alias is gone — so it named the Hebrew spelling in an English
+    // sefer, to somebody who had never typed a Hebrew letter. `text.lang` is
+    // what the page setup set, which is the same thing the table of contents
+    // reads to choose between תוכן העניינים and Contents.
+    let hebrew = page_text("יתום: #פריט[בודד] וזהו");
+    assert!(hebrew.contains(BADGE_HE), "the Hebrew badge: {hebrew}");
+    assert!(
+        hebrew.contains("פריט"),
+        "names the Hebrew command: {hebrew}"
+    );
+    assert!(
+        !hebrew.contains(BADGE_EN),
+        "a Hebrew document was told twice: {hebrew}"
+    );
+
+    let english = DocConfig {
+        lang: "en".to_string(),
+        dir: "ltr".to_string(),
+        ..DocConfig::default()
+    };
+    let out = common::text(&common::render_with(
+        "stray: #item[alone] and that",
+        &english,
+    ));
+    assert!(out.contains(BADGE_EN), "the English badge: {out}");
+    assert!(
+        out.contains("item"),
+        "the badge does not name the command this reader typed: {out}"
+    );
+    assert!(
+        !out.contains(BADGE_HE) && !out.contains("פריט"),
+        "an English document was shown the Hebrew command: {out}"
+    );
+}
+
+#[test]
+fn every_english_name_the_badge_uses_is_a_real_alias() {
+    // `_kd_english` is a second spelling of a name already in the prelude, and
+    // the thing that keeps it from being a second *authority* is this: each row
+    // must name an alias the prelude actually defines. `"פריט": "items"` is a
+    // badge pointing at a command that does not exist, and it would render, and
+    // it would be wrong only to a reader — which is the class of defect this
+    // whole file is about.
+    const PRELUDE: &str = include_str!("../typst/ksav.typ");
+    let table = PRELUDE
+        .split_once("#let _kd_english = (")
+        .expect("the prelude has no _kd_english")
+        .1
+        .split_once("\n)")
+        .expect("unterminated _kd_english")
+        .0;
+    let mut rows = 0;
+    for line in table.lines() {
+        let Some((he, rest)) = line.trim().split_once("\": \"") else {
+            continue;
+        };
+        let he = he.trim_start_matches('"');
+        let en = rest.split('"').next().expect("a quoted English name");
+        rows += 1;
+        assert!(
+            PRELUDE.contains(&format!("\n#let {en} = {he}\n")),
+            "the badge calls `{he}` `{en}`, and the prelude defines no `#let {en} = {he}`"
+        );
+    }
+    assert_eq!(rows, 5, "five commands are structural children, not {rows}");
 }
 
 #[test]
@@ -173,7 +239,7 @@ fn a_child_in_the_wrong_parent_says_so_and_is_still_taken() {
     // `#תא` is a cell and a `#רשימה` is not a table. It is consumed anyway —
     // the rest of the list keeps its shape — and it wears the badge.
     let out = page_text("#רשימה(פריט[טוב], תא[רע])");
-    assert!(out.contains(BADGE), "no badge: {out}");
+    assert!(has_badge(&out), "no badge: {out}");
     assert_eq!(
         out.matches('•').count(),
         2,

@@ -10,7 +10,7 @@ Two steps, and neither needs a checkout of this repository or a Rust toolchain.
 [latest release](https://github.com/SYKhayyat/ksav/releases/latest) and:
 
 ```
-M-x package-install-file RET ksav-0.1.0.tar RET
+M-x package-install-file RET ksav-0.1.1.tar RET
 ```
 
 On Emacs 29 or newer you can install it from git instead, without downloading

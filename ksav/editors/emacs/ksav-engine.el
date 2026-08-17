@@ -40,15 +40,17 @@
 (defcustom ksav-executable "ksav"
   "The Ksav engine binary.
 
-Started as `ksav serve ADDRESS' when no server is already running.  Ksav is a
-single self-contained binary; if it is not on `exec-path', give the full path
-here — or run \\[ksav-install-engine], which downloads the one for this machine."
+Started as `ksav serve ADDRESS' when no server is already running.  Ksav is
+a single self-contained binary; if it is not on variable `exec-path', give
+the path here — or run \\[ksav-install-engine], which downloads the one for
+this machine."
   :type 'string)
 
 (defcustom ksav-install-directory (locate-user-emacs-file "ksav")
   "Where \\[ksav-install-engine] keeps the engine it downloads.
 
-Under your own Emacs directory rather than anywhere on `exec-path', because a
+Under your own Emacs directory rather than anywhere on variable `exec-path',
+because a
 package writing an executable onto a system path is a thing to be asked about
 and this is not asking."
   :type 'directory)
@@ -95,13 +97,32 @@ both compile."
   (or ksav-server-url (format "http://127.0.0.1:%d" ksav-port)))
 
 (defun ksav-running-p ()
-  "Is there an engine answering at `ksav-server-address'?"
+  "Is there an engine answering at `ksav-server-address'?
+
+Answered by reading an HTTP status, the same question `ksav--download' and
+`ksav-call' ask, and not by whether `url-retrieve-synchronously' handed back a
+buffer.  That is not the same question and it has no stable answer: against a
+port with no listener, Emacs 30.2 on GNU/Linux returns a live buffer with an
+empty body, Emacs 30.2 on Windows returns nil, and neither signals.  Reading
+this as \"an engine is running\" makes `ksav-start' take its already-answering
+branch, so it starts nothing, returns an address, and every call after it fails
+with `no reply' — the whole package, on a machine with an engine sitting right
+there.
+
+CI runs `emacs-nox' 27.1, which is this package's declared minimum and happens
+to be one of the spellings where the wrong question gets the right answer.  Half
+of this suite is live tests that cannot pass when this returns t wrongly, and
+all of them were green."
   (let ((url-request-method "GET")
         (url-show-status nil))
     (condition-case nil
-        (with-current-buffer
-            (url-retrieve-synchronously (ksav-server-address) t t 2)
-          (prog1 t (kill-buffer)))
+        (let ((buffer (url-retrieve-synchronously (ksav-server-address) t t 2)))
+          (and (buffer-live-p buffer)
+               (unwind-protect
+                   (with-current-buffer buffer
+                     (and (boundp 'url-http-response-status)
+                          (integerp url-http-response-status)))
+                 (kill-buffer buffer))))
       (error nil))))
 
 (defun ksav-installed-engine ()
@@ -114,7 +135,7 @@ both compile."
 (defun ksav-engine-program ()
   "The engine to start, or nil when there is none on this machine.
 
-`exec-path' first, so a system package or a build of your own wins over
+Variable `exec-path' first, so a system package or a build of your own wins over
 anything this package downloaded — that is the order somebody who installed an
 engine deliberately expects, and the download is the fallback for somebody who
 has not."
@@ -160,7 +181,7 @@ and it must not look like a compile failure."
     (ksav-server-address))))
 
 (defun ksav-stop ()
-  "Stop the engine this package started.  Leaves anybody else's alone."
+  "Stop the engine this package started, and leave anybody else's alone."
   (interactive)
   (when (process-live-p ksav--process)
     (delete-process ksav--process))
@@ -211,9 +232,10 @@ the whole Typst compiler.
 
 With a prefix argument, ask for a release TAG instead of taking the newest.
 
-Nothing is put on `exec-path' and nothing outside your Emacs directory is
-touched.  `ksav-executable' still wins if it names a program that exists, so a
-Ksav you installed yourself is never quietly replaced by this one."
+Nothing is put on variable `exec-path' and nothing outside your Emacs
+directory is touched.  `ksav-executable' still wins if it names a program
+that exists, so a Ksav you installed yourself is never quietly replaced by
+this one."
   (interactive (list (when current-prefix-arg (read-string "Release tag (e.g. v0.1.0): "))))
   (let ((row (ksav-release-this-machine)))
     (unless row

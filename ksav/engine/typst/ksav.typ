@@ -3103,14 +3103,41 @@
   "כותרת_תא": ("טבלה",),
   "מיזוג": ("טבלה",),
 )
-/// The badge an unconsumed child wears.
-#let _kd_stray(kind) = box(
-  inset: (x: 3pt, y: 1pt),
-  radius: 2pt,
-  fill: rgb("#fef2f2"),
-  stroke: 0.6pt + rgb("#dc2626"),
-  text(size: 0.75em, fill: rgb("#b91c1c"))[#kind מחוץ למקומו · outside its container],
+/// What each of them is called in an English document.
+///
+/// The badge names the command that is out of place, and a badge in an English
+/// sefer saying `פריט` names a command that reader did not type. Both spellings
+/// compile — `#let item = פריט` — and by the time `_kd` runs, the alias is gone
+/// and only the Hebrew name is left, so the name has to be chosen here rather
+/// than recovered.
+///
+/// Every row is held against the alias it claims: `children.rs` fails if this
+/// says `item` and the prelude does not define `#let item = פריט`. So this is a
+/// second spelling of a name that is already in this file and *not* a second
+/// authority for it.
+#let _kd_english = (
+  "פריט": "item",
+  "הגדרה": "defitem",
+  "תא": "cell",
+  "כותרת_תא": "headcell",
+  "מיזוג": "colspan_",
 )
+/// The badge an unconsumed child wears, in the document's own language.
+///
+/// `text.lang` is what the page setup set from `שפה`, which is the same thing
+/// the table of contents reads to choose between תוכן העניינים and Contents.
+#let _kd_stray(kind) = context {
+  let hebrew = text.lang == "he"
+  let name = if hebrew { kind } else { _kd_english.at(kind, default: kind) }
+  let said = if hebrew { [מחוץ למקומו] } else { [outside its container] }
+  box(
+    inset: (x: 3pt, y: 1pt),
+    radius: 2pt,
+    fill: rgb("#fef2f2"),
+    stroke: 0.6pt + rgb("#dc2626"),
+    text(size: 0.75em, fill: rgb("#b91c1c"))[#name #said],
+  )
+}
 /// A structural child: the mark, the badge, and the body.
 #let _kd(kind, body) = [#metadata((ksav_child: kind, גוף: body))#_kd_stray(kind)#body]
 /// Which kind of child `c` is, or `none` if it is ordinary content.

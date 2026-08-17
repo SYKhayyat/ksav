@@ -265,7 +265,7 @@ own `viewBox' is the whole conversion."
                 (* (cdr box) (/ (float (cdr xy)) h))))))))
 
 (defun ksav-jump (event)
-  "Go to the line in the source that printed where you clicked.
+  "Go to the line in the source that printed where EVENT was clicked.
 
 Inverse search, and the engine's `jump' service: the document is laid out again
 with the point named, and the answer is a line and a column in the body that

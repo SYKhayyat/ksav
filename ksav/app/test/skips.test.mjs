@@ -190,6 +190,14 @@ const FLOOR = [
   /assert!\s*\(\s*!\s*[\w.()]+\.is_empty\(\)/u,
   /assert_ne!\s*\(\s*[\w.()]+\s*,\s*0\b/u,
   /assert_eq!\s*\(\s*[\w.()]+\.len\(\)\s*,/u,
+  // An exact count against a non-zero literal, which is a *stronger* floor than
+  // `> 0` and was the fifth shape this repository writes. `assert_eq!(rows, 5)`
+  // under a loop that `continue`s says both that the walk found something and
+  // exactly how much; the four rules above all read it as no floor at all.
+  // Non-zero deliberately: `assert_eq!(n, 0)` is the assertion a fully-skipped
+  // walk passes, which is the thing being looked for rather than a floor under
+  // it.
+  /assert_eq!\s*\(\s*[\w.()]+\s*,\s*[1-9]\d*\b/u,
 ];
 
 const hasFloor = (body) => FLOOR.some((r) => r.test(body));

@@ -63,9 +63,13 @@ fn compiles(source: &str) -> Result<(), String> {
     }
 }
 
-/// The badge the engine draws on a structural child that reached the page with
-/// no list or table around it. See `engine/tests/children.rs`.
-const BADGE: &str = "outside its container";
+// The badge the engine draws on a structural child that reached the page with
+// no list or table around it comes from `common::has_badge`, and deliberately
+// not from a local `&str`. See `engine/tests/children.rs`: the prelude draws it
+// in the document's own language, and every document in this grid is laid out
+// with `DocConfig::default()`, which is Hebrew. A constant holding the English
+// half would turn both assertions below into assertions that cannot fail.
+mod common;
 
 /// What a source actually put on the page, or `None` if it did not compile.
 fn page_text(source: &str) -> Option<String> {
@@ -143,7 +147,7 @@ fn every_offered_insertion_lands_somewhere_it_belongs() {
     let mut wrong: Vec<String> = Vec::new();
     for c in cases().iter().filter(|c| c.legal) {
         if let Some(page) = page_text(&c.source) {
-            if page.contains(BADGE) {
+            if common::has_badge(&page) {
                 wrong.push(format!(
                     "  {}/{}/{}  offered here, and the page says it does not belong\n     {}",
                     c.ctx,
@@ -181,7 +185,7 @@ fn every_refused_insertion_would_really_have_failed() {
                     "  {}/{}/{}  refused as {why:?}, and does not compile at all",
                     c.ctx, c.lang, c.cmd
                 )),
-                Some(page) if !page.contains(BADGE) => wrong.push(format!(
+                Some(page) if !common::has_badge(&page) => wrong.push(format!(
                     "  {}/{}/{}  refused as {why:?}, but the page is clean",
                     c.ctx, c.lang, c.cmd
                 )),

@@ -81,7 +81,7 @@ a red test rather than a command that prompts for nothing and refuses.")
   (and (member op ksav-git-operations) t))
 
 (defun ksav-git--path ()
-  "This document's path, or a refusal that says which of three things is wrong.
+  "This document's path, or a refusal naming which of three things is wrong.
 
 Three answers, not one.  *There is no git*, and *this document is not in a
 repository*, are the engine's to give and it gives them by name.  The third —
@@ -185,7 +185,7 @@ prints something useful here on the day it arrives."
     (nreverse lines)))
 
 (defun ksav-git--report (headline answer)
-  "Show HEADLINE and everything ANSWER says."
+  "Show HEADLINE and every line in ANSWER."
   (ksav--show-trouble headline (ksav-git--lines answer)))
 
 ;;;; ---------------------------------------------------------------- commands
@@ -208,7 +208,7 @@ has changed around it."
 
 ;;;###autoload
 (defun ksav-git-commit (message &optional all)
-  "Commit this document with MESSAGE.  With a prefix argument, commit ALL changes.
+  "Commit this document with MESSAGE.  With a prefix argument, commit ALL of them.
 
 The document alone by default.  A sefer is usually one file among several in a
 folder, and a commit that quietly swept up the other four is a commit nobody

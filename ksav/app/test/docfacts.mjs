@@ -307,6 +307,28 @@ export const CLAIMS = [
   ["docs/shortcuts.md", "offered", (n) => `There are ${n} of them`],
 ];
 
+/**
+ * Does a page make this claim?
+ *
+ * Whitespace-insensitive on both sides, because a claim is a sentence in prose
+ * and prose does not know where its lines end. `numericClaimsIn` reached that
+ * conclusion already — *"every space in a pattern is `\s+`"* — after a paragraph
+ * reflow put a newline inside "engine tests" and hid a number that had been
+ * wrong by nineteen. The forward check went on comparing a raw literal, so the
+ * same reflow did the opposite there and turned a true page red: rewriting a
+ * paragraph around "green across all eight jobs" failed the suite over a line
+ * break, with the page saying exactly what it is supposed to say.
+ *
+ * Fail-safe rather than fail-open, so it is a papercut and not a hole — and it
+ * is still one rule spelled two ways in one file, which is the shape everything
+ * else here exists to stop. Both directions read this now, and so does
+ * `run.mjs`, which owns the two claims only a finished run can measure.
+ */
+export function says(body, want) {
+  const flat = (s) => s.replace(/\s+/gu, " ");
+  return flat(body).includes(flat(want));
+}
+
 /** Small numbers read as words in prose, which is how these pages write them. */
 const WORDS = [
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",

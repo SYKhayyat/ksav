@@ -1,6 +1,6 @@
 [package]
 name = "ksav-engine"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Hebrew-first typesetting engine built on real Typst compilation"
 license = "MIT OR Apache-2.0"

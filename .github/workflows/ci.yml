@@ -452,6 +452,102 @@ jobs:
             (unless (fboundp (quote ksav-install-engine))
               (error "installed, and ksav-install-engine is not there")))'
 
+  # The same package on a current Emacs, because the job above runs 27.1 and
+  # 27.1 only.
+  #
+  # 27.1 is what this package declares in `Package-Requires`, and pinning the
+  # runner to the declared floor is the right way to prove the floor is real. It
+  # also means the version almost every reader actually has is the one version
+  # nothing here executes — so a behaviour that changed after 27.1 is invisible,
+  # and one did. `url-retrieve-synchronously' against a port with no listener
+  # returns a live buffer with an empty body on GNU/Linux under 30.2, and nil
+  # under 27.1. `ksav-running-p' read that buffer as an engine, so `ksav-start'
+  # started nothing and every call failed with `no reply'. The package was
+  # unusable on a current Emacs while all fifty tests here were green.
+  #
+  # No engine and no `KSAV_EMACS_LIVE', so the fifteen live tests skip and this
+  # costs an apt install rather than a Typst compile. That is not a gap: the
+  # assertion that catches this class — `ksav-nothing-listening-is-not-an-engine-running`
+  # — needs no engine by construction, because the fault is that no engine gets
+  # started. The live half is covered above, at the floor.
+  emacs-current:
+    name: the Emacs package, current Emacs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Emacs
+        run: sudo apt-get update && sudo apt-get install -y emacs-nox
+      # And it has to actually be a different Emacs.
+      #
+      # This job's entire value is that it is not the declared floor. A runner
+      # image that shipped 27.1 would make it a second, slower copy of the job
+      # above, green and meaningless — which is the shape of every skip this
+      # repository has had to go back and fix. So the version is asserted rather
+      # than printed and trusted.
+      - name: It is not the version the floor job runs
+        run: |
+          version="$(emacs -Q --batch --eval '(princ emacs-version)')"
+          echo "emacs $version"
+          case "$version" in
+            27.*)
+              echo "This runner ships Emacs $version, which is the floor \`ci.yml\`"
+              echo "already tests. This job then proves nothing. Move it to a"
+              echo "runner image with a newer Emacs."
+              exit 1
+              ;;
+          esac
+
+      - name: Run the offline half
+        working-directory: ./ksav/editors/emacs
+        run: |
+          emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
+                -f batch-byte-compile ./*.el
+          rm -f ./*.elc
+          emacs -Q --batch -L . -l ksav.el -l ksav-tests.el \
+                -f ert-run-tests-batch-and-exit
+
+      # What MELPA will run, run here instead of by hand once.
+      #
+      # `melpa-recipe' in this directory is a submission waiting to be opened,
+      # and the checklist on that pull request asks for a clean `package-lint'
+      # and a `checkdoc' pass. Both were clean when the recipe was written,
+      # which is worth exactly as much as any other measurement nothing repeats:
+      # every one of these files is edited regularly and two of them are
+      # generated.
+      #
+      # `package-lint-main-file' is not optional here. Without it each file is
+      # linted as though it were its own package, so every definition in
+      # `ksav-write.el' is reported for not starting with `ksav-write-', and the
+      # `Package-Requires' header — which lives in `ksav.el' alone — is invisible,
+      # so 27.1 features are reported as needing a dependency the package already
+      # declares. That reads as forty errors in a package that has none.
+      - name: package-lint and checkdoc, as MELPA asks for them
+        working-directory: ./ksav/editors/emacs
+        run: |
+          emacs -Q --batch --eval '(progn
+            (require (quote package))
+            (add-to-list (quote package-archives)
+                         (quote ("melpa" . "https://melpa.org/packages/")) t)
+            (package-initialize)
+            (package-refresh-contents)
+            (package-install (quote package-lint)))'
+          emacs -Q --batch --eval '(progn
+            (require (quote package)) (package-initialize)
+            (require (quote package-lint))
+            (setq package-lint-main-file "ksav.el"))' \
+            -L . -f package-lint-batch-and-exit \
+            ksav.el ksav-engine.el ksav-girsa.el ksav-git.el \
+            ksav-preview.el ksav-write.el ksav-services.el ksav-release.el
+          # checkdoc reports and exits 0, so the output is the test.
+          for f in ksav*.el; do
+            [ "$f" = "ksav-tests.el" ] && continue
+            emacs -Q --batch -L . --eval "(progn (require 'checkdoc) (checkdoc-file \"$f\"))"
+          done 2>&1 | grep -v '^Warning (emacs): $' | tee /tmp/checkdoc.out
+          if [ -s /tmp/checkdoc.out ]; then
+            echo "checkdoc has something to say — see above"
+            exit 1
+          fi
+
   desktop:
     name: desktop shell
     runs-on: ubuntu-22.04

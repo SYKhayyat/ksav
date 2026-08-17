@@ -33,6 +33,7 @@
 import {
   MAX_LEVEL,
   MAX_NAMED_LEVEL,
+  NOT_HEADINGS,
   SPELLING,
   scan,
   type Node,
@@ -363,13 +364,52 @@ export function makeHeading(doc: string, pos: number, level: number): Edit | nul
   return { text, caret: from + head.length + 1 + line.length };
 }
 
-/** Insert a table of contents at the top of the document, once. */
+/**
+ * Where the contents goes in: after the title block, and otherwise at the top.
+ *
+ * "The top of the document" is two different places, and reading it as one
+ * printed a document's table of contents **above its own title** — build a title
+ * page, press `Ctrl+Shift+O`, and the first thing on page one is the contents,
+ * with `קונטרס הבדלה` under it. A running head belongs at character zero because
+ * it configures and prints nothing there; a table of contents is printed matter
+ * and belongs where it is read, which is after the title and before the first
+ * section.
+ *
+ * The title block is `NOT_HEADINGS` — `#שער` and `#תת_שער`, in both spellings —
+ * which is the same set `spans.ts` already keeps for the same reason: those two
+ * make a title and are not sections. Nothing else is skipped. A document with no
+ * title block still gets the contents at character zero, which is what every
+ * document that has one today already looks like.
+ */
+function afterTitleBlock(doc: string): number {
+  let at = 0;
+  for (const node of scan(doc).nodes) {
+    if (node.from < at) continue;
+    // Only a leading *run*: the first thing that is not blank space and not part
+    // of the title block ends it, so a `#שער` further down the document — a
+    // second title page, say — does not drag the contents past a whole chapter.
+    if (doc.slice(at, node.from).trim()) break;
+    if (!NOT_HEADINGS.has(node.name)) break;
+    at = node.to;
+  }
+  if (at === 0) return 0;
+  // Land on the start of the next line, so the call goes in on a line of its own
+  // rather than trailing the subtitle.
+  const nl = doc.indexOf("\n", at);
+  return nl < 0 ? doc.length : nl + 1;
+}
+
+/** Insert a table of contents after the title block, once. */
 export function addContents(doc: string, lang: "he" | "en" = "he", depth: number | null = null): Edit | null {
   if (!canAddContents(doc)) return null;
   const name = lang === "en" ? "#toc" : "#תוכן";
   const call = depth === null ? `${name}()` : `${name}(${DEPTH_ARG[lang]}: ${depth})`;
-  const text = `${call}\n\n${doc.replace(/^\s*/, "")}`;
-  return { text, caret: call.length };
+  const at = afterTitleBlock(doc);
+  const head = doc.slice(0, at);
+  const rest = doc.slice(at).replace(/^\s*/, "");
+  // `head` already ends in the newline that `afterTitleBlock` landed on, so the
+  // call needs no separator in front of it — only the blank line behind it.
+  return { text: `${head}${call}\n\n${rest}`, caret: at + call.length };
 }
 
 // ---------------------------------------------------------------- what enters it

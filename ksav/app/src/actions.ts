@@ -77,7 +77,7 @@ export type CommandAction = keyof typeof ACTION_COMMAND;
 /**
  * The doors that do **not** splice their command in at the caret.
  *
- * `#תוכן()` goes at the top of the document and there may only ever be one of
+ * `#תוכן()` goes after the title block and there may only ever be one of
  * them, which is a placement rather than an insertion — so `toc` runs
  * `headings.addContents` and the generated `insertSnippet` door is skipped for
  * it. Listed here rather than left as a special case in the shell so that the

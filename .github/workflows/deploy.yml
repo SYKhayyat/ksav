@@ -35,6 +35,22 @@
 # you: turning a private-by-default repository's contents into a public website
 # is not a thing a build script should decide, and `actions/configure-pages`
 # will fail here with a clear message until somebody has decided it.
+#
+# And a second thing, which is not obvious and cost the whole of v0.1.1's
+# publish: enabling Pages creates a `github-pages` **environment** whose default
+# deployment policy is *the default branch and nothing else*. This workflow's
+# only automatic trigger is a tag. A tag is not a branch, so the `publish` job
+# below was refused before it ran a single step — two seconds, no log, no steps
+# in the API, and a green `build` job above it. The fix is a deployment branch
+# policy of type `tag` matching `v*` on that environment (Settings →
+# Environments → github-pages → Deployment branches and tags):
+#
+#     gh api -X POST repos/OWNER/REPO/environments/github-pages/\
+#       deployment-branch-policies -f name='v*' -f type='tag'
+#
+# Worth saying plainly because the two halves fail in opposite ways. Pages being
+# off fails loudly in `build`, at the top, with a sentence. The environment
+# policy fails silently in `deploy`, at the bottom, with nothing at all.
 
 name: deploy
 

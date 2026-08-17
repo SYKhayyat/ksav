@@ -3590,15 +3590,18 @@ function makeListHere(): boolean {
 }
 
 /**
- * A table of contents, at the top of the document, once.
+ * A table of contents, after the title block, once.
  *
  * The one door, and there used to be two. `heading.contents` was a structural
  * operation on headings — so it refused unless the caret was inside a section,
  * which is nowhere near where a table of contents goes — and the `toc` action
  * spliced `#תוכן()` in wherever the caret happened to be, mid-word included.
- * Now both are this: `headings.addContents` puts it at the top and refuses a
- * second one, and the refusal is a sentence rather than a button that does
- * nothing.
+ * Now both are this: `headings.addContents` places it and refuses a second one,
+ * and the refusal is a sentence rather than a button that does nothing.
+ *
+ * *Where* it places it is its own decision and was wrong until 17 August: at
+ * character zero, which put the contents above the document's own title. See
+ * `headings.afterTitleBlock`.
  */
 function addContentsHere(): boolean {
   if (!runtime.view) return false;

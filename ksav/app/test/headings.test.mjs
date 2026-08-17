@@ -192,6 +192,30 @@ export async function run() {
   ok("English documents get the English call", addContents("#h1[T]\n", "en").text.startsWith("#toc()"));
 }
 
+{
+  // A document with a title page. This is what the button did on 17 August: it
+  // put `#תוכן()` at character zero, so page one opened with the contents and
+  // carried the sefer's own title *underneath* it. "The top of the document" is
+  // where a running head goes, because a running head prints nothing there. A
+  // table of contents is printed matter.
+  const titled = "#שער[קונטרס הבדלה]\n#תת_שער[או״ח סי׳ רצ״ו]\n\n#סימן[א׳][הבדלה]\n";
+  const made = addContents(titled);
+  notOk("the contents does not go above the title", made.text.startsWith("#תוכן()"));
+  ok("the title still opens the document", made.text.startsWith("#שער[קונטרס הבדלה]"));
+  ok("and the subtitle still follows it", /#שער\[[^\]]*\]\n#תת_שער\[[^\]]*\]\n#תוכן\(\)/u.test(made.text));
+  ok("the sections follow the contents", made.text.indexOf("#תוכן()") < made.text.indexOf("#סימן"));
+  check("the caret lands after the call", made.text.slice(made.caret - "#תוכן()".length, made.caret), "#תוכן()");
+  ok("English title blocks are read too", addContents("#title[K]\n#subtitle[S]\n\n#h1[A]\n", "en").text.startsWith("#title[K]"));
+
+  // Only the *leading* run. A second title page halfway down a collection is a
+  // `#שער` like any other, and the contents does not chase it.
+  const later = "#כותרת1[פתיחה]\n\n#שער[חלק ב]\n";
+  ok("a title further down does not move the contents", addContents(later).text.startsWith("#תוכן()"));
+
+  // A title block and nothing else: the contents still goes in, after it.
+  ok("a document that is only a title still takes one", addContents("#שער[כ]\n").text.startsWith("#שער[כ]\n#תוכן()"));
+}
+
 // ---------------------------------------------------------------- what enters it
 //
 // > *"Choose exactly what enters the table of contents, including excluding

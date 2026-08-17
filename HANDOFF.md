@@ -145,12 +145,19 @@ and the sitting that followed the release is
 
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
       most important line on the page. Three kuntres-length sittings — 7, 16 and
-      17 August — found six bugs the whole suite was green over, and none of
-      them is a sefer yet. The next one should be **long**: enough pages for the
-      apparatus to break across them, enough simanim for the numbering to be
-      re-read, a real export sent to somebody who will open it. Nothing else has
-      ever found this class of bug. Every bug goes to the top of the queue and
-      gets the class treatment.
+      17 August — found ten faults the whole suite was green over, and the 17th
+      found six of them on its own: a table of contents above the document's own
+      title, a caret that every table operation left in the text it used to be
+      in, a dialog that computed the right refusal and then erased it, a section
+      move that carried the blank line with it, a notes drawer numbering notes in
+      a series that is on no page, and a find panel in English. Two of those six
+      became a sweep that found nine more in the lists and the headings.
+
+      The next one should be **long**: enough pages for the apparatus to break
+      across them, enough simanim for the numbering to be re-read, a real export
+      sent to somebody who will open it. Nothing else has ever found this class
+      of bug. Every bug goes to the top of the queue and gets the class
+      treatment.
 
 - [ ] **The notes drawer numbers notes in a series that is on no page.** Ten
       notes, numbered 1 to 10, in a document whose page numbers them 1, 2 in the

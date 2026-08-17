@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { commands } from "../tools/commands.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
+import * as settings from "../.tmp-test/settings.mjs";
 import { STYLE_SECTIONS } from "../.tmp-test/panelviews.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -300,7 +301,22 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   }
   // The prose caret, which is where the margin note was written. A strip that
   // vanishes reads as the product breaking; it says what can be made instead.
+  //
+  // **And it is off by default**, because read from the other side the same
+  // strip is *"an annoying popup that says 'Prose — not structure here to act
+  // on'. I don't know why it popped up or what it is."* Two writers, two
+  // moments, both right — so the sentence stays available and stops appearing
+  // over a paragraph somebody is typing. Both halves are asserted: a strip that
+  // was deleted would pass "it is off" just as well as one that is behind a
+  // preference, and deleting it would throw away the answer the first note
+  // asked for.
   ok("prose says what it is", MAIN.includes('t("inProse")'));
+  ok("…only when asked to", MAIN.includes("settings.proseStrip &&"));
+  check("…and it is not asked to by default", settings.DEFAULTS.proseStrip, false);
+  for (const lang of ["he", "en"]) {
+    ok(`…with the switch named in ${lang}`, !!DICTS[lang].proseStripLabel);
+    ok(`…and explained in ${lang}`, !!DICTS[lang].proseStripNote);
+  }
   // A second paragraph under one number: the third reading of Enter in a list,
   // and the one that had no key at all.
   ok("an item can hold two paragraphs", LISTS.includes("export function paraInItem("));

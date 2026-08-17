@@ -224,6 +224,17 @@ from its neighbour's when you want to look somewhere other than where you are
 typing. The shipped arrangements are offered as a list rather than as a chip you
 press repeatedly until the right one comes round.
 
+**Any two panes can trade places.** **Ctrl+Alt+Shift+←** swaps the pane you are
+in with the one to its left, and the other three arrows do the other three
+directions — so putting the page on the side you want it is one keystroke, not a
+different arrangement. Or drag a pane by the strip at its top and drop it on
+another pane; they exchange. The direction is the direction on your screen: the
+pane visibly to the left is the one `←` picks, and pressing the same key again
+puts everything back. Sizes stay with the *place*, not with the pane, which is
+what makes that true — swap a wide pane with a narrow one and the wide slot is
+still wide, now holding the other pane. The same four commands are listed, with
+their keys, at the bottom of the arrangement picker.
+
 **`Ctrl+Alt+,` locks the pane you are in to the section your cursor is in**, and
 `Ctrl+Alt+.` gives the rest of the sefer back. The strip at the top of the pane
 names the siman it is holding, so a pane showing four paragraphs is never
@@ -272,6 +283,28 @@ the line settles.
 
 `Ctrl+S` saves the file. It also saves itself as you type, into the browser's own
 store, and closing the tab asks first if there is anything unsaved.
+
+**What `Ctrl+S` saves depends on what your browser can do**, and it says which
+every time rather than leaving you to work it out:
+
+- **The desktop app, Chrome or Edge** — it writes the file. There is a real file
+  on disk, Ksav holds onto it, and every save after the first goes to the same
+  one. The status line names it.
+- **Firefox or Safari** — there is no way for a web page to write a file you
+  chose, so `Ctrl+S` keeps your text where it already is: Ksav's own library in
+  this browser, which is also where the save-as-you-type goes. The status line
+  says *saved in this browser*. It does **not** download anything. When you want
+  a file, ask for one: **File → Download a copy**.
+
+That last line used to be the other way round, and it was the wrong way round:
+`Ctrl+S` fell back to a download, so a morning's work left a row of
+`sefer.ksav`, `sefer(1).ksav`, `sefer(2).ksav` in the downloads folder with no
+way to tell which was current. A save that produces a new file every time is not
+a save.
+
+If Firefox is where you work and you want a file that stays up to date, the
+desktop app is the answer — it binds a document to a real path and saves back to
+it, on `Ctrl+S` and on its own every thirty seconds.
 
 A `.ksav` is **text**: your words, your markup, and this document's page setup, in
 one readable file. It diffs, it goes in git, and somebody can read it with `cat` in
@@ -328,7 +361,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 79 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 83 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is

@@ -199,6 +199,102 @@ export async function run() {
     check("…and an altered one is not", panes.arrangementOf(altered), null);
   }
 
+  // ------------------------------------------------------------ swapping
+  //
+  // *"There is no way to swap right and left (swap panes)"*, and then, asked
+  // what the command should flip: *"there should be a command to move any window
+  // to swap it with another window (like in hyprland)"*. So: any two panes,
+  // anywhere in the tree, and the direction decided by where they are on screen
+  // rather than by which side of a split they happen to be on.
+
+  {
+    const t = panes.defaultTree();
+    const [prev, src] = panes.leaves(t);
+    const swapped = panes.swap(t, prev.id, src.id);
+    check("swapping two panes trades their places", panes.leaves(swapped).map((l) => l.role), [
+      "source",
+      "preview",
+    ]);
+    check("…and it is still two panes", panes.leaves(swapped).length, 2);
+    // The property the renderer depends on. `renderPanes` carries an editor
+    // across only for a leaf it can find by id, and every caret, scroll and fold
+    // in that pane rides on the object being the same one.
+    ok("the panes themselves come through by reference", panes.leaves(swapped)[0] === src);
+    ok("both of them", panes.leaves(swapped)[1] === prev);
+    check(
+      "swapping twice is where you started",
+      panes.shapeOf(panes.swap(swapped, prev.id, src.id)),
+      panes.shapeOf(t),
+    );
+  }
+
+  {
+    // The size stays with the *place*, not with the pane — which is what makes a
+    // swap reversible, and what every tiling window manager does.
+    const base = panes.defaultTree();
+    const sized = panes.resize(base, panes.splits(base)[0].id, 0.75);
+    const [a, b] = panes.leaves(sized);
+    const after = panes.swap(sized, a.id, b.id);
+    check("the wide slot stays wide", panes.splits(after)[0].frac, 0.75);
+    check("and the pane that moved into it is the other one", panes.leaves(after)[0].id, b.id);
+  }
+
+  {
+    const t = panes.defaultTree();
+    const [a] = panes.leaves(t);
+    check("swapping a pane with itself is a no-op", panes.swap(t, a.id, a.id), t);
+    check("…as is swapping with a pane that is not here", panes.swap(t, a.id, "nope"), t);
+  }
+
+  {
+    // Geometry. A row divided 0.5, then its right half split into two rows: the
+    // arrangement `twoPreviews` is, and the one where "which pane is on my
+    // right" has more than one candidate.
+    let t = panes.leaf("source");
+    const src = t.id;
+    t = panes.split(t, src, "row", panes.leaf("preview")); // source | preview
+    const prev = panes.leaves(t).find((l) => l.role === "preview").id;
+    t = panes.split(t, prev, "col", panes.leaf("preview")); // …the preview stacked
+    const lower = panes.leaves(t)[2].id;
+
+    const boxes = panes.rects(t);
+    check("three panes have three places", boxes.length, 3);
+    check("the source takes the left half", boxes.find((r) => r.id === src).w, 0.5);
+    check("…and its full height", boxes.find((r) => r.id === src).h, 1);
+    check("the lower preview starts halfway down", boxes.find((r) => r.id === lower).y, 0.5);
+
+    check("right of the source is the pane it is level with", panes.neighbor(t, src, "right"), prev);
+    check("nothing is left of the source", panes.neighbor(t, src, "left"), undefined);
+    check("nor above it", panes.neighbor(t, src, "up"), undefined);
+    check("below the upper preview is the lower one", panes.neighbor(t, prev, "down"), lower);
+    check("and left of the lower preview is the source", panes.neighbor(t, lower, "left"), src);
+    // A corner touch is not a neighbour: the lower preview and the source share
+    // a real edge, but a pane that met one only at a point would not.
+    check("nothing is right of the previews", panes.neighbor(t, prev, "right"), undefined);
+  }
+
+  {
+    // Right-to-left, where a flex row lays its first child out on the right. The
+    // tree is identical and every answer flips, which is the whole reason the
+    // direction is an argument rather than an assumption.
+    const t = panes.defaultTree();
+    const [prev, src] = panes.leaves(t);
+    check("in LTR the first child is on the left", panes.rects(t)[0].x, 0);
+    check("in RTL it is on the right", panes.rects(t, { rtl: true })[0].x, 0.5);
+    check("so 'right' finds the source", panes.neighbor(t, prev.id, "right"), src.id);
+    check("and mirrored, 'left' does", panes.neighbor(t, prev.id, "left", { rtl: true }), src.id);
+    check("with nothing the other way", panes.neighbor(t, prev.id, "right", { rtl: true }), undefined);
+  }
+
+  {
+    // Under the narrow breakpoint every split is a column whatever it says, so a
+    // window with no left and right must not answer for one.
+    const t = panes.defaultTree();
+    const [prev, src] = panes.leaves(t);
+    check("stacked, the second pane is below", panes.neighbor(t, prev.id, "down", { stacked: true }), src.id);
+    check("…and there is nothing beside it", panes.neighbor(t, prev.id, "right", { stacked: true }), undefined);
+  }
+
   {
     // The shape ignores ids and fractions, which is what lets it be compared —
     // and includes the scroll link, because a pane that follows its sibling and

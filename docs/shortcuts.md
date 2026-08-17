@@ -85,6 +85,10 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+W` | Close this document (it stays in the library) | סגירת המסמך (נשאר בספרייה) |
 | `Ctrl+Alt+T` | New arrangement | סידור חדש |
 | `Ctrl+Alt+PageDown` | Next arrangement | הסידור הבא |
+| `Ctrl+Alt+Shift+ArrowLeft` | Swap this pane with the one on its left | החלפת החלונית עם זו שמשמאל |
+| `Ctrl+Alt+Shift+ArrowRight` | Swap this pane with the one on its right | החלפת החלונית עם זו שמימין |
+| `Ctrl+Alt+Shift+ArrowUp` | Swap this pane with the one above it | החלפת החלונית עם זו שמעל |
+| `Ctrl+Alt+Shift+ArrowDown` | Swap this pane with the one below it | החלפת החלונית עם זו שמתחת |
 | `Ctrl+Alt+J` | Jump between a note's marker and its body | מעבר בין הסימון לגוף ההערה |
 | `Ctrl+Alt+Shift+F` | Send this note's text to the end | העברת ההערה לסוף |
 | `Ctrl+Alt+R` | Bring this note back into the sentence | החזרת ההערה למשפט |

@@ -16,7 +16,10 @@ const HE: Dict = {
   save: "שמירה",
   // documents / files
   saveAs: "שמירה בשם…",
-  saveCopy: "שמירת עותק…",
+  // Not "save a copy": in a browser that cannot write a file this downloads one,
+  // and a writer who reads "save" reasonably expects the next Ctrl+S to update
+  // what they just saved. It cannot, so the menu says what actually happens.
+  saveCopy: "הורדת עותק…",
   documents: "מסמכים",
   library: "כל המסמכים",
   // The open set, as distinct from the library. Two different facts, so two
@@ -33,6 +36,13 @@ const HE: Dict = {
   unsavedChanges: "יש שינויים שלא נשמרו לקובץ",
   savedTo: "נשמר ב־{0}",
   savedCopy: "עותק הורד ({0}) — הדפדפן הזה אינו מאפשר כתיבה חוזרת לקובץ.",
+  // What Ctrl+S does in a browser that cannot write files: it keeps the text,
+  // and it does *not* download a fourth copy of it into the downloads folder.
+  savedInBrowser: "נשמר בדפדפן",
+  savedInBrowserWhy:
+    "הדפדפן הזה (פיירפוקס, ספארי) אינו יכול לכתוב לקובץ שעל הדיסק, ולכן הטקסט נשמר בספרייה של כתב שבדפדפן הזה. " +
+    "כדי לקבל קובץ: קובץ ← הורדת עותק.",
+  copyOnly: "עותק שהורד — הדפדפן הזה אינו יכול לכתוב אליו בחזרה",
   permissionDenied: "אין הרשאת כתיבה לקובץ — נסו \"שמירה בשם\".",
   fileChangedOnDisk: "הקובץ \"{0}\" השתנה מחוץ לכתב מאז הפתיחה. לשמור בכל זאת ולדרוס את השינוי?",
   fileChangedSinceOpen: "הקובץ \"{0}\" שעל הדיסק שונה מהעותק שבכתב. לטעון את הקובץ מהדיסק? (ביטול — להשאיר את העותק שבכתב)",
@@ -1019,6 +1029,11 @@ const HE: Dict = {
   autoPairBracketsLabel: "סגירת סוגריים אוטומטית",
   autoPairQuotesLabel: "סגירת מרכאות אוטומטית",
   keepMenuPositionLabel: "תפריטים נפתחים במקום שבו הושארו",
+  proseStripLabel: "רצועת ההקשר מופיעה גם בטקסט רגיל",
+  proseStripNote:
+    "כבוי כברירת מחדל. רצועת ההקשר מראה את פעולות הרשימה או הטבלה שהסמן עומד בתוכה; " +
+    "בטקסט רגיל אין מבנה לפעול עליו, והרצועה הופיעה רק כדי להציע \"עשה מכאן רשימה\" — " +
+    "שנמצא גם בתפריט ההוספה ועל מקש משלו.",
   autoPairQuotesNote: "כבוי כברירת מחדל: בעברית הגרש והגרשיים עומדים בתוך מילים (רש״י, ר' חיים), ולא כזוג.",
   spellcheckLabel: "בדיקת איות",
   spellcheckCommentsLabel: "בדיקת איות גם בהערות ובקיפולים",
@@ -1168,6 +1183,10 @@ const HE: Dict = {
   "sc.closeDoc": "סגירת המסמך (נשאר בספרייה)",
   "sc.newTab": "סידור חדש",
   "sc.nextTab": "הסידור הבא",
+  "sc.pane.swapLeft": "החלפת החלונית עם זו שמשמאל",
+  "sc.pane.swapRight": "החלפת החלונית עם זו שמימין",
+  "sc.pane.swapUp": "החלפת החלונית עם זו שמעל",
+  "sc.pane.swapDown": "החלפת החלונית עם זו שמתחת",
   "sc.deferJump": "מעבר בין הסימון לגוף ההערה",
   "sc.deferHere": "העברת ההערה לסוף",
   "sc.deferRecall": "החזרת ההערה למשפט",
@@ -1210,6 +1229,13 @@ const HE: Dict = {
   scrollUnlinked: "הגלילה עצמאית — לחצו לקישור",
   splitBeside: "פיצול: חלון נוסף על אותו מסמך",
   closePane: "סגירת החלון (המסמך נשאר פתוח)",
+  // Swapping panes: the four commands, the drag, and what happens when there is
+  // nothing on that side.
+  swapPanes: "החלפת חלוניות",
+  swapPanesDesc: "כל חלונית מתחלפת עם זו שלצדה — במקלדת או בגרירת הכותרת",
+  swapPaneDrag: "גררו את הכותרת אל חלונית אחרת כדי להחליף ביניהן",
+  swapped: "החלונות הוחלפו",
+  noPaneThatWay: "אין חלונית בכיוון הזה",
   "side.left": "משמאל",
   "side.right": "מימין",
   "side.top": "למעלה",
@@ -1224,7 +1250,7 @@ const EN: Dict = {
   save: "Save",
   // documents / files
   saveAs: "Save as\u2026",
-  saveCopy: "Save a copy\u2026",
+  saveCopy: "Download a copy\u2026",
   documents: "Documents",
   library: "All documents",
   openDocs: "Open now",
@@ -1238,6 +1264,11 @@ const EN: Dict = {
   noFileBound: "This document isn't bound to a file yet \u2014 \"Save as\" will bind it.",
   unsavedChanges: "Unsaved changes to the file",
   savedTo: "Saved to {0}",
+  savedInBrowser: "Saved in this browser",
+  savedInBrowserWhy:
+    "This browser (Firefox, Safari) cannot write to a file on disk, so your text is kept in Ksav's " +
+    "library here. To get a file out: File → Download a copy.",
+  copyOnly: "A downloaded copy — this browser cannot write back to it",
   savedCopy: "Downloaded a copy ({0}) \u2014 this browser can't write back to a file.",
   permissionDenied: "No write permission for that file \u2014 try \"Save as\".",
   fileChangedOnDisk: "\"{0}\" has changed outside Ksav since you opened it. Save anyway and overwrite those changes?",
@@ -2184,6 +2215,11 @@ const EN: Dict = {
   autoPairBracketsLabel: "Close brackets automatically",
   autoPairQuotesLabel: "Close quotes automatically",
   keepMenuPositionLabel: "Menus reopen where they were left",
+  proseStripLabel: "Show the context strip in plain prose too",
+  proseStripNote:
+    "Off by default. The context strip carries the operations for the list or table the caret is " +
+    "standing in; in plain prose there is no structure to act on, and the strip appeared only to " +
+    "offer \"Make a list\" — which is in the Insert menu and on a key of its own.",
   autoPairQuotesNote: "Off by default: in Hebrew the geresh and gershayim stand inside words (רש״י, ר' חיים), not as a pair.",
   spellcheckLabel: "Spell check",
   spellcheckCommentsLabel: "Also check comments and folds",
@@ -2323,6 +2359,10 @@ const EN: Dict = {
   "sc.closeDoc": "Close this document (it stays in the library)",
   "sc.newTab": "New arrangement",
   "sc.nextTab": "Next arrangement",
+  "sc.pane.swapLeft": "Swap this pane with the one on its left",
+  "sc.pane.swapRight": "Swap this pane with the one on its right",
+  "sc.pane.swapUp": "Swap this pane with the one above it",
+  "sc.pane.swapDown": "Swap this pane with the one below it",
   "sc.deferJump": "Jump between a note's marker and its body",
   "sc.deferHere": "Send this note's text to the end",
   "sc.deferRecall": "Bring this note back into the sentence",
@@ -2362,6 +2402,11 @@ const EN: Dict = {
   scrollUnlinked: "Scrolls on its own — click to link",
   splitBeside: "Split: another pane on this document",
   closePane: "Close this pane (the document stays open)",
+  swapPanes: "Swap panes",
+  swapPanesDesc: "Any pane trades places with the one beside it — by key, or by dragging its strip",
+  swapPaneDrag: "Drag this strip onto another pane to trade places",
+  swapped: "Panes swapped",
+  noPaneThatWay: "There is no pane on that side",
   "side.left": "Left",
   "side.right": "Right",
   "side.top": "Top",

@@ -98,6 +98,49 @@ export function currentFailure(): string | null {
   return saveFailure;
 }
 
+// ---------------------------------------------------------------- what Ctrl+S can do
+//
+// Three things, and which one it is depends on two facts that live in two other
+// modules — hence one function here that takes both and answers.
+
+/**
+ * What a manual Save can actually do for this document.
+ *
+ *   `writeBack`   — there is a file and Ksav may write to it. The ordinary case.
+ *   `pickAFile`   — this platform has files, and this document is not bound to
+ *                   one (or is bound to one it may no longer write to). Ask.
+ *   `libraryOnly` — this platform has no writable files at all. The text is kept
+ *                   where it already is, and nothing is downloaded.
+ *
+ * # Why the third one exists
+ *
+ * It is a bug report: *"Saving in browser is weird. I keep downloading. There is
+ * no way to save it without many downloads of one file."*
+ *
+ * Firefox and Safari have no `showSaveFilePicker`, so `files.saveAs` there falls
+ * to the download tier — a copy pushed into the downloads folder, with no handle
+ * and nothing to write back to. `saveFile` used to end in an unconditional Save
+ * As, so **every Ctrl+S downloaded another copy**: `sefer.ksav`,
+ * `sefer(1).ksav`, `sefer(2).ksav`, and no way to tell which of them was
+ * current. Each one also left a `download` binding behind, which made the title
+ * bar name a file Ksav could never write and hang a permanent unsaved-changes
+ * dot beside it.
+ *
+ * The chain that produced that is the reason this is a function and not three
+ * `if`s in the shell: `canWriteBack(binding)` is false for the download tier
+ * *and* `saveAs` silently degrades to a download, so the two honest halves
+ * composed into a dishonest whole, and neither half was wrong on its own. Here
+ * the composition is one expression with a name, and `save.test.mjs` states the
+ * whole table — including the row that says a download binding in a browser
+ * without file access must never route to another download.
+ */
+export type SaveRoute = "writeBack" | "pickAFile" | "libraryOnly";
+
+export function saveRoute(binding: files.FileBinding | null, realFiles: boolean): SaveRoute {
+  if (files.canWriteBack(binding)) return "writeBack";
+  return realFiles ? "pickAFile" : "libraryOnly";
+}
+
 /** Queue a save of the open document. Cheap to call on every keystroke. */
 export function scheduleSave() {
   if (!runtime.currentDoc || runtime.switching) return;

@@ -32,6 +32,7 @@ import {
   onUpdateTitleBar,
   reportSaveFailure,
   autosaveToFile,
+  saveRoute,
   FILE_AUTOSAVE_MS,
 } from "../.tmp-test/save.mjs";
 import { canWriteBack, supportsRealFiles, fileStamp } from "../.tmp-test/files.mjs";
@@ -56,6 +57,51 @@ export async function run() {
       notOk("a download cannot", canWriteBack(DOWNLOAD));
       notOk("and neither can no binding at all", canWriteBack(null));
       ok("the platform test answers without a window", typeof supportsRealFiles() === "boolean");
+    }
+
+    // ------------------------------------------------ what Ctrl+S can do
+    //
+    // The whole table, because the bug was in the composition and not in any of
+    // its parts: *"Saving in browser is weird. I keep downloading. There is no
+    // way to save it without many downloads of one file."*
+    //
+    // Every row below was individually correct before. `canWriteBack` was right
+    // that a download binding cannot be written to; `saveAs` was right to fall
+    // back to a download where there is no picker; and `saveFile` was right that
+    // a document with nowhere to go should offer a Save As. Composed, they made
+    // Ctrl+S download a new copy every time it was pressed — for ever, since no
+    // number of downloads ever produces a binding that can be written back to.
+
+    {
+      const HANDLE = { kind: "handle", name: "kuntres.ksav", handle: {} };
+      // A real file, and the platform that has it.
+      check("a desktop path is written to", saveRoute(TAURI, true), "writeBack");
+      check("so is a browser handle", saveRoute(HANDLE, true), "writeBack");
+
+      // No file yet, on a platform that has them: ask where it goes. Once.
+      check("an unbound document asks where to save", saveRoute(null, true), "pickAFile");
+
+      // **The row this whole change is about.** Firefox: no picker, so nothing
+      // can ever become writable, so Save keeps the text where it already is.
+      check("with no file access, Save keeps it here", saveRoute(null, false), "libraryOnly");
+      check(
+        "and a downloaded copy does not make Save download another one",
+        saveRoute(DOWNLOAD, false),
+        "libraryOnly",
+      );
+      // On a browser that *does* have the picker, a leftover download binding is
+      // not a file either — but there it can be made into one, so it asks.
+      check("where a real file is possible, a copy is an invitation to make one",
+        saveRoute(DOWNLOAD, true), "pickAFile");
+
+      // Stated as the property rather than as three examples: no combination of
+      // inputs routes a browser without file access anywhere but the library.
+      const everyBinding = [null, DOWNLOAD, TAURI, HANDLE];
+      check(
+        "nothing routes to a picker where there is no picker",
+        everyBinding.map((b) => saveRoute(b, false)).filter((r) => r === "pickAFile"),
+        [],
+      );
     }
 
     {

@@ -730,16 +730,26 @@ function updateTitleBar() {
     // first hear of unsaved changes only in the browser's leave-page dialog,
     // though the save layer already knew — this surfaces it where the file is
     // named. Only shown when there is a file to be behind.
-    const dirty = !!runtime.currentBinding && save.hasUnsavedFileChanges();
+    //
+    // **And only when there is a file at all.** A download-tier binding is the
+    // *name* of a copy that left the browser once; there is nothing on the
+    // other end of it to be behind, nothing any Save can bring up to date, and
+    // a dot that can never be cleared is a warning the writer learns to ignore.
+    // So the name still shows — it is how they know which copy they downloaded
+    // — and the hover says what kind of thing it is.
+    const real = files.canWriteBack(runtime.currentBinding);
+    const dirty = real && save.hasUnsavedFileChanges();
     sub0.textContent = runtime.currentBinding ? (dirty ? "● " : "") + runtime.currentBinding.name : "";
     sub0.classList.toggle("dirty", dirty);
     sub0.title = runtime.currentBinding
-      ? (dirty ? t("unsavedChanges") + " · " : "") +
-        (runtime.currentBinding.path || runtime.currentBinding.name)
+      ? real
+        ? (dirty ? t("unsavedChanges") + " · " : "") +
+          (runtime.currentBinding.path || runtime.currentBinding.name)
+        : t("copyOnly")
       : t("noFileBound");
   }
   document.title =
-    (runtime.currentBinding && save.hasUnsavedFileChanges() ? "● " : "") +
+    (files.canWriteBack(runtime.currentBinding) && save.hasUnsavedFileChanges() ? "● " : "") +
     runtime.currentDoc.title +
     " · Ksav";
 }
@@ -1028,6 +1038,14 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       return true;
     },
   },
+  // Move this pane to where its neighbour is. Four actions rather than one
+  // toggle, because a window is a tree and not a pair — see `panes.swap` for
+  // what the operation is and `panes.neighbor` for how the side is decided.
+  // Generated, so the four cannot drift apart from each other.
+  ...(["left", "right", "up", "down"] as panes.Side[]).map((side) => ({
+    id: `pane.swap${side[0].toUpperCase()}${side.slice(1)}`,
+    run: () => swapPaneToward(side),
+  })),
   { id: "deferJump", run: (v) => (jumpDeferred(v), true) },
   { id: "deferHere", run: (v) => (deferHere(v, docLang()), true) },
   { id: "deferRecall", run: (v) => (recallHere(v), true) },
@@ -1868,6 +1886,28 @@ let paneTree: panes.PaneNode = panes.defaultTree();
 const paneViews = new Map<string, EditorView>();
 /** Which pane the writer is in. */
 let focusedPane: string | null = null;
+/**
+ * Which pane the writer last touched — of **any** role.
+ *
+ * `focusedPane` is a source pane and cannot be anything else: it is set from
+ * `focusin` on an editor host and reset to the first source pane whenever the
+ * arrangement is rebuilt, because everything that reads it wants an
+ * `EditorView`. That is right for what it is for and one pane short of right
+ * for the swap commands, which operate on a *place in the window*: a writer who
+ * has just clicked into the preview and presses "swap left" means the preview.
+ *
+ * So a second, wider answer, set on a pointer landing anywhere in a pane. It
+ * falls back to `focusedPane` — a fresh window has been clicked in nowhere —
+ * and, like it, has to be checked against the tree before use, since the pane it
+ * names can have been closed since.
+ */
+let activePane: string | null = null;
+
+/** The pane a pane command acts on: the last one touched, whatever its role. */
+function currentPane(): string | null {
+  const live = (id: string | null) => (id && panes.find(paneTree, id) ? id : null);
+  return live(activePane) ?? live(focusedPane);
+}
 /** Set while a change is being mirrored, so mirroring does not recurse. */
 let mirroring = false;
 /**
@@ -2314,6 +2354,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     paneViews.set(pane.id, view);
     host.addEventListener("focusin", () => {
       focusedPane = pane.id;
+      activePane = pane.id;
       runtime.setView(view);
     });
   } else if (pane.role === "preview") {
@@ -2342,6 +2383,13 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
   // whole document.
   section.prepend(paneHead(pane));
   wirePaneScroll(pane, host);
+  // Which pane a pane command acts on. `focusin` answers this for a source pane
+  // and for nothing else: a preview host holds no focusable element, so clicking
+  // into the page and pressing a swap key would have moved whichever source pane
+  // was focused a minute ago. `pointerdown` on the section catches every pane and
+  // every role, and it is passive — it decides nothing and cancels nothing.
+  section.addEventListener("pointerdown", () => { activePane = pane.id; }, { passive: true });
+  wirePaneSwapDrop(pane, section);
   return section;
 }
 
@@ -2434,7 +2482,121 @@ function paneHead(pane: panes.Leaf): HTMLElement {
       }, ["–"]),
     );
   }
-  return el("div", { class: "pane-head" }, kids);
+  const head = el("div", { class: "pane-head" }, kids);
+  // Drag the strip onto another pane and the two trade places — *"a drag would
+  // also be nice, but at the very least intuitive commands to swap 2 windows
+  // would help"*. Both, then: this, and `pane.swap*` on the keyboard.
+  //
+  // The **strip** is the handle, not the pane. A source pane is a text editor,
+  // and making the editor itself draggable would take a writer's ability to
+  // select text with the mouse — which is the gesture this one is spelled with.
+  // A one-pane window has nothing to trade with, so the handle is not offered.
+  if (panes.leaves(paneTree).length > 1) {
+    head.draggable = true;
+    head.title = t("swapPaneDrag");
+    head.addEventListener("dragstart", (e) => {
+      e.dataTransfer?.setData(PANE_DRAG, pane.id);
+      // `move`, because that is what it is: no copy of the pane is made, and the
+      // cursor should not promise one.
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      activePane = pane.id;
+    });
+  }
+  return head;
+}
+
+/**
+ * The drag type that means *a pane is being carried*.
+ *
+ * Its own MIME type rather than `text/plain`, and every handler below tests for
+ * it before touching the event. A source pane is a CodeMirror editor with its
+ * own drag-and-drop — dragging a selection within a document, and dropping text
+ * from another application into it — and a drop target that called
+ * `preventDefault` on everything would have quietly eaten both.
+ */
+const PANE_DRAG = "application/x-ksav-pane";
+
+/** Let this pane be the far end of a swap drag. */
+function wirePaneSwapDrop(pane: panes.Leaf, section: HTMLElement) {
+  const carried = (e: DragEvent) => !!e.dataTransfer?.types.includes(PANE_DRAG);
+  section.addEventListener("dragover", (e) => {
+    if (!carried(e)) return; // text being dropped into the editor: not ours
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = "move";
+    section.classList.add("pane-drop");
+  });
+  // `dragleave` fires when the pointer crosses into a *child* as well, so the
+  // highlight is cleared on the element the pointer actually left rather than on
+  // every crossing — otherwise it flickers off over every button in the strip.
+  section.addEventListener("dragleave", (e) => {
+    if (e.target === section) section.classList.remove("pane-drop");
+  });
+  section.addEventListener("drop", (e) => {
+    if (!carried(e)) return;
+    e.preventDefault();
+    section.classList.remove("pane-drop");
+    const from = e.dataTransfer!.getData(PANE_DRAG);
+    if (from && from !== pane.id) swapPanes(from, pane.id);
+  });
+  section.addEventListener("dragend", () => section.classList.remove("pane-drop"));
+}
+
+/**
+ * How the tree is being laid out at this moment, for the directional commands.
+ *
+ * Both answers are read off the rendering rather than assumed, and both have
+ * bitten something before:
+ *
+ *   • **Direction.** A flex row lays its first child out on the right when the
+ *     container is right-to-left. `main` is forced `direction: ltr` today —
+ *     deliberately, so that pane *positions* are physical while the text inside
+ *     each pane reads in its own direction — which makes `a` the left pane in
+ *     Hebrew as well as in English. That is a fact about a stylesheet and not
+ *     about this module, so it is read rather than assumed: the day somebody
+ *     mirrors the window, the arrow keys follow it on their own.
+ *   • **Stacking.** Under 900px `styles.css` turns every split into a column
+ *     whatever it was built as. Asked of a real `.pane-split` instead of a
+ *     `matchMedia` with `900` typed into it, because a breakpoint written down
+ *     twice is a breakpoint that will be moved once.
+ */
+function paneLayout(): panes.Layout {
+  const row = document.querySelector<HTMLElement>('.pane-split[data-dir="row"]');
+  const box = row ?? document.querySelector<HTMLElement>("main");
+  return {
+    rtl: !!box && getComputedStyle(box).direction === "rtl",
+    stacked: !!row && getComputedStyle(row).flexDirection.startsWith("column"),
+  };
+}
+
+/** Trade two panes' places, and say so. */
+function swapPanes(a: string, b: string) {
+  const next = panes.swap(paneTree, a, b);
+  if (next === paneTree) return;
+  setTree(next);
+  // The pane the writer was in went somewhere; keeping it active means a second
+  // press of the same key brings it back rather than picking up its new
+  // neighbour. `setTree` rebuilds the DOM, so the focus has to be asked for
+  // again — a swap that lands the caret in another pane would be a swap that
+  // moved the writer as well as the window.
+  activePane = a;
+  paneViews.get(a)?.focus();
+  setStatus(t("swapped"), "ok");
+}
+
+/** Swap the pane the writer is in with the one on a given side of it. */
+function swapPaneToward(side: panes.Side): boolean {
+  const here = currentPane();
+  if (!here) return true;
+  const there = panes.neighbor(paneTree, here, side, paneLayout());
+  // Nothing on that side. Said out loud rather than swallowed: a key that does
+  // nothing in silence is indistinguishable from one that is broken, which is
+  // how the whole of this session's list of complaints started.
+  if (!there) {
+    setStatus(t("noPaneThatWay"), "");
+    return true;
+  }
+  swapPanes(here, there);
+  return true;
 }
 
 function splitterFor(node: panes.Split): HTMLElement {
@@ -2587,6 +2749,15 @@ function openArrangements() {
       ),
     ),
     el("div", { class: "menu-sep" }),
+    // Swapping, where the arrangements are — because "which pane is on which
+    // side" is the same question as "what does the window look like", and a
+    // writer who wants the preview on the other side comes here to look for it.
+    //
+    // The rows are the four commands themselves, each printing its own key, so
+    // this is a place to *discover* the keyboard rather than a second interface
+    // that has to be kept in step with it. Only with something to swap: at one
+    // pane the whole section would be four rows that do nothing.
+    ...(panes.leaves(paneTree).length > 1 ? swapRows() : []),
     // **The route to a second arrangement that is not inside the tab strip.**
     //
     // The strip hides itself at one tab, which is right — a row of chrome
@@ -2625,6 +2796,49 @@ function openArrangements() {
     ),
   );
   openPanel("arrangement");
+}
+
+/**
+ * The four swap commands, as rows in the arrangement panel.
+ *
+ * A row is greyed when there is no pane on that side, and it is greyed rather
+ * than dropped: a list whose length changes as the caret moves between panes is
+ * a list nobody can learn. Which side is which is read through `paneLayout`, so
+ * in Hebrew "left" is the pane on the left of the screen.
+ */
+function swapRows(): Node[] {
+  const here = currentPane();
+  const layout = paneLayout();
+  const SIDES: [panes.Side, string][] = [
+    ["left", "side.left"],
+    ["right", "side.right"],
+    ["up", "side.top"],
+    ["down", "side.bottom"],
+  ];
+  return [
+    el("div", { class: "menu-cat" }, [t("swapPanes")]),
+    el("div", { class: "menu-desc" }, [t("swapPanesDesc")]),
+    ...SIDES.map(([side, label]) => {
+      const there = here ? panes.neighbor(paneTree, here, side, layout) : undefined;
+      return el(
+        "button",
+        {
+          class: "pal-item",
+          disabled: there ? undefined : "",
+          "data-swap": side,
+          onClick: () => {
+            closePanel("arrangement");
+            swapPaneToward(side);
+          },
+        },
+        [
+          el("b", {}, [t(label)]),
+          el("span", { class: "menu-desc" }, [hintFor(`pane.swap${side[0].toUpperCase()}${side.slice(1)}`)]),
+        ],
+      );
+    }),
+    el("div", { class: "menu-sep" }),
+  ];
 }
 
 /** Dress the source pane as a sheet of paper, or stop. */
@@ -5540,6 +5754,11 @@ function buildSettingsDrawer(): HTMLElement {
     // discover it by fighting their own gershayim for an hour.
     el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
     checkRow("keepMenuPositionLabel", "keepMenuPosition"),
+    // Off by default, and the note says what the strip is — because a writer
+    // who has never seen it cannot decide about a control they cannot picture,
+    // and the one who turned it off wants to know what they turned off.
+    checkRow("proseStripLabel", "proseStrip"),
+    el("div", { class: "set-note" }, [t("proseStripNote")]),
     checkRow("spellcheckLabel", "spellcheck"),
     checkRow("spellcheckCommentsLabel", "spellcheckComments"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
@@ -6779,12 +6998,19 @@ async function fileText(): Promise<string> {
   return docs.serializeDoc(runtime.currentDoc, settings.customCommands);
 }
 
-/** Save to the bound file; if there is none, fall through to Save As. */
+/**
+ * Save: to the bound file, or to a file the writer picks, or to the library.
+ *
+ * Which of the three is `save.saveRoute`, where the rule is written down and
+ * tested. This is the shell's half — the dialogs, the conflict question and the
+ * status line — and it deliberately does not re-derive the decision.
+ */
 async function saveFile() {
   closeMenus();
   await takeSnapshot(true);
   const text = await fileText();
-  if (runtime.currentBinding && files.canWriteBack(runtime.currentBinding)) {
+  const route = save.saveRoute(runtime.currentBinding, files.supportsRealFiles());
+  if (route === "writeBack" && runtime.currentBinding) {
     if (!(await files.ensureWritable(runtime.currentBinding))) {
       setStatus(t("permissionDenied"), "err");
       return;
@@ -6818,9 +7044,24 @@ async function saveFile() {
       return;
     }
     // The binding no longer authorises a write — a desktop path from a previous
-    // session, or a handle whose permission lapsed. Ask where to put it.
+    // session, or a handle whose permission lapsed. Ask where to put it, which
+    // is what `pickAFile` would have said had the route been computed after the
+    // attempt rather than before it.
+    await saveFileAs();
+    return;
   }
-  await saveFileAs();
+  // A platform that has files, and a document not bound to one. Ask where it
+  // goes; from then on Ctrl+S writes there.
+  if (route === "pickAFile") {
+    await saveFileAs();
+    return;
+  }
+  // And where there are no writable files, Ctrl+S is **not** a download. The
+  // text is already kept — `fileText` above flushed it to the library, which is
+  // where a document in this browser lives — so Save says so, with the route to
+  // an actual file on the hover instead of in the downloads folder. See
+  // `save.saveRoute` for the whole of why.
+  setStatus(t("savedInBrowser"), "ok", t("savedInBrowserWhy"));
 }
 
 /**
@@ -7285,8 +7526,15 @@ function updateContextBar() {
     // vanished entirely, which is a product that looks broken rather than one
     // that is being precise. What a writer standing in prose can actually do to
     // a list is *make* one, so that is what the strip offers.
+    //
+    // **And behind a preference that is off**, because the same strip read from
+    // the writing side is *"an annoying popup… I don't know why it popped up or
+    // what it is"*. Both readings are correct and they are about two different
+    // moments — one writer went looking for why a control was grey, the other
+    // was typing a paragraph — so the strip is kept and the default is quiet.
+    // See `Settings.proseStrip`.
     const sel = runtime.view.state.selection.main;
-    if (lists.canMakeList(doc, sel.from, sel.to)) {
+    if (settings.proseStrip && lists.canMakeList(doc, sel.from, sel.to)) {
       const signature = `prose|${getLang()}`;
       if (bar.dataset.signature !== signature || !bar.childElementCount) {
         bar.dataset.signature = signature;

@@ -286,6 +286,16 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
   font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
   padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
+/* The strip is the handle a pane is dragged by, so it says so under the pointer.
+   Only when there is a second pane to trade with — `paneHead` sets the attribute
+   then and not otherwise, which keeps the cursor from promising a gesture that
+   has nowhere to land. */
+.pane-head[draggable="true"] { cursor: grab; }
+.pane-head[draggable="true"]:active { cursor: grabbing; }
+/* Where a dragged pane would land. An inset outline rather than a border: a
+   border would change the pane's size mid-drag and shove the text under the
+   pointer. */
+.pane.pane-drop { outline: 2px solid var(--accent); outline-offset: -2px; }
 .source-pane .pane-host { background: var(--editor-bg); }
 .cm-editor { height: 100%; background: var(--editor-bg); color: var(--ink); }
 

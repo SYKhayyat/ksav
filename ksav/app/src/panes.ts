@@ -207,6 +207,168 @@ export function resize(tree: PaneNode, id: string, frac: number): PaneNode {
   );
 }
 
+/**
+ * Exchange two panes, wherever each of them is standing.
+ *
+ * The tiling-window-manager operation, asked for by name: *"there should be a
+ * command to move any window to swap it with another window (like in
+ * hyprland)"*. Two panes trade places and nothing else moves — not the split
+ * they sit in, not the fractions, not the panes around them.
+ *
+ * **The fractions deliberately stay with the positions, not with the panes.**
+ * Swapping a wide left pane with a narrow right one leaves the left slot wide
+ * and puts the other pane in it. That is what every tiling manager does and it
+ * is the only reading that makes a swap reversible: pressing the key twice has
+ * to land you exactly where you started, and carrying the sizes along would
+ * make the second press a different operation from the first.
+ *
+ * Both leaves come through **by reference**, so `renderPanes` keeps both
+ * editors, both carets, both scrolls and both fold states. That is the same
+ * property `update` and `resize` have and the reason `replace` exists; a swap
+ * that rebuilt two `EditorView`s would be a swap that cost the writer the two
+ * places they were standing in, which is the entire reason to have two panes.
+ */
+export function swap(tree: PaneNode, idA: string, idB: string): PaneNode {
+  if (idA === idB) return tree;
+  const a = find(tree, idA);
+  const b = find(tree, idB);
+  // Not both in this tree: return it untouched rather than half-swapped. The
+  // caller is a keystroke, and a keystroke that half-applies is worse than one
+  // that declines.
+  if (!a || !b) return tree;
+  const put = (n: PaneNode): PaneNode => {
+    if (n.kind === "leaf") return n.id === idA ? b : n.id === idB ? a : n;
+    const x = put(n.a);
+    const y = put(n.b);
+    return x === n.a && y === n.b ? n : { ...n, a: x, b: y };
+  };
+  return put(tree);
+}
+
+// ---------------------------------------------------------------- geometry
+//
+// Where each pane actually is, so that "swap this one with the one on my left"
+// means the pane on the left of the *screen*.
+//
+// The tree cannot answer that on its own, for two reasons that both bite here:
+//
+//   • **The interface is right-to-left.** `<html dir="rtl">`, and a flex row in
+//     an RTL container lays its first child out on the **right**. So `a` is the
+//     left pane in English and the right pane in Hebrew, and a directional
+//     command that read the tree order would send the pane the wrong way for
+//     every writer this application was built for.
+//   • **Narrow windows stack.** `styles.css` turns every split into a column
+//     under the mobile breakpoint — `flex-direction: column !important`,
+//     regardless of the direction the split was built with — so on a phone
+//     there is no left and right at all.
+//
+// Both are facts about the rendering, so both arrive as arguments: this file
+// stays a function from a tree to an answer, and `main.ts` reads the two live
+// values off the document. Unit coordinates — x rightwards, y downwards, the
+// window being 1 by 1 — because the only questions asked of them are which side
+// of what, and a pixel would be a number this module has no way to know.
+
+/** Where one pane sits, as a share of the window. */
+export interface Rect {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** How the tree is being laid out at the moment the question is asked. */
+export interface Layout {
+  /** The interface is right-to-left, so a row's first child is on the right. */
+  rtl?: boolean;
+  /** Under the narrow breakpoint, where every split stacks whatever it says. */
+  stacked?: boolean;
+}
+
+/** Every pane's place on screen, given how the tree is being laid out. */
+export function rects(node: PaneNode, layout: Layout = {}): Rect[] {
+  const out: Rect[] = [];
+  const walk = (n: PaneNode, x: number, y: number, w: number, h: number) => {
+    if (n.kind === "leaf") {
+      out.push({ id: n.id, x, y, w, h });
+      return;
+    }
+    if (layout.stacked || n.dir === "col") {
+      walk(n.a, x, y, w, h * n.frac);
+      walk(n.b, x, y + h * n.frac, w, h * (1 - n.frac));
+    } else if (layout.rtl) {
+      walk(n.a, x + w * (1 - n.frac), y, w * n.frac, h);
+      walk(n.b, x, y, w * (1 - n.frac), h);
+    } else {
+      walk(n.a, x, y, w * n.frac, h);
+      walk(n.b, x + w * n.frac, y, w * (1 - n.frac), h);
+    }
+  };
+  walk(node, 0, 0, 1, 1);
+  return out;
+}
+
+/** A screen direction, as the writer means it when they press an arrow. */
+export type Side = "left" | "right" | "up" | "down";
+
+/** How much two intervals share, which is 0 when they merely touch. */
+function overlap(a: number, aLen: number, b: number, bLen: number): number {
+  return Math.min(a + aLen, b + bLen) - Math.max(a, b);
+}
+
+/**
+ * The pane on a given side of another one, or nothing.
+ *
+ * Nearest edge first, and the widest shared border to break a tie — so in a
+ * window with a tall source beside two stacked previews, "right" from the
+ * source picks the preview the caret is level with rather than whichever
+ * happened to be built first. Panes that merely touch at a corner do not count:
+ * the overlap has to be real, or a diagonal neighbour would answer for a
+ * direction nothing is actually in.
+ *
+ * `undefined` is a real answer and callers must say so rather than swallow it.
+ * Pressing "swap right" at the rightmost pane does nothing, and a command that
+ * silently does nothing is indistinguishable from one that is broken.
+ */
+export function neighbor(
+  tree: PaneNode,
+  id: string,
+  side: Side,
+  layout: Layout = {},
+): string | undefined {
+  const all = rects(tree, layout);
+  const me = all.find((r) => r.id === id);
+  if (!me) return undefined;
+  // A pane is never zero-sized, but the fractions are floating point and the
+  // edges are compared for equality, so the slack has to be somewhere.
+  const EPS = 1e-9;
+  let best: string | undefined;
+  let bestGap = Infinity;
+  let bestShare = 0;
+  for (const r of all) {
+    if (r.id === id) continue;
+    const gap =
+      side === "left"
+        ? me.x - (r.x + r.w)
+        : side === "right"
+          ? r.x - (me.x + me.w)
+          : side === "up"
+            ? me.y - (r.y + r.h)
+            : r.y - (me.y + me.h);
+    const share =
+      side === "left" || side === "right"
+        ? overlap(me.y, me.h, r.y, r.h)
+        : overlap(me.x, me.w, r.x, r.w);
+    if (gap < -EPS || share <= EPS) continue;
+    if (gap < bestGap - EPS || (gap < bestGap + EPS && share > bestShare)) {
+      best = r.id;
+      bestGap = gap;
+      bestShare = share;
+    }
+  }
+  return best;
+}
+
 /** Which pane a linked pane follows: the one it shares a split with. */
 export function sibling(tree: PaneNode, id: string): Leaf | undefined {
   for (const s of splits(tree)) {

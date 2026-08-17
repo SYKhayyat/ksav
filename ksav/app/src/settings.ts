@@ -151,6 +151,30 @@ export interface Settings {
    * preference rather than a mistake. See `lazyMenu`.
    */
   keepMenuPosition?: boolean;
+  /**
+   * Let the context strip appear in plain prose as well as in structure.
+   *
+   * **Off**, and the story of why it was ever on is worth keeping, because both
+   * halves of it were right.
+   *
+   * The strip carries the operations for whatever the caret is standing in — a
+   * list, a table, a heading. In plain prose there is nothing to carry, so it
+   * used to empty itself and vanish, and a margin note said what that looked
+   * like: *"header was greyed out and no reason was given"*. The answer was to
+   * say so rather than disappear, and the strip in prose became a sentence —
+   * *"Prose — no structure here to act on"* — with the one operation a writer
+   * standing in prose can actually perform beside it.
+   *
+   * Read as a bug report from the other side: *"there is an annoying popup that
+   * says 'Prose — not structure here to act on'. I don't know why it popped up
+   * or what it is."* A strip that appears while you type, to tell you that
+   * nothing is available, is a notification about the absence of a feature —
+   * and the one button on it is in the Insert menu and on `makeList`'s own key
+   * besides. So the honest strip stays available and stops being the default:
+   * it is worth something to the writer who wanted an explanation, and it is
+   * worth nothing to the writer who is typing a paragraph.
+   */
+  proseStrip?: boolean;
   spellcheck?: boolean;
   /**
    * Check the words inside comments and folds as well.
@@ -285,6 +309,7 @@ export const DEFAULTS: Settings = {
   autoPairBrackets: true,
   autoPairQuotes: false,
   keepMenuPosition: false,
+  proseStrip: false,
   spellcheck: true,
   spellcheckComments: false,
   syncScroll: true,

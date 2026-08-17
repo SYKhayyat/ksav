@@ -8,7 +8,7 @@ import {
   isSep,
   templateItems,
 } from "../.tmp-test/header.mjs";
-import { setLang } from "../.tmp-test/i18n.mjs";
+import { setLang, t } from "../.tmp-test/i18n.mjs";
 
 // What the header says about the state of the application, asked directly.
 //
@@ -208,6 +208,19 @@ export async function run() {
     const copy = fileItems(false).find((e) => e.id === "saveAs").label;
     ok("save-as says which one it means", real !== copy, `${real} / ${copy}`);
     check("and nothing else moves with it", fileItems(true).length, fileItems(false).length);
+    // And it says **download**, not "save a copy". That word is load-bearing in
+    // two other places: `savedInBrowserWhy` — the sentence Ctrl+S hovers with in
+    // a browser that cannot write files — sends the writer to this row by name,
+    // and so does `docs/start-here.md`. A row that says *save* is also a row
+    // whose next Ctrl+S is expected to update what it just wrote, which is the
+    // promise there is no way to keep here.
+    for (const lang of ["he", "en"]) {
+      setLang(lang);
+      const said = fileItems(false).find((e) => e.id === "saveAs").label;
+      ok(`the copy row names the download in ${lang}`, said === t("saveCopy"), said);
+      ok(`…and the Ctrl+S sentence points at that row in ${lang}`, !!t("savedInBrowserWhy"));
+    }
+    setLang("he");
   }
   {
     // Eight, not one. A menu where only the item under test can be found is a

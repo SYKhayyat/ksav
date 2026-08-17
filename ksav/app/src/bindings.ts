@@ -238,6 +238,26 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Not `Mod-Alt-]`, which is `unfoldAll` — caught by the fence that refuses two
   // actions on one combination, which is the whole reason that fence exists.
   nextTab: "Mod-Alt-PageDown",
+  // Move this pane to where the one beside it is, and that one to here. The
+  // tiling-manager gesture, asked for in those words: *"there should be a
+  // command to move any window to swap it with another window (like in
+  // hyprland)"*. Four keys rather than one toggle because a window can hold
+  // more than two panes, and "swap" with no direction is only an answer while
+  // there are exactly two of them.
+  //
+  // Arrows, because the operation is directional and nothing else says a
+  // direction as well. The modifier had to clear three neighbours: `Alt-Arrow`
+  // moves a list item, `Alt-Shift-Arrow` moves a section, and `Mod-Shift-Arrow`
+  // is select-by-word in every editor on the machine. `Mod-Alt-Shift-Arrow` is
+  // free of all three, and free in the browser besides.
+  //
+  // The **screen's** left, not the tree's: the interface is right-to-left, so
+  // `panes.neighbor` is asked with the live direction rather than reading the
+  // tree order. See the geometry section of `panes.ts`.
+  "pane.swapLeft": "Mod-Alt-Shift-ArrowLeft",
+  "pane.swapRight": "Mod-Alt-Shift-ArrowRight",
+  "pane.swapUp": "Mod-Alt-Shift-ArrowUp",
+  "pane.swapDown": "Mod-Alt-Shift-ArrowDown",
   // Deferred note bodies. `deferJump` is the workhorse — org-mode's C-c C-c —
   // and gets the mnemonic key; the two that move prose around sit beside it.
   deferJump: "Mod-Alt-j",

@@ -62,6 +62,15 @@ toolbar** with everything you can do to it — add a row, merge cells, widen a
 column, promote a heading, move an item. Controls that cannot act here are
 greyed rather than hidden, so the strip is the same shape every time.
 
+In plain prose there is no structure to act on, so the strip stays away. It can
+say so instead — *"Prose — no structure here to act on"*, with the one thing you
+can do from there, which is turn what you have written into a real list — and
+that is a setting, off by default: **Settings ▸ Show the context strip in plain
+prose too**. It is off because a strip that appears while you are typing a
+paragraph, to tell you that nothing is available, is a notification about the
+absence of a feature. Make-a-list is in the Insert menu and on `Ctrl+Shift+9`
+either way.
+
 The same operations are in the **Format** and **Table** menus, each showing its
 keyboard shortcut, for when you are looking for a feature rather than already
 standing in one.
@@ -302,6 +311,12 @@ collapses the sefer to chapters, or to chapters and simanim.
 - **`Ctrl+=` / `Ctrl+-` / `Ctrl+0`** — bigger, smaller, back to 100%. They resize
   whichever of the two you are standing in: the text when the caret is in it, the
   page otherwise. Both sizes are also rows in Settings, named for what they zoom.
+- **Ctrl+Alt+Shift+←/→/↑/↓** — swap the pane you are in with the one on that
+  side of it, the way a tiling window manager moves a window. The direction is
+  the one on screen, so `←` takes the pane visibly to the left and pressing it
+  again puts things back. Dragging a pane by the strip at its top onto another
+  pane does the same thing with the mouse, and the arrangement picker lists the
+  four commands with their keys.
 - **`Ctrl+Alt+S`** — keep this version. Automatic snapshots are on by default and
   switchable off in Settings, which is the point of a key for the manual one: a
   history of *the points you chose* is only useful if you can choose them.
@@ -629,8 +644,11 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
       page, rather than only that the document compiled.
 - [x] **A document library and real files** — many named documents, each with its
       own images and fonts; Save writes back to a genuine file (native dialog in
-      Tauri, File System Access in the browser, an honest "Save a copy" where
-      neither exists).
+      Tauri, File System Access in the browser). Where neither exists — Firefox,
+      Safari — `Ctrl+S` keeps the text in the library and says so, and a file is
+      an explicit **File ▸ Download a copy** rather than something a save does to
+      you. `save.saveRoute` is the whole rule and `save.test.mjs` states the
+      table.
 - [x] **Images and user fonts** — carried with the compile request, since the
       engine has no file system to read from.
 - [x] **Spell-check in both languages, dispatched per word.** Hebrew runs on a
@@ -674,7 +692,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 6,532 editor assertions, 778 engine
+      all nine jobs: the typechecker and 6,576 editor assertions, 778 engine
       tests, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -753,7 +771,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 6,532 assertions across 96 files |
+| `editor` | both | the typechecker, then 6,576 assertions across 96 files |
 | `engine` | both | formatting, lints, then 778 tests across 44 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |

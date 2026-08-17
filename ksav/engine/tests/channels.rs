@@ -613,3 +613,57 @@ fn a_channel_declared_at_the_end_of_the_file_still_reaches_the_first_page() {
         "where the declaration sits changed where the notes printed"
     );
 }
+
+#[test]
+fn two_streams_side_by_side_number_independently_and_in_their_own_schemes() {
+    // The arrangement the note chooser writes for "parallel streams in fixed
+    // regions", and the two claims its own card makes about it: *כל אחד ממוספר
+    // בפני עצמו* — each numbered on its own — and a per-stream `מספור`.
+    //
+    // Written after reading a page produced by pressing those buttons: a
+    // ביאור band numbered 1, 2 and a מראי־מקומות band numbered 2, 3, so one
+    // page carried two different notes both marked ², and the `"א"` asked for
+    // never appeared at all.
+    let head = "#הגדרות_זרמים(זרמים: (\"ביאור\", \"מקורות\"), \
+                גבהים: (\"ביאור\": 10%, \"מקורות\": 6%), \
+                מספור: (\"מקורות\": \"א\"))";
+    let body = format!(
+        "{head}\n\
+         ראשון#הערה_זרם(\"ביאור\")[ביאור־אחד]\n\n\
+         שני#הערה_זרם(\"מקורות\")[מקור־אחד]\n\n\
+         שלישי#הערה_זרם(\"מקורות\")[מקור־שתיים]\n\n\
+         רביעי#הערה_זרם(\"ביאור\")[ביאור־שתיים]\n"
+    );
+    let mark = |needle: &str| marker_of(&body, needle);
+
+    // Each stream counts from one, in its own scheme.
+    assert_eq!(mark("ביאור־אחד"), "1", "the first ביאור note is not 1");
+    assert_eq!(mark("ביאור־שתיים"), "2", "the second ביאור note is not 2");
+    assert_eq!(mark("מקור־אחד"), "א", "the first מקורות note is not א");
+    assert_eq!(mark("מקור־שתיים"), "ב", "the second מקורות note is not ב");
+}
+
+#[test]
+fn a_tiered_note_configuration_does_not_take_over_the_streams() {
+    // The exact pair the chooser writes when a writer asks for parallel streams
+    // and then hangs a note on one of the notes: `#הגדרות_זרמים` for the streams
+    // and `#הגדרות_הערות` for the tiers. They are two different apparatus and
+    // the second must not renumber the first.
+    let head = "#הגדרות_הערות(מספור: (\"א\", \"1\"), הזחה: (0em, 1.4em))\n\n\
+                #הגדרות_זרמים(זרמים: (\"ביאור\", \"מקורות\", \"נוסחאות\"), \
+                גבהים: (\"ביאור\": 10%, \"מקורות\": 6%, \"נוסחאות\": 6%), \
+                מספור: (\"מקורות\": \"א\"), \
+                כותרות: (\"מקורות\": [מראי מקומות], \"נוסחאות\": [שינויי נוסחאות]))";
+    let body = format!(
+        "{head}\n\
+         ראשון#הערה_זרם(\"ביאור\")[ביאור־אחד]\n\n\
+         שני#הערה_זרם(\"מקורות\")[מקור־אחד]\n\n\
+         שלישי#הערה_זרם(\"מקורות\")[מקור־שתיים]\n\n\
+         רביעי#הערה_זרם(\"ביאור\")[ביאור־שתיים#הערה_ב[על־ההערה]]\n"
+    );
+    let mark = |needle: &str| marker_of(&body, needle);
+    assert_eq!(mark("ביאור־אחד"), "1", "the first ביאור note is not 1");
+    assert_eq!(mark("ביאור־שתיים"), "2", "the second ביאור note is not 2");
+    assert_eq!(mark("מקור־אחד"), "א", "the first מקורות note is not א");
+    assert_eq!(mark("מקור־שתיים"), "ב", "the second מקורות note is not ב");
+}

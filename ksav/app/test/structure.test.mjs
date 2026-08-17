@@ -1,4 +1,5 @@
 import { check, ok, notOk } from "./harness.mjs";
+import * as tables from "../.tmp-test/table.mjs";
 import { dirOf } from "../tools/paths.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -18,6 +19,35 @@ import {
 
 const L = `#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n`;
 const T = `#טבלה(עמודות: 2, פסים: true,\n  כותרת_תא[א], כותרת_תא[ב],\n  תא[ג], תא[ד],\n)\n`;
+
+// The corpus both sweeps below walk: what the table and list operations
+// disagree about — nesting, merges, header rows, declared track widths, a
+// pinned heading level, a document that already has its contents.
+const CORPUS = [
+  ["prose", "סתם טקסט בלי שום מבנה בכלל.\n"],
+  ["list", L],
+  ["inline list", `#רשימה(פריט[א], פריט[ב],)\n`],
+  ["one-item list", `#רשימה(\n  פריט[יחיד],\n)\n`],
+  ["nested list", `#רשימה(\n  פריט[חיצוני\n    #רשימה(פריט[פנימי],)],\n  פריט[אחרון],\n)\n`],
+  ["numbered list", `#ממוספרת(\n  פריט[אחד],\n  פריט[שתיים],\n)\n`],
+  ["gershayim list", `#רשימה(\n  פריט[דברי רש"י],\n  פריט[שני],\n)\n`],
+  ["english list", `#bullets(\n  item[one],\n  item[two],\n)\n`],
+  ["table", T],
+  ["1×1 table", `#טבלה(עמודות: 1,\n  תא[א],\n)\n`],
+  ["merged table", `#טבלה(עמודות: 2,\n  מיזוג(2)[רחב],\n  תא[א], תא[ב],\n)\n`],
+  ["full-width merge", `#טבלה(עמודות: 2,\n  מיזוג(2)[א],\n  מיזוג(2)[ב],\n)\n`],
+  ["sized table", `#טבלה(עמודות: (2fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
+  ["equal table", `#טבלה(עמודות: (1fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
+  ["narrow table", `#טבלה(עמודות: (0.25fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
+  ["ragged table", `#טבלה(עמודות: 3,\n  תא[א], תא[ב],\n)\n`],
+  ["english table", `#mktable(columns: 2,\n  headcell[Posek], cell[Ruling],\n)\n`],
+  ["headings", `#כותרת1[ראשי]\n\nגוף.\n\n#כותרת2[משנה]\n\nעוד גוף.\n\n#כותרת2[אחרון]\n\nסוף.\n`],
+  ["deepest heading", `#כותרת(רמה: 9)[עמוק]\n\nגוף.\n`],
+  ["pinned level", `#סימן("א", [דיני תפילה])\n\nגוף הסימן.\n`],
+  ["with contents", `#תוכן()\n\n#כותרת1[ראשי]\n\nגוף.\n`],
+  ["list in a cell", `#טבלה(עמודות: 1,\n  תא[#רשימה(פריט[פנימי],)],\n)\n`],
+  ["table in a section", `#כותרת1[פרק]\n\n#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n)\n`],
+];
 
 const HERE = dirOf(import.meta.url);
 const SRC = path.resolve(HERE, "..", "src");
@@ -203,31 +233,6 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   // every caret position of a corpus that covers what the operations disagree
   // about: nesting, merges, header rows, declared track widths, a pinned
   // heading level, a document that already has its contents.
-  const CORPUS = [
-    ["prose", "סתם טקסט בלי שום מבנה בכלל.\n"],
-    ["list", L],
-    ["inline list", `#רשימה(פריט[א], פריט[ב],)\n`],
-    ["one-item list", `#רשימה(\n  פריט[יחיד],\n)\n`],
-    ["nested list", `#רשימה(\n  פריט[חיצוני\n    #רשימה(פריט[פנימי],)],\n  פריט[אחרון],\n)\n`],
-    ["numbered list", `#ממוספרת(\n  פריט[אחד],\n  פריט[שתיים],\n)\n`],
-    ["gershayim list", `#רשימה(\n  פריט[דברי רש"י],\n  פריט[שני],\n)\n`],
-    ["english list", `#bullets(\n  item[one],\n  item[two],\n)\n`],
-    ["table", T],
-    ["1×1 table", `#טבלה(עמודות: 1,\n  תא[א],\n)\n`],
-    ["merged table", `#טבלה(עמודות: 2,\n  מיזוג(2)[רחב],\n  תא[א], תא[ב],\n)\n`],
-    ["full-width merge", `#טבלה(עמודות: 2,\n  מיזוג(2)[א],\n  מיזוג(2)[ב],\n)\n`],
-    ["sized table", `#טבלה(עמודות: (2fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
-    ["equal table", `#טבלה(עמודות: (1fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
-    ["narrow table", `#טבלה(עמודות: (0.25fr, 1fr),\n  תא[א], תא[ב],\n)\n`],
-    ["ragged table", `#טבלה(עמודות: 3,\n  תא[א], תא[ב],\n)\n`],
-    ["english table", `#mktable(columns: 2,\n  headcell[Posek], cell[Ruling],\n)\n`],
-    ["headings", `#כותרת1[ראשי]\n\nגוף.\n\n#כותרת2[משנה]\n\nעוד גוף.\n\n#כותרת2[אחרון]\n\nסוף.\n`],
-    ["deepest heading", `#כותרת(רמה: 9)[עמוק]\n\nגוף.\n`],
-    ["pinned level", `#סימן("א", [דיני תפילה])\n\nגוף הסימן.\n`],
-    ["with contents", `#תוכן()\n\n#כותרת1[ראשי]\n\nגוף.\n`],
-    ["list in a cell", `#טבלה(עמודות: 1,\n  תא[#רשימה(פריט[פנימי],)],\n)\n`],
-    ["table in a section", `#כותרת1[פרק]\n\n#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n)\n`],
-  ];
 
   const disagree = [];
   const idle = [];
@@ -253,6 +258,117 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   ok(`the sweep actually asked something (${asked})`, asked > 20000);
   check("`enabled` and `run` never disagree", disagree.slice(0, 8), []);
   check("nothing is offered that cannot change the document", idle.slice(0, 8), []);
+}
+
+// ---------------------------------------------------------------- where it leaves you
+//
+// The third question, and the one the two above cannot see. An operation returns
+// a document *and* a caret, and for every table operation the caret used to be
+// the old offset clamped into the new text — always a legal position and almost
+// never the right one, because inserting a column rewrites the call from
+// `עמודות:` onward and moves every cell.
+//
+// What that looked like from a chair: insert a table, press "add a column
+// after", type one character. It landed inside the command name —
+// `כותרץת_תא[]` — and the table quietly stopped being a table. `enabled` was
+// right, `run` produced correct markup, the suite was green, and the feature
+// destroyed the document on the very next keystroke.
+//
+// So: type a character where the operation put the caret, and the table must
+// still be the table it just built. Written against every table action at every
+// position rather than against `colAfter`, because the clamp was one line shared
+// by all eighteen and fixing the one that was noticed is how the other
+// seventeen stay broken.
+
+{
+  const SENTINEL = "ץ";
+
+  /**
+   * Is `at` somewhere a writer can type — inside a cell's body, not inside the
+   * command name that carries it or the `(2)` of a merge?
+   *
+   * Null when there is no table at all, so a prose corpus entry drops out rather
+   * than counting as a pass.
+   */
+  function inACellBody(text, at) {
+    const start = text.indexOf("#טבלה") < 0 ? text.indexOf("#mktable") : text.indexOf("#טבלה");
+    if (start < 0) return null;
+    const t = tables.tableAt(text, start);
+    if (!t) return null;
+    return t.cells.some((c) => {
+      const end = c.to - 1;
+      return at >= end - c.body.length && at <= end;
+    });
+  }
+
+  const wrong = [];
+  let typed = 0;
+  for (const [name, doc] of CORPUS) {
+    for (let pos = 0; pos <= doc.length; pos++) {
+      // Not every position in a table is one a character can be typed into — the
+      // gap *before* a cell call is inside the table and outside every cell, and
+      // typing there breaks the cell whether an operation ran or not. So the
+      // property is not "the caret is always safe", it is **an operation never
+      // makes it less safe than where the writer already was**. That is exactly
+      // the distinction the bug fell into: the caret started inside `[]`, which
+      // is safe, and was left inside a command name, which is not.
+      if (inACellBody(doc, pos) !== true) continue;
+      for (const action of STRUCTURE_ACTIONS) {
+        if (action.structure !== "table") continue;
+        // Deleting the table is the one operation with no cell to land in.
+        if (action.id === "table.delete") continue;
+        const did = action.run(doc, pos);
+        if (!did) continue;
+        const after = inACellBody(did.text, did.caret);
+        if (after === null) continue;
+        typed++;
+        if (!after) wrong.push(`${name}@${pos} ${action.id} → caret ${did.caret}`);
+      }
+    }
+  }
+  ok(`the sweep typed something (${typed})`, typed > 700);
+  check("no operation leaves the caret outside a cell body", wrong.slice(0, 8), []);
+}
+
+{
+  // And the one a person would report, spelled out: the shape of the failure was
+  // that the caret did not move *at all* while the text under it did.
+  const fresh = `#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[], כותרת_תא[],\n  תא[], תא[],\n)\n`;
+  const at = fresh.indexOf("כותרת_תא[") + "כותרת_תא[".length;
+  const wider = actionById("table.colAfter").run(fresh, at);
+  notOk("the caret does not stay where it was", wider.caret === at);
+  check(
+    "it stays in the cell the writer was in",
+    wider.text.slice(0, wider.caret) + "ץ" + wider.text.slice(wider.caret),
+    fresh.replace("(1fr, 1fr)", "(1fr, 1fr, 1fr)").replace(
+      "  כותרת_תא[], כותרת_תא[],",
+      "  כותרת_תא[ץ], כותרת_תא[], כותרת_תא[],",
+    ).replace("  תא[], תא[],", "  תא[], תא[], תא[],"),
+  );
+
+  // A column added *before* pushes the writer's cell along, and the caret goes
+  // with it rather than staying in the new empty one.
+  const other = actionById("table.colBefore").run(fresh, at);
+  check(
+    "a column before leaves the writer in their own cell",
+    other.text.slice(0, other.caret) + "ץ" + other.text.slice(other.caret),
+    fresh.replace("(1fr, 1fr)", "(1fr, 1fr, 1fr)").replace(
+      "  כותרת_תא[], כותרת_תא[],",
+      "  כותרת_תא[], כותרת_תא[ץ], כותרת_תא[],",
+    ).replace("  תא[], תא[],", "  תא[], תא[], תא[],"),
+  );
+
+  // Moving a row takes the caret with it: the writer pressed "up" on the row
+  // they are editing, and leaving them behind in the row that took its place is
+  // the other half of the same mistake.
+  const two = `#טבלה(עמודות: 1,\n  תא[עליון],\n  תא[תחתון],\n)\n`;
+  const low = two.indexOf("תחתון") + "תחתון".length;
+  const moved = actionById("table.rowUp").run(two, low);
+  check(
+    "the caret follows the row it moved",
+    moved.text.slice(0, moved.caret) + "ץ" + moved.text.slice(moved.caret),
+    `#טבלה(עמודות: 1,\n  תא[תחתוןץ],\n  תא[עליון],\n)\n`,
+  );
 }
 
 {

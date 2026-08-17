@@ -434,6 +434,60 @@ function equalTracks(g: TableGeometry): string[] {
   return Array.from({ length: g.cols }, () => "1fr");
 }
 
+// ---------------------------------------------------------------- the caret
+//
+// Every operation below returns a **document**, and for a long time that was
+// taken to be the whole answer: `structure.ts` clamped the old caret offset into
+// the new text and called it placed. A clamp is not a mapping. It always yields
+// a legal position and it is right only when the edit happened after the caret,
+// which for a table operation is almost never — inserting a column rewrites the
+// call from `עמודות:` onward, so every cell moves and the caret stays put.
+//
+// What that looked like: put the caret in the first header cell of a new table,
+// press "add a column after", type one character, and it goes into the middle of
+// the command name — `כותרץת_תא[]`. The table stops being a table. Nothing
+// errors, because the offset was in range the whole time.
+//
+// So the operations keep returning a string, and the caret is answered here,
+// once, for all of them: the writer stays in the cell they were in, the same
+// distance from its closing bracket. `structure.ts` says where that cell *went*
+// (a row that moved up is at `row - 1`); everything else is this function.
+
+/** A grid position, for saying where an operation left the writer. */
+export interface CellAt {
+  row: number;
+  col: number;
+}
+
+/**
+ * Put the caret back in a cell after the table underneath it was rebuilt.
+ *
+ * `fromEnd` is the caret's distance from the end of the cell it was in, which
+ * survives the rebuild exactly when the cell's own text does — true for every
+ * operation here, since they add, remove and reorder cells rather than edit
+ * them. A cell that no longer exists (the row was deleted, the table was) falls
+ * back to the nearest one, and then to the table itself.
+ */
+export function caretIn(doc: string, tableFrom: number, at: CellAt, fromEnd: number): number {
+  const t = tableAt(doc, tableFrom);
+  if (!t) return Math.min(tableFrom, doc.length);
+  const g = geometry(t);
+  if (g.rows === 0) return Math.min(t.argsTo, doc.length);
+  const row = Math.max(0, Math.min(at.row, g.rows - 1));
+  const inRow = placementsIn(g, row);
+  if (inRow.length === 0) return Math.min(t.argsTo, doc.length);
+  const p =
+    placementAt(g, row, Math.max(0, at.col)) ??
+    inRow[Math.min(Math.max(0, at.col), inRow.length - 1)];
+  // Inside the *body*, never merely inside the call. A cell ends `…]`, so its
+  // body runs from `to - 1 - body.length` to `to - 1`; anything outside that is
+  // the command name or its arguments, where a typed character is markup damage
+  // rather than writing. This is the floor the old clamp had no notion of.
+  const end = p.cell.to - 1;
+  const start = end - p.cell.body.length;
+  return Math.max(start, Math.min(p.cell.to - fromEnd, end));
+}
+
 // ---------------------------------------------------------------- the operations
 
 export function insertRow(doc: string, t: TableInfo, afterRow: number): string {

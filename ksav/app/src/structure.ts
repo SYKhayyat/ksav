@@ -453,6 +453,16 @@ function onTable(
     col: number,
   ) => boolean,
   fn: (doc: string, t: tables.TableInfo, row: number, col: number) => string,
+  /**
+   * Where the writer's own cell ended up, when the operation moved it.
+   *
+   * Defaults to "where it was", which is the answer for most of these: adding a
+   * row below, merging, splitting, toggling the header and every width control
+   * leave the caret's cell exactly where it was in the grid. The six that do
+   * move it say so, and `tables.caretIn` does the rest. Nothing here clamps an
+   * offset — see the note above `caretIn` for what that cost.
+   */
+  moves: (at: tables.CellAt) => tables.CellAt = (at) => at,
 ): Pick<StructureAction, "enabled" | "run"> {
   return op(
     (ctx) => {
@@ -462,9 +472,14 @@ function onTable(
       return can(ctx.table()!, g, row, col);
     },
     (ctx) => {
+      const t = ctx.table()!;
       const { row, col } = ctx.cursor();
-      const text = fn(ctx.doc, ctx.table()!, row, col);
-      return { text, caret: Math.min(ctx.pos, text.length) };
+      const cell = tables.cellIndexAt(t, ctx.pos);
+      // Distance from the end of the cell, not from its start: the closing
+      // bracket is the fixed point a rebuilt cell keeps.
+      const fromEnd = cell === null ? 1 : Math.max(0, t.cells[cell].to - ctx.pos);
+      const text = fn(ctx.doc, t, row, col);
+      return { text, caret: tables.caretIn(text, t.from, moves({ row, col }), fromEnd) };
     },
   );
 }
@@ -497,6 +512,8 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       () => tables.canInsertRow(),
       (doc, t, row) => tables.insertRow(doc, t, row - 1),
+      // The new row goes in above, so the writer's row is one further down.
+      (at) => ({ ...at, row: at.row + 1 }),
     ),
   },
   {
@@ -522,6 +539,8 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       (_t, g, row) => tables.canMoveRow(g, row, -1),
       (doc, t, row) => tables.moveRow(doc, t, row, -1),
+      // The caret follows the row it moved, which is the point of pressing it.
+      (at) => ({ ...at, row: at.row - 1 }),
     ),
   },
   {
@@ -534,6 +553,7 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       (_t, g, row) => tables.canMoveRow(g, row, 1),
       (doc, t, row) => tables.moveRow(doc, t, row, 1),
+      (at) => ({ ...at, row: at.row + 1 }),
     ),
   },
   {
@@ -558,6 +578,8 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       () => tables.canInsertColumn(),
       (doc, t, _row, col) => tables.insertColumn(doc, t, col - 1),
+      // As with a row above: the new column pushes the writer's one along.
+      (at) => ({ ...at, col: at.col + 1 }),
     ),
   },
   {
@@ -583,6 +605,7 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       (_t, g, _row, col) => tables.canMoveColumn(g, col, -1),
       (doc, t, _row, col) => tables.moveColumn(doc, t, col, -1),
+      (at) => ({ ...at, col: at.col - 1 }),
     ),
   },
   {
@@ -595,6 +618,7 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       (_t, g, _row, col) => tables.canMoveColumn(g, col, 1),
       (doc, t, _row, col) => tables.moveColumn(doc, t, col, 1),
+      (at) => ({ ...at, col: at.col + 1 }),
     ),
   },
   {

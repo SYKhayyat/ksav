@@ -128,7 +128,9 @@ day belongs in [`decisions/`](decisions/README.md), which is indexed and which
 this page links to instead. What stood here on 17 August 2026 — the release
 rehearsal, the documentation pass, the Emacs suite on Linux, v0.1.1, the MELPA
 draft and the `#פריט` badge — is
-[`decisions/2026-08-17-the-version-nobody-runs.md`](decisions/2026-08-17-the-version-nobody-runs.md).
+[`decisions/2026-08-17-the-version-nobody-runs.md`](decisions/2026-08-17-the-version-nobody-runs.md),
+and the sitting that followed the release is
+[`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
 
 ### Checked, and not bugs — do not re-report
 
@@ -142,13 +144,31 @@ draft and the `#פריט` badge — is
 ### The live tracker
 
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the
-      most important line on the page. Two kuntres-length sittings — 7 and 16
-      August — found four bugs the whole suite was green over, and neither of
-      them is a sefer. The next one should be **long**: enough pages for the
+      most important line on the page. Three kuntres-length sittings — 7, 16 and
+      17 August — found six bugs the whole suite was green over, and none of
+      them is a sefer yet. The next one should be **long**: enough pages for the
       apparatus to break across them, enough simanim for the numbering to be
       re-read, a real export sent to somebody who will open it. Nothing else has
       ever found this class of bug. Every bug goes to the top of the queue and
       gets the class treatment.
+
+- [ ] **A table cannot be filled in from the keyboard, and fixing it changes an
+      invariant.** Lists own `Enter`, `Tab`, `Shift+Tab` and `Alt`+arrows. Tables
+      have eighteen ribbon operations and no navigation at all, so `Tab` in a
+      cell falls through and puts indentation in the markup — and `Tab` is how
+      every table in every word processor is filled.
+
+      The blocker is not the feature, it is `bindings.test.mjs`'s *no two actions
+      ship on one combination*, and `list.indent` already holds `Tab`. The
+      argument for loosening it: a **structure** action is already scoped —
+      `list.indent` cannot fire outside a list — so two structure actions of
+      different structures may share a key exactly when the caret can only be in
+      one of them, which `structureAt`'s innermost-wins rule guarantees. That is
+      a change to the invariant, its fence and the dispatcher, plus the generated
+      shortcut card. Left here rather than slipped in, because a key that means
+      two things is precisely what that rule exists to prevent and the exception
+      should be argued out loud. See
+      [`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
 
 - [ ] **Open the MELPA pull request.** Everything it needs is written down in
       [`ksav/editors/emacs/melpa-submission.md`](ksav/editors/emacs/melpa-submission.md)
@@ -183,6 +203,16 @@ Leave these open, and do not report them as done or work around them.
 ## 6 · Lessons
 
 Each of these was paid for. They are in rough order of how much.
+
+**A clamp is not a mapping, and a legal answer is not a right one.** Eighteen
+table operations returned `Math.min(ctx.pos, text.length)` for the caret — the
+old offset, clamped into the new text. Every value it produced was a position
+that existed, so nothing ever threw and nothing ever noticed; every value was
+also wrong, because a table operation rewrites the call from `עמודות:` onward
+and moves every cell. Add a column, type one character, and it lands inside the
+command name. Look hard at any expression whose job is to *make a value valid*:
+`Math.min`, `?? 0`, `slice` with clamped ends. Validity is the property that
+hides wrongness, which is why `ONLY_AT_TOP` and this are the same lesson twice.
 
 **A version pinned as the floor is the only version tested.** `ci.yml` ran the
 Emacs package on 27.1, which is what `Package-Requires` declares — the right way

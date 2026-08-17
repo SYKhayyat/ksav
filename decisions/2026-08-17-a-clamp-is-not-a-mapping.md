@@ -193,6 +193,29 @@ the list in `main.ts` and the list in the test agree — so a tenth label added
 by a CodeMirror upgrade is a red suite rather than one English word nobody
 notices.
 
+## 7 · Moving a section moved the blank line with it
+
+The last thing the sitting found, and it was found by pressing the arrow one
+more time to confirm the caret fix above. Move a section down in a document
+written with a blank line between sections: it comes back with one newline
+between them and two at the end. Press it again and the spacing drifts again.
+At the end of a document it is worse — the last section has no trailing
+newline, so swapping past it produces `גוף ב.#כותרת1[א]`.
+
+A swap exchanges two adjacent blocks and the whitespace between them belongs to
+neither. `moveSection` swapped the spans whole, so each block's trailing
+whitespace travelled with it. Each block is now split into its words and the
+whitespace that follows, the words are exchanged, and the whitespace stays.
+
+The interesting part is the test that was already there. `moving back restores
+the document exactly` is exactly the right property and it passed for as long
+as the bug existed, for two reasons worth keeping: it ran on **one** document
+whose sections all end the same way, and swapping the two gaps *consistently*
+round-trips anyway. A round trip cannot see a transformation that is its own
+inverse. So the corpus is four documents with different separators, and the
+separator between the sections and the one that ends the file are asserted by
+name.
+
 ## What the sitting did not find
 
 The apparatus held. Two parallel streams in fixed regions — ביאור and

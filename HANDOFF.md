@@ -219,6 +219,15 @@ Leave these open, and do not report them as done or work around them.
 
 Each of these was paid for. They are in rough order of how much.
 
+**A round trip cannot see a transformation that is its own inverse.** `moving
+back restores the document exactly` is the right property for a section move and
+it passed for as long as the bug existed: the operation carried each block's
+trailing whitespace with it, and *consistently* swapping two gaps round-trips
+perfectly. It also ran on one document whose sections all ended the same way, so
+there was nothing to swap. Two lessons in one fence — vary the corpus along the
+axis the operation touches, and where a property is symmetric, name the shape as
+well as the round trip.
+
 **A clamp is not a mapping, and a legal answer is not a right one.** Eighteen
 table operations returned `Math.min(ctx.pos, text.length)` for the caret — the
 old offset, clamped into the new text. Every value it produced was a position

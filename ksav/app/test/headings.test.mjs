@@ -127,6 +127,66 @@ export async function run() {
 }
 
 {
+  // The same property, over documents whose sections do **not** all end the
+  // same way — which is the only place it can fail, and the reason the round
+  // trip above passed for as long as the bug existed. `D` is uniform.
+  //
+  // A section swap exchanges two adjacent blocks, and the whitespace between
+  // them belongs to neither. Carrying each block's trailing whitespace with it
+  // meant a document written with a blank line between sections came back with
+  // one newline between them and two at the end — the spacing moved every time
+  // a section did — and the last section of a document has no trailing newline
+  // at all, so swapping past it produced `גוף ב.#כותרת1[א]`: a heading glued to
+  // the end of the previous paragraph.
+  const SEPARATED = [
+    ["no trailing newline", "#כותרת1[א]\nגוף א.\n#כותרת1[ב]\nגוף ב."],
+    ["a trailing newline", "#כותרת1[א]\nגוף א.\n#כותרת1[ב]\nגוף ב.\n"],
+    ["blank lines between", "#כותרת1[א]\n\nגוף א.\n\n#כותרת1[ב]\n\nגוף ב.\n"],
+    ["two blank lines then one", "#כותרת1[א]\n\nגוף א.\n\n\n#כותרת1[ב]\n\nגוף ב.\n"],
+  ];
+  for (const [name, doc] of SEPARATED) {
+    const down = moveSection(doc, headings(doc)[0], 1);
+    ok(`${name}: the sections swapped`, down.text.indexOf("[ב]") < down.text.indexOf("[א]"));
+    ok(
+      `${name}: no heading is glued to the paragraph above it`,
+      !/[^\s\n]#כותרת/u.test(down.text),
+      down.text,
+    );
+    const up = moveSection(down.text, headings(down.text)[1], -1);
+    check(`${name}: and moving it back is the document again`, up.text, doc);
+  }
+
+  // The round trip alone cannot see this: swapping the two gaps *consistently*
+  // still round-trips, and that is exactly what the bug did. So the separator
+  // between the sections and the one that ends the document are named.
+  const spaced = "#כותרת1[א]\n\nגוף א.\n\n#כותרת1[ב]\n\nגוף ב.\n";
+  check(
+    "the blank line stays between the sections, and the document still ends once",
+    moveSection(spaced, headings(spaced)[0], 1).text,
+    "#כותרת1[ב]\n\nגוף ב.\n\n#כותרת1[א]\n\nגוף א.\n",
+  );
+  const ragged = "#כותרת1[א]\nגוף א.\n\n\n#כותרת1[ב]\nגוף ב.\n";
+  check(
+    "and a wider gap stays as wide, in the same place",
+    moveSection(ragged, headings(ragged)[0], 1).text,
+    "#כותרת1[ב]\nגוף ב.\n\n\n#כותרת1[א]\nגוף א.\n",
+  );
+}
+
+{
+  // And the caret comes back with the writer's own section rather than sitting
+  // on its `#`, which is the other half of the same press.
+  const doc = "#כותרת1[ראשון]\n\nגוף א.\n\n#כותרת1[שני]\n\nגוף ב.\n";
+  const at = doc.indexOf("ראשון") + 2;
+  const moved = moveSection(doc, headings(doc)[0], 1, at);
+  check(
+    "a typed character lands where the writer left it",
+    moved.text.slice(0, moved.caret) + "ץ" + moved.text.slice(moved.caret),
+    "#כותרת1[שני]\n\nגוף ב.\n\n#כותרת1[ראץשון]\n\nגוף א.\n",
+  );
+}
+
+{
   const hs = headings(D);
   notOk("the first section cannot move up", moveSection(D, hs[0], -1));
   notOk("the last cannot move down", moveSection(D, hs[2], 1));

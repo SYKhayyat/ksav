@@ -222,25 +222,40 @@ export function moveSection(doc: string, h: HeadingInfo, by: -1 | 1, pos = -1): 
   const swap = sectionSwap(doc, h, by);
   if (!swap) return null;
   const { mine, theirs } = swap;
+  // The two spans are adjacent, so a move is an exchange of two blocks — and
+  // the blank line **between** them belongs to neither. Swapping the spans whole
+  // carried each block's trailing whitespace with it, which is wrong in both
+  // directions and visible on the first press:
+  //
+  //   - a document written with a blank line between sections came back with
+  //     one newline between them and two at the end, so the spacing moved every
+  //     time a section did; and
+  //   - the last section of a document has no trailing newline at all, so
+  //     swapping past it glued the next heading onto the end of the previous
+  //     paragraph — `גוף ב.#כותרת1[א]`.
+  //
+  // So each block is split into its words and the whitespace that follows them,
+  // the words are exchanged, and the whitespace stays where it was.
+  const first = by === 1 ? mine : theirs;
+  const second = by === 1 ? theirs : mine;
+  const split = (s: Span) => {
+    const whole = doc.slice(s.from, s.to);
+    const words = whole.replace(/\s*$/u, "");
+    return { words, gap: whole.slice(words.length) };
+  };
+  const a = split(first);
+  const b = split(second);
+  const text =
+    doc.slice(0, first.from) + b.words + a.gap + a.words + b.gap + doc.slice(second.to);
+
   // Where the writer was inside their own section, so the caret arrives with it
   // rather than at its first character. Landing on the `#` meant the keystroke
   // after a move wrote `ץ#כותרת2[…]` and the heading became prose. `-1` is "no
   // opinion", for the callers that only have a heading.
-  const into = pos < mine.from || pos > mine.to ? 0 : pos - mine.from;
-  if (by === 1) {
-    const text =
-      doc.slice(0, mine.from) +
-      doc.slice(theirs.from, theirs.to) +
-      doc.slice(mine.from, mine.to) +
-      doc.slice(theirs.to);
-    return { text, caret: mine.from + (theirs.to - theirs.from) + into };
-  }
-  const text =
-    doc.slice(0, theirs.from) +
-    doc.slice(mine.from, mine.to) +
-    doc.slice(theirs.from, theirs.to) +
-    doc.slice(mine.to);
-  return { text, caret: theirs.from + into };
+  const own = by === 1 ? a : b;
+  const at = pos < mine.from || pos > mine.to ? 0 : Math.min(pos - mine.from, own.words.length);
+  const start = by === 1 ? first.from + b.words.length + a.gap.length : first.from;
+  return { text, caret: start + at };
 }
 
 interface Span {

@@ -406,7 +406,7 @@ const LIST_ACTIONS: StructureAction[] = [
     label: "listAsBullets",
     ...onList(
       (list) => lists.canSetKind(list, "bullets"),
-      (doc, list) => lists.setKind(doc, list, "bullets"),
+      (doc, list, pos) => lists.setKind(doc, list, "bullets", pos),
     ),
   },
   {
@@ -418,7 +418,7 @@ const LIST_ACTIONS: StructureAction[] = [
     label: "listAsNumbered",
     ...onList(
       (list) => lists.canSetKind(list, "numbered"),
-      (doc, list) => lists.setKind(doc, list, "numbered"),
+      (doc, list, pos) => lists.setKind(doc, list, "numbered", pos),
     ),
   },
   {
@@ -430,7 +430,7 @@ const LIST_ACTIONS: StructureAction[] = [
     label: "listAsHebrew",
     ...onList(
       (list) => lists.canSetKind(list, "hebrew"),
-      (doc, list) => lists.setKind(doc, list, "hebrew"),
+      (doc, list, pos) => lists.setKind(doc, list, "hebrew", pos),
     ),
   },
 ];

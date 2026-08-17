@@ -1,5 +1,6 @@
 import { check, ok, notOk } from "./harness.mjs";
 import * as tables from "../.tmp-test/table.mjs";
+import * as lists from "../.tmp-test/lists.mjs";
 import { dirOf } from "../tools/paths.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -263,71 +264,108 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
 // ---------------------------------------------------------------- where it leaves you
 //
 // The third question, and the one the two above cannot see. An operation returns
-// a document *and* a caret, and for every table operation the caret used to be
-// the old offset clamped into the new text — always a legal position and almost
-// never the right one, because inserting a column rewrites the call from
-// `עמודות:` onward and moves every cell.
+// a document *and* a caret, and until 17 August the caret was an afterthought in
+// both families.
 //
-// What that looked like from a chair: insert a table, press "add a column
-// after", type one character. It landed inside the command name —
-// `כותרץת_תא[]` — and the table quietly stopped being a table. `enabled` was
-// right, `run` produced correct markup, the suite was green, and the feature
-// destroyed the document on the very next keystroke.
+// Tables: `onTable` returned the old offset clamped into the new text — always a
+// legal position and almost never the right one, because inserting a column
+// rewrites the call from `עמודות:` onward and moves every cell. From a chair
+// that was: insert a table, press "add a column after", type one character, and
+// it lands inside the command name — `כותרץת_תא[]` — and the table quietly
+// stops being a table.
 //
-// So: type a character where the operation put the caret, and the table must
-// still be the table it just built. Written against every table action at every
-// position rather than against `colAfter`, because the clamp was one line shared
-// by all eighteen and fixing the one that was noticed is how the other
-// seventeen stay broken.
+// Lists: not a clamp but six wrong answers. Moving an item put the caret one
+// character past the item's start, which is between the `פ` and the `ר` of
+// `פריט`. Converting a list to numbers parked it after the new command name,
+// outside every item. Deleting an item left it in the gap the item had been in.
+//
+// In every case `enabled` was right, `run` produced correct markup, the suite
+// was green, and the next keystroke destroyed the document.
+//
+// So: type a character where the operation put the caret, and the structure must
+// still be the structure it just built. Over both families and every position,
+// because the table half was one line shared by eighteen operations and fixing
+// the one that was noticed is how the other seventeen stay broken.
 
 {
   const SENTINEL = "ץ";
 
   /**
-   * Is `at` somewhere a writer can type — inside a cell's body, not inside the
-   * command name that carries it or the `(2)` of a merge?
+   * Is `at` somewhere a writer can type — inside the body of a cell or an item,
+   * rather than in the command name that carries it, the `(2)` of a merge or the
+   * gap between two arguments?
    *
-   * Null when there is no table at all, so a prose corpus entry drops out rather
-   * than counting as a pass.
+   * Null when the document holds no structure of that kind at all, so a prose
+   * corpus entry drops out rather than counting as a pass.
    */
-  function inACellBody(text, at) {
-    const start = text.indexOf("#טבלה") < 0 ? text.indexOf("#mktable") : text.indexOf("#טבלה");
+  function inABody(kind, text, at) {
+    if (kind === "table") {
+      const start = text.indexOf("#טבלה") < 0 ? text.indexOf("#mktable") : text.indexOf("#טבלה");
+      if (start < 0) return null;
+      const t = tables.tableAt(text, start);
+      if (!t) return null;
+      return t.cells.some((c) => at >= c.to - 1 - c.body.length && at <= c.to - 1);
+    }
+    // No  after the name: JavaScript defines a word boundary on [A-Za-z0-9_], so
+    // there is none between ה and (, and `#רשימה` matches nothing at all. That
+    // is the trap `headings.canAddContents` is written against, rebuilt here in
+    // the fence itself — this sweep silently checked no list until it was found.
+    const start = text.search(/#(רשימה|ממוספרת|ממוספרת_עברית|רשימת_הגדרות|bullets|numbered)/u);
     if (start < 0) return null;
-    const t = tables.tableAt(text, start);
-    if (!t) return null;
-    return t.cells.some((c) => {
-      const end = c.to - 1;
-      return at >= end - c.body.length && at <= end;
-    });
+    // The innermost list at each position, so a nested list's own items count.
+    const seen = [];
+    for (let i = 0; i <= text.length; i++) {
+      const l = lists.listAt(text, i);
+      if (l && !seen.some((x) => x.from === l.from)) seen.push(l);
+    }
+    if (seen.length === 0) return null;
+    // A list with no items left has no body to be inside, so there is nothing to
+    // say about the caret. That is not a loophole with a queue behind it: the only
+    // operation that can empty a list is deleting its one and only item, and
+    // lists — unlike tables — have no "delete the whole thing", so refusing that
+    // would leave a one-item list with no way out.
+    if (!seen.some((l) => l.items.length > 0)) return null;
+    return seen.some((l) => l.items.some((it) => at >= it.bodyFrom && at <= it.bodyTo));
   }
 
   const wrong = [];
   let typed = 0;
   for (const [name, doc] of CORPUS) {
     for (let pos = 0; pos <= doc.length; pos++) {
-      // Not every position in a table is one a character can be typed into — the
-      // gap *before* a cell call is inside the table and outside every cell, and
-      // typing there breaks the cell whether an operation ran or not. So the
-      // property is not "the caret is always safe", it is **an operation never
-      // makes it less safe than where the writer already was**. That is exactly
-      // the distinction the bug fell into: the caret started inside `[]`, which
-      // is safe, and was left inside a command name, which is not.
-      if (inACellBody(doc, pos) !== true) continue;
       for (const action of STRUCTURE_ACTIONS) {
-        if (action.structure !== "table") continue;
-        // Deleting the table is the one operation with no cell to land in.
+        if (action.structure === "heading") continue;
+        // Not every position inside a structure is one a character can be typed
+        // into — the gap *before* a cell call is inside the table and outside
+        // every cell, and typing there breaks the cell whether an operation ran
+        // or not. So the property is not "the caret is always safe", it is **an
+        // operation never makes it less safe than where the writer already
+        // was**. That is exactly the distinction both bugs fell into: the caret
+        // started inside a body, which is safe, and was left inside a command
+        // name, which is not.
+        if (inABody(action.structure, doc, pos) !== true) continue;
+        // Deleting the whole structure is the one operation with no body left.
         if (action.id === "table.delete") continue;
         const did = action.run(doc, pos);
         if (!did) continue;
-        const after = inACellBody(did.text, did.caret);
+        const after = inABody(action.structure, did.text, did.caret);
         if (after === null) continue;
         typed++;
-        if (!after) wrong.push(`${name}@${pos} ${action.id} → caret ${did.caret}`);
+        if (!after) {
+          wrong.push(
+            `${name}@${pos} ${action.id} → ` +
+              JSON.stringify(
+                (did.text.slice(0, did.caret) + SENTINEL + did.text.slice(did.caret)).slice(
+                  Math.max(0, did.caret - 12),
+                  did.caret + 12,
+                ),
+              ),
+          );
+        }
       }
     }
   }
-  ok(`the sweep typed something (${typed})`, typed > 700);
-  check("no operation leaves the caret outside a cell body", wrong.slice(0, 8), []);
+  ok(`the sweep typed something (${typed})`, typed > 1400);
+  check("no operation leaves the caret outside the body it was in", wrong.slice(0, 8), []);
 }
 
 {

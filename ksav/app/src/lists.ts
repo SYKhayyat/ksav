@@ -356,7 +356,17 @@ export function deleteItem(doc: string, list: ListInfo, pos: number): Edit | nul
   if (doc[cut] === "\n") cut++;
   let from = here.item.from;
   while (from > list.argsFrom && /[ \t]/.test(doc[from - 1])) from--;
-  return { text: doc.slice(0, from) + doc.slice(cut), caret: from };
+  const text = doc.slice(0, from) + doc.slice(cut);
+  // Into the item that took its place — or the one before, when the last item
+  // was the one deleted. `caret: from` was the gap where the item had been:
+  // inside the argument list and inside no item, so the next character typed
+  // landed between two `פריט` calls and produced prose.
+  const shift = cut - from;
+  const survivor =
+    list.items[here.index + 1] !== undefined
+      ? { bodyFrom: list.items[here.index + 1].bodyFrom - shift }
+      : list.items[here.index - 1];
+  return { text, caret: survivor ? survivor.bodyFrom : from };
 }
 
 /**
@@ -504,15 +514,24 @@ export function makeList(
   };
 }
 
-/** Turn this list into bullets / numbers / Hebrew letters, keeping every item. */
-export function setKind(doc: string, list: ListInfo, kind: ListKind): Edit {
+/**
+ * Turn this list into bullets / numbers / Hebrew letters, keeping every item.
+ *
+ * Only the command name changes, so the writer does not move: `pos` is carried
+ * across by the length the name grew or shrank. It used to be dropped and the
+ * caret parked after the new name — outside every item, in the argument list,
+ * where the next character typed is markup. A writer converting a list is in the
+ * middle of writing it.
+ */
+export function setKind(doc: string, list: ListInfo, kind: ListKind, pos = 0): Edit {
   if (!canSetKind(list, kind)) return { text: doc, caret: list.from };
   const name = list.lang === "en" ? KIND_NAME[kind].en : KIND_NAME[kind].he;
   const hash = doc[list.from] === "#" ? "#" : "";
   const nameFrom = list.from + hash.length;
   const nameTo = nameFrom + list.name.length;
   const text = doc.slice(0, nameFrom) + name + doc.slice(nameTo);
-  return { text, caret: nameFrom + name.length };
+  const caret = pos >= nameTo ? pos + (name.length - list.name.length) : nameFrom + name.length;
+  return { text, caret };
 }
 
 /** Move the item at `pos` one place up or down within its list. */
@@ -528,9 +547,12 @@ export function moveItem(doc: string, list: ListInfo, pos: number, by: -1 | 1): 
     doc.slice(a.to, b.from) +
     doc.slice(a.from, a.to) +
     doc.slice(b.to);
-  // The caret follows the item the writer was in.
+  // The caret follows the item the writer was in — at the same offset inside
+  // it, not one character past its start. `moved + 1` put it between the `פ` and
+  // the `ר` of `פריט`, so the next keystroke after moving an item wrote into the
+  // command name and the item stopped being an item.
   const moved = by < 0 ? a.from : a.from + (b.to - b.from) + (b.from - a.to);
-  return { text, caret: moved + 1 };
+  return { text, caret: moved + (pos - here.item.from) };
 }
 
 // ---------------------------------------------------------------- bracket form

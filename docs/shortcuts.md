@@ -62,6 +62,8 @@ rather than leaving two actions on one key.
 | `Ctrl+Enter` | New paragraph in this item | פסקה חדשה באותו פריט |
 | `Tab` | Indent (make a sub-item) | הזחה פנימה (תת־פריט) |
 | `Shift+Tab` | Outdent | הזחה החוצה |
+| `Tab` | Next cell | לתא הבא |
+| `Shift+Tab` | Previous cell | לתא הקודם |
 | `Alt+ArrowUp` | Move up | העברה למעלה |
 | `Alt+ArrowDown` | Move down | העברה למטה |
 | `Alt+Shift+ArrowLeft` | One level up | רמה אחת למעלה |
@@ -91,6 +93,11 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+S` | Keep this version | שמירת גרסה |
 
 ## Not in the table
+
+**`Tab` and `Shift+Tab` read the structure you are in.** In a list they
+indent and outdent an item; in a table they move to the next and previous
+cell. The innermost one wins, so in a list inside a table cell they are the
+list's. Everywhere else they are the editor's own indent.
 
 **Alt** held down reveals the markup under the prose view. Let go and it is
 prose again — the markup is one key away, which is the right distance for the

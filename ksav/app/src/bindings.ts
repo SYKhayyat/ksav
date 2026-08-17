@@ -151,6 +151,23 @@ export const DEFAULT_KEYS: Record<string, string> = {
   "list.paraInItem": "Mod-Enter",
   "list.indent": "Tab",
   "list.outdent": "Shift-Tab",
+  // The same two keys, on the other structure — and this is the one place in
+  // this table where a combination appears twice.
+  //
+  // It is allowed because a **structure** action is already scoped: `list.indent`
+  // cannot fire outside a list and `table.nextCell` cannot fire outside a table,
+  // `structureAt` resolves the innermost structure so the caret is in exactly one
+  // of them, and `structureKeymap` binds without `preventDefault` so a decline
+  // falls through to the next. The rule that matters — one keystroke, one effect —
+  // holds; what does not hold is the cruder reading of it, that one key may name
+  // only one action. `bindings.test.mjs` states the exception and proves the
+  // exclusion rather than trusting it.
+  //
+  // It is worth the exception because `Tab` is how every table in every word
+  // processor is filled in, and without it the only way into the next cell is a
+  // mouse click on the source between two brackets.
+  "table.nextCell": "Tab",
+  "table.prevCell": "Shift-Tab",
   "list.moveUp": "Alt-ArrowUp",
   "list.moveDown": "Alt-ArrowDown",
   // Heading tree editing, on org-mode's chords — promote/demote sideways, move

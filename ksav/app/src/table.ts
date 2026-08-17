@@ -488,6 +488,49 @@ export function caretIn(doc: string, tableFrom: number, at: CellAt, fromEnd: num
   return Math.max(start, Math.min(p.cell.to - fromEnd, end));
 }
 
+// ---------------------------------------------------------------- moving about
+//
+// The eighteen operations above all *change* the table. None of them moved the
+// writer through it, and neither did anything else: lists own `Enter`, `Tab`,
+// `Shift+Tab` and `Alt`+arrows, and a table had a ribbon and no keyboard at all.
+// `Tab` in a cell fell through to the editor's own indent and put spaces in the
+// markup.
+//
+// `Tab` is how every table in every word processor is filled in. Without it the
+// only way into the next cell is a mouse click on the source between two
+// brackets, which is not writing.
+
+/** The body of a cell — where a writer types, and where a step lands. */
+function bodyOf(c: TableCell): { from: number; to: number } {
+  const to = c.to - 1;
+  return { from: to - c.body.length, to };
+}
+
+/**
+ * Where the caret goes on `Tab`, or `null` at the end of the table.
+ *
+ * The **start** of the next cell's body rather than a selection of it: Word
+ * selects the cell and replaces its text on the next keystroke, which is
+ * convenient in a spreadsheet and destructive in a sefer. Landing at the start
+ * is the same gesture with nothing thrown away.
+ *
+ * A caret between two cells steps to the one it is on the near side of, so
+ * `Tab` from anywhere inside the table means something.
+ */
+export function stepCell(t: TableInfo, pos: number, by: -1 | 1): number | null {
+  const here = cellIndexAt(t, pos);
+  const from =
+    here ?? (by === 1 ? t.cells.findIndex((c) => c.from > pos) - 1 : t.cells.findIndex((c) => c.from > pos));
+  const next = (here === null && from < 0 ? (by === 1 ? -1 : t.cells.length) : from) + by;
+  if (next < 0 || next >= t.cells.length) return null;
+  return bodyOf(t.cells[next]).from;
+}
+
+/** Is there a cell that way? */
+export function canStepCell(t: TableInfo, pos: number, by: -1 | 1): boolean {
+  return stepCell(t, pos, by) !== null;
+}
+
 // ---------------------------------------------------------------- the operations
 
 export function insertRow(doc: string, t: TableInfo, afterRow: number): string {

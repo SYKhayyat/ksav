@@ -96,6 +96,18 @@ export interface StructureAction {
    */
   why: string;
   /**
+   * This one moves the caret and leaves the document alone.
+   *
+   * Every other operation here changes the text, and the sweep in
+   * `structure.test.mjs` holds them to it: *nothing is offered that cannot
+   * change the document* is what stops a live control from silently doing
+   * nothing. Cell navigation is the one thing a writer asks a structure for
+   * that is not an edit, so it is marked rather than quietly excused — and the
+   * same sweep asserts the inverse of it, that an action marked this way never
+   * changes the text.
+   */
+  moves?: boolean;
+  /**
    * Do it. Returns null exactly when `enabled` says no — the last item cannot
    * move down, the first cannot indent — so a surface that ignores `enabled` and
    * just calls this still cannot be lied to.
@@ -631,6 +643,35 @@ const TABLE_ACTIONS: StructureAction[] = [
     ...onTable(
       (_t, g) => tables.canDeleteColumn(g),
       (doc, t, _row, col) => tables.deleteColumn(doc, t, col),
+    ),
+  },
+  // Moving through the table, which is the thing a writer does most and the one
+  // thing a table had no key for. See `table.stepCell`.
+  {
+    id: "table.nextCell",
+    why: "why.lastCell",
+    primary: true,
+    structure: "table",
+    group: "cells",
+    glyph: "⇥",
+    label: "nextCell",
+    moves: true,
+    ...op(
+      (ctx) => !!ctx.table() && tables.canStepCell(ctx.table()!, ctx.pos, 1),
+      (ctx) => ({ text: ctx.doc, caret: tables.stepCell(ctx.table()!, ctx.pos, 1)! }),
+    ),
+  },
+  {
+    id: "table.prevCell",
+    why: "why.firstCell",
+    structure: "table",
+    group: "cells",
+    glyph: "⇤",
+    label: "prevCell",
+    moves: true,
+    ...op(
+      (ctx) => !!ctx.table() && tables.canStepCell(ctx.table()!, ctx.pos, -1),
+      (ctx) => ({ text: ctx.doc, caret: tables.stepCell(ctx.table()!, ctx.pos, -1)! }),
     ),
   },
   {

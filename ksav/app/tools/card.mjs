@@ -127,6 +127,15 @@ for (const [id, binding] of Object.entries(DEFAULT_KEYS)) {
 lines.push("");
 lines.push("## Not in the table");
 lines.push("");
+// `Tab` and `Shift+Tab` appear twice in the table above and that is not a
+// mistake, so the card says why rather than leaving a reader to guess which row
+// wins. Written here rather than as a footnote on the rows because it is one
+// sentence about the keyboard, not two about two bindings.
+lines.push("**`Tab` and `Shift+Tab` read the structure you are in.** In a list they");
+lines.push("indent and outdent an item; in a table they move to the next and previous");
+lines.push("cell. The innermost one wins, so in a list inside a table cell they are the");
+lines.push("list's. Everywhere else they are the editor's own indent.");
+lines.push("");
 lines.push("**Alt** held down reveals the markup under the prose view. Let go and it is");
 lines.push("prose again — the markup is one key away, which is the right distance for the");
 lines.push("people who want it. The `＃` button in the header switches permanently.");

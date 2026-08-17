@@ -21,7 +21,7 @@ import {
   readable,
 } from "../.tmp-test/bindings.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
-import { actionById } from "../.tmp-test/structure.mjs";
+import { actionById, isEnabled, STRUCTURE_ACTIONS } from "../.tmp-test/structure.mjs";
 
 export function run() {
 
@@ -31,9 +31,60 @@ export function run() {
   // Two actions on one combination is a keystroke whose effect depends on which
   // list was read first — undebuggable from the writing side. The settings panel
   // refuses to create one; this asserts none ships.
+  //
+  // **One exception, and it is proved rather than trusted.** A *structure*
+  // action is already scoped: `list.indent` cannot fire outside a list,
+  // `table.nextCell` cannot fire outside a table, and `structureAt` resolves the
+  // **innermost** structure — so at any caret at most one of them applies and
+  // the keystroke still has exactly one effect. `structureKeymap` binds without
+  // `preventDefault`, so the one that declines falls through to the other.
+  //
+  // It exists for `Tab`, which is how every table in every word processor is
+  // filled in and which a table here had no key for at all. The uniqueness rule
+  // is about one keystroke having one effect; it was written as "one key, one
+  // action", which is a stronger claim than the reason behind it.
   {
-    const keys = Object.values(DEFAULT_KEYS);
-    check("no two actions ship on one combination", new Set(keys).size, keys.length);
+    const structural = new Set(STRUCTURE_ACTIONS.map((a) => a.id));
+    const byKey = new Map();
+    for (const [id, key] of Object.entries(DEFAULT_KEYS)) {
+      byKey.set(key, [...(byKey.get(key) ?? []), id]);
+    }
+    const shared = [...byKey].filter(([, ids]) => ids.length > 1);
+    const illegal = shared.filter(([, ids]) => {
+      if (!ids.every((id) => structural.has(id))) return true;
+      const kinds = new Set(ids.map((id) => actionById(id).structure));
+      return kinds.size !== ids.length;
+    });
+    check("no two actions ship on one combination", illegal.map(([k]) => k), []);
+    ok("…and the exception is used, so this is not vacuous", shared.length > 0);
+  }
+
+  // The exclusion the exception rests on, over a corpus rather than by argument:
+  // no caret anywhere makes two sharers of one key both applicable.
+  {
+    const byKey = new Map();
+    for (const [id, key] of Object.entries(DEFAULT_KEYS)) {
+      byKey.set(key, [...(byKey.get(key) ?? []), id]);
+    }
+    const docs = [
+      "#רשימה(\n  פריט[א],\n  פריט[ב],\n)\n",
+      "#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n)\n",
+      // The case the whole argument turns on: a list inside a cell. Innermost
+      // wins, so `Tab` is the list's there and the table's everywhere else in it.
+      "#טבלה(עמודות: 1,\n  תא[#רשימה(פריט[פנימי],)],\n)\n",
+      "סתם טקסט בלי מבנה.\n",
+    ];
+    const both = [];
+    for (const [key, ids] of byKey) {
+      if (ids.length < 2) continue;
+      for (const doc of docs) {
+        for (let pos = 0; pos <= doc.length; pos++) {
+          const live = ids.filter((id) => isEnabled(actionById(id), doc, pos));
+          if (live.length > 1) both.push(`${key} @${pos}: ${live.join(" + ")}`);
+        }
+      }
+    }
+    check("no caret makes two sharers of one key both apply", both.slice(0, 6), []);
   }
 
   // An alias must not collide with a shipped binding either, or redo's `Mod-Shift-z`

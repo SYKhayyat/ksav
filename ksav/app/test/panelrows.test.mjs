@@ -101,6 +101,72 @@ export async function run() {
   {
     check("a document with no notes says so", noteList([]).empty, "notesPaneEmpty");
   }
+
+  // ------------------------------------------- the number is the note's, not the row's
+  //
+  // Notes are numbered **per series**. The chip was `i + 1` — the row's position
+  // in a flat list — in the slot a reader takes for the note's number, so a
+  // sefer whose pages numbered its notes 1, 2 in a ביאור band and א, ב in a
+  // mareh-mekomos band had a drawer that said 1 to 10. The panel whose whole job
+  // is *find the note you are looking at* printed an ordinal on no page.
+  //
+  // What it still does not do is render each series' own scheme: a stream
+  // configured `מספור: "א"` counts 1, 2 here where the page prints א, ב.
+  // Reproducing that would be a second implementation of numbering the engine
+  // already owns. The count and the series are right; the glyph is the engine's
+  // to hand back.
+
+  {
+    const doc =
+      "ראשון#הערה_זרם(\"ביאור\")[ביאור־א]\n" +
+      "שני#הערה_זרם(\"מקורות\")[מקור־א]\n" +
+      "שלישי#הערה_זרם(\"מקורות\")[מקור־ב]\n" +
+      "רביעי#הערה_זרם(\"ביאור\")[ביאור־ב]\n";
+    const list = noteList(notesIn(doc), doc);
+    check("four notes, four rows", list.rows.length, 4);
+    check(
+      "each series counts from one",
+      list.rows.map((r) => r.chip),
+      ["1", "1", "2", "2"],
+    );
+    check(
+      "and every row says which series it is in",
+      list.rows.map((r) => r.note),
+      ["ביאור", "מקורות", "מקורות", "ביאור"],
+    );
+  }
+
+  {
+    // With one series there is nothing to tell apart, and a label on every row
+    // repeating the only answer is noise. The ordinal is the marker here.
+    const doc = "א#הערה[ראשונה]\nב#הערה[שנייה]\nג#הערה[שלישית]\n";
+    const list = noteList(notesIn(doc), doc);
+    check("one series still counts 1, 2, 3", list.rows.map((r) => r.chip), ["1", "2", "3"]);
+    check("and says nothing about the series", list.rows.map((r) => r.note), [
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  }
+
+  {
+    // The four spellings that name a series, through one function. A named
+    // argument, a positional stream, a command that names its stream, and a
+    // tier — `channels.seriesOf` is where they meet, and a reader of this list
+    // should not have to know which spelling produced which row.
+    const doc =
+      "א#הערה(ערוץ: \"ביאור\")[בשם]\n" +
+      "ב#הערה_זרם(\"ביאור\")[במיקום]\n" +
+      "ג#הערת_מקור[מקור]\n" +
+      "ד#הערה[רגילה]\n";
+    const list = noteList(notesIn(doc), doc);
+    check(
+      "one series however it was written",
+      list.rows.map((r) => r.note),
+      ["ביאור", "ביאור", "מקורות", "הערה"],
+    );
+    check("…and the two ביאור notes are 1 and 2", list.rows.slice(0, 2).map((r) => r.chip), ["1", "2"]);
+  }
   {
     // "The notes drawer should expand to the whole note, and to the line the
     // note sits on." One line of a note is enough to recognise it and never

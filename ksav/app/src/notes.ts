@@ -22,6 +22,7 @@ import {
   retargetRef,
   scan as scanDeferred,
 } from "./deferred";
+import { seriesOf } from "./channels";
 import { docLang, translated } from "./mode";
 import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
 import { scan as scanSpans, type Node, type Scan } from "./spans";
@@ -614,6 +615,14 @@ export interface NoteSpan {
   /** How many notes enclose this one: 0 for a note on the body. */
   depth: number;
   /**
+   * The series this note is numbered in — see `channels.seriesOf`.
+   *
+   * Carried here rather than worked out by each reader, because it comes off
+   * the same scan that produced the span and a second parse of the same markup
+   * is the defect family this repository is named for.
+   */
+  series: string;
+  /**
    * Where the prose lives, when it does not live in the marker.
    *
    * Present exactly when the note is written the deferred way. `defFrom`/
@@ -693,6 +702,7 @@ export function notesIn(doc: string): NoteSpan[] {
       command: n.name,
       text: doc.slice(body.from, body.to),
       depth: 0,
+      series: seriesOf(n.name, n.args ? doc.slice(n.args.from, n.args.to) : ""),
       deferred: null,
     };
     spans.push(span);
@@ -710,6 +720,9 @@ export function notesIn(doc: string): NoteSpan[] {
       command: r.kind ?? DEFAULT_NOTE_KIND[r.lang],
       text: d ? doc.slice(d.bodyFrom, d.bodyTo) : "",
       depth: 0,
+      // A deferred note is a marker in the prose and a body at the end of the
+      // file, and it is the **marker** that says which series it prints in.
+      series: seriesOf(r.kind ?? DEFAULT_NOTE_KIND[r.lang], r.rest),
       // `defFrom`/`defTo` are -1 until the body is written; `hasBody` says so.
       deferred: { name: r.name, defFrom: d ? d.from : -1, defTo: d ? d.to : -1 },
     };

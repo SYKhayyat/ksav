@@ -334,6 +334,46 @@ export function usedChannels(doc: string): string[] {
 }
 
 /** One note written into a named channel, and where it sits. */
+/**
+ * The series a note is numbered in — its channel, under whichever spelling.
+ *
+ * Notes number **per series**, and every surface that shows a note has to know
+ * which one it is in or it is describing the wrong document. The notes drawer
+ * did not: it numbered ten notes 1 to 10 in a sefer whose pages numbered them
+ * 1, 2 in one band and א, ב in another, so the panel for finding a note by its
+ * number printed an ordinal that appears nowhere.
+ *
+ * Four spellings reach one answer, which is the whole reason this is a function
+ * and not a field read: a positional stream name (`#הערה_זרם("ביאור")`), a named
+ * channel (`#הערה(ערוץ: "ביאור")`), the two commands that name a stream in their
+ * own name (`#הערת_מקור`, `#הערת_תוכן`), and the tier commands, which are the
+ * built-in channels written the short way. Anything else is the default.
+ */
+export function seriesOf(command: string, args: string): string {
+  const named = /(?:^|,)\s*(?:ערוץ|channel)\s*:\s*("[^"]*")/u.exec(args);
+  if (named) {
+    const name = unquote(named[1]);
+    if (name) return name;
+  }
+  // `#הערה_זרם("מקורות")` — the stream is the first positional argument, which
+  // is why `channelNotesIn`'s named-argument read cannot see it.
+  if (isCommand(command, "הערה_זרם")) {
+    const first = /^\s*"([^"]*)"/u.exec(args);
+    if (first?.[1]) return first[1];
+  }
+  for (const [name, stream] of NAMED_STREAM_COMMANDS) {
+    if (isCommand(command, name)) return stream;
+  }
+  const tier = TIER_CHANNELS.find((t) => isCommand(command, t));
+  return tier ?? DEFAULT_CHANNEL;
+}
+
+/** The two commands whose own name says which stream they write into. */
+const NAMED_STREAM_COMMANDS: ReadonlyArray<readonly [string, string]> = [
+  ["הערת_מקור", "מקורות"],
+  ["הערת_תוכן", "תוכן"],
+];
+
 export interface ChannelNote {
   channel: string;
   /** The `#`. */

@@ -145,7 +145,10 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
       const r = action.run(doc, pos);
       if (enabled) {
         ok(`${name}/${action.id}: enabled and returns an edit`, r !== null);
-        ok(`${name}/${action.id}: and the edit changes something`, r.text !== doc);
+        ok(
+          `${name}/${action.id}: and it does something`,
+          action.moves ? r.caret !== pos : r.text !== doc,
+        );
         ok(
           `${name}/${action.id}: the caret stays in the document`,
           r.caret >= 0 && r.caret <= r.text.length,
@@ -237,6 +240,8 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
 
   const disagree = [];
   const idle = [];
+  const wandering = [];
+  const stuck = [];
   let asked = 0;
   for (const [name, doc] of CORPUS) {
     for (let pos = 0; pos <= doc.length; pos++) {
@@ -252,13 +257,25 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
         // whole registry exists to stop telling. The one honest exception is a
         // move between two rows that are already identical, which the corpus
         // above deliberately does not contain.
-        if (said && did && did.text === doc) idle.push(`${name}@${pos} ${action.id}`);
+        //
+        // …and the *declared* exception: an action marked `moves` navigates and
+        // is not an edit. Marked rather than excused — `wandering` below asserts
+        // the inverse, so the flag cannot become a way to smuggle a dead control
+        // past this check.
+        if (said && did && did.text === doc && !action.moves) idle.push(`${name}@${pos} ${action.id}`);
+        if (did && action.moves && did.text !== doc) wandering.push(`${name}@${pos} ${action.id}`);
+        if (did && action.moves && said && did.caret === pos) {
+          stuck.push(`${name}@${pos} ${action.id}`);
+        }
       }
     }
   }
   ok(`the sweep actually asked something (${asked})`, asked > 20000);
   check("`enabled` and `run` never disagree", disagree.slice(0, 8), []);
   check("nothing is offered that cannot change the document", idle.slice(0, 8), []);
+  // The inverse of the `moves` flag, so it is a declaration and not an excuse.
+  check("an action that only moves never edits", wandering.slice(0, 8), []);
+  check("…and never leaves the caret where it was", stuck.slice(0, 8), []);
 }
 
 // ---------------------------------------------------------------- where it leaves you
@@ -471,7 +488,7 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   const doc = bigTable(600);
   const at = doc.indexOf("ב300");
   const table = STRUCTURE_ACTIONS.filter((a) => a.structure === "table");
-  check("all eighteen are under test", table.length, 18);
+  check("every table operation is under test", table.length, 20);
 
   const asking = perCall(60, (i) => availableAt(doc, at + i));
   const doing = perCall(10, (i) => table.forEach((a) => a.run(doc, at + i)));

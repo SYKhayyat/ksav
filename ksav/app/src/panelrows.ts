@@ -229,21 +229,47 @@ function lineAround(doc: string, n: NoteSpan): string | undefined {
  */
 export function noteList(items: readonly NoteSpan[], doc = ""): PanelList {
   if (!items.length) return { rows: [], empty: "notesPaneEmpty", hidden: 0 };
+  // Counted **within its own series**, because that is how notes are numbered.
+  //
+  // The chip was `i + 1`: the row's position in a flat list, in the slot a
+  // reader takes for the note's number. On a sefer with a ביאור band and a
+  // mareh-mekomos band the page numbers them 1, 2 and א, ב and the drawer said
+  // 1 to 10, so the panel whose whole job is *find the note you are looking at*
+  // printed an ordinal that appears nowhere in the document.
+  //
+  // What this does not do is render the series' own scheme — a `מספור: "א"`
+  // stream still counts 1, 2 here where the page prints א, ב. Reproducing that
+  // would be a second implementation of numbering the engine already owns,
+  // which is the one thing this codebase is named after not doing. The number
+  // is now the right *count* in the right *series*, and the series is on the
+  // row; the remaining half wants the markers carried back on the compile.
+  const seen = new Map<string, number>();
+  const ordinals = items.map((n) => {
+    const next = (seen.get(n.series) ?? 0) + 1;
+    seen.set(n.series, next);
+    return next;
+  });
+  // With one series there is nothing to distinguish, and a label on every row
+  // saying `הערה` is noise that makes the drawer harder to read, not easier.
+  const many = seen.size > 1;
   return {
     rows: items.map((n, i) => ({
       does: { kind: "note", at: n.bodyFrom, marker: n.from },
       indent: n.depth,
-      chip: String(i + 1),
+      chip: String(ordinals[i]),
       // The whole note, and the sentence it hangs off — *"the notes drawer
       // should expand to the whole note, and to the line the note sits on"*.
       // One line of a note is enough to recognise it and never enough to read
       // it, and a note read away from the sentence it annotates is half a note.
       full: flat(n.text),
       context: doc ? lineAround(doc, n) : undefined,
-      // The pair's name, for a note written the deferred way — it is what the
-      // two halves are called in the source, and reading a row without it means
-      // hunting for which marker this prose belongs to.
-      note: n.deferred?.name,
+      // The quiet label: which series this note prints in, and — for a note
+      // written the deferred way — what its two halves are called in the source,
+      // because reading a row without that means hunting for which marker this
+      // prose belongs to. The series comes first: it is what tells a `ב` in the
+      // mareh-mekomos band apart from a `2` in the ביאור band, and the ordinal
+      // beside it means nothing without it.
+      note: [many ? n.series : null, n.deferred?.name].filter(Boolean).join(" · ") || undefined,
       // A marker whose body is not written yet has no words; naming the command
       // is the only honest thing left to show.
       label: gist(n.text) || "#" + n.command,

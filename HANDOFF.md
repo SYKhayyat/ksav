@@ -131,6 +131,9 @@ draft and the `#פריט` badge — is
 [`decisions/2026-08-17-the-version-nobody-runs.md`](decisions/2026-08-17-the-version-nobody-runs.md),
 and the sitting that followed the release is
 [`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
+The notes' printed markers, which stood here until the mechanism this page
+specified for them turned out not to exist, are
+[`decisions/2026-08-17-the-marker-is-not-resolved-it-is-paired.md`](decisions/2026-08-17-the-marker-is-not-resolved-it-is-paired.md).
 
 ### Checked, and not bugs — do not re-report
 
@@ -158,21 +161,6 @@ and the sitting that followed the release is
       sent to somebody who will open it. Nothing else has ever found this class
       of bug. Every bug goes to the top of the queue and gets the class
       treatment.
-
-- [ ] **Carry the notes' printed markers back on the compile.** Not a bug — the
-      drawer now counts within each note's own series and says which series that
-      is, so nothing false is claimed. What it still cannot do is print the
-      series' own *scheme*: a stream configured `מספור: "א"` counts 1, 2 in the
-      drawer where the page prints א, ב.
-
-      Closing that in the editor means a second implementation of numbering the
-      engine already owns, which is the one thing this codebase is named after
-      not doing. The right shape is a `Wants` flag and a walk over the laid-out
-      frames — every glyph carries the `Span` of the source it came from, which
-      is what `pagelines.rs` already leans on — so the response can carry
-      (marker, source offset) pairs and the drawer's number becomes *the* number
-      by construction. Then `#הערה` gets a real marker everywhere it is shown,
-      not only in the drawer.
 
 - [ ] **Open the MELPA pull request.** Everything it needs is written down in
       [`ksav/editors/emacs/melpa-submission.md`](ksav/editors/emacs/melpa-submission.md)
@@ -216,6 +204,16 @@ perfectly. It also ran on one document whose sections all ended the same way, so
 there was nothing to swap. Two lessons in one fence — vary the corpus along the
 axis the operation touches, and where a property is symmetric, name the shape as
 well as the round trip.
+
+**A design written down in this file is a hypothesis, not a finding.** The
+markers item specified its own mechanism — walk the frames, read each marker
+glyph's span — on a sentence that is true (*every glyph carries the span of the
+source it came from*) and is not the claim being made (*every glyph carries a
+span into the writer's document*). A marker is generated inside the prelude, so
+its span names `ksav.typ`: a real file with a real name that the writer has never
+seen. Fifteen minutes of dumping the actual frames said so before a line was
+written; the plan had been carried in this page for a day, and reading it twice
+would never have found it. Measure the premise, then build.
 
 **A clamp is not a mapping, and a legal answer is not a right one.** Eighteen
 table operations returned `Math.min(ctx.pos, text.length)` for the caret — the

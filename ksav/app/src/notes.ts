@@ -22,6 +22,7 @@ import {
   retargetRef,
   scan as scanDeferred,
 } from "./deferred";
+import type { NoteMarker } from "./api";
 import { seriesOf } from "./channels";
 import { docLang, translated } from "./mode";
 import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
@@ -755,6 +756,61 @@ export function notesIn(doc: string): NoteSpan[] {
   };
 
   return arrange(spans, parentOf);
+}
+
+/**
+ * The marker each note actually printed, or `null` where the page cannot say.
+ *
+ * One entry per note, in the order given. This is the client half of
+ * `engine/src/notemarks.rs`: the engine hands back every marker the layout
+ * printed paired with the offset of the prose beside it, and has no idea which
+ * of those pairs is a note. This does, because it is holding the scan.
+ *
+ * # Why the innermost note wins
+ *
+ * A note written inside another note's prose sits **inside its parent's body
+ * range**, textually — `#הערה[אבג#הערה_בדרגה(2)[דהו]]` has the outer body
+ * covering the inner call and everything in it. So an offset in `דהו` is inside
+ * two notes, and only the deeper one printed a marker beside it. Matching
+ * against the first containing note would give the tier-2 note's marker to its
+ * parent and lose the parent's own.
+ *
+ * # Why the earliest offset wins
+ *
+ * An entry prints its marker and then its body from the beginning, so the pair
+ * that lands on a note's *first* words is the one the entry made. The marker
+ * printed in the prose is followed by whatever comes after the note — usually
+ * ordinary text, which is inside no body and drops out here — but inside a
+ * parent's body it is followed by the rest of that parent, which is a real pair
+ * about the wrong note. It is always later than the parent's own first word, so
+ * taking the earliest settles it without a rule about which kind of pair this is.
+ *
+ * # Why a missing marker is not filled in
+ *
+ * A note whose body is empty prints a marker over nothing, so there is no prose
+ * to pair with and no honest answer. It comes back `null` and the drawer falls
+ * back to counting. The one thing this must never do is produce a plausible
+ * number, which is the failure this whole path exists to end.
+ */
+export function markersFor(
+  items: readonly NoteSpan[],
+  marks: readonly NoteMarker[],
+): (string | null)[] {
+  const best = new Map<NoteSpan, NoteMarker>();
+  for (const mark of marks) {
+    let innermost: NoteSpan | null = null;
+    for (const n of items) {
+      if (!n.hasBody || mark.at < n.bodyFrom || mark.at >= n.bodyTo) continue;
+      // Deeper means written inside, and `depth` is already the answer — worked
+      // out by `arrange` over the containment tree rather than by comparing
+      // offsets, which is what makes a deferred body's depth right at all.
+      if (!innermost || n.depth > innermost.depth) innermost = n;
+    }
+    if (!innermost) continue;
+    const held = best.get(innermost);
+    if (!held || mark.at < held.at) best.set(innermost, mark);
+  }
+  return items.map((n) => best.get(n)?.marker ?? null);
 }
 
 /**

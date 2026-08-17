@@ -44,6 +44,7 @@ pub mod include;
 pub mod jump;
 /// What the engine embeds and the notice each embedding owes — one table, tied
 /// to the `include_bytes!` lines below and to `THIRD-PARTY-NOTICES.md`.
+pub mod notemarks;
 pub mod notices;
 /// Which of the writer's lines printed on each page — the fact a preview
 /// narrowed to one siman is drawn from.
@@ -1250,6 +1251,12 @@ pub struct Compiled {
     /// Empty unless [`Wants::lines`] asked for it. See [`crate::pagelines`] for
     /// what a run is and why a page reports several of them.
     pub pages_lines: Vec<Vec<pagelines::LineRun>>,
+    /// Every marker the layout printed, paired with the prose beside it.
+    ///
+    /// Empty unless [`Wants::markers`] asked for it. Not a list of notes and not
+    /// in note order — see [`crate::notemarks`] for what the caller still has to
+    /// do with it.
+    pub note_markers: Vec<notemarks::NoteMarker>,
 }
 
 /// What a compile should carry back, as opposed to what it compiles.
@@ -1270,6 +1277,9 @@ pub struct Wants {
     /// Which lines printed on which page. One walk over the laid-out frames and
     /// one re-parse of the main source; read only by a narrowed preview.
     pub lines: bool,
+    /// What each note's marker printed as. The same walk and the same re-parse
+    /// as `lines`, and read only by the notes drawer while it is open.
+    pub markers: bool,
 }
 
 impl Wants {
@@ -1283,6 +1293,7 @@ impl Wants {
             pdf: true,
             source: true,
             lines: false,
+            markers: false,
         }
     }
 }
@@ -2071,10 +2082,17 @@ pub fn compile_parts(
             // Typst numbered it — the same trick `Located` uses and the same
             // reason it is built lazily. What gets parsed is the two-line header
             // and the writer's own text; the prelude is a different file.
-            let pages_lines = if wants.lines {
-                pagelines::page_lines(&doc, &typst::syntax::Source::detached(source.clone()), body)
-            } else {
-                Vec::new()
+            //
+            // `markers` shares it, so the parse happens once for either or both.
+            let parsed = (wants.lines || wants.markers)
+                .then(|| typst::syntax::Source::detached(source.clone()));
+            let pages_lines = match (&parsed, wants.lines) {
+                (Some(main), true) => pagelines::page_lines(&doc, main, body),
+                _ => Vec::new(),
+            };
+            let note_markers = match (&parsed, wants.markers) {
+                (Some(main), true) => notemarks::note_markers(&doc, main, body),
+                _ => Vec::new(),
             };
             // Fingerprint the **page**, then serialise only what the caller
             // has not got.
@@ -2126,6 +2144,7 @@ pub fn compile_parts(
                     String::new()
                 },
                 pages_lines,
+                note_markers,
             }
         }
         Err(err) => {
@@ -2146,6 +2165,7 @@ pub fn compile_parts(
                 pages_hash: Vec::new(),
                 diagnostics,
                 pages_lines: Vec::new(),
+                note_markers: Vec::new(),
                 typst_source: if wants.source {
                     assemble_source(body, cfg)
                 } else {
@@ -2262,6 +2282,7 @@ fn malformed_request(reason_he: &str, reason_en: &str) -> String {
         }],
         "typst_source": "",
         "pages_lines": [],
+        "note_markers": [],
         "missing_assets": [],
     })
     .to_string()
@@ -2422,6 +2443,8 @@ pub fn compile_request(input_json: &str) -> String {
         // Asked for by a preview pane that is following a narrowed source pane,
         // and by nothing else.
         lines: flag("want_lines"),
+        // Asked for by the notes drawer while it is open, and by nothing else.
+        markers: flag("want_markers"),
     };
     // Pages the client already has, by fingerprint.
     //
@@ -2453,6 +2476,10 @@ pub fn compile_request(input_json: &str) -> String {
     // a diagnostic has one line to move, and a run has to be *split* where a
     // page holds the end of one chapter and the head of the next.
     pagelines::relabel(&expanded, &mut result.pages_lines);
+    // And the third translation, which is a deletion — see `notemarks::keep_main`
+    // for why a marker from an included chapter cannot be moved into the open
+    // document's coordinates the way a page run can.
+    notemarks::keep_main(&expanded, body, &mut result.note_markers);
     for problem in &expanded.problems {
         result
             .diagnostics
@@ -2507,6 +2534,11 @@ pub fn compile_request(input_json: &str) -> String {
         // `want_lines` asked. One entry per page, in page order, so the client
         // can index it by page number; see `pagelines`.
         "pages_lines": result.pages_lines,
+        // What each note's marker printed as — empty unless `want_markers`
+        // asked. A flat list of (marker, offset) pairs and **not** a list of
+        // notes; the client intersects it with the note bodies it already holds.
+        // See `notemarks`.
+        "note_markers": result.note_markers,
         // Hashes the client thought were cached but the engine no longer holds;
         // it re-sends their bytes on the next compile.
         "missing_assets": missing_assets,
@@ -3500,6 +3532,76 @@ mod tests {
         assert!(
             asked[0].as_array().is_some_and(|r| !r.is_empty()),
             "the first page reported no lines at all: {asked:?}"
+        );
+    }
+
+    /// The fourth flag, held to the same bargain as the other three.
+    ///
+    /// It shares `lines`'s re-parse of the main source, which is the one part of
+    /// the cost that is worth sharing and the one part a test can be fooled by:
+    /// a `parsed` computed unconditionally would leave both flags looking gated
+    /// while the expensive half ran on every keystroke. So the assertion is
+    /// about the **answer** being absent, which is the only thing observable
+    /// from out here.
+    #[test]
+    fn the_note_markers_are_only_computed_when_they_are_asked_for() {
+        let cfg = DocConfig::default();
+        let body = "שלום#הערה[ראשונה] עולם";
+        let quiet = compile_parts(
+            body,
+            &cfg,
+            &Assets::default(),
+            Wants::default(),
+            &Default::default(),
+        );
+        assert!(
+            quiet.note_markers.is_empty(),
+            "a compile nobody asked walked every frame anyway: {:?}",
+            quiet.note_markers
+        );
+
+        let asked = compile_parts(
+            body,
+            &cfg,
+            &Assets::default(),
+            Wants {
+                markers: true,
+                ..Default::default()
+            },
+            &Default::default(),
+        );
+        assert!(
+            asked.note_markers.iter().any(|m| m.marker == "1"),
+            "asked for and answered with nothing: {:?}",
+            asked.note_markers
+        );
+        assert!(
+            asked.pages_lines.is_empty(),
+            "asking for the markers turned the page runs on too: {:?}",
+            asked.pages_lines
+        );
+    }
+
+    /// And the same across the wire, which is the only route the editor takes.
+    #[test]
+    fn the_wire_carries_the_note_markers_when_asked() {
+        let ask = |extra: serde_json::Value| {
+            let mut v = serde_json::json!({ "body": "שלום#הערה[ראשונה] עולם" });
+            for (k, val) in extra.as_object().unwrap() {
+                v[k] = val.clone();
+            }
+            let out: serde_json::Value =
+                serde_json::from_str(&compile_request(&v.to_string())).unwrap();
+            out["note_markers"].as_array().cloned().unwrap_or_default()
+        };
+        assert!(
+            ask(serde_json::json!({})).is_empty(),
+            "the markers rode on a request that did not ask for them"
+        );
+        let asked = ask(serde_json::json!({ "want_markers": true }));
+        assert!(
+            asked.iter().any(|m| m["marker"] == "1"),
+            "the note's own marker is not in the response: {asked:?}"
         );
     }
 

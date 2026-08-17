@@ -9,7 +9,7 @@ import {
   outlineList,
   paletteList,
 } from "../.tmp-test/panelrows.mjs";
-import { notesIn } from "../.tmp-test/notes.mjs";
+import { markersFor, notesIn } from "../.tmp-test/notes.mjs";
 import { outline } from "../.tmp-test/ksav-lang.mjs";
 
 // What the four list panels list, asked directly.
@@ -110,11 +110,10 @@ export async function run() {
   // mareh-mekomos band had a drawer that said 1 to 10. The panel whose whole job
   // is *find the note you are looking at* printed an ordinal on no page.
   //
-  // What it still does not do is render each series' own scheme: a stream
-  // configured `מספור: "א"` counts 1, 2 here where the page prints א, ב.
-  // Reproducing that would be a second implementation of numbering the engine
-  // already owns. The count and the series are right; the glyph is the engine's
-  // to hand back.
+  // That is now the fallback rather than the answer. The glyph the page printed
+  // comes back on the compile (`engine/src/notemarks.rs`) and `markersFor`
+  // matches it to a note; counting is what a note gets when no compile can say —
+  // freshly typed, empty, or never compiled at all.
 
   {
     const doc =
@@ -133,6 +132,95 @@ export async function run() {
       "and every row says which series it is in",
       list.rows.map((r) => r.note),
       ["ביאור", "מקורות", "מקורות", "ביאור"],
+    );
+  }
+
+  // --------------------------------------- the glyph the page actually printed
+  //
+  // The half the count could never reach. A stream configured `מספור: "א"`
+  // prints א, ב and the drawer said 1, 2 — the right count in the right series,
+  // and a number on no page of the sefer. The markers now ride back on the
+  // compile and this is where they land.
+
+  {
+    const doc =
+      "ראשון#הערה_זרם(\"ביאור\")[ביאור־א]\n" + "שני#הערה_זרם(\"ביאור\")[ביאור־ב]\n";
+    const notes = notesIn(doc);
+    // What the engine sends: the marker, and where the prose beside it starts.
+    // Deliberately in the wrong order and with a pair belonging to no note at
+    // all, because that is what a real response looks like — the marker printed
+    // in the prose is followed by the sentence it interrupts.
+    const marks = [
+      { marker: "ב", at: doc.indexOf("ביאור־ב") },
+      { marker: "ב", at: doc.indexOf("שני") },
+      { marker: "א", at: doc.indexOf("ביאור־א") },
+    ];
+    const list = noteList(notes, doc, markersFor(notes, marks));
+    check(
+      "the chip is the glyph the page printed, not the count",
+      list.rows.map((r) => r.chip),
+      ["א", "ב"],
+    );
+  }
+
+  {
+    // A note the page could not mark keeps counting. Its entry printed a number
+    // over an empty body, so there was no prose to pair the marker with — and
+    // the note **after** it must not slide up into the hole, which is the one
+    // way this could produce a plausible wrong answer instead of an honest gap.
+    const doc = "א#הערה[]\nב#הערה[שנייה]\n";
+    const notes = notesIn(doc);
+    // `ב` and not `2`: a marker a count could also have produced proves nothing,
+    // because the fallback would print the same string and the check would pass
+    // with the whole mechanism removed.
+    const marks = [{ marker: "ב", at: doc.indexOf("שנייה") }];
+    const list = noteList(notes, doc, markersFor(notes, marks));
+    check(
+      "an unmarked note counts and the marked one does not shift",
+      list.rows.map((r) => r.chip),
+      ["1", "ב"],
+    );
+  }
+
+  {
+    // A note inside a note is inside its parent's body range, textually — so an
+    // offset in the child is inside two notes and only the deeper one printed
+    // the marker beside it. Matching the first container instead would give the
+    // child's marker to its parent and lose the parent's own.
+    const doc = "א#הערה[אבג#הערה_בדרגה(2)[דהו]]\n";
+    const notes = notesIn(doc);
+    // The child's marker is `ב` rather than `2` on purpose. With the parent
+    // taking the match, the child falls back to counting — and its count in its
+    // own series is 1, which is *also* what a correct answer could look like on
+    // a different document. A glyph no count can produce is the only thing that
+    // tells the mechanism from the fallback.
+    const marks = [
+      { marker: "1", at: doc.indexOf("אבג") },
+      { marker: "ב", at: doc.indexOf("דהו") },
+    ];
+    const list = noteList(notes, doc, markersFor(notes, marks));
+    check(
+      "parent and child each keep their own marker",
+      list.rows.map((r) => r.chip),
+      ["1", "ב"],
+    );
+  }
+
+  {
+    // The pair that lands *later* inside a parent's body is the child's marker
+    // printed in the prose, followed by the rest of the parent. The entry's own
+    // pair is always earlier, because an entry prints its marker in front of the
+    // first word of its body.
+    const doc = "א#הערה[אבג#הערה_בדרגה(2)[דהו]המשך]\n";
+    const notes = notesIn(doc);
+    const marks = [
+      { marker: "2", at: doc.indexOf("המשך") },
+      { marker: "1", at: doc.indexOf("אבג") },
+    ];
+    check(
+      "the earliest pair inside a body is the one that entry made",
+      markersFor(notes, marks)[0],
+      "1",
     );
   }
 

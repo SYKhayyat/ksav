@@ -70,6 +70,7 @@ import {
   choiceForCommand,
   convertNote,
   deleteNote,
+  markersFor,
   markersOf,
   noteAt,
   noteDepthAt,
@@ -160,7 +161,7 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 import * as settings_ from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
+import { scheduleCompile, runCompile, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
 import * as commands from "./commands";
 import {
   applyPreview,
@@ -5777,7 +5778,13 @@ function renderNotesPane() {
   // the `#גוף_הערה` at the end of the file, which is the whole point of the row:
   // the marker is easy to find and the prose is not.
   const doc = docTextOf(runtime.view.state.doc);
-  const rows = panelrows.noteList(notesIn(doc), doc);
+  const notes = notesIn(doc);
+  // The markers the last compile printed, where it printed any. The drawer is
+  // redrawn on a keystroke and a compile is seconds behind it, so an offset that
+  // no longer names the same note simply matches nothing and that row counts
+  // instead — which is why the marker is matched against the *current* scan
+  // rather than cached against the one the compile saw.
+  const rows = panelrows.noteList(notes, doc, markersFor(notes, runtime.lastResult?.note_markers ?? []));
   for (const host of document.querySelectorAll<HTMLElement>(".notes-list")) {
     drawList(host, rows, LOOKS.notes);
   }
@@ -10967,6 +10974,14 @@ function installHooks() {
   save.onUpdateTitleBar(updateTitleBar);
   // Spell-check rides the compile timer: one pause in typing, both schedules.
   onSchedule(scheduleSpellCheck);
+  // A compile is the only thing that can say what a note's marker printed as,
+  // and it lands seconds after the edit that caused it — long after the drawer
+  // last redrew. Without this the markers appear on the next keystroke and not
+  // on the compile that fetched them, which reads as a drawer that lags a word
+  // behind the page.
+  onAfterCompile(() => {
+    if (settings.notesPane) renderNotesPane();
+  });
 }
 
 const REGISTRY_RETRY_MS = 2000;

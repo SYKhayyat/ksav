@@ -223,11 +223,17 @@ function lineAround(doc: string, n: NoteSpan): string | undefined {
  * The notes pane: every note in reading order, indented by how many notes it is
  * inside.
  *
- * The ordinal is the note's position in that order and is what the writer counts
- * by — it is not the printed mark, which the prelude decides and which restarts
- * per page for a banded apparatus.
+ * The chip is **the marker the page printed**, when the last compile could say
+ * what that was — passed in as `printed`, one entry per note, from
+ * `notes.markersFor`. Where it cannot, the fallback is the note's position
+ * within its own series, which is the right count in the right series and still
+ * not the right glyph.
  */
-export function noteList(items: readonly NoteSpan[], doc = ""): PanelList {
+export function noteList(
+  items: readonly NoteSpan[],
+  doc = "",
+  printed: readonly (string | null)[] = [],
+): PanelList {
   if (!items.length) return { rows: [], empty: "notesPaneEmpty", hidden: 0 };
   // Counted **within its own series**, because that is how notes are numbered.
   //
@@ -237,12 +243,17 @@ export function noteList(items: readonly NoteSpan[], doc = ""): PanelList {
   // 1 to 10, so the panel whose whole job is *find the note you are looking at*
   // printed an ordinal that appears nowhere in the document.
   //
-  // What this does not do is render the series' own scheme — a `מספור: "א"`
-  // stream still counts 1, 2 here where the page prints א, ב. Reproducing that
-  // would be a second implementation of numbering the engine already owns,
-  // which is the one thing this codebase is named after not doing. The number
-  // is now the right *count* in the right *series*, and the series is on the
-  // row; the remaining half wants the markers carried back on the compile.
+  // That is now the **fallback**. Counting is right about the count and silent
+  // about the scheme: a `מספור: "א"` stream counts 1, 2 here where the page
+  // prints א, ב. Reproducing the scheme in TypeScript would be a second
+  // implementation of numbering the engine already owns, which is the one thing
+  // this codebase is named after not doing — so the markers are read off the
+  // layout instead and arrive in `printed`. See `engine/src/notemarks.rs`.
+  //
+  // The fallback still earns its place. The drawer redraws on a keystroke and a
+  // compile takes 0.4–3 s, so a note typed a moment ago has no marker yet; a
+  // note with nothing in it has no marker at all; and the drawer is open in
+  // documents that have never compiled. Counting is what all three get.
   const seen = new Map<string, number>();
   const ordinals = items.map((n) => {
     const next = (seen.get(n.series) ?? 0) + 1;
@@ -256,7 +267,7 @@ export function noteList(items: readonly NoteSpan[], doc = ""): PanelList {
     rows: items.map((n, i) => ({
       does: { kind: "note", at: n.bodyFrom, marker: n.from },
       indent: n.depth,
-      chip: String(ordinals[i]),
+      chip: printed[i] ?? String(ordinals[i]),
       // The whole note, and the sentence it hangs off — *"the notes drawer
       // should expand to the whole note, and to the line the note sits on"*.
       // One line of a note is enough to recognise it and never enough to read

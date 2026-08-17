@@ -77,7 +77,7 @@ pub fn page_lines(doc: &PagedDocument, main: &Source, body: &str) -> Vec<Vec<Lin
 /// Built once per compile rather than counting newlines per glyph, which is the
 /// difference between one pass over the document and one pass **per glyph** — on
 /// a 300-page sefer that is the difference between a walk and a wait.
-fn line_starts(body: &str) -> Vec<usize> {
+pub(crate) fn line_starts(body: &str) -> Vec<usize> {
     let mut out = vec![0];
     for (i, b) in body.bytes().enumerate() {
         if b == b'\n' {
@@ -88,7 +88,7 @@ fn line_starts(body: &str) -> Vec<usize> {
 }
 
 /// The 1-based line a byte offset falls on.
-fn line_at(starts: &[usize], byte: usize) -> usize {
+pub(crate) fn line_at(starts: &[usize], byte: usize) -> usize {
     match starts.binary_search(&byte) {
         Ok(i) => i + 1,
         Err(i) => i, // `i` is the count of starts at or before `byte`, which is the line.

@@ -83,14 +83,14 @@ const SEAM = [
     ts: "CompileResult",
     // Nothing is laid out for HTML: no pages, no fingerprints, no PDF, no
     // assembled source and no page runs. What the caller reads is `html`.
-    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines"],
+    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines", "note_markers"],
   },
   {
     what: "an html compile that failed",
     file: "lib.rs",
     at: '"html": serde_json::Value::Null',
     ts: "CompileResult",
-    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines"],
+    optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines", "note_markers"],
   },
   {
     what: "assemble: the document as Typst, with nothing laid out",
@@ -136,7 +136,7 @@ const SEAM = [
     // `/compile` reads identically whatever produced it. It carries no
     // fingerprints, no html, no missing assets and no page runs, because nothing
     // was laid out; `error` is the key it adds, and it is in `EXTRA_SENT`.
-    optional: ["pages_hash", "html", "missing_assets", "pages_lines"],
+    optional: ["pages_hash", "html", "missing_assets", "pages_lines", "note_markers"],
   },
   {
     what: "linkify: the markup with its mareh mekomos linked",

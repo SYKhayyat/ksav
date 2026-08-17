@@ -176,6 +176,15 @@ export interface RequestAssets {
    * has already happened. See `engine/src/pagelines.rs`.
    */
   want_lines?: boolean;
+  /**
+   * Ask what each note's marker printed as.
+   *
+   * Off by default, and the fourth flag with this shape. One surface asks for
+   * it: the notes drawer, while it is open. It shares `want_lines`'s walk over
+   * the laid-out frames and its re-parse of the source, so a document with both
+   * on pays for the parse once. See `engine/src/notemarks.rs`.
+   */
+  want_markers?: boolean;
 }
 
 export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
@@ -223,6 +232,20 @@ export interface LineRun {
   to: number;
 }
 
+/**
+ * One marker the page printed, and where the prose it introduces begins.
+ *
+ * `marker` is the string as it was set — `1`, `א`, `1.` — so a numbering scheme
+ * the prelude gains tomorrow arrives here with no work on this side. `at` is a
+ * byte offset into the writer's own text; markers whose prose lives in an
+ * included chapter are dropped by the engine, because that offset would mean
+ * something else entirely in the document this client has open.
+ */
+export interface NoteMarker {
+  marker: string;
+  at: number;
+}
+
 export interface CompileResult {
   ok: boolean;
   /** Every page of the document, in order — filled in by `CompileCache` for any
@@ -247,6 +270,16 @@ export interface CompileResult {
    * between. See `engine/src/pagelines.rs`.
    */
   pages_lines?: LineRun[][];
+  /**
+   * Every marker the layout printed, paired with the prose beside it.
+   *
+   * Empty unless `want_markers` asked. **Not a list of notes**: the engine has
+   * no idea what a note is, and the pairs that belong to no note — the marker
+   * printed in the prose, followed by the sentence it interrupts — are in here
+   * too. `notes.markerFor` intersects them with the note bodies this client
+   * already scanned. See `engine/src/notemarks.rs`.
+   */
+  note_markers?: NoteMarker[];
   /** Hashes the client omitted bytes for but the engine did not hold; the client
    *  re-sends them. Absent from older engines, which is treated as "none". */
   missing_assets?: string[];

@@ -209,6 +209,10 @@ export async function runCompile() {
       // runs cost a walk over every laid-out frame and a re-parse of the source,
       // and nothing else in the application reads them.
       want_lines: anyPreviewNarrowed(),
+      // Only while the notes drawer is on screen. Same bargain, same walk: the
+      // markers are read off the layout that has just happened, and a document
+      // whose drawer is shut has nothing that would read them.
+      want_markers: !!settings.notesPane,
     });
     if (mine !== generation) return; // superseded while we were waiting
     runtime.setLastResult(res);

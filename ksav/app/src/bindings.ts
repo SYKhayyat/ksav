@@ -55,6 +55,21 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // paragraph, stay where you are — and the one that works everywhere takes the
   // combination the more specific one leaves free.
   paraBreak: "Mod-Alt-Enter",
+  // Start the next page here. `#מעבר_עמוד` has always existed and was reachable
+  // only by name, from the registry section of the Insert menu — which is to say
+  // it was reachable by somebody who already knew Ksav had it.
+  //
+  // **Not `Mod-Enter`, which is Word's, and that is a real cost.** `Ctrl+Enter`
+  // is a page break in Word everywhere, including inside a list; here it is
+  // `list.paraInItem`, placed there on the reasoning that "Word has no third
+  // reading" for Enter inside a list. That is true and it is the wrong question:
+  // Word binds the combination *globally*, so checking what it means inside a
+  // list found it free when it is not. The paragraph-under-one-number key is
+  // kept where writers already have it, and this takes the free neighbour — so a
+  // writer arriving from Word presses `Ctrl+Enter` outside a list and still gets
+  // nothing. That is the trade, made deliberately, and it is the argument to
+  // reopen if page breaks turn out to be the commoner ask.
+  pageBreak: "Mod-Shift-Enter",
   // Lock this pane to the section the caret is in, and let it out again. The
   // same axis as the fold keys — *show me less of this document* — and a pair
   // rather than a toggle, because a key whose effect depends on a state the
@@ -146,8 +161,11 @@ export const DEFAULT_KEYS: Record<string, string> = {
   "list.splitItem": "Enter",
   "list.breakInItem": "Shift-Enter",
   // The third reading of Enter inside a list: a new *paragraph* under the same
-  // number, which is what a se'if with two paragraphs is. Word puts nothing
-  // here because Word has no third reading; `Ctrl+Enter` is free and adjacent.
+  // number, which is what a se'if with two paragraphs is. Word has no third
+  // reading for Enter inside a list, so this took `Ctrl+Enter` as free —
+  // and it is not: Word binds that combination *globally*, to a page break. The
+  // combination stays here because writers already have it; see `pageBreak` for
+  // what that cost and why it was still the choice.
   "list.paraInItem": "Mod-Enter",
   "list.indent": "Tab",
   "list.outdent": "Shift-Tab",

@@ -1,7 +1,13 @@
 import { check, ok } from "./harness.mjs";
-import { ACTION_COMMAND } from "../.tmp-test/actions.mjs";
+import {
+  ACTION_COMMAND,
+  BREAKS,
+  BREAK_COMMAND,
+  BREAK_GLYPH,
+} from "../.tmp-test/actions.mjs";
 import { commands } from "../tools/commands.mjs";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
+import { DICTS } from "../.tmp-test/i18n.mjs";
 
 // The registry was the single source of truth and `ACTIONS` held a hand-written
 // second copy beside it. They had already drifted:
@@ -43,6 +49,69 @@ export async function run() {
   // drift visible: two ways to ask for the same operation, two answers.
   const unbound = Object.keys(ACTION_COMMAND).filter((id) => !DEFAULT_KEYS[id]);
   check("every one of them is reachable from the keyboard", unbound, []);
+
+  // ------------------------------------------------------------------ the breaks
+  //
+  // A single newline in the source is a *space* on the page, so the shortest way
+  // to any visible break is two lines. Five commands answer that, and **two of
+  // them had no door of any kind** — `#מעבר_עמוד`, the break every writer arrives
+  // already knowing, and `#מעבר_טור` — reachable only by name from the registry
+  // section at the bottom of the Insert menu. The two that did have keys sat in a
+  // named row that printed neither of them.
+  //
+  // The fix is a list, and this is what keeps the list true. Derived from the
+  // engine rather than agreed with it: a sixth break added to the prelude is a
+  // failing test naming the command, not a row nobody wrote.
+  {
+    const inEngine = reg
+      .filter((c) => c.he.startsWith("מעבר_") && !c.deprecated)
+      .map((c) => c.he);
+    ok("the engine has breaks to be reachable", inEngine.length >= 4);
+    const doored = new Set(Object.values(BREAK_COMMAND));
+    check(
+      "every break the engine offers has a door",
+      inEngine.filter((he) => !doored.has(he)),
+      [],
+    );
+
+    // …and the other direction, which is the half that rots: a door to a command
+    // the engine stopped publishing inserts a call nothing defines.
+    const known = new Set(reg.map((c) => c.he));
+    check(
+      "and every door names a command the engine defines",
+      Object.entries(BREAK_COMMAND)
+        .filter(([, he]) => !known.has(he))
+        .map(([id, he]) => `${id} → ${he}`),
+      [],
+    );
+
+    // A row with no face renders `undefined` beside its name, and a row with no
+    // words renders the key it was looked up by. Both are what a hand-kept list
+    // fails as, which is the whole reason this one is checked.
+    check(
+      "every break has a glyph",
+      BREAKS.filter((id) => !BREAK_GLYPH[id]),
+      [],
+    );
+    for (const lang of ["he", "en"]) {
+      check(
+        `every break is named and explained in ${lang}`,
+        BREAKS.filter((id) => !DICTS[lang][id] || !DICTS[lang][id + "Lede"]),
+        [],
+      );
+    }
+
+    // `hiddenBreak` is the one member that is not a registry command — a comment
+    // pair the editor writes, so the break is in the source and never on the
+    // page. Stated here so that "every other member has a command" is an
+    // assertion rather than an omission.
+    check(
+      "every break but the hidden one inserts a command",
+      BREAKS.filter((id) => id !== "hiddenBreak" && !BREAK_COMMAND[id]),
+      [],
+    );
+    ok("…and the hidden one deliberately does not", !BREAK_COMMAND.hiddenBreak);
+  }
 
   // The specific pair the finding is about, asserted by value rather than by
   // shape — because "they agree" is the claim, and the claim was false.

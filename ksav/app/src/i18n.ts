@@ -599,7 +599,16 @@ const HE: Dict = {
   hiddenBreakLede: "שוברים את השורה בעורך בלי שייווצר רווח בעמוד.",
   // סוף פסקה בלי שורה ריקה — במקומות שבהם שורה ריקה אומרת משהו אחר
   paraBreak: "מעבר פסקה",
-  paraBreakLede: "מסיימים את הפסקה כאן, גם בתוך פריט ברשימה או בגוף הערה, ששם שורה ריקה אומרת משהו אחר.",
+  paraBreakLede: "מסיימים את הפסקה כאן, בלי שורה ריקה — וגם בתוך פריט ברשימה או בגוף הערה, ששם שורה ריקה אומרת משהו אחר.",
+  // מעבר שורה שכן מגיע לדף, בלי הרווח של פסקה חדשה
+  lineBreak: "מעבר שורה",
+  lineBreakLede: "שוברים את השורה בעמוד עצמו, בלי הרווח שפסקה חדשה מוסיפה. שורה בודדת בקובץ נהפכת לרווח; זה מה שכותבים במקומה.",
+  // הטור הבא מתחיל כאן — רק במסמך שהוגדר ליותר מטור אחד
+  columnBreak: "מעבר טור",
+  columnBreakLede: "הטור הבא מתחיל כאן. במסמך של טור אחד אין לזה מה לעשות.",
+  // העמוד הבא מתחיל כאן
+  pageBreak: "מעבר עמוד",
+  pageBreakLede: "העמוד הבא מתחיל כאן, מה שהטקסט לפניו מגיע או לא מגיע לתחתית הדף.",
   // שלושה סימונים בקובץ, ושאלה אחת שצריך לענות עליה בכל אחד: האם זה מגיע לדף?
   hideLine: "הסתרת שורה",
   hideLineLede: "השורות נשארות בקובץ ואינן מגיעות לדף. שוב על אותן שורות — והן חוזרות.",
@@ -1062,6 +1071,7 @@ const HE: Dict = {
   "sc.hideLine": "הסתרת שורה",
   "sc.hiddenBreak": "מעבר שורה נסתר",
   "sc.paraBreak": "מעבר פסקה",
+  "sc.pageBreak": "מעבר עמוד",
   "sc.foldLevel1": "קפל לרמה 1",
   "sc.foldLevel2": "קפל לרמה 2",
   "sc.foldLevel3": "קפל לרמה 3",
@@ -1798,7 +1808,13 @@ const EN: Dict = {
   hiddenBreak: "Hidden line break",
   hiddenBreakLede: "Break the line in the editor without a space appearing on the page.",
   paraBreak: "Paragraph break",
-  paraBreakLede: "End the paragraph here — including inside a list item or a note body, where a blank line means something else.",
+  paraBreakLede: "End the paragraph here, without a blank line — including inside a list item or a note body, where a blank line means something else.",
+  lineBreak: "Line break",
+  lineBreakLede: "Break the line on the page itself, without the space a new paragraph adds. A single newline in the file becomes a space; this is what you write instead.",
+  columnBreak: "Column break",
+  columnBreakLede: "The next column starts here. In a single-column document there is nothing for it to do.",
+  pageBreak: "Page break",
+  pageBreakLede: "The next page starts here, whether or not the text before it reached the bottom of the sheet.",
   hideLine: "Hide line",
   hideLineLede: "These lines stay in the file and never reach the page. Press it again to bring them back.",
   hideBlock: "Hide passage",
@@ -2217,6 +2233,7 @@ const EN: Dict = {
   "sc.hideLine": "Hide line",
   "sc.hiddenBreak": "Hidden line break",
   "sc.paraBreak": "Paragraph break",
+  "sc.pageBreak": "Page break",
   "sc.foldLevel1": "Fold to level 1",
   "sc.foldLevel2": "Fold to level 2",
   "sc.foldLevel3": "Fold to level 3",

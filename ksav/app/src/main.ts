@@ -61,7 +61,14 @@ import * as panes from "./panes";
 import * as paneplaces from "./paneplaces";
 import * as tabs from "./tabs";
 import type { DocAsset } from "./docs";
-import { ACTION_COMMAND, PLACED_COMMANDS, actionForCommand } from "./actions";
+import {
+  ACTION_COMMAND,
+  BREAKS,
+  BREAK_COMMAND,
+  BREAK_GLYPH,
+  PLACED_COMMANDS,
+  actionForCommand,
+} from "./actions";
 import * as store from "./store";
 import * as files from "./files";
 import {
@@ -863,12 +870,10 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "hideBlock", run: () => (hideBlockHere(), true) },
   { id: "hideLine", run: () => (hideLineHere(), true) },
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
-  // The fourth thing Enter can mean, and the one the product had no way to say:
-  // end the paragraph *here*, without the blank line that a list item reads as
-  // the end of the item and a note body swallows.
-  // Written in Hebrew and translated by `insert.plan`, like every other snippet
-  // in this table — an English document gets `#parabreak`.
-  { id: "paraBreak", run: () => (insertSnippet("#מעבר_פסקה"), true) },
+  // `paraBreak` and `pageBreak` used to be hand-written here. They are in
+  // `ACTION_COMMAND` now, so their doors are generated with every other command
+  // action above — which is what makes the registry row for each print the key
+  // that also runs it. See `actions.BREAKS`.
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
   { id: "palette", run: () => (openPalette(), true) },
@@ -4559,6 +4564,10 @@ function buildInsertMenu(): HTMLElement {
 
 function insertMenuItems(): (Node | string)[] {
   const kb = keybindings();
+  // Read once for the whole menu, and read here rather than per row, because
+  // every row in it is being built against the same caret.
+  const doc = docTextNow();
+  const pos = runtime.view?.state.selection.main.from ?? 0;
   /** Insert ▸ Footnote / Endnote, where a Word user looks first. */
   const noteItem = (action: string, glyph: string, snippet: string | null, why?: string) =>
     el(
@@ -4646,20 +4655,41 @@ function insertMenuItems(): (Node | string)[] {
     // after there is one it edits the call in place rather than being greyed.
     // The per-heading half is `heading.inContents`, which is where a heading is.
     contentsDepthRow(),
-    el("button", { class: "menu-item", onClick: () => (closeMenus(), hiddenBreak()) }, [
-      el("b", {}, ["⏎ " + t("hiddenBreak")]),
-      el("span", { class: "menu-desc" }, [t("hiddenBreakLede")]),
-    ]),
-    // Beside it, because the two are the same shape of thing — a break in the
-    // source whose effect on the page is not the one a blank line has.
-    el(
-      "button",
-      { class: "menu-item", onClick: () => (closeMenus(), insertSnippet("#מעבר_פסקה")) },
-      [
-        el("b", {}, ["¶ " + t("paraBreak")]),
-        el("span", { class: "menu-desc" }, [t("paraBreakLede")]),
-      ],
-    ),
+    // The breaks, from the one list that says what they are — see
+    // `actions.BREAKS` for the family and the fence that keeps it complete. In
+    // order of how much of the page each one moves, and each printing the key it
+    // answers to, which is what neither of the two that *had* keys used to do.
+    ...BREAKS.map((id) => {
+      // Greyed with its reason where the caret cannot take it, on exactly the
+      // rule the registry rows below use — `#מעבר_עמוד` inside a table cell or a
+      // note body does not break the page, it fails to compile, and
+      // `engine/tests/containers.rs` is where that is asserted. A named row that
+      // skipped this check would be a second, laxer opinion about legality
+      // sitting twenty lines above the strict one, which is how a menu comes to
+      // offer an insertion the grid already knows is broken.
+      const command = BREAK_COMMAND[id];
+      const legality = command ? legalAt(doc, pos, command) : { ok: true as const };
+      return el(
+        "button",
+        {
+          class: "menu-item" + (legality.ok ? "" : " disabled"),
+          disabled: legality.ok ? null : "true",
+          title: legality.ok ? "" : t(legality.reason!),
+          onClick: () => (
+            closeMenus(),
+            // The one that is not a registry command: a comment pair the editor
+            // writes, so the break is in the source and never on the page.
+            command ? insertCommand(command) : hiddenBreak()
+          ),
+        },
+        [
+          el("b", {}, [`${BREAK_GLYPH[id]} ${t(id)}`]),
+          keyCode(id, kb),
+          el("span", { class: "menu-desc" }, [t(id + "Lede")]),
+          ...(legality.ok ? [] : [el("span", { class: "menu-why" }, [t(legality.reason!)])]),
+        ],
+      );
+    }),
     el("div", { class: "menu-sep" }),
     // The three constructs, together and in the order that makes the difference
     // between them readable: two that the page never sees, then one it sees all

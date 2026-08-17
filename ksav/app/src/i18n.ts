@@ -352,6 +352,25 @@ const HE: Dict = {
   notePreviewLine: "שורת גוף לדוגמה, ובה די מלים כדי למלא את רוחב השורה —",
   notePreviewNoteA: "כאן ההערה הראשונה",
   notePreviewNoteB: "וכאן ההערה שעליה",
+  // The find/replace panel. CodeMirror's own, and it shipped in English inside
+  // a product whose every other surface is Hebrew: `Find`, `Replace`, `next`,
+  // `previous`, `all`, `match case`, `regexp`, `by word`, `replace all`. The
+  // keys are the English strings themselves because that is what
+  // `EditorState.phrases` is keyed on — a phrase table is a translation of the
+  // library's own literals, not a dictionary of our own names.
+  "find.Find": "חיפוש",
+  "find.Replace": "החלפה",
+  "find.next": "הבא",
+  "find.previous": "הקודם",
+  "find.all": "הכול",
+  "find.match case": "התאמת רישיות",
+  "find.regexp": "ביטוי רגולרי",
+  "find.by word": "מילה שלמה",
+  "find.replace": "החלף",
+  "find.replace all": "החלף הכול",
+  "find.close": "סגירה",
+  "find.Go to line": "מעבר לשורה",
+  "find.go": "עבור",
   // greyed controls
   illegalPageLevel: "אי אפשר להתחיל עמוד חדש מתוך רשימה, טבלה, כותרת או הערה — סגרו אותה קודם.",
   illegalInHeading: "תוכן העניינים מציג את הכותרות, ולכן אינו יכול לשבת בתוך כותרת.",
@@ -1521,6 +1540,22 @@ const EN: Dict = {
   notePreviewLine: "A sample line of body text, with enough words to fill the measure —",
   notePreviewNoteA: "the first note goes here",
   notePreviewNoteB: "and here is the note on it",
+  // The library's own words, kept as they are. Present rather than absent
+  // because `hasKey` is what stops a key existing in one dictionary only, and
+  // because the English side of a phrase table is the identity on purpose.
+  "find.Find": "Find",
+  "find.Replace": "Replace",
+  "find.next": "next",
+  "find.previous": "previous",
+  "find.all": "all",
+  "find.match case": "match case",
+  "find.regexp": "regexp",
+  "find.by word": "by word",
+  "find.replace": "replace",
+  "find.replace all": "replace all",
+  "find.close": "close",
+  "find.Go to line": "Go to line",
+  "find.go": "go",
   illegalPageLevel:
     "A page cannot start inside a list, a table, a heading or a note — close it first.",
   illegalInHeading:

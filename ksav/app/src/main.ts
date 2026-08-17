@@ -286,6 +286,43 @@ function swapUntouchedStarter() {
 const proseCompartment = new Compartment();
 const dirCompartment = new Compartment();
 const themeCompartment = new Compartment();
+const phraseCompartment = new Compartment();
+
+/**
+ * CodeMirror's own words, in the language the rest of the window is in.
+ *
+ * The find/replace panel is the library's, and it shipped as the library wrote
+ * it: `Find`, `Replace`, `next`, `previous`, `all`, `match case`, `regexp`,
+ * `by word`, `replace all` — nine English labels in a right-to-left Hebrew
+ * product, in the one panel a writer opens to look for a word in their sefer.
+ * Every other surface here is translated; this one was never asked.
+ *
+ * `EditorState.phrases` is keyed on the library's own literals, which is why
+ * `i18n.ts` carries them under a `find.` prefix rather than under names of our
+ * own: a phrase table is a translation of somebody else's strings.
+ */
+function searchPhrases(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const word of SEARCH_WORDS) out[word] = t(`find.${word}`);
+  return out;
+}
+
+/** Every label CodeMirror's search panel puts on the screen. */
+const SEARCH_WORDS = [
+  "Find",
+  "Replace",
+  "next",
+  "previous",
+  "all",
+  "match case",
+  "regexp",
+  "by word",
+  "replace",
+  "replace all",
+  "close",
+  "Go to line",
+  "go",
+] as const;
 
 const editorTheme = (dark: boolean) =>
   EditorView.theme(
@@ -1575,6 +1612,7 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       // `pairExtension`.
       pairCompartment.of(pairExtension()),
       search({ top: true }),
+      phraseCompartment.of(EditorState.phrases.of(searchPhrases())),
       // The hydra is *not* here, and that is the fix rather than an omission.
       // It was `Prec.highest(keymap.of(hydraKeymap()))` a dozen lines below,
       // under a comment claiming it was "ahead of everything, including the
@@ -10193,6 +10231,11 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
   if (key === "lang") {
     setLang(value as Lang);
     swapUntouchedStarter();
+    // Every source pane, and the search panel with them: `rerenderChrome`
+    // rebuilds our own DOM and cannot reach a panel CodeMirror owns.
+    for (const v of sourceViews()) {
+      v.dispatch({ effects: phraseCompartment.reconfigure(EditorState.phrases.of(searchPhrases())) });
+    }
     rerenderChrome();
   } else if (key === "theme") {
     applyTheme();

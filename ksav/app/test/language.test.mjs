@@ -22,6 +22,13 @@
 
 import { check, ok } from "./harness.mjs";
 import { facts } from "../tools/facts.mjs";
+import { hasKey, t } from "../.tmp-test/i18n.mjs";
+import { dirOf } from "../tools/paths.mjs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
+const mainSource = () => readFile(path.join(SRC, "main.ts"), "utf8");
 import { docLang, translated, insertionAt } from "../.tmp-test/mode.mjs";
 import { NOTE_CHOICES, applyChoice, hasLine, markersOf, noteFor } from "../.tmp-test/notes.mjs";
 import { plan } from "../.tmp-test/insert.mjs";
@@ -253,6 +260,34 @@ ok(
   const out = insertionAt(doc, doc.length, "#טבלה(עמודות: (1fr, 1fr),\n  כותרת_תא[|], כותרת_תא[],\n)");
   check("a table lands in English", leftover(out), null);
   ok("with English parameters", out.includes("columns:"));
+}
+
+// ------------------------------------------- 6. the words that are not ours
+//
+// The find/replace panel belongs to CodeMirror and shipped as CodeMirror wrote
+// it — `Find`, `Replace`, `next`, `previous`, `all`, `match case`, `regexp`,
+// `by word`, `replace all` — nine English labels in a right-to-left Hebrew
+// product, in the one panel a writer opens to look for a word in their sefer.
+// Every other surface here is translated; nobody had asked this one.
+//
+// `EditorState.phrases` is keyed on the library's own literals, so the entries
+// live under a `find.` prefix and the English side is deliberately the identity.
+// Both dictionaries, because a key in one is a label that silently reverts to
+// English the moment somebody switches language — which is the whole bug.
+
+{
+  const shown = [
+    "Find", "Replace", "next", "previous", "all", "match case",
+    "regexp", "by word", "replace", "replace all", "close", "Go to line", "go",
+  ];
+  const missing = shown.filter((w) => !hasKey("find." + w));
+  check("every label the search panel draws is translated", missing, []);
+  const untranslated = shown.filter((w) => t("find." + w) === w);
+  check("and none of them is still the English word in Hebrew", untranslated, []);
+  ok("main.ts lists exactly these", (await mainSource()).includes('"replace all",'));
+  const listed = /const SEARCH_WORDS = \[([\s\S]*?)\] as const;/u.exec(await mainSource())?.[1] ?? "";
+  const declared = [...listed.matchAll(/"([^"]+)"/gu)].map((m) => m[1]);
+  check("the list in main.ts and the list here agree", declared, shown);
 }
 
 }

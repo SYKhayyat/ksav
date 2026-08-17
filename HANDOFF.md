@@ -167,14 +167,6 @@ and the sitting that followed the release is
       one-line change. The second looks right. See
       [`decisions/2026-08-17-a-clamp-is-not-a-mapping.md`](decisions/2026-08-17-a-clamp-is-not-a-mapping.md).
 
-- [ ] **The find/replace panel is CodeMirror's, in English.** `Find`, `Replace`,
-      `next`, `previous`, `all`, `match case`, `regexp`, `by word`,
-      `replace all` — every label, in a product whose every other surface is
-      Hebrew and right-to-left. CodeMirror's search extension takes a `phrases`
-      table for exactly this and `i18n.ts` already holds the vocabulary, so this
-      one is small; it is here rather than done because it was found at the end
-      of a sitting, not because it is hard.
-
 - [ ] **A table cannot be filled in from the keyboard, and fixing it changes an
       invariant.** Lists own `Enter`, `Tab`, `Shift+Tab` and `Alt`+arrows. Tables
       have eighteen ribbon operations and no navigation at all, so `Tab` in a

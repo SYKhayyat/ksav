@@ -172,6 +172,27 @@ deliberately, because the fix is a design decision and there are two:
 The second is almost certainly right and it is not a one-line change, so it is
 written down rather than started at the end of a sitting.
 
+## 6 · Nine English words in the one panel a writer opens to search their sefer
+
+Found on the way to something else: reaching for find-and-replace to move the
+caret, and being handed `Find`, `Replace`, `next`, `previous`, `all`,
+`match case`, `regexp`, `by word`, `replace all` — CodeMirror's panel, as
+CodeMirror wrote it, left-to-right in a Hebrew document. Every other surface in
+this product is translated. Nobody had asked this one, because it is not ours.
+
+`EditorState.phrases` exists for exactly this. The entries live in `i18n.ts`
+under a `find.` prefix, keyed on the library's own literals — a phrase table is
+a translation of somebody else's strings, not a dictionary of our own names —
+and the English side is deliberately the identity. A `phraseCompartment`
+reconfigures on the language switch, alongside the panes, because
+`rerenderChrome` rebuilds our DOM and cannot reach a panel CodeMirror owns.
+
+Fenced in `language.test.mjs`: every label the panel draws has a key in both
+dictionaries, none of them is still the English word on the Hebrew side, and
+the list in `main.ts` and the list in the test agree — so a tenth label added
+by a CodeMirror upgrade is a red suite rather than one English word nobody
+notices.
+
 ## What the sitting did not find
 
 The apparatus held. Two parallel streams in fixed regions — ביאור and

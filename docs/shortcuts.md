@@ -23,6 +23,7 @@ rather than leaving two actions on one key.
 | `Ctrl+/` | Hide line | הסתרת שורה |
 | `Ctrl+Shift+/` | Hide passage | הסתרת קטע |
 | `Ctrl+Alt+/` | Hidden line break | מעבר שורה נסתר |
+| `Ctrl+Alt+Shift+Enter` | Line break | מעבר שורה |
 | `Ctrl+Alt+Enter` | Paragraph break | מעבר פסקה |
 | `Ctrl+Shift+Enter` | Page break | מעבר עמוד |
 | `Ctrl+Alt+,` | Show only this section | הצג רק את הסימן הזה |

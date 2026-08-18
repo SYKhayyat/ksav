@@ -69,8 +69,10 @@ export const ACTION_COMMAND = {
   center: "מרכז",
   right: "ימין",
   left: "שמאל",
-  // Two of the four breaks — the two with a key. See `BREAKS` for why the family
-  // is listed separately from this table and what the other two are.
+  // Two of the breaks whose command is spliced in at the caret and generated a
+  // door from this table. `lineBreak` also has a key now but stays in
+  // `BREAK_COMMAND` with `columnBreak`, and its door is hand-listed in the shell
+  // beside `hiddenBreak`. See `BREAKS` for the whole family and the fence on it.
   paraBreak: "מעבר_פסקה",
   pageBreak: "מעבר_עמוד",
 } as const;

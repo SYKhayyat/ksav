@@ -1,6 +1,0 @@
-{
-  "name": "Ksav (archived prototype)",
-  "description": "The original AI Studio mock that predates the real Ksav. It renders an HTML approximation of Hebrew typesetting and never invoked Typst. The product is in ../../ksav.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
-}

@@ -1676,7 +1676,12 @@ fn slanting_commands() -> &'static std::collections::BTreeSet<String> {
                 continue;
             };
             let body = chunk.split("\n#let ").next().unwrap_or(chunk);
-            if body.contains("emph(") || body.contains("style: \"italic\"") {
+            // `emph(` is no longer a slant that goes missing: `#נטוי`/`#italic`
+            // now shear the frame into a synthetic oblique (see `נטוי` in
+            // `ksav.typ`), so they are visible with any font and must not warn.
+            // Only an explicit `style: "italic"` still hands back the upright
+            // face and still earns the warning.
+            if body.contains("style: \"italic\"") {
                 out.insert(name.to_string());
             }
         }

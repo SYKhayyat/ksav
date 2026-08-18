@@ -50,6 +50,11 @@ export const DEFAULT_KEYS: Record<string, string> = {
   hideBlock: "Mod-Shift-/",
   // The third of the family: this one hides a *line break* rather than text.
   hiddenBreak: "Mod-Alt-/",
+  // A visible line break — Typst's `linebreak`, the shortest way to a break with
+  // no paragraph gap. It had no key at all, and it is one of the commonest things
+  // a writer reaches for. Placed one Shift away from `paraBreak`'s `Mod-Alt-Enter`
+  // so the Enter-family reads as a ladder: paragraph, line, page.
+  lineBreak: "Mod-Alt-Shift-Enter",
   // A paragraph break that is not a blank line. Beside `list.paraInItem` on
   // `Mod-Enter` because they are the same intention in two contexts — end the
   // paragraph, stay where you are — and the one that works everywhere takes the

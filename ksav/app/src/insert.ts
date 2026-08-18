@@ -136,8 +136,14 @@ export function plan(
     if (made) return { kind: "rewrite", text: made.text, caret: made.caret };
   }
 
+  // A bracketed snippet with no explicit caret marker still wants the caret
+  // between its brackets, not stranded past the closing `]` — otherwise the
+  // writer has to reposition into the brackets by hand before typing.
   const pipe = snippet.indexOf("|");
-  if (pipe < 0) return { kind: "edit", text: snippet, cursor: snippet.length };
+  if (pipe < 0) {
+    const empty = snippet.indexOf("[]");
+    return { kind: "edit", text: snippet, cursor: empty >= 0 ? empty + 1 : snippet.length };
+  }
   // The `|` is where the caret goes, and where a selection is wrapped. Both, and
   // not either: a toolbar button pressed with text selected wraps that text,
   // which is what every word processor does.

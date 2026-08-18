@@ -111,25 +111,16 @@
     },
     {
       "name": "he/sweep-add@7",
-      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n  פריט[],\n)\n\nאחרי הרשימה.\n",
-      "words": [
-        "ראשון",
-        "שני",
-        "שלישי"
-      ]
-    },
-    {
-      "name": "he/sweep-add@15",
-      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
-      "words": [
-        "ראשון",
-        "שני",
-        "שלישי"
-      ]
-    },
-    {
-      "name": "he/sweep-split@15",
       "source": "#רשימה(\n  פריט[],\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-add@11",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[],\n  פריט[שני],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
       "words": [
         "ראשון",
         "שני",
@@ -245,7 +236,7 @@
       ]
     },
     {
-      "name": "he/sweep-add@30",
+      "name": "he/sweep-add@25",
       "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
       "words": [
         "ראשון",
@@ -328,6 +319,15 @@
     {
       "name": "he/sweep-break@33",
       "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני \\\n],\n  פריט[שלישי],\n)\n\nאחרי הרשימה.\n",
+      "words": [
+        "ראשון",
+        "שני",
+        "שלישי"
+      ]
+    },
+    {
+      "name": "he/sweep-add@38",
+      "source": "#רשימה(\n  פריט[ראשון],\n  פריט[שני],\n  פריט[שלישי],\n  פריט[],\n)\n\nאחרי הרשימה.\n",
       "words": [
         "ראשון",
         "שני",
@@ -552,25 +552,16 @@
     },
     {
       "name": "en/sweep-add@9",
-      "source": "#bullets(\n  item[one],\n  item[two],\n  item[three],\n  item[],\n)\n\nAfter the list.\n",
-      "words": [
-        "one",
-        "two",
-        "three"
-      ]
-    },
-    {
-      "name": "en/sweep-add@17",
-      "source": "#bullets(\n  item[one],\n  item[],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
-      "words": [
-        "one",
-        "two",
-        "three"
-      ]
-    },
-    {
-      "name": "en/sweep-split@17",
       "source": "#bullets(\n  item[],\n  item[one],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-add@13",
+      "source": "#bullets(\n  item[one],\n  item[],\n  item[two],\n  item[three],\n)\n\nAfter the list.\n",
       "words": [
         "one",
         "two",
@@ -650,7 +641,7 @@
       ]
     },
     {
-      "name": "en/sweep-add@30",
+      "name": "en/sweep-add@25",
       "source": "#bullets(\n  item[one],\n  item[two],\n  item[],\n  item[three],\n)\n\nAfter the list.\n",
       "words": [
         "one",
@@ -733,6 +724,15 @@
     {
       "name": "en/sweep-break@33",
       "source": "#bullets(\n  item[one],\n  item[two \\\n],\n  item[three],\n)\n\nAfter the list.\n",
+      "words": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    {
+      "name": "en/sweep-add@38",
+      "source": "#bullets(\n  item[one],\n  item[two],\n  item[three],\n  item[],\n)\n\nAfter the list.\n",
       "words": [
         "one",
         "two",
@@ -937,23 +937,15 @@
     },
     {
       "name": "inline/sweep-add@9",
-      "source": "#ממוספרת(פריט[א], פריט[ב], פריט[],)\n",
-      "words": [
-        "א",
-        "ב"
-      ]
-    },
-    {
-      "name": "inline/sweep-add@14",
-      "source": "#ממוספרת(פריט[א], פריט[], פריט[ב],)\n",
-      "words": [
-        "א",
-        "ב"
-      ]
-    },
-    {
-      "name": "inline/sweep-split@14",
       "source": "#ממוספרת(פריט[], פריט[א], פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-add@10",
+      "source": "#ממוספרת(פריט[א], פריט[], פריט[ב],)\n",
       "words": [
         "א",
         "ב"
@@ -986,6 +978,14 @@
     {
       "name": "inline/sweep-break@15",
       "source": "#ממוספרת(פריט[א \\\n], פריט[ב],)\n",
+      "words": [
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "name": "inline/sweep-add@18",
+      "source": "#ממוספרת(פריט[א], פריט[ב], פריט[],)\n",
       "words": [
         "א",
         "ב"

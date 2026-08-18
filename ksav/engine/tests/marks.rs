@@ -413,20 +413,21 @@ fn a_lemma_is_still_bold() {
 /// than leaving as a gap.
 ///
 /// `italic` on a run is *the face the glyphs came from*, and not one family this
-/// engine bundles ships an italic face — which is why `#נטוי` produces a warning
-/// saying so (`italic_warning` in `lib.rs`). So `#גמרא`'s italic has never
-/// reached a glyph, before this change or after it, and an assertion here would
-/// read false either way: a test that cannot pass proves as little as one that
-/// cannot fail.
+/// engine bundles ships an italic face — which is why a mark styled `italic`
+/// (like `#גמרא`) produces the "no italic face" warning (`italic_warning` in
+/// `lib.rs`). So `#גמרא`'s italic has never reached a glyph, and an assertion
+/// here would read false either way: a test that cannot pass proves as little as
+/// one that cannot fail.
 ///
 /// Size and weight go through the identical two lines of `_mk_render`, and they
 /// are asserted above and throughout. What is untested is the font book, not the
 /// register.
 ///
-/// The standing defect this leaves — four commands and three `#הגדרות_*` knobs
-/// promise a slant the shipped fonts cannot give, and only `#נטוי` says so — is
-/// a font-capability problem across the whole prelude rather than this
-/// mechanism's, and is recorded as its own piece of work.
+/// `#נטוי`/`#italic` are the exception and no longer part of this defect: they
+/// shear the frame into a synthetic oblique (see `נטוי` in `ksav.typ`), so their
+/// slant *is* visible and they do not warn. The `style: "italic"` marks and the
+/// `#הגדרות_*` knobs still hand back the upright face, still warn, and remain
+/// recorded as their own piece of work.
 #[test]
 fn a_slant_the_font_has_not_got_still_leaves_the_words_on_the_page() {
     let runs = render("#גמרא(\"ברכות\", \"ב.\") ורגיל.");

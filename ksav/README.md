@@ -4,10 +4,9 @@ A Hebrew-first writing system built on **real Typst compilation**. The goal:
 there should be no reason for a bochur — or any Hebrew writer — not to use this.
 It should be the standard for Hebrew writing.
 
-This is a ground-up rewrite. The two earlier prototypes
-([`prototypes/react-app`](../prototypes/react-app) and
-[`prototypes/flutter-app`](../prototypes/flutter-app)) both *mocked* the renderer —
-neither ever invoked Typst. This engine runs the genuine Typst compiler.
+This is a ground-up rewrite. Two earlier prototypes (a React web app and a
+Flutter + Rust app) both *mocked* the renderer — neither ever invoked Typst.
+This engine runs the genuine Typst compiler.
 
 This page is long because it is the reference. You do not read it front to back.
 

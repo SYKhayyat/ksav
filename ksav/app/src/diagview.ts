@@ -128,6 +128,23 @@ export function onMarkLines(fn: (lines: number[]) => void) {
 }
 
 /**
+ * The diagnostics the writer has waved away, by signature.
+ *
+ * A compile fires on a 250ms debounce after every keystroke, so a message about
+ * something the writer is not currently editing — a font with no italic, say —
+ * redraws itself over and over and there is no way to make it stop. Dismissing
+ * records *which* diagnostics were dismissed; the banner stays quiet while that
+ * exact set persists, and speaks again the moment the set changes, so a genuinely
+ * new error is never swallowed.
+ */
+let dismissed: string | null = null;
+
+/** What identifies a diagnostic set, so a changed one un-dismisses itself. */
+function signature(list: Shown[]): string {
+  return list.map((s) => `${s.line ?? "?"}:${s.said}`).join(" ");
+}
+
+/**
  * Draw the diagnostics into the status bar, and mark their lines.
  *
  * Each one is a button rather than text: it names a line, so it should go there.
@@ -136,7 +153,29 @@ export function onMarkLines(fn: (lines: number[]) => void) {
  */
 export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
   into.replaceChildren();
+  const sig = signature(list);
+  if (list.length && sig === dismissed) {
+    // Same set the writer already dismissed — keep the bar and the line tints
+    // quiet until something actually changes.
+    markLines([]);
+    return;
+  }
+  dismissed = null;
   markLines(markedLines(list));
+  if (list.length) {
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "diag-dismiss";
+    close.textContent = "×";
+    close.setAttribute("aria-label", "dismiss");
+    close.title = "dismiss";
+    close.addEventListener("click", () => {
+      dismissed = sig;
+      into.replaceChildren();
+      markLines([]);
+    });
+    into.append(close);
+  }
   for (const s of list) {
     if (s.line == null) {
       const span = document.createElement("span");

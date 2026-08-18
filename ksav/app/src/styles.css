@@ -484,6 +484,13 @@ body.dragging-pane * { cursor: grabbing !important; }
   cursor: pointer; text-align: start; text-decoration: underline dotted;
 }
 .diag-go:hover { text-decoration-style: solid; }
+/* Wave the whole set away; it comes back only if the errors change. */
+.diag-dismiss {
+  flex: none; order: -1; background: transparent; border: 0; padding: 0 4px;
+  font: inherit; font-size: 15px; line-height: 1; color: var(--muted);
+  cursor: pointer;
+}
+.diag-dismiss:hover { color: var(--danger); }
 /* The line the compiler is complaining about. A tint rather than a squiggle:
    `brackets.ts` already owns the squiggle, and two underlines on one line reads
    as two mistakes. */

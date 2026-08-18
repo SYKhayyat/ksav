@@ -200,6 +200,25 @@ export interface Settings {
    */
   spellcheckComments?: boolean;
   syncScroll?: boolean;
+  /**
+   * Where the two panes line up: the top, middle or bottom of the viewport. The
+   * line at that point of the source is put at the same point of the preview —
+   * and when the caret is on screen it is the caret's line that is matched, so
+   * "where I am looking" and "where I am typing" agree. Defaults to the middle,
+   * which is what a writer watching their own line wants; the top is right for
+   * reading straight down.
+   */
+  syncMatch?: "top" | "middle" | "bottom";
+  /**
+   * How quickly the preview chases the writing. One page compiles in tens of
+   * milliseconds, but a whole sefer takes seconds, and recompiling that on every
+   * pause in a long chapter is the lag the report was about. `live` recompiles a
+   * quarter-second after the last keystroke; `relaxed` waits longer, so a big
+   * sefer is laid out once the writer has actually stopped rather than between
+   * every sentence. Both are exact — this trades how often the layout runs,
+   * never whether it is right.
+   */
+  previewDelay?: "live" | "relaxed";
   autosaveFile?: boolean; // write back to the bound file on a timer, not only on Ctrl+S
   /**
    * Take a snapshot on a timer, or leave the history to the writer's own hand.
@@ -224,6 +243,14 @@ export interface Settings {
   // of inline. A habit, not a document property — the page is identical either
   // way — so it belongs to the person and has to outlive the tab.
   deferNoteBodies?: boolean;
+  /**
+   * Per note kind, whether its body is written inline where the marker sits or
+   * collected into a section at the end of the source (in order). Keyed by the
+   * note's `where` — foot-of-page, section, document, margin, volume — so a
+   * writer can keep footnotes inline while sending endnotes to the back. A kind
+   * with no entry falls back to the global `deferNoteBodies`.
+   */
+  noteBodyPlacement?: Partial<Record<string, "inline" | "deferred">>;
   /**
    * How the notes chooser asks its question.
    *
@@ -326,6 +353,8 @@ export const DEFAULTS: Settings = {
   spellcheck: true,
   spellcheckComments: false,
   syncScroll: true,
+  syncMatch: "middle",
+  previewDelay: "live",
   autosaveFile: true,
 };
 

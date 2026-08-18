@@ -85,6 +85,7 @@ import {
   scaffold,
   notesIn,
   tieredNoteAt,
+  NOTE_WHERE,
   type NoteHow,
   type NoteWhere,
 } from "./notes";
@@ -881,6 +882,10 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "hideBlock", run: () => (hideBlockHere(), true) },
   { id: "hideLine", run: () => (hideLineHere(), true) },
   { id: "hiddenBreak", run: () => (hiddenBreak(), true) },
+  // The visible line break, given a key of its own. Not in `ACTION_COMMAND`
+  // because it lives in `BREAK_COMMAND` with the family — the same reason
+  // `hiddenBreak` is hand-listed here rather than generated.
+  { id: "lineBreak", run: () => insertCommand(BREAK_COMMAND.lineBreak) },
   // `paraBreak` and `pageBreak` used to be hand-written here. They are in
   // `ACTION_COMMAND` now, so their doors are generated with every other command
   // action above — which is what makes the registry row for each print the key
@@ -1829,6 +1834,18 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
             openNoteMenu(e, pos);
             return true;
           }
+          return false;
+        },
+        // The mirror of clicking a rendered page to move the caret: a plain
+        // left-click in the source scrolls the preview to where that word — or
+        // that footnote marker — printed. CodeMirror has already placed the
+        // caret by the time `mouseup` fires, so the deferred reveal reads the
+        // caret the click set. A drag is a selection, not a click, and is left
+        // alone; the reveal is quiet and only fires when synced scrolling is on.
+        mouseup(e) {
+          if (e.button !== 0) return false;
+          if (!isPlainClick(window.getSelection())) return false;
+          revealFromSourceClick();
           return false;
         },
       }),
@@ -3063,21 +3080,46 @@ function syncLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, target:
     target.scrollTop = (top / Math.max(1, src.scrollHeight)) * target.scrollHeight;
     return;
   }
+  // Where the two panes line up — the top, middle or bottom of the viewport.
+  // The line at this point of one side is put at the same point of the other,
+  // so a writer who sets it to the middle watches the line they are on stay put
+  // in both panes rather than at the very top edge.
+  const mp = matchFraction();
   if (from.role === "source") {
     const view = paneViews.get(from.id)!;
-    const line = view.state.doc.lineAt(view.lineBlockAtHeight(top).from).number - 1;
-    target.scrollTop = Math.min(
-      fractionAtLine(printedMap(), line) * target.scrollHeight,
-      target.scrollHeight - target.clientHeight,
+    const srcH = view.scrollDOM.clientHeight;
+    // The y we match on: the caret's own line if it is on screen — so the preview
+    // follows *where the writer is*, which is what they asked for — otherwise the
+    // point `mp` down the source viewport.
+    const head = view.state.selection.main.head;
+    const caretY = view.lineBlockAt(head).top;
+    const anchorY = caretY >= top && caretY <= top + srcH ? caretY : top + mp * srcH;
+    const line = view.state.doc.lineAt(view.lineBlockAtHeight(anchorY).from).number - 1;
+    const previewY = fractionAtLine(printedMap(), line) * target.scrollHeight;
+    target.scrollTop = Math.max(
+      0,
+      Math.min(previewY - mp * target.clientHeight, target.scrollHeight - target.clientHeight),
     );
   } else {
     const host = paneHostOf(from.id)!;
     const view = paneViews.get(to.id)!;
-    const line = lineAtFraction(printedMap(), top / Math.max(1, host.scrollHeight));
+    const anchorY = top + mp * host.clientHeight;
+    const line = lineAtFraction(printedMap(), anchorY / Math.max(1, host.scrollHeight));
     const doc = view.state.doc;
     const at = doc.line(Math.max(1, Math.min(line + 1, doc.lines)));
-    target.scrollTop = view.lineBlockAt(at.from).top;
+    target.scrollTop = Math.max(
+      0,
+      Math.min(
+        view.lineBlockAt(at.from).top - mp * target.clientHeight,
+        target.scrollHeight - target.clientHeight,
+      ),
+    );
   }
+}
+
+/** The viewport fraction the two panes line up on: 0 top, 0.5 middle, 1 bottom. */
+function matchFraction(): number {
+  return settings.syncMatch === "top" ? 0 : settings.syncMatch === "bottom" ? 1 : 0.5;
 }
 
 // ------------------------------------------------------------ the pane menu
@@ -3893,17 +3935,18 @@ async function jumpFromClick(e: MouseEvent) {
  * that has no substitute, because a reader can at least *find* a word in the
  * source by eye, and cannot find a coordinate on a page at all.
  */
-async function revealCursor(): Promise<boolean> {
+async function revealCursor(opts: { quiet?: boolean } = {}): Promise<boolean> {
+  const quiet = opts.quiet ?? false;
   if (!runtime.backend) return true;
   const pages = currentPages();
   if (!pages.length) {
-    setStatus(t("revealNoPages"), "warn");
+    if (!quiet) setStatus(t("revealNoPages"), "warn");
     return true;
   }
   const { body, offset } = bodyOnScreen();
   const head = runtime.view.state.selection.main.head;
   const line = runtime.view.state.doc.lineAt(head);
-  setStatus(t("revealWorking"));
+  if (!quiet) setStatus(t("revealWorking"));
   const points = await runtime.backend.reveal(
     body,
     docConfig(),
@@ -3917,19 +3960,44 @@ async function revealCursor(): Promise<boolean> {
   if (!at || !box) {
     // Genuinely nothing to show: the cursor is in a comment, in a command's
     // arguments, or on text the layout dropped. Saying so beats a silent no-op,
-    // because the writer pressed a key and is owed an answer.
-    setStatus(t("revealNowhere"), "warn");
+    // because the writer pressed a key and is owed an answer — unless this was a
+    // quiet reveal fired by a click, where a warning on every stray click is the
+    // noise, not the help.
+    if (!quiet) setStatus(t("revealNowhere"), "warn");
     return true;
   }
   const node = document.querySelector<HTMLElement>(`#preview .page[data-page="${at.page}"]`);
   if (!node) return true;
-  node.scrollIntoView({ block: "center", behavior: "smooth" });
+  // Land the printed spot at the same point the panes line up on elsewhere.
+  const block = settings.syncMatch === "top" ? "start" : settings.syncMatch === "bottom" ? "end" : "center";
+  node.scrollIntoView({ block, behavior: "smooth" });
   drawMark(node, at, box);
-  setStatus(
-    points.length > 1 ? tf("revealFoundMany", points.length) : tf("revealFound", at.page + 1),
-    "ok",
-  );
+  if (!quiet)
+    setStatus(
+      points.length > 1 ? tf("revealFoundMany", points.length) : tf("revealFound", at.page + 1),
+      "ok",
+    );
   return true;
+}
+
+/**
+ * Follow a click in the source into the preview.
+ *
+ * The reader clicks a word — or a footnote marker — and the page scrolls to
+ * where it printed, the mirror of clicking the page to move the caret. It reuses
+ * `revealCursor` (the caret is already where the click put it) but quietly: no
+ * status line, no warning on a click that lands on a comment, because a click is
+ * cheap to make by accident and a reveal that narrates every one is noise.
+ *
+ * Gated on synced scrolling being on and a preview being present, and debounced
+ * so a double-click does not fire the layout twice.
+ */
+let revealClickTimer = 0;
+function revealFromSourceClick() {
+  if (settings.syncScroll === false) return;
+  if (!currentPages().length) return;
+  clearTimeout(revealClickTimer);
+  revealClickTimer = window.setTimeout(() => void revealCursor({ quiet: true }), 120);
 }
 
 // ------------------------------------------------------------------- cite on selection
@@ -6068,6 +6136,43 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
 }
 
 /**
+ * One row per note kind: is its body written inline or sent to the end of the
+ * file. Its own builder rather than a stack of `selectRow`s because the answer
+ * is a key of the `noteBodyPlacement` record, not a scalar `Field` that
+ * `setSetting` knows how to write — so each row writes the record directly and
+ * saves. An empty value clears the key, which is what "default" means: fall back
+ * to the global preference.
+ */
+function notePlacementRows(): HTMLElement[] {
+  return NOTE_WHERE.map((w) => {
+    const live = settings.noteBodyPlacement?.[w] ?? "";
+    const options: [string, string][] = [
+      ["", t("notePlacement.default")],
+      ["inline", t("notePlacement.inline")],
+      ["deferred", t("notePlacement.deferred")],
+    ];
+    const sel = el(
+      "select",
+      {
+        "data-setting": `noteBodyPlacement.${w}`,
+        onChange: (e: Event) => {
+          const v = (e.target as HTMLSelectElement).value;
+          const map = { ...(settings.noteBodyPlacement ?? {}) };
+          if (v === "inline" || v === "deferred") map[w] = v;
+          else delete map[w];
+          settings.noteBodyPlacement = map;
+          saveSettings();
+        },
+      },
+      options.map(([value, label]) =>
+        el("option", { value, ...(value === live ? { selected: "selected" } : {}) }, [label]),
+      ),
+    );
+    return el("label", { class: "set-row" }, [el("span", {}, [t(`where.${w}`)]), sel]);
+  });
+}
+
+/**
  * Where the text sits: justified, right, centre or left — one row.
  *
  * Its own function rather than a `selectRow`, because the answer is written to
@@ -6464,6 +6569,17 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("spellcheckCommentsLabel", "spellcheckComments"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
     checkRow("syncScrollLabel", "syncScroll"),
+    selectRow("syncMatchLabel", "syncMatch", [
+      ["top", t("syncMatch.top")],
+      ["middle", t("syncMatch.middle")],
+      ["bottom", t("syncMatch.bottom")],
+    ]),
+    selectRow("previewDelayLabel", "previewDelay", [
+      ["live", t("previewDelay.live")],
+      ["relaxed", t("previewDelay.relaxed")],
+    ]),
+    el("h3", { style: "margin-top:18px" }, [t("notePlacementLabel")]),
+    ...notePlacementRows(),
     checkRow("autosaveFileLabel", "autosaveFile"),
     checkRow("checkUpdatesLabel", "checkUpdates"),
     el("div", { class: "set-note" }, [t("checkUpdatesNote")]),
@@ -7751,10 +7867,16 @@ async function saveFile() {
     await saveFileAs();
     return;
   }
-  // A platform that has files, and a document not bound to one. Ask where it
-  // goes; from then on Ctrl+S writes there.
+  // A platform that has files, and a document not bound to one. It is already
+  // kept — `fileText` above flushed it to the library, which is the document's
+  // home inside the app — so a plain Save acknowledges that rather than forcing
+  // a file dialog. Popping "choose a name" on a document the writer opened from
+  // the library, that already has a title and a home, is the reported nuisance:
+  // *"the first save prompts for a name even though the doc exists."* Binding the
+  // document to a file on disk is a deliberate act with its own door — File →
+  // Save as… — and is not what Ctrl+S is for.
   if (route === "pickAFile") {
-    await saveFileAs();
+    setStatus(t("savedToLibrary"), "ok", t("savedToLibraryWhy"));
     return;
   }
   // And where there are no writable files, Ctrl+S is **not** a download. The
@@ -10887,6 +11009,21 @@ function deferBodies(): boolean {
 }
 
 /**
+ * Whether *this* note's body is exiled to the end of the file.
+ *
+ * The per-kind answer, keyed by where the note prints, falling back to the
+ * global preference when the writer has said nothing about that kind. This is
+ * what lets footnotes stay inline while endnotes collect at the back — the
+ * setting a writer asked for so each kind reads the way they think of it.
+ */
+function deferBodiesFor(choice: NoteChoice): boolean {
+  const per = settings.noteBodyPlacement?.[choice.where[0]];
+  if (per === "inline") return false;
+  if (per === "deferred") return true;
+  return deferBodies();
+}
+
+/**
  * Write a note layout into the document. The only place that does.
  *
  * Reached from the chooser, from `insertSnippet` (and therefore from the
@@ -10907,12 +11044,17 @@ function applyNoteChoice(
     from,
     choice,
     layer,
-    deferBodies(),
+    deferBodiesFor(choice),
     sel,
     dirLang(),
   );
   editDoc(text, caret);
   scheduleCompile();
+  // The caret lands inside the note's brackets, but a note reached from the
+  // toolbar (†) or the chooser modal leaves focus on the button that was
+  // clicked, so the writer's next keystroke goes nowhere until they click back
+  // in. Return the focus to where the caret already is.
+  runtime.view.focus();
 }
 
 function chooseNote(choice: NoteChoice, layer: number) {
@@ -11217,12 +11359,19 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
   if (key === "lang") {
     setLang(value as Lang);
     swapUntouchedStarter();
+    // Replacing the header and flipping the root direction reflows everything
+    // below, and CodeMirror keeps its pixel offset against a layout that just
+    // moved — so the source visibly jumps. Capture each scroller's position and
+    // put it back after the chrome is rebuilt.
+    const wasAt = new Map<EditorView, number>();
+    for (const v of sourceViews()) wasAt.set(v, v.scrollDOM.scrollTop);
     // Every source pane, and the search panel with them: `rerenderChrome`
     // rebuilds our own DOM and cannot reach a panel CodeMirror owns.
     for (const v of sourceViews()) {
       v.dispatch({ effects: phraseCompartment.reconfigure(EditorState.phrases.of(searchPhrases())) });
     }
     rerenderChrome();
+    for (const [v, at] of wasAt) v.scrollDOM.scrollTop = at;
   } else if (key === "theme") {
     applyTheme();
     runtime.view.dispatch({ effects: themeCompartment.reconfigure(editorTheme(settings.theme === "dark")) });

@@ -204,13 +204,29 @@ function itemName(l: ListInfo): string {
  */
 export function addItem(doc: string, list: ListInfo, pos: number): Edit {
   const here = itemAt(list, pos);
-  const after = here ? here.item.to : lastItemEnd(list);
   // Written on its own line when the list is written on lines, inline when it
   // is written inline — matching what is already there is the whole trick to an
   // edit that does not look like a machine made it.
   const multiline = list.items.length === 0 || doc.slice(list.argsFrom, list.argsTo).includes("\n");
-  const lead = multiline ? `,\n${list.indent}` : ", ";
-  const snippet = `${lead}${itemName(list)}[]`;
+  const sep = multiline ? `,\n${list.indent}` : ", ";
+  const name = itemName(list);
+
+  // The caret sits in the gap after `(`, before the first item. The new item
+  // becomes the *first* one — written before item 0 with the separator trailing
+  // it, because there is no item ahead of it to carry a leading comma. Inserting
+  // the leading-comma form at `argsFrom` here is what produced `#רשימה(,` — a
+  // comma with nothing before it, and a syntax error.
+  if (!here && list.items.length > 0 && pos <= list.items[0].from) {
+    const at = list.items[0].from;
+    const snippet = `${name}[]${sep}`;
+    const text = doc.slice(0, at) + snippet + doc.slice(at);
+    return { text, caret: at + name.length + 1 };
+  }
+
+  // Otherwise, after the item the caret is at or just past — or `argsFrom` for a
+  // list with no items yet.
+  const after = here ? here.item.to : itemEndBefore(list, pos);
+  const snippet = `${sep}${name}[]`;
   // Written *before* any comma that already follows, not after it: the snippet
   // carries its own leading comma, so inserting past an existing one produces
   // `פריט[שני],,` — legal-looking, and a syntax error.
@@ -218,8 +234,18 @@ export function addItem(doc: string, list: ListInfo, pos: number): Edit {
   return { text, caret: after + snippet.length - 1 };
 }
 
-function lastItemEnd(list: ListInfo): number {
-  return list.items.length ? list.items[list.items.length - 1].to : list.argsFrom;
+// The end of the last item at or before the caret — so a new item lands right
+// after the item the writer is sitting in (or just past), not at the end of the
+// whole list. Reached only when at least one item starts at or before `pos` (the
+// before-first-item case is handled in `addItem`), so the loop always advances
+// past `argsFrom`; that initial value is the empty-list fallback.
+function itemEndBefore(list: ListInfo, pos: number): number {
+  let end = list.argsFrom;
+  for (const it of list.items) {
+    if (it.from <= pos) end = it.to;
+    else break;
+  }
+  return end;
 }
 
 /**

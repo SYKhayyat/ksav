@@ -2790,7 +2790,22 @@
 //  עיצוב פנימי · inline text styles
 // ============================================================
 #let הדגשה(body) = strong(body)
-#let נטוי(body) = emph(body)
+// `emph` is a *request* for an italic face, and every Hebrew family this engine
+// bundles — and very nearly every one that exists — ships none, so on paper
+// Typst hands back the upright face and the emphasis is invisible. Shearing the
+// laid-out frame gives a visible slant with any font (a synthetic oblique, the
+// same fallback a word processor makes); `reflow: true` keeps the following text
+// off it, and `emph` stays inside so a family that *does* carry an italic still
+// uses its real one. This is why `#נטוי`/`#italic` no longer raise the "no
+// italic face" warning — see `slanting_commands` in `lib.rs`.
+//
+// Only on paper. HTML export is reflowable web content where `<em>` is the
+// right, semantic answer and the browser renders (or synthesises) the italic
+// itself, so the skew — which would replace the `<em>` with a transformed span —
+// is confined to the paged target.
+#let נטוי(body) = context {
+  if target() == "html" { emph(body) } else { skew(ax: -12deg, reflow: true, emph(body)) }
+}
 #let קו_תחתון(body) = underline(body)
 #let קו_חוצה(body) = strike(body)
 // סימון — highlight, in whatever colour is asked for.

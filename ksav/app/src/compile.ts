@@ -46,7 +46,11 @@ let timer: number | undefined;
 export function scheduleCompile() {
   clearTimeout(timer);
   clearTimeout(quietTimer);
-  timer = window.setTimeout(runCompile, 250);
+  // `relaxed` lays a big sefer out once the writer has stopped rather than
+  // between every sentence; `live` (the default) keeps a page in step as it is
+  // typed. See `previewDelay` in `settings.ts`.
+  const delay = settings.previewDelay === "relaxed" ? 1200 : 250;
+  timer = window.setTimeout(runCompile, delay);
   alsoSchedule();
 }
 

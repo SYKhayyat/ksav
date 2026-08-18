@@ -20,7 +20,7 @@ nothing.
 |---|---|
 | **use it** | [`docs/start-here.md`](docs/start-here.md) |
 | **switch from Word** | [`docs/from-word.md`](docs/from-word.md) |
-| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 83 bindings in both languages, generated from the source |
+| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 84 bindings in both languages, generated from the source |
 | **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — clone to landed change |
 | **understand the architecture** | [`ksav/README.md`](ksav/README.md) |
 | **work on the seam with Girsa** | [`docs/girsa.md`](docs/girsa.md) |
@@ -177,7 +177,6 @@ something other than a person.
 | [`flake.nix`](flake.nix) | A Nix dev shell carrying the engine, editor, wasm and Emacs toolchains at the versions CI pins. |
 | [`spec.md`](spec.md) | The note options — eleven, and the ground rule that produces exactly eleven. A living document. |
 | [`decisions/`](decisions/README.md) | **The record.** Every dated wave, audit and resolution, each true on its date and never edited afterwards. Kept apart from the documentation on purpose: a spec is edited in place, a log is written once. |
-| [`prototypes/`](prototypes) | The two original Gemini-authored **mocks**, archived for history — a React web app and a Flutter + Rust app. Neither ever invoked Typst. See [`prototypes/README.md`](prototypes/README.md). |
 | `assets/` (per-crate), `licenses/`, `THIRD-PARTY-NOTICES.md` | Bundled fonts and lexicons live under `ksav/engine/assets`; third-party license texts and notices are at the repo root. |
 
 ## License

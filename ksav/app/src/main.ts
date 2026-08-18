@@ -1851,6 +1851,11 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       }),
       EditorView.updateListener.of((u) => {
         if (u.docChanged || u.selectionSet) updateContextBar();
+        // The caret moved and the text did not — an arrow key, a click, a jump.
+        // Bring the preview to it. Not on `docChanged`: typing moves the caret
+        // every keystroke, and the compile-and-follow already handles that; doing
+        // it here too would fight the writer's own scroll.
+        if (u.selectionSet && !u.docChanged) followCaretInPreview();
         // The recorder's other half: what the writer typed. Read off the
         // transaction rather than off keydown, so an IME, a paste and a nikud
         // button all record as the text they produced rather than as the keys
@@ -3087,34 +3092,87 @@ function syncLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, target:
   const mp = matchFraction();
   if (from.role === "source") {
     const view = paneViews.get(from.id)!;
-    const srcH = view.scrollDOM.clientHeight;
-    // The y we match on: the caret's own line if it is on screen — so the preview
-    // follows *where the writer is*, which is what they asked for — otherwise the
-    // point `mp` down the source viewport.
-    const head = view.state.selection.main.head;
-    const caretY = view.lineBlockAt(head).top;
-    const anchorY = caretY >= top && caretY <= top + srcH ? caretY : top + mp * srcH;
-    const line = view.state.doc.lineAt(view.lineBlockAtHeight(anchorY).from).number - 1;
-    const previewY = fractionAtLine(printedMap(), line) * target.scrollHeight;
-    target.scrollTop = Math.max(
-      0,
-      Math.min(previewY - mp * target.clientHeight, target.scrollHeight - target.clientHeight),
-    );
+    // The point `mp` down the source viewport, in document pixels.
+    const anchorY = top + mp * view.scrollDOM.clientHeight;
+    // The printed fraction of *that pixel* — not of the line it lands in. The
+    // map answers per line, so a raw `fractionAtLine` moves the preview only when
+    // the anchor crosses a line boundary and holds it still in between, which is
+    // the "does not scroll smoothly at all" the report was about: the preview
+    // jumps a line's worth at a time. Interpolating between this line's fraction
+    // and the next by how far the anchor is *through* the line's height makes the
+    // follow continuous.
+    const block = view.lineBlockAtHeight(anchorY);
+    const lineNo = view.state.doc.lineAt(block.from).number - 1;
+    const within = block.height > 0 ? clamp01((anchorY - block.top) / block.height) : 0;
+    const map = printedMap();
+    const frac = lerp(fractionAtLine(map, lineNo), fractionAtLine(map, lineNo + 1), within);
+    target.scrollTop = clampScroll(frac * target.scrollHeight - mp * target.clientHeight, target);
   } else {
     const host = paneHostOf(from.id)!;
     const view = paneViews.get(to.id)!;
-    const anchorY = top + mp * host.clientHeight;
-    const line = lineAtFraction(printedMap(), anchorY / Math.max(1, host.scrollHeight));
+    const map = printedMap();
+    const frac = (top + mp * host.clientHeight) / Math.max(1, host.scrollHeight);
+    // The line the fraction reaches, and how far past that line's own printed
+    // fraction it is — the same interpolation the other way, so scrolling the
+    // preview glides the source rather than snapping it one line at a time.
+    const lineNo = lineAtFraction(map, frac);
+    const g0 = fractionAtLine(map, lineNo);
+    const g1 = fractionAtLine(map, lineNo + 1);
+    const within = g1 > g0 ? clamp01((frac - g0) / (g1 - g0)) : 0;
     const doc = view.state.doc;
-    const at = doc.line(Math.max(1, Math.min(line + 1, doc.lines)));
-    target.scrollTop = Math.max(
-      0,
-      Math.min(
-        view.lineBlockAt(at.from).top - mp * target.clientHeight,
-        target.scrollHeight - target.clientHeight,
-      ),
-    );
+    const block = view.lineBlockAt(doc.line(Math.max(1, Math.min(lineNo + 1, doc.lines))).from);
+    const sourceY = block.top + within * block.height;
+    target.scrollTop = clampScroll(sourceY - mp * target.clientHeight, target);
   }
+}
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const clampScroll = (y: number, el: HTMLElement) =>
+  Math.max(0, Math.min(y, el.scrollHeight - el.clientHeight));
+
+/**
+ * Move the preview to where the caret is — *"if the cursor is somewhere, that is
+ * what should match."*
+ *
+ * Fired when the caret moves and nothing else, so it never fights a scroll: a
+ * held arrow key or a click brings the preview to the caret's line, but dragging
+ * the scrollbar does not, because dragging does not move the caret. Cheap on
+ * purpose — it reads the printed map, not the compiler, so it costs nothing and
+ * is safe to run on every cursor move. The exact, glyph-level answer is the
+ * click-to-reveal, which is worth the layout because a click asks for it.
+ *
+ * Only the plain one-source-one-preview arrangement; a split window has more than
+ * one of each and the scroll-floor follow already keeps those in step.
+ */
+let caretFollowTimer = 0;
+function followCaretInPreview() {
+  if (settings.syncScroll === false) return;
+  clearTimeout(caretFollowTimer);
+  caretFollowTimer = window.setTimeout(() => {
+    // Not while a pane is being scrolled by hand: that is the writer reading
+    // somewhere the caret is not, and yanking the preview back is the opposite
+    // of help.
+    if (scrollFloor && performance.now() < scrollFloor.until) return;
+    const hosts = document.querySelectorAll<HTMLElement>(".preview-host");
+    if (hosts.length !== 1) return;
+    const host = hosts[0];
+    const view = runtime.view;
+    if (!view) return;
+    const head = view.state.selection.main.head;
+    const lineNo = view.state.doc.lineAt(head).number - 1;
+    const frac = fractionAtLine(printedMap(), lineNo);
+    const mp = matchFraction();
+    const at = clampScroll(frac * host.scrollHeight - mp * host.clientHeight, host);
+    // Claim the floor and record the write so the preview's own scroll event —
+    // which this assignment provokes — is recognised as an echo rather than a
+    // person, the same way `bookLinkedScroll` does. `wirePaneScroll` keys on the
+    // pane id, which is the host's element id with its prefix removed.
+    const paneId = host.id.replace("pane-host-", "");
+    scrollFloor = { pane: "caret", until: performance.now() + SCROLL_FLOOR_MS };
+    scrollWritten.set(paneId, at);
+    host.scrollTop = at;
+  }, 100);
 }
 
 /** The viewport fraction the two panes line up on: 0 top, 0.5 middle, 1 bottom. */
@@ -3996,6 +4054,10 @@ let revealClickTimer = 0;
 function revealFromSourceClick() {
   if (settings.syncScroll === false) return;
   if (!currentPages().length) return;
+  // A click also moves the caret, which schedules the cheap line-level follow.
+  // The click gets the exact, glyph-level reveal instead — it asked for it — so
+  // cancel the approximate one rather than let the preview jump twice.
+  clearTimeout(caretFollowTimer);
   clearTimeout(revealClickTimer);
   revealClickTimer = window.setTimeout(() => void revealCursor({ quiet: true }), 120);
 }

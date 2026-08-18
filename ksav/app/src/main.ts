@@ -402,6 +402,11 @@ async function openDoc(id: string) {
   if (leaving) rememberPages(leaving);
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
+  // The incoming document is a different text; its first spell check must be a
+  // full one, and the outgoing document's dirty region has no meaning here.
+  spellDirtyFrom = Infinity;
+  spellDirtyTo = -1;
+  spellFullPending = true;
   if (!opendocs.isOpen(id)) {
     opendocs.put({ id, state: makeState(next.body, !!settings.prose), scrollTop: 0, prose: !!settings.prose });
   }
@@ -1387,9 +1392,18 @@ function paragraphAround(text: string, from: number, to: number): { from: number
 
 /** Grow the dirty region by the ranges this update touched, in current coords. */
 function markSpellDirty(changes: import("@codemirror/state").ChangeDesc): void {
-  if (spellDirtyTo >= 0) {
+  // Map the accumulated region forward — but only when it is addressable by this
+  // changeset. A document switch (or any wholesale replace) leaves a region from
+  // the *previous* document behind, and `mapPos` on a position past the incoming
+  // changeset's start length throws. When that happens the old region is
+  // meaningless anyway, so drop it and re-seed from this transaction's ranges.
+  const startLen = changes.length;
+  if (spellDirtyTo >= 0 && spellDirtyFrom <= startLen && spellDirtyTo <= startLen) {
     spellDirtyFrom = changes.mapPos(spellDirtyFrom, -1);
     spellDirtyTo = changes.mapPos(spellDirtyTo, 1);
+  } else {
+    spellDirtyFrom = Infinity;
+    spellDirtyTo = -1;
   }
   changes.iterChangedRanges((_fa, _ta, fromB, toB) => {
     spellDirtyFrom = Math.min(spellDirtyFrom, fromB);

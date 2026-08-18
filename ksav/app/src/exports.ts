@@ -124,12 +124,18 @@ export async function exportPdf() {
     runtime.setStatus(why ? `${t("compileError")} — ${why}` : t("compileError"), "err");
     return;
   }
-  // Decode the base64 in native code off the JS heap. `Uint8Array.from(atob(…),
-  // …)` invokes the mapper once per byte — twenty million calls on the main
-  // thread for a 20 MB sefer PDF, with no yield. A `data:` fetch does the whole
-  // decode natively and hands back an `ArrayBuffer` directly.
-  const blob = await (await fetch("data:application/pdf;base64," + res.pdf_base64)).blob();
-  handOver(runtime.fileStem() + ".pdf", blob);
+  // Decode without the per-byte callback `Uint8Array.from(atob(…), c =>
+  // c.charCodeAt(0))` pays — twenty million mapper invocations on the main
+  // thread for a 20 MB sefer PDF. A plain loop over the binary string into a
+  // preallocated array is the same work with none of the call overhead.
+  //
+  // Deliberately *not* `fetch("data:…")`: it decodes natively but counts as a
+  // `connect-src`, and the assembled app ships a strict CSP that forbids it —
+  // the export then throws "Failed to fetch" and the crash panel comes up.
+  const bin = atob(res.pdf_base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  handOver(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
   // Dropped tags on a page-range export, and anything else the export chose to
   // do rather than fail over — worth a line, since the file is already on disk.
   const note = res.diagnostics?.find((d) => d.severity === "warning")?.message;

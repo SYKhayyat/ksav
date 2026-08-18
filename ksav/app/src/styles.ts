@@ -20,6 +20,7 @@
 
 import { bothSpellings } from "./engine.gen";
 import { scan, splitArgs, topLevelColon } from "./spans";
+import type { Scan } from "./spans";
 import { typstString } from "./typst-escape";
 
 export type StyleCommand =
@@ -877,12 +878,30 @@ const STYLE_HEAD =
  * body Typst is in code context, so `עיצוב(…)` is written bare. A regex over
  * `#עיצוב` would have found none of them.
  */
+// Derived from the scan and cached on it, the way `headings.ts` caches on the
+// same object. The scan is already the per-version memo; anything computed from
+// it should hang off that rather than be rebuilt. `updateContextBar` calls this
+// on every arrow key to fill the paragraph-style `<select>`, so without the map
+// a caret move re-walked every node — and re-copied the whole document prefix
+// per style, below — for a result that almost never changes.
+const STYLES_CACHED = new WeakMap<Scan, CustomStyle[]>();
+
 export function findCustomStyles(doc: string): CustomStyle[] {
+  const s = scan(doc);
+  const hit = STYLES_CACHED.get(s);
+  if (hit) return hit;
   const names = bothSpellings("עיצוב");
   const out: CustomStyle[] = [];
-  for (const n of scan(doc).nodes) {
+  for (const n of s.nodes) {
     if (!n.args || !names.includes(n.name)) continue;
-    const head = STYLE_HEAD.exec(doc.slice(0, n.from));
+    // The definition head sits on the line the call opens on, so look only at
+    // that line rather than copying the entire prefix of the document (which,
+    // with an unanchored `^|\n` regex, was O(document) per style — O(styles ×
+    // document) overall). The window starts at the newline before the call so
+    // the `(?:^|\n)` anchor still has its boundary to match.
+    const nl = doc.lastIndexOf("\n", n.from - 1);
+    const start = nl < 0 ? 0 : nl;
+    const head = STYLE_HEAD.exec(doc.slice(start, n.from));
     if (!head) continue;
     const raw = splitStyleArgs(doc.slice(n.args.from, n.args.to));
     out.push({
@@ -890,12 +909,13 @@ export function findCustomStyles(doc: string): CustomStyle[] {
       param: head[3],
       // `head.index` is the start of the `\n` for every match but one, so step
       // over it — the definition is the line, not the break before it.
-      from: head.index + (head[0].startsWith("\n") ? 1 : 0),
+      from: start + head.index + (head[0].startsWith("\n") ? 1 : 0),
       to: n.args.to + 1,
       args: new Map([...raw].map(([k, v]) => [canonicalKey(k), v])),
       lang: n.name === "עיצוב" ? "he" : "en",
     });
   }
+  STYLES_CACHED.set(s, out);
   return out;
 }
 

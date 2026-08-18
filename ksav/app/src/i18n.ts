@@ -661,6 +661,8 @@ const HE: Dict = {
   createAction: "יצירה",
   done: "סיום",
   cancel: "ביטול",
+  ok: "אישור",
+  confirmTitle: "לאשר",
   // סגנונות של הכותב — `#let שם(תוכן) = עיצוב(תוכן, …)` במסמך עצמו
   customStyles: "הסגנונות שלי",
   // The ellipsis belongs on the entry that *opens* the form, not on the form.
@@ -1938,6 +1940,8 @@ const EN: Dict = {
   createAction: "Create",
   done: "Done",
   cancel: "Cancel",
+  ok: "OK",
+  confirmTitle: "Confirm",
   customStyles: "My styles",
   newStyle: "New style…",
   newStyleTitle: "New style",

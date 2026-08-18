@@ -55,8 +55,14 @@ export interface SharedDoc {
 
 /** base64url — the URL-safe alphabet, and no padding to waste characters. */
 function toBase64Url(bytes: Uint8Array): string {
+  // Build the binary string in chunks rather than one `fromCharCode` call per
+  // byte — the same waste as `exports.ts`'s old per-byte decode, on the deflated
+  // document. The chunk keeps `apply`'s argument list under the call limit.
   let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 

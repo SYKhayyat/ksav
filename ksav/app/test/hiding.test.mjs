@@ -77,41 +77,47 @@ export async function run() {
 
   // ------------------------------------------- the closer the editor writes
 
+  // `foldCloser` is asked the question *before* the `{` lands: the document is
+  // the real one, and `from` is where the brace the writer just pressed will go,
+  // completing the `//` stem into `//{`. So every case below hands in the stem,
+  // not the finished opener — matching the input handler, which no longer builds
+  // a synthetic post-insert copy of the whole sefer on every `{`.
+  const STEM = FOLD_OPEN.slice(0, -1);
   {
     // Three characters is the floor — a fold's marks must be comments or the
     // page prints them, and `//` plus one brace is the shortest brace-like
     // comment there is. So the writer types the opener and nothing else.
-    const doc = FOLD_OPEN;
+    const doc = STEM;
     const c = foldCloser(doc, doc.length);
     ok("closer: finishing `//{` writes the rest", !!c, JSON.stringify(c));
-    const after = doc + c.insert;
+    const after = doc + "{" + c.insert;
     check("closer: a blank line and the closing mark", after, FOLD_OPEN + " \n\n" + FOLD_CLOSE);
     // On the opener, not the body: the name is the whole value of a fold once
     // it is collapsed, and it is the thing a writer would have to come back for.
     check("closer: the caret waits for the name", after.slice(0, c.caret), FOLD_OPEN + " ");
   }
   {
-    const doc = "  " + FOLD_OPEN;
+    const doc = "  " + STEM;
     const c = foldCloser(doc, doc.length);
-    check("closer: the closer keeps the opener's indent", doc + c.insert, "  " + FOLD_OPEN + " \n  \n  " + FOLD_CLOSE);
+    check("closer: the closer keeps the opener's indent", doc + "{" + c.insert, "  " + FOLD_OPEN + " \n  \n  " + FOLD_CLOSE);
   }
   {
     // A `//{` being *renamed* is not a fold being made, and a fold that already
     // has a closer below it does not want a second one.
-    ok("closer: not when the opener already has a label", foldCloser(FOLD_OPEN + " שם", 3) === null);
-    const open = FOLD_OPEN + "\nגוף\n" + FOLD_CLOSE;
-    ok("closer: not when a closer is already below", foldCloser(open, 3) === null);
+    ok("closer: not when the opener already has a label", foldCloser(STEM + " שם", STEM.length) === null);
+    const open = STEM + "\nגוף\n" + FOLD_CLOSE;
+    ok("closer: not when a closer is already below", foldCloser(open, STEM.length) === null);
   }
   {
     // …but a fold opened *inside* one that is already closed gets its own
     // closer. The `//}` below belongs to the outer fold, and a scan looking for
     // the next one cannot tell those apart — which is why the question is asked
     // of the whole file as a balance.
-    const doc = FOLD_OPEN + " חוץ\n" + FOLD_OPEN + "\nגוף\n" + FOLD_CLOSE;
-    const at = doc.indexOf("\n" + FOLD_OPEN) + 1 + FOLD_OPEN.length;
+    const doc = FOLD_OPEN + " חוץ\n" + STEM + "\nגוף\n" + FOLD_CLOSE;
+    const at = doc.indexOf("\n" + STEM) + 1 + STEM.length;
     ok("closer: a fold nested in a closed one still gets one", !!foldCloser(doc, at));
   }
-  ok("closer: not in the middle of a line", foldCloser(FOLD_OPEN + "x", 3) === null);
+  ok("closer: not in the middle of a line", foldCloser(STEM + "x", STEM.length) === null);
 
   // ------------------------------------------------------------- hide lines
 

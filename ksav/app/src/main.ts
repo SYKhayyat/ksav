@@ -50,6 +50,7 @@ import { createBackend, sourcesOf } from "./api";
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
  *  one lock and an empty vector when there is nothing waiting. */
 const GIRSA_POLL_MS = 1000;
+const GIRSA_POLL_MAX_MS = 30_000;
 import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
 import type * as api from "./api";
 import * as git from "./git";
@@ -401,9 +402,6 @@ async function openDoc(id: string) {
   if (leaving) rememberPages(leaving);
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
-  runtime.setCurrentBinding(await files.recallBinding(next.id));
-  // Stamp the file as we found it, so "has it changed" has something to mean.
-  await watch.markInSync(next.id, runtime.currentBinding);
   if (!opendocs.isOpen(id)) {
     opendocs.put({ id, state: makeState(next.body, !!settings.prose), scrollTop: 0, prose: !!settings.prose });
   }
@@ -415,6 +413,19 @@ async function openDoc(id: string) {
   // where it was, which the line above can only answer for the focused one.
   restorePlaces(id);
   runtime.setSwitching(false);
+  // The binding and the "as we found it" mtime stamp have no bearing on what is
+  // drawn — `markInSync` in particular is a real filesystem stat, over IPC on
+  // the desktop, on a path that may be a synced or network drive. Resolve them
+  // after the text is on screen and let the title bar catch up when they land,
+  // exactly as `boot()` does. Clear the outgoing binding first so nothing reads
+  // the *previous* document's while the recall is in flight.
+  runtime.setCurrentBinding(null);
+  void files.recallBinding(next.id).then((b) => {
+    // A newer switch may already have won; only stamp if this is still the doc.
+    if (runtime.currentDoc?.id !== next.id) return;
+    runtime.setCurrentBinding(b);
+    return watch.markInSync(next.id, b);
+  });
   // **Not** `save.markFileSaved()`. That used to be here, and with one global
   // flag for a library of documents it cleared the mark on the document being
   // *left* as well: switch away from an edited file and back, and the dot in
@@ -587,7 +598,11 @@ async function setEditingMode(mode: unknown): Promise<void> {
   // reasoned about: `iCHET` in the new pane produced `iCHET` on the line while
   // the same keys in the pane beside it produced `CHET`.
   const views = sourceViews();
-  for (const v of views.length ? views : [runtime.view]) await keymodes.applyMode(v, want);
+  // All panes together, not one behind the next: `applyMode` awaits a dynamic
+  // import, and a serial loop reaches pane 1 before pane 4 — a window in which
+  // half the panes have the mode and half do not, which for vim means half of
+  // them are writing the writer's commands into the sefer (see above).
+  await Promise.all((views.length ? views : [runtime.view]).map((v) => keymodes.applyMode(v, want)));
   reconfigureShortcuts();
 }
 
@@ -645,8 +660,7 @@ async function refreshBaseline() {
   if (!runtime.currentDoc) return;
   let baseline: string | null = null;
   try {
-    const list = await docs.snapshots(runtime.currentDoc.id);
-    baseline = list.length ? list[list.length - 1].body : null;
+    baseline = (await docs.latestSnapshot(runtime.currentDoc.id))?.body ?? null;
   } catch {
     // The history store being unreachable is reported by the code that writes
     // to it; a gutter is not the place to raise it a second time.
@@ -690,7 +704,7 @@ async function duplicateDoc(id: string) {
 async function removeDoc(id: string) {
   const entry = docs.library().find((e) => e.id === id);
   if (!entry) return;
-  if (!confirm(tf("confirmDeleteDoc", entry.title))) return;
+  if (!(await ask(tf("confirmDeleteDoc", entry.title), { danger: true, okLabel: t("delete") }))) return;
   const wasFocused = opendocs.focusedId() === id;
   await docs.deleteDoc(id);
   await files.rememberBinding(id, null);
@@ -712,8 +726,8 @@ async function removeDoc(id: string) {
   forgetPages(id);
 }
 
-function renameDoc() {
-  const name = prompt(t("renamePrompt"), runtime.currentDoc.title);
+async function renameDoc() {
+  const name = await askText(t("renamePrompt"), runtime.currentDoc.title);
   if (name === null) return;
   runtime.currentDoc.title = name.trim() || t("untitled");
   void saveNow();
@@ -1343,15 +1357,78 @@ function scheduleSpellCheck() {
   spellTimer = window.setTimeout(runSpellCheck, 700);
 }
 
+// Incremental spell-check bookkeeping.
+//
+// A full-document check re-tokenises and re-looks-up the whole sefer on every
+// pause in typing, and ships ~420 KB of offset-preserving text to the one engine
+// worker to do it — behind the compile, on a shorter timer. But a pause almost
+// always follows a change in *one* paragraph. So the typing path checks only the
+// changed region (widened to paragraph boundaries) and splices the answer into
+// the field, while explicit triggers with no document change — a spellcheck
+// toggle, learning a word — leave the dirty range empty and fall through to a
+// full check, which is exactly what those need.
+let spellDirtyFrom = Infinity;
+let spellDirtyTo = -1;
+// Set by the two changes that make *every* paragraph's answer potentially
+// different without touching the document: the comment setting and the word list.
+let spellFullPending = false;
+// A generation ticket, the same shape `runCompile` uses. A stale response must
+// not overwrite the field — its offsets describe text that no longer exists, and
+// `setMisspellings` replaces wholesale, discarding the positions the field
+// mapped through the intervening edits. Squiggles landing on the wrong words.
+let spellGeneration = 0;
+
+/** Widen the changed region back and forward to the nearest blank line. */
+function paragraphAround(text: string, from: number, to: number): { from: number; to: number } {
+  const prevBlank = text.lastIndexOf("\n\n", Math.max(0, from - 1));
+  const nextBlank = text.indexOf("\n\n", to);
+  return { from: prevBlank < 0 ? 0 : prevBlank + 2, to: nextBlank < 0 ? text.length : nextBlank };
+}
+
+/** Grow the dirty region by the ranges this update touched, in current coords. */
+function markSpellDirty(changes: import("@codemirror/state").ChangeDesc): void {
+  if (spellDirtyTo >= 0) {
+    spellDirtyFrom = changes.mapPos(spellDirtyFrom, -1);
+    spellDirtyTo = changes.mapPos(spellDirtyTo, 1);
+  }
+  changes.iterChangedRanges((_fa, _ta, fromB, toB) => {
+    spellDirtyFrom = Math.min(spellDirtyFrom, fromB);
+    spellDirtyTo = Math.max(spellDirtyTo, toB);
+  });
+}
+
+/** Ask for a full re-check on the next beat — a word list or comment-mode change. */
+function forceFullSpellCheck(): void {
+  spellFullPending = true;
+  scheduleSpellCheck();
+}
+
 async function runSpellCheck() {
   if (!runtime.backend || !settings.spellcheck || !runtime.view) return;
+  const doc = runtime.view.state.doc;
+  const realText = docTextOf(doc);
   // Only the text that will actually print: command names are not misspellings,
   // and underlining them would make the feature useless on its first document.
-  const text = spell.checkableText(docTextOf(runtime.view.state.doc), {
+  const checkable = spell.checkableText(realText, {
     comments: !!settings.spellcheckComments,
   });
+  // Full when something changed the answer everywhere (or nothing has told us
+  // where the change was); otherwise the one paragraph that moved.
+  const full = spellFullPending || spellDirtyTo < 0 || spellDirtyFrom > spellDirtyTo;
+  const region = full
+    ? { from: 0, to: checkable.length }
+    : paragraphAround(
+        realText,
+        Math.max(0, Math.min(spellDirtyFrom, realText.length)),
+        Math.max(0, Math.min(spellDirtyTo, realText.length)),
+      );
+  const payload = full ? checkable : checkable.slice(region.from, region.to);
+  const mine = ++spellGeneration;
   try {
-    const res = await runtime.backend.spell(text, spell.userWordsText(), false);
+    const res = await runtime.backend.spell(payload, spell.userWordsText(), false);
+    // Superseded, or the document moved under the request: its offsets are now
+    // fiction, so drop it and let the next scheduled check answer the real text.
+    if (mine !== spellGeneration || runtime.view.state.doc !== doc) return;
     spellFailed = false;
     spell.noteLexiconSizes(res.lexicon_sizes);
     // The panel is built before the first check answers, so the note starts as
@@ -1360,7 +1437,22 @@ async function runSpellCheck() {
     // typing.
     const note = document.getElementById("spell-coverage");
     if (note) note.textContent = spellCoverageNote();
-    runtime.view.dispatch({ effects: spell.setMisspellings.of(res.misspellings) });
+    const fresh = res.misspellings.map((m) => ({ ...m, start: m.start + region.from }));
+    const next = full
+      ? fresh
+      : [
+          // Keep every existing mark that lies wholly outside the re-checked
+          // paragraph; replace the ones inside it with the fresh answer.
+          ...(runtime.view.state.field(spell.misspellings, false) ?? []).filter(
+            (m) => m.start + m.len <= region.from || m.start >= region.to,
+          ),
+          ...fresh,
+        ];
+    runtime.view.dispatch({ effects: spell.setMisspellings.of(next) });
+    // Checked cleanly: this region (or the whole document) is no longer dirty.
+    spellFullPending = false;
+    spellDirtyFrom = Infinity;
+    spellDirtyTo = -1;
   } catch (e) {
     // A single dropped check is not worth a modal, but it must not read as a
     // clean page either: the toggle still says "on" and the panel still names
@@ -1481,6 +1573,9 @@ async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
     el("button", { class: "spell-item spell-add", onClick: () => {
       spell.addUserWord(m.word);
       closeSpellMenu();
+      // A learned word can appear anywhere, so re-check the whole document, not
+      // just the paragraph the squiggle was in.
+      spellFullPending = true;
       runSpellCheck();
       runtime.view.focus();
     } }, ["＋ " + t("addToDictionary")]),
@@ -1628,7 +1723,7 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
         const sel = view.state.selection.main;
         if (!sel.empty || from !== sel.from || to !== sel.to) return false;
         const doc = docTextOf(view.state.doc);
-        const closer = hiding.foldCloser(doc.slice(0, from) + "{" + doc.slice(to), from + 1);
+        const closer = hiding.foldCloser(doc, from);
         if (!closer) return false;
         view.dispatch({
           changes: { from, to, insert: "{" + closer.insert },
@@ -1872,6 +1967,9 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
           }
         }
         if (u.docChanged) {
+          // Remember which paragraph moved, so the next spell check re-tokenises
+          // only that region rather than the whole sefer.
+          markSpellDirty(u.changes);
           // What prints has moved, so the scroll map is stale. Dropped rather
           // than rebuilt: a scroll event will rebuild it if one comes, and most
           // keystrokes are never followed by a scroll.
@@ -3433,8 +3531,8 @@ function withFreshIds(node: panes.PaneNode): panes.PaneNode {
 }
 
 /** Keep the window as it stands now, under a name. */
-function saveArrangementHere() {
-  const name = prompt(t("arrangementName"), "")?.trim();
+async function saveArrangementHere() {
+  const name = (await askText(t("arrangementName"), ""))?.trim();
   if (!name) return;
   const list = savedArrangements();
   // A name used twice replaces, rather than making two rows a writer cannot
@@ -3805,10 +3903,10 @@ function closeTab(i: number) {
   else scheduleCompile();
 }
 
-function renameTab(i: number) {
+async function renameTab(i: number) {
   const tab = tabs.all()[i];
   if (!tab) return;
-  const name = prompt(t("renameTabPrompt"), tab.name ?? "");
+  const name = await askText(t("renameTabPrompt"), tab.name ?? "");
   if (name === null) return;
   tabs.rename(i, name);
   refreshTabStrip();
@@ -5463,9 +5561,9 @@ function buildMacroMenu(): HTMLElement {
           el("button", {
             class: "menu-del",
             title: t("macroRepeat"),
-            onClick: (e: Event) => {
+            onClick: async (e: Event) => {
               e.stopPropagation();
-              const n = parseInt(prompt(t("macroRepeatPrompt"), "10") ?? "", 10);
+              const n = parseInt((await askText(t("macroRepeatPrompt"), "10")) ?? "", 10);
               if (Number.isFinite(n) && n > 0) {
                 closeMenus();
                 playMacro(m, Math.min(n, 500));
@@ -6441,6 +6539,7 @@ function buildSettingsDrawer(): HTMLElement {
             title: t("delete"),
             onClick: () => {
               spell.removeUserWord(w);
+              spellFullPending = true;
               runSpellCheck();
               rerenderChrome();
             },
@@ -6757,7 +6856,7 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
     btn.textContent = text;
     window.removeEventListener("keydown", handler, true);
   };
-  const handler = (e: KeyboardEvent) => {
+  const handler = async (e: KeyboardEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.key === "Escape") return done(original);
@@ -6770,7 +6869,7 @@ function captureShortcut(actionId: string, btn: HTMLButtonElement) {
     const conflict = whoHolds(kb, key, actionId);
     let reassigned = false;
     if (conflict) {
-      if (!confirm(tf("shortcutConflict", key))) return done(original);
+      if (!(await ask(tf("shortcutConflict", key)))) return done(original);
       // Unbind the other so the chord is held by exactly one action.
       settings.keybindings = { ...(settings.keybindings || {}), [conflict]: "", [actionId]: key };
       reassigned = true;
@@ -6798,6 +6897,7 @@ async function importDictionary() {
   const f = await pickFile(".txt,text/plain");
   if (!f) return;
   const added = spell.importUserWords(await f.text());
+  spellFullPending = true;
   runSpellCheck();
   rerenderChrome();
   setStatus(added ? tf("dictionaryImported", added) : t("dictionaryNothingNew"), added ? "ok" : "");
@@ -7094,6 +7194,22 @@ const LOOKS: Record<string, Look> = {
  * click, and the sentence about what a cap left out.
  */
 function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Snapshot[] = []) {
+  // `refreshPanes` fires this for every docked pane and drawer five times a
+  // second while typing, and the row model is identical on almost all of them.
+  // A rebuild that changes nothing is pure waste — hundreds of element and
+  // closure allocations discarded on the next beat — and it is not free of
+  // consequence: `innerHTML = ""` resets `host.scrollTop`, so a writer who
+  // scrolled the outline to a later chapter is snapped back to the top on their
+  // next keystroke, and any row hover or keyboard selection is destroyed on the
+  // same beat. So: draw only when the serialized model actually changed, and
+  // preserve the scroll position across the rebuild when it did.
+  const sig = look.row + "|" + JSON.stringify(list);
+  // `childElementCount` guards the case where something else emptied the host
+  // since we last drew (a panel closing, say): the signature would still match
+  // but the DOM would be gone, so redraw rather than trust the stamp alone.
+  if (host.dataset.listSig === sig && host.childElementCount > 0) return;
+  const keepScroll = host.scrollTop;
+  host.dataset.listSig = sig;
   host.innerHTML = "";
   if (list.empty) {
     host.append(el("div", { class: "outline-empty" }, [t(list.empty)]));
@@ -7105,6 +7221,7 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
   if (list.hidden) {
     host.append(el("div", { class: "outline-empty" }, [tf("moreHidden", String(list.hidden))]));
   }
+  host.scrollTop = keepScroll;
 }
 
 /**
@@ -7232,7 +7349,7 @@ async function takeSnapshot(force = false): Promise<boolean> {
 }
 
 async function restoreSnapshot(s: docs.Snapshot) {
-  if (!confirm(t("confirmRestore"))) return;
+  if (!(await ask(t("confirmRestore")))) return;
   await takeSnapshot(true); // snapshot current before restoring, so it's not lost
   loadBody(s.body);
   closeHistory();
@@ -7549,7 +7666,7 @@ async function compareWithCommit(c: api.GitCommit): Promise<void> {
 
 async function restoreCommit(c: api.GitCommit): Promise<void> {
   const stamp = git.when(c.when, getLang());
-  if (!confirm(tf("git.confirmRestore", stamp))) return;
+  if (!(await ask(tf("git.confirmRestore", stamp), { danger: true }))) return;
   // A snapshot first, exactly as restoring a snapshot takes one: whatever is in
   // the editor now must survive being replaced.
   await takeSnapshot(true);
@@ -7565,7 +7682,7 @@ async function restoreCommit(c: api.GitCommit): Promise<void> {
 }
 
 async function revertCommit(c: api.GitCommit): Promise<void> {
-  if (!confirm(tf("git.confirmRevert", c.subject || c.short))) return;
+  if (!(await ask(tf("git.confirmRevert", c.subject || c.short), { danger: true }))) return;
   await runGit("revert", { rev: c.hash });
 }
 // ---------------------------------------------------------------- command palette
@@ -7750,9 +7867,9 @@ function saveUserTemplates(list: UserTemplate[]): boolean {
     return false;
   }
 }
-function saveAsTemplate() {
+async function saveAsTemplate() {
   closeMenus();
-  const name = prompt(t("templateName"));
+  const name = await askText(t("templateName"));
   if (!name) return;
   const list = userTemplates();
   list.push({ id: "u" + performance.now().toString(36), name, body: docTextOf(runtime.view.state.doc) });
@@ -7846,7 +7963,7 @@ async function openBound(id: string, opened: { text: string; binding: files.File
   const stored = await docs.getDoc(id);
   const onDisk = docs.parseDoc(opened.text, "");
   if (stored && stored.body !== onDisk.body) {
-    if (confirm(tf("fileChangedSinceOpen", opened.binding.name))) {
+    if (await ask(tf("fileChangedSinceOpen", opened.binding.name))) {
       // Take the file. The library entry keeps its identity, its history and its
       // binding — this is the same document, with what is actually on disk in it.
       await docs.putDoc({
@@ -7898,7 +8015,7 @@ async function saveFile() {
     // Save *may* resolve that — the writer is here and can decide — but it has
     // to be their decision and not a silent overwrite.
     if ((await watch.checkFile(runtime.currentDoc.id, runtime.currentBinding)) === "changed") {
-      if (!confirm(tf("fileChangedOnDisk", runtime.currentBinding.name))) {
+      if (!(await ask(tf("fileChangedOnDisk", runtime.currentBinding.name)))) {
         setStatus(t("saveCancelled"), "warn");
         return;
       }
@@ -7959,7 +8076,7 @@ async function saveFile() {
 async function reloadFromDisk() {
   const binding = runtime.currentBinding;
   if (!binding) return;
-  if (!confirm(t("confirmReloadFromDisk"))) return;
+  if (!(await ask(t("confirmReloadFromDisk"), { danger: true }))) return;
   await takeSnapshot(true);
   const opened = await files.reread(binding);
   if (opened === null) {
@@ -8275,7 +8392,7 @@ async function copyShareLink(forReview: boolean) {
   } catch {
     // Clipboard permission, or an insecure context. Falling back to a prompt is
     // ugly and it is also the only thing that still works there.
-    window.prompt(t("shareCopyManually"), link.url);
+    await askText(t("shareCopyManually"), link.url);
   }
 }
 
@@ -8791,7 +8908,7 @@ function toggleRecording() {
   rerenderChrome();
 }
 
-function finishRecording() {
+async function finishRecording() {
   const steps = macros.compact(recording ?? []);
   recording = null;
   const macro: macros.Macro = { id: macros.newId(), name: "", steps };
@@ -8801,7 +8918,7 @@ function finishRecording() {
     return;
   }
   const suggested = macros.describe(macro, macroName).slice(0, 40);
-  const name = prompt(t("macroNamePrompt"), suggested);
+  const name = await askText(t("macroNamePrompt"), suggested);
   if (name === null) {
     setStatus(t("macroDiscarded"), "");
     rerenderChrome();
@@ -10588,8 +10705,8 @@ function channelAddRow(): Node {
       "button",
       {
         class: "note-use",
-        onClick: () => {
-          const name = prompt(t("channelNewPrompt"))?.trim();
+        onClick: async () => {
+          const name = (await askText(t("channelNewPrompt")))?.trim();
           if (!name || !runtime.view) return;
           const doc = docTextOf(runtime.view.state.doc);
           const { text, at } = channels.writeChannel(doc, name, { placement: "רגל" }, docLang());
@@ -10821,6 +10938,96 @@ function closeModal() {
   closePanel("form-modal");
 }
 
+// A dismissal from *outside* the buttons — Escape, the backdrop, the ×. Held so
+// the promise a pending `ask`/`askText` handed out still settles (to "no")
+// when the writer leaves by one of those routes rather than by clicking a
+// button. Cleared the moment either resolves, so a stale one never fires.
+let modalDismiss: (() => void) | null = null;
+
+/**
+ * A confirmation, without freezing the renderer.
+ *
+ * The replacement for `window.confirm`, which blocks the whole renderer process
+ * — timers stop, a compile result cannot be applied, the caret stops blinking —
+ * and, on the desktop webviews, is not reliably implemented at all. This is the
+ * app's own modal (`form-modal`, which already owns focus, a backdrop and the
+ * Escape sweep through `panels.ts`), returning a promise instead. Escape, the
+ * backdrop and the × all resolve to `false`.
+ */
+function ask(message: string, opts: { title?: string; okLabel?: string; danger?: boolean } = {}): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v: boolean) => {
+      if (settled) return;
+      settled = true;
+      modalDismiss = null;
+      closeModal();
+      resolve(v);
+    };
+    modalDismiss = () => done(false);
+    const okBtn = el(
+      "button",
+      { class: opts.danger ? "note-use danger" : "note-use", onClick: () => done(true) },
+      [opts.okLabel ?? t("ok")],
+    );
+    const box = document.getElementById("form-modal-body")!;
+    box.replaceChildren(
+      panelHead("form-modal", { text: opts.title ?? t("confirmTitle") }),
+      el("p", { class: "styles-lede" }, [message]),
+      el("div", { class: "modal-actions" }, [
+        okBtn,
+        el("button", { class: "sc-key", onClick: () => done(false) }, [t("cancel")]),
+      ]),
+    );
+    openPanel("form-modal");
+    okBtn.focus();
+  });
+}
+
+/**
+ * Ask for one line of text, without freezing the renderer — the replacement for
+ * `window.prompt`. Resolves to the string on OK or Enter, and to `null` on any
+ * dismissal, which is exactly `prompt`'s cancel contract.
+ */
+function askText(
+  message: string,
+  initial = "",
+  opts: { title?: string; okLabel?: string } = {},
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v: string | null) => {
+      if (settled) return;
+      settled = true;
+      modalDismiss = null;
+      closeModal();
+      resolve(v);
+    };
+    modalDismiss = () => done(null);
+    const input = el("input", { class: "set-input", type: "text" }) as HTMLInputElement;
+    input.value = initial;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        done(input.value);
+      }
+    });
+    const box = document.getElementById("form-modal-body")!;
+    box.replaceChildren(
+      panelHead("form-modal", { text: opts.title ?? t("confirmTitle") }),
+      el("p", { class: "styles-lede" }, [message]),
+      el("div", { class: "set-row" }, [input]),
+      el("div", { class: "modal-actions" }, [
+        el("button", { class: "note-use", onClick: () => done(input.value) }, [opts.okLabel ?? t("ok")]),
+        el("button", { class: "sc-key", onClick: () => done(null) }, [t("cancel")]),
+      ]),
+    );
+    openPanel("form-modal");
+    input.focus();
+    input.select();
+  });
+}
+
 // ---------------------------------------------------------------- review
 //
 // Tracked changes and editorial comments — the one thing anyone editing someone
@@ -10843,8 +11050,8 @@ function markReview(kind: "insert" | "delete") {
  * about the text, not a change to it, so wrapping would put the reader's words
  * inside the reviewer's mark.
  */
-function addComment() {
-  const text = prompt(t("commentPrompt"));
+async function addComment() {
+  const text = await askText(t("commentPrompt"));
   if (!text) return;
   const by = settings.reviewer?.trim();
   const args = by ? `(מאת: ${typstString(by)})` : "";
@@ -10879,8 +11086,8 @@ function decideMark(mark: review.ReviewMark, decision: review.Decision) {
   replaceDoc(review.decide(docTextOf(runtime.view.state.doc), mark, decision));
 }
 
-function decideEverything(decision: review.Decision) {
-  if (!confirm(t(decision === "accept" ? "confirmAcceptAll" : "confirmRejectAll"))) return;
+async function decideEverything(decision: review.Decision) {
+  if (!(await ask(t(decision === "accept" ? "confirmAcceptAll" : "confirmRejectAll")))) return;
   replaceDoc(review.decideAll(docTextOf(runtime.view.state.doc), decision));
 }
 
@@ -11492,7 +11699,7 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // either way — and turning it *off* has to clear the squiggles it put in
     // comments rather than leave them there until the next keystroke.
     clearSpellCheck();
-    scheduleSpellCheck();
+    forceFullSpellCheck();
   } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
     runtime.view.dispatch({ effects: pairCompartment.reconfigure(pairExtension()) });
   } else {
@@ -12138,7 +12345,16 @@ function wirePanels() {
   });
   // The pending callback is the reason this hook exists: a form modal dismissed
   // by Escape must not leave an "insert" waiting to fire at whatever opens next.
-  wirePanel("form-modal", { close: () => (modalOk = null) });
+  wirePanel("form-modal", {
+    close: () => {
+      modalOk = null;
+      // A pending ask()/askText() left by Escape, the scrim or the × settles to
+      // its cancel value rather than hanging forever.
+      const d = modalDismiss;
+      modalDismiss = null;
+      d?.();
+    },
+  });
   // Likewise the operation set. The hydra reads the caret's structure once and
   // drives keys against it; outliving that structure is how it came to eat
   // keystrokes aimed at ordinary prose.
@@ -12376,12 +12592,6 @@ async function boot() {
   const status = document.getElementById("status")!;
   status.textContent = t("rendering");
   runtime.setBackend(await createBackend());
-  // The dictionary as a file, where the desktop app can keep one (B29).
-  //
-  // After the backend and before anything spell-checks, so the first check
-  // already has the writer's own words. A browser has no `dictionary()` and
-  // keeps using `localStorage`, which is the only thing a sandbox allows.
-  await adoptDictionary();
   const badge = document.getElementById("engine-badge");
   if (badge) {
     const labels: Record<string, string> = {
@@ -12391,7 +12601,13 @@ async function boot() {
     };
     badge.textContent = labels[runtime.backend!.kind] ?? runtime.backend!.kind;
   }
-  await loadRegistries();
+  // The dictionary as a file (B29) and the command/template registries are
+  // independent of each other and both only need the backend, so they resolve
+  // together rather than one behind the other in front of the first compile.
+  // `adoptDictionary` still lands after the backend and before anything
+  // spell-checks, so the first check already has the writer's own words. A
+  // browser has no `dictionary()` and keeps using `localStorage`.
+  await Promise.all([adoptDictionary(), loadRegistries()]);
   // The change gutter needs the document's newest snapshot, and boot does not
   // go through `openDoc`.
   void refreshBaseline();
@@ -12482,7 +12698,9 @@ async function boot() {
   );
   void offerRecovery();
   void maybeCheckForUpdate();
-  await watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
+  // A filesystem stat that nothing before the first compile reads, so it does
+  // not gate the first page — void-fired like the other watch bookkeeping.
+  void watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
   // Notice when the file changes underneath us — Dropbox pulling an older copy
   // down, a second window, a `git checkout`. On focus above all, because
   // alt-tabbing back from whatever touched it is the overwhelmingly common case.
@@ -12515,9 +12733,79 @@ async function boot() {
   // periodic write-back to the bound file, when there is one to write to. Kept
   // even with no store: a file binding made this session writes to disk, not to
   // the store, so it is exactly the escape hatch a private window still has.
-  window.setInterval(() => void autosaveToFile(), FILE_AUTOSAVE_MS);
+  // The file write-back and the Girsa inbox poll, both of which used to be bare
+  // `setInterval`s that ran forever — on a backgrounded tab, a laptop on
+  // battery, a build with no Girsa half — with no guard against a slow call
+  // overlapping itself. See `installBackgroundTimers`.
+  installBackgroundTimers();
+}
+
+/** True when this session's polls and autosave should be quiet. */
+function tabHidden(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
+
+/**
+ * The two recurring background jobs, gated and guarded.
+ *
+ * Both suspend while the tab is hidden (the writer is not looking, and `save.ts`
+ * already flushes on the way out), each holds a `busy` flag so a slow call
+ * cannot pile up behind itself — the shape `watch.ts` uses — and the inbox poll
+ * backs off (1 s → 5 s → 30 s) through a run of empty polls, resetting to 1 s on
+ * any arrival and on focus. A hidden tab that comes back runs one catch-up tick.
+ */
+function installBackgroundTimers(): void {
+  let autosaveBusy = false;
+  window.setInterval(() => {
+    if (tabHidden() || autosaveBusy) return;
+    autosaveBusy = true;
+    void Promise.resolve(autosaveToFile()).finally(() => {
+      autosaveBusy = false;
+    });
+  }, FILE_AUTOSAVE_MS);
+
   // Sources handed over by Girsa while this window is open (spec.md §10.6).
-  window.setInterval(() => void takeArrivals(), GIRSA_POLL_MS);
+  let pollDelay = GIRSA_POLL_MS;
+  let pollTimer = 0;
+  let pollBusy = false;
+  const arm = (ms: number) => {
+    pollTimer = window.setTimeout(runPoll, ms);
+  };
+  const runPoll = async () => {
+    if (tabHidden()) {
+      arm(GIRSA_POLL_MAX_MS); // idle heartbeat, so a return to view is noticed soon
+      return;
+    }
+    // A focus `wake()` can fire while a poll is already awaiting the inbox; do
+    // not let a second run insert on top of the first.
+    if (pollBusy) {
+      arm(pollDelay);
+      return;
+    }
+    pollBusy = true;
+    let arrived = false;
+    try {
+      arrived = await takeArrivals();
+    } catch {
+      // A poll that throws is the same as an empty one; do not stop the loop.
+    } finally {
+      pollBusy = false;
+    }
+    // Back off while nothing is arriving; snap back to the floor the moment
+    // something does, so a handover is still felt within a second.
+    pollDelay = arrived ? GIRSA_POLL_MS : pollDelay <= GIRSA_POLL_MS ? 5_000 : GIRSA_POLL_MAX_MS;
+    arm(pollDelay);
+  };
+  const wake = () => {
+    pollDelay = GIRSA_POLL_MS;
+    clearTimeout(pollTimer);
+    arm(0);
+  };
+  window.addEventListener("focus", wake);
+  window.addEventListener("visibilitychange", () => {
+    if (!tabHidden()) wake();
+  });
+  arm(pollDelay);
 }
 
 /**
@@ -12532,18 +12820,18 @@ async function boot() {
  * here to drift from it (spec.md §10.3 — *lightweight means the UI, not the
  * format*).
  */
-async function takeArrivals(): Promise<void> {
+async function takeArrivals(): Promise<boolean> {
   // Silent when this build has no Girsa half: the inbox is polled, and a poll
   // that says "you cannot" once a second is a nuisance, not information.
   const waiting = await sourcesOf(runtime.backend)?.inbox().catch(() => []);
-  if (!waiting || waiting.length === 0) return;
+  if (!waiting || waiting.length === 0) return false;
   for (const arrival of waiting) {
     if (arrival.whole) {
       // A whole document, handed over from Girsa's buffer. Never replaces
       // what is open without being asked — and a snapshot is taken first, so
       // "yes" is recoverable even when it was the wrong answer.
       const hasText = runtime.view.state.doc.length > 0;
-      if (hasText && !window.confirm(tf("documentArrived", arrival.display))) {
+      if (hasText && !(await ask(tf("documentArrived", arrival.display)))) {
         insertSnippet(arrival.markup);
         continue;
       }
@@ -12559,6 +12847,7 @@ async function takeArrivals(): Promise<void> {
   const last = waiting[waiting.length - 1];
   setStatus(tf(last.whole ? "documentOpened" : "sourceArrived", last.display), "ok");
   scheduleCompile();
+  return true;
 }
 
 

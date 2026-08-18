@@ -295,8 +295,11 @@ export function fromOrg(text: string): ImportResult {
       flush();
       const kind = begin[1].toLowerCase();
       const body: string[] = [];
+      // `kind` is constant for the whole block, so the terminator pattern is
+      // built once here rather than recompiled on every line of the block.
+      const end = new RegExp(`^\\s*#\\+end_${kind}`, "i");
       let j = i + 1;
-      for (; j < lines.length && !new RegExp(`^\\s*#\\+end_${kind}`, "i").test(lines[j]); j++) {
+      for (; j < lines.length && !end.test(lines[j]); j++) {
         body.push(lines[j]);
       }
       out.push(blockToKsav(kind, body, say, dropped));

@@ -124,8 +124,12 @@ export async function exportPdf() {
     runtime.setStatus(why ? `${t("compileError")} — ${why}` : t("compileError"), "err");
     return;
   }
-  const bytes = Uint8Array.from(atob(res.pdf_base64), (c) => c.charCodeAt(0));
-  handOver(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
+  // Decode the base64 in native code off the JS heap. `Uint8Array.from(atob(…),
+  // …)` invokes the mapper once per byte — twenty million calls on the main
+  // thread for a 20 MB sefer PDF, with no yield. A `data:` fetch does the whole
+  // decode natively and hands back an `ArrayBuffer` directly.
+  const blob = await (await fetch("data:application/pdf;base64," + res.pdf_base64)).blob();
+  handOver(runtime.fileStem() + ".pdf", blob);
   // Dropped tags on a page-range export, and anything else the export chose to
   // do rather than fail over — worth a line, since the file is already on disk.
   const note = res.diagnostics?.find((d) => d.severity === "warning")?.message;

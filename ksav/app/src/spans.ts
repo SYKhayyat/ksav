@@ -1235,6 +1235,7 @@ export function scanDoc(doc: { toString(): string }): Scan {
 /** Drop the memo. Only tests need this — a scan is a pure function of its text. */
 export function clearScanCache(): void {
   CACHE.length = 0;
+  DELIM_CACHE.length = 0;
 }
 
 function scanUncached(text: string): Scan {
@@ -1394,9 +1395,44 @@ export function matchGroup(text: string, at: number): number | null {
  * closer and the scan ignored a mismatched one, so on `#f(] "רש"י ) עוד` the
  * lint and the renderer read the same sixteen characters in different modes.
  */
-export function delimiters(text: string): { delims: Delimiter[]; comments: Comment[] } {
+export type Delimiters = { delims: Delimiter[]; comments: Comment[] };
+
+/**
+ * The second full lex of the document, and — until this memo — the one with no
+ * cache at all. `scan` sits a few hundred lines up with a four-slot value cache
+ * and a `WeakMap` keyed on `Text`; `delimiters` is the *other* whole-document
+ * lex (same loop, `recover`/`delims` on) and every caller re-ran it: a single
+ * pause in typing lexed the document at least twice — compile's `analyze`, then
+ * the bracket linter — plus once per fold or export. The same two layers apply
+ * verbatim, and because every caller hands in the shared `docTextOf` string the
+ * value probe below is a pointer compare that hits immediately.
+ */
+const DELIM_CACHE: { text: string; value: Delimiters }[] = [];
+
+export function delimiters(text: string): Delimiters {
+  for (let i = 0; i < DELIM_CACHE.length; i++) {
+    if (DELIM_CACHE[i].text === text) {
+      const hit = DELIM_CACHE.splice(i, 1)[0];
+      DELIM_CACHE.push(hit);
+      return hit.value;
+    }
+  }
   const { delims, comments } = lexCore(text, { recover: true, delims: true });
-  return { delims, comments };
+  const value: Delimiters = { delims, comments };
+  DELIM_CACHE.push({ text, value });
+  if (DELIM_CACHE.length > CACHE_SIZE) DELIM_CACHE.shift();
+  return value;
+}
+
+/** The delimiters of a CodeMirror document, paying for its text at most once. */
+const DELIM_KEYED = new WeakMap<object, Delimiters>();
+
+export function delimitersOf(doc: { toString(): string }): Delimiters {
+  const hit = DELIM_KEYED.get(doc);
+  if (hit) return hit;
+  const fresh = delimiters(docTextOf(doc));
+  DELIM_KEYED.set(doc, fresh);
+  return fresh;
 }
 
 /** Every call containing `pos`, outermost first. */

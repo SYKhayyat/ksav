@@ -49,8 +49,18 @@ const MAX_EDIT_DISTANCE = 256;
  */
 export function lineHunks(baseline: string, current: string): Hunk[] {
   if (baseline === current) return [];
-  const a = baseline.split("\n");
-  const b = current.split("\n");
+  return lineHunksOf(baseline.split("\n"), current.split("\n"));
+}
+
+/**
+ * The array form of {@link lineHunks}, for callers that already hold the split
+ * baseline. The change gutter recomputes on every keystroke and the baseline
+ * does not move between snapshots, so splitting it once and keeping the array
+ * spares one full-document `split("\n")` per document-changing transaction —
+ * the allocation the prefix/suffix trim below cannot save because it runs after
+ * the arrays already exist.
+ */
+export function lineHunksOf(a: string[], b: string[]): Hunk[] {
   // A deletion is drawn at the line the removed text sat above — and when the
   // removal was at the *end* of the document there is no such line, so the
   // marker lands one past the last one. Every hunk is clamped on the way out

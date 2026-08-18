@@ -14,16 +14,18 @@ import { Decoration, EditorView, ViewPlugin, gutter, GutterMarker } from "@codem
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { StateEffect, StateField, RangeSet } from "@codemirror/state";
 import type { EditorState } from "@codemirror/state";
-import { lineHunks } from "./diff";
+import { lineHunksOf } from "./diff";
 import type { Hunk } from "./diff";
 
 export interface ChangeState {
   /** What the document looked like at the baseline, or null when there is none. */
   baseline: string | null;
+  /** The baseline split into lines, cached so no keystroke re-splits it. */
+  baselineLines: string[] | null;
   hunks: Hunk[];
 }
 
-const EMPTY: ChangeState = { baseline: null, hunks: [] };
+const EMPTY: ChangeState = { baseline: null, baselineLines: null, hunks: [] };
 
 /** Replace the baseline and recompute against the current document. */
 export const setBaseline = StateEffect.define<string | null>();
@@ -33,18 +35,29 @@ export const changes = StateField.define<ChangeState>({
   update(value, tr) {
     for (const e of tr.effects) {
       if (e.is(setBaseline)) {
-        return e.value === null
-          ? EMPTY
-          : { baseline: e.value, hunks: lineHunks(e.value, docTextOf(tr.state.doc)) };
+        if (e.value === null) return EMPTY;
+        const lines = e.value.split("\n");
+        return {
+          baseline: e.value,
+          baselineLines: lines,
+          hunks: lineHunksOf(lines, docTextOf(tr.state.doc).split("\n")),
+        };
       }
     }
     // Recomputed on every document change rather than mapped through it. A hunk
     // is a *comparison*, not a range the writer placed: mapping the old answer
     // through an edit gives a plausible, wrong answer that drifts further from
-    // the truth with every keystroke, and the recomputation is a prefix/suffix
-    // trim over two strings — cheap enough that being right is affordable.
-    if (tr.docChanged && value.baseline !== null) {
-      return { baseline: value.baseline, hunks: lineHunks(value.baseline, docTextOf(tr.state.doc)) };
+    // the truth with every keystroke.
+    //
+    // The baseline is split into lines once, when it lands, and the array is
+    // kept in the field — so a keystroke re-splits only the *current* document,
+    // not both. The prefix/suffix trim inside `lineHunksOf` then throws away all
+    // but the changed region, so being exact stays affordable.
+    if (tr.docChanged && value.baseline !== null && value.baselineLines !== null) {
+      const current = docTextOf(tr.state.doc);
+      return current === value.baseline
+        ? { ...value, hunks: [] }
+        : { ...value, hunks: lineHunksOf(value.baselineLines, current.split("\n")) };
     }
     return value;
   },

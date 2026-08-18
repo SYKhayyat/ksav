@@ -807,9 +807,32 @@ export interface ServiceRow {
   nativeOnly: boolean;
 }
 
+/**
+ * Per-compile hints the two transports need for different reasons.
+ *
+ * `background` is the wasm build's answer to one worker, one queue: a background
+ * layout or spell check marked this way is never posted while a foreground
+ * compile is outstanding, so the writer's compile is not stuck behind work
+ * nobody asked for. `signal` is the HTTP build's: a superseded compile is
+ * aborted rather than left to occupy a server thread and one of the browser's
+ * six connections until it finishes and its result is discarded. Each backend
+ * uses the one it can act on and ignores the other — wasm-bindgen cannot yield
+ * to abort mid-compile, and a browser tab has no worker queue to jump.
+ */
+export interface CompileOpts {
+  background?: boolean;
+  signal?: AbortSignal;
+}
+
+/** What `call` may be told about a single request. */
+interface CallOpts {
+  timeoutMs?: number;
+  background?: boolean;
+}
+
 export interface Backend {
   readonly kind: string; // "server" | "wasm"
-  compile(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<CompileResult>;
+  compile(body: string, cfg: DocConfig, assets?: RequestAssets, opts?: CompileOpts): Promise<CompileResult>;
   /**
    * The document as Typst source — prelude, page setup, chapters expanded —
    * without compiling it.
@@ -1079,11 +1102,11 @@ abstract class ServiceClient {
    * The one door. `input` is the JSON request body, or `""` for a service that
    * takes none; the answer is the JSON response as text.
    */
-  protected abstract call(service: ServiceName, input?: string): Promise<string>;
+  protected abstract call(service: ServiceName, input?: string, opts?: CallOpts): Promise<string>;
 
   /** A service, its request, and its answer parsed. */
-  protected async ask<T>(service: ServiceName, req?: unknown): Promise<T> {
-    return JSON.parse(await this.call(service, req === undefined ? "" : JSON.stringify(req))) as T;
+  protected async ask<T>(service: ServiceName, req?: unknown, opts?: CallOpts): Promise<T> {
+    return JSON.parse(await this.call(service, req === undefined ? "" : JSON.stringify(req), opts)) as T;
   }
 
   /** No timeout anywhere below: none of these lays a document out. */
@@ -1092,7 +1115,9 @@ abstract class ServiceClient {
   }
 
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
-    return this.ask("spell", { text, user_words: userWords, suggest });
+    // Background: on the wasm build a spell check shares the one worker with the
+    // compile, and the writer is waiting on the compile, not the squiggles.
+    return this.ask("spell", { text, user_words: userWords, suggest }, { background: true });
   }
 
   async suggest(word: string, userWords: string): Promise<string[]> {
@@ -1130,7 +1155,8 @@ abstract class ServiceClient {
 
   async inbox(): Promise<Arrival[]> {
     try {
-      return await this.ask("inbox");
+      // Background: the 1 Hz poll must never sit in front of a compile.
+      return await this.ask("inbox", undefined, { background: true });
     } catch {
       // The editor polls this every second; a build with no Girsa half, or a
       // server that went away, is a thing to stop asking about quietly rather
@@ -1229,14 +1255,15 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
    * `.github/scripts/acceptance.mjs`, in the console, where it had been printing
    * once a second the whole time.
    */
-  private fetchService(service: ServiceName, input: string): Promise<Response> {
+  private fetchService(service: ServiceName, input: string, signal?: AbortSignal): Promise<Response> {
     const def = SERVICE[service];
     const url = this.base + def.path;
-    if (def.method === "GET") return fetch(url);
+    if (def.method === "GET") return fetch(url, { signal });
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: input || "{}",
+      signal,
     });
   }
 
@@ -1249,9 +1276,9 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
     return res.text();
   }
 
-  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
+  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS, opts: CompileOpts = {}): Promise<CompileResult> {
     return this.cache.compile(async (extra) => {
-      const res = await this.fetchService("compile", JSON.stringify({ body, ...cfg, ...extra }));
+      const res = await this.fetchService("compile", JSON.stringify({ body, ...cfg, ...extra }), opts.signal);
       if (!res.ok) throw new Error(`compile ${res.status}`);
       return res.json();
     }, assets);
@@ -1312,6 +1339,20 @@ export class WasmBackend extends ServiceClient implements Backend {
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private cache = new CompileCache();
+  // The two-lane queue. `ksav_call` is synchronous wasm, so the worker's message
+  // queue *is* the serialization point for every service — compile, spell, jump,
+  // reveal, inbox. FIFO alone put a background layout or the 1 Hz inbox poll in
+  // front of the compile the writer was waiting for. So a background job is held
+  // here whenever any foreground job is outstanding, and released only when the
+  // foreground lane drains.
+  private foregroundPending = 0;
+  private bgQueue: Array<() => void> = [];
+
+  private drainBackground() {
+    const waiting = this.bgQueue;
+    this.bgQueue = [];
+    for (const go of waiting) go();
+  }
 
   private ensure(): Promise<Worker> {
     if (this.worker) return Promise.resolve(this.worker);
@@ -1357,6 +1398,12 @@ export class WasmBackend extends ServiceClient implements Backend {
       slot.reject(err);
     }
     this.pending.clear();
+    // Release anything held in the background lane. A rejected foreground call
+    // unwinds its own `finally` and would normally drain this, but a worker
+    // death clears the lane's bookkeeping out from under it, so do it here too —
+    // otherwise a queued background call awaits a `go()` that never comes.
+    this.foregroundPending = 0;
+    this.drainBackground();
     this.worker?.terminate();
     this.worker = null;
     this.booting = null;
@@ -1375,7 +1422,22 @@ export class WasmBackend extends ServiceClient implements Backend {
    * `ServiceName` is generated from the engine's registry, so the same mistake
    * is now a compile error on this line.
    */
-  protected async call(name: ServiceName, input = "", timeoutMs?: number): Promise<string> {
+  protected async call(name: ServiceName, input = "", opts: CallOpts = {}): Promise<string> {
+    const { timeoutMs, background } = opts;
+    // Hold a background job while any foreground job is in flight, and let the
+    // foreground lane release it when it drains. A foreground job never waits.
+    if (background && this.foregroundPending > 0) {
+      await new Promise<void>((go) => this.bgQueue.push(go));
+    }
+    if (!background) this.foregroundPending++;
+    try {
+      return await this.post(name, input, timeoutMs);
+    } finally {
+      if (!background && --this.foregroundPending === 0) this.drainBackground();
+    }
+  }
+
+  private async post(name: ServiceName, input: string, timeoutMs?: number): Promise<string> {
     const w = await this.ensure();
     const id = this.nextId++;
     return new Promise<string>((resolve, reject) => {
@@ -1396,16 +1458,15 @@ export class WasmBackend extends ServiceClient implements Backend {
     });
   }
 
-  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
+  async compile(body: string, cfg: DocConfig, assets = NO_ASSETS, opts: CompileOpts = {}): Promise<CompileResult> {
     try {
       return await this.cache.compile(
         async (extra) =>
           JSON.parse(
-            await this.call(
-              "compile",
-              JSON.stringify({ body, ...cfg, ...extra }),
-              COMPILE_TIMEOUT_MS,
-            ),
+            await this.call("compile", JSON.stringify({ body, ...cfg, ...extra }), {
+              timeoutMs: COMPILE_TIMEOUT_MS,
+              background: opts.background,
+            }),
           ) as CompileResult,
         assets,
       );
@@ -1431,7 +1492,7 @@ export class WasmBackend extends ServiceClient implements Backend {
     try {
       return readSpot(
         JSON.parse(
-          await this.call("jump", JSON.stringify({ body, ...cfg, ...assets, ...at }), COMPILE_TIMEOUT_MS),
+          await this.call("jump", JSON.stringify({ body, ...cfg, ...assets, ...at }), { timeoutMs: COMPILE_TIMEOUT_MS }),
         ),
       );
     } catch {
@@ -1443,7 +1504,7 @@ export class WasmBackend extends ServiceClient implements Backend {
     try {
       return readPoints(
         JSON.parse(
-          await this.call("reveal", JSON.stringify({ body, ...cfg, ...assets, ...at }), COMPILE_TIMEOUT_MS),
+          await this.call("reveal", JSON.stringify({ body, ...cfg, ...assets, ...at }), { timeoutMs: COMPILE_TIMEOUT_MS }),
         ),
       );
     } catch {

@@ -175,11 +175,15 @@ export function foldAround(doc: string, from: number, to: number, label: string)
  * with prose already after it is a fold being renamed, not one being made, and
  * a fold that already has a closer below it does not want a second.
  */
-export function foldCloser(doc: string, pos: number): { insert: string; caret: number } | null {
-  const start = lineStartOf(doc, pos);
-  const line = doc.slice(start, pos);
+export function foldCloser(doc: string, from: number): { insert: string; caret: number } | null {
+  // `{` is being typed at `from`, the character that completes `//{`. Work
+  // against the real document and account for the one pending brace, rather than
+  // concatenating a whole fresh copy of the sefer (`doc.slice(0, from) + "{" +
+  // doc.slice(to)`) on every `{` a writer types.
+  const start = lineStartOf(doc, from);
+  const line = doc.slice(start, from) + "{";
   if (line.trimStart() !== FOLD_OPEN) return null;
-  if (pos < doc.length && doc[pos] !== "\n") return null;
+  if (from < doc.length && doc[from] !== "\n") return null;
   const indent = line.slice(0, line.length - line.trimStart().length);
   // Only when the document is left with an opener that has no closer — which is
   // the whole question, and the reason it is asked of the *whole* file rather
@@ -187,7 +191,7 @@ export function foldCloser(doc: string, pos: number): { insert: string; caret: n
   // already closed, the next `//}` below belongs to the outer one and the fold
   // being opened here still needs one of its own; a forward scan cannot tell
   // those apart and a balance can.
-  let open = 0;
+  let open = 1; // the opener being completed by this very keystroke
   for (const l of doc.split("\n")) {
     const t = l.trimStart();
     if (t.startsWith(FOLD_OPEN)) open++;
@@ -199,5 +203,6 @@ export function foldCloser(doc: string, pos: number): { insert: string; caret: n
   // the writer nothing. The body is one line down and they are already going
   // there; the name is the thing they would otherwise have to come back for.
   const insert = ` \n${indent}\n${indent}${FOLD_CLOSE}`;
-  return { insert, caret: pos + 1 };
+  // `from` + the `{` about to be inserted + the leading space of `insert`.
+  return { insert, caret: from + 2 };
 }

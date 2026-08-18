@@ -332,7 +332,7 @@ export async function deleteDoc(id: string): Promise<void> {
   index = index.filter((e) => e.id !== id);
   writeIndex();
   if (currentId() === id) localStorage.removeItem(CURRENT_KEY);
-  await Promise.all([store.del(DOCS, id), store.del(HISTORY, id)]);
+  await Promise.all([store.del(DOCS, id), store.del(HISTORY, id), store.del(HISTORY, id + LATEST_SUFFIX)]);
   // After the document is gone, never before: a sweep that ran first would see
   // this document's blobs as still referenced.
   await collectAssets().catch(() => {
@@ -390,6 +390,27 @@ export async function snapshots(docId: string): Promise<Snapshot[]> {
   return rec?.snapshots ?? [];
 }
 
+/**
+ * A small pointer, kept beside the full record, holding only the newest
+ * snapshot.
+ *
+ * `refreshBaseline` wants exactly one snapshot — the newest — and it runs on
+ * boot and on every document open. Reaching it through `snapshots()` deserialized
+ * the *whole* `HistoryRecord`, which is bounded by `MAX_HISTORY_BYTES` (a
+ * ceiling, not a small number). This key holds just that one body, so the hot
+ * read pays for one snapshot rather than the entire history.
+ */
+const LATEST_SUFFIX = "#latest";
+
+export async function latestSnapshot(docId: string): Promise<Snapshot | null> {
+  const ptr = await store.get<Snapshot>(HISTORY, docId + LATEST_SUFFIX);
+  if (ptr) return ptr;
+  // A history written before this pointer existed has none yet; fall back to the
+  // full record once, and the next `pushSnapshot` lays the pointer down.
+  const list = await snapshots(docId);
+  return list.length ? list[list.length - 1] : null;
+}
+
 /** Trim a history to the count and byte ceilings, oldest first. */
 function trim(list: Snapshot[]): Snapshot[] {
   let kept = list.slice(-MAX_SNAPSHOTS);
@@ -412,9 +433,13 @@ function trim(list: Snapshot[]): Snapshot[] {
 export async function pushSnapshot(docId: string, body: string): Promise<boolean> {
   const list = await snapshots(docId);
   if (list.length && list[list.length - 1].body === body) return false;
-  list.push({ t: Date.now(), body });
+  const snap = { t: Date.now(), body };
+  list.push(snap);
   const rec: HistoryRecord = { docId, snapshots: trim(list) };
   await store.put(HISTORY, docId, rec);
+  // Lay down the small pointer refreshBaseline reads, so it never deserializes
+  // the full record just to find the newest body.
+  await store.put(HISTORY, docId + LATEST_SUFFIX, snap);
   return true;
 }
 

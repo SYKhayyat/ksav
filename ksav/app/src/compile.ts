@@ -42,6 +42,11 @@ export function onSchedule(fn: () => void) {
  */
 let generation = 0;
 let timer: number | undefined;
+// The compile currently on the wire, so a superseded one can be aborted rather
+// than left to hold a server thread and one of the browser's six connections
+// until it finishes and its result is thrown away. Only the HTTP backend can act
+// on the signal; the wasm worker answers B1 with its queue instead.
+let compileAbort: AbortController | null = null;
 
 export function scheduleCompile() {
   clearTimeout(timer);
@@ -114,6 +119,9 @@ export async function compileUnfocused(): Promise<number> {
         body,
         docConfigFor(stored.config),
         { ...docs.requestAssets(stored.assets ?? []), parts: await includedParts(body) },
+        // Background: this lays out a document nobody is looking at, and on the
+        // wasm build it must never sit in front of the foreground compile.
+        { background: true },
       );
       if (res.pages_svg.length) {
         filePages(entry.id, res.pages_svg, res.pages_hash);
@@ -188,6 +196,12 @@ export async function runCompile() {
   const backend = runtime.backend;
   if (!backend) return; // still initializing (createBackend not resolved yet)
   const mine = ++generation;
+  // Abort the compile the last generation left in flight — its result is already
+  // destined for the discard pile (`mine !== generation`), so there is no reason
+  // to keep paying for it on the wire.
+  compileAbort?.abort();
+  const abort = new AbortController();
+  compileAbort = abort;
   const status = document.getElementById("status")!;
   const diag = document.getElementById("diagnostics")!;
   status.textContent = t("rendering");
@@ -217,7 +231,7 @@ export async function runCompile() {
       // markers are read off the layout that has just happened, and a document
       // whose drawer is shut has nothing that would read them.
       want_markers: !!settings.notesPane,
-    });
+    }, { signal: abort.signal });
     if (mine !== generation) return; // superseded while we were waiting
     runtime.setLastResult(res);
     const ms = Math.round(performance.now() - t0);
@@ -345,9 +359,12 @@ export async function compileForExport(
   const backend = runtime.backend;
   if (!backend) return null;
   try {
-    return await backend.compile(withPreamble(runtime.docText()).body, { ...docConfig(), ...override }, {
+    // Assembled once: two document-sized concatenations here where one does,
+    // and `includedParts` scans this copy rather than a second one.
+    const body = withPreamble(runtime.docText()).body;
+    return await backend.compile(body, { ...docConfig(), ...override }, {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
-      parts: await includedParts(withPreamble(runtime.docText()).body),
+      parts: await includedParts(body),
       want_pdf: true,
       want_source: true,
     });
@@ -376,9 +393,10 @@ export async function reflowableHtml(): Promise<{ html: string | null; why: stri
   const backend = runtime.backend;
   if (!backend) return { html: null, why: "" };
   try {
-    const res = (await backend.compile(withPreamble(runtime.docText()).body, docConfig(), {
+    const body = withPreamble(runtime.docText()).body;
+    const res = (await backend.compile(body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
-      parts: await includedParts(withPreamble(runtime.docText()).body),
+      parts: await includedParts(body),
       format: "html",
     })) as unknown as { ok: boolean; html?: string; diagnostics?: { message: string }[] };
     if (res.ok && res.html) return { html: res.html, why: "" };

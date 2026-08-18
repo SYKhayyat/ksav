@@ -14,7 +14,7 @@
 import { EditorView, ViewPlugin } from "@codemirror/view";
 import type { ViewUpdate } from "@codemirror/view";
 import type { EditorState } from "@codemirror/state";
-import { forEachDiagnostic } from "@codemirror/lint";
+import { forEachDiagnostic, setDiagnosticsEffect } from "@codemirror/lint";
 import { errorLines } from "./errorlines";
 import { misspellings } from "./spell";
 import { changes } from "./changes";
@@ -115,9 +115,21 @@ export const overviewRuler = ViewPlugin.fromClass(
     }
 
     update(u: ViewUpdate) {
-      // Redrawn on document and state change, not on scroll: the strip shows the
-      // whole document and does not move when the viewport does.
-      if (u.docChanged || u.state !== u.startState) this.draw();
+      // Redrawn when what the strip *shows* changes, not on every transaction.
+      // `u.state !== u.startState` is true for a bare caret move, which changes
+      // nothing on the strip — so the guard was a tautology and `draw()` (which
+      // walks every misspelling, diagnostic and hunk to build a signature) ran
+      // on every arrow key. The strip is a function of the document plus the
+      // three mark fields plus the lint diagnostics; compare those by identity.
+      if (
+        u.docChanged ||
+        u.state.field(misspellings, false) !== u.startState.field(misspellings, false) ||
+        u.state.field(errorLines, false) !== u.startState.field(errorLines, false) ||
+        u.state.field(changes, false) !== u.startState.field(changes, false) ||
+        u.transactions.some((tr) => tr.effects.some((e) => e.is(setDiagnosticsEffect)))
+      ) {
+        this.draw();
+      }
     }
 
     destroy() {

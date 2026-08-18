@@ -1824,7 +1824,18 @@ async function main() {
     // edits to the primary, so a narrowed primary refused the **other** pane's
     // typing, which restricted every pane in the window to one section while
     // showing only one of them as narrowed.
-    await clickVisible("the split control", '.source-pane [data-pane-act="split"]');
+    // Both directions are controls of their own, and both are named here on
+    // purpose: the strip carried a single split button that only ever made one
+    // of the two splits, and the complaint that ended it was *"I can't see how
+    // to split it vertically, only horizontally"*. A run that clicks whichever
+    // one it finds would have been green through that whole period, so it
+    // checks that the other direction is on the strip before using this one.
+    check(
+      "both split directions are offered",
+      (await page.locator('.source-pane [data-pane-act="split-across"]').count()) > 0,
+      "only one direction is on the strip, which is the bug that split the button in two",
+    );
+    await clickVisible("the split control", '.source-pane [data-pane-act="split-down"]');
     const panes = await page.locator(".source-pane").count();
     check("there are two source panes now", panes === 2, `${panes} source panes`);
     // `type` above drives `.cm-content`, and from here there are two of them —

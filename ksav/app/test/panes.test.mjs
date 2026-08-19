@@ -362,4 +362,62 @@ export async function run() {
     check("a pane that is no longer there zooms to nothing", panes.nextZoom(t, "p999", null), null);
     check("and no focused pane means no zoom", panes.nextZoom(t, null, "p1"), null);
   }
+
+  // -------------------------------------------------- what a drop would mean
+  //
+  // *"Dragging is not great — it tends to split in half the other way, not
+  // switch."* The gesture had swap-on-the-middle from the day it was written,
+  // and a comment claiming the middle was "the easy target". The geometry said
+  // otherwise: four edge bands of a quarter each leave `(1 - 2×0.25)²` of the
+  // pane meaning swap, which is **a quarter of it**. Three quarters of every
+  // pane meant split.
+  {
+    // A 1000×600 pane: bands of 96px, which is the cap, on every side.
+    const at = (x, y) => panes.dropIntentAt(1000, 600, x, y);
+    check("the middle swaps", at(500, 300), "swap");
+    check("the left edge splits to the left", at(20, 300), "left");
+    check("the right edge to the right", at(980, 300), "right");
+    check("the top to the top", at(500, 10), "up");
+    check("the bottom to the bottom", at(500, 590), "down");
+    // The band ends where it says it ends, on both sides of the line.
+    check("just inside the band is still an edge", at(95, 300), "left");
+    check("and just outside it is a swap", at(97, 300), "swap");
+  }
+
+  {
+    // The share, on a pane small enough that the cap does not bite: 15% of 400
+    // is 60. Which is the number that matters — the middle is now 49% of the
+    // area rather than 25%, so a drop aimed at nothing in particular swaps.
+    const at = (x, y) => panes.dropIntentAt(400, 400, x, y);
+    check("a small pane's band is a share of it", at(59, 200), "left");
+    check("…and no more", at(61, 200), "swap");
+    // A corner belongs to whichever band the pointer is *deeper* into, measured
+    // per band rather than in raw pixels — or a wide short pane's top band wins
+    // every corner simply because the pane is short.
+    check("a corner picks the nearer band", panes.dropIntentAt(1000, 200, 5, 20), "left");
+    check("and the other corner the other one", panes.dropIntentAt(200, 1000, 20, 5), "up");
+  }
+
+  {
+    // The whole pane is reachable: no point in a pane is undefined, and every
+    // one of the five answers is producible. A sweep rather than five points,
+    // because the failure this replaces was a *distribution* — every individual
+    // point behaved exactly as written.
+    const seen = new Set();
+    let inside = 0;
+    const W = 800;
+    const H = 600;
+    for (let x = 0; x <= W; x += 10) {
+      for (let y = 0; y <= H; y += 10) {
+        const what = panes.dropIntentAt(W, H, x, y);
+        seen.add(what);
+        if (what === "swap") inside++;
+      }
+    }
+    check("every intent is reachable", [...seen].sort(), ["down", "left", "right", "swap", "up"]);
+    // The claim the old comment made and the geometry did not keep. 800×600 with
+    // a 96px cap leaves 608×408 of middle, which is 51.7% of the pane.
+    const share = inside / ((W / 10 + 1) * (H / 10 + 1));
+    ok(`swapping is the majority of the pane, not a quarter of it (${Math.round(share * 100)}%)`, share > 0.5);
+  }
 }

@@ -446,6 +446,54 @@ export function rects(node: PaneNode, layout: Layout = {}): Rect[] {
 /** A screen direction, as the writer means it when they press an arrow. */
 export type Side = "left" | "right" | "up" | "down";
 
+/**
+ * How deep a pane's edge band is: a share of the pane, capped in pixels.
+ *
+ * # The arithmetic that made the gesture feel broken
+ *
+ * This was a flat quarter of the pane on all four sides, with a comment
+ * claiming *"the middle is still the easy target, since trading places is the
+ * commoner intent"*. That is four bands of 25%, so the middle is `(1 - 2×0.25)²`
+ * of the area — **a quarter of the pane**, with three quarters of it meaning
+ * split. The comment had the intent right and the geometry exactly backwards,
+ * and the report is what that feels like: *"dragging is not great — it tends to
+ * split in half the other way, not switch"*.
+ *
+ * At 0.15 the middle is 49%, which is what "the easy target" actually looks
+ * like. The pixel cap is the other half of it: a share alone means a tall pane
+ * has a 200-pixel band at its top, so the further a writer drags into the
+ * middle of a big pane the more of it means something they did not ask for.
+ */
+export const DROP_EDGE = 0.15;
+export const DROP_EDGE_MAX = 96;
+
+/**
+ * What a drop at this point in a pane of this size means.
+ *
+ * Pure geometry, here rather than in the shell, because it is the whole
+ * substance of the gesture and it was wrong for as long as it was untestable.
+ * `x` and `y` are relative to the pane's top-left corner, in pixels.
+ *
+ * The nearest edge wins, and only when the pointer is inside its band; anywhere
+ * else is a swap, which is both the commoner intent and the safer one — it
+ * moves two panes and changes nothing else about the arrangement.
+ */
+export function dropIntentAt(w: number, h: number, x: number, y: number): Side | "swap" {
+  const bx = Math.min(w * DROP_EDGE, DROP_EDGE_MAX);
+  const by = Math.min(h * DROP_EDGE, DROP_EDGE_MAX);
+  // Each edge, as *how far into its own band* the pointer is — so a wide short
+  // pane's left band and its top band are compared on the same scale instead of
+  // the top always winning because the pane is short.
+  const near: [Side, number][] = [
+    ["left", x / bx],
+    ["right", (w - x) / bx],
+    ["up", y / by],
+    ["down", (h - y) / by],
+  ];
+  near.sort((a, b) => a[1] - b[1]);
+  return near[0][1] < 1 ? near[0][0] : "swap";
+}
+
 /** How much two intervals share, which is 0 when they merely touch. */
 function overlap(a: number, aLen: number, b: number, bLen: number): number {
   return Math.min(a + aLen, b + bLen) - Math.max(a, b);

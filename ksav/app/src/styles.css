@@ -378,6 +378,16 @@ body.dragging-pane * { cursor: grabbing !important; }
 .pane.pane-drop[data-drop="right"]::after { left: 70%; }
 .pane.pane-drop[data-drop="up"]::after { bottom: 70%; }
 .pane.pane-drop[data-drop="down"]::after { top: 70%; }
+/* And the same answer in words, because the two pictures are only telling apart
+   by somebody who already knows the rule — and the writer who has just been
+   surprised by a split is exactly the one who does not. `content: attr(...)`
+   so the wording stays in `i18n.ts` with every other string the writer reads. */
+.pane.pane-drop::before {
+  content: attr(data-drop-label);
+  position: absolute; z-index: 3; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+  background: var(--accent); color: var(--accent-ink, #fff); font-size: 12px;
+}
 .source-pane .pane-host { background: var(--editor-bg); }
 .cm-editor { height: 100%; background: var(--editor-bg); color: var(--ink); }
 

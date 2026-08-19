@@ -2952,29 +2952,26 @@ function splitHere(pane: panes.Leaf, dir: "row" | "col") {
 const DRAG_SLOP = 4;
 
 /**
- * How much of a pane counts as its edge rather than its middle.
+ * What a drop at this point over this pane would do.
  *
- * Drop in the middle and the two panes trade places; drop along an edge and the
- * carried pane is *moved* to that side of the target. A quarter is wide enough
- * to hit without aiming and narrow enough that the middle is still the easy
- * target, since trading places is the commoner intent.
+ * The geometry is `panes.dropIntentAt`, which is where it can be tested; this
+ * is the two things that need a DOM.
+ *
+ * **A drop on the target's own strip is always a swap.** The gesture is carried
+ * *by* a strip, so strip-to-strip is the motion a writer makes without being
+ * taught it — and a strip sits at the top of its pane, which is to say squarely
+ * inside the "up" band. The most natural aim in the whole gesture was the one
+ * that reliably split the window instead of swapping it, which is most of what
+ * *"it tends to split in half the other way, not switch"* is describing.
  */
-const DROP_EDGE = 0.25;
-
-/** What a drop at this point over this pane would do. */
 function dropIntent(section: HTMLElement, x: number, y: number): panes.Side | "swap" {
+  const head = section.querySelector<HTMLElement>(":scope > .pane-head");
+  if (head) {
+    const hb = head.getBoundingClientRect();
+    if (y >= hb.top && y <= hb.bottom && x >= hb.left && x <= hb.right) return "swap";
+  }
   const box = section.getBoundingClientRect();
-  const fx = (x - box.left) / box.width;
-  const fy = (y - box.top) / box.height;
-  // The nearest edge wins, and only if the pointer is actually in its band.
-  const near: [panes.Side, number][] = [
-    ["left", fx],
-    ["right", 1 - fx],
-    ["up", fy],
-    ["down", 1 - fy],
-  ];
-  near.sort((a, b) => a[1] - b[1]);
-  return near[0][1] < DROP_EDGE ? near[0][0] : "swap";
+  return panes.dropIntentAt(box.width, box.height, x - box.left, y - box.top);
 }
 
 /** The pane the pointer is over, if it is over one. */
@@ -3007,6 +3004,7 @@ function wirePaneDrag(pane: panes.Leaf, head: HTMLElement) {
     const clear = () => {
       lit?.classList.remove("pane-drop");
       lit?.removeAttribute("data-drop");
+      lit?.removeAttribute("data-drop-label");
       lit = null;
     };
 
@@ -3036,7 +3034,14 @@ function wirePaneDrag(pane: panes.Leaf, head: HTMLElement) {
       lit.classList.add("pane-drop");
       // Which of the two things a release would do, said on the target itself
       // so the reader is never guessing. `styles.css` draws the edge bands.
-      lit.dataset.drop = dropIntent(over.section, m.clientX, m.clientY);
+      const intent = dropIntent(over.section, m.clientX, m.clientY);
+      lit.dataset.drop = intent;
+      // In words as well as in the picture. The wash says *where* the carried
+      // pane would land and the band draws it, but "the whole pane is lit" and
+      // "the top third is lit" are only distinguishable if you already know the
+      // rule — and a writer who has just been surprised by a split is the one
+      // person who does not.
+      lit.dataset.dropLabel = intent === "swap" ? t("dropSwap") : t("dropMove");
     };
 
     const up = (u: PointerEvent) => {

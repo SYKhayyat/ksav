@@ -664,6 +664,35 @@ export function serializeDoc(doc: KsavDoc, fallbackCustom = ""): string {
   );
 }
 
+/**
+ * One entry of a file's `assets` array, made safe to use.
+ *
+ * This was `v.assets as DocAsset[]` — a cast, over a file somebody could have
+ * hand-edited, truncated, or written with an older version of anything. An entry
+ * whose `data` was absent rather than empty then reached `assetHash`, which does
+ * `a.data.length`, and **opening that document threw on its next compile**:
+ * `TypeError: Cannot read properties of undefined`. The cast asserted a shape
+ * the file was never checked to have, next to a `config` field two lines below
+ * that is read through `readPageSetup` for exactly this reason.
+ *
+ * Normalised rather than dropped. `DocAsset.data` already documents the empty
+ * string as *"the blob has gone missing, which is a diagnostic rather than a
+ * reason to drop the asset"* — so a malformed entry becomes that same known
+ * state, and the document still says which pictures it wanted.
+ */
+function readAsset(raw: unknown): DocAsset {
+  const a = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    name: str(a.name),
+    data: str(a.data),
+    // Anything that is not the word "font" is a picture — the direction
+    // `requestAssets` takes, so an entry with no `kind` resolves as one.
+    kind: a.kind === "font" ? "font" : "image",
+    ...(typeof a.hash === "string" ? { hash: a.hash } : {}),
+  };
+}
+
 export function parseDoc(
   text: string,
   fallbackTitle: string,
@@ -682,7 +711,7 @@ export function parseDoc(
         return {
           title: typeof v.title === "string" && v.title ? v.title : fallbackTitle,
           body: typeof v.body === "string" ? v.body : "",
-          assets: Array.isArray(v.assets) ? (v.assets as DocAsset[]) : [],
+          assets: Array.isArray(v.assets) ? v.assets.map(readAsset) : [],
           customCommands: typeof v.customCommands === "string" ? v.customCommands : undefined,
           // Read through `readPageSetup` rather than cast: this is the one field
           // that goes on to a compile request, and the file it came from is one

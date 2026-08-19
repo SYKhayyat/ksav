@@ -471,6 +471,22 @@ other whether or not the rule is right. `app/tools/emit-scan-oracle.mjs` writes
 what the scanner believes and `npm test` fails if it is stale, which is what
 makes changing the scanner force the comparison.
 
+The second oracle is about the **file format**. A `.ksav` is plain text when it
+can be and JSON when it cannot — the wrapper appears the moment a document
+carries an image, its own page setup, or its own `#let` commands. That rule had
+one implementation, in the browser, and nothing else was told: the CLI read every
+`.ksav` with `read_to_string`, so a document with a picture in it compiled **its
+own JSON wrapper as prose** and printed a success line over sixteen pages of
+`{"format": "ksav-document", …}`. The Emacs package had the same hole from the
+other end, and even the plain-text case dropped the document's page setup,
+because the CLI laid every file out with `DocConfig::default()`.
+
+So `engine/src/docfile.rs` reads the format, both clients go through it, and
+**`engine/tests/docfile_oracle.rs`** holds it to `app/src/docs.ts` over a corpus
+that is mostly `serializeDoc`'s own output — the two functions that have to agree
+are the two the fixture is made of — plus what no serialiser writes: truncated
+wrappers, wrong magic, prose that merely opens with a brace.
+
 ### Why it is built this way
 
 One registry per surface, one authority per fact, a documentation fence that
@@ -613,6 +629,12 @@ service registry with an exemption list that is **empty**: a client missing a
 service cannot tell its reader *Ksav cannot do that* from *something went
 wrong*, and reports the first as the second every time.
 
+A `.ksav` carrying pictures, page setup or its own `#let` commands is JSON on
+disk, and `ksav-mode` unwraps it on the way in and wraps it on the way out, so
+you edit the sefer and not its container. The container travels through whole —
+including any field a later version of the format adds — because a writer must
+not be able to strip a document by opening and saving it in Emacs.
+
 It is a client and nothing more — no elisp here parses Ksav markup, decides what
 a command means or renders anything. That is the only arrangement in which an
 Emacs user gets *Ksav* rather than a mode that approximates it and drifts, and
@@ -702,7 +724,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 6,715 editor assertions, 791 engine
+      all nine jobs: the typechecker and 6,715 editor assertions, 808 engine
       tests, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -782,7 +804,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
 | `editor` | both | the typechecker, then 6,715 assertions across 97 files |
-| `engine` | both | formatting, lints, then 791 tests across 44 binaries |
+| `engine` | both | formatting, lints, then 808 tests across 45 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 

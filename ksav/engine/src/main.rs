@@ -10,7 +10,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use ksav_engine::{compile, DocConfig};
+use ksav_engine::{compile_with, docfile};
 
 /// The usage text, written wherever it is asked for.
 ///
@@ -106,8 +106,35 @@ fn main() -> ExitCode {
         .and_then(|s| s.to_str())
         .unwrap_or("document");
 
+    // A `.ksav` is not always its own text.
+    //
+    // `read_to_string` above is the whole file; `docfile::read` is what is
+    // *inside* it. A document carrying an image, its own page setup or its own
+    // commands is written as JSON by `serializeDoc`, and this binary used to
+    // hand that wrapper to the compiler and print a success line over a PDF of
+    // `{"format": "ksav-document", …}`. The usage text has said `<input.ksav>`
+    // since the day the CLI existed.
+    //
+    // The page setup matters as much as the unwrapping did: this compiled with
+    // `DocConfig::default()`, so a sefer set to A5 with a gutter came out of the
+    // CLI as shipped-default A4 — a PDF that disagreed with the application's
+    // preview and said nothing about why.
+    let doc = docfile::read(&body);
+    let source = doc.source();
+
+    // A hash with no bytes behind it cannot happen in a file the editor wrote —
+    // a file always carries its bytes — so this is a hand-edited or truncated
+    // document, and the image would otherwise simply fail to resolve with no
+    // hint as to which one or why.
+    for name in &doc.missing_assets {
+        eprintln!(
+            "warning: {} refers to an asset that is not in the file ({name})",
+            input.display()
+        );
+    }
+
     let started = std::time::Instant::now();
-    let result = compile(&body, &DocConfig::default());
+    let result = compile_with(&source, &doc.cfg, &doc.assets);
     let elapsed = started.elapsed();
 
     // Report diagnostics from the real Typst compiler, *where they are*.
@@ -122,7 +149,31 @@ fn main() -> ExitCode {
     // `Diagnostic::one_line` is where that is written now, once, so the Emacs
     // client says the same thing.
     let whose = input.display().to_string();
+    // Lines are counted in what the compiler was handed, and what it was handed
+    // begins with the document's own `#let` preamble. `Diagnostic::line` says so
+    // in as many words — *"a caller that prepends anything subtracts its own
+    // line count. It knows what it added; the engine does not."* — and this is
+    // that subtraction. Without it every diagnostic in a document that defines
+    // one command names a line two further down than the writer's.
+    //
+    // A diagnostic that lands *inside* the preamble is not a line of the
+    // writer's document at all, so it is said in those words rather than
+    // clamped to line 1, which would point at innocent text.
+    let preamble = doc.preamble_lines();
     for d in &result.diagnostics {
+        let mut d = d.clone();
+        if preamble > 0 && d.file.is_none() {
+            match d.line {
+                Some(line) if line > preamble => d.line = Some(line - preamble),
+                Some(_) => {
+                    d.line = None;
+                    d.column = None;
+                    d.message
+                        .push_str(" — in this document's own commands, not in its text");
+                }
+                None => {}
+            }
+        }
         eprintln!("{}", d.one_line(&whose));
     }
 

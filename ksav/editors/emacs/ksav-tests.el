@@ -201,6 +201,179 @@ Hebrew letter — in a Hebrew-first editor."
 (ert-deftest ksav-mode-opens-a-ksav-file ()
   (should (eq 'ksav-mode (cdr (assoc "\\.ksav\\'" auto-mode-alist)))))
 
+;;;; ------------------------------------------------ the two forms of a .ksav
+;;
+;; A `.ksav' is plain text when it can be and JSON when it cannot, and for the
+;; whole life of the format only the browser knew that.  This package showed the
+;; writer their own wrapper and compiled it as prose.  The engine's half of the
+;; answer is `engine/src/docfile.rs', held to `docs.ts' by an oracle; this half
+;; has to survive a round trip, which is a claim the oracle cannot make.
+
+(defconst ksav-tests--wrapped
+  (concat "{\"format\":\"ksav-document\",\"version\":1,\"title\":\"kuntres\","
+          "\"body\":\"#כותרת1[פרק א]\\n\\nשלום.\\n\","
+          "\"assets\":[{\"name\":\"logo.png\",\"data\":\"aGk=\",\"kind\":\"image\"}],"
+          "\"config\":{\"size_pt\":13.5,\"two_sided\":false,\"keywords\":[]}}")
+  "A document in the wrapped form, carrying everything that makes it one.
+The `false' and the empty array are not decoration: reading JSON false as nil
+and writing it back gives `null', which is how a two-sided document would
+quietly stop being one.")
+
+(defun ksav-tests--in-a-file (text body)
+  "Visit a real `.ksav' holding TEXT, in `ksav-mode', and call BODY.
+A real file rather than a temp buffer, because unwrapping happens on the way in
+and wrapping happens on the way out, and neither is reachable without one."
+  (let ((file (make-temp-file "ksav-form-" nil ".ksav")))
+    (unwind-protect
+        (progn
+          (let ((coding-system-for-write 'utf-8-unix))
+            (write-region text nil file nil 'silent))
+          (with-current-buffer (find-file-noselect file)
+            (unwind-protect (funcall body file)
+              (set-buffer-modified-p nil)
+              (kill-buffer))))
+      (ignore-errors (delete-file file)))))
+
+(ert-deftest ksav-mode-shows-the-document-not-its-wrapper ()
+  "The finding, stated as a test: the writer edits the sefer, not the JSON."
+  (ksav-tests--in-a-file
+   ksav-tests--wrapped
+   (lambda (_file)
+     (should (equal (buffer-string) "#כותרת1[פרק א]\n\nשלום.\n"))
+     (should-not (string-match-p "ksav-document" (buffer-string)))
+     (should ksav--container)
+     ;; Opening a file is not an edit, and undo must not restore the wrapper.
+     (should-not (buffer-modified-p))
+     (should-not buffer-undo-list))))
+
+(ert-deftest ksav-mode-leaves-a-plain-document-alone ()
+  "Most seforim are bare text, and nothing above may touch them."
+  (let ((text "#כותרת1[פרק א]\n\nשלום.\n"))
+    (ksav-tests--in-a-file
+     text
+     (lambda (file)
+       (should (equal (buffer-string) text))
+       (should-not ksav--container)
+       (goto-char (point-max))
+       (insert "עוד שורה.\n")
+       (save-buffer)
+       (should (equal (with-temp-buffer
+                        (let ((coding-system-for-read 'utf-8))
+                          (insert-file-contents file))
+                        (buffer-string))
+                      (concat text "עוד שורה.\n")))))))
+
+(ert-deftest ksav-mode-puts-the-document-back-in-its-wrapper ()
+  "Saving must not cost the sefer its pictures, its page setup, or its title."
+  (ksav-tests--in-a-file
+   ksav-tests--wrapped
+   (lambda (file)
+     (goto-char (point-max))
+     (insert "עוד שורה.\n")
+     (save-buffer)
+     (let* ((on-disk (with-temp-buffer
+                       (let ((coding-system-for-read 'utf-8))
+                         (insert-file-contents file))
+                       (buffer-string)))
+            (v (json-parse-string on-disk :object-type 'alist)))
+       (should (equal (alist-get 'format v) "ksav-document"))
+       (should (equal (alist-get 'body v) "#כותרת1[פרק א]\n\nשלום.\nעוד שורה.\n"))
+       (should (equal (alist-get 'title v) "kuntres"))
+       (should (= 1 (length (alist-get 'assets v))))
+       ;; The two lossy ones.  `false' must still be false and not null, and an
+       ;; empty array must still be an array.
+       (let ((config (alist-get 'config v)))
+         (should (eq (alist-get 'two_sided config) :false))
+         (should (equal (alist-get 'keywords config) []))
+         (should (= (alist-get 'size_pt config) 13.5)))))))
+
+(ert-deftest ksav-mode-round-trips-a-wrapper-it-does-not-understand ()
+  "A field from a later version travels through untouched.
+The container is kept whole rather than rebuilt, so a writer on an older Emacs
+package cannot strip a document by opening and saving it."
+  (ksav-tests--in-a-file
+   "{\"format\":\"ksav-document\",\"body\":\"x\",\"somethingNew\":{\"a\":[1,2]}}"
+   (lambda (file)
+     (should (equal (buffer-string) "x"))
+     (set-buffer-modified-p t)
+     (save-buffer)
+     (let* ((v (with-temp-buffer
+                 (let ((coding-system-for-read 'utf-8))
+                   (insert-file-contents file))
+                 (json-parse-string (buffer-string) :object-type 'alist))))
+       (should (equal (alist-get 'a (alist-get 'somethingNew v)) [1 2]))))))
+
+(ert-deftest ksav-request-carries-what-the-document-carries ()
+  "Six call sites sent the buffer text and nothing else.
+
+Page setup at the root of the request, which is where `DocConfig::from_json'
+reads it; the assets split into the two lists a request has; and the document's
+own commands in front of the body, or a document that defines one does not
+compile at all."
+  (ksav-tests--in-a-file
+   (json-serialize
+    '((format . "ksav-document") (version . 1)
+      (body . "#דגש[שלום]\n")
+      (customCommands . "#let דגש(x) = strong(x)")
+      (assets . [((name . "logo.png") (data . "aGk=") (kind . "image"))
+                 ((name . "s.ttf") (data . "aGk=") (kind . "font"))])
+      (config . ((size_pt . 13.5) (two_sided . :false)))))
+   (lambda (_file)
+     (let ((request (ksav-request '((want_pdf . t)))))
+       (should (equal (alist-get 'body request)
+                      "#let דגש(x) = strong(x)\n\n#דגש[שלום]\n"))
+       (should (= 2 (ksav--preamble-lines)))
+       (should (= (alist-get 'size_pt request) 13.5))
+       (should (eq t (alist-get 'want_pdf request)))
+       (should (equal (alist-get 'name (car (alist-get 'assets request))) "logo.png"))
+       (should (equal (alist-get 'name (car (alist-get 'fonts request))) "s.ttf"))
+       ;; The one that would have been silent.  `:false' handed to `json-encode'
+       ;; encodes the keyword, `as_bool' declines it, and the document is laid
+       ;; out single-sided with nothing said.
+       (should (eq (alist-get 'two_sided request) json-false))
+       (should (string-match-p "\"two_sided\":false"
+                               (replace-regexp-in-string
+                                " " "" (json-encode request))))))))
+
+(ert-deftest ksav-request-of-a-plain-document-is-just-its-text ()
+  "Most seforim carry nothing, and must send nothing extra."
+  (with-temp-buffer
+    (ksav-mode)
+    (insert "שלום.\n")
+    (let ((request (ksav-request)))
+      (should (equal request '((body . "שלום.\n"))))
+      (should (= 0 (ksav--preamble-lines))))))
+
+(ert-deftest ksav-a-diagnostic-names-the-writers-line ()
+  "The engine counts lines in what it was sent, and says so.
+A document with a two-line preamble in front of it reports line 5 for the
+writer's line 3, and a line inside the preamble is not the writer's line at
+all."
+  (with-temp-buffer
+    (ksav-mode)
+    (should (= 3 (ksav--writers-line 3 nil)))
+    (setq ksav--container '((format . "ksav-document")
+                            (customCommands . "#let a(x) = x")))
+    (should (= 2 (ksav--preamble-lines)))
+    (should (= 3 (ksav--writers-line 5 nil)))
+    ;; Inside the preamble: no line, rather than a line pointing at prose that
+    ;; has nothing to do with it.
+    (should-not (ksav--writers-line 1 nil))
+    ;; An included document counts in its own file and is already the writer's.
+    (should (= 5 (ksav--writers-line 5 "perek-b.ksav")))))
+
+(ert-deftest ksav-mode-reads-a-brace-as-prose ()
+  "Prose that opens with a brace is prose.  The magic decides, not the first
+character."
+  (dolist (text '("{ this is prose }"
+                  "{\"format\":\"something-else\",\"body\":\"x\"}"
+                  "{\"format\":\"ksav-document\",\"body\":\"trunc"))
+    (ksav-tests--in-a-file
+     text
+     (lambda (_file)
+       (should (equal (buffer-string) text))
+       (should-not ksav--container)))))
+
 ;;;; ------------------------------------------------- the insertion convention
 
 (ert-deftest ksav-insert-template-leaves-point-in-the-hole ()
@@ -432,6 +605,53 @@ one machine whose job is to run it."
         ;; A real page, from a real Typst layout — not an empty string that
         ;; would draw as nothing and look like a preview that failed.
         (should (string-match-p "<svg" (car (alist-get 'pages_svg answer))))))))
+
+(ert-deftest ksav-live-lays-a-wrapped-document-out-the-way-it-was-saved ()
+  "A document's own page setup and commands reach the engine, end to end.
+
+The whole chain in one test, because each link was broken on its own: the file
+is the wrapped form, so `ksav--unwrap' has to find the body; the body uses a
+command only this document defines, so `ksav-request' has to put the preamble
+in front of it or nothing compiles; and the page setup is A5 landscape, so the
+page that comes back has to be a different shape from the shipped default or
+the config went nowhere.
+
+Six call sites used to send `((body . ,(buffer-string)))' and nothing else, and
+every one of these failures was silent — a page that compiled and was wrong."
+  (ksav-tests--with-engine
+    (let ((file (make-temp-file "ksav-wrapped-" nil ".ksav"))
+          (shipped nil))
+      (unwind-protect
+          (progn
+            (let ((coding-system-for-write 'utf-8-unix))
+              (write-region
+               (json-serialize
+                '((format . "ksav-document") (version . 1) (title . "kuntres")
+                  (body . "#דגש[שלום]\n")
+                  (customCommands . "#let דגש(x) = strong(x)")
+                  (config . ((paper . "a5") (margin_cm . 1.0)))))
+               nil file nil 'silent))
+            ;; The shipped shape, to compare against.
+            (with-temp-buffer
+              (setq shipped (alist-get 'pages_svg
+                                       (ksav-call "compile" '((body . "שלום\n"))))))
+            (with-current-buffer (find-file-noselect file)
+              (unwind-protect
+                  (let ((answer (ksav-call "compile" (ksav-request))))
+                    ;; The wrapper never reached the engine.
+                    (should (equal (buffer-string) "#דגש[שלום]\n"))
+                    ;; It compiled, which it cannot do without the preamble:
+                    ;; `#דגש' exists in this document and nowhere else.
+                    (should-not (ksav--refused answer))
+                    (should-not (ksav--diagnostics answer))
+                    (should (= 1 (length (alist-get 'pages_svg answer))))
+                    ;; And on its own paper. A5 is not A4, so the page the
+                    ;; engine drew must not be the shipped one.
+                    (should-not (equal (car (alist-get 'pages_svg answer))
+                                       (car shipped))))
+                (set-buffer-modified-p nil)
+                (kill-buffer))))
+        (ignore-errors (delete-file file))))))
 
 (ert-deftest ksav-live-reports-a-broken-document-rather-than-a-blank-page ()
   (ksav-tests--with-engine

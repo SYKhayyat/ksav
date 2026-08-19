@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'json)
+(require 'seq)
 (require 'subr-x)
 (require 'url)
 (require 'ksav-services)
@@ -347,6 +348,92 @@ reached only when there really is nothing else."
       "the engine refused and said nothing about why")
      (t nil))))
 
+;;;; --------------------------------------- the buffer, as the engine wants it
+
+(defvar ksav--container)
+
+(defun ksav--preamble ()
+  "The document's own `#let' commands, or the empty string.
+A document that carries commands of its own is a document that does not compile
+without them, and a `.ksav' has carried them since the browser learnt to embed
+them so a shared sefer would compile for its reader."
+  (let ((custom (and (boundp 'ksav--container)
+                     ksav--container
+                     (alist-get 'customCommands ksav--container))))
+    (if (stringp custom) (string-trim custom) "")))
+
+(defun ksav--preamble-lines ()
+  "How many lines `ksav-request' puts in front of the writer's first one.
+The engine counts a diagnostic's line in the body it was handed, and says so:
+*a caller that prepends anything subtracts its own line count*."
+  (let ((pre (ksav--preamble)))
+    (if (string-empty-p pre) 0 (1+ (length (split-string pre "\n"))))))
+
+(defun ksav--for-json-encode (value)
+  "VALUE, respelt for `json-encode'.
+
+Two JSON libraries meet here and they do not spell the same things the same
+way.  The container is read with `json-parse-string', which writes false as
+`:false' and null as `:null'; the request goes out through `json-encode', which
+reads `json-false' and `json-null' — `:json-false' and nil.  Hand it `:false'
+and it encodes the **keyword**, so `\"two_sided\": false' arrives at the engine
+as a string, `as_bool' declines it, and the document is laid out single-sided
+with nothing said anywhere.
+
+Which is the bug this whole file is being changed for, one library boundary
+further in, and it would have been just as quiet."
+  (cond ((eq value :false) json-false)
+        ((eq value :null) json-null)
+        ((eq value :true) t)
+        (t value)))
+
+(defun ksav-request (&optional extra)
+  "This buffer as a request the engine can lay out, plus EXTRA fields.
+
+Built here rather than at each call site, and that is the whole point.  Six
+places spelt the request `((body . ,(buffer-string)))', which is the buffer's
+text and nothing else — so a document carrying its own page setup was laid out
+with the shipped defaults, one carrying its own commands did not compile at
+all, and one carrying a picture rendered without it.  None of the three said
+anything; the page simply came back wrong, which is this repository's oldest
+failure shape.
+
+The page-setup fields go at the **root** of the request, which is where
+`DocConfig::from_json' reads them — the same place the browser client puts
+them.  The assets are one array in the file and two lists on a request, split
+on `kind', exactly as `requestAssets' splits them."
+  (let* ((body (buffer-substring-no-properties (point-min) (point-max)))
+         (pre (ksav--preamble))
+         (assets (and ksav--container (alist-get 'assets ksav--container)))
+         (files nil)
+         (fonts nil)
+         (out (list (cons 'body (if (string-empty-p pre)
+                                    body
+                                  (concat pre "\n\n" body))))))
+    ;; Page setup, spliced in one key at a time.  A nested `config' object would
+    ;; be a shape the service does not read, and reading nothing is what the
+    ;; default-`DocConfig' bug looked like from the outside.
+    (dolist (pair (and ksav--container (alist-get 'config ksav--container)))
+      (push (cons (car pair) (ksav--for-json-encode (cdr pair))) out))
+    (seq-doseq (a (or assets []))
+      (if (equal (alist-get 'kind a) "font") (push a fonts) (push a files)))
+    (when files (push (cons 'assets (nreverse files)) out))
+    (when fonts (push (cons 'fonts (nreverse fonts)) out))
+    (append (nreverse out) extra)))
+
+(defun ksav--writers-line (line file)
+  "Turn LINE, counted in what the engine was sent, into a line of this buffer.
+FILE names an included document when the line came from one, and those are
+counted in that file and are already the writer's.  Returns nil for a line
+inside the document's own command preamble, which is not a line of the text at
+all — naming one there would point at innocent prose."
+  (let ((pre (ksav--preamble-lines)))
+    (cond ((null line) nil)
+          (file line)
+          ((zerop pre) line)
+          ((> line pre) (- line pre))
+          (t nil))))
+
 (defun ksav--diagnostics (answer)
   "Every diagnostic in ANSWER, as lines of text.
 
@@ -365,7 +452,7 @@ compiler has printed since the seventies and what `compilation-mode' and
                    "")))
     (mapcar
      (lambda (d)
-       (let ((line (alist-get 'line d))
+       (let ((line (ksav--writers-line (alist-get 'line d) (alist-get 'file d)))
              (column (alist-get 'column d))
              (about (alist-get 'about d))
              (mean (alist-get 'did_you_mean d))

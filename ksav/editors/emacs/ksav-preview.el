@@ -143,7 +143,7 @@ engine reports them against the source you wrote, not against the assembled
 Typst, so they are lines in this buffer."
   (interactive)
   (let* ((source (current-buffer))
-         (answer (ksav-call "compile" `((body . ,(buffer-string)))))
+         (answer (ksav-call "compile" (ksav-request)))
          (refused (ksav--refused answer))
          (typeset (eq t (alist-get 'ok answer)))
          (diags (ksav--diagnostics answer))
@@ -182,7 +182,7 @@ Typst, so they are lines in this buffer."
   (interactive
    (list (read-file-name "Write PDF to: " nil nil nil
                          (concat (file-name-base (or (buffer-file-name) "document")) ".pdf"))))
-  (let* ((answer (ksav-call "compile" `((body . ,(buffer-string)) (want_pdf . t))))
+  (let* ((answer (ksav-call "compile" (ksav-request '((want_pdf . t)))))
          (refused (ksav--refused answer))
          (b64 (alist-get 'pdf_base64 answer)))
     (cond
@@ -217,7 +217,7 @@ before either started."
   (interactive
    (list (read-file-name "Write Typst source to: " nil nil nil
                          (concat (file-name-base (or (buffer-file-name) "document")) ".typ"))))
-  (let* ((answer (ksav-ask "assemble" `((body . ,(buffer-string)))))
+  (let* ((answer (ksav-ask "assemble" (ksav-request)))
          (source (alist-get 'typst_source answer))
          (diags (ksav--diagnostics answer)))
     (unless (and (stringp source) (not (string= source "")))
@@ -284,12 +284,16 @@ a message on every miss would fire on every click into the margin."
     (unless (buffer-live-p source)
       (user-error "Ksav: the buffer this page was made from is gone"))
     (when at
-      (let* ((body (with-current-buffer source (buffer-string)))
-             (answer (ksav-call "jump" `((body . ,body)
-                                         (page . ,page)
-                                         (x_pt . ,(car at))
-                                         (y_pt . ,(cdr at)))))
-             (line (alist-get 'line answer))
+      (let* ((request (with-current-buffer source
+                        (ksav-request `((page . ,page)
+                                        (x_pt . ,(car at))
+                                        (y_pt . ,(cdr at))))))
+             (answer (ksav-call "jump" request))
+             ;; The answer is a line in the body the engine was sent, and that
+             ;; body begins with the document's own commands when it has any.
+             (line (with-current-buffer source
+                     (ksav--writers-line (alist-get 'line answer)
+                                         (alist-get 'file answer))))
              (column (alist-get 'column answer)))
         (when (and (integerp line) (> line 0))
           (let ((window (get-buffer-window source)))
@@ -316,10 +320,12 @@ layout and there is no layout without one."
   (let* ((source (current-buffer))
          (line (line-number-at-pos))
          (column (1+ (current-column)))
-         (body (buffer-string))
-         (points (alist-get 'points (ksav-call "reveal" `((body . ,body)
-                                                          (line . ,line)
-                                                          (column . ,column))))))
+         ;; The other direction: `line' is a line of this buffer and the
+         ;; engine counts in what it is sent, so the preamble is added here
+         ;; rather than subtracted.
+         (request (ksav-request `((line . ,(+ line (ksav--preamble-lines)))
+                                  (column . ,column))))
+         (points (alist-get 'points (ksav-call "reveal" request))))
     (if (null points)
         ;; Not an error. A blank line, a comment, and a line inside a command
         ;; whose output is nothing all print nowhere, and none of them is a
@@ -329,7 +335,7 @@ layout and there is no layout without one."
              (page (or (alist-get 'page first) 0))
              (x (or (alist-get 'x_pt first) 0))
              (y (or (alist-get 'y_pt first) 0))
-             (answer (ksav-call "compile" `((body . ,body))))
+             (answer (ksav-call "compile" (ksav-request)))
              (pages (alist-get 'pages_svg answer)))
         (unless (eq t (alist-get 'ok answer))
           (user-error "Ksav: the document does not compile, so there is no page to show"))

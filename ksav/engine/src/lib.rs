@@ -26,6 +26,10 @@ pub mod assets;
 pub mod clipboard;
 pub mod commands;
 pub mod diagnostics;
+/// What is actually inside a `.ksav` file — plain text, or the JSON wrapper the
+/// editor writes for a document carrying images, page setup or its own commands.
+/// Every client that is not the browser used to assume the first.
+pub mod docfile;
 /// Somebody else's text, put into Typst markup. One string-literal escaper and
 /// one content escaper, for the four and two copies there used to be.
 pub mod escape;

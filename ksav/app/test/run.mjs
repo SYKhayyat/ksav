@@ -45,6 +45,10 @@ const GENERATORS = [
   ["structure fixtures", "emit-structure-fixtures.mjs"],
   ["insertion fixtures", "emit-insertion-fixtures.mjs"],
   ["scan oracle", "emit-scan-oracle.mjs"],
+  // What a `.ksav` file *is*, for the engine's second reader of it to be held
+  // to. Both sides of that format now have an implementation, and the CLI
+  // compiled the JSON wrapper as prose for as long as only one of them did.
+  ["docfile oracle", "emit-docfile-oracle.mjs"],
   // The fifth target for one registry: `editors/emacs/ksav-services.el`. The
   // elisp cannot import `services.gen.ts`, so it gets its own generated copy
   // rather than a hand-written fifth list — see the header of

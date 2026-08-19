@@ -177,7 +177,93 @@ wrong exactly when a Hebrew paragraph happens to begin with a command name."
   ;; Tell the library where this document lives, so that standing on a passage
   ;; in Girsa and asking which of your own sefarim cite it has an answer.  It
   ;; does nothing when no engine is running.
-  (add-hook 'after-save-hook #'ksav--tell-girsa-on-save nil t))
+  (add-hook 'after-save-hook #'ksav--tell-girsa-on-save nil t)
+  ;; A `.ksav' carrying pictures or its own page setup is JSON on disk.  Unwrap
+  ;; it on the way in and wrap it on the way out, so the writer edits their sefer
+  ;; and not its container.  `after-revert-hook' as well as here, because
+  ;; reverting re-reads the file and re-runs the mode but does not re-visit it.
+  (ksav--unwrap)
+  (add-hook 'after-revert-hook #'ksav--unwrap nil t)
+  (add-hook 'write-contents-functions #'ksav--wrap-on-save nil t))
+
+;;;; ------------------------------------------------- a .ksav is not always text
+;;
+;; A `.ksav' file is plain text when it can be and JSON when it cannot.  The
+;; editor's `serializeDoc' wraps the document the moment it carries an image, its
+;; own page setup, or its own `#let' commands, and leaves it as bare text
+;; otherwise — which is deliberate, and is why a sefer stays diffable and
+;; greppable.
+;;
+;; That rule was written on the browser side and told to nobody else.  This
+;; package put `.ksav' in `auto-mode-alist' and handed the buffer to the engine
+;; as a body, so opening a document with one picture in it showed the writer
+;; their own JSON and compiled it as prose.  The CLI had the same hole from the
+;; other end, and `engine/src/docfile.rs' is the engine's answer to it.
+;;
+;; The container is kept whole rather than rebuilt.  Everything this package does
+;; not understand — the assets, the page setup, a field a later version adds —
+;; travels through untouched, because a writer editing the text of a sefer in
+;; Emacs must not lose its pictures by saving it.
+
+(defvar-local ksav--container nil
+  "The JSON wrapper this buffer's text came out of.
+An alist when the file on disk is the wrapped form, and nil when the file is
+its own text.  Saving puts the buffer back inside it, so every field this
+package does not know about survives the round trip.")
+
+(defun ksav--container-of (text)
+  "The wrapper alist TEXT is, or nil if TEXT is a document in its own right.
+A file that merely begins with a brace is prose: the magic decides, not the
+first character."
+  (and (string-prefix-p "{" (string-trim-left text))
+       ;; Read with the sentinels `json-serialize' writes back, and arrays as
+       ;; vectors: the defaults, on purpose.  Reading JSON false as nil is the
+       ;; convenient spelling everywhere else in this package and it is
+       ;; **lossy** here — nil re-encodes as null, so saving a two-sided
+       ;; document would quietly turn `\"two_sided\": false' into
+       ;; `\"two_sided\": null' and an empty asset array into nothing at all.
+       ;; This buffer's job is to hand the file back as it found it.
+       (let ((v (ignore-errors
+                  (json-parse-string text :object-type 'alist))))
+         (and (listp v)
+              (equal (alist-get 'format v) "ksav-document")
+              v))))
+
+(defun ksav--unwrap ()
+  "Show the document rather than the file, when the file is the wrapped form.
+Does nothing to a plain-text `.ksav', which is most of them."
+  (when-let* ((container (ksav--container-of (buffer-string))))
+    (let ((body (or (alist-get 'body container) ""))
+          (inhibit-read-only t))
+      (setq ksav--container container)
+      (erase-buffer)
+      (insert (if (stringp body) body ""))
+      (goto-char (point-min))
+      ;; The unwrapping is not an edit the writer made, so it is not undoable
+      ;; and does not make the buffer dirty.  Without this, C-x u on a freshly
+      ;; opened document restores the JSON.
+      (setq buffer-undo-list nil)
+      (set-buffer-modified-p nil))))
+
+(defun ksav--wrap-on-save ()
+  "Write the buffer back inside its wrapper, when it came out of one.
+Returns non-nil when it wrote the file, which is how `write-contents-functions'
+says the save is already done."
+  (when ksav--container
+    (let* ((body (buffer-substring-no-properties (point-min) (point-max)))
+           ;; `setf' on the existing alist rather than a fresh one: the order of
+           ;; the fields, and every field this package has never heard of, are
+           ;; the file's own and are none of our business.
+           (out (copy-alist ksav--container))
+           (coding-system-for-write 'utf-8-unix))
+      (setf (alist-get 'body out) body)
+      ;; `json-serialize', not `json-encode': the container was read with the
+      ;; sentinels this writes back, so a `false' stays false and an empty array
+      ;; stays an empty array.
+      (write-region (json-serialize out) nil buffer-file-name nil 'quiet)
+      (set-buffer-modified-p nil)
+      (set-visited-file-modtime)
+      t)))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.ksav\\'" . ksav-mode))

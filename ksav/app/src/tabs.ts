@@ -94,17 +94,40 @@ export function current(): Tab | undefined {
   return tabs[active];
 }
 
+/** What the writer has asked the strip to do. */
+export type StripMode = "always" | "auto" | "never";
+
 /**
  * Whether the strip should be on screen at all.
  *
- * **One tab is pure noise**, and the record is explicit about why: the first
- * observation in the whole inventory was that sixteen things compete for the top
- * of the window before a word is typed. A strip showing a single tab spends a
- * row of chrome to tell a writer something they can already see. It appears when
- * there is a choice to make and not before — and it must never be the only route
- * in, which is what the keyboard switcher is for.
+ * # The argument that used to be here, and what overturned it
+ *
+ * This was `tabs.length > 1`, with no setting and a good reason: the first
+ * observation in the whole marked-up inventory was that sixteen things compete
+ * for the top of the window before a word is typed, and a strip showing a
+ * single tab spends a row of chrome to tell a writer something they can
+ * already see.
+ *
+ * The reason was good and the conclusion was wrong, because it optimised the
+ * window for a writer who already knows arrangements exist. The report was
+ * *"I don't see how to make a new tab"*, from somebody who had gone looking —
+ * and the `+` that makes the second arrangement lives **in the strip**, which
+ * is hidden until there are two. A feature whose only visible door opens once
+ * you have already used it is not discoverable at any price, and the chrome
+ * saved is a row.
+ *
+ * So `always` is the default and `auto` is the old behaviour, kept because the
+ * chrome argument is still true for a writer who has learned the feature and
+ * wants the row back. `never` is for the writer who works one arrangement and
+ * would rather have the keys.
+ *
+ * Whichever it is, the strip must never be the only route in — that is what the
+ * keys and the arrangement panel are for, and `never` is only survivable
+ * because of them.
  */
-export function stripVisible(): boolean {
+export function stripVisible(mode: StripMode = "auto"): boolean {
+  if (mode === "never") return false;
+  if (mode === "always") return true;
   return tabs.length > 1;
 }
 

@@ -39,9 +39,24 @@ export async function run() {
     // The first observation in the whole inventory was that sixteen things
     // compete for the top of the window before a word is typed. A strip showing
     // one tab spends a row of chrome telling a writer what they can already see.
-    notOk("a single tab shows no strip", tabs.stripVisible());
+    notOk("a single tab shows no strip on auto", tabs.stripVisible("auto"));
+    // And `auto` is no longer the default, which is the reversal. The `+` that
+    // makes a second arrangement lives *in* the strip, so hiding the strip until
+    // there are two hid the only visible route to making the second one — the
+    // report was "I don't see how to make a new tab". A row of chrome is the
+    // price; a feature nobody can reach was the alternative.
+    ok("but one does on always", tabs.stripVisible("always"));
+    notOk("and never means never", tabs.stripVisible("never"));
     tabs.add(on("doc-b"));
-    ok("two do", tabs.stripVisible());
+    ok("two show it on auto", tabs.stripVisible("auto"));
+    // `never` is only survivable because the keys and the arrangement panel
+    // exist. It must therefore mean what it says even when there is a choice to
+    // make, or it is not a setting but a hint.
+    notOk("and never still means never with a choice to make", tabs.stripVisible("never"));
+    // The argument-free call is the *old* behaviour, deliberately: `main.ts`
+    // passes the writer's setting, and a default of `always` here would make a
+    // caller that forgot to ask look like it had asked.
+    ok("the bare call is auto", tabs.stripVisible());
   }
 
   {

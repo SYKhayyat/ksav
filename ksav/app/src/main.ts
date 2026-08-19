@@ -1104,16 +1104,24 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "switcher", run: () => (openSwitcher(), true) },
   { id: "closeDoc", run: () => (void closeOpenDoc(runtime.currentDoc.id), true) },
   { id: "newTab", run: () => (newTab(), true) },
-  {
-    // Round, because with two or three arrangements "next" is the only motion
-    // anybody needs and a key that stops at the end is a key you have to look at
-    // the screen to use.
-    id: "nextTab",
+  { id: "newDocTab", run: () => (void newDocTab(), true) },
+  { id: "closeTab", run: () => (closeTab(tabs.activeIndex()), true) },
+  // Round, in both directions. Round because a key that stops at the end is a
+  // key you have to look at the screen to use; **both** directions because
+  // round motion in one direction is only an answer for a writer who knows how
+  // many arrangements there are, which is the counting the report *"or to move
+  // from tab to tab"* was complaining about.
+  //
+  // Generated from the pair, so the two cannot drift into disagreeing about
+  // what the strip's order is.
+  ...([["nextTab", 1], ["prevTab", -1]] as const).map(([id, step]) => ({
+    id,
     run: () => {
-      if (tabs.count() > 1) selectTab((tabs.activeIndex() + 1) % tabs.count());
+      const n = tabs.count();
+      if (n > 1) selectTab((tabs.activeIndex() + step + n) % n);
       return true;
     },
-  },
+  })),
   // Move this pane to where its neighbour is. Four actions rather than one
   // toggle, because a window is a tree and not a pair — see `panes.swap` for
   // what the operation is and `panes.neighbor` for how the side is decided.
@@ -3909,7 +3917,7 @@ function rememberPanes() {
 /** The strip, or nothing. */
 function buildTabStrip(): HTMLElement {
   const strip = el("div", { class: "tabstrip", id: "tabstrip" });
-  if (!tabs.stripVisible()) return strip;
+  if (!tabs.stripVisible(settings.tabStrip ?? "always")) return strip;
   const titleOf = (id: string) => docs.library().find((e) => e.id === id)?.title;
   tabs.all().forEach((tab, i) => {
     const here = i === tabs.activeIndex();
@@ -3973,19 +3981,62 @@ function retargetPanes(from: string | null, to: string) {
   }
 }
 
-/** A second arrangement, starting from the shipped one. */
-function newTab() {
+/**
+ * A second arrangement, starting from the shipped one, showing `docId`.
+ *
+ * Every panel of it is pinned to that document, so the new tab is *a thing*
+ * rather than a second window onto whatever happens to be focused — which is
+ * what makes an arrangement worth naming and worth coming back to.
+ *
+ * It does not open the document; the three callers differ in exactly that, and
+ * conflating them is how "new arrangement" would come to mean "and lose my
+ * place". `newTab` shows what is already open, `openInNewTab` opens something
+ * else into it, and `newDocTab` makes the document first.
+ */
+function newTabShowing(docId: string) {
   tabs.stash(paneTree, focusedPane);
   const tab = tabs.add(panes.defaultTree());
   paneTree = tab.tree;
-  // Pinned to whatever is on screen, so the new tab is a thing rather than a
-  // second window onto whatever happens to be focused.
-  retargetPanes(null, runtime.currentDoc.id);
+  retargetPanes(null, docId);
   focusedPane = null;
   renderPanes();
   refreshTabStrip();
   rememberPanes();
+}
+
+/** A second arrangement onto the document already on screen. */
+function newTab() {
+  newTabShowing(runtime.currentDoc.id);
   scheduleCompile();
+}
+
+/**
+ * That document, in an arrangement of its own.
+ *
+ * The second half of *"both an empty new tab and to open a doc in a new tab"*,
+ * and it had no door at all: every route into a document — the Documents menu,
+ * the switcher, the library — opened it **here**, over the arrangement the
+ * writer was standing in. Which is the right default and was the only
+ * behaviour, so comparing two seforim side by side in two tabs was a thing the
+ * data model supported and the interface could not express.
+ *
+ * The arrangement is made first and the document opened into it, rather than
+ * the other way round: opening first would put the second sefer over the first
+ * one for as long as the compile takes, which is the flicker that makes a
+ * writer think they lost their place.
+ */
+async function openInNewTab(docId: string) {
+  closeMenus();
+  newTabShowing(docId);
+  await openDoc(docId);
+}
+
+/** A blank document, in an arrangement of its own. */
+async function newDocTab() {
+  closeMenus();
+  await flushSaves();
+  const doc = await docs.createDoc(t("untitled"), "");
+  await openInNewTab(doc.id);
 }
 
 function selectTab(i: number) {
@@ -5625,6 +5676,16 @@ function docsMenuItems(): (Node | string)[] {
       "data-doc-action": "new",
       onClick: () => void newNamedDoc(),
     }, [t("newDoc")]),
+    // **Here**, and not in the arrangement panel, because this is where a writer
+    // asks for a new anything. The arrangement panel is where somebody who
+    // already knows what an arrangement is goes to change one; the report
+    // *"I don't see how to make a new tab"* came from a writer who did not, and
+    // who had — correctly — looked under Documents first.
+    el("button", {
+      class: "menu-item",
+      "data-doc-action": "new-tab",
+      onClick: () => void newDocTab(),
+    }, [`${t("newDocTab")} · ${hintFor("newDocTab")}`]),
     el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
     // "Save as" already existed, in the File menu. The margin comment asking
     // *"do we have a save as something else.ksav option?"* was written by
@@ -5669,6 +5730,21 @@ function docsMenuItems(): (Node | string)[] {
               el("span", { class: "menu-desc" }, [meta.fileName ?? ""]),
             ],
           ),
+          // Three controls on a row and three different amounts of destruction,
+          // which is the whole reason none of them share a glyph: `⧉` opens a
+          // second window onto this document and destroys nothing, `⌄` puts it
+          // away and destroys nothing, and in the library below `×` destroys the
+          // sefer. The inventory is blunt that two of those appearing as one
+          // glyph "is not survivable"; a third had to keep clear of both.
+          glyphBtn(
+            "⧉",
+            t("openInNewTab"),
+            (e: Event) => {
+              e.stopPropagation();
+              void openInNewTab(entry.id);
+            },
+            "menu-newtab",
+          ),
           glyphBtn(
             "⌄",
             t("closeDoc"),
@@ -5709,6 +5785,15 @@ function docsMenuItems(): (Node | string)[] {
               [entry.fileName, new Date(entry.updated).toLocaleString()].filter(Boolean).join(" · "),
             ]),
           ],
+        ),
+        glyphBtn(
+          "⧉",
+          t("openInNewTab"),
+          (e: Event) => {
+            e.stopPropagation();
+            void openInNewTab(entry.id);
+          },
+          "menu-newtab",
         ),
         el("button", {
           class: "menu-del",
@@ -6996,6 +7081,15 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("spellcheckLabel", "spellcheck"),
     checkRow("spellcheckCommentsLabel", "spellcheckComments"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
+    // The strip's own visibility, beside the rest of "what is on screen". It
+    // defaults to `always` now: it used to appear only at two arrangements, and
+    // the `+` that makes the second one lives *in* it, so the only visible door
+    // to the feature opened once you had already used it.
+    selectRow("tabStripLabel", "tabStrip", [
+      ["always", t("tabStrip.always")],
+      ["auto", t("tabStrip.auto")],
+      ["never", t("tabStrip.never")],
+    ]),
     checkRow("syncScrollLabel", "syncScroll"),
     selectRow("syncMatchLabel", "syncMatch", [
       ["top", t("syncMatch.top")],

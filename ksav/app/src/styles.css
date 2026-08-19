@@ -218,6 +218,17 @@ header {
 }
 .menu-close:hover { color: var(--fg); background: var(--accent-soft); }
 
+/* Open this document in an arrangement of its own. A third control on a row
+   that already had two, and it had to keep clear of both: `⌄` puts a document
+   away, `×` deletes it, and this one opens a second window onto it and destroys
+   nothing at all. It reads like `.menu-close` — same weight, same non-red hover
+   — because they are the two on the row that take nothing away. */
+.menu-newtab {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 14px; padding: 4px 8px; border-radius: 6px;
+}
+.menu-newtab:hover { color: var(--fg); background: var(--accent-soft); }
+
 /* ---- the pane tree ----
    <main> is a tree of splits now, not a fixed preview/splitter/source triple.
    Every split is a flex row or column with two children and a divider between

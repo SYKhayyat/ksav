@@ -256,6 +256,25 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Not `Mod-Alt-]`, which is `unfoldAll` — caught by the fence that refuses two
   // actions on one combination, which is the whole reason that fence exists.
   nextTab: "Mod-Alt-PageDown",
+  // And back. `nextTab` alone was defensible while it was round — with two or
+  // three arrangements "next" reaches all of them — but round motion is only an
+  // answer for somebody who knows how many tabs there are, and the report that
+  // put this whole group under review was *"or to move from tab to tab"*. A
+  // strip you can only walk in one direction is a strip you have to count.
+  prevTab: "Mod-Alt-PageUp",
+  // Put the arrangement away. Not `Mod-Alt-w`, which closes a *document*: these
+  // are the two things in this application a writer might mean by "close", they
+  // destroy very different amounts, and they must not be one key apart by
+  // accident. Shift says "the bigger thing", which here is the whole window
+  // layout rather than the text in it — and it destroys nothing, because every
+  // document the arrangement showed stays open.
+  closeTab: "Mod-Alt-Shift-w",
+  // A blank document *and* an arrangement to put it in. Asked for in those
+  // words — *"both an empty new tab and to open a doc in a new tab"* — and it is
+  // genuinely a third thing: `newDoc` makes a document in the arrangement you
+  // are standing in, `newTab` makes an arrangement showing the document you are
+  // already reading, and neither of them is "somewhere clean to start".
+  newDocTab: "Mod-Alt-Shift-t",
   // Move this pane to where the one beside it is, and that one to here. The
   // tiling-manager gesture, asked for in those words: *"there should be a
   // command to move any window to swap it with another window (like in

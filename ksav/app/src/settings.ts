@@ -199,6 +199,21 @@ export interface Settings {
    * is the only unchecked text in the sefer.
    */
   spellcheckComments?: boolean;
+  /**
+   * When the tab strip is on screen: always, only with more than one
+   * arrangement, or never.
+   *
+   * `always` by default, and that is a reversal. The strip used to appear only
+   * at two tabs, on the argument that a row of chrome showing a single tab tells
+   * a writer nothing — which is true, and which hid the `+` that makes the
+   * second arrangement, so the feature's only visible door opened once you had
+   * already used it. The report was *"I don't see how to make a new tab"*.
+   *
+   * `auto` is that old behaviour, kept for the writer who has learned the
+   * feature and wants the row back; `never` for the one who works a single
+   * arrangement and would rather have the keys. See `tabs.stripVisible`.
+   */
+  tabStrip?: "always" | "auto" | "never";
   syncScroll?: boolean;
   /**
    * Where the two panes line up: the top, middle or bottom of the viewport. The
@@ -352,6 +367,7 @@ export const DEFAULTS: Settings = {
   proseStrip: false,
   spellcheck: true,
   spellcheckComments: false,
+  tabStrip: "always",
   syncScroll: true,
   syncMatch: "middle",
   previewDelay: "live",

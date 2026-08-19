@@ -34,6 +34,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use girsa_post::desk::{Desk, Reply};
+use girsa_post::routes;
 use girsa_post::{App, Endpoint};
 use girsa_source::SourcePacket;
 use serde::{Deserialize, Serialize};
@@ -260,11 +261,12 @@ pub fn open_desk(version: &str) -> Result<Desk, std::io::Error> {
         "/insert" => take(body),
         // `/take-document`, and the name it had while `/document` also meant
         // *a document is saved here* in the other direction — one string, two
-        // unrelated errands. `girsa_post::routes::ksav` states both; they are
-        // literals here only because this repository's pin predates that
-        // module. Accepting the old name is what lets the two applications
-        // release on different days: see the note on [`document`].
-        "/take-document" | "/document" => take_document(body),
+        // unrelated errands. Accepting the old name is what lets the two
+        // applications release on different days: see the note on [`document`],
+        // and `girsa_post::routes` for the pair and the order they come out in.
+        p if p == routes::ksav::TAKE_DOCUMENT || p == routes::ksav::LEGACY_DOCUMENT => {
+            take_document(body)
+        }
         other => Reply::refused(404, format!("no such errand: {other}")),
     });
     Ok(desk)
@@ -643,14 +645,7 @@ pub fn document(path: &str, name: Option<&str>, forget: bool) -> Result<(), Stri
     send_or_legacy(DOCUMENT_SAVED, LEGACY_DOCUMENT, &errand)
 }
 
-/// What Girsa serves for *a document is saved here*, and what it used to serve.
-///
-/// Both are stated in `girsa_post::routes::girsa`, which is the copy that
-/// matters — it is the one both applications compile. They are written out here
-/// rather than imported because this repository's `girsa-post` pin predates
-/// that module; the import replaces these two lines at the next bump.
-const DOCUMENT_SAVED: &str = "/document-saved";
-const LEGACY_DOCUMENT: &str = "/document";
+use routes::girsa::{DOCUMENT_SAVED, LEGACY_DOCUMENT};
 
 /// One errand, addressed to the name Girsa answers to.
 ///

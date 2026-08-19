@@ -40,7 +40,7 @@ base64 = "0.22"
 # referenced it, so the correct definition of a word boundary shipped inside
 # Ksav for months while `spell/hebrew.rs` used a wrong one it had written out
 # by hand.
-girsa-hebrew = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
+girsa-hebrew = { version = "=0.5.6", git = "https://github.com/SYKhayyat/sefer-crates", rev = "826ec5ad9dc81299124f21d893c781af3a82b417" }
 
 include_dir = { version = "0.7", optional = true }
 # Typst's own editor-support crate, for `src/jump.rs`. It is what turns a click
@@ -100,16 +100,16 @@ clipboard-rs = { version = "0.3.5", default-features = false }
 # offline browser build compiled the packet schema and the citation writer for
 # an application that is not there — `src/source.rs`, their only consumer here,
 # is reached exclusively through `post.rs` and is gated with them.
-girsa-source = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
-girsa-ksav = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
-girsa-post = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
+girsa-source = { version = "=0.5.6", git = "https://github.com/SYKhayyat/sefer-crates", rev = "826ec5ad9dc81299124f21d893c781af3a82b417" }
+girsa-ksav = { version = "=0.5.6", git = "https://github.com/SYKhayyat/sefer-crates", rev = "826ec5ad9dc81299124f21d893c781af3a82b417" }
+girsa-post = { version = "=0.5.6", git = "https://github.com/SYKhayyat/sefer-crates", rev = "826ec5ad9dc81299124f21d893c781af3a82b417" }
 # Named, at last, and for the reason its `redirect` module was written: refs
 # travel between the two applications and get stored in Ksav documents, so when
 # upstream re-segments a text the pen is the one holding the old name. It was
 # already in the binary through `girsa-source`, and `RedirectTable` — the type
 # that carries *this ref is over there now* — had no consumer in either
 # application. See `post::refresh` and `girsa_ksav::retargeted`.
-girsa-ref = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
+girsa-ref = { version = "=0.5.6", git = "https://github.com/SYKhayyat/sefer-crates", rev = "826ec5ad9dc81299124f21d893c781af3a82b417" }
 
 [features]
 # Embed the built SPA (ksav/app/dist) into the binary. Build the app first

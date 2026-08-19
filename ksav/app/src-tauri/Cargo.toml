@@ -34,7 +34,7 @@ ksav-engine = { path = "../../engine" }
 # is why the rev below has to be the one `engine/Cargo.toml` names, and why
 # `engine/tests/manifests.rs` fails when it is not. See that file for why this
 # is a git dependency pinned by SHA rather than the sibling path it was.
-girsa-post = { version = "=0.5.3", git = "https://github.com/SYKhayyat/sefer-crates", rev = "d869ccc5251e6168f7e42dbc1db094a5cd631047" }
+girsa-post = { version = "=0.5.6", git = "https://github.com/SYKhayyat/sefer-crates", rev = "826ec5ad9dc81299124f21d893c781af3a82b417" }
 tauri-plugin-deep-link = "2.4.9"
 
 # The other half of the deep link, and the half a writer meets.

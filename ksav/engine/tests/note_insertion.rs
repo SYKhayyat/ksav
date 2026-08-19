@@ -91,7 +91,11 @@ fn every_note_insertion_compiles_where_it_is_offered() {
     // failed. Named rather than counted: if the context table in the emitter
     // loses one of these three, every assertion below still passes and the fence
     // is gone.
-    for ctx in ["list-after-open", "list-between-items", "table-between-cells"] {
+    for ctx in [
+        "list-after-open",
+        "list-between-items",
+        "table-between-cells",
+    ] {
         assert!(
             all.iter().any(|c| c.ctx == ctx),
             "the grid must carry the {ctx} position — it is where all 288 failures were"

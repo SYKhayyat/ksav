@@ -2803,8 +2803,39 @@
 // right, semantic answer and the browser renders (or synthesises) the italic
 // itself, so the skew — which would replace the `<em>` with a transformed span —
 // is confined to the paged target.
+// # The skew must go around each **word**, not around the passage
+//
+// `skew` is a layout function: it lays its content out and shears the frame, and
+// a sheared frame is a block. So `skew(emph(body))` in the middle of a sentence
+// broke the sentence into three paragraphs — the words before, the emphasised
+// words, and the words after — each on its own baseline. Measured, because this
+// compiles perfectly and looks like a spacing quirk in a screenshot:
+//
+//     bold        אאא y=78.79   בבב y=78.79    גגג y=78.79
+//     italic      אאא y=78.79   בבב y=101.11   גגג y=123.43
+//
+// The writer's words were *"the italic seems to make for itself a new paragraph
+// — before and after"*, which is exactly what those numbers say.
+//
+// A `box` makes block content inline, and that alone fixes the three-baseline
+// case. It is not enough on its own: one box around the whole passage cannot be
+// broken across lines, so a long italic quotation becomes an unbreakable slab
+// that jumps to a line of its own rather than flowing. Same defect, further
+// down the page, and it would have been found by the next person to italicise a
+// sentence instead of a phrase.
+//
+// So the rule boxes each run of non-space characters. Every space between the
+// words stays an ordinary space in the enclosing paragraph, which is what a line
+// break needs to be able to happen at — and what justification needs in order to
+// stretch. Verified at both lengths and in both scripts: every run on one
+// baseline, and a forty-word italic passage breaking at its spaces like prose.
 #let נטוי(body) = context {
-  if target() == "html" { emph(body) } else { skew(ax: -12deg, reflow: true, emph(body)) }
+  if target() == "html" {
+    emph(body)
+  } else {
+    show regex("\S+"): it => box(skew(ax: -12deg, reflow: true, it))
+    emph(body)
+  }
 }
 #let קו_תחתון(body) = underline(body)
 #let קו_חוצה(body) = strike(body)

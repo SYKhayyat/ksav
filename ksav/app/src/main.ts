@@ -188,7 +188,7 @@ import {
   rememberPages,
   type LineWindow,
 } from "./preview";
-import { drawMark, isPlainClick, pageUnder, pointInPage } from "./jump";
+import { drawMark, isPlainClick, pageUnder, pixelInPage, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { changeGutter, changeHighlight, changes, nameMarks, setBaseline } from "./changes";
 import { focusCompartment, focusExtension, paragraphAt } from "./focus";
@@ -202,7 +202,7 @@ import * as update from "./update";
 import * as watch from "./watch";
 import { overviewRuler } from "./ruler";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
-import { lineInDocument, onGoToLine, onGoToPart, onMarkLines } from "./diagview";
+import { forgetDismissed, lineInDocument, onGoToLine, onGoToPart, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import * as zoom from "./zoom";
@@ -438,6 +438,10 @@ async function openDoc(id: string) {
   spellDirtyFrom = Infinity;
   spellDirtyTo = -1;
   spellFullPending = true;
+  // Same rule, for the same reason, one line further out: a warning the writer
+  // waved away is a fact they accepted about *that* sefer — its fonts, its
+  // apparatus — and carrying it here would hide a true thing about this one.
+  forgetDismissed();
   if (!opendocs.isOpen(id)) {
     opendocs.put({ id, state: makeState(next.body, !!settings.prose), scrollTop: 0, prose: !!settings.prose });
   }
@@ -4264,9 +4268,42 @@ async function revealCursor(opts: { quiet?: boolean } = {}): Promise<boolean> {
   }
   const node = document.querySelector<HTMLElement>(`#preview .page[data-page="${at.page}"]`);
   if (!node) return true;
-  // Land the printed spot at the same point the panes line up on elsewhere.
-  const block = settings.syncMatch === "top" ? "start" : settings.syncMatch === "bottom" ? "end" : "center";
-  node.scrollIntoView({ block, behavior: "smooth" });
+  // Land **the spot**, not the page it is on.
+  //
+  // This was `node.scrollIntoView({ block })`, where `node` is the whole `.page`
+  // element — so having asked the compiler which glyph the caret printed as, and
+  // having got back a point in Typst points, it centred a sheet of A4 and threw
+  // the point away. On a full page the answer is wrong by up to a page height,
+  // and it is wrong in a way that looks like it works: the right page arrives,
+  // the mark is drawn on the right word, and the word is off-screen or halfway
+  // up the pane depending on where it happened to sit on the sheet.
+  //
+  // `pixelInPage` is the inverse of the arithmetic that produced `at` in the
+  // first place (`jump.ts`), and it goes through the drawn element's own
+  // bounding box — which carries the zoom, the fit-to-width setting and the
+  // device pixel ratio, so dividing by it cancels all three. The same reason
+  // `drawMark` positions in percentages.
+  const host = node.closest<HTMLElement>(".preview-host");
+  if (host) {
+    const spot = pixelInPage(at, node.getBoundingClientRect(), box);
+    // Where in the *viewport* the writer wants it: the same top/middle/bottom
+    // the panes line up on everywhere else, so a writer who set the match point
+    // to the middle gets the middle here too rather than a second opinion.
+    const mp = matchFraction();
+    // The page's offset inside the scroller, plus the point's offset inside the
+    // page, minus where in the viewport it should sit.
+    const pageTop = node.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
+    host.scrollTo({
+      top: clampScroll(pageTop + spot.y - mp * host.clientHeight, host),
+      behavior: "smooth",
+    });
+  } else {
+    // No scroller found — an arrangement this code does not know about. The page
+    // is still the right page, so the old behaviour is the right fallback rather
+    // than doing nothing.
+    const block = settings.syncMatch === "top" ? "start" : settings.syncMatch === "bottom" ? "end" : "center";
+    node.scrollIntoView({ block, behavior: "smooth" });
+  }
   drawMark(node, at, box);
   if (!quiet)
     setStatus(

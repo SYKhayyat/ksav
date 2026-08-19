@@ -179,3 +179,124 @@ fn the_bare_highlight_is_the_colour_the_toolbar_starts_on() {
         "update DEFAULT_HIGHLIGHT in app/src/styles.ts to match",
     );
 }
+
+// ------------------------------------------------------------------ inline styles
+//
+// The class: **an inline style that is not inline.**
+//
+// `#נטוי` was `skew(ax: -12deg, reflow: true, emph(body))`, and `skew` is a
+// layout function — it lays its content out and shears the frame, and a sheared
+// frame is a block. So emphasising two words in the middle of a sentence split
+// that sentence into three paragraphs, one per baseline. The writer said *"the
+// italic seems to make for itself a new paragraph — before and after"*, which
+// is precisely what it did.
+//
+// Every one of these documents compiled cleanly, both before the fix and after,
+// which is the whole argument for asserting against the laid-out page. `ok()`
+// could not tell the two apart and neither can a screenshot at a glance: it
+// reads as a spacing quirk until you measure the baselines.
+//
+// The sweep is the point. One inline command defined block-level is never one,
+// so this asks the same question of every inline style the product offers
+// rather than of the one that was reported.
+
+/// Every inline style keeps its words on the line they were written on.
+#[test]
+fn an_inline_style_does_not_break_the_paragraph() {
+    // Both scripts, because a Hebrew-only fence is how this repository's best
+    // grid once asked all its questions in one language.
+    let commands = [
+        ("hebrew", vec!["הדגשה", "נטוי", "קו_תחתון", "קו_חוצה"]),
+        ("english", vec!["bold", "italic", "underline", "strike"]),
+    ];
+    let mut broken = Vec::new();
+    // How many commands were actually measured.
+    //
+    // The loop below has a `continue` in it, and a `continue` with no floor
+    // under it is how a test comes to pass having checked nothing: break the
+    // prelude so that no command prints at all, and every case takes the escape
+    // while `broken` fills with a different complaint. `skips.test.mjs` sweeps
+    // for exactly this and caught this test the hour it was written.
+    let mut checked = 0;
+    for (script, names) in commands {
+        let (a, b, c) = if script == "hebrew" {
+            ("אאא", "בבב", "גגג")
+        } else {
+            ("aaa", "bbb", "ccc")
+        };
+        for name in names {
+            let body = format!("{a} #{name}[{b}] {c}");
+            let runs = render(&body);
+            // Every run carrying one of the three words, by the y it landed on.
+            let ys: Vec<i64> = runs
+                .iter()
+                .filter(|r| r.text.contains(a) || r.text.contains(b) || r.text.contains(c))
+                .map(|r| (r.y * 100.0).round() as i64)
+                .collect();
+            let first = match ys.first() {
+                Some(y) => *y,
+                None => {
+                    broken.push(format!("#{name}: nothing printed"));
+                    continue;
+                }
+            };
+            checked += 1;
+            if ys.iter().any(|y| *y != first) {
+                broken.push(format!("#{name}: {} baselines, {ys:?}", {
+                    let mut u = ys.clone();
+                    u.sort_unstable();
+                    u.dedup();
+                    u.len()
+                }));
+            }
+        }
+    }
+    assert_eq!(
+        checked, 8,
+        "only {checked} of the eight inline styles printed anything to measure"
+    );
+    assert!(
+        broken.is_empty(),
+        "inline styles that broke their paragraph:\n  {}",
+        broken.join("\n  ")
+    );
+}
+
+/// A long emphasised passage still breaks across lines like prose.
+///
+/// The second half of the same bug, and the reason the fix boxes each *word*
+/// rather than the passage. One `box` around the whole thing makes it inline and
+/// makes it unbreakable — so a sentence of italic becomes a slab that cannot fit
+/// after the words before it and jumps to a line of its own, which is the
+/// original complaint again with a longer input.
+#[test]
+fn a_long_italic_passage_flows_rather_than_becoming_a_slab() {
+    let long = "מלה ".repeat(40);
+    let runs = render(&format!("פתיחה #נטוי[{long}] סיום"));
+    let opening = runs
+        .iter()
+        .find(|r| r.text.contains("פתיחה"))
+        .expect("the opening word printed");
+    // The emphasised words start on the same line the sentence started on. If
+    // the passage were one unbreakable box it would begin a line below.
+    let first_emphasised = runs
+        .iter()
+        .find(|r| r.text.trim() == "מלה")
+        .expect("the emphasised words printed");
+    assert_eq!(
+        (opening.y * 100.0).round() as i64,
+        (first_emphasised.y * 100.0).round() as i64,
+        "the italic passage began on its own line instead of continuing the sentence"
+    );
+    // And it really did wrap — a forty-word passage that fits on one line would
+    // make the assertion above true for the wrong reason.
+    let lines: std::collections::BTreeSet<i64> = runs
+        .iter()
+        .filter(|r| r.text.contains("מלה"))
+        .map(|r| (r.y * 100.0).round() as i64)
+        .collect();
+    assert!(
+        lines.len() > 1,
+        "the passage fitted on one line, so this proves nothing about breaking"
+    );
+}

@@ -128,20 +128,94 @@ export function onMarkLines(fn: (lines: number[]) => void) {
 }
 
 /**
- * The diagnostics the writer has waved away, by signature.
+ * The diagnostics the writer has waved away — each one, by what it says.
  *
- * A compile fires on a 250ms debounce after every keystroke, so a message about
+ * A compile fires on a 250 ms debounce after every keystroke, so a message about
  * something the writer is not currently editing — a font with no italic, say —
- * redraws itself over and over and there is no way to make it stop. Dismissing
- * records *which* diagnostics were dismissed; the banner stays quiet while that
- * exact set persists, and speaks again the moment the set changes, so a genuinely
- * new error is never swallowed.
+ * redraws itself over and over and there has to be a way to make it stop.
+ *
+ * This was one signature over the whole *set*, and it did not work, in two
+ * separate ways that the report *"I have to re-dismiss the italics warning on
+ * each new compile"* only shows the first of:
+ *
+ *   - the signature contained each diagnostic's **line number**, so typing
+ *     anything above the warning renumbered it and dropped the dismissal — see
+ *     `keyOf`;
+ *   - and it was one key for the whole list, so fixing an unrelated error
+ *     changed the set and brought every waved-away warning back with it.
+ *
+ * Both are the same mistake: the dismissal was attached to something other than
+ * the thing being dismissed. A `Set` of individual keys is what "I have seen
+ * this one" actually means, and it keeps the property the old design was after —
+ * a genuinely new message has a key nobody has dismissed, so it is never
+ * swallowed.
  */
-let dismissed: string | null = null;
+const dismissed = new Set<string>();
 
-/** What identifies a diagnostic set, so a changed one un-dismisses itself. */
-function signature(list: Shown[]): string {
-  return list.map((s) => `${s.line ?? "?"}:${s.said}`).join(" ");
+/**
+ * What identifies **one** diagnostic, for as long as the writer keeps typing.
+ *
+ * The file and the message, and deliberately **not the line**.
+ *
+ * # Why the line had to go
+ *
+ * The report was *"I have to re-dismiss the italics warning on each new
+ * compile"*, and the reason is that this key used to be `line:said` over the
+ * whole set. A compile fires 250 ms after a keystroke; a keystroke on any line
+ * above the `#נטוי` renumbers it; the key changes; the dismissal is gone. So the
+ * one act that redraws the banner — typing — was also the act that un-dismissed
+ * it, and the feature could only work for a writer who had stopped writing.
+ *
+ * A warning that a font has no italic face is not *about* a line. It is about
+ * the document's typography, and it is the same warning wherever the words move
+ * to. Keying on what a diagnostic *says* rather than where it currently sits is
+ * what makes "I have seen this" mean anything across an edit.
+ *
+ * # What that costs, stated rather than discovered
+ *
+ * Two occurrences of one message at two places share a key, so dismissing
+ * either dismisses both. For the warnings this is aimed at — a missing face, a
+ * font substitution, a capability the family does not have — that is not a cost
+ * but the point: it is one fact about the document, reported once per site.
+ *
+ * It would be a real cost for errors, where two unclosed brackets are two
+ * separate things to go and fix. Which is why errors are not dismissible at
+ * all; see `canDismiss`.
+ */
+function keyOf(s: Shown): string {
+  return `${s.d.file ?? ""} ${s.said}`;
+}
+
+/**
+ * Whether the writer may wave this one away.
+ *
+ * Warnings, and only warnings. An error means the document did not compile —
+ * there is no page, and a banner offering to stop mentioning that would be the
+ * product agreeing to lie about whether the writer's sefer exists. The old
+ * dismissal made no distinction and could silence a failed compile, which
+ * nobody had noticed because it also silenced itself on the next keystroke.
+ */
+function canDismiss(s: Shown): boolean {
+  return s.d.severity !== "error";
+}
+
+/**
+ * Forget every dismissal — called when the writer opens another document.
+ *
+ * The keys carry no document in them, and giving them one would be the wrong
+ * repair: these messages come from the *engine*, about a compile, and the
+ * engine's `file` is a part of the sefer rather than a library id. Clearing on
+ * open says the same thing more simply, and says it in the place that knows a
+ * document changed.
+ *
+ * It matters because the warnings this silences are claims about a document's
+ * own typography. "This family has no italic face" is true of the sefer being
+ * set, not of Ksav, and carrying a dismissal from one document into the next
+ * would hide a real fact about the second one on the strength of the writer
+ * having accepted it about the first.
+ */
+export function forgetDismissed(): void {
+  dismissed.clear();
 }
 
 /**
@@ -153,16 +227,20 @@ function signature(list: Shown[]): string {
  */
 export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
   into.replaceChildren();
-  const sig = signature(list);
-  if (list.length && sig === dismissed) {
-    // Same set the writer already dismissed — keep the bar and the line tints
-    // quiet until something actually changes.
-    markLines([]);
-    return;
-  }
-  dismissed = null;
-  markLines(markedLines(list));
-  if (list.length) {
+  // Per diagnostic, not per set. Dismissal used to be one signature over the
+  // whole list, so fixing an unrelated error changed the set and brought every
+  // waved-away warning back with it — which is the same defect as the line
+  // numbers, one level up: the dismissal was attached to something other than
+  // the thing dismissed.
+  //
+  // An error is never suppressed whatever is in the set; see `canDismiss`.
+  const shown = list.filter((s) => !(canDismiss(s) && dismissed.has(keyOf(s))));
+  // The tints follow what is actually being said. A warning nobody is being
+  // shown must not leave its line coloured, or the banner is quiet and the
+  // document still looks wrong with no way to ask why.
+  markLines(markedLines(shown));
+  if (!shown.length) return;
+  if (shown.some(canDismiss)) {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "diag-dismiss";
@@ -170,13 +248,15 @@ export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
     close.setAttribute("aria-label", "dismiss");
     close.title = "dismiss";
     close.addEventListener("click", () => {
-      dismissed = sig;
-      into.replaceChildren();
-      markLines([]);
+      // Only what it is entitled to silence. With an error and a warning both
+      // up, the × takes the warning and leaves the error standing, rather than
+      // clearing the bar and hiding a document that does not compile.
+      for (const s of shown) if (canDismiss(s)) dismissed.add(keyOf(s));
+      drawDiagnostics(into, list);
     });
     into.append(close);
   }
-  for (const s of list) {
+  for (const s of shown) {
     if (s.line == null) {
       const span = document.createElement("span");
       span.className = "diag";

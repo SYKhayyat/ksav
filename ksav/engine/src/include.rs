@@ -136,9 +136,11 @@ pub fn expand(main: &str, parts: &HashMap<String, String>) -> Expanded {
     let mut out = Expanded::default();
     let mut stack: Vec<String> = Vec::new();
     expand_into(main, None, parts, &mut stack, 0, &mut out);
-    // `lines()` drops a trailing newline, so the two can disagree by one line if
-    // the body ends with one. The map is what everything downstream indexes by,
-    // so it is the one that has to be right.
+    // The map is what everything downstream indexes by, so it has to agree with
+    // the text exactly. `push_line` terminates each line rather than separating
+    // them, which makes the count of `lines()` the count of pushes for every
+    // input — including one that opens or closes with blank lines, which is
+    // what used to break this.
     debug_assert_eq!(out.text.lines().count(), out.origins.len());
     out
 }
@@ -244,10 +246,19 @@ pub fn from_request(v: &serde_json::Value) -> HashMap<String, String> {
 }
 
 fn push_line(out: &mut Expanded, line: &str, origin: Origin) {
-    if !out.text.is_empty() {
-        out.text.push('\n');
-    }
+    // Terminate every line rather than separate them. Separating looked
+    // equivalent and was not: the guard for "is there a line before me" was
+    // `text.is_empty()`, which is still true after pushing a *blank* line — so a
+    // body opening with two empty lines wrote no newline for either, and the
+    // assembled text came out two lines shorter than the map that indexes it.
+    // Every diagnostic below that point then named the wrong line, silently,
+    // because `debug_assert_eq!` is compiled out of the shipped binary.
+    //
+    // Terminating also keeps a trailing blank line: `lines()` yields nothing for
+    // the empty text after a final newline, so a body *ending* in an empty line
+    // was the same disagreement from the other end.
     out.text.push_str(line);
+    out.text.push('\n');
     out.origins.push(origin);
 }
 
@@ -281,7 +292,7 @@ mod tests {
             "פתיחה\n#כלול(\"ב\")\nסיום",
             &parts(&[("ב", "שורה ראשונה\nשורה שניה")]),
         );
-        assert_eq!(out.text, "פתיחה\nשורה ראשונה\nשורה שניה\nסיום");
+        assert_eq!(out.text, "פתיחה\nשורה ראשונה\nשורה שניה\nסיום\n");
         assert!(out.problems.is_empty());
     }
 
@@ -329,7 +340,7 @@ mod tests {
             "#כלול(\"א\")",
             &parts(&[("א", "ראש\n#כלול(\"ב\")"), ("ב", "עלה")]),
         );
-        assert_eq!(out.text, "ראש\nעלה");
+        assert_eq!(out.text, "ראש\nעלה\n");
         assert_eq!(
             out.origin_of(2),
             Some(&Origin {
@@ -363,7 +374,7 @@ mod tests {
         // boilerplate at the top of two chapters is completely ordinary, and an
         // over-eager check would refuse it.
         let out = expand("#כלול(\"ב\")\n#כלול(\"ב\")", &parts(&[("ב", "שלום")]));
-        assert_eq!(out.text, "שלום\nשלום");
+        assert_eq!(out.text, "שלום\nשלום\n");
         assert!(out.problems.is_empty());
     }
 
@@ -394,11 +405,60 @@ mod tests {
         assert!(out.text.lines().count() < 30);
     }
 
+    /// The map has one entry per line of the text, for every shape of body.
+    ///
+    /// This is the invariant `expand` asserts, and it was false. A body opening
+    /// with blank lines lost one line of text per blank — the separator guard
+    /// could not tell "nothing pushed yet" from "a blank line pushed" — so the
+    /// assembled document was shorter than its own map and every diagnostic
+    /// below the gap named a line the writer had not typed on. In a release
+    /// build the assertion is gone and the misnumbering is all that is left, so
+    /// the check belongs in a test that runs, not only in a `debug_assert`.
+    #[test]
+    fn the_line_map_counts_the_lines_for_any_shape_of_body() {
+        let p = parts(&[("ב", "\n\nגוף\n\n")]);
+        for body in [
+            "",
+            "\n",
+            "\n\nפתיחה",
+            "פתיחה\n\n",
+            "\n\n\nפתיחה\n\n\nסיום\n\n\n",
+            "\n\n#כלול(\"ב\")\n\n",
+            "פתיחה\n#כלול(\"ב\")\nסיום",
+            "#כלול(\"אין כזה\")\n\n",
+        ] {
+            let out = expand(body, &p);
+            assert_eq!(
+                out.text.lines().count(),
+                out.origins.len(),
+                "text and map disagree for {body:?}: {:?}",
+                out.text
+            );
+            // And the map is not merely the right length — line N of the text
+            // is the line the map says it is. A count that matched while the
+            // contents slid would be the same bug wearing a green test.
+            for (i, line) in out.text.lines().enumerate() {
+                let o = out.origin_of(i + 1).expect("every line has an origin");
+                let source = match o.file.as_deref() {
+                    Some(name) => p[name].as_str(),
+                    None => body,
+                };
+                if let Some(want) = source.lines().nth(o.line - 1) {
+                    if directive(want).is_none() {
+                        assert_eq!(line, want, "line {} of {body:?}", i + 1);
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn a_body_with_no_includes_is_unchanged() {
         let body = "שלום\n\nעולם";
         let out = expand(body, &HashMap::new());
-        assert_eq!(out.text, body);
+        // Line for line unchanged, plus the terminator on the last one — see
+        // `push_line`. Typst does not care, and the line map does.
+        assert_eq!(out.text, format!("{body}\n"));
         assert!(out.problems.is_empty());
         assert_eq!(out.origins.len(), 3);
     }

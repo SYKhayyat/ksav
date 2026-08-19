@@ -494,6 +494,34 @@ check(
     "…and the drawer keeps no top padding for the text to show through",
     /padding:\s*\d+(px|em|rem)/.test(drawer?.[1] ?? ""),
   );
+
+  // ------------------------------------------- 11. a shadow with nothing casting it
+  //
+  // A drawer is hidden by `transform: translateX(±100%)`, which moves the box
+  // out of the window and does *nothing* to its box-shadow — that still paints,
+  // from wherever the box now is. Both drawer shadows are offset and blurred
+  // toward the middle of the window, so a closed drawer laid twenty to forty
+  // pixels of grey gradient down the window edge, full height, in every
+  // document and in both text directions. It looked like banding on the window
+  // frame, which is why it went unreported for so long: nobody looks at a
+  // shadow and thinks *stylesheet*.
+  //
+  // The rule is therefore not "these two selectors say what they say" but the
+  // shape that made it wrong: a rule that parks a box off-screen with a
+  // transform may not also paint a shadow. Written this way it also covers the
+  // next thing that gets parked.
+  const parked = [...CSS.matchAll(/([^{}]+)\{([^}]*translateX?\([^)]*100%\)[^}]*)\}/g)]
+    .filter(([, sel]) => !/\.open\b/.test(sel))
+    .filter(([, , body]) => /box-shadow\s*:(?!\s*none)/.test(body))
+    .map(([, sel]) => sel.trim());
+  check("nothing parked off-screen paints a shadow into the window", parked, []);
+  // And the shadow is not simply gone: an open drawer still has to lift off the
+  // page it covers, or this "fix" is a deletion wearing a green test.
+  ok(
+    "…while an open drawer still casts one",
+    /\.drawer\.open\s*\{[^}]*box-shadow\s*:\s*-?\d/.test(CSS) &&
+      /\.drawer-start\.open\s*\{[^}]*box-shadow\s*:\s*-?\d/.test(CSS),
+  );
 }
 
 }

@@ -702,7 +702,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 6,594 editor assertions, 778 engine
+      all nine jobs: the typechecker and 6,596 editor assertions, 779 engine
       tests, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -781,8 +781,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 6,594 assertions across 96 files |
-| `engine` | both | formatting, lints, then 778 tests across 44 binaries |
+| `editor` | both | the typechecker, then 6,596 assertions across 96 files |
+| `engine` | both | formatting, lints, then 779 tests across 44 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 

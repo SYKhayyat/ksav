@@ -501,7 +501,6 @@ body.dragging-pane * { cursor: grabbing !important; }
 .drawer {
   position: fixed; top: 0; inset-inline-end: 0; height: 100vh; width: 300px; z-index: var(--z-drawer);
   background: var(--panel); border-inline-start: 1px solid var(--line);
-  box-shadow: -8px 0 30px rgba(0,0,0,.15);
   /* No padding at the top: the sticky head supplies its own, and a sticky
      element cannot rise above its container's content box — with padding here
      the head parked 16px down and the text scrolled through the gap. */
@@ -513,11 +512,22 @@ body.dragging-pane * { cursor: grabbing !important; }
 [dir="rtl"] .drawer { transform: translateX(-100%); }
 .drawer.open, [dir="rtl"] .drawer.open { transform: translateX(0); }
 
+/* The shadow belongs to an open drawer, not to a parked one.
+   `transform` moves the box off-screen; it does not stop the box-shadow being
+   painted, and both of these shadows are offset and blurred *inward* — away
+   from the edge the drawer is anchored to. So a closed drawer parked past the
+   window's end still laid 20-40px of grey gradient down the window edge, full
+   height, in every document and both text directions. It read as banding on
+   the frame because that is exactly what it was: a shadow with nothing casting
+   it. Painting it only for `.open` costs nothing, since a drawer with no shadow
+   is also a drawer nobody can see. */
+.drawer.open { box-shadow: -8px 0 30px rgba(0,0,0,.15); }
+.drawer-start.open { box-shadow: 8px 0 30px rgba(0,0,0,.15); }
+
 /* start-side drawer (outline) mirrors the end-side one */
 .drawer-start {
   inset-inline-end: auto; inset-inline-start: 0;
   border-inline-start: none; border-inline-end: 1px solid var(--line);
-  box-shadow: 8px 0 30px rgba(0,0,0,.15);
   transform: translateX(-100%);
 }
 [dir="rtl"] .drawer-start { transform: translateX(100%); }

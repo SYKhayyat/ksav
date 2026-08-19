@@ -1257,7 +1257,7 @@
     {
       "he": "עם_הערות_צד",
       "en": "sidenotes",
-      "category": "torah",
+      "category": "footnote",
       "desc_he": "קטע עם הערות בטור צדדי",
       "desc_en": "Section with side-column notes",
       "insert": "#עם_הערות_צד[|]",
@@ -1266,7 +1266,7 @@
     {
       "he": "הערת_גיליון",
       "en": "sidenote",
-      "category": "torah",
+      "category": "footnote",
       "desc_he": "הערה בטור הצד (בתוך עם_הערות_צד)",
       "desc_en": "Side note (inside side-column section)",
       "insert": "#הערת_גיליון[|]",
@@ -1275,7 +1275,7 @@
     {
       "he": "עם_הערות_דו_צד",
       "en": "twosided",
-      "category": "torah",
+      "category": "footnote",
       "desc_he": "קטע עם הערות משני הצדדים",
       "desc_en": "Section with notes on both sides",
       "insert": "#עם_הערות_דו_צד[|]",
@@ -1284,7 +1284,7 @@
     {
       "he": "הערת_ימין",
       "en": "noteright",
-      "category": "torah",
+      "category": "footnote",
       "desc_he": "הערה בטור הימני (דו-צדדי)",
       "desc_en": "Right-side note (two-sided)",
       "insert": "#הערת_ימין[|]",
@@ -1293,7 +1293,7 @@
     {
       "he": "הערת_שמאל",
       "en": "noteleft",
-      "category": "torah",
+      "category": "footnote",
       "desc_he": "הערה בטור השמאלי (דו-צדדי)",
       "desc_en": "Left-side note (two-sided)",
       "insert": "#הערת_שמאל[|]",

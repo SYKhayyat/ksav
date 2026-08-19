@@ -258,7 +258,13 @@ pub fn open_desk(version: &str) -> Result<Desk, std::io::Error> {
     recover();
     desk.serve(|path, body| match path {
         "/insert" => take(body),
-        "/document" => take_document(body),
+        // `/take-document`, and the name it had while `/document` also meant
+        // *a document is saved here* in the other direction — one string, two
+        // unrelated errands. `girsa_post::routes::ksav` states both; they are
+        // literals here only because this repository's pin predates that
+        // module. Accepting the old name is what lets the two applications
+        // release on different days: see the note on [`document`].
+        "/take-document" | "/document" => take_document(body),
         other => Reply::refused(404, format!("no such errand: {other}")),
     });
     Ok(desk)
@@ -634,9 +640,40 @@ pub fn document(path: &str, name: Option<&str>, forget: bool) -> Result<(), Stri
         errand.insert("forget".into(), true.into());
     }
     let errand = serde_json::Value::Object(errand).to_string();
-    girsa_post::send(App::Girsa, "/document", Some(&errand))
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    send_or_legacy(DOCUMENT_SAVED, LEGACY_DOCUMENT, &errand)
+}
+
+/// What Girsa serves for *a document is saved here*, and what it used to serve.
+///
+/// Both are stated in `girsa_post::routes::girsa`, which is the copy that
+/// matters — it is the one both applications compile. They are written out here
+/// rather than imported because this repository's `girsa-post` pin predates
+/// that module; the import replaces these two lines at the next bump.
+const DOCUMENT_SAVED: &str = "/document-saved";
+const LEGACY_DOCUMENT: &str = "/document";
+
+/// One errand, addressed to the name Girsa answers to.
+///
+/// `/document` used to mean two unrelated things depending on which way it was
+/// travelling, which is why this direction is `/document-saved` now. The rename
+/// looked like it needed both applications in one commit — two repositories, so
+/// never. It does not: a path only collides *across* the seam, so each side can
+/// answer to both names and each sender can try the new one and fall back. Old
+/// Ksav with new Girsa, and new Ksav with old Girsa, both work.
+///
+/// **404 only.** A refusal for any other reason is Girsa having heard the
+/// errand and declined it, and asking again under an older name would be asking
+/// a second time for something already answered.
+fn send_or_legacy(path: &str, legacy: &str, errand: &str) -> Result<(), String> {
+    match girsa_post::send(App::Girsa, path, Some(errand)) {
+        Ok(_) => Ok(()),
+        Err(girsa_post::PostError::Refused { status: 404, .. }) => {
+            girsa_post::send(App::Girsa, legacy, Some(errand))
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        }
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// Whether the library is there, for an affordance that would otherwise fail.

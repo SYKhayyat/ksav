@@ -76,6 +76,7 @@ jobs:
   build:
     name: build the offline bundle
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -168,6 +169,7 @@ jobs:
     name: publish
     needs: build
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

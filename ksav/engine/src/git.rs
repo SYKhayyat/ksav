@@ -126,6 +126,23 @@ fn git_run(dir: &Path, args: &[&str]) -> Result<Run, String> {
         "credential.interactive=false",
         "-c",
         "advice.detachedHead=false",
+        // The fifth, and it is not cosmetic like the other four.
+        //
+        // git's `ext::` transport runs the rest of the URL as a command, and
+        // `protocol.ext.allow` defaults to `user` — which permits it for a
+        // remote the user configured. From git's point of view a remote added
+        // through `remote_add` *was* configured by the user, so
+        // `ext::sh -c 'whoami'` — no leading dash, no NUL, no newline, and
+        // therefore no objection from `plain` — was a command that ran on the
+        // next fetch, pull or push, all three of which this service offers.
+        //
+        // Here rather than only at `remote_add` because the repository may
+        // already hold such a remote from anywhere: a clone, a `.git/config`
+        // that arrived with a document, a writer who typed it. `never` costs
+        // nothing anybody wants — `ext::` is not a transport this application
+        // has any use for.
+        "-c",
+        "protocol.ext.allow=never",
     ]);
     cmd.args(args);
     cmd.env("GIT_TERMINAL_PROMPT", "0");
@@ -1006,6 +1023,68 @@ fn remotes(place: &Place) -> String {
     serde_json::json!({ "ok": true, "remotes": list }).to_string()
 }
 
+/// A remote address this application will hand to git.
+///
+/// An allow-list of schemes, plus the bare `user@host:path` form that `ssh`
+/// takes and that everybody actually types. Anything else — `ext::`, `fd::`,
+/// and whatever git grows next — is refused by name rather than by not being
+/// thought of, which is the difference between this and a blocklist.
+fn remote_url(url: &str) -> Result<(), String> {
+    const SCHEMES: &[&str] = &[
+        "https://",
+        "http://",
+        "ssh://",
+        "git://",
+        "file://",
+        "git+ssh://",
+    ];
+    if SCHEMES.iter().any(|p| url.starts_with(p)) {
+        return Ok(());
+    }
+    // A Windows absolute path. `C:/seforim/sefer.git` is a drive letter and a
+    // path, not a host and a repository — and it is an ordinary way to name a
+    // local remote, which is exactly what the git panel's own test does.
+    {
+        let mut ch = url.chars();
+        if let (Some(d), Some(':'), Some('/' | '\\')) = (ch.next(), ch.next(), ch.next()) {
+            if d.is_ascii_alphabetic() {
+                return Ok(());
+            }
+        }
+    }
+    // `user@host:path` or `host:path` — the scp-like form `ssh` takes and that
+    // everybody actually types.
+    if let Some((before, after)) = url.split_once(':') {
+        let host = before.rsplit('@').next().unwrap_or(before);
+        // A host is letters, digits, dots and hyphens, and the path after the
+        // colon does not begin with another colon. The second test is the one
+        // this function exists for: `ext::sh -c 'whoami'` splits as host `ext`
+        // and path `:sh -c 'whoami'`, and a genuine `host:path` never has `::`
+        // after the host. The first keeps the rule from reading as "any word, a
+        // colon, anything at all".
+        let host_shaped = host.len() > 1
+            && host
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+        if host_shaped
+            && !after.starts_with(':')
+            && !after.starts_with('/')
+            && !after.starts_with('\\')
+        {
+            return Ok(());
+        }
+    }
+    // No colon at all — a relative or POSIX-absolute path, a sibling clone on
+    // this disk.
+    if !url.contains(':') && !url.is_empty() {
+        return Ok(());
+    }
+    Err(refuse(
+        "כתובת מרוחקת לא נתמכת",
+        "a remote address must be an https, ssh, git or file URL, a user@host:path, or a local path",
+    ))
+}
+
 fn remote_add(place: &Place, asked: &Asked) -> String {
     let (Some(name), Some(url)) = (asked.name.as_deref(), asked.url.as_deref()) else {
         return refuse("חסר שם או כתובת", "a remote needs a name and an address");
@@ -1014,6 +1093,16 @@ fn remote_add(place: &Place, asked: &Asked) -> String {
         return e;
     }
     if let Err(e) = plain(url, "remote address") {
+        return e;
+    }
+    // `plain` is right for branches, revisions and paths and is deliberately not
+    // a character whitelist, because Hebrew paths have to survive it. A URL is a
+    // different question: it names a *transport*, and git has transports that
+    // are not transports. Belt and braces with the `protocol.ext.allow=never`
+    // above — that one holds even for a remote this function never saw, this one
+    // gives the writer a sentence instead of a fetch that fails later for a
+    // reason the git panel cannot explain.
+    if let Err(e) = remote_url(url) {
         return e;
     }
     match git_run(&place.dir, &["remote", "add", name, url]) {
@@ -1698,6 +1787,68 @@ mod tests {
                 .unwrap()
                 .contains("no git operation named nonesuch"),
             "{out}"
+        );
+    }
+
+    /// A remote address names a transport, and git has transports that are not
+    /// transports.
+    ///
+    /// `plain` refuses a leading `-`, an embedded NUL and a newline, and its doc
+    /// comment is explicit that it is *"deliberately not a character whitelist"*
+    /// because Hebrew paths must survive it. That is right for branches,
+    /// revisions and paths. It is not sufficient for a **URL**: `ext::sh -c
+    /// 'whoami'` does not begin with a dash, contains no NUL and no newline, so
+    /// `plain` passed it — and git's `ext::` transport runs the rest of the
+    /// string as a command on the next `fetch`, `pull` or `push`, all three of
+    /// which `network()` offers on this same service. `protocol.ext.allow`
+    /// defaults to `user`, which permits it for a remote the user configured,
+    /// and from git's point of view this remote *was* configured by the user.
+    ///
+    /// An allow-list, because a blocklist is a list of the transports somebody
+    /// had thought of.
+    #[test]
+    fn a_remote_address_must_be_a_transport_we_meant() {
+        for good in [
+            "https://github.com/x/y.git",
+            "http://example.invalid/y.git",
+            "ssh://git@example.invalid/y.git",
+            "git://example.invalid/y.git",
+            "file:///home/x/y.git",
+            "git@github.com:x/y.git",
+            "example.invalid:seforim/y.git",
+            "../sefer.git",
+            "/home/x/sefer.git",
+            "C:/Users/x/sefer.git",
+            "C:\\Users\\x\\sefer.git",
+        ] {
+            assert!(remote_url(good).is_ok(), "{good} is a remote somebody has");
+        }
+        for bad in [
+            "ext::sh -c 'whoami'",
+            "ext::git-upload-pack %S /repo",
+            "fd::7/tmp",
+            "",
+        ] {
+            assert!(
+                remote_url(bad).is_err(),
+                "{bad} is not an address this application hands to git"
+            );
+        }
+    }
+
+    /// And the belt to that pair of braces: `ext::` is off for every invocation,
+    /// including one against a remote this service never saw — a clone, a
+    /// `.git/config` that arrived with a document, a writer who typed it.
+    #[test]
+    fn the_ext_transport_is_refused_on_every_invocation() {
+        let repo = Repo::new("ext-transport");
+        // The standing `-c` list is what `git_run` puts on every call, so the
+        // question is whether git itself reports the setting as `never`.
+        let out = git_run(&repo.0, &["config", "--get", "protocol.ext.allow"]).expect("git runs");
+        assert_eq!(
+            out.out.trim(),
+            "never",
+            "the ext:: transport is command execution and nothing here wants it"
         );
     }
 

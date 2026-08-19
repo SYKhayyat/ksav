@@ -255,6 +255,32 @@ export const RECIPES = new Map([
   ],
 
   [
+    "note-menu",
+    {
+      how: HOW.driven,
+      why:
+        "Right-clicking a note: hang a tiered note off it, convert its layout, " +
+        "delete it. Driven rather than a chip because the gesture is a context " +
+        "menu on a note that has to exist first, so the recipe writes one. It " +
+        "earned its own row here the day it earned its own row in PANELS: it was " +
+        "swept for years as though it were the spell menu, because it wears " +
+        "`.spell-menu` for its styling and nothing said so.",
+      drive: async (p) => {
+        await p.newLine();
+        // A body of real words, and enough of them that the line's centre —
+        // which is where a click lands — is inside the note rather than beside
+        // it. Real words because the same `contextmenu` handler offers spelling
+        // first, and a squiggle under the pointer wins: an invented body would
+        // open the spell menu and this recipe would report the note menu
+        // missing.
+        await p.type("#הערה[תורה תורה תורה תורה תורה תורה]");
+        await p.rightClick(".cm-content .cm-line:last-child");
+        await p.waitFor(".note-menu", 10_000);
+      },
+    },
+  ],
+
+  [
     "context-bar",
     {
       how: HOW.driven,

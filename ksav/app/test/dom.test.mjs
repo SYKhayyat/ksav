@@ -1,5 +1,8 @@
 import { check, ok, notOk } from "./harness.mjs";
-import { el, iconBtn } from "../.tmp-test/dom.mjs";
+import { el, iconBtn, glyphBtn } from "../.tmp-test/dom.mjs";
+import { dirOf } from "../tools/paths.mjs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 // `dom.ts` is the layer every other module builds its chrome out of, and it had
 // no test file at all — which is how a *greyed control that still worked*
@@ -115,7 +118,114 @@ export async function run() {
       b.click();
       check("a class that merely contains the word is not the state", fired, 1);
     }
+  {
+    const HERE = dirOf(import.meta.url);
+    const SRC = path.join(HERE, "..", "src");
+    const offenders = [];
+    for (const name of readdirSync(SRC)) {
+      if (!name.endsWith(".ts")) continue;
+      const src = readFileSync(path.join(SRC, name), "utf8");
+      for (const { call, line } of scanButtons(src)) {
+        const label = loneLiteralChild(call);
+        // Not a bare glyph: it has no children, or its child is computed, or its
+        // child is a word. Either way its name is not this rule's problem.
+        if (label === null) continue;
+        // A word names itself. "×", "⊟", "⇅", "📄", "+" do not — measured as
+        // "contains no letter and no digit in any script", which is what makes a
+        // run of characters a symbol rather than a label.
+        if (/[\p{L}\p{N}]/u.test(label)) continue;
+        if (/"aria-label"\s*:/u.test(call)) continue;
+        offenders.push(`${name}:${line} ${label}`);
+      }
+    }
+    check("every bare-glyph button carries an aria-label", offenders, []);
+  }
+
+  // And the producer, from the other end: `glyphBtn` is what `iconBtn` is built
+  // on now, so the naming lives in one place rather than in each surface that
+  // happens to remember.
+  {
+    const b = glyphBtn("⊟", "Split down", () => {}, "pane-btn");
+    check("glyphBtn names the button", b.attrs["aria-label"], "Split down");
+    check("…and keeps the title for a pointer", b.attrs.title, "Split down");
+    check("…on the class list it was given", b.className, "pane-btn");
+    check("…and the data attributes it was given", glyphBtn("×", "n", () => {}, "c", { "data-pane-act": "close" }).attrs["data-pane-act"], "close");
+    const off = glyphBtn("⊟", "Split down", () => {}, "pane-btn disabled");
+    check("…and `disabled` in the class list still means disabled", off.attrs.disabled, "");
+  }
   } finally {
     dom.restore();
   }
+}
+
+
+// ------------------------------------------------- every glyph button has a name
+//
+// The class: **a button whose only name is a `title`.**
+//
+// Text content wins over `title` in accessible-name computation, so
+// `<button title="Split down">⊟</button>` is announced as *"⊟, button"*.
+// `iconBtn`'s own docstring says this was already found once and closed — *"a
+// screen reader announced the toolbar as '†, button', '⁑, button', '▤, button'
+// — forty-two of them, page-wide, with zero `aria-label`"* — and it was closed
+// for the ribbon only, because `iconBtn` hardcoded `tb-btn` onto the class list.
+// Every surface whose buttons are not ribbon buttons therefore could not use it
+// and built its own.
+//
+// `paneHead` was the bulk of it: eleven controls per pane, in the surface a
+// writer uses to arrange their window, and its own comment said so without
+// noticing — *"Each control names itself. The strip is the one place in the
+// application whose buttons are pure glyph, so the only other thing that could
+// identify them is the `title`."* That is a statement that they are **not**
+// named, written as though it were a fix. Six more turned up when this sweep was
+// pointed at the rest of the shell.
+//
+// Scanned rather than pattern-matched. A regex over the attribute object gets
+// two things wrong that matter: a nested `{}` (a template literal's `${…}`, a
+// spread) hides an `aria-label` that is genuinely there, and a button whose
+// child is a real word — `[t("accept")]` — needs no `aria-label` at all,
+// because its name is what it says. Both are false positives, and a sweep with
+// false positives is a sweep somebody deletes.
+const lineOf = (src, at) => src.slice(0, at).split(String.fromCharCode(10)).length;
+
+function scanButtons(src) {
+  const found = [];
+  for (const m of src.matchAll(/el\(\s*"button"/gu)) {
+    const i = m.index;
+    // Balance from the `(` after `el`, so the whole call is in hand — attributes,
+    // children and any nesting inside either.
+    const open = src.indexOf("(", i);
+    let depth = 0;
+    let end = -1;
+    for (let j = open; j < src.length; j++) {
+      const c = src[j];
+      if (c === "(" || c === "[" || c === "{") depth++;
+      else if (c === ")" || c === "]" || c === "}") {
+        depth--;
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+      }
+    }
+    if (end < 0) continue;
+    found.push({ call: src.slice(open + 1, end), line: lineOf(src, i) });
+  }
+  return found;
+}
+
+/**
+ * The literal a button's children are, when they are exactly one string.
+ *
+ * `["×"]` and `["📄"]` yes; `[t("accept")]`, `[el("b", …)]` and anything
+ * computed, no — those either carry a real name or are not this rule's subject.
+ */
+function loneLiteralChild(call) {
+  const at = call.lastIndexOf("[");
+  if (at < 0) return null;
+  const shut = call.lastIndexOf("]");
+  if (shut < at) return null;
+  const inner = call.slice(at + 1, shut).trim().replace(/,$/, "").trim();
+  const m = /^"((?:[^"\\]|\\.)*)"$/u.exec(inner);
+  return m ? m[1] : null;
 }

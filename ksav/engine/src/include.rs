@@ -49,10 +49,21 @@ pub struct Origin {
 #[derive(Debug, Clone, Default)]
 pub struct Expanded {
     pub text: String,
-    /// One entry per line of `text`, in order.
+    /// One entry per line of `text`, in order — **when there was an expansion**.
+    ///
+    /// Empty when `expanded` is false, which is the common case and the one
+    /// every keystroke goes through. See [`expand`].
     pub origins: Vec<Origin>,
     /// Things worth telling the writer: a name nothing answers to, a loop.
     pub problems: Vec<String>,
+    /// Did anything actually get spliced in?
+    ///
+    /// False means the text is the body it was given and every line is its own
+    /// origin — which is what `origins` being empty has always meant to the
+    /// readers, stated rather than inferred from a length. `notemarks::keep_main`
+    /// tested `origins.is_empty()` for exactly this and got the right answer for
+    /// a reason it did not say.
+    pub expanded: bool,
 }
 
 impl Expanded {
@@ -133,7 +144,48 @@ pub fn referenced(body: &str) -> Vec<String> {
 
 /// Expand every inclusion, recording where each resulting line came from.
 pub fn expand(main: &str, parts: &HashMap<String, String>) -> Expanded {
-    let mut out = Expanded::default();
+    // A body with no `#כלול` in it is not expanded at all.
+    //
+    // The doc comment on `read_document` said *"a request with no `parts`
+    // expands to itself, at no cost"*, and it was not free: `expand_into` pushed
+    // one `Origin` and one line copy per line of the input, so a 200 KB document
+    // with no inclusion — the common case, and the one every keystroke goes
+    // through — allocated a fresh 200 KB `String` and about five thousand
+    // `Origin` structs on every compile, jump, reveal and assemble, and threw
+    // both away.
+    //
+    // Empty `origins` is not a new state to teach the readers: it is the state
+    // they already agree means *"a line of the main document that nothing was
+    // included into"*. `pagelines::relabel` says so in a comment, `relabel`
+    // below skips a diagnostic with no origin, `line_of` answers `None` and its
+    // one caller falls back to the line it was given, and `notemarks::keep_main`
+    // already returns early on exactly this test. So the fast path is the slow
+    // path's answer, reached without computing it.
+    if referenced(main).is_empty() {
+        return Expanded {
+            // Byte-for-byte what the walk below would have produced.
+            // `push_line` *terminates* each line rather than separating them —
+            // deliberately, and its comment says why — so a body that does not
+            // end in a newline gains one, and anything reading the expanded text
+            // has been seeing that for as long as this function has existed.
+            // Skipping the walk must not quietly change the string.
+            text: if main.is_empty() || main.ends_with('\n') {
+                main.to_string()
+            } else {
+                let mut t = String::with_capacity(main.len() + 1);
+                t.push_str(main);
+                t.push('\n');
+                t
+            },
+            origins: Vec::new(),
+            problems: Vec::new(),
+            expanded: false,
+        };
+    }
+    let mut out = Expanded {
+        expanded: true,
+        ..Expanded::default()
+    };
     let mut stack: Vec<String> = Vec::new();
     expand_into(main, None, parts, &mut stack, 0, &mut out);
     // The map is what everything downstream indexes by, so it has to agree with
@@ -417,6 +469,11 @@ mod tests {
     #[test]
     fn the_line_map_counts_the_lines_for_any_shape_of_body() {
         let p = parts(&[("ב", "\n\nגוף\n\n")]);
+        // Counted, because half these bodies take the short-circuit and half walk
+        // the map, and a `continue` that swallowed the whole corpus would be a
+        // green test asserting nothing.
+        let mut unexpanded = 0usize;
+        let mut mapped = 0usize;
         for body in [
             "",
             "\n",
@@ -428,6 +485,32 @@ mod tests {
             "#כלול(\"אין כזה\")\n\n",
         ] {
             let out = expand(body, &p);
+            if !out.expanded {
+                unexpanded += 1;
+                unexpanded += 1;
+                // Nothing was spliced in, so there is no map to disagree with:
+                // every line of the text is the line of `body` it already was,
+                // which is what an absent origin has always meant to
+                // `pagelines::relabel`, `relabel` and `line_of`. The text still
+                // has to be exactly what the walk would have produced.
+                assert!(out.origins.is_empty(), "an unexpanded body carries no map");
+                assert_eq!(
+                    out.text.lines().collect::<Vec<_>>(),
+                    body.lines().collect::<Vec<_>>(),
+                    "the short-circuit changed the text for {body:?}"
+                );
+                assert!(
+                    out.text.is_empty() || out.text.ends_with('\n'),
+                    "every line is terminated, for {body:?}"
+                );
+                assert!(
+                    out.origin_of(1).is_none(),
+                    "and answers no origin for {body:?}"
+                );
+                continue;
+            }
+            mapped += 1;
+            mapped += 1;
             assert_eq!(
                 out.text.lines().count(),
                 out.origins.len(),
@@ -450,6 +533,13 @@ mod tests {
                 }
             }
         }
+        // Both arms were exercised. The corpus is written to cover both and
+        // nothing in the loop would say so if it stopped.
+        assert!(
+            unexpanded >= 4,
+            "only {unexpanded} bodies took the short-circuit"
+        );
+        assert!(mapped >= 3, "only {mapped} bodies were actually expanded");
     }
 
     #[test]
@@ -460,7 +550,16 @@ mod tests {
         // `push_line`. Typst does not care, and the line map does.
         assert_eq!(out.text, format!("{body}\n"));
         assert!(out.problems.is_empty());
-        assert_eq!(out.origins.len(), 3);
+        // And **no map at all**, which is the saving. A body with no `#כלול` in
+        // it is not walked: it used to allocate one `Origin` per line and a
+        // fresh copy of the text on every compile, jump, reveal and assemble —
+        // five thousand of them for a 200 KB document — to describe an expansion
+        // that did not happen. `expanded` says so, and every reader already
+        // treated an absent origin as *"a line of the main document that nothing
+        // was included into"*.
+        assert!(!out.expanded);
+        assert!(out.origins.is_empty());
+        assert!(out.origin_of(1).is_none());
     }
 
     #[test]

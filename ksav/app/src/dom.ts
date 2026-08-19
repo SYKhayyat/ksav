@@ -103,17 +103,53 @@ export function iconBtn(
   // hyphen, so `is-disabled-looking` would have counted. A class list is a list
   // of tokens and has to be read as one.
   const off = cls.split(/\s+/).includes("disabled");
+  return glyphBtn(label, title, onClick, `tb-btn ${cls}`, data, off);
+}
+
+/**
+ * A glyph button that has a name, on whatever class list the caller needs.
+ *
+ * `iconBtn` is this with `tb-btn` on the front, and until this existed that was
+ * the *only* way to get a named button — so every surface whose buttons are not
+ * ribbon buttons had to build its own, and did, and forgot the name.
+ *
+ * `paneHead` was the whole of it: eleven controls per pane, built with a bare
+ * `el("button", { class: "pane-btn", title }, [glyph])`. Text content wins over
+ * `title` in accessible-name computation, so the accessibility tree of a
+ * two-pane window read `[button] "⇅"`, `[button] "◫"`, `[button] "⊟"`,
+ * `[button] "⋯"` — which is the exact failure `iconBtn`'s own docstring says was
+ * closed ("a screen reader announced the toolbar as '†, button' … forty-two of
+ * them, page-wide, with zero `aria-label`"), surviving one module over, in the
+ * surface a writer uses to arrange their window.
+ *
+ * The strip's own comment anticipated something adjacent and stopped short:
+ * *"Each control names itself. The strip is the one place in the application
+ * whose buttons are pure glyph, so the only other thing that could identify them
+ * is the `title`."* That is a statement that they are **not** named, written as
+ * though it were a fix.
+ */
+export function glyphBtn(
+  label: string,
+  name: string,
+  onClick: (e: Event) => void,
+  cls = "",
+  data: Record<string, string> = {},
+  off = cls.split(/\s+/).includes("disabled"),
+): HTMLElement {
   return el(
     "button",
     {
-      class: `tb-btn ${cls}`,
-      title,
-      "aria-label": title,
+      class: cls,
+      title: name,
+      // The one line this whole helper exists for.
+      "aria-label": name,
       type: "button",
       ...data,
       ...(off ? { disabled: "", "aria-disabled": "true" } : {}),
       onClick: off ? () => {} : onClick,
     },
+    // `aria-hidden`, because the button already carries this meaning in its
+    // label — otherwise a reader says "dagger, Footnote".
     [el("span", { "aria-hidden": "true" }, [label])],
   );
 }

@@ -1245,7 +1245,7 @@ fn png() -> ksav_engine::assets::Assets {
                 .decode(
                     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
                 )
-                .expect("decode test png"),
+                .expect("decode test png").into(),
         }],
         fonts: vec![],
     }

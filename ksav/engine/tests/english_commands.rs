@@ -495,7 +495,7 @@ fn an_attached_font_with_an_italic_face_is_believed() {
     let assets = ksav_engine::assets::Assets {
         fonts: vec![ksav_engine::assets::Asset {
             name: "DavidLibre-Regular.ttf".into(),
-            bytes,
+            bytes: bytes.into(),
         }],
         ..Default::default()
     };

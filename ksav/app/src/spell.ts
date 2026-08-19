@@ -221,11 +221,41 @@ export function proseRegions(
  * `comments` carries the writer's setting through: a comment is not on the page,
  * so it is not checked unless they say so.
  */
-export function checkableText(text: string, opts: { comments?: boolean } = {}): string {
+export function checkableText(
+  text: string,
+  opts: { comments?: boolean } = {},
+  /**
+   * Materialise only this window of the answer.
+   *
+   * The incremental check sends one paragraph and used to compute the whole
+   * sefer to get it: `runSpellCheck` called this over the entire document and
+   * then *sliced* the result. What that cost, measured on the built module —
+   * 3.2 ms per call on a 64 KB document, 8.0 ms on a 200 KB one, on the main
+   * thread, on a 700 ms timer, while the writer is typing. Half a frame budget
+   * on a 200 KB sefer, to produce a paragraph.
+   *
+   * The regions are still computed over the whole text, and deliberately: a
+   * paragraph is not a safe boundary to *parse* from — a block comment or an
+   * unclosed bracket spans one — and `spans.scan` is memoised on the text, so
+   * asking the whole document what is prose is nearly free. What was not free is
+   * this function's own second and third passes: an `Array<string>` one entry
+   * per UTF-16 code unit, filled and then joined. Those are what the window
+   * bounds.
+   *
+   * Offsets inside the returned string are relative to `window.from`, which is
+   * what `runSpellCheck`'s existing splice arithmetic already assumed of the
+   * slice it was taking.
+   */
+  window?: { from: number; to: number },
+): string {
   const keep = proseRegions(text, opts);
-  const out = new Array<string>(text.length).fill(" ");
+  const from = Math.max(0, window?.from ?? 0);
+  const to = Math.min(text.length, window?.to ?? text.length);
+  const out = new Array<string>(Math.max(0, to - from)).fill(" ");
   for (const r of keep) {
-    for (let i = r.from; i < r.to; i++) out[i] = text[i];
+    const a = Math.max(r.from, from);
+    const b = Math.min(r.to, to);
+    for (let i = a; i < b; i++) out[i - from] = text[i];
   }
   return out.join("");
 }

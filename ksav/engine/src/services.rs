@@ -318,8 +318,8 @@ mod disk {
 /// read rather than a hole it has to know about.
 mod girsa {
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn inbox(_: &str) -> String {
-        crate::post::drain_json()
+    pub fn inbox(input: &str) -> String {
+        crate::post::drain_json(input)
     }
 
     /// `{"phrase": "…", "except": null, "search": false}` → Girsa's answer.

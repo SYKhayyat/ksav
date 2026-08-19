@@ -700,7 +700,13 @@ export function keysPanel(view: KeysView, act: KeysActions): Node[] {
     if (row.key && !view.mode) {
       const off = el(
         "button",
-        { class: "mini", type: "button", "data-key-clear": row.id, title: t("keysClear") },
+        {
+          class: "mini",
+          type: "button",
+          "data-key-clear": row.id,
+          title: t("keysClear"),
+          "aria-label": t("keysClear"),
+        },
         ["×"],
       );
       off.addEventListener("click", () => act.clear(row.id));

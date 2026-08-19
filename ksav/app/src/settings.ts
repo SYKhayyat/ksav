@@ -510,12 +510,60 @@ export function loadSettings(): Settings {
 /** The live settings object. Mutated in place; call `saveSettings` after. */
 export const settings: Settings = loadSettings();
 
+/**
+ * Why the preferences could not be written, or null if they were.
+ *
+ * The symmetric case to [`settingsLoadFailure`], and it had no reporting at all.
+ * A failed *read* raised a banner; a failed *write* was swallowed here on the
+ * argument that *"the save path says so far more usefully than a silently
+ * reverted toggle would"* — which is about saving a **document**, and is not
+ * what this key holds.
+ *
+ * What is in it: keybindings, macros, custom commands, snippets,
+ * `savedArrangements` (whole pane trees), and `settings.tabs` — every tab's
+ * serialised tree, rewritten by `rememberPanes()` on every splitter drag, link
+ * toggle and document switch. localStorage is about five megabytes for the whole
+ * origin and it is shared with `ksav.library`, `ksav.recovery` (a full document
+ * body) and `ksav.userWords`.
+ *
+ * When it fills, every preference the writer sets from then on is accepted by
+ * the UI, applied for the session, and gone on reload. That is
+ * `no-preference-ever-survived-a-reload` reintroduced by another route, with the
+ * difference that the machinery to report it already existed and was wired to
+ * one half.
+ */
+let writeFailure: string | null = null;
+
+/** Why the preferences could not be written, or null if they were. */
+export function settingsWriteFailure(): string | null {
+  return writeFailure;
+}
+
+/**
+ * Told the first time a write fails, and not again until one succeeds.
+ *
+ * A callback rather than a direct call, because the banner lives in the shell
+ * and this module is imported by it — and because *once* is the right number:
+ * `saveSettings` runs on every splitter drag, and a notice per drag is a notice
+ * nobody reads.
+ */
+let onWriteFailure: ((why: string) => void) | null = null;
+
+/** Register the shell's banner. See `boot()`. */
+export function reportSettingsWriteFailures(tell: (why: string) => void): void {
+  onWriteFailure = tell;
+  if (writeFailure) tell(writeFailure);
+}
+
 export function saveSettings() {
   try {
     localStorage.setItem(KEY, JSON.stringify(settings));
-  } catch {
-    // Preferences are worth a lot less than text. If storage is full the save
-    // path says so far more usefully than a silently-reverted toggle would.
+    writeFailure = null;
+  } catch (e) {
+    const why = String((e as Error)?.message ?? e);
+    const first = writeFailure === null;
+    writeFailure = why;
+    if (first) onWriteFailure?.(why);
   }
 }
 

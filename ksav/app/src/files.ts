@@ -318,7 +318,30 @@ export async function recallBindings(docIds: string[]): Promise<Map<string, File
  * until the user confirms — check before promising the writer a real save.
  */
 export async function hasWritePermission(binding: FileBinding): Promise<boolean> {
-  if (binding.kind === "tauri") return true;
+  if (binding.kind === "tauri") {
+    // Asked, not assumed.
+    //
+    // This returned `true` unconditionally, and it had no way to ask anything —
+    // so it was a claim rather than an answer, and it was wrong for exactly the
+    // case the shell's allow-list exists for: a binding recalled from a previous
+    // session, whose path nobody has chosen in a dialog *this* session.
+    //
+    // What the claim cost: `autosaveToFile` went ahead on a path the shell would
+    // refuse, `saveTo` caught the rejection, and the caller returned `false`
+    // quietly — which is the right rule for a background save and the wrong
+    // thing to do with an answer nobody could have got right. The desktop build
+    // ran no autosave at all on a reopened document, silently, for the whole
+    // session. See `ksav_path_allowed` in `src-tauri/src/lib.rs`.
+    if (!binding.path) return false;
+    try {
+      return await tauriInvoke<boolean>("ksav_path_allowed", { path: binding.path });
+    } catch {
+      // An older shell without the command. `false` is the honest reading:
+      // this build cannot tell, and promising a save it may not be able to make
+      // is the thing being fixed.
+      return false;
+    }
+  }
   if (binding.kind !== "handle" || !binding.handle) return false;
   const h = binding.handle as never as {
     queryPermission(o: unknown): Promise<PermissionState>;
@@ -331,7 +354,12 @@ export async function hasWritePermission(binding: FileBinding): Promise<boolean>
 }
 
 export async function ensureWritable(binding: FileBinding): Promise<boolean> {
-  if (binding.kind !== "handle" || !binding.handle) return binding.kind === "tauri";
+  // The desktop's answer is now a real one, and it is the same question — so it
+  // goes through the same function rather than being asserted here a second
+  // time. This is the call Ctrl+S makes, and a `false` here is what routes it to
+  // `saveFileAs`, which is the dialog that re-admits the path.
+  if (binding.kind === "tauri") return hasWritePermission(binding);
+  if (binding.kind !== "handle" || !binding.handle) return false;
   const h = binding.handle as never as {
     queryPermission(o: unknown): Promise<PermissionState>;
     requestPermission(o: unknown): Promise<PermissionState>;

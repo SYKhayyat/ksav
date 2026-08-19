@@ -76,3 +76,47 @@ export function collect(
   walk(body, 0);
   return parts;
 }
+
+/**
+ * The same walk, resolving each name as it is reached.
+ *
+ * `collect` takes a synchronous `lookup`, so its caller had to have every
+ * candidate body in hand before starting — and `includedParts` obliged by
+ * reading **the entire library** out of IndexedDB and holding it, bodies and
+ * all, for the life of the tab. A document that includes one chapter cost a
+ * forty-document library forty round trips on the first compile after a name was
+ * typed, and eight megabytes retained to resolve one `#כלול`.
+ *
+ * The header of this file states the opposite intent — *"to do it without
+ * sending the whole library on every keystroke — a writer with forty documents
+ * open would otherwise pay for all forty on every pause in typing"*. The
+ * *sending* was fixed; the *reading* was not, and the `lookup` callback was
+ * already the right shape for it.
+ *
+ * Serial rather than parallel, deliberately: the walk is depth-first and a
+ * chapter's own inclusions are not known until it has been read, so there is
+ * nothing to fan out over except at one level, and a store this is competing
+ * with is the one the editor saves into.
+ */
+export async function collectAsync(
+  body: string,
+  lookup: (name: string) => Promise<string | null>,
+): Promise<Part[]> {
+  const parts: Part[] = [];
+  const seen = new Set<string>();
+  const walk = async (text: string, depth: number): Promise<void> => {
+    if (depth > MAX_DEPTH) return;
+    for (const name of referenced(text)) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const found = await lookup(name);
+      // A name nothing answers to is *not* dropped from the walk — `seen` still
+      // holds it — but nothing is sent for it. See `collect`.
+      if (found === null) continue;
+      parts.push({ name, body: found });
+      await walk(found, depth + 1);
+    }
+  };
+  await walk(body, 0);
+  return parts;
+}

@@ -1,6 +1,6 @@
 import "./styles.css";
 import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
-import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, Prec, Transaction } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
 import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
@@ -74,9 +74,9 @@ import {
 import * as store from "./store";
 import * as files from "./files";
 import {
-  NOTE_CHOICES,
   applyChoice,
   choiceForCommand,
+  conversionTargets,
   convertNote,
   deleteNote,
   markersFor,
@@ -122,6 +122,7 @@ import {
 import {
   el,
   noticeHost,
+  glyphBtn,
   iconBtn,
   tbGroup,
   fieldRow,
@@ -163,6 +164,7 @@ import {
   docConfig,
   ownPageSetup,
   settingsLoadFailure,
+  reportSettingsWriteFailures,
 } from "./settings";
 import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 // The alignment pair is read and written as a unit rather than field by field —
@@ -382,14 +384,43 @@ const editorTheme = (dark: boolean) =>
  * The document being *already open* is the ordinary case now rather than the
  * only case, and it costs one `setState`.
  */
+/**
+ * How many document switches have been asked for.
+ *
+ * `openDoc` awaits three times and mutates global state after each of them, and
+ * its only guard was an early return for *the same* id — so two switches to
+ * **different** documents, which is one click in the switcher panel or one
+ * `Mod-1` tab key, interleaved freely. What that produced: `refreshBaseline()`
+ * dispatching document A's snapshot baseline into a view now holding B,
+ * `rememberPages(leaving)` filing B's on-screen pages under A's id, and
+ * `retargetPanes(leaving, id)` relabelling panes for a document that is no
+ * longer the one arriving.
+ *
+ * `setSwitching` looks like the guard and is not one: it is a flag the change
+ * listener reads, it is cleared in the middle of the function, and it does not
+ * stop a second entry.
+ *
+ * A ticket, the way `runCompile` and `runSpellCheck` take one — and the way this
+ * very function's binding recall already does five lines from the end, which is
+ * where the shape was read off. Its comment says *"a newer switch has won"*; the
+ * rest of the function did not ask.
+ */
+let switchGeneration = 0;
+
 async function openDoc(id: string) {
+  const mine = ++switchGeneration;
+  const stale = () => mine !== switchGeneration;
   const next = await docs.getDoc(id);
-  if (!next) return;
+  if (!next || stale()) return;
   // Already on screen — and *fully* so. Both halves are checked because closing
   // a document moves the open set's focus before this runs, so the set can name
   // a document the view is not yet showing.
   if (opendocs.focusedId() === id && runtime.currentDoc?.id === id) return;
   await flushSaves();
+  // The last await before the synchronous run of mutations below. Everything
+  // from here to `refreshBaseline` happens in one turn, so a newer switch can
+  // only overtake at this line and at the one after it.
+  if (stale()) return;
   runtime.setSwitching(true);
   stashFocused();
   const leaving = runtime.currentDoc?.id ?? null;
@@ -447,6 +478,13 @@ async function openDoc(id: string) {
   refreshTabStrip();
   rememberPanes();
   await refreshBaseline();
+  // `refreshBaseline` reads the document out of the store and dispatches a
+  // snapshot baseline into the view. A switch that started while it was in
+  // flight has already put a different document there, and everything below —
+  // `forgetGit`, `updateTitleBar`, `rerenderChrome`, `refreshPaneHeads`,
+  // `showPagesFor`, `restorePreviewPlaces` — describes whichever document that
+  // turn believes is current. Let the newer switch finish the job.
+  if (stale()) return;
   // A different document is a different folder and possibly a different
   // repository. Anything version control learned about the last one is now a
   // claim about the wrong file, and a chip reporting three uncommitted changes
@@ -630,6 +668,12 @@ async function closeOpenDoc(id: string) {
   // reopened is opened at its own caret. Keeping the rows would put a pane back
   // at a place in a sefer measured against a text edited since.
   paneplaces.forgetDoc(id);
+  // And the file stamp, whose comment has always said this is when it happens:
+  // *"Forget a document — on close, or when its binding is replaced."* Nothing
+  // called it. The leak is small — one stamp per document ever opened, keyed by
+  // an id that is never reused — but a comment that describes a call nobody
+  // makes is the defect, not the bytes.
+  watch.forget(id);
   const next = opendocs.close(id);
   if (next) {
     // `openDoc` does the whole switch, and it proceeds because `runtime.currentDoc`
@@ -714,6 +758,9 @@ async function removeDoc(id: string) {
   await docs.deleteDoc(id);
   await files.rememberBinding(id, null);
   paneplaces.forgetDoc(id);
+  // The other half of what `watch.forget`'s comment describes: the binding is
+  // gone, so the stamp is a claim about a file this document no longer has.
+  watch.forget(id);
   const next = opendocs.close(id);
   if (wasFocused) {
     // Whatever was next in the open set, or the library's newest, or a new one.
@@ -1421,22 +1468,29 @@ async function runSpellCheck() {
   if (!runtime.backend || !settings.spellcheck || !runtime.view) return;
   const doc = runtime.view.state.doc;
   const realText = docTextOf(doc);
-  // Only the text that will actually print: command names are not misspellings,
-  // and underlining them would make the feature useless on its first document.
-  const checkable = spell.checkableText(realText, {
-    comments: !!settings.spellcheckComments,
-  });
   // Full when something changed the answer everywhere (or nothing has told us
   // where the change was); otherwise the one paragraph that moved.
   const full = spellFullPending || spellDirtyTo < 0 || spellDirtyFrom > spellDirtyTo;
   const region = full
-    ? { from: 0, to: checkable.length }
+    ? { from: 0, to: realText.length }
     : paragraphAround(
         realText,
         Math.max(0, Math.min(spellDirtyFrom, realText.length)),
         Math.max(0, Math.min(spellDirtyTo, realText.length)),
       );
-  const payload = full ? checkable : checkable.slice(region.from, region.to);
+  // Only the text that will actually print: command names are not misspellings,
+  // and underlining them would make the feature useless on its first document.
+  //
+  // The region **first**, and only then the text for it. This used to build the
+  // whole document's checkable text and slice a paragraph out of it, which is
+  // the one part of the incremental check that never became incremental —
+  // `AUDIT-perf-and-blocking.md` §A6 fixed the transfer and the engine's work
+  // and left the client's. See `checkableText`'s `window` parameter.
+  const payload = spell.checkableText(
+    realText,
+    { comments: !!settings.spellcheckComments },
+    region,
+  );
   const mine = ++spellGeneration;
   try {
     const res = await runtime.backend.spell(payload, spell.userWordsText(), false);
@@ -1566,6 +1620,28 @@ async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
   if (!box.isConnected) return; // dismissed while we were asking
 
   const replace = (word: string) => {
+    // Only if the span still says what `m` said it said.
+    //
+    // `m` was measured before `suggest` was awaited, and `box.isConnected` above
+    // asks whether the *menu* is still on screen — not whether the document
+    // still reads that way. This menu is not modal: the document keeps taking
+    // edits from a mirrored pane, from `takeArrivals`, from a background
+    // `linkify`. Accepting a suggestion after any of those replaced whatever had
+    // moved into those offsets, which on a fast writer's document is somebody
+    // else's word.
+    //
+    // The paste handler in `makeState` already does exactly this check for
+    // exactly this reason; it is the same guard, and it reaches the keyboard
+    // route (`spellSuggest`) too, which is the route a fast writer uses.
+    const doc = docTextOf(runtime.view.state.doc);
+    if (doc.slice(m.start, m.start + m.len) !== m.word) {
+      closeSpellMenu();
+      runtime.view.focus();
+      // Re-check, because the document under the squiggle has changed and the
+      // mark that was there is describing text that has gone.
+      scheduleSpellCheck();
+      return;
+    }
     runtime.view.dispatch({
       changes: { from: m.start, to: m.start + m.len, insert: word },
       selection: { anchor: m.start + word.length },
@@ -1598,6 +1674,17 @@ async function openSpellMenu(m: spell.Misspelling, x: number, y: number) {
 
 function closeSpellMenu() {
   closePanel("spell-menu");
+}
+
+/**
+ * Dismiss the note menu.
+ *
+ * Its own — it used to borrow `closeSpellMenu`, which worked only because the
+ * spell menu's selector caught it through the `.spell-menu` class it wears for
+ * its styling. Now that each has a registry row, each closes itself.
+ */
+function closeNoteMenu() {
+  closePanel("note-menu");
 }
 
 function autoExtension() {
@@ -1877,10 +1964,26 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
           if (!sources || !plain) return false;
           e.preventDefault();
           const at = v.state.selection.main;
-          v.dispatch({
-            changes: { from: at.from, to: at.to, insert: plain },
-            selection: { anchor: at.from + plain.length },
-          });
+          // Every range, not just the main one.
+          //
+          // CodeMirror's own paste inserts into all of them; this replaced
+          // `selection.main` and left every other cursor untouched with no
+          // indication at all. A writer holding four carets pasted into one of
+          // them and had to find out by looking.
+          //
+          // And `userEvent`, because without it the macro recorder never sees
+          // this transaction: its filter is `if (!tr.isUserEvent("input"))
+          // continue`, and the comment directly above that filter says the
+          // opposite — *"so an IME, **a paste** and a nikud button all record as
+          // the text they produced"*. A macro recorded with a paste in it
+          // replayed without it.
+          v.dispatch(
+            v.state.changeByRange((r) => ({
+              changes: { from: r.from, to: r.to, insert: plain },
+              range: EditorSelection.cursor(r.from + plain.length),
+            })),
+            { userEvent: "input.paste" },
+          );
           const from = at.from;
           void sources
             .clipboardSource()
@@ -1895,6 +1998,7 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
               v.dispatch({
                 changes: { from, to: from + plain.length, insert: markup },
                 selection: { anchor: from + markup.length },
+                userEvent: "input.paste",
               });
               setStatus(t("sourcePasted"), "ok");
               scheduleCompile();
@@ -2620,21 +2724,22 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   if (pane.role === "source") {
     const span = paneNarrow(pane.id);
     kids.push(
-      el("button", {
-        class: "pane-btn" + (span ? " pane-narrowed" : ""),
-        // The state, on the element, because it is the one thing about a pane
-        // that cannot be read off its contents: a pane showing four paragraphs
-        // is either a short document or a narrowed one, and nothing on screen
-        // told the two apart. `.github/scripts/acceptance.mjs` drives by this.
-        "data-narrow": span ? "on" : "off",
-        title: span ? t("widenLede") : t("narrowLede"),
-        onClick: () => {
+      glyphBtn(
+        span ? `⊡ ${titleOfSpan(span)} ×` : "⊡",
+        span ? t("widenLede") : t("narrowLede"),
+        () => {
           const v = paneViews.get(pane.id);
           if (!v) return;
           if (span) widenHere(v);
           else narrowHere(v);
         },
-      }, [span ? `⊡ ${titleOfSpan(span)} ×` : "⊡"]),
+        "pane-btn" + (span ? " pane-narrowed" : ""),
+        // The state, on the element, because it is the one thing about a pane
+        // that cannot be read off its contents: a pane showing four paragraphs
+        // is either a short document or a narrowed one, and nothing on screen
+        // told the two apart. `.github/scripts/acceptance.mjs` drives by this.
+        { "data-narrow": span ? "on" : "off" },
+      ),
     );
   }
   // A preview following a narrowed pane shows four pages where a sefer was, and
@@ -2657,21 +2762,22 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // title is a fence that goes quiet the day the run is driven in English.
   if (panes.leaves(paneTree).length > 1) {
     kids.push(
-      el("button", {
-        class: "pane-btn",
-        "data-pane-act": "link",
-        title: pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
+      glyphBtn(
+        pane.linked ? "⇅" : "⇵",
+        pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
         // **Not `setTree`.** Linking changes one field on one leaf and nothing
         // about the shape, and `setTree` rebuilds every `EditorView` in the
         // window — which used to throw a reader on page 40 back to page 1 for
         // pressing a chip that has nothing to do with where they are.
-        onClick: () => {
+        () => {
           paneTree = panes.update(paneTree, pane.id, { linked: !pane.linked });
           rememberPanes();
           refreshPaneHeads();
           applyPreviewWindows();
         },
-      }, [pane.linked ? "⇅" : "⇵"]),
+        "pane-btn",
+        { "data-pane-act": "link" },
+      ),
     );
   }
   // **Both splits, always.**
@@ -2684,23 +2790,16 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // other one. A single pane can be split too, which is the case a writer is
   // most likely to want it in.
   kids.push(
-    el("button", {
-      class: "pane-btn",
+    glyphBtn("◫", t("splitAcross"), () => splitHere(pane, "row"), "pane-btn", {
       "data-pane-act": "split-across",
-      title: t("splitAcross"),
-      onClick: () => splitHere(pane, "row"),
-    }, ["◫"]),
-    el("button", {
-      class: "pane-btn",
+    }),
+    glyphBtn("⊟", t("splitDown"), () => splitHere(pane, "col"), "pane-btn", {
       "data-pane-act": "split-down",
-      title: t("splitDown"),
-      onClick: () => splitHere(pane, "col"),
-    }, ["⊟"]),
-    el("button", {
-      class: "pane-btn",
-      "data-pane-act": "menu",
-      title: t("paneMenu"),
-      onClick: (e: Event) => {
+    }),
+    glyphBtn(
+      "⋯",
+      t("paneMenu"),
+      (e: Event) => {
         // **Stopped here.** `window`'s click listener calls
         // `closeOnOutsideClick`, and the click that opens this menu is, to that
         // listener, a click on a button that is not inside `.pane-menu` — so
@@ -2711,7 +2810,9 @@ function paneHead(pane: panes.Leaf): HTMLElement {
         closeMenus();
         openPaneMenu(pane, e.currentTarget as HTMLElement);
       },
-    }, ["⋯"]),
+      "pane-btn",
+      { "data-pane-act": "menu" },
+    ),
   );
   if (panes.leaves(paneTree).length > 1) {
     kids.push(
@@ -2721,12 +2822,13 @@ function paneHead(pane: panes.Leaf): HTMLElement {
       // minimise"*. A dash means minimise in every window manager there has ever
       // been. The three meanings are told apart by the `title` and by which
       // surface the control is on — never by making the commonest one unreadable.
-      el("button", {
-        class: "pane-btn pane-close",
-        "data-pane-act": "close",
-        title: t("closePane"),
-        onClick: () => setTree(panes.closePane(paneTree, pane.id)),
-      }, ["×"]),
+      glyphBtn(
+        "×",
+        t("closePane"),
+        () => setTree(panes.closePane(paneTree, pane.id)),
+        "pane-btn pane-close",
+        { "data-pane-act": "close" },
+      ),
     );
   }
   const head = el("div", { class: "pane-head" }, kids);
@@ -3579,15 +3681,16 @@ function savedArrangementRows(): Node[] {
             rerenderChrome();
           },
         }, [el("b", {}, [a.name])]),
-        el("button", {
-          class: "pal-x",
-          title: t("forgetArrangement"),
-          onClick: () => {
+        glyphBtn(
+          "×",
+          t("forgetArrangement"),
+          () => {
             settings.savedArrangements = savedArrangements().filter((x) => x.id !== a.id);
             saveSettings();
             openArrangements();
           },
-        }, ["×"]),
+          "pal-x",
+        ),
       ]),
     ),
     el("div", { class: "menu-sep" }),
@@ -3824,19 +3927,20 @@ function buildTabStrip(): HTMLElement {
         // closing. Closing a tab destroys nothing at all — every document it
         // showed is still open — which is why it can afford the glyph that
         // closing a *document* and deleting one both had to give up.
-        el("button", {
-          class: "tab-close",
-          title: t("closeTab"),
-          onClick: (e: Event) => {
+        glyphBtn(
+          "×",
+          t("closeTab"),
+          (e: Event) => {
             e.stopPropagation();
             closeTab(i);
           },
-        }, ["×"]),
+          "tab-close",
+        ),
       ]),
     );
   });
   strip.append(
-    el("button", { class: "tab-new", title: t("newTab"), onClick: () => newTab() }, ["+"]),
+    glyphBtn("+", t("newTab"), () => newTab(), "tab-new"),
   );
   return strip;
 }
@@ -4322,14 +4426,35 @@ function movedRow(got: Refreshing): HTMLElement | null {
 }
 
 /** The rows, each with what to do about it. */
+/**
+ * The rows the panel is currently showing, and the header row's source.
+ *
+ * Kept so that accepting one row can re-render *the list*, rather than
+ * replacing it. `takeRefreshed` used to end with `showRefreshed([row])`, which
+ * threw away every other row: a reader working down forty refreshed citations
+ * lost the other thirty-nine the moment they accepted one.
+ */
+let refreshShowing: { rows: Refreshed[]; got?: Refreshing } = { rows: [] };
+
 function showRefreshed(rows: Refreshed[], got?: Refreshing): void {
+  refreshShowing = { rows, got: got ?? refreshShowing.got };
   const list = document.getElementById("refresh-list");
   if (!list) return;
   const doc = docTextOf(runtime.view.state.doc);
   const moved = got ? movedRow(got) : null;
+  // How many earlier rows name the same place.
+  //
+  // A sefer that cites the same place twice — routine — produces two rows with
+  // one `ref` between them, and `takeRefreshed` located its citation with
+  // `doc.indexOf(row.ref)`, which finds the first one always. So the second
+  // citation was never reachable: the panel offered the row again, with the same
+  // button, which now edited the already-corrected first one.
+  const seen = new Map<string, number>();
   list.replaceChildren(
     ...(moved ? [moved] : []),
     ...rows.map((row) => {
+      const nth = seen.get(row.ref) ?? 0;
+      seen.set(row.ref, nth + 1);
       // A row is "moved" when the words the library has now are not in the
       // document. Compared against the whole buffer rather than against a
       // parsed citation, deliberately: the writer may have edited the quote,
@@ -4348,7 +4473,7 @@ function showRefreshed(rows: Refreshed[], got?: Refreshing): void {
             "button",
             {
               class: "sc-key",
-              onClick: () => takeRefreshed(row),
+              onClick: () => takeRefreshed(row, nth),
             },
             [t("refreshTake")],
           ),
@@ -4370,9 +4495,14 @@ function showRefreshed(rows: Refreshed[], got?: Refreshing): void {
  * update can be found without parsing prose or trusting a position that the
  * writer may have moved since the rows were asked for.
  */
-function takeRefreshed(row: Refreshed): void {
+function takeRefreshed(row: Refreshed, nth = 0): void {
   const doc = docTextOf(runtime.view.state.doc);
-  const at = doc.indexOf(row.ref);
+  // The `nth` occurrence, not the first. See the counter in `showRefreshed`.
+  let at = -1;
+  for (let i = 0; i <= nth; i++) {
+    at = doc.indexOf(row.ref, at + 1);
+    if (at < 0) break;
+  }
   if (at < 0) {
     setStatus(t("refreshGone"), "warn");
     return;
@@ -4397,7 +4527,10 @@ function takeRefreshed(row: Refreshed): void {
   });
   setStatus(t("refreshTook"), "ok");
   scheduleCompile();
-  showRefreshed([row]);
+  // The whole list again, recomputed against the document as it now stands —
+  // which is what marks the accepted row as matching, and leaves every other row
+  // exactly where the reader left it.
+  showRefreshed(refreshShowing.rows, refreshShowing.got);
 }
 
 /**
@@ -5415,14 +5548,15 @@ function docsMenuItems(): (Node | string)[] {
               el("span", { class: "menu-desc" }, [meta.fileName ?? ""]),
             ],
           ),
-          el("button", {
-            class: "menu-close",
-            title: t("closeDoc"),
-            onClick: (e: Event) => {
+          glyphBtn(
+            "⌄",
+            t("closeDoc"),
+            (e: Event) => {
               e.stopPropagation();
               void closeOpenDoc(entry.id);
             },
-          }, ["⌄"]),
+            "menu-close",
+          ),
         ]),
       );
     }
@@ -5458,6 +5592,7 @@ function docsMenuItems(): (Node | string)[] {
         el("button", {
           class: "menu-del",
           title: t("delete"),
+          "aria-label": t("delete"),
           onClick: (e: Event) => {
             e.stopPropagation();
             void removeDoc(entry.id);
@@ -5587,6 +5722,7 @@ function buildMacroMenu(): HTMLElement {
           el("button", {
             class: "menu-del",
             title: t("delete"),
+            "aria-label": t("delete"),
             onClick: (e: Event) => {
               e.stopPropagation();
               deleteMacro(m.id);
@@ -6127,6 +6263,7 @@ function buildHeader(): HTMLElement {
             el("button", {
               class: "menu-del",
               title: t("delete"),
+              "aria-label": t("delete"),
               onClick: (e: Event) => {
                 e.stopPropagation();
                 deleteUserTemplate(ut.id);
@@ -6512,7 +6649,7 @@ function buildFontPicker(): HTMLElement {
 
 /** The `+` that attaches a font file to this document — labelled, not a bare glyph. */
 function addFontButton(): HTMLElement {
-  return el("button", { type: "button", class: "mini", title: t("addFont"), onClick: addFont }, ["+"]);
+  return glyphBtn("+", t("addFont"), () => void addFont(), "mini");
 }
 
 /** The sentinel value of the "name it yourself" row. Not a family anybody has. */
@@ -6547,17 +6684,17 @@ function buildSettingsDrawer(): HTMLElement {
     ? dictWords.map((w) =>
         el("div", { class: "set-row asset-row" }, [
           el("span", { class: "asset-name" }, [w]),
-          el("button", {
-            type: "button",
-            class: "mini",
-            title: t("delete"),
-            onClick: () => {
+          glyphBtn(
+            "×",
+            t("delete"),
+            () => {
               spell.removeUserWord(w);
               spellFullPending = true;
               runSpellCheck();
               rerenderChrome();
             },
-          }, ["×"]),
+            "mini",
+          ),
         ]),
       )
     : [el("div", { class: "set-note" }, [t("emptyDictionary")])];
@@ -6567,12 +6704,7 @@ function buildSettingsDrawer(): HTMLElement {
     ? assets.map((a) =>
         el("div", { class: "set-row asset-row" }, [
           el("span", { class: "asset-name" }, [(a.kind === "font" ? "🅵 " : "🖼 ") + a.name]),
-          el("button", {
-            type: "button",
-            class: "mini",
-            title: t("removeAsset"),
-            onClick: () => void removeAsset(a.name),
-          }, ["×"]),
+          glyphBtn("×", t("removeAsset"), () => void removeAsset(a.name), "mini"),
         ]),
       )
     : [el("div", { class: "set-note" }, [t("noAssets")])];
@@ -7049,10 +7181,15 @@ function openNoteMenu(e: MouseEvent, at: number) {
   // Derived from the chooser, not hand-listed. This was six Hebrew literals out
   // of eighteen note commands — so twelve layouts were unreachable from the
   // menu, and the English spellings were unreachable from anywhere.
-  const targets = NOTE_CHOICES.flatMap(markersOf)
-    .map((s) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1])
-    .filter((c): c is string => !!c && c !== note.command)
-    .filter((c, i, all) => all.indexOf(c) === i);
+  //
+  // Spelt in the document's language, which the first fix left out: the markers
+  // are Hebrew literals, `convertNote` writes `#${command}[…]` verbatim, and
+  // there is no `translated()` anywhere on the path. So an English writer's only
+  // offer was to rewrite `#fnote` as `#הערה` — a change of language presented as
+  // a change of layout. The `c !== note.command` exclusion compounded it by
+  // comparing a Hebrew list against an English command, so the note's *own*
+  // layout was offered too. Both are `conversionTargets`' problem now.
+  const targets = conversionTargets(note.command, modeDocLang(doc, at, dirLang()));
   const menu = el("div", { class: "spell-menu note-menu" }, [
     el("div", { class: "menu-cat" }, ["#" + note.command]),
     el(
@@ -7060,7 +7197,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
       {
         class: "menu-item",
         onClick: () => {
-          closeSpellMenu();
+          closeNoteMenu();
           // At the end of the note's prose, which for a deferred note is not
           // `to - 1` — the marker has no body to sit inside, and a sub-note
           // written after it would have hung off the sentence, not the note.
@@ -7077,7 +7214,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
         {
           class: "menu-item menu-cmd",
           onClick: () => {
-            closeSpellMenu();
+            closeNoteMenu();
             const e2 = convertNote(docTextOf(runtime.view.state.doc), note, command);
             // …and then the scaffolding the new layout needs, which is what
             // `applyNoteChoice` — docstringed *"The only place that does"* —
@@ -7101,7 +7238,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
       {
         class: "menu-item",
         onClick: () => {
-          closeSpellMenu();
+          closeNoteMenu();
           const e2 = deleteNote(docTextOf(runtime.view.state.doc), note);
           replaceAll(e2.text, e2.caret);
           setStatus(t("noteDeleted"), "ok");
@@ -7113,7 +7250,11 @@ function openNoteMenu(e: MouseEvent, at: number) {
   menu.style.position = "fixed";
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
-  document.body.append(menu);
+  // Through the registry, not `document.body.append`. It was dismissible all
+  // along — but only because `.spell-menu`, which it wears for its styling, is
+  // what the spell menu's sweep selects on. See the `note-menu` row in
+  // `panels.ts` for why that is a fragility rather than a fix.
+  mountPanel("note-menu", menu, document.body);
 }
 
 /**
@@ -9643,7 +9784,7 @@ function clearableColour(
   const kids: Node[] = [colorControl(styles.readColor(raw) ?? "#000000", (v) => set(styles.typstColor(v)))];
   if (raw !== undefined) {
     kids.push(
-      el("button", { class: "knob-clear", title: t("none"), onClick: () => set(null) }, ["×"]),
+      glyphBtn("×", t("none"), () => set(null), "knob-clear"),
     );
   }
   return el("span", { class: "knob-colour" }, kids);
@@ -10005,6 +10146,7 @@ function bandStyleRows(): Node[] {
             {
               class: "region-drop",
               title: t("regionRemove"),
+              "aria-label": t("regionRemove"),
               onClick: () =>
                 setStyleArgs("bands", {
                   גבהים: styles.withoutTier(styleArg("bands", "גבהים"), tier),
@@ -10120,6 +10262,7 @@ function streamStyleRows(): Node[] {
             {
               class: "region-drop",
               title: t("regionRemove"),
+              "aria-label": t("regionRemove"),
               onClick: () =>
                 setStyleArgs("streams", {
                   גבהים: styles.withDictKey(styleArg("streams", "גבהים"), name, null),
@@ -10999,6 +11142,53 @@ function ask(message: string, opts: { title?: string; okLabel?: string; danger?:
 }
 
 /**
+ * What to do with a whole document Girsa handed over.
+ *
+ * Three buttons, because there were always three outcomes and the modal had two
+ * buttons. The old prompt asked *replace what is open?* and, on **No**, spliced
+ * the entire handed-over document into the middle of the sefer at the caret —
+ * which is a real and useful thing to want, and is not what No means anywhere
+ * else in this application or in any other.
+ *
+ * Dismissing — Escape, the backdrop, the × — discards, because a reader who
+ * leaves without choosing has not asked for their document to be edited. The
+ * source is not lost by discarding it: the engine holds an arrival until the
+ * poll that carries its id back, and `takeArrivals` acknowledges a discard
+ * deliberately, so *discard* means discard rather than *ask me again in a
+ * second*.
+ */
+function askArrival(display: string): Promise<"replace" | "insert" | "discard"> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v: "replace" | "insert" | "discard") => {
+      if (settled) return;
+      settled = true;
+      modalDismiss = null;
+      closeModal();
+      resolve(v);
+    };
+    modalDismiss = () => done("discard");
+    const replaceBtn = el(
+      "button",
+      { class: "note-use", onClick: () => done("replace") },
+      [t("arrivalReplace")],
+    );
+    const box = document.getElementById("form-modal-body")!;
+    box.replaceChildren(
+      panelHead("form-modal", { text: t("confirmTitle") }),
+      el("p", { class: "styles-lede" }, [tf("documentArrived", display)]),
+      el("div", { class: "modal-actions" }, [
+        replaceBtn,
+        el("button", { class: "sc-key", onClick: () => done("insert") }, [t("arrivalInsert")]),
+        el("button", { class: "sc-key", onClick: () => done("discard") }, [t("arrivalDiscard")]),
+      ]),
+    );
+    openPanel("form-modal");
+    replaceBtn.focus();
+  });
+}
+
+/**
  * Ask for one line of text, without freezing the renderer — the replacement for
  * `window.prompt`. Resolves to the string on OK or Enter, and to `null` on any
  * dismissal, which is exactly `prompt`'s cancel contract.
@@ -11527,6 +11717,19 @@ async function attachAsset(f: File, kind: DocAsset["kind"]): Promise<string | nu
     reportSaveFailure(e);
     return null;
   }
+  // The bound file has changed too, and only `insertImage` used to say so.
+  //
+  // It says it by accident: it attaches and then inserts `#תמונה(…)`, which is a
+  // document edit and therefore schedules a save and marks the file dirty.
+  // `addFont` attaches and inserts **nothing** — the writer types the family
+  // name into the font box themselves, which is documented and correct — so the
+  // font was written to the library copy (`putDoc` above) and never to the bound
+  // `.ksav` on disk. Send that file to somebody and the font is not in it,
+  // silently, with the document still referring to it by family name.
+  //
+  // Here rather than in `addFont`, because attaching is the fact: whatever the
+  // caller does next, this document's bytes are not the file's bytes any more.
+  save.markFileDirty();
   return name;
 }
 
@@ -11555,6 +11758,24 @@ async function addFont() {
 async function removeAsset(name: string) {
   runtime.currentDoc.assets = runtime.currentDoc.assets.filter((a) => a.name !== name);
   await saveNow();
+  // And reclaim the blob, which nothing did.
+  //
+  // `collectAssets()` — the sweep that drops unreferenced blobs — had exactly
+  // one caller, `deleteDoc`. Removing an asset wrote a document record with one
+  // fewer hash in it and left the bytes in the `ASSETS` store forever. A writer
+  // who attaches a scan, changes their mind, attaches another, and repeats
+  // accumulated every rejected 8 MB image in IndexedDB with nothing that would
+  // ever free it; the store's own quota banner is what they eventually met.
+  //
+  // Safe to call at any time by construction: it sweeps rather than
+  // reference-counts, which is precisely so that this is true. Awaited but not
+  // fatal — a sweep that fails costs space, and the removal itself has already
+  // been written.
+  try {
+    await docs.collectAssets();
+  } catch {
+    /* the asset is off the document either way; the bytes can be swept later */
+  }
   scheduleCompile();
   rerenderChrome();
 }
@@ -11950,13 +12171,10 @@ function render() {
     overlayPanel("switcher", "palette-box", [el("div", { id: "switcher-list" })]),
     overlayPanel("arrangement", "palette-box", [el("div", { id: "arrangement-list" })]),
     // floating preview (page mode): a button + a modal showing the rendered pages
-    el("button", {
+    glyphBtn("📄", t("preview"), openPreviewOverlay, "float-preview-btn", {
       id: "float-preview-btn",
-      class: "float-preview-btn",
-      title: t("preview"),
       "data-i18n-title": "preview",
-      onClick: openPreviewOverlay,
-    }, ["📄"]),
+    }),
     overlayPanel("preview-modal", "preview-modal-box", [el("div", { id: "preview-modal-body" })]),
     // version history modal
     overlayPanel("history-modal", "palette-box", [
@@ -12600,6 +12818,11 @@ async function boot() {
   // work, which is what "emacs mode does nothing" turned out to be.
   const lostSettings = settingsLoadFailure();
   if (lostSettings) showChromeNotice(tf("settingsLost", lostSettings));
+  // And the other half. A failed *read* has had a banner since it was written;
+  // a failed *write* was swallowed, so a writer whose localStorage had filled
+  // set preferences that the UI accepted, applied for the session, and lost on
+  // reload — with no sentence anywhere. The string was already written.
+  reportSettingsWriteFailures((why: string) => showChromeNotice(tf("settingsNotKept", why)));
   render();
   wireKeys();
   save.wireUnloadGuard();
@@ -12782,18 +13005,38 @@ function installBackgroundTimers(): void {
   let pollDelay = GIRSA_POLL_MS;
   let pollTimer = 0;
   let pollBusy = false;
-  const arm = (ms: number) => {
-    pollTimer = window.setTimeout(runPoll, ms);
+  // Which chain is the live one.
+  //
+  // There is one `pollTimer` and `arm` overwrites it, so `wake()` can only
+  // cancel the *most recent* timer — and a `runPoll` that has already fired is
+  // not cancellable at all, and ends by arming itself again. So a `wake()`
+  // landing while a poll was awaiting the inbox produced a second chain, and the
+  // two were thereafter independent and unaware of each other. Six tab-returns
+  // each landing mid-poll: seven live chains where the design has one, and
+  // nothing in the loop could observe or collapse a duplicate.
+  //
+  // Not reproducible over loopback, where a poll finishes in about a
+  // millisecond and `wake` essentially never lands inside one. The trigger is a
+  // slow inbox — the desktop build, where the service goes through
+  // `spawn_blocking` behind a compile, or Girsa itself being slow.
+  //
+  // So the epoch guards the *chain* rather than the timer: a superseded chain
+  // retires at its next re-arm instead of running forever beside the new one.
+  let pollEpoch = 0;
+  const arm = (ms: number, epoch: number) => {
+    if (epoch !== pollEpoch) return;
+    pollTimer = window.setTimeout(() => void runPoll(epoch), ms);
   };
-  const runPoll = async () => {
+  const runPoll = async (epoch: number) => {
+    if (epoch !== pollEpoch) return;
     if (tabHidden()) {
-      arm(GIRSA_POLL_MAX_MS); // idle heartbeat, so a return to view is noticed soon
+      arm(GIRSA_POLL_MAX_MS, epoch); // idle heartbeat, so a return to view is noticed soon
       return;
     }
     // A focus `wake()` can fire while a poll is already awaiting the inbox; do
     // not let a second run insert on top of the first.
     if (pollBusy) {
-      arm(pollDelay);
+      arm(pollDelay, epoch);
       return;
     }
     pollBusy = true;
@@ -12808,18 +13051,19 @@ function installBackgroundTimers(): void {
     // Back off while nothing is arriving; snap back to the floor the moment
     // something does, so a handover is still felt within a second.
     pollDelay = arrived ? GIRSA_POLL_MS : pollDelay <= GIRSA_POLL_MS ? 5_000 : GIRSA_POLL_MAX_MS;
-    arm(pollDelay);
+    arm(pollDelay, epoch);
   };
   const wake = () => {
     pollDelay = GIRSA_POLL_MS;
     clearTimeout(pollTimer);
-    arm(0);
+    pollEpoch++;
+    arm(0, pollEpoch);
   };
   window.addEventListener("focus", wake);
   window.addEventListener("visibilitychange", () => {
     if (!tabHidden()) wake();
   });
-  arm(pollDelay);
+  arm(pollDelay, pollEpoch);
 }
 
 /**
@@ -12837,32 +13081,74 @@ function installBackgroundTimers(): void {
 async function takeArrivals(): Promise<boolean> {
   // Silent when this build has no Girsa half: the inbox is polled, and a poll
   // that says "you cannot" once a second is a nuisance, not information.
-  const waiting = await sourcesOf(runtime.backend)?.inbox().catch(() => []);
+  // The ids this window put in the document since it last asked. The engine
+  // holds each arrival until it hears one of these back, so a poll whose answer
+  // never reached the tab costs a repeat rather than the source — which is what
+  // `{"taken":true}` promised Girsa. See `post.rs::drain`.
+  const waiting = await sourcesOf(runtime.backend)
+    ?.inbox(arrivalsTaken)
+    .catch(() => []);
+  // Only once the engine has answered a poll carrying them: an answer means it
+  // has let go of them, and clearing them before that is the same bug one level
+  // up.
+  arrivalsTaken = [];
   if (!waiting || waiting.length === 0) return false;
+  const took: string[] = [];
   for (const arrival of waiting) {
     if (arrival.whole) {
       // A whole document, handed over from Girsa's buffer. Never replaces
       // what is open without being asked — and a snapshot is taken first, so
       // "yes" is recoverable even when it was the wrong answer.
+      // Three outcomes, and the modal used to have two buttons: replace what is
+      // open, or — on **No** — splice the whole handed-over document into the
+      // middle of the sefer at the caret. The comment above read *"Never
+      // replaces what is open without being asked"*, which is true and is not
+      // the whole of what a reader hears when they press No.
+      //
+      // So the third option is offered as one rather than hidden behind the
+      // refusal. Insert-here is genuinely useful — it is how a chapter arrives
+      // into a sefer — which is why this is a choice and not simply a No that
+      // does nothing.
       const hasText = runtime.view.state.doc.length > 0;
-      if (hasText && !(await ask(tf("documentArrived", arrival.display)))) {
-        insertSnippet(arrival.markup);
-        continue;
+      if (hasText) {
+        const what = await askArrival(arrival.display);
+        if (what === "discard") {
+          took.push(arrival.id);
+          continue;
+        }
+        if (what === "insert") {
+          insertSnippet(arrival.markup);
+          took.push(arrival.id);
+          continue;
+        }
       }
       if (hasText) await takeSnapshot();
       runtime.view.dispatch({
         changes: { from: 0, to: runtime.view.state.doc.length, insert: arrival.markup },
         selection: { anchor: 0 },
       });
+      took.push(arrival.id);
       continue;
     }
     insertSnippet(arrival.markup);
+    took.push(arrival.id);
   }
+  arrivalsTaken = took;
+  if (!took.length) return waiting.length > 0;
   const last = waiting[waiting.length - 1];
   setStatus(tf(last.whole ? "documentOpened" : "sourceArrived", last.display), "ok");
   scheduleCompile();
   return true;
 }
+
+/**
+ * Ids handed to this window and not yet acknowledged to the engine.
+ *
+ * Carried to the next poll rather than sent immediately, because the poll is the
+ * only errand there is and a second round trip to say "thank you" would be a
+ * service that exists for one sentence.
+ */
+let arrivalsTaken: string[] = [];
 
 
 boot();

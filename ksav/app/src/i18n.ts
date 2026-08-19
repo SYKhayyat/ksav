@@ -838,6 +838,7 @@ const HE: Dict = {
   tabCompileNote:
     "מעבר בין ספרים פתוחים לוקח בין 0.4 לשלוש שניות של עימוד. ברירת המחדל מציגה מיד את העמוד שהספר הזה הראה לאחרונה ומחליפה אותו כשהעימוד החדש מגיע. «ברקע» מעדכן את שאר הלשוניות שתי שניות אחרי שהפסקתם להקליד — תמיד עדכני, במחיר עימוד לכל ספר פתוח. «רק בעת המעבר» אינו שומר דבר, והחלונית ריקה עד שהעימוד מסתיים.",
   settingsLost: "⚠ ההעדפות השמורות לא נקראו, וההגדרות חזרו לברירת המחדל. הסיבה: {0}",
+  settingsNotKept: "⚠ ההעדפות לא נשמרו, והן ילכו לאיבוד בטעינה מחדש. הסיבה: {0}",
   focusModeLabel: "מצב ריכוז (עמעום שאר הטקסט)",
   typewriterLabel: "גלילת מכונת כתיבה (השורה במרכז)",
   crashTitle: "משהו נשבר",
@@ -918,7 +919,10 @@ const HE: Dict = {
   openedInGirsa: `נפתח חיפוש ב${GIRSA}`,
   nothingCertain: "לא נמצא ציטוט ודאי — הטקסט לא שונה",
   citationsLinked: "הציטוטים הפכו לקישורים",
-  documentArrived: `התקבל מסמך מ${GIRSA} — %s. להחליף את הטקסט שכאן? (יישמר צילום קודם)`,
+  documentArrived: `התקבל מסמך מ${GIRSA} — %s. מה לעשות בו? (אם יוחלף, יישמר צילום קודם)`,
+  arrivalReplace: "להחליף את הטקסט שכאן",
+  arrivalInsert: "להוסיף כאן, במקום הסמן",
+  arrivalDiscard: "לוותר עליו",
   documentOpened: `נפתח מסמך מ${GIRSA} — %s`,
   healedCount: "תוקנו {0} סוגריים.",
   previewHealed: "התצוגה מניחה {0} סוגריים חסרים",
@@ -2102,6 +2106,8 @@ const EN: Dict = {
   tabCompileNote:
     "Switching between open seforim costs a layout — 0.4 to 3 seconds. The default shows the page that sefer last had, straight away, and replaces it when the fresh layout lands. \"While you pause\" brings every other tab up to date two seconds after you stop typing: always current, at the cost of a layout per open sefer. \"Only when you switch\" keeps nothing, and the pane is empty until the compile finishes.",
   settingsLost: "⚠ Your saved preferences could not be read, so the settings are back to their defaults. Reason: {0}",
+  settingsNotKept:
+    "⚠ Your preferences could not be saved, so they will be gone when you reload. Reason: {0}",
   focusModeLabel: "Focus mode (dim the rest)",
   typewriterLabel: "Typewriter scrolling (keep the line centred)",
   crashTitle: "Something broke",
@@ -2165,7 +2171,11 @@ const EN: Dict = {
   openedInGirsa: "Opened the search in Girsa",
   nothingCertain: "No citation was certain — nothing was changed",
   citationsLinked: "The citations are live",
-  documentArrived: "A document arrived from Girsa — %s. Replace what is here? (a snapshot is taken first)",
+  documentArrived:
+    "A document arrived from Girsa — %s. What should happen to it? (replacing takes a snapshot first)",
+  arrivalReplace: "Replace what is here",
+  arrivalInsert: "Insert it at the cursor",
+  arrivalDiscard: "Discard it",
   documentOpened: "Opened a document from Girsa — %s",
   healedCount: "Fixed {0} bracket(s).",
   previewHealed: "Preview assumes {0} missing bracket(s)",

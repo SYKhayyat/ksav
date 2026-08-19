@@ -357,6 +357,34 @@ async fn ksav_write_file(
     std::fs::write(&p, contents).map_err(|e| e.to_string())
 }
 
+/// May this path be written without a dialog?
+///
+/// Asked by `files.hasWritePermission`, which had no way to ask and therefore
+/// answered `true` for every `kind === "tauri"` binding, unconditionally.
+///
+/// Three correct pieces composed into a feature that did nothing.
+/// `ksav_write_file` refuses any path not chosen in a dialog **this session**,
+/// deliberately. `hasWritePermission` said yes anyway. So `save.ts`'s
+/// `autosaveToFile` went ahead, `files.saveTo` caught the rejection and returned
+/// `false`, and the caller returned `false` silently — *"a background save that
+/// fails must not steal the writer's attention"*. On the desktop build, a
+/// document bound to a file from a previous session therefore got **no autosave
+/// at all**, for the whole session, until the writer performed a manual Save or
+/// Open. Nothing was logged; the unsaved dot stayed up, which is honest and
+/// reads as *you have unsaved changes* rather than *the thirty-second autosave
+/// you were promised is not running*.
+///
+/// Ctrl+S handles it correctly — `written === false` routes to `saveFileAs` —
+/// which is why nobody noticed.
+///
+/// Answering the question is the whole of this command. Whether the writer wants
+/// the path re-admitted is a separate decision and stays with the dialog, where
+/// consent belongs.
+#[tauri::command]
+fn ksav_path_allowed(allowed: tauri::State<'_, AllowedPaths>, path: String) -> bool {
+    allowed.permits(&PathBuf::from(&path))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let built = tauri::Builder::default();
@@ -516,6 +544,7 @@ pub fn run() {
             ksav_open_file,
             ksav_save_file,
             ksav_write_file,
+            ksav_path_allowed,
             ksav_dictionary_read,
             ksav_dictionary_write,
             ksav_dictionary_where

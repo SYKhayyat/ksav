@@ -95,10 +95,40 @@ function open(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Stand aside when another tab needs to upgrade.
+      //
+      // This handled `onblocked` on the **new** side and nothing on the old one,
+      // so an already-open connection never closed itself and the two tabs
+      // deadlocked: on the day the schema version moves, the second tab got a
+      // permanent "upgrade blocked by another tab" and the first sat there
+      // holding it, with nothing anywhere saying that closing the other window
+      // was the fix.
+      //
+      // Closing here is the standard shape and it is safe: `dbPromise` is
+      // cleared so the next call reopens, and this tab's own reads and writes
+      // are what trigger that. The tab whose connection was closed will be
+      // running the old code against the new schema until it reloads, which is
+      // the same position every browser application is in on an upgrade and is
+      // what the store's version guard is for.
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
     // A second tab holding an old version open would block the upgrade forever.
-    req.onblocked = () => reject(new Error("IndexedDB upgrade blocked by another tab"));
+    // With `onversionchange` above it should no longer be reachable from another
+    // Ksav tab — this remains for the tab that is wedged or not running this
+    // code, and it says what to do about it.
+    req.onblocked = () =>
+      reject(
+        new Error(
+          "IndexedDB upgrade blocked by another tab — close Ksav's other windows and reload",
+        ),
+      );
   });
   // A failed open must not be cached as a permanent verdict: a blocked upgrade
   // clears as soon as the other tab closes.
@@ -184,7 +214,26 @@ export function forEach<T>(store: StoreName, visit: (value: T, key: string) => v
         req.onsuccess = () => {
           const cursor = req.result;
           if (!cursor) return;
-          visit(cursor.value as T, String(cursor.key));
+          // A visitor that throws must not take the promise with it.
+          //
+          // The throw escaped into the IndexedDB event handler, so
+          // `cursor.continue()` was never called, so the transaction never
+          // completed, so `oncomplete` never fired — and the returned promise
+          // neither resolved nor rejected. `rebuildIndex` is a caller, it runs on
+          // the recovery path and on boot, and it is awaited by `docs.init`,
+          // which is awaited by `boot()`. One malformed record hung the whole
+          // application on a blank page, with no error anywhere.
+          //
+          // The header above warns that *"the callback must not await"* and did
+          // not warn about this one. The visitors are simple today; the failure
+          // mode is not a function of how simple they are.
+          try {
+            visit(cursor.value as T, String(cursor.key));
+          } catch (e) {
+            reject(e);
+            transaction.abort();
+            return;
+          }
           cursor.continue();
         };
         transaction.oncomplete = () => resolve();

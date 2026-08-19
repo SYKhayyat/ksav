@@ -23,7 +23,21 @@ pub struct Asset {
     /// The name the document refers to, e.g. `logo.png`. Used verbatim as the
     /// Typst path, so `#תמונה("logo.png")` resolves.
     pub name: String,
-    pub bytes: Vec<u8>,
+    /// The bytes, shared rather than owned.
+    ///
+    /// It was `Vec<u8>`, and the `Arc` in the cache was therefore doing no work
+    /// at all: a cache **hit** cloned the whole image out of the `Arc` on every
+    /// compile — which is every pause in typing — and the request that first
+    /// carried the bytes cloned them a second time on the way in. An 8 MB
+    /// attachment, which is the ceiling `attachAsset` enforces, was an 8 MB
+    /// memcpy per keystroke-driven compile.
+    ///
+    /// The cache's own header states what it was for: *"the editor re-sent the
+    /// whole asset array on every pause in typing … plus a base64 decode of it
+    /// here each time."* It removed the transfer and the decode and kept the
+    /// copy. Nothing in the compile path needs ownership — `engine_for` hands
+    /// these to Typst's file resolver as a slice.
+    pub bytes: Arc<Vec<u8>>,
 }
 
 // ---------------------------------------------------------------- content cache
@@ -145,14 +159,49 @@ fn read_one_cached(v: &serde_json::Value, missing: &mut Vec<String>) -> Option<A
     let name = v.get("name")?.as_str()?.to_string();
     let hash = v.get("hash").and_then(|x| x.as_str()).map(str::to_string);
 
-    // Bytes on the request: decode, cache under the hash, and use them.
+    // Bytes on the request: decode, cache under the hash **we compute**, use them.
     if let Some(data) = v.get("data").and_then(|x| x.as_str()) {
         let bytes = decode_payload(data)?;
         if name.is_empty() || bytes.is_empty() {
             return None;
         }
+        let bytes = Arc::new(bytes);
+        // Keyed on the engine's own reading of the payload, never on the
+        // caller's claim about it.
+        //
+        // This map is process-wide and shared across every document and every
+        // window talking to one `ksav serve`, and it used to store bytes under
+        // whatever string arrived in `hash` and later hand them to any request
+        // that asked for that string — under a name the engine had never seen,
+        // carrying no bytes of its own. So a caller could seed hash `H` with an
+        // image of their choosing before the writer's client asked for `H`, and
+        // the writer's sefer printed somebody else's picture. Combined with the
+        // `Origin` rule that allows a header-less caller, that was any process
+        // on the machine.
+        //
+        // A key that disagrees with the payload is simply not installed: the
+        // bytes on this request are used, because they are right here and the
+        // writer wants their image, and the next hash-only request for the
+        // claimed key finds nothing and is told to re-send. Nobody can put bytes
+        // under a name they did not earn.
+        //
+        // It also makes `docs.ts::assetHash`'s own comment true as written. It
+        // reasons about collisions *"for the handful of images a document
+        // carries"*, and the domain is every asset this process has seen across
+        // the whole library, bounded only by `CACHE_CAP_BYTES`. Now the key is
+        // the engine's hash of the bytes rather than a claim about them, which
+        // is what that argument needs in order to be an argument.
         if let Some(h) = &hash {
-            cache().lock().ok()?.put(h.clone(), Arc::new(bytes.clone()));
+            if &client_hash(data) == h {
+                // A poisoned mutex is not a reason to drop an asset the request
+                // put in our hand. `?` on the lock used to return `None` here —
+                // inside the branch that already holds the decoded bytes — which
+                // surfaced as a missing image in the writer's sefer with no
+                // diagnostic at all.
+                if let Ok(mut c) = cache().lock() {
+                    c.put(h.clone(), Arc::clone(&bytes));
+                }
+            }
         }
         return Some(Asset { name, bytes });
     }
@@ -161,15 +210,54 @@ fn read_one_cached(v: &serde_json::Value, missing: &mut Vec<String>) -> Option<A
     // as missing so the client knows to send the bytes next time.
     let h = hash?;
     match cache().lock().ok().and_then(|c| c.get(&h)) {
-        Some(bytes) => Some(Asset {
-            name,
-            bytes: (*bytes).clone(),
-        }),
+        Some(bytes) => Some(Asset { name, bytes }),
         None => {
             missing.push(h);
             None
         }
     }
+}
+
+/// The client's content hash of a payload, recomputed here.
+///
+/// Deliberately the *client's* function and not a better one. The client asks
+/// for an asset by this string, so the engine's map has to be keyed by it or a
+/// hash-only request resolves nothing — verifying means reproducing the caller's
+/// arithmetic and checking it, not substituting arithmetic of our own.
+/// `app/src/docs.ts::assetHash` is the original, and `engine/tests/assets.rs`
+/// holds the two against each other.
+///
+/// Over the payload **exactly as it arrived**, before the `data:` prefix is
+/// stripped or the whitespace trimmed, because that is the string the client
+/// hashed. UTF-16 code units for the same reason: `charCodeAt` counts those, and
+/// a base64 payload is ASCII either way — this is about being the same function,
+/// not about the characters it will actually meet.
+pub fn client_hash(data: &str) -> String {
+    let mut h1: u32 = 0x811c_9dc5;
+    let mut h2: u32 = 0x811c_9dc5 ^ 0x9e37_79b9;
+    let mut len: u32 = 0;
+    for c in data.encode_utf16() {
+        let c = u32::from(c);
+        h1 = (h1 ^ c).wrapping_mul(0x0100_0193);
+        h2 = (h2 ^ c).wrapping_mul(0x0100_0193);
+        len = len.wrapping_add(1);
+    }
+    format!("{}-{}-{}", base36(len), base36(h1), base36(h2))
+}
+
+/// `Number.prototype.toString(36)`, lowercase, for a 32-bit unsigned value.
+fn base36(mut n: u32) -> String {
+    const DIGITS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    if n == 0 {
+        return "0".to_string();
+    }
+    let mut out = Vec::new();
+    while n > 0 {
+        out.push(DIGITS[(n % 36) as usize]);
+        n /= 36;
+    }
+    out.reverse();
+    String::from_utf8(out).expect("ascii")
 }
 
 /// Decode a base64 payload, tolerating a `data:…;base64,` prefix.
@@ -197,5 +285,8 @@ fn read_one(v: &serde_json::Value) -> Option<Asset> {
     if name.is_empty() || bytes.is_empty() {
         return None;
     }
-    Some(Asset { name, bytes })
+    Some(Asset {
+        name,
+        bytes: Arc::new(bytes),
+    })
 }

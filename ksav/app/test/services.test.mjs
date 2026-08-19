@@ -22,6 +22,18 @@
 
 import { check, ok } from "./harness.mjs";
 import { HttpBackend, TauriBackend, WasmBackend, sourcesOf } from "../.tmp-test/api.mjs";
+
+/**
+ * Let every pending microtask run.
+ *
+ * The wasm backend registers a call with its worker only after `await
+ * ensure()`, so a synchronous assertion made straight after `call()` is looking
+ * at a queue nothing has been put in yet. Four turns rather than one because the
+ * path is `call` → `post` → `ensure` → the promise the worker's reply settles.
+ */
+const settle = async () => {
+  for (let i = 0; i < 4; i++) await Promise.resolve();
+};
 import { SERVICE, SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
 import { HEADER_ONLY, metaPolicy } from "../../policy/meta.mjs";
 import { readFile } from "node:fs/promises";
@@ -225,6 +237,74 @@ export async function run() {
       // be "nobody has a Girsa half", which is a different and equally wrong
       // claim.
       ok("the server build still has one", !!sourcesOf(new HttpBackend()));
+    }
+
+    // ------------------------------------------- the two-lane queue survives a death
+    //
+    // `call()` holds a background job while any foreground job is outstanding
+    // and releases the lane when the counter reaches zero. `failAll` — reached
+    // by the compile timeout and by `w.onerror` — used to reset that same
+    // counter to zero **while the outstanding `finally` blocks were still owed
+    // their decrement**, so each of them then decremented from zero. The counter
+    // went negative and never came back: `foregroundPending > 0` false forever,
+    // so nothing was ever held; `--this.foregroundPending === 0` false forever,
+    // so the lane was never drained from the foreground side either.
+    //
+    // One worker death and the browser build was back to plain FIFO — which is
+    // exactly what `AUDIT-perf-and-blocking.md` §B1 was written to end, *"a
+    // background layout or the 1 Hz inbox poll in front of the compile the
+    // writer was waiting for"*. Silently, and at the worst moment: a worker dies
+    // because a document ran away, which is when the next compile matters most.
+    //
+    // Asserted as a property rather than as a scenario, because the property is
+    // what makes the queue work: **the counter is never negative.**
+    {
+      const backend = new WasmBackend();
+      // A worker that never answers, so the calls stay in flight and their
+      // `finally` blocks unwind only when `failAll` rejects them.
+      backend.worker = { postMessage: () => {}, terminate: () => {} };
+
+      const inFlight = [
+        backend.call("compile", "", {}).catch(() => "rejected"),
+        backend.call("compile", "", {}).catch(() => "rejected"),
+      ];
+      check("two foreground calls are counted", backend.foregroundPending, 2);
+      // `post` awaits `ensure()` before it registers anything, so the calls are
+      // only reachable by `failAll` once that microtask has run. Killing the
+      // worker before then would find an empty `pending` and prove nothing.
+      await settle();
+      check("and both have reached the worker", backend.pending.size, 2);
+
+      backend.failAll(new Error("the worker died"));
+      check("both are rejected", await Promise.all(inFlight), ["rejected", "rejected"]);
+      ok(
+        `the lane counter is not negative after a worker death (${backend.foregroundPending})`,
+        backend.foregroundPending >= 0,
+      );
+      check("and it is back at zero", backend.foregroundPending, 0);
+
+      // The property stated as the behaviour it buys: with the counter negative,
+      // `foregroundPending > 0` was false forever, so a background job no longer
+      // waited behind a foreground compile — the queue silently stopped being
+      // one. A fresh foreground call on the same backend has to hold the lane
+      // again.
+      backend.worker = { postMessage: () => {}, terminate: () => {} };
+      let started = false;
+      const fg = backend.call("compile", "", {}).catch(() => {});
+      const bg = backend
+        .call("inbox", "", { background: true })
+        .then(() => {
+          started = true;
+        })
+        .catch(() => {
+          started = true;
+        });
+      await settle();
+      ok("a background job still waits behind a foreground compile", !started);
+      check("the lane is held again after the death", backend.foregroundPending, 1);
+      backend.failAll(new Error("and again"));
+      await Promise.all([fg, bg]);
+      check("and released again, exactly once", backend.foregroundPending, 0);
     }
   }
 

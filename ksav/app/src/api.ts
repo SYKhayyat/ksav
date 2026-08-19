@@ -513,6 +513,8 @@ export interface SpellResult {
  *  (spec.md §10.6). Already real Ksav markup: the packet is rendered in Rust
  *  the moment it lands, so there is no second renderer here to drift from it. */
 export interface Arrival {
+  /** Names this arrival while it is in flight, so a poll can acknowledge it. */
+  id: string;
   markup: string;
   display: string;
   reference: string;
@@ -906,7 +908,8 @@ export interface Backend {
 export interface Sources {
   /** Sources handed over by Girsa since the last ask. Drained, so asking twice
    *  does not insert the same quote twice. */
-  inbox(): Promise<Arrival[]>;
+  /** @param took ids from the previous answer that are now in the document. */
+  inbox(took?: string[]): Promise<Arrival[]>;
   /** Where is this phrase from? Asked of Girsa, which has the corpus. */
   mekoros(phrase: string, except?: string): Promise<Mekoros>;
   /** Nothing fitted: put the phrase in Girsa's search and bring it up. */
@@ -1153,10 +1156,16 @@ abstract class ServiceClient {
     return this.ask("git", { op, path, ...extra });
   }
 
-  async inbox(): Promise<Arrival[]> {
+  async inbox(took: string[] = []): Promise<Arrival[]> {
     try {
       // Background: the 1 Hz poll must never sit in front of a compile.
-      return await this.ask("inbox", undefined, { background: true });
+      //
+      // `took` is the ids this client actually put in the document since it last
+      // asked. The engine keeps an arrival until it is named here, so a response
+      // lost between the two — a reload landing between the POST and the parse,
+      // a wasm worker killed by the compile timeout mid-poll — costs a repeat
+      // rather than the source. See `post.rs::drain`.
+      return await this.ask("inbox", { took }, { background: true });
     } catch {
       // The editor polls this every second; a build with no Girsa half, or a
       // server that went away, is a thing to stop asking about quietly rather
@@ -1433,7 +1442,26 @@ export class WasmBackend extends ServiceClient implements Backend {
     try {
       return await this.post(name, input, timeoutMs);
     } finally {
-      if (!background && --this.foregroundPending === 0) this.drainBackground();
+      // Clamped, because `failAll` may have reset this counter while this
+      // `finally` was still owed a decrement.
+      //
+      // It did, and permanently: the compile timeout and `w.onerror` both zero
+      // `foregroundPending` while the outstanding calls are still unwinding, so
+      // each of them then decremented from zero. The counter went negative and
+      // never came back — `foregroundPending > 0` false forever, so nothing was
+      // ever held; `--this.foregroundPending === 0` false forever, so the lane
+      // was never drained from this side either. One worker death and the
+      // browser build was back to plain FIFO, which is precisely what
+      // `AUDIT-perf-and-blocking.md` §B1 was written to fix: *"a background
+      // layout or the 1 Hz inbox poll in front of the compile the writer was
+      // waiting for"*.
+      //
+      // It came back silently, and at the worst moment — a worker dies because a
+      // document ran away, which is when the next compile matters most.
+      if (!background) {
+        this.foregroundPending = Math.max(0, this.foregroundPending - 1);
+        if (this.foregroundPending === 0) this.drainBackground();
+      }
     }
   }
 
@@ -1579,6 +1607,15 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
     // with nothing said. A deadline on this side unblocks the editor and shows
     // why; the abandoned compile finishes on tokio's blocking pool, which is
     // large enough that one lost thread does not wedge a single-user desktop app.
+    // And when the deadline wins, the abandoned compile is *nobody's*. Nothing
+    // is attached to `run`, so a later rejection — a Tauri `invoke` that fails,
+    // a JSON parse of a truncated answer — is an unhandled promise rejection.
+    // `crash.install` listens for exactly that and puts the **full-screen crash
+    // panel** over the application: on the desktop build, a compile that
+    // overruns twenty seconds and then fails told the writer "Ksav has crashed",
+    // over an application that had not, in the middle of a document that was
+    // fine. Abandoning a promise means saying so.
+    void run.catch(() => {});
     let timer: ReturnType<typeof setTimeout>;
     const deadline = new Promise<CompileResult>((resolve) => {
       timer = setTimeout(() => resolve(errorResult(COMPILE_TIMEOUT_MESSAGE)), COMPILE_TIMEOUT_MS);

@@ -194,11 +194,32 @@ let index: LibraryEntry[] = [];
  * writer would expect rather than whatever the clock granularity allowed.
  */
 export function library(): LibraryEntry[] {
-  return index
-    .map((entry, i) => ({ entry, i }))
-    .sort((a, b) => b.entry.updated - a.entry.updated || b.i - a.i)
-    .map(({ entry }) => entry);
+  // Memoised, because this is asked once per item inside several loops.
+  //
+  // It maps, sorts and maps again on every call, and the call sites do it per
+  // element: `openSwitcher` runs `docs.library().find(...)` once per open
+  // document; `buildTabStrip` and `openPaneMenu` build a `titleOf` that closes
+  // over `docs.library()` and call it once per tab; `boot`'s `onGoToPart`,
+  // `docBoundTo` and `movePaneToTab` do the same. That is O(n log n) per lookup
+  // where O(1) is available — small today, and exactly the shape that gets
+  // noticed at two hundred documents.
+  //
+  // Invalidated by `writeIndex`, which is the one place every mutation of
+  // `index` ends up — `upsert`, `setFileName`, `deleteDoc` and `rebuildIndex`
+  // all call it, and `init` assigns before anything can have asked. Keying the
+  // memo on the array's identity would not do: `upsert` and `setFileName` write
+  // *through* it.
+  if (!librarySorted) {
+    librarySorted = index
+      .map((entry, i) => ({ entry, i }))
+      .sort((a, b) => b.entry.updated - a.entry.updated || b.i - a.i)
+      .map(({ entry }) => entry);
+  }
+  return librarySorted;
 }
+
+/** The last answer `library()` gave, or null when the index has moved since. */
+let librarySorted: LibraryEntry[] | null = null;
 
 /**
  * Persist the index.
@@ -208,6 +229,9 @@ export function library(): LibraryEntry[] {
  * index next time. Losing the cache must not look like losing the work.
  */
 function writeIndex() {
+  // Every mutation of `index` passes through here, which is what makes this the
+  // one line that has to invalidate `library()`'s memo. See it for why.
+  librarySorted = null;
   try {
     localStorage.setItem(LIBRARY_KEY, JSON.stringify(index));
   } catch {
@@ -488,7 +512,7 @@ async function rebuildIndex(): Promise<void> {
  * Called after a delete, which is rare and asked for by a person. Reads through
  * a cursor for the same reason `rebuildIndex` does.
  */
-async function collectAssets(): Promise<void> {
+export async function collectAssets(): Promise<void> {
   const referenced = new Set<string>();
   await store.forEach<KsavDoc>(DOCS, (d) => {
     for (const a of d.assets ?? []) if (a.hash) referenced.add(a.hash);
@@ -556,6 +580,10 @@ export async function init(starter: string, untitled: string): Promise<KsavDoc> 
   index = readJson<LibraryEntry[]>(LIBRARY_KEY, []).filter(
     (e): e is LibraryEntry => !!e && typeof e.id === "string",
   );
+  // The one assignment that does not go through `writeIndex` — nothing has read
+  // the library yet at this point, but saying so costs a line and assuming it
+  // costs a stale list on a second `init`.
+  librarySorted = null;
   await migrateFromLocalStorage();
 
   const id = currentId();

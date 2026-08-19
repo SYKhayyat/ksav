@@ -351,6 +351,7 @@ mod tests {
                 origin(None, 13),
             ],
             problems: Vec::new(),
+            expanded: true,
         };
         let mut pages = vec![vec![LineRun {
             file: None,

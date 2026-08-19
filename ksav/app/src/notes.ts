@@ -24,7 +24,7 @@ import {
 } from "./deferred";
 import type { NoteMarker } from "./api";
 import { seriesOf } from "./channels";
-import { docLang, translated } from "./mode";
+import { canonicalName, docLang, sameCommand, translated } from "./mode";
 import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
 import { scan as scanSpans, type Node, type Scan } from "./spans";
 
@@ -516,11 +516,34 @@ export function markersOf(c: NoteChoice): string[] {
   return [c.insert, ...(c.more ?? [])];
 }
 
-/** The layout (and layer) a raw snippet is the marker of, if any. */
+/**
+ * The layout (and layer) a raw snippet is the marker of, if any.
+ *
+ * **Said in Hebrew before it is matched.** The cards' markers are Hebrew
+ * literals because this is a Hebrew-first product, and for the toolbar's fixed
+ * buttons that is fine — they pass Hebrew and `applyChoice` translates later.
+ * But `tieredNoteAt` does not: it calls `tierCommand(tier, docLang())`, quite
+ * deliberately, so in an English document it hands this `#fnote[|]` and
+ * `#tier2[|]`. Matched against the literals those were **not notes at all**, so
+ * `plan` fell through to a plain splice and the two things that only the note
+ * path does were skipped: the `nested` card's `head` line — the one that makes a
+ * two-layer apparatus's markers tell a reader which layer they point into — and
+ * `settings.deferNoteBodies`. The document compiled, the page looked finished,
+ * and the reader could not tell the layers apart.
+ *
+ * Every route that writes a tiered note came through here — the toolbar's `⁑`,
+ * `Ctrl+Shift+N`, the Insert menu, the notes pane's "hang another note off this
+ * one" — so all four were affected and none of them said so.
+ *
+ * The marker is returned in Hebrew for the same reason it is matched in Hebrew:
+ * `applyChoice` spells it in the document's language as its first act, and
+ * handing it a form already in that language would be the one path that skips
+ * the translation.
+ */
 export function noteFor(
   snippet: string,
 ): { choice: NoteChoice; layer: number; marker: string } | null {
-  const s = snippet.trim();
+  const s = translated(snippet.trim(), "he");
   // Primaries first, across every card, then the further layers: a snippet that
   // is one card's primary and another's second layer belongs to the card that
   // leads with it.
@@ -1022,9 +1045,45 @@ export function scaffold(
 export function choiceForCommand(command: string): NoteChoice | null {
   const named = (s: string | undefined) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1];
   for (const c of NOTE_CHOICES) {
-    if (markersOf(c).some((m) => named(m) === command)) return c;
+    // `sameCommand`, not `===`: the markers are Hebrew literals and the command
+    // comes off the writer's document, so an English document answered null to
+    // every one of the eighteen. Null here means `convertNote`'s caller skips
+    // `scaffold`, which is *"converting a footnote to an endnote produced an
+    // endnote with no `#הערות_בסוף()`"* — the collected-and-never-printed
+    // failure, performed by the product and then reported back as a lint.
+    if (markersOf(c).some((m) => sameCommand(named(m) ?? "", command))) return c;
   }
   return null;
+}
+
+/**
+ * Every command a note could be converted to, spelt for this document.
+ *
+ * Lives here rather than in the menu that shows it, because it is the same
+ * question `choiceForCommand` answers going the other way and it was asked with
+ * the same defect: `openNoteMenu` built its list by scraping the Hebrew literals
+ * out of `NOTE_CHOICES`, so an English writer's only offer was to rewrite
+ * `#fnote` as `#הערה` — a change of language presented as a change of layout.
+ *
+ * The exclusion of the note's own command has to be asked canonically too. Read
+ * off a Hebrew list against an English `current`, nothing ever matched, so the
+ * note's existing layout was offered as something to convert it to.
+ */
+export function conversionTargets(current: string, lang: "he" | "en"): string[] {
+  const named = (s: string | undefined) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const c of NOTE_CHOICES) {
+    for (const m of markersOf(c)) {
+      const he = named(m);
+      if (!he || sameCommand(he, current)) continue;
+      const canon = canonicalName(he);
+      if (seen.has(canon)) continue;
+      seen.add(canon);
+      out.push(named(translated(`#${he}`, lang)) ?? he);
+    }
+  }
+  return out;
 }
 
 /**

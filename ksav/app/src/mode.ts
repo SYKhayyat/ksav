@@ -187,9 +187,39 @@ function paramsInto(heCommand: string, lang: Lang): Record<string, string> {
  * the prelude binds names the registry never advertises, and the honest answer
  * for one of those is the name the writer would have to type anyway.
  */
-function nameIn(name: string, lang: Lang): string {
+export function nameIn(name: string, lang: Lang): string {
   if (langOf(name) === lang) return name;
   return (lang === "en" ? COMMAND_EN[name] : COMMAND_HE[name]) ?? name;
+}
+
+/**
+ * The Hebrew spelling of a command, whichever spelling arrived.
+ *
+ * The one answer to "are these two names the same command", which is a question
+ * four modules were asking by comparing string literals — and getting right in
+ * Hebrew and wrong in English, every time, since before the English wave. A
+ * command's language is a property of the document, never of the table that
+ * mentions it; anything that matches on a name canonicalises first.
+ */
+export function canonicalName(name: string): string {
+  return nameIn(name, "he");
+}
+
+/** Do these two command names name the same command, in either spelling? */
+export function sameCommand(a: string, b: string): boolean {
+  return canonicalName(a) === canonicalName(b);
+}
+
+/**
+ * A parameter name, spelt in `lang`, for a command named in either spelling.
+ *
+ * The counterpart to `nameIn` for the other half of a call. `apparatus.ts` wrote
+ * `זרם:` into English documents because it had the command name in a table and
+ * the parameter name in a string literal, which is the same defect twice.
+ */
+export function paramIn(command: string, param: string, lang: Lang): string {
+  const names = paramsInto(canonicalName(command), lang);
+  return names[param] ?? param;
 }
 
 /**

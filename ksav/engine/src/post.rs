@@ -46,6 +46,21 @@ use crate::source::{to_ksav, CitationPlacement};
 /// see [`remember`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Arrival {
+    /// What this arrival is called, for as long as it is in flight.
+    ///
+    /// The prerequisite for handing a source out without destroying it. `drain`
+    /// used to empty the list **and truncate the file** before the answer had
+    /// reached the client, and the client's `inbox()` swallows every failure by
+    /// design — *"a build with no Girsa half, or a server that went away, is a
+    /// thing to stop asking about quietly"*. So a response lost between the
+    /// engine and the tab took the sources with it, from memory and from disk,
+    /// with Girsa already told `{"taken":true}`. spec.md §10's stated target is
+    /// AirDrop, and AirDrop does not lose the file when you close the window.
+    ///
+    /// An old inbox file has no `id`; `recover` mints one, because a source that
+    /// survived a restart is exactly the one this must not drop.
+    #[serde(default = "mint_id")]
+    pub id: String,
     /// Real Ksav markup, ready to be inserted as it stands.
     pub markup: String,
     /// How the citation prints, for the line the editor shows afterwards.
@@ -71,6 +86,19 @@ pub struct Arrival {
 /// The `Vec` threw the source away too — just at process exit rather than
 /// immediately. See [`remember`]; this is now a cache of a file.
 static INBOX: Mutex<Vec<Arrival>> = Mutex::new(Vec::new());
+
+/// Handed to a client, not yet acknowledged.
+///
+/// The second half of the two-phase handover. An arrival moves here when it is
+/// answered to a poll and leaves only when the *next* poll names its id as
+/// taken. A client that never comes back — a reload landing between the POST and
+/// the parse, a wasm worker killed by the compile timeout mid-poll — leaves it
+/// here and on disk, and the next poll is handed it again.
+///
+/// Re-delivery rather than loss is the right way round: a duplicate is a
+/// paragraph the writer deletes, and the alternative is a source that Girsa was
+/// told had arrived and that nothing on this machine still holds.
+static HANDED: Mutex<Vec<Arrival>> = Mutex::new(Vec::new());
 
 /// How many sources may wait at once.
 ///
@@ -117,7 +145,38 @@ fn remember(waiting: &[Arrival]) {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
+    // Beside and renamed over, which is the rule `ksav_dictionary_write` states
+    // twenty lines of comment away in the Tauri shell: *"a machine that stops
+    // mid-write must cost the last word added, not the zman's worth of them."*
+    // This is the file that holds sources somebody has already been told
+    // arrived, and it was the one place still calling `fs::write` on a path a
+    // reader depends on.
+    //
+    // A rename that fails falls back to writing in place: a torn file is bad and
+    // no file at all is worse, and on Windows a rename over an open handle can
+    // genuinely fail.
+    let temp = path.with_extension("jsonl.writing");
+    if std::fs::write(&temp, &body).is_ok() && std::fs::rename(&temp, &path).is_ok() {
+        return;
+    }
+    let _ = std::fs::remove_file(&temp);
     let _ = std::fs::write(&path, body);
+}
+
+/// A name for one arrival, unique for as long as it matters.
+///
+/// A counter and the process start, not a UUID: these live between one poll and
+/// the next, the client compares them for equality and nothing else, and a
+/// dependency for sixteen bytes of uniqueness is a dependency.
+fn mint_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let n = N.fetch_add(1, Ordering::Relaxed);
+    let since = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{since:x}-{n:x}")
 }
 
 /// Take back what was still waiting when this process last stopped.
@@ -175,7 +234,7 @@ fn wait(arrival: Arrival) -> Reply {
                 );
             }
             inbox.push(arrival);
-            remember(&inbox);
+            persist(&inbox);
             Reply::ok(r#"{"taken":true}"#)
         }
         Err(_) => Reply::refused(500, "the inbox is wedged"),
@@ -225,6 +284,7 @@ fn take(body: &str) -> Reply {
         return Reply::refused(422, crate::source::DOUBLE_ENCODED);
     }
     let arrival = Arrival {
+        id: mint_id(),
         markup: to_ksav(&packet, CitationPlacement::Mekor),
         display: packet.display.clone(),
         reference: packet.reference.clone(),
@@ -253,6 +313,7 @@ fn take_document(body: &str) -> Reply {
         return Reply::refused(422, crate::source::DOUBLE_ENCODED);
     }
     let arrival = Arrival {
+        id: mint_id(),
         markup: handed.text,
         display: handed.name,
         reference: String::new(),
@@ -261,29 +322,67 @@ fn take_document(body: &str) -> Reply {
     wait(arrival)
 }
 
-/// Everything waiting, taken off the list.
+/// Write down everything this process is still responsible for.
 ///
-/// Draining rather than reading: two windows asking would otherwise each
-/// insert the same source, and a quote in a document twice is worse than one
-/// the reader has to ask for again.
+/// Both lists, because an arrival that has been handed out and not acknowledged
+/// is still this machine's to keep. Writing only `INBOX` here is the original
+/// bug wearing a new name.
+fn persist(waiting: &[Arrival]) {
+    let handed = HANDED.lock().map(|h| h.clone()).unwrap_or_default();
+    let mut all = handed;
+    all.extend_from_slice(waiting);
+    remember(&all);
+}
+
+/// Everything waiting, handed out — and kept until the client says it has it.
+///
+/// Draining rather than reading, still: two windows asking would each insert the
+/// same source, and a quote in a document twice is worse than one the reader has
+/// to ask for again. What changed is where the sources go. They move to
+/// [`HANDED`] rather than out of existence, and `took` on the *next* poll is
+/// what finally lets go of them.
+///
+/// The previous batch comes first, in front of anything new, for the reason
+/// `recover` gives about a restart: the order a writer sent things in is the
+/// order they should arrive in.
 #[must_use]
-pub fn drain() -> Vec<Arrival> {
-    let taken = INBOX
+pub fn drain(took: &[String]) -> Vec<Arrival> {
+    let mut out = Vec::new();
+    if let Ok(mut handed) = HANDED.lock() {
+        // Acknowledged: gone, from memory and from the file below.
+        handed.retain(|a| !took.contains(&a.id));
+        // Not acknowledged: handed out again. The client is idempotent about
+        // this in the only way that matters — it is the same source it did not
+        // get.
+        out.extend(handed.iter().cloned());
+    }
+    let waiting = INBOX
         .lock()
         .map(|mut inbox| std::mem::take(&mut *inbox))
         .unwrap_or_default();
-    if !taken.is_empty() {
-        // They are in the editor now, so they are not waiting any more. If
-        // this did not happen, the next start would insert them a second time.
-        remember(&[]);
+    if let Ok(mut handed) = HANDED.lock() {
+        handed.extend(waiting.iter().cloned());
     }
-    taken
+    out.extend(waiting);
+    // The file now says: nothing waiting, these still in flight.
+    persist(&[]);
+    out
 }
 
 /// The same, as JSON, for the editor's poll.
+///
+/// The request body carries `{"took": [id, …]}` — the ids the client inserted
+/// since it last asked. An empty or absent list is a client that has taken
+/// nothing, which is what the first poll of a session says and what a client
+/// that is still catching up says, and both are answered the same way.
 #[must_use]
-pub fn drain_json() -> String {
-    serde_json::to_string(&drain()).unwrap_or_else(|_| "[]".to_string())
+pub fn drain_json(input_json: &str) -> String {
+    let took: Vec<String> = serde_json::from_str::<serde_json::Value>(input_json)
+        .ok()
+        .and_then(|v| v.get("took").cloned())
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    serde_json::to_string(&drain(&took)).unwrap_or_else(|_| "[]".to_string())
 }
 
 /// Ask the library where a phrase is from (spec.md §10.4, W18).
@@ -628,7 +727,12 @@ mod tests {
         let guard = ALONE
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let _ = drain();
+        // Both lists, through the real API: `drain` no longer destroys what it
+        // hands out — it moves it to `HANDED` and waits to be told — so a single
+        // call leaves the previous test's arrivals in flight, and the next test
+        // is handed them. Take everything, then acknowledge everything.
+        let ids: Vec<String> = drain(&[]).into_iter().map(|a| a.id).collect();
+        let _ = drain(&ids);
         guard
     }
 
@@ -647,7 +751,7 @@ mod tests {
         INBOX.lock().map(|mut inbox| inbox.clear()).unwrap();
         recover();
 
-        let waiting = drain();
+        let waiting = drain(&[]);
         assert_eq!(
             waiting.len(),
             1,
@@ -660,16 +764,43 @@ mod tests {
     }
 
     /// And one the editor already took does not come back on the next start.
+    ///
+    /// *Took* means acknowledged, which is the whole of the two-phase handover:
+    /// handing a source out and hearing nothing back is not evidence that it is
+    /// in the document, and it used to be treated as though it were — the list
+    /// was emptied and the file truncated before the answer had reached
+    /// anybody. Both halves are asserted, because they are the trade being made:
+    /// an unacknowledged source survives a restart, an acknowledged one does
+    /// not.
     #[test]
     fn a_source_already_inserted_does_not_arrive_a_second_time() {
         let _alone = alone();
         arrived(PACKET).expect("a real packet");
-        assert_eq!(drain().len(), 1);
+        let handed = drain(&[]);
+        assert_eq!(handed.len(), 1);
 
+        // Handed out, nothing heard back, and the process dies. The source is
+        // still this machine's to keep — spec.md §10's stated target is AirDrop,
+        // and AirDrop does not lose the file when you close the window.
         INBOX.lock().map(|mut inbox| inbox.clear()).unwrap();
+        HANDED.lock().map(|mut h| h.clear()).unwrap();
+        recover();
+        let again = drain(&[]);
+        assert_eq!(
+            again.len(),
+            1,
+            "a source handed out and never acknowledged must survive a restart"
+        );
+
+        // Now the editor says it has it. *That* is what makes it gone, here and
+        // on disk, and a quote in a document twice is worse than one the reader
+        // asks for again.
+        assert!(drain(&[again[0].id.clone()]).is_empty());
+        INBOX.lock().map(|mut inbox| inbox.clear()).unwrap();
+        HANDED.lock().map(|mut h| h.clear()).unwrap();
         recover();
         assert!(
-            drain().is_empty(),
+            drain(&[]).is_empty(),
             "a quote in a document twice is worse than one the reader asks for again"
         );
     }
@@ -684,7 +815,7 @@ mod tests {
         let why = arrived(PACKET).expect_err("the waiting room is full");
         assert!(why.contains("open the Ksav editor"), "{why}");
         assert_eq!(
-            drain().len(),
+            drain(&[]).len(),
             WAITING_ROOM,
             "refusing the last one must not cost the ones already waiting"
         );
@@ -694,7 +825,7 @@ mod tests {
     fn a_packet_from_girsa_waits_in_the_inbox_as_markup() {
         let _alone = alone();
         arrived(PACKET).expect("a real packet");
-        let waiting = drain();
+        let waiting = drain(&[]);
         assert_eq!(waiting.len(), 1);
         assert!(waiting[0].markup.contains("#ציטוט["));
         assert!(waiting[0].markup.contains("ראוי לכל ירא שמים"));
@@ -705,12 +836,88 @@ mod tests {
     }
 
     #[test]
-    fn the_inbox_is_drained_and_not_read() {
+    fn a_source_is_held_until_the_client_says_it_has_it() {
         let _alone = alone();
         arrived(PACKET).expect("a real packet");
-        assert_eq!(drain().len(), 1);
+        let first = drain(&[]);
+        assert_eq!(first.len(), 1);
+
+        // The response was lost — a reload landing between the POST and the
+        // parse, a wasm worker killed by the compile timeout mid-poll. The
+        // client asks again, having acknowledged nothing, and must be handed the
+        // same source rather than nothing at all.
+        //
+        // `drain` used to empty the list **and truncate the file** in one step,
+        // before the answer had reached anybody, and the client's `inbox()`
+        // swallows every failure by design — *"a build with no Girsa half, or a
+        // server that went away, is a thing to stop asking about quietly"*. So a
+        // lost response destroyed the source, from memory and from disk, with
+        // Girsa already told `{"taken":true}`. spec.md §10's stated target is
+        // AirDrop, and AirDrop does not lose the file when you close the window.
+        let again = drain(&[]);
+        assert_eq!(
+            again.len(),
+            1,
+            "an unacknowledged source is handed out again"
+        );
+        assert_eq!(again[0].id, first[0].id, "and it is the same one");
+
+        // Now it is in the document, and the client says so.
+        let after = drain(&[first[0].id.clone()]);
+        assert!(after.is_empty(), "an acknowledged source is let go of");
         // Two windows asking would otherwise each insert the same source.
-        assert!(drain().is_empty());
+        assert!(drain(&[]).is_empty());
+    }
+
+    #[test]
+    fn every_arrival_is_named() {
+        let _alone = alone();
+        arrived(PACKET).expect("a real packet");
+        arrived(PACKET).expect("a real packet");
+        let waiting = drain(&[]);
+        assert_eq!(waiting.len(), 2);
+        assert!(
+            !waiting[0].id.is_empty(),
+            "an arrival with no id cannot be acknowledged"
+        );
+        assert_ne!(waiting[0].id, waiting[1].id, "two arrivals are two names");
+    }
+
+    /// Acknowledging one of two does not let go of the other.
+    #[test]
+    fn only_what_the_client_named_is_released() {
+        let _alone = alone();
+        arrived(PACKET).expect("a real packet");
+        arrived(PACKET).expect("a real packet");
+        let both = drain(&[]);
+        assert_eq!(both.len(), 2);
+        let left = drain(&[both[0].id.clone()]);
+        assert_eq!(
+            left.len(),
+            1,
+            "the unacknowledged one is still ours to keep"
+        );
+        assert_eq!(left[0].id, both[1].id);
+    }
+
+    /// The poll's request body is where the acknowledgement travels.
+    ///
+    /// No second service and no second round trip: the poll is the only errand
+    /// there is, and an errand that exists to say "thank you" is a service
+    /// nobody would keep.
+    #[test]
+    fn the_poll_reads_the_ids_the_client_took() {
+        let _alone = alone();
+        arrived(PACKET).expect("a real packet");
+        let handed: Vec<Arrival> =
+            serde_json::from_str(&drain_json("{}")).expect("the poll answers a list");
+        assert_eq!(handed.len(), 1);
+        let ack = serde_json::json!({ "took": [handed[0].id] }).to_string();
+        let after: Vec<Arrival> = serde_json::from_str(&drain_json(&ack)).expect("a list");
+        assert!(after.is_empty(), "the acknowledged source is gone");
+        // A body that is not the shape this expects is a client that has taken
+        // nothing, which is what the first poll of a session says.
+        assert_eq!(drain_json("not json at all"), "[]");
     }
 
     #[test]
@@ -720,7 +927,7 @@ mod tests {
 " });
         let reply = take_document(&handed.to_string());
         assert_eq!(reply.status, 200);
-        let waiting = drain();
+        let waiting = drain(&[]);
         assert_eq!(waiting.len(), 1);
         assert!(waiting[0].whole, "a document has to say it is one");
         assert_eq!(

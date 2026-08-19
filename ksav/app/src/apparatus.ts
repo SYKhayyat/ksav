@@ -37,8 +37,9 @@
 
 import { channelNotesIn, channelsIn, regionsShownIn, showRegionLine } from "./channels";
 import { scan as scanDeferred } from "./deferred";
+import { docLang, nameIn, paramIn } from "./mode";
 import { BAND_FAMILY } from "./note-commands";
-import { scan as scanSpans, type Node } from "./spans";
+import { langOf, scan as scanSpans, type Node } from "./spans";
 
 /** A collecting command, and the call that renders what it collected. */
 interface Rule {
@@ -46,8 +47,21 @@ interface Rule {
   collectors: string[];
   /** The dump call's names, both languages. */
   dumps: string[];
-  /** What to write when the writer accepts the fix. */
-  fix: string;
+  /**
+   * The command to call, **in Hebrew**. Spelt for the document by `fixFor`.
+   *
+   * It used to be the whole literal `"#הערות_בסוף()"`, written straight into
+   * the writer's document by a button labelled "render the notes". Detection
+   * here has been bilingual from the start — `collectors` and `dumps` both list
+   * the English aliases, and `BAND_FAMILY` supplies the whole family in both —
+   * so an English `#endnote` was found correctly and then repaired with a
+   * Hebrew call. The streamed case was worse still: a Hebrew command, a Hebrew
+   * parameter name and the writer's English stream name in one call.
+   *
+   * This is the surface with the least excuse for it, because repairing a
+   * document is the whole of what it is for.
+   */
+  render: string;
   /** Does this collector's stream matter when matching a dump? */
   streamed: boolean;
 }
@@ -56,7 +70,7 @@ const RULES: Rule[] = [
   {
     collectors: ["הערתסיום", "endnote"],
     dumps: ["הערות_בסוף", "endnotes", "הערות_בסוף_צד", "endnotes_side"],
-    fix: "#הערות_בסוף()",
+    render: "הערות_בסוף",
     streamed: true,
   },
   {
@@ -64,7 +78,7 @@ const RULES: Rule[] = [
     // exists but is missing here is a document that silently prints nothing.
     collectors: [...BAND_FAMILY],
     dumps: ["הערות_מדורגות", "banded_notes"],
-    fix: "#הערות_מדורגות()",
+    render: "הערות_מדורגות",
     streamed: false,
   },
 ];
@@ -168,8 +182,14 @@ const DEFAULT_STREAM = "הערות";
  * by any matching dump that comes after it — which is also what makes the
  * per-section arrangement work.
  */
-export function unrendered(doc: string): Unrendered[] {
+export function unrendered(doc: string, whenSilent: "he" | "en" = "he"): Unrendered[] {
   const out: Unrendered[] = [];
+  // Once, at the top, and carried on every problem. Detection here reads both
+  // languages and always has; the repair read one, so an English document was
+  // diagnosed correctly and then mended in Hebrew. The lint message quotes
+  // `fix` too, so deciding the language here is also what makes the sentence on
+  // the line and the text the button writes the same string.
+  const lang = docLang(doc, doc.length, whenSilent);
   // Channels first, because they are the same failure under the new spelling
   // and the sweep is the point: a channel placed at the end of a section or of
   // the document collects its notes and prints nothing until `#הצג_אזור` is
@@ -187,7 +207,7 @@ export function unrendered(doc: string): Unrendered[] {
         from: note.from,
         to: note.to,
         command: note.command,
-        fix: showRegionLine(c.region),
+        fix: showRegionLine(c.region, lang),
         // The region, not the stream — the same field, because what the fix has
         // to name is "which collection is missing its call" either way.
         stream: c.region,
@@ -204,11 +224,16 @@ export function unrendered(doc: string): Unrendered[] {
         (d) => d.from > c.from && (stream === undefined || dumpCovers(doc, d, stream)),
       );
       if (!covered) {
-        out.push({ from: c.from, to: c.to, command: c.command, fix: rule.fix, stream });
+        out.push({ from: c.from, to: c.to, command: c.command, fix: fixFor(rule, lang), stream });
       }
     }
   }
   return out.sort((a, b) => a.from - b.from);
+}
+
+/** The bare dump call a rule offers, spelt for the document. */
+function fixFor(rule: Rule, lang: "he" | "en"): string {
+  return `#${nameIn(rule.render, lang)}()`;
 }
 
 /**
@@ -222,12 +247,21 @@ export function unrendered(doc: string): Unrendered[] {
  * different stream and the notes stay invisible.
  */
 export function addDump(doc: string, p: Unrendered): { text: string; caret: number } {
+  // `p.fix` is already spelt for the document — `unrendered` decided that. The
+  // parameter name has to be spelt too, and separately, because the *value* is
+  // the writer's own stream name and must go in exactly as they wrote it.
+  // Running the whole call through `translated` would have turned a stream
+  // called "מקורות" into "Sources" and pointed the dump at a stream nobody
+  // collects into, which is the same silent-empty-block failure this module
+  // exists to end, arriving through the fix for it.
+  const named = /^#([A-Za-z0-9֐-׿_]+)/u.exec(p.fix)?.[1] ?? "";
+  const stream = paramIn(named, "זרם", langOf(named));
   const call =
     // A channel's fix already names its region — `#הצג_אזור("ביאור")` — so there
     // is nothing to fill in, and filling it in would append a second argument
     // list to a call that has one.
     p.fix.includes("()") && p.stream && p.stream !== DEFAULT_STREAM
-      ? p.fix.replace("()", `(זרם: "${p.stream}")`)
+      ? p.fix.replace("()", `(${stream}: "${p.stream}")`)
       : p.fix;
   return fileAtEnd(doc, call);
 }

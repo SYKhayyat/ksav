@@ -4,7 +4,7 @@
 //! could not work at all: the compiler was built with no file resolver, and every
 //! `image()` call failed "file not found" no matter what path you gave it.
 
-use ksav_engine::assets::{Asset, Assets};
+use ksav_engine::assets::{client_hash, Asset, Assets};
 use ksav_engine::{compile, compile_with, DocConfig};
 
 /// A 1×1 PNG — enough to prove the bytes reached the compiler and decoded.
@@ -14,9 +14,11 @@ fn png() -> Asset {
     use base64::Engine as _;
     Asset {
         name: "logo.png".to_string(),
-        bytes: base64::engine::general_purpose::STANDARD
-            .decode(PNG_B64)
-            .expect("decode test png"),
+        bytes: std::sync::Arc::new(
+            base64::engine::general_purpose::STANDARD
+                .decode(PNG_B64)
+                .expect("decode test png"),
+        ),
     }
 }
 
@@ -67,11 +69,11 @@ fn a_missing_image_fails_with_a_useful_diagnostic_not_a_panic() {
 
 #[test]
 fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
-    // First request carries the bytes under a hash; the second sends only the
-    // hash and must resolve from the cache with nothing missing. Distinctive
-    // hashes so the process-global cache is not disturbed by other tests.
+    // First request carries the bytes under their **real** hash; the second
+    // sends only the hash and must resolve from the cache with nothing missing.
+    let hash = client_hash(PNG_B64);
     let with_bytes = serde_json::json!({
-        "assets": [{ "name": "logo.png", "hash": "test-cache-hit-abc", "data": PNG_B64 }]
+        "assets": [{ "name": "logo.png", "hash": hash, "data": PNG_B64 }]
     });
     let (a1, missing1) = Assets::from_request(&with_bytes);
     assert_eq!(a1.files.len(), 1, "the bytes should decode");
@@ -81,7 +83,7 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     );
 
     let hash_only = serde_json::json!({
-        "assets": [{ "name": "logo.png", "hash": "test-cache-hit-abc" }]
+        "assets": [{ "name": "logo.png", "hash": hash }]
     });
     let (a2, missing2) = Assets::from_request(&hash_only);
     assert_eq!(
@@ -91,6 +93,97 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     );
     assert_eq!(a2.files[0].bytes, a1.files[0].bytes, "…to the same bytes");
     assert!(missing2.is_empty(), "a cached hash is not missing");
+}
+
+/// The engine's hash is the client's hash, or the cache can never be hit.
+///
+/// Verification means *reproducing the caller's arithmetic and checking it*, not
+/// substituting arithmetic of our own: the client asks for an asset by this
+/// exact string. `app/src/docs.ts::assetHash` is the original — two 32-bit
+/// FNV-1a passes plus the length, each part in base 36 — and these vectors are
+/// what holds the two together across a change to either.
+#[test]
+fn the_content_hash_matches_the_clients() {
+    // Computed by `assetHash`'s own arithmetic on these inputs.
+    // Taken from the JavaScript, run on these inputs.
+    assert_eq!(client_hash(""), "0-ztntfp-8nd2f0");
+    assert_eq!(client_hash("a"), "1-1r9wi7g-d2eron");
+    assert_eq!(client_hash("abc"), "3-7aigaz-177bcc4");
+    // Whatever the payload, the shape is `len-h1-h2` in base 36 and nothing else.
+    for probe in ["", "a", "abc", PNG_B64] {
+        let h = client_hash(probe);
+        let parts: Vec<&str> = h.split('-').collect();
+        assert_eq!(parts.len(), 3, "hash {h} is not len-h1-h2");
+        assert_eq!(
+            parts[0],
+            radix36(probe.encode_utf16().count() as u32),
+            "the length field of {h}"
+        );
+        assert!(
+            parts.iter().all(|p| p
+                .chars()
+                .all(|c| c.is_ascii_digit() || c.is_ascii_lowercase())),
+            "hash {h} is not lowercase base 36"
+        );
+    }
+}
+
+fn radix36(mut n: u32) -> String {
+    const D: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    if n == 0 {
+        return "0".to_string();
+    }
+    let mut out = Vec::new();
+    while n > 0 {
+        out.push(D[(n % 36) as usize]);
+        n /= 36;
+    }
+    out.reverse();
+    String::from_utf8(out).unwrap()
+}
+
+/// A hash the engine did not compute cannot be installed in the cache.
+///
+/// The cache used to store bytes under whatever string arrived in `hash` and
+/// later hand them to **any** request naming that string — under a name the
+/// engine had never seen, carrying no bytes of its own. The map is process-wide
+/// and shared across every document and every window talking to one `ksav
+/// serve`, so a caller could seed hash `H` with an image of their choosing
+/// before the writer's client asked for `H`, and the writer's sefer printed
+/// somebody else's picture. Combined with the `Origin` rule that lets a
+/// header-less caller through, that was any process on the machine.
+///
+/// The bytes on the request are still used — they are right here, and the writer
+/// wants their image. What must not happen is the *key* being taken on trust.
+#[test]
+fn bytes_sent_under_a_hash_that_is_not_theirs_do_not_poison_the_cache() {
+    let claimed = "test-poison-not-a-real-hash";
+    let seeded = serde_json::json!({
+        "assets": [{ "name": "attacker.png", "hash": claimed, "data": PNG_B64 }]
+    });
+    let (used, missing) = Assets::from_request(&seeded);
+    assert_eq!(
+        used.files.len(),
+        1,
+        "the bytes on the request are still used — this is not about refusing the image"
+    );
+    assert!(
+        missing.is_empty(),
+        "a request carrying its bytes is missing nothing"
+    );
+
+    // And now the half that was the finding: a *different* name, no bytes, the
+    // same claimed key. It must come back as missing rather than as somebody
+    // else's picture.
+    let asking = serde_json::json!({
+        "assets": [{ "name": "the-writers-sefer.png", "hash": claimed }]
+    });
+    let (got, missing) = Assets::from_request(&asking);
+    assert!(
+        got.files.is_empty(),
+        "a hash the engine never computed resolved to bytes anyway"
+    );
+    assert_eq!(missing, vec![claimed.to_string()]);
 }
 
 #[test]
@@ -137,7 +230,7 @@ fn a_font_sent_with_the_request_can_be_used_by_the_document() {
         files: vec![],
         fonts: vec![Asset {
             name: "user.ttf".to_string(),
-            bytes,
+            bytes: std::sync::Arc::new(bytes),
         }],
     };
     let out = compile_with(

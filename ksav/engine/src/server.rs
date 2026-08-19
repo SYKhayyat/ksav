@@ -394,6 +394,27 @@ fn handle(mut request: tiny_http::Request, addr_str: &str) {
             );
             return;
         }
+        // And the half the origin policy cannot see.
+        //
+        // `origin_allowed` lets an absent `Origin` through, deliberately, so
+        // `curl` and the Tauri shell work. That is a reasonable rule for the
+        // services it was written about. It is not one for `git`, which arrived
+        // later and offers seventeen operations including `commit`, `push`,
+        // `restore`, `revert`, `remote-add` and `merge` — on an arbitrary
+        // absolute path, so the caller chooses the repository. Nothing that is
+        // not a browser was constrained at all, and `serve` takes any bind
+        // address, so the moment somebody runs `ksav serve 0.0.0.0:7878` to read
+        // their sefer from a tablet — which is the obvious reason to type an
+        // address — every host on the network can read any file at any revision
+        // in any repository on the machine and push it somewhere.
+        //
+        // `reach` is already the column that separates these from the compile
+        // services, so this is one check keyed on it rather than a rule per
+        // service.
+        if let Err(why) = native_allowed(&request, svc) {
+            let _ = request.respond(Response::from_string(why).with_status_code(403));
+            return;
+        }
         let cors = cors_header(&request, addr_str);
         // A JSON endpoint that reads a body: check the size before doing any
         // work. A GET service is handed nothing, which is what it expects.
@@ -433,6 +454,16 @@ pub fn serve(addr: &str) {
     };
     let workers = worker_count();
     println!("Ksav editor serving on http://{addr} ({workers} workers)");
+    // A bind address that is not loopback is a decision, and the writer who
+    // typed it deserves to be told what it did rather than to find out. The
+    // editor and every compile service are open to the network; the services
+    // that touch this machine are not, and `KSAV_TOKEN` is how somebody who
+    // genuinely wants them there says so.
+    if !addr_is_loopback(addr) {
+        println!("  reachable from the network — the editor and every compile service.");
+        println!("  git, the Girsa desk and the other services that touch this");
+        println!("  machine answer only on loopback, unless KSAV_TOKEN is set.");
+    }
 
     // The loopback desk, so Girsa can hand this editor a source while it runs
     // (spec.md §10.6). Its own listener on a port the system picks, token-gated
@@ -536,6 +567,81 @@ fn origin_of(request: &tiny_http::Request) -> Option<String> {
     )
 }
 
+/// Does this bind address keep the server on this machine?
+///
+/// The host part, parsed — not a string test. `"localhost:7878"` and
+/// `"[::1]:7878"` are both loopback and neither starts with `127.`, and an
+/// address that fails to parse is treated as *not* loopback, because the
+/// cautious reading of an address nobody can resolve is the one that warns.
+fn addr_is_loopback(addr: &str) -> bool {
+    let host = match addr.rfind(':') {
+        Some(i) if !addr[i + 1..].contains(']') => &addr[..i],
+        _ => addr,
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    if host == "localhost" {
+        return true;
+    }
+    host.parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
+}
+
+/// May this caller reach a `Native` service?
+///
+/// Two gates, and the first is the one that closes the network outright:
+///
+///   1. **The peer must be loopback.** A `Native` service needs the *installed*
+///      application — a folder on this disk, a program to run in it, the desk
+///      Girsa posts into — so a caller that is not on this machine is asking for
+///      something that is not theirs, whatever address the writer bound to. A
+///      tablet reading the sefer over `0.0.0.0` still gets the whole editor and
+///      every compile service; what it does not get is the git driver.
+///   2. **A token, when one is set.** `KSAV_TOKEN` in the environment makes
+///      `X-Ksav-Token` mandatory on these services, which is what a shared or
+///      managed box needs: loopback there is not the same set of people as "the
+///      writer". Unset, it is off, because a per-run secret the embedded bundle
+///      cannot be given is a secret the served page cannot send.
+///
+/// Stated plainly because the boundary matters: with no token configured, any
+/// process running as this user can still drive these services. That is the
+/// same trust boundary as the writer's own files, and it is the one gate this
+/// cannot close on its own.
+fn native_allowed(
+    request: &tiny_http::Request,
+    svc: &services::Service,
+) -> Result<(), &'static str> {
+    if svc.reach != services::Reach::Native {
+        return Ok(());
+    }
+    let local = request.remote_addr().is_none_or(|a| a.ip().is_loopback());
+    if !local {
+        return Err("this service answers only on the loopback interface");
+    }
+    let Ok(want) = std::env::var("KSAV_TOKEN") else {
+        return Ok(());
+    };
+    let got = request
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("X-Ksav-Token"))
+        .map(|h| h.value.as_str().to_string())
+        .unwrap_or_default();
+    // Length first, then a constant-time-ish compare. Not a defence against a
+    // remote attacker — there is no remote attacker past gate 1 — but a token
+    // compared with `==` is a habit worth not having.
+    if got.len() != want.len()
+        || got
+            .bytes()
+            .zip(want.bytes())
+            .fold(0u8, |a, (x, y)| a | (x ^ y))
+            != 0
+    {
+        return Err("this service needs a valid X-Ksav-Token");
+    }
+    Ok(())
+}
+
 /// May this caller reach a service at all?
 ///
 /// A browser sends `Origin` on every cross-origin request and on same-origin
@@ -562,10 +668,99 @@ fn header(key: &str, value: &str) -> Header {
 #[cfg(test)]
 mod tests {
     use super::{
-        allowed_origin, asset_path, compile_deadline, content_type_for, csp, policy_for,
-        run_bounded, NO_UI_HTML,
+        addr_is_loopback, allowed_origin, asset_path, compile_deadline, content_type_for, csp,
+        policy_for, run_bounded, NO_UI_HTML,
     };
     use std::time::Duration;
+
+    /// The services that touch this machine answer only on loopback.
+    ///
+    /// `origin_allowed` lets a request with no `Origin` through, deliberately,
+    /// so `curl` and the Tauri shell work — and that is a reasonable rule for
+    /// the compile services it was written about. `git` arrived later, offers
+    /// seventeen operations including `commit`, `push`, `restore`, `revert`,
+    /// `remote-add` and `merge`, and takes an arbitrary absolute path, so the
+    /// caller chooses the repository. Nothing that was not a browser was
+    /// constrained at all.
+    ///
+    /// `serve` takes any bind address. The moment somebody runs `ksav serve
+    /// 0.0.0.0:7878` to read their sefer from a tablet — which is the obvious
+    /// reason to type an address — every host on the network could read any file
+    /// at any revision in any repository on the machine, write to the working
+    /// tree, create commits, and push to a remote of their choosing.
+    ///
+    /// This is the half of that which can be closed outright. The peer address
+    /// is the fact; `KSAV_TOKEN` is what a shared box adds on top, where
+    /// loopback is not the same set of people as "the writer".
+    #[test]
+    fn a_bind_address_is_known_to_be_loopback_or_not() {
+        for on_this_machine in [
+            "127.0.0.1:7878",
+            "localhost:7878",
+            "[::1]:7878",
+            "127.0.0.1",
+        ] {
+            assert!(
+                addr_is_loopback(on_this_machine),
+                "{on_this_machine} is this machine"
+            );
+        }
+        for reachable in [
+            "0.0.0.0:7878",
+            "192.168.1.40:7878",
+            "[::]:7878",
+            "10.0.0.2:7878",
+        ] {
+            assert!(
+                !addr_is_loopback(reachable),
+                "{reachable} is reachable from the network and must be warned about"
+            );
+        }
+        // An address nobody can parse is treated as reachable, because the
+        // cautious reading of one is the reading that warns.
+        assert!(!addr_is_loopback("not-an-address"));
+    }
+
+    /// Every `Reach::Native` service is gated, and no compile service is.
+    ///
+    /// Keyed on the registry's own column rather than on a list of names here —
+    /// a service added to `services.rs` with `Native` is gated by existing, and
+    /// a list in this file would be the fourth hand-written copy of a table this
+    /// repository has already been bitten by three times.
+    #[test]
+    fn the_gate_is_the_registry_column() {
+        use crate::services::{Reach, SERVICES};
+        let native: Vec<&str> = SERVICES
+            .iter()
+            .filter(|s| s.reach == Reach::Native)
+            .map(|s| s.name)
+            .collect();
+        assert!(
+            native.len() >= 6,
+            "the audit named six services behind this gate, found {native:?}"
+        );
+        // The one the finding was written about, by name, so a regression that
+        // reclassifies it is legible rather than a count going down.
+        assert!(
+            native.contains(&"git"),
+            "git is a service that needs the disk"
+        );
+        assert!(
+            native.contains(&"inbox"),
+            "the Girsa desk needs the installed app"
+        );
+        // And the compile path is *not* gated: a tablet reading the sefer over a
+        // bound address still gets the whole editor.
+        let compile = SERVICES
+            .iter()
+            .find(|s| s.name == "compile")
+            .expect("there is a compile service");
+        assert_eq!(
+            compile.reach,
+            Reach::All,
+            "gating compile would take the editor off the network with the git driver"
+        );
+    }
 
     #[test]
     fn work_that_finishes_in_time_returns_its_result() {

@@ -58,7 +58,14 @@ fn alone() -> std::sync::MutexGuard<'static, ()> {
     let guard = LOCK
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _ = ksav_engine::post::drain();
+    // Both lists, through the real API: `drain` no longer destroys what it hands
+    // out — it holds an arrival until the poll that names its id — so a single
+    // call leaves the previous test's sources in flight. See `post::drain`.
+    let ids: Vec<String> = ksav_engine::post::drain(&[])
+        .into_iter()
+        .map(|a| a.id)
+        .collect();
+    let _ = ksav_engine::post::drain(&ids);
     guard
 }
 
@@ -173,7 +180,7 @@ fn a_source_sent_over_the_loopback_arrives_and_is_ready_to_insert() {
     // Exactly what Girsa's `send_to_ksav` puts on the wire.
     girsa_post::send(girsa_post::App::Ksav, "/insert", Some(PACKET)).expect("Ksav takes it");
 
-    let waiting = ksav_engine::post::drain();
+    let waiting = ksav_engine::post::drain(&[]);
     assert_eq!(waiting.len(), 1);
     assert!(waiting[0].markup.contains("ראוי לכל ירא שמים"));
     assert_eq!(waiting[0].display, "שולחן ערוך, אורח חיים סימן א' סעיף ג'");
@@ -204,7 +211,7 @@ fn a_stranger_on_the_machine_cannot_hand_ksav_a_source() {
         Err(girsa_post::PostError::Refused { status, .. }) => assert_eq!(status, 401),
         other => panic!("expected a refusal, got {other:?}"),
     }
-    assert!(ksav_engine::post::drain().is_empty());
+    assert!(ksav_engine::post::drain(&[]).is_empty());
 }
 
 #[test]

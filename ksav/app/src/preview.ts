@@ -307,6 +307,26 @@ export const KEEP_PAGES = 40;
 interface Windowed {
   pages: string[];
   hashes: string[];
+  /**
+   * Pages already flattened, by the name the engine gave them.
+   *
+   * `fill` used to call `flattenGlyphs` every time a page was drawn, and
+   * `evictIfCrowded` empties pages beyond `KEEP_PAGES` — so scrolling back and
+   * forth across a long document re-flattened the *same* SVG over and over: two
+   * global regex passes and a rebuild of a multi-hundred-kilobyte string, in
+   * idle time, but paid every time. The result is a pure function of the page,
+   * and every page already has a stable name in `hashes[i]` — the key `fill`
+   * compares against to decide whether to draw at all.
+   *
+   * On the window and **not** on the module, which is not a detail. A hash is
+   * only meaningful inside the draw that produced it: `pagecache.test.mjs` draws
+   * a document with no names, then draws different pages under the names an
+   * earlier draw used, and asserts — correctly — that names from before a blind
+   * fallback are not trusted. A module-global map would have shown the reader
+   * the previous document's page. Scoped here, the cache lives exactly as long
+   * as the pages it describes, which is the whole of the case it was added for.
+   */
+  flattened: Map<string, string>;
   /** The page boxes, in order — the nodes this pane is known to own. */
   nodes: HTMLElement[];
   /** What each node is currently showing — the empty string for an empty box. */
@@ -644,9 +664,40 @@ export function flattenGlyphs(svg: string): string {
   return missed ? out : out.replace(/<defs>.*?<\/defs>/gs, "");
 }
 
+/**
+ * How many flattened pages one window keeps.
+ *
+ * The values are the expensive thing — a flattened page is rendered SVG — so
+ * this is bounded even though a window's own page count bounds it already: a
+ * four-hundred-page sefer scrolled end to end would otherwise hold every page it
+ * had ever drawn. Least-recently-used by re-insertion, the same way `partMemo`
+ * is, and comfortably above `KEEP_PAGES` so the pages actually on screen are
+ * never the ones evicted.
+ */
+const FLATTENED_MAX = 48;
+
+function flattenedPage(w: Windowed, i: number): string {
+  const hash = w.hashes[i];
+  if (!hash) return flattenGlyphs(w.pages[i]);
+  const had = w.flattened.get(hash);
+  if (had !== undefined) {
+    w.flattened.delete(hash);
+    w.flattened.set(hash, had);
+    return had;
+  }
+  const out = flattenGlyphs(w.pages[i]);
+  w.flattened.set(hash, out);
+  while (w.flattened.size > FLATTENED_MAX) {
+    const oldest = w.flattened.keys().next();
+    if (oldest.done) break;
+    w.flattened.delete(oldest.value);
+  }
+  return out;
+}
+
 function fill(w: Windowed, node: HTMLElement, i: number) {
   if (w.showing[i] === w.hashes[i]) return;
-  node.innerHTML = flattenGlyphs(w.pages[i]);
+  node.innerHTML = flattenedPage(w, i);
   w.showing[i] = w.hashes[i];
 }
 
@@ -903,6 +954,12 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
   // No names, or no observer to tell us what is on screen (a very old webview):
   // draw the lot, exactly as this did before either mechanism existed.
   if (!hashes || hashes.length !== pages.length || typeof IntersectionObserver === "undefined") {
+    // **Not** through `flattenedPage`. This branch is reached precisely when the
+    // names cannot be trusted — no `hashes` at all, or a list whose length
+    // disagrees with the pages — so `hashes[i]` is either absent or naming a
+    // different page, and caching under it would hand that page's SVG to this
+    // one on the next draw. The cache is keyed on a name; a branch that exists
+    // because there is no reliable name does not get to use it.
     host.innerHTML = pages.map((s) => `<div class="page">${flattenGlyphs(s)}</div>`).join("");
     windows.delete(host);
     // Hidden afterwards rather than written into the markup, so both paths
@@ -927,6 +984,7 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
     w = {
       pages,
       hashes,
+      flattened: new Map(),
       nodes: [],
       showing: [],
       observer: null,
@@ -985,6 +1043,21 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
     // page, which is the one thing the identity check exists to prevent.
     w.wanted.clear();
     w.near.clear();
+  }
+  // The flattened pages named by the *previous* list, dropped whenever that list
+  // is not this one.
+  //
+  // A page's name is only meaningful inside the draw that produced it. The blind
+  // full-redraw path above hands out no names at all, so a draw after it can
+  // legitimately reuse a name for different content — which is exactly what
+  // `pagecache.test.mjs` does, and what it is right to insist on. Cleared here
+  // rather than per page, because the question is about the list.
+  //
+  // Nothing is lost by it: the repeated work this cache exists to remove is
+  // `fill` re-flattening the same page as the reader scrolls back and forth
+  // *between* draws, and that all happens after this line.
+  if (w.hashes.length !== hashes.length || w.hashes.some((h, i) => h !== hashes[i])) {
+    w.flattened.clear();
   }
   w.pages = pages;
   w.hashes = hashes;

@@ -293,9 +293,11 @@ export const PANELS: readonly Panel[] = [
     presence: "mounted",
     escape: true,
     exits: [{ via: "outside" }],
-    // The citation list below borrows `.spell-menu` for its styling, so this
-    // one has to say it means the other kind.
-    selector: ".spell-menu:not(.mekoros)",
+    // The citation list below and the note menu above both borrow `.spell-menu`
+    // for its styling, so this one has to say it means the other kind. Each of
+    // them now has its own row, which is the point: a surface that is swept
+    // because of a class it wears for CSS is dismissible by accident.
+    selector: ".spell-menu:not(.mekoros):not(.note-menu)",
   },
   {
     id: "mekoros",
@@ -304,6 +306,24 @@ export const PANELS: readonly Panel[] = [
     escape: true,
     exits: [{ via: "outside" }],
     selector: ".mekoros",
+  },
+  {
+    // Right-clicking a note: hang a tiered note off it, convert its layout,
+    // delete it.
+    //
+    // It has been dismissible all along — Escape closed it, an outside click
+    // closed it, repeated right-clicks produced one menu — and for a reason
+    // nothing stated: it wears `.spell-menu` for its styling, so the entry above
+    // swept it as though it *were* the spell menu. `styles.css` already gives
+    // `.note-menu` its own rules, so the day somebody drops the shared class it
+    // no longer needs, Escape stops reaching this and no test goes red — a
+    // registry sweep can only mutate surfaces that are in the registry.
+    id: "note-menu",
+    kind: "popup",
+    presence: "mounted",
+    escape: true,
+    exits: [{ via: "outside" }],
+    selector: ".note-menu",
   },
   {
     // A pane's own ⋯ menu: swap with a numbered pane, move it to an edge, move

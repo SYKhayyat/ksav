@@ -70,6 +70,29 @@ fn main() -> ExitCode {
         }
     };
 
+    // The output directory, and the two ways this used to lie about it.
+    //
+    // There is no `-o` flag; `usage` documents a bare positional. Somebody typed
+    // the flag anyway, and the CLI made a **directory called `-o`**, wrote
+    // eleven pages of SVG and two PDFs into it, ignored the real output
+    // directory in `args[3]`, and printed a success line. The evidence sat in
+    // this repository as an untracked `engine/-o/`.
+    //
+    // So an option-shaped output argument is a usage error — the same treatment
+    // `git.rs::plain` gives an argument that begins with a dash, for the same
+    // reason — and an argument nobody has a use for is refused rather than
+    // dropped. Silently ignoring `args[3]` is how the `-o` run looked like it
+    // had worked.
+    if let Some(bad) = args.get(2).filter(|a| a.starts_with('-')) {
+        eprintln!("error: unexpected option {bad}; the output directory is a bare path");
+        usage(&mut std::io::stderr());
+        return ExitCode::from(2);
+    }
+    if let Some(extra) = args.get(3) {
+        eprintln!("error: unexpected argument {extra}");
+        usage(&mut std::io::stderr());
+        return ExitCode::from(2);
+    }
     let out_dir: PathBuf = args
         .get(2)
         .map(PathBuf::from)
@@ -109,9 +132,20 @@ fn main() -> ExitCode {
             eprintln!("error: cannot write {}: {e}", pdf_path.display());
             return ExitCode::from(1);
         }
+        // The page images, and whether they arrived.
+        //
+        // This was `let _ = std::fs::write(...)` under a `✓ compiled … (43
+        // page(s))` and an exit code of 0. A full disk, a read-only directory or
+        // a path too long produced the success line with no SVGs on disk and
+        // nothing said — which is exactly the class of small lie the PDF write
+        // three lines up is checked to avoid, in the same loop body's sibling.
+        let mut failed = 0usize;
         for (i, svg) in result.pages_svg.iter().enumerate() {
             let svg_path = out_dir.join(format!("{stem}.page-{}.svg", i + 1));
-            let _ = std::fs::write(&svg_path, svg);
+            if let Err(e) = std::fs::write(&svg_path, svg) {
+                eprintln!("error: cannot write {}: {e}", svg_path.display());
+                failed += 1;
+            }
         }
         println!(
             "✓ compiled {} → {} ({} page(s), {} bytes PDF) in {:.0}ms",
@@ -121,6 +155,13 @@ fn main() -> ExitCode {
             pdf.len(),
             elapsed.as_secs_f64() * 1000.0,
         );
+        if failed > 0 {
+            eprintln!(
+                "✗ {failed} of {} page image(s) could not be written",
+                result.pages_svg.len()
+            );
+            return ExitCode::from(1);
+        }
         ExitCode::SUCCESS
     } else {
         eprintln!(

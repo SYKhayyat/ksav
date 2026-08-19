@@ -189,7 +189,12 @@ fn first_byte(glyphs: &[typst::text::Glyph], main: &Source, offset: usize) -> Op
 /// land inside whatever note of the open document happens to cover that number.
 /// A wrong marker on a real note is worse than no marker at all.
 pub fn keep_main(expanded: &Expanded, body: &str, marks: &mut Vec<NoteMarker>) {
-    if expanded.origins.is_empty() {
+    // Nothing was spliced in, so every offset in `body` is an offset in the
+    // document the client holds and every marker is theirs to keep. This used to
+    // read `expanded.origins.is_empty()`, which is the same test and does not
+    // say what it is testing — and it stopped being a length the day `expand`
+    // learned to skip the walk entirely.
+    if !expanded.expanded {
         return;
     }
     let starts = line_starts(body);
@@ -385,6 +390,7 @@ mod tests {
                 },
             ],
             problems: Vec::new(),
+            expanded: true,
         };
         let mut marks = vec![
             NoteMarker {

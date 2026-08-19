@@ -305,20 +305,50 @@ async function includedParts(body: string): Promise<{ name: string; body: string
   // The overwhelmingly common case, and worth not paying for: a document with no
   // inclusions resolves nothing, reads nothing and sends nothing.
   if (!parts.referenced(body).length) return [];
-  const byTitle = new Map<string, string>();
+  // Titles to ids, off the in-memory index. This is not a read of anything: the
+  // library index is already resident, and it is the *bodies* that live in
+  // IndexedDB. Built once per call because a title can be renamed between two.
+  const idOf = new Map<string, string>();
   for (const entry of docs.library()) {
-    if (byTitle.has(entry.title)) continue;
-    const had = partMemo.get(entry.id);
-    if (had && had.updated === entry.updated) {
-      byTitle.set(entry.title, had.body);
-      continue;
-    }
-    const doc = await docs.getDoc(entry.id);
-    if (!doc) continue;
-    partMemo.set(entry.id, { updated: entry.updated, body: doc.body });
-    byTitle.set(entry.title, doc.body);
+    if (!idOf.has(entry.title)) idOf.set(entry.title, entry.id);
   }
-  return parts.collect(body, (name) => byTitle.get(name) ?? null);
+  const updatedOf = new Map(docs.library().map((e) => [e.id, e.updated]));
+  // One read per name the document actually asks for, transitively. The loop
+  // this replaced read *every* document in the library — see `collectAsync`.
+  return parts.collectAsync(body, async (name) => {
+    const id = idOf.get(name);
+    if (!id) return null;
+    const updated = updatedOf.get(id) ?? 0;
+    const had = partMemo.get(id);
+    if (had && had.updated === updated) return had.body;
+    const doc = await docs.getDoc(id);
+    if (!doc) return null;
+    rememberPart(id, updated, doc.body);
+    return doc.body;
+  });
+}
+
+/**
+ * How many chapter bodies to keep.
+ *
+ * `partMemo` was unbounded and never swept, so it grew to the whole library and
+ * stayed there for the life of the tab. Sixteen is more than any real sefer's
+ * chapter count reached in one compile and is a cap rather than a policy: the
+ * memo exists to make the *next* keystroke cheap, not to be a second copy of the
+ * library.
+ */
+const PART_MEMO_MAX = 16;
+
+function rememberPart(id: string, updated: number, body: string): void {
+  // Re-inserting moves it to the back of the insertion order, which is what
+  // makes the eviction below least-recently-used rather than arbitrary.
+  partMemo.delete(id);
+  partMemo.set(id, { updated, body });
+  while (partMemo.size > PART_MEMO_MAX) {
+    const oldest = partMemo.keys().next();
+    if (oldest.done) break;
+    partMemo.delete(oldest.value);
+  }
 }
 
 /**

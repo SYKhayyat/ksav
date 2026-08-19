@@ -18,6 +18,7 @@ rather than leaving two actions on one key.
 | `Ctrl+U` | Underline | קו תחתון |
 | `Ctrl+Shift+F` · `Ctrl+Alt+F` | Footnote | הערת שוליים |
 | `Ctrl+Alt+D` | Endnote | הערת סיום |
+| `Ctrl+Alt+G` | Margin note | הערת גיליון (בשוליים) |
 | `Ctrl+Shift+N` | Note on the note | הערה על ההערה |
 | `Ctrl+Shift+G` | Fold | קיפול |
 | `Ctrl+/` | Hide line | הסתרת שורה |

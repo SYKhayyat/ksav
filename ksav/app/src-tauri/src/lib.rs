@@ -385,6 +385,84 @@ fn ksav_path_allowed(allowed: tauri::State<'_, AllowedPaths>, path: String) -> b
     allowed.permits(&PathBuf::from(&path))
 }
 
+/// Ask the writer, natively, whether Ksav may save to a path it already holds —
+/// and admit it for the rest of the session if they say yes.
+///
+/// # The report
+///
+/// *"I got this — No write permission for that file — try Save as."*
+///
+/// The file was perfectly writable. Nobody had asked. [`AllowedPaths`] is
+/// per-process and is written by exactly two things, the Open dialog and the
+/// Save-As dialog, so a document reopened from Ksav's own library — bound to a
+/// path the writer chose in a dialog *last* session — is not on the list. Ctrl+S
+/// then asked `ksav_path_allowed`, got `false`, and reported it as a permission
+/// the operating system had refused.
+///
+/// Two things were wrong and only one of them was the allow-list. `ensureWritable`
+/// in `files.ts` genuinely *ensures* for a browser file handle — it calls
+/// `requestPermission` — and for a desktop path it delegated straight to
+/// `hasWritePermission`, which only queries. So the function whose name is a
+/// promise to acquire consent had no way to acquire any.
+///
+/// # Why a dialog and not simply re-admitting it
+///
+/// Because the allow-list is a real boundary and the comment above it is right:
+/// *"the frontend promises to behave" is not a security boundary*. The webview
+/// asking to write a path is not evidence the **writer** asked — that is the
+/// whole point of keeping the list in Rust. Re-admitting on request would leave
+/// the check in place and delete the thing it checks.
+///
+/// A native dialog is evidence, because the webview cannot draw one or answer
+/// it. So consent still comes from outside the webview, exactly as it does for
+/// Open and Save-As; this is the same act performed for a path Ksav already
+/// knows the name of, which is why it can be one click instead of a file picker.
+///
+/// Once per session per path, because that is what the allow-list's lifetime
+/// already means. A writer saving twenty times is asked once.
+#[tauri::command]
+async fn ksav_confirm_write(
+    app: tauri::AppHandle,
+    allowed: tauri::State<'_, AllowedPaths>,
+    path: String,
+    message: String,
+    title: String,
+    ok_label: String,
+    cancel_label: String,
+) -> Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let p = PathBuf::from(&path);
+    // Already admitted — this session's Open or Save-As, or an earlier yes.
+    // Asking again would train the writer to dismiss the question.
+    if allowed.permits(&p) {
+        return Ok(true);
+    }
+    // The wording is the frontend's, because the frontend is where this
+    // application's two languages live. A Hebrew writer must not be asked in
+    // English whether to overwrite their sefer, and `i18n.ts` is the one place
+    // that knows which they chose.
+    //
+    // The **path** is not: it is appended here, from the string the write will
+    // actually be checked against, so the dialog cannot name one file while the
+    // allow-list admits another.
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .message(format!("{message}\n\n{}", p.display()))
+        .title(&title)
+        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
+            ok_label,
+            cancel_label,
+        ))
+        .show(move |yes| {
+            let _ = tx.send(yes);
+        });
+    let yes = rx.recv().map_err(|e| e.to_string())?;
+    if yes {
+        allowed.allow(&p);
+    }
+    Ok(yes)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let built = tauri::Builder::default();
@@ -545,6 +623,7 @@ pub fn run() {
             ksav_save_file,
             ksav_write_file,
             ksav_path_allowed,
+            ksav_confirm_write,
             ksav_dictionary_read,
             ksav_dictionary_write,
             ksav_dictionary_where

@@ -353,12 +353,70 @@ export async function hasWritePermission(binding: FileBinding): Promise<boolean>
   }
 }
 
-export async function ensureWritable(binding: FileBinding): Promise<boolean> {
+/**
+ * What to say in the native confirmation, when one is needed.
+ *
+ * Passed in rather than looked up. This module reads and writes files and has
+ * never known a word of either language the product speaks; importing `i18n`
+ * to ask one question would make every file operation depend on the interface's
+ * vocabulary. The caller knows which language the writer chose — that is the
+ * caller's whole job — and the **path** is added by the shell itself, from the
+ * string the write is actually checked against, so the dialog cannot name one
+ * file while the allow-list admits another.
+ */
+export interface ConfirmWords {
+  title: string;
+  message: string;
+  ok: string;
+  cancel: string;
+}
+
+export async function ensureWritable(binding: FileBinding, words: ConfirmWords): Promise<boolean> {
   // The desktop's answer is now a real one, and it is the same question — so it
   // goes through the same function rather than being asserted here a second
   // time. This is the call Ctrl+S makes, and a `false` here is what routes it to
   // `saveFileAs`, which is the dialog that re-admits the path.
-  if (binding.kind === "tauri") return hasWritePermission(binding);
+  // The desktop half, and it used to be the line above this one — a delegation
+  // straight to `hasWritePermission`, which only *queries*.
+  //
+  // So the two functions were one function for a desktop path, and the one whose
+  // name is a promise to obtain consent had no way to obtain any. The handle
+  // branch below has always been honest about the difference: it queries, and if
+  // the answer is no it **asks**. This did not, and the report was the
+  // consequence — *"I got this: No write permission for that file — try Save
+  // as."* — on a file that was perfectly writable and that the writer had chosen
+  // in a dialog themselves, in an earlier session.
+  //
+  // `AllowedPaths` in the shell is per-process and is written by exactly two
+  // things, the Open dialog and the Save-As dialog. A document reopened from
+  // Ksav's own library carries a binding older than this process, so it is not on
+  // the list, and nothing anywhere put it there.
+  //
+  // `ksav_confirm_write` is the missing half: a **native** dialog, which the
+  // webview can neither draw nor answer, so a yes is still evidence that the
+  // person and not the page asked for this. Once per session per path; a path
+  // already admitted returns true without asking, so saving twenty times asks
+  // once. The wording is passed in because this is where the writer's language
+  // is known.
+  if (binding.kind === "tauri") {
+    if (await hasWritePermission(binding)) return true;
+    if (!binding.path) return false;
+    try {
+      return await tauriInvoke<boolean>("ksav_confirm_write", {
+        path: binding.path,
+        message: words.message,
+        title: words.title,
+        okLabel: words.ok,
+        cancelLabel: words.cancel,
+      });
+    } catch {
+      // An older shell without the command. `false` is the honest reading — the
+      // same rule `hasWritePermission` follows — and the caller's answer to it
+      // is Save-As, which re-admits the path through a dialog that has always
+      // been there.
+      return false;
+    }
+  }
   if (binding.kind !== "handle" || !binding.handle) return false;
   const h = binding.handle as never as {
     queryPermission(o: unknown): Promise<PermissionState>;

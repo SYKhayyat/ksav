@@ -4192,6 +4192,28 @@ async function jumpFromClick(e: MouseEvent) {
   // the two in step without either side having to know about the other.
   const col = Math.max(0, (spot?.column ?? 1) - 1);
   const chars = [...at_.text].slice(0, col).join("").length;
+  // Claim the floor before the caret moves, or the preview shoves the reader.
+  //
+  // *"Clicking in preview brings you to the right place in the source, but moves
+  // the actual preview, which it should not do."* Exactly so, and it is a loop
+  // this function closes on itself: the dispatch below sets the selection, the
+  // editor's update listener sees `selectionSet && !docChanged`, and
+  // `followCaretInPreview` scrolls the preview to the caret. So a reader clicks
+  // a word they are *looking at* and the page moves out from under them, to
+  // land that same word wherever the sync setting says lines belong.
+  //
+  // `scrollFloor` is the mechanism that already exists for this and its meaning
+  // is exactly right here — *somebody is driving this pane; do not steer* — it
+  // was simply only ever claimed by scroll events. A click is not a scroll, so
+  // nothing claimed it, so nothing declined to follow. Set before the dispatch
+  // rather than after: `followCaretInPreview` schedules on a 100 ms timer and
+  // reads the floor when it fires, but the transaction is synchronous and there
+  // is no reason to leave a window at all.
+  //
+  // The source-side mirror of this has always been handled, differently and
+  // correctly: a click in the source cancels the cheap line-level follow in
+  // favour of the exact reveal it asked for. See `revealFromSourceClick`.
+  scrollFloor = { pane: "preview-click", until: performance.now() + SCROLL_FLOOR_MS };
   runtime.view.dispatch({
     selection: { anchor: Math.min(at_.from + chars, at_.to) },
     scrollIntoView: true,
@@ -5405,6 +5427,20 @@ function buildToolbar(): HTMLElement {
   // `#bold` is naming something that will not be in the document.
   const writing = docLang();
   const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
+  /**
+   * A button in a group its category does not name, with the reason why.
+   *
+   * The ribbon groups by *what a writer reaches for*; the registry groups by
+   * *what a command is*. Those two agree almost everywhere, and where they do
+   * not, the disagreement is a product decision worth writing down rather than
+   * a mistake worth hiding. `toolbar.test.mjs` checks membership against the
+   * registry and lets a `guest` through — so the check stays total, and every
+   * exception to it is one line away from the button it excuses.
+   *
+   * `why` is never read at runtime. It is there to be read by a person, and to
+   * make declaring a guest cost a sentence of justification rather than nothing.
+   */
+  const guest = (he: string, label: string, _why: string) => b(he, label);
   const b = (he: string, label: string) => {
     const c = byName(he);
     if (!c) return el("span");
@@ -5438,7 +5474,23 @@ function buildToolbar(): HTMLElement {
     // registry's* category, and the Insert menu's Headings section is correctly
     // named by it.
     tbGroup(t("styleGroup"), [paragraphStyleControl()]),
-    tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
+    tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1.")]),
+    // Its own group, because a table is not a list.
+    //
+    // `#טבלה` sat in the group captioned "Lists" until a writer said so:
+    // *"Table is still under lists. That is not at all accurate."* — and
+    // "still" is the word that matters. `menus.ts` had already given tables
+    // their own menu, and `commands.rs` had already categorised every table
+    // command as `table`; the ribbon is hand-assembled and had never heard of
+    // either. So the taxonomy was fixed in the two places that publish it and
+    // wrong in the one place a writer actually looks.
+    //
+    // The captions here **are** registry category keys, which is what makes
+    // `toolbar.test.mjs` able to check membership against the registry rather
+    // than against a second list. That check is the point of this change: one
+    // misfiled button is a nuisance, and the mechanism that let it stay misfiled
+    // through a taxonomy rewrite is the defect.
+    tbGroup(t("cat.table"), [b("טבלה", "▦")]),
     // The toolbar told the truth about one of these three.
     //
     // `†` was right. `⁑` inserted `#הערה_על_הערה`, which sounds like the tiered
@@ -5458,10 +5510,42 @@ function buildToolbar(): HTMLElement {
     tbGroup(t("cat.footnote"), [
       noteBtn("footnote", "†", "#הערה[|]"),
       noteBtn("endnote", "⁋", "#הערתסיום[|]"),
-      b("הערת_צד", "▣"),
+      // And the third one was a blue box.
+      //
+      // This was `b("הערת_צד", "▣")` — `#הערת_צד`, which the registry calls
+      // `callout` and describes as *תיבת הדגשה (כחול)*. Its Hebrew name reads
+      // "side note", it sat between the footnote and the endnote, and a writer
+      // who wanted a note down the margin pressed it and got a blue box. The
+      // real margin note, `#הערת_גיליון`, had no button at all — only the Notes
+      // chooser, under "margin", for whoever thought to look.
+      //
+      // Which is the same sentence as the paragraph above about `⁑`, written
+      // about a different button in the same group. A note button that inserts
+      // something other than a note is this group's recurring failure, and
+      // `toolbar.test.mjs` now checks the group against the registry so the
+      // third instance is caught by a test rather than by a writer.
+      noteBtn("sidenote", "▣", "#הערת_גיליון[|]"),
     ]),
     tbGroup(t("cat.align"), [b("ימין", "⇥"), b("מרכז", "≡"), b("שמאל", "⇤")]),
-    tbGroup(t("cat.torah"), [b("ציטוט", "❝"), b("סימן", "§"), b("סעיף", "א."), b("מראה_מקום", "‡")]),
+    tbGroup(t("cat.torah"), [
+      // A guest, declared rather than smuggled.
+      //
+      // `#ציטוט` is a block quote and the registry is right to categorise it
+      // `block`. It is here because of what a writer setting a sefer is doing
+      // when they reach for the toolbar: quoting is the gesture that sits
+      // beside siman, se'if and mareh makom, and the block-quote category holds
+      // nothing else anyone reaches for at that moment.
+      //
+      // `guest` exists so that this is a *statement* with a reason attached to
+      // the button, and not an exception list inside `toolbar.test.mjs`. An
+      // exception list in the test would be a second opinion about the taxonomy
+      // kept in the one file whose job is to have no opinions — which is the
+      // exact shape of the problem that put the table under Lists.
+      guest("ציטוט", "❝", "a sefer quotes where it cites; block holds nothing else a writer reaches for here"),
+      b("סימן", "§"),
+      b("סעיף", "א."),
+      b("מראה_מקום", "‡"),
+    ]),
     tbGroup(t("tools"), [
       // "Region" until this button got a name that says what it does. It makes
       // a fold — the text prints in full — and `#אזור` is now a real command
@@ -8162,8 +8246,20 @@ async function saveFile() {
   const text = await fileText();
   const route = save.saveRoute(runtime.currentBinding, files.supportsRealFiles());
   if (route === "writeBack" && runtime.currentBinding) {
-    if (!(await files.ensureWritable(runtime.currentBinding))) {
-      setStatus(t("permissionDenied"), "err");
+    if (!(await files.ensureWritable(runtime.currentBinding, confirmWriteWords()))) {
+      // Refused, and *now* it is a refusal: `ensureWritable` asked, natively,
+      // and the writer said no. Before, this line reported a permission the
+      // system had never been asked for.
+      //
+      // And it routes rather than stopping, which is what `files.ts:359` has
+      // always claimed happens — *"a `false` here is what routes it to
+      // `saveFileAs`, which is the dialog that re-admits the path"* — while this
+      // printed the error and returned. Two statements about one path, in two
+      // files, and the one in the comment was the better design. A writer who
+      // declines the confirmation and is then shown Save-As can still put the
+      // document somewhere; a writer who is shown an error can do nothing.
+      setStatus(t("permissionDenied"), "warn");
+      await saveFileAs();
       return;
     }
     // Somebody else changed the file since Ksav last agreed with it. A manual
@@ -8549,6 +8645,22 @@ async function copyShareLink(forReview: boolean) {
     // ugly and it is also the only thing that still works there.
     await askText(t("shareCopyManually"), link.url);
   }
+}
+
+/**
+ * What the shell's native "may Ksav save here?" dialog says.
+ *
+ * Here rather than in `files.ts` because this is where the writer's language is
+ * known — `files.ts` reads and writes files and has never held a word of either
+ * language. See `files.ConfirmWords`.
+ */
+function confirmWriteWords(): files.ConfirmWords {
+  return {
+    title: t("confirmWriteTitle"),
+    message: t("confirmWriteMessage"),
+    ok: t("confirmWriteOk"),
+    cancel: t("cancel"),
+  };
 }
 
 async function saveFileAs() {

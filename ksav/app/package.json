@@ -10,7 +10,7 @@
     "test": "node test/run.mjs",
     "accept": "node ../../.github/scripts/acceptance.mjs",
     "bench": "node tools/bench-structure.mjs",
-    "fixtures": "node tools/emit-services.mjs && node tools/emit-engine.mjs && node tools/emit-note-fixtures.mjs && node tools/emit-structure-fixtures.mjs && node tools/emit-insertion-fixtures.mjs && node tools/emit-scan-oracle.mjs",
+    "fixtures": "node tools/emit-services.mjs && node tools/emit-engine.mjs && node tools/emit-note-fixtures.mjs && node tools/emit-structure-fixtures.mjs && node tools/emit-insertion-fixtures.mjs && node tools/emit-note-insertion-fixtures.mjs && node tools/emit-scan-oracle.mjs",
     "build:wasm": "tsc --noEmit && cross-env VITE_WASM=1 vite build",
     "preview": "vite preview",
     "tauri": "tauri"

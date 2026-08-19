@@ -318,11 +318,29 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_שער", "title_config", "heading", "עיצוב השער", "How the title is set", "#הגדרות_שער(גודל: 2em)|"),
     cmd!("הגדרות_תת_שער", "subtitle_config", "heading", "עיצוב תת השער", "How the subtitle is set", "#הגדרות_תת_שער(גודל: 1.2em)|"),
     cmd!("עם_פירוש", "commentary", "torah", "טקסט עם פירוש בצד העמוד", "Text with side commentary", "#עם_פירוש([|], [])"),
-    cmd!("עם_הערות_צד", "sidenotes", "torah", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
-    cmd!("הערת_גיליון", "sidenote", "torah", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),
-    cmd!("עם_הערות_דו_צד", "twosided", "torah", "קטע עם הערות משני הצדדים", "Section with notes on both sides", "#עם_הערות_דו_צד[|]"),
-    cmd!("הערת_ימין", "noteright", "torah", "הערה בטור הימני (דו-צדדי)", "Right-side note (two-sided)", "#הערת_ימין[|]"),
-    cmd!("הערת_שמאל", "noteleft", "torah", "הערה בטור השמאלי (דו-צדדי)", "Left-side note (two-sided)", "#הערת_שמאל[|]"),
+    // ---- the margin-note apparatus ----
+    //
+    // `footnote`, not `torah`. These five were the only note apparatus in the
+    // registry filed anywhere else, and the category is what every surface
+    // groups by — so the margin note was under "Torah" in the Insert menu while
+    // the footnote, the endnote, the bands, the page-bands and the streams were
+    // all under "Footnotes". A writer looking for a note down the margin had no
+    // reason to look in the section named for chumash and halacha constructs,
+    // and reported exactly that: they never found it, and pressed the callout
+    // button beside the footnote instead, which prints a blue box.
+    //
+    // A note in the margin is a note. Where its prose *prints* is the choice the
+    // Notes chooser exists to offer — foot of page, end of section, end of
+    // document, down the margin — and four of those five destinations were in
+    // one category with the fifth somewhere else.
+    //
+    // `#עם_פירוש` deliberately stays `torah`: two columns of text set against
+    // each other is a page layout (a Mikraos-Gedolos page), not a note stream.
+    cmd!("עם_הערות_צד", "sidenotes", "footnote", "קטע עם הערות בטור צדדי", "Section with side-column notes", "#עם_הערות_צד[|]"),
+    cmd!("הערת_גיליון", "sidenote", "footnote", "הערה בטור הצד (בתוך עם_הערות_צד)", "Side note (inside side-column section)", "#הערת_גיליון[|]"),
+    cmd!("עם_הערות_דו_צד", "twosided", "footnote", "קטע עם הערות משני הצדדים", "Section with notes on both sides", "#עם_הערות_דו_צד[|]"),
+    cmd!("הערת_ימין", "noteright", "footnote", "הערה בטור הימני (דו-צדדי)", "Right-side note (two-sided)", "#הערת_ימין[|]"),
+    cmd!("הערת_שמאל", "noteleft", "footnote", "הערה בטור השמאלי (דו-צדדי)", "Left-side note (two-sided)", "#הערת_שמאל[|]"),
     // ---- review (tracked changes + editorial comments) ----
     cmd!("הוספה", "inserted", "review", "סימון הוספה (שינוי עקוב)", "Mark an insertion (tracked change)", "#הוספה[|]"),
     cmd!("מחיקה", "deleted", "review", "סימון מחיקה (שינוי עקוב)", "Mark a deletion (tracked change)", "#מחיקה[|]"),

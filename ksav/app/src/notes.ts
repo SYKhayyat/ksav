@@ -24,7 +24,7 @@ import {
 } from "./deferred";
 import type { NoteMarker } from "./api";
 import { seriesOf } from "./channels";
-import { canonicalName, docLang, sameCommand, translated } from "./mode";
+import { canonicalName, docLang, insertionAt, sameCommand, translated } from "./mode";
 import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
 import { scan as scanSpans, type Node, type Scan } from "./spans";
 
@@ -1132,9 +1132,46 @@ export function applyChoice(
   // Where the prose is written is orthogonal to where the note prints, so it is
   // a rewrite of the snippet rather than a twelfth layout: the same eleven
   // choices, each available either way round.
-  const pair = deferred ? deferSnippet(chosen, nextName(doc)) : null;
+  // Named once and kept, because the body has to be filed *next to its own
+  // marker* and cannot ask which name that was after the fact.
+  const name = deferred ? nextName(doc) : "";
+  const pair = deferred ? deferSnippet(chosen, name) : null;
   const taken = sel.text ?? "";
-  const snippet = pair ? pair.marker : chosen;
+  const bare = pair ? pair.marker : chosen;
+  // Through the same door every other insertion uses.
+  //
+  // The marker was spliced in raw, and `insertionAt` is the function that knows
+  // a document has *modes*: inside `#רשימה(…)` or `#טבלה(…)` the caret is
+  // already in code, where a leading `#` is not a hash but a syntax error, and
+  // an element spliced between two others needs its comma. Every other command
+  // learned this when the insertion sweep found 384 broken documents; the note
+  // path never did, because `plan` short-circuits to this branch *before*
+  // `insertionAt` — the comment above says so, and said so while it was the bug.
+  //
+  // What that cost, swept the same way (1,248 documents: every layout, every
+  // tier, inline and deferred, both languages, thirteen caret positions):
+  //
+  //     list-after-open       96/96 fail
+  //     list-between-items    96/96 fail
+  //     table-between-cells   96/96 fail
+  //     the other ten          0/96
+  //
+  // 288 documents, one engine message — *the character `#` is not valid in
+  // code* — and not one of them a bug of its own. It is the same three code-mode
+  // positions that broke all 114 registry commands the first time, found again
+  // in the one path that was exempted from the fix.
+  //
+  // The writer who hit it said *"it was my error — it was not in brackets where
+  // I placed it"*. It was not their error. A toolbar writes something that
+  // compiles where the caret is, or greys itself out and says why; that standard
+  // is `insertion.rs`'s, and it already applies to everything else.
+  //
+  // Applied to the marker only, and deliberately. The `|` passes through
+  // untouched — that is `insertionAt`'s contract — so the caret arithmetic below
+  // is unchanged. The *body* is a different question: `fileNewBody` files it at
+  // top level at the end of the document, which is never code mode, so putting
+  // it through here would add a comma to a line that has no argument list.
+  const snippet = insertionAt(doc, selectionFrom, bare, sel.to ?? selectionFrom, whenSilent);
   const filled = pair ? snippet : snippet.replace("|", taken + "|");
   const caretInSnippet = filled.indexOf("|");
   const clean = filled.replace("|", "");
@@ -1150,7 +1187,21 @@ export function applyChoice(
   // the prose is what they are about to type.
   if (pair) {
     const body = pair.body.replace("|", taken + "|");
-    const filed = fileNewBody(text, body.replace("|", ""));
+    // The name, which is the whole reason `fileNewBody` takes one.
+    //
+    // Without it `neighbours` has nothing to place this body *relative to* and
+    // falls through to "after the last one" — so bodies were filed in the order
+    // they were created rather than the order their markers are read in. Add a
+    // note today between two you wrote last week and its prose lands at the
+    // bottom of the block, under prose belonging to markers pages further on.
+    // The writer's words: *"the footnotes are ordered on bottom, not in the
+    // order they were put in — they are ordered by their assigned number."*
+    //
+    // `createBody` in `deferred.ts` passes it. This did not. One function, two
+    // callers, one argument — which is the same shape as every other bug in
+    // this file's history and the reason `notepaths.test.mjs` asks both paths
+    // the same questions.
+    const filed = fileNewBody(text, body.replace("|", ""), name);
     text = filed.text;
     caret = filed.at + body.indexOf("|");
   }

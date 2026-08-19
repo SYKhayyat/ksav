@@ -37,6 +37,19 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // its own `Ctrl+Shift+F` as well, through KEY_ALIASES; the endnote had no key
   // at all — nor a button, nor a menu entry — so it simply takes Word's.
   endnote: "Mod-Alt-d",
+  // The margin note — `#הערת_גיליון`, so `Mod-Alt-g` for *gilyon*, in the
+  // document's own vocabulary rather than a translation of it.
+  //
+  // Two wrong answers preceded it, and both were caught by a test rather than
+  // by thought. `Mod-Shift-m` for *margin* is `citePhrase`, which this entry
+  // asserted was "free in both keymaps" and was not. Then no key at all — on
+  // the argument that what the margin note lacked was a *button*, since it had
+  // none and writers were pressing the callout beside the footnote and getting
+  // a blue box. That argument is right about the button and wrong about the
+  // key: `actions.test.mjs` requires every action to be reachable from the
+  // keyboard, which is not a formality but the difference between a feature and
+  // a feature for people who can use a mouse.
+  sidenote: "Mod-Alt-g",
   // A note *on* a note, at whatever tier the caret is standing in.
   tieredNote: "Mod-Shift-n",
   // A fold: the writer marks off a span so it can be collapsed, and every word

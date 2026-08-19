@@ -44,6 +44,7 @@ const GENERATORS = [
   ["note fixtures", "emit-note-fixtures.mjs"],
   ["structure fixtures", "emit-structure-fixtures.mjs"],
   ["insertion fixtures", "emit-insertion-fixtures.mjs"],
+  ["note insertion fixtures", "emit-note-insertion-fixtures.mjs"],
   ["scan oracle", "emit-scan-oracle.mjs"],
   // What a `.ksav` file *is*, for the engine's second reader of it to be held
   // to. Both sides of that format now have an implementation, and the CLI

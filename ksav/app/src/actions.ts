@@ -59,6 +59,24 @@ export const ACTION_COMMAND = {
   // scaffolding — the `#הערות_בסוף()` dump, without which every endnote in the
   // document is collected and never printed.
   endnote: "הערתסיום",
+  // The margin note, which the product has always been able to set and has
+  // never had a door to.
+  //
+  // The ribbon's third note button was `#הערת_צד` — which is a **callout**, a
+  // blue emphasis box (`commands.rs:229`, category `block`), sitting between the
+  // footnote and the endnote where its Hebrew name reads "side note". So a
+  // writer who wanted a note down the margin pressed it and got a blue box,
+  // while `#הערת_גיליון` — the real thing — was reachable only by finding the
+  // Notes chooser and knowing to look under "margin".
+  //
+  // That is the second time this exact group has done this. The comment above
+  // it in `main.ts` describes the first: `⁑` held the button for a cosmetic
+  // alias while the real tiered note had none.
+  //
+  // Routed through `insertSnippet` like the endnote, and for the same reason:
+  // the margin layout carries a `wrap` (`#עם_הערות_צד[…]`), and a bare splice of
+  // `#הערת_גיליון[…]` compiles into a document that prints nothing in the margin.
+  sidenote: "הערת_גיליון",
   h1: "כותרת1",
   h2: "כותרת2",
   h3: "כותרת3",

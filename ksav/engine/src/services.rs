@@ -496,6 +496,9 @@ mod girsa {
             return serde_json::json!({ "markup": serde_json::Value::Null }).to_string();
         };
         match crate::source::insert(&json, girsa_ksav::CitationPlacement::Mekor) {
+            Ok(markup) if crate::source::looks_double_encoded(&markup) => {
+                super::error_json(crate::source::DOUBLE_ENCODED)
+            }
             Ok(markup) => serde_json::json!({ "markup": markup }).to_string(),
             Err(e) => super::error_json(&e.to_string()),
         }

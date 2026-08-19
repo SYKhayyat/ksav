@@ -48,6 +48,45 @@ pub fn insert(json: &str, placement: CitationPlacement) -> Result<String, Packet
     Ok(to_ksav(&SourcePacket::from_json(json)?, placement))
 }
 
+/// The sentence shown when a source arrives already corrupted.
+///
+/// Named once so the paste path and the two loopback paths refuse in the same
+/// words, and so the frontend can match on it if it ever wants to.
+pub const DOUBLE_ENCODED: &str =
+    "this source looks like it was decoded with the wrong character set \
+     (Hebrew read as Windows-1252) before it reached Ksav — it was refused \
+     rather than written into the document as garbage";
+
+/// Whether a string looks like Hebrew UTF-8 that was decoded as Windows-1252
+/// and re-encoded — the corruption that turns `ראוי` into `×¨××•×™`.
+///
+/// Every Hebrew letter and vowel is two UTF-8 bytes beginning `0xD6` or `0xD7`.
+/// Read back through Windows-1252 those lead bytes become `Ö` (U+00D6) and `×`
+/// (U+00D7), each immediately in front of whatever the trailing byte maps to —
+/// so double-encoded Hebrew is a dense run of `×`/`Ö` each sitting right before
+/// another non-ASCII character. Ordinary text does not do this: real Hebrew
+/// contains no U+00D6/U+00D7 at all, and `×` as the multiplication sign stands
+/// between digits (`3 × 4`), which are ASCII. The threshold is three such pairs
+/// so a lone multiplication sign cannot trip it — and refusing is the whole
+/// point, because a quote that is quietly wrong is the worst thing this seam can
+/// deliver into a printed sefer.
+#[must_use]
+pub fn looks_double_encoded(text: &str) -> bool {
+    let mut pairs = 0usize;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if (c == '\u{00d7}' || c == '\u{00d6}')
+            && chars.peek().is_some_and(|&next| next >= '\u{0080}')
+        {
+            pairs += 1;
+            if pairs >= 3 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +175,31 @@ mod tests {
         let back = SourcePacket::from_json(&json).expect("deserializes");
         let r = back.reference().expect("the ref survived the wire");
         assert_eq!(r.work_slug(), "shulchan-arukh/orach-chayim");
+    }
+
+    #[test]
+    fn double_encoded_hebrew_is_caught() {
+        // `ראוי לכל ירא שמים`, its UTF-8 bytes read back through Windows-1252 —
+        // the exact corruption a stale handoff was seen to deliver.
+        let mojibake = "×¨××•×™ ×œ×›×œ ×™×¨× ×©×ž×™×";
+        assert!(looks_double_encoded(mojibake));
+    }
+
+    #[test]
+    fn real_hebrew_is_not_mistaken_for_it() {
+        assert!(!looks_double_encoded(
+            "ראוי לכל ירא שמים שיהא מיצר ודואג על חורבן בית המקדש"
+        ));
+        // The markup Ksav actually writes, keywords and all.
+        let markup = to_ksav(&packet(), CitationPlacement::Mekor);
+        assert!(!looks_double_encoded(&markup));
+    }
+
+    #[test]
+    fn a_lone_multiplication_sign_does_not_trip_it() {
+        // `×` is a real character in real documents. One, or two, is not the
+        // dense run that double-encoding produces.
+        assert!(!looks_double_encoded("שטח של 3 × 4 מטר"));
+        assert!(!looks_double_encoded("2 × 3 and 4 × 5"));
     }
 }

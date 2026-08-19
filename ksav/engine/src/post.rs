@@ -215,6 +215,15 @@ fn take(body: &str) -> Reply {
         // looks reasonable and is slightly wrong in a printed sefer.
         Err(e) => return Reply::refused(400, e.to_string()),
     };
+    // The schema check above cannot see this: double-encoded Hebrew is valid
+    // UTF-8 and valid JSON, so it deserializes cleanly and only shows up as
+    // garbage once it is in the document. Caught here for the same reason the
+    // schema is — a quote that is quietly wrong is the worst thing to deliver.
+    if crate::source::looks_double_encoded(&packet.text)
+        || crate::source::looks_double_encoded(&packet.display)
+    {
+        return Reply::refused(422, crate::source::DOUBLE_ENCODED);
+    }
     let arrival = Arrival {
         markup: to_ksav(&packet, CitationPlacement::Mekor),
         display: packet.display.clone(),
@@ -240,6 +249,9 @@ fn take_document(body: &str) -> Reply {
         Ok(handed) => handed,
         Err(e) => return Reply::refused(400, format!("that is not a document: {e}")),
     };
+    if crate::source::looks_double_encoded(&handed.text) {
+        return Reply::refused(422, crate::source::DOUBLE_ENCODED);
+    }
     let arrival = Arrival {
         markup: handed.text,
         display: handed.name,

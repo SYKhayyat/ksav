@@ -306,4 +306,60 @@ export async function run() {
     const unlinked = panes.update(t1, a.id, { linked: false });
     notOk("unlinking does", panes.shapeOf(unlinked) === panes.shapeOf(t1));
   }
+
+  // ------------------------------------------------------- zooming a region
+  //
+  // *"There should be an easier way to zoom in on a window — it should be with
+  // its split etc."* The second clause is what decides the shape: the thing
+  // zoomed is a **region**, not a pane, because a writer reading a sefer in two
+  // columns wants both columns big and the node that means "both columns" is
+  // their parent. So one key walks out through the regions a pane sits in and
+  // comes back round to the whole window, and this is the arithmetic of that
+  // walk, tested away from any DOM.
+  {
+    panes._resetIds();
+    // ((source | preview) / notes) — a pane, its split, and an outer split, so
+    // there are two genuine stops on the way out and not just one.
+    const src = panes.leaf("source");
+    const inner = panes.split(src, src.id, "row", panes.leaf("preview"));
+    const outer = panes.split(inner, inner.id, "col", panes.leaf("notes"));
+
+    check("the chain runs from the pane out to the window", panes.zoomChain(outer, src.id), [
+      src.id,
+      inner.id,
+      outer.id,
+    ]);
+    // The whole point of the request, in one assertion: the second press does
+    // not zoom a different pane, it widens to take the split with it.
+    check("the first press shows the pane", panes.nextZoom(outer, src.id, null), src.id);
+    check("the second takes its split with it", panes.nextZoom(outer, src.id, src.id), inner.id);
+    // The root is not a zoom — showing the root alone is showing everything — so
+    // it is spelled the way every other caller spells "no zoom", and the cycle
+    // gets back to normal without a second key.
+    check("and the third is the way out", panes.nextZoom(outer, src.id, inner.id), null);
+
+    // A region left over from another pane, or from an arrangement that has been
+    // replaced. Not an error: the walk starts again from this pane rather than
+    // guessing where in it somebody else's region belonged.
+    check("a foreign region restarts the walk", panes.nextZoom(outer, src.id, "p999"), src.id);
+
+    // Any node, not just a leaf, which is the whole reason `find` was not enough.
+    check("a split can be looked up by id", panes.nodeById(outer, inner.id).kind, "split");
+    check("and a pane still can", panes.nodeById(outer, src.id).id, src.id);
+    check("the split holding a pane", panes.parentOf(outer, src.id).id, inner.id);
+    check("and nothing above the root", panes.parentOf(outer, outer.id), undefined);
+  }
+
+  {
+    // One pane is not zoomable, and must not pretend to be: the only region it
+    // sits in is the window, and showing the window alone is showing the window.
+    panes._resetIds();
+    const only = panes.leaf("source");
+    check("a lone pane has nowhere to zoom to", panes.nextZoom(only, only.id, null), null);
+    // And a pane that has been closed while zoomed. The stale id is over, not
+    // broken — the alternative is a window showing a region that is gone.
+    const t = panes.defaultTree();
+    check("a pane that is no longer there zooms to nothing", panes.nextZoom(t, "p999", null), null);
+    check("and no focused pane means no zoom", panes.nextZoom(t, null, "p1"), null);
+  }
 }

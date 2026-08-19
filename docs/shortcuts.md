@@ -90,6 +90,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+PageUp` | Previous arrangement | הסידור הקודם |
 | `Ctrl+Alt+Shift+W` | Close this arrangement (the documents stay open) | סגירת הסידור (המסמכים נשארים פתוחים) |
 | `Ctrl+Alt+Shift+T` | A blank document in a new arrangement | מסמך חדש בסידור חדש |
+| `Ctrl+Alt+Z` | Show this pane alone, then with its split | הגדלת החלונית (ולאחר מכן עם הפיצול שלה) |
 | `Ctrl+Alt+Shift+ArrowLeft` | Swap this pane with the one on its left | החלפת החלונית עם זו שמשמאל |
 | `Ctrl+Alt+Shift+ArrowRight` | Swap this pane with the one on its right | החלפת החלונית עם זו שמימין |
 | `Ctrl+Alt+Shift+ArrowUp` | Swap this pane with the one above it | החלפת החלונית עם זו שמעל |

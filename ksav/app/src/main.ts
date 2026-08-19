@@ -1104,6 +1104,7 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "switcher", run: () => (openSwitcher(), true) },
   { id: "closeDoc", run: () => (void closeOpenDoc(runtime.currentDoc.id), true) },
   { id: "newTab", run: () => (newTab(), true) },
+  { id: "pane.zoom", run: () => (cyclePaneZoom(), true) },
   { id: "newDocTab", run: () => (void newDocTab(), true) },
   { id: "closeTab", run: () => (closeTab(tabs.activeIndex()), true) },
   // Round, in both directions. Round because a key that stops at the end is a
@@ -2144,6 +2145,21 @@ const paneViews = new Map<string, EditorView>();
 /** Which pane the writer is in. */
 let focusedPane: string | null = null;
 /**
+ * The region shown alone, or null for the whole window.
+ *
+ * Not a change to the tree, and that is the design rather than an
+ * implementation note. Zooming is a way of *looking* at an arrangement, so a
+ * writer who zooms, reads, and zooms back out must get the arrangement they
+ * built — the same splits at the same fractions, and the same editors with the
+ * same scroll, undo history and folds. Rebuilding the tree would give them
+ * something that looks the same and is not, and rebuilding the DOM would throw
+ * away every view in the window to change what is on screen.
+ *
+ * So this is one id, and `applyPaneZoom` hides the rest with a class. Everything
+ * stays alive behind it, including the previews, which keep compiling.
+ */
+let zoomedNode: string | null = null;
+/**
  * Which pane the writer last touched — of **any** role.
  *
  * `focusedPane` is a source pane and cannot be anything else: it is set from
@@ -2552,6 +2568,11 @@ function renderPanes() {
 
   main.replaceChildren(renderNode(paneTree, held));
   main.setAttribute("data-panes", String(panes.leaves(paneTree).length));
+  // Reapplied on every rebuild, and it is what keeps a zoom from surviving the
+  // thing it was a zoom *of*. Splitting or closing a pane rebuilds the window;
+  // if the zoomed region went with it, `applyPaneZoom` finds nothing and drops
+  // the zoom, which is the only honest answer.
+  applyPaneZoom();
 
   // Put every surviving source pane back where it was looking. A pane that is
   // new has no entry and is left alone — `renderLeaf` opens it where the pane it
@@ -2620,7 +2641,7 @@ function renderPanes() {
 
 function renderNode(node: panes.PaneNode, held: Map<string, EditorState>): HTMLElement {
   if (node.kind === "leaf") return renderLeaf(node, held);
-  const box = el("div", { class: "pane-split", "data-dir": node.dir });
+  const box = el("div", { class: "pane-split", "data-dir": node.dir, "data-node": node.id });
   const a = renderNode(node.a, held);
   const b = renderNode(node.b, held);
   a.style.flex = `${node.frac} 1 0`;
@@ -2633,7 +2654,15 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
   const host = el("div", { class: "pane-host", id: `pane-host-${pane.id}` });
   const section = el(
     "section",
-    { class: `pane ${pane.role}-pane`, "data-pane": pane.id, "aria-label": t(pane.role) },
+    {
+      class: `pane ${pane.role}-pane`,
+      "data-pane": pane.id,
+      // The same id again under the name the zoom uses, so one walk up the DOM
+      // can treat a pane and a split alike — which is the whole point of zooming
+      // a *region* rather than a pane.
+      "data-node": pane.id,
+      "aria-label": t(pane.role),
+    },
     [host],
   );
   if (pane.role === "source") {
@@ -2808,6 +2837,21 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     glyphBtn("⊟", t("splitDown"), () => splitHere(pane, "col"), "pane-btn", {
       "data-pane-act": "split-down",
     }),
+    // Zoom, beside the splits, because it is the same question answered the
+    // other way: those two make the window smaller pieces, this one shows one
+    // piece at a time. The glyph changes to say which state pressing it leaves,
+    // so a zoomed window is legible from the pane it zoomed rather than only
+    // from the fact that the others are missing.
+    glyphBtn(
+      zoomedNode ? "⤡" : "⛶",
+      zoomedNode ? t("unzoomPane") : t("zoomPane"),
+      () => {
+        activePane = pane.id;
+        cyclePaneZoom();
+      },
+      "pane-btn" + (zoomedNode ? " pane-zoom-on" : ""),
+      { "data-pane-act": "zoom" },
+    ),
     glyphBtn(
       "⋯",
       t("paneMenu"),
@@ -3867,6 +3911,72 @@ function applyPageView() {
 }
 
 /** Change the arrangement, redraw, and remember it. */
+/**
+ * Show one region of the window and hide the rest, with classes only.
+ *
+ * The walk is up the DOM from the zoomed node to `<main>`: at every split on
+ * the way, the child that is *not* on the path is hidden, and the splitter with
+ * it — a drag handle for a pane nobody can see is a way to resize the window to
+ * something the writer cannot check.
+ *
+ * Everything hidden is still there, still holding its editor and still being
+ * drawn into. That costs a little work per compile and buys the property that
+ * makes zoom worth having: coming back out is free and exact.
+ *
+ * A stale id — the pane was closed, or the arrangement changed under it — is
+ * simply no zoom. It cannot be an error state: the alternative is a window
+ * showing a region that no longer exists, which is a blank frame.
+ */
+function applyPaneZoom() {
+  const main = document.querySelector("main");
+  if (!main) return;
+  for (const el of main.querySelectorAll(".pane-hidden")) el.classList.remove("pane-hidden");
+  for (const el of main.querySelectorAll(".pane-zoomed")) el.classList.remove("pane-zoomed");
+  main.classList.toggle("has-zoom", zoomedNode !== null);
+  if (!zoomedNode) return;
+  const node = main.querySelector<HTMLElement>(`[data-node="${zoomedNode}"]`);
+  if (!node) {
+    // The zoom outlived its region. Say so in the state as well as on screen,
+    // or the next press of the key walks a chain from a node that is gone.
+    zoomedNode = null;
+    main.classList.remove("has-zoom");
+    return;
+  }
+  node.classList.add("pane-zoomed");
+  for (let el: HTMLElement | null = node; el && el !== main; el = el.parentElement) {
+    for (const kid of Array.from(el.parentElement?.children ?? [])) {
+      if (kid !== el) kid.classList.add("pane-hidden");
+    }
+  }
+}
+
+/**
+ * One key, widening by one region each press.
+ *
+ * *"There should be an easier way to zoom in on a window — it should be with
+ * its split etc"*, and the second clause is the part that decides the shape.
+ * Zoom-one-pane is the obvious feature and it is not what was asked for: a
+ * writer reading a sefer in two columns wants both columns big. So the thing
+ * being zoomed is a **region** — the pane, then the pane with what it is split
+ * against, and so on out to the window, which is the way back to normal.
+ *
+ * `panes.nextZoom` decides; this only draws. Which is why the walk is testable
+ * without a DOM, and why the arithmetic of "what does the next press mean" is
+ * not spread across a key handler and a button.
+ */
+function cyclePaneZoom() {
+  zoomedNode = panes.nextZoom(paneTree, activePane ?? focusedPane, zoomedNode);
+  applyPaneZoom();
+  // The glyph on every head, not just this one: the button says which state the
+  // *window* is in, and a zoomed window whose other heads still offer "zoom"
+  // is the mute-surface failure this repository keeps rebuilding.
+  //
+  // Nothing is persisted. A zoom is a way of looking at an arrangement rather
+  // than part of one, and a session that came back zoomed would be a session
+  // that came back with panes missing.
+  refreshPaneHeads();
+}
+
 function setTree(next: panes.PaneNode) {
   paneTree = next;
   renderPanes();

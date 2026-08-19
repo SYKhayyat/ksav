@@ -123,6 +123,76 @@ export function leaves(node: PaneNode): Leaf[] {
   return node.kind === "leaf" ? [node] : [...leaves(node.a), ...leaves(node.b)];
 }
 
+/**
+ * Any node with this id — a pane **or** a split.
+ *
+ * `find` answers leaves only, which was right while every id anybody held was a
+ * pane's. Zooming holds a *region*, and a region is usually a split: *"there
+ * should be an easier way to zoom in on a window — it should be with its split
+ * etc"*. A writer reading a sefer in two columns wants both columns big, not one
+ * of them alone, and the node that means "both columns" is their parent.
+ */
+export function nodeById(node: PaneNode, id: string): PaneNode | undefined {
+  if (node.id === id) return node;
+  if (node.kind === "leaf") return undefined;
+  return nodeById(node.a, id) ?? nodeById(node.b, id);
+}
+
+/** The split holding this node, or undefined at the root. */
+export function parentOf(tree: PaneNode, id: string): Split | undefined {
+  return splits(tree).find((s) => s.a.id === id || s.b.id === id);
+}
+
+/**
+ * The regions a pane sits in, innermost first, ending at the whole window.
+ *
+ * This **is** the zoom control. One key rather than three, and each press widens
+ * by one level: the pane, then the pane with whatever it is split against, then
+ * that with its neighbour, and finally the window itself, which is the way out.
+ *
+ * A cycle rather than a toggle because the request was for the *easier* way and
+ * a toggle is only easier when there are two panes. It is also the honest shape
+ * of the answer: a window is a tree, so "bigger" is a walk up it, and every stop
+ * on that walk is a region a writer might actually have meant.
+ *
+ * The last entry is the root, which is not a zoom at all — rendering the root
+ * alone is rendering everything. Keeping it in the list is what makes the cycle
+ * come back round to normal without a fourth key or a special case at the call
+ * site.
+ */
+export function zoomChain(tree: PaneNode, leafId: string): string[] {
+  if (!find(tree, leafId)) return [];
+  const chain = [leafId];
+  for (;;) {
+    const up = parentOf(tree, chain[chain.length - 1]);
+    if (!up) break;
+    chain.push(up.id);
+  }
+  return chain;
+}
+
+/**
+ * The next region to show, given what is shown now.
+ *
+ * `null` in and `null` out are both "the whole window", so a writer who has
+ * closed the zoomed pane, or switched to an arrangement that never had one, gets
+ * the window rather than a blank frame. Same for an id that is no longer in the
+ * tree: a stale zoom is not an error state, it is just over.
+ */
+export function nextZoom(tree: PaneNode, leafId: string | null, now: string | null): string | null {
+  if (!leafId) return null;
+  const chain = zoomChain(tree, leafId);
+  if (!chain.length) return null;
+  const at = now === null ? -1 : chain.indexOf(now);
+  // Somewhere else in the tree entirely — a zoom left over from another focused
+  // pane. Start this pane's own walk from the beginning rather than guessing
+  // where in it the old region belonged.
+  const next = chain[at + 1];
+  // The root is the end of the walk and means *no zoom*, so it is spelled the
+  // way every other caller spells that.
+  return next === undefined || next === tree.id ? null : next;
+}
+
 /** The pane with this id, if it is in the tree. */
 export function find(node: PaneNode, id: string): Leaf | undefined {
   return leaves(node).find((l) => l.id === id);

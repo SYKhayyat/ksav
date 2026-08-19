@@ -1697,3 +1697,18 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 /* Nothing printed. Said in the strip rather than left to a blank pane, and said
    in the colour the rest of the application says "look at this" in. */
 .pane-window[data-pages="0"] { color: var(--warn, #b26a00); }
+
+/* ---- zooming a region ----
+   Classes rather than a different tree, so everything hidden keeps its editor,
+   its scroll and its undo history and coming back out is exact. `display:none`
+   and not `visibility` or a zero flex: a hidden preview must stop taking part
+   in layout entirely, or a two-column arrangement zoomed to one column still
+   reserves the other column's width and the zoom buys nothing.
+
+   The splitter beside a hidden pane goes with it — a drag handle for something
+   nobody can see resizes the window to a shape the writer cannot check. It is
+   hidden by the same sweep, because it is a sibling on the path like any
+   other. */
+.pane-hidden { display: none !important; }
+.pane-zoomed { flex: 1 1 auto !important; }
+.pane-btn.pane-zoom-on { color: var(--accent); }

@@ -291,6 +291,15 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // The **screen's** left, not the tree's: the interface is right-to-left, so
   // `panes.neighbor` is asked with the live direction rather than reading the
   // tree order. See the geometry section of `panes.ts`.
+  // Show this region alone, then this region with what it is split against, and
+  // so on out to the whole window. One key for the whole walk — the request was
+  // for the *easier* way, and three keys is not it.
+  //
+  // `Mod-Alt-Enter` is the tiling-window-manager fullscreen and would have been
+  // the mnemonic choice; it is `paraBreak`, which a writer presses far more
+  // often. `z` for zoom, in the modifier group that already holds every other
+  // thing done to a pane.
+  "pane.zoom": "Mod-Alt-z",
   "pane.swapLeft": "Mod-Alt-Shift-ArrowLeft",
   "pane.swapRight": "Mod-Alt-Shift-ArrowRight",
   "pane.swapUp": "Mod-Alt-Shift-ArrowUp",

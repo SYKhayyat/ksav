@@ -78,52 +78,116 @@ export const focusMode = ViewPlugin.fromClass(
 );
 
 /**
- * Keep the caret line in the middle of the window.
+ * Where the caret line sits, as a fraction of the pane from its top.
+ *
+ * A number rather than three branches, because the same fraction answers two
+ * questions that have to agree: where to scroll the line to, and how much empty
+ * space the content needs above and below so the line can *get* there. Stating
+ * it once is the only way those two stay in step.
+ */
+export const TYPEWRITER_ANCHORS = { upper: 1 / 3, center: 1 / 2, lower: 2 / 3 } as const;
+
+export type TypewriterAnchor = keyof typeof TYPEWRITER_ANCHORS;
+
+export function anchorFraction(anchor: TypewriterAnchor | undefined): number {
+  return TYPEWRITER_ANCHORS[anchor ?? "center"] ?? TYPEWRITER_ANCHORS.center;
+}
+
+/**
+ * The empty space the mode needs above and below the text, as CSS lengths.
+ *
+ * **This is the half that was missing, and its absence made the whole feature
+ * invisible.** There was bottom padding and no top padding, so the scroller's
+ * only scrollable range was below the text. Centring line 5 of a document wants
+ * a negative scroll offset, a scroller clamps that to zero, and the caret sits
+ * exactly where it sits with the mode off — for every line of a short document
+ * and the first half-screen of a long one. Measured in the running app before
+ * this was changed: `padding-top: 4px`, `scrollTop: 0`, caret at the top of the
+ * pane with the mode plainly on.
+ *
+ * `vh` over-states a pane that is shorter than the window, and over-stating is
+ * the safe direction: too much padding leaves slack the scroll then takes up,
+ * where too little is a line that cannot reach its anchor.
+ */
+export function typewriterPadding(anchor: TypewriterAnchor | undefined): {
+  top: string;
+  bottom: string;
+} {
+  const f = anchorFraction(anchor);
+  return { top: `${(f * 100).toFixed(2)}vh`, bottom: `${((1 - f) * 100).toFixed(2)}vh` };
+}
+
+/**
+ * Keep the caret line at its anchor in the window.
  *
  * The scroll is dispatched from an animation frame and not from `update`,
  * because dispatching a transaction while one is being applied is not allowed —
  * and doing it on a timer instead would land after the paint, which reads as a
  * visible jerk rather than as the page moving under the caret.
  *
+ * `y: "start"` with a margin rather than `y: "center"`, because a margin can say
+ * "a third of the way down" and `center` can only say the one thing. At a half
+ * they are the same scroll; the fraction is what makes the other two settings
+ * possible at all.
+ *
  * Only on a selection change, never on a plain scroll: reacting to scrolling
  * would drag the view back to the caret the instant the writer tried to look at
  * anything else, which is a fight the writer always loses.
  */
-export const typewriterMode = ViewPlugin.fromClass(
-  class {
-    frame = 0;
-    constructor(readonly view: EditorView) {
-      this.centre();
-    }
-    update(u: ViewUpdate) {
-      if (u.selectionSet || u.docChanged) this.centre();
-    }
-    centre() {
-      cancelAnimationFrame(this.frame);
-      this.frame = requestAnimationFrame(() => {
-        const head = this.view.state.selection.main.head;
-        this.view.dispatch({ effects: EditorView.scrollIntoView(head, { y: "center" }) });
-      });
-    }
-    destroy() {
-      cancelAnimationFrame(this.frame);
-    }
-  },
-);
+export function typewriterPlugin(anchor: TypewriterAnchor | undefined) {
+  const f = anchorFraction(anchor);
+  return ViewPlugin.fromClass(
+    class {
+      frame = 0;
+      constructor(readonly view: EditorView) {
+        this.centre();
+      }
+      update(u: ViewUpdate) {
+        if (u.selectionSet || u.docChanged) this.centre();
+      }
+      centre() {
+        cancelAnimationFrame(this.frame);
+        this.frame = requestAnimationFrame(() => {
+          const head = this.view.state.selection.main.head;
+          const yMargin = Math.max(0, Math.round(this.view.scrollDOM.clientHeight * f));
+          this.view.dispatch({
+            effects: EditorView.scrollIntoView(head, { y: "start", yMargin }),
+          });
+        });
+      }
+      destroy() {
+        cancelAnimationFrame(this.frame);
+      }
+    },
+  );
+}
+
+/** The centred plugin, for callers that never asked for an anchor. */
+export const typewriterMode = typewriterPlugin("center");
 
 /**
  * The extension for a pair of settings.
  *
- * Typewriter scrolling wants room to centre the *last* line of a document, which
- * it cannot do without something below it — so the scroller grows half a
- * viewport of bottom padding while the mode is on, and only while it is on.
+ * Typewriter scrolling needs room on **both** sides to put a line at its anchor:
+ * half a viewport above so the first line can come down to meet the caret, and
+ * the rest below so the last line can come up. See `typewriterPadding` for what
+ * having only one of those looked like.
  */
-export function focusExtension(focus: boolean, typewriter: boolean): Extension {
+export function focusExtension(
+  focus: boolean,
+  typewriter: boolean,
+  anchor: TypewriterAnchor = "center",
+): Extension {
   const parts: Extension[] = [];
   if (focus) parts.push(focusMode);
   if (typewriter) {
-    parts.push(typewriterMode);
-    parts.push(EditorView.theme({ "&": { "--ksav-typewriter-pad": "40vh" } }));
+    const pad = typewriterPadding(anchor);
+    parts.push(typewriterPlugin(anchor));
+    parts.push(
+      EditorView.theme({
+        "&": { "--ksav-typewriter-pad-top": pad.top, "--ksav-typewriter-pad": pad.bottom },
+      }),
+    );
     parts.push(EditorView.contentAttributes.of({ "data-typewriter": "true" }));
   }
   return parts;

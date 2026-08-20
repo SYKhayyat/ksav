@@ -607,7 +607,13 @@ function stashFocused() {
 function syncGlobals() {
   const effects = [
     themeCompartment.reconfigure(editorTheme(settings.theme === "dark")),
-    focusCompartment.reconfigure(focusExtension(!!settings.focusMode, !!settings.typewriter)),
+    focusCompartment.reconfigure(
+      focusExtension(
+        !!settings.focusMode,
+        !!settings.typewriter,
+        settings.typewriterAnchor ?? "center",
+      ),
+    ),
     shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
     autoCompartment.reconfigure(autoExtension()),
     structureCompartment.reconfigure(Prec.high(keymap.of(structureKeymap()))),
@@ -1876,7 +1882,13 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       // Dim everything but the paragraph in hand, and keep the caret line
       // centred. Two settings, in one compartment because they are reconfigured
       // together and never independently.
-      focusCompartment.of(focusExtension(!!settings.focusMode, !!settings.typewriter)),
+      focusCompartment.of(
+        focusExtension(
+          !!settings.focusMode,
+          !!settings.typewriter,
+          settings.typewriterAnchor ?? "center",
+        ),
+      ),
       shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
       autoCompartment.of(autoExtension()),
       // Structural keys, above the defaults: inside a list, Enter makes the next
@@ -7234,6 +7246,15 @@ function buildSettingsDrawer(): HTMLElement {
     el("div", { class: "set-note" }, [t("notesChooserViewNote")]),
     checkRow("focusModeLabel", "focusMode"),
     checkRow("typewriterLabel", "typewriter"),
+    // The note, because this is the one setting here whose effect a writer
+    // cannot see by looking: at rest it is a document that scrolls slightly
+    // differently, and nothing on screen says so.
+    el("div", { class: "set-note" }, [t("typewriterNote")]),
+    selectRow("typewriterAnchorLabel", "typewriterAnchor", [
+      ["upper", t("typewriterAnchor.upper")],
+      ["center", t("typewriterAnchor.center")],
+      ["lower", t("typewriterAnchor.lower")],
+    ]),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("autoPairBracketsLabel", "autoPairBrackets"),
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),
@@ -12378,10 +12399,14 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // out — the shortcut list goes on printing keys the mode is about to take.
     // Caught by driving it: the settings list never showed a single `M-x` row.
     void setEditingMode(value).then(rerenderChrome);
-  } else if (key === "focusMode" || key === "typewriter") {
+  } else if (key === "focusMode" || key === "typewriter" || key === "typewriterAnchor") {
     runtime.view.dispatch({
       effects: focusCompartment.reconfigure(
-        focusExtension(!!settings.focusMode, !!settings.typewriter),
+        focusExtension(
+          !!settings.focusMode,
+          !!settings.typewriter,
+          settings.typewriterAnchor ?? "center",
+        ),
       ),
     });
   } else if (key === "zoom" || key === "fitWidth") {

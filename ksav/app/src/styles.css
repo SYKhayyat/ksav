@@ -1682,7 +1682,10 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .cm-dimmed { opacity: .35; transition: opacity .12s ease-out; }
 /* Room below the last line, so the *last* line can also reach the middle of the
  * window. Only present while typewriter scrolling is on. */
-.cm-content[data-typewriter="true"] { padding-bottom: var(--ksav-typewriter-pad, 40vh); }
+.cm-content[data-typewriter="true"] {
+  padding-top: var(--ksav-typewriter-pad-top, 50vh);
+  padding-bottom: var(--ksav-typewriter-pad, 50vh);
+}
 
 /* ---- crash panel ----
  *

@@ -381,6 +381,9 @@ export interface Settings {
   // vertically centred.
   focusMode?: boolean;
   typewriter?: boolean;
+  /** Where typewriter scrolling parks the caret line, as a share of the pane
+   *  from its top: a third down, halfway, or two thirds. */
+  typewriterAnchor?: "upper" | "center" | "lower";
   // Ask GitHub once a day whether there is a newer release. Desktop only, and
   // the request carries nothing — no identity, no version, no document.
   checkUpdates?: boolean;
@@ -429,6 +432,7 @@ export const DEFAULTS: Settings = {
   notesChooserView: "guided",
   focusMode: false,
   typewriter: false,
+  typewriterAnchor: "center",
   checkUpdates: true,
   autocomplete: true,
   autoPairBrackets: true,

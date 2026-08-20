@@ -7272,6 +7272,12 @@ function buildSettingsDrawer(): HTMLElement {
       ["keep", t("clickTarget.keep")],
     ]),
     el("div", { class: "set-note" }, [t("clickTargetNote")]),
+    selectRow("outlineJumpLabel", "outlineJump", [
+      ["source", t("outlineJump.source")],
+      ["preview", t("outlineJump.preview")],
+      ["both", t("outlineJump.both")],
+    ]),
+    el("div", { class: "set-note" }, [t("outlineJumpNote")]),
     selectRow("syncMatchLabel", "syncMatch", [
       ["top", t("syncMatch.top")],
       ["middle", t("syncMatch.middle")],
@@ -7776,6 +7782,34 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
 }
 
 /**
+ * Take the writer to a place in the document, in whichever panes they asked for.
+ *
+ * The outline's whole job is *"take me to that chapter"*, and it moved the caret
+ * in the source and left the preview showing whatever it had been showing — so
+ * on a screen where the preview is the pane being read, the one control for
+ * getting around answered in the pane that was not. `outlineJump` makes it a
+ * choice, because which pane you want to land in depends on how the panes are
+ * arranged and nothing here can work that out.
+ *
+ * The caret moves in all three cases, including `preview`, and that is not a
+ * compromise: the preview half is `revealCursor`, which asks the compiler where
+ * the *caret* printed, so there is no way to move the preview that does not go
+ * through the caret first. What the three answers really choose is which pane
+ * **scrolls** — and `preview` deliberately leaves the source where it was, so a
+ * writer reading the laid-out sefer is not also dragged down their own file.
+ *
+ * `revealCursor` is quiet here. A jump that lands nowhere on the page is
+ * ordinary rather than exceptional — a heading inside a folded region, a mark in
+ * a part of the sefer this compile did not reach — and the source half has
+ * already done something the writer can see.
+ */
+function goToOffset(at: number) {
+  const where = settings.outlineJump ?? "source";
+  jumpTo(at, where !== "preview");
+  if (where !== "source") void revealCursor({ quiet: true });
+}
+
+/**
  * Perform a [`panelrows.RowAction`] — the six lines every list-shaped surface
  * shares.
  *
@@ -7787,7 +7821,7 @@ function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
   switch (does.kind) {
     case "jump":
     case "note":
-      jumpTo(does.at);
+      goToOffset(does.at);
       return;
     case "action":
       closePalette();
@@ -9868,14 +9902,32 @@ function takenStyleNames(): string[] {
   ];
 }
 
-/** The knob rows a style is made of, over whatever reads and writes them. */
+/**
+ * The knob rows a style is made of, over whatever reads and writes them.
+ *
+ * In two groups, because three of the ten are not the same kind of question.
+ * Alignment and the two spacings make `#עיצוב` a block, so a style carrying one
+ * of them breaks any sentence it is applied inside — the writer's report was
+ * *"when I make a word be in a style, it makes that word be in its own
+ * paragraph"*, and the engine was doing exactly what the knob asked for. The
+ * knob was the thing that said nothing. `PARAGRAPH_KNOBS` names the three, in
+ * one place, and the note under the heading says what choosing one costs.
+ */
 function styleKnobRows(
   read: (key: string) => string | undefined,
   write: (key: string, value: string | null) => void,
 ): Node[] {
-  return Object.entries(styles.STYLE_FIELDS).map(([key, field]) =>
-    styleRow(t(field.label), fieldControl(field, read(key), (v) => write(key, v))),
-  );
+  const row = ([key, field]: [string, styles.Field]) =>
+    styleRow(t(field.label), fieldControl(field, read(key), (v) => write(key, v)));
+  const all = Object.entries(styles.STYLE_FIELDS);
+  const inline = all.filter(([k]) => !styles.PARAGRAPH_KNOBS.includes(k));
+  const paragraph = all.filter(([k]) => styles.PARAGRAPH_KNOBS.includes(k));
+  return [
+    ...inline.map(row),
+    el("div", { class: "set-head" }, [t("paragraphKnobsHead")]),
+    el("div", { class: "set-note" }, [t("paragraphKnobsNote")]),
+    ...paragraph.map(row),
+  ];
 }
 
 /** *Other…* — name a style, give it a look, and put it on this paragraph. */

@@ -597,4 +597,43 @@ Body`;
       ok(`the ${key} knob has a label`, hasKey(field.label));
     }
   }
+
+  {
+    // The ten knobs are stated twice — here and as `#עיצוב`'s parameters in the
+    // prelude — and the pair only works if they are the same ten. A knob added
+    // to the prelude and not to this table is a look the engine can produce and
+    // no control can reach; one added here and not there is a control that
+    // writes an unknown-argument error into the writer's document.
+    const prelude = await readFile(
+      new URL("../../engine/typst/ksav.typ", import.meta.url),
+      "utf8",
+    );
+    const at = prelude.indexOf("#let עיצוב(");
+    ok("the prelude still defines #עיצוב", at >= 0);
+    const params = prelude.slice(at, prelude.indexOf(") = {", at));
+    // `body` is the content, not a knob, and has no colon after it.
+    const declared = [...params.matchAll(/^ {2}([A-Za-z֐-׿_][\w֐-׿]*):/gmu)].map((m) => m[1]);
+    check(
+      "the dialog offers exactly the knobs #עיצוב takes",
+      declared.slice().sort().join(","),
+      Object.keys(styles.STYLE_FIELDS).sort().join(","),
+    );
+
+    // Three of them are block-level questions in Typst, so a style that sets one
+    // cannot be applied to two words mid-sentence without breaking the sentence —
+    // the italic bug arriving through a different door. The dialog groups these
+    // under their own heading and says so; the engine's
+    // `a_custom_styles_knobs_are_inline_except_the_three_that_are_not` is the
+    // other half, measuring that these three and only these three really block.
+    check(
+      "and knows which of them make it a paragraph style",
+      styles.PARAGRAPH_KNOBS.slice().sort().join(","),
+      ["יישור", "ריווח_לפני", "ריווח_אחרי"].sort().join(","),
+    );
+    for (const k of styles.PARAGRAPH_KNOBS) {
+      ok(`${k} is a knob the dialog has`, k in styles.STYLE_FIELDS);
+    }
+    ok("the heading it groups them under is translated", hasKey("paragraphKnobsHead"));
+    ok("and the note under it", hasKey("paragraphKnobsNote"));
+  }
 }

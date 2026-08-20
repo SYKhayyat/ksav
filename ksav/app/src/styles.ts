@@ -851,6 +851,25 @@ export const STYLE_FIELDS: Readonly<Record<string, Field>> = {
   ריווח_אחרי: { kind: "length-em", label: "knobSpaceAfter" },
 };
 
+/**
+ * The knobs that turn a style into a paragraph style.
+ *
+ * Alignment and the two spacings are block-level questions in Typst, so
+ * `#עיצוב` puts its content in a block when any of them is set — which means a
+ * style carrying one of these cannot be applied to two words in the middle of a
+ * sentence without breaking the sentence into three paragraphs. That is the
+ * italic bug (`#נטוי` was a sheared frame, and a sheared frame is a block)
+ * arriving through a different door, and the door here is the style dialog,
+ * which offered all ten knobs as one flat list with nothing to say that three of
+ * them change what the style can be used on.
+ *
+ * Stated once, because it is used three times: the dialog groups these under
+ * their own heading, `styles.test.mjs` checks the set against `STYLE_FIELDS`,
+ * and the engine's `a_custom_styles_knobs_are_inline_except_the_three_that_are_not`
+ * measures that these three and only these three really do block.
+ */
+export const PARAGRAPH_KNOBS: readonly string[] = ["יישור", "ריווח_לפני", "ריווח_אחרי"];
+
 /** One `#let NAME(תוכן) = עיצוב(תוכן, …)` in the document. */
 export interface CustomStyle {
   /** The name the writer gave it — what `#NAME[…]` applies. */

@@ -1,6 +1,11 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
 import { check, ok } from "./harness.mjs";
 import { proseMode } from "../.tmp-test/ksav-lang.mjs";
 import { EditorState } from "@codemirror/state";
+
+const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
 
 // Prose mode, driven by the real CodeMirror.
 //
@@ -185,4 +190,45 @@ export async function run() {
   }
   check("prose: a caret walked into markup is never left buried inside it", buried, null);
   ok("prose: and it was walked over the whole corpus", moves > 400);
+
+  {
+    // ---- a fill of your own means an ink of your own ----
+    //
+    // `.pm-callout` was `background: #eff6ff` with no `color`, so the text on it
+    // fell through to `--ink` — #111827 in the light theme, and #e2e8f0 in the
+    // dark one. Pale text on a near-white band: it compiled, it rendered, and it
+    // could not be read. The writer's words were *"in a callout it is whited,
+    // and the text is unreadable"*.
+    //
+    // Three siblings had the same shape (`.pm-warn`, `.pm-ok`, `.pm-mark`) and
+    // two did not (`.pm-code`, `.pm-tbl th`) — the two that filled with a token
+    // rather than a literal, which is the whole distinction. So the rule is
+    // stated once over every prose-mode decoration rather than fixed four times:
+    // **a rule that paints a background declares the ink on it.**
+    const css = readFileSync(path.join(SRC, "styles.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
+    const rules = [...css.matchAll(/(\.pm-[^{}]*?)\{([^}]*)\}/gu)];
+    ok("prose: the stylesheet still has prose-mode rules", rules.length > 15, `${rules.length}`);
+    // A **literal** fill, specifically. `.pm-code` fills with `var(--accent-soft)`
+    // and `.pm-anchor` with `var(--bg)`, and both are right to say nothing about
+    // ink: a token fill turns dark when the theme does, and the inherited `--ink`
+    // turns light in the same breath, so the pair stays legible without either
+    // rule mentioning the other. A hex literal cannot do that. It is the same
+    // colour in both themes while the text on it is not, which is the whole
+    // defect — so the rule is about literals, and this fence flagged the five
+    // token-filled rules on its first run before being told the difference.
+    const inkless = rules
+      .filter(([, , body]) => /background\s*:[^;]*#[0-9a-fA-F]{3,8}/u.test(body) && !/(^|[;\s])color\s*:/u.test(body))
+      .map(([, sel]) => sel.trim());
+    check("prose: every decoration with a literal fill declares its ink", inkless.join(", "), "");
+
+    // And both themes answer for every token those rules name. A token defined
+    // in `:root` and forgotten in the dark block is the same bug with an extra
+    // step: the fill turns dark and the ink stays dark with it.
+    const used = [...new Set([...css.matchAll(/var\((--pm-[\w-]+)\)/gu)].map((m) => m[1]))];
+    ok("prose: the bands are drawn through tokens", used.length >= 8, `${used.length}`);
+    const light = css.slice(css.indexOf(":root {"), css.indexOf('[data-theme="dark"]'));
+    const dark = css.slice(css.indexOf(':root[data-theme="dark"] {'));
+    const missing = used.filter((v) => !light.includes(v + ":") || !dark.includes(v + ":"));
+    check("prose: and both themes define every one of them", missing.join(", "), "");
+  }
 }

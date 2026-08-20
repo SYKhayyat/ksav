@@ -200,64 +200,115 @@ fn the_bare_highlight_is_the_colour_the_toolbar_starts_on() {
 // so this asks the same question of every inline style the product offers
 // rather than of the one that was reported.
 
-/// Every inline style keeps its words on the line they were written on.
+/// Every command in the `style` category keeps its words on the line they were
+/// written on, in both spellings.
+///
+/// **Driven off the registry, not off a list written here.** The first version
+/// of this fence asked four commands — the one that was reported and its three
+/// neighbours in the toolbar — and the `style` category holds eighteen. That is
+/// this repository's oldest failure by count: the class gets named in the commit
+/// message, one instance gets fixed, and the siblings are never swept. A hand
+/// list also cannot notice a nineteenth command, which is the case that matters
+/// most, because a new inline style is written by copying an old one.
+///
+/// Each command is exercised through its own `insert` snippet, so the arity and
+/// the argument names come from the same table the toolbar inserts from rather
+/// than from a guess made here about what `#צבע` takes.
 #[test]
-fn an_inline_style_does_not_break_the_paragraph() {
-    // Both scripts, because a Hebrew-only fence is how this repository's best
-    // grid once asked all its questions in one language.
-    let commands = [
-        ("hebrew", vec!["הדגשה", "נטוי", "קו_תחתון", "קו_חוצה"]),
-        ("english", vec!["bold", "italic", "underline", "strike"]),
-    ];
+fn no_style_command_breaks_the_paragraph() {
     let mut broken = Vec::new();
-    // How many commands were actually measured.
-    //
-    // The loop below has a `continue` in it, and a `continue` with no floor
-    // under it is how a test comes to pass having checked nothing: break the
-    // prelude so that no command prints at all, and every case takes the escape
-    // while `broken` fills with a different complaint. `skips.test.mjs` sweeps
-    // for exactly this and caught this test the hour it was written.
     let mut checked = 0;
-    for (script, names) in commands {
-        let (a, b, c) = if script == "hebrew" {
-            ("אאא", "בבב", "גגג")
-        } else {
-            ("aaa", "bbb", "ccc")
-        };
-        for name in names {
-            let body = format!("{a} #{name}[{b}] {c}");
+    for cmd in ksav_engine::commands::COMMANDS
+        .iter()
+        .filter(|c| c.category == "style")
+    {
+        for (script, name, (a, b, c)) in [
+            ("hebrew", cmd.he, ("אאא", "בבב", "גגג")),
+            ("english", cmd.en, ("aaa", "bbb", "ccc")),
+        ] {
+            // The snippet carries the command's Hebrew name and its `|` caret.
+            // Swap in the spelling under test and the middle word.
+            let snippet = cmd.insert.replace(&format!("#{}", cmd.he), &format!("#{name}"));
+            let Some(styled) = snippet.strip_suffix("|]") else {
+                broken.push(format!("#{name} ({script}): snippet is not `…[|]`: {snippet}"));
+                continue;
+            };
+            let body = format!("{a} {styled}{b}] {c}");
             let runs = render(&body);
-            // Every run carrying one of the three words, by the y it landed on.
-            let ys: Vec<i64> = runs
-                .iter()
-                .filter(|r| r.text.contains(a) || r.text.contains(b) || r.text.contains(c))
-                .map(|r| (r.y * 100.0).round() as i64)
-                .collect();
-            let first = match ys.first() {
-                Some(y) => *y,
-                None => {
-                    broken.push(format!("#{name}: nothing printed"));
-                    continue;
-                }
+            // # What "it broke the paragraph" actually means
+            //
+            // Two metrics were tried here and both were wrong, in opposite
+            // directions, and the second was wrong in an interesting way.
+            //
+            // Comparing all three baselines flags `#עילי` and `#תחתי`, which sit
+            // 4.2pt up and 0.9pt down — that is not a break, that is what a
+            // superscript is. Counting `probe::lines` flags them too: its
+            // tolerance is 1.5pt, so a superscript is already its own "line" by
+            // that reckoning. A sheared frame and a raised baseline both move
+            // text off the line; only one of them moves the *rest of the
+            // sentence*.
+            //
+            // Which is the writer's own words — *"a new paragraph, before and
+            // after"*. So the question is about the words the command was never
+            // applied to: `{a}` and `{c}` must stay on one baseline with each
+            // other. Italic split them by a full line (78.79 against 123.43);
+            // superscript leaves them exactly where they were.
+            let y = |needle: &str| {
+                runs.iter()
+                    .find(|r| r.text.contains(needle))
+                    .map(|r| (r.y * 100.0).round() as i64)
+            };
+            let (Some(before), Some(after)) = (y(a), y(c)) else {
+                broken.push(format!("#{name} ({script}): the plain words did not print"));
+                continue;
+            };
+            let Some(middle) = y(b) else {
+                broken.push(format!("#{name} ({script}): the styled word did not print"));
+                continue;
             };
             checked += 1;
-            if ys.iter().any(|y| *y != first) {
-                broken.push(format!("#{name}: {} baselines, {ys:?}", {
-                    let mut u = ys.clone();
-                    u.sort_unstable();
-                    u.dedup();
-                    u.len()
-                }));
+            if before != after {
+                broken.push(format!(
+                    "#{name} ({script}): the words around it split, {before} against {after}"
+                ));
+            }
+            // And the styled word is still in that line rather than a line of its
+            // own. A whole line is 2,230 hundredths at the default size; a
+            // superscript is 420 and a subscript 90, so half a line separates the
+            // two cases with room on both sides.
+            if (middle - before).abs() > 1_000 {
+                broken.push(format!(
+                    "#{name} ({script}): the styled word left the line, {middle} against {before}"
+                ));
             }
         }
     }
+    // A floor under the two `continue`s above. Break the prelude so that nothing
+    // prints and every case takes an escape, and without this the test passes
+    // having measured none of them — the exact shape `skips.test.mjs` sweeps for,
+    // and the shape it caught this file in within an hour of it being written.
+    let expected = ksav_engine::commands::COMMANDS
+        .iter()
+        .filter(|c| c.category == "style")
+        .count()
+        * 2;
+    // And a floor under `expected` itself. `assert_eq!(checked, expected)` alone
+    // is `0 == 0` the day the category filter matches nothing — a fully-skipped
+    // walk passing on a comparison of two zeroes, which is the exact shape
+    // `skips.test.mjs` sweeps for, and it caught this test on that shape rather
+    // than on the `continue`s it was written to defend.
+    assert!(
+        expected >= 30,
+        "the style category came back with {} commands — the registry is not being read",
+        expected / 2
+    );
     assert_eq!(
-        checked, 8,
-        "only {checked} of the eight inline styles printed anything to measure"
+        checked, expected,
+        "only {checked} of the {expected} style spellings printed anything to measure"
     );
     assert!(
         broken.is_empty(),
-        "inline styles that broke their paragraph:\n  {}",
+        "style commands that broke their paragraph:\n  {}",
         broken.join("\n  ")
     );
 }
@@ -299,4 +350,100 @@ fn a_long_italic_passage_flows_rather_than_becoming_a_slab() {
         lines.len() > 1,
         "the passage fitted on one line, so this proves nothing about breaking"
     );
+}
+
+/// Every knob a custom style offers, one at a time, against the sentence it sits in.
+///
+/// The style dialog is ten controls and a name, and three of them — alignment
+/// and the two spacings — are block-level questions in Typst. A writer who sets
+/// one of those and applies the style to two words in a sentence gets a
+/// paragraph break, which is the same complaint as the italic one arriving by a
+/// different door.
+///
+/// So this states which knobs do that, as a fact rather than as a comment: the
+/// seven text knobs must stay inline, and the three block knobs must not
+/// pretend. `STYLE_FIELDS` in the editor's `styles.ts` lists the same ten, and
+/// `the_dialog_offers_exactly_these_knobs` below keeps the two in step — a knob
+/// added there and not here is a knob nothing measures.
+#[test]
+fn a_custom_styles_knobs_are_inline_except_the_three_that_are_not() {
+    let inline = [
+        "גודל: 1.2em",
+        "משקל: \"bold\"",
+        "צבע: rgb(\"#b91c1c\")",
+        "סגנון: \"italic\"",
+        "מרווח_אותיות: 0.1em",
+        "קו_תחתון: true",
+        "רברבתי: true",
+    ];
+    let blocky = ["יישור: center", "ריווח_לפני: 1em", "ריווח_אחרי: 1em"];
+    let plain = visual_lines(&render("לפני באמצע אחרי")).len();
+    for knob in inline {
+        let lines = visual_lines(&render(&format!("לפני #עיצוב({knob})[באמצע] אחרי"))).len();
+        assert_eq!(
+            lines, plain,
+            "#עיצוב({knob}) broke the sentence: {lines} lines against {plain}"
+        );
+    }
+    for knob in blocky {
+        let lines = visual_lines(&render(&format!("לפני #עיצוב({knob})[באמצע] אחרי"))).len();
+        assert!(
+            lines > plain,
+            "#עיצוב({knob}) is documented as block-level and did not block"
+        );
+    }
+}
+
+/// A style the writer named, applied to two words, stays in the sentence.
+///
+/// The shape the dialog actually writes — a `#let` at the top of the document
+/// and `#NAME[…]` around the selection — rather than a bare `#עיצוב` call. The
+/// binding is Typst's own, so this can only fail if `#עיצוב` changes underneath
+/// it, which is exactly the regression worth a test of its own: the previous
+/// version of this file measured the command and not the door a writer reaches
+/// it through.
+#[test]
+fn a_named_style_applied_to_two_words_stays_in_the_sentence() {
+    let plain = visual_lines(&render("לפני באמצע כאן אחרי")).len();
+    let styled = visual_lines(&render(
+        "#let שאלה(תוכן) = עיצוב(תוכן, משקל: \"bold\", צבע: rgb(\"#b91c1c\"))\nלפני #שאלה[באמצע כאן] אחרי",
+    ))
+    .len();
+    assert_eq!(styled, plain, "the named style broke its own paragraph");
+}
+
+/// Superscript rises and subscript drops, on the line they were written on.
+///
+/// The other half of the sweep above. That test asks how many *lines* the words
+/// landed on, which is the right question for "did the sentence come apart" and
+/// deliberately blind to a baseline that moved a few points — so on its own it
+/// would go on passing if `#עילי` became a no-op. This says the shift is really
+/// there and points the right way, and the two together say what the first,
+/// wrong version of the sweep was trying to say: off the baseline, on the line.
+#[test]
+fn superscript_rises_and_subscript_drops_without_leaving_the_line() {
+    for (name, up) in [("עילי", true), ("תחתי", false), ("sup", true), ("sub_", false)] {
+        let (a, b) = if name.starts_with(|c: char| c.is_ascii()) {
+            ("aaa", "bbb")
+        } else {
+            ("אאא", "בבב")
+        };
+        let runs = render(&format!("{a} #{name}[{b}]"));
+        let base = runs.iter().find(|r| r.text.contains(a)).expect("the plain word printed").y;
+        let moved = runs.iter().find(|r| r.text.contains(b)).expect("the shifted word printed").y;
+        if up {
+            assert!(moved < base, "#{name} did not rise: {moved} against {base}");
+        } else {
+            assert!(moved > base, "#{name} did not drop: {moved} against {base}");
+        }
+        // And the shift is a fraction of a line, not a line. `visual_lines`
+        // cannot say this — its 1.5pt tolerance already calls a superscript a
+        // line of its own — so the claim is made against the line height
+        // directly: a break is 22.3pt and these are 4.2 and 0.9.
+        assert!(
+            (moved - base).abs() < 10.0,
+            "#{name} moved {} points, which is a line, not a shift",
+            (moved - base).abs()
+        );
+    }
 }

@@ -9,6 +9,25 @@
   --danger: #b91c1c;
   --ok: #15803d;
   --editor-bg: #fbfbfd;
+
+  /* ---- prose-mode bands ------------------------------------------------
+     A highlight and the three callout kinds. Each is a fill, an ink and an
+     edge, together, because the bug these replace was a fill written without
+     an ink: the four rules carried literal near-white backgrounds and let the
+     text colour fall through to `--ink`, which the dark theme turns pale. A
+     callout in the dark theme was therefore #e2e8f0 text on a #eff6ff band —
+     it compiled, it rendered, and it could not be read. */
+  --pm-mark-bg: #fff59d;
+  --pm-mark-ink: #111827;
+  --pm-info-bg: #eff6ff;
+  --pm-info-ink: #1e3a8a;
+  --pm-info-edge: #2563eb;
+  --pm-warn-bg: #fef2f2;
+  --pm-warn-ink: #7f1d1d;
+  --pm-warn-edge: #dc2626;
+  --pm-ok-bg: #f0fdf4;
+  --pm-ok-ink: #14532d;
+  --pm-ok-edge: #16a34a;
   --hebrew: "Frank Ruhl Libre", "David Libre", "Segoe UI", sans-serif;
   --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
 
@@ -62,6 +81,22 @@
   --accent: #60a5fa;
   --accent-soft: #1e293b;
   --editor-bg: #0b1220;
+
+  /* The same four bands, as tints of the dark ground rather than pastels on
+     white. The edge stays saturated — it is what names the kind — and the ink
+     is light, so the pair is legible in this theme for the same reason the
+     light one is legible in that one. */
+  --pm-mark-bg: #4d3f0a;
+  --pm-mark-ink: #fef9c3;
+  --pm-info-bg: #172554;
+  --pm-info-ink: #dbeafe;
+  --pm-info-edge: #60a5fa;
+  --pm-warn-bg: #450a0a;
+  --pm-warn-ink: #fee2e2;
+  --pm-warn-edge: #f87171;
+  --pm-ok-bg: #052e16;
+  --pm-ok-ink: #dcfce7;
+  --pm-ok-edge: #4ade80;
 }
 
 * { box-sizing: border-box; }
@@ -787,7 +822,14 @@ body.dragging-pane * { cursor: grabbing !important; }
 .pm-italic { font-style: italic; }
 .pm-underline { text-decoration: underline; text-underline-offset: 3px; }
 .pm-strike { text-decoration: line-through; opacity: .7; }
-.pm-mark { background: #fff59d; border-radius: 2px; }
+/* The four decorations below paint a fill of their own, and a fill of your own
+   means an ink of your own. They had none, so the text on them was whatever
+   `--ink` happened to be — which in the dark theme is #e2e8f0, pale text on a
+   near-white band, unreadable. `.pm-code` and `.pm-tbl th` were never affected
+   because they fill with `--accent-soft`, which is a token and turns dark with
+   the theme; these four were written with literals. The pairs are stated as
+   tokens so a fill can never again be changed without its ink. */
+.pm-mark { background: var(--pm-mark-bg); color: var(--pm-mark-ink); border-radius: 2px; }
 .pm-big { font-size: 1.35em; }
 .pm-small { font-size: 0.82em; color: var(--muted); }
 .pm-title { font-size: 1.9em; font-weight: 800; }
@@ -803,9 +845,18 @@ body.dragging-pane * { cursor: grabbing !important; }
 .pm-quote { font-style: italic; color: var(--muted); border-inline-start: 3px solid var(--line); padding-inline-start: 8px; }
 .pm-source { font-size: 0.85em; font-style: italic; color: var(--muted); }
 .pm-code { font-family: var(--mono); font-size: 0.9em; background: var(--accent-soft); border-radius: 3px; padding: 0 3px; }
-.pm-callout { background: #eff6ff; border-inline-start: 3px solid #2563eb; padding: 1px 8px; border-radius: 3px; }
-.pm-warn { background: #fef2f2; border-inline-start: 3px solid #dc2626; padding: 1px 8px; border-radius: 3px; }
-.pm-ok { background: #f0fdf4; border-inline-start: 3px solid #16a34a; padding: 1px 8px; border-radius: 3px; }
+.pm-callout {
+  background: var(--pm-info-bg); color: var(--pm-info-ink);
+  border-inline-start: 3px solid var(--pm-info-edge); padding: 1px 8px; border-radius: 3px;
+}
+.pm-warn {
+  background: var(--pm-warn-bg); color: var(--pm-warn-ink);
+  border-inline-start: 3px solid var(--pm-warn-edge); padding: 1px 8px; border-radius: 3px;
+}
+.pm-ok {
+  background: var(--pm-ok-bg); color: var(--pm-ok-ink);
+  border-inline-start: 3px solid var(--pm-ok-edge); padding: 1px 8px; border-radius: 3px;
+}
 .pm-box { border: 1px solid var(--line); padding: 1px 8px; border-radius: 4px; }
 .pm-center { display: inline-block; width: 100%; text-align: center; }
 .pm-right { display: inline-block; width: 100%; text-align: right; }
@@ -841,6 +892,13 @@ body.dragging-pane * { cursor: grabbing !important; }
 .asset-row { justify-content: space-between; }
 .asset-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .set-note { font-size: 12px; color: var(--muted); margin: 6px 0; }
+/* A sub-heading inside a drawer section or a form modal. The style dialog needs
+   one because three of its ten knobs are a different kind of question — they
+   make the style a paragraph style — and a flat list of ten said nothing. */
+.set-head {
+  font-size: 12px; font-weight: 600; color: var(--ink);
+  margin: 14px 0 2px; padding-top: 8px; border-top: 1px solid var(--line);
+}
 .font-pick { display: flex; gap: 4px; align-items: center; }
 .font-pick input[type="text"] { min-width: 0; }
 /* The list is grouped by where each face comes from, and every option is drawn

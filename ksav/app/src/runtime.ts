@@ -65,10 +65,20 @@ export function historyExtension(): Extension {
   return history();
 }
 
-/** Put the cursor somewhere and scroll it into sight. */
-export function jumpTo(pos: number) {
+/**
+ * Put the cursor somewhere and scroll it into sight.
+ *
+ * `scroll: false` moves the caret and leaves the source pane where it is, for
+ * the writer who set `outlineJump: "preview"` — they asked the outline to take
+ * the *preview* to a chapter, and the caret still has to move because the
+ * preview half is answered by asking the compiler where the caret printed. The
+ * focus goes to the editor either way: the caret is there now, and leaving the
+ * focus on the panel row would make the next arrow key scroll the list rather
+ * than move the caret it just placed.
+ */
+export function jumpTo(pos: number, scroll = true) {
   const p = Math.min(pos, view.state.doc.length);
-  view.dispatch({ selection: { anchor: p }, scrollIntoView: true });
+  view.dispatch({ selection: { anchor: p }, scrollIntoView: scroll });
   view.focus();
 }
 

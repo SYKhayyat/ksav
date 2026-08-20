@@ -268,6 +268,24 @@ export interface Settings {
    */
   clickTarget?: "match" | "keep";
   /**
+   * Which panes a panel row takes you to.
+   *
+   * Clicking a heading in the outline moved the caret in the source and left the
+   * preview where it was — so the one surface whose whole job is *"take me to
+   * that chapter"* took you there in the pane you were not necessarily reading.
+   *
+   * The three answers are the three a writer can want, and which is right
+   * depends on how the panes are arranged rather than on anything the product
+   * can work out: reading the preview full-width, `preview`; writing with the
+   * source in front, `source`; two panes side by side, `both`.
+   *
+   * It governs every panel row that goes somewhere — the outline, the notes
+   * pane, the marks pane — because they are one act (`runtime.jumpTo`) reached
+   * through three lists, and a per-panel setting would be three names for one
+   * question. The label says "a panel row" for that reason.
+   */
+  outlineJump?: "source" | "preview" | "both";
+  /**
    * Where the two panes line up: the top, middle or bottom of the viewport. The
    * line at that point of the source is put at the same point of the preview —
    * and when the caret is on screen it is the caret's line that is matched, so
@@ -428,6 +446,9 @@ export const DEFAULTS: Settings = {
   // starts off.
   clickToSource: true,
   clickTarget: "match",
+  // What it did before it was a choice, so an existing writer notices nothing
+  // until they ask for more.
+  outlineJump: "source",
   syncMatch: "middle",
   previewDelay: "live",
   autosaveFile: true,

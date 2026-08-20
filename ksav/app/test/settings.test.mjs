@@ -38,6 +38,7 @@ import * as settings from "../.tmp-test/settings.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
+import { hasKey } from "../.tmp-test/i18n.mjs";
 
 const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
 
@@ -363,5 +364,45 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
   for (const [, , key] of GATES) {
     ok(`${key} ships with a default`, key in settings.DEFAULTS);
     check(`${key} defaults to on`, settings.DEFAULTS[key], true);
+  }
+
+  {
+    // ---- the outline takes you where you asked ----
+    //
+    // Clicking a heading moved the caret in the source and left the preview
+    // showing whatever it had been showing, so on a screen where the preview is
+    // the pane being read, the one control for getting around answered in the
+    // pane that was not. `outlineJump` makes it a choice.
+    //
+    // Read from source, because what broke here is not arithmetic — it is
+    // *which function the row calls*. A test that only exercised the setting
+    // would stay green through a `runRow` that went back to `jumpTo` and
+    // ignored it, which is precisely the shape this repository keeps rebuilding:
+    // a working mechanism nothing is wired to.
+    const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+    ok("a panel row goes through goToOffset", /case "jump":\s*\n\s*case "note":\s*\n\s*goToOffset\(/u.test(main));
+    const at = main.indexOf("function goToOffset(");
+    ok("goToOffset is a function in main.ts", at >= 0);
+    const body = main.slice(at, main.indexOf("\n}", at));
+    ok("it reads the setting", body.includes("settings.outlineJump"));
+    // The three answers, each doing something different. `preview` is the one
+    // worth naming: it passes `false` for the scroll, so the source pane stays
+    // where it was — a writer reading the laid-out sefer is not also dragged
+    // down their own file. The caret still moves, because the preview half is
+    // answered by asking the compiler where the *caret* printed.
+    ok("preview leaves the source pane alone", /jumpTo\(at, where !== "preview"\)/u.test(body));
+    ok("and anything but source reveals in the preview", /where !== "source".*revealCursor/su.test(body));
+
+    check(
+      "the three answers are the ones the setting declares",
+      readFileSync(path.join(SRC, "settings.ts"), "utf8").includes(
+        'outlineJump?: "source" | "preview" | "both";',
+      ),
+      true,
+    );
+    check("and it defaults to what it always did", settings.DEFAULTS.outlineJump, "source");
+    for (const k of ["outlineJumpLabel", "outlineJumpNote", "outlineJump.source", "outlineJump.preview", "outlineJump.both"]) {
+      ok(`${k} is translated`, hasKey(k));
+    }
   }
 }

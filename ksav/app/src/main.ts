@@ -563,7 +563,7 @@ function openSwitcher() {
           class: "pal-item" + (i === 0 ? " active" : ""),
           onClick: () => {
             closePanel("switcher");
-            void openDoc(entry.id);
+            void enterDoc(entry.id);
           },
         },
         [
@@ -750,7 +750,7 @@ async function duplicateDoc(id: string) {
     src.customCommands,
     src.config ?? {},
   );
-  await openDoc(copy.id);
+  await enterDoc(copy.id);
 }
 
 /**
@@ -4170,6 +4170,57 @@ async function openInNewTab(docId: string) {
   await openDoc(docId);
 }
 
+/**
+ * Open a document, the way the writer asked documents to open.
+ *
+ * **The one door.** Every route into a document used to call `openDoc`
+ * directly, which puts the arriving sefer into the panes the writer was
+ * standing in — the report *"opening a document replaces the one I had open"*,
+ * true of the switcher, the Documents menu, the library, a file, an import, a
+ * share link and a rescued draft alike. `openInNewTab` existed and was reachable
+ * only from a `⧉` on two rows, so the capability was there and the default was
+ * the wrong way round.
+ *
+ * `openIn` is the setting; see `Settings.openIn` for what the three answers
+ * mean. This function is the only place that reads it, so a nineteenth route
+ * into a document joins by calling this rather than by being remembered.
+ *
+ * What deliberately does **not** come through here: closing a document,
+ * deleting one, `goToLastDoc`, and the session restore. Those pick a document
+ * to show in an arrangement that already exists; a new tab for any of them is a
+ * tab nobody asked for.
+ */
+async function enterDoc(docId: string) {
+  const how = settings.openIn ?? "reuse";
+  // Already the document on screen: nothing to open, whatever the setting says.
+  // Without this, `newTab` makes a second arrangement onto the sefer you are
+  // already reading every time you click its own row in the switcher.
+  if (how !== "newTab" && runtime.currentDoc?.id === docId) return;
+  if (how === "current") {
+    await openDoc(docId);
+    return;
+  }
+  if (how === "reuse") {
+    // The active tab's tree lives in `paneTree` until it is stashed, so ask
+    // about the arrangement as it *is*, not as it was when last left.
+    tabs.stash(paneTree, focusedPane);
+    const found = tabs.showing(docId);
+    // `selectTab` no-ops on the tab already active, which is right for a tab
+    // switch and wrong here: this arrangement can name a document the view is
+    // not showing — a tab restored from the session before its document
+    // arrived. So the active tab means "open it here", not "do nothing".
+    if (found >= 0 && found !== tabs.activeIndex()) {
+      selectTab(found);
+      return;
+    }
+    if (found >= 0) {
+      await openDoc(docId);
+      return;
+    }
+  }
+  await openInNewTab(docId);
+}
+
 /** A blank document, in an arrangement of its own. */
 async function newDocTab() {
   closeMenus();
@@ -5902,7 +5953,7 @@ function docsMenuItems(): (Node | string)[] {
               "data-doc": entry.id,
               onClick: () => {
                 closeMenus();
-                void openDoc(entry.id);
+                void enterDoc(entry.id);
               },
             },
             [
@@ -5953,7 +6004,7 @@ function docsMenuItems(): (Node | string)[] {
             "data-doc": entry.id,
             onClick: () => {
               closeMenus();
-              void openDoc(entry.id);
+              void enterDoc(entry.id);
             },
           },
           [
@@ -6643,7 +6694,10 @@ function buildHeader(): HTMLElement {
         const ut = usersById.get(entry.id);
         if (ut) {
           return el("div", { class: "menu-item-row" }, [
-            el("button", { class: "menu-item menu-item-main", onClick: () => loadBody(ut.body) }, [
+            el("button", {
+              class: "menu-item menu-item-main",
+              onClick: () => void startFromTemplate(ut.body, ut.name),
+            }, [
               el("b", {}, [entry.label]),
             ]),
             el("button", {
@@ -6658,7 +6712,7 @@ function buildHeader(): HTMLElement {
           ]);
         }
         const tpl = templatesByMenu.get(entry.id)!;
-        return el("button", { class: "menu-item", onClick: () => loadTemplate(tpl) }, [
+        return el("button", { class: "menu-item", onClick: () => void loadTemplate(tpl) }, [
           el("b", {}, [entry.label]),
           el("span", { class: "menu-desc" }, [entry.desc ?? ""]),
         ]);
@@ -7299,6 +7353,12 @@ function buildSettingsDrawer(): HTMLElement {
       ["both", t("outlineJump.both")],
     ]),
     el("div", { class: "set-note" }, [t("outlineJumpNote")]),
+    selectRow("openInLabel", "openIn", [
+      ["reuse", t("openIn.reuse")],
+      ["newTab", t("openIn.newTab")],
+      ["current", t("openIn.current")],
+    ]),
+    el("div", { class: "set-note" }, [t("openInNote")]),
     selectRow("syncMatchLabel", "syncMatch", [
       ["top", t("syncMatch.top")],
       ["middle", t("syncMatch.middle")],
@@ -8405,6 +8465,32 @@ function loadBody(body: string) {
   runtime.view.focus();
   scheduleCompile();
 }
+
+/**
+ * A template, into a document rather than over one.
+ *
+ * The sharpest member of *"opening a document replaces the one I had open"*,
+ * and it was not an `openDoc` call at all: picking a template dispatched the
+ * whole template body over the open document's text. On an empty new document
+ * that is exactly right and is what the menu is for; on a sefer in progress it
+ * is the text replaced, undoable and not obviously so.
+ *
+ * So the emptiness of what is on screen decides. An empty document takes the
+ * template in place — no new tab, no second untitled document in the library
+ * for a writer who opened the application and picked a template, which is the
+ * first thing a new writer does. Anything else gets a document of its own,
+ * placed by `openIn` like every other way in.
+ */
+async function startFromTemplate(body: string, title?: string) {
+  closeMenus();
+  if (runtime.docText().trim() === "") {
+    loadBody(body);
+    return;
+  }
+  await flushSaves();
+  const doc = await docs.createDoc(title?.trim() || t("untitled"), body);
+  await enterDoc(doc.id);
+}
 /**
  * Load a template, and put the document in the direction it was written for.
  *
@@ -8419,7 +8505,12 @@ function loadBody(body: string) {
  * `lang` is absent on templates coming from an older engine build, in which case
  * the direction is left alone: guessing would be worse than doing nothing.
  */
-function loadTemplate(tpl: TemplateDef) {
+async function loadTemplate(tpl: TemplateDef) {
+  // The document first, the direction after: `setSetting` writes the page setup
+  // of the document *on screen*, so setting it before a template that starts a
+  // new document would flip the direction of the sefer being left behind and
+  // leave the arriving one with whatever the new-document default is.
+  await startFromTemplate(tpl.body, getLang() === "he" ? tpl.he : tpl.en);
   const wanted = tpl.lang === "en" ? "ltr" : tpl.lang === "he" ? "rtl" : null;
   if (wanted && docConfig().dir !== wanted) {
     // Through `setSetting`, not by assignment: the direction also reconfigures
@@ -8428,7 +8519,6 @@ function loadTemplate(tpl: TemplateDef) {
     setSetting("dir", wanted);
     rerenderChrome();
   }
-  loadBody(tpl.body);
 }
 
 /**
@@ -8541,7 +8631,7 @@ async function openFile() {
   );
   await docs.setFileName(doc.id, opened.binding.name);
   await files.rememberBinding(doc.id, opened.binding);
-  await openDoc(doc.id);
+  await enterDoc(doc.id);
 }
 
 /**
@@ -8579,18 +8669,18 @@ async function openBound(id: string, opened: { text: string; binding: files.File
         customCommands: onDisk.customCommands,
         ...(onDisk.config ? { config: onDisk.config } : {}),
       });
-      await openDoc(id);
+      await enterDoc(id);
       setStatus(t("loadedFromDisk"), "ok");
       return;
     }
     // Keep Ksav's copy — but the two are known to differ, and the next save has
     // to say so rather than silently winning.
-    await openDoc(id);
+    await enterDoc(id);
     watch.markConflicted(id);
     setStatus(t("keptEditorCopy"), "warn");
     return;
   }
-  await openDoc(id);
+  await enterDoc(id);
 }
 
 async function fileText(): Promise<string> {
@@ -8786,7 +8876,7 @@ async function offerRecovery() {
           );
           crash.clearRecovery();
           clearChromeNotice();
-          await openDoc(doc.id);
+          await enterDoc(doc.id);
         })(),
     },
     {
@@ -8868,7 +8958,7 @@ async function importAs(
   // The direction is read off the text rather than guessed, and written onto the
   // document's own page setup — where it belongs since B26.
   await docs.rememberConfig(created.id, { dir: result.dir });
-  await openDoc(created.id);
+  await enterDoc(created.id);
   setStatus(
     result.dropped.length ? tf("importedWithGaps", title, result.dropped.join(", ")) : tf("imported", title),
     result.dropped.length ? "warn" : "ok",
@@ -8955,7 +9045,7 @@ async function openSharedIfLinked() {
   );
   const setup = { ...(shared.config ?? {}), ...(shared.dir ? { dir: shared.dir } : {}) };
   if (Object.keys(setup).length) await docs.rememberConfig(doc.id, setup as never);
-  await openDoc(doc.id);
+  await enterDoc(doc.id);
   setStatus(shared.review ? t("openedForReview") : t("openedFromLink"), "ok");
 }
 
@@ -9070,8 +9160,23 @@ async function autosaveToFile() {
   }
 }
 
+/**
+ * A blank document, opened the way the writer asked documents to open.
+ *
+ * Separate from `newNamedDoc`, which is the *fallback* after closing or
+ * deleting the last open document — that one has to land in the arrangement
+ * that is already on screen, because an editor with no document is not a state
+ * this application has and a new tab for it is a tab nobody asked for.
+ */
+async function newBlankDoc() {
+  closeMenus();
+  await flushSaves();
+  const doc = await docs.createDoc(t("untitled"), "");
+  await enterDoc(doc.id);
+}
+
 function newDoc() {
-  void newNamedDoc();
+  void newBlankDoc();
 }
 
 // ---------------------------------------------------------------- table editing
@@ -12905,7 +13010,7 @@ function maybeOnboard() {
                 "data-template": tpl.id,
                 onClick: () => {
                   dismissOnboard();
-                  loadTemplate(tpl);
+                  void loadTemplate(tpl);
                 },
               },
               [lang === "he" ? tpl.he : tpl.en],
@@ -13419,7 +13524,7 @@ async function boot() {
     const entry = docs.library().find((e) => e.title === file);
     if (!entry) return;
     void (async () => {
-      await openDoc(entry.id);
+      await enterDoc(entry.id);
       runtime.jumpTo(offsetOf(runtime.view, line, column) ?? 0);
     })();
   });

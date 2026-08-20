@@ -213,6 +213,18 @@ export function focusedDoc(tab: Tab): string | null {
   return pick?.docId ?? null;
 }
 
+/**
+ * The index of a tab already showing this document, or -1.
+ *
+ * What `openIn: "reuse"` is built on: a writer who opens the same sefer twice
+ * means *take me back to it*, not *give me a second window onto it*. The active
+ * tab's own tree lives in the caller until it is stashed, so a caller asking
+ * this must stash first or it is asking about the arrangement before last.
+ */
+export function showing(docId: string): number {
+  return tabs.findIndex((tab) => focusedDoc(tab) === docId);
+}
+
 /** Everything, for persisting. */
 export function serialise(): { tabs: Tab[]; active: number } {
   return { tabs, active };

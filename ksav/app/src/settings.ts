@@ -286,6 +286,34 @@ export interface Settings {
    */
   outlineJump?: "source" | "preview" | "both";
   /**
+   * What happens to the arrangement you are standing in when you open a
+   * document.
+   *
+   * The report was *"opening a document replaces the one I had open"*, and it
+   * was true of every route into a document — the switcher, the Documents menu,
+   * the library, opening a file, an import, a share link, a rescued draft. Each
+   * one called `openDoc`, which puts the arriving sefer into the panes the
+   * writer was already using. Nothing was lost from disk; what was lost was the
+   * arrangement, which for somebody comparing two seforim side by side is the
+   * work.
+   *
+   * The `⧉` control existed on two rows and opened a second arrangement, so the
+   * capability was there and the default was the other way round. This makes the
+   * default the choice:
+   *
+   * · `reuse` — go to the arrangement already showing that document, and make a
+   *   new one only if there is none. What an editor does, and the default.
+   * · `newTab` — always a new arrangement, even onto a sefer already on screen.
+   * · `current` — open it here, over what you were reading. The old behaviour,
+   *   kept because a writer working in one document at a time wants exactly it.
+   *
+   * It governs *opening*, never *switching*: closing a document, deleting one,
+   * `goToLastDoc` and the session restore all pick a document to show in the
+   * arrangement that is already there, and a new tab for any of them would be a
+   * tab nobody asked for.
+   */
+  openIn?: "reuse" | "newTab" | "current";
+  /**
    * Where the two panes line up: the top, middle or bottom of the viewport. The
    * line at that point of the source is put at the same point of the preview —
    * and when the caret is on screen it is the caret's line that is matched, so
@@ -453,6 +481,11 @@ export const DEFAULTS: Settings = {
   // What it did before it was a choice, so an existing writer notices nothing
   // until they ask for more.
   outlineJump: "source",
+  // Not the old behaviour, and deliberately: the old behaviour is the reported
+  // bug. `reuse` costs a writer who works in one document nothing — the sefer
+  // they open is not already in a tab, so they get the one tab they had — and
+  // gives the writer with two seforim their arrangement back.
+  openIn: "reuse",
   syncMatch: "middle",
   previewDelay: "live",
   autosaveFile: true,

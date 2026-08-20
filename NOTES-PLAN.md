@@ -511,13 +511,42 @@ Re-run everything: `sh tests/notes-corpus/run.sh`
 | **`measure()` returns real geometry** | `measure` | `height=210.96pt width=360pt` |
 | **The grid holds at length** | — | 150 rows, 9,000 lines, **324 pages, clean exit** |
 
-**The two Mishna Berura designs are not rivals.** **A** is what you use when you
-want the band *arranged* a particular way — run-in, pooled. **B** is what you use
-when you want it *capped*, so the page shape stays constant down the sefer. B
-gives independent numbering free; A has to be given it by thing five. **[U] They
-may compose** — A's single-parent band in the footnote area with B's box holding
-the ShT, giving pooling and a cap together. Untested, and it is the experiment
-that would settle the design.
+## Design C — A and B composed **[V] — and this is the recommendation**
+
+A's single-parent run-in band in the footnote area, with B's box holding the ShT
+instead of nested footnotes. `compose.ksav`:
+
+```
+y=682   א ב ג ד                       ← ShT markers, superscript, in the band
+y=685   MB1 MB2 MB3 MB4               ← run-in, one line, in the real footnote area
+y=716   א SHT1  ב SHT2  ג SHT3  ד SHT4 ← the box below, its own count
+y=799   page number
+```
+
+**It takes the good half of each and drops A's fatal constraint.** Because the ShT
+are a *different mechanism* rather than nested footnotes, rule "a nested band
+cannot split" no longer applies. `compose_long.ksav` — thirty long notes, the same
+content that destroys design A:
+
+| | max y (sheet is 841.89) |
+|---|---|
+| **Design A** (`spanning`) | **1477.69** — 636pt off the paper, page number with it |
+| **Design C** (`compose_long`) | **802.57** — the ShT box overflowing, nothing else |
+
+So design C gives:
+
+- **run-in MB**, from A
+- **a banded, capped ShT**, from B
+- **two genuinely independent counts**, from B
+- **no chunking requirement**, because the parent has no nested notes to keep it
+  from splitting — which is the whole cost of A
+
+**What it still needs:** the ShT box caps at nine like every box
+(`compose_long` gives 9 distinct ShT positions for 30 notes). That is thing four,
+which every design needs anyway.
+
+**Design A remains useful** where you want the ShT *pooled by Typst* rather than
+placed in a box. Design B remains the simplest if you do not need run-in.
 
 **Typst compiles incrementally** — the premise of every "own the pagination"
 proposal, measured false:
@@ -543,7 +572,7 @@ linearly but with a ~17× advantage — under 100ms to roughly 400 pages.
 | **[X] A nested band cannot split** | `spanning` vs `spanning_flat` | nested: content to y=1477 on an 841.89pt sheet. Same band without nesting: max y=799.02 |
 | **[X] Rows are not bands** | `rows`, `nested` | the top row finishes entirely before the bottom starts |
 | **[X] `columns()` is not grid columns** | `cols` | it snakes one stream; cannot hold a second commentary |
-| **[X] Rotation does not paginate** | `rot` | 1 page, max y = 988.29 on an 841.89pt sheet |
+| **[X] Rotation does not paginate** | `rot` | 1 page, max y = 1077.57 on an 841.89pt sheet |
 | **[X] Split points are not in `query`** | `split` | a two-page note is one entry with one location — where it *started* |
 | **[X] Boxes overflow at nine** | `boxover` | 20 notes → **9 distinct y positions**, rest overprint, max y = 802.57 |
 | **[X] Tagged nesting interleaves** | `nest` | MB, ShT, MB, ShT — pooling needs exactly one parent entry |

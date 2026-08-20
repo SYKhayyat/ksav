@@ -10,7 +10,11 @@ cd "$(dirname "$0")/../.." || exit 1
 C="tests/notes-corpus"
 probe()  { cargo run -q --example probe   -- "$C/$1.ksav" 2>&1; }
 svg()    { cargo run -q --example svgdump -- "$C/$1.ksav" 2>&1; }
-maxy()   { probe "$1" | awk '/^y=/{if($2+0>m)m=$2+0} END{printf "%.2f", m}'; }
+# NOTE: probe prints `y={:7.2}`, so y=1477.69 has NO space after `y=` while
+# y=  78.79 has two. Splitting on whitespace and taking $2 therefore silently
+# reads "x=" for any y >= 1000 — i.e. it under-reports exactly the catastrophic
+# overflows this script exists to find. Extract the number, don't field-split.
+maxy()   { probe "$1" | grep -o 'y=[ ]*[0-9.]*' | tr -d 'y= ' | sort -g | tail -1; }
 pages()  { probe "$1" | grep -c "──────── page"; }
 hdr()    { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
 
@@ -70,4 +74,9 @@ printf "  צבע    colour (svg)    : %s   <- probe cannot see this; svgdump can
 
 hdr "Run-in is impossible in native footnotes (runin, runin2)"
 probe runin  | tail -8 | cut -c1-46
+
+hdr "Design C — A and B composed (compose, compose_long)"
+probe compose | cut -c1-66
+printf "  compose_long  max y = %s   (design A on the same content: 1477.69)\n" "$(maxy compose_long)"
+printf "  spanning      max y = %s   <- design A, nested notes, off the sheet\n" "$(maxy spanning)"
 printf "\ndone.\n"

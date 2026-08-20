@@ -447,6 +447,37 @@ because a pinned layout cannot see a *fourth* copy being written — which is ho
 there came to be three, and how the א/ב-over-1/2/3 convention shipped backwards
 and had to be corrected by hand in a second copy months later.
 
+## Four dead ends, so nobody spends a day on them
+
+Reported by another agent testing against 0.15.1 **[V-EXT]**, except where noted.
+Each is something an implementer would reasonably try.
+
+**1. Typst has exactly two page-anchored streams** — the main flow and the
+footnote area. **There is no script-level way to make a third.** This is the fact
+underneath the whole grid-or-box distinction: anything that is not one of those
+two does not flow, and therefore has to be a box you manage.
+
+**2. Floats cannot serve as a band.** Floats **do not split** — an oversized
+bottom float is pushed to the next page and then overflows the page bounds and
+clips. Do not reach for `place(bottom, float: true)` to build an apparatus.
+
+**3. `page(footer:)` renders arbitrary per-page content but does not reserve space
+reactively.** It can paint anything, keyed off `here().page()`, but it cannot make
+room for itself. **This is the direct cause of the nine-note cap** — Ksav's page
+bands and streams render there, so they grow into the margin and off the sheet
+rather than pushing the text up.
+
+**4. Nested entries follow layout, not their anchor.** With a parent note spanning
+pages 1→2, *all* nested entries landed on page 2 — where the parent's text ended —
+including one anchored in the parent's first sentence. Relevant to design A, and
+another reason design C (where the second apparatus is a box rather than a nested
+note) is the steadier shape.
+
+**And one confirmed here, not inherited [V]:** pooling into a band happens **only
+when a page has exactly one parent entry**. With several parents you get parent,
+child, parent, child (`nest.ksav`). That is what forces the single-parent-per-unit
+structure in designs A and C.
+
 ## The page-foot reserve changes three things, not one
 
 Anything that inflates `margin.bottom` moves the text region, **the footer's

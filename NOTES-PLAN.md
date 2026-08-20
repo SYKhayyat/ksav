@@ -379,6 +379,118 @@ sketches are the one thing worth keeping.
 
 ---
 
+# Part 2b — The terrain: what the engine already knows
+
+**Read this before writing a line.** Everything above describes the target.
+This is the ground it has to be built on, and each item below is a rule someone
+learned the hard way. An implementer who does not know them will re-invent a bug
+that is already recorded in the code.
+
+## Where the code is
+
+| Concern | File |
+|---|---|
+| The chooser to be replaced | `app/src/notes.ts` — `NOTE_CHOICES` at `:133`, the where × how grid |
+| **Streams, already modelled correctly** | `app/src/channels.ts` — the editor half of one authority with the prelude |
+| Which commands open a note body | `app/src/note-commands.ts` — hand-written on purpose; read its header before "simplifying" it |
+| Thing one | `app/src/deferred.ts`, `deferred-lint.ts` |
+| Collected-and-never-rendered lint | `app/src/apparatus.ts`, `apparatus-lint.ts` |
+| The one shared band renderer | `engine/typst/ksav.typ` — `_ap_pick / _ap_mark / _ap_wrap / _ap_note / _ap_entries / _ap_group / _ap_bands` |
+| Channels in the prelude | `ksav.typ` — the `_ch_*` block |
+| Page-foot reserve | `engine/src/lib.rs` — `auto_notes_region_cm`, `length_cm` |
+| Instruments | `engine/examples/probe.rs`, `svgdump.rs`, `bench-incr.rs` |
+
+## Five rules that are not negotiable
+
+**1. The rendering side must never write.** A page footer is laid out many times
+during page-breaking, so any counter or state *write* there fails to converge.
+Numbering is therefore **a note's rank among its own kind, read out of a query** —
+`_ksav_rank` (`ksav.typ:1005`), never a counter. Reading is free; writing is not.
+This is why restart must mean "rank since the last restart mark" and not "set to
+1."
+
+**2. Depth must be a lexical literal.** Discovering nesting depth through `state`
+finds one level per layout pass and Typst caps at five, so 5-deep nesting never
+converges. That is why tiers are explicit commands rather than a depth counter,
+and it is the mechanical reason routing lives on the stream (decision 4).
+
+**3. Nested notes must be force-registered** — `box(place(hide(body)))`
+(`ksav.typ:1469`). A stored body is not laid out, so a nested note inside it would
+never run. **The `box` matters:** without it the hidden machinery breaks the line
+its marker sits on.
+
+**4. Phantom registrations are detected by document order, never by content or
+coordinates.** When an apparatus re-displays a stored body, the nested notes in it
+emit their metadata again. Each apparatus brackets its block with
+`_ksav_ap_open`/`_ksav_ap_close` and a registration is a phantom when more opens
+than closes precede it (`_ksav_real_of`, `:968`). **Two approaches that were tried
+and are wrong:** keying by content (`repr(body)` — two notes reading "עיין שם"
+become one note) and comparing page coordinates (a native footnote also sits below
+an apparatus block while being outside it).
+
+**5. There is one band renderer and a test counts the copies.**
+`tests/apparatus_golden.rs` requires the numbering array, the apparatus rule, the
+divider, the force-registration and the fixed-height slot to appear **exactly
+once** in `ksav.typ`, and all three collectors to go through `_ap_note`. It exists
+because a pinned layout cannot see a *fourth* copy being written — which is how
+there came to be three, and how the א/ב-over-1/2/3 convention shipped backwards
+and had to be corrected by hand in a second copy months later.
+
+## The page-foot reserve changes three things, not one
+
+Anything that inflates `margin.bottom` moves the text region, **the footer's
+descent**, and **where anything printed after the footer's content lands**. All
+three have been wrong here before — one version put the page number at y=838.93 of
+841.89, inside every printer's dead zone.
+
+**Probe the page number, not just the notes.** Held by
+`tests/page_geometry.rs::the_page_foot_line_does_not_move_when_the_document_grows_an_apparatus`.
+
+## Documents that are now stale
+
+- **`spec.md`** — says commentary beside the main text needs a different backend or
+  a multi-month build. Contradicted **[V]**; the eleven-option framing is replaced
+  by decision 1.
+- **`engine/README-notes.md`** — documents three mechanisms. There are four; it
+  never mentions channels.
+
+Both should be updated as part of this work, not left to contradict it.
+
+## Already built by a parallel session (2026-08-20)
+
+Check these before building thing five — they overlap it:
+
+- `decisions/2026-08-20-starting-the-count-again.md` — **restart numbering exists**:
+  `#הגדרות_מספור(אפס_לפי: N)`, `#התחל_מספור()`, `#המשך_מספור()`, read by the
+  prelude for notes and by `numbering.ts` for siman numerals.
+- `decisions/2026-08-20-a-marker-is-not-where-the-note-is.md` — a fifteen-
+  arrangement sweep of marker numbering in fixed regions.
+
+---
+
+# Part 2c — Acceptance criteria
+
+Each is a corpus document that currently fails and must pass. This is what "done"
+means; nothing here is a matter of judgement.
+
+| Thing | Done when |
+|---|---|
+| **Sidenote clamp** | `dense.ksav` — max y ≤ 799.02 (currently **827.27**), all 20 notes at distinct y |
+| **Thing four, boxes** | `boxover.ksav` — 20 notes give **20 distinct y positions** (currently **9**) and max y ≤ 799.02 (currently 802.57) |
+| **Thing four, invariant** | no corpus document produces two runs at the same y in the same lane, and none exceeds the text area |
+| **Thing five, numbering** | `oneparent.ksav` — the MB notes carry their own numbers (currently **none**; the 2/3/4 shown are the ShT markers) |
+| **Thing five, run-in** | a band renders as one flowing paragraph — impossible in native footnotes **[X]**, so this proves the band is being built rather than delegated |
+| **Thing two, streams** | two streams declared with different destinations, both reachable from one note-writing gesture |
+| **Italic bug** | `k_slant_a` vs `k_slant_b` — **differing** SVG (currently byte-identical) |
+| **`ריווח` bug** | `gap_0em` vs `gap_6em` — **differing** output (currently byte-identical) |
+| **The chooser** | `NOTE_CHOICES` is gone and `notes.ts` references `channels.ts` |
+
+**And a regression bar:** every document in the corpus that passes today must
+still pass. `flowtest`, `perdaf`, `vilna`, `asym`, `pinned`, `boxdesign`,
+`pass_real`/`pass_hide` are working behaviour, not just evidence.
+
+---
+
 # Part 3 — What works
 
 Re-run everything: `sh tests/notes-corpus/run.sh`

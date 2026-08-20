@@ -93,7 +93,7 @@ import {
 import { aliasesInForce, keyHint, keybindingsFrom, whoHolds } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
-import { printedPrefix, fractionAtLine, lineAtFraction } from "./scrollmap";
+import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction } from "./scrollmap";
 import * as styles from "./styles";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
@@ -2067,11 +2067,16 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
         // that footnote marker — printed. CodeMirror has already placed the
         // caret by the time `mouseup` fires, so the deferred reveal reads the
         // caret the click set. A drag is a selection, not a click, and is left
-        // alone; the reveal is quiet and only fires when synced scrolling is on.
+        // alone; the reveal is quiet and only fires when `clickToPreview` is on.
+        //
+        // The event is handed on rather than dropped because `clickTarget: keep`
+        // needs the one fact only the click carries: how far down its own pane
+        // it was made. Read here, at the moment it happens, since the reveal
+        // runs 120 ms later and the pane may have scrolled by then.
         mouseup(e) {
           if (e.button !== 0) return false;
           if (!isPlainClick(window.getSelection())) return false;
-          revealFromSourceClick();
+          revealFromSourceClick(e);
           return false;
         },
       }),
@@ -3297,6 +3302,12 @@ function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
       scrollWritten.delete(pane.id);
       scrollFloor = { pane: pane.id, until: now + SCROLL_FLOOR_MS };
       pane.scrollTop = top;
+      // Both halves, and they are not the same claim. `linked` says these two
+      // panes are a pair — an arrangement, remembered with the tab. The setting
+      // says pairs follow each other at all, and until now it said nothing:
+      // "synced scrolling" was the one checkbox in the application that could
+      // not turn synced scrolling off.
+      if (settings.syncScroll === false) return;
       if (!pane.linked) return;
       const other = panes.sibling(paneTree, pane.id);
       if (!other || !other.linked) return;
@@ -3422,7 +3433,7 @@ const clampScroll = (y: number, el: HTMLElement) =>
  */
 let caretFollowTimer = 0;
 function followCaretInPreview() {
-  if (settings.syncScroll === false) return;
+  if (settings.followCaret === false) return;
   clearTimeout(caretFollowTimer);
   caretFollowTimer = window.setTimeout(() => {
     // Not while a pane is being scrolled by hand: that is the writer reading
@@ -4339,6 +4350,9 @@ function wirePreviewClicks(host: HTMLElement) {
  * message about every click on white space.
  */
 async function jumpFromClick(e: MouseEvent) {
+  // The direction that had no switch. Every other piece of the sync could be
+  // turned off and this one could not, which is why the request named it.
+  if (settings.clickToSource === false) return;
   const found = pageUnder(e.target);
   if (!found || !runtime.backend) return;
   // The page the reader actually clicked, which after a failed compile is not
@@ -4401,7 +4415,7 @@ async function jumpFromClick(e: MouseEvent) {
  * that has no substitute, because a reader can at least *find* a word in the
  * source by eye, and cannot find a coordinate on a page at all.
  */
-async function revealCursor(opts: { quiet?: boolean } = {}): Promise<boolean> {
+async function revealCursor(opts: { quiet?: boolean; from?: number } = {}): Promise<boolean> {
   const quiet = opts.quiet ?? false;
   if (!runtime.backend) return true;
   const pages = currentPages();
@@ -4452,10 +4466,22 @@ async function revealCursor(opts: { quiet?: boolean } = {}): Promise<boolean> {
   const host = node.closest<HTMLElement>(".preview-host");
   if (host) {
     const spot = pixelInPage(at, node.getBoundingClientRect(), box);
-    // Where in the *viewport* the writer wants it: the same top/middle/bottom
-    // the panes line up on everywhere else, so a writer who set the match point
-    // to the middle gets the middle here too rather than a second opinion.
-    const mp = matchFraction();
+    // Where in the *viewport* the writer wants it.
+    //
+    // Two answers, and which one is right depends on what asked. `match` is the
+    // same top/middle/bottom the panes line up on everywhere else, so a writer
+    // who set the match point to the middle gets the middle here too rather
+    // than a second opinion — and it is what a *command* wants, since somebody
+    // who pressed a key to be shown a thing wants it framed.
+    //
+    // `keep` is for a click, and only a click: it lands the answer at the same
+    // height in this pane that the question was asked at in the other one, so
+    // the eye does not have to travel. `from` is that height, and it is absent
+    // for everything that is not a click — which is why `clickTarget` cannot
+    // silently change what the reveal *command* does.
+    const mp = settings.clickTarget === "keep" && opts.from !== undefined
+      ? clamp01(opts.from)
+      : matchFraction();
     // The page's offset inside the scroller, plus the point's offset inside the
     // page, minus where in the viewport it should sit.
     const pageTop = node.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
@@ -4491,16 +4517,36 @@ async function revealCursor(opts: { quiet?: boolean } = {}): Promise<boolean> {
  * Gated on synced scrolling being on and a preview being present, and debounced
  * so a double-click does not fire the layout twice.
  */
+/**
+ * How far down its own pane a click was made.
+ *
+ * Measured against the editor's scroller rather than the window, because in a
+ * split the pane is not the screen — a click at the top of the lower of two
+ * stacked sources is most of the way down the window and at the top of its pane,
+ * and it is the pane the answer is about.
+ */
+function clickFraction(e: MouseEvent): number | undefined {
+  const pane = (e.target as HTMLElement | null)?.closest<HTMLElement>(".cm-scroller");
+  if (!pane) return undefined;
+  const box = pane.getBoundingClientRect();
+  return viewportFraction(box.top, box.height, e.clientY);
+}
+
 let revealClickTimer = 0;
-function revealFromSourceClick() {
-  if (settings.syncScroll === false) return;
+function revealFromSourceClick(e?: MouseEvent) {
+  if (settings.clickToPreview === false) return;
   if (!currentPages().length) return;
+  // How far down its own pane the click was made, for `clickTarget: keep`.
+  // Measured now and passed as a number rather than kept as an event, because
+  // by the time the reveal fires the pane may have scrolled and the event's
+  // coordinates would be about a viewport that has moved.
+  const from = e ? clickFraction(e) : undefined;
   // A click also moves the caret, which schedules the cheap line-level follow.
   // The click gets the exact, glyph-level reveal instead — it asked for it — so
   // cancel the approximate one rather than let the preview jump twice.
   clearTimeout(caretFollowTimer);
   clearTimeout(revealClickTimer);
-  revealClickTimer = window.setTimeout(() => void revealCursor({ quiet: true }), 120);
+  revealClickTimer = window.setTimeout(() => void revealCursor({ quiet: true, from }), 120);
 }
 
 // ------------------------------------------------------------------- cite on selection
@@ -7205,7 +7251,20 @@ function buildSettingsDrawer(): HTMLElement {
       ["auto", t("tabStrip.auto")],
       ["never", t("tabStrip.never")],
     ]),
+    // Four switches where there was one, and the one did not do what it said.
+    // "Synced scrolling" used to gate the caret follow and the source click and
+    // leave the actual pane-to-pane scrolling alone; each of these now gates
+    // exactly the behaviour it is named after, which is what *"each
+    // independently"* asks for and also the only way the labels stop lying.
     checkRow("syncScrollLabel", "syncScroll"),
+    checkRow("followCaretLabel", "followCaret"),
+    checkRow("clickToPreviewLabel", "clickToPreview"),
+    checkRow("clickToSourceLabel", "clickToSource"),
+    selectRow("clickTargetLabel", "clickTarget", [
+      ["match", t("clickTarget.match")],
+      ["keep", t("clickTarget.keep")],
+    ]),
+    el("div", { class: "set-note" }, [t("clickTargetNote")]),
     selectRow("syncMatchLabel", "syncMatch", [
       ["top", t("syncMatch.top")],
       ["middle", t("syncMatch.middle")],

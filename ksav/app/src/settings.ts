@@ -214,7 +214,59 @@ export interface Settings {
    * arrangement and would rather have the keys. See `tabs.stripVisible`.
    */
   tabStrip?: "always" | "auto" | "never";
+  /**
+   * Whether two linked panes scroll together.
+   *
+   * This is a correction, and it is worth stating what it used to be. The
+   * setting was labelled *"synced scrolling"* and gated two things: the preview
+   * following the caret, and a click in the source revealing its place in the
+   * preview. It did **not** gate scrolling one pane and having the other
+   * follow — that was, and still is, the pane strip's own link toggle — so the
+   * one checkbox named after synced scrolling was the one control in the
+   * application that could not turn synced scrolling off.
+   *
+   * It now means what it says. The three behaviours it used to stand in for
+   * have their own switches below, because the report was *"there should be a
+   * way to disable that clicking on src brings to preview and the opposite —
+   * each independently"*, and that is only answerable once each of them is a
+   * separate thing to disable.
+   *
+   * Both this and a pane's own `linked` flag have to be on. They are not
+   * duplicates: the flag says *these two panes are a pair*, which is an
+   * arrangement, and this says *pairs follow each other*, which is a habit.
+   */
   syncScroll?: boolean;
+  /**
+   * Whether moving the caret scrolls the preview to the caret's line.
+   *
+   * On, because *"if the cursor is somewhere, that is what should match"*. Off
+   * for the writer who reads one part of the page while editing another, where
+   * every arrow key drags the preview back.
+   */
+  followCaret?: boolean;
+  /** Whether clicking in the source reveals that spot in the preview. */
+  clickToPreview?: boolean;
+  /**
+   * Whether clicking the preview puts the caret on the word clicked.
+   *
+   * The only one of the four that had no gate at all — not off by default, but
+   * genuinely unswitchable, which is why the request named this direction
+   * explicitly.
+   */
+  clickToSource?: boolean;
+  /**
+   * Where a revealed spot lands in the pane it is revealed in.
+   *
+   * `match` puts it at `syncMatch`'s alignment point — the middle by default —
+   * which is what a jump wants: the thing asked for, centred, with its
+   * surroundings visible on both sides.
+   *
+   * `keep` puts it at the same height in the target pane that it was clicked at
+   * in the source one. Nothing moves further than it has to, so the eye does not
+   * have to re-find the line; the cost is that a click near the foot of a pane
+   * reveals its answer near the foot, with nothing after it on screen.
+   */
+  clickTarget?: "match" | "keep";
   /**
    * Where the two panes line up: the top, middle or bottom of the viewport. The
    * line at that point of the source is put at the same point of the preview —
@@ -369,6 +421,13 @@ export const DEFAULTS: Settings = {
   spellcheckComments: false,
   tabStrip: "always",
   syncScroll: true,
+  followCaret: true,
+  clickToPreview: true,
+  // On, which is what it has always effectively been: this direction had no gate
+  // at all, so turning it into a setting must not turn it into a setting that
+  // starts off.
+  clickToSource: true,
+  clickTarget: "match",
   syncMatch: "middle",
   previewDelay: "live",
   autosaveFile: true,

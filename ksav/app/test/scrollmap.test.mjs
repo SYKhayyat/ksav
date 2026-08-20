@@ -16,7 +16,7 @@
 // was being counted was not.
 
 import { check, ok } from "./harness.mjs";
-import { printedPrefix, fractionAtLine, lineAtFraction } from "../.tmp-test/scrollmap.mjs";
+import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction } from "../.tmp-test/scrollmap.mjs";
 
 export async function run() {
   // ------------------------------------------------------- comments weigh nothing
@@ -186,4 +186,122 @@ export async function run() {
     check("and the last entry is the whole document", p[p.length - 1], 6);
     ok("the sum never goes backwards", p.every((v, i) => i === 0 || v >= p[i - 1]));
   }
+
+  await clickTargetChecks();
+  await deferredBodyChecks();
+}
+
+// ------------------------------------------------- where a click's answer lands
+//
+// `clickTarget: "keep"` is the second half of the click settings, and its whole
+// content is this function: a click three quarters of the way down one pane is
+// answered three quarters of the way down the other. Pixels are the wrong
+// currency again — the two panes are different heights — so the unit crossing
+// the seam is a fraction, and the arithmetic that produces it is here rather
+// than inline in the click handler so it can be asked the awkward questions.
+async function clickTargetChecks() {
+
+  check("the top edge is 0", viewportFraction(100, 400, 100), 0);
+  check("the bottom edge is 1", viewportFraction(100, 400, 500), 1);
+  check("halfway is a half", viewportFraction(100, 400, 300), 0.5);
+  check("three quarters down", viewportFraction(0, 400, 300), 0.75);
+
+  // A pane's own top, not the window's. In a stacked split the lower source
+  // starts most of the way down the screen and a click at its first line is at
+  // *its* top — reading `clientY` against the window would answer 0.9 for a
+  // click on line one.
+  check("the offset is the pane's, not the screen's", viewportFraction(600, 300, 600), 0);
+
+  // Clicks outside the box are real: a mouseup can be delivered after the
+  // pointer has left the pane. Clamped rather than extrapolated, because there
+  // is no such place as "minus a tenth of the way down the preview".
+  check("above the pane clamps to the top", viewportFraction(100, 400, 20), 0);
+  check("below it clamps to the bottom", viewportFraction(100, 400, 9999), 1);
+
+  // A pane of no height. Happens for real — mid-collapse, or measured before
+  // layout — and the answer must be a number rather than the NaN that would
+  // otherwise be written straight into a scrollTop.
+  check("a pane of no height answers the top", viewportFraction(0, 0, 50), 0);
+  ok("and never NaN", Number.isFinite(viewportFraction(0, 0, 50)));
+}
+
+// ------------------------------------------- a deferred body prints elsewhere
+//
+// The residue the module header used to end on, now asserted rather than
+// admitted. A deferred note is written as a marker in the prose and a body
+// filed somewhere else — commonly, and by this application's own default, in a
+// block at the very end of the document. All of that body's text prints on the
+// page its marker is on, and none of it prints at the end.
+//
+// Counted in source order, that block is printed length sitting after every
+// line of the sefer, so the last stretch of the source maps to no movement of
+// the preview at all and everything before it is squeezed. The more notes a
+// writer has — which is to say the more of a sefer this is — the worse it gets,
+// which is the same shape as the comments defect above and the reason this map
+// exists in the first place.
+async function deferredBodyChecks() {
+  const line = "מילים שנדפסות כאן\n";
+
+  // Four lines, a marker, four more lines, and the body filed at the end —
+  // which is where this application's own default puts it.
+  const deferred =
+    line.repeat(4) +
+    'טקסט#הערה_בשם("א")\n' +
+    line.repeat(4) +
+    '#גוף_הערה("א")[הביאור שלי]\n';
+
+  const pd = printedPrefix(deferred);
+  // The body is counted, once, and it is really the body being counted: the
+  // same document with the body line struck off prints exactly the body less.
+  const without = printedPrefix(deferred.slice(0, deferred.indexOf("#גוף_הערה")));
+  check(
+    "the filed body is counted exactly once",
+    pd[pd.length - 1] - without[without.length - 1],
+    "הביאור שלי".length,
+  );
+
+  // The four lines after the marker are prose and nothing else, so by the time
+  // the reader reaches the filed body every printing character is behind them.
+  check("the filed body leaves nothing to print after it", fractionAtLine(pd, 9), 1);
+  // And the block itself is not a stretch of source that moves the preview:
+  // the line the body sits on and the line after it are the same place.
+  check("the body's own lines carry no weight", fractionAtLine(pd, 10), 1);
+
+  // The marker's line is where the body's weight went. Below it the fraction is
+  // short of the end by the body; at the next line the body has been counted.
+  ok(
+    "the body is counted at the marker, not at the end",
+    fractionAtLine(pd, 5) > fractionAtLine(pd, 4),
+  );
+
+  // A body nobody names prints nowhere, so it weighs nothing anywhere — and in
+  // particular it must not keep its weight where it is written, which is what
+  // "strike it out, then look for a marker" gets right and "add it at the
+  // marker if there is one" would not.
+  const orphan = line.repeat(4) + '#גוף_הערה("יתום")[טקסט שלא ייקרא לעולם]\n';
+  const po = printedPrefix(orphan);
+  const plain = printedPrefix(line.repeat(4));
+  check("an unnamed body weighs nothing", po[po.length - 1], plain[plain.length - 1]);
+
+  // Two markers, one body: the note is cited twice and printed once. Splitting
+  // the weight between them would invent ink, and giving it to both would count
+  // the body twice — which is the mistake that makes this map worse than the
+  // one that ignored the problem.
+  const twice =
+    'א#הערה_בשם("א")\n' + line + 'ב#הערה_בשם("א")\n' + '#גוף_הערה("א")[הביאור]\n';
+  const pt = printedPrefix(twice);
+  const noBody = printedPrefix('א#הערה_בשם("א")\n' + line + 'ב#הערה_בשם("א")\n');
+  check(
+    "a body cited twice is still counted once",
+    pt[pt.length - 1] - noBody[noBody.length - 1],
+    "הביאור".length,
+  );
+
+  // The cheap path out — a document with no `#` in it at all skips the scan —
+  // must be the same answer and not merely a faster one. Same prose, one with a
+  // command in it that has nothing to do with notes.
+  const noHash = printedPrefix(line.repeat(3));
+  const hashed = printedPrefix(line.repeat(3) + "#כלול(\"פרק.ksav\")\n");
+  check("skipping the scan is not a different answer", noHash[noHash.length - 1], 51);
+  check("and a non-note command still prints nothing", hashed[hashed.length - 1], 51);
 }

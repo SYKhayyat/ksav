@@ -264,6 +264,7 @@ export async function run() {
   }
 
   everyPreferenceHasAControl();
+  eachSyncSwitchGatesItsOwnBehaviour();
 }
 
 // ---------------------------------------------------------------- reachable
@@ -294,5 +295,73 @@ function everyPreferenceHasAControl() {
   check("every shipped preference is reachable from the application", missing, []);
   for (const key of NOT_A_ROW) {
     ok(`${key} is still a shipped preference`, key in settings.DEFAULTS);
+  }
+}
+
+/**
+ * Each sync switch gates the behaviour it is named after, and only that one.
+ *
+ * # The defect
+ *
+ * There was one setting, `syncScroll`, labelled *"synced scrolling"*. It gated
+ * two things — the preview following the caret, and a click in the source
+ * revealing its place in the preview — and it did **not** gate scrolling one
+ * pane and having the other follow, which is what its name means and what a
+ * writer turning it off is trying to stop. Meanwhile clicking the *preview* to
+ * move the caret had no gate at all: not off, not on, simply unswitchable.
+ *
+ * So the report — *"there should be a way to disable that clicking on src
+ * brings to preview and the opposite, each independently"* — was three separate
+ * complaints wearing one checkbox, and the checkbox's label named the fourth
+ * behaviour, the one it did not touch.
+ *
+ * # Why this is a source-reading test
+ *
+ * The four behaviours all end in a scroll position, and a unit test that drove
+ * them would be asserting against a fake scroller, which is the mechanism and
+ * not the wiring. What went wrong here was never arithmetic — every one of
+ * those functions did its job correctly — it was *which flag was consulted at
+ * the top of which function*. That is a fact about the source text, so this
+ * reads the source text.
+ *
+ * The pairing is the whole assertion. A gate that drifts onto the wrong setting
+ * puts two behaviours behind one switch again, and the switch a writer reaches
+ * for stops doing what it says — which is the shape this repository keeps
+ * finding, and the shape that has no symptom until somebody turns it off.
+ */
+function eachSyncSwitchGatesItsOwnBehaviour() {
+  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  // Behaviour → the function that performs it → the setting that must gate it.
+  const GATES = [
+    ["linked panes scrolling together", "wirePaneScroll", "syncScroll"],
+    ["the preview following the caret", "followCaretInPreview", "followCaret"],
+    ["a source click revealing in the preview", "revealFromSourceClick", "clickToPreview"],
+    ["a preview click moving the caret", "jumpFromClick", "clickToSource"],
+  ];
+  for (const [what, fn, key] of GATES) {
+    const at = main.indexOf(`function ${fn}(`);
+    ok(`${fn} is still a function in main.ts`, at >= 0);
+    if (at < 0) continue;
+    // To the next line that closes at column zero — the end of the function,
+    // since everything inside it is indented.
+    const end = main.indexOf("\n}", at);
+    const body = main.slice(at, end < 0 ? main.length : end);
+    ok(`${what} is gated on settings.${key}`, body.includes(`settings.${key} === false`));
+    // And on nothing else from this family. This is the half that catches the
+    // original defect: `followCaretInPreview` reading `syncScroll` passed every
+    // question anybody thought to ask about it for as long as it existed.
+    for (const [, , other] of GATES) {
+      if (other === key) continue;
+      notOk(
+        `${what} does not also answer to settings.${other}`,
+        body.includes(`settings.${other} ===`),
+      );
+    }
+  }
+  // Every one of them is a real shipped preference with a default, or the gate
+  // above reads `undefined`, compares false, and the switch is decorative.
+  for (const [, , key] of GATES) {
+    ok(`${key} ships with a default`, key in settings.DEFAULTS);
+    check(`${key} defaults to on`, settings.DEFAULTS[key], true);
   }
 }

@@ -44,13 +44,38 @@
 // cheap answer made honest: one pass over the text when it changes, an array
 // lookup per scroll event.
 //
-// The residue, stated so nobody has to discover it twice: a **deferred** note
-// body prints at the foot of the page its marker is on, not where its text sits
-// in the source, so a document that keeps all its note bodies in a block at the
-// end still drifts across that block. Fixing that needs the engine's own
-// mapping, and it is a different piece of work from this one.
+// # The residue, and its repair
+//
+// That comment used to end here, with the residue stated and left: a
+// **deferred** note body prints at the foot of the page its marker is on, not
+// where its text sits in the source, so a document keeping all its bodies in a
+// block at the end drifts across that whole block. It was written off as
+// needing "the engine's own mapping", and that is not true — it needs the
+// engine's mapping to be exact, and this map has never been exact. It is a
+// proportion, and the fix is a proportion too.
+//
+// A deferred body is *text that prints somewhere else*. So count it somewhere
+// else: strike its weight from where it is written and add the same weight at
+// its **marker**, which is the one place in the source that knows where the
+// body will actually appear. The body still weighs what it weighs; the sefer's
+// printed length is unchanged; what moves is the position that weight is
+// attributed to, which is the only thing this map was ever measuring.
+//
+// It is still not exact — a body prints at the foot of its marker's page rather
+// than at the marker itself, which is up to a page out. But the error is now
+// bounded by a page, where before it was bounded by *the distance from the
+// marker to the end of the document*, and it grows with the number of notes
+// rather than with how far away the writer files them. For the writer whose
+// report started all of this — *"this might be because I have so many
+// comments"* — that is the difference between unusable and slightly off.
+//
+// An orphan body, one no marker names, contributes nothing anywhere: it does
+// not print, so it does not weigh. That is not an edge case in this
+// application, it is what a note looks like for the seconds between filing the
+// body and writing the marker.
 
 import { proseRegions } from "./spell";
+import { scan } from "./deferred";
 
 /**
  * How many printing characters sit above the start of each line.
@@ -73,9 +98,15 @@ export function printedPrefix(text: string): number[] {
     for (let i = r.from; i < r.to; i++) prints[i] = 1;
   }
 
+  // Weight a deferred body carries to its marker, added at the marker's own
+  // position. Sparse because most documents have no deferred notes at all and
+  // an array the length of a sefer would be paid for by everybody.
+  const carried = deferredCarry(text, prints);
+
   const out: number[] = [0];
   let total = 0;
   for (let i = 0; i < text.length; i++) {
+    total += carried.get(i) ?? 0;
     if (text.charCodeAt(i) === 10) {
       out.push(total);
       continue;
@@ -88,6 +119,71 @@ export function printedPrefix(text: string): number[] {
   }
   out.push(total);
   return out;
+}
+
+/**
+ * Move every deferred body's weight to the marker that summons it.
+ *
+ * **Mutates `prints`**, striking the body out where it is written — which is
+ * the half that makes this a move rather than a duplication. Getting only the
+ * addition right would count every note twice and make the map worse than the
+ * one it replaces, so the two happen in one place and neither can be forgotten.
+ *
+ * The weight is counted from the mask rather than from the body's length, so a
+ * body containing a comment or a nested command head weighs what it prints and
+ * not what it occupies — the same currency as everything else here.
+ *
+ * Two markers naming one body is legal and means the note is cited twice. The
+ * weight goes to the **first** marker only: the body is printed once, at the
+ * first page that calls for it, and splitting it between the two would invent a
+ * quantity of ink that does not exist.
+ */
+function deferredCarry(text: string, prints: Uint8Array): Map<number, number> {
+  const carried = new Map<number, number>();
+  // Cheap out before scanning. `scan` walks the document and most documents
+  // have no deferred notes; this map is rebuilt whenever the text changes.
+  if (!text.includes("#")) return carried;
+
+  const { refs, defs } = scan(text);
+  if (!defs.length) return carried;
+
+  // First marker per name, in source order — which is reading order, and so the
+  // order the pages will call for the bodies in.
+  const firstRef = new Map<string, number>();
+  for (const r of refs) {
+    if (!firstRef.has(r.name)) firstRef.set(r.name, r.from);
+  }
+
+  for (const d of defs) {
+    // What this body prints, before it is struck out.
+    let weight = 0;
+    for (let i = d.bodyFrom; i < d.bodyTo; i++) if (prints[i]) weight++;
+    // Struck from where it is written whether or not anybody names it. An
+    // orphan body prints nowhere, so leaving it counted here would put printed
+    // length in the one place the reader is guaranteed never to see it.
+    for (let i = d.from; i < d.to; i++) prints[i] = 0;
+    const at = firstRef.get(d.name);
+    if (at === undefined) continue;
+    carried.set(at, (carried.get(at) ?? 0) + weight);
+  }
+  return carried;
+}
+
+/**
+ * How far down a pane a point sits: 0 its top edge, 1 its bottom.
+ *
+ * The unit `clickTarget: "keep"` is expressed in. A click three quarters of the
+ * way down the source should be answered three quarters of the way down the
+ * preview, and that is the only thing either side needs to agree on — not
+ * pixels, which differ between the panes, and not lines, which is the question
+ * being answered rather than a way of asking it.
+ *
+ * A pane of no height answers 0 rather than dividing by it. That happens for
+ * real: a pane mid-collapse, or one being measured before layout.
+ */
+export function viewportFraction(top: number, height: number, y: number): number {
+  if (height <= 0) return 0;
+  return Math.max(0, Math.min(1, (y - top) / height));
 }
 
 /**

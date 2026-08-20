@@ -1,0 +1,574 @@
+# The note system — decisions, plan, and evidence
+
+**Status:** plan agreed in shape, not in detail. Nothing is built.
+**Engine:** Typst 0.15 (`ksav/engine/Cargo.toml`).
+**Evidence:** `ksav/engine/tests/notes-corpus/` — every claim below is re-runnable.
+
+---
+
+## For whoever picks this up
+
+**Run this first.** It prints every measurement this document cites, in about a
+minute:
+
+```sh
+cd ksav/engine && sh tests/notes-corpus/run.sh
+```
+
+**Evidence tags.** **[V]** verified here by rendering and reading back where the
+words landed · **[V-EXT]** verified elsewhere, source named · **[U]** unverified ·
+**[X]** disproven here.
+
+Do not re-derive **[V]** items. Do not assume the opposite of an **[X]**.
+
+**Two instruments, and picking the wrong one produces confident nonsense:**
+
+```sh
+cargo run -q --example probe   -- file.ksav   # page, x, y, size, text
+cargo run -q --example svgdump -- file.ksav   # fill, glyph shape
+```
+
+`probe` cannot see colour or slant. Asked about them it returns "no difference,"
+which looks exactly like a passing test — it reported colour as dead when colour
+is live. `assert out.ok()` cannot see a single bug in this document.
+
+**Authority.** Sections marked **[SHAUL]** are decided and are not to be
+re-litigated. Sections marked **[CLAUDE]** are proposals — argue with them freely.
+Naming throughout Part 2 is placeholder and is Shaul's call.
+
+---
+
+# Part 0 — Decisions already made **[SHAUL]**
+
+These came out of the design conversation and are settled.
+
+| # | Decision |
+|---|---|
+| 1 | **No migration.** The eighteen commands and eleven chooser cards are replaced, not preserved. Documents written the old way are not a constraint. |
+| 2 | **The model is five things** — source position, stream/destination, region, overflow, counters. Everything a writer can say is one of them. |
+| 3 | **Source position belongs elsewhere in the UI.** It changes the file, never the page, and must not appear in the note-layout chooser. |
+| 4 | **Routing lives on the stream, not the note.** Exceptions come from declaring more streams. |
+| 5 | **Spill to the next page is the strongest overflow move**, and the default worth reaching for. |
+| 6 | **Notes never overlap and never print off the paper.** This is an invariant, not an option. |
+| 7 | **Notes-as-data is a compilation target, not an authoring surface.** The writer keeps typing `#הערה[…]`; the compiler emits the series. |
+| 8 | **Counters are general** — any number of named series, usable anywhere, not only for notes. |
+| 9 | **Offer the shared-sequence numbering option** too. It is free, it never repeats a number, and some writers will not mind the interleaving. |
+| 10 | **As many options as possible, with one conceptual idea.** Options come from orthogonal axes, never from a menu of arrangements. |
+| 11 | **Presets must be derived from the axes**, so they can be taken apart. A preset that cannot be dismantled is a cell. |
+| 12 | **Configurability is the default.** A judgement-call constant becomes a setting whose default is the current value. |
+| 13 | **The bugs in Part 4 get fixed** regardless of the plan. |
+
+---
+
+# Part 1 — The five things
+
+## Thing one — where the note sits in your source
+
+Four options. All work today, and all produce byte-identical pages **[V]**.
+
+1. **Inline** — where it belongs.
+2. **End of file.**
+3. **End of its section.**
+4. **A separate file.**
+
+**UI:** one global setting, one per-note override. Not in the note-layout chooser
+(decision 3).
+
+## Thing two — where the note prints
+
+A note names its **stream**. The stream was declared once and owns the
+destination.
+
+### The five destinations
+
+**1. Bottom** — Typst's real footnote area. Grows, pushes the text up, splits long
+notes, balances at breaks. **There is exactly one.** Spend it on the apparatus
+that must breathe and stay with its text.
+
+**2. End** — end of document *or* of each chapter · new page or not · heading
+none / default / **custom text** · columns · several independent blocks · two
+blocks side by side with a width ratio.
+
+**3. Side** — outer / inner / right / left / top · beside its own word or stacked
+from the top · column ratio · gutter.
+
+**4. A separate document** — a companion volume. The easiest of the five: nothing
+has to fit on a page.
+
+**5. A section** — thing three.
+
+**A note on a note takes the same five.**
+
+### Why routing lives on the stream **[SHAUL, decision 4]**
+
+- You move three hundred haaros to the back of the sefer by changing **one word**.
+- The engine must know nesting depth **before** laying out a page. A header
+  declaration gives it that; a per-note decision does not, and past five levels it
+  stops settling.
+
+Exceptions are more streams:
+
+| Stream | Hangs off | Prints | Numbered |
+|---|---|---|---|
+| ביאורים | the body | bottom | 1 2 3 |
+| מקורות | the peirush | the back | א ב ג |
+| נוסחאות | the peirush | a separate file | (1) (2) (3) |
+
+### Per stream
+
+destination · numbering scheme · restart rule · head of entry (thing five) ·
+arrangement (paragraphs / run-in) · columns · overflow (thing four) · size · slant
+· weight · colour · indent per level · gap between entries · **the marker's own
+look, set independently of the entry** · title · rule above · rule between blocks
+
+### Per note
+
+A note may overrule what describes **it**: size, slant, colour, indent, label, and
+whether it may be moved.
+
+The one real limit: **two notes must never compute their positions from different
+answers to the same question.** A note may change a shared arrangement — ask for a
+wider slot and push its neighbours — but may not privately disagree about what the
+arrangement is.
+
+## Thing three — how a region gets made
+
+Two mechanisms, split by behaviour.
+
+### The grid — flows, needs no measuring, side arrangements only
+
+- **Columns run in parallel** **[V]**.
+- **Rows run in sequence and give register** **[V]**.
+- **Rows and columns combine** — one grid.
+- **Varying the column count per row gives the Vilna wrap** **[V]**.
+- **The chunk is `#סימן`/`#סעיף`.** Chunk size is the whole synchronisation dial:
+  one row per sefer = no sync; per chapter = loose; per siman = tight; per page =
+  exact register.
+- **Sync costs page density.** If one side runs longer the other's page bottom is
+  empty. Inherent — reledpar's author says so plainly.
+- **[X] It can only do side arrangements.** A grid column fills from the top and
+  continues at the top of the next page. Rashi beside the text, yes; Mishna Berura
+  underneath it, never.
+
+### The box — fixed, goes anywhere, never grows
+
+- **A fixed strip at the foot is just a box at the bottom.** Not a second "bottom."
+- **A margin column is a box** — tall and narrow. Same problem, same fixes.
+- **It never grows.** A box that grows is a flowing region, and growing one loops:
+  taller band → less text → different break → different notes → different height.
+  That loop hangs SILE and costs talmudifier five minutes a page. **If you need
+  growth, you needed the bottom.**
+- **Sizes** in cm/mm/pt/in **or percentage of the sheet** — percentage survives
+  A4 → A5.
+- **Whether a box holds its space** on pages with no content is a setting.
+
+### Repaint
+
+Not about fitting. *"Typst arranged this correctly; paint it differently."* Lay
+out, look at what it decided, run again pinning those breaks, draw bands instead
+of a list. `hide()` makes it free — a hidden footnote reserves exactly what a real
+one does **[V]**.
+
+## Thing four — what happens when it doesn't fit
+
+Only boxes have this problem. **The three destinations that lose text today are
+exactly the three that are boxes.**
+
+### The invariant **[SHAUL, decision 6]**
+
+> A note may be moved, shrunk, run in, or pushed to the next page. It may never be
+> printed on top of another note, and it may never be printed off the paper.
+
+Everything currently broken violates exactly this.
+
+### The ten moves — the writer picks
+
+1. **Clamp** — never place below the text area.
+2. **Shift both directions** — down for collisions, back up to stay on the page.
+3. **Cascade** — re-adjust notes already placed.
+4. **Run the band in** — one paragraph, not one line each.
+5. **Compress** toward the minimum gap.
+6. **Tighten the letterforms** — character-level justification **[V]**.
+7. **Drop a type size.**
+8. **Per-note shift policy** — the notes that may float move first.
+9. **Redistribute inside a fixed total** — two bands sharing 6cm get 4 and 2, not
+   3 and 3. The total never changes, so nothing above moves. Provably stable.
+10. **Spill to the next page** — the strongest **[SHAUL, decision 5]**.
+
+Plus **degrade gracefully** (a margin note with no margin becomes a footnote — the
+same answer as Word export) and **always warn**.
+
+### How you know
+
+`measure()` before **[V]** · `query` after **[V]** · `hide()` to reserve **[V]** ·
+the probe from Rust, which sees split points `query` cannot **[V]**.
+
+**One constraint forces all of it:** a footnote entry **containing nested notes
+cannot split across a page** **[V]**. Any design wrapping an apparatus in one
+parent must know the band fits before emitting it.
+
+## Thing five — counters
+
+- **Any number of named series**, running at once.
+- **Each renumbers on insert in the middle.**
+- **Each restarts** per siman, per chapter, or at a mark dropped anywhere.
+- **Each with its own shape** — `1 2 3`, `א ב ג`, `(1) (2) (3)`, roman, symbols.
+- **Not tied to notes** — a plain numbered series in running text.
+
+### Numbering is an axis with three settings
+
+| | How | The numbers | Cost |
+|---|---|---|---|
+| **Shared sequence** | one footnote counter, painted two ways | interleave `1,3,5` / `2,4,6` — but **never repeat** | **free** |
+| **Independent counters** | your own | clean per stream, restartable | needs thing five |
+| **Independent by mechanism** | footnote area + box | two genuinely separate counts | needs spill |
+
+Shared sequence is a real choice, not a fallback: zero build cost, zero overflow
+risk, and unambiguous references. Two limits for its card: **[X]** it cannot do
+notes-on-notes (they interleave rather than pool), and its tag must be
+**structural** — a string search misfiles everything, because a parent note
+contains its child **[V]**.
+
+### What stands at the head of an entry
+
+One setting, four ingredients, any combination: **a number** · **a fixed label**
+per stream · **the quoted words** from the body · **nothing**.
+
+On quoting: track live so editing the sentence doesn't strand the note; frozen
+copy as fallback. One or two words — that constraint is what makes live tracking
+realistic. Default to no number when quoting.
+
+**[U]** A markerless stream needs addressing by line, page, daf or siman instead —
+a second addressing system, which seforim use constantly.
+
+### Why this is load-bearing
+
+- Design A gives pooling **and** run-in free, but **the notes inside get no
+  numbering at all** **[V]**. Without counters that design is unnumbered.
+- **Run-in exists only here.** Typst's footnotes refuse it **[X]**.
+
+**Guard:** a marker pointing at a label not in the list currently fails
+unreadably. That will happen on every rename.
+
+---
+
+# Part 2 — A concrete surface **[CLAUDE — names are placeholders]**
+
+The plan above is shapes. This is one way to say them. **Every name here is a
+guess and naming is Shaul's**, but the *arity and argument structure* is the part
+worth arguing about.
+
+## Thing one
+
+```typst
+#הגדרות_מקור(מיקום: "בשורה")        // בשורה · סוף_הקובץ · סוף_המדור · קובץ
+#הערה(מקור: "סוף_הקובץ")[…]         // the per-note override
+```
+
+## Thing two — declaring streams
+
+```typst
+#ערוץ("ביאורים",  מקור: auto,        מיקום: "רגל",  מספור: "1")
+#ערוץ("מקורות",   מקור: "ביאורים",   מיקום: "סוף",  מספור: "א",
+      עמוד_חדש: true, כותרת: [מקורות וציונים], טורים: 2)
+#ערוץ("נוסחאות",  מקור: "ביאורים",   מיקום: "קובץ", מספור: "(1)")
+#ערוץ("גיליון",   מקור: auto,        מיקום: "צד",   צד: "חיצוני",
+      מיקום_בצד: "לצד_המילה", גלישה: "עמוד_הבא")
+
+בראשית ברא#הערה("ביאורים")[עיין רש״י שם] אלקים.
+```
+
+`מקור: auto` means the body text. `מקור: "ביאורים"` is a note on a note. One
+stream, one destination — if two notes go different places they are two streams.
+
+## Thing three — regions
+
+```typst
+// a grid: three columns, synchronised per siman
+#אזור("דף", פריסה: "טורים", טורים: (1fr, 2fr, 1fr), יחידה: סימן)
+
+// a box: 15% of the sheet, at the foot, spilling forward
+#אזור("שער_הציון", פריסה: "תיבה", מיקום: "רגל",
+      גובה: 15%, גלישה: "עמוד_הבא", שומר_מקום: true)
+
+#ערוץ("שער_הציון", מקור: "ביאורים", אזור: "שער_הציון", מספור: "א")
+```
+
+`שומר_מקום` is whether the box holds its space on pages with nothing in it.
+
+## Thing four — overflow, on the region
+
+```typst
+גלישה: "עמוד_הבא"     // spill — the default
+      | "דחיסה"        // compress
+      | "רצוף"         // run the band in
+      | "הרחבה"        // widen, full width below the columns
+      | "חלוקה"        // redistribute inside a fixed total
+      | "מחיר"         // price them all and pick the cheapest
+```
+
+The invariant is not in this list — it is guaranteed under all of them.
+
+## Thing five — counters
+
+```typst
+#סדרה("סק", מספור: "א", אתחול: סימן)     // declare
+… ואם כן יש לעיין#מונה("סק") בדבר …        // emit the next number
+#סדרה_אתחול("סק")                          // restart here, anywhere
+```
+
+And the head-of-entry setting on a stream:
+
+```typst
+#ערוץ("נוסחאות", ראש: ("מילים",), מילים: 2)   // quoted words, no number
+#ערוץ("מקורות",  ראש: ("מספר", "תווית"), תווית: [מקור: ])
+```
+
+## The four screens **[CLAUDE]**
+
+1. **Source position** — global, one override.
+2. **Streams** — each note picks one; each stream has a destination and settings.
+3. **Regions** — columns, rows, or both; and which overflow behaviour.
+4. **Counters** — add a series.
+
+**Four things with no home yet:** where a stream's numbering is set (probably
+screen 2) · the marker's own look · per-note overrides · **a preview**, because
+someone building a Gemara page needs to see the page. The current chooser's small
+sketches are the one thing worth keeping.
+
+---
+
+# Part 3 — What works
+
+Re-run everything: `sh tests/notes-corpus/run.sh`
+
+| Claim | File | Evidence |
+|---|---|---|
+| **Grid columns flow in parallel** | `flowtest` | 70 paragraphs each → 6 pages; page 1 main 1–17 / comm 1–12, both continuing at their own rate |
+| **Rows give exact register** | `perdaf` | daf 3 breaks at the same point in both columns and both resume together |
+| **The Vilna wrap** | `vilna` | 3 columns (y 83–296) → 2 columns (329–413) → full width (445–490) |
+| **Per-column numbering** | `asym`, `percol` | left 5 notes א–ה, right 2 notes א–ב, each block at the foot of its own column |
+| **Design A — one parent per page** | `oneparent`, `pinned` | run-in MB on one line, ShT pooled below, 3 pages, max y = 799.02 |
+| **Design B — box under the footnotes** | `boxdesign` | MB 1,2,3,4 (Typst's counter) + ShT א,ב,ג,ד (the band's own) — two independent counts |
+| **`hide()` is a perfect spacer** | `pass_real`/`pass_hide` | identical breaks: p1→LN1, p2→LN18, p3→LN35 |
+| **Character-level justification** | `n_base`/`n_wide` | 8 lines vs 7 under column strain. Only bites under tension |
+| **Colour is live** | `k_col_a`/`k_col_b` | `fill="#ff4136"`, 27 glyphs — via **svgdump**; probe says identical |
+| **Numbering order in a grid is column-major** | `numorder` | 1,2,3 down one column then 4,5,6 — reledpar's warning does not apply |
+| **Long notes split, continuation unmarked** | `split` | y=179→605 page 1, resumes y=742→754 page 2 |
+| **`measure()` returns real geometry** | `measure` | `height=210.96pt width=360pt` |
+| **The grid holds at length** | — | 150 rows, 9,000 lines, **324 pages, clean exit** |
+
+**Typst compiles incrementally** — the premise of every "own the pagination"
+proposal, measured false:
+
+```
+pages=  47  cold= 204ms  identical=  7ms  after-1-char-edit= 12ms
+pages= 117  cold= 450ms  identical= 20ms  after-1-char-edit= 31ms
+pages= 234  cold= 979ms  identical= 29ms  after-1-char-edit= 59ms
+```
+
+A 234-page parallel-column sefer compiles cold in under a second. Edit cost scales
+linearly but with a ~17× advantage — under 100ms to roughly 400 pages.
+(`examples/bench-incr.rs`.)
+
+---
+
+# Part 4 — What does not work
+
+| Claim | File | Evidence |
+|---|---|---|
+| **[X] Run-in in native footnotes** | `runin`, `runin2` | one note per line, both approaches. `box(it)` is worse — it loses the 17pt→6.7pt compression the manual version gets |
+| **[X] No independently-numbered parallel footnote streams** | `twostream`, `twostream2p` | stream A gets 1,3,5 — not 1,2,3. `numbering` changes how one number is *drawn* |
+| **[X] A nested band cannot split** | `spanning` vs `spanning_flat` | nested: content to y=1477 on an 841.89pt sheet. Same band without nesting: max y=799.02 |
+| **[X] Rows are not bands** | `rows`, `nested` | the top row finishes entirely before the bottom starts |
+| **[X] `columns()` is not grid columns** | `cols` | it snakes one stream; cannot hold a second commentary |
+| **[X] Rotation does not paginate** | `rot` | 1 page, max y = 988.29 on an 841.89pt sheet |
+| **[X] Split points are not in `query`** | `split` | a two-page note is one entry with one location — where it *started* |
+| **[X] Boxes overflow at nine** | `boxover` | 20 notes → **9 distinct y positions**, rest overprint, max y = 802.57 |
+| **[X] Tagged nesting interleaves** | `nest` | MB, ShT, MB, ShT — pooling needs exactly one parent entry |
+| **[X] Side notes walk off the paper** | `dense` | max y = **827.27** on an 841.89pt sheet |
+
+**[U] The true continuous Vilna column shape** — the edge changing line by line —
+is not available, and neither reledmac nor SILE offers it. Discrete rows of
+differing widths approximate it **[V]**.
+
+---
+
+# Part 5 — Bugs to fix **[SHAUL, decision 13]**
+
+## Side notes walk off the paper **[V]** — `dense`
+
+20 notes on one paragraph reach **y=827.27 on an 841.89pt page**. **Ksav only ever
+shifts a colliding note down; it never shifts back up.** One line, and it is the
+only bug currently printing onto paper that cannot be printed.
+
+## Config-driven italic renders nothing **[V]** — `k_slant_a`/`k_slant_b`
+
+Tiers are meant to be distinguished by size, colour and **slant**. Slant renders
+nothing — byte-identical SVG.
+
+Ksav already diagnosed this in writing (`ksav.typ:2940`): *"`emph` is a request
+for an italic face, and every Hebrew family this engine bundles ships none, so on
+paper Typst hands back the upright face and the emphasis is invisible."*
+
+```
+plain / #emph / #text(style: italic)  → all identical
+#נטוי[…]                              → the only one that renders
+```
+
+Not Hebrew-specific — it is the bundled fonts, not the script. `#נטוי` (`:2979`)
+works because it applies `skew(ax: -12deg)` per word. Four sites still route
+through `text(style:)`: `_ap_wrap` (`:1209`), `_sn_wrap` (`:3778`), headings
+(`:2408`), `_fn_wrap`.
+
+**Why it survived:** `slanting_commands` in `lib.rs` fences the *commands* and
+nothing fences the *configuration*. Commit `72ae855` is titled *"the sweep the
+italic fix should have had."*
+
+## `#הגדרות_הערות(ריווח:)` is dead **[V]** — `gap_0em`/`gap_6em`
+
+Two settings for one thing. `#הגדרות_הערות(ריווח:)` is declared at `ksav.typ:840`
+and read **nowhere**; `ריווח_הערות` is declared at `:2655` and applied at `:2836`.
+The dead one is where a writer would look. And `_fn_own_keys` (`:794`) carefully
+excludes it from per-note override — someone reasoned correctly about the
+semantics of a setting that has never done anything.
+
+## Error translation loses information **[V]**
+
+`diagnostics.rs:930` maps a Typst error to *"Invalid syntax here — check brackets,
+commas."* The error I triggered was a wrongly-shaped dictionary; no bracket was
+missing. The sibling message is precise: *"no parameter called `x` — check the
+spelling."* Wrong name gets a real answer; wrong value sends you hunting.
+
+## The fence for this class
+
+Both dead knobs are *"declared, documented, changes nothing."* No test sees them.
+
+**Grep does not work** — 28 hits over 120 keys, **27 false positives** (the marker
+register is looked up by string variable). **`probe` alone does not work** — it
+reported colour dead when colour is live.
+
+**Render-diff on the right instrument works.** Make it a permanent fence over every
+settings dictionary in `ksav.typ`, not just the note ones. Two hours found two real
+bugs in one config block out of roughly a dozen.
+
+**The lesson:** an instrument that cannot see the property under test returns "no
+difference," indistinguishable from a pass. When the harness says DEAD, first
+confirm the instrument can see the property.
+
+---
+
+# Part 6 — The chooser
+
+**This is the problem that started the conversation and it is the one thing the
+engine research did not touch.**
+
+Today: four models, and the ✻ panel — the surface writers actually use — writes
+`#מדף_א` and `#הערתסיום` directly. `notes.ts` contains **zero** occurrences of
+`ערוץ`. A writer who wants two bands picks the card that looks right and gets the
+tiered-footnote mechanism, which interleaves and shares a counter. `native.ksav`
+and `small.ksav` in the corpus are that exact failure and its intended fix.
+
+**What replacing it means concretely:**
+
+1. **Delete `NOTE_CHOICES`** (`app/src/notes.ts:133`) and the where × how grid with
+   it. Eleven cards, five `NoteWhere` values, six `NoteHow` values — all cells.
+2. **The chooser becomes the four screens** of Part 2. Screen 2 is the one a writer
+   opens most: pick a stream for this note, or declare a new one.
+3. **`channels.ts` already models streams correctly** and is the editor half of one
+   authority with the prelude. It is the surface that should win.
+4. **Keep the sketches.** The small page diagrams on the current cards are the best
+   thing about it and the new screens need them more, not less — a preset should
+   show what it builds.
+5. **Presets are derived** (decision 11). A preset sets stream declarations and a
+   region, and the writer can then take it apart. Never a separate list.
+6. **Impossible combinations say why**, not merely grey out: *"two balanced
+   apparatuses at the live page foot — Typst has one, so the second becomes a box."*
+
+**The honest note:** everything in Parts 1–5 is engine work. A writer feels none of
+it directly. **This part is what they would feel**, and it is the part with the
+least measurement behind it.
+
+---
+
+# Part 7 — Where to start
+
+**First, the bugs — independent of every decision:**
+
+1. **Sidenote clamp.** One line. The only failure currently printing off the paper.
+2. **Config-driven italic** — route the four sites through the synthetic oblique.
+   Extend `slanting_commands` to cover configuration, not just commands.
+3. **`ריווח`** — make the note-settings knob write through to the live setting.
+4. **The render-diff fence** over every settings dictionary.
+
+**Then the three the plan cannot ship without:**
+
+5. **Counters** (thing five). Without them design A is unnumbered and run-in does
+   not exist.
+6. **Spill** (thing four). Without it every box caps at nine.
+7. **Measurement** (thing three) — forced by the nesting constraint, not chosen.
+
+**Then the model**, and the chooser last, because it is the surface over everything
+else.
+
+**Two things to settle before building, both Shaul's:**
+
+- **Naming** for Part 2. The structure is arguable; the words are not mine.
+- **Which overflow move is the default** per destination. Decision 5 says spill is
+  strongest; whether a margin note spills or converts to a footnote by default is
+  still open.
+
+---
+
+# Part 8 — Rejected, with reasons
+
+| Proposal | Why not |
+|---|---|
+| **Fork Typst's layout crate** | Premise false — N areas work without one **[V]**. Buys apportionment control for a permanent rebase tax on a fast-moving compiler. |
+| **Stitch PDFs** | Two documents cannot see each other: numbering, cross-references, index, contents all die. Assumes a Python pipeline; Ksav is Rust → WebAssembly, previewing in-browser. |
+| **Headless Chrome + own paginator** | Circular — **CSS has no footnotes**. Its premise that Typst re-lays-out the whole book is **measured false [V]**; its promised sub-100ms edit loop is **already delivered** at 59ms/234 pages. |
+| **Switch engines for Hebrew quality** | Wrong, and it appeared three times. Nikud and te'amim placement is the **font's mark-attachment tables**; any HarfBuzz shaper handles it and Typst uses one. |
+| **LaTeX / reledmac** | Speed complaint fair. But **bigfoot cannot be ported** — it rests on `\vsplit` (returns the part that fits *and* the remainder), the output routine, and insertions. Typst has none; `measure()` gives total height, not the two pieces. |
+
+**The correction that matters:** the "measure, cache, solve" architecture was right
+and the oracle was wrong. **Typst is its own measurement oracle** — `measure()`
+in-process **[V]**, `page(height: auto)` + export out-of-process **[V-EXT]**.
+
+**Taken from them:** caching unit measurements · pinning breaks to structural
+boundaries **[V]** · rendering only dirty pages · bigfoot's cost model and run-in
+per series · reledpar's sync dial · `marge`'s two-directional shift and cascade ·
+`marginalia`'s per-note shift policy · `obelisk`'s baseline grid ·
+`toffee-tufte`'s graceful degradation · Chezky's tag-and-sort · talmudifier's
+variable-width row bands · image-diff auditing against reference scans ·
+notes-as-data · character-level justification · `page(height: auto)` for digital
+output, where overflow is impossible by definition.
+
+**All work with Typst. None require the expensive move.**
+
+**On the difficulty:** three independent systems fail at the same point, all
+because the region *grows* — Typst's own footnote spill had an infinite-loop bug;
+SILE's parallel package hangs when one side overruns; ConTeXt's columnsets are the
+philosophically correct model and its own mailing list shows experienced users
+unable to synchronise two texts. `talmudifier` succeeds at the Vilna shape and pays
+**five minutes per page**, rendering test PDFs with line numbers on and extracting
+the text back to count lines. Its author: *"ponderous and very hacky. If you know a
+better way, let me know."*
+
+**Ksav is holding the better way.** `probe.rs` reads the laid-out document
+directly.
+
+---
+
+# Part 9 — Market
+
+The Typst forum post and its repository describe a customer building Ksav by hand:
+RTL sefer pages, gematria folio numbers in running heads, vowelised chapter
+openers, two separately-labelled note streams, footnotes anchored to their
+reference page, two-column note blocks with full-width spillover. Previously solved
+by hiring people and using Tag Software.
+
+Their two hard missions — two-column notes and spillover — are `not_started` and
+`blocked_on_m1`. Audit score 48.3 against reference scans.
+
+**"Two-column note blocks with full-width spillover"** is a real requirement Ksav
+lacks — and note that it is, again, an *overflow* feature.

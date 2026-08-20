@@ -1,0 +1,17 @@
+#let _EN = "KSAVSHT"
+#let sht(body) = footnote[#metadata(_EN)#body]
+#let isht(it) = repr(it.note.body).contains(_EN)
+#show footnote.entry: it => {
+  let n = counter(footnote).at(it.location()).first()
+  set text(size: 8pt)
+  if isht(it) { [#super[#numbering("א", n)]SHT #it.note.body] }
+  else { [#super[#numbering("1", n)]MB #it.note.body] }
+}
+LN1 טקסט הגוף#הערה[MBTEXT1 משנה ברורה#sht[SHTTEXT1 שער הציון]] וממשיך.
+
+LN2 טקסט הגוף#הערה[MBTEXT2 משנה ברורה#sht[SHTTEXT2 שער הציון]] וממשיך.
+
+LN3 טקסט הגוף#הערה[MBTEXT3 משנה ברורה#sht[SHTTEXT3 שער הציון]] וממשיך.
+
+LN4 טקסט הגוף#הערה[MBTEXT4 משנה ברורה#sht[SHTTEXT4 שער הציון]] וממשיך.
+

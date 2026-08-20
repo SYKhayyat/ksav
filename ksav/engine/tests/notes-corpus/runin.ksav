@@ -1,0 +1,7 @@
+#show footnote.entry: it => {
+  box[#super[#counter(footnote).at(it.location()).first()] #it.note.body]
+  h(0.6em)
+}
+#set footnote.entry(gap: 0pt, indent: 0pt)
+#show footnote.entry: set par(justify: true)
+טקסט#הערה[ראשונה כאן] וגם#הערה[שניה כאן] ועוד#הערה[שלישית כאן] ושוב#הערה[רביעית כאן] וכן#הערה[חמישית כאן] הלאה#הערה[שישית כאן].

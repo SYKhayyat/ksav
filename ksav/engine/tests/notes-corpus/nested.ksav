@@ -1,0 +1,189 @@
+#table(columns: (1fr, 1fr), stroke: none,
+[#table(columns: (1fr), stroke: none,
+[
+NW1 north west cell text.
+
+NW2 north west cell text.
+
+NW3 north west cell text.
+
+NW4 north west cell text.
+
+NW5 north west cell text.
+
+NW6 north west cell text.
+
+NW7 north west cell text.
+
+NW8 north west cell text.
+
+NW9 north west cell text.
+
+NW10 north west cell text.
+
+NW11 north west cell text.
+
+NW12 north west cell text.
+
+NW13 north west cell text.
+
+NW14 north west cell text.
+
+NW15 north west cell text.
+
+NW16 north west cell text.
+
+NW17 north west cell text.
+
+NW18 north west cell text.
+
+NW19 north west cell text.
+
+NW20 north west cell text.
+
+NW21 north west cell text.
+
+NW22 north west cell text.
+
+NW23 north west cell text.
+
+NW24 north west cell text.
+
+NW25 north west cell text.
+
+NW26 north west cell text.
+
+NW27 north west cell text.
+
+NW28 north west cell text.
+
+NW29 north west cell text.
+
+NW30 north west cell text.
+
+],
+[
+SW1 south west cell text.
+
+SW2 south west cell text.
+
+SW3 south west cell text.
+
+SW4 south west cell text.
+
+SW5 south west cell text.
+
+SW6 south west cell text.
+
+SW7 south west cell text.
+
+SW8 south west cell text.
+
+SW9 south west cell text.
+
+SW10 south west cell text.
+
+SW11 south west cell text.
+
+SW12 south west cell text.
+
+SW13 south west cell text.
+
+SW14 south west cell text.
+
+SW15 south west cell text.
+
+SW16 south west cell text.
+
+SW17 south west cell text.
+
+SW18 south west cell text.
+
+SW19 south west cell text.
+
+SW20 south west cell text.
+
+SW21 south west cell text.
+
+SW22 south west cell text.
+
+SW23 south west cell text.
+
+SW24 south west cell text.
+
+SW25 south west cell text.
+
+SW26 south west cell text.
+
+SW27 south west cell text.
+
+SW28 south west cell text.
+
+SW29 south west cell text.
+
+SW30 south west cell text.
+
+])],
+[
+EAST1 east column text here.
+
+EAST2 east column text here.
+
+EAST3 east column text here.
+
+EAST4 east column text here.
+
+EAST5 east column text here.
+
+EAST6 east column text here.
+
+EAST7 east column text here.
+
+EAST8 east column text here.
+
+EAST9 east column text here.
+
+EAST10 east column text here.
+
+EAST11 east column text here.
+
+EAST12 east column text here.
+
+EAST13 east column text here.
+
+EAST14 east column text here.
+
+EAST15 east column text here.
+
+EAST16 east column text here.
+
+EAST17 east column text here.
+
+EAST18 east column text here.
+
+EAST19 east column text here.
+
+EAST20 east column text here.
+
+EAST21 east column text here.
+
+EAST22 east column text here.
+
+EAST23 east column text here.
+
+EAST24 east column text here.
+
+EAST25 east column text here.
+
+EAST26 east column text here.
+
+EAST27 east column text here.
+
+EAST28 east column text here.
+
+EAST29 east column text here.
+
+EAST30 east column text here.
+
+],
+)

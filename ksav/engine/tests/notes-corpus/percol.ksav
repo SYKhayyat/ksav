@@ -1,0 +1,56 @@
+#table(columns: (1fr, 2fr), stroke: none,
+[
+PER1x1 perush text#מדור_א[note P1-1 in perush].
+
+PER1x2 perush text#מדור_א[note P1-2 in perush].
+
+PER1x3 perush text#מדור_א[note P1-3 in perush].
+
+#הערות_מדורגות()
+],
+[
+GEM1y1 gemara text#מדור_א[note G1-1 in gemara].
+
+GEM1y2 gemara text#מדור_א[note G1-2 in gemara].
+
+GEM1y3 gemara text#מדור_א[note G1-3 in gemara].
+
+#הערות_מדורגות()
+],
+[
+PER2x1 perush text#מדור_א[note P2-1 in perush].
+
+PER2x2 perush text#מדור_א[note P2-2 in perush].
+
+PER2x3 perush text#מדור_א[note P2-3 in perush].
+
+#הערות_מדורגות()
+],
+[
+GEM2y1 gemara text#מדור_א[note G2-1 in gemara].
+
+GEM2y2 gemara text#מדור_א[note G2-2 in gemara].
+
+GEM2y3 gemara text#מדור_א[note G2-3 in gemara].
+
+#הערות_מדורגות()
+],
+[
+PER3x1 perush text#מדור_א[note P3-1 in perush].
+
+PER3x2 perush text#מדור_א[note P3-2 in perush].
+
+PER3x3 perush text#מדור_א[note P3-3 in perush].
+
+#הערות_מדורגות()
+],
+[
+GEM3y1 gemara text#מדור_א[note G3-1 in gemara].
+
+GEM3y2 gemara text#מדור_א[note G3-2 in gemara].
+
+GEM3y3 gemara text#מדור_א[note G3-3 in gemara].
+
+#הערות_מדורגות()
+],
+)

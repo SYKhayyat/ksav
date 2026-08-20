@@ -1,0 +1,8 @@
+#let _B = "KSAVBET"
+#let bet(body) = footnote(numbering: "א", [#metadata(_B)#body])
+LN1 טקסט#הערה[ALEF1 מקור] וגם#bet[BET1 ביאור] כאן.
+
+LN2 טקסט#הערה[ALEF2 מקור] וגם#bet[BET2 ביאור] כאן.
+
+LN3 טקסט#הערה[ALEF3 מקור] וגם#bet[BET3 ביאור] כאן.
+

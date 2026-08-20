@@ -1,0 +1,76 @@
+#table(columns: (1fr, 2fr, 1fr), stroke: none,
+[
+RASHI1 rashi text here.
+
+RASHI2 rashi text here.
+
+RASHI3 rashi text here.
+
+RASHI4 rashi text here.
+
+RASHI5 rashi text here.
+
+RASHI6 rashi text here.
+
+],
+[
+GEM1 the gemara main text runs here in the middle.
+
+GEM2 the gemara main text runs here in the middle.
+
+GEM3 the gemara main text runs here in the middle.
+
+GEM4 the gemara main text runs here in the middle.
+
+GEM5 the gemara main text runs here in the middle.
+
+GEM6 the gemara main text runs here in the middle.
+
+],
+[
+TOS1 tosfos text here.
+
+TOS2 tosfos text here.
+
+TOS3 tosfos text here.
+
+TOS4 tosfos text here.
+
+TOS5 tosfos text here.
+
+TOS6 tosfos text here.
+
+],
+)
+#table(columns: (1fr, 1fr), stroke: none,
+[
+RASHI7 rashi continues at half width now.
+
+RASHI8 rashi continues at half width now.
+
+RASHI9 rashi continues at half width now.
+
+RASHI10 rashi continues at half width now.
+
+],
+[
+TOS7 tosfos continues at half width now.
+
+TOS8 tosfos continues at half width now.
+
+TOS9 tosfos continues at half width now.
+
+TOS10 tosfos continues at half width now.
+
+],
+)
+#table(columns: (1fr), stroke: none,
+[
+RASHI11 rashi alone at full width across the bottom.
+
+RASHI12 rashi alone at full width across the bottom.
+
+RASHI13 rashi alone at full width across the bottom.
+
+],
+)

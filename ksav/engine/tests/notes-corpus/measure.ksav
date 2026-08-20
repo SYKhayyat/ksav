@@ -1,0 +1,4 @@
+#context {
+  let m = measure(block(width: 30em)[#lorem(120)])
+  [MEASURED height=#m.height width=#m.width]
+}

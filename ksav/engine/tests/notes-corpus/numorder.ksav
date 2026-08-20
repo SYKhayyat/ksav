@@ -1,0 +1,18 @@
+#table(columns: (1fr, 1fr), stroke: none,
+[
+RIGHT1 text#הערה[note from RIGHT column item 1].
+
+RIGHT2 text#הערה[note from RIGHT column item 2].
+
+RIGHT3 text#הערה[note from RIGHT column item 3].
+
+],
+[
+LEFT1 text#הערה[note from LEFT column item 1].
+
+LEFT2 text#הערה[note from LEFT column item 2].
+
+LEFT3 text#הערה[note from LEFT column item 3].
+
+],
+)

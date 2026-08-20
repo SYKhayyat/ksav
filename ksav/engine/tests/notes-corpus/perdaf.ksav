@@ -1,0 +1,158 @@
+#table(columns: (1fr, 2fr), stroke: none,
+[
+R1c1 rashi text for daf 1.
+
+R1c2 rashi text for daf 1.
+
+R1c3 rashi text for daf 1.
+
+R1c4 rashi text for daf 1.
+
+R1c5 rashi text for daf 1.
+
+R1c6 rashi text for daf 1.
+
+R1c7 rashi text for daf 1.
+
+R1c8 rashi text for daf 1.
+
+R1c9 rashi text for daf 1.
+
+R1c10 rashi text for daf 1.
+
+R1c11 rashi text for daf 1.
+
+R1c12 rashi text for daf 1.
+
+],
+[
+G1m1 gemara text for daf 1 runs here.
+
+G1m2 gemara text for daf 1 runs here.
+
+G1m3 gemara text for daf 1 runs here.
+
+G1m4 gemara text for daf 1 runs here.
+
+G1m5 gemara text for daf 1 runs here.
+
+G1m6 gemara text for daf 1 runs here.
+
+G1m7 gemara text for daf 1 runs here.
+
+G1m8 gemara text for daf 1 runs here.
+
+G1m9 gemara text for daf 1 runs here.
+
+G1m10 gemara text for daf 1 runs here.
+
+G1m11 gemara text for daf 1 runs here.
+
+G1m12 gemara text for daf 1 runs here.
+
+],
+[
+R2c1 rashi text for daf 2.
+
+R2c2 rashi text for daf 2.
+
+R2c3 rashi text for daf 2.
+
+R2c4 rashi text for daf 2.
+
+R2c5 rashi text for daf 2.
+
+R2c6 rashi text for daf 2.
+
+R2c7 rashi text for daf 2.
+
+R2c8 rashi text for daf 2.
+
+R2c9 rashi text for daf 2.
+
+R2c10 rashi text for daf 2.
+
+R2c11 rashi text for daf 2.
+
+R2c12 rashi text for daf 2.
+
+],
+[
+G2m1 gemara text for daf 2 runs here.
+
+G2m2 gemara text for daf 2 runs here.
+
+G2m3 gemara text for daf 2 runs here.
+
+G2m4 gemara text for daf 2 runs here.
+
+G2m5 gemara text for daf 2 runs here.
+
+G2m6 gemara text for daf 2 runs here.
+
+G2m7 gemara text for daf 2 runs here.
+
+G2m8 gemara text for daf 2 runs here.
+
+G2m9 gemara text for daf 2 runs here.
+
+G2m10 gemara text for daf 2 runs here.
+
+G2m11 gemara text for daf 2 runs here.
+
+G2m12 gemara text for daf 2 runs here.
+
+],
+[
+R3c1 rashi text for daf 3.
+
+R3c2 rashi text for daf 3.
+
+R3c3 rashi text for daf 3.
+
+R3c4 rashi text for daf 3.
+
+R3c5 rashi text for daf 3.
+
+R3c6 rashi text for daf 3.
+
+R3c7 rashi text for daf 3.
+
+R3c8 rashi text for daf 3.
+
+R3c9 rashi text for daf 3.
+
+R3c10 rashi text for daf 3.
+
+R3c11 rashi text for daf 3.
+
+R3c12 rashi text for daf 3.
+
+],
+[
+G3m1 gemara text for daf 3 runs here.
+
+G3m2 gemara text for daf 3 runs here.
+
+G3m3 gemara text for daf 3 runs here.
+
+G3m4 gemara text for daf 3 runs here.
+
+G3m5 gemara text for daf 3 runs here.
+
+G3m6 gemara text for daf 3 runs here.
+
+G3m7 gemara text for daf 3 runs here.
+
+G3m8 gemara text for daf 3 runs here.
+
+G3m9 gemara text for daf 3 runs here.
+
+G3m10 gemara text for daf 3 runs here.
+
+G3m11 gemara text for daf 3 runs here.
+
+G3m12 gemara text for daf 3 runs here.
+
+],
+)

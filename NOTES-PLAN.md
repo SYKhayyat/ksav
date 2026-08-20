@@ -174,6 +174,12 @@ one does **[V]**.
 Only boxes have this problem. **The three destinations that lose text today are
 exactly the three that are boxes.**
 
+**Why this is the main event and not a robustness concern.** A study of a real
+published sefer (Shefa Shlomo, 17 pages, reference scans) measured **five times
+more note text than body text.** In a real sefer the notes are five-sixths of the
+page. A mechanism that holds nine of them is not failing at the margins — it is
+failing at the normal case.
+
 ### The invariant **[SHAUL, decision 6]**
 
 > A note may be moved, shrunk, run in, or pushed to the next page. It may never be
@@ -241,6 +247,19 @@ realistic. Default to no number when quoting.
 **[U]** A markerless stream needs addressing by line, page, daf or siman instead —
 a second addressing system, which seforim use constantly.
 
+### Referring to a note
+
+**Cross-references.** Writing "see note 12" and having the 12 stay correct after
+you insert a note earlier. **Position-based numbering and automatic
+cross-references are not in tension** — a reference asks, at build time, what
+number the note turned out to be. Does not exist today; nothing in the model
+blocks it. **[SHAUL: keep numbering as it is; cross-references wanted.]**
+
+**One note, two markers.** "See above, note 12" as a second marker pointing at an
+existing note — common in seforim. Needs a marker that finds a note, prints its
+number, and does **not** create a second entry. Easier than first estimated: the
+machinery for naming a note body already exists.
+
 ### Why this is load-bearing
 
 - Design A gives pooling **and** run-in free, but **the notes inside get no
@@ -249,6 +268,28 @@ a second addressing system, which seforim use constantly.
 
 **Guard:** a marker pointing at a label not in the list currently fails
 unreadably. That will happen on every rename.
+
+## Document level
+
+Settings that belong to the sefer rather than to a stream.
+
+- **The PDF right-to-left flag.** Ksav does not set it — nothing in `src/` sets
+  viewer direction, so readers do not open two-page spreads the correct way. It is
+  the difference between a PDF containing Hebrew and a sefer. **[U]** whether
+  Typst's export exposes it or it needs post-processing. **[SHAUL: agreed.]**
+- **Binding side** — feeds outer/inner in thing two.
+- **Gematria folio numbering** — exists (`מספור_עברי`).
+- **Digital output mode** — `page(height: auto)` makes overflow *impossible by
+  definition*. For a sefer read on a screen it deletes this entire problem class,
+  free.
+- **Baseline grid** — every line and block snapping to a fixed rhythm. Matters for
+  a parallel page: body at 12pt and commentary at 9pt drift visually against each
+  other even in perfect per-page register, and that drift is what makes amateur
+  parallel typesetting look wrong. Off by default.
+- **Word export mapping** — foot notes → Word footnotes, end notes → Word
+  endnotes, **margin notes and section commentaries have no equivalent at all.**
+  Say so at export; a stated downgrade beats a silent one.
+- **Warning thresholds.**
 
 ---
 
@@ -357,6 +398,14 @@ Re-run everything: `sh tests/notes-corpus/run.sh`
 | **Long notes split, continuation unmarked** | `split` | y=179→605 page 1, resumes y=742→754 page 2 |
 | **`measure()` returns real geometry** | `measure` | `height=210.96pt width=360pt` |
 | **The grid holds at length** | — | 150 rows, 9,000 lines, **324 pages, clean exit** |
+
+**The two Mishna Berura designs are not rivals.** **A** is what you use when you
+want the band *arranged* a particular way — run-in, pooled. **B** is what you use
+when you want it *capped*, so the page shape stays constant down the sefer. B
+gives independent numbering free; A has to be given it by thing five. **[U] They
+may compose** — A's single-parent band in the footnote area with B's box holding
+the ShT, giving pooling and a cap together. Untested, and it is the experiment
+that would settle the design.
 
 **Typst compiles incrementally** — the premise of every "own the pagination"
 proposal, measured false:

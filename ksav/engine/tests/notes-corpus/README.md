@@ -53,6 +53,8 @@ sh tests/notes-corpus/run.sh
 | `boxdesign.ksav` | **Design B works.** MB in the footnote area (1,2,3,4) + ShT in a footer box (א,ב,ג,ד) — two genuinely independent counts. |
 | `boxover.ksav` | **[X] Boxes overflow at nine.** 20 ShT on one page → 9 distinct y positions, the rest overprint, band runs to y=802.57. |
 | `nest.ksav` | **[X] Tagged nesting interleaves** — MB, ShT, MB, ShT — instead of pooling. Also shows the string-search tag misfiling every entry, because a parent contains its child. |
+| `compose.ksav` | **Design C — A and B composed.** Run-in MB in the footnote area, ShT in the box below with its own count. Takes the good half of each. |
+| `compose_long.ksav` | **Design C drops A's fatal constraint.** Thirty long notes: max y **802.57**, against design A's **1477.69** on identical content. The ShT box still caps at nine — that is thing four. |
 
 ### Numbering
 
@@ -83,6 +85,30 @@ sh tests/notes-corpus/run.sh
 | `k_slant_a.ksav` / `k_slant_b.ksav` | **[X] Config-driven italic renders nothing.** Byte-identical SVG. | **`svgdump`** |
 | `k_col_a.ksav` / `k_col_b.ksav` | **Colour is live** — `fill="#ff4136"`, 27 glyphs. `probe` says these are identical; it cannot see fill. | **`svgdump`** |
 | `runin.ksav` / `runin2.ksav` | **[X] Run-in is impossible in native footnotes.** Two approaches, one note per line both times. `runin.ksav` does compress 17pt → 6.7pt. | `probe` |
+
+## Reading `probe` output without fooling yourself
+
+`probe` prints `y={:7.2}`, so the column is **right-aligned to seven characters**:
+
+```
+y=  78.79 x=  70.9 ...     ← two spaces after `y=`
+y=1477.69 x= 295.2 ...     ← none
+```
+
+Splitting on whitespace and taking the second field therefore reads `x=` for any
+y ≥ 1000 — **it silently under-reports exactly the catastrophic overflows this
+corpus exists to find.** The first version of `run.sh` did this and reported the
+rotation test at 988.29 when the truth is 1077.57; the wrong number reached
+`NOTES-PLAN.md`.
+
+Extract the number, do not field-split:
+
+```sh
+grep -o 'y=[ ]*[0-9.]*' | tr -d 'y= ' | sort -g | tail -1
+```
+
+Same disease as the colour case, one layer up: an instrument that cannot see the
+value returns a plausible answer rather than an error.
 
 ## Adding to this corpus
 

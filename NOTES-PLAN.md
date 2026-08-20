@@ -480,6 +480,7 @@ means; nothing here is a matter of judgement.
 | **Thing four, invariant** | no corpus document produces two runs at the same y in the same lane, and none exceeds the text area |
 | **Thing five, numbering** | `oneparent.ksav` — the MB notes carry their own numbers (currently **none**; the 2/3/4 shown are the ShT markers) |
 | **Thing five, run-in** | a band renders as one flowing paragraph — impossible in native footnotes **[X]**, so this proves the band is being built rather than delegated |
+| **Design C, end to end** | `compose_long.ksav` — 30 ShT at **30 distinct y positions** (currently 9) and max y ≤ 799.02 (currently 802.57), with the MB band still run-in and still on the sheet |
 | **Thing two, streams** | two streams declared with different destinations, both reachable from one note-writing gesture |
 | **Italic bug** | `k_slant_a` vs `k_slant_b` — **differing** SVG (currently byte-identical) |
 | **`ריווח` bug** | `gap_0em` vs `gap_6em` — **differing** output (currently byte-identical) |
@@ -693,13 +694,25 @@ least measurement behind it.
 
 **Then the three the plan cannot ship without:**
 
-5. **Counters** (thing five). Without them design A is unnumbered and run-in does
-   not exist.
-6. **Spill** (thing four). Without it every box caps at nine.
-7. **Measurement** (thing three) — forced by the nesting constraint, not chosen.
+5. **Spill** (thing four). Without it every box caps at nine — including design C's
+   ShT box, which is otherwise the recommended shape. This is the single highest-
+   value item in the document: it fixes the page bands, the streams and the side
+   notes with one mechanism, and it is what the paying customer in Part 9 is
+   blocked on.
+6. **Counters** (thing five). Without them a run-in band is unnumbered, and run-in
+   does not exist at all outside a band you build yourself.
+7. **Measurement** (thing three) — needed by any *fixed* region. Note that design C
+   removes the *chunking* requirement, so measurement is needed for fitting, not
+   for deciding page breaks.
 
 **Then the model**, and the chooser last, because it is the surface over everything
 else.
+
+**The shape to build toward — design C** (Part 3). Single-parent run-in band in
+Typst's real footnote area, a box below it for the second apparatus, spill on the
+box. It is the only arrangement that gives run-in, two independent counts, a
+capped page shape, **and** no chunking requirement. Measured working; the one
+thing it lacks is item 5.
 
 **Two things to settle before building, both Shaul's:**
 

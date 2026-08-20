@@ -228,9 +228,13 @@ fn no_style_command_breaks_the_paragraph() {
         ] {
             // The snippet carries the command's Hebrew name and its `|` caret.
             // Swap in the spelling under test and the middle word.
-            let snippet = cmd.insert.replace(&format!("#{}", cmd.he), &format!("#{name}"));
+            let snippet = cmd
+                .insert
+                .replace(&format!("#{}", cmd.he), &format!("#{name}"));
             let Some(styled) = snippet.strip_suffix("|]") else {
-                broken.push(format!("#{name} ({script}): snippet is not `…[|]`: {snippet}"));
+                broken.push(format!(
+                    "#{name} ({script}): snippet is not `…[|]`: {snippet}"
+                ));
                 continue;
             };
             let body = format!("{a} {styled}{b}] {c}");
@@ -422,15 +426,28 @@ fn a_named_style_applied_to_two_words_stays_in_the_sentence() {
 /// wrong version of the sweep was trying to say: off the baseline, on the line.
 #[test]
 fn superscript_rises_and_subscript_drops_without_leaving_the_line() {
-    for (name, up) in [("עילי", true), ("תחתי", false), ("sup", true), ("sub_", false)] {
+    for (name, up) in [
+        ("עילי", true),
+        ("תחתי", false),
+        ("sup", true),
+        ("sub_", false),
+    ] {
         let (a, b) = if name.starts_with(|c: char| c.is_ascii()) {
             ("aaa", "bbb")
         } else {
             ("אאא", "בבב")
         };
         let runs = render(&format!("{a} #{name}[{b}]"));
-        let base = runs.iter().find(|r| r.text.contains(a)).expect("the plain word printed").y;
-        let moved = runs.iter().find(|r| r.text.contains(b)).expect("the shifted word printed").y;
+        let base = runs
+            .iter()
+            .find(|r| r.text.contains(a))
+            .expect("the plain word printed")
+            .y;
+        let moved = runs
+            .iter()
+            .find(|r| r.text.contains(b))
+            .expect("the shifted word printed")
+            .y;
         if up {
             assert!(moved < base, "#{name} did not rise: {moved} against {base}");
         } else {

@@ -64,7 +64,10 @@ These came out of the design conversation and are settled.
 
 ## Thing one — where the note sits in your source
 
-Four options. All work today, and all produce byte-identical pages **[V]**.
+Four options. All work today, and all produce byte-identical pages — **[V] by the
+repo's own test**, not by me: `tests/deferred_notes.rs::every_note_layout_lays_out_identically_with_deferred_bodies`
+renders each layout twice, inline then deferred, and asserts every run landed on
+the same page at the same coordinates at the same size.
 
 1. **Inline** — where it belongs.
 2. **End of file.**
@@ -256,9 +259,17 @@ number the note turned out to be. Does not exist today; nothing in the model
 blocks it. **[SHAUL: keep numbering as it is; cross-references wanted.]**
 
 **One note, two markers.** "See above, note 12" as a second marker pointing at an
-existing note — common in seforim. Needs a marker that finds a note, prints its
-number, and does **not** create a second entry. Easier than first estimated: the
-machinery for naming a note body already exists.
+existing note — common in seforim.
+
+**Careful: something adjacent already exists and is not this.**
+`tests/deferred_notes.rs::the_same_body_may_be_referenced_twice` shows that two
+`#הערה_בשם("א")` markers against one `#גוף_הערה("א")` **render the body twice** —
+two markers, two entries, the prose repeated. That is the opposite of what is
+wanted.
+
+What is wanted: the second marker prints the **first note's number** and creates
+**no second entry**. The naming machinery is there and tested; the reuse-without-
+duplication behaviour is not.
 
 ### Why this is load-bearing
 
@@ -727,7 +738,7 @@ thing it lacks is item 5.
 
 | Proposal | Why not |
 |---|---|
-| **Fork Typst's layout crate** | Premise false — N areas work without one **[V]**. Buys apportionment control for a permanent rebase tax on a fast-moving compiler. |
+| **Fork Typst's layout crate** for N page-anchored footnote areas | **Not needed for the shape we want — but be precise about why.** A fork would give N *balanced* areas. Without one you get **one balanced area plus N fixed boxes**, and design C **[V]** shows that is enough for the Mishna Berura page. What a fork would actually buy is a *second balanced* apparatus and per-stream apportionment of the page foot — real, but small against a permanent rebase tax on a fast-moving compiler. **Do not repeat the claim that "N areas work without a fork":** two tagged streams share **one** area and **one** counter **[V]**. |
 | **Stitch PDFs** | Two documents cannot see each other: numbering, cross-references, index, contents all die. Assumes a Python pipeline; Ksav is Rust → WebAssembly, previewing in-browser. |
 | **Headless Chrome + own paginator** | Circular — **CSS has no footnotes**. Its premise that Typst re-lays-out the whole book is **measured false [V]**; its promised sub-100ms edit loop is **already delivered** at 59ms/234 pages. |
 | **Switch engines for Hebrew quality** | Wrong, and it appeared three times. Nikud and te'amim placement is the **font's mark-attachment tables**; any HarfBuzz shaper handles it and Typst uses one. |

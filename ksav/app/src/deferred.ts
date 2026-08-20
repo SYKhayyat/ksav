@@ -419,6 +419,47 @@ export function jump(text: string, pos: number): Jump | null {
   return null;
 }
 
+/**
+ * A position the engine can actually show, for a caret that is on a deferred note.
+ *
+ * `revealCursor` asks the compiler where the caret's text printed. For most of a
+ * document that question answers itself, and on a deferred note it does not:
+ *
+ *   - A marker, `#הערה_בשם("א")`, is a call. Not one character of it reaches the
+ *     page — what reaches the page is a superscript the prelude draws and the
+ *     body's prose at the foot of the sheet — so the reveal comes back empty and
+ *     clicking a footnote marker, the single most obvious thing to click, does
+ *     nothing at all.
+ *   - A body's head, `#גוף_הערה("א")[`, is the same story with the prose sitting
+ *     right beside it. The caret has to be *inside the brackets* for the reveal
+ *     to work, which is a rule about bracket positions that no reader knows.
+ *
+ * So answer with a position that does print and lands where the reader means:
+ * the body's prose, which the engine sets at the foot of the marker's page. From
+ * a marker that is the note the marker summons; from a body's head it is that
+ * body's own first character, a few columns away.
+ *
+ * `null` when the caret is on neither, when the marker has no body yet, or when
+ * the body is empty — all of which mean "nothing printed for this", and the
+ * caller already knows how to say that.
+ */
+export function printingAnchor(text: string, pos: number): number | null {
+  const { refs, defs } = scan(text);
+
+  // Innermost first, for the same reason `jump` sorts this way: a marker written
+  // inside another note's body belongs to its own note.
+  const ref = refs.filter((r) => within(pos, r.from, r.to)).sort((a, b) => b.from - a.from)[0];
+  const def = defs.filter((d) => within(pos, d.from, d.to)).sort((a, b) => b.from - a.from)[0];
+
+  // Already inside a body's prose: that text prints, and the engine's own answer
+  // about it beats a guess. Only the head is remapped.
+  if (def && !ref && pos >= def.bodyFrom && pos <= def.bodyTo) return null;
+
+  const target = ref ? defs.find((d) => d.name === ref.name) : def;
+  if (!target || target.bodyTo <= target.bodyFrom) return null;
+  return target.bodyFrom;
+}
+
 /** The body defined for `name`, as text — for a hover preview. */
 export function bodyOf(text: string, name: string): string | null {
   const d = scan(text).defs.find((x) => x.name === name);

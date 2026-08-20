@@ -45,6 +45,7 @@ import {
   inlineAll,
   sortDeferredBodies,
 } from "./deferred-lint";
+import { printingAnchor } from "./deferred";
 import { createBackend, sourcesOf } from "./api";
 /** How often the editor asks Girsa's desk whether anything arrived. A second
  *  is under the threshold at which a hand-off feels like a hand-off, and it is
@@ -4424,7 +4425,13 @@ async function revealCursor(opts: { quiet?: boolean; from?: number } = {}): Prom
     return true;
   }
   const { body, offset } = bodyOnScreen();
-  const head = runtime.view.state.selection.main.head;
+  const raw = runtime.view.state.selection.main.head;
+  // A caret on a deferred note is a caret on a command, and a command prints
+  // nothing — so the most obvious thing in the document to click, the footnote
+  // marker, was the one thing this could not answer about. `printingAnchor`
+  // hands back the prose that marker puts on the page; everywhere else it says
+  // nothing and the caret speaks for itself.
+  const head = printingAnchor(runtime.view.state.doc.toString(), raw) ?? raw;
   const line = runtime.view.state.doc.lineAt(head);
   if (!quiet) setStatus(t("revealWorking"));
   const points = await runtime.backend.reveal(

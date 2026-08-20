@@ -1,4 +1,9 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
 import { check, ok, notOk } from "./harness.mjs";
+
+const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
 import {
   scan,
   problems,
@@ -15,6 +20,7 @@ import {
   deferSnippet,
   resolveDeferred,
   sortBodies,
+  printingAnchor,
 } from "../.tmp-test/deferred.mjs";
 import { NOTE_CHOICES, applyChoice, markersOf } from "../.tmp-test/notes.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
@@ -637,6 +643,77 @@ const filed = (text) => scan(text).defs.map((d) => d.name);
   const en = 'a#note_named("1")\n\n#note_body("1")[see Rashi]\n';
   const r = inlineAllDeferredNotes(en);
   ok("an English pair inlines to an English command", r.text.includes("#fnote[see Rashi]"));
+}
+
+
+// ---------------------------------------------------------------- printing anchor
+//
+// The preview half of the marker/body link. `jump` walks the pair inside the
+// source; this is what lets the *page* answer, by handing the compiler a
+// position that actually prints. Clicking a footnote marker is the most obvious
+// thing in a document to click and it used to do nothing, because every
+// character of `#הערה_בשם("א")` is syntax and the reveal came back empty.
+
+{
+  const t = 'ראש#הערה_בשם("א") סוף.\n#גוף_הערה("א")[הביאור]\n';
+  const marker = t.indexOf("#הערה_בשם") + 3;
+  const bodyFrom = t.indexOf("הביאור");
+  check("a marker answers with its body's prose", printingAnchor(t, marker), bodyFrom);
+  check(
+    "a body's head answers with its own prose",
+    printingAnchor(t, t.indexOf("#גוף_הערה") + 2),
+    bodyFrom,
+  );
+  // Inside the prose the caret needs no help, and the engine's own answer about
+  // real text beats anything invented here.
+  check("inside the prose it says nothing", printingAnchor(t, bodyFrom + 2), null);
+  check("ordinary prose says nothing", printingAnchor(t, 1), null);
+}
+
+{
+  // A marker with no body yet is the state a note is in for the seconds between
+  // writing the marker and writing the prose. Nothing printed, so nothing to
+  // show — and the caller says so rather than pointing at a stranger's note.
+  const t = 'א#הערה_בשם("א") ב#הערה_בשם("ב")\n#גוף_הערה("ב")[שנייה]\n';
+  check("a marker with no body says nothing", printingAnchor(t, t.indexOf('("א")') + 2), null);
+  check(
+    "and its neighbour still answers",
+    printingAnchor(t, t.indexOf('("ב")') + 2),
+    t.indexOf("שנייה"),
+  );
+}
+
+{
+  const t = '#הערה_בשם("א")\n#גוף_הערה("א")[]\n';
+  check("an empty body prints nothing, so it answers nothing", printingAnchor(t, 3), null);
+}
+
+{
+  // Innermost wins, the same rule `jump` follows: a marker written inside
+  // another note's body belongs to its own note, not to the one it sits in.
+  const t = '#גוף_הערה("א")[ביאור#הערה_בשם("ב")]\n#גוף_הערה("ב")[פנימי]\n';
+  const inner = t.indexOf('#הערה_בשם("ב")') + 3;
+  check("a nested marker answers with its own body", printingAnchor(t, inner), t.indexOf("פנימי"));
+}
+
+{
+  // Every rewrite in this module keeps the document's language; this reads
+  // rather than writes, so the only thing to prove is that it reads both.
+  const t = 'a#note_named("1")\n#note_body("1")[see Rashi]\n';
+  check("an English pair answers too", printingAnchor(t, 3), t.indexOf("see Rashi"));
+}
+
+{
+  // The seam, read from source. What broke here was never the arithmetic — the
+  // reveal was correct about every position it was given — it was *which
+  // position it was given*, so the test that matters is that `revealCursor`
+  // still asks.
+  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  const at = main.indexOf("async function revealCursor(");
+  ok("revealCursor is still a function in main.ts", at >= 0);
+  const body = main.slice(at, main.indexOf("\n}", at));
+  ok("revealCursor remaps a deferred caret before asking", body.includes("printingAnchor("));
+  ok("…and falls back to the caret itself", /printingAnchor\([\s\S]*?\?\?/.test(body));
 }
 
 }

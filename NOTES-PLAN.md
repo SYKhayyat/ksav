@@ -6,6 +6,23 @@
 
 ---
 
+## Contents
+
+| Part | What is in it |
+|---|---|
+| **0** | **Decisions already made.** Settled; do not re-litigate. |
+| **1** | **The five things.** The model: source position · stream/destination · region · overflow · counters. Plus document-level settings. |
+| **2** | **A concrete surface.** Proposed syntax. Names are placeholders. |
+| **2b** | **The terrain.** Where the code is, five non-negotiable engine rules, four dead ends, what this makes stale, what a parallel session already built. **Read before writing a line.** |
+| **2c** | **Acceptance criteria.** Corpus documents that fail today and must pass. |
+| **3** | **What works** — with the file that proves each. Designs A, B and **C (the recommendation)**. |
+| **4** | **What does not work** — ten disproven things, so nobody retries them. |
+| **5** | **Bugs to fix**, independent of the plan. |
+| **6** | **The chooser** — the original problem, still open. |
+| **7** | **Where to start.** |
+| **8** | **Rejected proposals**, with reasons, and what was worth taking. |
+| **9** | **Market.** |
+
 ## For whoever picks this up
 
 **Run this first.** It prints every measurement this document cites, in about a
@@ -817,3 +834,37 @@ Their two hard missions — two-column notes and spillover — are `not_started`
 
 **"Two-column note blocks with full-width spillover"** is a real requirement Ksav
 lacks — and note that it is, again, an *overflow* feature.
+
+---
+
+# Sources
+
+Everything consulted, so nobody re-finds it.
+
+**Typst**
+- Parallel text via a grid, on facing pages — https://forum.typst.app/t/how-to-typeset-two-texts-in-parallel-on-pairs-of-facing-pages/1314/2
+- Parallel columns flowing between pages — https://forum.typst.app/t/how-can-i-have-parallel-content-in-columns-on-the-same-page-with-the-content-flowing-between-pages/7517/3
+- Footnote infinite loop when a note never fits — https://github.com/typst/typst/issues/5496 · fix https://github.com/typst/typst/pull/5498
+- A long footnote spanning pages — https://github.com/typst/typst/issues/5405
+- Character-level justification, added 0.14 — https://typst.app/docs/changelog/0.14.0/ · reference https://typst.app/docs/reference/model/par/
+
+**The Hebrew sefer market**
+- Paid help wanted, complex Hebrew sefer layout — https://forum.typst.app/t/paid-help-wanted-complex-hebrew-sefer-layout-in-typst/8741
+- That customer's pipeline, both hard missions unstarted — https://github.com/Abe1018776/chezky-kohn-shefa-yoel-auto-design
+- Hebrew Typst discussion — https://hed.im/tags/%D7%98%D7%99%D7%99%D7%A4%D7%A1%D7%98
+
+**Prior art worth reading before building**
+- `talmudifier` — Talmud page layouts, Python + XeLaTeX `paracol`, ~5 min/page — https://github.com/subalterngames/talmudifier
+- reledpar manual — the chunk model and the five synchronisation settings — https://mirrors.mit.edu/CTAN/macros/latex/contrib/reledmac/reledpar.pdf
+- How reledpar synchronises pages, by its author — http://geekographie.maieul.net/185
+- bigfoot — multiple footnote apparatus, split costs, run-in per series — https://ctan.org/pkg/bigfoot · paper https://tug.org/TUGboat/tb25-0/kastrup.pdf
+- manyfoot — https://ctan.org/pkg/manyfoot · FAQ https://texfaq.org/FAQ-multfoot
+- ConTeXt columnsets, and its own users unable to synchronise — https://www.mail-archive.com/ntg-context@ntg.nl/msg109376.html
+
+**Typst packages solving pieces of this**
+- `marge` — margin notes; **the two-directional shift** — https://typst.app/universe/package/marge/ · https://github.com/EpicEricEE/typst-marge
+- `marginalia` — per-note shift policy, has an RTL test — https://typst.app/universe/package/marginalia/ · https://github.com/nleanba/typst-marginalia
+- `deixis` — unified note engine, margin spillover — https://typst.app/universe/package/deixis/ · https://github.com/inspiros/typst-deixis
+- `obelisk` — the absolute baseline grid — https://typst.app/universe/package/obelisk/
+- `toffee-tufte` — graceful degradation to footnotes — https://typst.app/universe/package/toffee-tufte/
+- `scholia` — **not relevant**; a STEM study-notes template despite the name — https://typst.app/universe/package/scholia/

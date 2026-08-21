@@ -1,6 +1,26 @@
 # The note system — decisions, plan, and evidence
 
-**Status:** plan agreed in shape, not in detail. Nothing is built.
+**Status: being built.** What is done, and where the record of each chunk is:
+
+| Part | | Where |
+|---|---|---|
+| 7 · items 1–4 | the block bug, the sidenote clamp, config-driven slant, `ריווח` | [A note cannot place itself](decisions/2026-08-20-a-note-cannot-place-itself.md) |
+| 7 · item 5 | the render-diff fence over every settings dictionary | [A knob that turns nothing](decisions/2026-08-20-a-knob-that-turns-nothing.md) |
+| 7 · item 6 | **spill**, both halves — the side column and the page foot | [A note cannot place itself](decisions/2026-08-20-a-note-cannot-place-itself.md) |
+| 7 · item 7 | **counters** — named series, counted anywhere | [A count of your own](decisions/2026-08-21-a-count-of-your-own.md) |
+| 2 · thing two | the destinations, and `#הערה(אזור:)` as the fifth | [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md) |
+| 6 | **the chooser** — `NOTE_CHOICES` is gone | [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md) |
+| 1 · thing one | source position, three of its four homes | [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md) |
+| 14 | every placeholder name, decided and written down | [The words for the note system](decisions/2026-08-20-the-words-for-the-note-system.md) |
+
+**Still open:** thing three's *grid* kind (the box half is built), the rest of
+thing four's ten moves as settable values, the entry-head ingredients,
+cross-references, the document-level settings, and export degradation.
+
+This page is the plan and the evidence; it is **not** the record of what was done
+on a day, which is [`decisions/`](decisions/README.md). Where the two disagree
+about what exists, the decision record is the later word.
+
 **Engine:** Typst 0.15 (`ksav/engine/Cargo.toml`).
 **Evidence:** `ksav/engine/tests/notes-corpus/` — every claim below is re-runnable.
 
@@ -414,10 +434,18 @@ unreadably. That will happen on every rename.
 
 Settings that belong to the sefer rather than to a stream.
 
-- **The PDF right-to-left flag.** Ksav does not set it — nothing in `src/` sets
-  viewer direction, so readers do not open two-page spreads the correct way. It is
-  the difference between a PDF containing Hebrew and a sefer. **[U]** whether
-  Typst's export exposes it or it needs post-processing. **[SHAUL: agreed.]**
+- **The PDF right-to-left flag.** ~~Ksav does not set it — nothing in `src/` sets
+  viewer direction, so readers do not open two-page spreads the correct way.~~
+  **[X] — the premise is right and the conclusion does not follow.** Nothing in
+  `src/` sets it, and Typst 0.15 writes
+  `/ViewerPreferences << /Direction /R2L >>` itself, derived from **the
+  document's language** — which `#מסמך` has set to `he` since it was written.
+  Measured on the exported bytes: a Hebrew document carries `/R2L` and an English
+  one `/L2R`. So the flag has been correct all along, for a reason nobody here
+  chose, and this item was a hypothesis rather than a finding.
+  `engine/tests/pdf_document.rs` now looks, because the day Typst changes how it
+  derives that — or a writer sets `שפה` to something else — the sefer opens its
+  spreads the wrong way round and nothing else in this repository would notice.
 - **Binding side** — feeds outer/inner in thing two.
 - **Gematria folio numbering** — exists (`מספור_עברי`).
 - **Digital output mode** — `page(height: auto)` makes overflow *impossible by
@@ -899,6 +927,23 @@ commas."* The error I triggered was a wrongly-shaped dictionary; no bracket was
 missing. The sibling message is precise: *"no parameter called `x` — check the
 spelling."* Wrong name gets a real answer; wrong value sends you hunting.
 
+**Fixed.** Four malformed documents were put through the real engine and Typst
+turned out to be saying something *precise* in every one of them, in a shape the
+mapping had no branch for: `expected comma` and `expected expression`, with no
+*found* and no type. Both were being replaced by the bracket advice.
+
+They now say what is missing — *"there is a comma missing between two
+arguments"*, *"something has no value here — a name and a colon with nothing
+after them"* — and the table is closed on purpose: an `expected X` whose `X` is
+not in it falls through to the generic branch rather than being half-translated,
+because **a wrong specific answer is worse than a vague one.** Both are cases in
+`diagnostics_corpus.rs`, which is the fence that refuses a message the rephraser
+has no family for.
+
+`probe` now prints Typst's raw sentence beside the translation, because an
+instrument that shows only the translation cannot tell you *why* a message came
+out generic, which is the one question it gets used for here.
+
 ## The fence for this class
 
 Both dead knobs are *"declared, documented, changes nothing."* No test sees them.
@@ -933,7 +978,7 @@ is not `probe` — the chooser is TypeScript. The fences are:
 
 | File | What it holds |
 |---|---|
-| `app/test/notepaths.test.mjs` | imports `NOTE_CHOICES`, `applyChoice`, `noteFor`, `notesIn`, `choiceAt`, `whyNot`, `BLOCKED`, `NOTE_WHERE` — **this is the test that will break, and breaking it is the point.** It is the where × how grid's fence. |
+| ~~`notepaths.test.mjs`~~ | imported `NOTE_CHOICES`, `applyChoice`, `noteFor`, `notesIn`, `choiceAt`, `whyNot`, `BLOCKED`, `NOTE_WHERE` — **this is the test that will break, and breaking it is the point.** It was the where × how grid's fence. **It is deleted**, which is what this part asked for; `channels.test.mjs` grew to cover what it held. |
 | `app/test/channels.test.mjs` | the model that should win |
 | `app/test/notecommands.test.mjs` | which commands open a note body; read its header before touching it |
 | `app/test/notelangs.test.mjs` | asks everything twice, once per language |

@@ -598,6 +598,24 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#מונה(\"\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_מונה(\"\", מספור: \"א\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -2070,6 +2088,24 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#continue_numbering()ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#count_(\"\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#counter_config(\"\", numbering: \"א\")ds to continue."
   },
   {
    "ctx": "prose",
@@ -3550,6 +3586,24 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #מונה(\"\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_מונה(\"\", מספור: \"א\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -5022,6 +5076,24 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #continue_numbering()One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #count_(\"\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #counter_config(\"\", numbering: \"א\")One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -6502,6 +6574,24 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #מונה(\"\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_מונה(\"\", מספור: \"א\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -7974,6 +8064,24 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #continue_numbering()inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #count_(\"\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #counter_config(\"\", numbering: \"א\")inside] continues."
   },
   {
    "ctx": "note-body",
@@ -9454,6 +9562,24 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #מונה(\"\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_מונה(\"\", מספור: \"א\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -10926,6 +11052,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #continue_numbering()here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #count_(\"\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #counter_config(\"\", numbering: \"א\")here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -12406,6 +12550,24 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],מונה(\"\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_מונה(\"\", מספור: \"א\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -13878,6 +14040,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],continue_numbering(),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],count_(\"\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],counter_config(\"\", numbering: \"א\"),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -15358,6 +15538,24 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(מונה(\"\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_מונה(\"\", מספור: \"א\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -16830,6 +17028,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(continue_numbering(),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(count_(\"\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(counter_config(\"\", numbering: \"א\"),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -18310,6 +18526,24 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #מונה(\"\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_מונה(\"\", מספור: \"א\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -19782,6 +20016,24 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #continue_numbering()here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #count_(\"\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #counter_config(\"\", numbering: \"א\")here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -21262,6 +21514,24 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],מונה(\"\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_מונה(\"\", מספור: \"א\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -22734,6 +23004,24 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],continue_numbering(), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],count_(\"\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],counter_config(\"\", numbering: \"א\"), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -24214,6 +24502,24 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #מונה(\"\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_מונה(\"\", מספור: \"א\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -25686,6 +25992,24 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #continue_numbering()here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #count_(\"\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #counter_config(\"\", numbering: \"א\")here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -27166,6 +27490,24 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #מונה(\"\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_מונה(\"\", מספור: \"א\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -28638,6 +28980,24 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #continue_numbering()Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #count_(\"\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #counter_config(\"\", numbering: \"א\")Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -30118,6 +30478,24 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #מונה(\"\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_מונה(\"\", מספור: \"א\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -31590,6 +31968,24 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #continue_numbering()prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #count_(\"\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #counter_config(\"\", numbering: \"א\")prayer]"
   },
   {
    "ctx": "siman-body",
@@ -33070,6 +33466,24 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #מונה(\"\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_מונה(\"\", מספור: \"א\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -34542,6 +34956,24 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #continue_numbering()Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #count_(\"\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #counter_config(\"\", numbering: \"א\")Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -36022,6 +36454,24 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#מונה(\"\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_מונה(\"\", מספור: \"א\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -37494,6 +37944,24 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#continue_numbering()ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "מונה",
+   "en": "count_",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#count_(\"\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מונה",
+   "en": "counter_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#counter_config(\"\", numbering: \"א\")ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

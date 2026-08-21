@@ -163,6 +163,13 @@ pub struct DocConfig {
     /// changes where lines break, and every document written before it existed
     /// would silently repaginate.
     pub prevent_orphans: bool,
+    /// One page, as tall as the sefer is — the digital output mode.
+    ///
+    /// `NOTES-PLAN`'s document-level section calls it free, and it is: **overflow
+    /// is impossible by definition** when the page grows. A note that will not
+    /// fit is a sentence about a page bottom, and this has none. Off by default,
+    /// because a sefer is a printed object and this is the other thing it can be.
+    pub continuous: bool,
     /// "rtl" or "ltr"
     pub dir: String,
     /// BCP-47 language tag for the text (`lang:` in Typst). Empty = follow the
@@ -897,6 +904,7 @@ impl Default for DocConfig {
             pdf_tagged: true,
             pdf_pages: String::new(),
             prevent_orphans: false,
+            continuous: false,
             dir: "rtl".to_string(),
             lang: String::new(),
             numbering: true,
@@ -1138,6 +1146,9 @@ impl DocConfig {
         }
         if let Some(o) = v.get("prevent_orphans").and_then(|x| x.as_bool()) {
             cfg.prevent_orphans = o;
+        }
+        if let Some(c) = v.get("continuous").and_then(|x| x.as_bool()) {
+            cfg.continuous = c;
         }
         cfg
     }
@@ -1460,7 +1471,7 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
          תחתונה_זוגי: {foot_even}, תחתונה_אי_זוגי: {foot_odd}, \
          יישור_כותרת: {head_align}, \
          כותרת_מסמך: {title}, מחבר: {author}, מילות_מפתח: {keywords}, \
-         מניעת_יתומים: {orphans}, \
+         מניעת_יתומים: {orphans}, רציף: {continuous}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
          הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})",
         font = typst_str(&cfg.font),
@@ -1483,6 +1494,7 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         author = typst_str_or_none(&cfg.author),
         keywords = typst_str_array(&cfg.keywords),
         orphans = if cfg.prevent_orphans { "true" } else { "false" },
+        continuous = if cfg.continuous { "true" } else { "false" },
         dir = dir,
         lang = typst_str(effective_lang(cfg)),
         numbering = if cfg.numbering { "true" } else { "false" },

@@ -79,7 +79,7 @@ not a workflow — the footnotes and the multi-stream apparatus flatten, and the
 says so when you do it rather than letting you find out from your printer.
 
 And the last row is the one that should decide it. Ksav compiles, spell-checks
-Hebrew and English, has 164 bilingual commands and twelve templates that all build.
+Hebrew and English, has 166 bilingual commands and twelve templates that all build.
 Nobody has written a sefer in it. Everything here is a promise that has been tested
 by its author and not by its use.
 

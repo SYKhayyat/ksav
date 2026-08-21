@@ -1230,13 +1230,26 @@
 #let _nr_mark(value) = [#metadata(value)#_nr_label]
 
 /// Start the count again from here.
-#let התחל_מספור() = { _nr_used.update(true); _nr_mark(("restart",)) }
+///
+/// With no argument: every count. With one: that named series only, which is
+/// what `#מונה` needs — two series running at once are two counts, and a
+/// restart that hit both would make them one again.
+///
+/// The argument is **optional and last-added on purpose**. `#התחל_מספור()` means
+/// today exactly what it meant before this existed, in every sefer already
+/// written, and the per-series form is a narrowing of it rather than a second
+/// command with a second vocabulary to learn.
+#let התחל_מספור(שם: none) = {
+  _nr_used.update(true)
+  _nr_mark(if שם == none { ("restart",) } else { ("restart", _as_string(שם).trim()) })
+}
 #let restart_numbering = _en(התחל_מספור)
 
 /// Carry the count on through the restart just above — an automatic one or a
 /// hand-placed one. The local override the automatic rule needs to be safe.
 #let המשך_מספור() = { _nr_used.update(true); _nr_mark(("continue",)) }
 #let continue_numbering = _en(המשך_מספור)
+
 
 // Where the count that governs `loc` begins, or `none` for the start of the
 // sefer.
@@ -1245,7 +1258,15 @@
 // in force and the one before it. That is exactly enough for `continue` to mean
 // "the restart above me did not happen" and no more — a deeper history would be
 // a stack nobody can predict the behaviour of from the source.
-#let _nr_origin(loc) = {
+/// `שם` is the named series being asked about, or `none` for *the* count —
+/// which is what a note asks, and what every document written before named
+/// series existed asks.
+///
+/// A restart that names a series governs that series and nothing else; a restart
+/// that names none governs everything, including the named series. Two counts
+/// running at once are two counts, and a `#התחל_מספור("דעות")` that also reset
+/// the notes would make them one again.
+#let _nr_origin(loc, שם: none) = {
   let lvl = _nr_cfg.get().at("אפס_לפי", default: none)
   let cur = none
   let prev = none
@@ -1258,8 +1279,12 @@
         cur = m.location()
       }
     } else if kind == "restart" {
-      prev = cur
-      cur = m.location()
+      // A restart naming somebody else's series is not this one's business.
+      let whose = if v.len() > 1 { v.at(1) } else { none }
+      if whose == none or whose == שם {
+        prev = cur
+        cur = m.location()
+      }
     } else {
       cur = prev
     }
@@ -1295,6 +1320,86 @@
   let og = _nr_origin(loc)
   if og == none { sel } else { selector(sel).after(og) }
 }
+
+// ---- מונים · named series, counted anywhere ----
+//
+// # A numbering mechanism with notes as one customer
+//
+// `NOTES-PLAN` thing five: *"any number of named series, running at once, each
+// renumbering on insert in the middle, each restartable, each with its own
+// shape — **and not tied to notes**."* The last clause is the whole point. A
+// writer numbering a list of opinions, a set of variants or a count of simanim
+// wants exactly this and has no note anywhere; until now the only renumbering
+// machinery in this engine was inside the footnote apparatus, which is the same
+// mistake this whole plan is written to undo — a general capability trapped
+// inside one of its customers.
+//
+// # It is a rank, not a counter, and that is not a detail
+//
+// `#מונה("דעות")` prints *how many marks of this series lie before it*, read out
+// of a query. Nothing is stored and nothing has to converge, which is the rule
+// this engine has been built on since counters were found not to survive page
+// breaking (`_ksav_rank`) — and it is what makes *renumbering on insert* free:
+// a mark typed in the middle is simply one more mark before the ones after it.
+//
+// Restarting is the same mechanism the notes use, so a writer who has learnt
+// *"start the count again here"* has learnt it once: `#התחל_מספור()` restarts
+// every series, and `#התחל_מספור("דעות")` restarts one.
+#let _ct_label = <ksav-ct>
+#let _ct_own = ("מספור", "סימן")
+#let _ct_cfg = state("ksav-ct-cfg", (:))
+
+/// This series' marks, restricted to the count that governs `loc`.
+///
+/// `_nr_scope`'s counterpart for a named series. Its own function rather than an
+/// argument on that one, because the selector *is* the series' label and the
+/// caller would otherwise have to say the same thing twice.
+#let _nr_scope_of(name, loc) = {
+  if not _nr_any() { return selector(_ct_label) }
+  let og = _nr_origin(loc, שם: name)
+  if og == none { selector(_ct_label) } else { selector(_ct_label).after(og) }
+}
+
+// #הגדרות_מונה("דעות", מספור: "א", סימן: (משקל: "bold"))
+//
+// The series' shape, and how its numbers are set. Both optional: a series nobody
+// configures counts 1, 2, 3 in the document's own ink, which is what a writer
+// who just wants a count means.
+#let הגדרות_מונה(שם, ..opts) = {
+  let name = _as_string(שם).trim()
+  let (own, rest) = _cfg_split(opts.named(), _ct_own)
+  _cfg_strict("הגדרות_מונה", rest)
+  _ct_cfg.update(c => {
+    let d = c
+    let r = d.at(name, default: (:))
+    for (k, v) in own { r.insert(k, v) }
+    d.insert(name, r)
+    d
+  })
+}
+
+// #מונה("דעות") — the next value of that series, printed here.
+//
+// Named arguments style this one number, the same three-layer model every other
+// command in this prelude uses: the series' own look, then this instance's.
+#let מונה(שם, ..opts) = {
+  let name = _as_string(שם).trim()
+  let (own, rest) = _cfg_split(opts.named(), _ct_own)
+  _cfg_strict("מונה", rest)
+  // The mark first, so that `here()` below counts this one.
+  [#metadata(name)#_ct_label]
+  context {
+    let loc = here()
+    // Scoped to the series' own restart, and to the series: two counts running
+    // at once are two counts, which is what "named" means.
+    let n = _ksav_rank(_nr_scope_of(name, loc), loc, e => e.value == name)
+    let cfg = _cfg_with(_ct_cfg.get().at(name, default: (:)), own)
+    _mk_render(cfg.at("סימן", default: (:)), numbering(cfg.at("מספור", default: "1"), n))
+  }
+}
+#let counter_config = _en(הגדרות_מונה)
+#let count_ = _en(מונה)
+
 
 // The number each of `locs` prints, `locs` being one apparatus group's entries
 // in document order. `none` when nothing in the document restarts anything, so
@@ -1529,6 +1634,23 @@
 // point another way: a bare `#מקטע_עמוד`, a `margin: auto`, a single length for
 // all four edges. Typst's own `auto` margin is 2.5/21 of the shorter side, which
 // is where that ratio comes from — it is not a guess.
+/// How wide a named paper is.
+///
+/// Only needed by the continuous mode, which sets `height: auto` — and Typst's
+/// `paper:` and `width:`/`height:` are alternative spellings of one setting, so
+/// asking for one page dimension means giving the other. The four a sefer is
+/// actually set on, and the fallback is A4, which is this product's default and
+/// what a writer naming something exotic already gets when they misspell it.
+#let _pg_paper_width(name) = if name == "a3" {
+  297mm
+} else if name == "a5" {
+  148mm
+} else if name in ("us-letter", "letter") {
+  216mm
+} else {
+  210mm
+}
+
 #let _pg_margin(key) = {
   // `page(height: auto)` is a real configuration — it is the digital output mode
   // — and `calc.min` of a length and `auto` is an error, not a large number. So
@@ -1828,7 +1950,10 @@
       // note inside it, so they stay read off `cfg`.
       let ecfg = _cfg_with(cfg, own)
       block(
-        spacing: cfg.at("ריווח_פריט", default: 0.3em),
+        // Through `_ap_pick`, like every other knob here: the gap is per-group
+        // once a region can ask to be compressed, and read with a bare `.at` it
+        // arrives as the whole dictionary and stops the compile.
+        spacing: _ap_pick(cfg, "ריווח_פריט", g, 0.3em),
         _ap_wrap(ecfg, g, {
           // Say which entry is being re-displayed, and from where, for the
           // length of its body only. A note inside it reads this instead of
@@ -1926,6 +2051,44 @@
 /// read-only footer can see it.
 #let _ap_reserve = state("ksav-ap-reserve", 0pt)
 
+// ---- גלישה · what a full region does, as the writer's own list ----
+//
+// `NOTES-PLAN` thing four names ten moves and decision 15 says **the writer can
+// pick** — so `גלישה` takes an **array**, in the order they should be tried, and
+// not one value. That is not a detail: the moves are not alternatives. A writer
+// wants *compress, then spill*, and the order is the policy. One value per region
+// would have been the menu of arrangements decision 10 rules out.
+//
+// # Only the moves that are built are accepted
+//
+// Three are: `"דחיסה"` (compress toward the minimum gap), `"עמוד_הבא"` (spill —
+// the default, and the strongest), and the empty list, which is a fixed box that
+// stays fixed and clips. **Clamp is not on the list**, because never printing off
+// the paper is the invariant (decision 6) rather than a choice.
+//
+// The other six are named in the plan and are **not** accepted: a word that
+// compiles and does nothing is precisely the defect class `settings_live.rs`
+// exists to catch, and accepting `"הקטנה"` today so that the vocabulary looks
+// complete would put a dead knob into the one part of this prelude that was just
+// swept for them. A writer who asks for one is told which moves exist.
+#let _ap_spill_moves = ("דחיסה", "עמוד_הבא")
+#let _ap_spill_default = ("עמוד_הבא",)
+
+/// A `גלישה` value, checked. `auto` is the default policy.
+#let _ap_spill_read(who, v) = {
+  if v == auto or v == none { return _ap_spill_default }
+  let list = if type(v) == array { v } else { (v,) }
+  for m in list {
+    if not _ap_spill_moves.contains(m) {
+      panic(
+        who + ": גלישה לא מוכרת · unknown overflow move: " + _as_string(m)
+          + " (דחיסה · עמוד_הבא · () כדי לא לגלוש כלל)",
+      )
+    }
+  }
+  list
+}
+
 /// The width one entry of a page-foot apparatus is set at.
 ///
 /// The text area, divided by the group's own column count — measuring at the
@@ -1947,20 +2110,33 @@
 /// A note never moves **backwards** — its marker is on its own page and the
 /// reader has to be able to find it from there — so the page cursor only ever
 /// advances, and a note anchored further on resets it.
-#let _ap_assign(all, cfg, cap_of) = {
+#let _ap_assign(all, cfg, cap_of, policy_of: g => _ap_spill_default) = {
   let out = ()
   let page_ = 0
   let used = (:)
   for e in all {
     let g = e.value.group
     let key = str(g)
+    let moves = policy_of(g)
     // Measured with a stand-in marker rather than the real number. The height of
     // an entry at a given width does not depend on whether its marker reads 1 or
     // 17; the *width* would, and nothing here asks about width.
-    let h = measure(box(
+    let bare = measure(box(
       width: _ap_page_width(cfg, g),
       _ap_wrap(cfg, g, [#super[1] #e.value.body]),
-    )).height + cfg.at("ריווח_פריט", default: 0.3em).to-absolute()
+    )).height
+    // **Compress**: `דחיסה` is *"compress toward the minimum gap"*, and the
+    // minimum is none at all. Applied to the whole region rather than reactively
+    // to the entries that happen not to fit — which was the first shape and is
+    // the wrong one, because it gives two pages of the same sefer different
+    // spacing for a reason no reader can see. A writer who says a region is
+    // tight has said something about the region.
+    let gap = if moves.contains("דחיסה") {
+      0pt
+    } else {
+      _ap_pick(cfg, "ריווח_פריט", g, 0.3em).to-absolute()
+    }
+    let h = bare + gap
     let p = e.location().page()
     if p > page_ {
       page_ = p
@@ -1968,13 +2144,22 @@
     }
     let cap = cap_of(g)
     let u = used.at(key, default: 0pt)
-    // `u > 0pt` so that a note taller than the whole region is placed rather
-    // than carried for ever. It will be clipped, which a reader can see; carried
-    // it would be a note that was written and never printed, which they cannot.
-    if cap != none and cap > 0pt and u > 0pt and u + h > cap {
-      page_ += 1
-      used = (:)
-      u = 0pt
+    let full = cap != none and cap > 0pt and u > 0pt and u + h > cap
+    if full {
+      // **Spill.** The default, and decision 15's *strongest move*. Without it a
+      // full region simply clips, which is what `גלישה: ()` asks for — a fixed
+      // box that stays fixed, which is a real thing to want and was the only
+      // behaviour available before any of this.
+      //
+      // `u > 0pt` above is what keeps a note taller than the whole region from
+      // being carried for ever. It is placed and clipped, which a reader can
+      // see; carried it would be a note that was written and never printed,
+      // which they cannot.
+      if moves.contains("עמוד_הבא") {
+        page_ += 1
+        used = (:)
+        u = 0pt
+      }
     }
     out.push(page_)
     used.insert(key, u + h)
@@ -1987,8 +2172,8 @@
 /// That one word is the whole of thing four for the footer. The footer used to
 /// render the notes whose markers are on this page, so a page with more notes
 /// than room lost the difference.
-#let _ap_on_page(all, cfg, cap_of, pg) = {
-  let where = _ap_assign(all, cfg, cap_of)
+#let _ap_on_page(all, cfg, cap_of, pg, policy_of: g => _ap_spill_default) = {
+  let where = _ap_assign(all, cfg, cap_of, policy_of: policy_of)
   let mine = ()
   for i in range(all.len()) {
     if where.at(i) == pg { mine.push(all.at(i)) }
@@ -1997,9 +2182,9 @@
 }
 
 /// The last page any of an apparatus's notes was assigned to.
-#let _ap_last_page(all, cfg, cap_of) = {
+#let _ap_last_page(all, cfg, cap_of, policy_of: g => _ap_spill_default) = {
   let last = 0
-  for p in _ap_assign(all, cfg, cap_of) { last = calc.max(last, p) }
+  for p in _ap_assign(all, cfg, cap_of, policy_of: policy_of) { last = calc.max(last, p) }
   last
 }
 
@@ -2608,6 +2793,19 @@
   if own != none { _ap_fixed_height(own) } else { _ap_reserve.get() }
 }
 
+/// What a stream's region does when it is full.
+///
+/// Read off the **region** the stream is pointed into, which is the stream's own
+/// name when it was never pointed anywhere — the case every document written
+/// before channels existed is in. A channel may say it too, and then it is
+/// saying it about the region it made.
+#let _sf_spill(t) = g => {
+  let rg = _ch_region(t, g)
+  let own = _rg_rec(t, rg).at("גלישה", default: auto)
+  let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
+  _ap_spill_read("אזור", mine)
+}
+
 #let _sf_page_streams() = context {
   let all = _sf_all()
   if all.len() > 0 {
@@ -2619,7 +2817,7 @@
     // first reading is deliberately the cheap one, since it only needs the
     // per-stream sizes and column counts that decide how tall an entry is.
     let base = _nt_under(_sf_cfg.get())
-    let mine = _ap_on_page(all, base, _sf_cap(base), pg)
+    let mine = _ap_on_page(all, base, _sf_cap(base), pg, policy_of: _sf_spill(t))
     if mine.len() > 0 {
       let present = mine.map(e => e.value.group).dedup()
       // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
@@ -2633,6 +2831,27 @@
       // this line, because the two apparatuses answer that question differently
       // when nobody asks. A stream nobody declared is untouched.
       let cfg = _ch_foot_cfg(t, streams)
+      // A region that compresses draws compressed. The walk above already
+      // measured it that way, and the two disagreeing would put a note in a
+      // place the arithmetic did not leave room for — the one real limit
+      // `NOTES-PLAN` names: two notes computing their positions from different
+      // answers to the same question. `_ap_pick` reads a dictionary as
+      // per-group, so this says it about the streams that asked and no others.
+      {
+        let gaps = (:)
+        let spill = _sf_spill(t)
+        for s in streams {
+          gaps.insert(
+            s,
+            if spill(s).contains("דחיסה") {
+              0pt
+            } else {
+              cfg.at("ריווח_פריט", default: 0.3em)
+            },
+          )
+        }
+        cfg.insert("ריווח_פריט", gaps)
+      }
       let regions = ()
       let members = (:)
       for s in streams {
@@ -2689,10 +2908,16 @@
 //  See the table above for what a channel and a region are.
 // ============================================================
 #let _ch_own = (
-  "מקור", "מיקום", "אזור", "גובה",
+  "מקור", "מיקום", "אזור", "גובה", "גלישה",
   "מספור", "גודל", "סגנון", "צבע", "טורים", "כותרת",
 )
-#let _rg_own = ("מיקום", "גובה", "פריסה", "כותרת")
+// `גלישה` — what this region does when it is full. On the region and not only on
+// the channel, because it is a property of *the space*: two channels sharing one
+// region share its overflow, and letting each answer separately would be two
+// notes computing their positions from different answers to the same question,
+// which `NOTES-PLAN` names as the one real limit. A channel with a region of its
+// own — the common case — sets it either way and means the same thing.
+#let _rg_own = ("מיקום", "גובה", "פריסה", "כותרת", "גלישה")
 
 // The apparatus configuration for a set of collected channels: whatever the
 // channel declared and whatever the bands were configured with, then the ramps.
@@ -3253,10 +3478,37 @@
   // instance, `a_weak_break_before_a_deferred_section_is_dropped`, and it would
   // have been every sefer with a deferred section and no side notes.
   let any = false
+  // The lowest point any side note reaches, for the continuous mode below.
+  let deepest = 0pt
   for st in _sn_streams {
     let out = _sn_placed(st, none)
     if out.items.len() > 0 { any = true }
-    for p in out.placed { want = calc.max(want, p.page) }
+    for i in range(out.items.len()) {
+      want = calc.max(want, out.placed.at(i).page)
+      deepest = calc.max(deepest, out.placed.at(i).y + out.items.at(i).h)
+    }
+  }
+  // # A continuous page grows for its notes, or they fall off the bottom of it
+  //
+  // `page(height: auto)` makes the sheet exactly as tall as its **flow**, and a
+  // side note is not in the flow: it is painted from the page's foreground and
+  // takes no space at all. So a short body with twenty long notes beside it gave
+  // a page 183.49pt tall with the notes drawn hundreds of points below its own
+  // bottom edge — the paged failure this whole apparatus was rebuilt for,
+  // reappearing in the one mode that is supposed to make it impossible.
+  //
+  // The answer is the same shape as the extra pages: ask the walk how far down
+  // the notes actually reach, and give the flow that much room at the end. It is
+  // hidden and it is last, so it moves nothing in front of it and the answer is
+  // the same on the next pass.
+  if _pg_text_bottom() == none {
+    let here_ = here().position().y
+    if any and deepest > here_ {
+      [#metadata(("tall", deepest))#_sn_tail_label]
+      place(hide[#calc.round(deepest.pt())])
+      v(deepest - here_ + _pg_margin("bottom"))
+    }
+    return
   }
   // The page-foot apparatus carries too, and off the end of the sefer for the
   // same reason: a note assigned to the page after the last one has nowhere to
@@ -3271,7 +3523,7 @@
   let streams = _sf_all()
   if streams.len() > 0 {
     let cfg = _nt_under(_sf_cfg.get())
-    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg)))
+    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg), policy_of: _sf_spill(_ch_st.final())))
     any = true
   }
   if not any { return }
@@ -3708,6 +3960,23 @@
   // and the only answer used to be the nearest A-size and living with it.
   רוחב_עמוד: none,
   גובה_עמוד: none,
+  // רציף — one page, as tall as the sefer is.
+  //
+  // `NOTES-PLAN`'s document-level section: *"a sefer read on a screen — it
+  // deletes this entire problem class, free."* And it does, exactly: **overflow
+  // is impossible by definition** when the page grows. A note that will not fit
+  // is a sentence about a page bottom, and this has none — the side column has
+  // no ceiling to clamp against and nothing to carry to the next page, and the
+  // page-foot apparatus has a reserve that never runs out. `_pg_text_bottom`
+  // already answers `none` for it and the spill walks already read that as *no
+  // bottom*, so the whole of thing four turns itself off rather than being
+  // switched off.
+  //
+  // It is a **document** decision and not a preview one: the same document
+  // printed is the one exported, and a mode that showed a writer a page shape
+  // their PDF does not have would be the preview lying, which is the defect this
+  // repository is named for.
+  רציף: false,
   כותרת_עליונה: none,
   כותרת_תחתונה: none,
   כותרת_זוגי: none,
@@ -3786,7 +4055,15 @@
   // The size, one way or the other. `paper` and `width`/`height` are alternative
   // spellings of one setting in Typst, and passing both is how a document ends
   // up laid out to whichever the compiler happened to prefer.
-  let _size = if רוחב_עמוד != none and גובה_עמוד != none {
+  let _size = if רציף {
+    // The width still comes from somewhere — a continuous sefer is a column of
+    // a stated width, not an infinite plane — so the named paper or the given
+    // width sets it and only the height goes to `auto`.
+    (
+      width: if רוחב_עמוד != none { רוחב_עמוד } else { _pg_paper_width(נייר) },
+      height: auto,
+    )
+  } else if רוחב_עמוד != none and גובה_עמוד != none {
     (width: רוחב_עמוד, height: גובה_עמוד)
   } else {
     (paper: נייר)
@@ -4015,6 +4292,10 @@
   keywords: "מילות_מפתח",
   // typesetting
   prevent_orphans: "מניעת_יתומים",
+  // One page, as tall as the sefer is — the digital output mode, where overflow
+  // is impossible by definition because there is no page bottom for a note to
+  // fall past.
+  continuous: "רציף",
   note_spacing: "ריווח_הערות",
 ))
 

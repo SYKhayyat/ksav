@@ -673,6 +673,49 @@ fn expected_found(raw: &str) -> Option<(Vec<String>, String)> {
 /// loud. Renaming it in `ksav.typ` would mean rewriting the variable through 89
 /// function bodies that also pass `body:` as a *metadata key* read elsewhere;
 /// naming it properly here costs one line and reaches the same reader.
+/// *One specific thing is missing here*, said in both languages.
+///
+/// Typst's parser reports these as `expected <thing>` with nothing after it —
+/// no *found*, no type — and each one names a punctuation mark or a slot the
+/// writer left empty. That is the most useful sentence available and it was
+/// being replaced by *"check brackets, commas, and the command structure"*,
+/// which is advice about brackets given to somebody whose brackets are fine.
+///
+/// The table is short and closed on purpose: a message shaped `expected X` whose
+/// `X` is not here falls through to the generic branch rather than being
+/// half-translated. A wrong specific answer is worse than a vague one.
+fn one_thing_missing(raw: &str) -> Option<String> {
+    let what = raw.strip_prefix("expected ")?;
+    // `expected X, found Y` is a *type* error and is answered further up, with
+    // both halves named. This is only the bare form.
+    if what.contains(',') || what.contains(" found ") {
+        return None;
+    }
+    let (he, en) = match what.trim() {
+        "comma" => (
+            "חסר פסיק בין שני ארגומנטים",
+            "there is a comma missing between two arguments",
+        ),
+        "expression" => (
+            "חסר ערך כאן — שם של ארגומנט, נקודתיים, ואחריהם כלום",
+            "something has no value here — a name and a colon with nothing after them",
+        ),
+        "identifier" => ("חסר שם כאן", "a name is missing here"),
+        "semicolon or line break" => (
+            "חסר סוף לשורה כאן",
+            "this line does not end where it has to",
+        ),
+        "pattern" => ("חסר שם למשתנה כאן", "a name for the value is missing here"),
+        "colon" => ("חסרות נקודתיים", "a colon is missing"),
+        "hashtag" => (
+            "חסרה סולמית לפני שם הפקודה",
+            "the command needs a # in front of its name",
+        ),
+        _ => return None,
+    };
+    Some(format!("{he} · {en}"))
+}
+
 fn hebrew_param(name: &str) -> Option<String> {
     use std::collections::HashMap;
     use std::sync::OnceLock;
@@ -926,6 +969,20 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
         "נתתם לפקודה הזאת יותר ארגומנטים ממה שהיא מקבלת · \
          This command was given more arguments than it takes"
             .to_string()
+    } else if let Some(said) = one_thing_missing(raw) {
+        // Typst says exactly what is missing — `expected comma`,
+        // `expected expression` — and that sentence went into the same generic
+        // *"check brackets, commas"* as every other syntax error.
+        //
+        // Which is the finding, and it is the same shape as its neighbour twenty
+        // lines up: a *misspelt parameter* gets its name back and a *missing
+        // comma* is told to look at its brackets. Measured on four malformed
+        // documents, two distinct Typst messages, one answer for both — and the
+        // brackets were fine in every one of them.
+        //
+        // Advice about the wrong thing is worse than no advice, because the
+        // writer goes and checks the brackets.
+        said
     } else if lower.contains("expected") || lower.contains("unexpected") {
         "התחביר אינו תקין כאן — בדקו סוגריים, פסיקים ומבנה הפקודה · \
          Invalid syntax here — check brackets, commas, and the command structure"

@@ -854,6 +854,7 @@ const HE: Dict = {
   "pdfStandard.none": "רגיל",
   pdfTagged: "תגי נגישות",
   preventOrphans: "מניעת אות יתומה בסוף שורה (ו, ב, ל, ה…)",
+  continuous: "עמוד אחד רציף, בגובה הספר (לקריאה במסך)",
   pdfStandardNote: "בתי דפוס מבקשים PDF/A. אם התקן דוחה את המסמך תופיע שגיאה עם הסיבה.",
   // The page range, once, for the whole Export menu.
   pagesLabel: "עמודים",
@@ -2225,6 +2226,7 @@ const EN: Dict = {
   "pdfStandard.none": "Plain",
   pdfTagged: "Accessibility tags",
   preventOrphans: "Keep a one-letter word off the end of a line (ו, ב, ל, ה…)",
+  continuous: "One continuous page, as tall as the sefer is (for reading on a screen)",
   pdfStandardNote: "Printers ask for PDF/A. If a standard refuses the document you get an error saying why.",
   pagesLabel: "Pages",
   pagesAll: "All",

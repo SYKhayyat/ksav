@@ -207,6 +207,16 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_מספור", "numbering_config", "footnote", "באיזו רמת כותרת המספור מתחיל מחדש (none = ממשיך לאורך כל הספר)", "The heading level a count restarts at (none = one run through the sefer)", "#הגדרות_מספור(אפס_לפי: 1)|"),
     cmd!("התחל_מספור", "restart_numbering", "footnote", "התחל את המספור מכאן מחדש", "Start the count again from here", "#התחל_מספור()|"),
     cmd!("המשך_מספור", "continue_numbering", "footnote", "המשך את המספור דרך האיפוס שמעל", "Carry the count on through the restart above", "#המשך_מספור()|"),
+    // A named series, counted anywhere — and **not** a note feature, which is
+    // why it sits at the end of this group rather than inside it. A writer
+    // numbering a list of opinions, a set of variants or a count of simanim
+    // wants exactly this with no note anywhere; until it existed, the only
+    // renumbering machinery in this engine was inside the footnote apparatus.
+    // The category stays `footnote` because that is where a writer looking for
+    // "numbering" will find its three neighbours, and a category is about the
+    // subject somebody would name rather than about which menu shows it.
+    cmd!("מונה", "count_", "footnote", "המספר הבא בסדרה בשם הזה — סדרה משלכם, בכל מקום", "The next number in this named series — your own count, anywhere", "#מונה(\"|\")"),
+    cmd!("הגדרות_מונה", "counter_config", "footnote", "צורת המספרים של סדרה בשם הזה", "How a named series' numbers are set", "#הגדרות_מונה(\"|\", מספור: \"א\")"),
     // regrouped stacked bands (Gemara / critical-apparatus) — collect then render
     cmd!("מדור_א", "band1", "footnote", "מדור א — בלוק ההערות הראשון (כל דרגה 1)", "Band A — the first note block (all tier-1)", "#מדור_א[|]"),
     cmd!("מדור_ב", "band2", "footnote", "מדור ב — הערות על מדור א", "Band B — notes on band A", "#מדור_ב[|]"),

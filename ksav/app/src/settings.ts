@@ -679,6 +679,11 @@ export const PAGE_FIELDS = [
   "pdf_standard",
   "pdf_tagged",
   "prevent_orphans",
+  // One page, as tall as the sefer is. A property of *the document* and not of
+  // the preview: the same sefer printed is the one exported, and a mode that
+  // showed a writer a page shape their PDF does not have would be the preview
+  // lying about the page — which is the defect this repository is named for.
+  "continuous",
 ] as const;
 
 const KEY = "ksav.settings";

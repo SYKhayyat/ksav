@@ -245,6 +245,111 @@ fn a_configured_slant_reaches_the_page() {
     );
 }
 
+/// Two named series run at once, each with its own shape, and a restart that
+/// names one leaves the other alone.
+///
+/// `NOTES-PLAN` thing five, and the clause that matters is *"not tied to
+/// notes"*: a writer numbering a list of opinions or a set of variants wants
+/// exactly this and has no note anywhere. Until it existed the only renumbering
+/// machinery in this engine was inside the footnote apparatus, which is the same
+/// mistake the whole plan is written to undo — a general capability trapped
+/// inside one of its customers.
+#[test]
+fn two_named_series_count_independently_and_restart_separately() {
+    let runs = render(
+        "#הגדרות_מונה(\"דעות\", מספור: \"א\")\n\
+         דעה #מונה(\"דעות\") ראשונה.\n\n\
+         דעה #מונה(\"דעות\") שניה.\n\n\
+         #הגדרות_מונה(\"נוסחאות\", מספור: \"(1)\")\n\
+         נוסח #מונה(\"נוסחאות\") כאן.\n\n\
+         דעה #מונה(\"דעות\") שלישית.\n\n\
+         #התחל_מספור(שם: \"דעות\")\n\n\
+         דעה #מונה(\"דעות\") שוב. ונוסח #מונה(\"נוסחאות\") שוב.\n",
+    );
+    // Joined in reading order and with the runs' own spacing collapsed: a number
+    // is its own run, so the page arrives as "דעה" "א" "ראשונה" and the words
+    // between them are what the writer typed.
+    let page = runs
+        .iter()
+        .map(|r| r.text.as_str())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    // The Hebrew series counts א ב ג and then starts again at א; the other one
+    // is untouched by that restart and reaches (2).
+    for want in ["דעה א ראשונה", "דעה ב שניה", "דעה ג שלישית"] {
+        assert!(page.contains(want), "{want:?} is not on the page: {page}");
+    }
+    assert!(
+        page.contains("דעה א שוב"),
+        "the named restart did not start the series again: {page}"
+    );
+    assert!(
+        page.contains("ונוסח (2) שוב"),
+        "restarting one series restarted the other as well: {page}"
+    );
+}
+
+/// The writer picks what a full region does, and the three answers are three
+/// different pages.
+///
+/// `NOTES-PLAN` decision 15: spill is the default for every destination **and
+/// the writer can pick**. `גלישה` is therefore an ordered list rather than one
+/// value — the moves are not alternatives, a writer wants *compress, then
+/// spill*, and one value per region would have been the menu of arrangements
+/// decision 10 rules out.
+///
+/// Three are built and only three are accepted. A word that compiles and does
+/// nothing is the defect class `settings_live.rs` exists to catch, so asking for
+/// one of the six that are not built is refused by name rather than ignored.
+#[test]
+fn a_regions_overflow_policy_is_the_writers_to_pick() {
+    let doc = |policy: &str| {
+        let mut body = format!("#אזור(\"מקורות\", מיקום: \"רגל\", גלישה: {policy})\nLN1 טקסט");
+        for i in 1..=20 {
+            body.push_str(&format!("#הערה_זרם(\"מקורות\")[SRC{i} מקור ארוך כאן]"));
+        }
+        body.push('\n');
+        let runs = render(&body);
+        let on_first = runs
+            .iter()
+            .filter(|r| r.page == 1 && r.text.contains("SRC"))
+            .count();
+        let pages = runs.iter().map(|r| r.page).max().unwrap_or(0);
+        (on_first, pages)
+    };
+    let (spill_first, spill_pages) = doc("(\"עמוד_הבא\",)");
+    let (tight_first, tight_pages) = doc("(\"דחיסה\", \"עמוד_הבא\")");
+    let (clip_first, clip_pages) = doc("()");
+
+    assert!(
+        spill_pages > 1,
+        "spilling put all twenty notes on one page, so nothing spilled"
+    );
+    // Compressed, more of them fit — which is the whole of what the move is for.
+    assert!(
+        tight_first > spill_first,
+        "compressing fitted {tight_first} notes on the first page against \
+         {spill_first} without it, so `דחיסה` is not reaching the page"
+    );
+    assert!(
+        tight_pages <= spill_pages,
+        "compressing made the apparatus *longer*: {tight_pages} pages against {spill_pages}"
+    );
+    // And an empty list is a fixed box that stays fixed. It is the behaviour
+    // this apparatus had before spill existed, and it is a real thing to ask
+    // for — so it is a value rather than the absence of one.
+    assert_eq!(
+        clip_pages, 1,
+        "`גלישה: ()` spilled anyway, onto {clip_pages} pages"
+    );
+    assert!(
+        clip_first > tight_first,
+        "`גלישה: ()` moved notes off the page it was told to keep them on"
+    );
+}
+
 /// And the same for the mark register, whose shipped defaults ask for it.
 ///
 /// `#גמרא`, `#פסוק` and `#ציון_מקור` carry `סגנון: \"italic\"` in

@@ -101,6 +101,15 @@ export interface DocConfig {
    */
   prevent_orphans?: boolean;
   /**
+   * One page, as tall as the sefer is — the digital output mode.
+   *
+   * **Overflow is impossible by definition** when the page grows: a note that
+   * will not fit is a sentence about a page bottom, and this has none. Off by
+   * default, because a sefer is a printed object and this is the other thing it
+   * can be.
+   */
+  continuous?: boolean;
+  /**
    * Which pages to export, `1,3,5-9`. A property of one export rather than of
    * the document, so it is set at the moment of exporting and never persisted.
    */

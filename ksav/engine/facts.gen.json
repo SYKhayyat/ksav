@@ -21,6 +21,7 @@
     "pdf_tagged": true,
     "pdf_pages": "",
     "prevent_orphans": false,
+    "continuous": false,
     "dir": "rtl",
     "lang": "",
     "numbering": true,
@@ -631,6 +632,24 @@
       "desc_he": "המשך את המספור דרך האיפוס שמעל",
       "desc_en": "Carry the count on through the restart above",
       "insert": "#המשך_מספור()|",
+      "deprecated": false
+    },
+    {
+      "he": "מונה",
+      "en": "count_",
+      "category": "footnote",
+      "desc_he": "המספר הבא בסדרה בשם הזה — סדרה משלכם, בכל מקום",
+      "desc_en": "The next number in this named series — your own count, anywhere",
+      "insert": "#מונה(\"|\")",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מונה",
+      "en": "counter_config",
+      "category": "footnote",
+      "desc_he": "צורת המספרים של סדרה בשם הזה",
+      "desc_en": "How a named series' numbers are set",
+      "insert": "#הגדרות_מונה(\"|\", מספור: \"א\")",
       "deprecated": false
     },
     {

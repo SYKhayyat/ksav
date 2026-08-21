@@ -42,7 +42,13 @@ fn main() {
         }
         Err(diags) => {
             for d in diags {
+                // Typst's own words alongside the translation. The translation is
+                // what a writer reads and the raw text is what the mapping in
+                // `diagnostics.rs` branches on — so an instrument that prints
+                // only the first cannot tell you why a message came out generic,
+                // which is exactly the question this example gets used for.
                 println!("{}: {}", d.severity, d.message);
+                println!("   raw: {}", d.raw);
             }
         }
     }

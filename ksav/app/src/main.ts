@@ -7740,6 +7740,7 @@ function buildSettingsDrawer(): HTMLElement {
     ]),
     checkRow("pdfTagged", "pdf_tagged"),
     checkRow("preventOrphans", "prevent_orphans"),
+    checkRow("continuous", "continuous"),
     el("div", { class: "set-note" }, [t("pdfStandardNote")]),
     // The affordance per-document setup takes away and has to give back: a
     // writer who has got their sefer looking right wants the next one to start

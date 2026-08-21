@@ -68,6 +68,20 @@ const BROKEN: &[(&str, &str)] = &[
         "#הגדרות_עמוד(גופן: \"NoSuchFontAnywhere\")\nשלום",
     ),
     ("an image that is not attached", "#תמונה(\"nope.png\")"),
+    // The two Typst reports as *one specific thing is missing* — a comma, a
+    // value. Both used to arrive as "check brackets, commas, and the command
+    // structure", which is advice about brackets given to a writer whose
+    // brackets are fine, and it is the same shape as the misspelt-parameter case
+    // twenty lines away in the rephraser: one gets its name back and the other
+    // is sent to look at the wrong thing.
+    (
+        "a comma left out between two arguments",
+        "#אזור(\"שער\", מיקום: \"רגל\" גובה: 3cm)\nשלום",
+    ),
+    (
+        "an argument named and then left empty",
+        "#הערה(ערוץ: )[גוף ההערה]",
+    ),
     ("an unclosed bracket", "#הדגשה[שלום"),
     ("an unclosed paren", "#רשימה(פריט[א],"),
     ("a stray closing bracket", "שלום]"),

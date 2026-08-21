@@ -513,6 +513,12 @@ export async function run() {
       // was reachable only by typing the command.
       ...["בדרגה", "א", "ב", "ג", "ד", "ה"].map((x) => `מדור_${x}`),
       ...["הערת_גיליון", "הערת_ימין", "הערת_שמאל"],
+      // A named series prints a number and the number has a look — `סימן` on
+      // `#הגדרות_מונה`, through the same `_mk_render` every other mark in this
+      // prelude goes through, with a per-instance override on the command
+      // itself. It belongs here and not among the things that print nothing:
+      // `#התחל_מספור` leaves a marker and no ink, and this leaves ink.
+      "מונה",
       ...STYLED_CLASSES,
     ]);
 

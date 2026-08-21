@@ -1517,6 +1517,111 @@
 // Asking for `("מספר",)` *explicitly* is therefore a real request — number only,
 // no label — and different from saying nothing.
 #let _eh_default = ("מספר", "תווית")
+// ---- כתובת · where in the sefer an entry belongs ----
+//
+// A numbered note needs no address: the marker is the address, and the reader
+// finds it by matching a number. A **markerless** apparatus — `ראש` without
+// `"מספר"`, which is what a sefer sets constantly — puts nothing in the body at
+// all, and the entry is found by reading its opening words back into the text
+// by eye. That works while the entry is at the foot of its own page, and it
+// stops working the moment the apparatus moves to the back of the sefer: the
+// reader is on page 340 holding the words «וכל הפוסקים» and there are two
+// hundred pages they might be on.
+//
+// So an entry can carry **where** as well as **what**, and it is four more
+// ingredients in the same `ראש` list the number and the dibbur hamaschil are in,
+// because it is the same question — what stands at the head of this entry.
+//
+//   #ערוץ("ביאורים", מיקום: "סוף", ראש: ("עמוד", "ציטוט"))
+//
+// # It is for the collected apparatuses, and only there
+//
+// Nothing here is offered to a note printed at the foot of its own page. The
+// address of such a note is *this page*, printing it says nothing, and the place
+// the entry is built has no access to the marker's location anyway — a footnote
+// entry lays out at the foot, where `here()` is the foot. The banded and
+// collected renderers carry the note's real place in the sefer with it, which is
+// what makes this possible at all: `org` in `_ap_entries`.
+#let _xa_kinds = ("עמוד", "דף", "סימן", "שורה")
+
+// The daf a page falls on, and which side of it. Two printed pages to a daf,
+// counting from `דף_ראשון` — which is ב and not א, because in a gemara-numbered
+// sefer daf א is the title page and nothing is ever cited from it.
+#let _xa_daf_first = 2
+#let _xa_daf(p, first) = {
+  let n = p - 1
+  (first + calc.div-euclid(n, 2), if calc.rem-euclid(n, 2) == 0 { "א" } else { "ב" })
+}
+
+/// The siman, perek or section an entry sits in: the last heading before it.
+///
+/// Read out of a query and not a counter, like everything else that has to
+/// survive page breaking. `none` when the sefer has no divisions above the
+/// entry, in which case the ingredient prints nothing rather than printing an
+/// empty siman — an address that is blank is worse than no address, because it
+/// looks like an answer.
+#let _xa_section(org) = {
+  let hs = query(heading.where(outlined: true).before(org))
+  if hs.len() == 0 { none } else { hs.last() }
+}
+
+/// One address ingredient, rendered.
+///
+/// `cfg` is the apparatus's own configuration, so the page numbering an address
+/// prints is the one the page itself prints — an entry that says «עמ' 47» about
+/// a page whose corner reads «מז» is an address the reader cannot use.
+#let _xa_part(kind, org, cfg) = {
+  if org == none { return none }
+  let scheme = cfg.at("מספור_כתובת", default: none)
+  if kind == "עמוד" {
+    let p = org.page()
+    let np = if scheme != none { scheme } else {
+      let c = org.page-numbering()
+      if c == none { "1" } else { c }
+    }
+    [עמ' #numbering(np, p)]
+  } else if kind == "דף" {
+    let first = cfg.at("דף_ראשון", default: _xa_daf_first)
+    let (d, amud) = _xa_daf(org.page(), first)
+    [דף #numbering("א", d) ע"#amud]
+  } else if kind == "סימן" {
+    let h = _xa_section(org)
+    if h == none { none } else {
+      // The heading's own body, not a number of our own: a sefer that numbers
+      // its simanim has already said how, and one that titles them without
+      // numbering them has said that too.
+      let n = counter(heading).at(h.location())
+      let sch = h.numbering
+      if sch == none { h.body } else { [#numbering(sch, ..n)] }
+    }
+  } else if kind == "שורה" {
+    // The line number Typst printed in the margin, read back at the marker's
+    // own place. It is the same counter the margin numbers come off, so the two
+    // cannot disagree — and it is worth nothing unless the body prints them,
+    // which is `#מסמך(מספור_שורות: …)` and the writer's own call.
+    let n = counter(par.line).at(org)
+    if n.len() == 0 { none } else { [שורה #numbering("1", n.first())] }
+  }
+}
+
+/// Whatever `ראש` asked for out of the four, in the order it asked.
+#let _eh_addr(cfg, org) = {
+  let want = cfg.at("ראש", default: _eh_default)
+  let want = if type(want) == array { want } else { (want,) }
+  for part in want {
+    if _xa_kinds.contains(part) {
+      let a = _xa_part(part, org, cfg)
+      if a != none {
+        // Set apart from the entry rather than run into it — an address is
+        // apparatus about the apparatus, and a reader scanning for it down the
+        // left of a column should not have to read past the commentary to find
+        // the next one.
+        [#text(fill: luma(80), a) ]
+      }
+    }
+  }
+}
+
 #let _eh_head(cfg, label_, quote) = {
   let want = cfg.at("ראש", default: _eh_default)
   let want = if type(want) == array { want } else { (want,) }
@@ -1849,7 +1954,81 @@
 // between entries, the band labels and the stream order all describe the
 // arrangement, and a single note inside it has no standing to answer them.
 // `מספור` is excluded for the reason given at `_fn_own_keys`. See `_cfg_split`.
-#let _ap_own_keys = ("גודל", "סגנון", "צבע", "משקל")
+// `צף` is not a look and nothing renders it — it is the note telling thing
+// four's move eight *"if something has to move, move me"*. It travels in the
+// same per-entry dictionary as the looks because that dictionary is already
+// carried to the walk that decides, and a second channel for one boolean would
+// be a second thing to keep in step.
+// ---- רשת_בסיס · the baseline grid ----
+//
+// Body at 12pt and commentary at 9pt drift against each other even in perfect
+// per-page register, and that drift is what makes amateur parallel typesetting
+// look wrong: the two columns start level, and by the foot of the page the
+// commentary's fourth line sits between the body's third and fourth. A baseline
+// grid is the fix — every line in the sefer, at every size, advances by the same
+// unit or by a whole multiple of it, so the two columns meet again every line.
+//
+// **Off by default**, because it is a real constraint on the page and a document
+// that never sets two sizes beside each other pays it for nothing.
+//
+// # It is exact, and that is what `top-edge` buys
+//
+// Typst's line advance is `leading` plus the distance from the line's top edge
+// to its bottom edge, and those edges are font metrics — so the advance of a
+// 9pt line in one family is not the advance of a 9pt line in another, and no
+// arithmetic on `leading` alone can land both on a grid. Setting the edges to
+// `0.75em` and `-0.25em` makes the line box exactly `1em` tall whatever the
+// font, and then the advance is exactly `leading + size`. Everything below is
+// that one identity solved for `leading`.
+//
+// The edges are set once, at the document, and only when the grid is on: they
+// are a change to how every line is spaced, and a document that did not ask for
+// a grid should get its font's own metrics.
+#let _bl_grid = state("ksav-baseline", none)
+#let _bl_edges = (top: 0.75em, bottom: -0.25em)
+
+// The smallest fraction of the type size that still reads as leading. Below
+// this the lines touch, so a size too big for one grid step takes two — a 20pt
+// heading on a 14pt grid advances 28pt, and lands back on the grid.
+#let _bl_min = 0.2
+
+/// The leading that puts text of size `s` on a grid of `g`.
+#let _bl_lead(g, s) = {
+  let k = 1
+  while g * k - s < s * _bl_min { k += 1 }
+  g * k - s
+}
+
+/// The grid leading for an apparatus group set at `sc`, or `none` with no grid.
+///
+/// **Resolved by the caller and passed in as a plain length**, and that is not a
+/// style choice. The first version of this was a `context` block wrapped around
+/// the apparatus body — and `measure()` of content with a `context` block inside
+/// it returns almost nothing, so every entry measured about half a line, every
+/// region looked like it fitted, and not one overflow move ever fired. The walk
+/// and the renderer both call this, both from inside a context, and both get a
+/// number.
+#let _ap_lead(cfg, g, sc) = {
+  let grid = _bl_grid.final()
+  if grid == none { none } else {
+    _bl_lead(grid, _ap_pick(cfg, "גודל", g, 0.85em).to-absolute() * sc)
+  }
+}
+
+/// The grid unit a document asked for, checked. `true` means *one line of the
+/// body*, which is what a writer who wants a grid and does not want to choose a
+/// number means; a length is that length; `false`/`none` is off.
+#let _bl_read(v, base) = {
+  if v == none or v == false { return none }
+  if v == true or v == auto { return base * 1.4 }
+  if type(v) == length or type(v) == relative { return v }
+  panic(
+    "מסמך: רשת_בסיס · the baseline grid is a length (רשת_בסיס: 14pt), true for "
+      + "one body line, or false to leave it off — got: " + _as_string(v),
+  )
+}
+
+#let _ap_own_keys = ("גודל", "סגנון", "צבע", "משקל", "צף", "ציטוט")
 #let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
 /// One apparatus's marker, in whatever look the apparatus gave its numbers.
 ///
@@ -1858,18 +2037,30 @@
 /// this prelude, which is the whole reason that function is not private to the
 /// register.
 #let _ap_piece(cfg, body) = _mk_render(cfg.at("סימן", default: (:)), body)
-#let _ap_wrap(cfg, g, body) = text(
-  size: _ap_pick(cfg, "גודל", g, 0.85em),
+/// The apparatus's own text settings, and the two thing-four moves that are
+/// expressed as text settings.
+///
+/// `יחס` is `"הקטנה"` and `כיווץ` is `"כיווץ_אותיות"`. They are arguments here
+/// rather than keys in `cfg` because they are decided **per page** — the same
+/// band is set at 100% on one page and 90% on the next — and `cfg` is the
+/// document's answer, which does not vary by page. `_ap_assign` decides them and
+/// the renderer is handed them, so the two can never drift apart.
+#let _ap_wrap(cfg, g, body, יחס: 1.0, כיווץ: 0pt, ריווח_שורה: none) = text(
+  size: _ap_pick(cfg, "גודל", g, 0.85em) * יחס,
   fill: _ap_pick(cfg, "צבע", g, luma(0)),
   // Weight, per tier or per stream like the other three. It was the one thing a
   // band could not be given and the one a peirush most often wants: a nusachos
   // apparatus set lighter than the commentary above it says which is which
   // faster than a size does, and a size is what the writer had.
   weight: _ap_pick(cfg, "משקל", g, "regular"),
+  tracking: כיווץ,
   // `_ap_styles` ships tier 2 and every tier under it as `"italic"` — so the
   // whole shipped ramp of this apparatus, every band below the first, has been
   // asking for a slant that came back upright.
-  _ks_style(_ap_pick(cfg, "סגנון", g, "normal"), body),
+  {
+    set par(..(if ריווח_שורה != none { (leading: ריווח_שורה) } else { (:) }))
+    _ks_style(_ap_pick(cfg, "סגנון", g, "normal"), body)
+  },
 )
 
 // One banded note. Registers itself in the MAIN FLOW, where writes are legal;
@@ -2054,39 +2245,93 @@
 // `גובה: auto` reads the height off this group's own key, which is what a band
 // and a lone stream want. `none` says the caller is doing the slot itself —
 // a region holding several channels is one slot, not one per channel.
-#let _ap_group(cfg, g, entries, above: none, lead: none, גובה: auto) = {
+//
+// `יחס`, `כיווץ` and `רצף` are thing four's moves as this page decided them, and
+// the caller gets them from `_ap_setting` rather than working them out: the walk
+// that chose which entries land here measured them at exactly these values, and
+// the two disagreeing is how a note ends up in a place the arithmetic did not
+// leave room for.
+#let _ap_group(
+  cfg,
+  g,
+  entries,
+  above: none,
+  lead: none,
+  גובה: auto,
+  יחס: 1.0,
+  כיווץ: 0pt,
+  רצף: false,
+  ריווח_שורה: none,
+) = {
   above
+  // One entry, marker and body, at whatever this page's settings are. Shared by
+  // both arrangements below so that run-in and stacked cannot drift in what an
+  // entry *is* — only in how they are joined.
+  let one(num, body, own, org) = {
+    // One entry's own overrides apply to the entry and to nothing else — the
+    // gap between entries and the column count belong to the band, not to a
+    // note inside it, so they stay read off `cfg`.
+    let ecfg = _cfg_with(cfg, own)
+    _ap_wrap(
+      ecfg,
+      g,
+      {
+        // Say which entry is being re-displayed, and from where, for the
+        // length of its body only. A note inside it reads this instead of
+        // asking where it is standing; a note anywhere else finds `none` and
+        // is numbered exactly as before. See `_ap_origin`.
+        //
+        // **Outside the entry's own content, and that is not cosmetic.** The
+        // first draft put these inside the `[…]`, between the marker and the
+        // body — and a `context` lands a zero-width run there, so the run
+        // immediately before an entry's body stopped being its number. Two
+        // tests in `apparatus.rs` read exactly that adjacency to check that a
+        // band restarts its numbering per section and that parallel streams
+        // count independently, and both failed on correct numbering. The
+        // markup inside the brackets is byte-identical to what it was.
+        context { _ap_origin.update((real: org, at: here())) }
+        // Where this entry belongs and what it is on, before the entry itself.
+        // Both are empty content in an ordinary numbered apparatus, which is
+        // why the bracketed markup below is unchanged in that case — two tests
+        // in `apparatus.rs` read the adjacency of the number run and the body
+        // run, and they are reading it about the same two runs.
+        let head = {
+          _eh_addr(ecfg, org)
+          _eh_head(ecfg, none, ecfg.at("ציטוט", default: none))
+        }
+        if _eh_numbered(ecfg) {
+          [#head#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #body]
+        } else {
+          [#head#body]
+        }
+        _ap_origin.update(none)
+      },
+      יחס: יחס,
+      כיווץ: כיווץ,
+      ריווח_שורה: ריווח_שורה,
+    )
+  }
   let inner = {
     lead
-    for (num, body, own, org) in entries {
-      // One entry's own overrides apply to the entry and to nothing else — the
-      // gap between entries and the column count belong to the band, not to a
-      // note inside it, so they stay read off `cfg`.
-      let ecfg = _cfg_with(cfg, own)
-      block(
-        // Through `_ap_pick`, like every other knob here: the gap is per-group
-        // once a region can ask to be compressed, and read with a bare `.at` it
-        // arrives as the whole dictionary and stops the compile.
-        spacing: _ap_pick(cfg, "ריווח_פריט", g, 0.3em),
-        _ap_wrap(ecfg, g, {
-          // Say which entry is being re-displayed, and from where, for the
-          // length of its body only. A note inside it reads this instead of
-          // asking where it is standing; a note anywhere else finds `none` and
-          // is numbered exactly as before. See `_ap_origin`.
-          //
-          // **Outside the entry's own content, and that is not cosmetic.** The
-          // first draft put these inside the `[…]`, between the marker and the
-          // body — and a `context` lands a zero-width run there, so the run
-          // immediately before an entry's body stopped being its number. Two
-          // tests in `apparatus.rs` read exactly that adjacency to check that a
-          // band restarts its numbering per section and that parallel streams
-          // count independently, and both failed on correct numbering. The
-          // markup inside the brackets is byte-identical to what it was.
-          context { _ap_origin.update((real: org, at: here())) }
-          [#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #body]
-          _ap_origin.update(none)
-        }),
-      )
+    if רצף {
+      // `"רצף"` — thing four's move four. The whole band is one paragraph, so
+      // twelve one-line notes are three lines instead of twelve. The entries are
+      // separated by a space and nothing else: a rule or a bullet between them
+      // would put back most of the height the move exists to save.
+      for (n, (num, body, own, org)) in entries.enumerate() {
+        if n > 0 { h(0.6em) }
+        one(num, body, own, org)
+      }
+    } else {
+      for (num, body, own, org) in entries {
+        block(
+          // Through `_ap_pick`, like every other knob here: the gap is per-group
+          // once a region can ask to be compressed, and read with a bare `.at`
+          // it arrives as the whole dictionary and stops the compile.
+          spacing: _ap_pick(cfg, "ריווח_פריט", g, 0.3em),
+          one(num, body, own, org),
+        )
+      }
     }
   }
   let cols = _ap_pick(cfg, "טורים", g, 1)
@@ -2165,6 +2410,41 @@
 /// read-only footer can see it.
 #let _ap_reserve = state("ksav-ap-reserve", 0pt)
 
+/// How much room a page-foot region actually has.
+///
+/// The declared reserve when there is one, and otherwise the bottom margin,
+/// which is where the footer draws. A region may **declare** any height it likes
+/// — `#אזור("צר", גובה: 2cm)` — and that declaration is a request, not a fact
+/// about the paper: five notes into a 2cm region on a sheet with 42.87pt under
+/// the text block printed the fifth at y=853.90 on an 841.89pt page, which is
+/// off the paper and is the one thing decision 6 forbids. So the declared height
+/// is clamped here, once, and both the walk that decides what fits and the slot
+/// that draws it read the clamped value — the two disagreeing being the defect
+/// this whole section exists to prevent.
+#let _ap_room() = {
+  let r = _ap_reserve.get()
+  if r > 0pt { return r }
+  // No reserve was declared, so the room is whatever is under the footer where
+  // it actually starts — which is **not** the bottom margin. The page number
+  // and its clearance live in that margin too, and on a default sheet the
+  // footer opens 17.4pt below the text block: 42.87pt of margin, 25.47pt of
+  // room. Taking the margin for the room is how five notes declared into a 2cm
+  // region printed the fifth at y=853.90 on an 841.89pt page.
+  //
+  // Read off `here()` because that is the only place the answer is true, and
+  // bounded by the margin so that a call from anywhere else — the page count in
+  // `#מסמך` asks the same question from the body — gets the conservative answer
+  // rather than most of a page. Conservative is the safe direction: it counts
+  // more pages than the footer will use, and a page too many is blank where a
+  // page too few loses a note.
+  let m = _pg_margin("bottom")
+  let under = page.height - here().position().y
+  if under < m { calc.max(0pt, under) } else { m }
+}
+#let _ap_fit_room(h) = if h == none { none } else {
+  calc.min(_ap_fixed_height(h), _ap_room())
+}
+
 // ---- גלישה · what a full region does, as the writer's own list ----
 //
 // `NOTES-PLAN` thing four names ten moves and decision 15 says **the writer can
@@ -2173,34 +2453,102 @@
 // wants *compress, then spill*, and the order is the policy. One value per region
 // would have been the menu of arrangements decision 10 rules out.
 //
-// # Only the moves that are built are accepted
+// # Three of the ten are the invariant and are refused by name
 //
-// Three are: `"דחיסה"` (compress toward the minimum gap), `"עמוד_הבא"` (spill —
-// the default, and the strongest), and the empty list, which is a fixed box that
-// stays fixed and clips. **Clamp is not on the list**, because never printing off
-// the paper is the invariant (decision 6) rather than a choice.
+// Clamp, shift-both-ways and cascade are not choices. Decision 6 says a note is
+// never printed off the paper and never on top of another note, and those three
+// are how that is kept — so they run unconditionally on every region, and a
+// writer who lists one is told so rather than being handed a word that reads
+// like a switch and is not one. `_ap_spill_always` is that message.
 //
-// The other six are named in the plan and are **not** accepted: a word that
-// compiles and does nothing is precisely the defect class `settings_live.rs`
-// exists to catch, and accepting `"הקטנה"` today so that the vocabulary looks
-// complete would put a dead knob into the one part of this prelude that was just
-// swept for them. A writer who asks for one is told which moves exist.
-#let _ap_spill_moves = ("דחיסה", "עמוד_הבא")
+// # The order is read against `עמוד_הבא`
+//
+// Spill is the strongest move and the pivot of the list. Everything written
+// **before** it is a way of making this page's demand smaller, tried in turn
+// until the page fits — so `("הקטנה", "עמוד_הבא")` shrinks rather than spills,
+// and `("עמוד_הבא", "הקטנה")` spills rather than shrinks. Everything written
+// **after** spill is for what spill cannot help: a single entry taller than the
+// whole region, which has nowhere to go and would otherwise be clipped.
+//
+// # The seven that are built
+//
+//   · `"דחיסה"`        compress to the minimum gap — none at all
+//   · `"רצף"`          run the region in: one paragraph, not a block each
+//   · `"הקטנה"`        drop a type size, down the ladder, to a floor
+//   · `"כיווץ_אותיות"` tighten the letterforms
+//   · `"חלוקה"`        redistribute inside a fixed total
+//   · `"צף"`           the notes marked `צף: true` are the ones that move
+//   · `"עמוד_הבא"`     spill to the next page — the default
+//
+// and `()`, the empty list: a fixed box that stays fixed and clips, which is a
+// real thing to want and was the only behaviour available before any of this.
+#let _ap_spill_moves = (
+  "דחיסה", "רצף", "הקטנה", "כיווץ_אותיות", "חלוקה", "צף", "עמוד_הבא",
+)
+#let _ap_spill_always = ("הזזה", "מפל", "הצמדה")
 #let _ap_spill_default = ("עמוד_הבא",)
+
+// How far `"הקטנה"` will go, and in what steps. Read from the region as
+// `הקטנה_מזערית` so a writer who will not go below 90% can say so; the default
+// floor is 80%, which is one clear type size down and no more. The walk stops at
+// the first rung that fits, so a page that needs 3% smaller is set 5% smaller
+// and not 20%.
+#let _ap_shrink_floor = 0.8
+#let _ap_shrink_step = 0.05
+#let _ap_shrink_ladder(floor) = {
+  let out = (1.0,)
+  let s = 1.0
+  while s - _ap_shrink_step >= floor - 0.0001 {
+    s -= _ap_shrink_step
+    out.push(calc.round(s, digits: 4))
+  }
+  out
+}
+// How much `"כיווץ_אותיות"` takes out between the letters. Small on purpose:
+// character-level tightening is the move that is invisible when it works and
+// unreadable when it is overdone, and Hebrew has no ligature slack to spend.
+#let _ap_tracking = -0.015em
 
 /// A `גלישה` value, checked. `auto` is the default policy.
 #let _ap_spill_read(who, v) = {
   if v == auto or v == none { return _ap_spill_default }
   let list = if type(v) == array { v } else { (v,) }
   for m in list {
+    if _ap_spill_always.contains(m) {
+      panic(
+        who + ": " + _as_string(m) + " תמיד פועלת · this move always applies and "
+          + "cannot be listed: clamping, shifting in both directions and "
+          + "cascading are how a note is kept on the paper and off its "
+          + "neighbours, which is an invariant and not a setting.",
+      )
+    }
     if not _ap_spill_moves.contains(m) {
       panic(
         who + ": גלישה לא מוכרת · unknown overflow move: " + _as_string(m)
-          + " (דחיסה · עמוד_הבא · () כדי לא לגלוש כלל)",
+          + " (" + _ap_spill_moves.join(" · ") + " · () כדי לא לגלוש כלל)",
       )
     }
   }
   list
+}
+
+/// The moves that shrink this page's demand, in the order they were written.
+#let _ap_before_spill(moves) = {
+  let i = moves.position(m => m == "עמוד_הבא")
+  if i == none { moves } else { moves.slice(0, i) }
+}
+/// The moves kept back for what spill cannot help — an entry taller than the
+/// region it is in, which has no next page to go to that would be any roomier.
+#let _ap_after_spill(moves) = {
+  let i = moves.position(m => m == "עמוד_הבא")
+  if i == none { () } else { moves.slice(i + 1) }
+}
+
+/// Whether this note said it may float — `#הערה(צף: true)`, thing four's move
+/// eight. It does not make the note move; it makes it the one that moves.
+#let _ap_floats(e) = {
+  let v = e.value.at("own", default: (:)).at("צף", default: false)
+  _val(v) == true
 }
 
 /// The width one entry of a page-foot apparatus is set at.
@@ -2214,69 +2562,292 @@
   if type(cols) == int and cols > 1 { w / cols } else { w }
 }
 
-/// Which page each note of a page-foot apparatus is printed on, in document
-/// order.
+/// One entry, as tall as it is at this scale and this tracking.
+///
+/// Measured with a stand-in marker rather than the real number. The height of an
+/// entry at a given width does not depend on whether its marker reads 1 or 17;
+/// the *width* would, and nothing here asks about width.
+#let _ap_entry_height(all, j, cfg, g, sc, tr) = measure(box(
+  width: _ap_page_width(cfg, g),
+  _ap_wrap(
+    cfg, g, [#super[1] #all.at(j).value.body],
+    יחס: sc, כיווץ: tr, ריווח_שורה: _ap_lead(cfg, g, sc),
+  ),
+)).height
+
+/// What a run of entries asks for, at this scale, tracking and gap.
+///
+/// `runin` is `"רצף"`: the entries are one paragraph, so the run is measured
+/// whole rather than summed — which is the entire saving, since a band of twelve
+/// one-line notes run in is three lines and not twelve.
+#let _ap_demand(all, idxs, cfg, g, sc, tr, gap, runin) = {
+  if idxs.len() == 0 { return 0pt }
+  if runin {
+    measure(box(
+      width: _ap_page_width(cfg, g),
+      _ap_wrap(
+        cfg,
+        g,
+        {
+          for (n, j) in idxs.enumerate() {
+            if n > 0 { h(0.6em) }
+            [#super[1] #all.at(j).value.body]
+          }
+        },
+        יחס: sc,
+        כיווץ: tr,
+        ריווח_שורה: _ap_lead(cfg, g, sc),
+      ),
+    )).height
+  } else {
+    let t = 0pt
+    for j in idxs { t += _ap_entry_height(all, j, cfg, g, sc, tr) + gap }
+    t
+  }
+}
+
+/// `"חלוקה"` — redistribute inside a fixed total.
+///
+/// Thing four's move nine, and the one with the property nothing else here has:
+/// **the total never changes, so nothing above it moves.** Two bands sharing 6cm
+/// get 4 and 2 rather than 3 and 3, and the page is the same page. Only
+/// meaningful when every group on the page has a declared slot — with no
+/// declared total there is nothing to hold constant, and the shared reserve is
+/// already elastic.
+///
+/// A group that wants less than its proportional share keeps what it wants, and
+/// the surplus goes to the ones that wanted more. One pass settles it, because
+/// after the modest groups are paid the rest are all hungry by construction.
+#let _ap_redistribute(caps, wants, order) = {
+  let total = 0pt
+  let need = 0pt
+  for k in order {
+    total += caps.at(k)
+    need += wants.at(k)
+  }
+  if need <= 0pt or total <= 0pt { return caps }
+  let out = (:)
+  let left = total
+  let hungry = ()
+  for k in order {
+    let share = total * (wants.at(k) / need)
+    if wants.at(k) <= share {
+      out.insert(k, wants.at(k))
+      left -= wants.at(k)
+    } else {
+      hungry.push(k)
+    }
+  }
+  let hneed = 0pt
+  for k in hungry { hneed += wants.at(k) }
+  for k in hungry {
+    out.insert(k, if hneed > 0pt { left * (wants.at(k) / hneed) } else { 0pt })
+  }
+  out
+}
+
+/// One page's worth: which of `cands` print here, how they are set, and what
+/// carries to the next page.
+///
+/// The scale and the tracking are decided **per group per page and not per
+/// note**, and that is deliberate: two entries in one band set at two sizes for
+/// a reason the reader cannot see is worse than a band that is uniformly a
+/// little smaller. It is the same argument the `דחיסה` gap is settled by.
+#let _ap_fill(all, cands, cfg, cap_of, policy_of) = {
+  let order = ()
+  let by = (:)
+  let gof = (:)
+  for j in cands {
+    let g = all.at(j).value.group
+    let k = str(g)
+    if not order.contains(k) {
+      order.push(k)
+      by.insert(k, ())
+      gof.insert(k, g)
+    }
+    by.insert(k, by.at(k) + (j,))
+  }
+  let gaps = (:)
+  let runins = (:)
+  let caps = (:)
+  let wants = (:)
+  for k in order {
+    let g = gof.at(k)
+    let moves = policy_of(g)
+    gaps.insert(
+      k,
+      if moves.contains("דחיסה") {
+        0pt
+      } else {
+        _ap_pick(cfg, "ריווח_פריט", g, 0.3em).to-absolute()
+      },
+    )
+    runins.insert(k, moves.contains("רצף"))
+    caps.insert(k, cap_of(g))
+    wants.insert(
+      k,
+      _ap_demand(all, by.at(k), cfg, g, 1.0, 0pt, gaps.at(k), runins.at(k)),
+    )
+  }
+  // Redistribution is a property of the page, not of one band: it only means
+  // anything when several groups share a declared total, so it is asked of the
+  // page and answered once.
+  let redis = order.len() > 1 and order.any(k => policy_of(gof.at(k)).contains("חלוקה"))
+  let fixed = order.all(k => {
+    let c = caps.at(k)
+    c != none and c > 0pt
+  })
+  if redis and fixed { caps = _ap_redistribute(caps, wants, order) }
+
+  let placed = ()
+  let over = ()
+  let scales = (:)
+  let tracks = (:)
+  for k in order {
+    let g = gof.at(k)
+    let moves = policy_of(g)
+    let pre = _ap_before_spill(moves)
+    let post = _ap_after_spill(moves)
+    let can_spill = moves.contains("עמוד_הבא")
+    let cap = caps.at(k)
+    let gap = gaps.at(k)
+    let runin = runins.at(k)
+    let idxs = by.at(k)
+    // `"צף"` — the notes that may float are placed after the ones that may not,
+    // so when something has to go to the next page it is one of them. Their
+    // numbers are unchanged: an apparatus is numbered by rank in the document,
+    // never by order on the page, which is exactly what lets a float float.
+    if moves.contains("צף") {
+      idxs = (
+        idxs.filter(j => not _ap_floats(all.at(j)))
+          + idxs.filter(j => _ap_floats(all.at(j)))
+      )
+    }
+    let floor = _ap_pick(cfg, "הקטנה_מזערית", g, _ap_shrink_floor)
+    let ladder = _ap_shrink_ladder(if type(floor) == ratio { floor / 100% } else { floor })
+    let sc = 1.0
+    let tr = 0pt
+    let bounded = cap != none and cap > 0pt
+    if bounded {
+      let fits(s, t) = _ap_demand(all, idxs, cfg, g, s, t, gap, runin) <= cap
+      let apply(list, s0, t0) = {
+        let s = s0
+        let t = t0
+        for m in list {
+          if fits(s, t) { break }
+          if m == "הקטנה" {
+            for rung in ladder {
+              s = rung
+              if fits(s, t) { break }
+            }
+          } else if m == "כיווץ_אותיות" {
+            t = _ap_tracking
+          }
+        }
+        (s, t)
+      }
+      let (s1, t1) = apply(pre, sc, tr)
+      sc = s1
+      tr = t1
+      // What spill cannot help: the first entry alone is taller than the region,
+      // so moving it to the next page moves it to a region exactly as small.
+      // Only then are the moves written after `עמוד_הבא` worth spending.
+      let lone = (
+        idxs.len() > 0
+          and _ap_demand(all, (idxs.first(),), cfg, g, sc, tr, gap, runin) > cap
+      )
+      if lone and post.len() > 0 {
+        let (s2, t2) = apply(post, sc, tr)
+        sc = s2
+        tr = t2
+      }
+    }
+    scales.insert(k, sc)
+    tracks.insert(k, tr)
+    // Now place. The first entry of a group always goes on the page, however
+    // tall it is: placed and clipped a reader can see, whereas carried for ever
+    // is a note that was written and never printed, which they cannot.
+    let u = 0pt
+    let mine = ()
+    let rest = ()
+    for j in idxs {
+      if rest.len() > 0 {
+        rest.push(j)
+        continue
+      }
+      let hh = if runin {
+        _ap_demand(all, mine + (j,), cfg, g, sc, tr, gap, true)
+      } else {
+        u + _ap_entry_height(all, j, cfg, g, sc, tr) + gap
+      }
+      if bounded and mine.len() > 0 and hh > cap and can_spill {
+        rest.push(j)
+      } else {
+        mine.push(j)
+        u = hh
+      }
+    }
+    placed += mine
+    over += rest
+  }
+  (placed: placed, over: over, scales: scales, tracks: tracks)
+}
+
+/// Where each note of a page-foot apparatus prints, and how it is set.
+///
+/// One dictionary per note of `all`, in document order: `(page, scale, tracking,
+/// runin)`. The renderer reads the same values back, because the walk and the
+/// drawing disagreeing is the one real limit `NOTES-PLAN` names — two notes
+/// computing their positions from different answers to the same question.
 ///
 /// `cap_of` answers *how much room this group has*: its own slot when the
 /// apparatus declares fixed band heights, and otherwise the whole reserve, which
 /// the groups then share in the order they are written.
 ///
-/// A note never moves **backwards** — its marker is on its own page and the
-/// reader has to be able to find it from there — so the page cursor only ever
-/// advances, and a note anchored further on resets it.
+/// # Page-major, and that is what the moves needed
+///
+/// The first version of this walked the notes and carried a page cursor, which
+/// is enough for spill and enough for nothing else: shrinking a band is a
+/// decision about *a page*, and it cannot be taken one note at a time by a loop
+/// that does not yet know which notes the page will hold. So the walk is over
+/// pages — each takes the notes anchored on it plus whatever the page before
+/// carried, decides how it is set, keeps what fits and hands on the rest.
+///
+/// A note never moves **backwards**: its marker is on its own page and the
+/// reader has to be able to find it from there, so the carry only ever goes
+/// forward and a note anchored further on never pulls one back.
 #let _ap_assign(all, cfg, cap_of, policy_of: g => _ap_spill_default) = {
+  let n = all.len()
+  if n == 0 { return () }
   let out = ()
-  let page_ = 0
-  let used = (:)
-  for e in all {
-    let g = e.value.group
-    let key = str(g)
-    let moves = policy_of(g)
-    // Measured with a stand-in marker rather than the real number. The height of
-    // an entry at a given width does not depend on whether its marker reads 1 or
-    // 17; the *width* would, and nothing here asks about width.
-    let bare = measure(box(
-      width: _ap_page_width(cfg, g),
-      _ap_wrap(cfg, g, [#super[1] #e.value.body]),
-    )).height
-    // **Compress**: `דחיסה` is *"compress toward the minimum gap"*, and the
-    // minimum is none at all. Applied to the whole region rather than reactively
-    // to the entries that happen not to fit — which was the first shape and is
-    // the wrong one, because it gives two pages of the same sefer different
-    // spacing for a reason no reader can see. A writer who says a region is
-    // tight has said something about the region.
-    let gap = if moves.contains("דחיסה") {
-      0pt
-    } else {
-      _ap_pick(cfg, "ריווח_פריט", g, 0.3em).to-absolute()
+  for _ in range(n) {
+    out.push((page: 0, scale: 1.0, tracking: 0pt, runin: false))
+  }
+  let i = 0
+  let carry = ()
+  let pg = 0
+  while i < n or carry.len() > 0 {
+    // With nothing carried, the next page with any work on it is the next page
+    // anything is anchored to — a sefer with notes on pages 3 and 40 does not
+    // walk the thirty-six pages in between.
+    if carry.len() == 0 { pg = calc.max(pg, all.at(i).location().page()) }
+    let cands = carry
+    while i < n and all.at(i).location().page() <= pg {
+      cands.push(i)
+      i += 1
     }
-    let h = bare + gap
-    let p = e.location().page()
-    if p > page_ {
-      page_ = p
-      used = (:)
+    let f = _ap_fill(all, cands, cfg, cap_of, policy_of)
+    for j in f.placed {
+      let k = str(all.at(j).value.group)
+      out.at(j) = (
+        page: pg,
+        scale: f.scales.at(k),
+        tracking: f.tracks.at(k),
+        runin: policy_of(all.at(j).value.group).contains("רצף"),
+      )
     }
-    let cap = cap_of(g)
-    let u = used.at(key, default: 0pt)
-    let full = cap != none and cap > 0pt and u > 0pt and u + h > cap
-    if full {
-      // **Spill.** The default, and decision 15's *strongest move*. Without it a
-      // full region simply clips, which is what `גלישה: ()` asks for — a fixed
-      // box that stays fixed, which is a real thing to want and was the only
-      // behaviour available before any of this.
-      //
-      // `u > 0pt` above is what keeps a note taller than the whole region from
-      // being carried for ever. It is placed and clipped, which a reader can
-      // see; carried it would be a note that was written and never printed,
-      // which they cannot.
-      if moves.contains("עמוד_הבא") {
-        page_ += 1
-        used = (:)
-        u = 0pt
-      }
-    }
-    out.push(page_)
-    used.insert(key, u + h)
+    carry = f.over
+    pg += 1
   }
   out
 }
@@ -2286,20 +2857,51 @@
 /// That one word is the whole of thing four for the footer. The footer used to
 /// render the notes whose markers are on this page, so a page with more notes
 /// than room lost the difference.
+///
+/// Returns the entries **and how this page sets them** — the scale, the tracking
+/// and whether the region runs in — because those are decided by the same walk
+/// that decided which page they are on, and handing back only the entries is how
+/// a renderer ends up drawing at a size the arithmetic never left room for.
 #let _ap_on_page(all, cfg, cap_of, pg, policy_of: g => _ap_spill_default) = {
   let where = _ap_assign(all, cfg, cap_of, policy_of: policy_of)
   let mine = ()
+  let scales = (:)
+  let tracks = (:)
+  let runins = (:)
   for i in range(all.len()) {
-    if where.at(i) == pg { mine.push(all.at(i)) }
+    let d = where.at(i)
+    if d.page == pg {
+      mine.push(all.at(i))
+      let k = str(all.at(i).value.group)
+      scales.insert(k, d.scale)
+      tracks.insert(k, d.tracking)
+      runins.insert(k, d.runin)
+    }
   }
-  mine
+  (entries: mine, scales: scales, tracks: tracks, runins: runins)
 }
 
 /// The last page any of an apparatus's notes was assigned to.
 #let _ap_last_page(all, cfg, cap_of, policy_of: g => _ap_spill_default) = {
   let last = 0
-  for p in _ap_assign(all, cfg, cap_of, policy_of: policy_of) { last = calc.max(last, p) }
+  for d in _ap_assign(all, cfg, cap_of, policy_of: policy_of) {
+    last = calc.max(last, d.page)
+  }
   last
+}
+
+/// How one group is set on one page, out of what `_ap_on_page` handed back.
+/// `1.0`, no tracking and no run-in for a group that has nothing here, which is
+/// what a caller drawing an empty fixed slot needs.
+#let _ap_setting(on, cfg, g) = {
+  let k = str(g)
+  let sc = on.scales.at(k, default: 1.0)
+  (
+    יחס: sc,
+    כיווץ: on.tracks.at(k, default: 0pt),
+    רצף: on.runins.at(k, default: false),
+    ריווח_שורה: _ap_lead(cfg, g, sc),
+  )
 }
 
 // ============================================================
@@ -2467,7 +3069,7 @@
 // lone channel that made it, else whatever the apparatus's own table says.
 #let _ch_region_height(cfg, t, rg, chans) = {
   let own = _rg_rec(t, rg).at("גובה", default: none)
-  if own != none { return own }
+  if own != none { return _ap_fit_room(own) }
   for c in chans {
     let h = _ch_rec(t, c).at("גובה", default: none)
     if h != none { return h }
@@ -2747,7 +3349,7 @@
 /// then share in the order they are written.
 #let _pp_cap(cfg) = g => {
   let own = _ap_pick(cfg, "גבהים", g, none)
-  if own != none { _ap_fixed_height(own) } else { _ap_reserve.get() }
+  if own != none { _ap_fit_room(own) } else { _ap_room() }
 }
 
 #let _pp_page_bands() = context {
@@ -2759,7 +3361,8 @@
     // one word is thing four for the page-foot apparatus: a page with more notes
     // than the reserve holds used to lose the difference into the clip, nine
     // deep. See `_ap_assign`.
-    let mine = _ap_on_page(all, cfg, _pp_cap(cfg), pg)
+    let on = _ap_on_page(all, cfg, _pp_cap(cfg), pg)
+    let mine = on.entries
     if mine.len() > 0 {
       // With fixed band heights, EVERY configured band shows on every page that
       // has any apparatus at all — an empty band keeps its slot empty rather than
@@ -2771,12 +3374,18 @@
       } else {
         mine.map(e => e.value.group).dedup().sorted()
       }
+      // A band that holds its place keeps its slot on every apparatus page; one
+      // that does not is simply absent from pages it has nothing on, and the
+      // bands under it move up. See the same key on a region below.
+      let tiers = tiers.filter(t => (
+        _ap_pick(cfg, "שומר_מקום", t, true) == true or mine.any(e => e.value.group == t)
+      ))
       set align(if text.dir == rtl { right } else { left })
       block(width: 100%, _ap_bands(
         cfg,
         tiers,
         // Shows this page's notes; numbers them against the whole document.
-        t => _ap_group(cfg, t, _ap_entries(mine, all, t)),
+        t => _ap_group(cfg, t, _ap_entries(mine, all, t), .._ap_setting(on, cfg, t)),
       ))
     }
   }
@@ -2879,11 +3488,12 @@
 //
 // A stream title spans the stream's columns, so it goes `above` them rather than
 // leading the first one.
-#let _sf_stream_block(cfg, s, mine, all) = _ap_group(
+#let _sf_stream_block(cfg, s, mine, all, on) = _ap_group(
   cfg,
   s,
   _ap_entries(mine, all, s),
   גובה: none,
+  .._ap_setting(on, cfg, s),
   above: {
     let head = cfg.at("כותרות", default: (:)).at(s, default: none)
     if head != none {
@@ -2902,9 +3512,19 @@
 /// How much room each stream has — its declared slot, or the shared reserve.
 /// The streams' heights are a dictionary keyed by stream name where the bands'
 /// are an array per tier, which is what `_ap_pick` is for.
-#let _sf_cap(cfg) = g => {
-  let own = _ap_pick(cfg, "גבהים", g, none)
-  if own != none { _ap_fixed_height(own) } else { _ap_reserve.get() }
+#let _sf_cap(cfg, t) = g => {
+  // The region this stream sits in may have declared a height of its own, and
+  // that height is the room the stream has — which is what `גלישה` has to be
+  // measured against. Before this it was read only for *drawing* the slot, so a
+  // region with a declared height overflowed it in silence: the slot clipped
+  // what it was handed, and the walk deciding what to hand it was still working
+  // from the whole page reserve. Five notes into a 2cm region printed the fifth
+  // at y=853.90 on an 841.89pt sheet — off the paper, which is the one thing
+  // decision 6 says may never happen.
+  let rg = _ch_region(t, g)
+  let own = _rg_rec(t, rg).at("גובה", default: none)
+  let own = if own != none { own } else { _ap_pick(cfg, "גבהים", g, none) }
+  if own != none { _ap_fit_room(own) } else { _ap_room() }
 }
 
 /// What a stream's region does when it is full.
@@ -2931,7 +3551,8 @@
     // first reading is deliberately the cheap one, since it only needs the
     // per-stream sizes and column counts that decide how tall an entry is.
     let base = _nt_under(_sf_cfg.get())
-    let mine = _ap_on_page(all, base, _sf_cap(base), pg, policy_of: _sf_spill(t))
+    let on = _ap_on_page(all, base, _sf_cap(base, t), pg, policy_of: _sf_spill(t))
+    let mine = on.entries
     if mine.len() > 0 {
       let present = mine.map(e => e.value.group).dedup()
       // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
@@ -2975,13 +3596,29 @@
         m.push(s)
         members.insert(rg, m)
       }
+      // `שומר_מקום` — whether a region keeps its slot on a page where it has
+      // nothing in it. `true`, the default, is fixed geometry: the region below it
+      // never moves, which is the entire reason a writer declares heights.
+      // `false` lets whatever is under it rise into the space.
+      //
+      // It is decided **here** and not inside `_ap_slot`, and that is the whole
+      // difference between this and the version that was written and reverted:
+      // collapsing the block *inside* the slot frees room nothing else can reach,
+      // because the room a page-foot region occupies is taken off the bottom
+      // margin before any of this runs. Dropping the region out of the list is
+      // what moves the page.
+      let regions = regions.filter(rg => {
+        let own = _rg_rec(t, rg).at("שומר_מקום", default: auto)
+        let holds = if own == auto { true } else { _val(own) == true }
+        holds or members.at(rg).any(s => mine.any(e => e.value.group == s))
+      })
       set align(if text.dir == rtl { right } else { left })
       block(width: 100%, _ap_bands(
         cfg,
         regions,
         rg => {
           let chans = members.at(rg)
-          let one(s) = _sf_stream_block(cfg, s, mine, all)
+          let one(s) = _sf_stream_block(cfg, s, mine, all, on)
           _ap_slot(_ch_region_height(cfg, t, rg, chans), if chans.len() == 1 {
             one(chans.first())
           } else if _ch_region_side(t, rg) {
@@ -3023,7 +3660,10 @@
 // ============================================================
 #let _ch_own = (
   "מקור", "מיקום", "אזור", "גובה", "גלישה",
-  "מספור", "גודל", "סגנון", "צבע", "טורים", "כותרת",
+  "מספור", "גודל", "סגנון", "צבע", "טורים", "כותרת", "הקטנה_מזערית",
+  // What stands at the head of an entry — the number, the dibbur hamaschil and
+  // the four addresses — plus how an address is set. See `_eh_addr`.
+  "ראש", "ציטוט", "מספור_כתובת", "דף_ראשון", "שומר_מקום",
 )
 // `גלישה` — what this region does when it is full. On the region and not only on
 // the channel, because it is a property of *the space*: two channels sharing one
@@ -3031,7 +3671,10 @@
 // notes computing their positions from different answers to the same question,
 // which `NOTES-PLAN` names as the one real limit. A channel with a region of its
 // own — the common case — sets it either way and means the same thing.
-#let _rg_own = ("מיקום", "גובה", "פריסה", "כותרת", "גלישה")
+#let _rg_own = (
+  "מיקום", "גובה", "פריסה", "כותרת", "גלישה", "הקטנה_מזערית", "שומר_מקום",
+  "ראש", "מספור_כתובת", "דף_ראשון",
+)
 
 // The apparatus configuration for a set of collected channels: whatever the
 // channel declared and whatever the bands were configured with, then the ramps.
@@ -3062,6 +3705,7 @@
   let name = _as_string(שם).trim()
   let (own, rest) = _cfg_split(opts.named(), _ch_own)
   _cfg_strict("ערוץ", rest)
+  if "גלישה" in own { let _ = _ap_spill_read("ערוץ", own.at("גלישה")) }
   // Said here rather than at the note, where a misspelled placement would
   // silently become a page-foot region and the writer would be looking at the
   // wrong end of the sefer for their notes.
@@ -3089,6 +3733,12 @@
   let name = _as_string(שם).trim()
   let (own, rest) = _cfg_split(opts.named(), _rg_own)
   _cfg_strict("אזור", rest)
+  // Read here purely to be checked. `_sf_spill` reads it again where it is
+  // used, and that reading is the one that counts — but it only happens for a
+  // region something was actually filed into, so a misspelled move in a region
+  // nobody wrote a note in compiled clean and did nothing at all. A writer is
+  // told about a word they got wrong at the line they wrote it on.
+  if "גלישה" in own { let _ = _ap_spill_read("אזור", own.at("גלישה")) }
   if "מיקום" in own and not _ch_places.contains(_val(own.מיקום)) {
     panic(
       "אזור: מיקום לא מוכר · unknown placement: " + _as_string(own.מיקום)
@@ -3656,7 +4306,7 @@
   let streams = _sf_all()
   if streams.len() > 0 {
     let cfg = _nt_under(_sf_cfg.get())
-    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg), policy_of: _sf_spill(_ch_st.final())))
+    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg, _ch_st.final()), policy_of: _sf_spill(_ch_st.final())))
     any = true
   }
   if not any { return }
@@ -4109,6 +4759,14 @@
   // printed is the one exported, and a mode that showed a writer a page shape
   // their PDF does not have would be the preview lying, which is the defect this
   // repository is named for.
+  // A baseline grid: every line in the sefer advances by this unit or by a
+  // whole multiple of it, so a commentary set smaller than the body still meets
+  // it line for line. Off unless asked for — see `_bl_grid`.
+  // Line numbers down the margin, every n-th line. Off by default; a שורה
+  // address in an apparatus is worth nothing without them, and they are the one
+  // addressing scheme that puts anything on the body page.
+  מספור_שורות: false,
+  רשת_בסיס: false,
   רציף: false,
   כותרת_עליונה: none,
   כותרת_תחתונה: none,
@@ -4184,7 +4842,19 @@
       keywords: מילות_מפתח,
     )
   }
+  // The grid, decided once and read by every size in the sefer. `set` inside an
+  // `if` does nothing in Typst — a trap this file documents twice — so both of
+  // these go through the spread idiom.
+  let _grid = _bl_read(רשת_בסיס, גודל)
+  _bl_grid.update(_grid)
   set text(font: גופן, size: גודל, lang: שפה, dir: כיוון)
+  set text(..(if _grid != none { (top-edge: _bl_edges.top, bottom-edge: _bl_edges.bottom) } else { (:) }))
+  // Every n-th line numbered, in the margin. `true` means every fifth, which is
+  // what a critical edition sets; a number means every n-th.
+  let _ln = if מספור_שורות == true { 5 } else if type(מספור_שורות) == int { מספור_שורות } else { none }
+  set par.line(..(if _ln != none {
+    (numbering: n => if calc.rem(n, _ln) == 0 { text(size: 0.7em, fill: luma(100), str(n)) })
+  } else { (:) }))
   // The size, one way or the other. `paper` and `width`/`height` are alternative
   // spellings of one setting in Typst, and passing both is how a document ends
   // up laid out to whichever the compiler happened to prefer.
@@ -4323,7 +4993,7 @@
   // difference. `_doc_align` returns `none` for the boolean forms, so a document
   // that says `true` or `false` lays out byte-identically to before.
   let _al = _doc_align(יישור)
-  set par(justify: יישור == true, leading: ריווח_שורות, spacing: ריווח_פסקאות, first-line-indent: הזחה_ראשונה)
+  set par(justify: יישור == true, leading: if _grid != none { _bl_lead(_grid, גודל) } else { ריווח_שורות }, spacing: if _grid != none { _grid } else { ריווח_פסקאות }, first-line-indent: הזחה_ראשונה)
   // Unconditional, and `start` — Typst's own default — when no edge was named.
   // Written as `if _al != none { set align(_al) }` it does nothing at all: a
   // `set` is scoped to the block it appears in, so the rule governed the two
@@ -4429,6 +5099,12 @@
   // is impossible by definition because there is no page bottom for a note to
   // fall past.
   continuous: "רציף",
+  // Every line advances by one grid unit or by a whole multiple of it, so a
+  // commentary set smaller than the body still meets it line for line.
+  baseline_grid: "רשת_בסיס",
+  // Line numbers down the margin — and what a שורה address in an apparatus is
+  // read off. See `_eh_addr`.
+  line_numbers: "מספור_שורות",
   note_spacing: "ריווח_הערות",
 ))
 

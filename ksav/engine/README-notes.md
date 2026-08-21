@@ -1,8 +1,12 @@
-# The note apparatus — eleven options, and how to check them
+# The note apparatus, and how to check it
 
-`spec.md` (repo root) is the product-level description of the eleven note layouts
-Ksav supports. This file is the engineering companion: how they are built, what
-each one costs, and how to verify one is actually working.
+`spec.md` (repo root) is the product-level description of the arrangements Ksav
+supports, and `NOTES-PLAN.md` beside it is the model they are built on. This file
+is the engineering companion: how they are built, what each one costs, and how to
+verify one is actually working.
+
+*(This page opened with a count of options until the count stopped being a
+property of anything. `spec.md` says why.)*
 
 ## Verify by rendering, never by compiling
 
@@ -38,9 +42,11 @@ layers somewhere that is not the live page foot.
 There is no way around this and no plan to find one — see the closing note in
 `spec.md`.
 
-## The three mechanisms
+## The four mechanisms
 
-Each option is built on one of three mechanisms.
+Each arrangement is built on one of four mechanisms. The fourth — **channels** —
+is the one the rest are now reached *through*, and it was missing from this page
+entirely.
 
 **1. Native footnotes.** `הערה`, `הערה_על_הערה`, and the tiered `הערה_א…ז`. Typst
 does the placement and balancing. Nesting works because Typst hoists a footnote
@@ -122,6 +128,59 @@ off the bottom margin, and `_ap_fixed_height` in `ksav.typ` resolves the same
 ratio against `page.height`. Handed to `block(height:)` raw a ratio would resolve
 against the reserve block the bands already sit in — a fraction of a fraction,
 and shrinking further the more page the writer asks for.
+
+**4. Channels — the model over the other three.** A channel is a note stream: it
+owns its numbering, and only notes in the same channel number together. Two
+things describe one — **a source** (the body text, or another channel, which is
+what makes a note-on-a-note) and **a placement**. Which of the three collectors
+above a channel lands in is a *consequence* of its placement rather than a fourth
+thing to choose, which is the whole point: a writer moves three hundred haaros
+from the foot of the page to the back of the sefer by changing one line, and not
+one of the three hundred notes is touched.
+
+The placements are the closed set a note picks from — the page foot, the end of
+the section, the back of the sefer, the side column, a companion volume — plus a
+**named region**, which is what recovers two separately-numbered apparatuses in
+the same place. Mekoros in one block at the back and haaros in another are both
+*"the end"*, and as one choice you get one of them.
+
+`#ערוץ` declares one and `#אזור` declares a region; both are read with `.final()`,
+so the line may sit anywhere in the file and still govern page one. That is not
+a convenience — it is the capability the eighteen commands this replaced could
+not offer, and `tests/chooser.rs` asserts it by rendering each layout twice, once
+with its configuration line moved to the end, and requiring the two to match.
+
+## Overflow, and why the region is allowed to be full
+
+A fixed region has a bottom, and until spill existed everything past it was lost:
+`boxover.ksav` put twenty notes into a page-foot region and printed **nine**, the
+rest on top of each other and the last of them past the page number.
+
+The footer now renders the notes **assigned** to a page rather than the ones
+registered on it. One forward walk in document order, read-only, against the
+region's declared height; anything that will not fit goes to the next page, and
+`#מסמך` appends pages at the end for whatever runs off the last one.
+
+**It converges, and the reason is worth knowing**, because three independent
+systems fail at exactly this point — Typst's own footnote spill had an
+infinite-loop bug, SILE's parallel package hangs when one side overruns, and
+talmudifier pays five minutes a page. Every one of them fails because the region
+*grows*: a taller band means less text, a different break, different notes, a
+different height. **This region does not grow.** Its height is declared, so
+moving a note between pages never changes the text area and never moves a page
+break.
+
+The side column is the same walk in page coordinates, drawn from the page's own
+**foreground** rather than by the paragraph the note was written in — which is
+also why a sidenote no longer breaks that paragraph. See
+[A note cannot place itself](../../decisions/2026-08-20-a-note-cannot-place-itself.md).
+
+`גלישה` is the writer's, as an ordered list of moves rather than one value,
+because they compose: *compress, then spill*. Three are built — `"דחיסה"`,
+`"עמוד_הבא"`, and the empty list, which is a fixed box that stays fixed and clips
+— and asking for one of the six the plan names but that are not built is refused
+by name, because a word that compiles and does nothing is the defect
+`tests/settings_live.rs` exists to catch.
 
 ## The banded apparatus, and why there is only one of it
 
@@ -293,13 +352,19 @@ one line, which is what a lemma wants anyway.
 
 ## Known limits
 
-- **Sidenote stacking is per page.** A note whose marker is near the foot of the
+- ~~**Sidenote stacking is per page.** A note whose marker is near the foot of the
   page, or a run of long notes, can be pushed past the bottom of the column. There
-  is no spill onto the next page.
+  is no spill onto the next page.~~ **Fixed.** The column is clamped to the text
+  area, shifts in both directions, cascades, and spills into the next page's
+  column — which already exists and is already empty. `dense.ksav` reached
+  y=827.27 on an 841.89pt sheet and now prints all twenty notes across two pages
+  with nothing below the page number.
 - **The auto page-foot reserve is a fixed 3cm** and is chosen by looking for those
   commands in the document text. A document with unusually heavy per-page
-  apparatus should set `notes_region_cm` explicitly; overflow is clipped, which is
-  visible, rather than run off the sheet, which is not.
+  apparatus should still set `notes_region_cm` explicitly — but what does not fit
+  now **spills to the next page** rather than being clipped, so the reserve
+  decides how much of the page the apparatus occupies rather than how much of it
+  survives. `גלישה: ()` asks for the old behaviour back, and means it.
 - **Collect-then-render costs queries.** Each note runs a query per layout pass to
   find its own rank. This is fine for ordinary documents and has not been profiled
   on a full sefer.

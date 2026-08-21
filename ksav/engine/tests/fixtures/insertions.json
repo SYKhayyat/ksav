@@ -616,6 +616,15 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הפניה_להערה(\"\")אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -2106,6 +2115,15 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#counter_config(\"\", numbering: \"א\")ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#noteref(\"\")ds to continue."
   },
   {
    "ctx": "prose",
@@ -3604,6 +3622,15 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הפניה_להערה(\"\")ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -5094,6 +5121,15 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #counter_config(\"\", numbering: \"א\")One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #noteref(\"\")One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -6592,6 +6628,15 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הפניה_להערה(\"\")פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -8082,6 +8127,15 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #counter_config(\"\", numbering: \"א\")inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #noteref(\"\")inside] continues."
   },
   {
    "ctx": "note-body",
@@ -9580,6 +9634,15 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הפניה_להערה(\"\")כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -11070,6 +11133,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #counter_config(\"\", numbering: \"א\")here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #noteref(\"\")here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -12568,6 +12640,15 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הפניה_להערה(\"\"),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -14058,6 +14139,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],counter_config(\"\", numbering: \"א\"),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],noteref(\"\"),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -15556,6 +15646,15 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הפניה_להערה(\"\"),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -17046,6 +17145,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(counter_config(\"\", numbering: \"א\"),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(noteref(\"\"),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -18544,6 +18652,15 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הפניה_להערה(\"\")כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -20034,6 +20151,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #counter_config(\"\", numbering: \"א\")here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #noteref(\"\")here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -21532,6 +21658,15 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הפניה_להערה(\"\"), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -23022,6 +23157,15 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],counter_config(\"\", numbering: \"א\"), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],noteref(\"\"), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -24520,6 +24664,15 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הפניה_להערה(\"\")כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -26010,6 +26163,15 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #counter_config(\"\", numbering: \"א\")here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #noteref(\"\")here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -27508,6 +27670,15 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הפניה_להערה(\"\")רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -28998,6 +29169,15 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #counter_config(\"\", numbering: \"א\")Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #noteref(\"\")Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -30496,6 +30676,15 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הפניה_להערה(\"\")תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -31986,6 +32175,15 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #counter_config(\"\", numbering: \"א\")prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #noteref(\"\")prayer]"
   },
   {
    "ctx": "siman-body",
@@ -33484,6 +33682,15 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הפניה_להערה(\"\")ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -34974,6 +35181,15 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #counter_config(\"\", numbering: \"א\")Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #noteref(\"\")Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -36472,6 +36688,15 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הפניה_להערה(\"\")ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מדור_א",
    "en": "band1",
    "legal": true,
@@ -37962,6 +38187,15 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#counter_config(\"\", numbering: \"א\")ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הפניה_להערה",
+   "en": "noteref",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#noteref(\"\")ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

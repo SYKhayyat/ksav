@@ -949,7 +949,13 @@ const HE: Dict = {
   copyFailed: "ההעתקה נכשלה — נסו \"ייצוא ל‑Word\" במקום.",
   wordNoHtml: "ייצוא ל‑Word דורש HTML זורם, והמסמך הזה אינו מתקמפל אליו. לא נוצר קובץ.",
   wordFlattenNote:
-    "מנגנון ההערות המורכב (זרמים, מדפים, הערות צד) משתטח ב‑Word. טקסט, כותרות, הדגשות, רשימות, טבלאות והערות שוליים רגילות עוברים.",
+    "טקסט, כותרות, הדגשות, רשימות, טבלאות, הערות שוליים והערות סיום עוברים ל‑Word כמות שהם. מה שאין לו מקבילה שם:",
+  wordKeepsEverything:
+    "נשמר. כל מה שיש בספר הזה עובר ל‑Word כמות שהוא — הערות השוליים והסיום נעשות הערות שוליים וסיום של Word.",
+  wordLosesSide: "הערות הצד נעשות הערות שוליים — ל‑Word אין עמודת שוליים.",
+  wordLosesSection:
+    "פירוש שנאסף לסוף מדור אינו ניתן לייצוג ב‑Word; הערותיו נעשות הערות שוליים.",
+  wordLosesFile: "כרך נלווה אינו מיוצא — הוא קובץ שני, ו‑Word מקבל אחד.",
   // bracket healing
   lintUnclosedCmd: "‏#{0} נפתח כאן ואינו נסגר.",
   lintOrphanChild: "‏#{0} היא חלק מפקודה אחרת ואינה עומדת בפני עצמה — אין כאן רשימה או טבלה שאליה תישויך.",
@@ -2317,7 +2323,13 @@ const EN: Dict = {
   copyFailed: "Copy failed — use \"Word (.doc)\" instead.",
   wordNoHtml: "The Word handoff needs reflowable HTML, and this document does not compile to it. No file was produced.",
   wordFlattenNote:
-    "The multi-layer apparatus (streams, bands, side notes) flattens in Word. Text, headings, emphasis, lists, tables and plain footnotes carry across.",
+    "Text, headings, emphasis, lists, tables, footnotes and endnotes cross over to Word unchanged. What has no equivalent there:",
+  wordKeepsEverything:
+    "Saved. Everything in this sefer crosses over unchanged — its footnotes and endnotes become Word's own.",
+  wordLosesSide: "Side notes become footnotes — Word has no side column.",
+  wordLosesSection:
+    "A commentary collected at the end of a section cannot be represented in Word; its notes become footnotes.",
+  wordLosesFile: "A companion volume is not exported — it is a second file, and Word gets one.",
   lintUnclosedCmd: "#{0} is opened here and never closed.",
   lintOrphanChild:
     "#{0} is part of another command and does not stand on its own — there is no list or table here for it to belong to.",

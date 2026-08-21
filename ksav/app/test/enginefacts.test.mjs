@@ -543,6 +543,12 @@ export async function run() {
         // Where a count starts again. They leave a marker and no ink — see
         // `_nr_label` in the prelude — so there is nothing about them to style.
         "התחל_מספור", "המשך_מספור",
+        // A reference to a note prints the note's own number, in the note's own
+        // scheme, and nothing about it is this reference's to style: `סימון:
+        // true` dresses it as a marker and that is the apparatus's marker look,
+        // read off the stream it points into. Giving it a look of its own would
+        // be a second authority for one number.
+        "הפניה_להערה",
       ],
       "a configuration or an index": [
         "תוכן", "רשימת_סימונים", "מפתח_מקורות",

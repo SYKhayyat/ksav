@@ -945,6 +945,9 @@
   הזחה: (0em, 1.4em, 2.8em, 4.2em, 5.6em, 7em, 8.4em, 9.8em, 11.2em),  // per-tier indent (nesting)
   תוויות: none,        // none, or an array of per-tier bold label prefixes ("", "על הערה: ", …)
   ריווח: 0.85em,       // gap between footnote entries
+  // What stands at the head of an entry, as a list of ingredients in the order
+  // they should be printed — see `_eh_head`.
+  ראש: ("מספר", "תווית"),
   // מספור — none = ONE running native sequence across every tier (1,2,3,4,…), so
   //   the numbers never jump and never repeat. Or an array of per-tier schemes,
   //   ("1", "א", "i"), and then each tier counts its own and the marker's *shape*
@@ -1229,6 +1232,27 @@
 // makes it findable.
 #let _nr_mark(value) = [#metadata(value)#_nr_label]
 
+// ---- הפניה להערה · "see note 12", and the 12 stays right ----
+//
+// `NOTES-PLAN` thing five: *"writing 'see note 12' and having the 12 stay
+// correct after you insert a note earlier."* The plan's own answer is the one
+// taken here — **position-based numbering and automatic cross-references are not
+// in tension**, because a reference asks, at build time, what number the note
+// turned out to be.
+//
+// So a note that was given a name records the number it printed, where it
+// printed it, and a reference reads that. Nothing is stored across compiles and
+// nothing has to converge: the note already knew its own number, and this is
+// only writing it down where somebody else can read it.
+//
+// **Careful: something adjacent already exists and is not this.**
+// `#הערה_בשם("א")` against `#גוף_הערה("א")` is the *deferred body* mechanism —
+// the prose written at the end of the file — and two markers against one body
+// there render the body **twice**. That is the opposite of what is wanted, and
+// it is why this is a different name and a different label.
+#let _xn_label = <ksav-xnote>
+#let _xn_mark(name, num) = [#metadata((שם: _as_string(name).trim(), מספר: num))#_xn_label]
+
 /// Start the count again from here.
 ///
 /// With no argument: every count. With one: that named series only, which is
@@ -1447,6 +1471,78 @@
 /// happen there rather than through the setting Typst provides for it.
 #let _fn_gap_base = state("ksav-fn-gap", 0.85em)
 
+// ---- ראש הפריט · what stands in front of a note's prose ----
+//
+// `NOTES-PLAN` thing five: *"one setting, four ingredients, any combination — a
+// number, a fixed label per stream, the quoted words from the body, or
+// nothing."*
+//
+// So `ראש` is a **list**, in the order they print, for the same reason `גלישה`
+// is: they compose. A Mishna Berura entry opens with a dibbur hamaschil and no
+// number; a Shaar HaTziyun with a number and nothing else; a nusachos apparatus
+// with a label and a number both.
+//
+// | ingredient | what it prints |
+// |---|---|
+// | `"מספר"` | the number, which is Typst's own for a native footnote |
+// | `"תווית"` | the fixed label this tier or stream carries (`תוויות`) |
+// | `"ציטוט"` | the words the note is **on** — `#הערה(ציטוט: "שמע ישראל")[…]` |
+// | `()` | nothing at all |
+//
+// **`"מספר"` is not printed here.** Typst draws a footnote entry as
+// «number» «body» itself, and the collected apparatus draws its own marker — so
+// what this composes is everything *after* the number, and asking for `"מספר"`
+// is the ordinary case where nothing extra is added. Leaving it out of the list
+// is how a writer says *no number*, and that is the ingredient the plan asks for
+// by name.
+//
+// # On the quotation
+//
+// The plan wants it **tracked live**, so that editing the sentence does not
+// strand the note, with a frozen copy as the fallback. The engine only ever has
+// the frozen copy: it is handed `ציטוט:` and prints it. Keeping it current is
+// the editor's, which is the only side that can see the writer typing — and the
+// constraint that makes live tracking realistic at all is the plan's own, that
+// the quotation is one or two words.
+//
+// Default to no number when quoting, which the plan also asks for: a dibbur
+// hamaschil *is* the address, and a number beside it is a second one.
+// **The label is in the default**, and that is not a taste: `תוויות` prints
+// nothing at all unless something asks for it, and it has been printing since it
+// was written. A default of `("מספר",)` alone would have taken the labels out of
+// every sefer that had set them, silently, on upgrade — which is the one thing a
+// new setting may not do. It costs nothing to leave in, because a tier with no
+// label has nothing to print.
+//
+// Asking for `("מספר",)` *explicitly* is therefore a real request — number only,
+// no label — and different from saying nothing.
+#let _eh_default = ("מספר", "תווית")
+#let _eh_head(cfg, label_, quote) = {
+  let want = cfg.at("ראש", default: _eh_default)
+  let want = if type(want) == array { want } else { (want,) }
+  for part in want {
+    if part == "תווית" and label_ != none and label_ != "" {
+      [#strong(label_) ]
+    } else if part == "ציטוט" and quote != none and quote != "" {
+      // Bold and followed by a thin space, which is how a sefer sets a dibbur
+      // hamaschil — and through `_mk_render` so it takes the look of the
+      // `#דיבור_המתחיל` class, because that is what it *is*.
+      [#_mk_render(_mk_conf("דיבור_המתחיל", (:)), quote) ]
+    }
+  }
+}
+
+/// Does this entry head print a number at all?
+///
+/// Leaving `"מספר"` out of the list is how a writer says *no number* — the
+/// fourth of the plan's four ingredients — and it is the one that has to reach
+/// the marker rather than the entry, because Typst draws the number itself.
+#let _eh_numbered(cfg) = {
+  let want = cfg.at("ראש", default: _eh_default)
+  let want = if type(want) == array { want } else { (want,) }
+  want.contains("מספר")
+}
+
 #let _fn_wrap(cfg, tier, body) = {
   let sz = _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em)
   let st = _fn_pick(cfg.at("סגנון", default: ()), tier, "normal")
@@ -1486,7 +1582,7 @@
 // tier of this apparatus with a name and a sequence of its own — so the layer
 // above passes both, and a writer who never declares a channel sees exactly the
 // per-tier behaviour this apparatus has always had.
-#let הערה_בדרגה(דרגה, body, _ערוץ: none, _מספור: none, ..opts) = context {
+#let הערה_בדרגה(דרגה, body, שם: none, ציטוט: none, _ערוץ: none, _מספור: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
   let cfg = _cfg_with(_nt_under(_fn_cfg.get()), own)
   // Not ours: handed to `footnote` at both call sites below, so its own error
@@ -1531,7 +1627,7 @@
   } else { 0em }
   let entry = _fn_wrap(cfg, דרגה, {
     if ind != 0em { h(ind) }
-    if lbl != none and lbl != "" { [#strong(lbl) ] }
+    _eh_head(cfg, lbl, ציטוט)
     body
     if extra != 0em { v(extra, weak: false) }
   })
@@ -1554,8 +1650,17 @@
   // already uses. `_nr_any` is a state read rather than a query for exactly
   // this call site: it is asked once per note, in every document.
   let scheme = if scheme == none and _nr_any() { "1" } else { scheme }
+  // Leaving `"מספר"` out of `ראש` means the entry carries no number, and Typst
+  // draws the number itself — so it is said here, to the footnote, rather than
+  // in the entry's own content where there is nothing to remove.
+  let numbered = _eh_numbered(cfg)
   if scheme == none {
-    footnote(..rest, entry)
+    if numbered { footnote(..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
+    // The number this note turned out to be, recorded under the name the writer
+    // gave it — see `#הפניה_להערה`. Read *after* the footnote, because that is
+    // what steps Typst's own counter, and `.get()` in a context here is this
+    // note's number rather than the one before it.
+    if שם != none { context _xn_mark(שם, counter(footnote).get().first()) }
   } else {
     // Per-channel numbering. Typst has ONE footnote counter, and the `numbering`
     // callback is handed that counter's value — so it cannot be used to count a
@@ -1569,7 +1674,11 @@
     context {
       let loc = here()
       let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
-      footnote(numbering: _ => numbering(scheme, n), ..rest, entry)
+      footnote(numbering: _ => if numbered { numbering(scheme, n) } else { [] }, ..rest, entry)
+      // The *printed* number, not the rank: a channel numbered א ב ג is
+      // referred to as "עיין הערה ב", and a reference that said 2 would name a
+      // note the reader cannot find.
+      if שם != none { _xn_mark(שם, numbering(scheme, n)) }
     }
   }
 }
@@ -1813,7 +1922,7 @@
 /// asks for the break only when it has something to print.
 #let _ap_fresh_page(want) = if want == true { pagebreak() }
 
-#let _ap_note(cfg, lbl, scope, g, body, own: (:)) = {
+#let _ap_note(cfg, lbl, scope, g, body, own: (:), שם: none) = {
   [#metadata((group: g, body: body, own: own))#lbl]
   // Force nested groups to register in this same pass, in a zero-size inline box
   // so it can never break the line the marker sits on — including when a band
@@ -1857,6 +1966,11 @@
     // sentence the reader is reading — a peirush set 0.8em and grey wants its
     // markers legible, and until this the number had no look at all.
     _ap_piece(cfg, super(_ap_mark(cfg, g, n)))
+    // The **printed** number, recorded under the name the writer gave this note
+    // — `#הפניה_להערה` reads it. Printed and not the rank, because a band
+    // lettered א ב ג is referred to as *"עיין הערה ב"*, and a reference saying 2
+    // would name a note the reader cannot find.
+    if שם != none { _xn_mark(שם, _ap_mark(cfg, g, n)) }
   }
 }
 
@@ -2746,12 +2860,12 @@
 // already per-stream — its settings are dictionaries keyed by stream name — so
 // this is the layer below that: one note inside one stream, set apart from its
 // peers.
-#let הערה_זרם(זרם, body, ..opts) = context {
+#let הערה_זרם(זרם, body, שם: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
   _cfg_strict("הערה_זרם", rest)
   let name = _as_string(זרם)
   let cfg = _ch_foot_cfg(_ch_st.final(), (name,))
-  _ap_note(_cfg_with(cfg, own), _sf_label, _sf_scope, name, body, own: own)
+  _ap_note(_cfg_with(cfg, own), _sf_label, _sf_scope, name, body, own: own, שם: שם)
 }
 // Ordered list of stream names actually present, honouring an explicit order.
 #let _sf_order(cfg, present) = {
@@ -2934,8 +3048,8 @@
 #let _cn_label = label("ksav-cn")
 #let _cn_dump(rg) = label("ksav-cnd-" + rg)
 #let _cn_scope(rg) = loc => _ksav_between(selector(_cn_label), _cn_dump(rg), loc)
-#let _cn_note(cfg, rg, name, body, own) = _ap_note(
-  cfg, _cn_label, _cn_scope(rg), name, body, own: own,
+#let _cn_note(cfg, rg, name, body, own, שם: none) = _ap_note(
+  cfg, _cn_label, _cn_scope(rg), name, body, own: own, שם: שם,
 )
 
 // ערוץ(שם, מקור: auto, מיקום: "רגל", אזור: none, גובה: none, …) — declare a
@@ -3003,12 +3117,18 @@
   let t = _ch_st.final()
   // The declared placement wins; an undeclared region is at the page foot.
   let place = if region in t.אזורים { _val(_rg_rec(t, region).at("מיקום", default: "רגל")) } else { "רגל" }
+  let mine = if "שם" in named { named.at("שם") } else { none }
+  let named = if mine == none { named } else {
+    let d = named
+    let _ = d.remove("שם")
+    d
+  }
   if place == "רגל" {
-    הערה_זרם(chan, body, ..named)
+    הערה_זרם(chan, body, שם: mine, ..named)
   } else {
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)
-    _cn_note(_cfg_with(_ch_cfg(t, (chan,)), own), region, chan, body, own)
+    _cn_note(_cfg_with(_ch_cfg(t, (chan,)), own), region, chan, body, own, שם: mine)
   }
 }
 
@@ -3019,12 +3139,25 @@
   let t = _ch_st.final()
   let name = _as_string(שם).trim()
   let kind = _ch_kind(t, name)
+  // The note's *own* name, lifted out before the style split. It is not a style
+  // knob and not the channel's — it is which note this is, so that
+  // `#הפניה_להערה` can print the number it turned out to be, and every one of
+  // the three collectors below takes it.
+  let mine = if "שם" in named { named.at("שם") } else { none }
+  let quote = if "ציטוט" in named { named.at("ציטוט") } else { none }
+  let named = {
+    let d = named
+    if mine != none { let _ = d.remove("שם") }
+    if quote != none { let _ = d.remove("ציטוט") }
+    d
+  }
   if kind == "מקורי" {
     // Typst's own balanced series. `rest` travels on so a misspelled argument
     // still gets `footnote`'s own error naming it.
     let (own, rest) = _cfg_split(named, _fn_own_keys)
     הערה_בדרגה(
       _ch_depth(t, name), body,
+      שם: mine, ציטוט: quote,
       _ערוץ: name, _מספור: _ch_scheme(t, name),
       ..own, ..rest,
     )
@@ -3032,12 +3165,12 @@
     // A region at the foot of the page. Not balanced — Typst has exactly one
     // balanced series and the default channel is it — so this is fixed
     // geometry, and the engine reserves the page foot for it.
-    הערה_זרם(name, body, ..named)
+    הערה_זרם(name, body, שם: mine, ..named)
   } else {
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)
     let rg = _ch_region(t, name)
-    _cn_note(_cfg_with(_ch_cfg(t, (name,)), own), rg, name, body, own)
+    _cn_note(_cfg_with(_ch_cfg(t, (name,)), own), rg, name, body, own, שם: mine)
   }
 }
 
@@ -4969,14 +5102,25 @@
 // declaration of its own: an undeclared region is a page-foot region, which is
 // what `#הערה_זרם` has always been, and `#אזור("שער_הציון", מיקום: "סוף")` moves
 // every note in it at once.
-#let הערה(body, ערוץ: none, אזור: none, ..opts) = {
+#let הערה(body, ערוץ: none, אזור: none, שם: none, ציטוט: none, ..opts) = {
+  // `שם` names *this note* so that `#הפניה_להערה` can print the number it turned
+  // out to be. It is not the channel's name and not the region's: those say
+  // where a note goes, and this says which note it is.
+  let named = {
+    let d = opts.named()
+    if שם != none { d.insert("שם", שם) }
+    // The words this note is **on**, printed at the head of its entry when
+    // `ראש` asks for them — a dibbur hamaschil. See `_eh_head`.
+    if ציטוט != none { d.insert("ציטוט", ציטוט) }
+    d
+  }
   if אזור != none {
     let name = _as_string(אזור).trim()
     // The channel is the region's own name unless the writer also named one, so
     // two notes in one region number together — which is what a region *is*.
-    _ch_note_in(if ערוץ == none { name } else { _as_string(ערוץ).trim() }, name, body, opts.named())
+    _ch_note_in(if ערוץ == none { name } else { _as_string(ערוץ).trim() }, name, body, named)
   } else {
-    _ch_note(if ערוץ == none { _ch_default } else { ערוץ }, body, opts.named())
+    _ch_note(if ערוץ == none { _ch_default } else { ערוץ }, body, named)
   }
 }
 #let fnote = _en(הערה)
@@ -5445,6 +5589,40 @@
 #let הפניה(שם) = _xref_number(_as_string(שם))
 #let anchor = סמן
 #let xref = הפניה
+
+// הפניה_להערה("פלוני") — the number a named note turned out to be.
+//
+// **One command for the two things `NOTES-PLAN` thing five asks for**, because
+// they are one thing wearing two dresses:
+//
+//   `עיין #הפניה_להערה("פלוני")`               → *see note 12*
+//   `…ועיין שם#הפניה_להערה("פלוני", סימון: true)` → a second **marker**, ¹²
+//
+// The second is the plan's *"one note, two markers — 'see above, note 12' as a
+// second marker pointing at an existing note, common in seforim."* It prints the
+// first note's number and creates **no second entry**, which is exactly what
+// `#הערה_בשם`/`#גוף_הערה` does not do: that pair renders the body twice.
+//
+// A name nobody wrote is loud and red, and it says the name. The plan calls this
+// one out by itself — *"a marker pointing at a label not in the list currently
+// fails unreadably, and that will happen on every rename"* — and a rename is the
+// case: the writer sees `?פלוני` on the page, in the sentence they are reading,
+// and knows both that it is broken and which word to fix.
+#let הפניה_להערה(שם, סימון: false) = context {
+  let name = _as_string(שם).trim()
+  let hits = query(_xn_label).filter(e => e.value.שם == name)
+  if hits.len() == 0 {
+    text(fill: red, if סימון { super[?#name] } else { [?#name] })
+  } else {
+    // The **first** one, when a name was given twice. Two notes of one name is
+    // the writer's mistake and the reference has to answer something; answering
+    // with the first is at least the same answer every time and in every
+    // reference to it.
+    let num = hits.first().value.מספר
+    if סימון { super[#num] } else { [#num] }
+  }
+}
+#let noteref = _en(הפניה_להערה, extra: (marker: "סימון"))
 
 // ============================================================
 //  טבלאות · tables

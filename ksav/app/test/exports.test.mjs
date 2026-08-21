@@ -30,6 +30,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { check, ok, notOk } from "./harness.mjs";
 import * as exports_ from "../.tmp-test/exports.mjs";
+// The destination list, so the sentences below are checked against the model
+// rather than against a copy of it written here.
+import * as channels_ from "../.tmp-test/channels.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import { drawPages } from "../.tmp-test/preview.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
@@ -322,14 +325,69 @@ export async function run() {
     }
 
     {
-      // The working case still works, and still says what flattens.
+      // The working case still works — and what it says about the handoff is
+      // about **this document**, which is the whole of NOTES-PLAN decision 15's
+      // *"a stated downgrade beats a silent one"*.
+      //
+      // It used to be one constant sentence on every export, which is wrong in
+      // both directions at once: a sefer of plain footnotes was warned about an
+      // apparatus it does not have, and a sefer with a side column was told that
+      // "the multi-layer apparatus flattens" without being told into what.
+      const html = "<html><head><style>p{margin:0}</style></head><body><p>שלום</p></body></html>";
+
       withDoc(BALANCED);
-      backendThat({ html: "<html><head><style>p{margin:0}</style></head><body><p>שלום</p></body></html>" });
+      backendThat({ html });
       captured.downloads.length = 0;
       await exports_.exportWord();
       check("a .doc is produced when the backend can", captured.downloads.length, 1);
       ok("named after the document", captured.downloads[0].name.endsWith(".doc"));
-      check("and the flattening note is a warning, not an error", statusClass(), "warn");
+      check(
+        "a document with nothing to lose is not warned about losing anything",
+        statusClass(),
+        "ok",
+      );
+      ok(
+        "and is told that outright",
+        statusText().includes(DICTS.he.wordKeepsEverything.slice(0, 12)),
+      );
+
+      // A side column, which Word has no equivalent for at all. Built by
+      // joining lines rather than written as one literal: this file is edited
+      // through tools that have twice turned a `\n` inside a JavaScript string
+      // into a real line break, which is a syntax error the moment the string
+      // also carries a quotation mark.
+      withDoc(
+        ["#עם_הערות_צד[", 'שלום#הערה(ערוץ: "צד")[הערת צד]', "]"].join("\n"),
+      );
+      backendThat({ html });
+      await exports_.exportWord();
+      check("a document that loses something is warned", statusClass(), "warn");
+      ok(
+        "and told what its side notes become",
+        statusText().includes(DICTS.he.wordLosesSide.slice(0, 20)),
+      );
+      notOk(
+        "without being told about the things it does not have",
+        statusText().includes(DICTS.he.wordLosesFile.slice(0, 12)),
+      );
+    }
+
+    {
+      // Every destination this warning can name is one the model has. A
+      // destination added to `channels.ts` with no sentence here would export
+      // silently, which is the failure the whole item is about.
+      const named = new Set(["side", "section", "region", "file"]);
+      const missing = channels_.DESTINATION_IDS.filter(
+        (id) => id !== "foot" && id !== "end" && !named.has(id),
+      );
+      check("every destination that loses something has a sentence", missing, []);
+      // …and the two that lose nothing are named here too, so that adding a
+      // third silent one has to be a deliberate edit.
+      check(
+        "and the ones that cross over unchanged are the two Word has",
+        channels_.DESTINATION_IDS.filter((id) => id === "foot" || id === "end").sort(),
+        ["end", "foot"],
+      );
     }
 
     // ------------------------------------------------ 3. HTML keeps its fallback

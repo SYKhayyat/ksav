@@ -11,10 +11,20 @@ in this repository had to decline to count the code in order to reach eleven, an
 said so in its own comment. When a fence has to pick which artifact to count, the
 prose is what is wrong. See §4 of `lamdan/whole-repo-2026-08-07.md`.
 
-The rule below is checkable, and everything here is an instance of it. The
-**thirteen cards** the note chooser offers are counted from `NOTE_CHOICES`, which
-is what renders them; the grid's empty cells are a table of stated refusals, and
-a cell that is neither offered nor refused fails the suite.
+The rule below is checkable, and everything here is an instance of it.
+
+**The chooser's cards are gone**, and with them the sentence that used to stand
+here about counting them. They were the cells of a *where* × *how* grid, which
+meant an arrangement had to be somebody's card in order to exist — and three
+times a card was greyed out with a reason that was false against the shipped
+engine. Writing a note is one pick among the destinations now, and the
+destination *is* the stream: everything else hangs off it, so three hundred
+haaros move to the back by changing one word. See
+[The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md).
+
+What is left below is what it should always have been: the **arrangements** this
+engine can produce, each with the mechanism behind it and the test that renders
+it. They are not a menu and there is no number that is the right number of them.
 
 Every earlier mechanism (tiered footnotes, per-page bands, streams, styled sub-notes,
 source-notes, two-sided margins) either duplicates one of these or is a broken attempt at
@@ -24,10 +34,10 @@ gives you **one layer of notes** or **notes on your notes**.
 **Legend:** ✅ works today · 🧪 works in principle, needs one confirming render · 🔨 needs a
 bounded build · ⚠️ renders but flawed, needs rework
 
-> **Status as of the current build: all thirteen work.** Each is covered by a
-> rendered-output test in `ksav/engine/tests/apparatus.rs`, which reads the laid-out
-> document through `ksav_engine::probe` and asserts *where things landed on the page*
-> — not merely that the document compiled.
+> **Status as of the current build: every arrangement below works.** Each is
+> covered by a rendered-output test in `ksav/engine/tests/apparatus.rs`, which
+> reads the laid-out document through `ksav_engine::probe` and asserts *where
+> things landed on the page* — not merely that the document compiled.
 
 **The one ground rule that shapes all of this.** Typst gives exactly **one** native
 page-bottom footnote series — balanced against the text across page breaks. That single
@@ -165,18 +175,32 @@ the one thing no option here delivers).
 | 10 | Footnotes + companion doc | two | tier-1 page foot, tier-2 separate volume | ✅ |
 | 11 | Endnotes with footnotes on them | two | tier-1 endnotes, tier-2 balanced on endnote pages | ✅ |
 
-**The one thing none of these do:** primary commentary *beside* the main text on the same
-page **and** balanced sub-notes below it. That needs either a LaTeX/reledmac backend
-(heavy toolchain, opt-in) or a custom paginator (multi-month build). Everything achievable
-without that is one of the arrangements above.
+**~~The one thing none of these do:~~** ~~primary commentary *beside* the main text on
+the same page **and** balanced sub-notes below it. That needs either a LaTeX/reledmac
+backend (heavy toolchain, opt-in) or a custom paginator (multi-month build).~~
 
-**All thirteen proofs have been run** and are held by `tests/apparatus.rs`. The
-presentation question that used to sit on this line — whether they reach a writer
-as an intent-based chooser or as a list of raw command names to pick through — is
-settled: the Notes panel asks *where does it print* and *how are the layers arranged*,
-and the cards are the cells of that grid, each rendered from the writer's own text. The
-argument for it is item C1 of the
-[product audit](decisions/2026-07-20-product-audit.md).
+**Measured false**, and by this engine on this toolchain. `NOTES-PLAN.md` Part 3's
+design C is that arrangement: the run-in commentary in Typst's own balanced
+footnote area with a second apparatus in a box below it, two independent counts,
+and — since the page-foot half of spill was built — every note printed across as
+many pages as it takes. `compose_long.ksav` is thirty of them. Nothing was forked
+and no paginator was written; what it needed was the region knowing which notes
+were **assigned** to a page rather than which were registered on it.
+
+The corollary is worth keeping, because it is the part that was right: Typst has
+**one** balanced page-foot series and no script can make a second. What design C
+shows is that one balanced area plus a fixed box is enough for the page anyway.
+
+**The proofs are run** and held by `tests/apparatus.rs`, and the acceptance
+criteria for the note system as a whole by `tests/notes_acceptance.rs`.
+
+The presentation question that used to sit on this line — whether the
+arrangements reach a writer as a chooser or as raw command names — is settled,
+and **not the way this page used to say.** The grid of cards is gone: an
+arrangement had to be somebody's card to exist, and three times a card was greyed
+out with a reason that was false against the shipped engine. Writing a note is
+one pick among the destinations now, and the destination *is* the stream. See
+[The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md).
 
 ---
 

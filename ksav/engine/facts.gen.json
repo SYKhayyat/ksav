@@ -653,6 +653,15 @@
       "deprecated": false
     },
     {
+      "he": "הפניה_להערה",
+      "en": "noteref",
+      "category": "reference",
+      "desc_he": "המספר שיצא להערה בשם הזה — 'עיין הערה 12', והמספר נשאר נכון",
+      "desc_en": "The number a named note turned out to be — 'see note 12', and the 12 stays right",
+      "insert": "#הפניה_להערה(\"|\")",
+      "deprecated": false
+    },
+    {
       "he": "מדור_א",
       "en": "band1",
       "category": "footnote",

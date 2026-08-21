@@ -350,6 +350,161 @@ fn a_regions_overflow_policy_is_the_writers_to_pick() {
     );
 }
 
+/// "See note 12", and the 12 stays right when a note is added before it.
+///
+/// `NOTES-PLAN` thing five, and the plan's own resolution of the apparent
+/// tension: **position-based numbering and automatic cross-references are not in
+/// tension**, because a reference asks — at build time — what number the note
+/// turned out to be. So the note records the number it printed and the reference
+/// reads it, and inserting a note earlier moves both.
+#[test]
+fn a_reference_to_a_note_survives_a_note_being_inserted_before_it() {
+    let refs = |body: &str| -> String {
+        render(body)
+            .iter()
+            .map(|r| r.text.as_str())
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let tail = "שניה#הערה(שם: \"פלוני\")[ב].\n\nועיין הערה #הפניה_להערה(\"פלוני\").\n";
+    let before = refs(&format!("ראשונה#הערה[א]. {tail}"));
+    let after = refs(&format!("חדשה#הערה[חדש]. ראשונה#הערה[א]. {tail}"));
+    assert!(
+        before.contains("ועיין הערה 2"),
+        "the reference did not print the note's number: {before}"
+    );
+    assert!(
+        after.contains("ועיין הערה 3"),
+        "a note inserted before the target did not move the reference: {after}"
+    );
+}
+
+/// One note, two markers: the second prints the first's number and creates **no
+/// second entry**.
+///
+/// The plan names this one carefully, because something adjacent already exists
+/// and is the opposite: `#הערה_בשם("א")` against `#גוף_הערה("א")` renders the
+/// **body twice**. This does not.
+#[test]
+fn a_second_marker_repeats_a_notes_number_without_repeating_the_note() {
+    let runs = render(
+        "ראשונה#הערה[גוף ראשון]. שניה#הערה(שם: \"פלוני\")[גוף שני].\n\n\
+         ועיין שם#הפניה_להערה(\"פלוני\", סימון: true).\n",
+    );
+    let bodies = runs.iter().filter(|r| r.text.contains("גוף שני")).count();
+    assert_eq!(
+        bodies, 1,
+        "the note's prose printed {bodies} times — a second marker made a second entry"
+    );
+    // And the number is in the sentence, up in the sefer, where the writer put
+    // it — not only at the foot of the page where the entries are.
+    let sentence: String = runs
+        .iter()
+        .filter(|r| r.y < 200.0)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert!(
+        sentence.contains("ועיין שם2"),
+        "the second marker did not print in the body of the sefer: {sentence:?}"
+    );
+}
+
+/// A reference to a name nobody wrote is loud, and it says the name.
+///
+/// The plan calls this out by itself: *"a marker pointing at a label not in the
+/// list currently fails unreadably, and that will happen on every rename."* A
+/// rename is exactly the case, so the broken reference has to be findable in the
+/// sentence the writer is reading.
+#[test]
+fn a_reference_to_a_name_nobody_wrote_says_which_name() {
+    let runs = render("שלום#הערה[א].\n\nועיין #הפניה_להערה(\"אלמוני\").\n");
+    let page: String = runs.iter().map(|r| r.text.as_str()).collect();
+    assert!(
+        page.contains("אלמוני"),
+        "the broken reference did not name the name it could not find: {page}"
+    );
+    assert!(
+        runs.iter()
+            .any(|r| r.text.contains("אלמוני") && r.fill == "#ff4136" || r.fill.starts_with("#ff")),
+        "the broken reference printed in the document's own ink, so nothing marks \
+         it as broken: {:?}",
+        runs.iter()
+            .filter(|r| r.text.contains("אלמוני"))
+            .map(|r| &r.fill)
+            .collect::<Vec<_>>()
+    );
+}
+
+/// What stands at the head of an entry is the writer's, and the four
+/// ingredients compose.
+///
+/// `NOTES-PLAN` thing five: *"one setting, four ingredients, any combination — a
+/// number, a fixed label per stream, the quoted words from the body, or
+/// nothing."* So `ראש` is a **list**, in the order they print, because a Mishna
+/// Berura entry opens with a dibbur hamaschil and no number while a Shaar
+/// HaTziyun opens with a number and nothing else.
+///
+/// Leaving `"מספר"` out is how a writer says *no number*, and that has to reach
+/// the marker in the sentence as well as the entry at the foot — a numberless
+/// entry with a numbered marker is worse than either.
+#[test]
+fn the_head_of_an_entry_is_four_ingredients_in_any_combination() {
+    let foot = |head: &str| -> String {
+        let body = format!("{head}א#הערה(ציטוט: \"אלף\")[גוף ההערה].\n");
+        render(&body)
+            .iter()
+            .filter(|r| r.y > 700.0 && r.y < 790.0)
+            .map(|r| r.text.as_str())
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    // The default, which every document written before this existed relies on:
+    // the number, and nothing else in front of the prose. Asked by `contains`
+    // rather than by equality because Typst sets a footnote's number and the
+    // first words of its body as **one run** — the whole point of the entry
+    // shape, and the reason the tier indent has to be an `#h` — so the joined
+    // page text reads `1גוף` with no space to compare against.
+    let shipped = foot("");
+    assert!(
+        shipped.starts_with('1') && !shipped.contains("אלף"),
+        "the shipped head changed: {shipped:?}"
+    );
+    assert_eq!(
+        foot("#הגדרות_הערות(ראש: (\"מספר\",))\n"),
+        shipped,
+        "asking for the default by name is not the default"
+    );
+    let quoted = foot("#הגדרות_הערות(ראש: (\"מספר\", \"ציטוט\"))\n");
+    assert!(
+        quoted.starts_with('1') && quoted.contains("אלף"),
+        "the quoted words did not reach the head of the entry: {quoted:?}"
+    );
+    let labelled = foot("#הגדרות_הערות(תוויות: (\"עיין: \",), ראש: (\"מספר\", \"תווית\"))\n");
+    assert!(
+        labelled.starts_with('1') && labelled.contains("עיין:"),
+        "the stream's fixed label did not reach the head of the entry: {labelled:?}"
+    );
+    // And nothing at all — which has to take the marker with it.
+    let bare = foot("#הגדרות_הערות(ראש: ())\n");
+    assert!(
+        !bare.contains('1') && !bare.contains("אלף") && bare.contains("גוף"),
+        "an entry asked to carry no head still carries one: {bare:?}"
+    );
+    let sentence: String = render("#הגדרות_הערות(ראש: ())\nא#הערה[גוף].\n")
+        .iter()
+        .filter(|r| r.y < 200.0)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert!(
+        !sentence.contains('1'),
+        "the entry carries no number and the sentence still carries a marker: {sentence:?}"
+    );
+}
+
 /// And the same for the mark register, whose shipped defaults ask for it.
 ///
 /// `#גמרא`, `#פסוק` and `#ציון_מקור` carry `סגנון: \"italic\"` in

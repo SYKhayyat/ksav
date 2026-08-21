@@ -231,6 +231,12 @@ const CONTRAST: &[(&str, &str, &str)] = &[
     ("כותרות", "[אחת]", "[אחרת ארוכה יותר]"),
     ("סימן", "(גודל: 0.6em)", "(גודל: 1.6em)"),
     ("זרמים", "(\"מקורות\", \"תוכן\")", "(\"תוכן\", \"מקורות\")"),
+    // What stands at the head of an entry. Already a compound value, so `shaped`
+    // passes it through whole — and the two ends of the axis are the one the
+    // apparatus ships with and the one that says *nothing at all*, which is the
+    // fourth of the plan's four ingredients and the one that has to take the
+    // marker with it.
+    ("ראש", "(\"מספר\", \"תווית\")", "()"),
 ];
 
 /// Where a shared key name means something else in one block, said out loud.

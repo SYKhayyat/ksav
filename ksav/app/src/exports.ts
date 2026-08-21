@@ -8,6 +8,12 @@
 // neither and go straight from the source.
 
 import { analyze } from "./brackets";
+import {
+  destinationForChannel,
+  noteCounts,
+  TIER_CHANNELS,
+  type DestinationId,
+} from "./channels";
 import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { download, escapeAttr } from "./dom";
 import { t, tf } from "./i18n";
@@ -311,6 +317,62 @@ function wordUnavailable(why: string) {
   runtime.setStatus(`✗ ${t("wordNoHtml")}${why ? ` — ${why}` : ""}`, "err", why);
 }
 
+/**
+ * What *this* sefer loses on the way to Word, named destination by destination.
+ *
+ * `NOTES-PLAN` decision 15 puts export in its place: it is **the only** point at
+ * which a note becomes a different kind of note, and it never happens in layout.
+ * And it says what that costs the writer — *"say so at export: a stated
+ * downgrade beats a silent one."*
+ *
+ * This used to be one constant sentence, printed on every Word export whether or
+ * not the document had anything to lose. Two things wrong with that, and they
+ * pull in opposite directions: a sefer of plain footnotes was warned about an
+ * apparatus it does not have, and a sefer with a side column was told that
+ * "the multi-layer apparatus flattens" without being told **into what**. A
+ * warning that is always the same is a warning nobody reads.
+ *
+ * So it reads the document's own destinations. Foot notes and end notes cross
+ * over as Word's own footnotes and endnotes and are not mentioned, because
+ * nothing happens to them; the rest are named, each with what it becomes.
+ */
+export function wordDegradations(doc: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<DestinationId>();
+  for (const [channel] of noteCounts(doc)) {
+    // The seven tier channels are the native apparatus written the short way —
+    // an ordinary footnote and its sub-notes — and they are the destination
+    // Word has. Asked through `destinationForChannel` alone they come back
+    // `null`, because the foot's channel is `רגל` and a bare `#הערה` never
+    // writes one: which reported every plain sefer as carrying a region it does
+    // not have, and warned it about losing a section commentary it never wrote.
+    if (TIER_CHANNELS.includes(channel)) {
+      seen.add("foot");
+      continue;
+    }
+    const dest = destinationForChannel(channel);
+    // A channel that is not one of the five destinations is a **region** — the
+    // named list — which is where a section commentary lives.
+    seen.add(dest ?? "region");
+  }
+  // Ordered as the writer would meet them rather than as the map iterates, so
+  // two exports of one document say the same thing in the same order.
+  if (seen.has("side")) out.push(t("wordLosesSide"));
+  if (seen.has("region") || seen.has("section")) out.push(t("wordLosesSection"));
+  if (seen.has("file")) out.push(t("wordLosesFile"));
+  return out;
+}
+
+/** Say what the handoff cost, or that it cost nothing. */
+function sayWhatWordLost(doc: string) {
+  const lost = wordDegradations(doc);
+  if (lost.length === 0) {
+    runtime.setStatus(t("wordKeepsEverything"), "ok");
+  } else {
+    runtime.setStatus(`${t("wordFlattenNote")} ${lost.join(" ")}`, "warn");
+  }
+}
+
 export async function exportWord() {
   runtime.closeMenus();
   const { html, why } = await reflowableHtml();
@@ -322,7 +384,7 @@ export async function exportWord() {
     runtime.fileStem() + ".doc",
     new Blob([wordEnvelope(inner, styles)], { type: "application/msword;charset=utf-8" }),
   );
-  runtime.setStatus(t("wordFlattenNote"), "warn");
+  sayWhatWordLost(runtime.docText());
 }
 
 /** The same content onto the clipboard, for pasting into an already-open Word. */

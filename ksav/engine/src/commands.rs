@@ -217,6 +217,12 @@ pub static COMMANDS: &[Command] = &[
     // subject somebody would name rather than about which menu shows it.
     cmd!("מונה", "count_", "footnote", "המספר הבא בסדרה בשם הזה — סדרה משלכם, בכל מקום", "The next number in this named series — your own count, anywhere", "#מונה(\"|\")"),
     cmd!("הגדרות_מונה", "counter_config", "footnote", "צורת המספרים של סדרה בשם הזה", "How a named series' numbers are set", "#הגדרות_מונה(\"|\", מספור: \"א\")"),
+    // "עיין הערה 12", and the 12 stays right when a note is added before it —
+    // the reference asks, at build time, what number the note turned out to be.
+    // With `סימון: true` it is the *second marker* on one note instead: it
+    // prints the first one's number and makes no second entry, which is what
+    // `#הערה_בשם`/`#גוף_הערה` deliberately does not do.
+    cmd!("הפניה_להערה", "noteref", "reference", "המספר שיצא להערה בשם הזה — 'עיין הערה 12', והמספר נשאר נכון", "The number a named note turned out to be — 'see note 12', and the 12 stays right", "#הפניה_להערה(\"|\")"),
     // regrouped stacked bands (Gemara / critical-apparatus) — collect then render
     cmd!("מדור_א", "band1", "footnote", "מדור א — בלוק ההערות הראשון (כל דרגה 1)", "Band A — the first note block (all tier-1)", "#מדור_א[|]"),
     cmd!("מדור_ב", "band2", "footnote", "מדור ב — הערות על מדור א", "Band B — notes on band A", "#מדור_ב[|]"),

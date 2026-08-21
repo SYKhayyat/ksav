@@ -170,24 +170,37 @@ nothing in the application could).
       Typst and the two must agree — and the user has not yet said what they
       want from note picking.
 
-### The note system, and what is left of it
+### The note system — closed
 
-`NOTES-PLAN.md` was worked overnight on 20–21 August. Most of it is built, one
-chunk per record in [`decisions/`](decisions/README.md), and the plan's own
-status table at the top of it says which is where.
+`NOTES-PLAN.md` is built. All five things, the chooser and the document-level
+settings; the plan's own status table at the top of it says which record holds
+which chunk, and it no longer has an open list.
 
-**What is left is one page**, written for whoever picks it up:
-[What the night did not build](decisions/2026-08-21-what-the-night-did-not-build.md).
-Seven items, each with why it is not done and what the next person needs to know
-first. Two of them are worth naming here because they are traps rather than work:
+The two records that closed it are worth reading in this order, because between
+them they are most of what the next person needs to know about the apparatus:
 
-- **`פריסה` is already taken on a region**, so thing three's grid needs a
-  different word than the naming record proposes, and that record says so.
-- **`שומר_מקום` was written and reverted the same night**, because it could not
-  be shown to change anything on the page — and `settings_live.rs` covers the
-  `_X_defaults` dictionaries, not `#אזור`'s own keys, so nothing would have
-  caught it. Extending that fence over the region keys is the more valuable half
-  of building it.
+- [The three that were left](decisions/2026-08-21-the-three-that-were-left.md) —
+  the fourth source position, the line address and the Vilna wrap, and the four
+  defects found underneath them. Three of those four lose the writer's text.
+- [The three that were owed](decisions/2026-08-22-the-three-that-were-owed.md) —
+  a box that clipped in silence, a gloss that could not be referred to, and a
+  line address that was quadratic.
+
+[What the night did not build](decisions/2026-08-21-what-the-night-did-not-build.md)
+is now **history rather than a work list**: every one of its seven items has
+since been built, including the two it flagged as traps. Read it for the
+reasoning, not for what to do next.
+
+**Two things about the apparatus that are true and are not bugs**, so nobody
+re-reports them:
+
+- `גלישה: ()` — a box the writer asked to stay fixed — is the one arrangement
+  in Ksav that may lose text. It now marks the clipped edge, so the loss is
+  visible; `סימן_חיתוך` changes the mark and `none` removes it.
+- `probe` cannot tell a clipped note from a printed one, because a clip is a
+  paint operation and it walks laid-out frames. `engine/tests/nothing_is_truncated.rs`
+  therefore proves the words reached a **frame**, not that a reader can see them.
+  `examples/svgdump.rs` sees the rectangle, and the limit is named in that file.
 
 **Every name in `NOTES-PLAN` Part 2 was decided**, which decision 14 says is
 Shaul's call and which the night could not ask about. They are all in

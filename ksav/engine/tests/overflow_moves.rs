@@ -177,3 +177,53 @@ fn an_always_on_move_says_it_is_always_on() {
         "the refusal reads like the move does not exist: {text}"
     );
 }
+
+/// `שומר_מקום` — whether a region keeps its slot on a page where it is empty.
+///
+/// This is the setting that was written and **reverted** the night before,
+/// because it could not be shown to change anything on four documents. It could
+/// not, and the reason was not the setting: a region that declared a height was
+/// not laid out at all on a page it had nothing on, so neither answer was
+/// happening and there was nothing for the word to switch between. Two bugs
+/// under one dead knob — and the second was that regions printed in the order a
+/// note happened to be written rather than the order they were declared, so two
+/// regions swapped places from page to page.
+///
+/// The document has an upper region that is empty on page one. Holding its place
+/// pushes the lower region down; not holding it lets the lower region rise.
+#[test]
+fn an_empty_region_holds_its_place_or_frees_it() {
+    let first_note = |name: &str| {
+        let runs = laid(name);
+        runs.iter()
+            .filter(|r| r.page == 1 && r.y > 600.0 && r.y < 780.0 && r.size < 11.0)
+            .map(|r| r.y)
+            .fold(f64::MAX, f64::min)
+    };
+    let holds = first_note("hold_yes");
+    let frees = first_note("hold_no");
+    assert!(
+        holds > frees + 20.0,
+        "שומר_מקום changed nothing: the lower region sits at {holds} either way"
+    );
+}
+
+/// The other half, and the one that says the *default* works. A region that
+/// holds its place must hold the same place on every page — that is what fixed
+/// geometry means, and a region that only appears when it has something in it
+/// is a region that moves.
+#[test]
+fn a_held_region_sits_in_the_same_place_on_every_page() {
+    let runs = laid("hold_yes");
+    let lower: Vec<f64> = runs
+        .iter()
+        .filter(|r| r.size < 11.0 && r.text.contains("בתחתון"))
+        .map(|r| r.y)
+        .collect();
+    assert_eq!(lower.len(), 2, "expected the lower region on both pages");
+    assert!(
+        (lower[0] - lower[1]).abs() < 0.5,
+        "the lower region moved between pages: {:?}",
+        lower
+    );
+}

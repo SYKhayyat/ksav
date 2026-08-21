@@ -3559,6 +3559,23 @@
       // laid out on every apparatus page, even with nothing in it this page, so
       // a stream never drifts into another's place.
       let fixed = _sf_cfg.get().at("גבהים", default: (:)).keys()
+      // A region that declared a height is laid out on every apparatus page,
+      // whether or not it has anything on this one. That is what a declared
+      // height *means* — fixed geometry, so the region under it never moves —
+      // and without this line an empty region was simply absent, the regions
+      // below it drifted up, and `שומר_מקום` had nothing to switch between
+      // because neither of its answers was happening.
+      //
+      // The members are the channels pointed into it; a region nobody declared a
+      // channel for is its own channel, which is how `#הערה(אזור: "x")` names one.
+      let declared = ()
+      for rg in t.סדר_אזורים {
+        if _rg_rec(t, rg).at("גובה", default: none) == none { continue }
+        let mem = t.סדר.filter(c => _ch_region(t, c) == rg)
+        let mem = if mem.len() == 0 { (rg,) } else { mem }
+        for c in mem { if not declared.contains(c) { declared.push(c) } }
+      }
+      let fixed = fixed + declared.filter(c => not fixed.contains(c))
       let streams = _sf_order(_sf_cfg.get(), present + fixed.filter(s => not present.contains(s)))
       // …and the ramps, for the channels a `#ערוץ` line declared. A channel's
       // numbering belongs to the channel, so moving one from the foot of the
@@ -3607,6 +3624,15 @@
       // because the room a page-foot region occupies is taken off the bottom
       // margin before any of this runs. Dropping the region out of the list is
       // what moves the page.
+      // Regions print in the order they were **declared**, not in the order a
+      // note happened to be written. Without this a page whose first note is in
+      // the lower region draws that region first, so the two regions swap places
+      // from page to page — which is the exact opposite of the fixed geometry a
+      // declared height is asked for.
+      let regions = (
+        t.סדר_אזורים.filter(rg => regions.contains(rg))
+          + regions.filter(rg => not t.סדר_אזורים.contains(rg))
+      )
       let regions = regions.filter(rg => {
         let own = _rg_rec(t, rg).at("שומר_מקום", default: auto)
         let holds = if own == auto { true } else { _val(own) == true }

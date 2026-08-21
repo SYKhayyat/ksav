@@ -117,6 +117,21 @@ value returns a plausible answer rather than an error.
 | `sn_p_none.ksav` / `sn_p_note.ksav` | **[X] Every side note breaks its own line out of the paragraph.** One paragraph: 78.79/95.71/112.63/129.55 without notes, 78.79/95.71/**132.43**/149.35 with. ~20pt added at each note, so a document's body spacing is wrong in proportion to how many notes it has. |
 | `lay_none` / `lay_bare` / `lay_boxed` | **The cause and the fix, isolated in raw Typst.** `layout()` is block-level: bare it gives 78.79/132.43/186.07; `box(layout(…))` gives 78.79/95.71/112.63/129.55, identical to no call at all. |
 
+## Thing four's overflow moves, and the grid
+
+Each of these is a **pair**: two documents differing in one word, so the move is
+a difference on the page rather than a claim in a prelude. A move that cannot be
+told apart from not having it is not built.
+
+| Files | Claim |
+|---|---|
+| `ov_shrink2` / `ov_clip2` | **`"הקטנה"` drops a type size.** Three notes into a 0.6cm region: **8.2pt** with the move, **10.2pt** without, and the region overruns without it. The floor is 80% and the ladder stops at the first rung that fits. |
+| `ov_runin` | **`"רצף"` runs the region in.** Six notes, **one line** — `1 קצרה א2 קצרה ב…` — where stacked they are six. |
+| `ov_shrink` / `ov_clip` | **[X] A region that declares more height than the page has under the footer prints off the paper.** Five notes into a declared 2cm region on a sheet with 25.47pt of real room: the fifth lands at **y=853.90 on an 841.89pt page**. The room is measured at the footer now rather than taken from the bottom margin; the *declaration* is still accepted rather than refused, which is the open half. |
+| `hold_yes` / `hold_no` | **`שומר_מקום` holds a slot or frees it.** Upper region empty on page 1: the lower region sits at **733.45** holding and **688.63** freeing, and at 733.45 on both pages when it holds. Two bugs were under this — a declared region was not laid out at all on a page it had nothing on, and regions printed in note order rather than declaration order, so two of them swapped places from page to page. |
+| `grid_on` / `grid_off` | **A baseline grid advances by exactly the grid.** A declared 16pt grid gives a body line advance of **16.00pt**; without it the font's own metrics give 16.92pt. Exact because `top-edge`/`bottom-edge` normalise the line box to 1em, so the advance is `leading + size` and nothing depends on the family. |
+| `addr_page` | **[X] A region at `מיקום: "סוף"` never renders.** Two notes filed into it, and nothing prints at the end of the document — so the four positional addresses (`עמוד`, `דף`, `סימן`, `שורה`) are written and unexercised. |
+
 ## Adding to this corpus
 
 A new claim in `NOTES-PLAN.md` should arrive with a file here and a row above. The

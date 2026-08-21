@@ -162,6 +162,51 @@ fn an_apparatus_prints_where_the_chooser_says_it_does() {
                     end.0,
                     end.1,
                 ),
+                // Beside the text: out in the margin, so its left edge is
+                // clear of the body's own column on that page.
+                "side" => {
+                    // A line has no x of its own; its runs do. The leftmost run
+                    // is the line's left edge, which is what "out in the margin"
+                    // is a claim about.
+                    let left =
+                        |o: &probe::Line| o.runs.iter().map(|r| r.x).fold(f64::MAX, f64::min);
+                    let body = lines
+                        .iter()
+                        .find(|o| o.page == l.page && o.contains(&tail))
+                        .map(left)
+                        .unwrap_or(f64::MAX);
+                    assert!(
+                        left(l) < body,
+                        "{}/{}: this layout prints beside the text, and {body:?} is at x={:.0} \
+                         with the body at x={:.0}",
+                        c.id,
+                        c.which,
+                        left(l),
+                        body,
+                    );
+                }
+                // A band above the text, which is the page foot at the other end
+                // of the sheet: in the top third, and above the body.
+                "top" => assert!(
+                    l.y < height / 3.0,
+                    "{}/{}: this layout prints above the text, and {body:?} is at y={:.0} \
+                     of {height:.0} on page {}",
+                    c.id,
+                    c.which,
+                    l.y,
+                    l.page,
+                ),
+                // A companion volume: after the body, and on a sheet of its own,
+                // which is what separates it from the back of the sefer.
+                "volume" => assert!(
+                    l.page > end.0,
+                    "{}/{}: this layout is a volume of its own, and {body:?} is on page {} \
+                     with the body ending on page {}",
+                    c.id,
+                    c.which,
+                    l.page,
+                    end.0,
+                ),
                 other => panic!("unknown place {other:?}"),
             }
             checked += 1;

@@ -146,3 +146,88 @@ fn a_region_at_the_end_can_ask_for_a_fresh_page() {
         "עמוד_חדש did not open a sheet for the region"
     );
 }
+
+/// A band **above** the text.
+///
+/// The fifth kind of place, and the one that is most obviously the page-foot
+/// apparatus wearing a different anchor: the same collection, the same per-page
+/// assignment, the same overflow moves, the same entry heads. Only the furniture
+/// it is painted into differs, which is why `"למעלה"` is a value on the one axis
+/// and not a mechanism of its own.
+#[test]
+fn a_band_above_the_text_prints_above_the_text() {
+    let runs = laid(
+        "#ערוץ(\"מסורה\", מיקום: \"למעלה\")\n\
+         פתיחה לגוף הספר, ובה מילים רבות כדי שהעמוד יתמלא.\n\n\
+         טקסט#הערה(ערוץ: \"מסורה\")[הערת מסורה] וסוף.",
+    );
+    let note = runs
+        .iter()
+        .find(|r| r.text.contains("הערת מסורה"))
+        .expect("the band above the text printed nothing");
+    let body = runs
+        .iter()
+        .find(|r| r.text.contains("פתיחה לגוף"))
+        .expect("the body is not on the page");
+    assert!(
+        note.y < body.y,
+        "the band printed at y={} and the body at y={} — it is not above it",
+        note.y,
+        body.y
+    );
+}
+
+/// Above and below at once, each working out its own room.
+///
+/// The two ends are filtered apart **before** the assignment, so a full band at
+/// the foot cannot decide what fits at the top. Sharing one answer between two
+/// pieces of furniture at opposite ends of the sheet is the defect this
+/// arrangement would otherwise have by construction.
+#[test]
+fn a_page_can_carry_a_band_at_each_end() {
+    let runs = laid(
+        "#ערוץ(\"מסורה\", מיקום: \"למעלה\")\n#ערוץ(\"ביאור\", מיקום: \"רגל\")\n\
+         פתיחה לגוף הספר, ובה מילים רבות כדי שהעמוד יתמלא.\n\n\
+         ראשון#הערה(ערוץ: \"מסורה\")[הערת מסורה] המשך.\n\n\
+         שני#הערה(ערוץ: \"ביאור\")[ביאור למטה] וסוף.",
+    );
+    let top = runs
+        .iter()
+        .find(|r| r.text.contains("הערת מסורה"))
+        .expect("the band above the text printed nothing");
+    let foot = runs
+        .iter()
+        .find(|r| r.text.contains("ביאור למטה"))
+        .expect("the band below the text printed nothing");
+    assert!(
+        top.y < 100.0 && foot.y > 600.0,
+        "the two bands are not at opposite ends: {} and {}",
+        top.y,
+        foot.y
+    );
+}
+
+/// The running head keeps its place whatever the band above carries.
+///
+/// The same promise the page number is given at the other end: furniture that
+/// was already there does not move to make room for an apparatus.
+#[test]
+fn a_band_above_does_not_move_the_running_head() {
+    let with = laid(
+        "#ערוץ(\"מסורה\", מיקום: \"למעלה\")\n#מסמך(כותרת_עליונה: \"שם הספר\")[\n\
+         טקסט#הערה(ערוץ: \"מסורה\")[הערת מסורה] וסוף.\n]",
+    );
+    let without = laid("#מסמך(כותרת_עליונה: \"שם הספר\")[\nטקסט וסוף.\n]");
+    let head_of = |runs: &[probe::TextRun]| {
+        runs.iter()
+            .find(|r| r.text.contains("שם הספר"))
+            .map(|r| r.y)
+            .expect("the running head is not on the page")
+    };
+    assert!(
+        (head_of(&with) - head_of(&without)).abs() < 0.5,
+        "the running head moved from {} to {}",
+        head_of(&without),
+        head_of(&with)
+    );
+}

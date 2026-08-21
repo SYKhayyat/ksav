@@ -154,6 +154,15 @@
   document: "סוף",
   // A companion volume — its own sheet and its own page count. See `_ch_places`.
   file: "קובץ",
+  // A band above the text, and the edges beside it. `side` is **not** repeated
+  // here: it is above, where it has been since a region could lay its channels
+  // out side by side, and it is the same word for the same idea — beside. One
+  // key, two things that are one thing.
+  top: "למעלה",
+  outside: "חוץ",
+  inside: "פנים",
+  right: "ימין",
+  left: "שמאל",
   end: "סוף",
   // הגדרות_סקירה · תצוגה
   marks: "סימון",
@@ -2489,6 +2498,50 @@
 /// line and a little air, and a fraction resolves against any margin without
 /// needing a context to work it out.
 #let _ap_free = state("ksav-ap-free", 0pt)
+/// The room a band **above** the text has.
+///
+/// The top margin, less the running head and its clearance — the same share the
+/// foot leaves for the page number, and for the same reason: the furniture that
+/// was already there does not move to make space for an apparatus.
+#let _ap_free_top = state("ksav-ap-free-top", 0pt)
+
+/// A margin reserved for notes beside the text, for the whole document.
+///
+/// The mirror of `אזור_הערות`, and for the same reason. A side column needs the
+/// body narrowed to make room, and the only thing that could narrow it was
+/// `#עם_הערות_צד` wrapped around the prose — so `#ערוץ("x", מיקום: "חוץ")` on its
+/// own declared a placement with nowhere to land, and every note in it fell back
+/// to a footnote at the foot of the page. A declaration that quietly becomes a
+/// different arrangement is the thing this whole model exists to stop.
+///
+/// With a reserve the column *is* the reserved strip: the page gives the margin,
+/// and the column does not carve a second one out of what is left.
+#let _sn_reserve = state("ksav-sn-reserve", 0pt)
+
+/// The strip a side note may use when the document reserved nothing and the
+/// prose was never wrapped.
+///
+/// The same answer the page foot gives: the margin that is already there. A note
+/// in a channel the writer *placed* at the side used to fall back to a
+/// **footnote** — it printed, at the bottom of the page, in an arrangement they
+/// had not asked for and were not told about. A gloss in the ordinary margin is
+/// what `מיקום: "חוץ"` says, and the ordinary margin is wide enough to hold one.
+///
+/// Narrower than a reserved column on purpose: this is space the page already
+/// had rather than space taken from the prose, so the body does not move and
+/// adding a side channel to a finished sefer does not re-paginate it.
+#let _sn_free_share = 0.8
+#let _sn_free() = calc.max(_pg_margin("left"), _pg_margin("right")) * _sn_free_share
+
+
+/// Whether this sefer is bound — laid out as facing pages with mirrored margins.
+///
+/// Recorded rather than read back off `page.margin`, which comes back **resolved**
+/// in a context: a two-sided document sets `inside`/`outside` and reads back
+/// `left`/`right`, so asking the page whether it is two-sided always answered no.
+/// A margin apparatus that is meant to swap edges on facing pages therefore never
+/// swapped, silently, on every bound document.
+#let _pg_two_sided = state("ksav-two-sided", false)
 #let _ap_free_share = 0.7
 
 /// How much room a page-foot region actually has.
@@ -2502,7 +2555,14 @@
 /// is clamped here, once, and both the walk that decides what fits and the slot
 /// that draws it read the clamped value — the two disagreeing being the defect
 /// this whole section exists to prevent.
-#let _ap_room() = {
+#let _ap_room(איפה: "רגל") = {
+  // The band above the text: its own room, and never the page-foot reserve.
+  // `אזור_הערות` reserves at the bottom, and a top band that read it would be
+  // sized by a number about the other end of the sheet.
+  if איפה == "למעלה" {
+    let ft = _ap_free_top.get()
+    return if ft > 0pt { ft } else { _pg_margin("top") * _ap_free_share }
+  }
   let r = _ap_reserve.get()
   if r > 0pt { return r }
   // What the footer will actually clip to, so the walk that decides what fits
@@ -2526,8 +2586,8 @@
   let under = page.height - here().position().y
   if under < m { calc.max(0pt, under) } else { m }
 }
-#let _ap_fit_room(h) = if h == none { none } else {
-  calc.min(_ap_fixed_height(h), _ap_room())
+#let _ap_fit_room(h, איפה: "רגל") = if h == none { none } else {
+  calc.min(_ap_fixed_height(h), _ap_room(איפה: איפה))
 }
 
 // ---- גלישה · what a full region does, as the writer's own list ----
@@ -3105,7 +3165,34 @@
 // writer's, and it is `#מסמך(כרך_נפרד:)` — the same content either way, so the
 // choice can be made after everything is written, which is the whole promise of
 // the channel model.
-#let _ch_places = ("רגל", "סוף_מדור", "סוף", "קובץ")
+// The placements that put a note **beside** the text, and which edge each names.
+//
+// `"חוץ"` and `"פנים"` are binding-relative: on a two-sided sefer the outer edge
+// is the left of a recto and the right of a verso, so a note that says *outside*
+// changes edge with the page and stays outside. `"ימין"` and `"שמאל"` name an
+// edge outright and never move. `"צד"` is the old spelling of `"חוץ"`, kept
+// because every document written before this said it.
+#let _ch_side_places = ("צד", "חוץ", "פנים", "ימין", "שמאל")
+#let _ch_side_of(place) = if place == "צד" { "חוץ" } else { place }
+/// One label per side channel. Dynamic, like `_cn_dump`'s — `label()` takes a
+/// string, so a stream does not have to be one of a fixed few.
+#let _sn_chan_lbl(name) = "ksav-snc-" + name
+
+// **One axis.** Where a note goes is one question with one set of answers, and
+// the side of the page is one of them — not a separate mechanism reached through
+// a different command. `#הערת_גיליון`, `#הערת_ימין` and `#הערת_שמאל` are three
+// built-in side channels in exactly the sense the seven tier commands are seven
+// built-in foot channels: useful spellings of values on this list, and not a
+// second model beside it.
+// `"למעלה"` is a band **above** the text, and it is the page-foot apparatus
+// drawn at the other end of the sheet — the same collection, the same per-page
+// assignment, the same overflow moves, the same entry heads. Only the furniture
+// it is painted into differs, which is why it is a value here and not a
+// mechanism of its own.
+// One line on purpose: `enginefacts.test.mjs` reads this list off the prelude by
+// taking the quoted strings on the declaration, and a tuple broken over several
+// lines reads as an empty one — a fence that silently stops comparing.
+#let _ch_places = ("רגל", "למעלה", "צד", "חוץ", "פנים", "ימין", "שמאל", "סוף_מדור", "סוף", "קובץ")
 // A knob of a channel, and where the shared renderer reads it: `_ap_pick` wants
 // knob-major dictionaries keyed by the group, and a channel's record is
 // channel-major. `כותרת` is singular on a channel and plural in the renderer for
@@ -3201,7 +3288,11 @@
 // at the page foot) or "אסוף" (a region rendered at a #הצג_אזור call).
 #let _ch_kind(t, name) = {
   if _ch_is_native(t, name) { "מקורי" }
-  else if _ch_place(t, name) == "רגל" { "רגל" }
+  // A band above the text is filed exactly as a band below it — same stream,
+  // same numbering, same overflow. `_sf_where` is what separates them, and it is
+  // asked at the moment of *drawing* rather than at the moment of filing.
+  else if _ch_place(t, name) == "רגל" or _ch_place(t, name) == "למעלה" { "רגל" }
+  else if _ch_side_places.contains(_ch_place(t, name)) { "צד" }
   else { "אסוף" }
 }
 // A channel's numbering scheme, when it declared one. `none` leaves the
@@ -3764,7 +3855,7 @@
 /// How much room each stream has — its declared slot, or the shared reserve.
 /// The streams' heights are a dictionary keyed by stream name where the bands'
 /// are an array per tier, which is what `_ap_pick` is for.
-#let _sf_cap(cfg, t) = g => {
+#let _sf_cap(cfg, t, איפה) = g => {
   // The region this stream sits in may have declared a height of its own, and
   // that height is the room the stream has — which is what `גלישה` has to be
   // measured against. Before this it was read only for *drawing* the slot, so a
@@ -3776,7 +3867,19 @@
   let rg = _ch_region(t, g)
   let own = _rg_rec(t, rg).at("גובה", default: none)
   let own = if own != none { own } else { _ap_pick(cfg, "גבהים", g, none) }
-  if own != none { _ap_fit_room(own) } else { _ap_room() }
+  if own != none { _ap_fit_room(own, איפה: איפה) } else { _ap_room(איפה: איפה) }
+}
+
+/// Which end of the sheet a stream is painted at.
+///
+/// Read off the region the stream is pointed into, which is the stream's own
+/// name when it was never pointed anywhere — the same rule every other question
+/// about a stream's placement follows.
+#let _sf_where(t, g) = {
+  let rg = _ch_region(t, g)
+  let own = _rg_rec(t, rg).at("מיקום", default: auto)
+  let p = if own == auto { _ch_rec(t, g).at("מיקום", default: "רגל") } else { own }
+  if _val(p) == "למעלה" { "למעלה" } else { "רגל" }
 }
 
 /// What a stream's region does when it is full.
@@ -3792,10 +3895,13 @@
   _ap_spill_read("אזור", mine)
 }
 
-#let _sf_page_streams() = context {
-  let all = _sf_all()
+#let _sf_page_streams(איפה: "רגל") = context {
+  let t = _ch_st.final()
+  // Only the streams painted at this end. Filtered **before** the assignment,
+  // so the band above the text and the band below it each work out their own
+  // overflow against their own room rather than sharing one answer.
+  let all = _sf_all().filter(e => _sf_where(t, e.value.group) == איפה)
   if all.len() > 0 {
-    let t = _ch_st.final()
     let pg = here().page()
     // Assigned to this page, not registered on it — see `_ap_assign`. The
     // configuration here is read twice: once against the streams *present* to
@@ -3803,7 +3909,7 @@
     // first reading is deliberately the cheap one, since it only needs the
     // per-stream sizes and column counts that decide how tall an entry is.
     let base = _nt_under(_sf_cfg.get())
-    let on = _ap_on_page(all, base, _sf_cap(base, t), pg, policy_of: _sf_spill(t))
+    let on = _ap_on_page(all, base, _sf_cap(base, t, איפה), pg, policy_of: _sf_spill(t))
     let mine = on.entries
     if mine.len() > 0 {
       let present = mine.map(e => e.value.group).dedup()
@@ -4153,12 +4259,44 @@
 // הצג_אזור(שם) — print a collected region's channels here, and close its scope.
 // Called at the end of the section, or once at the end of the document; each
 // call renders only the notes written since the previous one.
+/// Where a region's placement says it should start.
+///
+/// A companion volume gets a sheet of its own and a page count of its own, and
+/// the back of the sefer follows on — **whether the writer placed the region by
+/// hand or left the document to place it.** Being a volume is a property of the
+/// region, not of which line happened to draw it, and putting this only in the
+/// automatic dump meant a writer who wrote `#הצג_אזור` got a companion running
+/// on from the last line of the body with the sefer's own page numbers.
+///
+/// An undeclared region is its own channel, so the placement is read from
+/// whichever of the two said something.
+#let _rg_open(t, rg) = {
+  let own = _rg_rec(t, rg).at("מיקום", default: auto)
+  let place = _val(if own == auto {
+    _ch_rec(t, rg).at("מיקום", default: "רגל")
+  } else {
+    own
+  })
+  let ask = _rg_rec(t, rg).at("עמוד_חדש", default: auto)
+  let fresh = if ask == auto { place == "קובץ" } else { _val(ask) == true }
+  if fresh {
+    pagebreak(weak: false)
+    // Its own count, which is what separates a volume from a section: without it
+    // a companion is the back of the sefer with a rule above it, and a reader
+    // citing it would be citing this sefer's pages.
+    if place == "קובץ" { counter(page).update(1) }
+  }
+}
+
 #let _rg_show(rg, כותרת) = {
   context {
     let t = _ch_st.final()
     let notes = _ksav_real_of(_cn_scope(rg)(here()))
     let mine = notes.filter(e => _ch_region(t, e.value.group) == rg)
     if mine.len() > 0 {
+      // Inside the guard: a page break in front of a region with nothing in it
+      // is a blank sheet the writer did not ask for.
+      _rg_open(t, rg)
       // Declared channels in declaration order, then anything that landed here
       // without being declared — which keeps a note visible rather than tidy.
       let chans = _ch_in_region(t, rg).filter(c => mine.any(e => e.value.group == c))
@@ -4403,6 +4541,16 @@
 // sefer — one section beside a peirush, the next with a peirush down both sides.
 #let _sn_shape = state("ksav-sn-shape", (טורים: 0, צדדים: "שניהם"))
 
+/// Is there anywhere for this side note to go?
+///
+/// A reserved margin, a wrapper around the prose, or — for a note whose channel
+/// was *placed* at the side — the margin the page already has. Asked in one
+/// place because the registrar and the renderer disagreeing about it is a note
+/// drawn twice, or not at all.
+#let _sn_has_column(loc, מוצב) = (
+  מוצב or _sn_reserve.final() > 0pt or _sn_shape.at(loc).at("טורים", default: 0) > 0
+)
+
 /// The note column's own geometry on this page: where its left edge is and how
 /// wide it is, both in page coordinates.
 ///
@@ -4413,7 +4561,19 @@
 /// is placed by the paragraph it was written in, and a note carried onto the
 /// *next* page never can be. Page coordinates have no such problem: every marker
 /// already reports its position in them.
-#let _sn_column(cfg, shape, side) = {
+// _rc_outside_is_left(p, כריכה_ימין) — which physical edge is the OUTSIDE one on
+// page `p`.
+//
+// Typst binds `inside`/`outside` to page parity: with `binding: right`, an odd
+// page carries its binding on the right, so its outside edge is the left one.
+// Both the mirrored margins and the running heads that align to the outside edge
+// have to agree about this, and they are computed in different places — so it is
+// one function, and neither gets to decide for itself.
+#let _rc_outside_is_left(p, כריכה_ימין) = {
+  if כריכה_ימין { calc.odd(p) } else { not calc.odd(p) }
+}
+
+#let _sn_column(cfg, shape, side, pg) = {
   let ml = _pg_margin("left")
   let mr = _pg_margin("right")
   let textw = page.width - ml - mr
@@ -4423,13 +4583,51 @@
   // and (note, main, note) in the second, so the second spends a gutter twice
   // and divides what is left by one more part.
   let two = shape.at("טורים", default: 0) == 2 and shape.at("צדדים", default: "שניהם") == "שניהם"
-  let colw = if two { (textw - 2 * g) / (r + 2) } else { (textw - g) / (r + 1) }
-  // "חוץ" is *the far side of the main column*, which is a question about the
-  // text direction: a Hebrew page runs its main column from the right, so the
-  // notes beside it are on the left. "ימין" and "שמאל" name an edge outright.
+  // A document-level reserve **is** the column. Carving a share out of the text
+  // as well would take the margin twice — once from the page and once from the
+  // prose — and leave the body narrower than the writer asked for.
+  let res = _sn_reserve.final()
+  let wrapped = shape.at("טורים", default: 0) > 0
+  let colw = if res > 0pt {
+    res - g
+  } else if not wrapped {
+    // No reserve and no wrapper: the margin the page already has.
+    _sn_free() - g
+  } else if two {
+    (textw - 2 * g) / (r + 2)
+  } else {
+    (textw - g) / (r + 1)
+  }
+  // Which edge, and for two of the four it depends on the page.
+  //
+  // "חוץ" is the far side of the main column and "פנים" the near one — the side
+  // toward the binding — so on a **two-sided** sefer they change edge with the
+  // parity of the page and stay where they are relative to the spine. That is
+  // what makes a margin apparatus look right in a bound sefer and what an
+  // absolute edge cannot do. "ימין" and "שמאל" name an edge outright and never
+  // move, which is a real thing to want and is why both kinds exist.
+  //
+  // A one-sided document has no spine to be inside of, so "חוץ" keeps the
+  // meaning it has always had — the far side of the text direction — and every
+  // document written before this lays out identically.
   let rtl_ = text.dir == rtl
-  let at_left = if side == "חוץ" { rtl_ } else { side == "שמאל" }
-  (x: if at_left { ml } else { page.width - mr - colw }, w: colw)
+  // `.final()`, not `.get()`: two-sidedness is a property of the document, and a
+  // page foreground is laid out at a location where the body has not yet set it.
+  let outside_left = if _pg_two_sided.final() { _rc_outside_is_left(pg, rtl_) } else { rtl_ }
+  let at_left = if side == "חוץ" {
+    outside_left
+  } else if side == "פנים" {
+    not outside_left
+  } else {
+    side == "שמאל"
+  }
+  // With a reserve the strip is *outside* the text block, so the column starts
+  // at the page edge plus the ordinary margin rather than at the text's own.
+  let outer = if res > 0pt { res } else if not wrapped { _sn_free() } else { 0pt }
+  (
+    x: if at_left { ml - outer } else { page.width - mr + outer - colw },
+    w: colw,
+  )
 }
 
 // ---- the column, drawn once per page, out of the page's own foreground ----
@@ -4472,6 +4670,23 @@
   (lbl: "ksav-rv", kind: "עורך"),
 )
 
+/// Every side stream a page has to draw: the built-in ones, and one for each
+/// channel the document placed beside the text.
+///
+/// Dynamic because the axis is open — a writer names a channel and puts it on an
+/// edge, and nothing about that is known when this file is read. The built-ins
+/// are first so a document that declares nothing pays one state read.
+#let _sn_all_streams() = {
+  let t = _ch_st.final()
+  let out = _sn_streams
+  for c in t.סדר {
+    if _ch_side_places.contains(_ch_place(t, c)) {
+      out.push((lbl: _sn_chan_lbl(c), kind: "צד"))
+    }
+  }
+  out
+}
+
 /// One stream's marker, by kind.
 ///
 /// `own` is the note's own overrides, which for a comment carry its colour: the
@@ -4486,6 +4701,31 @@
     _mk_render(_cfg_with(base, piece), [#piece.at("טקסט", default: "✎")#n])
   } else {
     _sn_mark(n, prime: kind == "שמאל")
+  }
+}
+
+#let _sn_note(lbl, side, kind, body, own: (:), מוצב: false) = {
+  // `מוצב` — this note is here because a channel was **placed** at the side,
+  // rather than because a command spelled "sidenote" was used inside a column.
+  // The difference decides what happens when there is no column: a note that
+  // says where it goes gets the margin, and one that does not gets a footnote.
+  [#metadata((body: body, own: own, side: side, kind: kind, מוצב: מוצב))#label(lbl)]
+  context {
+    let base = _nt_under(_sn_cfg.get())
+    let cfg = _cfg_with(base, own)
+    let loc0 = here()
+    // The number the reader sees, which is the note's rank since the last
+    // restart rather than its rank in the sefer.
+    let num = _ksav_rank(_nr_scope(label(lbl), loc0), loc0, e => true)
+    // The marker in the running text, through the column's own `סימן`. Not
+    // through `cfg`: the note's size and colour are the column's, and the
+    // number is standing in the sentence being annotated.
+    _mk_render(base.at("סימן", default: (:)), super[#_sn_mark_of(kind, num, own)])
+    if not _sn_has_column(loc0, מוצב) {
+      // No side column is open, so there is nowhere to put the note. Fall back
+      // to a real footnote rather than placing it off the edge of the paper.
+      footnote(_sn_wrap(cfg, _sn_mark_of(kind, num, own), body))
+    }
   }
 }
 
@@ -4549,7 +4789,9 @@
   // A note written outside any `#עם_הערות_צד` has no column to land in and
   // became a real footnote at its own call site. It must not also be drawn
   // here, or it prints twice.
-  let live = within.filter(e => _sn_shape.at(e.location()).at("טורים", default: 0) > 0)
+  let live = within.filter(e => (
+    _sn_has_column(e.location(), e.value.at("מוצב", default: false))
+  ))
   if live.len() == 0 { return (items: (), placed: ()) }
   let items = ()
   for e in live {
@@ -4557,7 +4799,9 @@
     // Each note's own configuration, read where the note stands: a sefer may
     // change the column's width or the note size half way through.
     let base = _nt_under(_sn_cfg.at(loc))
-    let col = _sn_column(base, _sn_shape.at(loc), e.value.at("side", default: "חוץ"))
+    let side = e.value.at("side", default: "חוץ")
+    let shape = _sn_shape.at(loc)
+    let col = _sn_column(base, shape, side, loc.page())
     let ecfg = _cfg_with(base, e.value.at("own", default: (:)))
     // Measured with the number that will be **printed** beside it, which is
     // not its document-wide rank once a count has restarted: a two-digit
@@ -4570,6 +4814,11 @@
       page: loc.page(),
       want: loc.position().y,
       h: measure(piece).height,
+      // Kept so the edge can be worked out again for the page this note is
+      // *placed* on, which for a carried note is not the page it was written on.
+      base: base,
+      shape: shape,
+      side: side,
       x: col.x,
       gap: base.at("ריווח", default: 0.6em).to-absolute(),
       piece: piece,
@@ -4589,11 +4838,13 @@
 /// empty lookup per stream — for a document that has none.
 #let _sn_page_column() = context {
   let pg = here().page()
-  for st in _sn_streams {
+  for st in _sn_all_streams() {
     let out = _sn_placed(st, pg)
     for i in range(out.items.len()) {
       if out.placed.at(i).page == pg {
-        place(top + left, dx: out.items.at(i).x, dy: out.placed.at(i).y, out.items.at(i).piece)
+        let it = out.items.at(i)
+        let x = _sn_column(it.base, it.shape, it.side, pg).x
+        place(top + left, dx: x, dy: out.placed.at(i).y, it.piece)
       }
     }
   }
@@ -4634,7 +4885,7 @@
   let any = false
   // The lowest point any side note reaches, for the continuous mode below.
   let deepest = 0pt
-  for st in _sn_streams {
+  for st in _sn_all_streams() {
     let out = _sn_placed(st, none)
     if out.items.len() > 0 { any = true }
     for i in range(out.items.len()) {
@@ -4677,7 +4928,7 @@
   let streams = _sf_all()
   if streams.len() > 0 {
     let cfg = _nt_under(_sf_cfg.get())
-    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg, _ch_st.final()), policy_of: _sf_spill(_ch_st.final())))
+    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg, _ch_st.final(), "רגל"), policy_of: _sf_spill(_ch_st.final())))
     any = true
   }
   if not any { return }
@@ -4961,17 +5212,6 @@
 //  (font / size / margin / direction / numbering) become real
 //  Typst set-rules around the whole document.
 // ============================================================
-// _rc_outside_is_left(p, כריכה_ימין) — which physical edge is the OUTSIDE one on
-// page `p`.
-//
-// Typst binds `inside`/`outside` to page parity: with `binding: right`, an odd
-// page carries its binding on the right, so its outside edge is the left one.
-// Both the mirrored margins and the running heads that align to the outside edge
-// have to agree about this, and they are computed in different places — so it is
-// one function, and neither gets to decide for itself.
-#let _rc_outside_is_left(p, כריכה_ימין) = {
-  if כריכה_ימין { calc.odd(p) } else { not calc.odd(p) }
-}
 
 // _rc_head(p, זוגי, אי_זוגי, אחיד) — the running head for page `p`.
 //
@@ -5136,6 +5376,13 @@
   // Line numbers down the margin, every n-th line. Off by default; a שורה
   // address in an apparatus is worth nothing without them, and they are the one
   // addressing scheme that puts anything on the body page.
+  // A margin kept for notes beside the text, for the whole document — the
+  // mirror of `אזור_הערות` at the foot. Without one a side channel has nowhere
+  // to land unless the prose is wrapped in `#עם_הערות_צד`, and a note sent to a
+  // margin that does not exist fell back to a footnote: a declaration quietly
+  // becoming a different arrangement, which is the thing this model exists to
+  // stop. `none` keeps the wrapper's behaviour, so nothing already written moves.
+  אזור_צד: none,
   מספור_שורות: false,
   // A companion volume — a channel at `מיקום: "קובץ"` — bound behind the body
   // or written out as a file of its own. **The same content either way**, which
@@ -5184,6 +5431,10 @@
 ) = {
   let np = if מספור_עברי { "א" } else { "1" }
   let reserve = if אזור_הערות == none { 0pt } else { אזור_הערות }
+  // The side reserve goes on the **outside** edge, which is where a margin
+  // apparatus belongs in a bound sefer: the inner edge is the gutter, and a note
+  // printed into it disappears into the binding.
+  let side_res = if אזור_צד == none { 0pt } else { אזור_צד }
   // Every edge falls back to the one uniform margin, so a document that sets
   // none of them lays out exactly as it did before any of this existed.
   let m_top = if שוליים_עליון != none { שוליים_עליון } else { שוליים }
@@ -5255,11 +5506,11 @@
     .._size,
     binding: if bind_right { right } else { left },
     margin: if דו_צדדי {
-      (top: m_top, inside: m_in, outside: m_out, bottom: m_bot + reserve)
+      (top: m_top, inside: m_in, outside: m_out + side_res, bottom: m_bot + reserve)
     } else if bind_right {
-      (top: m_top, right: m_in, left: m_out, bottom: m_bot + reserve)
+      (top: m_top, right: m_in, left: m_out + side_res, bottom: m_bot + reserve)
     } else {
-      (top: m_top, left: m_in, right: m_out, bottom: m_bot + reserve)
+      (top: m_top, left: m_in, right: m_out + side_res, bottom: m_bot + reserve)
     },
     numbering: if מספור { np } else { none },
     // The page number must not move when the document grows an apparatus, and
@@ -5292,11 +5543,18 @@
     // header installed only when a *parameter* was given would have made the
     // command work in exactly the documents that did not need it. It renders
     // nothing when nothing has been said, which is what `auto` did.
-    header: context {
-      let p = here().page()
-      let line = _rc_line("head", p, כותרת_זוגי, כותרת_אי_זוגי, כותרת_עליונה)
-      if line != none {
-        align(head_align(p), text(size: 0.85em, fill: luma(100), line))
+    header: {
+      // The band above the text, then the running head under it — the mirror of
+      // the foot, where the apparatus sits above the page number. The head keeps
+      // its place whatever the band carries, which is the same promise the page
+      // number is given at the other end.
+      _sf_page_streams(איפה: "למעלה")
+      context {
+        let p = here().page()
+        let line = _rc_line("head", p, כותרת_זוגי, כותרת_אי_זוגי, כותרת_עליונה)
+        if line != none {
+          align(head_align(p), text(size: 0.85em, fill: luma(100), line))
+        }
       }
     },
     // Footer = per-page regrouped bands (read-only, renders nothing when unused)
@@ -5410,6 +5668,9 @@
   // converges. See `_ap_assign`.
   _ap_reserve.update(reserve)
   _ap_free.update(m_bot * _ap_free_share)
+  _ap_free_top.update(m_top * _ap_free_share)
+  _sn_reserve.update(side_res)
+  _pg_two_sided.update(דו_צדדי)
   set footnote.entry(gap: ריווח_הערות)
   // Keep the heading counter stepping (so #הגדרות_כותרות(מספור: …) can display a
   // number) while suppressing Typst's own number — _hd_show renders headings
@@ -5496,18 +5757,8 @@
       }
       for rg in want {
         if shown.contains(rg) { continue }
-        // The writer's answer, or the placement's own habit when they had none.
-        let own = _rg_rec(t, rg).at("עמוד_חדש", default: auto)
-        let fresh = if own == auto { place == "קובץ" } else { _val(own) == true }
-        if fresh and place != "קובץ" { pagebreak(weak: false) }
-        if fresh and place == "קובץ" {
-          // Its own sheet and its own count, which is what separates a volume
-          // from a section. The *scheme* stays the document’s: `set page` inside
-          // a `context` reaches only that block’s content and not the page it
-          // above it, and a reader citing it would be citing this sefer's pages.
-          pagebreak(weak: false)
-          counter(page).update(1)
-        }
+        // The sheet is `_rg_show`'s to open — see `_rg_open`, which the writer's
+        // own `#הצג_אזור` goes through as well.
         _rg_show(rg, auto)
       }
     }
@@ -5570,6 +5821,7 @@
   baseline_grid: "רשת_בסיס",
   // Line numbers down the margin — and what a שורה address in an apparatus is
   // read off. See `_eh_addr`.
+  side_region: "אזור_צד",
   line_numbers: "מספור_שורות",
   note_spacing: "ריווח_הערות",
 ))
@@ -6262,7 +6514,20 @@
     // two notes in one region number together — which is what a region *is*.
     _ch_note_in(if ערוץ == none { name } else { _as_string(ערוץ).trim() }, name, body, named)
   } else {
-    _ch_note(if ערוץ == none { _ch_default } else { ערוץ }, body, named)
+    let name = if ערוץ == none { _ch_default } else { _as_string(ערוץ).trim() }
+    context {
+      let t = _ch_st.final()
+      let place = _ch_place(t, name)
+      if _ch_side_places.contains(place) {
+        // Beside the text. The same note, the same axis, a different value —
+        // which is why this is a branch here rather than a command of its own.
+        let (own, rest) = _cfg_split(named, _sn_own_keys)
+        _cfg_strict("הערה", rest)
+        _sn_note(_sn_chan_lbl(name), _ch_side_of(place), "צד", body, own: own, מוצב: true)
+      } else {
+        _ch_note(name, body, named)
+      }
+    }
   }
 }
 #let fnote = _en(הערה)
@@ -6518,26 +6783,6 @@
 // `kind` is what the page needs to draw this note's marker — see `_sn_streams`.
 // It travels in the metadata because the drawing happens on the page and a
 // closure cannot travel in one.
-#let _sn_note(lbl, side, kind, body, own: (:)) = {
-  [#metadata((body: body, own: own, side: side, kind: kind))#label(lbl)]
-  context {
-    let base = _nt_under(_sn_cfg.get())
-    let cfg = _cfg_with(base, own)
-    let loc0 = here()
-    // The number the reader sees, which is the note's rank since the last
-    // restart rather than its rank in the sefer.
-    let num = _ksav_rank(_nr_scope(label(lbl), loc0), loc0, e => true)
-    // The marker in the running text, through the column's own `סימן`. Not
-    // through `cfg`: the note's size and colour are the column's, and the
-    // number is standing in the sentence being annotated.
-    _mk_render(base.at("סימן", default: (:)), super[#_sn_mark_of(kind, num, own)])
-    if _sn_shape.get().at("טורים", default: 0) == 0 {
-      // No side column is open, so there is nowhere to put the note. Fall back
-      // to a real footnote rather than placing it off the edge of the paper.
-      footnote(_sn_wrap(cfg, _sn_mark_of(kind, num, own), body))
-    }
-  }
-}
 
 // Named arguments style this one sidenote — `גודל` and `צבע`, the two knobs that
 // belong to a note rather than to the column. See `_sn_note` and `_cfg_with`.

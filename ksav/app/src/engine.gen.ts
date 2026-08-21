@@ -388,7 +388,7 @@ export const PARAM_EN_BY_COMMAND: Readonly<Record<string, Readonly<Record<string
   "ערוץ": { "טורים": "columns" },
   "כותרת_עליונה": { "זוגי": "even", "אי_זוגי": "odd" },
   "כותרת_תחתונה": { "זוגי": "even", "אי_זוגי": "odd" },
-  "מסמך": { "טורים": "columns", "עמודות": "table_columns", "יישור": "justify", "כותרת_מסמך": "title", "שוליים_עליון": "margin_top", "שוליים_תחתון": "margin_bottom", "שוליים_פנימי": "margin_inner", "שוליים_חיצוני": "margin_outer", "שולי_כריכה": "gutter", "דו_צדדי": "two_sided", "כותרת_זוגי": "header_even", "כותרת_אי_זוגי": "header_odd", "תחתונה_זוגי": "footer_even", "תחתונה_אי_זוגי": "footer_odd", "יישור_כותרת": "head_align", "מחבר": "author", "מילות_מפתח": "keywords", "מניעת_יתומים": "prevent_orphans", "רציף": "continuous", "כרך_נפרד": "separate_volume", "רשת_בסיס": "baseline_grid", "מספור_שורות": "line_numbers", "ריווח_הערות": "note_spacing" },
+  "מסמך": { "טורים": "columns", "עמודות": "table_columns", "יישור": "justify", "כותרת_מסמך": "title", "שוליים_עליון": "margin_top", "שוליים_תחתון": "margin_bottom", "שוליים_פנימי": "margin_inner", "שוליים_חיצוני": "margin_outer", "שולי_כריכה": "gutter", "דו_צדדי": "two_sided", "כותרת_זוגי": "header_even", "כותרת_אי_זוגי": "header_odd", "תחתונה_זוגי": "footer_even", "תחתונה_אי_זוגי": "footer_odd", "יישור_כותרת": "head_align", "מחבר": "author", "מילות_מפתח": "keywords", "מניעת_יתומים": "prevent_orphans", "רציף": "continuous", "כרך_נפרד": "separate_volume", "רשת_בסיס": "baseline_grid", "אזור_צד": "side_region", "מספור_שורות": "line_numbers", "ריווח_הערות": "note_spacing" },
   "הערת_גיליון": { "מרווח": "gutter" },
   "הגדרות_הערות_צד": { "מרווח": "gutter" },
   "הערת_ימין": { "מרווח": "gutter" },

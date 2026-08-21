@@ -47,7 +47,7 @@ export const NOTE_COMMAND = "הערה";
 export const DEFAULT_CHANNEL = "הערה";
 
 /**
- * The four placements, in the order a chooser offers them.
+ * The placements, in the order a chooser offers them.
  *
  * The decision record names five. Three of them are the ones a writer chooses;
  * the other two are consequences. *Indented inside its parent's block* is what a
@@ -55,7 +55,18 @@ export const DEFAULT_CHANNEL = "הערה";
  * cannot be indented inside a block three hundred pages away — and *a named
  * region* is an argument every placement takes.
  */
-export const PLACEMENTS = ["רגל", "סוף_מדור", "סוף", "קובץ"] as const;
+export const PLACEMENTS = [
+  "רגל",
+  "למעלה",
+  "חוץ",
+  "פנים",
+  "ימין",
+  "שמאל",
+  "צד",
+  "סוף_מדור",
+  "סוף",
+  "קובץ",
+] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
 /** How a region lays out the channels pointed into it. */
@@ -102,16 +113,26 @@ const HE_ARGS: Record<string, string> = Object.fromEntries(
  */
 const EN_VALUES: Record<string, string> = {
   רגל: "foot",
+  // A band above the text, which is the page-foot apparatus at the other end of
+  // the sheet — same collection, same overflow, different furniture.
+  למעלה: "top",
+  // Beside the text. "חוץ"/"פנים" are binding-relative and swap on facing pages;
+  // "ימין"/"שמאל" name an edge outright. "צד" is the old spelling of "חוץ".
+  חוץ: "outside",
+  פנים: "inside",
+  ימין: "right",
+  שמאל: "left",
+  // "צד" is below, where it has been since regions had layouts: one word for
+  // *beside* — a region whose channels sit side by side, and a note placed
+  // beside the text. Both are "side" in English and there is one entry for it.
   סוף_מדור: "section",
   סוף: "document",
   מוערם: "stacked",
   צד: "side",
-  // A companion volume, which is a destination rather than a placement today —
-  // `_ch_places` carries it now — a companion volume is a fourth placement, with
-  // its own sheet and its own page count. The spelling was written here before
-  // the engine had one, and `caveatsFor` said so in words until it did; the
-  // caveat retired itself the moment `PLACEMENTS` grew, which is what that
-  // mechanism was for.
+  // A companion volume: its own sheet and its own page count. The spelling was
+  // written here before the engine had the placement, and `caveatsFor` said so
+  // in words until it did; the caveat retired itself the moment `PLACEMENTS`
+  // grew, which is what that mechanism was for.
   קובץ: "file",
 };
 const HE_VALUES: Record<string, string> = Object.fromEntries(

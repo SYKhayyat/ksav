@@ -243,10 +243,13 @@ export async function run() {
 
   // ------------------------------------------------------------------ the axes
 
-  // Four now: the foot of the page, the end of the section, the end of the sefer
-  // and a companion volume of its own. Still an *axis* rather than eighteen
-  // commands, which is the thing this line is really asserting.
-  ok("channels: four placements, not eighteen commands", PLACEMENTS.length === 4);
+  // The whole axis: the foot of the page, a band above it, four edges beside it,
+  // the end of the section, the end of the sefer, and a companion volume. The
+  // count is asserted rather than "more than one" because what this line is
+  // really about is that they are **values on one axis** and not commands — the
+  // number growing is the axis widening, which is the point, and a number that
+  // could drift silently would stop saying so.
+  ok("channels: one axis of placements, not eighteen commands", PLACEMENTS.length === 10);
   ok(
     "channels: every placement round-trips through a written line",
     PLACEMENTS.every((p) => {
@@ -530,7 +533,19 @@ export async function run() {
         }
       }
     }
-    ok("notes: the caveats are reachable at all", reasons.size >= 4, [...reasons].join(", "));
+    // Three, not four. `whyNotPlaced.*` used to be reachable because the engine
+    // could not place a note beside the text or in a companion volume, and the
+    // panel said so in words rather than greying the destination out. Both are
+    // placements now, so that caveat has nothing left to warn about and retired
+    // itself — which is exactly what it was built to do the day `PLACEMENTS`
+    // grew. The ones that remain are about the *document*: a region with no
+    // name, a region never declared, and a second apparatus at the live foot.
+    ok("notes: the caveats are reachable at all", reasons.size >= 3, [...reasons].join(", "));
+    ok(
+      "notes: no destination is refused for want of a placement",
+      ![...reasons].some((r) => r.startsWith("whyNotPlaced")),
+      [...reasons].join(", "),
+    );
     for (const why of reasons) {
       ok(`notes: ${why} has a reason in Hebrew`, !!DICTS.he[why], why);
       ok(`notes: ${why} has a reason in English`, !!DICTS.en[why], why);

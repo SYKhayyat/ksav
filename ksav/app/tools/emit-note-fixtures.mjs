@@ -74,11 +74,17 @@ export async function buildFixture() {
    * the reason a writer could pick "two separate blocks" and get a band sitting
    * near the top of the page.
    *
-   * Derived, not tabulated. `side` and `file` come back `null` because the
-   * engine does not carry those placements yet (`_ch_places`), so a note sent to
-   * one lands in a region at the page foot — which the chooser says in words
-   * rather than hiding. Asserting that interim answer would pin the bug in place
-   * and make the day the engine grows the placement a red test about nothing.
+   * Derived, not tabulated. This used to answer `null` for `side` and `file`,
+   * because the engine carried neither placement and a note sent to one landed
+   * in a region at the page foot — and asserting that interim answer would have
+   * pinned the bug in place and made the day the engine grew the placement a red
+   * test about nothing.
+   *
+   * **That day came.** `_ch_places` carries the whole axis now, so every
+   * destination has a real answer and none of them is `null`. The mapping below
+   * is what each kind of place means as something a test can look for on a laid
+   * out page, and it is the reason this function is derived rather than a table:
+   * the axis grew and this grew with it.
    */
   const placeOf = (pick, preset) => {
     const place =
@@ -87,6 +93,9 @@ export async function buildFixture() {
         : destinationOf(pick.dest).channel;
     if (place === null) return null;
     if (place === "רגל") return "page";
+    if (place === "למעלה") return "top";
+    if (["צד", "חוץ", "פנים", "ימין", "שמאל"].includes(place)) return "side";
+    if (place === "קובץ") return "volume";
     return PLACEMENTS.includes(place) ? "end" : null;
   };
 

@@ -12,7 +12,7 @@
 |---|---|
 | **0** | **Decisions already made.** Settled; do not re-litigate. |
 | **1** | **The five things.** The model: source position · stream/destination · region · overflow · counters. Plus document-level settings. |
-| **2** | **A concrete surface.** Proposed syntax (names are placeholders) and **the UI: writing a note is one pick.** |
+| **2** | **A concrete surface** — ⚠ **the only part with no evidence behind it; none of it has been compiled.** Plus **the UI: writing a note is one pick.** |
 | **2b** | **The terrain.** Where the code is, five non-negotiable engine rules, four dead ends, what this makes stale, what a parallel session already built. **Read before writing a line.** |
 | **2c** | **Acceptance criteria.** Corpus documents that fail today and must pass. |
 | **3** | **What works** — with the file that proves each. Designs A, B and **C (the recommendation)**. |
@@ -440,8 +440,22 @@ Settings that belong to the sefer rather than to a stream.
 # Part 2 — A concrete surface **[CLAUDE — names are placeholders]**
 
 The plan above is shapes. This is one way to say them. **Every name here is a
-guess and naming is Shaul's**, but the *arity and argument structure* is the part
-worth arguing about.
+guess and naming is Shaul's** (decision 14).
+
+> **⚠ This is the least trustworthy part of the document, and it is the only part
+> with no evidence behind it.** None of the syntax below has been compiled. It was
+> written in one pass and is a sketch of *arity*, not a proposal you should type.
+>
+> **One concrete flaw already found.** `#הגדרות_הערות(רגל, מספור: "1")` puts the
+> destination in a positional argument. **Every existing `הגדרות_*` command in
+> `ksav.typ` takes `..opts` and reads only `opts.named()`** — not one of them takes
+> a positional. And the repo's convention for "settings per target" is a **separate
+> command per target** (`הגדרות_כותרת1` … `הגדרות_כותרת4`), not one command with a
+> selector. So the conventional shapes would be `#הגדרות_הערות_רגל(מספור: "1")`, or
+> a nested dictionary `#הגדרות_הערות(רגל: (מספור: "1"))`.
+>
+> Assume the rest has similar problems. **Check every form below against
+> `commands.rs` and `ksav.typ` before building on it.**
 
 ## Thing one
 

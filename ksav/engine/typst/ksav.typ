@@ -78,6 +78,27 @@
   // the writer's own words it is refused, because it would silently do nothing.
   text_: "טקסט",
   heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
+  // **A region's own keys, which had no English spelling at all.** `#region`
+  // accepted four — placement, height, title, layout — and an English writer had
+  // to switch languages for everything that makes a region *do* anything: how a
+  // note too tall for it is continued, what it does when it asks for more room
+  // than the page has, whether it holds its slot on a page it has nothing on,
+  // what an entry's head is made of. Which is most of what a region is for.
+  //
+  // Ten of them, added as a set. A key here and not there is how the surface got
+  // into this state, and `english_commands.rs` now sweeps `_rg_own` so the next
+  // one cannot be Hebrew-only.
+  //
+  // `טורים` is **not** here, and that is deliberate: `columns` is already
+  // `עמודות`, a page's columns, and one English word cannot mean two things a
+  // writer sets on two different commands. It goes through each command's own
+  // `extra`, which is where the banded apparatus has kept it since it had an
+  // English name at all.
+  spill: "גלישה", overflow: "חריגה", keeps_place: "שומר_מקום",
+  shrink_floor: "הקטנה_מזערית", shrink_step: "הקטנה_צעד",
+  tracking_amount: "כיווץ_מידה",
+  head: "ראש", address_numbering: "מספור_כתובת", first_folio: "דף_ראשון",
+  new_page: "עמוד_חדש", unit: "יחידה",
   // How a note too tall for its region is continued onto the next page: how
   // far back the cut may look for a sentence break, and whether the continuation
   // carries the note number again.
@@ -186,6 +207,39 @@
   indexentry: "ערך",
   siman: "סימן",
   sourcenote: "מראה_מקום",
+  // ערוץ / אזור · גלישה — thing four's overflow moves, the answer to a note
+  // taller than the region it is filed into.
+  compress: "דחיסה",
+  run_in: "רצף",
+  shrink: "הקטנה",
+  tighten: "כיווץ_אותיות",
+  divide: "חלוקה",
+  float: "צף",
+  next_page: "עמוד_הבא",
+  // The three that always apply and cannot be listed. They are here so that
+  // asking for one in English is refused *as that move*, with the sentence
+  // explaining why it is an invariant — rather than reported as a move nobody
+  // has heard of, which is a worse answer to the same mistake.
+  shift: "הזזה",
+  cascade: "מפל",
+  clamp: "הצמדה",
+  // אזור · חריגה — what a region does when it asks for more room than the page
+  // under the text has.
+  fit: "צמצום",
+  refuse: "סירוב",
+  // ערוץ / אזור · ראש — what an entry in a collected apparatus says before it
+  // says anything of its own, and the addresses among those ingredients.
+  number: "מספר",
+  tag: "תווית",
+  quote: "ציטוט",
+  page: "עמוד",
+  folio: "דף",
+  line: "שורה",
+  // אזור · יחידה — what a grid region's columns are kept in register by.
+  // `siman` is not repeated: it is above, and it is the same word for the same
+  // thing.
+  heading: "כותרת",
+  tier: "מדור",
 )
 
 /// One value, said in Hebrew whichever language it arrived in.
@@ -1728,7 +1782,7 @@
 #let _eh_parts = ("מספר", "תווית", "ציטוט")
 #let _eh_read(cfg) = {
   let want = cfg.at("ראש", default: _eh_default)
-  let want = if type(want) == array { want } else { (want,) }
+  let want = (if type(want) == array { want } else { (want,) }).map(_val)
   for part in want {
     if _xa_unbuilt.contains(part) {
       panic(
@@ -3144,7 +3198,7 @@
   if h == none { return none }
   let want = _ap_fixed_height(h, קו: קו)
   let room = _ap_room(איפה: איפה)
-  if want > room and חריגה == "סירוב" {
+  if want > room and _val(חריגה) == "סירוב" {
     panic(
       "אזור" + (if מי != none { " " + מי } else { "" })
         + ": גובה גדול מן המקום · this region asks for "
@@ -3228,7 +3282,11 @@
 /// A `גלישה` value, checked. `auto` is the default policy.
 #let _ap_spill_read(who, v) = {
   if v == auto or v == none { return _ap_spill_default }
-  let list = if type(v) == array { v } else { (v,) }
+  // Said in whichever language the writer said it in, and compared in one.
+  // Without this the English spellings above are accepted by the parameter table
+  // and then rejected by the move table, which is a worse failure than having no
+  // English name at all: the name exists, and using it is an error.
+  let list = (if type(v) == array { v } else { (v,) }).map(_val)
   for m in list {
     if _ap_spill_always.contains(m) {
       panic(
@@ -4755,6 +4813,11 @@
 // own — the common case — sets it either way and means the same thing.
 #let _rg_own = (
   "מיקום", "גובה", "פריסה", "כותרת", "גלישה", "הקטנה_מזערית", "שומר_מקום",
+  // The rest of the shrink ladder and the tightening, which `_rg_over_keys`
+  // has been merging from a region since it existed while `#אזור` refused to
+  // accept them — so the override read a key the declaration rejected, and the
+  // only way to reach either was to set it on every channel instead.
+  "הקטנה_צעד", "כיווץ_מידה",
   // What to do when the declared height is more than the page has. See
   // `_ap_fit_room`.
   "חריגה",
@@ -5055,7 +5118,7 @@
 }
 
 #let channel = _en(ערוץ, extra: (columns: "טורים"))
-#let region = _en(אזור)
+#let region = _en(אזור, extra: (columns: "טורים"))
 #let show_region = _en(הצג_אזור)
 
 // tier aliases — Hebrew letters mirror the "block A / block B / block C" model.

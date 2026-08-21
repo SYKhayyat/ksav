@@ -665,3 +665,167 @@ fn the_letter_that_opens_a_clause_is_named_for_what_it_is() {
         );
     }
 }
+
+/// Every key `#אזור` accepts can be spelled in English.
+///
+/// `#let region = _en(אזור)` renames named arguments through one table, so a key
+/// that is not in that table **cannot be written in English at all** — the alias
+/// passes the English word straight through and `#אזור` refuses a name it has
+/// never heard of. Measured before this was fixed: of sixteen region keys, four
+/// had an English spelling. An English writer could name a region's placement,
+/// height, title and layout, and had to switch languages for how a note too tall
+/// for it is continued, what it does when it asks for more room than the page
+/// has, whether it holds its slot, and what an entry's head is made of — which is
+/// most of what a region is for.
+///
+/// The list is read out of the prelude in both directions, so a key added
+/// tomorrow is swept the moment it is added.
+#[test]
+fn every_region_key_has_an_english_name() {
+    let prelude = include_str!("../typst/ksav.typ");
+    let hebrew = region_keys(prelude);
+    assert!(
+        hebrew.len() > 10,
+        "only {} region keys parsed out of `#let _rg_own` — the parser is wrong, \
+         not the prelude",
+        hebrew.len()
+    );
+    // `en_param_pairs` reads the shared table *and* every `extra:` on an `_en`
+    // wrapper, which is where a word that means two things on two commands lives:
+    // `columns` is `עמודות` for a page and `טורים` for a region's columns.
+    let pairs = ksav_engine::diagnostics::en_param_pairs(prelude);
+    let named: std::collections::HashSet<&str> =
+        pairs.iter().map(|(_, hebrew)| hebrew.as_str()).collect();
+    let unreachable: Vec<&String> = hebrew
+        .iter()
+        .filter(|h| !named.contains(h.as_str()))
+        .collect();
+    assert!(
+        unreachable.is_empty(),
+        "region keys with no English spelling: {unreachable:?}"
+    );
+}
+
+/// The keys of `#let _rg_own = (…)`, read out of the prelude.
+fn region_keys(prelude: &str) -> Vec<String> {
+    let at = prelude
+        .find("#let _rg_own = (")
+        .expect("`_rg_own` is not in ksav.typ — has the region's key list moved?");
+    let rest = &prelude[at..];
+    let end = rest.find("\n)").expect("`_rg_own` is not closed");
+    rest[..end]
+        .match_indices('"')
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>()
+        .chunks(2)
+        .filter(|c| c.len() == 2)
+        .map(|c| rest[c[0] + 1..c[1]].to_string())
+        .collect()
+}
+
+/// A region declared in English lays out exactly as the Hebrew one does.
+///
+/// The names existing is not the claim; the names *arriving* is. A wrapper that
+/// dropped every argument it did not recognise would pass the sweep above and
+/// lay out the default document, which is the failure this whole file was
+/// written against.
+///
+/// One rendering says `#אזור` and the other says `#region`, because the alias is
+/// what renames the arguments — a document that spells the command in Hebrew and
+/// its keys in English is refused, and should be.
+///
+/// Each row is one key. What makes the pair meaningful is that
+/// `region_settings.rs` has already proved every one of these keys moves the
+/// page: two renderings that agree here and are known to differ from the default
+/// are two spellings of the same request.
+#[test]
+fn a_region_declared_in_english_lays_out_as_the_hebrew_one_does() {
+    let doc = |command: &str, args: &str| {
+        format!(
+            "#מסמך(אזור_הערות: 3cm)[\n#{command}(\"צר\", {args})\n\
+             פתיחה.\n\nא#הערה(אזור: \"צר\")[הערה ראשונה] ב#הערה(אזור: \"צר\")[הערה שניה] \
+             ג#הערה(אזור: \"צר\")[הערה שלישית]\n]\n"
+        )
+    };
+    // (what, the Hebrew arguments, the English ones)
+    let rows: &[(&str, &str, &str)] = &[
+        ("spill", "גלישה: (\"הקטנה\",)", "spill: (\"shrink\",)"),
+        (
+            "spill, several moves",
+            "גלישה: (\"דחיסה\", \"רצף\", \"הקטנה\", \"כיווץ_אותיות\", \"עמוד_הבא\")",
+            "spill: (\"compress\", \"run_in\", \"shrink\", \"tighten\", \"next_page\")",
+        ),
+        (
+            "the shrink ladder",
+            "גלישה: (\"הקטנה\",), הקטנה_מזערית: 0.6, הקטנה_צעד: 0.1",
+            "spill: (\"shrink\",), shrink_floor: 0.6, shrink_step: 0.1",
+        ),
+        ("overflow", "חריגה: \"צמצום\"", "overflow: \"fit\""),
+        ("keeps_place", "שומר_מקום: false", "keeps_place: false"),
+    ];
+    let shape = |runs: &[TextRun]| -> Vec<String> {
+        runs.iter()
+            .map(|r| format!("{} {:.2} {:.2} {:.2} {}", r.page, r.x, r.y, r.size, r.text))
+            .collect()
+    };
+    let mut wrong = Vec::new();
+    for (what, he, en) in rows {
+        let a = render(
+            &doc("אזור", &format!("מיקום: \"רגל\", גובה: 1.2cm, {he}")),
+            &DocConfig::default(),
+        );
+        let b = render(
+            &doc(
+                "region",
+                &format!("placement: \"foot\", height: 1.2cm, {en}"),
+            ),
+            &DocConfig::default(),
+        );
+        if shape(&a) != shape(&b) {
+            wrong.push(format!("{what}: the two spellings laid out differently"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:?}");
+}
+
+/// The entry head, in English, on a region at the back of the sefer.
+///
+/// Its own test because its ingredients are *values* rather than a number or a
+/// switch — `ראש: ("עמוד", "מספר")` — so it needs the value table as well as the
+/// parameter table, and either one missing leaves a name that exists and cannot
+/// be used.
+#[test]
+fn an_entry_head_can_be_asked_for_in_english() {
+    let doc = |command: &str, args: &str| {
+        format!(
+            "#מסמך[\n#{command}(\"ביאורים\", {args})\n\
+             פתיחה#הערה(אזור: \"ביאורים\")[ביאור ראשון] וסוף.\n]\n"
+        )
+    };
+    let he = render(
+        &doc(
+            "אזור",
+            "מיקום: \"סוף\", ראש: (\"עמוד\", \"מספר\"), מספור_כתובת: \"א\"",
+        ),
+        &DocConfig::default(),
+    );
+    let en = render(
+        &doc(
+            "region",
+            "placement: \"end\", head: (\"page\", \"number\"), address_numbering: \"א\"",
+        ),
+        &DocConfig::default(),
+    );
+    assert_eq!(
+        text(&he),
+        text(&en),
+        "an entry head asked for in English is not the one asked for in Hebrew"
+    );
+    // And it is a head at all: the address is printed, so the two agreeing is not
+    // two documents that both ignored the key.
+    assert!(
+        text(&he).contains('א'),
+        "the entry head printed no address: {:?}",
+        text(&he)
+    );
+}

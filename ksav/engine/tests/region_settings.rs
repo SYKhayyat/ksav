@@ -80,6 +80,23 @@ fn vary(key: &str) -> Option<Vary> {
             with: ", מיקום: \"רגל\", גובה: שורות(2)",
             ..notes
         },
+        // The rest of the shrink ladder, and the tightening. Both are judgements
+        // about *this* sefer — how far a peirush may be dropped before it stops
+        // being a peirush, and how much may come out between its letters before
+        // it stops being readable — which is why they belong to a region and not
+        // to the apparatus in general.
+        "הקטנה_צעד" => Vary {
+            a: "0.02",
+            b: "0.3",
+            with: ", מיקום: \"רגל\", גובה: שורות(1), גלישה: (\"הקטנה\",), הקטנה_מזערית: 0.5",
+            ..notes
+        },
+        "כיווץ_מידה" => Vary {
+            a: "0pt",
+            b: "-0.06em",
+            with: ", מיקום: \"רגל\", גובה: שורות(1), גלישה: (\"כיווץ_אותיות\",)",
+            ..notes
+        },
         "הקטנה_מזערית" => Vary {
             a: "0.95",
             b: "0.6",

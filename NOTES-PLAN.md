@@ -74,6 +74,11 @@ These came out of the design conversation and are settled.
 | 11 | **Presets must be derived from the axes**, so they can be taken apart. A preset that cannot be dismantled is a cell. |
 | 12 | **Configurability is the default.** A judgement-call constant becomes a setting whose default is the current value. |
 | 13 | **The bugs in Part 4 get fixed** regardless of the plan. |
+| 14 | **Naming in Part 2 is deferred**, not delegated. The structure is arguable; the words are Shaul's, and whoever builds it asks before inventing them. |
+| 15 | **Spill is the default for every destination, side notes included.** Degrading to a footnote is an *export* concern, not a layout fallback — a margin note that will not fit spills to the next page's margin rather than silently becoming something else. **And the writer can pick**: all ten moves are exposed. |
+| 16 | **Shared-sequence numbering is opt-in**, not the default — it cannot do notes-on-notes, so a writer who reached for it by default on a Mishna Berura page would get interleaving. |
+| 17 | **The scope is all of it.** Part 7 is a sequence, not a shortlist; nothing in Parts 1–5 is optional. |
+| 18 | **Regions and counters get ordinary homes in the UI** — conventional placement, not a new idea. They are general mechanisms (Part 1) and should sit where a writer would look for page layout and for numbering. |
 
 ---
 
@@ -134,6 +139,12 @@ blocks side by side with a width ratio.
 
 **3. Side** — outer / inner / right / left / top · beside its own word or stacked
 from the top · column ratio · gutter.
+
+> **One thing, three words.** *Side note*, *margin note* and *sidenote* are the
+> same destination throughout this document and in the code (`#הערת_גיליון`,
+> `_sn_*`). Pick one word for the UI. Everything said about "the margin" applies
+> to it, and a margin is a **box** (thing three) — which is why it overflows and
+> why thing four applies to it exactly as it does to a band.
 
 **4. A separate document** — a companion volume. The easiest of the five: nothing
 has to fit on a page.
@@ -256,8 +267,17 @@ Everything currently broken violates exactly this.
    3 and 3. The total never changes, so nothing above moves. Provably stable.
 10. **Spill to the next page** — the strongest **[SHAUL, decision 5]**.
 
-Plus **degrade gracefully** (a margin note with no margin becomes a footnote — the
-same answer as Word export) and **always warn**.
+**Spill is the default for every destination, side notes included**
+**[SHAUL, decision 15]**. And **the writer can pick** — all ten are exposed, none
+is hard-coded (decision 12).
+
+**Degrading to a footnote is *not* on this list.** It is an **export** concern —
+what a margin note becomes in Word, where margins do not exist — and it belongs in
+the document-level section, not in layout. A margin note that will not fit on the
+page **spills to the next page's margin**; it does not silently become something
+else.
+
+**And always warn.**
 
 ### How you know
 
@@ -283,6 +303,10 @@ parent must know the band fits before emitting it.
 | **Shared sequence** | one footnote counter, painted two ways | interleave `1,3,5` / `2,4,6` — but **never repeat** | **free** |
 | **Independent counters** | your own | clean per stream, restartable | needs thing five |
 | **Independent by mechanism** | footnote area + box | two genuinely separate counts | needs spill |
+
+**Opt-in, not the default [SHAUL, decision 16]** — precisely because it cannot do
+notes-on-notes. A writer who got it by default on a Mishna Berura page would find
+their Shaar HaTziyun interleaved with the Mishna Berura and have no idea why.
 
 Shared sequence is a real choice, not a fallback: zero build cost, zero overflow
 risk, and unambiguous references. Two limits for its card: **[X]** it cannot do
@@ -349,9 +373,12 @@ Settings that belong to the sefer rather than to a stream.
   a parallel page: body at 12pt and commentary at 9pt drift visually against each
   other even in perfect per-page register, and that drift is what makes amateur
   parallel typesetting look wrong. Off by default.
-- **Word export mapping** — foot notes → Word footnotes, end notes → Word
-  endnotes, **margin notes and section commentaries have no equivalent at all.**
-  Say so at export; a stated downgrade beats a silent one.
+- **Export degradation** **[SHAUL, decision 15]** — this is the *only* place a note
+  changes into a different kind of note, and it happens on the way out, never in
+  layout. Foot notes → Word footnotes and end notes → Word endnotes, both clean.
+  **Side notes and section commentaries have no Word equivalent at all** — side
+  notes become footnotes, section commentaries cannot be represented. Say so at
+  export: a stated downgrade beats a silent one.
 - **Warning thresholds.**
 
 ---
@@ -865,12 +892,15 @@ box. It is the only arrangement that gives run-in, two independent counts, a
 capped page shape, **and** no chunking requirement. Measured working; the one
 thing it lacks is item 5.
 
-**Two things to settle before building, both Shaul's:**
+**Scope is all of it [SHAUL, decision 17].** This is a sequence, not a shortlist.
+Nothing in Parts 1–5 is optional and nothing gets dropped for being further down
+the list — the order is about what unblocks what, not about what matters.
 
-- **Naming** for Part 2. The structure is arguable; the words are not mine.
-- **Which overflow move is the default** per destination. Decision 5 says spill is
-  strongest; whether a margin note spills or converts to a footnote by default is
-  still open.
+**One thing to settle at build time, and it is Shaul's: naming.** Part 2's words
+are placeholders (decision 14). The structure and arity are arguable on their
+merits; the vocabulary is not mine to pick. **Ask before inventing names.**
+
+Everything else that was open is now decided — see decisions 14–18.
 
 ---
 

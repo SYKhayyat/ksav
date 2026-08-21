@@ -87,6 +87,22 @@ fn no_corpus_document_prints_below_the_text_area() {
             "Part 4: a nested band cannot split — the document exists to fail",
         ),
         ("rot", "Part 4: rotation does not paginate"),
+        // A page-foot region that declares its own height, in a document that
+        // reserved no room for one. `#מסמך` sets the page margins before any
+        // `#אזור` line in the body has run, so the region cannot enlarge the
+        // reserve it needs — and the footer only clips when a reserve exists
+        // (`if reserve != 0pt`), so the region runs past the paper edge. All
+        // three print past the page number, and `ov_shrink`/`ov_clip` reach
+        // y=853.90 on an 841.89pt sheet.
+        //
+        // Kept as the reproduction rather than deleted. The fix is almost
+        // certainly to **refuse the declaration** rather than clamp it, which is
+        // a change to what `#אזור` may say and not to how a footer draws.
+        // `ov_shrink2`/`ov_clip2` are the same pair with `אזור_הערות` declared,
+        // and they stay inside the page.
+        ("ov_shrink", "a declared region height with no reserved room overruns the footer"),
+        ("ov_clip", "a declared region height with no reserved room overruns the footer"),
+        ("ov_runin", "a declared region height with no reserved room overruns the footer"),
     ];
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/notes-corpus");
     let mut over = Vec::new();
@@ -114,6 +130,27 @@ fn no_corpus_document_prints_below_the_text_area() {
             ));
         }
     }
+    // An exemption that has stopped being needed is a stale claim, and the only
+    // way to know is to check. Every disproof must **still** be printing past the
+    // page number — the moment one is fixed, this fails and the row goes.
+    let mut stale = Vec::new();
+    for (name, why) in DISPROOFS {
+        if !names.iter().any(|n| n == name) {
+            stale.push(format!("{name}: listed as a disproof and not in the corpus"));
+            continue;
+        }
+        let (runs, _) = laid(name);
+        if !runs.iter().any(|r| r.y > PAGE_FOOT) {
+            stale.push(format!("{name}: no longer prints past the page number — {why}"));
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "stale disproofs, which are stale claims:
+  {}",
+        stale.join("
+  ")
+    );
     assert!(
         checked >= 30,
         "only {checked} corpus documents were read — the directory is not being walked"

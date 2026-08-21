@@ -4989,7 +4989,17 @@
       // start of the line, which in Hebrew is the right edge. Measured x=519.62 of
       // a 595.28pt page instead of 295.24. Caught by the golden layout, in a run of
       // probe output I had already read and taken only the `y` from.
-      block(width: 100%, spacing: 0pt, context {
+      // The page number is **page furniture, not prose, and not on the grid.**
+      // A baseline grid normalises the line box to 1em so the body advance is
+      // exact — and applied to the number that shifts it 0.91pt down the page,
+      // which is drift in the one thing this footer exists to keep still. The
+      // apparatus above it keeps the grid, because holding register with the
+      // body is the entire reason a writer turns one on.
+      block(width: 100%, spacing: 0pt, {
+        set text(..(if _grid != none {
+          (top-edge: "cap-height", bottom-edge: "baseline")
+        } else { (:) }))
+        context {
         let p = here().page()
         let custom = _rc_line("foot", p, תחתונה_זוגי, תחתונה_אי_זוגי, כותרת_תחתונה)
         // **Both, when both were asked for.** This was `if custom … else if
@@ -5012,6 +5022,7 @@
           lines.push(text(size: 0.85em, fill: luma(100), numbering(np, ..counter(page).get())))
         }
         for ln in lines { align(head_align(p), ln) }
+        }
       })
     },
   )

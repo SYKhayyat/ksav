@@ -78,6 +78,10 @@
   // the writer's own words it is refused, because it would silently do nothing.
   text_: "טקסט",
   heights: "גבהים", frame: "מסגרת", note: "הערה", numbered: "ממוספרת",
+  // How a note too tall for its region is continued onto the next page: how
+  // far back the cut may look for a sentence break, and whether the continuation
+  // carries the note number again.
+  seam: "תפר", continued_mark: "סימן_בהמשך",
   // A rounded corner, which a box has and nothing else did until the blocks
   // took looks of their own.
   radius: "רדיוס",
@@ -2220,10 +2224,16 @@
 /// Typst memoises `measure`, so the same prefix measured on a later layout pass
 /// is free; what this costs is about `log2(n)` measures the first time. Seven
 /// calls for a hundred and forty words, measured.
-#let _ct_fit(s, width, height, תפר: 8) = {
+/// `עטיפה` is how the caller sets this text, and it is not optional decoration:
+/// a prefix measured at the document's size and printed at an apparatus's is
+/// measured at the wrong size, and the cut lands in the wrong place by however
+/// much the two differ. `none` measures at whatever is ambient, which is right
+/// for a caller — `ברך` — that is setting the text in the ambient style.
+#let _ct_fit(s, width, height, תפר: 8, עטיפה: none) = {
   let ws = _ct_pieces(s)
   if ws.len() == 0 { return ("", "") }
-  let fits(n) = measure(block(width: width, ws.slice(0, n).join(""))).height <= height
+  let set_as(t) = if עטיפה == none { t } else { עטיפה(t) }
+  let fits(n) = measure(block(width: width, set_as(ws.slice(0, n).join("")))).height <= height
   // The whole thing, which is the common case and worth not searching for.
   if fits(ws.len()) { return (s, "") }
   let lo = 0
@@ -2252,6 +2262,82 @@
     i -= 1
   }
   (ws.slice(0, best).join(""), ws.slice(best).join(""))
+}
+
+/// The words of a body, when it is made of nothing but words.
+///
+/// `none` for anything else — a table, a figure, a nested structure — and that
+/// `none` is the whole reason there are two mechanisms and not one. Content with
+/// no text has no seam to cut at, and for those the window is the answer: exact
+/// on any content, at the cost of a text layer repeated on every page the note
+/// runs through.
+///
+/// Typst offers no general content-to-string, but a plain `[…]` is a `text`
+/// element and a run of words is a `sequence` of `text` and `space`. Those two
+/// shapes are what a note body usually is, and they are the ones worth cutting.
+/// Anything else answers `none` and keeps the window — a *partly* cut body would
+/// drop whatever could not be sliced, which is the failure this is built against.
+#let _ct_text(body) = {
+  if body == none { return none }
+  let f = repr(body.func())
+  if f == "text" { return body.at("text", default: none) }
+  if f == "sequence" {
+    let out = ""
+    for c in body.children {
+      let cf = repr(c.func())
+      if cf == "text" {
+        out += c.at("text", default: "")
+      } else if cf == "space" {
+        out += " "
+      } else if cf == "linebreak" {
+        out += "\n"
+      } else {
+        return none
+      }
+    }
+    return out
+  }
+  none
+}
+
+/// A body's slices, one per page, at a given width and height.
+///
+/// `עטיפה` takes the text **and which slice it is**, because the first slice is
+/// not set like the others: it carries the note's number, and often an address
+/// and a lemma before that. Measuring every slice as if it were bare makes the
+/// first one a few words too generous, and a few words too generous means one
+/// line past a region that clips — which is the silent truncation this whole
+/// mechanism exists to end.
+///
+/// Pure and deterministic, so the walk that decided how many pages a note spans
+/// and the renderer that draws one of them can each call it and get the same
+/// answer without passing anything between them — the property everything in
+/// this apparatus is built on, because the footer may not write state.
+#let _ct_pages(s, width, height, תפר: 8, עטיפה: none) = {
+  let out = ()
+  let rest = s
+  // A note that needs more than sixty-four pages of its own region is a document
+  // with a different problem; the bound is here so a width that fits nothing
+  // cannot spin.
+  let guard = 0
+  while rest != "" and guard < 64 {
+    guard += 1
+    let i = out.len()
+    let (head, tail) = _ct_fit(
+      rest,
+      width,
+      height,
+      תפר: תפר,
+      עטיפה: if עטיפה == none { none } else { t => עטיפה(t, i) },
+    )
+    if head == "" {
+      out.push(rest)
+      break
+    }
+    out.push(head)
+    rest = tail
+  }
+  out
 }
 
 
@@ -2654,6 +2740,17 @@
   context block(width: 100%, height: _ap_fixed_height(h), clip: true, body)
 }
 
+/// The width one entry of a page-foot apparatus is set at.
+///
+/// The text area, divided by the group's own column count — measuring at the
+/// wrong width is how a band comes out a line short and the last note is thought
+/// to fit when it does not.
+#let _ap_page_width(cfg, g) = {
+  let w = page.width - _pg_margin("left") - _pg_margin("right")
+  let cols = _ap_pick(cfg, "טורים", g, 1)
+  if type(cols) == int and cols > 1 { w / cols } else { w }
+}
+
 // One group's block: the numbered entries, laid into columns and, if this
 // apparatus reserves fixed regions, into a slot of a fixed height that it
 // occupies whether or not it has anything in it this page.
@@ -2682,6 +2779,7 @@
   רצף: false,
   ריווח_שורה: none,
   הסט: 0pt,
+  חלון: 0pt,
 ) = {
   above
   // One entry, marker and body, at whatever this page's settings are. Shared by
@@ -2692,7 +2790,94 @@
     // gap between entries and the column count belong to the band, not to a
     // note inside it, so they stay read off `cfg`.
     let ecfg = _cfg_with(cfg, own)
-    _ap_wrap(
+    // One slice of an entry, with whatever stands in front of it.
+    //
+    // Slice zero carries the note's furniture — where it belongs, what it is on,
+    // and its number — and the continuations carry none of it, which is how a
+    // continued note has always been set and also what the window does on its
+    // own, since the marker is at the top of the note and has slid out of the
+    // slot. A sefer that wants the number repeated on every page of a long note
+    // says so with `סימן_בהמשך`, and then the two mechanisms still agree.
+    //
+    // For slice zero of an unspilled note this is the markup it always was, to
+    // the byte. Two tests in `apparatus.rs` read the adjacency of the number run
+    // and the body run, and they are reading these two runs.
+    let marked(b, i) = {
+      let again = i > 0 and not _ap_pick(cfg, "סימן_בהמשך", g, false)
+      // Where this entry belongs and what it is on, before the entry itself.
+      // Both are empty content in an ordinary numbered apparatus, which is why
+      // the bracketed markup below is unchanged in that case.
+      let head = if again { [] } else {
+        _eh_addr(ecfg, org)
+        _eh_head(ecfg, none, ecfg.at("ציטוט", default: none))
+      }
+      if _eh_numbered(ecfg) and not again {
+        [#head#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #b]
+      } else {
+        [#head#b]
+      }
+    }
+    // **Cut the words where there are words, and slide the whole thing where
+    // there are not.**
+    //
+    // A note taller than its region spills across several pages, and two
+    // mechanisms can show one page's share of it. They fail in opposite
+    // directions, so the engine keeps both:
+    //
+    //   *The window* emits the note whole into every page it runs through and
+    //   paints all but this page's share outside the slot. Exact on any content —
+    //   a table, an image, a nested apparatus — and the note lands in the text
+    //   layer of every one of those pages, so extraction, copy, DOCX export and
+    //   this application's own search of the printed page each find it once per
+    //   page it passes through.
+    //
+    //   *The cut* gives each page only its own words. A clean text layer, and it
+    //   is possible exactly when the body is words, which `_ct_text` answers.
+    //
+    // Decided here, per entry, and not once for the group: a continuation page's
+    // region can hold the spilling note *and* a note that begins on that page,
+    // and the second one is not spilling — it must be neither cut nor slid.
+    let piece = 0
+    let shift = 0pt
+    let body = body
+    if חלון > 0pt {
+      let wrap(t, i) = _ap_wrap(
+        ecfg,
+        g,
+        marked(t, i),
+        יחס: יחס,
+        כיווץ: כיווץ,
+        ריווח_שורה: ריווח_שורה,
+      )
+      let w = _ap_page_width(cfg, g)
+      // Only what is genuinely taller than the slot. The offset belongs to the
+      // region, and an entry that fits was never spilling, whatever it is
+      // sharing the region with.
+      if measure(box(width: w, wrap(body, 0))).height > חלון {
+        piece = calc.floor(הסט / חלון)
+        let words = _ct_text(body)
+        if words == none {
+          // `move` shifts **paint and not layout**, which is what the window
+          // needs: the block stays where it is on every page and the content
+          // slides up inside it, so page two resumes exactly where page one
+          // stopped and nothing is lost.
+          shift = הסט
+        } else {
+          let parts = _ct_pages(
+            words,
+            w,
+            חלון,
+            תפר: _ap_pick(cfg, "תפר", g, 8),
+            עטיפה: wrap,
+          )
+          // Past the last slice is an empty page of region, which happens when
+          // the walk reserved one more page than the cut needed. Empty and not
+          // a repeat: a repeat is the defect.
+          body = if piece < parts.len() { parts.at(piece) } else { "" }
+        }
+      }
+    }
+    let drawn = _ap_wrap(
       ecfg,
       g,
       {
@@ -2707,29 +2892,20 @@
         // immediately before an entry's body stopped being its number. Two
         // tests in `apparatus.rs` read exactly that adjacency to check that a
         // band restarts its numbering per section and that parallel streams
-        // count independently, and both failed on correct numbering. The
-        // markup inside the brackets is byte-identical to what it was.
+        // count independently, and both failed on correct numbering.
+        //
+        // It is also why `marked` is measured and this block is not: `measure`
+        // of content holding a `context` comes back at almost nothing, and a
+        // cut computed from that would put one word on each page.
         context { _ap_origin.update((real: org, at: here())) }
-        // Where this entry belongs and what it is on, before the entry itself.
-        // Both are empty content in an ordinary numbered apparatus, which is
-        // why the bracketed markup below is unchanged in that case — two tests
-        // in `apparatus.rs` read the adjacency of the number run and the body
-        // run, and they are reading it about the same two runs.
-        let head = {
-          _eh_addr(ecfg, org)
-          _eh_head(ecfg, none, ecfg.at("ציטוט", default: none))
-        }
-        if _eh_numbered(ecfg) {
-          [#head#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #body]
-        } else {
-          [#head#body]
-        }
+        marked(body, piece)
         _ap_origin.update(none)
       },
       יחס: יחס,
       כיווץ: כיווץ,
       ריווח_שורה: ריווח_שורה,
     )
+    if shift == 0pt { drawn } else { move(dy: -shift, drawn) }
   }
   let inner = {
     lead
@@ -2756,17 +2932,10 @@
   }
   let cols = _ap_pick(cfg, "טורים", g, 1)
   let filled = if cols > 1 { columns(cols, inner) } else { inner }
-  // The slice this page shows of a note that is spilling through the region.
-  // `move` shifts **paint and not layout**, which is exactly what is wanted: the
-  // block stays where it is on every page and the content slides up inside it,
-  // so page two's window resumes precisely where page one's stopped. No content
-  // is cut, so it works on a table or an image as well as on a paragraph.
-  //
-  // The cost, and it is real: the whole note is emitted into every page it runs
-  // through and only masked. Text extraction, copy, and Ksav's own search of the
-  // printed page see it once per page. Cutting the body at a word boundary would
-  // give a clean text layer and only works on text.
-  let filled = if הסט == 0pt { filled } else { move(dy: -הסט, filled) }
+  // The slice a spilling note shows is decided in `one` above, per entry. It used
+  // to be decided here, for the whole group at once, and that was wrong twice
+  // over: a note that begins on a continuation page was slid off with the note it
+  // was sharing a region with, and a group could never cut when it could have.
   _ap_slot(if גובה == auto { _ap_pick(cfg, "גבהים", g, none) } else { גובה }, filled)
 }
 
@@ -3098,17 +3267,6 @@
   _val(v) == true
 }
 
-/// The width one entry of a page-foot apparatus is set at.
-///
-/// The text area, divided by the group's own column count — measuring at the
-/// wrong width is how a band comes out a line short and the last note is thought
-/// to fit when it does not.
-#let _ap_page_width(cfg, g) = {
-  let w = page.width - _pg_margin("left") - _pg_margin("right")
-  let cols = _ap_pick(cfg, "טורים", g, 1)
-  if type(cols) == int and cols > 1 { w / cols } else { w }
-}
-
 /// One entry, as tall as it is at this scale and this tracking.
 ///
 /// Measured with a stand-in marker rather than the real number. The height of an
@@ -3369,8 +3527,35 @@
         // page and has no notion of what the page before ended on. So the note is
         // emitted whole into every one of its pages and each draws a different
         // part of it, which is what `slot` and the renderer's `move` are for.
+        //
+        // How many pages, and the two mechanisms count differently because they
+        // divide differently. The window slides a fixed distance, so its count is
+        // the height over the slot. The cut fills each page as full as it will
+        // go, so its count is however many slices there turn out to be — usually
+        // fewer, since `ceil` on the height rounds a note that ends a third of
+        // the way down the page up to a whole one. Counting it here the same way
+        // the renderer will cut it is what keeps the document from reserving a
+        // page that comes out empty.
         if bounded and mine.len() == 1 and hh > cap and can_spill {
-          span = calc.max(1, calc.ceil(hh / cap))
+          let words = _ct_text(all.at(j).value.body)
+          span = if words == none {
+            calc.max(1, calc.ceil(hh / cap))
+          } else {
+            calc.max(1, _ct_pages(
+              words,
+              _ap_page_width(cfg, g),
+              cap,
+              תפר: _ap_pick(cfg, "תפר", g, 8),
+              עטיפה: (t, i) => _ap_wrap(
+                cfg,
+                g,
+                if i == 0 { [#super[1] #t] } else { t },
+                יחס: sc,
+                כיווץ: tr,
+                ריווח_שורה: _ap_lead(cfg, g, sc),
+              ),
+            ).len())
+          }
         }
       }
     }
@@ -3469,6 +3654,7 @@
   let tracks = (:)
   let runins = (:)
   let offsets = (:)
+  let slots = (:)
   for i in range(all.len()) {
     let d = where.at(i)
     // On every page of its span, not only the first. The entry is emitted whole
@@ -3480,9 +3666,21 @@
       tracks.insert(k, d.tracking)
       runins.insert(k, d.runin)
       offsets.insert(k, d.slot * (pg - d.page))
+      // The slot itself, so the renderer can work out which slice of a spilling
+      // note this page is showing — the same numbers, and no second opinion.
+      // `0pt` for a group with nothing spilling, which is what turns the whole
+      // mechanism off for the ordinary case.
+      slots.insert(k, if d.span > 1 { d.slot } else { 0pt })
     }
   }
-  (entries: mine, scales: scales, tracks: tracks, runins: runins, offsets: offsets)
+  (
+    entries: mine,
+    scales: scales,
+    tracks: tracks,
+    runins: runins,
+    offsets: offsets,
+    slots: slots,
+  )
 }
 
 /// The last page any of an apparatus's notes was assigned to.
@@ -3506,6 +3704,7 @@
     רצף: on.runins.at(k, default: false),
     ריווח_שורה: _ap_lead(cfg, g, sc),
     הסט: on.offsets.at(k, default: 0pt),
+    חלון: on.slots.at(k, default: 0pt),
   )
 }
 
@@ -3744,7 +3943,19 @@
 /// and never consulted. They are merged into the channel's configuration, keyed
 /// by channel, at the point the region is known: a channel belongs to exactly one
 /// region, so there is one right answer for each.
-#let _rg_over_keys = ("הקטנה_מזערית", "הקטנה_צעד", "כיווץ_מידה")
+// What a region may say about the moves, over whatever its channels were
+// configured with. All of these are judgement calls about *this* sefer rather
+// than about the apparatus in general, which is why they are per-region: a
+// dense peirush and a wide-set text want different answers and share a document.
+#let _rg_over_keys = (
+  "הקטנה_מזערית",
+  "הקטנה_צעד",
+  "כיווץ_מידה",
+  // How far back a cut may look for a better seam, in words. See `_ct_fit`.
+  "תפר",
+  // Whether a note continued onto the next page carries its number again.
+  "סימן_בהמשך",
+)
 #let _rg_over_cfg(cfg, t, streams) = {
   let out = cfg
   for k in _rg_over_keys {
@@ -4557,6 +4768,10 @@
   // A parallel-column region: the widths of its columns, and what keeps them in
   // register. See the grid-region block above `_ch_region_side`.
   "טורים", "יחידה",
+  // How a note too tall for the region is continued onto the next page: how far
+  // back the cut may look for a sentence or paragraph break, and whether the
+  // continuation repeats the note's number. See `_ct_fit` and `_ap_group`.
+  "תפר", "סימן_בהמשך",
 )
 
 // The apparatus configuration for a set of collected channels: whatever the

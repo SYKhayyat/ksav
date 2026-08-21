@@ -313,6 +313,8 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "מסגרת": "frame",
   "הערה": "note",
   "ממוספרת": "numbered",
+  "תפר": "seam",
+  "סימן_בהמשך": "continued_mark",
   "רדיוס": "radius",
   "זרם": "stream",
   "זרמים": "streams",

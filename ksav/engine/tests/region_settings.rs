@@ -55,6 +55,11 @@ struct Vary {
     body: &'static str,
 }
 
+/// A region one line tall that continues what does not fit onto the next page.
+///
+/// Company for the two keys that only mean something once a note is spilling.
+const SPILLING: &str = ", מיקום: \"רגל\", גובה: שורות(1), גלישה: (\"עמוד_הבא\",)";
+
 const NOTES: &str = "פתיחה.\n\nא#הערה(אזור: \"צר\")[הערה ראשונה] ב#הערה(אזור: \"צר\")[הערה שניה] \
                      ג#הערה(אזור: \"צר\")[הערה שלישית] ד#הערה(אזור: \"צר\")[הערה רביעית]";
 
@@ -133,6 +138,24 @@ fn vary(key: &str) -> Option<Vary> {
                    ראשון#הערה(ערוץ: \"א\")[אלף] וגם#הערה(ערוץ: \"ב\")[בית] סוף.\n\n\
                    #כותרת[פרק ב]\n\n\
                    שני#הערה(ערוץ: \"א\")[גימל] וגם#הערה(ערוץ: \"ב\")[דלת] סוף.",
+        },
+        // A note that outgrows its region is continued, and these two say how.
+        // Both need a note that actually spills, which none of the documents
+        // above has: a region of one line and forty words in one note.
+        "תפר" => Vary {
+            // Zero cuts wherever the measurement landed and never looks back;
+            // twenty is far enough to reach the sentence that ends two words
+            // earlier. The seam is the only difference between the two pages.
+            a: "0",
+            b: "20",
+            with: SPILLING,
+            body: "פתיחה.\n\nא#הערה(אזור: \"צר\")[מילה01 מילה02 מילה03 מילה04 מילה05 מילה06 מילה07 מילה08 מילה09 מילה10 מילה11 מילה12. מילה13 מילה14 מילה15 מילה16 מילה17 מילה18 מילה19 מילה20 מילה21 מילה22 מילה23 מילה24 מילה25 מילה26 מילה27 מילה28 מילה29 מילה30 מילה31 מילה32 מילה33 מילה34 מילה35 מילה36 מילה37 מילה38 מילה39 מילה40]",
+        },
+        "סימן_בהמשך" => Vary {
+            a: "false",
+            b: "true",
+            with: SPILLING,
+            body: "פתיחה.\n\nא#הערה(אזור: \"צר\")[מילה01 מילה02 מילה03 מילה04 מילה05 מילה06 מילה07 מילה08 מילה09 מילה10 מילה11 מילה12 מילה13 מילה14 מילה15 מילה16 מילה17 מילה18 מילה19 מילה20 מילה21 מילה22 מילה23 מילה24 מילה25 מילה26 מילה27 מילה28 מילה29 מילה30 מילה31 מילה32 מילה33 מילה34 מילה35 מילה36 מילה37 מילה38 מילה39 מילה40]",
         },
         // `סירוב` refuses to compile by design, so it cannot be told from
         // `צמצום` by diffing two pages. It has a test of its own that reads the

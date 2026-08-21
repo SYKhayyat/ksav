@@ -237,7 +237,7 @@ fn a_held_region_sits_in_the_same_place_on_every_page() {
     );
 }
 
-/// A note taller than its whole region reaches the next page.
+/// A note taller than its whole region is **cut** across pages, word by word.
 ///
 /// This is the one thing decision 6 forbids that was still happening. A note
 /// that did not fit its slot was **truncated** — `_ap_slot` clips, so the second
@@ -245,21 +245,39 @@ fn a_held_region_sits_in_the_same_place_on_every_page() {
 /// `"עמוד_הבא"` nor `"דחיסה"` moved it by a single point, because a page footer
 /// is composed afresh on every page and has no continuation.
 ///
-/// So the note spills *into itself*: it occupies as many pages as it takes, is
-/// emitted whole into each of them, and each draws a different part of it. The
-/// window is fixed and the content slides, so page two resumes exactly where
-/// page one stopped — which is what the assertion on the offset is about, and
-/// the reason it is exact rather than approximate.
+/// So the note spills *into itself*: it occupies as many pages as it takes, and
+/// each of them shows one region's worth. Two mechanisms can do that and the
+/// engine keeps both, because they fail in opposite directions:
+///
+///   * **The window** emits the note whole into every page it runs through and
+///     paints all but that page's share outside the slot. Exact on any content,
+///     and the note lands in the *text layer* of every page it passes through.
+///   * **The cut** gives each page only its own words. One text layer, and it
+///     only works where the body is words.
+///
+/// This test is the cut, and what it asserts is the property the window could
+/// never have: **every word exactly once, in order, across the pages.** A
+/// mechanism that shows the right thing and says it four times is not a
+/// mechanism a reader can search, copy out of, or export.
 #[test]
-fn a_note_taller_than_its_region_reaches_the_next_page() {
+fn a_note_taller_than_its_region_is_cut_across_pages() {
     let runs = laid("giant_spill");
+    let lines = probe::lines(&runs, 2.0);
+    // The apparatus is what is set small and low; `word_pages` is where each
+    // word of the note was printed, in the order the pages come.
+    let mut word_pages: Vec<(usize, String)> = Vec::new();
+    for l in lines
+        .iter()
+        .filter(|l| l.y > 600.0 && l.runs.first().is_some_and(|r| r.size < 11.0))
+    {
+        for w in l.reading.split_whitespace() {
+            if w.starts_with("מילה") {
+                word_pages.push((l.page, w.to_string()));
+            }
+        }
+    }
     let pages: Vec<usize> = {
-        let mut p: Vec<usize> = runs
-            .iter()
-            .filter(|r| r.y > 600.0 && r.y < 780.0 && r.size < 11.0)
-            .map(|r| r.page)
-            .collect();
-        p.sort_unstable();
+        let mut p: Vec<usize> = word_pages.iter().map(|(p, _)| *p).collect();
         p.dedup();
         p
     };
@@ -269,16 +287,138 @@ fn a_note_taller_than_its_region_reaches_the_next_page() {
         pages.len()
     );
 
+    // Every word, once. The window's own output on this same corpus put all
+    // fifty on page one and all fifty again on page two.
+    let printed: Vec<&str> = word_pages.iter().map(|(_, w)| w.as_str()).collect();
+    let expected: Vec<String> = (1..=50).map(|i| format!("מילה{i:02}")).collect();
+    assert_eq!(
+        printed.len(),
+        50,
+        "fifty words were written and {} were printed: {printed:?}",
+        printed.len()
+    );
+    assert!(
+        printed.iter().zip(expected.iter()).all(|(a, b)| a == b),
+        "the words came out in the wrong order or with something missing: {printed:?}"
+    );
+
+    // The seam is a seam and not a repeat. The equality above already proves it;
+    // this names the page it fell on, so a regression reads as a moved cut
+    // rather than as fifty words in the wrong order.
+    let first_of_second: &str = word_pages
+        .iter()
+        .find(|(p, _)| *p == pages[1])
+        .map(|(_, w)| w.as_str())
+        .expect("the second page of the note printed nothing");
+    let last_of_first: &str = word_pages
+        .iter()
+        .rev()
+        .find(|(p, _)| *p == pages[0])
+        .map(|(_, w)| w.as_str())
+        .expect("the first page of the note printed nothing");
+    assert_eq!(
+        (last_of_first, first_of_second),
+        ("מילה28", "מילה29"),
+        "the cut moved — the region holds fourteen words to a line and two lines"
+    );
+}
+
+/// The note's number is printed once, at its head, and not again on every page.
+///
+/// A continued note has never been set with its number repeated, and the window
+/// gets that for free — the marker is at the top of the note and has slid out of
+/// the slot. The cut has to be told, and `סימן_בהמשך` is where a sefer that wants
+/// it back says so. Asserted because *"the two mechanisms agree"* is a claim, and
+/// an unasserted claim about a page is a claim about a page nobody looked at.
+#[test]
+fn a_cut_note_carries_its_number_only_on_its_first_page() {
+    let runs = laid("giant_spill");
+    let lines = probe::lines(&runs, 2.0);
+    let head = lines
+        .iter()
+        .find(|l| l.reading.contains("מילה01"))
+        .expect("the note's first line is missing");
+    assert!(
+        head.reading.contains('1'),
+        "the note's first line carries no number: {:?}",
+        head.reading
+    );
+    // The head, once. Twice would be the note itself repeated, which is the
+    // window's cost and the reason the cut exists.
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|l| l.reading.contains("מילה01"))
+            .count(),
+        1,
+        "the note's first words printed on more than one page"
+    );
+    // …and the continuation begins with a word, not with a number.
+    let cont = lines
+        .iter()
+        .find(|l| l.reading.contains("מילה29") && l.page > head.page)
+        .expect("the note's continuation is missing");
+    assert!(
+        cont.reading.starts_with("מילה29"),
+        "the number was repeated on the continuation: {:?}",
+        cont.reading
+    );
+}
+
+/// A body with no text in it keeps the window, and the window still works.
+///
+/// `_ct_text` answers `none` for anything that is not words — a table, a figure,
+/// a nested apparatus, and, as this corpus shows, one bolded word — and there is
+/// nothing to cut at. So the note is emitted whole into every page it runs
+/// through and slid by exactly one slot each time, which is what this asserts.
+///
+/// Kept as a test rather than treated as a limitation to be removed, because the
+/// two mechanisms are not a stopgap and its replacement: the window is the only
+/// one that is exact on arbitrary content, and a sefer that mixes both wants
+/// both. What *is* worth removing one day is how little it takes to fall back —
+/// one bolded word — and that is `meander`'s recursion into nested content,
+/// written down in the decision record and not built here.
+#[test]
+fn a_body_that_cannot_be_cut_is_still_spilled_by_the_window() {
+    let runs = laid("giant_spill_uncuttable");
+    let pages: Vec<usize> = {
+        let mut p: Vec<usize> = runs
+            .iter()
+            .filter(|r| r.y > 600.0 && r.y < 790.0 && r.size < 11.0)
+            .map(|r| r.page)
+            .collect();
+        p.sort_unstable();
+        p.dedup();
+        p
+    };
+    assert!(
+        pages.len() >= 2,
+        "an uncuttable over-tall note stayed on {} page(s)",
+        pages.len()
+    );
+    // The whole note on both pages — that is the window's cost, and asserting it
+    // is how the cost stays visible instead of being rediscovered later.
+    let on = |page: usize| -> usize {
+        probe::lines(&runs, 2.0)
+            .iter()
+            .filter(|l| l.page == page && l.y > 600.0 && l.reading.contains("מילה"))
+            .count()
+    };
+    assert_eq!(
+        on(pages[0]),
+        on(pages[1]),
+        "the window is meant to emit the note whole into both pages"
+    );
     // The slot is 1.2cm = 34.02pt, and each page shows the next slot's worth.
     // Approximate here would pass on a window that drifts, which over enough
     // pages is a note with a line missing from the middle of it.
-    let top_on = |page: usize| {
+    let top = |page: usize| {
         runs.iter()
-            .filter(|r| r.page == page && r.y > 600.0 && r.y < 780.0 && r.size < 11.0)
+            .filter(|r| r.page == page && r.y > 600.0 && r.y < 790.0 && r.size < 11.0)
             .map(|r| r.y)
             .fold(f64::MAX, f64::min)
     };
-    let step = top_on(pages[0]) - top_on(pages[1]);
+    let step = top(pages[0]) - top(pages[1]);
     assert!(
         (step - 34.02).abs() < 0.1,
         "page two resumes {step}pt up, and the slot is 34.02pt — the window drifts"

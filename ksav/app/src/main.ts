@@ -175,7 +175,7 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 import * as settings_ from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
+import { scheduleCompile, runCompile, compileNow, supersedeCompiles, onStale, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
 import * as commands from "./commands";
 import * as find from "./find";
 import {
@@ -575,6 +575,12 @@ function handOverPages(leaving: string | null, arriving: string) {
     rememberPlaces(leaving);
     rememberPages(leaving);
   }
+  // Before the pages are drawn, not after: a layout of the document being left
+  // is still in flight, and `runtime.currentDoc` still names it — truthfully,
+  // for the few awaits it takes `openDoc` to reach the store — so nothing else
+  // in the application has grounds to refuse it. It would land on the pages
+  // drawn below and repaint them with the wrong sefer's.
+  supersedeCompiles();
   showPagesFor(arriving);
 }
 
@@ -2676,9 +2682,23 @@ function applyPreviewWindows(): void {
  * not when a document is switched. Each source pane's state is carried across so
  * an arrangement change does not cost a writer their carets.
  */
+/**
+ * The words that were on the screen when the panes were last torn down.
+ *
+ * Set by `renderPanes` before it destroys the views and read by `renderLeaf`
+ * while it builds their replacements — which is the only window in which it is
+ * true, hence a variable rather than an argument threaded through `renderNode`.
+ *
+ * Why it cannot be `runtime.currentDoc.body`: that is the copy in the store,
+ * and autosave writes it 600 ms after a pause in typing. A pane seeded from it
+ * comes up holding a document as it was up to six hundred milliseconds ago.
+ */
+let liveTextAtRender: string | null = null;
+
 function renderPanes() {
   const main = document.querySelector("main");
   if (!main) return;
+  liveTextAtRender = runtime.view ? docTextOf(runtime.view.state.doc) : null;
   // What each pane was holding, so rebuilding does not reset it.
   const held = new Map<string, EditorState>();
   for (const [id, v] of paneViews) held.set(id, v.state);
@@ -2807,10 +2827,35 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     // you were standing in to get it. `held` still has the focused pane's
     // state here because it is captured before the views are destroyed.
     const seed = focusedPane ? held.get(focusedPane) : undefined;
+    // **The text comes from `held`, not from the stored body.**
+    //
+    // `primaryView()` reads `paneViews`, and the loop above has already
+    // destroyed every view and cleared that map — so it was *always* undefined
+    // here and every new pane was seeded from `runtime.currentDoc.body`, which
+    // is the copy in the store. Autosave writes it 600 ms after a pause in
+    // typing, so anything written since is not in it.
+    //
+    // Harmless-looking for a split, and not harmless at all for a tab switch,
+    // where every pane of the arriving arrangement is new: the pane came up
+    // holding a stale copy of the document being left, and `stashFocused` —
+    // which runs next, and files `runtime.view.state` under the document still
+    // focused — wrote that stale copy back over the live one. A sefer typed and
+    // switched away from inside the autosave window lost what had been typed.
+    // The acceptance run reported it as four pages coming back as one.
+    //
+    // `held` is captured before the views are destroyed, which the comment
+    // above already says, and `seed` is that state. It was being asked for the
+    // caret and not for the words.
+    // `seed` is the focused pane's own held state, which is the right answer
+    // for a **split** — the new pane opens where the one it was split from is
+    // looking. It is absent for a **tab switch**, because `selectTab` points
+    // `focusedPane` at the arriving tab's pane before the rebuild and that id
+    // was never in `held`; the words then come from what was on the screen a
+    // moment ago, and only failing both from the store.
     const state =
       held.get(pane.id) ??
       makeState(
-        primaryView() ? docTextOf(primaryView()!.state.doc) : runtime.currentDoc.body,
+        seed ? docTextOf(seed.doc) : (liveTextAtRender ?? runtime.currentDoc.body),
         proseHere(),
         seed?.selection.main.head,
       );

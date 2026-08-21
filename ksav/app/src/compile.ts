@@ -106,6 +106,29 @@ function searchingThePage(): boolean {
   return isPanelOpen("find-drawer");
 }
 
+/**
+ * Discard every layout already scheduled or in flight.
+ *
+ * Called the instant the preview is handed from one document to another. The
+ * document itself changes a few `await`s later — `openDoc` has to reach the
+ * store first — so for that window `runCompile`'s own guards both say the
+ * outgoing sefer is still the current one, which is true and is exactly the
+ * problem: a layout of the document being *left* lands on the pages of the
+ * document that has just arrived, and repaints them.
+ *
+ * Nothing is lost by it. The outgoing document's pages were filed by the
+ * hand-over a line earlier, and `openDoc` schedules the incoming document's own
+ * layout when it is done.
+ */
+export function supersedeCompiles() {
+  clearTimeout(timer);
+  // Past every ticket already taken, so any result still on its way is dropped
+  // by the `mine !== generation` guard rather than drawn.
+  generation++;
+  compileAbort?.abort();
+  compileAbort = null;
+}
+
 export function scheduleCompile() {
   clearTimeout(timer);
   clearTimeout(quietTimer);

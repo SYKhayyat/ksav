@@ -1,0 +1,2 @@
+#set page(footer: [#block(height: 100pt, width: 100%)[]#block[LOWERBAND]])
+BODYWORD

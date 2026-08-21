@@ -128,6 +128,7 @@ const EN_ARGS: Record<string, string> = {
   ריווח_טורים: "row_gap",
   ריק: "empty",
   עודף: "leftover",
+  סימן_חיתוך: "clip_mark",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
@@ -1208,6 +1209,7 @@ export interface RegionSettings {
   rowGap?: string | null;
   empty?: string | null;
   leftover?: string | null;
+  clipMark?: string | null;
 }
 
 /**
@@ -1329,6 +1331,10 @@ export const REGION_KNOBS: ReadonlyArray<{
     hint: "",
     choices: VOCABULARY.leftovers,
   },
+  // What a box that could not hold its contents says at its edge. A **text**
+  // knob and not a choice: the ellipsis is a default and a sefer may want its
+  // own mark, or an empty field for the clean edge.
+  { key: "clipMark", arg: "סימן_חיתוך", kind: "text", label: "regionClipMark", hint: "…" },
 ];
 
 /** A tuple as the prelude writes it, from members this module holds as a list. */

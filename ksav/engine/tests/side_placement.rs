@@ -283,3 +283,48 @@ fn a_pinned_note_holds_its_place_and_the_rest_go_round() {
         );
     }
 }
+
+/// A note beside the text can be referred to by name.
+///
+/// `שם` reached every other collector and not this one, so a gloss in the margin
+/// was the one kind of note that could not be cross-referenced: the reference
+/// came out as a red `?` naming a note that is on the page, correctly numbered,
+/// two inches away. Cross-references are for exactly the apparatus a gloss
+/// belongs to — «עיין בהגהה שבצד» is the sentence they exist for.
+///
+/// Both doors, because the two ways of putting a note beside the text are two
+/// call paths and this is the second time they have disagreed about something.
+#[test]
+fn a_note_beside_the_text_can_be_referred_to() {
+    let both = [
+        (
+            "a channel placed at the side",
+            "#ערוץ(\"הגהות\", מיקום: \"חוץ\")\n\
+             טקסט#הערה(ערוץ: \"הגהות\", שם: \"פלוני\")[גוף ההגהה] ועוד, \
+             ועיין #הפניה_להערה(\"פלוני\") וסוף.",
+        ),
+        (
+            "a region placed at the side",
+            "#אזור(\"הגהות\", מיקום: \"חוץ\")\n\
+             טקסט#הערה(אזור: \"הגהות\", שם: \"פלוני\")[גוף ההגהה] ועוד, \
+             ועיין #הפניה_להערה(\"פלוני\") וסוף.",
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (what, body) in both {
+        let runs = laid(body, &DocConfig::default());
+        let reading: String = runs.iter().map(|r| r.text.clone()).collect();
+        if !reading.contains("גוף ההגהה") {
+            wrong.push(format!("{what}: the note itself never printed"));
+        }
+        // A reference that found nothing prints `?` and the name.
+        if reading.contains("?פלוני") || reading.contains("פלוני?") {
+            wrong.push(format!("{what}: the reference could not find the note"));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "a side note could not be referred to:\n  {}",
+        wrong.join("\n  ")
+    );
+}

@@ -163,6 +163,7 @@ fn values(key: &str) -> Vec<String> {
         "מרווח_טורים" | "ריווח_טורים" => plain(&["0pt", "1.2em", "2cm"]),
         "ריק" => quoted(vocab("_rg_empty_kinds")),
         "עודף" => quoted(vocab("_rg_over_plan")),
+        "סימן_חיתוך" => plain(&["none", "\"…\"", "\"[...]\""]),
         _ => panic!("region_matrix has no values for {key} — add them, or the key is unswept"),
     }
 }

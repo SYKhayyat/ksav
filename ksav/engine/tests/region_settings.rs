@@ -111,6 +111,15 @@ fn vary(key: &str) -> Option<Vary> {
         // its own, or a column added to the one it was left out of. The third
         // answer is a refusal, which cannot be a contrast because a document
         // that does not compile is not a page to compare.
+        // A box told not to spill, with far more in it than it can hold: the
+        // mark at the clipped edge, or the clean edge for a writer who knows
+        // what they are choosing.
+        "סימן_חיתוך" => Vary {
+            a: "none",
+            b: "\"…\"",
+            with: ", מיקום: \"רגל\", גובה: שורות(1), גלישה: ()",
+            ..notes
+        },
         "עודף" => Vary {
             a: "\"שורה_נוספת\"",
             b: "\"טור_נוסף\"",

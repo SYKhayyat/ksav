@@ -297,3 +297,72 @@ fn an_explicitly_fixed_box_does_not_move_the_page() {
         "the default policy lost words that only an explicitly fixed box may lose"
     );
 }
+
+/// A box that clips says so on the page.
+///
+/// The one arrangement allowed to lose text is the one a writer asked for, and
+/// asking for it is not the same as wanting it to happen invisibly. A note short
+/// by four lines looks exactly like a note that was four lines shorter.
+/// `NOTES-PLAN` thing four has said *and always warn* since it was written.
+///
+/// It cannot be a compiler warning — Typst 0.15 gives a prelude `panic` and
+/// nothing quieter, and refusing to compile is the wrong answer to a writer who
+/// asked for a fixed box. So it is a mark at the edge where the text stopped.
+///
+/// **And it cannot be measured in the renderer**, which is what the first
+/// attempt did and why it was backed out: `_ap_slot` is handed the region's
+/// furniture and not only its prose, so `measure` answers 64.26pt for a
+/// four-word note in a 34.02pt box and the mark fires on every fixed box there
+/// is. The fact comes from `_ap_fill` instead — the walk that decided there was
+/// no `"עמוד_הבא"` to move the overflow to.
+#[test]
+fn a_box_that_clips_marks_the_edge() {
+    let mark = "…";
+    let has_mark = |body: &str, what: &str| -> bool {
+        let doc = probe::layout(body, &DocConfig::default())
+            .unwrap_or_else(|d| panic!("{what} did not compile: {d:?}"));
+        probe::text_runs(&doc).iter().any(|r| r.text.contains(mark))
+    };
+
+    // Three hundred words in a box a line tall, told not to spill: it clips.
+    assert!(
+        has_mark(
+            &sefer("#אזור(\"צר\", מיקום: \"רגל\", גובה: 1.2cm, גלישה: ())", 300),
+            "a clipping box"
+        ),
+        "a box that clipped a note said nothing about it"
+    );
+
+    // Four words in the same box: nothing was lost, so nothing is claimed. This
+    // is the half that makes the mark a warning rather than decoration, and the
+    // half a measure in the renderer got wrong.
+    assert!(
+        !has_mark(
+            &sefer("#אזור(\"צר\", מיקום: \"רגל\", גובה: 1.2cm, גלישה: ())", 4),
+            "a box with room to spare"
+        ),
+        "a box with room to spare claimed it had clipped something"
+    );
+
+    // The same three hundred words with the default policy: they spill, nothing
+    // is lost, and nothing is claimed.
+    assert!(
+        !has_mark(
+            &sefer("#אזור(\"צר\", מיקום: \"רגל\", גובה: 1.2cm)", 300),
+            "a spilling box"
+        ),
+        "a box that spilled correctly claimed it had clipped something"
+    );
+
+    // …and the writer can ask for the clean edge and know what they chose.
+    assert!(
+        !has_mark(
+            &sefer(
+                "#אזור(\"צר\", מיקום: \"רגל\", גובה: 1.2cm, גלישה: (), סימן_חיתוך: none)",
+                300
+            ),
+            "a fixed box with no mark"
+        ),
+        "`סימן_חיתוך: none` still printed a mark"
+    );
+}

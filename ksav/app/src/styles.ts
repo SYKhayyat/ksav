@@ -230,6 +230,8 @@ const EN_ARGS: Record<string, string> = {
   // now reads `_en_params` out of the prelude and fails on any key this panel
   // writes without a spelling here, which is what would have caught them.
   משקל: "weight",
+  // Whether this note may be moved to avoid a neighbour — see `_sn_assign`.
+  הזזה: "shift",
   // Not looks, but the panel writes them onto a note like everything else here,
   // so they need the engine’s own English spelling for a document written in
   // English commands. See `_en_args` in the prelude.
@@ -617,6 +619,10 @@ export const INSTANCE_FIELDS: Record<
     סגנון: { kind: "slant", label: "knobSlant" },
     משקל: { kind: "weight", label: "knobWeight" },
     צבע: { kind: "colour", label: "knobColour" },
+    // Not a look: this note’s answer to *may you be moved to avoid a neighbour*.
+    // A gloss keyed to one word wants to stay beside that word, and a note that
+    // has drifted four lines down is pointing at the wrong one.
+    הזזה: { kind: "bool", label: "knobShift" },
   },
   // The two at the end are not a look at all, and they are two wants and not one:
   // `פטור` says *this mark is not in its class's styling*, `ברשימה` says *this

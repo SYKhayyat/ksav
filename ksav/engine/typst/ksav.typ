@@ -37,6 +37,7 @@
   // Which structural level a count starts again at — one word for the notes
   // and for the numbers a siman carries, because it is one mechanism.
   restart_by: "אפס_לפי",
+  shift: "הזזה",
   // The words a note is **on** — what an entry head prints as its dibbur
   // hamaschil — and whether the note may be the one that moves when its region
   // has to give something up. Neither is a look; both are set on one note.
@@ -3736,6 +3737,26 @@
 // the *channels* alone, so a region that asked for an address got the default
 // entry head and printed a number instead.
 #let _rg_head_keys = ("ראש", "מספור_כתובת", "דף_ראשון")
+/// The keys that shape how a region overflows.
+///
+/// Read through `_ap_pick` deep inside the walk, which has the *channel's*
+/// configuration and not the region's — so a region that set one was accepted
+/// and never consulted. They are merged into the channel's configuration, keyed
+/// by channel, at the point the region is known: a channel belongs to exactly one
+/// region, so there is one right answer for each.
+#let _rg_over_keys = ("הקטנה_מזערית", "הקטנה_צעד", "כיווץ_מידה")
+#let _rg_over_cfg(cfg, t, streams) = {
+  let out = cfg
+  for k in _rg_over_keys {
+    let per = (:)
+    for s in streams {
+      let rec = _rg_rec(t, _ch_region(t, s))
+      if k in rec { per.insert(s, rec.at(k)) }
+    }
+    if per.len() > 0 { out.insert(k, per) }
+  }
+  out
+}
 #let _rg_head_cfg(cfg, t, rg) = {
   let out = cfg
   let rec = _rg_rec(t, rg)
@@ -4341,7 +4362,13 @@
     // work out the assignment, and once against the streams that are drawn. The
     // first reading is deliberately the cheap one, since it only needs the
     // per-stream sizes and column counts that decide how tall an entry is.
-    let base = _nt_under(_sf_cfg.get())
+    // The region's own overflow shaping, in the reading the *walk* uses as well
+    // as in the one that draws — the two disagreeing is the one real limit.
+    let base = _rg_over_cfg(
+      _nt_under(_sf_cfg.get()),
+      t,
+      all.map(e => e.value.group).dedup(),
+    )
     let on = _ap_on_page(all, base, _sf_cap(base, t, איפה), pg, policy_of: _sf_spill(t))
     let mine = on.entries
     if mine.len() > 0 {
@@ -4373,7 +4400,7 @@
       // page to the back of the sefer must not renumber it — which it did until
       // this line, because the two apparatuses answer that question differently
       // when nobody asks. A stream nobody declared is untouched.
-      let cfg = _ch_foot_cfg(t, streams)
+      let cfg = _rg_over_cfg(_ch_foot_cfg(t, streams), t, streams)
       // A region that compresses draws compressed. The walk above already
       // measured it that way, and the two disagreeing would put a note in a
       // place the arithmetic did not leave room for — the one real limit
@@ -4877,7 +4904,11 @@
 // computes the same stack from them — a note answering them for itself would be
 // placed against one arithmetic and measured by its neighbours against another.
 // See `_cfg_split` and `_sn_note`.
-#let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע")
+// `הזזה` is not a look — it is this note's answer to *"may you be moved?"*. It
+// travels with the looks because the same per-note dictionary already reaches the
+// walk that decides, and a second channel for one value would be a second thing
+// to keep in step.
+#let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע", "הזזה")
 #let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
 // Is a side-column wrapper currently open? A sidenote outside one has no column
 // to land in, so it must not be `place`d off the page — see _sn_note.
@@ -5178,7 +5209,71 @@
 /// The walk is over *entries*, not over pages, so its cost is the number of
 /// notes and not the length of the sefer. Typst memoises `measure`, so the
 /// heights are computed once for the document however many pages ask for them.
+// הזזה — whether **this** note may be moved to avoid its neighbours.
+//
+// The walk clamps, shifts and cascades unconditionally, which keeps decision 6's
+// invariant — a note is never printed on top of another and never off the paper —
+// and gives the writer no say in *which* note moves. `marginalia` has a policy
+// per note and the standing preference here is that a judgement call becomes a
+// setting with the old behaviour as its default, so:
+//
+//   · `auto` / `true` — move if it must. Today's behaviour, and the default.
+//   · `false`          — **stay**, beside the line it annotates. The notes after
+//                        it move around it, which is what a gloss keyed to one
+//                        word needs: a note that has drifted four lines down is
+//                        pointing at the wrong word.
+//   · `"הימנע"`        — move only after everything else has. It is offered to
+//                        the collision last, so it keeps its place unless there
+//                        is no other way.
+//   · `"התעלם"`        — take no part. It is drawn where its marker is and
+//                        nothing moves for it, which is the escape hatch for a
+//                        note a writer has placed by eye.
+//
+// A note that stays may still be clamped to the page — off the paper is never a
+// choice — so `false` is *"do not shift for a neighbour"*, not *"draw anywhere"*.
+#let _sn_shifts = ("הימנע", "התעלם")
+#let _sn_may_shift(it) = {
+  let v = it.at("shift", default: auto)
+  v == auto or v == true or v == "הימנע"
+}
+
 #let _sn_assign(items, gap, floor, ceiling) = {
+  // **Pinned notes are placed first, and the rest move around them.**
+  //
+  // `הזזה: false` means *"do not move me"*, and the naive reading — leave it at
+  // its anchor while the walk carries on — puts it on top of whatever was
+  // already there. Decision 6 does not bend for a setting: a note is never
+  // printed over another note. So a pinned note takes its place before the walk
+  // starts, and the walk steps over the space it holds.
+  //
+  // Which is also what the writer meant. A gloss keyed to one word wants to stay
+  // beside that word; it does not want to be drawn through its neighbour.
+  let held = ()
+  for it in items {
+    let v = it.at("shift", default: auto)
+    if v == false {
+      held.push((page: it.page, a: it.want, b: it.want + it.h + gap))
+    }
+  }
+  /// The first y at or below `y` on `pg` that no pinned note is holding.
+  let clear(pg, y, h) = {
+    let out = y
+    // Two passes over a handful of intervals: pushing past one can push into
+    // the next, and the list is per stream and short.
+    let again = true
+    let guard = 0
+    while again and guard < 8 {
+      again = false
+      guard += 1
+      for k in held {
+        if k.page == pg and out < k.b and out + h > k.a {
+          out = k.b
+          again = true
+        }
+      }
+    }
+    out
+  }
   let out = ()
   let page_ = 0
   let cursor = floor
@@ -5189,7 +5284,19 @@
       page_ = it.page
       cursor = floor
     }
-    let y = calc.max(it.want, cursor)
+    // `"התעלם"` takes no part: drawn where its marker is, and the cursor is left
+    // exactly as it was so nothing moves for it either.
+    if it.at("shift", default: auto) == "התעלם" {
+      out.push((page: it.page, y: it.want))
+      continue
+    }
+    // A note that may not shift stays beside its own line, and the cursor picks
+    // up after it — so the notes below move around it rather than it around them.
+    let y = if _sn_may_shift(it) {
+      clear(page_, calc.max(it.want, cursor), it.h)
+    } else {
+      it.want
+    }
     if ceiling != none and y + it.h > ceiling {
       // It does not fit under what is already on this page, so it goes to the
       // next page's column, at the top.
@@ -5250,6 +5357,7 @@
     items.push((
       page: loc.page(),
       want: loc.position().y,
+      shift: _val(e.value.at("own", default: (:)).at("הזזה", default: auto)),
       h: measure(piece).height,
       // Kept so the edge can be worked out again for the page this note is
       // *placed* on, which for a carried note is not the page it was written on.

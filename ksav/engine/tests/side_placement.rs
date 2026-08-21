@@ -237,3 +237,49 @@ fn both_doors_send_a_side_channel_to_the_side() {
         x(&through_stream)
     );
 }
+
+/// A note can say it may not be moved, and the others go around it.
+///
+/// The walk clamps, shifts and cascades unconditionally, which keeps decision
+/// 6's invariant and gives the writer no say in **which** note moves. A gloss
+/// keyed to one word wants to stay beside that word: a note that has drifted
+/// four lines down is pointing at the wrong one.
+///
+/// The naive reading of "do not move me" — leave it at its anchor and carry on —
+/// draws it through its neighbour, and decision 6 does not bend for a setting.
+/// So a pinned note takes its place *before* the walk, and the walk steps over
+/// the space it holds. Which is what the writer meant anyway.
+#[test]
+fn a_pinned_note_holds_its_place_and_the_rest_go_round() {
+    let doc = "#עם_הערות_צד[\nפתיחה. מילה#הערת_גיליון[הערה ארוכה מאוד ראשונה ובה הרבה \
+               מילים כדי שתתפוס מקום] מילה#הערת_גיליון(הזזה: false)[קבועה] סוף.\n]";
+    let runs = laid(doc, &DocConfig::default());
+    let y = |w: &str| {
+        probe::lines(&runs, 1.0)
+            .into_iter()
+            .find(|l| l.contains(w))
+            .unwrap_or_else(|| panic!("{w} printed nowhere"))
+            .y
+    };
+    // The pinned one is beside its own line, above the note written before it.
+    assert!(
+        y("קבועה") < y("ארוכה"),
+        "the pinned note at y={} did not keep its place above the note that moved (y={})",
+        y("קבועה"),
+        y("ארוכה")
+    );
+    // …and nothing is drawn on top of anything, which is the half a naive
+    // "do not move me" gets wrong.
+    let mut ys: Vec<f64> = probe::lines(&runs, 1.0)
+        .into_iter()
+        .filter(|l| l.y > 80.0 && l.runs.iter().any(|r| r.size < 10.0))
+        .map(|l| l.y)
+        .collect();
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    for w in ys.windows(2) {
+        assert!(
+            w[1] - w[0] > 1.0,
+            "two side notes were drawn at the same height: {w:?}"
+        );
+    }
+}

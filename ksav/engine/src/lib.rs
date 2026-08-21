@@ -1604,6 +1604,43 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
     )
 }
 
+/// Where a bundled Typst package lives.
+///
+/// `#import "@preview/meander:0.4.4"` failed with *file not found* until this
+/// existed: nothing in the repository handled a package at all, so the whole
+/// ecosystem was unreachable — `meander`'s `bisect.typ`, `marginalia`'s per-note
+/// shift policy, everything.
+///
+/// # Resolved from a directory, and never fetched
+///
+/// `typst-as-lib` offers `with_package_file_resolver`, and it wants `ureq` or
+/// `reqwest`: it downloads. That is the wrong shape for this application twice
+/// over — a compile that reaches the network is a compile that can hang, and an
+/// editor that is 59ms after a keystroke cannot have one in the path; and Ksav is
+/// meant to work on a plane.
+///
+/// So packages are **bundled** and read off disk, in Typst's own layout —
+/// `<root>/<namespace>/<name>/<version>/…` — which means a package vendored here
+/// keeps its upstream identity and version rather than becoming a fork.
+///
+/// The resolver is built directly rather than through `with_file_system_resolver`
+/// so that its root *is* the package directory: a document cannot reach anything
+/// else on the disk through it.
+fn packages_root() -> std::path::PathBuf {
+    // Beside the executable for a shipped build, and in the crate for tests and
+    // for `cargo run --example`. Both are checked because the same binary is used
+    // both ways and neither is wrong.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let beside = dir.join("packages");
+            if beside.is_dir() {
+                return beside;
+            }
+        }
+    }
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("packages")
+}
+
 /// The compiler, configured for one main source and the request's assets.
 ///
 /// The document has no file system to read from, so its images arrive as bytes on
@@ -1634,7 +1671,13 @@ pub(crate) fn engine_for(
         // behind it happened at the first compile of the process and will not
         // happen again. See `prelude_source`.
         .with_static_source_file_resolver([prelude_source().clone()])
-        .with_static_file_resolver(files);
+        .with_static_file_resolver(files)
+        // Bundled packages, off disk. Last in the chain, so nothing a document
+        // carries with it can be shadowed by one.
+        .add_file_resolver(
+            typst_as_lib::file_resolver::FileSystemResolver::new(packages_root())
+                .local_package_root(packages_root()),
+        );
     // Keep Typst's memoization cache alive across compiles instead of throwing it
     // away after each one. `typst-as-lib` defaults `comemo_evict_max_age` to
     // `Some(0)` — evict everything immediately — which is exactly the opposite of

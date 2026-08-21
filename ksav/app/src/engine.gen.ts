@@ -275,6 +275,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "כיוון": "dir",
   "עובי": "thickness",
   "אפס_לפי": "restart_by",
+  "הזזה": "shift",
   "ציטוט": "quote",
   "צף": "floats",
   "לרוחב": "landscape",

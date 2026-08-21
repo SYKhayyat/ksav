@@ -1,0 +1,7 @@
+[package]
+name = "ksavtest"
+version = "0.1.0"
+entrypoint = "lib.typ"
+authors = ["Ksav"]
+license = "MIT"
+description = "A one-function package, bundled so the loader has something real to load."

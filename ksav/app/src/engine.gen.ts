@@ -436,6 +436,19 @@ export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
  * Typst refuses `pagebreak()` inside one, in English, from the middle of a
  * blanked preview — so this is what `legalAt` greys the page-level commands on.
  */
+/**
+ * The prelude's fixed vocabularies, so a panel can offer a choice.
+ *
+ * Each is a `#let _x = ("a", "b", …)` in `ksav.typ` and each is a set the engine
+ * compares against rather than data it passes through — which is exactly the
+ * kind of list the editor used to keep a second copy of and let drift.
+ *
+ * `spillAlways` is here although a writer may not ask for one of those three:
+ * they always apply, and a panel that says so is better than a writer wondering
+ * where clamping went.
+ */
+export const VOCABULARY = {"regionKeys":["מיקום","גובה","פריסה","כותרת","גלישה","הקטנה_מזערית","שומר_מקום","הקטנה_צעד","כיווץ_מידה","חריגה","ראש","מספור_כתובת","דף_ראשון","עמוד_חדש","טורים","יחידה","תפר","סימן_בהמשך"],"spillMoves":["דחיסה","רצף","הקטנה","כיווץ_אותיות","חלוקה","צף","עמוד_הבא"],"spillAlways":["הזזה","מפל","הצמדה"],"overflowPolicies":["צמצום","סירוב"],"headParts":["מספר","תווית","ציטוט","עמוד","דף","סימן"],"gridUnits":["כותרת","סימן","מדור"]} as const;
+
 export const CONTAINERS: readonly string[] = [
   "הערה_בדרגה",
   "ברך",

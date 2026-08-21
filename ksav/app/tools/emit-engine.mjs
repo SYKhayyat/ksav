@@ -102,6 +102,73 @@ const NOT_A_SETTING = {
  * below is the one that can actually be made: where both speak, they agree, and
  * every English name the registry advertises is a name the prelude defines.
  */
+/**
+ * A `#let NAME = ("a", "b", …)` tuple of strings, out of the prelude.
+ *
+ * These are the prelude's **vocabularies** — the overflow moves, the overflow
+ * policy, the ingredients of an entry head, the units a grid region is
+ * synchronised on, the keys `#אזור` accepts. Every one is a fixed set the engine
+ * compares a writer's value against, and every one was a set the editor did not
+ * have: a panel offering a choice has to know what the choices are, and a
+ * hand-kept copy of a list that lives in another file is the thing that rots.
+ *
+ * Fails loudly rather than returning an empty list, because an empty vocabulary
+ * is a control with no options and looks like a design decision.
+ */
+function readTuple(src, name) {
+  const at = src.indexOf(`#let ${name} = (`)
+  if (at < 0) {
+    console.error(`${name} is not in ksav.typ — has it been renamed?`)
+    process.exit(1)
+  }
+  // Balanced, and not "up to the next newline-paren". Half of these tuples are
+  // written on one line and half on several, and reading to the next line that
+  // begins with a paren swallowed everything between a one-line tuple and the
+  // next multi-line one — which came out as an overflow vocabulary holding three
+  // moves and eleven fragments of a panic message.
+  const open = src.indexOf("(", at)
+  let depth = 0
+  let close = -1
+  for (let i = open; i < src.length; i += 1) {
+    if (src[i] === "(") depth += 1
+    else if (src[i] === ")") {
+      depth -= 1
+      if (depth === 0) {
+        close = i
+        break
+      }
+    }
+  }
+  if (close < 0) {
+    console.error(`${name} is not closed in ksav.typ`)
+    process.exit(1)
+  }
+  const body = src.slice(open, close)
+  const out = [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1])
+  if (out.length === 0) {
+    console.error(`${name} parsed as empty — this reader is wrong, not the prelude`)
+    process.exit(1)
+  }
+  return out
+}
+
+/** Every vocabulary the editor needs in order to offer a choice. */
+function readVocabularies() {
+  const src = readFileSync(PRELUDE, "utf8")
+  return {
+    regionKeys: readTuple(src, "_rg_own"),
+    spillMoves: readTuple(src, "_ap_spill_moves"),
+    spillAlways: readTuple(src, "_ap_spill_always"),
+    overflowPolicies: readTuple(src, "_rg_over"),
+    // An entry head is made of its own ingredients *and* the addresses, which
+    // the prelude keeps in two tuples because one of them is also what a
+    // cross-reference points at. One list here: a writer deciding what an entry
+    // says before it says anything of its own is making one choice.
+    headParts: [...readTuple(src, "_eh_parts"), ...readTuple(src, "_xa_kinds")],
+    gridUnits: readTuple(src, "_rg_grid_units"),
+  }
+}
+
 function readAliases() {
   const src = readFileSync(PRELUDE, "utf8");
   const LINE = /^#let ([A-Za-z][A-Za-z0-9_]*) = (?:([^\s_(][^\s(]*)|_en\(([^\s,)]+))/;
@@ -300,7 +367,7 @@ function readNotices() {
 
 // ---------------------------------------------------------------- emitting
 
-function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields, children) {
+function emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields, children, vocab) {
   const q = (v) => JSON.stringify(v);
   const settable = defaults.filter((d) => !(d.name in NOT_A_SETTING) && !d.absent);
   const omitted = defaults.filter((d) => d.absent).map((d) => d.name);
@@ -410,6 +477,19 @@ export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
  * Typst refuses \`pagebreak()\` inside one, in English, from the middle of a
  * blanked preview — so this is what \`legalAt\` greys the page-level commands on.
  */
+/**
+ * The prelude's fixed vocabularies, so a panel can offer a choice.
+ *
+ * Each is a \`#let _x = ("a", "b", …)\` in \`ksav.typ\` and each is a set the engine
+ * compares against rather than data it passes through — which is exactly the
+ * kind of list the editor used to keep a second copy of and let drift.
+ *
+ * \`spillAlways\` is here although a writer may not ask for one of those three:
+ * they always apply, and a panel that says so is better than a writer wondering
+ * where clamping went.
+ */
+export const VOCABULARY = ${q(vocab)} as const;
+
 export const CONTAINERS: readonly string[] = [
 ${containerRows}
 ];
@@ -628,7 +708,8 @@ if (notices.some((n) => !n.name || !n.copyright)) {
   process.exit(1);
 }
 
-const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields, children);
+const vocab = readVocabularies();
+const built = emit(aliases, params, containers, commands, defaults, notices, hebrew, markupEscapes, templateFields, children, vocab);
 
 /** Every generated output, as `[path, wanted, label]`. */
 export const OUTPUTS = [[OUT, built, "src/engine.gen.ts"]];

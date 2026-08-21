@@ -5,7 +5,7 @@ import { commands } from "../tools/commands.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
 import { STYLE_SECTIONS } from "../.tmp-test/panelviews.mjs";
-import { DESTINATION_KNOBS } from "../.tmp-test/channels.mjs";
+import { DESTINATION_KNOBS, REGION_KNOBS } from "../.tmp-test/channels.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 // Is it reachable from the chrome at all?
@@ -282,6 +282,15 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // commands could produce. Offered as a button rather than as a lint after the
   // fact.
   ok("…and a way to print a collected region", MAIN.includes("channels.showRegionLine("));
+  // The other half of the same panel, and the half that was missing: a region is
+  // a place on the page and not only a stream, and the seventeen knobs that
+  // decide how that place behaves had no control at all.
+  ok("…offering every knob a region has", MAIN.includes("for (const knob of channels.REGION_KNOBS)"));
+  ok("…on the destination that is a place", MAIN.includes("rows.push(...regionRows(doc, stylePick.region))"));
+  for (const knob of REGION_KNOBS) {
+    ok(`…and the region's ${knob.key} is labelled in Hebrew`, !!DICTS.he[knob.label], knob.label);
+    ok(`…and in English`, !!DICTS.en[knob.label], knob.label);
+  }
 }
 
 // Both directions of "where do the note bodies live", which is only *changeable

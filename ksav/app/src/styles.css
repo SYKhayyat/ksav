@@ -1123,6 +1123,14 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
    layouts, because a preference with no way to apply it to the document in hand
    is half a feature. */
 .set-row.set-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+/* A row whose control is several things rather than one: the buttons under a
+   destination, and the boxes of a region's set-valued knob. A set is not a list
+   of rows — a writer picking several of seven overflow moves wants the seven
+   where they can be compared — so the control wraps inside its own row instead
+   of pushing the row wider than the panel. */
+.set-row .chan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; }
+.region-box { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+.region-box input[type="checkbox"] { width: 14px; height: 14px; }
 .set-actions button {
   padding: 6px 12px; cursor: pointer;
   font-family: var(--hebrew); font-size: 12px;

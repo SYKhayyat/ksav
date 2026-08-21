@@ -60,6 +60,7 @@ import {
   DEFAULT_CHANNEL,
   PLACEMENTS,
   TIER_CHANNELS as CHANNEL_TIERS,
+  REGION_KNOBS,
   englishArg,
   englishValue,
 } from "../.tmp-test/channels.mjs";
@@ -433,7 +434,14 @@ export async function run() {
     // The English spellings, against `_en_params` and `_en_values`. An English
     // command taking a Hebrew parameter is not English, and neither is one
     // taking a Hebrew *value* — which is the whole reason `_en_values` exists.
-    for (const he of ["ערוץ", "מקור", "מיקום", "אזור", "גובה", "פריסה", "כותרת"]) {
+    // Every argument this module writes, and not a hand-kept seven: the region
+    // knobs are read off `REGION_KNOBS`, so a knob added tomorrow with an English
+    // name the prelude does not have is caught here rather than by a writer whose
+    // English document stopped compiling.
+    const args = [
+      ...new Set(["ערוץ", "מקור", "מיקום", "אזור", "גובה", "פריסה", "כותרת", ...REGION_KNOBS.map((k) => k.arg)]),
+    ];
+    for (const he of args) {
       const en = englishArg(he);
       ok(
         `the panel's English spelling of ${he} is one the prelude reads`,
@@ -441,7 +449,13 @@ export async function run() {
         () => `${he} → ${en} is not in _en_params`,
       );
     }
-    for (const he of [...PLACEMENTS, "מוערם", "צד"]) {
+    // Likewise the values, which are the half that is easy to forget: an
+    // English key whose value has to be Hebrew is worse than no English key,
+    // because the name exists and using it looks supported.
+    const values = [
+      ...new Set([...PLACEMENTS, "מוערם", "צד", ...REGION_KNOBS.flatMap((k) => k.choices ?? [])]),
+    ];
+    for (const he of values) {
       const en = englishValue(he);
       ok(
         `the panel's English spelling of the value ${he} is one the prelude reads`,

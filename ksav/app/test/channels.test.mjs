@@ -3,6 +3,7 @@ import { dirOf } from "../tools/paths.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { DICTS } from "../.tmp-test/i18n.mjs";
+import { VOCABULARY } from "../.tmp-test/engine.gen.mjs";
 import { NOTE_BODY_COMMANDS } from "../.tmp-test/note-commands.mjs";
 import {
   DEFAULT_CHANNEL,
@@ -10,16 +11,19 @@ import {
   DESTINATION_IDS,
   PLACEMENTS,
   PRESETS,
+  REGION_KNOBS,
   TIER_CHANNELS,
   blockedFor,
   caveatsFor,
   channelLine,
   channelsIn,
+  englishValue,
   footRivals,
   noteCounts,
   noteLine,
   presetLines,
   regionLine,
+  regionSettingsOf,
   regionsIn,
   samePick,
   settingsOf,
@@ -27,6 +31,7 @@ import {
   usedChannels,
   writeChannel,
   writeDestination,
+  writeRegion,
 } from "../.tmp-test/channels.mjs";
 import {
   applyPick,
@@ -712,5 +717,138 @@ export async function run() {
     ok("notes: and its prose has not moved", moved.text.includes('#גוף_הערה("1")[גוף]'), moved.text);
     check("notes: which reads back", noteDestination(moved.text, noteAt(moved.text, 3)).dest, "end");
   }
+
+  // ---------------------------------------------------------------- regions
+  //
+  // **A destination is a stream and a region is a place**, and this module wrote
+  // four of a region's eighteen keys. Everything that makes a region behave —
+  // what it does when a note outgrows it, whether it holds its slot on a page it
+  // has nothing on, what an entry says before it says anything of its own — was
+  // reachable only by typing into the source.
+  {
+    // The table against the prelude's own key list, so a key added to `#אזור`
+    // tomorrow has to arrive with a control. `מיקום` is the one exception and it
+    // is a deliberate one: the chooser owns *where the notes go*, and offering it
+    // twice is two controls that can disagree.
+    const covered = new Set(REGION_KNOBS.map((k) => k.arg));
+    check(
+      "regions: every key #אזור accepts has a knob, bar the placement",
+      VOCABULARY.regionKeys.filter((k) => k !== "מיקום" && !covered.has(k)),
+      [],
+    );
+    check(
+      "regions: …and no knob names a key #אזור does not accept",
+      REGION_KNOBS.map((k) => k.arg).filter((a) => !VOCABULARY.regionKeys.includes(a)),
+      [],
+    );
+    for (const knob of REGION_KNOBS) {
+      ok(`regions: ${knob.key} is labelled in Hebrew`, !!DICTS.he[knob.label], knob.label);
+      ok(`regions: …and in English`, !!DICTS.en[knob.label], knob.label);
+      if (knob.choices) {
+        for (const m of knob.choices) {
+          const key = "regionValue." + (englishValue(m) ?? m);
+          ok(`regions: ${m} is a word in Hebrew`, !!DICTS.he[key], key);
+          ok(`regions: …and in English`, !!DICTS.en[key], key);
+        }
+      }
+    }
+  }
+  {
+    const doc = 'טקסט#הערה(אזור: "צר")[גוף]';
+    const added = writeRegion(doc, "צר", { height: "1.2cm" });
+    ok("regions: a new declaration goes to the top of the file", added.text.startsWith("#אזור("));
+    check("regions: and the document is otherwise untouched", added.text.split("\n")[1], doc);
+    check(
+      "regions: a height is written bare",
+      added.text.split("\n")[0],
+      '#אזור("צר", גובה: 1.2cm)',
+    );
+  }
+  {
+    // The rule the destination knobs state, applied here: `undefined` keeps,
+    // `null` clears, and a rewrite of one knob leaves the sixteen beside it.
+    const doc = '#אזור("צר", מיקום: "רגל", גובה: 1.2cm, חריגה: "צמצום")\nגוף';
+    const one = writeRegion(doc, "צר", { keepsPlace: "false" });
+    check(
+      "regions: writing one knob keeps the rest, placement included",
+      one.text.split("\n")[0],
+      '#אזור("צר", מיקום: "רגל", גובה: 1.2cm, חריגה: "צמצום", שומר_מקום: false)',
+    );
+    const cleared = writeRegion(doc, "צר", { overflow: null });
+    check(
+      "regions: and null clears exactly one",
+      cleared.text.split("\n")[0],
+      '#אזור("צר", מיקום: "רגל", גובה: 1.2cm)',
+    );
+  }
+  {
+    // A set-valued knob. The order is the policy for `גלישה` — the moves are
+    // tried in the order they are listed — so it is written in the prelude's own
+    // order and not in the order the boxes were ticked.
+    const doc = '#אזור("צר", מיקום: "רגל")\nגוף';
+    const many = writeRegion(doc, "צר", { spill: "עמוד_הבא,הקטנה" });
+    ok(
+      "regions: a set knob writes a tuple",
+      many.text.includes('גלישה: ("עמוד_הבא", "הקטנה")'),
+      many.text.split("\n")[0],
+    );
+    const one = writeRegion(doc, "צר", { spill: "הקטנה" });
+    ok(
+      "regions: a tuple of one keeps its comma, or Typst reads a string",
+      one.text.includes('גלישה: ("הקטנה",)'),
+      one.text.split("\n")[0],
+    );
+    const none = writeRegion(doc, "צר", { spill: "" });
+    ok(
+      "regions: and an empty one is a box that stays fixed",
+      none.text.includes("גלישה: ()"),
+      none.text.split("\n")[0],
+    );
+    check(
+      "regions: a tuple reads back as its members",
+      regionSettingsOf(many.text, "צר").spill,
+      "עמוד_הבא,הקטנה",
+    );
+  }
+  {
+    // Both languages, in both directions. A panel that wrote a Hebrew argument
+    // name into an English document would be performing the defect `_en_params`
+    // exists to end.
+    const en = writeRegion("גוף", "narrow", {
+      height: "1.2cm",
+      overflow: "צמצום",
+      spill: "הקטנה,עמוד_הבא",
+      head: "עמוד,מספר",
+      unit: "כותרת",
+      newPage: "true",
+    }, "en");
+    check(
+      "regions: an English document gets English names and English values",
+      en.text.split("\n")[0],
+      '#region("narrow", height: 1.2cm, spill: ("shrink", "next_page"), ' +
+        'overflow: "fit", head: ("page", "number"), new_page: true, unit: "heading")',
+    );
+    check(
+      "regions: and reads back in the prelude's own words",
+      regionSettingsOf(en.text, "narrow"),
+      {
+        height: "1.2cm",
+        spill: "הקטנה,עמוד_הבא",
+        overflow: "צמצום",
+        head: "עמוד,מספר",
+        newPage: "true",
+        unit: "כותרת",
+      },
+    );
+  }
+  {
+    // A title is content and not a string, which is the same distinction
+    // `DESTINATION_KNOBS` draws — a heading a writer can set in bold is a heading
+    // whose brackets have to survive the round trip.
+    const w = writeRegion("גוף", "צר", { title: "ביאורים" });
+    ok("regions: a title goes in as content", w.text.includes("כותרת: [ביאורים]"), w.text);
+    check("regions: and comes back without its brackets", regionSettingsOf(w.text, "צר").title, "ביאורים");
+  }
+
 
 }

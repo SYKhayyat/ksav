@@ -24,7 +24,7 @@
 // — an edit that moves an apparatus from the foot of the page to the back of the
 // sefer without touching one note.
 
-import { COMMAND_EN, bothSpellings } from "./engine.gen";
+import { COMMAND_EN, VOCABULARY, bothSpellings } from "./engine.gen";
 import { scan, splitArgs } from "./spans";
 import type { Group, Node } from "./spans";
 
@@ -98,6 +98,30 @@ const EN_ARGS: Record<string, string> = {
   גובה: "height",
   פריסה: "layout",
   כותרת: "title",
+  // A region's own keys. Until these were here a panel writing one of them into
+  // an English document wrote a Hebrew argument name into it, which is the
+  // defect `_en_params` exists to end, performed by the tool rather than by the
+  // writer.
+  //
+  // `טורים` is `columns` **on these two commands**, through their own `extra` in
+  // the prelude, where a page's `עמודות` is `columns` everywhere else. This table
+  // is read for `#ערוץ` and `#אזור` and nothing else, so the narrow reading is
+  // the right one here — and the destination panel has been writing a bare
+  // `טורים` into English documents for as long as it has had a column control.
+  גלישה: "spill",
+  חריגה: "overflow",
+  שומר_מקום: "keeps_place",
+  הקטנה_מזערית: "shrink_floor",
+  הקטנה_צעד: "shrink_step",
+  כיווץ_מידה: "tracking_amount",
+  ראש: "head",
+  מספור_כתובת: "address_numbering",
+  דף_ראשון: "first_folio",
+  עמוד_חדש: "new_page",
+  יחידה: "unit",
+  תפר: "seam",
+  סימן_בהמשך: "continued_mark",
+  טורים: "columns",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
@@ -134,6 +158,40 @@ const EN_VALUES: Record<string, string> = {
   // in words until it did; the caveat retired itself the moment `PLACEMENTS`
   // grew, which is what that mechanism was for.
   קובץ: "file",
+  // גלישה · the overflow moves, in the order a region tries them.
+  דחיסה: "compress",
+  רצף: "run_in",
+  הקטנה: "shrink",
+  כיווץ_אותיות: "tighten",
+  חלוקה: "divide",
+  צף: "float",
+  עמוד_הבא: "next_page",
+  // The three that always apply. A writer may not ask for one and the panel does
+  // not offer them; they are spelled here so that a document which names one
+  // anyway is refused *as that move*, with the sentence saying why it is an
+  // invariant, rather than as a word nobody has heard of.
+  הזזה: "shift",
+  מפל: "cascade",
+  הצמדה: "clamp",
+  // חריגה · what a region does when it asks for more room than the page has.
+  צמצום: "fit",
+  סירוב: "refuse",
+  // ראש · what an entry says before it says anything of its own, and the
+  // addresses among those ingredients.
+  מספר: "number",
+  תווית: "tag",
+  ציטוט: "quote",
+  עמוד: "page",
+  דף: "folio",
+  שורה: "line",
+  // יחידה · what a grid region's columns are kept in register by. `סימן` is
+  // above — one word, one entry.
+  // `כותרת` is an argument name above and a *value* here — the heading a grid
+  // region keeps its columns level on. Two tables, two readings, and the tables
+  // are consulted separately, which is what makes that safe.
+  כותרת: "heading",
+  מדור: "tier",
+  סימן: "siman",
 };
 const HE_VALUES: Record<string, string> = Object.fromEntries(
   Object.entries(EN_VALUES).map(([he, en]) => [en, he]),
@@ -153,6 +211,10 @@ function sayArg(key: string, lang: "he" | "en"): string {
 }
 function sayValue(value: string, lang: "he" | "en"): string {
   return lang === "en" ? (EN_VALUES[value] ?? value) : value;
+}
+/** A value the document wrote, read back in the prelude's own Hebrew. */
+function hebrewValue(value: string): string {
+  return HE_VALUES[value] ?? value;
 }
 function sayCommand(name: string, lang: "he" | "en"): string {
   return lang === "en" ? (COMMAND_EN[name] ?? name) : name;
@@ -1074,6 +1136,238 @@ export function writeDestination(
     parts.push(sayArg(knob.arg, lang) + ": " + raw);
   }
   const line = "#" + sayCommand(CHANNEL_COMMAND, lang) + "(" + parts.join(", ") + ")";
+  if (existing) {
+    return {
+      text: doc.slice(0, existing.from) + line + doc.slice(existing.to),
+      at: existing.from + line.length,
+    };
+  }
+  return { text: line + "\n" + doc, at: line.length };
+}
+
+// ------------------------------------------------------------------ regions
+//
+// **A region's own knobs**, which are a different question from a
+// destination's. A destination is a *stream* — it owns its numbering and its
+// type — and `#ערוץ` is its line. A region is a *place on the page*: how tall it
+// is, what it does when a note outgrows it, whether it holds its slot on a page
+// it has nothing on. `#אזור` is that line, and until now this module wrote four
+// of its eighteen keys, so everything that makes a region behave was reachable
+// only by typing into the source.
+
+/**
+ * What a region knob's value *is*, which decides its control and how it is
+ * written.
+ *
+ * `set` is the one worth explaining. `גלישה` and `ראש` take a **tuple** — the
+ * overflow moves in the order they should be tried, the ingredients of an entry
+ * head — so their control is a box per member and their value here is those
+ * members joined by commas. A `set` knob is always written and never cleared:
+ * every state it can be in is expressible, because leaving it out means the
+ * prelude's own default and that default is itself a choosable combination.
+ */
+export type RegionKnobKind = "text" | "content" | "bare" | "choice" | "flag" | "set";
+
+/** The knobs a region carries, keyed the way this module names them. */
+export interface RegionSettings {
+  height?: string | null;
+  layout?: string | null;
+  title?: string | null;
+  spill?: string | null;
+  shrinkFloor?: string | null;
+  keepsPlace?: string | null;
+  shrinkStep?: string | null;
+  trackingAmount?: string | null;
+  overflow?: string | null;
+  head?: string | null;
+  addressNumbering?: string | null;
+  firstFolio?: string | null;
+  newPage?: string | null;
+  columns?: string | null;
+  unit?: string | null;
+  seam?: string | null;
+  continuedMark?: string | null;
+}
+
+/**
+ * Every key `#אזור` accepts, paired with the prelude's name for it.
+ *
+ * `מיקום` is the one key not here, and deliberately: the chooser owns *where the
+ * notes go* and offering it twice is two controls that can disagree. Everything
+ * else is a property of the region and belongs on the region's panel.
+ *
+ * A list rather than seventeen `if`s, for the reason `DESTINATION_KNOBS` gives:
+ * the model and the panel are the same question from two directions, and a knob
+ * in one of them is a control that does nothing. `channels.test.mjs` holds this
+ * list against `VOCABULARY.regionKeys`, which is read out of the prelude — so a
+ * key added to `#אזור` tomorrow has to arrive with a control.
+ */
+export const REGION_KNOBS: ReadonlyArray<{
+  key: keyof RegionSettings;
+  /** The prelude's own name for it — a member of `_rg_own`. */
+  arg: string;
+  kind: RegionKnobKind;
+  /** Its i18n key, so a knob cannot exist without a label. */
+  label: string;
+  /** What a plausible value looks like, in the empty field. */
+  hint: string;
+  /** For `choice` and `set`: the members, in the prelude's Hebrew. */
+  choices?: readonly string[];
+}> = [
+  { key: "height", arg: "גובה", kind: "bare", label: "regionHeight", hint: "1.2cm" },
+  {
+    key: "layout",
+    arg: "פריסה",
+    kind: "choice",
+    label: "regionLayout",
+    hint: "",
+    choices: ["מוערם", "צד"],
+  },
+  { key: "title", arg: "כותרת", kind: "content", label: "regionTitle", hint: "" },
+  {
+    key: "spill",
+    arg: "גלישה",
+    kind: "set",
+    label: "regionSpill",
+    hint: "",
+    choices: VOCABULARY.spillMoves,
+  },
+  {
+    key: "overflow",
+    arg: "חריגה",
+    kind: "choice",
+    label: "regionOverflow",
+    hint: "",
+    choices: VOCABULARY.overflowPolicies,
+  },
+  { key: "keepsPlace", arg: "שומר_מקום", kind: "flag", label: "regionKeepsPlace", hint: "" },
+  { key: "shrinkFloor", arg: "הקטנה_מזערית", kind: "bare", label: "regionShrinkFloor", hint: "0.8" },
+  { key: "shrinkStep", arg: "הקטנה_צעד", kind: "bare", label: "regionShrinkStep", hint: "0.05" },
+  {
+    key: "trackingAmount",
+    arg: "כיווץ_מידה",
+    kind: "bare",
+    label: "regionTracking",
+    hint: "-0.015em",
+  },
+  { key: "seam", arg: "תפר", kind: "bare", label: "regionSeam", hint: "8" },
+  { key: "continuedMark", arg: "סימן_בהמשך", kind: "flag", label: "regionContinuedMark", hint: "" },
+  {
+    key: "head",
+    arg: "ראש",
+    kind: "set",
+    label: "regionHead",
+    hint: "",
+    choices: VOCABULARY.headParts,
+  },
+  { key: "addressNumbering", arg: "מספור_כתובת", kind: "text", label: "regionAddressNum", hint: "א" },
+  { key: "firstFolio", arg: "דף_ראשון", kind: "bare", label: "regionFirstFolio", hint: "2" },
+  { key: "newPage", arg: "עמוד_חדש", kind: "flag", label: "regionNewPage", hint: "" },
+  { key: "columns", arg: "טורים", kind: "bare", label: "regionColumns", hint: "(1fr, 2fr)" },
+  {
+    key: "unit",
+    arg: "יחידה",
+    kind: "choice",
+    label: "regionUnit",
+    hint: "",
+    choices: VOCABULARY.gridUnits,
+  },
+];
+
+/** A tuple as the prelude writes it, from members this module holds as a list. */
+function tupleOf(members: readonly string[], lang: "he" | "en"): string {
+  const said = members.map((m) => '"' + sayValue(m, lang) + '"');
+  // One member needs the trailing comma or Typst reads a parenthesised string
+  // rather than a tuple of one — which is how `גלישה: ("הקטנה")` becomes a
+  // region that does not spill and says nothing about it.
+  return "(" + said.join(", ") + (said.length === 1 ? "," : "") + ")";
+}
+
+/** The members of a tuple the document wrote, in the prelude's Hebrew. */
+function membersOf(raw: string): string[] {
+  return [...raw.matchAll(/"([^"]*)"/g)].map((m) => hebrewValue(m[1])).filter((v) => v !== "");
+}
+
+/**
+ * The settings a document has given a region, as it wrote them.
+ *
+ * Both spellings of the command are looked for by `declarationsIn`; the region's
+ * *name* is the writer's own word and is not translated, which is why one name
+ * is compared and not two.
+ */
+export function regionSettingsOf(doc: string, name: string): RegionSettings {
+  const found = declarationsIn(doc, REGION_COMMAND).find((d) => d.name === name);
+  const out: RegionSettings = {};
+  if (!found) return out;
+  for (const knob of REGION_KNOBS) {
+    const raw = found.args[knob.arg];
+    if (raw === undefined) continue;
+    out[knob.key] =
+      knob.kind === "set"
+        ? membersOf(raw).join(",")
+        : knob.kind === "content"
+          ? raw.replace(/^\[|\]$/g, "")
+          : knob.kind === "choice"
+            ? hebrewValue(unquote(raw))
+            : knob.kind === "bare" || knob.kind === "flag"
+              ? raw
+              : unquote(raw);
+  }
+  return out;
+}
+
+/**
+ * The document with a region's settings written or rewritten.
+ *
+ * A field left `undefined` keeps what the document said; a field set to `null`
+ * clears it. Those are two different edits, and conflating them is how a panel
+ * that writes one knob wipes the sixteen beside it.
+ *
+ * A region the document has not declared is declared at the top, which is where
+ * a declaration has to be: `#אזור` is read by the page furniture and by every
+ * note filed into it, and one written below the first note is a region that did
+ * not exist when that note was written.
+ */
+export function writeRegion(
+  doc: string,
+  name: string,
+  s: RegionSettings,
+  lang: "he" | "en" = "he",
+): { text: string; at: number } {
+  const existing = declarationsIn(doc, REGION_COMMAND).find((d) => d.name === name);
+  const parts: string[] = ['"' + name + '"'];
+  // Everything the declaration already carried that this call is not about — the
+  // placement above all, which the chooser owns — in the order it was written,
+  // so a rewrite is a rewrite and not a reset.
+  for (const [key, raw] of Object.entries(existing?.args ?? {})) {
+    if (REGION_KNOBS.some((k) => k.arg === key)) continue;
+    parts.push(sayArg(key, lang) + ": " + raw);
+  }
+  for (const knob of REGION_KNOBS) {
+    const asked = s[knob.key];
+    const held = existing?.args[knob.arg];
+    let raw: string | undefined;
+    if (asked === undefined) {
+      raw = held;
+    } else if (asked === null) {
+      raw = undefined;
+    } else if (knob.kind === "set") {
+      raw = tupleOf(asked === "" ? [] : asked.split(","), lang);
+    } else if (asked === "") {
+      raw = undefined;
+    } else if (knob.kind === "content") {
+      raw = "[" + asked + "]";
+    } else if (knob.kind === "bare" || knob.kind === "flag") {
+      raw = asked;
+    } else if (knob.kind === "choice") {
+      raw = '"' + sayValue(asked, lang) + '"';
+    } else {
+      raw = '"' + asked + '"';
+    }
+    if (raw === undefined) continue;
+    parts.push(sayArg(knob.arg, lang) + ": " + raw);
+  }
+  const line = "#" + sayCommand(REGION_COMMAND, lang) + "(" + parts.join(", ") + ")";
   if (existing) {
     return {
       text: doc.slice(0, existing.from) + line + doc.slice(existing.to),

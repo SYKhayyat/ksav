@@ -70,7 +70,7 @@ sh tests/notes-corpus/run.sh
 
 | File | Claim |
 |---|---|
-|  **Side notes walk off the paper.**| **Side notes walk off the paper.** 20 notes on one paragraph → stacked to y=800.87, below the page number, ~1.4cm from the sheet edge. |
+| `dense.ksav` | **Side notes escape their column.** 20 notes on one paragraph → the last runs to **y=827.27** on an 841.89pt sheet, past the page number at 799.02. Note *where*: the side column is carved out of the **text area** by a grid (`#עם_הערות_צד`), so the notes have escaped it downward into the page's bottom margin. Cause: notes are `place`d absolutely and only ever shift **down**. |
 | `split.ksav` | **[X] Split points are not recoverable from `query`.** A note spanning two pages is one entry with one location — where it started. |
 | `pass_real.ksav` / `pass_hide.ksav` | **`hide()` is a perfect spacer.** Identical page breaks (LN1 / LN18 / LN35). Two-pass repaint needs no height arithmetic. |
 | `measure.ksav` | `measure()` returns real geometry at compile time: `height=210.96pt width=360pt`. |

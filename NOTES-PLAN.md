@@ -12,7 +12,7 @@
 |---|---|
 | **0** | **Decisions already made.** Settled; do not re-litigate. |
 | **1** | **The five things.** The model: source position · stream/destination · region · overflow · counters. Plus document-level settings. |
-| **2** | **A concrete surface** — ⚠ **the only part with no evidence behind it; none of it has been compiled.** Plus **the UI: writing a note is one pick.** |
+| **2** | **The surface, as a delta against what exists** — every signature read out of `ksav.typ`. What exists, what changes, what is new. Plus **the UI: writing a note is one pick.** |
 | **2b** | **The terrain.** Where the code is, five non-negotiable engine rules, four dead ends, what this makes stale, what a parallel session already built. **Read before writing a line.** |
 | **2c** | **Acceptance criteria.** Corpus documents that fail today and must pass. |
 | **3** | **What works** — with the file that proves each. Designs A, B and **C (the recommendation)**. |
@@ -437,102 +437,93 @@ Settings that belong to the sefer rather than to a stream.
 
 ---
 
-# Part 2 — A concrete surface **[CLAUDE — names are placeholders]**
+# Part 2 — The surface, as a delta against what exists
 
-The plan above is shapes. This is one way to say them. **Every name here is a
-guess and naming is Shaul's** (decision 14).
+**[CLAUDE for the shape · naming is Shaul's, decision 14]**
 
-> **⚠ This is the least trustworthy part of the document, and it is the only part
-> with no evidence behind it.** None of the syntax below has been compiled. It was
-> written in one pass and is a sketch of *arity*, not a proposal you should type.
->
-> **One concrete flaw already found.** `#הגדרות_הערות(רגל, מספור: "1")` puts the
-> destination in a positional argument. **Every existing `הגדרות_*` command in
-> `ksav.typ` takes `..opts` and reads only `opts.named()`** — not one of them takes
-> a positional. And the repo's convention for "settings per target" is a **separate
-> command per target** (`הגדרות_כותרת1` … `הגדרות_כותרת4`), not one command with a
-> selector. So the conventional shapes would be `#הגדרות_הערות_רגל(מספור: "1")`, or
-> a nested dictionary `#הגדרות_הערות(רגל: (מספור: "1"))`.
->
-> Assume the rest has similar problems. **Check every form below against
-> `commands.rs` and `ksav.typ` before building on it.**
+The first version of this section invented syntax and was wrong in three ways in
+its first twelve lines. This version is written against the **actual signatures in
+`ksav.typ`**, so it says what already exists, what has to change, and what has to
+be new. Every signature below was read out of the file.
 
-## Thing one
+## What already exists and is right
+
+| Command | Signature | Status |
+|---|---|---|
+| `#הערה` | `(body, ערוץ: none, ..opts)` | **destination already arrives as a named argument.** Keep that. |
+| `#אזור` | `(שם, ..opts)`, `מיקום` validated against `רגל · סוף_מדור · סוף` | the region command exists and already validates placement |
+| `#ערוץ` | `(שם, ..opts)` | the machinery under "the destination is the stream" |
+| `#הגדרות_מספור` | `(אפס_לפי: <heading level>)` | **restart-by-level is BUILT** (`ksav.typ:1073`) |
+| `#התחל_מספור()` / `#המשך_מספור()` | — | **manual restart and continue are BUILT** (`:1098`, `:1103`) |
+| `#הגדרות_*` (all) | `(..opts)`, `opts.named()` only | **no `הגדרות_` command takes a positional.** Do not add the first one. |
+
+## Three flaws in the first draft, recorded so they are not repeated
+
+1. **`#הערה(רגל)[…]` cannot work.** `#הערה`'s first positional **is the body**, and
+   a trailing `[…]` block is appended as a positional too — so that call passes
+   `רגל` as the body and the real body as a stray extra. The destination must be
+   **named**: `#הערה(ערוץ: "רגל")[…]`, which is the shape that already exists.
+2. **`#הגדרות_הערות(רגל, …)` is against convention.** Every settings command reads
+   `opts.named()` only, and the repo's pattern for settings-per-target is a
+   **command per target** (`הגדרות_כותרת1` … `4`). So either
+   `#הגדרות_הערות_רגל(…)` or a nested dictionary `#הגדרות_הערות(רגל: (…))`.
+3. **`#סדרה` / `#סדרה_אתחול` invented names for things that already exist.**
+   `#הגדרות_מספור`, `#התחל_מספור` and `#המשך_מספור` are in the tree now. **Read
+   `decisions/2026-08-20-starting-the-count-again.md` before touching thing five.**
+
+## What has to change
+
+**Thing two — the five destinations become a closed set.** Today `ערוץ:` takes a
+user-declared channel *name*. Under decision 4 the destination *is* the stream, so
+the five places become the values it accepts, with a named region as the fifth:
 
 ```typst
-#הגדרות_מקור(מיקום: "בשורה")        // בשורה · סוף_הקובץ · סוף_המדור · קובץ
-#הערה(מקור: "סוף_הקובץ")[…]         // the per-note override
+#הערה(ערוץ: "רגל")[…]              // bottom — Typst's real footnote area
+#הערה(ערוץ: "סוף")[…]              // the back
+#הערה(ערוץ: "צד")[…]               // the side column
+#הערה(ערוץ: "קובץ")[…]             // a separate document
+#הערה(אזור: "שער_הציון")[…]        // a named region
 ```
 
-## Thing two — writing a note is one pick
+`רגל` / `סוף_מדור` / `סוף` are **already** the validated placements on `#אזור`
+(`_ch_places`). `צד` and `קובץ` are new members of that set.
+
+**Thing three — `#אזור` grows a layout kind.** It currently takes a name and
+placement. It needs to say *grid or box*, and its options go through
+`_cfg_strict`, so **every new key must be registered in `_rg_own` or the command
+will reject it**:
 
 ```typst
-בראשית ברא#הערה(רגל)[עיין רש״י שם] אלקים.        // bottom
-… #הערה(סוף)[מקור: בבלי ברכות ד.]                 // the back
-… #הערה(צד)[הערת גיליון]                          // the side column
-… #הערה(קובץ)[לכרך הנספח]                         // a separate document
-… #הערה(אזור: "שער_הציון")[…]                     // a named section
-```
-
-**That is the whole gesture.** No stream to declare, no name to invent. A note on
-a note is the same five, written inside the note the caret is in — the parent is
-determined, not chosen.
-
-Settings hang off the destination, not off a declared name:
-
-```typst
-#הגדרות_הערות(רגל, מספור: "1", רצוף: true, גלישה: "עמוד_הבא")
-#הגדרות_הערות(סוף, מספור: "א", עמוד_חדש: true,
-              כותרת: [מקורות וציונים], טורים: 2)
-#הגדרות_הערות(צד, צד: "חיצוני", מיקום_בצד: "לצד_המילה")
-```
-
-Four destinations are singular. **`אזור` is the named one**, and two apparatuses
-in the same place are two sections — see thing three.
-
-## Thing three — regions
-
-```typst
-// a grid: three columns, synchronised per siman
 #אזור("דף", פריסה: "טורים", טורים: (1fr, 2fr, 1fr), יחידה: סימן)
-
-// a box: 15% of the sheet, at the foot, spilling forward
-#אזור("שער_הציון", פריסה: "תיבה", מיקום: "רגל",
-      גובה: 15%, גלישה: "עמוד_הבא", שומר_מקום: true)
-
-// and the notes sent there get their settings the same way
-#הגדרות_הערות(אזור: "שער_הציון", מספור: "א", רצוף: true)
+#אזור("שער_הציון", פריסה: "תיבה", מיקום: "רגל", גובה: 15%,
+      גלישה: "עמוד_הבא", שומר_מקום: true)
 ```
 
-`שומר_מקום` is whether the box holds its space on pages with nothing in it.
+New keys: `פריסה` (טורים / תיבה), `טורים`, `יחידה`, `גלישה`, `שומר_מקום`.
 
-## Thing four — overflow, on the region
+**Thing four — `גלישה` is a key on the region**, not a separate command:
 
-```typst
-גלישה: "עמוד_הבא"     // spill — the default
-      | "דחיסה"        // compress
-      | "רצוף"         // run the band in
-      | "הרחבה"        // widen, full width below the columns
-      | "חלוקה"        // redistribute inside a fixed total
-      | "מחיר"         // price them all and pick the cheapest
+```
+גלישה: "עמוד_הבא"   // spill — the default (decision 15)
+      | "דחיסה" | "רצוף" | "הרחבה" | "חלוקה" | "מחיר"
 ```
 
-The invariant is not in this list — it is guaranteed under all of them.
+The invariant (decision 6) is guaranteed under all of them and is not one of them.
 
-## Thing five — counters
+## What has to be new
 
-```typst
-#סדרה("סק", מספור: "א", אתחול: סימן)     // declare
-… ואם כן יש לעיין#מונה("סק") בדבר …        // emit the next number
-#סדרה_אתחול("סק")                          // restart here, anywhere
-```
+**A general emitting counter.** `#הגדרות_מספור` configures *how note numbering
+restarts*. There is no way to declare a named series and emit its next value in
+running text — which is thing five's other half, and the half a writer would use
+for a list of opinions with no note anywhere (Part 1).
 
-And the head-of-entry setting on a stream:
+Whatever it is called, it needs: declare a series with a scheme, emit the next
+value, and restart it — reusing `#התחל_מספור`'s existing vocabulary rather than
+inventing a parallel one.
 
-```typst
-#הגדרות_הערות(אזור: "נוסחאות", ראש: ("מילים",), מילים: 2)  // words, no number
-#הגדרות_הערות(סוף, ראש: ("מספר", "תווית"), תווית: [מקור: ])
-```
+**Thing one is not a Typst command at all.** Where prose sits in the file is an
+editor concern — the app already has a `deferNoteBodies` preference and
+`deferred.ts` implements the moves. It needs a UI home (decision 3), not syntax.
 
 ## The UI **[SHAUL]**
 
@@ -540,57 +531,49 @@ And the head-of-entry setting on a stream:
 There is no "declare a stream, then reference it" — **the destination *is* the
 stream.**
 
-This is not a simplification imposed on a richer model. It matches the engine:
-there is exactly one real bottom, so one stream per destination is close to what
-is available anyway. And it does the Mishna Berura page with no stream vocabulary
-at all — MB picks **bottom**, ShT picks **a section**.
+This matches the engine rather than simplifying past it: there is exactly one real
+bottom, so one stream per destination is close to what is available anyway. And it
+does the Mishna Berura page with no stream vocabulary at all — MB picks **bottom**,
+ShT picks **a region**.
 
 | | |
 |---|---|
-| **Writing a note** | pick one of five. If "a section", pick which. |
+| **Writing a note** | pick one of five. If "a region", pick which. |
 | **Destinations** | settings live here — numbering, size, run-in, overflow, columns |
-| **Sections** | made in the region screen; a named list |
+| **Regions** | made in the page-layout surface; a named list |
 | **Counters** | add a series |
 | **Source position** | global, one override — and not in this chooser (decision 3) |
 
 **Two refinements it needs.**
 
-*"A section" expands to "which section."* Sections are made and named by the
-writer, so the fifth option is a short list. That is also what recovers the case a
-flat five would foreclose: **two separately-numbered apparatuses in the same
-place.** Mekoros in one block at the back and haaros in another are both "end" —
-as one choice you get one of them; as two named sections placed at the end you get
-both. So the honest shape is **four singular destinations plus a named list.**
+*"A region" expands to "which region."* Regions are made and named by the writer,
+so the fifth option is a short list. That is also what recovers the case a flat
+five would foreclose: **two separately-numbered apparatuses in the same place.**
+Mekoros in one block at the back and haaros in another are both "end" — as one
+choice you get one of them; as two named regions placed at the end you get both.
+So the honest shape is **four singular destinations plus a named list.**
 
-*Settings move from the stream to the destination.* They still exist; they are
-just keyed by destination rather than by a declared stream name.
+*Settings move from the stream to the destination.* They still exist; they are just
+keyed by destination rather than by a declared stream name.
 
 **What it forecloses:** two differently-numbered apparatuses at the *same*
-destination, except through sections. At the bottom that costs nothing — the
-engine has one real bottom regardless. At the end and the side it is a real limit,
-and "make it a section" is the escape.
+destination, except through regions. At the bottom that costs nothing — the engine
+has one real bottom regardless. At the end and the side it is real, and "make it a
+region" is the escape.
 
-**It does not break decision 4**, though it looks like it might. Depth is
-**lexical either way** — `#הערה(רגל)[… #הערה(אזור)[…]]` shows the nesting in the
-source, so the engine reads it without laying anything out. And "move an apparatus
-without retyping three hundred notes" survives: you change the destination's
-settings, not the notes.
+**It does not break decision 4**, though it looks like it might. Depth is **lexical
+either way** — `#הערה(ערוץ: "רגל")[… #הערה(אזור: "שער")[…]]` shows the nesting in
+the source, so the engine reads it without laying anything out. And "move an
+apparatus without retyping three hundred notes" survives: you change the
+destination's settings, not the notes.
 
 One thing does change, for the better: **a sub-note's parent is whatever note the
-caret is inside** — determined rather than chosen, which is what a writer means
-anyway.
+caret is inside** — determined rather than chosen, which is what a writer means.
 
 **Four things with no home yet:** the marker's own look · per-note overrides ·
 where a destination's numbering scheme is set (probably the destination's own
 settings) · **a preview**, because someone building a Gemara page needs to see the
 page. The current chooser's small sketches are the one thing worth keeping.
-
-**Four things with no home yet:** where a stream's numbering is set (probably
-screen 2) · the marker's own look · per-note overrides · **a preview**, because
-someone building a Gemara page needs to see the page. The current chooser's small
-sketches are the one thing worth keeping.
-
----
 
 # Part 2b — The terrain: what the engine already knows
 
@@ -945,6 +928,22 @@ Today: four models, and the ✻ panel — the surface writers actually use — w
 tiered-footnote mechanism, which interleaves and shares a counter. `native.ksav`
 and `small.ksav` in the corpus are that exact failure and its intended fix.
 
+**Where the evidence lives for this part.** Unlike Parts 3–5, the instrument here
+is not `probe` — the chooser is TypeScript. The fences are:
+
+| File | What it holds |
+|---|---|
+| `app/test/notepaths.test.mjs` | imports `NOTE_CHOICES`, `applyChoice`, `noteFor`, `notesIn`, `choiceAt`, `whyNot`, `BLOCKED`, `NOTE_WHERE` — **this is the test that will break, and breaking it is the point.** It is the where × how grid's fence. |
+| `app/test/channels.test.mjs` | the model that should win |
+| `app/test/notecommands.test.mjs` | which commands open a note body; read its header before touching it |
+| `app/test/notelangs.test.mjs` | asks everything twice, once per language |
+| `app/test/deferrednotes.test.mjs` | thing one — an equivalence oracle, the app-side `assert_same_page` |
+
+**So the acceptance test for Part 6 is inverted from every other part:** elsewhere
+a failing corpus file must start passing. Here **`notepaths.test.mjs` must stop
+existing in its current form**, and `channels.test.mjs` must grow to cover what it
+tested. If `NOTE_CHOICES` is still imported anywhere, the cell grid is still alive.
+
 **What replacing it means concretely:**
 
 1. **Delete `NOTE_CHOICES`** (`app/src/notes.ts:133`) and the where × how grid with
@@ -971,26 +970,36 @@ least measurement behind it.
 
 # Part 7 — Where to start
 
+**Sizes below are guesses from *reading* the code, not from building it.** Treat
+them as order-of-magnitude — "a day" versus "a fortnight" — and revise the moment
+anything is actually attempted. The first three are small because the diagnosis is
+already done and the call sites are named.
+
 **First, the bugs — independent of every decision:**
 
-1. **Sidenote clamp.** One line. The only failure currently printing off the paper.
-2. **Config-driven italic** — route the four sites through the synthetic oblique.
-   Extend `slanting_commands` to cover configuration, not just commands.
-3. **`ריווח`** — make the note-settings knob write through to the live setting.
-4. **The render-diff fence** over every settings dictionary.
+| | Item | Size |
+|---|---|---|
+| 1 | **The block bug** — `box()` the `layout()` call in `_sn_note`. Fix **before** the clamp: while side notes add height to the body, any placement change feeds back into page breaks. | ~½ day |
+| 2 | **Sidenote clamp** — an upper bound in the stacking loop. The only failure currently printing off the paper. | ~1 day |
+| 3 | **Config-driven italic** — one helper, four named call sites, and extend `slanting_commands` to cover configuration. | ~1 day |
+| 4 | **`ריווח`** — write the note-settings knob through to the live setting. | ~½ day |
+| 5 | **The render-diff fence** over every settings dictionary — enumerate the dicts, generate two values per key, render, diff, on the right instrument. | ~3 days |
 
 **Then the three the plan cannot ship without:**
 
-5. **Spill** (thing four). Without it every box caps at nine — including design C's
-   ShT box, which is otherwise the recommended shape. This is the single highest-
-   value item in the document: it fixes the page bands, the streams and the side
-   notes with one mechanism, and it is what the paying customer in Part 9 is
-   blocked on.
-6. **Counters** (thing five). Without them a run-in band is unnumbered, and run-in
-   does not exist at all outside a band you build yourself.
-7. **Measurement** (thing three) — needed by any *fixed* region. Note that design C
-   removes the *chunking* requirement, so measurement is needed for fitting, not
-   for deciding page breaks.
+| | Item | Size |
+|---|---|---|
+| 6 | **Spill** (thing four). Every box caps at nine without it — including design C's ShT box. **The single highest-value item here:** one mechanism fixes the page bands, the streams and the side notes, and it is what the paying customer in Part 9 is blocked on. The side column is the cheaper half (the next page's column already exists); the footer/region half needs per-page assignment computed read-only. | ~1 week side · ~2 weeks footer |
+| 7 | **Counters** (thing five). `#הגדרות_מספור` and `#התחל_מספור` exist; what is missing is a **general named series emitted in running text**. Without it a run-in band is unnumbered and run-in does not exist outside a band you build yourself. | ~1 week |
+| 8 | **Measurement** (thing three) — needed by any *fixed* region. Design C removes the *chunking* requirement, so this is for fitting, not for deciding page breaks. | ~1 week |
+
+**Then the model** — thing two's five destinations (~1 week, mostly re-pointing
+existing channel machinery) and thing three's region kinds (~2 weeks) — **and the
+chooser last** (~2–3 weeks including a preview), because it is the surface over
+everything else.
+
+**Very roughly two to three months of focused work**, and the number to distrust
+most is the chooser's, because it is the part with the least measurement behind it.
 
 **Then the model**, and the chooser last, because it is the surface over everything
 else.

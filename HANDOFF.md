@@ -170,6 +170,31 @@ nothing in the application could).
       Typst and the two must agree — and the user has not yet said what they
       want from note picking.
 
+### The note system, and what is left of it
+
+`NOTES-PLAN.md` was worked overnight on 20–21 August. Most of it is built, one
+chunk per record in [`decisions/`](decisions/README.md), and the plan's own
+status table at the top of it says which is where.
+
+**What is left is one page**, written for whoever picks it up:
+[What the night did not build](decisions/2026-08-21-what-the-night-did-not-build.md).
+Seven items, each with why it is not done and what the next person needs to know
+first. Two of them are worth naming here because they are traps rather than work:
+
+- **`פריסה` is already taken on a region**, so thing three's grid needs a
+  different word than the naming record proposes, and that record says so.
+- **`שומר_מקום` was written and reverted the same night**, because it could not
+  be shown to change anything on the page — and `settings_live.rs` covers the
+  `_X_defaults` dictionaries, not `#אזור`'s own keys, so nothing would have
+  caught it. Extending that fence over the region keys is the more valuable half
+  of building it.
+
+**Every name in `NOTES-PLAN` Part 2 was decided**, which decision 14 says is
+Shaul's call and which the night could not ask about. They are all in
+[The words for the note system](decisions/2026-08-20-the-words-for-the-note-system.md)
+with what else was considered, so overruling any of them is a search-and-replace
+rather than an archaeology dig. `קובץ` is the one to look at first.
+
 ### The live tracker
 
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the

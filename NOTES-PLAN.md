@@ -75,7 +75,7 @@ These came out of the design conversation and are settled.
 | 12 | **Configurability is the default.** A judgement-call constant becomes a setting whose default is the current value. |
 | 13 | **The bugs in Part 4 get fixed** regardless of the plan. |
 | 14 | **Naming in Part 2 is deferred**, not delegated. The structure is arguable; the words are Shaul's, and whoever builds it asks before inventing them. |
-| 15 | **Spill is the default for every destination, side notes included.** Degrading to a footnote is an *export* concern, not a layout fallback — a margin note that will not fit spills to the next page's margin rather than silently becoming something else. **And the writer can pick**: all ten moves are exposed. |
+| 15 | **Spill is the default for every destination, side notes included.** Degrading to a footnote is an *export* concern, not a layout fallback — a side note that will not fit spills into **the next page's side column** rather than silently becoming something else. **And the writer can pick**: all ten moves are exposed. |
 | 16 | **Shared-sequence numbering is opt-in**, not the default — it cannot do notes-on-notes, so a writer who reached for it by default on a Mishna Berura page would get interleaving. |
 | 17 | **The scope is all of it.** Part 7 is a sequence, not a shortlist; nothing in Parts 1–5 is optional. |
 | 18 | **Regions and counters get ordinary homes in the UI** — conventional placement, not a new idea. They are general mechanisms (Part 1) and should sit where a writer would look for page layout and for numbering. |
@@ -140,11 +140,20 @@ blocks side by side with a width ratio.
 **3. Side** — outer / inner / right / left / top · beside its own word or stacked
 from the top · column ratio · gutter.
 
-> **One thing, three words.** *Side note*, *margin note* and *sidenote* are the
-> same destination throughout this document and in the code (`#הערת_גיליון`,
-> `_sn_*`). Pick one word for the UI. Everything said about "the margin" applies
-> to it, and a margin is a **box** (thing three) — which is why it overflows and
-> why thing four applies to it exactly as it does to a band.
+> **One thing, three words — and it is NOT the page margin.** *Side note*, *margin
+> note* and *sidenote* all mean this destination (`#הערת_גיליון`, `_sn_*`). Pick
+> one word for the UI.
+>
+> **But be precise about where it lives**, because it is easy to confuse with the
+> page bands and they are different mechanisms. `#עם_הערות_צד` builds a **grid
+> with two columns** — the main text, and an *empty* one beside it — and the notes
+> are `place`d into that empty column at absolute positions. So the side column is
+> **carved out of the text area**, not out of the page's margin.
+>
+> Consequence: **the column itself flows** (it is a grid column, so it continues on
+> the next page), but **the notes in it do not** (they are placed absolutely). That
+> is the whole sidenote bug, and it is why spilling there is *easier* than it looks
+> — the next page's column already exists and is already empty.
 
 **4. A separate document** — a companion volume. The easiest of the five: nothing
 has to fit on a page.
@@ -219,7 +228,17 @@ Two mechanisms, split by behaviour.
 ### The box — fixed, goes anywhere, never grows
 
 - **A fixed strip at the foot is just a box at the bottom.** Not a second "bottom."
-- **A margin column is a box** — tall and narrow. Same problem, same fixes.
+- **Three different boxes, and they fail differently.** Do not treat them as one:
+
+| Box | Made of | Why it does not flow |
+|---|---|---|
+| **The page footer** — `#מדף_`, `#הערה_זרם` | page furniture in the bottom margin | **the footer cannot reserve space for itself** (§2b) — it grows into the margin and off the sheet |
+| **The side column** — `#הערת_גיליון` | an *empty grid column* carved from the **text area** | the column flows; the notes are `place`d into it at absolute positions and only ever shift **down** |
+| **A declared region** — `#אזור` | a block of stated height | it is a fixed height by definition |
+
+  The middle one is the encouraging case: **the next page's column already exists
+  and is already empty**, so spilling into it is a placement decision rather than a
+  new mechanism.
 - **It never grows.** A box that grows is a flowing region, and growing one loops:
   taller band → less text → different break → different notes → different height.
   That loop hangs SILE and costs talmudifier five minutes a page. **If you need
@@ -273,8 +292,8 @@ is hard-coded (decision 12).
 
 **Degrading to a footnote is *not* on this list.** It is an **export** concern —
 what a margin note becomes in Word, where margins do not exist — and it belongs in
-the document-level section, not in layout. A margin note that will not fit on the
-page **spills to the next page's margin**; it does not silently become something
+the document-level section, not in layout. A side note that will not fit on the
+page **spills into the next page's side column**; it does not silently become something
 else.
 
 **And always warn.**
@@ -401,7 +420,7 @@ worth arguing about.
 ```typst
 בראשית ברא#הערה(רגל)[עיין רש״י שם] אלקים.        // bottom
 … #הערה(סוף)[מקור: בבלי ברכות ד.]                 // the back
-… #הערה(צד)[הערת גיליון]                          // the margin
+… #הערה(צד)[הערת גיליון]                          // the side column
 … #הערה(קובץ)[לכרך הנספח]                         // a separate document
 … #הערה(אזור: "שער_הציון")[…]                     // a named section
 ```

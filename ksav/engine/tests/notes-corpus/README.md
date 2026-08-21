@@ -70,7 +70,7 @@ sh tests/notes-corpus/run.sh
 
 | File | Claim |
 |---|---|
-| `dense.ksav` | **Side notes walk off the paper.** 20 notes on one paragraph → stacked to y=800.87, below the page number, ~1.4cm from the sheet edge. |
+|  **Side notes walk off the paper.**| **Side notes walk off the paper.** 20 notes on one paragraph → stacked to y=800.87, below the page number, ~1.4cm from the sheet edge. |
 | `split.ksav` | **[X] Split points are not recoverable from `query`.** A note spanning two pages is one entry with one location — where it started. |
 | `pass_real.ksav` / `pass_hide.ksav` | **`hide()` is a perfect spacer.** Identical page breaks (LN1 / LN18 / LN35). Two-pass repaint needs no height arithmetic. |
 | `measure.ksav` | `measure()` returns real geometry at compile time: `height=210.96pt width=360pt`. |

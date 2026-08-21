@@ -281,6 +281,12 @@ const BAND_COMMANDS: &[&str] = &["מדף_", "pageband"];
 const BAND_CONFIG: &[&str] = &["הגדרות_מדפים", "pagebands_config"];
 const STREAM_COMMANDS: &[&str] = &[
     "הערה_זרם",
+    // The page-foot half of that command, which is what it was when the foot was
+    // the only place a stream could go. `#הערה_זרם` is a door now — it routes to
+    // the margin for a channel placed there — and this is where it lands when it
+    // does not. Both spellings reserve, because a document reaching either one
+    // still puts an apparatus at the foot of its pages.
+    "_sf_stream_note",
     "stream_note",
     "הערת_תוכן",
     "contentnote",
@@ -3199,6 +3205,7 @@ mod tests {
                     fam.push(name);
                 }
             }
+
             if fam.len() == before {
                 break;
             }
@@ -3239,11 +3246,19 @@ mod tests {
 
         // Direction 2: nothing in the lists names something that no longer
         // exists. A dead prefix is worse than useless — it reads as coverage.
+        //
+        // **Named in the prelude at all**, rather than named in the derived
+        // family. A command may be a *door* — `#הערה_זרם` decides whether the
+        // note goes to the margin or the page foot and calls the renderer — and
+        // a door does not itself call `_ap_note`, so it is not in the family and
+        // is still very much alive. Asking the stricter question failed on the
+        // refactor that introduced one, which is the fence complaining about the
+        // wrong thing: what makes a prefix dead is the command going away.
         for p in &listed {
             assert!(
-                family.iter().any(|c| c.starts_with(p)),
-                "{p:?} is listed as a page-foot apparatus and names no \
-                 footer-rendered command in ksav.typ.\n\
+                PRELUDE.contains(&format!("#let {p}")) || family.iter().any(|c| c.starts_with(p)),
+                "{p:?} is listed as a page-foot apparatus and names nothing in \
+                 ksav.typ at all.\n\
                  The footer-rendered family, read out of ksav.typ: {family:?}"
             );
         }

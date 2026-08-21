@@ -503,8 +503,17 @@ fn all_three_apparatuses_route_through_the_shared_core() {
              A banded apparatus that does not call it is a second implementation."
         );
     }
-    // and each public collector really is the thin wrapper it claims to be
-    for cmd in ["מדור_בדרגה", "מדף_בדרגה", "הערה_זרם", "_cn_note"] {
+    // …and each public collector really is the thin wrapper it claims to be.
+    //
+    // `הערה_זרם` is spelled `_sf_stream_note` here and not by its public name.
+    // The public one became a **door** the day the side of the page joined the
+    // placement axis: it decides whether the note goes to the margin or the page
+    // foot and calls one of two collectors. A door is exactly what this fence is
+    // for — it is the shape that could quietly grow a second implementation —
+    // but the claim has to be made about the collector it delegates to, or the
+    // fence is asking a command that collects nothing why it does not collect
+    // through the shared core.
+    for cmd in ["מדור_בדרגה", "מדף_בדרגה", "_sf_stream_note", "_cn_note"] {
         let def = format!("#let {cmd}(");
         let at = PRELUDE
             .find(&def)

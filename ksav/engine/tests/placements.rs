@@ -231,3 +231,77 @@ fn a_band_above_does_not_move_the_running_head() {
         head_of(&with)
     );
 }
+
+/// A height said in lines, which is the unit the work is done in.
+///
+/// A typesetter adds and removes lines. Points and a percentage of the sheet
+/// were the only units on offer, and nobody looks at a page and decides the
+/// commentary should be 41.6pt.
+///
+/// The line is **measured, not derived**: leading + size is the arithmetic and
+/// it is not the answer, since an entry is a block with its own spacing and one
+/// line of a 10.2pt band measures 9.37pt where the arithmetic predicts 18. A
+/// writer who says two lines means two of the lines they can see.
+#[test]
+fn a_region_can_be_two_lines_tall() {
+    let runs = laid(
+        "#מסמך(אזור_הערות: 4cm)[\n\
+         #אזור(\"צר\", מיקום: \"רגל\", גובה: שורות(2), גלישה: (\"עמוד_הבא\",))\n\
+         פתיחה.\n\n\
+         א#הערה(אזור: \"צר\")[הערה ראשונה] ב#הערה(אזור: \"צר\")[הערה שניה] \
+         ג#הערה(אזור: \"צר\")[הערה שלישית] ד#הערה(אזור: \"צר\")[הערה רביעית]\n]",
+    );
+    let page_of = |word: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(word))
+            .unwrap_or_else(|| panic!("{word} printed nowhere"))
+            .page
+    };
+    // Two to a page, because two lines is what the region was given.
+    assert_eq!(
+        page_of("הערה ראשונה"),
+        page_of("הערה שניה"),
+        "the first two are not together"
+    );
+    assert_eq!(
+        page_of("הערה שלישית"),
+        page_of("הערה רביעית"),
+        "the second two are not together"
+    );
+    assert!(
+        page_of("הערה שלישית") > page_of("הערה שניה"),
+        "four entries fitted a two-line region"
+    );
+}
+
+/// A region that asks for more room than the page has says so, if asked to.
+///
+/// Two honest answers and one dishonest one. The dishonest one is to hand back a
+/// 2cm region that is not 2cm and say nothing, which is what happened before the
+/// room was measured at all. `"צמצום"` clamps and is the default, so nothing
+/// already written changes; `"סירוב"` refuses and names the number that would
+/// have fitted, which is what a sefer being set to a fixed design wants — a
+/// region silently 30pt shorter than the specification is a fault to find now
+/// rather than at the printer.
+#[test]
+fn a_region_can_refuse_to_be_quietly_clamped() {
+    let doc = "#אזור(\"צר\", מיקום: \"רגל\", גובה: 2cm, חריגה: \"סירוב\")\n\
+               טקסט#הערה(אזור: \"צר\")[גוף] וסוף.";
+    let Err(d) = probe::layout(doc, &DocConfig::default()) else {
+        panic!("a region asking for more room than the page has was accepted")
+    };
+    let text = format!("{d:?}");
+    // The numbers, not just a complaint: what it asked for and what there is.
+    assert!(
+        text.contains("56.7") && text.contains("49.6"),
+        "the refusal does not say how much was asked for and how much there is: {text}"
+    );
+
+    // …and the default is unchanged, because every document written before this
+    // relies on it.
+    let clamped = "#אזור(\"צר\", מיקום: \"רגל\", גובה: 2cm)\nטקסט#הערה(אזור: \"צר\")[גוף] וסוף.";
+    assert!(
+        probe::layout(clamped, &DocConfig::default()).is_ok(),
+        "the default stopped clamping"
+    );
+}

@@ -186,6 +186,149 @@
 /// One value, said in Hebrew whichever language it arrived in.
 #let _val(v) = if type(v) == str { _en_values.at(v, default: v) } else { v }
 
+// Declared here, above everything that asks whether this document is on a grid —
+// the apparatus leading, the line address, the region heights in lines. The
+// grid block itself is further down with the arithmetic; this is only the
+// state, and a state has no dependencies to order it against.
+#let _bl_grid = state("ksav-baseline", none)
+// The page geometry, which reads nothing but `page` and therefore has no
+// ordering constraints of its own — it is here because several things above the
+// apparatus now ask about the margins.
+#let _pg_margin(key) = {
+  // `page(height: auto)` is a real configuration — it is the digital output mode
+  // — and `calc.min` of a length and `auto` is an error, not a large number. So
+  // the fallback is only computed from the dimensions that are dimensions.
+  let fb = if type(page.width) == length and type(page.height) == length {
+    (2.5 / 21) * calc.min(page.width, page.height)
+  } else if type(page.width) == length {
+    (2.5 / 21) * page.width
+  } else {
+    2.5cm
+  }
+  let m = page.margin
+  if type(m) == dictionary {
+    let v = m.at(key, default: auto)
+    // A two-sided document names its edges by binding rather than by side, so a
+    // left/right question is answered by inside/outside when that is how the
+    // page was set up. Which of the two is which depends on the page's parity,
+    // and both are wanted here only as *a* bound: they are equal in every
+    // document this prelude produces, because `#מסמך` mirrors one pair.
+    if v == auto and key in ("left", "right") {
+      v = m.at("outside", default: m.at("inside", default: auto))
+    }
+    if v == auto { v = m.at("rest", default: auto) }
+    if v == auto { fb } else { v }
+  } else if type(m) == length or type(m) == relative { m } else { fb }
+}
+
+// The top of the text block, wanted by the line address as well as by the side
+// column — one call to `_pg_margin`, and no reason for it to live low.
+#let _pg_text_top() = _pg_margin("top")
+
+// ---- גרשיים · the marks inside a Hebrew number ----
+//
+// A Hebrew number in a printed sefer carries its own punctuation: a geresh after
+// a single letter — א׳ — and gershayim before the last letter of several —
+// י״ג. Typst's own `numbering("א", …)` produces the letters and none of the
+// marks, and a pattern cannot express them, because the mark goes *inside* the
+// number rather than after it. `numbering("א׳", 15)` gives טו׳, which is not a
+// thing a sefer prints.
+//
+// It is invisible until note eleven. Every number up to י is a single letter, so
+// the geresh case looks right by accident, and the first two-letter number is
+// where it goes wrong — which is why this survived so long in a system whose
+// whole point is Hebrew typesetting.
+//
+// # The letters are built here rather than post-processed
+//
+// `numbering` returns content and there is no way back to the string, so the
+// marks cannot be inserted afterwards. The numeral is built from the values
+// instead, which also puts the one rule that matters where it can be seen:
+//
+// **לשון נקי.** Fifteen is טו and sixteen is טז, never יה or יו, which spell a
+// Name. Typst already honours this and so does the table below, and the rule has
+// to survive the hundreds: 115 is קטו, not קיה.
+#let _hb_hundreds = ((400, "ת"), (300, "ש"), (200, "ר"), (100, "ק"))
+#let _hb_units = (
+  (90, "צ"), (80, "פ"), (70, "ע"), (60, "ס"), (50, "נ"), (40, "מ"), (30, "ל"),
+  (20, "כ"), (10, "י"), (9, "ט"), (8, "ח"), (7, "ז"), (6, "ו"), (5, "ה"),
+  (4, "ד"), (3, "ג"), (2, "ב"), (1, "א"),
+)
+
+/// The Hebrew numeral for `n`, with no marks.
+#let _hb_plain(n) = {
+  let out = ""
+  let k = n
+  while k >= 100 {
+    for (v, ch) in _hb_hundreds {
+      if k >= v {
+        out += ch
+        k -= v
+        break
+      }
+    }
+  }
+  // The two that are spelled out of order, and the reason. Checked on the
+  // remainder after the hundreds, so 115 comes out קטו.
+  if k == 15 {
+    out + "טו"
+  } else if k == 16 {
+    out + "טז"
+  } else {
+    while k > 0 {
+      for (v, ch) in _hb_units {
+        if k >= v {
+          out += ch
+          k -= v
+          break
+        }
+      }
+    }
+    out
+  }
+}
+
+/// The marks, put where a sefer puts them.
+///
+/// `clusters()` and not `len()`: a Hebrew letter is two bytes, so byte length
+/// would call every two-letter number a single letter and put the geresh in the
+/// wrong place — on exactly the numbers this exists to fix.
+#let _hb_marks(s, mode) = {
+  let c = s.clusters()
+  if mode == "גרש" or c.len() < 2 {
+    s + "׳"
+  } else {
+    c.slice(0, c.len() - 1).join("") + "״" + c.last()
+  }
+}
+
+#let _hb_modes = ("ללא", "גרש", "גרשיים")
+/// The house style for Hebrew numbers, for the whole sefer.
+///
+/// `"ללא"` is the default and is what every document written before this got, so
+/// nothing already set repaginates.
+#let _hb_mode = state("ksav-gershayim", "ללא")
+
+/// `numbering`, with the marks a Hebrew number carries.
+///
+/// **Not a `context`.** A `context` block inside content that `measure()` reads
+/// comes back at almost nothing — the defect that silently disabled every
+/// overflow move earlier — and a marker is measured. The mode is passed in by
+/// the caller, which is already inside one.
+///
+/// Falls straight through for a scheme that is not Hebrew letters, and for a
+/// pattern taking several numbers: `1.1.1` has no gershayim and neither does
+/// `#numbering("א.א", 1, 2)`, whose marks would land between the parts.
+#let _hb_num(scheme, mode, ..n) = {
+  let nums = n.pos()
+  let hebrew = type(scheme) == str and (scheme.contains("א") or scheme.contains("׳"))
+  if mode == "ללא" or not hebrew or nums.len() != 1 {
+    numbering(scheme, ..nums)
+  } else {
+    _hb_marks(_hb_plain(nums.first()), mode)
+  }
+}
+
 // ---- שיפוע · the one slant, for commands and for configuration alike ----
 //
 // `emph` is a *request* for an italic face, and every Hebrew family this engine
@@ -1434,7 +1577,11 @@
     // at once are two counts, which is what "named" means.
     let n = _ksav_rank(_nr_scope_of(name, loc), loc, e => e.value == name)
     let cfg = _cfg_with(_ct_cfg.get().at(name, default: (:)), own)
-    _mk_render(cfg.at("סימן", default: (:)), numbering(cfg.at("מספור", default: "1"), n))
+    _mk_render(cfg.at("סימן", default: (:)), _hb_num(
+      cfg.at("מספור", default: "1"),
+      cfg.at("גרשיים", default: _hb_mode.get()),
+      n,
+    ))
   }
 }
 #let counter_config = _en(הגדרות_מונה)
@@ -1635,7 +1782,7 @@
   } else if kind == "דף" {
     let first = cfg.at("דף_ראשון", default: _xa_daf_first)
     let (d, amud) = _xa_daf(org.page(), first)
-    [דף #numbering("א", d) ע"#amud]
+    [דף #_hb_num("א", _hb_mode.get(), d) ע"#amud]
   } else if kind == "סימן" {
     let h = _xa_section(org)
     if h == none { none } else {
@@ -1651,12 +1798,23 @@
     // own place. It is the same counter the margin numbers come off, so the two
     // cannot disagree — and it is worth nothing unless the body prints them,
     // which is `#מסמך(מספור_שורות: …)` and the writer's own call.
-    let n = counter(par.line).at(org)
-    // Zero is what this counter reads in a document that never turned line
-    // numbering on, and *"line 0"* reads like an answer. A missing address
-    // prints nothing, because a blank address is worse than none — it looks
-    // like the question was asked and answered.
-    if n.len() == 0 or n.first() < 1 { none } else { [שורה #numbering("1", n.first())] }
+    // **Refused, and both ways of building it were measured.**
+    //
+    // One: `counter(par.line)` is not a counter this can read. Measured, it
+    // returns 0 at a location whose margin visibly prints 6. Typst draws its line
+    // numbers out of the layout and keeps nothing queryable behind them.
+    //
+    // Two: compute it from where the marker sits. On a baseline grid every line
+    // is on a known multiple, so the arithmetic is exact — and it counts the
+    // wrong thing. **Paragraph spacing occupies grid rows that are not lines**,
+    // so a marker on the line the margin numbers 5 comes out 8. Exact arithmetic
+    // about the wrong quantity, which is the more dangerous of the two failures
+    // because it looks like an answer.
+    //
+    // What it would take: Ksav numbering the lines itself, so the number in the
+    // margin and the number in the entry come from one place. That is a real
+    // feature and not a patch on this one.
+    none
   }
 }
 
@@ -1829,11 +1987,15 @@
     context {
       let loc = here()
       let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
-      footnote(numbering: _ => if numbered { numbering(scheme, n) } else { [] }, ..rest, entry)
+      footnote(
+        numbering: _ => if numbered { _hb_num(scheme, _hb_mode.get(), n) } else { [] },
+        ..rest,
+        entry,
+      )
       // The *printed* number, not the rank: a channel numbered א ב ג is
       // referred to as "עיין הערה ב", and a reference that said 2 would name a
       // note the reader cannot find.
-      if שם != none { _xn_mark(שם, numbering(scheme, n)) }
+      if שם != none { _xn_mark(שם, _hb_num(scheme, _hb_mode.get(), n)) }
     }
   }
 }
@@ -1915,32 +2077,6 @@
   210mm
 }
 
-#let _pg_margin(key) = {
-  // `page(height: auto)` is a real configuration — it is the digital output mode
-  // — and `calc.min` of a length and `auto` is an error, not a large number. So
-  // the fallback is only computed from the dimensions that are dimensions.
-  let fb = if type(page.width) == length and type(page.height) == length {
-    (2.5 / 21) * calc.min(page.width, page.height)
-  } else if type(page.width) == length {
-    (2.5 / 21) * page.width
-  } else {
-    2.5cm
-  }
-  let m = page.margin
-  if type(m) == dictionary {
-    let v = m.at(key, default: auto)
-    // A two-sided document names its edges by binding rather than by side, so a
-    // left/right question is answered by inside/outside when that is how the
-    // page was set up. Which of the two is which depends on the page's parity,
-    // and both are wanted here only as *a* bound: they are equal in every
-    // document this prelude produces, because `#מסמך` mirrors one pair.
-    if v == auto and key in ("left", "right") {
-      v = m.at("outside", default: m.at("inside", default: auto))
-    }
-    if v == auto { v = m.at("rest", default: auto) }
-    if v == auto { fb } else { v }
-  } else if type(m) == length or type(m) == relative { m } else { fb }
-}
 
 /// The last y a note may occupy on this page, or `none` when there is no bottom
 /// — `page(height: auto)`, which is the digital output mode, where the page
@@ -1950,7 +2086,6 @@
 } else { none }
 
 /// The first y a note may occupy on this page.
-#let _pg_text_top() = _pg_margin("top")
 
 #let _ap_numbering = ("א", "1", "a", "i", "*", "א", "1", "a", "i")
 #let _ap_columns = (1, 1, 1, 1, 1, 1, 1, 1, 1)
@@ -1996,9 +2131,6 @@
 // It is `auto` only when neither a paper nor an explicit height was set, which
 // the document wrapper never leaves possible; a region that still cannot resolve
 // takes the height it needs rather than a wrong one.
-#let _ap_fixed_height(h) = {
-  if type(h) != ratio { h } else if type(page.height) == length { h * page.height } else { auto }
-}
 // What one note of a banded apparatus may overrule: its own text, and only that.
 // The column count, the fixed heights, the rules, the gaps between bands and
 // between entries, the band labels and the stream order all describe the
@@ -2009,6 +2141,166 @@
 // same per-entry dictionary as the looks because that dictionary is already
 // carried to the walk that decides, and a second channel for one boolean would
 // be a second thing to keep in step.
+// ---- חיתוך · the largest piece that fits, and the rest ----
+//
+// One function, and two problems reduce to it:
+//
+//   · **a note taller than its region** — the piece that fits this page's slot,
+//     and the remainder carried to the next one. The windowed spill draws the
+//     whole note through a moving window, which is exact on any content and
+//     repeats the text in every frame it passes through; this cuts instead, and
+//     gives a clean text layer on the content it can cut.
+//   · **the berech** — the piece that fits beside a neighbouring block, and the
+//     remainder set full width below it. The knee of a Vilna page.
+//
+// They looked like different problems for a long time. They are the same
+// question asked about a page break and about a corner.
+//
+// # Why this is not a fold over lines
+//
+// Typst will not hand back a laid-out line list, so there is nothing to fold.
+// What it will do is `measure`, and measure is exact — `measure.ksav` records
+// height=210.96pt width=360pt on a real block. So the search is over *prefixes
+// of the source*, and the exactness comes from the engine rather than from
+// arithmetic about characters per line.
+//
+// The prior art estimates instead. sefer-engine's spec says "~45–50 Hebrew
+// characters per line" and "lines ≈ height / 13.5"; talmudifier repeatedly
+// renders test PDFs with line numbers and reads the heights back, which its own
+// author calls ponderous and very hacky. One `measure` call answers what a test
+// render answers, at compile time, with no file on disk.
+//
+// # Word granularity, and saying so
+//
+// The cut is between words. A paragraph break is preferred to a sentence break
+// and a sentence break to a plain space, because that is the order a reader
+// notices a seam — but a table, a figure or a nested structure has no seam at
+// all, and for those this returns the whole thing and no remainder. The caller
+// then has to fall back to something that does not cut, which is what the
+// window is for. **A cut that silently drops what it cannot divide is the one
+// failure this must not have.**
+#let _ct_seps = (
+  // In order of preference: a paragraph, then a sentence, then a word.
+  ("\n\n", 3),
+  (". ", 2),
+  (" ", 1),
+)
+
+/// The words of `s`, with the separator that follows each kept on it.
+///
+/// Kept rather than dropped so that joining a prefix reproduces the source
+/// exactly: a cut that loses the spaces it cut at would reflow the half it kept.
+#let _ct_pieces(s) = {
+  let out = ()
+  let cur = ""
+  for c in s.clusters() {
+    cur += c
+    if c == " " or c == "\n" {
+      out.push(cur)
+      cur = ""
+    }
+  }
+  if cur != "" { out.push(cur) }
+  out
+}
+
+/// How good a seam is: 3 at a paragraph, 2 at a sentence, 1 at a word.
+#let _ct_rank(piece) = {
+  if piece.ends-with("\n") { 3 } else if piece.contains(". ") { 2 } else { 1 }
+}
+
+/// The largest prefix of `s` that fits `width` × `height`, and the rest.
+///
+/// Returns `(ראש, שאר)` — the piece to set here and the piece still to place.
+/// `שאר` is the empty string when it all fitted, which is the caller's signal
+/// that nothing carries.
+///
+/// **Binary search, so the cost is logarithmic in the words and not linear.**
+/// Typst memoises `measure`, so the same prefix measured on a later layout pass
+/// is free; what this costs is about `log2(n)` measures the first time. Seven
+/// calls for a hundred and forty words, measured.
+#let _ct_fit(s, width, height, תפר: 8) = {
+  let ws = _ct_pieces(s)
+  if ws.len() == 0 { return ("", "") }
+  let fits(n) = measure(block(width: width, ws.slice(0, n).join(""))).height <= height
+  // The whole thing, which is the common case and worth not searching for.
+  if fits(ws.len()) { return (s, "") }
+  let lo = 0
+  let hi = ws.len()
+  while lo < hi {
+    let mid = calc.ceil((lo + hi) / 2)
+    if fits(mid) { lo = mid } else { hi = mid - 1 }
+  }
+  // Not one word fits. Give it the one word anyway rather than looping for
+  // ever: placed and overfull a reader can see, and a remainder that never
+  // shrinks is a note that is never printed.
+  if lo == 0 { lo = 1 }
+  // Back up to a better seam, but only a little — a paragraph break four words
+  // earlier is worth taking and one forty words earlier is a hole in the page.
+  //
+  // How little is `תפר`, and it is a setting because it is a judgement about
+  // *this* sefer: a dense peirush would rather cut mid-sentence than leave a
+  // gap, and a wide-set text would rather leave the gap. Eight is what it was
+  // when it was a constant, so nothing already set moves. `0` cuts wherever the
+  // measure landed and never looks back.
+  let best = lo
+  let floor = calc.max(1, lo - תפר)
+  let i = lo
+  while i > floor {
+    if _ct_rank(ws.at(i - 1)) > _ct_rank(ws.at(best - 1)) { best = i }
+    i -= 1
+  }
+  (ws.slice(0, best).join(""), ws.slice(best).join(""))
+}
+
+
+// ---- ברך · the knee ----
+//
+// The step where a block indents around its neighbour and the text carries on
+// underneath it — the shape of a Vilna daf, where the peirush runs beside the
+// gemara and then continues full width below it. The trade calls the step a
+// **berech**, a knee; `NOTES-PLAN` says "L-shape" and "Vilna wrap", both
+// borrowed from English tooling, and the real word was available all along.
+//
+// # It is computed, not flowed
+//
+// Typst cannot flow text out of a narrow region into a wider one: regions in a
+// sequence must share a width, which its own creator has said and which the
+// sefer-engine survey scores it ❌ for. That ❌ is right about the mechanism and
+// wrong as a limit on the page, because the knee does not need flow — it needs
+// to know *where* the column runs out, and `measure` answers that exactly.
+//
+// So: the largest prefix that fits beside the neighbour goes beside it, and the
+// rest goes underneath. One `_ct_fit`, and the seam is continuous because the
+// two halves are two slices of one string.
+//
+// Several knees stack: each row is a knee of its own, which is what `vilna.ksav`
+// draws by hand and what this replaces.
+#let ברך(
+  טקסט,
+  שכן,
+  רוחב: 40%,
+  גובה: auto,
+  מרווח: 8pt,
+) = context {
+  let full = page.width - _pg_margin("left") - _pg_margin("right")
+  let w = if type(רוחב) == ratio { full * רוחב } else { רוחב }
+  let body = _as_string(טקסט)
+  // The neighbour's own height is the height of the knee, unless the writer
+  // overruled it — the whole point is that the column runs exactly as deep as
+  // the thing it is running beside.
+  let h = if גובה == auto { measure(block(width: full - w - מרווח, שכן)).height } else { גובה }
+  let (ראש, שאר) = _ct_fit(body, w, h)
+  grid(
+    columns: (w, 1fr),
+    column-gutter: מרווח,
+    block(width: w, ראש),
+    שכן,
+  )
+  if שאר != "" { block(width: 100%, שאר) }
+}
+#let knee = _en(ברך)
+
 // ---- רשת_בסיס · the baseline grid ----
 //
 // Body at 12pt and commentary at 9pt drift against each other even in perfect
@@ -2034,18 +2326,28 @@
 // The edges are set once, at the document, and only when the grid is on: they
 // are a change to how every line is spaced, and a document that did not ask for
 // a grid should get its font's own metrics.
-#let _bl_grid = state("ksav-baseline", none)
 #let _bl_edges = (top: 0.75em, bottom: -0.25em)
 
 // The smallest fraction of the type size that still reads as leading. Below
 // this the lines touch, so a size too big for one grid step takes two — a 20pt
 // heading on a 14pt grid advances 28pt, and lands back on the grid.
-#let _bl_min = 0.2
+// The smallest fraction of the type size that still reads as leading, and the
+// multiple of the body size a bare `רשת_בסיס: true` means. Both are settings for
+// the same reason everything here is: they are decisions about a page, and the
+// numbers that were right for the first sefer are not a law.
+#let _bl_min_default = 0.2
+#let _bl_ratio_default = 1.4
+#let _bl_min_st = state("ksav-grid-min", _bl_min_default)
+#let _bl_ratio_st = state("ksav-grid-ratio", _bl_ratio_default)
+#let _bl_min = _bl_min_default
 
 /// The leading that puts text of size `s` on a grid of `g`.
-#let _bl_lead(g, s) = {
+#let _bl_lead(g, s, מזערי: _bl_min_default) = {
   let k = 1
-  while g * k - s < s * _bl_min { k += 1 }
+  // Passed in rather than read from state: this is called from `#מסמך`'s own
+  // `set par`, which is not a context, and a state read there is an error rather
+  // than a wrong number — the good kind of failure, but a failure.
+  while g * k - s < s * מזערי { k += 1 }
   g * k - s
 }
 
@@ -2061,16 +2363,17 @@
 #let _ap_lead(cfg, g, sc) = {
   let grid = _bl_grid.final()
   if grid == none { none } else {
-    _bl_lead(grid, _ap_pick(cfg, "גודל", g, 0.85em).to-absolute() * sc)
+    _bl_lead(grid, _ap_pick(cfg, "גודל", g, 0.85em).to-absolute() * sc, מזערי: _bl_min_st.get())
   }
 }
 
 /// The grid unit a document asked for, checked. `true` means *one line of the
 /// body*, which is what a writer who wants a grid and does not want to choose a
 /// number means; a length is that length; `false`/`none` is off.
-#let _bl_read(v, base) = {
+
+#let _bl_read(v, base, ratio: _bl_ratio_default) = {
   if v == none or v == false { return none }
-  if v == true or v == auto { return base * 1.4 }
+  if v == true or v == auto { return base * ratio }
   if type(v) == length or type(v) == relative { return v }
   panic(
     "מסמך: רשת_בסיס · the baseline grid is a length (רשת_בסיס: 14pt), true for "
@@ -2079,7 +2382,14 @@
 }
 
 #let _ap_own_keys = ("גודל", "סגנון", "צבע", "משקל", "צף", "ציטוט")
-#let _ap_mark(cfg, g, num) = numbering(_ap_pick(cfg, "מספור", g, "1"), num)
+#let _ap_mark(cfg, g, num) = _hb_num(
+  _ap_pick(cfg, "מספור", g, "1"),
+  // The apparatus's own answer when it has one, and the sefer's otherwise. A
+  // state read rather than a `context` block, so nothing new is introduced into
+  // content that gets measured.
+  _ap_pick(cfg, "גרשיים", g, _hb_mode.get()),
+  num,
+)
 /// One apparatus's marker, in whatever look the apparatus gave its numbers.
 ///
 /// `סימן` is a dictionary of the ordinary text knobs, so it renders through
@@ -2117,6 +2427,53 @@
     _ks_style(_ap_pick(cfg, "סגנון", g, "normal"), body)
   },
 )
+
+// גובה: שורות(3) — a height in the unit the work is actually done in.
+//
+// A typesetter adds and removes **lines**. Ksav offered points and a percentage
+// of the sheet, and neither is a unit anybody doing this thinks in: nobody looks
+// at a page and decides the commentary should be 41.6pt. The arithmetic — how
+// tall a line of *this* apparatus is, at its size, with its leading, on the grid
+// if there is one — is arithmetic the engine already does for other reasons, and
+// asking the writer to do it by hand was the whole of the difficulty.
+#let שורות(מספר) = (שורות: מספר)
+#let lines_of(n) = שורות(n)
+
+/// How tall one line of a given apparatus is.
+///
+/// The grid when a document has one — that is the whole point of a grid, that a
+/// line is one unit whatever is set on it — and the apparatus's own leading and
+/// size otherwise.
+#let _ap_line_of(cfg, g) = {
+  // **Measured, not derived.** leading + size is the arithmetic and it is not
+  // the answer: an apparatus entry is a block with its own spacing, and one line
+  // of a 10.2pt band measures 9.37pt where leading + size predicts 18. A writer
+  // who says three lines means three of the lines they can see, so the line is
+  // the one the page actually has — one entry, with the gap that follows it.
+  //
+  // One character needs no width to measure, which is why this can live above
+  // `_ap_page_width` and be asked before any of the width machinery exists.
+  // Bound rather than written as one expression across two lines: a leading `+`
+  // on a continuation line is parsed as a second statement, and the block then
+  // tries to join two lengths instead of adding them.
+  let one = measure(_ap_wrap(cfg, g, [א], ריווח_שורה: _ap_lead(cfg, g, 1.0))).height
+  let gap = _ap_pick(cfg, "ריווח_פריט", g, 0.3em).to-absolute()
+  one + gap
+}
+
+#let _ap_fixed_height(h, קו: none) = {
+  if type(h) == dictionary and "שורות" in h {
+    // The caller's line when it knows one — a region knows its own apparatus's
+    // size — and the surrounding text's when it does not.
+    h.שורות * (if קו != none { קו } else { par.leading.to-absolute() + text.size.to-absolute() })
+  } else if type(h) != ratio {
+    h
+  } else if type(page.height) == length {
+    h * page.height
+  } else {
+    auto
+  }
+}
 
 // One banded note. Registers itself in the MAIN FLOW, where writes are legal;
 // the footer that later renders it only ever queries, which is what makes a
@@ -2530,8 +2887,10 @@
 /// Narrower than a reserved column on purpose: this is space the page already
 /// had rather than space taken from the prose, so the body does not move and
 /// adding a side channel to a finished sefer does not re-paginate it.
-#let _sn_free_share = 0.8
-#let _sn_free() = calc.max(_pg_margin("left"), _pg_margin("right")) * _sn_free_share
+#let _sn_free_share_default = 0.8
+#let _sn_free_share_st = state("ksav-sn-free-share", _sn_free_share_default)
+#let _sn_free_share = _sn_free_share_default
+#let _sn_free() = calc.max(_pg_margin("left"), _pg_margin("right")) * _sn_free_share_st.get()
 
 
 /// Whether this sefer is bound — laid out as facing pages with mirrored margins.
@@ -2542,7 +2901,13 @@
 /// A margin apparatus that is meant to swap edges on facing pages therefore never
 /// swapped, silently, on every bound document.
 #let _pg_two_sided = state("ksav-two-sided", false)
-#let _ap_free_share = 0.7
+// What share of the margin an apparatus may use when nothing was reserved.
+// The rest is the page number and its clearance at the foot, the running head at
+// the top. Settable because how much air a sefer keeps under its text is a house
+// decision, and 0.7 is only what it was when it was a constant.
+#let _ap_free_share_default = 0.7
+#let _ap_free_share_st = state("ksav-free-share", _ap_free_share_default)
+#let _ap_free_share = _ap_free_share_default
 
 /// How much room a page-foot region actually has.
 ///
@@ -2561,7 +2926,7 @@
   // sized by a number about the other end of the sheet.
   if איפה == "למעלה" {
     let ft = _ap_free_top.get()
-    return if ft > 0pt { ft } else { _pg_margin("top") * _ap_free_share }
+    return if ft > 0pt { ft } else { _pg_margin("top") * _ap_free_share_st.get() }
   }
   let r = _ap_reserve.get()
   if r > 0pt { return r }
@@ -2586,8 +2951,41 @@
   let under = page.height - here().position().y
   if under < m { calc.max(0pt, under) } else { m }
 }
-#let _ap_fit_room(h, איפה: "רגל") = if h == none { none } else {
-  calc.min(_ap_fixed_height(h), _ap_room(איפה: איפה))
+// חריגה — what happens when a region declares more room than the page has.
+//
+// `#אזור("צר", גובה: 2cm)` on a sheet with 25.47pt under the footer is asking
+// for something the page cannot give, and there are two honest answers and one
+// dishonest one. The dishonest one is to hand back a 2cm region that is not 2cm
+// and say nothing, which is what happened before the room was measured at all.
+//
+//   · `"צמצום"` — clamp it to what there is. Today's behaviour and the default,
+//     so nothing already written changes, and nothing prints off the paper.
+//   · `"סירוב"` — refuse, and say what would have fitted. The honest one for a
+//     sefer being set to a fixed design, where a region silently 30pt shorter
+//     than it was drawn in the specification is a fault to find now rather than
+//     at the printer.
+//
+// It is a setting rather than a decision because the two are genuinely different
+// jobs: a draft wants to keep going, a final wants to be told.
+#let _rg_over = ("צמצום", "סירוב")
+#let _rg_over_default = "צמצום"
+
+#let _ap_fit_room(h, איפה: "רגל", קו: none, חריגה: _rg_over_default, מי: none) = {
+  if h == none { return none }
+  let want = _ap_fixed_height(h, קו: קו)
+  let room = _ap_room(איפה: איפה)
+  if want > room and חריגה == "סירוב" {
+    panic(
+      "אזור" + (if מי != none { " " + מי } else { "" })
+        + ": גובה גדול מן המקום · this region asks for "
+        + _as_string(calc.round(want.pt(), digits: 1))
+        + "pt and the page has "
+        + _as_string(calc.round(room.pt(), digits: 1))
+        + "pt under the text. Reserve more with #מסמך(אזור_הערות: …), ask for "
+        + "less, or set חריגה: \"צמצום\" to take what there is.",
+    )
+  }
+  calc.min(want, room)
 }
 
 // ---- גלישה · what a full region does, as the writer's own list ----
@@ -2640,11 +3038,14 @@
 // and not 20%.
 #let _ap_shrink_floor = 0.8
 #let _ap_shrink_step = 0.05
-#let _ap_shrink_ladder(floor) = {
+#let _ap_shrink_ladder(floor, step) = {
   let out = (1.0,)
   let s = 1.0
-  while s - _ap_shrink_step >= floor - 0.0001 {
-    s -= _ap_shrink_step
+  // A step of nothing would loop for ever, and a writer who says so means "do
+  // not shrink" — which is what leaving "הקטנה" off the list already says.
+  if step <= 0.0 { return out }
+  while s - step >= floor - 0.0001 {
+    s -= step
     out.push(calc.round(s, digits: 4))
   }
   out
@@ -2870,7 +3271,14 @@
       )
     }
     let floor = _ap_pick(cfg, "הקטנה_מזערית", g, _ap_shrink_floor)
-    let ladder = _ap_shrink_ladder(if type(floor) == ratio { floor / 100% } else { floor })
+    // How coarse the ladder is. A band that may lose a fifth of its size in one
+    // step reads as a different band; one that steps by a fortieth spends four
+    // times the measures to get there. 5% is what it was as a constant.
+    let step = _ap_pick(cfg, "הקטנה_צעד", g, _ap_shrink_step)
+    let ladder = _ap_shrink_ladder(
+      if type(floor) == ratio { floor / 100% } else { floor },
+      if type(step) == ratio { step / 100% } else { step },
+    )
     let sc = 1.0
     let tr = 0pt
     let bounded = cap != none and cap > 0pt
@@ -2887,7 +3295,11 @@
               if fits(s, t) { break }
             }
           } else if m == "כיווץ_אותיות" {
-            t = _ap_tracking
+            // How much comes out between the letters. Small on purpose and a
+            // setting anyway: it is invisible when it works and unreadable when
+            // it is overdone, and where that line falls is a property of the
+            // face a sefer is set in.
+            t = _ap_pick(cfg, "כיווץ_מידה", g, _ap_tracking)
           }
         }
         (s, t)
@@ -3303,7 +3715,12 @@
 // lone channel that made it, else whatever the apparatus's own table says.
 #let _ch_region_height(cfg, t, rg, chans) = {
   let own = _rg_rec(t, rg).at("גובה", default: none)
-  if own != none { return _ap_fit_room(own) }
+  // A region's own line is its first channel's, since that is what will be set
+  // in it. A region holding two channels of different sizes is a region whose
+  // "three lines" is ambiguous, and the first one declared is the answer.
+  let קו = _ap_line_of(cfg, if chans.len() > 0 { chans.first() } else { rg })
+  let חריגה = _val(_rg_rec(t, rg).at("חריגה", default: _rg_over_default))
+  if own != none { return _ap_fit_room(own, קו: קו, חריגה: חריגה, מי: rg) }
   for c in chans {
     let h = _ch_rec(t, c).at("גובה", default: none)
     if h != none { return h }
@@ -3692,7 +4109,7 @@
 /// then share in the order they are written.
 #let _pp_cap(cfg) = g => {
   let own = _ap_pick(cfg, "גבהים", g, none)
-  if own != none { _ap_fit_room(own) } else { _ap_room() }
+  if own != none { _ap_fit_room(own, קו: _ap_line_of(cfg, g)) } else { _ap_room() }
 }
 
 #let _pp_page_bands() = context {
@@ -3812,7 +4229,13 @@
 // already per-stream — its settings are dictionaries keyed by stream name — so
 // this is the layer below that: one note inside one stream, set apart from its
 // peers.
-#let הערה_זרם(זרם, body, שם: none, ..opts) = context {
+// The page-foot half, which is what this command was when the foot was the only
+// place a stream could be. It is internal now: `#הערה_זרם` is defined further
+// down as the door, and routes here or to the margin depending on where the
+// channel was placed. Renaming rather than adding a check, because the check
+// cannot live here — `_sn_note` is defined after this line and Typst resolves a
+// name where the closure is written.
+#let _sf_stream_note(זרם, body, שם: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
   _cfg_strict("הערה_זרם", rest)
   let name = _as_string(זרם)
@@ -3867,7 +4290,17 @@
   let rg = _ch_region(t, g)
   let own = _rg_rec(t, rg).at("גובה", default: none)
   let own = if own != none { own } else { _ap_pick(cfg, "גבהים", g, none) }
-  if own != none { _ap_fit_room(own, איפה: איפה) } else { _ap_room(איפה: איפה) }
+  if own != none {
+    _ap_fit_room(
+      own,
+      איפה: איפה,
+      קו: _ap_line_of(cfg, g),
+      חריגה: _val(_rg_rec(t, rg).at("חריגה", default: _rg_over_default)),
+      מי: rg,
+    )
+  } else {
+    _ap_room(איפה: איפה)
+  }
 }
 
 /// Which end of the sheet a stream is painted at.
@@ -4049,11 +4482,6 @@
     }
   }
 }
-#let הערת_תוכן(body, ..opts) = הערה_זרם("תוכן", body, ..opts)
-#let הערת_מקור(body, ..opts) = הערה_זרם("מקורות", body, ..opts)
-#let stream_note = _en(הערה_זרם, extra: (columns: "טורים"))
-#let contentnote = _en(הערת_תוכן, extra: (columns: "טורים"))
-#let sourcenote_stream = _en(הערת_מקור, extra: (columns: "טורים"))
 #let streams_config = _en(הגדרות_זרמים, extra: (columns: "טורים"))
 
 // ============================================================
@@ -4089,6 +4517,9 @@
 // own — the common case — sets it either way and means the same thing.
 #let _rg_own = (
   "מיקום", "גובה", "פריסה", "כותרת", "גלישה", "הקטנה_מזערית", "שומר_מקום",
+  // What to do when the declared height is more than the page has. See
+  // `_ap_fit_room`.
+  "חריגה",
   "ראש", "מספור_כתובת", "דף_ראשון",
   // Whether the region opens on a sheet of its own. `#הערות_בסוף` has had this
   // since it existed and a region had no way to say it, so a collected apparatus
@@ -4164,6 +4595,12 @@
   // nobody wrote a note in compiled clean and did nothing at all. A writer is
   // told about a word they got wrong at the line they wrote it on.
   if "גלישה" in own { let _ = _ap_spill_read("אזור", own.at("גלישה")) }
+  if "חריגה" in own and not _rg_over.contains(_val(own.at("חריגה"))) {
+    panic(
+      "אזור: חריגה לא מוכרת · unknown overflow answer: "
+        + _as_string(own.at("חריגה")) + " (" + _rg_over.join(" · ") + ")",
+    )
+  }
   if "מיקום" in own and not _ch_places.contains(_val(own.מיקום)) {
     panic(
       "אזור: מיקום לא מוכר · unknown placement: " + _as_string(own.מיקום)
@@ -4199,7 +4636,7 @@
     d
   }
   if place == "רגל" {
-    הערה_זרם(chan, body, שם: mine, ..named)
+    _sf_stream_note(chan, body, שם: mine, ..named)
   } else {
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)
@@ -4247,7 +4684,7 @@
     // A region at the foot of the page. Not balanced — Typst has exactly one
     // balanced series and the default channel is it — so this is fixed
     // geometry, and the engine reserves the page foot for it.
-    הערה_זרם(name, body, שם: mine, ..named)
+    _sf_stream_note(name, body, שם: mine, ..named)
   } else {
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)
@@ -4473,7 +4910,7 @@
 #let _sn_mark(n, prime: false) = context {
   let want = _sn_cfg.get().at("סימון", default: auto)
   let hebrew = if want == auto { text.lang == "he" } else { want == "עבריות" }
-  let m = if hebrew { numbering("א", n) } else { [#n] }
+  let m = if hebrew { _hb_num("א", _hb_mode.get(), n) } else { [#n] }
   if prime [#m′] else [#m]
 }
 
@@ -5383,6 +5820,21 @@
   // becoming a different arrangement, which is the thing this model exists to
   // stop. `none` keeps the wrapper's behaviour, so nothing already written moves.
   אזור_צד: none,
+  // The marks a Hebrew number carries: "ללא" (the default, and what every
+  // document written before this got), "גרש" for a trailing ׳, or "גרשיים" for
+  // what a printed sefer has — ׳ after a single letter and ״ before the last of
+  // several. See `_hb_num`.
+  גרשיים: "ללא",
+  // How much of a margin an apparatus with no reserve may use — the rest is the
+  // page number and its clearance at the foot, the running head at the top, and
+  // how much air a sefer keeps is a house decision rather than a law.
+  חלק_שוליים_רגל: 0.7,
+  חלק_שוליים_צד: 0.8,
+  // The baseline grid's two judgement calls: the smallest fraction of the type
+  // size that still reads as leading, and what a bare `רשת_בסיס: true` means as
+  // a multiple of the body size.
+  רשת_מרווח_מזערי: 0.2,
+  רשת_יחס: 1.4,
   מספור_שורות: false,
   // A companion volume — a channel at `מיקום: "קובץ"` — bound behind the body
   // or written out as a file of its own. **The same content either way**, which
@@ -5476,7 +5928,8 @@
   // The grid, decided once and read by every size in the sefer. `set` inside an
   // `if` does nothing in Typst — a trap this file documents twice — so both of
   // these go through the spread idiom.
-  let _grid = _bl_read(רשת_בסיס, גודל)
+  let _grid = _bl_read(רשת_בסיס, גודל, ratio: רשת_יחס)
+  let _gmin = רשת_מרווח_מזערי
   _bl_grid.update(_grid)
   set text(font: גופן, size: גודל, lang: שפה, dir: כיוון)
   set text(..(if _grid != none { (top-edge: _bl_edges.top, bottom-edge: _bl_edges.bottom) } else { (:) }))
@@ -5649,7 +6102,7 @@
   // difference. `_doc_align` returns `none` for the boolean forms, so a document
   // that says `true` or `false` lays out byte-identically to before.
   let _al = _doc_align(יישור)
-  set par(justify: יישור == true, leading: if _grid != none { _bl_lead(_grid, גודל) } else { ריווח_שורות }, spacing: if _grid != none { _grid } else { ריווח_פסקאות }, first-line-indent: הזחה_ראשונה)
+  set par(justify: יישור == true, leading: if _grid != none { _bl_lead(_grid, גודל, מזערי: _gmin) } else { ריווח_שורות }, spacing: if _grid != none { _grid } else { ריווח_פסקאות }, first-line-indent: הזחה_ראשונה)
   // Unconditional, and `start` — Typst's own default — when no edge was named.
   // Written as `if _al != none { set align(_al) }` it does nothing at all: a
   // `set` is scoped to the block it appears in, so the rule governed the two
@@ -5667,9 +6120,17 @@
   // next page — and it is *declared*, which is the whole reason that walk
   // converges. See `_ap_assign`.
   _ap_reserve.update(reserve)
-  _ap_free.update(m_bot * _ap_free_share)
-  _ap_free_top.update(m_top * _ap_free_share)
+  _ap_free.update(m_bot * חלק_שוליים_רגל)
+  _ap_free_top.update(m_top * חלק_שוליים_רגל)
   _sn_reserve.update(side_res)
+  if not _hb_modes.contains(גרשיים) {
+    panic("מסמך: גרשיים לא מוכר · unknown setting: " + _as_string(גרשיים) + " (" + _hb_modes.join(" · ") + ")")
+  }
+  _hb_mode.update(גרשיים)
+  _ap_free_share_st.update(חלק_שוליים_רגל)
+  _sn_free_share_st.update(חלק_שוליים_צד)
+  _bl_min_st.update(רשת_מרווח_מזערי)
+  _bl_ratio_st.update(רשת_יחס)
   _pg_two_sided.update(דו_צדדי)
   set footnote.entry(gap: ריווח_הערות)
   // Keep the heading counter stepping (so #הגדרות_כותרות(מספור: …) can display a
@@ -5821,6 +6282,11 @@
   baseline_grid: "רשת_בסיס",
   // Line numbers down the margin — and what a שורה address in an apparatus is
   // read off. See `_eh_addr`.
+  gershayim: "גרשיים",
+  foot_margin_share: "חלק_שוליים_רגל",
+  side_margin_share: "חלק_שוליים_צד",
+  grid_min_leading: "רשת_מרווח_מזערי",
+  grid_ratio: "רשת_יחס",
   side_region: "אזור_צד",
   line_numbers: "מספור_שורות",
   note_spacing: "ריווח_הערות",
@@ -6496,6 +6962,46 @@
 // declaration of its own: an undeclared region is a page-foot region, which is
 // what `#הערה_זרם` has always been, and `#אזור("שער_הציון", מיקום: "סוף")` moves
 // every note in it at once.
+/// One note, to wherever its channel says. **The only door.**
+///
+/// `#הערה(ערוץ: "x")` and `#הערה_זרם("x")` are two spellings a writer may use for
+/// one act, and they gave two different answers: a channel placed beside the
+/// text printed in the margin through the first and at the foot of the page
+/// through the second. The placement is a property of the channel, so it cannot
+/// depend on which command was typed.
+///
+/// It is here, low in the file, for the reason that produced the bug in the
+/// first place: Typst resolves a name where the closure is written, `_sn_note`
+/// is defined below both doors, and a dispatch written at either of them could
+/// only reach half the model.
+#let _note_to(name, body, named) = context {
+  let t = _ch_st.final()
+  let place = _ch_place(t, name)
+  if _ch_side_places.contains(place) {
+    let (own, rest) = _cfg_split(named, _sn_own_keys)
+    _cfg_strict("הערה", rest)
+    _sn_note(_sn_chan_lbl(name), _ch_side_of(place), "צד", body, own: own, מוצב: true)
+  } else {
+    _ch_note(name, body, named)
+  }
+}
+
+// הערה_זרם(זרם, body) — a note in the named channel, wherever that channel goes.
+#let הערה_זרם(זרם, body, שם: none, ..opts) = {
+  let named = {
+    let d = opts.named()
+    if שם != none { d.insert("שם", שם) }
+    d
+  }
+  _note_to(_as_string(זרם).trim(), body, named)
+}
+#let הערת_תוכן(body, ..opts) = הערה_זרם("תוכן", body, ..opts)
+#let הערת_מקור(body, ..opts) = הערה_זרם("מקורות", body, ..opts)
+
+#let stream_note = _en(הערה_זרם, extra: (columns: "טורים"))
+#let contentnote = _en(הערת_תוכן, extra: (columns: "טורים"))
+#let sourcenote_stream = _en(הערת_מקור, extra: (columns: "טורים"))
+
 #let הערה(body, ערוץ: none, אזור: none, שם: none, ציטוט: none, ..opts) = {
   // `שם` names *this note* so that `#הפניה_להערה` can print the number it turned
   // out to be. It is not the channel's name and not the region's: those say
@@ -6514,20 +7020,7 @@
     // two notes in one region number together — which is what a region *is*.
     _ch_note_in(if ערוץ == none { name } else { _as_string(ערוץ).trim() }, name, body, named)
   } else {
-    let name = if ערוץ == none { _ch_default } else { _as_string(ערוץ).trim() }
-    context {
-      let t = _ch_st.final()
-      let place = _ch_place(t, name)
-      if _ch_side_places.contains(place) {
-        // Beside the text. The same note, the same axis, a different value —
-        // which is why this is a branch here rather than a command of its own.
-        let (own, rest) = _cfg_split(named, _sn_own_keys)
-        _cfg_strict("הערה", rest)
-        _sn_note(_sn_chan_lbl(name), _ch_side_of(place), "צד", body, own: own, מוצב: true)
-      } else {
-        _ch_note(name, body, named)
-      }
-    }
+    _note_to(if ערוץ == none { _ch_default } else { _as_string(ערוץ).trim() }, body, named)
   }
 }
 #let fnote = _en(הערה)
@@ -6783,6 +7276,7 @@
 // `kind` is what the page needs to draw this note's marker — see `_sn_streams`.
 // It travels in the metadata because the drawing happens on the page and a
 // closure cannot travel in one.
+
 
 // Named arguments style this one sidenote — `גודל` and `צבע`, the two knobs that
 // belong to a note rather than to the column. See `_sn_note` and `_cfg_with`.

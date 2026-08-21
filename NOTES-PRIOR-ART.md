@@ -53,7 +53,7 @@ A page layout engine with image wrap-around and **text threading**. Takes
 obstacles (`placed`), containers (`container`), and flowing content, and threads
 the content through the containers, wrapping around the obstacles.
 
-**Why it matters.** `src/bisect.typ` is exactly the primitive
+**Why it matters.** its `bisect.typ` (in the package, not in this repository) is exactly the primitive
 `NOTES-SPILL-FINDINGS.md` Route C needs — described in its own header as
 "iteratively add content until it no longer fits inside the box." It fits
 content, recursively splits inner content, and falls back to `split-word` with

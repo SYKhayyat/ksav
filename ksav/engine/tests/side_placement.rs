@@ -194,3 +194,46 @@ fn the_old_spelling_of_the_side_still_works() {
         "צד and חוץ are not the same edge: {by_alias} and {by_name}"
     );
 }
+
+/// Both spellings of one act give one answer.
+///
+/// `#הערה(ערוץ: "x")` and `#הערה_זרם("x")` are two doors a writer may use, and
+/// they disagreed: a channel placed beside the text printed in the margin
+/// through the first and at the foot of the page through the second. The
+/// placement is a property of the channel, so it cannot depend on which command
+/// was typed — which is the same complaint the eighteen note commands answered.
+#[test]
+fn both_doors_send_a_side_channel_to_the_side() {
+    let body = |door: &str| {
+        format!(
+            "#ערוץ(\"גיליון\", מיקום: \"חוץ\")\n\
+             שורה של גוף הספר ובה די מלים כדי למלא את השורה.{door} וסוף."
+        )
+    };
+    let through_note = laid(
+        &body("#הערה(ערוץ: \"גיליון\")[הערת שוליים]"),
+        &DocConfig::default(),
+    );
+    let through_stream = laid(
+        &body("#הערה_זרם(\"גיליון\")[הערת שוליים]"),
+        &DocConfig::default(),
+    );
+    // One word, and the line it is on. A margin column is narrow enough that a
+    // two-word note wraps, so no line holds the phrase — and a phrase can be
+    // split across shaping boundaries even when it does not wrap. Both are
+    // questions about where Typst broke rather than where the note landed.
+    let x = |runs: &[probe::TextRun]| {
+        let lines = probe::lines(runs, 1.0);
+        let l = lines
+            .iter()
+            .find(|l| l.contains("שוליים"))
+            .unwrap_or_else(|| panic!("the note printed nowhere"));
+        l.runs.iter().map(|r| r.x).fold(f64::MAX, f64::min)
+    };
+    assert!(
+        (x(&through_note) - x(&through_stream)).abs() < 0.5,
+        "the two doors put the note in different places: {} and {}",
+        x(&through_note),
+        x(&through_stream)
+    );
+}

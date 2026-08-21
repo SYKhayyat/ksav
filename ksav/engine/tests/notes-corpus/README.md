@@ -132,6 +132,37 @@ told apart from not having it is not built.
 | `grid_on` / `grid_off` | **A baseline grid advances by exactly the grid.** A declared 16pt grid gives a body line advance of **16.00pt**; without it the font's own metrics give 16.92pt. Exact because `top-edge`/`bottom-edge` normalise the line box to 1em, so the advance is `leading + size` and nothing depends on the family. |
 | `addr_page` | **[X] A region at `מיקום: "סוף"` never renders.** Two notes filed into it, and nothing prints at the end of the document — so the four positional addresses (`עמוד`, `דף`, `סימן`, `שורה`) are written and unexercised. |
 
+## The instrument, and the four times it lied
+
+`probe` reads **frame items**. `clip`, `move`, `place`, `hide` and `fill` are
+things that happen to *paint*. So an instrument that cannot see the property
+under test does not error — it returns a plausible number, which is worse.
+
+Four instances, all in this area, two of them found on the same afternoon by two
+people working separately:
+
+1. **Colour.** `TextRun` had no `fill`, so a live setting measured as dead. Eight
+   settings were reported dead in the first run of `settings_live.rs` and the
+   fence's own instrument was the reason.
+2. **`y=` field-splitting.** `y={:7.2}` is right-aligned, so `awk '{print $2}'`
+   silently reads `x=` for any y ≥ 1000 — under-reporting exactly the
+   catastrophic overflows the runner exists to find.
+3. **Clipping.** A clipped note reports its full extent, so masked content and
+   content drawn past the paper edge are indistinguishable. `ov_shrink` was
+   written up as *"prints off the paper at y=853.90"* and it is nothing of the
+   kind: `svgdump` shows a clip rectangle of 453.54 × 49.61 and the notes are
+   **silently truncated**, which is worse — a note past the edge is visible as a
+   fault, a clipped one reads as a short note.
+4. **`move`.** It shifts paint and not layout, so a checker asking whether the
+   native footnote area collides with a windowed box reports an overlap on every
+   continuation page and is wrong every time. The 689.34 it reports is the
+   window's clipped-away, invisible text.
+
+The rule, and it is worth the reflex: **before believing any measurement here,
+ask which instrument would notice if the answer were wrong.** Anything involving
+`clip`, `move`, `place`, `hide` or `fill` needs `svgdump`. Anything about where a
+reader's eye actually lands needs `svgdump`, full stop.
+
 ## Adding to this corpus
 
 A new claim in `NOTES-PLAN.md` should arrive with a file here and a row above. The

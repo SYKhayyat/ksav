@@ -141,8 +141,9 @@ They are two streams sharing one shape. Give the second its own:
 
 The citation is Ksav's; the opening is Girsa's. Ksav asks the library over the
 loopback interface, so if Girsa is not running there is nothing to answer. See
-[`docs/girsa.md`](girsa.md) for the seam, and Girsa's own troubleshooting page
-for the library end.
+[`docs/girsa.md`](girsa.md) for the seam, and [Girsa's own troubleshooting
+page](https://github.com/SYKhayyat/girsa/blob/main/docs/troubleshooting.md) for the
+library end.
 
 ---
 

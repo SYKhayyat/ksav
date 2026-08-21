@@ -2,17 +2,18 @@ import { ok, check } from "./harness.mjs";
 import { dirOf } from "../tools/paths.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { TIERS, tierCommand, DEFAULT_NOTE_KIND } from "../.tmp-test/note-commands.mjs";
+import { NOTE_BODY_COMMANDS, TIERS, tierCommand, DEFAULT_NOTE_KIND } from "../.tmp-test/note-commands.mjs";
 import { unrendered, addDump } from "../.tmp-test/apparatus.mjs";
+import { DESTINATIONS, pickFor, pickLine } from "../.tmp-test/channels.mjs";
+import { canonicalName, nameIn } from "../.tmp-test/mode.mjs";
 import {
-  NOTE_CHOICES,
-  applyChoice,
-  choiceForCommand,
-  conversionTargets,
-  markersOf,
+  applyPick,
+  destinationTargets,
   noteAt,
+  noteDestination,
   noteFor,
   notesIn,
+  retargetNote,
   tieredNoteAt,
 } from "../.tmp-test/notes.mjs";
 import { plan } from "../.tmp-test/insert.mjs";
@@ -35,10 +36,15 @@ import { plan } from "../.tmp-test/insert.mjs";
 // The rule: **anything that matches or writes a command name is asked in `he`
 // and in `en`, from the same table, in the same assertion.** A finding that only
 // one language can see is a finding this file is supposed to be unable to have.
+//
+// The `where` x `how` grid is gone and the questions changed shape with it — a
+// note now moves by changing an *argument* rather than by changing command — but
+// the rule did not change, and neither did the reason for it.
 
 const HERE = dirOf(import.meta.url);
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 const NOTES_SRC = readFileSync(path.join(HERE, "..", "src", "notes.ts"), "utf8");
+const CHANNELS_SRC = readFileSync(path.join(HERE, "..", "src", "channels.ts"), "utf8");
 const APPARATUS_SRC = readFileSync(path.join(HERE, "..", "src", "apparatus.ts"), "utf8");
 
 /** A document that is unambiguously written in `lang`, for `docLang` to read. */
@@ -53,83 +59,112 @@ export async function run() {
   //
   // `tieredNoteAt` calls `tierCommand(tier, docLang())` on purpose, so in an
   // English document it produces `#fnote[|]` and `#tier2[|]`. Matched against
-  // the cards' Hebrew literals those were not notes at all — so `plan` fell
-  // through to a plain splice and skipped the two things only the note path
-  // does: the `nested` card's `head` line (the one that makes a two-layer
-  // apparatus's markers say which layer they point into) and
-  // `settings.deferNoteBodies`.
+  // Hebrew literals those were not notes at all — so `plan` fell through to a
+  // plain splice and skipped the two things only the note path does: the
+  // destination's scaffolding, and where the prose is filed.
   for (const lang of LANGS) {
     const doc = docIn(lang);
     for (let tier = 1; tier <= TIERS.length; tier++) {
       const snippet = `#${tierCommand(tier, lang)}[|]`;
       const found = noteFor(snippet);
       ok(`${lang}: tier ${tier} (${snippet}) is recognised as a note`, !!found, snippet);
+      // Every tier is a stream at the live page foot — that is what a tier *is*
+      // — so the destination is the same one an ordinary note has. A sub-note's
+      // parent is the note the caret is in, and nothing about it is a pick.
+      check(`${lang}: tier ${tier} goes to the page foot`, found?.pick.dest, "foot");
     }
     // And through the real door, which is what a toolbar press goes through.
     const p1 = plan(doc, doc.length, doc.length, "", tieredNoteAt(doc, doc.length, lang), lang);
     check(`${lang}: a tier-1 insertion is planned as a note`, p1.kind, "note");
   }
 
-  // Tier 2 and above have to carry the `nested` card, which is the one that owns
-  // the configuration line. Asked by *card id* rather than by the string, so a
-  // renamed marker cannot make this pass by accident.
+  // A note inside a note is tier 2, in both languages, and the tier command is
+  // written through rather than replaced by the destination's own spelling: the
+  // pick has no vocabulary for a tier, so losing the marker would flatten every
+  // sub-note into its parent's series.
   for (const lang of LANGS) {
     const inside = `#${tierCommand(1, lang)}[`;
     const doc = docIn(lang) + inside;
     const snippet = tieredNoteAt(doc, doc.length, lang);
     const found = noteFor(snippet);
     ok(`${lang}: a note inside a note is tier 2`, !!found, snippet);
-    check(`${lang}: and it is the nested card`, found?.choice.id, "nested");
+    const r = applyPick(doc, doc.length, found.pick, false, { marker: found.marker }, lang);
     ok(
-      `${lang}: whose head line is the one that makes the layers legible`,
-      !!found?.choice.head,
+      `${lang}: and the tier command is what lands in the document`,
+      r.text.slice(doc.length).startsWith(`#${tierCommand(2, lang)}`),
+      r.text.slice(doc.length),
     );
+  }
+
+  // Every note command, in both spellings, reaches the same destination. This is
+  // the whole claim `sameCommand` makes, asked of the one table that decides
+  // where a note prints — and a table walked in one language only is the defect
+  // this file exists for.
+  {
+    const disagreed = [];
+    for (const command of NOTE_BODY_COMMANDS) {
+      const he = canonicalName(command);
+      const en = nameIn(he, "en");
+      if (en === he) continue;
+      const a = pickFor(he, "");
+      const b = pickFor(en, "");
+      if (a.dest !== b.dest || a.region !== b.region) disagreed.push(`${he}/${en}`);
+    }
+    check("both spellings of a note command reach the same destination", disagreed, []);
   }
 
   // ------------------------------------------------- §6.2 conversion, both ways
   //
   // The menu offered twelve Hebrew commands whatever the document was, and
-  // `convertNote` writes `#${command}[…]` verbatim — so an English writer's only
+  // `convertNote` wrote `#${command}[…]` verbatim — so an English writer's only
   // offer was to rewrite `#fnote` as `#הערה`: a change of language presented as a
   // change of layout.
+  //
+  // A note does not change command to move any more, so the offers are
+  // destinations rather than commands and there is nothing left to spell wrong
+  // in the list. The language question moved to what the *conversion writes*,
+  // which is where it always mattered.
   for (const lang of LANGS) {
-    const current = tierCommand(1, lang);
-    const targets = conversionTargets(current, lang);
-    ok(`${lang}: the menu offers something to convert to`, targets.length > 2);
-    const wrongLang = targets.filter((c) => (lang === "en" ? /[֐-׿]/u.test(c) : /^[A-Za-z]/.test(c)));
-    check(`${lang}: and every offer is in the document's language`, wrongLang, []);
-    // The `c !== note.command` exclusion compared a Hebrew list against an
-    // English command, so the note's own layout was offered as a conversion.
-    ok(
-      `${lang}: the note's own command is not offered`,
-      !targets.includes(current),
-      current,
+    const marker = `#${DEFAULT_NOTE_KIND[lang]}[a note]`;
+    const doc = docIn(lang) + marker + "\n";
+    const note = noteAt(doc, doc.indexOf(marker) + 2);
+    ok(`${lang}: the note is found`, !!note);
+    const targets = destinationTargets(doc, note);
+    ok(`${lang}: the menu offers somewhere to send it`, targets.length >= 4, targets.length);
+    check(
+      `${lang}: the note's own destination is not offered`,
+      targets.filter((p) => p.dest === noteDestination(doc, note).dest && !p.region).length,
+      0,
     );
+    for (const pick of targets) {
+      const moved = retargetNote(doc, note, pick, lang);
+      // …and the scaffolding the new destination needs, which is what
+      // `applyNotePick` does for an inserted note. Without it, sending a note to
+      // the back produces a stream nothing prints.
+      const added = moved.text;
+      if (lang !== "en") continue;
+      ok(
+        `en: sending a note to ${pick.dest} writes no Hebrew command`,
+        !/#[֐-׿]/u.test(added),
+        added,
+      );
+    }
   }
 
-  // The trap in the obvious fix, named in the audit: translating the targets
-  // without fixing `choiceForCommand` makes `choice` null, skips `scaffold`, and
-  // reproduces *"converting a footnote to an endnote produced an endnote with no
-  // `#הערות_בסוף()`"* — the collected-and-never-printed failure, performed by
-  // the product and then reported back to the writer as a lint.
+  // Sending a note somewhere and reading it back is the round trip that makes
+  // the menu honest: a conversion that writes an argument nothing can read is a
+  // note that quietly stayed where it was.
   for (const lang of LANGS) {
-    const unscaffolded = [];
-    for (const target of conversionTargets(tierCommand(1, lang), lang)) {
-      if (!choiceForCommand(target)) unscaffolded.push(target);
-    }
-    check(`${lang}: every offered conversion knows its layout`, unscaffolded, []);
-  }
-
-  // Both spellings of the same command reach the same card, which is the whole
-  // claim `sameCommand` makes.
-  for (const c of NOTE_CHOICES) {
-    for (const marker of markersOf(c)) {
-      const he = /^#([A-Za-z0-9֐-׿_]+)/u.exec(marker)?.[1];
-      if (!he) continue;
-      check(`choiceForCommand(${he}) is ${c.id}`, choiceForCommand(he)?.id !== undefined, true);
+    for (const d of DESTINATIONS) {
+      const pick = { dest: d.id, region: d.id === "region" ? "שער" : null };
+      const line = pickLine(pick, lang);
+      const command = /^#([A-Za-z0-9֐-׿_]+)/u.exec(line)[1];
+      const args = /\(([\s\S]*)\)\[/u.exec(line)?.[1] ?? "";
+      const read = pickFor(canonicalName(command), args);
+      check(`${lang}: ${d.id} round-trips through the markup it writes`, read.dest, d.id);
+      check(`${lang}: …with its region`, read.region, pick.region);
     }
   }
-
   // ------------------------------------------------- §6.3 the repair
   //
   // Detection was bilingual from the start — `collectors` and `dumps` both list
@@ -200,13 +235,14 @@ export async function run() {
   // ------------------------------------------------- the prohibition
   //
   // A `#`-prefixed **Hebrew** command name in a string literal, anywhere in the
-  // note family except the one table that is allowed to hold them.
+  // note family.
   //
-  // That table is `NOTE_CHOICES`: its markers are Hebrew because Hebrew is this
-  // product's canonical spelling, and `applyChoice` spells them for the document
-  // as its first act. Everywhere else, a `#הערה` in quotes is a command whose
-  // language is a property of *the source file* rather than of the writer's
-  // document, which is the shared cause of all three of §6.1–§6.3:
+  // There used to be an exemption for `NOTE_CHOICES` — a table of Hebrew marker
+  // literals that `applyChoice` spelled for the document as its first act. The
+  // table is gone, and with it the exemption: nothing in these three files may
+  // hold a command name as a literal any more, because a command's language is a
+  // property of the *writer's document* and never of the source file that
+  // mentions it. That is the shared cause of all three of §6.1–§6.3:
   //
   //   - `noteFor` matched against those literals, so an English tiered note was
   //     not a note (§6.1);
@@ -228,55 +264,58 @@ export async function run() {
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/^[ \t]*\/\/.*$/gm, "")
         .replace(/\/\/[ \t].*$/gm, "");
-    // The canonical table, cut out by its own declaration. Named rather than
-    // pattern-matched so that renaming it fails this test loudly instead of
-    // quietly widening what is allowed.
-    const CARDS = "export const NOTE_CHOICES: NoteChoice[] = [";
-    const notesBody = stripComments(NOTES_SRC);
-    const at = notesBody.indexOf(CARDS);
-    ok("notes.ts still declares NOTE_CHOICES where this sweep expects it", at >= 0);
-    // To the closing `];` at column 0, which is how this file's top-level arrays
-    // end and is the only boundary that does not need a bracket counter.
-    const cardsEnd = notesBody.indexOf("\n];", at);
-    const outsideCards =
-      notesBody.slice(0, at) + notesBody.slice(cardsEnd < 0 ? notesBody.length : cardsEnd);
 
     const offenders = [];
     for (const [file, src] of [
-      ["notes.ts (outside NOTE_CHOICES)", outsideCards],
-      ["apparatus.ts", stripComments(APPARATUS_SRC)],
+      ["notes.ts", NOTES_SRC],
+      ["channels.ts", CHANNELS_SRC],
+      ["apparatus.ts", APPARATUS_SRC],
     ]) {
-      for (const m of src.matchAll(/["'`]#[֐-׿][^"'`\n]*["'`]/gu)) {
+      for (const m of stripComments(src).matchAll(/["'`]#[֐-׿][^"'`\n]*["'`]/gu)) {
         offenders.push(`${file}: ${m[0]}`);
       }
     }
-    check("no Hebrew command literal outside the canonical table", offenders, []);
+    check("no Hebrew command literal anywhere on the note path", offenders, []);
   }
 
-  // And the menu does not go back to scraping the cards. The audit's own route
-  // in was that `openNoteMenu` had its own copy of the question `notes.ts`
-  // answers, so the fix is that it has none.
+  // And the menu does not go back to keeping its own copy of the question. The
+  // audit's own route in was that `openNoteMenu` answered "what could this note
+  // become" for itself, so the fix is that it has no answer of its own.
   ok(
-    "the note menu asks notes.ts for its targets",
-    MAIN.includes("conversionTargets(note.command"),
+    "the note menu asks notes.ts where a note could go",
+    MAIN.includes("destinationTargets(doc, note)"),
   );
   ok(
-    "and does not build them out of NOTE_CHOICES itself",
-    !MAIN.includes("NOTE_CHOICES.flatMap(markersOf)"),
+    "and does not build the list out of the destination table itself",
+    !/destinationTargets|DESTINATIONS/.test(
+      MAIN.slice(MAIN.indexOf("function openNoteMenu"), MAIN.indexOf("function closeNoteMenu")).replace(
+        "const targets = destinationTargets(doc, note);",
+        "",
+      ),
+    ),
   );
 
-  // ------------------------------------------------- applyChoice, both languages
+  // ------------------------------------------------- applyPick, both languages
   //
   // The end of the road: what actually lands in the document.
   for (const lang of LANGS) {
     const doc = docIn(lang);
-    for (const c of NOTE_CHOICES) {
-      const { text } = applyChoice(doc, doc.length, c, 0, false, {}, lang);
-      const added = text.slice(doc.length);
+    for (const d of DESTINATIONS) {
+      const pick = { dest: d.id, region: d.id === "region" ? "shaar" : null };
+      const { text } = applyPick(doc, doc.length, pick, false, {}, lang);
+      const added = text.slice(0, text.length);
       if (lang !== "en") continue;
       ok(
-        `en: applying ${c.id} writes no Hebrew command`,
+        `en: sending a note to ${d.id} writes no Hebrew command`,
         !/#[֐-׿]/u.test(added),
+        added,
+      );
+      // …nor a Hebrew *parameter*, which is the half `_en_params` exists for and
+      // the half that was forgotten twice: `#endnote(זרם: "sources")` is an
+      // English command taking a Hebrew argument name.
+      ok(
+        `en: …and no Hebrew parameter name`,
+        !/[֐-׿]+\s*:/u.test(added),
         added,
       );
     }

@@ -22,7 +22,9 @@ import {
   sortBodies,
   printingAnchor,
 } from "../.tmp-test/deferred.mjs";
-import { NOTE_CHOICES, applyChoice, markersOf } from "../.tmp-test/notes.mjs";
+import { applyPick, noteAt, notesIn, retargetNote } from "../.tmp-test/notes.mjs";
+import { BODY_HOMES, defersBody } from "../.tmp-test/deferred.mjs";
+import { DESTINATIONS, destinationArg } from "../.tmp-test/channels.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
 
 // Deferred note bodies: the editing model behind #הערה_בשם / #גוף_הערה.
@@ -444,50 +446,52 @@ export async function run() {
   notOk("snippet: declines a non-note", deferSnippet(`#הדגשה[|]`, "1"));
 }
 
-// 36. every one of the eleven layouts survives the chooser's deferred path
+// 36. every destination survives the deferred path
 //
 // The engine tests prove the *page* is identical either way. This proves the
 // chooser cannot emit a source that is inconsistent — a marker with no body, or
-// a layout silently downgraded to a plain footnote on the way through.
+// a destination silently lost on the way through.
 {
-  for (const c of NOTE_CHOICES) {
-    // Every marker the layout has, not the first two. A card with three streams
-    // has a third command that is exactly as much a note as the first, and the
-    // deferred path has to file a body for it too.
-    markersOf(c).forEach((snippet, layer) => {
-      const r = applyChoice("ראש סוף.\n", 3, c, layer, true);
-      const s = scan(r.text);
-      check(`chooser/${c.id}/${layer}: one marker`, s.refs.length, 1);
-      check(`chooser/${c.id}/${layer}: one body`, s.defs.length, 1);
-      check(`chooser/${c.id}/${layer}: consistent`, problems(r.text).length, 0);
-      // The layout the writer picked is the layout that gets written.
-      const cmd = /^#([A-Za-z0-9֐-׿_]+)/.exec(snippet)[1];
-      check(
-        `chooser/${c.id}/${layer}: layout kept`,
-        s.refs[0].kind,
-        cmd === "הערה" ? null : cmd,
-      );
-      // The caret lands in the body, which is what the writer is about to type.
-      check(`chooser/${c.id}/${layer}: caret in the body`, r.text[r.caret], "]");
-    });
+  for (const d of DESTINATIONS) {
+    const pick = { dest: d.id, region: d.id === "region" ? "שער" : null };
+    const r = applyPick("ראש סוף.\n", 3, pick, true);
+    const s = scan(r.text);
+    check(`chooser/${d.id}: one marker`, s.refs.length, 1);
+    check(`chooser/${d.id}: one body`, s.defs.length, 1);
+    check(`chooser/${d.id}: consistent`, problems(r.text).length, 0);
+    // A note is `#הערה` wherever it prints, so the marker's `סוג` stays the
+    // default and the destination rides on the same call as an argument. That
+    // is the whole difference between this model and the eighteen commands it
+    // replaced, and it is what makes moving an apparatus one word.
+    check(`chooser/${d.id}: no layout command`, s.refs[0].kind, null);
+    const arg = destinationArg(pick, "he");
+    check(`chooser/${d.id}: the destination rides on the marker`, s.refs[0].rest, arg);
+    // The caret lands in the body, which is what the writer is about to type.
+    check(`chooser/${d.id}: caret in the body`, r.text[r.caret], "]");
   }
+  // A tiered marker is written verbatim — a sub-note is the same destination as
+  // its parent and there is no vocabulary for it in a pick, so `sel.marker` is
+  // what carries it. This is the one case where the command is not `#הערה`.
+  const tier = applyPick("ראש סוף.\n", 3, { dest: "foot", region: null }, true, {
+    marker: "#הערה_ב[|]",
+  });
+  check("chooser/tier: the tier is kept", scan(tier.text).refs[0].kind, "הערה_ב");
 }
 
-// 37. the layout's own scaffolding still gets written, and the body sits after it
+// 37. the destination's own scaffolding still gets written, and the body sits after it
 {
-  const c = NOTE_CHOICES.find((x) => x.id === "endnote");
-  const r = applyChoice("ראש סוף.\n", 3, c, 0, true);
-  ok("chooser: the dump call is still written", r.text.includes("#הערות_בסוף"));
+  const r = applyPick("ראש סוף.\n", 3, { dest: "end", region: null }, true);
+  ok("chooser: the destination is placed", r.text.includes('#ערוץ("סוף", מיקום: "סוף")'));
+  ok("chooser: and its block is printed", r.text.includes('#הצג_אזור("סוף")'));
   ok(
-    "chooser: the body is filed after it",
-    r.text.indexOf("#גוף_הערה") > r.text.indexOf("#הערות_בסוף"),
+    "chooser: the body is filed after the dump call",
+    r.text.indexOf("#גוף_הערה") > r.text.indexOf("#הצג_אזור"),
   );
 }
 
 // 38. inline remains the default, unchanged
 {
-  const c = NOTE_CHOICES.find((x) => x.id === "footnote");
-  const r = applyChoice("ראש סוף.\n", 3, c, 0);
+  const r = applyPick("ראש סוף.\n", 3, { dest: "foot", region: null });
   ok("chooser: still inline by default", r.text.includes("#הערה[]"));
   notOk("chooser: no body filed", r.text.includes("#גוף_הערה"));
 }
@@ -714,6 +718,149 @@ const filed = (text) => scan(text).defs.map((d) => d.name);
   const body = main.slice(at, main.indexOf("\n}", at));
   ok("revealCursor remaps a deferred caret before asking", body.includes("printingAnchor("));
   ok("…and falls back to the caret itself", /printingAnchor\([\s\S]*?\?\?/.test(body));
+}
+
+
+// ---------------------------------------------------------- 40. where the prose sits
+//
+// **Thing one of the note model, and it is not a note feature.** Where a note's
+// prose sits in the *file* is orthogonal to where the note prints — the engine's
+// own `every_note_layout_lays_out_identically_with_deferred_bodies` renders each
+// layout twice and asserts every run landed on the same page at the same
+// coordinates at the same size — so it is a preference about reading the source,
+// and it has three answers.
+{
+  const doc = "#כותרת1[פרק א]\n\nראש הפרק כאן.\n\n#כותרת1[פרק ב]\n\nהמשך כאן.\n";
+  const at = doc.indexOf("ראש") + 2;
+
+  // Inline: no marker, no body, the prose is in the sentence.
+  const inline = applyPick(doc, at, { dest: "foot", region: null }, false);
+  ok("home/inline: the prose is in the sentence", inline.text.includes("#הערה[]"));
+  notOk("home/inline: nothing is filed", inline.text.includes("#גוף_הערה"));
+
+  // The end of the file: one list at the foot, which is the org-mode
+  // arrangement and what this has always done.
+  const file = applyPick(doc, at, { dest: "foot", region: null }, true, {}, "he", false, null, "file");
+  const filedAt = file.text.indexOf("#גוף_הערה");
+  ok("home/file: a body is filed", filedAt > 0);
+  ok(
+    "home/file: at the foot of the file, past the second heading",
+    filedAt > file.text.indexOf("פרק ב"),
+    file.text,
+  );
+
+  // The end of its section: the prose stays with the chapter it belongs to, so a
+  // hundred-page sefer does not end in a thousand-line block.
+  const section = applyPick(doc, at, { dest: "foot", region: null }, true, {}, "he", false, null, "section");
+  const inSection = section.text.indexOf("#גוף_הערה");
+  ok("home/section: a body is filed", inSection > 0);
+  ok(
+    "home/section: before the next heading, not after it",
+    inSection < section.text.indexOf("פרק ב"),
+    section.text,
+  );
+  ok(
+    "home/section: and after its own section's prose",
+    inSection > section.text.indexOf("ראש הפרק"),
+    section.text,
+  );
+  check("home/section: the pair is still consistent", problems(section.text).length, 0);
+
+  // A document with no headings has no sections, and the foot of the file is the
+  // same place — not a silent second-best.
+  const flat = applyPick("ראש סוף.\n", 3, { dest: "foot", region: null }, true, {}, "he", false, null, "section");
+  const asFile = applyPick("ראש סוף.\n", 3, { dest: "foot", region: null }, true, {}, "he", false, null, "file");
+  check("home/section: with no headings it is the same as the file", flat.text, asFile.text);
+
+  // The three answers are the three the setting offers, and `defersBody` is the
+  // one place that decides which of them writes a marker at all.
+  check("home: three answers, named once", [...BODY_HOMES], ["inline", "file", "section"]);
+  check("home: only inline keeps the prose in the sentence", BODY_HOMES.filter(defersBody), [
+    "file",
+    "section",
+  ]);
+}
+
+// 41. the per-destination override has a row for every destination
+//
+// One global answer and one override per destination — and an override that
+// exists in the model and not in the drawer is a preference a writer cannot
+// reach, which is how the global one came to live inside the note-layout
+// chooser (the one surface decision 3 forbids it) for as long as it did.
+//
+// Derived from `DESTINATIONS`, so a seventh destination arrives here needing a
+// row rather than silently having none.
+{
+  const drawer = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+  ok(
+    "settings: the drawer carries the global answer",
+    drawer.includes('"data-setting": "noteBodyHome"'),
+  );
+  ok(
+    "settings: …and builds one override row per destination",
+    drawer.includes("`noteBodyPlacement.${d.id}`") && drawer.includes("for (const d of DESTINATIONS)"),
+  );
+  ok(
+    "settings: …and the note-layout chooser does not ask the question at all",
+    !readFileSync(new URL("../src/panelviews.ts", import.meta.url), "utf8").includes("data-defer"),
+  );
+}
+
+
+// ------------------------------------------------- 42. a note in code mode
+//
+// **Inside `#רשימה(…)` or `#טבלה(…)` the caret is already in code, where a
+// leading `#` is a syntax error** — so `insertionAt` writes the marker bare, and
+// for as long as this module scanned the text for `#` and took the name after
+// it, every deferred surface was blind to a note written there.
+//
+// The page was right the whole time, which is why nothing noticed. What was
+// wrong was everything that *describes* the page: the notes pane and the jump
+// list were empty on it, `deferAll` skipped it, and — the destructive half —
+// `problems()` reported its prose as an **orphan**, which is the finding the
+// lint offers to fix by deleting the writer's words.
+//
+// The inline half of the same question was already right: `notes.notesIn` reads
+// `spans.ts` and never asks about the hash. Two scanners over one markup,
+// disagreeing, is the defect family this repository is named for — so there is
+// one scanner now, and `Ref.hash` carries what it found so a rewrite can put the
+// marker back the way it was.
+{
+  const inline = "#רשימה(\n  פריט[ראשון],הערה[הגוף],\n  פריט[שני],\n)\n";
+  const deferred =
+    '#רשימה(\n  פריט[ראשון],הערה_בשם("1"),\n  פריט[שני],\n)\n\n#גוף_הערה("1")[הגוף]\n';
+
+  // Read: the marker is a marker even without its hash.
+  const s = scan(deferred);
+  check("code mode: the bare marker is found", s.refs.length, 1);
+  check("code mode: …and knows it had no hash", s.refs[0]?.hash, false);
+  check("code mode: …while its body at top level did", s.defs[0]?.hash, true);
+  check("code mode: the pair is consistent", problems(deferred), []);
+  check("code mode: and the note is in the index", notesIn(deferred).length, 1);
+
+  // Write: both sweeps put the marker back the way they found it. A `#` written
+  // into an argument list is the *"the character `#` is not valid in code"*
+  // failure — 288 of 1,248 documents the first time anybody swept for it —
+  // produced here by the button that repairs the note rather than by the writer.
+  check("code mode: sweeping it out keeps the bare form", deferAllInlineNotes(inline).text, deferred);
+  check("code mode: and recalling it gives the document back", inlineAllDeferredNotes(deferred).text, inline);
+  // One at a time, which is a different function and had the same defect.
+  check(
+    "code mode: one note out",
+    deferInlineNote(inline, inline.indexOf("הגוף"))?.text,
+    deferred,
+  );
+  check(
+    "code mode: …and one note back",
+    inlineDeferredNote(deferred, deferred.indexOf("הערה_בשם") + 2)?.text,
+    inline,
+  );
+  // Sending it somewhere else keeps the form too — the third writer.
+  const there = noteAt(deferred, deferred.indexOf("הערה_בשם") + 2);
+  ok("code mode: the note is under the caret", !!there);
+  const moved = there ? retargetNote(deferred, there, { dest: "end", region: null }) : { text: "" };
+  notOk("code mode: a retarget writes no hash into the argument list", /,#/.test(moved.text), moved.text);
+  ok("code mode: …and does name the destination", moved.text.includes('ערוץ: "סוף"'), moved.text);
 }
 
 }

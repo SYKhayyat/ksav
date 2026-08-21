@@ -1006,7 +1006,9 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   margin: 0 0 6px; font-size: 12.5px; line-height: 1.55; color: var(--ink);
   background: var(--accent-soft); border-radius: 8px; padding: 9px 12px;
 }
-/* The two everyday kinds, given the weight the other ten do not get. */
+/* The presets. A preset is a *value* of the one axis — a destination, and for
+   two of them a region — so it shows the same page sketch the destination shows,
+   and pressing one leaves the writer holding an ordinary pick. */
 .note-quick-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .note-quick {
   display: flex; align-items: center; gap: 12px; text-align: start; cursor: pointer;
@@ -1014,16 +1016,17 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   background: var(--bg); color: var(--ink); font-family: var(--hebrew);
 }
 .note-quick:hover { background: var(--accent-soft); }
-.note-quick-glyph { font-size: 22px; color: var(--accent); line-height: 1; flex: none; }
+.note-quick.on { background: var(--accent-soft); }
+.note-quick-sketch {
+  direction: ltr; white-space: pre; font-family: var(--mono); font-size: 8px;
+  line-height: 1.4; color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px; flex: none;
+}
 .note-quick b { display: block; font-size: 14px; }
 .note-quick span span { font-size: 11.5px; color: var(--muted); }
 .notes-chooser-box h3 {
   margin: 20px 0 10px; font-size: 13px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: .04em;
-}
-.note-grid {
-  display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
 }
 .note-card {
   display: flex; gap: 12px; align-items: flex-start;
@@ -1058,38 +1061,9 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
   font-size: 10.5px; color: var(--muted); direction: ltr;
 }
 
-/* The two axes, as a matrix: rows are where it prints, columns are how the
-   layers are arranged. An impossible combination is greyed with its reason on
-   the tooltip, never hidden — a writer who cannot see that a combination was
-   considered has no way to tell a wrong question from a missing feature. */
-/* `--nm-cols` is set on the element from `NOTE_HOW.length`, not written here.
-   This rule said `repeat(5, …)`, which was true until `parallel-fixed` became a
-   sixth column and then laid the last one out in an implicit track of a
-   different width — a count of the axis kept in a file that cannot see it. */
-.notes-matrix { display: grid; gap: 4px; margin: 6px 0 16px; overflow-x: auto; }
-.nm-row { display: grid; grid-template-columns: 150px repeat(var(--nm-cols, 6), minmax(96px, 1fr)); gap: 4px; }
-.nm-corner, .nm-col-head, .nm-row-head {
-  font-size: 11px; color: var(--muted); padding: 5px 7px; line-height: 1.35;
-}
-.nm-corner, .nm-col-head { font-weight: 600; align-self: end; }
-.nm-row-head { font-weight: 600; align-self: center; }
-.nm-cell {
-  font-family: var(--hebrew); font-size: 11.5px; line-height: 1.35;
-  padding: 8px 9px; text-align: start; cursor: pointer;
-  border: 1px solid var(--line); border-radius: 8px;
-  background: var(--bg); color: var(--ink);
-}
-.nm-cell:hover { border-color: var(--accent); color: var(--accent); }
-.nm-cell.on { border-color: var(--accent); background: var(--accent); color: #fff; }
-.nm-cell.empty {
-  cursor: help; color: var(--muted); opacity: 0.55; text-align: center;
-  border-style: dashed; padding: 8px 9px;
-  display: flex; align-items: center; justify-content: center;
-}
-
-/* One question at a time. The buttons are wide because the answers are
-   sentences — "at the foot of every page" is the whole point and truncating it
-   back to "page" would put the writer back in front of an axis label. */
+/* The one question. The buttons are wide because the answers are sentences —
+   "at the foot of the page" is the whole point and truncating it back to "page"
+   would put the writer back in front of an axis label. */
 .nq-ask {
   margin: 18px 0 8px !important; font-size: 13px !important; font-weight: 700;
   color: var(--ink) !important; text-transform: none !important; letter-spacing: 0 !important;
@@ -1108,41 +1082,32 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .nq-option span { display: block; margin-top: 3px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 .nq-option.on { border-color: var(--accent); background: var(--accent); color: #fff; }
 .nq-option.on span { color: #fff; opacity: .85; }
-/* A refused arrangement, with its reason in words rather than in a tooltip. Not
-   a button and not focusable: there is nothing here to press. */
-.nq-option.off {
-  cursor: default; border-style: dashed; opacity: .6; background: var(--panel);
+/* Each destination carries the page it builds. The sketch is forced LTR: it is
+   a picture of a page, not text, so it must not mirror when the UI is Hebrew. */
+.nq-destinations { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.nq-sketch {
+  display: block; direction: ltr; white-space: pre; margin-bottom: 6px;
+  font-family: var(--mono); font-size: 8.5px; line-height: 1.4;
+  color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 5px; padding: 5px 6px;
 }
-.nq-option.off b { color: var(--muted); font-weight: 600; }
+.nq-option.on .nq-sketch { color: #fff; background: transparent; border-color: rgba(255,255,255,.35); }
 .nq-wait { margin: 0 0 4px; font-size: 12.5px; color: var(--muted); }
-/* Which of the three presentations is on. Small: it is a preference, not the
-   question the panel is asking.
-
-   Sticky, because it is the control that changes what the whole panel is, and a
-   panel this tall scrolls. The assembled run measured it at y=-55 — scrolled
-   off the top of its own box by the very thing that had just brought the chosen
-   arrangement into view — which is the switcher robbing itself. `.notes-
-   chooser-box` is the scroller, so `top: 0` sticks to its padding edge; the
-   background and the negative margin are what stop the rows underneath showing
-   through it. */
-.nq-views {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  position: sticky; top: 0; z-index: var(--z-editor-marks);
-  margin: 2px -26px 4px; padding: 6px 26px;
-  background: var(--panel);
-}
-.nq-views-label { font-size: 11.5px; color: var(--muted); }
-.nq-view {
-  padding: 4px 10px; cursor: pointer; font-size: 11.5px; font-family: var(--hebrew);
-  border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted);
-}
-.nq-view:hover { border-color: var(--accent); color: var(--accent); }
-.nq-view.on { border-color: var(--accent); background: var(--accent); color: #fff; }
-
 .note-body { min-width: 0; }
 .note-body b { font-size: 14px; }
 .note-body p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+/* Why a pick costs something, or cannot be written — in words, under the pick
+   it is about. The grid this replaced put its reasons in a `title` attribute,
+   which is a tooltip: absent on a touch screen, absent to anyone not hovering,
+   and absent to a screen reader reading the button's text. */
 .note-caveat { font-style: italic; }
+p.note-caveat {
+  margin: 8px 0 0; padding: 8px 11px; font-style: normal;
+  font-size: 12.5px; line-height: 1.55; color: var(--ink);
+  background: var(--accent-soft); border-radius: 8px;
+}
+p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-weight: 600; }
+.note-use[disabled] { opacity: .45; cursor: not-allowed; filter: none; }
 .note-actions { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
 .note-use {
   font-family: var(--hebrew); font-size: 12px; padding: 5px 12px; cursor: pointer;
@@ -1152,27 +1117,19 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .note-use.secondary { background: transparent; color: var(--accent); }
 .note-use:hover { filter: brightness(1.08); }
 
-/* Where the note's prose lives in the FILE — a separate question from where it
-   prints, so it is a row of its own below the grid rather than a twelfth card. */
-.defer-row { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
-.defer-options { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.defer-option {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
-  text-align: start; cursor: pointer; padding: 11px 13px;
-  border: 1px solid var(--line); border-radius: 10px;
-  background: var(--bg); color: var(--ink); font-family: var(--hebrew);
-}
-.defer-option:hover { border-color: var(--accent); }
-.defer-option.on { border-color: var(--accent); background: var(--accent-soft); }
-.defer-option b { font-size: 13px; }
-.defer-option span { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
-.defer-all {
-  margin-top: 12px; padding: 7px 14px; cursor: pointer;
+/* The three sweeps that follow the source-position preference: send every note's
+   prose to the end, bring it all back, and put the list in reading order. They
+   sit with the preference in Settings rather than behind a panel about note
+   layouts, because a preference with no way to apply it to the document in hand
+   is half a feature. */
+.set-row.set-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.set-actions button {
+  padding: 6px 12px; cursor: pointer;
   font-family: var(--hebrew); font-size: 12px;
   border: 1px dashed var(--line); border-radius: 7px;
   background: none; color: var(--muted);
 }
-.defer-all:hover { border-color: var(--accent); color: var(--accent); }
+.set-actions button:hover { border-color: var(--accent); color: var(--accent); }
 
 /* The notes pane — Word's navigation pane, for notes. Same drawer as the
    outline, because they are the two halves of a sefer's structure. */
@@ -1203,12 +1160,6 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 
 @media (max-width: 720px) {
   .notes-chooser-box { width: 96vw; padding: 16px; }
-  .note-grid { grid-template-columns: 1fr; }
-  .defer-options { grid-template-columns: 1fr; }
-  /* The matrix keeps its own scroller rather than squeezing every column into
-     a phone: the labels are the point and they cannot be truncated away. How
-     many columns there are is still the axis's business, not this rule's. */
-  .nm-row { grid-template-columns: 110px repeat(var(--nm-cols, 6), 84px); }
   .nq-options { grid-template-columns: 1fr; }
   .tb-name { display: none; }
 }

@@ -170,6 +170,82 @@
 /// One value, said in Hebrew whichever language it arrived in.
 #let _val(v) = if type(v) == str { _en_values.at(v, default: v) } else { v }
 
+// ---- שיפוע · the one slant, for commands and for configuration alike ----
+//
+// `emph` is a *request* for an italic face, and every Hebrew family this engine
+// bundles ships none — so Typst hands back the upright face and the slant is
+// invisible on paper. `#נטוי` has sheared the frame into a synthetic oblique for
+// months and works. **Every other way of asking for a slant did not**, because
+// they all went through `text(style: "italic")`, which is the request that comes
+// back upright.
+//
+// Five sites asked that way, and they are not obscure: `_mk_render` carries the
+// shipped italics for `#גמרא`, `#פסוק` and `#ציון_מקור`; `_ap_wrap` is every
+// banded apparatus; `_fn_wrap` every native footnote tier; `_sn_wrap` the side
+// column; and the heading rule slants every level past six. A writer setting
+// `#הגדרות_הערות(סגנון: "italic")` got nothing, silently, and a `#גמרא` has
+// shipped an italic default that has never once printed.
+//
+// So the slant is *one* function and both grammars reach it: `#נטוי` is this,
+// and so is `סגנון: "italic"` wherever it is written. `emph` stays inside, so a
+// family that does carry a real italic still uses it rather than the shear.
+//
+// The fence is `slanting_commands()` in `lib.rs`, inverted: it used to find the
+// commands whose slant would go missing so the writer could be warned about
+// them, and it now has to come back **empty**, because a `text(style:)` left
+// anywhere in this file is a slant that goes missing again.
+#let _ks_skew(body) = context {
+  // Only on paper. HTML export is reflowable content where `<em>` is the right,
+  // semantic answer and the browser synthesises the oblique itself.
+  if target() == "html" {
+    emph(body)
+  } else {
+    // Around each **word**, never around the passage. `skew` lays its content
+    // out and shears the frame, and a sheared frame is a block: one box around a
+    // whole sentence is an unbreakable slab that jumps to a line of its own, and
+    // no box at all breaks the sentence into three paragraphs. Boxing each run
+    // of non-space characters leaves every space an ordinary space in the
+    // enclosing paragraph, which is what a line break — and justification —
+    // needs to be able to happen at.
+    show regex("\\S+"): it => box(skew(ax: -12deg, reflow: true, it))
+    emph(body)
+  }
+}
+
+/// Small capitals, drawn rather than requested.
+///
+/// `smallcaps` asks the font for the `smcp` feature and the six faces this
+/// engine bundles have none, so `#הגדרות_כותרות(רברבתי: true)` printed exactly
+/// nothing different — the same defect as the slant, one row down the same
+/// dictionary, and found the same way.
+///
+/// So the lower-case letters are drawn as capitals a size smaller, which is what
+/// a word processor does when the font cannot answer. `smallcaps` stays on the
+/// outside, so a family that *does* carry the feature uses its real one and this
+/// changes nothing for it.
+///
+/// Only Latin letters have a case at all; Hebrew is untouched by construction,
+/// which is why this setting is worth having in a Hebrew document in the first
+/// place — a sefer's English title page is where it is reached for.
+#let _ks_smallcaps(body) = {
+  show regex("\\p{Ll}+"): it => text(size: 0.78em, upper(it))
+  smallcaps(body)
+}
+
+/// A `סגנון` value, applied. Every spelling of the request lands here, and none
+/// of them reaches `text(style:)`.
+///
+/// `"נטוי"` is accepted alongside `"italic"` because it is not an invented word:
+/// it is the name of the command this prelude already gives the writer, and a
+/// Hebrew document asking for a slant in English was the odd thing. It is not
+/// added to `_en_values`, which maps English *to* Hebrew — `text(style:)` would
+/// then be handed a Hebrew word by every other caller of `_val`.
+#let _ks_style(st, body) = if st in ("italic", "oblique", "נטוי") {
+  _ks_skew(body)
+} else {
+  body
+}
+
 // ============================================================
 //  גלובלי כברירת מחדל, פרטי כעקיפה · one override model
 // ------------------------------------------------------------
@@ -223,16 +299,24 @@
 // under `_מפורש`, and nothing else reads that key.
 #let _nt_keys = ("גופן", "גודל", "סגנון", "צבע", "ריווח")
 #let _nt_cfg = state("ksav-nt-cfg", (:))
-#let הגדרות_טקסט_הערות(..opts) = _nt_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() {
-    if not _nt_keys.contains(k) {
-      panic("הגדרות_טקסט_הערות: ארגומנט לא מוכר · unrecognised argument: " + k)
+#let הגדרות_טקסט_הערות(..opts) = {
+  _nt_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() {
+      if not _nt_keys.contains(k) {
+        panic("הגדרות_טקסט_הערות: ארגומנט לא מוכר · unrecognised argument: " + k)
+      }
+      d.insert(k, v)
     }
-    d.insert(k, v)
-  }
-  d
-})
+    d
+  })
+  // The shared layer says `ריווח` too, and it reaches the footnote area the same
+  // way the per-apparatus command does — see the note on `#הגדרות_הערות`, which
+  // is also where the reason for the spread is written down. A shared setting
+  // that every apparatus reads except the one with a `set` rule behind it would
+  // be the same defect one layer down.
+  set footnote.entry(..(if "ריווח" in opts.named() { (gap: opts.named().ריווח) } else { (:) }))
+}
 
 #let notes_text_config = _en(הגדרות_טקסט_הערות)
 
@@ -586,6 +670,16 @@
 /// knob, keyed by class, exactly as `#הגדרות_זרמים` keys its knobs by stream.
 /// A plain value instead of a dictionary applies to every class.
 #let _mk_cfg = state("ksav-mk-cfg", (:))
+
+// Defined here rather than beside the block commands that use it: the side
+// column's marker renderer needs it too, and that lives above the document
+// wrapper — a Typst closure resolves its names where it is written.
+#let _mk_part(cls, part) = {
+  let shipped = _mk_part_defaults.at(cls, default: (:)).at(part, default: (:))
+  let chosen = _mk_cfg.get().at(_mk_parts_key, default: (:)).at(cls, default: (:))
+  _cfg_with(shipped, chosen.at(part, default: (:)))
+}
+
 #let הגדרות_סימונים(..opts) = _mk_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
@@ -771,16 +865,26 @@
   let a = (:)
   if "גודל" in c { a.insert("size", c.גודל) }
   if "צבע" in c { a.insert("fill", c.צבע) }
-  if "סגנון" in c { a.insert("style", _val(c.סגנון)) }
   if "משקל" in c { a.insert("weight", _val(c.משקל)) }
+  // The slant through `_ks_style`, not through `text(style:)` — which is the
+  // request the bundled families answer with the upright face. Three of the
+  // eight mark classes ship `סגנון: "italic"` as their *default* (`#גמרא`,
+  // `#פסוק`, `#ציון_מקור`), so this is not a knob nobody set: it is a look this
+  // register has promised since it was written and has never once printed.
+  if "סגנון" in c { out = _ks_style(c.סגנון, out) }
   text(..a, out)
 }
 
-/// One part's look: its shipped default, then whatever the writer set.
+/// Draw one piece of a command in its own look.
 ///
 /// It does **not** fold in the class's look, because it is drawn inside it —
 /// `_mk_render(class, … _mk_render(part, piece) …)` — so a size on the command
-/// scales the part too and the part carries only its difference.
+/// scales the part too and the part carries only its difference. `_mk_part`,
+/// which resolves the piece's own look, is defined much further up, beside the
+/// register's other tables: the side column's marker renderer needs it and lives
+/// above the document wrapper.
+#let _mk_piece(cls, part, body) = _mk_render(_mk_part(cls, part), body)
+
 /// Draw a block command's frame: fill, border, padding, corner, width, align.
 ///
 /// Nothing is passed to `block` that the class did not ship or the writer did
@@ -855,11 +959,42 @@
 // *between* entries and so belongs to no single entry. See `_cfg_split`.
 #let _fn_own_keys = ("גודל", "סגנון", "צבע", "הזחה", "תוויות")
 // #הגדרות_הערות(סגנון: ("normal","italic","normal"), הזחה: (0em,1em,2em), ריווח: 1em, …)
-#let הגדרות_הערות(..opts) = _fn_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  _nt_explicit(d, opts.named())
-})
+//
+// # ריווח, and why it takes a `set` rule as well as a state
+//
+// The gap between one footnote entry and the next was said **twice**: here,
+// where a writer looks for it, and as `ריווח_הערות` on `#מסמך`, which is the one
+// that reached the page through `set footnote.entry(gap: …)`. The key declared
+// here was read by nothing at all — a knob with a name, a default, a line in the
+// documentation and no wire behind it, which is the worst of the three states a
+// setting can be in, because it looks exactly like a working one.
+//
+// It cannot be fixed by making the *document wrapper* read this state: a `set`
+// rule is applied once, at the top, and `#הגדרות_הערות` may be written on page
+// forty. So the command emits the `set` itself. Typst scopes a `set` from where
+// it appears to the end of the enclosing block, which is precisely what a writer
+// means by changing a setting half way through a sefer, and it leaves
+// `ריווח_הערות` as what it should have been all along — the document-level
+// default that this overrules.
+//
+// `ריווח` stays out of `_fn_own_keys`: the gap is *between* two entries and
+// belongs to neither of them.
+#let הגדרות_הערות(..opts) = {
+  _fn_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    _nt_explicit(d, opts.named())
+  })
+  // **Spread, not an `if` block**, and this file has now paid for that twice.
+  // A `set` is scoped to the block it appears in, so `if … { set … }` governs
+  // the two lines of the `if` and nothing else — it compiles, it reads exactly
+  // like a working feature, and `gap_0em` against `gap_6em` still rendered
+  // byte-identical pages. Spreading an empty dictionary into the `set` is a set
+  // of nothing, which is the no-op that was wanted, at the function's own level.
+  // The heading rule uses the same idiom for `font`, and the note above
+  // `set align` in the document wrapper is this trap written out in full.
+  set footnote.entry(..(if "ריווח" in opts.named() { (gap: opts.named().ריווח) } else { (:) }))
+}
 #let footnote_config = _en(הגדרות_הערות)
 
 // ============================================================
@@ -1200,6 +1335,13 @@
   if after.len() > 0 { s = s.before(after.first().location()) }
   s
 }
+/// What the document said the gap between two footnote entries is.
+///
+/// Written once by `#מסמך` so that `#הגדרות_הערות(ריווח:)` knows what it is
+/// overruling — see `_fn_wrap`, where the overruling happens, and why it has to
+/// happen there rather than through the setting Typst provides for it.
+#let _fn_gap_base = state("ksav-fn-gap", 0.85em)
+
 #let _fn_wrap(cfg, tier, body) = {
   let sz = _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em)
   let st = _fn_pick(cfg.at("סגנון", default: ()), tier, "normal")
@@ -1208,7 +1350,7 @@
   // stay byte-identical to one: a text() wrapper forcing "normal" and black
   // would quietly strip a slant or a colour the surrounding document had set.
   if sz == 1em and st == "normal" and cl == luma(0) { body } else {
-    text(size: sz, style: st, fill: cl, body)
+    text(size: sz, fill: cl, _ks_style(st, body))
   }
 }
 
@@ -1253,16 +1395,53 @@
   // it onto the line below and orphans the number on a line of its own. #h keeps
   // the number and the first words of the note together, which is the whole
   // point of the entry.
+  // # `ריווח`, and why the gap is added at the foot of the entry
+  //
+  // The gap between two footnote entries is `footnote.entry(gap:)` and Typst
+  // resolves it **at page level**. Measured, every other lever leaves it at
+  // exactly 16.93pt: that same `set` written in the document body, `clearance`,
+  // `indent`, a `show footnote.entry: set block(spacing: 6em)`, wrapping the
+  // entry in a `block(spacing: 6em)` from a `show` rule in `#מסמך`, and putting
+  // `#מסמך`'s own `set` inside a `context` so it could read the writer's value.
+  // The identical `set` at `#מסמך`'s own top level moves them 78.73pt — and that
+  // level cannot read a state the body sets, because reading one needs a
+  // `context` and the `context` is what breaks the reach.
+  //
+  // So the writer's gap is *drawn* rather than *set*: the difference between
+  // what they asked for and what the document is already spacing entries by,
+  // added under this entry's own last line. It is legal for that to be negative,
+  // which is what lets `ריווח: 0em` tighten a document whose default is looser.
+  //
+  // Under the body and never over it: a footnote entry lays out as
+  // «number» «body», and anything block-level at the *start* pushes the body
+  // down and orphans the number on a line of its own.
+  //
+  // Read per note, at the note's own call site, so a sefer may change it at
+  // siman ten and mean it — which is more than the setting Typst provides can
+  // do. Untouched unless the writer said so: `_מפורש` records which keys a
+  // `#הגדרות_*` call was actually given, so a document that never mentions
+  // `ריווח` lays out byte-identically to one written before this existed.
+  let extra = if cfg.at("_מפורש", default: ()).contains("ריווח") {
+    cfg.at("ריווח", default: _fn_gap_base.get()) - _fn_gap_base.get()
+  } else { 0em }
   let entry = _fn_wrap(cfg, דרגה, {
     if ind != 0em { h(ind) }
     if lbl != none and lbl != "" { [#strong(lbl) ] }
     body
+    if extra != 0em { v(extra, weak: false) }
   })
   let schemes = cfg.at("מספור", default: none)
   // A channel's own scheme beats the per-tier array: the channel *is* the
   // sequence, and two channels sharing a tier are two sequences.
+  //
+  // **A single scheme means every tier**, which is `_ap_pick`'s convention for
+  // the banded apparatuses and was not this one's: `#הגדרות_הערות(מספור: "א")`
+  // fell through the array test and did nothing at all, so the setting worked
+  // only when written as a tuple and was silent when written the obvious way.
   let scheme = if _מספור != none { _מספור } else if type(schemes) == array {
     _fn_pick(schemes, דרגה, "1")
+  } else if type(schemes) == str {
+    schemes
   } else { none }
   // The default channel is numbered by Typst's own footnote counter, which is
   // balanced and free and cannot be restarted from here — so a document that
@@ -1338,6 +1517,55 @@
 // Shaar HaTziyun's numbers. This is the array that shipped the other way round,
 // backwards against the convention and against the chooser card that described
 // it. Nothing in a coordinate dump shows it; it is obvious on the page.
+// ---- שולי הטקסט · where the text area ends, in page coordinates ----
+//
+// A sidenote is `place`d at an absolute y on the page, so keeping it on the
+// paper means knowing where the paper's text area stops. Every number a note
+// stacks against — its marker's `position().y`, its neighbours' — is already in
+// page coordinates, so this is the one missing term.
+//
+// `page.margin` is whatever was set, and the document wrapper always sets a full
+// four-key dictionary. Everything else here is for a document that reached this
+// point another way: a bare `#מקטע_עמוד`, a `margin: auto`, a single length for
+// all four edges. Typst's own `auto` margin is 2.5/21 of the shorter side, which
+// is where that ratio comes from — it is not a guess.
+#let _pg_margin(key) = {
+  // `page(height: auto)` is a real configuration — it is the digital output mode
+  // — and `calc.min` of a length and `auto` is an error, not a large number. So
+  // the fallback is only computed from the dimensions that are dimensions.
+  let fb = if type(page.width) == length and type(page.height) == length {
+    (2.5 / 21) * calc.min(page.width, page.height)
+  } else if type(page.width) == length {
+    (2.5 / 21) * page.width
+  } else {
+    2.5cm
+  }
+  let m = page.margin
+  if type(m) == dictionary {
+    let v = m.at(key, default: auto)
+    // A two-sided document names its edges by binding rather than by side, so a
+    // left/right question is answered by inside/outside when that is how the
+    // page was set up. Which of the two is which depends on the page's parity,
+    // and both are wanted here only as *a* bound: they are equal in every
+    // document this prelude produces, because `#מסמך` mirrors one pair.
+    if v == auto and key in ("left", "right") {
+      v = m.at("outside", default: m.at("inside", default: auto))
+    }
+    if v == auto { v = m.at("rest", default: auto) }
+    if v == auto { fb } else { v }
+  } else if type(m) == length or type(m) == relative { m } else { fb }
+}
+
+/// The last y a note may occupy on this page, or `none` when there is no bottom
+/// — `page(height: auto)`, which is the digital output mode, where the page
+/// grows instead and overflow is impossible by definition.
+#let _pg_text_bottom() = if type(page.height) == length {
+  page.height - _pg_margin("bottom")
+} else { none }
+
+/// The first y a note may occupy on this page.
+#let _pg_text_top() = _pg_margin("top")
+
 #let _ap_numbering = ("א", "1", "a", "i", "*", "א", "1", "a", "i")
 #let _ap_columns = (1, 1, 1, 1, 1, 1, 1, 1, 1)
 // A band is set apart from the one above it by slant and by grey, not by size
@@ -1401,14 +1629,16 @@
 #let _ap_piece(cfg, body) = _mk_render(cfg.at("סימן", default: (:)), body)
 #let _ap_wrap(cfg, g, body) = text(
   size: _ap_pick(cfg, "גודל", g, 0.85em),
-  style: _ap_pick(cfg, "סגנון", g, "normal"),
   fill: _ap_pick(cfg, "צבע", g, luma(0)),
   // Weight, per tier or per stream like the other three. It was the one thing a
   // band could not be given and the one a peirush most often wants: a nusachos
   // apparatus set lighter than the commentary above it says which is which
   // faster than a size does, and a size is what the writer had.
   weight: _ap_pick(cfg, "משקל", g, "regular"),
-  body,
+  // `_ap_styles` ships tier 2 and every tier under it as `"italic"` — so the
+  // whole shipped ramp of this apparatus, every band below the first, has been
+  // asking for a slant that came back upright.
+  _ks_style(_ap_pick(cfg, "סגנון", g, "normal"), body),
 )
 
 // One banded note. Registers itself in the MAIN FLOW, where writes are legal;
@@ -1662,6 +1892,115 @@
     }
   }
   _ksav_ap_close
+}
+
+// ---- גלישה בשולי העמוד · spill, for the apparatus that lives in the footer ----
+//
+// # The nine-note cap, and why it is not a robustness concern
+//
+// A page-foot apparatus renders into the page **footer**, which lives in the
+// bottom margin and cannot reserve space for itself — so `#מסמך(אזור_הערות:)`
+// takes the room off the margin and the bands are drawn in a clipped block of
+// exactly that height. Anything past it was clipped: `boxover.ksav`, twenty
+// notes, **nine distinct positions**, the other eleven printed on top of each
+// other and the last of them past the page number at y=802.57.
+//
+// A study of a real published sefer measured **five times more note text than
+// body text**. A mechanism that holds nine of them is not failing at the
+// margins; it is failing at the normal case.
+//
+// # Why this converges, which is the whole difficulty elsewhere
+//
+// Three independent systems fail at this point — Typst's own footnote spill had
+// an infinite-loop bug, SILE's parallel package hangs, talmudifier pays five
+// minutes a page — and every one of them fails because the region *grows*: a
+// taller band means less text, which means a different break, which means
+// different notes, which means a different height.
+//
+// **This region does not grow.** Its height is *declared*, so moving a note from
+// one page to the next changes nothing about the text area, moves no page break,
+// and therefore cannot change which notes are anchored where. The walk below is
+// read-only and gives the same answer on every pass.
+
+/// The height `#מסמך` reserved at the foot of every page, put where the
+/// read-only footer can see it.
+#let _ap_reserve = state("ksav-ap-reserve", 0pt)
+
+/// The width one entry of a page-foot apparatus is set at.
+///
+/// The text area, divided by the group's own column count — measuring at the
+/// wrong width is how a band comes out a line short and the last note is thought
+/// to fit when it does not.
+#let _ap_page_width(cfg, g) = {
+  let w = page.width - _pg_margin("left") - _pg_margin("right")
+  let cols = _ap_pick(cfg, "טורים", g, 1)
+  if type(cols) == int and cols > 1 { w / cols } else { w }
+}
+
+/// Which page each note of a page-foot apparatus is printed on, in document
+/// order.
+///
+/// `cap_of` answers *how much room this group has*: its own slot when the
+/// apparatus declares fixed band heights, and otherwise the whole reserve, which
+/// the groups then share in the order they are written.
+///
+/// A note never moves **backwards** — its marker is on its own page and the
+/// reader has to be able to find it from there — so the page cursor only ever
+/// advances, and a note anchored further on resets it.
+#let _ap_assign(all, cfg, cap_of) = {
+  let out = ()
+  let page_ = 0
+  let used = (:)
+  for e in all {
+    let g = e.value.group
+    let key = str(g)
+    // Measured with a stand-in marker rather than the real number. The height of
+    // an entry at a given width does not depend on whether its marker reads 1 or
+    // 17; the *width* would, and nothing here asks about width.
+    let h = measure(box(
+      width: _ap_page_width(cfg, g),
+      _ap_wrap(cfg, g, [#super[1] #e.value.body]),
+    )).height + cfg.at("ריווח_פריט", default: 0.3em).to-absolute()
+    let p = e.location().page()
+    if p > page_ {
+      page_ = p
+      used = (:)
+    }
+    let cap = cap_of(g)
+    let u = used.at(key, default: 0pt)
+    // `u > 0pt` so that a note taller than the whole region is placed rather
+    // than carried for ever. It will be clipped, which a reader can see; carried
+    // it would be a note that was written and never printed, which they cannot.
+    if cap != none and cap > 0pt and u > 0pt and u + h > cap {
+      page_ += 1
+      used = (:)
+      u = 0pt
+    }
+    out.push(page_)
+    used.insert(key, u + h)
+  }
+  out
+}
+
+/// This page's notes: the ones **assigned** here, not the ones registered here.
+///
+/// That one word is the whole of thing four for the footer. The footer used to
+/// render the notes whose markers are on this page, so a page with more notes
+/// than room lost the difference.
+#let _ap_on_page(all, cfg, cap_of, pg) = {
+  let where = _ap_assign(all, cfg, cap_of)
+  let mine = ()
+  for i in range(all.len()) {
+    if where.at(i) == pg { mine.push(all.at(i)) }
+  }
+  mine
+}
+
+/// The last page any of an apparatus's notes was assigned to.
+#let _ap_last_page(all, cfg, cap_of) = {
+  let last = 0
+  for p in _ap_assign(all, cfg, cap_of) { last = calc.max(last, p) }
+  last
 }
 
 // ============================================================
@@ -2101,12 +2440,27 @@
 // Read-only footer: render the bands for the CURRENT page. Called from the
 // wrapper's page footer. Renders nothing (and touches nothing) when the page
 // has no per-page-band notes, so it's free for documents that don't use them.
+/// How much room each band of the page-foot apparatus has.
+///
+/// Its own declared slot when `גבהים` gives it one — which is the fixed-regions
+/// layout, where a band always occupies its height whether or not it has
+/// anything in it this page — and otherwise the whole reserve, which the bands
+/// then share in the order they are written.
+#let _pp_cap(cfg) = g => {
+  let own = _ap_pick(cfg, "גבהים", g, none)
+  if own != none { _ap_fixed_height(own) } else { _ap_reserve.get() }
+}
+
 #let _pp_page_bands() = context {
   let all = _pp_all()
   if all.len() > 0 {
     let cfg = _nt_under(_pp_cfg.get())
     let pg = here().page()
-    let mine = all.filter(e => e.location().page() == pg)
+    // The notes **assigned** to this page, not the ones registered on it. That
+    // one word is thing four for the page-foot apparatus: a page with more notes
+    // than the reserve holds used to lose the difference into the clip, nine
+    // deep. See `_ap_assign`.
+    let mine = _ap_on_page(all, cfg, _pp_cap(cfg), pg)
     if mine.len() > 0 {
       // With fixed band heights, EVERY configured band shows on every page that
       // has any apparatus at all — an empty band keeps its slot empty rather than
@@ -2246,12 +2600,26 @@
 // channel nobody declared is its own region, so a document written before
 // channels existed lays out to the same page — one region per stream, each with
 // the height `#הגדרות_זרמים(גבהים: …)` gave it.
+/// How much room each stream has — its declared slot, or the shared reserve.
+/// The streams' heights are a dictionary keyed by stream name where the bands'
+/// are an array per tier, which is what `_ap_pick` is for.
+#let _sf_cap(cfg) = g => {
+  let own = _ap_pick(cfg, "גבהים", g, none)
+  if own != none { _ap_fixed_height(own) } else { _ap_reserve.get() }
+}
+
 #let _sf_page_streams() = context {
   let all = _sf_all()
   if all.len() > 0 {
     let t = _ch_st.final()
     let pg = here().page()
-    let mine = all.filter(e => e.location().page() == pg)
+    // Assigned to this page, not registered on it — see `_ap_assign`. The
+    // configuration here is read twice: once against the streams *present* to
+    // work out the assignment, and once against the streams that are drawn. The
+    // first reading is deliberately the cheap one, since it only needs the
+    // per-stream sizes and column counts that decide how tall an entry is.
+    let base = _nt_under(_sf_cfg.get())
+    let mine = _ap_on_page(all, base, _sf_cap(base), pg)
     if mine.len() > 0 {
       let present = mine.map(e => e.value.group).dedup()
       // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
@@ -2399,6 +2767,26 @@
   })
 }
 
+/// One note in a channel that is pointed at a named region.
+///
+/// The region is honoured whether or not it was ever declared: an undeclared one
+/// is a page-foot region of its own, which is exactly what `#הערה_זרם` has always
+/// been, and declaring it later with `#אזור(…, מיקום: "סוף")` moves every note in
+/// it without touching one of them. That is the whole promise of the model, and
+/// it is why a region can be used before it is described.
+#let _ch_note_in(chan, region, body, named) = context {
+  let t = _ch_st.final()
+  // The declared placement wins; an undeclared region is at the page foot.
+  let place = if region in t.אזורים { _val(_rg_rec(t, region).at("מיקום", default: "רגל")) } else { "רגל" }
+  if place == "רגל" {
+    הערה_זרם(chan, body, ..named)
+  } else {
+    let (own, rest) = _cfg_split(named, _ap_own_keys)
+    _cfg_strict("הערה", rest)
+    _cn_note(_cfg_with(_ch_cfg(t, (chan,)), own), region, chan, body, own)
+  }
+}
+
 // One note, in one channel. Which collector it lands in is read off the table,
 // so nothing at the call site says where the note prints — that is the whole
 // point of the model, and it is what lets the placement change afterwards.
@@ -2499,6 +2887,439 @@
 #let tier5 = _en(הערה_ה)
 #let tier6 = _en(הערה_ו)
 #let tier7 = _en(הערה_ז)
+
+// ---- הערות צד · side-column notes, aligned to their marker's line ----
+// A substantial notes column beside the text (not a thin margin). Wrap a section
+// in #עם_הערות_צד[...]; inside it, #הערת_גיליון[...] drops a numbered marker and
+// its note appears in the side column *beside that line*.
+//
+// Real sidenotes, not a "notes column": each note is drawn at the vertical
+// offset of its own marker, so the reader's eye goes straight across. The
+// mechanism is read-only, so it converges: a note drops inline metadata, and the
+// page draws the whole column from that query — measuring each note at the
+// column width and stacking them greedily, a note at its marker's line or just
+// below the previous one when that would overlap.
+//
+// **This half of the apparatus is here, above the document wrapper, and the
+// commands a writer types are three hundred lines further down.** That is not
+// tidiness: the column is drawn from the page's own foreground, `#מסמך` installs
+// it, and a Typst closure resolves its names where it is written — so a renderer
+// defined after the wrapper is simply not there when the wrapper runs. The
+// page-band apparatus (`_pp_page_bands`) sits above the wrapper for exactly the
+// same reason, and this is that convention rather than a new one.
+#let _sn_defaults = (
+  יחס: 2,          // main-column : note-column width ratio
+  מרווח: 1.2em,    // gutter between the two columns
+  גודל: 0.78em,
+  סגנון: "normal", // "normal" | "italic"
+  משקל: "regular", // "regular" | "bold"
+  צבע: luma(65),
+  ריווח: 0.6em,    // minimum vertical gap between two stacked notes
+  סימן: (:),       // how the note's number is set in the running text
+)
+#let _sn_cfg = state("ksav-sn-cfg", _sn_defaults)
+// What one sidenote may overrule: its own text. The ratio, the gutter and the
+// minimum gap between notes are the column's geometry, and every note on the page
+// computes the same stack from them — a note answering them for itself would be
+// placed against one arithmetic and measured by its neighbours against another.
+// See `_cfg_split` and `_sn_note`.
+#let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע")
+#let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
+// Is a side-column wrapper currently open? A sidenote outside one has no column
+// to land in, so it must not be `place`d off the page — see _sn_note.
+#let _sn_active = state("ksav-sn-active", 0)
+#let _sn_wrap(cfg, mark, body) = text(
+  size: cfg.at("גודל", default: 0.78em),
+  // Slant and weight, which a side column had no way to ask for. A peirush
+  // running down the margin set in italic is an ordinary arrangement in a
+  // printed sefer, and this apparatus offered size and colour — so the writer
+  // who wanted it wrote a slant command inside every note by hand.
+  //
+  // And then asking for it still did nothing, because the slant went to
+  // `text(style:)`. The knob was added and the thing it turns was not connected;
+  // through `_ks_style` it is.
+  weight: cfg.at("משקל", default: "regular"),
+  fill: cfg.at("צבע", default: luma(65)),
+  _ks_style(cfg.at("סגנון", default: "normal"), [#super[#mark] #body]),
+)
+
+// A sidenote's marker, in the document's own numerals.
+//
+// *"The tag's language should follow the document"* — and it can, exactly:
+// `text.lang` is what the page setup set from `שפה`, so a Hebrew document
+// numbers its sidenotes א, ב, ג the way a sefer does, and an English one counts
+// 1, 2, 3. Read rather than configured, because a second switch for the same
+// fact is a second thing to set and to forget.
+//
+// `סימון` on the config overrules it for a writer who wants the other one:
+// "עבריות", "ערביות", or auto to follow the document.
+#let _sn_mark(n, prime: false) = context {
+  let want = _sn_cfg.get().at("סימון", default: auto)
+  let hebrew = if want == auto { text.lang == "he" } else { want == "עבריות" }
+  let m = if hebrew { numbering("א", n) } else { [#n] }
+  if prime [#m′] else [#m]
+}
+
+
+// ---- ערימת הערות הצד · one stack, computed the same way by every note ----
+//
+// **The arithmetic lives here and not in `_sn_note` because two different call
+// sites need the identical answer** — each note works out where it goes, and the
+// same walk decides what will not fit at all. Two copies of a greedy stack that
+// disagree by one gap put two notes on one line.
+//
+// Given this page's entries in document order, each with a measured height, it
+// returns the y each one is placed at. Three of the ten overflow moves are in
+// here and they are the three a fixed column cannot do without:
+//
+//   **clamp** — no note is placed below the text area. The column had no bottom
+//     at all: twenty notes on one paragraph reached y=827.27 on an 841.89pt
+//     sheet, printing over the page number and into the part of the paper a
+//     printer will not mark.
+//   **shift, both directions** — the old loop only ever pushed a colliding note
+//     *down*, so the stack could only grow towards the edge. A note that does not
+//     fit below is now pulled back **up** towards its marker until it does.
+//   **cascade** — pulling one note up moves the one above it, and so on. The
+//     backward pass is what makes that a stack rather than a single nudge.
+//
+// What it deliberately does not do is drop, shrink, or overprint: when even the
+// pulled-up stack does not fit, the entries that will not go are returned
+// separately as `spill`, and it is the caller's business what becomes of them.
+// A note this walk could not place is a note the reader must still be given.
+#let _sn_stack(tops, heights, gap, floor, ceiling) = {
+  // Forward: every note wants to sit beside its own marker, and takes the first
+  // free position at or below it.
+  let ys = ()
+  let cursor = floor
+  for i in range(tops.len()) {
+    let y = calc.max(tops.at(i), cursor)
+    ys.push(y)
+    cursor = y + heights.at(i) + gap
+  }
+  if ceiling == none { return (ys: ys, spill: ()) }
+  // Backward: whatever hangs below the text area is pulled up, and takes its
+  // neighbours with it. `limit` is the lowest edge the note above may reach.
+  let limit = ceiling
+  let spill = ()
+  let i = tops.len()
+  while i > 0 {
+    i -= 1
+    let y = calc.min(ys.at(i), limit - heights.at(i))
+    if y < floor {
+      // Even against the top of the text area it does not fit. Pulling it
+      // further would print it above the page's first line and on top of its
+      // neighbour, which is the one thing a note may never do — so it is not
+      // placed here at all.
+      spill.push(i)
+      y = floor
+    }
+    ys.at(i) = y
+    limit = y - gap
+  }
+  (ys: ys, spill: spill.rev())
+}
+
+// How many note columns the wrapper in force reserved, and on which sides. Read
+// per *note*, at the note's own location, because the answer can differ down a
+// sefer — one section beside a peirush, the next with a peirush down both sides.
+#let _sn_shape = state("ksav-sn-shape", (טורים: 0, צדדים: "שניהם"))
+
+/// The note column's own geometry on this page: where its left edge is and how
+/// wide it is, both in page coordinates.
+///
+/// **Derived from the page rather than from the container**, and that is the
+/// whole reason this apparatus was rebuilt. It used to ask `layout()` for the
+/// width of whatever box it happened to be standing in and then `place` at an
+/// offset from that box's start corner — which works exactly as long as the note
+/// is placed by the paragraph it was written in, and a note carried onto the
+/// *next* page never can be. Page coordinates have no such problem: every marker
+/// already reports its position in them.
+#let _sn_column(cfg, shape, side) = {
+  let ml = _pg_margin("left")
+  let mr = _pg_margin("right")
+  let textw = page.width - ml - mr
+  let g = cfg.at("מרווח", default: 1.2em).to-absolute()
+  let r = cfg.at("יחס", default: 2)
+  // One reserved column against two: the grid is (main, note) in the first case
+  // and (note, main, note) in the second, so the second spends a gutter twice
+  // and divides what is left by one more part.
+  let two = shape.at("טורים", default: 0) == 2 and shape.at("צדדים", default: "שניהם") == "שניהם"
+  let colw = if two { (textw - 2 * g) / (r + 2) } else { (textw - g) / (r + 1) }
+  // "חוץ" is *the far side of the main column*, which is a question about the
+  // text direction: a Hebrew page runs its main column from the right, so the
+  // notes beside it are on the left. "ימין" and "שמאל" name an edge outright.
+  let rtl_ = text.dir == rtl
+  let at_left = if side == "חוץ" { rtl_ } else { side == "שמאל" }
+  (x: if at_left { ml } else { page.width - mr - colw }, w: colw)
+}
+
+// ---- the column, drawn once per page, out of the page's own foreground ----
+//
+// The same read-only discipline as `_pp_page_bands`, and for the same reason:
+// page furniture is laid out many times while Typst breaks pages, so it may
+// query and must never write.
+//
+// **Why the notes are drawn here rather than by the paragraphs that carry
+// them.** Two things a note cannot do from inside its own sentence:
+//
+//   · **Not break it.** `layout()` and `place()` are both block-level, and a
+//     block-level call from the middle of a paragraph ends the line it sits on.
+//     Measured: 36.72pt between two body lines around a note against 16.92pt
+//     everywhere else — about 20pt of stray leading per note, in the *body*, in
+//     a document class where the notes outnumber the text five to one. Boxing
+//     the call fixes the paragraph and breaks the placement, because `place`
+//     inside a box anchors to the box: measured at x=-73.6 on a 595pt page,
+//     which is off the paper on the other side.
+//   · **Reach the next page.** `place(dy:)` moves within the page it is on, so a
+//     note that does not fit had nowhere to go and the column simply grew off
+//     the sheet — `dense.ksav`, y=827.27 on an 841.89pt page, over the page
+//     number and into the border no printer will mark.
+//
+// From the foreground both are free. The note contributes nothing to the
+// paragraph but its marker, and the page it is drawn on is an output of the
+// walk below rather than an assumption.
+/// Every stream that lands in a side column, and how each one draws its marker.
+///
+/// **Four, not three.** An editor's comment rides this apparatus too — that is
+/// what makes a comment sit beside the line that raised it rather than at the
+/// foot of the page — and it draws a pencil rather than a numeral. It used to
+/// hand `_sn_note` a closure for that; the drawing moved to the page, and a
+/// closure cannot travel in a note's metadata, so what travels is the *kind* and
+/// the marker is chosen from it here.
+#let _sn_streams = (
+  (lbl: "ksav-sn", kind: "צד"),
+  (lbl: "ksav-sn-r", kind: "צד"),
+  (lbl: "ksav-sn-l", kind: "שמאל"),
+  (lbl: "ksav-rv", kind: "עורך"),
+)
+
+/// One stream's marker, by kind.
+///
+/// `own` is the note's own overrides, which for a comment carry its colour: the
+/// marker takes the colour and not the rest, since a comment set at 1.4em would
+/// otherwise put a 1.4em pencil in the middle of a line of text. The glyph is
+/// settable — `#הגדרות_הערת_עורך(סימן: (טקסט: "*"))` — so a reviewer who wants a
+/// different mark, or none at all, says so.
+#let _sn_mark_of(kind, n, own) = {
+  if kind == "עורך" {
+    let piece = _mk_part("הערת_עורך", "סימן")
+    let base = (צבע: _mk_conf("הערת_עורך", own).at("צבע", default: rgb("#b45309")))
+    _mk_render(_cfg_with(base, piece), [#piece.at("טקסט", default: "✎")#n])
+  } else {
+    _sn_mark(n, prime: kind == "שמאל")
+  }
+}
+
+/// Assign every note of one stream to a page and a y, in document order.
+///
+/// This is thing four for the side column, and the whole of it is one forward
+/// walk. A note wants to sit beside its own marker; it takes the first free
+/// position at or below that; and when the position it would take runs past the
+/// bottom of the text area it goes to **the next page's column instead**, which
+/// already exists and is already empty — that is what makes spilling here a
+/// placement decision rather than a new mechanism.
+///
+/// The walk is over *entries*, not over pages, so its cost is the number of
+/// notes and not the length of the sefer. Typst memoises `measure`, so the
+/// heights are computed once for the document however many pages ask for them.
+#let _sn_assign(items, gap, floor, ceiling) = {
+  let out = ()
+  let page_ = 0
+  let cursor = floor
+  for it in items {
+    // A note never moves *backwards*: its marker is on this page and the reader
+    // has to be able to find it from there.
+    if it.page > page_ {
+      page_ = it.page
+      cursor = floor
+    }
+    let y = calc.max(it.want, cursor)
+    if ceiling != none and y + it.h > ceiling {
+      // It does not fit under what is already on this page, so it goes to the
+      // next page's column, at the top.
+      //
+      // Once, and never in a loop. A note taller than a whole column does not
+      // fit on any page, and carrying it forward until it does is a hang rather
+      // than a layout — so it is placed at the top of the next page and allowed
+      // to run long, which a reader can see, rather than dropped, which they
+      // cannot. `page(height: auto)` has no ceiling at all and never reaches
+      // here: that is the digital output mode, where the page grows instead.
+      page_ += 1
+      y = floor
+      cursor = floor
+    }
+    out.push((page: page_, y: y))
+    cursor = y + it.h + gap
+  }
+  out
+}
+
+/// One stream's notes, drawn and measured, with the page and y each one lands on.
+///
+/// `upto` bounds the walk to the notes that can affect a given page — a note
+/// anchored further on never carries *backwards* — or is `none` for the whole
+/// sefer, which is what the tail below needs.
+///
+/// Both callers go through here rather than each running its own walk. Two
+/// copies of one greedy stack that disagree by a single gap is a note printed on
+/// top of its neighbour, and this repository is named for that defect family.
+#let _sn_placed(st, upto) = {
+  let lbl = label(st.lbl)
+  let all = query(lbl)
+  let within = if upto == none { all } else { all.filter(e => e.location().page() <= upto) }
+  // A note written outside any `#עם_הערות_צד` has no column to land in and
+  // became a real footnote at its own call site. It must not also be drawn
+  // here, or it prints twice.
+  let live = within.filter(e => _sn_shape.at(e.location()).at("טורים", default: 0) > 0)
+  if live.len() == 0 { return (items: (), placed: ()) }
+  let items = ()
+  for e in live {
+    let loc = e.location()
+    // Each note's own configuration, read where the note stands: a sefer may
+    // change the column's width or the note size half way through.
+    let base = _nt_under(_sn_cfg.at(loc))
+    let col = _sn_column(base, _sn_shape.at(loc), e.value.at("side", default: "חוץ"))
+    let ecfg = _cfg_with(base, e.value.at("own", default: (:)))
+    // Measured with the number that will be **printed** beside it, which is
+    // not its document-wide rank once a count has restarted: a two-digit
+    // number and a one-digit one are different widths, and measuring the wrong
+    // one is how a column comes out a hair short and overlaps at the foot.
+    let shown = _ksav_rank(_nr_scope(lbl, loc), loc, x => true)
+    let own = e.value.at("own", default: (:))
+    let piece = box(width: col.w, _sn_wrap(ecfg, _sn_mark_of(st.kind, shown, own), e.value.body))
+    items.push((
+      page: loc.page(),
+      want: loc.position().y,
+      h: measure(piece).height,
+      x: col.x,
+      gap: base.at("ריווח", default: 0.6em).to-absolute(),
+      piece: piece,
+    ))
+  }
+  // The gap between two stacked notes belongs to the column, not to either of
+  // them, so the first note's answer is the one the whole stack is walked with.
+  // A note that overruled it for itself would be placed against one arithmetic
+  // and measured by its neighbours against another.
+  (
+    items: items,
+    placed: _sn_assign(items, items.first().gap, _pg_text_top(), _pg_text_bottom()),
+  )
+}
+
+/// Draw this page's side notes. Renders nothing — and queries nothing beyond one
+/// empty lookup per stream — for a document that has none.
+#let _sn_page_column() = context {
+  let pg = here().page()
+  for st in _sn_streams {
+    let out = _sn_placed(st, pg)
+    for i in range(out.items.len()) {
+      if out.placed.at(i).page == pg {
+        place(top + left, dx: out.items.at(i).x, dy: out.placed.at(i).y, out.items.at(i).piece)
+      }
+    }
+  }
+}
+
+/// Pages for whatever spilled off the end of the sefer.
+///
+/// # A note with nowhere to go is a note the reader never sees
+///
+/// Spilling into the next page's column works because that column already exists
+/// and is already empty — right up to the last page, where there is no next one.
+/// Twenty dense notes on a one-page document lost three of them: no error, no
+/// warning, no gap on the page, just three notes that were written and not
+/// printed. That is the worst failure this apparatus can have, and it is the one
+/// the mechanism produces by construction unless the document is made longer.
+///
+/// So `#מסמך` calls this after the body, and it appends exactly as many pages as
+/// the carry needs.
+///
+/// **It converges, and the reason is that it only ever adds pages at the end.**
+/// Nothing before them moves, so no marker changes page, so the assignment is
+/// the same on the next pass and asks for the same number of pages. Emitting the
+/// continuation pages *inside* the document — at the end of the wrapper, which is
+/// where they look like they belong — would push every later marker down, change
+/// which notes carry, and change the answer: the loop that hangs SILE.
+#let _sn_tail_label = <ksav-sn-tail>
+#let _sn_carry_label = <ksav-sn-carry>
+#let _sn_tail_pages() = context {
+  let last = here().page()
+  let want = last
+  // Whether this sefer has a side column at all. **Nothing at all is emitted
+  // when it does not**, and that is not an optimisation: the hidden numeral
+  // below is content, and content after a weak page break is what stops the
+  // break being dropped. Emitted unconditionally it gave every document in the
+  // suite that ends on a weak break a blank page it never had — one measured
+  // instance, `a_weak_break_before_a_deferred_section_is_dropped`, and it would
+  // have been every sefer with a deferred section and no side notes.
+  let any = false
+  for st in _sn_streams {
+    let out = _sn_placed(st, none)
+    if out.items.len() > 0 { any = true }
+    for p in out.placed { want = calc.max(want, p.page) }
+  }
+  // The page-foot apparatus carries too, and off the end of the sefer for the
+  // same reason: a note assigned to the page after the last one has nowhere to
+  // be drawn. Both walks are asked here rather than each growing its own tail,
+  // because the answer is *how long the document is* and there is one of those.
+  let bands = _pp_all()
+  if bands.len() > 0 {
+    let cfg = _nt_under(_pp_cfg.get())
+    want = calc.max(want, _ap_last_page(bands, cfg, _pp_cap(cfg)))
+    any = true
+  }
+  let streams = _sf_all()
+  if streams.len() > 0 {
+    let cfg = _nt_under(_sf_cfg.get())
+    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg)))
+    any = true
+  }
+  if not any { return }
+  // **The record of the decision, and the thing that makes the decision take
+  // effect.** Both, and the second half is not obvious.
+  //
+  // On the first layout pass no note has a position yet, so `want` is `last` and
+  // this emits no pages. The positions arrive on the next pass and `want` grows
+  // — but a bare `pagebreak()` is not an introspectable element, so Typst has
+  // nothing to notice changing and settles on the first answer. Measured: the
+  // pages were computed correctly (`last=1 want=2`) and never appeared, and the
+  // three notes stayed missing.
+  //
+  // A `metadata` element **is** introspectable, and its value changes exactly
+  // when the answer does, so the pass that knows where the notes are is the pass
+  // that gets to add the pages for them. It settles as soon as `want` stops
+  // moving, which it does immediately, because pages added at the end move
+  // nothing in front of them.
+  //
+  // It is also the honest thing to leave behind: a test can ask what this walk
+  // decided instead of inferring it from a page count.
+  [#metadata((last: last, want: want))#_sn_tail_label]
+  // **This hidden numeral is what makes the pages appear**, and it took four
+  // tries to find out why.
+  //
+  // On the first layout pass no note has a position yet, so `want` is `last` and
+  // the loop below emits nothing. The positions arrive on the next pass and
+  // `want` grows — but Typst only runs another pass when something it *watches*
+  // changed, and neither a `pagebreak()` nor a `metadata` value nor a new label
+  // is enough: measured, the walk computed `last=1 want=2` and the page never
+  // appeared, so three notes stayed missing on every pass.
+  //
+  // What is watched is the laid-out frame. So the answer is written into one, as
+  // a number whose glyphs differ exactly when the answer does. `place` keeps it
+  // out of the flow — a bare `hide[…]` reserves a line, which at the end of a
+  // full page is an extra sheet of its own — and `hide` keeps it off the paper.
+  place(hide[#want])
+  for _ in range(want - last) {
+    pagebreak()
+    // A page with nothing in its flow is a page Typst does not make, and the
+    // notes are painted from the foreground rather than the flow. One hidden
+    // character is what makes the sheet exist for them to be painted on, and
+    // the label marks it as a carry page rather than a blank the writer left.
+    [#metadata(none)#_sn_carry_label]
+    hide[.]
+  }
+}
+
 
 // ============================================================
 //  עיצוב גלובלי · configurable headings / lists / tables
@@ -2619,6 +3440,11 @@
   // document ever written in Ksav. Below the ramp, depth is shown by slant and
   // then by indent, which is how a sefer shows a sub-sub-point anyway.
   let deep = calc.max(lvl - 6, 0)
+  // The slant is resolved here and applied to the body below rather than named
+  // in the `set text` — `text(style: "italic")` is the request the bundled
+  // Hebrew families answer with the upright face, so the *whole* of what marks
+  // a level past six apart from level six was invisible. See `_ks_style`.
+  let st = _cfg_pick(c, "סגנון", lvl, if deep > 0 { "italic" } else { "normal" })
   let styled = {
     set text(
       // Spread, because `font` has no "leave it alone" value: `none` is not one
@@ -2629,15 +3455,26 @@
       size: _cfg_pick(c, "גודל", lvl, 1em),
       weight: _cfg_pick(c, "משקל", lvl, "bold"),
       fill: _cfg_pick(c, "צבע", lvl, luma(0)),
-      style: _cfg_pick(c, "סגנון", lvl, if deep > 0 { "italic" } else { "normal" }),
       tracking: c.at("מרווח_אותיות", default: 0pt),
     )
     let body = { num; it.body }
-    if _cfg_pick(c, "רברבתי", lvl, false) { body = smallcaps(body) }
+    if _cfg_pick(c, "רברבתי", lvl, false) { body = _ks_smallcaps(body) }
     if _cfg_pick(c, "קו_תחתון", lvl, false) { body = underline(body) }
-    body
+    _ks_style(st, body)
   }
-  let al = _cfg_pick(c, "יישור", lvl, none)
+  // Through `_doc_align`, which is the one place a written alignment becomes an
+  // alignment. `#מסמך(יישור: "מרכז")` has always worked and
+  // `#הגדרות_כותרות(יישור: "מרכז")` was a compile error — the same word, in the
+  // same language, meaning the same thing, accepted by one command and refused
+  // by another. `_mk_frame` already did it this way; the heading rule and the
+  // table were the two that did not.
+  //
+  // A real Typst alignment passes straight through, so nothing that compiled
+  // before changes.
+  let al = {
+    let v = _cfg_pick(c, "יישור", lvl, none)
+    if type(v) == str { _doc_align(v) } else { v }
+  }
   let head = if al != none { align(al, styled) } else { styled }
   // Past level 6, one step of indent per level. `pad` and not `h`, because a
   // heading is a block: an inline space would be swallowed at the start of it.
@@ -2651,6 +3488,18 @@
     if _cfg_pick(c, "קו", lvl, false) { v(0.25em); line(length: 100%, stroke: 0.5pt + luma(160)) }
   }
   block(
+    // **`width: 100%` is what makes `יישור` mean anything.** A bare `block`
+    // shrink-wraps its content, so the `align` inside it was centring the
+    // heading within the width of the heading — a no-op that looks exactly like
+    // a working feature, and measured: `#הגדרות_כותרות(יישור: "מרכז")` and
+    // `(יישור: "ימין")` put "שער" at x=480.8 on both.
+    //
+    // This is the **third** time this exact shape has been paid for here. The
+    // page number in the footer was centred inside the width of one digit
+    // (x=519.62 of a 595.28pt page), and the note beside `_mk_frame` is the
+    // same story again. Look hard at any `align` whose parent is a `block` with
+    // no width.
+    width: 100%,
     above: _cfg_pick(c, "ריווח_לפני", lvl, 1em),
     below: _cfg_pick(c, "ריווח_אחרי", lvl, 0.6em),
     // Padded on the *start* side, which is the right in Hebrew. `pad` takes
@@ -2967,6 +3816,17 @@
     // with an apparatus now puts its bands in the reserve and its number in the
     // same place as everybody else's.
     footer-descent: 0.3 * m_bot,
+    // The side column, drawn once per page. Unconditional and read-only, exactly
+    // like the header and the page bands: it renders nothing for a document with
+    // no side notes, and installing it only when a *parameter* asked for one
+    // would make it work in precisely the documents that do not use it — the
+    // mistake the header note below records having made.
+    //
+    // The **foreground** rather than the background, so a note is never painted
+    // under the page it belongs to. It cannot overlap the text in a well-formed
+    // document anyway: the column it draws into is empty page that
+    // `#עם_הערות_צד` reserved out of the text area.
+    foreground: _sn_page_column(),
     // Always a function, never `auto`. The settings fields are known here and a
     // `#כותרת_עליונה` in the document is not — it may arrive on page 40 — so a
     // header installed only when a *parameter* was given would have made the
@@ -3061,7 +3921,16 @@
   // has this note already, about a `show` rule, twenty lines further down.
   set align(if _al == none { start } else { _al })
   // Space footnote entries apart so each note — including a note-on-a-note that
-  // Typst hoists into its own entry — reads as a separate block, not one run-on list.
+  // Typst hoists into its own entry — reads as a separate block, not one run-on
+  // list. This is the *document's* answer; `#הגדרות_הערות(ריווח:)` overrules it
+  // per note, and `_fn_gap_base` is how that command finds out what it is
+  // overruling. See `_fn_wrap`.
+  _fn_gap_base.update(ריווח_הערות)
+  // The reserve, put where the read-only footer can see it. It is what tells the
+  // page-foot apparatus how many of its notes fit here and how many go to the
+  // next page — and it is *declared*, which is the whole reason that walk
+  // converges. See `_ap_assign`.
+  _ap_reserve.update(reserve)
   set footnote.entry(gap: ריווח_הערות)
   // Keep the heading counter stepping (so #הגדרות_כותרות(מספור: …) can display a
   // number) while suppressing Typst's own number — _hd_show renders headings
@@ -3099,6 +3968,10 @@
   } else {
     laid
   }
+  // After the body, and only ever after it: pages for whatever the side column
+  // carried past the last one. See `_sn_tail_pages` for why they cannot be
+  // emitted where they look like they belong.
+  _sn_tail_pages()
 }
 // Every parameter מסמך takes, in English.
 //
@@ -3205,14 +4078,12 @@
 // break needs to be able to happen at — and what justification needs in order to
 // stretch. Verified at both lengths and in both scripts: every run on one
 // baseline, and a forty-word italic passage breaking at its spaces like prose.
-#let נטוי(body) = context {
-  if target() == "html" {
-    emph(body)
-  } else {
-    show regex("\S+"): it => box(skew(ax: -12deg, reflow: true, it))
-    emph(body)
-  }
-}
+// The mechanism itself is `_ks_skew`, near the top of this file, because the
+// four *configuration* sites that ask for a slant — the mark register, the
+// banded apparatus, the footnote tiers, the side column and the heading ramp —
+// are all defined above this line and all of them need it. This command is one
+// caller of it, and no longer the only thing in the prelude that slants.
+#let נטוי(body) = _ks_skew(body)
 #let קו_תחתון(body) = underline(body)
 #let קו_חוצה(body) = strike(body)
 // סימון — highlight, in whatever colour is asked for.
@@ -3626,6 +4497,40 @@
 /// Every positional argument of a parent, as its children.
 #let _kd_all(args, parent) = args.map(c => _kd_items(c, parent)).flatten()
 
+/// What kind each of a parent's children was written as, in the same order
+/// `_kd_all` returns them.
+///
+/// The kinds are consumed by `_kd_take`, so the content that comes out of
+/// `_kd_all` no longer says what it was asked for. A parent that has to treat
+/// one kind differently — `#טבלה` painting the cells written as `#כותרת_תא` —
+/// needs the answer alongside, and taking it from the same walk is what keeps
+/// the two lists the same length and in the same order.
+#let _kd_kinds(args, parent) = {
+  let out = ()
+  for c in args {
+    let k = _kd_kind(c)
+    if k != none {
+      out.push(k)
+    } else if c.func() == _kd_seq and c.children.any(x => _kd_kind(x) != none) {
+      // The bracket form, where several children share one positional argument.
+      let started = false
+      for ch in c.children {
+        let ik = _kd_kind(ch)
+        if ik != none {
+          out.push(ik)
+          started = true
+        } else if not started and not (ch == [ ] or ch == parbreak() or ch == linebreak()) {
+          out.push(none)
+          started = true
+        }
+      }
+    } else {
+      out.push(none)
+    }
+  }
+  out
+}
+
 // ============================================================
 //  רשימות · lists (nest freely)
 // ============================================================
@@ -3770,11 +4675,29 @@
 // numbered and how it looks — is declared once with `#ערוץ` and can be changed
 // after the notes exist. Naming a channel nobody declared is not an error: it is
 // a page-foot region of its own, which is what `#הערה_זרם` has always been.
-#let הערה(body, ערוץ: none, ..opts) = _ch_note(
-  if ערוץ == none { _ch_default } else { ערוץ },
-  body,
-  opts.named(),
-)
+// `אזור:` is the fifth destination, and it is the one that is not singular.
+//
+// Four of the five places a note can print — the live page foot, the end of the
+// section, the back of the sefer, the side column — are one each, so naming the
+// place names the stream. A **region** is a named list, and that is what recovers
+// the case the other four foreclose: mekoros in one block at the back and haaros
+// in another are both *"the end"*, and as one choice you get one of them.
+//
+// `#הערה(אזור: "שער_הציון")[…]` therefore means *this note goes in that region*,
+// and the region says where it sits. Written this way the note needs no `#ערוץ`
+// declaration of its own: an undeclared region is a page-foot region, which is
+// what `#הערה_זרם` has always been, and `#אזור("שער_הציון", מיקום: "סוף")` moves
+// every note in it at once.
+#let הערה(body, ערוץ: none, אזור: none, ..opts) = {
+  if אזור != none {
+    let name = _as_string(אזור).trim()
+    // The channel is the region's own name unless the writer also named one, so
+    // two notes in one region number together — which is what a region *is*.
+    _ch_note_in(if ערוץ == none { name } else { _as_string(ערוץ).trim() }, name, body, opts.named())
+  } else {
+    _ch_note(if ערוץ == none { _ch_default } else { ערוץ }, body, opts.named())
+  }
+}
 #let fnote = _en(הערה)
 
 // הערה_על_הערה · a note ON a note (a sub-note) in the *native* apparatus.
@@ -3864,12 +4787,27 @@
 #let _es_text() = {
   let c = _nt_under(_es_cfg.get())
   let t = (:)
-  for (k, arg) in (("גופן", "font"), ("גודל", "size"), ("סגנון", "style"), ("צבע", "fill")) {
+  // **`סגנון` is not in this list, and that is the fix rather than an omission.**
+  // It used to map to `style`, which is a request for an italic face that no
+  // bundled Hebrew family ships, so the endnote block's slant came back upright
+  // and `#הגדרות_הערות_סיום(סגנון: "italic")` printed exactly nothing different.
+  // It is applied through `_ks_style` at the two places this block is rendered.
+  //
+  // Six sites asked the dead way in all. This one is the sixth, and it is the
+  // one no reading of the code found — it turned up when the settings fence
+  // rendered every key of every dictionary twice and diffed the pages.
+  for (k, arg) in (("גופן", "font"), ("גודל", "size"), ("צבע", "fill")) {
     let v = c.at(k, default: auto)
     if v != auto and v != none { t.insert(arg, v) }
   }
   t
 }
+
+/// The endnote block's slant, applied to whatever it wraps.
+#let _es_slanted(body) = _ks_style(
+  _nt_under(_es_cfg.get()).at("סגנון", default: "normal"),
+  body,
+)
 
 /// The gap between endnote entries, or `auto` for the document's own spacing.
 #let _es_gap() = _nt_under(_es_cfg.get()).at("ריווח", default: auto)
@@ -3935,7 +4873,7 @@
   let entries = _en_section(זרם, loc)
   if entries.len() > 0 {
     set text(.._es_text())
-    _en_print(entries)
+    _es_slanted(_en_print(entries))
   }
 }
 #let הערות_בסוף(זרם: "הערות", כותרת: auto, עמוד_חדש: auto) = {
@@ -3962,7 +4900,7 @@
       line(length: 100%, stroke: 0.5pt + luma(150))
       if כותרת != none { heading(outlined: false, numbering: none, level: 3, כותרת) }
       set text(.._es_text())
-      _en_print(entries)
+      _es_slanted(_en_print(entries))
       _ksav_ap_close
     }
   }
@@ -3999,161 +4937,38 @@
 #let endnotes = _en(הערות_בסוף)
 #let endnotes_side = _en(הערות_בסוף_צד)
 
-// ---- הערות צד · side-column notes, aligned to their marker's line ----
-// A substantial notes column beside the text (not a thin margin). Wrap a section
-// in #עם_הערות_צד[...]; inside it, #הערת_גיליון[...] drops a numbered marker and
-// its note appears in the side column *beside that line*.
+// The shared sidenote engine. `lbl` names the stream (one per gutter) and `side`
+// is "חוץ" (the far side of the main column), "ימין" or "שמאל" (an absolute page
+// side, for the two-sided layout).
 //
-// Real sidenotes, not a "notes column": each note is `place`d at the vertical
-// offset of its own marker, so the reader's eye goes straight across. The
-// mechanism is read-only, so it converges: a note drops inline metadata, then
-// every note on the page queries *all* of them, measures each at the column
-// width, and stacks them greedily (a note sits at its marker's line, or just
-// below the previous note if that would overlap). Every note computes the same
-// stack from the same query, so they agree without any shared state.
-#let _sn_defaults = (
-  יחס: 2,          // main-column : note-column width ratio
-  מרווח: 1.2em,    // gutter between the two columns
-  גודל: 0.78em,
-  סגנון: "normal", // "normal" | "italic"
-  משקל: "regular", // "regular" | "bold"
-  צבע: luma(65),
-  ריווח: 0.6em,    // minimum vertical gap between two stacked notes
-  סימן: (:),       // how the note's number is set in the running text
-)
-#let _sn_cfg = state("ksav-sn-cfg", _sn_defaults)
-// What one sidenote may overrule: its own text. The ratio, the gutter and the
-// minimum gap between notes are the column's geometry, and every note on the page
-// computes the same stack from them — a note answering them for itself would be
-// placed against one arithmetic and measured by its neighbours against another.
-// See `_cfg_split` and `_sn_note`.
-#let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע")
-#let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
-// Is a side-column wrapper currently open? A sidenote outside one has no column
-// to land in, so it must not be `place`d off the page — see _sn_note.
-#let _sn_active = state("ksav-sn-active", 0)
-#let _sn_wrap(cfg, mark, body) = text(
-  size: cfg.at("גודל", default: 0.78em),
-  // Slant and weight, which a side column had no way to ask for. A peirush
-  // running down the margin set in italic is an ordinary arrangement in a
-  // printed sefer, and this apparatus offered size and colour — so the writer
-  // who wanted it wrote a slant command inside every note by hand.
-  style: cfg.at("סגנון", default: "normal"),
-  weight: cfg.at("משקל", default: "regular"),
-  fill: cfg.at("צבע", default: luma(65)),
-  [#super[#mark] #body],
-)
-
-// A sidenote's marker, in the document's own numerals.
+// What is left here is the two things that genuinely belong in the sentence: the
+// marker the reader sees, and the metadata the column is drawn from. Everything
+// about *where* the note goes is `_sn_page_column`'s.
 //
-// *"The tag's language should follow the document"* — and it can, exactly:
-// `text.lang` is what the page setup set from `שפה`, so a Hebrew document
-// numbers its sidenotes א, ב, ג the way a sefer does, and an English one counts
-// 1, 2, 3. Read rather than configured, because a second switch for the same
-// fact is a second thing to set and to forget.
-//
-// `סימון` on the config overrules it for a writer who wants the other one:
-// "עבריות", "ערביות", or auto to follow the document.
-#let _sn_mark(n, prime: false) = context {
-  let want = _sn_cfg.get().at("סימון", default: auto)
-  let hebrew = if want == auto { text.lang == "he" } else { want == "עבריות" }
-  let m = if hebrew { numbering("א", n) } else { [#n] }
-  if prime [#m′] else [#m]
-}
-
-// The shared sidenote engine. `lbl` names the stream (one per gutter), `mark`
-// renders a number, and `side` is "חוץ" (the far side of the main column),
-// "ימין" or "שמאל" (an absolute page side, for the two-sided layout).
-//
-// Real sidenotes, not a "notes column": each note is `place`d at the vertical
-// offset of its OWN marker, so the reader's eye goes straight across. The
-// mechanism is read-only, so it converges — a note drops inline metadata, then
-// every note on the page queries all of them, measures each at the column width
-// and stacks them greedily (a note sits at its marker's line, or just below the
-// previous note when that would overlap). Every note computes the same stack
-// from the same query, so they agree without sharing any state.
-// `own` — this note's own style overrides. They ride in the metadata for a reason
-// particular to this apparatus: every sidenote on a page *measures every other
-// one* to stack them, so a note styled only at its own call site would be
-// measured at the wrong height by its neighbours and the column would overlap.
-// The overrides have to be readable off the query, the same as the body is.
-#let _sn_note(lbl, side, mark, body, own: (:)) = {
-  [#metadata((body: body, own: own))#label(lbl)]
+// `own` — this note's own style overrides. They ride in the metadata because the
+// column measures every note in it to stack them, so a note styled only at its
+// own call site would be measured at the wrong height by its neighbours.
+// `kind` is what the page needs to draw this note's marker — see `_sn_streams`.
+// It travels in the metadata because the drawing happens on the page and a
+// closure cannot travel in one.
+#let _sn_note(lbl, side, kind, body, own: (:)) = {
+  [#metadata((body: body, own: own, side: side, kind: kind))#label(lbl)]
   context {
-  // Two configurations, and the difference is load-bearing. `base` is the
-  // column's: its width, the gutter and the minimum gap between notes are the
-  // page's geometry, and every note on the page has to compute the same stack
-  // from it or they overlap. `cfg` is this note's own text — size and colour —
-  // which is all a single note may overrule.
-  let base = _nt_under(_sn_cfg.get())
-  let cfg = _cfg_with(base, own)
-  // here() is read AFTER the metadata above, so the rank counts this note itself.
-  let loc0 = here()
-  let all = query(label(lbl))
-  // **Two ranks, and they are two different questions.** `id` is this note's
-  // place among every sidenote in the sefer and is what the stacking loop below
-  // matches itself by; it must stay document-wide and unique, because once a
-  // count restarts two notes on one page can print the same number and identity
-  // by number would put a note at its neighbour's height. `num` is what the
-  // reader sees, and that is the one that starts again.
-  let id = _ksav_rank(label(lbl), loc0, e => true)
-  let num = _ksav_rank(_nr_scope(label(lbl), loc0), loc0, e => true)
-  // The marker in the running text, through the column's own `סימן`. Not
-  // through `cfg`: the note's size and colour are the column's, and the
-  // number is standing in the sentence being annotated.
-  _mk_render(base.at("סימן", default: (:)), super[#mark(num)])
-  if _sn_active.get() == 0 {
-    // No side column is open, so there is nowhere to put the note. Fall back to
-    // a real footnote rather than placing it off the edge of the paper.
-    footnote(_sn_wrap(cfg, mark(num), body))
-  } else {
-    // layout() hands us the width of the enclosing column — the main text column,
-    // since we are inside it — from which the note column's width follows.
-    layout(sz => context {
-      let loc = here()
-      let gutter = base.at("מרווח", default: 1.2em).to-absolute()
-      let colw = sz.width / base.at("יחס", default: 2)
-      let gap = base.at("ריווח", default: 0.6em).to-absolute()
-      let mine = all.filter(e => e.location().page() == loc.page())
-      let cursor = -1e4pt
-      let dy = 0pt
-      for e in mine {
-        let want = e.location().position().y
-        let top = calc.max(want, cursor)
-        // `mine` is only this page's notes, so identify myself by document-wide
-        // rank rather than by index within the page.
-        let n = _ksav_rank(label(lbl), e.location(), x => true)
-        if n == id { dy = top - loc.position().y }
-        // Measured with *that* note's overrides, not with mine: a neighbour set
-        // one size larger is one size taller, and a stack computed off my own
-        // configuration would put the next note on top of it.
-        let ecfg = _cfg_with(base, e.value.at("own", default: (:)))
-        // Measured with the number that will be *printed* beside it, which is
-        // not `n` once a count has restarted: a two-digit number and a
-        // one-digit number are different widths, and measuring the wrong one is
-        // how a column comes out a hair short and overlaps at the foot.
-        let shown = _ksav_rank(_nr_scope(label(lbl), e.location()), e.location(), x => true)
-        cursor = top + measure(box(width: colw, _sn_wrap(ecfg, mark(shown), e.value.body))).height + gap
-      }
-      // `place` in a flow anchors horizontally to the container's START corner
-      // (the RIGHT edge of the column in RTL, the left in LTR) and vertically to
-      // the current position — which is what lets dy be measured from the
-      // marker's own line. dx is absolute (positive = rightwards), so the two
-      // text directions need opposite signs.
-      let rtl_ = text.dir == rtl
-      let away = sz.width + gutter          // to the far side of the main column
-      let near = -1 * (colw + gutter)       // to the near side of it
-      let dx = if side == "חוץ" {
-        if rtl_ { -1 * away } else { away }
-      } else if (side == "ימין") == rtl_ {
-        // the gutter on the same side the column starts from
-        if rtl_ { -1 * near } else { near }
-      } else {
-        if rtl_ { -1 * away } else { away }
-      }
-      place(dx: dx, dy: dy, box(width: colw, _sn_wrap(cfg, mark(num), body)))
-    })
-  }
+    let base = _nt_under(_sn_cfg.get())
+    let cfg = _cfg_with(base, own)
+    let loc0 = here()
+    // The number the reader sees, which is the note's rank since the last
+    // restart rather than its rank in the sefer.
+    let num = _ksav_rank(_nr_scope(label(lbl), loc0), loc0, e => true)
+    // The marker in the running text, through the column's own `סימן`. Not
+    // through `cfg`: the note's size and colour are the column's, and the
+    // number is standing in the sentence being annotated.
+    _mk_render(base.at("סימן", default: (:)), super[#_sn_mark_of(kind, num, own)])
+    if _sn_shape.get().at("טורים", default: 0) == 0 {
+      // No side column is open, so there is nowhere to put the note. Fall back
+      // to a real footnote rather than placing it off the edge of the paper.
+      footnote(_sn_wrap(cfg, _sn_mark_of(kind, num, own), body))
+    }
   }
 }
 
@@ -4162,7 +4977,7 @@
 #let הערת_גיליון(body, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
   _cfg_strict("הערת_גיליון", rest)
-  _sn_note("ksav-sn", "חוץ", n => _sn_mark(n), body, own: own)
+  _sn_note("ksav-sn", "חוץ", "צד", body, own: own)
 }
 
 // עם_הערות_צד — reserve the note column beside `עיקר`. The notes themselves are
@@ -4175,7 +4990,13 @@
   // silently discarded by the wrapper that is supposed to use it. Two ways to
   // say one thing, and the one nobody passed won.
   if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
+  // What the page foreground has to know to draw the column: how many were
+  // reserved and on which sides. It replaces the plain open/closed counter,
+  // which could say *a column exists* and not *which one*, so the renderer had
+  // to be inside the grid to find out — which is exactly what made a note
+  // unable to reach the next page. See `_sn_page_column`.
   _sn_active.update(n => n + 1)
+  _sn_shape.update(s => (טורים: 1, צדדים: "שניהם"))
   context {
     let cfg = _nt_under(_sn_cfg.get())
     // The ratio off the configuration, not off the parameter — which is `auto`
@@ -4189,6 +5010,7 @@
     )
   }
   _sn_active.update(n => n - 1)
+  _sn_shape.update(s => (טורים: 0, צדדים: "שניהם"))
 }
 #let sidenote = _en(הערת_גיליון, extra: (gutter: "מרווח"))
 #let sidenotes = _en(עם_הערות_צד)
@@ -4202,12 +5024,12 @@
 #let הערת_ימין(body, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
   _cfg_strict("הערת_ימין", rest)
-  _sn_note("ksav-sn-r", "ימין", n => _sn_mark(n), body, own: own)
+  _sn_note("ksav-sn-r", "ימין", "צד", body, own: own)
 }
 #let הערת_שמאל(body, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
   _cfg_strict("הערת_שמאל", rest)
-  _sn_note("ksav-sn-l", "שמאל", n => _sn_mark(n, prime: true), body, own: own)
+  _sn_note("ksav-sn-l", "שמאל", "שמאל", body, own: own)
 }
 // `צדדים` — which margins to reserve. **This is the layout ask**, and it is a
 // capability rather than a default: the grid below was always three columns, so
@@ -4227,6 +5049,7 @@
 #let עם_הערות_דו_צד(עיקר, יחס: auto, צדדים: "שניהם") = {
   if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
   _sn_active.update(n => n + 1)
+  _sn_shape.update(s => (טורים: 2, צדדים: צדדים))
   context {
     let cfg = _nt_under(_sn_cfg.get())
     let r = cfg.at("יחס", default: 2.4)
@@ -4250,6 +5073,7 @@
     }
   }
   _sn_active.update(n => n - 1)
+  _sn_shape.update(s => (טורים: 0, צדדים: "שניהם"))
 }
 #let noteright = _en(הערת_ימין, extra: (gutter: "מרווח"))
 #let noteleft = _en(הערת_שמאל, extra: (gutter: "מרווח"))
@@ -4371,15 +5195,53 @@
     let stripe = c.at("פסים", default: false)
     let a = (
       columns: עמודות,
-      align: c.at("יישור", default: auto),
+      // Through `_doc_align` for the same reason the heading rule does — see the
+      // note there. A written `"מרכז"` was a compile error on a table and has
+      // always worked on the document.
+      align: {
+        let v = c.at("יישור", default: auto)
+        if type(v) == str { let d = _doc_align(v); if d == none { auto } else { d } } else { v }
+      },
       stroke: c.at("קו", default: 0.5pt + luma(160)),
       inset: c.at("מרווח", default: 8pt),
-      fill: if stripe { (_, row) => if calc.odd(row) { c.at("צבע_פס", default: luma(245)) } else { none } } else { none },
     )
     // Merged and not spread alongside, so a Typst-named argument the writer gave —
     // `#טבלה(align: center)` — wins outright instead of arriving twice under `align`.
     for (k, v) in rest { a.insert(k, v) }
-    let t = table(..a, .._kd_all(תאים.pos(), "טבלה"))
+    // # The header fill is painted here, and it never was
+    //
+    // `#כותרת_תא` used to build its own `table.cell(fill: …)` inside a `context`,
+    // because the colour lives in a state and reading one needs a context. That
+    // does not work, and it fails silently: **a `table.cell` wrapped in a
+    // `context` stops being a cell.** Measured against raw Typst —
+    // `#table(columns: 2, table.cell(fill: red)[א], [ב])` paints the cell and
+    // `#table(columns: 2, context { table.cell(fill: red)[א] }, [ב])` paints
+    // nothing — so the shipped grey header and `צבע_כותרת` have both been
+    // invisible for as long as the command has existed. The cell's *bold* came
+    // through, which is what made it look like a working feature.
+    //
+    // So the cells stay plain and the table paints them. It is the only place
+    // that can: `fill` on a table is consulted per (column, row), and this is
+    // the only scope that knows both the colour and which positions were asked
+    // for as headers — `_kd_kind` says so, off the same mark that already tells
+    // a `#תא` from ordinary content.
+    let kids = _kd_all(תאים.pos(), "טבלה")
+    // How many columns there *are*, which is not always the number the writer
+    // gave: `עמודות` takes a count or a track list — `(1fr, 1fr)` — and the
+    // toolbar inserts the track list. Doing arithmetic on the argument itself
+    // stopped every offered table insertion from compiling.
+    let ncols = if type(עמודות) == array { עמודות.len() } else { עמודות }
+    let heads = ()
+    for (i, k) in _kd_kinds(תאים.pos(), "טבלה").enumerate() {
+      if k == "כותרת_תא" { heads.push((calc.rem(i, ncols), calc.quo(i, ncols))) }
+    }
+        let head_fill = c.at("צבע_כותרת", default: luma(235))
+    a.insert("fill", (col, row) => {
+      if heads.contains((col, row)) { head_fill }
+      else if stripe and calc.odd(row) { c.at("צבע_פס", default: luma(245)) }
+      else { none }
+    })
+    let t = table(..a, ..kids)
     let f = c.at("גופן", default: none)
     let s = c.at("גודל", default: none)
     if f != none { t = text(font: f, t) }
@@ -4389,10 +5251,11 @@
   if own.len() > 0 { _tb_own.update((:)) }
 }
 #let תא(body) = _kd("תא", body)
-#let כותרת_תא(body) = _kd("כותרת_תא", context {
-  let c = _cfg_with(_tb_cfg.get(), _tb_own.get())
-  table.cell(fill: c.at("צבע_כותרת", default: luma(235)), strong(body))
-})
+// A header cell is bold, and its background is painted by the table — see the
+// note in `#טבלה`. It used to build its own `table.cell(fill: …)` inside a
+// `context`, and a `table.cell` in a `context` is not a cell at all, so the
+// fill went nowhere and only the bold arrived.
+#let כותרת_תא(body) = _kd("כותרת_תא", strong(body))
 #let מיזוג(מספר, body) = _kd("מיזוג", table.cell(colspan: מספר, body))
 
 #let mktable = _en(טבלה)
@@ -4619,14 +5482,6 @@
 #let okbox = _en(הצלחה)
 #let cite_ = מקור
 
-#let _mk_part(cls, part) = {
-  let shipped = _mk_part_defaults.at(cls, default: (:)).at(part, default: (:))
-  let chosen = _mk_cfg.get().at(_mk_parts_key, default: (:)).at(cls, default: (:))
-  _cfg_with(shipped, chosen.at(part, default: (:)))
-}
-
-/// Draw one piece of a command in its own look.
-#let _mk_piece(cls, part, body) = _mk_render(_mk_part(cls, part), body)
 
 /// Register one mark where it stands, and print it in its class's style.
 ///
@@ -5361,13 +6216,24 @@
   let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
   _cfg_strict("הוספה", rest)
   context {
-    let m = _rv_mode(_rv_cfg.get())
+    let c = _rv_cfg.get()
+    let m = _rv_mode(c)
     if m == "מקורי" {
       // It was not there before this review, so the "original" view has none of it.
     } else if m == "סופי" {
       body
     } else {
+      // **`מאת` was a parameter this command accepted and never used.** It is
+      // declared here, it is documented, `#הגדרות_סקירה(שמות:)` exists to switch
+      // it on and off, and `_rv_by` — which renders it — was called from
+      // `#הערת_עורך` and from nowhere else. So the reviewer's name printed on a
+      // comment and vanished on an insertion, and the switch for it did nothing
+      // in two of the three places it claims to govern.
+      //
+      // Only in the marks view, like everything else about a tracked change: an
+      // accepted insertion is the author's own text and carries nobody's name.
       _mk_render(_mk_conf("הוספה", own), body)
+      _rv_by(c, מאת)
     }
   }
 }
@@ -5378,13 +6244,16 @@
   let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
   _cfg_strict("מחיקה", rest)
   context {
-    let m = _rv_mode(_rv_cfg.get())
+    let c = _rv_cfg.get()
+    let m = _rv_mode(c)
     if m == "סופי" {
       // Accepted, the text is gone.
     } else if m == "מקורי" {
       body
     } else {
+      // The reviewer's name, for the reason given on `#הוספה`.
       _mk_render(_mk_conf("מחיקה", own), body)
+      _rv_by(c, מאת)
     }
   }
 }
@@ -5398,22 +6267,13 @@
     let c = _rv_cfg.get()
     if _rv_mode(c) == "סימון" {
       let look = _mk_conf("הערת_עורך", own)
-      _sn_note(
-        "ksav-rv",
-        "חוץ",
-        // The marker takes the colour and not the rest, which is still the
-        // right default — a comment set at 1.4em would otherwise put a 1.4em
-        // pencil in the middle of a line of text — and is a default now
-        // rather than a decision written into the command. The piece can be
-        // set, including its glyph: a reviewer who wants a different mark, or
-        // none at all, says so with `#הגדרות_הערת_עורך(סימן: (טקסט: "*"))`.
-        n => {
-          let piece = _mk_part("הערת_עורך", "סימן")
-          let base = (צבע: look.at("צבע", default: rgb("#b45309")))
-          _mk_render(_cfg_with(base, piece), [#piece.at("טקסט", default: "✎")#n])
-        },
-        _mk_render(look, { body; _rv_by(c, מאת) }),
-      )
+      // The pencil is drawn by `_sn_mark_of("עורך", …)`, which the page calls
+      // when it draws the column and this call site calls for the marker in the
+      // running text. It used to be a closure passed in here, and a closure
+      // cannot travel in a note's metadata — so a comment collected but was
+      // never drawn once the column moved to the page. `own` travels instead,
+      // which is what carries the comment's colour to its pencil.
+      _sn_note("ksav-rv", "חוץ", "עורך", _mk_render(look, { body; _rv_by(c, מאת) }), own: own)
     }
   }
 }

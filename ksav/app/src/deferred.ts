@@ -24,6 +24,7 @@
 // and for the same reason: it can be tested without a browser. The CodeMirror
 // wiring is in `deferred-lint.ts`.
 
+import { sectionAt, sectionEnd } from "./headings";
 import { langOf, matchGroup, scan as scanSpans, splitArgsRaw } from "./spans";
 import {
   DEFAULT_NOTE_KIND,
@@ -96,8 +97,6 @@ const DEF_WORD = byLang(DEFER_BODY_COMMANDS);
 /** `סוג:` / `kind:` — the app's half of the prelude's `_en_params` table. */
 const KIND_ARG: Record<Lang, string> = { he: "סוג", en: "kind" };
 
-const NAME_CH = /[A-Za-z0-9֐-׿_]/;
-
 // ---------------------------------------------------------------- scanning
 
 /** A `#הערה_בשם(…)` marker. */
@@ -115,6 +114,13 @@ export interface Ref {
   rest: string;
   /** Which spelling the marker was written in, so a rewrite keeps it. */
   lang: Lang;
+  /**
+   * Written with a leading `#`.
+   *
+   * False inside an argument list, where Typst is already in code and a `#` is a
+   * syntax error. A rewrite has to put the marker back the way it found it.
+   */
+  hash: boolean;
 }
 
 /** A `#גוף_הערה(שם)[…]` definition. */
@@ -129,6 +135,8 @@ export interface Def {
   bodyTo: number;
   /** Which spelling the definition was written in. */
   lang: Lang;
+  /** Written with a leading `#` — see `Ref.hash`. */
+  hash: boolean;
 }
 
 export interface Scan {
@@ -189,20 +197,42 @@ function argName(arg: string): string | null {
 }
 
 /** Find `#name` occurrences that are real calls, outside comments. */
+/**
+ * Where each of these commands is called, and whether it was written with a `#`.
+ *
+ * **Through `spans.ts`, because a call in code mode has no `#`.** This used to
+ * walk the text for `#` and take the name after it, which is right for prose and
+ * blind everywhere else: inside `#רשימה(…)` or `#טבלה(…)` the caret is already
+ * in code, where a leading `#` is a syntax error — so `insertionAt` correctly
+ * writes `הערה_בשם("1")` bare, and every deferred surface then could not see it.
+ *
+ * What that cost, and it is not cosmetic: a note written between two list items
+ * with bodies at the end of the file had **no marker** as far as this module was
+ * concerned, so the notes pane and the jump list were empty on it, `deferAll`
+ * skipped it — and `problems()` reported its prose as an **orphan**, which is
+ * the finding the lint offers to fix by deleting the writer's words. The page
+ * was right the whole time; only the surfaces were blind.
+ *
+ * The inline half of the same question was already right: `notes.notesIn` reads
+ * `spans.ts` and does not ask about the hash, so the same note written inline
+ * *was* found. Two scanners over one markup, disagreeing — which is the defect
+ * family this repository is named for, and the reason there is one scanner here
+ * now.
+ *
+ * `hash` comes back because a rewrite has to put the marker back the way it
+ * found it: writing `#` into an argument list is the 288-document failure this
+ * suite's sibling exists for, performed by the repair rather than the writer.
+ */
 function callsOf(
   text: string,
   names: readonly string[],
-  isComment: (p: number) => boolean,
-): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] !== "#" || isComment(i)) continue;
-    let j = i + 1;
-    while (j < text.length && NAME_CH.test(text[j])) j++;
-    if (names.includes(text.slice(i + 1, j))) out.push(i);
-    i = j - 1;
-  }
-  return out;
+  _isComment: (p: number) => boolean,
+): { from: number; nameTo: number; hash: boolean }[] {
+  // Comments are `spans.ts`'s business too — a `#גוף_הערה` inside `// …` is
+  // prose about a command, and it has never been a call.
+  return scanSpans(text)
+    .nodes.filter((n) => names.includes(n.name))
+    .map((n) => ({ from: n.from, nameTo: n.nameTo, hash: n.hash }));
 }
 
 /** Every deferred-note marker, body and region in a document. */
@@ -212,10 +242,8 @@ export function scan(text: string): Scan {
   const defs: Def[] = [];
   let region: Scan["region"] = null;
 
-  for (const start of callsOf(text, REF_NAMES, isComment)) {
-    let j = start + 1;
-    while (j < text.length && NAME_CH.test(text[j])) j++;
-    const lang = langOf(text.slice(start + 1, j));
+  for (const { from: start, nameTo: j, hash } of callsOf(text, REF_NAMES, isComment)) {
+    const lang = langOf(text.slice(start, j).replace(/^#/, ""));
     const open = skipSpace(text, j);
     const ch = text[open];
     if (ch !== "(" && ch !== "[") continue;
@@ -234,6 +262,7 @@ export function scan(text: string): Scan {
         kind: null,
         rest: "",
         lang,
+        hash,
       });
       continue;
     }
@@ -271,13 +300,12 @@ export function scan(text: string): Scan {
       kind,
       rest: rest.join(", "),
       lang,
+      hash,
     });
   }
 
-  for (const start of callsOf(text, DEF_NAMES, isComment)) {
-    let j = start + 1;
-    while (j < text.length && NAME_CH.test(text[j])) j++;
-    const lang = langOf(text.slice(start + 1, j));
+  for (const { from: start, nameTo: j, hash } of callsOf(text, DEF_NAMES, isComment)) {
+    const lang = langOf(text.slice(start, j).replace(/^#/, ""));
     const open = skipSpace(text, j);
     if (text[open] !== "(" && text[open] !== "[") continue;
     const close = matchGroup(text, open);
@@ -299,14 +327,13 @@ export function scan(text: string): Scan {
       bodyFrom: bodyOpen + 1,
       bodyTo: bodyClose,
       lang,
+      hash,
     });
   }
 
   const regionStarts = callsOf(text, REGION_NAMES, isComment);
   if (regionStarts.length) {
-    const start = regionStarts[regionStarts.length - 1];
-    let j = start + 1;
-    while (j < text.length && NAME_CH.test(text[j])) j++;
+    const { from: start, nameTo: j } = regionStarts[regionStarts.length - 1];
     const open = skipSpace(text, j);
     const close = text[open] === "[" ? matchGroup(text, open) : null;
     if (close != null) {
@@ -533,6 +560,76 @@ function neighbours(
   return { after, before };
 }
 
+// ------------------------------------------------- where the prose sits
+//
+// **Thing one of the note model, and it is not a note feature.** Where a note's
+// prose sits in the *file* is orthogonal to where the note prints: the page is
+// byte-identical either way, proven by the engine's own
+// `every_note_layout_lays_out_identically_with_deferred_bodies`, which renders
+// each layout twice and asserts every run landed on the same page at the same
+// coordinates at the same size.
+//
+// So it is a preference about **reading the source**, and it belongs where a
+// writer looks for a document-level preference — not in the chooser that asks
+// where a note prints. Three homes, and the difference between them is only how
+// far the prose travels from its marker:
+//
+//   `inline`  — in the sentence, where it belongs.
+//   `file`    — one list at the foot of the file. The org-mode arrangement.
+//   `section` — at the end of the section the marker is in, so a chapter's
+//               prose stays with the chapter and a hundred-page sefer does not
+//               end in a thousand-line block.
+//
+// A fourth — a separate file — is a real position and is **not** here: the
+// bodies would have to be written into a document this one only includes, and
+// every function on this path takes one string and returns one string. See the
+// decision record; it needs a cross-document edit, not another branch.
+
+/** The places a deferred body can be filed. */
+export const BODY_HOMES = ["inline", "file", "section"] as const;
+export type BodyHome = (typeof BODY_HOMES)[number];
+
+/** Is this a home that defers the prose at all? */
+export function defersBody(home: BodyHome): boolean {
+  return home !== "inline";
+}
+
+/**
+ * A body filed at the end of the section its marker is in, or null when the
+ * document has no headings to have sections of.
+ *
+ * Reading order still decides the place *within* the section — the same rule,
+ * scoped — because a note added to the first paragraph of a finished chapter
+ * belongs above the note from the chapter's last page, not under it.
+ */
+function fileInSection(
+  text: string,
+  entry: string,
+  name: string | undefined,
+  grouped: boolean,
+  near: number,
+): { text: string; at: number } | null {
+  const h = sectionAt(text, near);
+  if (!h) return null;
+  const to = sectionEnd(text, h);
+  const s = scan(text);
+  const mine = { ...s, defs: s.defs.filter((d) => d.from >= h.from && d.to <= to) };
+  const { after, before } = neighbours(mine, name, grouped);
+  if (after) {
+    const at = after.to;
+    return { text: text.slice(0, at) + "\n" + entry + text.slice(at), at: at + 1 };
+  }
+  if (before) {
+    const at = text.lastIndexOf("\n", before.from - 1) + 1;
+    return { text: text.slice(0, at) + entry + "\n" + text.slice(at), at };
+  }
+  // The first body of this section: after its last words, before whatever
+  // heading comes next.
+  const end = h.from + text.slice(h.from, to).replace(/\s*$/, "").length;
+  const insert = "\n\n" + entry;
+  return { text: text.slice(0, end) + insert + text.slice(end), at: end + 2 };
+}
+
 /**
  * Where a new body belongs, and what has to be typed around it.
  *
@@ -540,13 +637,24 @@ function neighbours(
  * failing that in the order a document is likely to be in: a `#גופי_הערות[…]`
  * region if the writer made one, otherwise straight after the last body, and
  * otherwise a fresh block at the end of the document.
+ *
+ * `near` is where the marker went, which is the only thing a section-scoped home
+ * has to go on — a body cannot ask which section it belongs to after the fact.
  */
 export function fileNewBody(
   text: string,
   entry: string,
   name?: string,
   grouped = false,
+  home: BodyHome = "file",
+  near = -1,
 ): { text: string; at: number } {
+  if (home === "section" && near >= 0) {
+    const filed = fileInSection(text, entry, name, grouped, near);
+    // A document with no headings has no sections, and filing at the foot of the
+    // file is the same place — not a silent second-best.
+    if (filed) return filed;
+  }
   const s = scan(text);
   const { after, before } = neighbours(s, name, grouped);
   if (after) {
@@ -584,16 +692,30 @@ export function fileNewBody(
 }
 
 /** `#גוף_הערה("name")[body]` / `#note_body("name")[body]` */
-function definitionText(name: string, body: string, lang: Lang): string {
-  return `#${DEF_WORD[lang]}("${name}")[${body}]`;
+function definitionText(name: string, body: string, lang: Lang, hash = true): string {
+  return `${hash ? "#" : ""}${DEF_WORD[lang]}("${name}")[${body}]`;
 }
 
 /** `#הערה_בשם("name", סוג: kind, rest)` / `#note_named("name", kind: …)` */
-function referenceText(name: string, kind: string | null, rest: string, lang: Lang): string {
+function referenceText(
+  name: string,
+  kind: string | null,
+  rest: string,
+  lang: Lang,
+  /**
+   * Write the `#`.
+   *
+   * False for a marker that sits inside an argument list, where Typst is
+   * already in code: putting a `#` back there is the *"the character `#` is not
+   * valid in code"* failure — 288 of 1,248 swept documents — performed by the
+   * repair rather than by the writer.
+   */
+  hash = true,
+): string {
   const args = [`"${name}"`];
   if (kind && kind !== DEFAULT_KIND[lang]) args.push(`${KIND_ARG[lang]}: ${kind}`);
   if (rest) args.push(rest);
-  return `#${REF_WORD[lang]}(${args.join(", ")})`;
+  return `${hash ? "#" : ""}${REF_WORD[lang]}(${args.join(", ")})`;
 }
 
 /**
@@ -603,10 +725,16 @@ function referenceText(name: string, kind: string | null, rest: string, lang: La
  * prose yet does not report an error, it writes the line and takes you there.
  * The body is spelled the way its marker is — the pair is one note.
  */
-export function createBody(text: string, name: string, grouped = false): Change {
-  const lang = scan(text).refs.find((r) => r.name === name)?.lang ?? "he";
-  const entry = definitionText(name, "", lang);
-  const { text: out, at } = fileNewBody(text, entry, name, grouped);
+export function createBody(
+  text: string,
+  name: string,
+  grouped = false,
+  home: BodyHome = "file",
+): Change {
+  const ref = scan(text).refs.find((r) => r.name === name);
+  // The body is filed at top level, which is never code mode, so it keeps its `#`.
+  const entry = definitionText(name, "", ref?.lang ?? "he");
+  const { text: out, at } = fileNewBody(text, entry, name, grouped, home, ref?.from ?? -1);
   // Inside the body brackets: `#גוף_הערה("name")[` is the prefix.
   return { text: out, caret: at + entry.length - 1 };
 }
@@ -623,12 +751,13 @@ export function insertDeferred(
   kind: string | null = null,
   lang: Lang = "he",
   grouped = false,
+  home: BodyHome = "file",
 ): Change {
   const name = nextName(text);
   const marker = referenceText(name, kind, "", lang);
   const withMarker = text.slice(0, pos) + marker + text.slice(pos);
   const entry = definitionText(name, "", lang);
-  const { text: out, at } = fileNewBody(withMarker, entry, name, grouped);
+  const { text: out, at } = fileNewBody(withMarker, entry, name, grouped, home, pos);
   return { text: out, caret: at + entry.length - 1 };
 }
 
@@ -684,13 +813,20 @@ function isDefaultKind(cmd: string): boolean {
 export function inlineNoteAt(
   text: string,
   pos: number,
-): { cmd: string; from: number; to: number; args: string; bodyFrom: number; bodyTo: number } | null {
+): {
+  cmd: string;
+  from: number;
+  to: number;
+  args: string;
+  bodyFrom: number;
+  bodyTo: number;
+  /** Written with a leading `#` — see `Ref.hash`. */
+  hash: boolean;
+} | null {
   const isComment = inComment(text);
   let best: ReturnType<typeof inlineNoteAt> = null;
-  for (const start of callsOf(text, NOTE_COMMANDS, isComment)) {
-    let j = start + 1;
-    while (j < text.length && NAME_CH.test(text[j])) j++;
-    const cmd = text.slice(start + 1, j);
+  for (const { from: start, nameTo: j, hash } of callsOf(text, NOTE_COMMANDS, isComment)) {
+    const cmd = text.slice(start, j).replace(/^#/, "");
     let args = "";
     let k = skipSpace(text, j);
     if (text[k] === "(") {
@@ -708,6 +844,7 @@ export function inlineNoteAt(
       from: start,
       to: bodyClose + 1,
       args,
+      hash,
       bodyFrom: k + 1,
       bodyTo: bodyClose,
     };
@@ -724,16 +861,28 @@ export function inlineNoteAt(
  * live in the file* and nothing else. Any other extra arguments ride along
  * verbatim rather than being interpreted.
  */
-export function deferInlineNote(text: string, pos: number, grouped = false): Change | null {
+export function deferInlineNote(
+  text: string,
+  pos: number,
+  grouped = false,
+  home: BodyHome = "file",
+): Change | null {
   const note = inlineNoteAt(text, pos);
   if (!note) return null;
   const name = nextName(text);
   const body = text.slice(note.bodyFrom, note.bodyTo);
   const lang = langOf(note.cmd);
   const kind = isDefaultKind(note.cmd) ? null : note.cmd;
-  const marker = referenceText(name, kind, note.args, lang);
+  const marker = referenceText(name, kind, note.args, lang, note.hash);
   const withMarker = text.slice(0, note.from) + marker + text.slice(note.to);
-  const { text: out } = fileNewBody(withMarker, definitionText(name, body, lang), name, grouped);
+  const { text: out } = fileNewBody(
+    withMarker,
+    definitionText(name, body, lang),
+    name,
+    grouped,
+    home,
+    note.from,
+  );
   // The caret stays where the note was — the writer is still writing the
   // sentence, not the note.
   return { text: out, caret: note.from + marker.length };
@@ -758,7 +907,11 @@ export function inlineDeferredNote(text: string, pos: number): Change | null {
 
   const body = text.slice(def.bodyFrom, def.bodyTo);
   const cmd = ref.kind ?? DEFAULT_KIND[ref.lang];
-  const call = `#${cmd}${ref.rest ? `(${ref.rest})` : ""}[${body}]`;
+  // The marker's own form, put back the way it was found. A marker inside an
+  // argument list has no `#` — Typst is already in code there — and writing one
+  // back is *"the character `#` is not valid in code"*, produced by the button
+  // that recalls the note rather than by the writer.
+  const call = `${ref.hash ? "#" : ""}${cmd}${ref.rest ? `(${ref.rest})` : ""}[${body}]`;
 
   // Two edits at known offsets; apply the later one first so the earlier keeps
   // its position. The definition's own line goes with it, so removing a body
@@ -805,9 +958,15 @@ function lineEndIfAlone(text: string, from: number, to: number): number {
  * whole of where a deferred note prints, so that argument is the entire edit —
  * the name and any extra positional arguments ride along, which is what keeps a
  * tier or a stream through the change.
+ *
+ * `rest` defaults to what the marker already carried, because keeping it is the
+ * point. It is an argument rather than a fixed rule so that a caller that *is*
+ * changing one of those arguments — sending the note to another destination —
+ * can do it in the same edit, without this module having to learn a vocabulary
+ * that belongs to `channels.ts`.
  */
-export function retargetRef(text: string, ref: Ref, command: string): Change {
-  const marker = referenceText(ref.name, command, ref.rest, ref.lang);
+export function retargetRef(text: string, ref: Ref, command: string, rest = ref.rest): Change {
+  const marker = referenceText(ref.name, command, rest, ref.lang, ref.hash);
   return {
     text: text.slice(0, ref.from) + marker + text.slice(ref.to),
     caret: ref.from + marker.length,
@@ -924,13 +1083,22 @@ export function resolveDeferred(text: string): string {
  * already travelling with the body that contains them, and hoisting both would
  * put a marker inside a body that is itself about to move.
  */
-export function deferAllInlineNotes(text: string, grouped = false): { text: string; moved: number } {
+export function deferAllInlineNotes(
+  text: string,
+  grouped = false,
+  home: BodyHome = "file",
+): { text: string; moved: number } {
   const isComment = inComment(text);
-  const spans: { from: number; to: number; cmd: string; args: string; body: string }[] = [];
-  for (const start of callsOf(text, NOTE_COMMANDS, isComment)) {
-    let j = start + 1;
-    while (j < text.length && NAME_CH.test(text[j])) j++;
-    const cmd = text.slice(start + 1, j);
+  const spans: {
+    from: number;
+    to: number;
+    cmd: string;
+    args: string;
+    body: string;
+    hash: boolean;
+  }[] = [];
+  for (const { from: start, nameTo: j, hash } of callsOf(text, NOTE_COMMANDS, isComment)) {
+    const cmd = text.slice(start, j).replace(/^#/, "");
     let args = "";
     let k = skipSpace(text, j);
     if (text[k] === "(") {
@@ -942,7 +1110,7 @@ export function deferAllInlineNotes(text: string, grouped = false): { text: stri
     if (text[k] !== "[") continue;
     const bodyClose = matchGroup(text, k);
     if (bodyClose == null) continue;
-    spans.push({ from: start, to: bodyClose + 1, cmd, args, body: text.slice(k + 1, bodyClose) });
+    spans.push({ from: start, to: bodyClose + 1, cmd, args, hash, body: text.slice(k + 1, bodyClose) });
   }
   // Outermost only: a span contained in another is a note inside a note.
   const top = spans.filter((s) => !spans.some((o) => o !== s && o.from <= s.from && o.to >= s.to));
@@ -972,13 +1140,19 @@ export function deferAllInlineNotes(text: string, grouped = false): { text: stri
     const name = nameFor();
     const lang = langOf(s.cmd);
     const kind = isDefaultKind(s.cmd) ? null : s.cmd;
-    out += text.slice(cursor, s.from) + referenceText(name, kind, s.args, lang);
+    out += text.slice(cursor, s.from) + referenceText(name, kind, s.args, lang, s.hash);
     cursor = s.to;
     bodies.push({ name, entry: definitionText(name, s.body, lang) });
   }
   out += text.slice(cursor);
 
-  for (const b of bodies) out = fileNewBody(out, b.entry, b.name, grouped).text;
+  for (const b of bodies) {
+    // Where its own marker landed, which is what a section-scoped home files
+    // against — and which moves as each body before it is inserted, so it is
+    // read again per body rather than measured once against the original.
+    const near = scan(out).refs.find((r) => r.name === b.name)?.from ?? -1;
+    out = fileNewBody(out, b.entry, b.name, grouped, home, near).text;
+  }
   return { text: out, moved: top.length };
 }
 
@@ -1026,7 +1200,9 @@ export function inlineAllDeferredNotes(text: string): { text: string; moved: num
     edits.push({
       from: r.from,
       to: r.to,
-      insert: `#${cmd}${r.rest ? `(${r.rest})` : ""}[${body}]`,
+      // The marker's own form — see `inlineDeferredNote`. A `#` written back
+      // into an argument list is a document that stops compiling.
+      insert: `${r.hash ? "#" : ""}${cmd}${r.rest ? `(${r.rest})` : ""}[${body}]`,
     });
     edits.push({
       from: lineStartIfAlone(text, def.from, def.to),

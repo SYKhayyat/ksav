@@ -623,7 +623,19 @@ mod side_notes {
     /// one thing, and the one nobody passed won.
     #[test]
     fn the_configured_width_is_the_width() {
-        let inner = "טקסט#הערת_גיליון[הערה] סוף.";
+        // Long enough to wrap, which it has to be for this question to have an
+        // answer. A short line's left edge in a right-to-left document is set by
+        // how wide the words are, not by how wide the column is, so it reaches
+        // the same x at every ratio.
+        //
+        // It used to be one short line and the assertion passed — on the
+        // *defect*. A sidenote called a block-level `layout()` from inside the
+        // sentence it was written in, which ended the line it sat on, so the body
+        // was broken into pieces whose positions did depend on the column. Fixing
+        // the paragraph is what made this test fail, and the test was measuring
+        // the wrong thing all along.
+        let inner = "בראשית ברא אלקים את השמים ואת הארץ והארץ היתה תהו ובהו וחשך על פני תהום \
+                     ורוח#הערת_גיליון[הערה] אלקים מרחפת על פני המים ויאמר אלקים יהי אור ויהי אור.";
         let narrow = render(&format!("#הגדרות_הערות_צד(יחס: 1)\n#עם_הערות_צד[{inner}]"));
         let wide = render(&format!("#הגדרות_הערות_צד(יחס: 6)\n#עם_הערות_צד[{inner}]"));
         // A wider ratio is a wider *text* column, so in a right-to-left document

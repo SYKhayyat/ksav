@@ -29,11 +29,17 @@ fn runs(body: &str) -> Vec<probe::TextRun> {
 }
 
 /// The size a run of this text was set at, if it printed at all.
+///
+/// It falls back to the phrase's **first word** because a phrase is not always
+/// one run: a slanted one is sheared word by word, and every sheared word is a
+/// box of its own. Three of the eight mark classes ship `סגנון: "italic"`, so
+/// `#פסוק`'s quotation stopped being findable the moment that default started
+/// rendering. Every run of a phrase carries the same size, which is why asking
+/// one word is the same answer as asking all of them.
 fn size_of(body: &str, needle: &str) -> Option<f64> {
-    runs(body)
-        .iter()
-        .find(|r| r.text.contains(needle))
-        .map(|r| r.size)
+    let runs = runs(body);
+    let by = |n: &str| runs.iter().find(|r| r.text.contains(n)).map(|r| r.size);
+    by(needle).or_else(|| by(needle.split_whitespace().next().unwrap_or(needle)))
 }
 
 #[test]

@@ -75,21 +75,18 @@ import {
 import * as store from "./store";
 import * as files from "./files";
 import {
-  applyChoice,
-  choiceForCommand,
-  conversionTargets,
-  convertNote,
+  applyPick,
   deleteNote,
+  destinationTargets,
   markersFor,
-  markersOf,
   noteAt,
   noteDepthAt,
-  scaffold,
+  noteDestination,
   notesIn,
+  regionShown,
+  retargetNote,
+  scaffold,
   tieredNoteAt,
-  NOTE_WHERE,
-  type NoteHow,
-  type NoteWhere,
 } from "./notes";
 import { aliasesInForce, keyHint, keybindingsFrom, whoHolds } from "./bindings";
 import * as sefarim from "./sefarim";
@@ -100,7 +97,17 @@ import * as styles from "./styles";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
 import { citationMarkup } from "./citation";
-import type { NoteChoice } from "./notes";
+import { BODY_HOMES, defersBody, type BodyHome } from "./deferred";
+import {
+  DESTINATIONS,
+  PRESETS,
+  caveatsFor,
+  presetOf,
+  regionsIn,
+  samePick,
+  type DestinationId,
+  type NotePick,
+} from "./channels";
 import * as marks from "./marks";
 import * as menus from "./menus";
 import { marksIn } from "./marks";
@@ -5538,7 +5545,7 @@ function insertSnippet(rawSnippet: string): boolean {
     return false;
   }
   if (plan.kind === "note") {
-    applyNoteChoice(plan.choice, plan.layer, { to: sel.to, text: selText, marker: plan.marker });
+    applyNotePick(plan.pick, { to: sel.to, text: selText, marker: plan.marker });
     return true;
   }
   // "Make this a real list" — the bullet button pressed over paragraphs. A
@@ -7324,30 +7331,67 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
 }
 
 /**
- * One row per note kind: is its body written inline or sent to the end of the
- * file. Its own builder rather than a stack of `selectRow`s because the answer
- * is a key of the `noteBodyPlacement` record, not a scalar `Field` that
- * `setSetting` knows how to write — so each row writes the record directly and
- * saves. An empty value clears the key, which is what "default" means: fall back
- * to the global preference.
+ * Where a note's prose sits in the source — the document-level preference, and
+ * one override per destination.
+ *
+ * **Thing one of the note model, and it is not a note-layout question.** Where
+ * the prose sits changes the *file* and never the page: the engine's own
+ * `every_note_layout_lays_out_identically_with_deferred_bodies` renders each
+ * layout twice, inline and deferred, and asserts every run landed on the same
+ * page at the same coordinates at the same size. So it does not belong in the
+ * chooser that asks where a note prints, and it is here, with the other
+ * preferences about reading and writing the source.
+ *
+ * It had no home at all before this. The global answer existed only as two
+ * buttons *inside* the notes chooser — the one surface it is not allowed to be
+ * in — so a writer who wanted their bodies at the end of the file had to open a
+ * panel about note layouts to say so, and a writer who never opened that panel
+ * had no way to discover the preference existed.
+ *
+ * Its own builder rather than a stack of `selectRow`s because the per-
+ * destination answers are keys of the `noteBodyPlacement` record, not scalar
+ * `Field`s that `setSetting` knows how to write. An empty value clears the key,
+ * which is what "default" means: fall back to the global answer above.
  */
-function notePlacementRows(): HTMLElement[] {
-  return NOTE_WHERE.map((w) => {
-    const live = settings.noteBodyPlacement?.[w] ?? "";
-    const options: [string, string][] = [
-      ["", t("notePlacement.default")],
-      ["inline", t("notePlacement.inline")],
-      ["deferred", t("notePlacement.deferred")],
-    ];
+function noteBodyRows(): HTMLElement[] {
+  const homes: [string, string][] = BODY_HOMES.map((h) => [h, t("bodyHome." + h)]);
+  const global = el(
+    "select",
+    {
+      "data-setting": "noteBodyHome",
+      onChange: (e: Event) => {
+        const v = (e.target as HTMLSelectElement).value as BodyHome;
+        settings.noteBodyHome = v;
+        // The boolean this replaced, kept in step rather than left to rot: it is
+        // still what an older build reads, and two answers to one question that
+        // can disagree is the defect family this repository is named for.
+        settings.deferNoteBodies = defersBody(v);
+        saveSettings();
+      },
+    },
+    homes.map(([value, label]) =>
+      el("option", { value, ...(value === bodyHome() ? { selected: "selected" } : {}) }, [label]),
+    ),
+  );
+  const rows = [
+    el("label", { class: "set-row" }, [el("span", {}, [t("noteBodyHomeLabel")]), global]),
+    el("p", { class: "set-hint" }, [t("noteBodyHomeNote")]),
+  ];
+  // One override per destination, keyed by the destination's own id — so a
+  // writer keeps their footnotes in the sentence and sends the haaros at the
+  // back to a block at the end of the source.
+  for (const d of DESTINATIONS) {
+    const live = settings.noteBodyPlacement?.[d.id] ?? "";
+    const options: [string, string][] = [["", t("bodyHome.default")], ...homes];
     const sel = el(
       "select",
       {
-        "data-setting": `noteBodyPlacement.${w}`,
+        "data-setting": `noteBodyPlacement.${d.id}`,
         onChange: (e: Event) => {
           const v = (e.target as HTMLSelectElement).value;
           const map = { ...(settings.noteBodyPlacement ?? {}) };
-          if (v === "inline" || v === "deferred") map[w] = v;
-          else delete map[w];
+          if ((BODY_HOMES as readonly string[]).includes(v)) map[d.id] = v as BodyHome;
+          else delete map[d.id];
           settings.noteBodyPlacement = map;
           saveSettings();
         },
@@ -7356,8 +7400,27 @@ function notePlacementRows(): HTMLElement[] {
         el("option", { value, ...(value === live ? { selected: "selected" } : {}) }, [label]),
       ),
     );
-    return el("label", { class: "set-row" }, [el("span", {}, [t(`where.${w}`)]), sel]);
-  });
+    rows.push(el("label", { class: "set-row" }, [el("span", {}, [t("dest." + d.id)]), sel]));
+  }
+  // The two sweeps and the tidy, beside the preference rather than behind a
+  // panel about note layouts. Changing the answer above decides where the *next*
+  // note's prose goes; these are how the notes already written follow it, and a
+  // preference with no way to apply it to the document in hand is half a
+  // feature.
+  rows.push(
+    el("div", { class: "set-row set-actions" }, [
+      el("button", { type: "button", "data-defer-sweep": "end", onClick: () => deferAll(runtime.view) }, [
+        t("deferAllAction"),
+      ]),
+      el("button", { type: "button", "data-defer-sweep": "inline", onClick: () => inlineAll(runtime.view) }, [
+        t("deferRecallAllAction"),
+      ]),
+      el("button", { type: "button", "data-defer-sweep": "sort", onClick: () => sortDeferredBodies(runtime.view) }, [
+        t("deferSortAction"),
+      ]),
+    ]),
+  );
+  return rows;
 }
 
 /**
@@ -7724,17 +7787,6 @@ function buildSettingsDrawer(): HTMLElement {
       ["onSwitch", t("tabCompile.onSwitch")],
     ]),
     el("div", { class: "set-note" }, [t("tabCompileNote")]),
-    // Which of the chooser's three presentations opens. The panel carries the
-    // same switch at its own top — that is where anybody actually changes it —
-    // and this row is so that a person who has decided they want the grid can
-    // find the answer where every other durable preference lives, rather than
-    // having to open a panel about notes to discover it is a preference at all.
-    selectRow("notesChooserViewLabel", "notesChooserView", [
-      ["guided", t("notesView.guided")],
-      ["matrix", t("notesView.matrix")],
-      ["cards", t("notesView.cards")],
-    ]),
-    el("div", { class: "set-note" }, [t("notesChooserViewNote")]),
     checkRow("focusModeLabel", "focusMode"),
     checkRow("typewriterLabel", "typewriter"),
     // The note, because this is the one setting here whose effect a writer
@@ -7845,7 +7897,7 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("maxHistoryMBLabel", "maxHistoryMB", 0.25, 200, 0.5),
     el("p", { class: "set-hint" }, [t("historyLimitsNote")]),
     el("h3", { style: "margin-top:18px" }, [t("notePlacementLabel")]),
-    ...notePlacementRows(),
+    ...noteBodyRows(),
     checkRow("autosaveFileLabel", "autosaveFile"),
     checkRow("checkUpdatesLabel", "checkUpdates"),
     el("div", { class: "set-note" }, [t("checkUpdatesNote")]),
@@ -8174,20 +8226,19 @@ function openNoteMenu(e: MouseEvent, at: number) {
   const doc = docTextOf(runtime.view.state.doc);
   const note = noteAt(doc, at);
   if (!note) return;
-  // Derived from the chooser, not hand-listed. This was six Hebrew literals out
-  // of eighteen note commands — so twelve layouts were unreachable from the
-  // menu, and the English spellings were unreachable from anywhere.
+  // Where it prints, not what it is called. A note does not change *command* to
+  // move any more, it changes **argument** — so the menu offers the five
+  // destinations plus whatever regions this document declared, and the note the
+  // writer right-clicked keeps its prose, its name and its tier through the
+  // change.
   //
-  // Spelt in the document's language, which the first fix left out: the markers
-  // are Hebrew literals, `convertNote` writes `#${command}[…]` verbatim, and
-  // there is no `translated()` anywhere on the path. So an English writer's only
-  // offer was to rewrite `#fnote` as `#הערה` — a change of language presented as
-  // a change of layout. The `c !== note.command` exclusion compounded it by
-  // comparing a Hebrew list against an English command, so the note's *own*
-  // layout was offered too. Both are `conversionTargets`' problem now.
-  const targets = conversionTargets(note.command, modeDocLang(doc, at, dirLang()));
+  // Derived from the document rather than hand-listed. This was six Hebrew
+  // literals out of eighteen note commands, so twelve layouts were unreachable
+  // from the menu and the English spellings were unreachable from anywhere.
+  const here = noteDestination(doc, note);
+  const targets = destinationTargets(doc, note);
   const menu = el("div", { class: "spell-menu note-menu" }, [
-    el("div", { class: "menu-cat" }, ["#" + note.command]),
+    el("div", { class: "menu-cat" }, [t("dest." + here.dest) + (here.region ? " · " + here.region : "")]),
     el(
       "button",
       {
@@ -8204,28 +8255,27 @@ function openNoteMenu(e: MouseEvent, at: number) {
       [el("b", {}, ["⁑ " + t("sc.tieredNote")])],
     ),
     el("div", { class: "menu-cat" }, [t("noteConvert")]),
-    ...targets.map((command) =>
+    ...targets.map((pick) =>
       el(
         "button",
         {
           class: "menu-item menu-cmd",
+          "data-note-to": pick.region ?? pick.dest,
           onClick: () => {
             closeNoteMenu();
-            const e2 = convertNote(docTextOf(runtime.view.state.doc), note, command);
-            // …and then the scaffolding the new layout needs, which is what
-            // `applyNoteChoice` — docstringed *"The only place that does"* —
-            // has always done for an inserted note. `convertNote` writes
-            // `#${command}[${body}]` and nothing else, so converting a footnote
-            // to an endnote produced an endnote with no `#הערות_בסוף()`: the
-            // "collected and never printed" failure, performed by the product
-            // and then reported back to the writer as a lint.
-            const choice = choiceForCommand(command);
-            const done = choice ? scaffold(e2.text, e2.caret, choice, dirLang()) : e2;
+            const e2 = retargetNote(docTextOf(runtime.view.state.doc), note, pick, dirLang());
+            // …and then whatever the destination needs in order to print, which
+            // is what `applyNotePick` — docstringed *"The only place that
+            // does"* — has always done for an inserted note. Without it,
+            // sending a footnote to the back produced a stream nothing printed:
+            // the "collected and never rendered" failure, performed by the
+            // product and then reported back to the writer as a lint.
+            const done = scaffold(e2.text, e2.caret, pick, dirLang());
             replaceAll(done.text, done.caret ?? e2.caret);
-            setStatus(tf("noteConverted", command), "ok");
+            setStatus(tf("noteConverted", t("dest." + pick.dest)), "ok");
           },
         },
-        [el("code", {}, ["#" + command])],
+        [el("span", {}, [pick.region ?? t("dest." + pick.dest)])],
       ),
     ),
     el("div", { class: "menu-sep" }),
@@ -12198,133 +12248,127 @@ function markStyleRows(): Node[] {
   return rows;
 }
 
-// ----------------------------------------------------------------- channels
+// ------------------------------------------------------------- destinations
 //
 // The one section of this panel that edits the *document's own* declarations
-// rather than a `#הגדרות_*` call, because that is what a channel is: a note
-// stream with a source and a placement, declared once and read wherever a note
-// is written.
+// rather than a `#הגדרות_*` call, because that is what a destination is: a note
+// stream, declared once and read wherever a note is written.
 //
-// It is here rather than in the Notes chooser on purpose. The chooser asks
-// "where should this note go?" once, at the moment a note is written, and then
-// the answer is welded into the command that got typed — which is the whole
-// complaint the channel model answers. This asks the same question about a
-// channel that already exists, with the notes already written, and moving the
-// apparatus from the foot of the page to the back of the sefer is one select.
+// It is here rather than in the Notes chooser on purpose, and the split is the
+// whole model. The chooser asks *"where should this note go?"* once, at the
+// moment a note is written. This asks *"what does that place look like"* about
+// a destination that already exists, with the notes already written — so
+// lettering three hundred haaros א,ב,ג is one control and not three hundred
+// edits, which is exactly what the eighteen commands could not offer.
+//
+// **The word "channel" is not on this surface.** A writer picks a place and sets
+// what a place looks like; `channels.ts` is the machinery underneath, and the
+// prelude's `#ערוץ` line is what gets written.
 
-/** Which channel the section is editing; "" until the writer picks one. */
-let channelName = "";
+/** The destination this section is editing. */
+let stylePick: NotePick = { dest: "foot", region: null };
 
-/** The document's channels, or an empty list when there is no editor yet. */
-function documentChannels(): channels.Channel[] {
-  if (!runtime.view) return [];
-  return channels.channelsIn(docTextOf(runtime.view.state.doc));
+/** A pick as one string, for a `<select>` value. */
+function pickKey(pick: NotePick): string {
+  return pick.region ? `region:${pick.region}` : pick.dest;
 }
 
-/** The channel being edited, if it is still in the document. */
-function currentChannel(): channels.Channel | null {
-  return documentChannels().find((c) => c.name === channelName) ?? null;
+function pickFromKey(key: string): NotePick {
+  if (key.startsWith("region:")) return { dest: "region", region: key.slice(7) };
+  return { dest: key as DestinationId, region: null };
 }
 
-/** Rewrite one channel's declaration and put the caret on it. */
-function setChannel(fields: channels.ChannelFields) {
-  if (!runtime.view || !channelName) return;
+/**
+ * Every destination this document could be setting: the five singular ones and
+ * one entry per region it has.
+ *
+ * A region a writer named without declaring it is in the list too, because
+ * naming one is not an error — it is an apparatus of its own, which is what
+ * `#הערה_זרם("מקורות")` has always been — and a panel that hid it would be
+ * hiding a block that is on the page.
+ */
+function styleDestinations(): NotePick[] {
+  const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";
+  const named = new Set<string>();
+  for (const r of regionsIn(doc)) named.add(r.name);
+  for (const c of channels.usedChannels(doc)) {
+    if (!channels.destinationForChannel(c)) named.add(c);
+  }
+  return [
+    ...DESTINATIONS.filter((d) => d.id !== "region").map(
+      (d) => ({ dest: d.id, region: null }) as NotePick,
+    ),
+    ...[...named].map((name) => ({ dest: "region", region: name }) as NotePick),
+  ];
+}
+
+/** What to call a destination on this panel: its place, or the writer's own name. */
+function destinationLabel(pick: NotePick): string {
+  return pick.region ?? t("dest." + pick.dest);
+}
+
+/** Rewrite one destination's declaration and put the caret on it. */
+function setDestination(fields: channels.DestinationSettings) {
+  if (!runtime.view) return;
   const doc = docTextOf(runtime.view.state.doc);
-  const { text, at } = channels.writeChannel(doc, channelName, fields, docLang());
+  const { text, at } = channels.writeDestination(doc, stylePick, fields, docLang());
   replaceAll(text, at);
   renderStylesPanel();
 }
 
-/**
- * A channel's name for a chooser: what it *is*, not only what it is called.
- *
- * The seven built-in tiers are the native apparatus and a writer does not think
- * of them as "הערה_ג" — they are the third layer of notes — so they say so, and
- * a channel the writer named says its own name.
- */
-function channelLabel(c: channels.Channel): string {
-  const tier = channels.TIER_CHANNELS.indexOf(c.name);
-  if (tier === 0) return t("channelDefault");
-  if (tier > 0) return tf("channelTier", tier + 1);
-  return c.name;
-}
+function destinationRows(): Node[] {
+  const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";
+  const list = styleDestinations();
+  // A region the document has since lost is a stale answer, and showing its
+  // settings would be the panel describing a document that is not there.
+  if (!list.some((p) => samePick(p, stylePick))) stylePick = { dest: "foot", region: null };
 
-function channelRows(): Node[] {
-  const list = documentChannels();
   const rows: Node[] = [
     styleRow(
-      t("channelPick"),
+      t("destPick"),
       selectControl(
-        [["", t("channelPickNone")], ...list.map((c) => [c.name, channelLabel(c)] as [string, string])],
-        channelName,
+        list.map((p) => [pickKey(p), destinationLabel(p)] as [string, string]),
+        pickKey(stylePick),
         (v) => {
-          channelName = v;
+          stylePick = pickFromKey(v);
           renderStylesPanel();
         },
       ),
     ),
   ];
-  const c = currentChannel();
-  if (!c) {
-    rows.push(el("p", { class: "styles-note" }, [t("channelPickLede")]));
-    rows.push(channelAddRow());
-    return rows;
+
+  // What is wrong with this destination against this document, in the same words
+  // the chooser uses. A writer who reaches the settings without going through the
+  // chooser gets the same sentence — one answer to "what does this cost", not two.
+  for (const c of caveatsFor(doc, stylePick)) {
+    rows.push(el("p", { class: "styles-note" }, [t(c.why)]));
   }
 
-  // What this channel is a note *on*. A channel cannot be its own source, and
-  // offering it would let a writer write the cycle the engine has to defend
-  // against — better not to offer it than to bound it twice.
-  rows.push(
-    styleRow(
-      t("channelSource"),
-      selectControl(
-        [
-          ["", t("channelSourceBody")],
-          ...list
-            .filter((o) => o.name !== c.name)
-            .map((o) => [o.name, channelLabel(o)] as [string, string]),
-        ],
-        c.source ?? "",
-        (v) => setChannel({ source: v || null }),
-      ),
-    ),
-  );
-  rows.push(
-    styleRow(
-      t("channelPlacement"),
-      selectControl(
-        channels.PLACEMENTS.map((p) => [p, t("placement." + p)] as [string, string]),
-        c.placement,
-        (v) => setChannel({ placement: v as channels.Placement }),
-      ),
-    ),
-  );
-  // A height is what turns a page-foot channel into a fixed region of its own,
-  // and it is meaningless anywhere else — a collected region takes the height it
-  // needs. Offered only where it does something.
-  if (c.placement === "רגל") {
+  const held = channels.settingsOf(doc, stylePick);
+  // The knobs, from the one table that pairs each with the prelude's own
+  // argument name **and its label**. A row per knob and no second list: a knob
+  // that exists in the model and not on this panel is not expressible, which is
+  // stronger than a test looking for the table's name in this file — a check
+  // that reads source as text passes on a mention of the thing it wants.
+  for (const knob of channels.DESTINATION_KNOBS) {
     rows.push(
       styleRow(
-        t("channelHeight"),
-        textControl(c.height ?? "", (v) => setChannel({ height: v.trim() || null }), "3cm"),
+        t(knob.label),
+        textControl(
+          held[knob.key] ?? "",
+          (v) => setDestination({ [knob.key]: v.trim() || null }),
+          knob.hint,
+        ),
       ),
     );
   }
-  rows.push(
-    styleRow(
-      t("channelRegion"),
-      textControl(
-        c.region === c.name ? "" : c.region,
-        (v) => setChannel({ region: v.trim() || null }),
-        c.name,
-      ),
-    ),
-  );
 
-  // What this channel *is*, said plainly, because the three settings above
-  // combine into an arrangement and a writer should not have to hold the rules
-  // in their head to know which one they have just described.
-  rows.push(el("p", { class: "styles-note" }, [t("channelKind." + c.kind)]));
+  // What this destination *is*, said plainly: the same three kinds `_ch_kind`
+  // answers, because a writer should not have to hold the rules in their head to
+  // know whether the block they have just described grows with its notes.
+  const name = channels.destinationChannelName(stylePick);
+  const kind = channels.channelsIn(doc).find((c) => c.name === name)?.kind;
+  if (kind) rows.push(el("p", { class: "styles-note" }, [t("channelKind." + kind)]));
 
   rows.push(
     styleRow(
@@ -12332,13 +12376,16 @@ function channelRows(): Node[] {
       el("span", { class: "chan-actions" }, [
         el(
           "button",
-          { class: "note-use", onClick: () => insertSnippet(channels.noteLine(c.name, docLang())) },
+          {
+            class: "note-use",
+            onClick: () => insertSnippet(channels.pickLine(stylePick, docLang())),
+          },
           ["+ " + t("channelInsertNote")],
         ),
-        // A collected channel prints nowhere until its region is shown. This is
-        // the "collected and then never rendered" failure that every one of the
-        // eighteen commands could produce, offered as a button instead of as a
-        // lint after the fact.
+        // A collected destination prints nowhere until its block is shown. This
+        // is the "collected and then never rendered" failure that every one of
+        // the eighteen commands could produce, offered as a button instead of as
+        // a lint after the fact.
         //
         // Filed at the **end of the document**, through the same rule the lint's
         // own repair uses. Splicing it at the caret is what this button did
@@ -12346,7 +12393,7 @@ function channelRows(): Node[] {
         // document whose caret is on line one it rendered nothing and left the
         // warning standing, which is the button producing the defect it exists
         // to cure.
-        ...(c.kind === "collected"
+        ...(kind === "collected" && name && !regionShown(doc, name)
           ? [
               el(
                 "button",
@@ -12356,7 +12403,7 @@ function channelRows(): Node[] {
                     if (!runtime.view) return;
                     const filed = apparatus.fileAtEnd(
                       docTextOf(runtime.view.state.doc),
-                      channels.showRegionLine(c.region, docLang()),
+                      channels.showRegionLine(name, docLang()),
                     );
                     replaceAll(filed.text, filed.caret);
                   },
@@ -12369,28 +12416,6 @@ function channelRows(): Node[] {
     ),
   );
   return rows;
-}
-
-function channelAddRow(): Node {
-  return styleRow(
-    "",
-    el(
-      "button",
-      {
-        class: "note-use",
-        onClick: async () => {
-          const name = (await askText(t("channelNewPrompt")))?.trim();
-          if (!name || !runtime.view) return;
-          const doc = docTextOf(runtime.view.state.doc);
-          const { text, at } = channels.writeChannel(doc, name, { placement: "רגל" }, docLang());
-          replaceAll(text, at);
-          channelName = name;
-          renderStylesPanel();
-        },
-      },
-      ["+ " + t("channelNew")],
-    ),
-  );
 }
 
 /** Rename one entry of a `("א", "ב")` order tuple, leaving the order alone. */
@@ -12569,8 +12594,8 @@ function renderStylesPanel() {
             ? lists
             : section.kind === "tables"
               ? tables
-              : section.kind === "channels"
-                ? channelRows()
+              : section.kind === "destinations"
+                ? destinationRows()
                 : inst
                   ? instanceRows(section.kind as styles.InstanceCommand, inst)
                   : DEFAULT_STYLE_ROWS[section.kind]();
@@ -12980,12 +13005,9 @@ function openFormula() {
 
 // ---------------------------------------------------------------- notes chooser
 //
-// The eleven note layouts used to be ~25 raw command names in one palette group.
-// This asks the writer the question they can actually answer — where should the
-// note go? — and emits the right commands plus whatever scaffolding the layout
-// needs (the dump call at the end, the wrapper around the section). Forgetting
-// that scaffolding is the most common way these layouts appear "broken": the
-// notes are collected and then never rendered.
+// One pick: where should the note print. `channels.ts` holds the six
+// destinations and what each writes; `panelviews.notesPanel` asks the question;
+// this connects the two and performs the answer.
 
 function openNotesChooser() {
   closeMenus();
@@ -12997,59 +13019,68 @@ function closeNotesChooser() {
 }
 
 /**
- * Where the note's prose goes in the *file* — which is a separate question from
- * where it prints, and the one the chooser could not previously ask.
+ * Where the prose of a new note is written in the *file*.
  *
- * Persisted, not session-scoped: someone who writes their notes at the end of
- * the file writes *every* note that way, and having to re-answer after each
- * reload is how the answer stops being believed.
+ * A separate question from where it prints, and deliberately not asked in the
+ * chooser: the page is byte-identical whichever answer it gets, so it is a
+ * preference about reading the source and it lives with the other document
+ * preferences. See `deferred.BODY_HOMES`.
+ *
+ * Persisted, not session-scoped: somebody who writes their note bodies at the
+ * end of the file writes *every* note that way, and having to re-answer after
+ * each reload is how an answer stops being believed.
  */
-function deferBodies(): boolean {
-  return settings.deferNoteBodies === true;
+function bodyHome(): BodyHome {
+  const held = settings.noteBodyHome;
+  if (held && (BODY_HOMES as readonly string[]).includes(held)) return held as BodyHome;
+  // The old boolean, still honoured. `deferNoteBodies` was this preference when
+  // it had two answers, and a writer who set it does not have to set it again.
+  return settings.deferNoteBodies === true ? "file" : "inline";
 }
 
 /**
- * Whether *this* note's body is exiled to the end of the file.
+ * Where *this* note's prose goes — the per-destination override, falling back to
+ * the document-wide answer.
  *
- * The per-kind answer, keyed by where the note prints, falling back to the
- * global preference when the writer has said nothing about that kind. This is
- * what lets footnotes stay inline while endnotes collect at the back — the
- * setting a writer asked for so each kind reads the way they think of it.
+ * This is what lets footnotes stay in the sentence while the haaros at the back
+ * collect into a block at the end of the source: each kind reads the way the
+ * writer thinks of it.
  */
-function deferBodiesFor(choice: NoteChoice): boolean {
-  const per = settings.noteBodyPlacement?.[choice.where[0]];
-  if (per === "inline") return false;
-  if (per === "deferred") return true;
-  return deferBodies();
+function bodyHomeFor(pick: NotePick): BodyHome {
+  const per = settings.noteBodyPlacement?.[pick.dest];
+  if (per && (BODY_HOMES as readonly string[]).includes(per)) return per as BodyHome;
+  return bodyHome();
 }
 
 /**
- * Write a note layout into the document. The only place that does.
+ * Write a note into the document. The only place that does.
  *
  * Reached from the chooser, from `insertSnippet` (and therefore from the
  * toolbar, the palette, the Insert menu and every key binding), and from the
  * right-click menu on an existing note. One producer means the scaffolding and
- * the org-mode preference cannot be honoured in one surface and forgotten in
- * three — which is exactly what happened, and what `app/test/notepaths.test.mjs`
- * now holds.
+ * the source-position preference cannot be honoured in one surface and forgotten
+ * in three — which is exactly what happened, and what `channels.test.mjs` and
+ * `notecommands.test.mjs` now hold between them.
  */
-function applyNoteChoice(
-  choice: NoteChoice,
-  layer: number,
+function applyNotePick(
+  pick: NotePick,
   sel: { to?: number; text?: string; marker?: string } = {},
+  preset: string | null = null,
 ) {
   const from = runtime.view.state.selection.main.from;
-  const { text, caret } = applyChoice(
+  const home = bodyHomeFor(pick);
+  const { text, caret } = applyPick(
     docTextOf(runtime.view.state.doc),
     from,
-    choice,
-    layer,
-    deferBodiesFor(choice),
+    pick,
+    defersBody(home),
     sel,
     dirLang(),
     // The filing has to know about the blocks, or the option is true only until
     // the writer adds a note. See `neighbours` in `deferred.ts`.
     settings.deferGrouped === true,
+    preset ? presetOf(preset) : null,
+    home,
   );
   editDoc(text, caret);
   scheduleCompile();
@@ -13060,48 +13091,36 @@ function applyNoteChoice(
   runtime.view.focus();
 }
 
-function chooseNote(choice: NoteChoice, layer: number) {
-  applyNoteChoice(choice, layer);
-  closeNotesChooser();
-}
-
 /**
  * A real page, set from the writer's own text, in place of an ASCII sketch.
  *
- * Four rows of `▤` and `¹` cannot say whether the band lands at the foot of the
- * page or where the prose happens to stop — which is precisely the distinction
- * the writer is being asked to make. So the selected card compiles: the opening
- * of the document in hand, with the layout applied and two notes in it, and the
- * first page shown at thumbnail size. Only the selected one, because twelve
- * compiles to open a modal is not a preview, it is a stall.
+ * Four rows of `▤` cannot say whether the block lands at the foot of the page or
+ * where the prose happens to stop — which is precisely the distinction the
+ * writer is being asked to make. So the pick compiles: the opening of the
+ * document in hand, with two notes sent to that destination, and the first page
+ * shown at thumbnail size. Only the picked one, because six compiles to open a
+ * modal is not a preview, it is a stall.
  */
-async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
+async function fillNotePreview(host: HTMLElement, pick: NotePick) {
   const backend = runtime.backend;
   if (!backend) return;
-  // Enough prose to fill a page, so "at the foot" and "where the text stops" are
-  // visibly different. The writer's own opening if they have one, filler if not.
-  // The writer's own words, with the markup taken out. Slicing raw source at
-  // 700 characters lands in the middle of a bracket about as often as not, and
-  // a preview that silently never appears because the excerpt would not compile
-  // is worse than an honest sketch. So: strip the commands, keep the prose.
+  // The writer's own words, with the markup taken out. Slicing raw source at 700
+  // characters lands in the middle of a bracket about as often as not, and a
+  // preview that silently never appears because the excerpt would not compile is
+  // worse than an honest sketch. So: strip the commands, keep the prose.
   const own = plainText(docTextOf(runtime.view.state.doc)).slice(0, 700);
   const filler = Array.from({ length: 18 }, (_, i) => t("notePreviewLine") + " " + (i + 1)).join(
     "\n\n",
   );
   const base = own.length > 120 ? own : filler;
   let src = base;
-  // One note per layer the layout actually has, back to front so that an earlier
-  // insertion cannot move a later one's offset. Two of these were hard-coded,
-  // which is why a card with three streams previewed as a card with two — the
-  // preview would have shown the third region empty and the writer would have
-  // read that as the third stream not working.
-  const layers = markersOf(c).length;
+  // Two notes, back to front so that an earlier insertion cannot move a later
+  // one's offset — enough to show the block growing rather than a single entry.
   const bodies = [t("notePreviewNoteA"), t("notePreviewNoteB")];
-  for (let layer = layers - 1; layer >= 0; layer--) {
-    const at = Math.floor((base.length * (layer + 1)) / (layers + 1));
-    const r = applyChoice(src, at, c, layer, false);
-    const body = bodies[layer] ?? tf("notePreviewNoteN", String(layer + 1));
-    src = r.text.slice(0, r.caret) + body + r.text.slice(r.caret);
+  for (let i = bodies.length - 1; i >= 0; i--) {
+    const at = Math.floor((base.length * (i + 1)) / (bodies.length + 1));
+    const r = applyPick(src, at, pick, false, {}, dirLang(), false, presetOf(notesPreset ?? ""));
+    src = r.text.slice(0, r.caret) + bodies[i] + r.text.slice(r.caret);
   }
   const res = await backend.compile(src, { ...docConfig(), paper: "a5" }).catch(() => null);
   const svg = res?.pages_svg?.[0];
@@ -13111,81 +13130,72 @@ async function fillNotePreview(host: HTMLElement, c: NoteChoice) {
 }
 
 /**
- * The chooser's two answers, held here because the panel is redrawn whole.
+ * The pick in hand, held here because the panel is redrawn whole.
  *
- * Not one `{where, how}` object: the two are answered separately, and the pair
- * has a state — a first answer with no second one — that a single nullable
- * object cannot spell. `panelviews.pickedChoice` turns them back into an
- * arrangement, and `howAfterWhere` decides what survives a change of the first,
- * so neither question is answered in two places.
+ * One object and not two answers, because there is one question now: a
+ * destination, and for one of the six the region under it. `pickAfterDestination`
+ * decides what a change of destination does to the region, so the panel and the
+ * state cannot disagree about it.
  */
-let notesWhere: NoteWhere | null = null;
-let notesHow: NoteHow | null = null;
+let notesPick: NotePick = { dest: "foot", region: null };
+/** The preset the pick came from, until the writer takes it apart. */
+let notesPreset: string | null = null;
 
-/** Which presentation the chooser is in, defaulted where the setting is silent. */
-function notesChooserView(): panelviews.NotesChooserView {
-  const v = settings.notesChooserView;
-  return v === "matrix" || v === "cards" ? v : "guided";
+/** The presets whose pick this is — a preset is a value, so this is equality. */
+function presetForPick(pick: NotePick): string | null {
+  return PRESETS.find((p) => samePick(p.pick, pick))?.id ?? null;
 }
 
 function renderNotesChooser() {
   const box = document.getElementById("notes-chooser-body")!;
+  const doc = docTextOf(runtime.view.state.doc);
+  const regions = regionsIn(doc).map((r) => r.name);
+  // A pick naming a region the document has since lost is a stale answer, and
+  // showing it would be the panel describing a document that is not there.
+  if (notesPick.dest === "region" && notesPick.region && !regions.includes(notesPick.region)) {
+    notesPick = panelviews.pickAfterDestination("region", regions, null);
+    notesPreset = presetForPick(notesPick);
+  }
   box.replaceChildren(
     ...panelviews.notesPanel(
       {
-        view: notesChooserView(),
-        where: notesWhere,
-        how: notesHow,
-        defer: deferBodies(),
+        pick: notesPick,
+        regions,
+        caveats: caveatsFor(doc, notesPick),
+        preset: notesPreset,
       },
       {
-        setView: (v) => {
-          settings.notesChooserView = v;
-          saveSettings();
+        pick: (pick) => {
+          notesPick = pick;
+          // Taking a preset apart stops it being that preset — which is the
+          // whole property decision 11 asks for, said in one line.
+          notesPreset = presetForPick(pick);
           renderNotesChooser();
         },
-        pickWhere: (where) => {
-          notesWhere = where;
-          notesHow = panelviews.howAfterWhere(where, notesHow);
+        usePreset: (id) => {
+          const p = presetOf(id);
+          if (!p) return;
+          notesPick = { ...p.pick };
+          notesPreset = id;
           renderNotesChooser();
         },
-        pickHow: (how) => {
-          notesHow = how;
-          renderNotesChooser();
-        },
-        use: (choice, layer) => chooseNote(choice, layer),
-        setDefer: (on) => {
-          settings.deferNoteBodies = on;
-          saveSettings();
-          renderNotesChooser();
-        },
-        deferAll: () => {
+        use: () => {
+          applyNotePick(notesPick, {}, notesPreset);
           closeNotesChooser();
-          deferAll(runtime.view);
-          scheduleCompile();
         },
-        inlineAll: () => {
-          closeNotesChooser();
-          inlineAll(runtime.view);
-          scheduleCompile();
-        },
-        sortDeferred: () => {
-          closeNotesChooser();
-          sortDeferredBodies(runtime.view);
-        },
-        preview: (host, choice) => void fillNotePreview(host, choice),
+        preview: (host, pick) => void fillNotePreview(host, pick),
       },
     ),
   );
 
   // The answer, brought to where the question was asked.
   //
-  // Measured in the assembled run, which is the only place a viewport exists:
-  // at 1280×720 the arrangement's card and the button that writes it landed at
-  // y=835 — below the bottom of the screen — so a writer who had just answered
-  // both questions was looking at the space where their answer was not. The run
-  // clicked it anyway, because a driver scrolls and a person does not know there
-  // is anything to scroll to.
+  // Measured in the assembled run, which is the only place a viewport exists: at
+  // 1280×720 the picked card and the button that writes it landed at y=835 —
+  // below the bottom of the screen — so a writer who had just answered was
+  // looking at the space where their answer was not. The run clicked it anyway,
+  // because a driver scrolls and a person does not know there is anything to
+  // scroll to.
   //
   // `nearest` rather than `center`: a card that is already on screen must not
   // jump, and the bottom edge is the one that carries the button.

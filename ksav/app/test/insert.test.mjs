@@ -88,18 +88,26 @@ export async function run() {
   // ---------------------------------------------------------------- notes
 
   {
-    // A note is a layout, not a string: the answer is *which* layout, so that
-    // the scaffolding — the dump call, the wrapper, the configuration line —
-    // goes in with it. Returning `edit` here is the bug that produced endnotes
+    // A note is a destination, not a string: the answer is *where it prints*, so
+    // that the scaffolding — the placement line, the call that prints the block
+    // — goes in with it. Returning `edit` here is the bug that produced endnotes
     // collected and never printed.
     const p = plan("שלום", 4, 4, "", "#הערה[|]");
-    check("a footnote is answered as a layout", p.kind, "note");
-    ok("…and names the choice that carries its scaffolding", !!p.choice?.id, p.choice?.id);
+    check("a footnote is answered as a note", p.kind, "note");
+    check("…and names the destination that carries its scaffolding", p.pick?.dest, "foot");
   }
   {
     const p = plan("שלום", 4, 4, "", "#הערתסיום[|]");
-    check("an endnote is a layout too", p.kind, "note");
-    ok("…and a different one from the footnote", p.choice?.id !== "footnote", p.choice?.id);
+    check("an endnote is a note too", p.kind, "note");
+    check("…and goes somewhere else", p.pick?.dest, "end");
+  }
+  {
+    // The whole of the model at the point of writing a note: the destination is
+    // an argument, so a note that names one is routed by what it says rather
+    // than by which of eighteen commands it happens to be.
+    const p = plan("שלום", 4, 4, "", String.raw`#הערה(אזור: "שער_הציון")[|]`);
+    check("a note sent to a region is routed by its argument", p.pick?.dest, "region");
+    check("…and the region is the one it named", p.pick?.region, "שער_הציון");
   }
 
   // ------------------------------------------------------------- numbering

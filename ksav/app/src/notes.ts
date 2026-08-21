@@ -1,18 +1,48 @@
-// The Notes chooser — pick a note layout by intent, not by command name.
+// Writing a note is one pick: which destination.
 //
-// The engine offers eleven distinct note layouts, and they were exposed as ~25
-// raw commands sitting in one "Notes" group: הערה, הערה_על_הערה, הערה_א…ז,
-// מדור_א…ז, מדף_א…ז, הערה_זרם, הערת_תוכן, הערת_מקור, הערתסיום, הערות_בסוף_צד,
-// הערת_גיליון, הערת_ימין/הערת_שמאל. A writer cannot possibly know which to pick,
-// and the wall of near-duplicate names is the single thing that most makes the
-// app not feel like something a bochur would want to use.
+// # What this replaced, and why it had to go
 //
-// The redundancy is a *presentation* problem, not a reason to drop mechanisms:
-// each of the eleven is a real sefer layout somebody wants. So this module asks
-// the question the writer can actually answer — "where should the note go?" —
-// and emits the right commands, including any scaffolding the layout needs.
+// This file used to hold `NOTE_CHOICES` — eleven cards over a `where` x `how`
+// grid, five places by six arrangements, thirty cells of which eleven were
+// filled and nineteen were refusals. It was a real improvement on the ~25 raw
+// command names it replaced, and it was still the wrong shape: **the cells were
+// the product**. Every arrangement anybody wanted had to be somebody's card, so
+// a mechanism the engine had and no card named was unreachable — which happened
+// three times, each time to code that was already written, tested and aliased.
 //
-// Every option here renders correctly; see spec.md and engine/README-notes.md.
+// The model underneath is one axis, not two. A note goes **somewhere**, and
+// where it goes decides everything else: its numbering, its size, whether it
+// runs in, what it does when the box is full. Notes that share a destination
+// share those things because they *are the same stream* — so there is nothing
+// to declare before writing a note, and nothing to choose beside the place.
+//
+//     #הערה[…]                        the live page foot
+//     #הערה(ערוץ: "סוף")[…]           the back of the sefer
+//     #הערה(ערוץ: "סוף_מדור")[…]      the end of this section
+//     #הערה(ערוץ: "צד")[…]            the side column
+//     #הערה(ערוץ: "קובץ")[…]          a companion volume
+//     #הערה(אזור: "שער_הציון")[…]     a named region
+//
+// Four singular destinations and a named list. The list is what recovers the one
+// case a flat five forecloses — two separately-numbered apparatuses in the same
+// place — because two regions placed at the back are two apparatuses at the
+// back, and one destination is one.
+//
+// The vocabulary and the table live in `channels.ts`, which is the editor's half
+// of one authority with the prelude. This file is the *writing* half: it turns a
+// pick into markup, files the prose wherever the writer keeps it, and adds
+// whatever the destination needs in order to actually print.
+//
+// # A sub-note's parent is not a pick
+//
+// It is whatever note the caret is inside — determined, never chosen, which is
+// what a writer means anyway. `tieredNoteAt` reads the caret; nothing asks.
+//
+// # The one thing the cards got right
+//
+// The small page sketches. They are kept, in `channels.DESTINATIONS`, because a
+// pick has to show what it builds and four rows of `▤` say more about where a
+// note lands than any sentence does.
 
 import {
   deferSnippet,
@@ -21,473 +51,34 @@ import {
   removePair,
   retargetRef,
   scan as scanDeferred,
+  type BodyHome,
 } from "./deferred";
 import type { NoteMarker } from "./api";
-import { seriesOf } from "./channels";
-import { canonicalName, docLang, insertionAt, sameCommand, translated } from "./mode";
+import {
+  PLACEMENTS,
+  channelLine,
+  destinationArg,
+  destinationChannelName,
+  destinationOf,
+  pickFor,
+  pickLine,
+  presetLines,
+  declarationsIn,
+  regionPlacement,
+  regionsIn,
+  regionsShownIn,
+  seriesOf,
+  showRegionLine,
+  type NotePick,
+  type Placement,
+  type Preset,
+} from "./channels";
+import { dumpFor } from "./apparatus";
+import { canonicalName, docLang, insertionAt, translated } from "./mode";
 import { DEFAULT_NOTE_KIND, TIERS, opensNoteBody, tierCommand } from "./note-commands";
 import { scan as scanSpans, type Node, type Scan } from "./spans";
 
-export type NoteLayers = "one" | "two";
-
-/**
- * The two questions a writer can actually answer.
- *
- * Twelve cards each encoded a *where* and a *how* together, and the writer had
- * to decode which was which from a four-line ASCII sketch. Worse, nothing in the
- * grid distinguished "at the foot of every page" from "at the end of the
- * document" — so `#הערות_מדורגות`, which is an *end* apparatus and therefore
- * lands wherever the prose stops, looked broken on a short document (measured:
- * the band rendered at y=126 on an 842pt page, i.e. near the top) while the
- * page-bottom equivalent `#מדף_א`/`#מדף_ב` sat correctly at y=741 with nothing
- * in the UI saying they were different questions.
- *
- * So the chooser asks the two axes and the cards become the cells.
- */
-export type NoteWhere = "page" | "section" | "document" | "margin" | "volume";
-export type NoteHow = "one" | "stacked" | "parallel" | "parallel-fixed" | "fixed" | "split";
-
-export const NOTE_WHERE: NoteWhere[] = ["page", "section", "document", "margin", "volume"];
-export const NOTE_HOW: NoteHow[] = [
-  "one",
-  "stacked",
-  "parallel",
-  // Its own column, and not a variant of `parallel` or of `fixed`.
-  //
-  // The engine has always had both — `#הערה_זרם("שם")` gives any number of
-  // independent peer apparatuses at the page foot, and `#הגדרות_זרמים(גבהים: …)`
-  // pins each of them to a slot — and the two were reachable only in
-  // combination with each other, never as a thing the chooser named. `parallel`
-  // means streams that take the height their notes need; `fixed` means the
-  // tiered `#מדף_` bands, which are ordered layers, not peers. Neither of those
-  // is "three commentaries, each in its own fixed region", which is what a
-  // Mikraos-Gedolos page actually is.
-  "parallel-fixed",
-  "fixed",
-  "split",
-];
-
-export interface NoteChoice {
-  id: string;
-  layers: NoteLayers;
-  /**
-   * Word's own name for this arrangement, when it has one.
-   *
-   * Not a synonym for the sefer name — a second name, shown beside it. Someone
-   * who has only ever used Word looks for "footnote" and "endnote"; someone
-   * setting a sefer looks for שער־הציון. Both are looking at the same card, and
-   * neither should have to learn the other's vocabulary to find it.
-   */
-  word?: "footnote" | "endnote";
-  /** Which cells of the where × how grid this arrangement fills. */
-  where: NoteWhere[];
-  how: NoteHow;
-  /** Short label, in each UI language. */
-  he: string;
-  en: string;
-  /** One line saying where the notes land and what they look like. */
-  descHe: string;
-  descEn: string;
-  /** A tiny page diagram: each string is a row of the page. */
-  sketch: string[];
-  /** Inserted at the cursor. `|` marks where the caret ends up. */
-  insert: string;
-  /**
-   * The layout's further markers, in order, after `insert`.
-   *
-   * This was a single `insert2` — one upper layer and no more — and it was a cap
-   * the engine never had. `#הערה_זרם("שם")` takes any name and the prelude
-   * stacks or ranks any number of streams; `#מדף_א…ז` and `#מדור_א…ז` are seven
-   * tiers each. Two markers per card meant a writer who wanted a third
-   * commentary had to find out that the mechanism existed by reading Typst.
-   *
-   * A card still shows only as many as a person can read at a glance — the
-   * tiered cards name two and let `tieredNoteAt` write the rest off the caret —
-   * but the shape no longer decides that for them.
-   */
-  more?: string[];
-  /** A line that must exist once, at the end of the document. */
-  tail?: string;
-  /**
-   * A line that must exist once, at the **top** of the document.
-   *
-   * The distinction is not cosmetic. A `#הערות_בסוף` dump renders what came
-   * before it, so it belongs at the end — but a `#הגדרות_…` line is a Typst
-   * `state.update`, and the apparatus reads that state from the *page footer*,
-   * which resolves it at the page's own position. Written at the end of the
-   * file, the settings therefore take effect on the last page and no other:
-   * the fixed band heights the writer asked for silently apply to one page of
-   * a twenty-page sefer. Configuration goes first, dumps go last.
-   */
-  head?: string;
-  /**
-   * This layout needs the section it applies to wrapped in a command. The
-   * document is wrapped only if it is not wrapped already.
-   */
-  wrap?: { open: string; close: string };
-  /** Shown when the layout needs the writer to know something. */
-  noteHe?: string;
-  noteEn?: string;
-}
-
-export const NOTE_CHOICES: NoteChoice[] = [
-  // ---- one layer -----------------------------------------------------------
-  {
-    id: "footnote",
-    word: "footnote",
-    where: ["page"],
-    how: "one",
-    layers: "one",
-    he: "בתחתית העמוד",
-    en: "At the foot of the page",
-    descHe: "הערות רגילות, ממוספרות 1,2,3, מאוזנות מול הטקסט לאורך העמודים.",
-    descEn: "Ordinary footnotes, numbered 1,2,3, balanced against the text across page breaks.",
-    sketch: ["▤▤▤▤▤▤", "▤▤▤▤▤▤", "──────", "¹ ▪▪▪▪▪"],
-    insert: "#הערה[|]",
-  },
-  {
-    id: "endnote",
-    word: "endnote",
-    where: ["document"],
-    how: "one",
-    layers: "one",
-    he: "בסוף המסמך",
-    en: "Collected at the end",
-    descHe: "כל ההערות נאספות לרשימה אחת בסוף המסמך.",
-    descEn: "Every note collected into one list at the very end of the document.",
-    sketch: ["▤▤▤▤▤▤", "▤▤▤▤▤▤", "", "הערות", "1. ▪▪▪▪"],
-    insert: "#הערתסיום[|]",
-    tail: "#הערות_בסוף(כותרת: [הערות])",
-  },
-  {
-    id: "section-endnote",
-    where: ["section"],
-    how: "one",
-    layers: "one",
-    he: "בסוף כל מדור",
-    en: "At the end of each section",
-    descHe: "ההערות נאספות בסוף כל קטע (למשל כל משנה), ליד הטקסט שלהן. המספור מתחיל מחדש בכל מדור.",
-    descEn:
-      "Notes collected at the end of each section (each mishnah, say), near the text they belong to. Numbering restarts each section.",
-    sketch: ["▤▤▤▤▤▤", "1. ▪▪▪▪", "▤▤▤▤▤▤", "1. ▪▪▪▪"],
-    insert: "#הערתסיום[|]",
-    // One dump, at the end, even though the writer will move and multiply it.
-    // Without it this card collected notes and rendered none of them: the page
-    // came out with the markers and not one word of the prose. The chooser
-    // cannot know where the sections are, but it can refuse to write a document
-    // that loses text.
-    tail: "#הערות_בסוף()",
-    noteHe:
-      "נכתבה קריאת #הערות_בסוף() אחת בסוף הקובץ. העבירו/שכפלו אותה לסוף כל מדור — כל קריאה מציגה רק את ההערות שנכתבו מאז הקודמת.",
-    noteEn:
-      "One #הערות_בסוף() call was written at the end of the file. Move or repeat it at the end of each section — each call renders only the notes written since the previous one.",
-  },
-  {
-    id: "sidenote",
-    where: ["margin"],
-    how: "one",
-    layers: "one",
-    he: "בשולי העמוד, לצד השורה",
-    en: "Down the margin, beside its line",
-    descHe: "הערות בטור צדדי, כל הערה ממש לצד השורה שלה.",
-    descEn: "Notes in a side column, each one right beside the line it hangs off.",
-    sketch: ["▪▪ ▤▤▤▤", "   ▤▤▤▤", "▪▪ ▤▤▤▤", "   ▤▤▤▤"],
-    insert: "#הערת_גיליון[|]",
-    wrap: { open: "#עם_הערות_צד[\n", close: "\n]" },
-  },
-  {
-    id: "twosided",
-    where: ["margin"],
-    how: "parallel",
-    layers: "one",
-    he: "בשני צדי העמוד",
-    en: "Down both margins",
-    descHe: "שני זרמי הערות, אחד בכל צד של הטקסט — למשל ביאורים מימין ומקורות משמאל.",
-    descEn:
-      "Two note streams, one down each side of the text — commentary on one side, sources on the other.",
-    sketch: ["▪ ▤▤▤▤ ▫", "  ▤▤▤▤", "▪ ▤▤▤▤ ▫"],
-    insert: "#הערת_ימין[|]",
-    more: ["#הערת_שמאל[|]"],
-    wrap: { open: "#עם_הערות_דו_צד[\n", close: "\n]" },
-  },
-  {
-    id: "streams",
-    where: ["page"],
-    how: "parallel",
-    layers: "one",
-    he: "שני מנגנונים במקביל",
-    en: "Two apparatuses side by side",
-    descHe:
-      "שני זרמי הערות עצמאיים בתחתית העמוד, כל אחד עם מספור משלו — פירוש ומראי מקומות.",
-    descEn:
-      "Two independent note streams at the foot of the page, each numbered on its own — a peirush and mareh mekomos.",
-    sketch: ["▤▤▤▤▤▤", "▤▤▤▤▤▤", "──────", "¹▪▪ │ א▪▪"],
-    insert: "#הערת_תוכן[|]",
-    more: ["#הערת_מקור[|]"],
-    head: '#הגדרות_זרמים(פריסה: "צד", זרמים: ("תוכן", "מקורות"), מספור: ("מקורות": "א"))',
-  },
-  {
-    id: "bands",
-    where: ["page"],
-    how: "fixed",
-    layers: "one",
-    he: "אזורים קבועים בתחתית העמוד",
-    en: "Fixed regions at the foot of the page",
-    descHe: "אזורים בגובה קבוע בתחתית כל עמוד; אזור ריק נשאר ריק ואינו זז.",
-    descEn:
-      "Fixed-height regions at the foot of every page; an empty region stays empty instead of letting the others drift.",
-    sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪▪▪", "──────", "א ▫▫▫▫"],
-    insert: "#מדף_א[|]",
-    more: ["#מדף_ב[|]"],
-    head: "#הגדרות_מדפים(גבהים: (1.5cm, 1cm))",
-    // Was: "the heights live in the #הגדרות_מדפים line at the top of the file —
-    // change them there." Telling a writer to go and edit Typst is not a
-    // control, and this is the one setting in the product that changes page
-    // geometry. Styles › אזורים קבועים writes the same line.
-    noteHe:
-      "גובה כל אזור נקבע בלוח העיצוב, תחת ״אזורים קבועים״ — והמנוע שומר בתחתית העמוד בדיוק את הסכום הזה. מה שחורג מגובה האזור נחתך.",
-    noteEn:
-      "Each region's height is set in Styles, under “Fixed regions” — and the engine reserves exactly that much at the foot of the page. Anything past a region's height is clipped.",
-  },
-  {
-    // Built, tested, aliased — and unreachable. The fourteenth card, and again it
-    // was not new code.
-    //
-    // `#הערה_זרם("שם")` has given any number of *independent peer apparatuses* at
-    // the page foot since the streams work, each numbered on its own, and
-    // `#הגדרות_זרמים(גבהים: (…))` has pinned each of them to a slot of its own
-    // height. Three streams render correctly today. The only two places the
-    // product mentioned streams offered exactly two of them — one card with two
-    // markers, and a Styles panel with none at all — so "a peirush, a mareh
-    // mekomos and a nusachaos band, each in its own region" was a thing the
-    // engine did and the product could not say.
-    //
-    // It is not the `bands` card with more markers: `#מדף_א…ז` are *tiers*, an
-    // ordered stack where ב is a note on א. These are peers. A writer choosing
-    // between them is choosing between "layers of commentary" and "commentaries
-    // side by side", which is a real question with a real answer.
-    id: "stream-regions",
-    where: ["page"],
-    how: "parallel-fixed",
-    layers: "one",
-    he: "כמה זרמים מקבילים, כל אחד באזור בגובה קבוע",
-    en: "Several parallel streams, each in a fixed region",
-    descHe:
-      "כל מספר של זרמי הערות עצמאיים בתחתית העמוד — ביאור, מראי מקומות, שינויי נוסחאות — כל אחד ממוספר בפני עצמו ובאזור בגובה קבוע משלו. אזור ריק נשאר ריק ואינו זז.",
-    descEn:
-      "Any number of independent note streams at the foot of the page — a peirush, mareh mekomos, nuschaos — each numbered on its own and each in its own fixed-height region. An empty region stays empty instead of letting the others drift.",
-    sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪▪▪", "──────", "א ▫▫▫▫", "──────", "1 ▫▫▫▫"],
-    insert: '#הערה_זרם("ביאור")[|]',
-    more: ['#הערה_זרם("מקורות")[|]', '#הערה_זרם("נוסחאות")[|]'],
-    // Percentages, not centimetres, and that is the point of writing them here.
-    // A region measured in cm is a region that is wrong the moment the sefer
-    // moves from A4 to A5; `10%` is a tenth of whatever sheet it lands on, and
-    // the engine reserves the page foot from exactly these numbers.
-    head:
-      '#הגדרות_זרמים(זרמים: ("ביאור", "מקורות", "נוסחאות"), ' +
-      'גבהים: ("ביאור": 10%, "מקורות": 6%, "נוסחאות": 6%), ' +
-      'מספור: ("מקורות": "א"), ' +
-      'כותרות: ("מקורות": [מראי מקומות], "נוסחאות": [שינויי נוסחאות]))',
-    noteHe:
-      "אפשר להוסיף זרמים ככל שתרצו — כל שם חדש ב#הערה_זרם הוא זרם משלו. השמות, הגבהים והסדר נערכים בלוח העיצוב תחת ״זרמים מקבילים״.",
-    noteEn:
-      "Add as many streams as you like — every new name in #הערה_זרם is a stream of its own. The names, the heights and the order are edited in Styles, under “Parallel streams”.",
-  },
-  // ---- two layers ----------------------------------------------------------
-  {
-    id: "nested",
-    where: ["page"],
-    how: "stacked",
-    layers: "two",
-    he: "הערה על הערה — בבלוק אחד בתחתית העמוד",
-    en: "A note on a note, in the one block at the page foot",
-    descHe:
-      "שתי השכבות יורדות לאותו בלוק בתחתית העמוד — הפירוש ממוספר א,ב,ג והערות עליו 1,2,3 ומוזחות, כך שרואים לאיזו שכבה שייך כל סימן.",
-    descEn:
-      "Both layers fall into the same block at the foot of the page — the commentary lettered א,ב,ג and the he'aros on it numbered 1,2,3 and indented, so a marker says which layer it belongs to.",
-    sketch: ["▤▤▤▤▤▤", "──────", "א ▪▪¹▪▪", "  1 ▫▫▫"],
-    // `#הערה`, not `#הערה_א`, and the difference is the whole complaint about
-    // this card: writing `#הערה_א` teaches that the outer note needs converting
-    // before a note can hang off it. It does not. `ksav.typ` makes `#הערה` *be*
-    // tier 1 (`#let הערה(body) = הערה_בדרגה(1, body)`) precisely so that a
-    // sub-note adopts the note the writer already wrote — the engine gave up the
-    // conversion and this card kept demanding it.
-    insert: "#הערה[|]",
-    more: ["#הערה_ב[|]"],
-    // א,ב,ג for the commentary and 1,2,3 for the notes on it — the שער־הציון
-    // order. This line said the opposite for a long time, and so did the engine
-    // defaults, while the card beside it promised the right thing.
-    head: '#הגדרות_הערות(מספור: ("א", "1"), הזחה: (0em, 1.4em))',
-    noteHe:
-      "ההערה הרגילה #הערה היא כבר שכבה א׳ — אין צורך להמיר הערה קיימת כדי לתלות עליה הערה. בלוק אחד ולא שניים: לטיפוסט יש סדרת הערות שוליים מאוזנת אחת בלבד. לשני בלוקים נפרדים בחרו באפשרות הבאה.",
-    noteEn:
-      "An ordinary #הערה is already layer א — you never convert an existing note to hang one off it. One block, not two: Typst has exactly one balanced page-bottom series. For two genuinely separate blocks, take the next option.",
-  },
-  {
-    id: "two-bands",
-    where: ["section", "document"],
-    how: "stacked",
-    layers: "two",
-    he: "שני מדורים נפרדים",
-    en: "Two separately-numbered blocks",
-    descHe:
-      "הפירוש במדור אחד (א,ב,ג) וההערות עליו במדור שמתחתיו (1,2,3) — מראה שער־הציון. בסוף המדור או המסמך.",
-    descEn:
-      "The commentary in one block (א,ב,ג) and the he'aros on it in the block beneath (1,2,3) — the Shaar-HaTziyun look. At section or document end.",
-    sketch: ["▤▤▤▤▤▤", "──────", "א ▪▪¹▪▪", "──────", "1 ▫▫▫▫"],
-    insert: "#מדור_א[|]",
-    more: ["#מדור_ב[|]"],
-    tail: "#הערות_מדורגות()",
-  },
-  {
-    id: "footnote-plus-endnotes",
-    where: ["page"],
-    how: "split",
-    layers: "two",
-    he: "הערות בעמוד + הערות עליהן בסוף",
-    en: "Footnotes on the page, he'aros on them at the back",
-    descHe:
-      "הפירוש כהערות שוליים מאוזנות בתחתית העמוד, וההערות עליו נאספות לבלוק ממוספר משלהן בסוף.",
-    descEn:
-      "The commentary as balanced page-bottom footnotes, with the he'aros on it collected into their own numbered block at the back.",
-    sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪¹▪▪", "", "בסוף:", "1. ▫▫▫"],
-    insert: "#הערה[|]",
-    more: ["#הערתסיום[|]"],
-    tail: "#הערות_בסוף(כותרת: [הערות על הפירוש])",
-    // Both apparatuses printed `¹`. A reader met two different ¹ on one page
-    // with nothing to say which block to look in, and the product had no way to
-    // tell them apart either. The back matter gets letters; the page keeps its
-    // numbers. Only the layouts that actually mix the two are configured — a
-    // document with endnotes alone is right to number them 1,2,3.
-    head: '#הגדרות_הערות_סיום(מספור: "א")',
-    noteHe: "השכבה הראשונה היחידה שנשארת באמת מאוזנת בעמוד.",
-    noteEn: "The only two-layer option that keeps the primary apparatus genuinely balanced on the page.",
-  },
-  {
-    id: "endnotes-with-footnotes",
-    // `section` as well as `document`. `spec.md` has always said this option is
-    // "back matter, **or** section-end", and the grid greyed `section` × `split`
-    // with "needs two places" — a reason that was false against the engine and
-    // against the spec at the same time. `#הערות_בסוף` dumps wherever it is
-    // called, so calling it at the end of each siman is the section reading of
-    // exactly this arrangement.
-    where: ["document", "section"],
-    how: "split",
-    layers: "two",
-    he: "פירוש בסוף + הערות מאוזנות עליו",
-    en: "Commentary at the back, with balanced footnotes on it",
-    descHe:
-      "הפירוש נאסף בסוף, וההערות עליו הן הערות שוליים אמיתיות ומאוזנות בתחתית עמודי הפירוש. הדרך הזולה ביותר להערות־על־הערות מאוזנות באמת.",
-    descEn:
-      "The commentary is collected at the back, and the he'aros on it are real, balanced footnotes at the foot of the commentary pages. The cheapest genuinely balanced notes-on-notes.",
-    sketch: ["▤▤▤▤▤▤", "", "בסוף:", "1. ▪▪¹▪", "──────", "¹ ▫▫▫▫"],
-    insert: "#הערתסיום[|]",
-    more: ["#הערה[|]"],
-    tail: "#הערות_בסוף(כותרת: [הפירוש])",
-    head: '#הגדרות_הערות_סיום(מספור: "א")',
-    noteHe: "הפירוש אינו לצד הטקסט אלא בסוף — מתאים לכרך פירוש.",
-    noteEn: "The commentary is not beside the main text but at the back — right for a commentary volume.",
-  },
-  {
-    // The thirteenth card, and it was not new code.
-    //
-    // `#הערות_בסוף_צד` has shipped since the streams work, is parsed by
-    // `apparatus.ts`, has an English alias, and renders parallel columns of
-    // collected notes at the end of the document — and the only UI that offers
-    // layouts greyed this cell with "parallel streams side by side need the
-    // page's width." A built, tested, aliased arrangement, unreachable from the
-    // chooser because a five-line if-chain said it could not exist.
-    id: "side-streams",
-    where: ["document"],
-    how: "parallel",
-    layers: "one",
-    he: "שני זרמים במקביל בסוף",
-    en: "Two streams side by side at the back",
-    descHe:
-      "שני זרמי הערות עצמאיים, נאספים לסוף המסמך ומודפסים זה לצד זה בשני טורים — פירוש ומראי מקומות.",
-    descEn:
-      "Two independent note streams, collected to the end of the document and printed side by side in two columns — a peirush and mareh mekomos.",
-    sketch: ["▤▤▤▤▤▤", "", "בסוף:", "¹▪▪ │ א▪▪"],
-    // `#הערתסיום(זרם: …)`, not `#הערת_תוכן`/`#הערת_מקור`. Those are the
-    // *page-foot* streams and register under a different label; this card is the
-    // endnote streams, which is what `#הערות_בסוף_צד` collects. Written the
-    // other way it renders one column with both sets stacked in it — caught by
-    // `apparatus.rs`, invisible to any check that a document merely compiles.
-    insert: '#הערתסיום(זרם: "תוכן")[|]',
-    more: ['#הערתסיום(זרם: "מקורות")[|]'],
-    tail: '#הערות_בסוף_צד(זרמים: ("תוכן", "מקורות"), כותרות: ("תוכן": [ביאורים], "מקורות": [מראי מקומות]))',
-    noteHe: "שני הזרמים נאספים לסוף ומודפסים יחד — לא בתחתית כל עמוד.",
-    noteEn: "Both streams are collected to the back and printed together — not at the foot of each page.",
-  },
-  {
-    id: "companion",
-    where: ["volume"],
-    how: "split",
-    layers: "two",
-    he: "כרך נפרד להערות",
-    en: "A companion volume for the he'aros",
-    descHe:
-      "הפירוש כהערות שוליים, וההערות עליו כמסמך נפרד הממוספר בהתאמה — כפי שרוב ספרי ההערות נדפסים בפועל.",
-    descEn:
-      "The commentary as footnotes, and the he'aros on it as a separate document numbered to match — how most he'aros seforim actually ship.",
-    sketch: ["▤▤▤▤▤▤", "──────", "¹ ▪▪▪▪", "", "כרך ב׳"],
-    insert: "#הערה[|]",
-    noteHe: "צרו מסמך שני בתפריט המסמכים והקלידו בו את ההערות לפי המספרים.",
-    noteEn: "Create a second document from the Documents menu and write the he'aros there, numbered to match.",
-  },
-];
-
-// ---------------------------------------------------------------- the grid
-
-/** The arrangement in a cell of the where × how grid, if one exists. */
-export function choiceAt(where: NoteWhere, how: NoteHow): NoteChoice | undefined {
-  return NOTE_CHOICES.find((c) => c.where.includes(where) && c.how === how);
-}
-
-export const BLOCKED: { where: NoteWhere; how: NoteHow; why: string }[] = [
-  // A second layer either spends the one native series or leaves the live page
-  // foot. That is the ground rule, and every entry here is an instance of it.
-  { where: "section", how: "parallel", why: "whyParallelNeedsPageOrMargin" },
-  { where: "section", how: "fixed", why: "whyFixedNeedsPage" },
-  { where: "document", how: "fixed", why: "whyFixedNeedsPage" },
-  { where: "margin", how: "stacked", why: "whyMarginIsOneColumn" },
-  { where: "margin", how: "fixed", why: "whyFixedNeedsPage" },
-  { where: "margin", how: "split", why: "whyMarginIsOneColumn" },
-  { where: "volume", how: "one", why: "whyVolumeIsSplit" },
-  { where: "volume", how: "stacked", why: "whyVolumeIsSplit" },
-  // A fixed region is fixed *to the foot of a page*. Everywhere that is not a
-  // page foot, "parallel streams in fixed regions" fails for the same reason
-  // "fixed regions" does one column over — there is nothing to fix them to.
-  { where: "section", how: "parallel-fixed", why: "whyFixedNeedsPage" },
-  { where: "document", how: "parallel-fixed", why: "whyFixedNeedsPage" },
-  { where: "margin", how: "parallel-fixed", why: "whyFixedNeedsPage" },
-  { where: "volume", how: "parallel-fixed", why: "whyVolumeIsSplit" },
-  { where: "volume", how: "parallel", why: "whyVolumeIsSplit" },
-  { where: "volume", how: "fixed", why: "whyVolumeIsSplit" },
-];
-
-/**
- * Why a cell is empty — an i18n key, never silence.
- *
- * An impossible combination is greyed *with its reason* rather than hidden,
- * because a writer who cannot see that "fixed regions at the end of the
- * document" was considered has no way to know whether they asked the wrong
- * question or found a gap in the product.
- *
- * **A table, not a fallthrough chain.** It was five `if`s over axis values, and
- * a chain answers for cells nobody ever considered — which is how two cells came
- * to be greyed for reasons that were false against the shipped engine.
- * `document` × `parallel` said "parallel streams need the page's width" about an
- * arrangement `#הערות_בסוף_צד` has rendered since it was written; `section` ×
- * `split` said "needs two places" about the one `spec.md` describes as "back
- * matter, or section-end". Both are cards now. With a table, a cell that is
- * neither filled nor listed here has no answer at all, and
- * `notepaths.test.mjs` fails on it by name.
- */
-export function whyNot(where: NoteWhere, how: NoteHow): string {
-  if (choiceAt(where, how)) return "";
-  return BLOCKED.find((b) => b.where === where && b.how === how)?.why ?? "whyNoSuchArrangement";
-}
+export type { NotePick } from "./channels";
 
 // ---------------------------------------------------------------- one path in
 //
@@ -501,68 +92,44 @@ export function whyNot(where: NoteWhere, how: NoteHow): string {
 // Four call sites, four authors, one preference honoured once. The fix is not to
 // wire the other three: it is that there is one producer of note markup, and
 // every surface reaches it *by inserting the ordinary snippet*. `noteFor` is
-// what makes that possible — it recognises a raw registry snippet as the marker
-// of a known layout, so `insertSnippet` can route it without any of its callers
-// knowing that notes are special.
+// what makes that possible — it recognises a raw registry snippet as a note, so
+// `insertSnippet` can route it without any of its callers knowing that notes are
+// special.
 
 /**
- * Every marker an arrangement offers, in order. `insert` is layer 0.
+ * The destination a raw snippet writes into, if it is a note at all.
  *
- * The one place that knows how a card's markers are stored, so that "how many
- * layers does this layout have" is a question about the layout rather than about
- * whether a `insert2` field happens to be set.
+ * **Said in Hebrew before it is asked.** Snippets arrive in either language —
+ * the toolbar's fixed buttons pass Hebrew literals, and `tieredNoteAt` quite
+ * deliberately passes `#fnote[|]` in an English document — and a table walked in
+ * one language only is the defect family this repository is named for. Matched
+ * against Hebrew literals, an English tiered note was **not a note at all**, so
+ * `plan` fell through to a plain splice and the two things only the note path
+ * does were skipped: the destination's scaffolding, and `deferNoteBodies`.
+ *
+ * The marker comes back **in Hebrew**, for the reason it is matched in Hebrew:
+ * `applyPick` spells it for the document as its first act, and handing it a form
+ * already in that language would be the one path that skips the translation.
+ *
+ * There is no table of markers any more, and that is the point: *any* command
+ * that opens a note body is a note, and where it prints comes off the call. A
+ * mechanism the engine grows is reachable the day `note-commands.ts` learns its
+ * name, rather than the day somebody writes it a card.
  */
-export function markersOf(c: NoteChoice): string[] {
-  return [c.insert, ...(c.more ?? [])];
-}
-
-/**
- * The layout (and layer) a raw snippet is the marker of, if any.
- *
- * **Said in Hebrew before it is matched.** The cards' markers are Hebrew
- * literals because this is a Hebrew-first product, and for the toolbar's fixed
- * buttons that is fine — they pass Hebrew and `applyChoice` translates later.
- * But `tieredNoteAt` does not: it calls `tierCommand(tier, docLang())`, quite
- * deliberately, so in an English document it hands this `#fnote[|]` and
- * `#tier2[|]`. Matched against the literals those were **not notes at all**, so
- * `plan` fell through to a plain splice and the two things that only the note
- * path does were skipped: the `nested` card's `head` line — the one that makes a
- * two-layer apparatus's markers tell a reader which layer they point into — and
- * `settings.deferNoteBodies`. The document compiled, the page looked finished,
- * and the reader could not tell the layers apart.
- *
- * Every route that writes a tiered note came through here — the toolbar's `⁑`,
- * `Ctrl+Shift+N`, the Insert menu, the notes pane's "hang another note off this
- * one" — so all four were affected and none of them said so.
- *
- * The marker is returned in Hebrew for the same reason it is matched in Hebrew:
- * `applyChoice` spells it in the document's language as its first act, and
- * handing it a form already in that language would be the one path that skips
- * the translation.
- */
-export function noteFor(
-  snippet: string,
-): { choice: NoteChoice; layer: number; marker: string } | null {
+export function noteFor(snippet: string): { pick: NotePick; marker: string } | null {
   const s = translated(snippet.trim(), "he");
-  // Primaries first, across every card, then the further layers: a snippet that
-  // is one card's primary and another's second layer belongs to the card that
-  // leads with it.
-  for (const choice of NOTE_CHOICES) {
-    if (choice.insert === s) return { choice, layer: 0, marker: s };
-  }
-  for (const choice of NOTE_CHOICES) {
-    const at = markersOf(choice).indexOf(s);
-    if (at > 0) return { choice, layer: at, marker: s };
-  }
-  // Tiers ג and below. `nested` names only the first two markers because a card
-  // has to show something a person can read, but tier ד is the same layout and
-  // needs the same configuration line — the one that makes the tiers legible.
-  const nested = NOTE_CHOICES.find((c) => c.id === "nested");
-  if (nested && /^#הערה_[גדהוז]\[\|?\]$/.test(s)) {
-    return { choice: nested, layer: 1, marker: s };
-  }
-  return null;
+  const sc = scanSpans(s);
+  // The call the snippet *is*, not one buried in it: `#רשימה(פריט[|])` holds a
+  // node at offset 0 and one inside it, and only the outer one is what the
+  // writer pressed.
+  const n = sc.nodes.find((x) => x.hash && x.from === 0);
+  if (!n) return null;
+  const name = canonicalName(n.name);
+  if (!opensNoteBody(name)) return null;
+  const args = n.args ? s.slice(n.args.from, n.args.to) : "";
+  return { pick: pickFor(name, args), marker: s };
 }
+
 
 /**
  * How many notes enclose this position. 0 in ordinary prose.
@@ -976,144 +543,290 @@ export function hasLine(doc: string, line: string): boolean {
 }
 
 /**
- * Add whatever scaffolding a layout needs, if the document has not got it.
+ * Every line a destination needs before its notes will print, in order.
  *
- * The dump call at the end, the wrapper around the section, the configuration
- * line at the top — forgetting any of them is the single most common way these
- * layouts "don't work": the notes are collected and then never rendered.
+ * Two of them, and forgetting either is the same failure — *collected and never
+ * rendered*, the one this application has performed on its own writers twice and
+ * then reported back to them as a lint:
  *
- * Separate from `applyChoice` because **inserting a note is not the only way a
- * document acquires one.** Right-clicking a footnote and converting it to
- * `#הערתסיום` produced an endnote with no `#הערות_בסוף()` — the "collected and
- * never printed" failure, performed by the product and then reported back to
- * the writer as a lint. `convertNote`'s caller runs this now, so there is one
- * answer to "what does this layout need" rather than one per entry point.
+ *   - **the placement.** A destination is a stream and a stream has to be told
+ *     where it prints. `#ערוץ("סוף", מיקום: "סוף")` is that, and it is written
+ *     once per document rather than once per note — which is the whole payoff of
+ *     the model, because moving three hundred haaros to the back is then this
+ *     one word.
+ *   - **the dump call.** A stream that is not at the page foot is *collected*,
+ *     and collected notes print where `#הצג_אזור` asks for them and nowhere
+ *     else.
+ *
+ * The page foot needs neither: the default channel already lives there, which is
+ * why `pickLine` writes a bare `#הערה[…]` for it.
+ *
+ * **Derived from `PLACEMENTS`, not hand-listed.** The engine validates a
+ * placement against `_ch_places` and panics on one it does not know, so a line
+ * written for a destination the engine cannot yet place would stop the compile
+ * rather than move a note. `PLACEMENTS` is this side's copy of that set, held
+ * against the prelude in both directions by `enginefacts.test.mjs` — so this
+ * grows a destination the day the engine does, and refuses to write markup the
+ * engine would reject in the meantime. `channels.caveatsFor` is what tells the
+ * writer, in words, that the destination is not placed yet.
+ */
+export function destinationLines(
+  pick: NotePick,
+  lang: "he" | "en" = "he",
+  /**
+   * Where the region prints, for a pick that names one — `channels.
+   * regionPlacement` against the document, or the placement a preset is about
+   * to declare.
+   *
+   * It decides whether the region needs a dump call at all, and getting it
+   * wrong is wrong in both directions: a region at the page foot is painted by
+   * the page furniture, so calling for it renders its notes a second time, and
+   * a region anywhere else prints only where it is called for.
+   */
+  regionPlace: Placement = "רגל",
+): { head: string[]; tail: string[] } {
+  const name = destinationChannelName(pick, lang);
+  if (!name) return { head: [], tail: [] };
+  const place = pick.dest === "region" ? null : destinationOf(pick.dest).channel;
+  // A region is declared in the page-layout surface and carries its own
+  // placement; this only makes sure the block gets printed.
+  if (pick.dest === "region") {
+    return { head: [], tail: regionPlace === "רגל" ? [] : [showRegionLine(name, lang)] };
+  }
+  if (!place || place === "רגל") return { head: [], tail: [] };
+  if (!(PLACEMENTS as readonly string[]).includes(place)) return { head: [], tail: [] };
+  return {
+    head: [channelLine(name, { placement: place as (typeof PLACEMENTS)[number] }, lang)],
+    tail: [showRegionLine(name, lang)],
+  };
+}
+
+/**
+ * Add whatever a destination needs, if the document has not got it already.
+ *
+ * Separate from `applyPick` because **inserting a note is not the only way a
+ * document acquires one.** Right-clicking a footnote and sending it to the back
+ * produced a stream with nothing printing it — the same failure by a different
+ * door — so the conversion path runs this too, and there is one answer to "what
+ * does this destination need" rather than one per entry point.
+ *
+ * A preset's region comes first, because the dump call for a region the document
+ * has not declared is a call naming nothing.
  */
 export function scaffold(
   doc: string,
   caret: number,
-  choice: NoteChoice,
+  pick: NotePick,
   /** What the page direction says, for a document that has said nothing yet. */
   whenSilent: "he" | "en" = "he",
+  /** The preset this pick came from, when it came from one. */
+  preset: Preset | null = null,
+  /**
+   * The marker that was actually written, when it was not the pick's own.
+   *
+   * The collecting commands — `#הערתסיום`, `#מדור_א…ז` — are still in the
+   * registry and still work, and each needs a dump call of its own or its prose
+   * is collected and never printed. `apparatus.dumpFor` is the one place that
+   * knows which, and the lint reads the same rules from the other side: a writer
+   * who reaches for one of these by name gets the command they asked for *and*
+   * the call that renders it, rather than the command they asked for and a
+   * warning about it.
+   */
+  marker: string | null = null,
 ): { text: string; caret: number } {
-  // Every string a layout writes is spelt in the document's language, not in the
-  // one the cards happen to be written in. The chooser's `wrap`, `head` and
-  // `tail` are Hebrew literals because this is a Hebrew-first product; a
-  // scaffolding line is still source the writer has to read and edit, and three
-  // Hebrew lines wrapped around an English document is the report *"everything
-  // is coming in in Hebrew"* with the apparatus doing the inserting.
+  // Every string a destination writes is spelt in the *document's* language, not
+  // in the one this table happens to be written in. A scaffolding line is source
+  // the writer has to read and edit, and Hebrew lines wrapped around an English
+  // document is the report *"everything is coming in in Hebrew"* with the
+  // application doing the inserting.
   //
-  // Derived from the document rather than passed in, for the reason
-  // `insertionAt` gives about the same decision: the callers forgot the mode
-  // three separate times in one day, and there is no version of "each surface
-  // remembers" that survives a fourth surface.
+  // Derived from the document rather than passed in, for the reason `insertionAt`
+  // gives about the same decision: the callers forgot the mode three separate
+  // times in one day, and there is no version of "each surface remembers" that
+  // survives a fourth surface.
   const lang = docLang(doc, caret, whenSilent);
-  const say = (s: string) => translated(s, lang);
+  const made = preset ? presetLines(preset, lang) : { head: [], tail: [] };
+  // A preset declares its region in this same act, so its placement is the one
+  // to ask about — the document does not carry it yet.
+  const rgPlace =
+    preset?.makes?.placement ?? (pick.region ? regionPlacement(doc, pick.region) : "רגל");
+  const needed = destinationLines(pick, lang, rgPlace);
   let text = doc;
-  if (choice.wrap && !text.includes(say(choice.wrap.open).trim())) {
-    // Wrap the whole document: the note has to live inside the wrapper or it has
-    // no column to land in.
-    const before = text.length;
-    const open = say(choice.wrap.open);
-    const close = say(choice.wrap.close);
-    text = open + text + close;
-    caret += text.length - before - close.length;
+
+  // First line of the file, before anything else: a `#ערוץ` line is read with
+  // `.final()` and may sit anywhere, but a region declaration is not, and a
+  // reader looks for a document's apparatus at the top either way.
+  for (const line of [...made.head, ...needed.head].reverse()) {
+    if (scaffoldPresent(text, line)) continue;
+    text = line + "\n\n" + text;
+    caret += line.length + 2;
   }
 
-  if (choice.head && !hasLine(text, choice.head)) {
-    // First line of the file, before any wrapper: the apparatus reads this state
-    // from the page footer, so anything it sits after is a page it never reaches.
-    const line = say(choice.head) + "\n\n";
-    text = line + text;
-    caret += line.length;
-  }
-
-  if (choice.tail && !hasLine(text, choice.tail)) {
-    text = text.replace(/\s*$/, "") + "\n\n" + say(choice.tail) + "\n";
+  const named = marker ? /^#([A-Za-z0-9֐-׿_]+)/u.exec(marker)?.[1] : null;
+  const legacy = named ? dumpFor(canonicalName(named), lang) : null;
+  for (const line of [...made.tail, ...needed.tail, ...(legacy ? [legacy] : [])]) {
+    if (scaffoldPresent(text, line)) continue;
+    text = text.replace(/\s*$/, "") + "\n\n" + line + "\n";
   }
   return { text, caret };
 }
 
 /**
- * The layout a note command belongs to, or null.
+ * Is this destination's block already printed somewhere in the document?
  *
- * Matched on the command the layout's own marker writes, so the mapping is the
- * chooser's rather than a second list. `openNoteMenu` used to hand-list six of
- * the eighteen note commands, which is how three of them lost their scaffolding
- * and the other twelve were unreachable from the menu at all.
+ * Asked of the *region*, not of the line, because `hasLine` compares command
+ * names and a document with two regions has two `#הצג_אזור` calls that differ
+ * only in their argument. Answering "yes, there is a dump call" for the wrong
+ * one is the collected-and-never-rendered failure with an alibi.
  */
-export function choiceForCommand(command: string): NoteChoice | null {
-  const named = (s: string | undefined) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1];
-  for (const c of NOTE_CHOICES) {
-    // `sameCommand`, not `===`: the markers are Hebrew literals and the command
-    // comes off the writer's document, so an English document answered null to
-    // every one of the eighteen. Null here means `convertNote`'s caller skips
-    // `scaffold`, which is *"converting a footnote to an endnote produced an
-    // endnote with no `#הערות_בסוף()`"* — the collected-and-never-printed
-    // failure, performed by the product and then reported back as a lint.
-    if (markersOf(c).some((m) => sameCommand(named(m) ?? "", command))) return c;
-  }
-  return null;
+export function regionShown(doc: string, name: string): boolean {
+  return regionsShownIn(doc).some((r) => r.region === name);
 }
 
 /**
- * Every command a note could be converted to, spelt for this document.
+ * Does the document already carry this scaffolding line?
  *
- * Lives here rather than in the menu that shows it, because it is the same
- * question `choiceForCommand` answers going the other way and it was asked with
- * the same defect: `openNoteMenu` built its list by scraping the Hebrew literals
- * out of `NOTE_CHOICES`, so an English writer's only offer was to rewrite
- * `#fnote` as `#הערה` — a change of language presented as a change of layout.
+ * **By the call it is, not by the command it starts with.** `hasLine` compares
+ * command *names*, which is right for `#הערות_בסוף()` — there is one of those
+ * per document — and wrong for every line this model writes, because they all
+ * name something: a document with notes at the back and notes at the end of each
+ * section wants **two** `#ערוץ` lines and two `#הצג_אזור` calls, differing only
+ * in their argument.
  *
- * The exclusion of the note's own command has to be asked canonically too. Read
- * off a Hebrew list against an English `current`, nothing ever matched, so the
- * note's existing layout was offered as something to convert it to.
+ * Asked the loose way, the second destination got no placement line and no dump
+ * call: its notes were collected into a stream the engine had never been told
+ * where to print, and never rendered. That is the failure this application has
+ * performed on its own writers twice already, arriving a third time through the
+ * one function whose job is to prevent it.
+ *
+ * Both spellings, because the document may be written in either.
  */
-export function conversionTargets(current: string, lang: "he" | "en"): string[] {
-  const named = (s: string | undefined) => /^#([A-Za-z0-9֐-׿_]+)/u.exec(s ?? "")?.[1];
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const c of NOTE_CHOICES) {
-    for (const m of markersOf(c)) {
-      const he = named(m);
-      if (!he || sameCommand(he, current)) continue;
-      const canon = canonicalName(he);
-      if (seen.has(canon)) continue;
-      seen.add(canon);
-      out.push(named(translated(`#${he}`, lang)) ?? he);
-    }
+function scaffoldPresent(doc: string, line: string): boolean {
+  const command = /^#([A-Za-z0-9֐-׿_]+)/u.exec(line)?.[1];
+  const name = /"([^"]*)"/u.exec(line)?.[1];
+  if (!command) return false;
+  // A call with no name is a whole-document line — the legacy dump calls — and
+  // one of those per document is the answer `hasLine` was written for.
+  if (name === undefined) return hasLine(doc, line);
+  return declarationsIn(doc, canonicalName(command)).some((d) => d.name === name);
+}
+
+/**
+ * The destinations a note that already exists could be sent to instead.
+ *
+ * The right-click menu's list, and it is the whole conversion story now: a note
+ * does not change *command* to move, it changes **argument**. `#הערתסיום`,
+ * `#מדור_א` and `#הערת_גיליון` were eighteen commands for what is one command
+ * and one word, and offering a writer a list of near-identical Hebrew names was
+ * the original complaint this work answers.
+ *
+ * Its own destination is excluded, because a conversion that changes nothing is
+ * a menu item that lies. The regions come from the document, so the list is the
+ * *document's* rather than a fixed menu.
+ */
+export function destinationTargets(doc: string, note: NoteSpan): NotePick[] {
+  const own = noteDestination(doc, note);
+  const out: NotePick[] = [];
+  for (const d of ["foot", "end", "section", "side", "file"] as const) {
+    if (own.dest === d) continue;
+    out.push({ dest: d, region: null });
+  }
+  for (const r of regionsIn(doc)) {
+    if (own.dest === "region" && own.region === r.name) continue;
+    out.push({ dest: "region", region: r.name });
   }
   return out;
 }
 
 /**
- * Apply a choice to a document.
+ * Where a note in the document is printing now.
+ *
+ * Off the note's own call, through the one reader — `channels.pickFor` — rather
+ * than by a second parse of the same markup here. `NoteSpan` already carries the
+ * series the note is numbered in for the same reason.
+ */
+export function noteDestination(doc: string, note: NoteSpan): NotePick {
+  const n = scanSpans(doc).byStart.get(note.from);
+  const args = n?.args ? doc.slice(n.args.from, n.args.to) : "";
+  return pickFor(note.command, args);
+}
+
+/**
+ * Send an existing note to a different destination, keeping its prose.
+ *
+ * The argument changes and the command does not, which is the difference between
+ * this model and the eighteen it replaced: a note is `#הערה[…]` wherever it
+ * prints, so moving it is an edit to one word and never a retype.
+ *
+ * For a deferred note the prose does not move either — what changes is the
+ * marker, because the marker is the whole of where a deferred note prints.
+ */
+export function retargetNote(
+  doc: string,
+  note: NoteSpan,
+  pick: NotePick,
+  whenSilent: "he" | "en" = "he",
+): { text: string; caret: number } {
+  const lang = docLang(doc, note.from, whenSilent);
+  if (note.deferred) {
+    const ref = scanDeferred(doc).refs.find((r) => r.from === note.from);
+    if (!ref) return { text: doc, caret: note.from };
+    // The destination rides on the marker as a named argument, so moving a
+    // deferred note is a rewrite of one argument in `rest` and nothing else —
+    // the prose at the end of the file is not touched, and the note keeps its
+    // layout, its name and every other argument it was carrying.
+    return retargetRef(doc, ref, ref.kind ?? DEFAULT_NOTE_KIND[ref.lang], destRest(ref.rest, pick, lang));
+  }
+  const body = doc.slice(note.bodyFrom, note.bodyTo);
+  const marker = pickLine(pick, lang).replace("|", "");
+  const replacement = marker.replace(/\[\]$/, "[" + body + "]");
+  return {
+    text: doc.slice(0, note.from) + replacement + doc.slice(note.to),
+    caret: note.from + replacement.length - 1,
+  };
+}
+
+/**
+ * A deferred marker's other arguments, with its destination replaced.
+ *
+ * `deferred.ts` deliberately does not know the destination vocabulary — a second
+ * module knowing it is how two spellings of one rule get written — so it hands
+ * back `rest` verbatim and this puts the one argument back, through
+ * `channels.destinationArg`, which is the only thing that spells it.
+ */
+function destRest(rest: string, pick: NotePick, lang: "he" | "en"): string {
+  const kept = rest
+    .replace(/(?:^|,)\s*(?:ערוץ|channel|אזור|region)\s*:\s*"[^"]*"/gu, "")
+    .replace(/^\s*,/, "")
+    .trim()
+    .replace(/,\s*$/, "");
+  return [kept, destinationArg(pick, lang)].filter(Boolean).join(", ");
+}
+
+/**
+ * Write a note into the document. The only place that does.
  *
  * Returns the new text plus where the caret should land.
  */
-export function applyChoice(
+export function applyPick(
   doc: string,
   selectionFrom: number,
-  choice: NoteChoice,
-  /**
-   * Which of the layout's markers to write, as an index into `markersOf`.
-   *
-   * Was `"primary" | "secondary"`, which could not name a third stream because
-   * the vocabulary had run out — and the engine has never had a limit of two.
-   */
-  layer = 0,
+  pick: NotePick,
   deferred = false,
   /**
    * The writer's selection, when they had one.
    *
    * A toolbar button pressed with text selected wraps that text — which is what
-   * every word processor does and what the old direct splice did. Routing the
-   * toolbar through the chooser's producer would have quietly dropped it, so
-   * the producer learns about selections instead.
+   * every word processor does. Routing the toolbar through this producer would
+   * have quietly dropped it, so the producer learns about selections instead.
    *
-   * With deferred bodies the selected text goes into the *body* at the end of
-   * the file, not into the marker: the marker is a name, and there is nothing to
-   * wrap there.
+   * `marker` overrides what the pick would have written: a tiered note is the
+   * same destination as an ordinary one and wants the same scaffolding, but not
+   * the same command.
+   *
+   * With deferred bodies the selected text goes into the *body* at the end of the
+   * file, not into the marker: the marker is a name, and there is nothing to wrap
+   * there.
    */
   sel: { to?: number; text?: string; marker?: string } = {},
   /** What the page direction says, for a document that has said nothing yet. */
@@ -1122,27 +835,34 @@ export function applyChoice(
    * Whether the deferred bodies at the foot of the file are kept in one block
    * per apparatus.
    *
-   * Threaded down to `fileNewBody` rather than read from a setting here,
-   * because this module has never imported one — and because the option is only
-   * true tomorrow if the *filing* knows about the blocks. A tidy that groups
-   * and an insertion that appends is a setting that lies about itself the first
-   * time the writer adds a note.
+   * Threaded down to `fileNewBody` rather than read from a setting here, because
+   * this module has never imported one — and because the option is only true
+   * tomorrow if the *filing* knows about the blocks. A tidy that groups and an
+   * insertion that appends is a setting that lies about itself the first time the
+   * writer adds a note.
    */
   grouped = false,
+  /** The preset this pick came from, whose region has to exist first. */
+  preset: Preset | null = null,
+  /** Where the prose goes in the file. See `deferred.BODY_HOMES`. */
+  home: BodyHome = "file",
 ): { text: string; caret: number } {
-  // `marker` overrides the layout's own: tiers ג and below are the same layout
-  // as ב and want the same configuration line, but not the same command.
-  const raw = sel.marker ?? markersOf(choice)[layer] ?? choice.insert;
+  const lang = docLang(doc, selectionFrom, whenSilent);
   // Spelt in the document's language before anything else happens to it, so the
   // deferred pair, the caret arithmetic and `scaffold`'s own reading of the
-  // document all see the string that is actually going in. `plan` short-circuits
-  // to this branch *before* `insertionAt`, so a note is the one insertion that
-  // never passed through the translation every other command gets — which is why
-  // note markers arrived in Hebrew in an English document while `#bold` did not.
-  const chosen = translated(raw, docLang(doc, selectionFrom, whenSilent));
-  // Where the prose is written is orthogonal to where the note prints, so it is
-  // a rewrite of the snippet rather than a twelfth layout: the same eleven
-  // choices, each available either way round.
+  // document all see the string that is actually going in.
+  //
+  // A pick is built in the target language rather than translated into it, and
+  // that is not a shortcut: a **region's name is the writer's own word**, and
+  // `translated` localises whole string values on purpose — so a note sent to
+  // `#הערה(אזור: "מקורות")` would have come out `#fnote(region: "Sources")`,
+  // naming a region that does not exist. A marker handed in from a toolbar is a
+  // snippet of ours and still goes through the table.
+  const chosen = sel.marker ? translated(sel.marker, lang) : pickLine(pick, lang);
+  // Where the prose is written is orthogonal to where the note prints, so it is a
+  // rewrite of the snippet rather than a seventh destination: the same six picks,
+  // each available with the prose anywhere the writer keeps it.
+  //
   // Named once and kept, because the body has to be filed *next to its own
   // marker* and cannot ask which name that was after the fact.
   const name = deferred ? nextName(doc) : "";
@@ -1151,37 +871,18 @@ export function applyChoice(
   const bare = pair ? pair.marker : chosen;
   // Through the same door every other insertion uses.
   //
-  // The marker was spliced in raw, and `insertionAt` is the function that knows
-  // a document has *modes*: inside `#רשימה(…)` or `#טבלה(…)` the caret is
-  // already in code, where a leading `#` is not a hash but a syntax error, and
-  // an element spliced between two others needs its comma. Every other command
-  // learned this when the insertion sweep found 384 broken documents; the note
-  // path never did, because `plan` short-circuits to this branch *before*
-  // `insertionAt` — the comment above says so, and said so while it was the bug.
-  //
-  // What that cost, swept the same way (1,248 documents: every layout, every
-  // tier, inline and deferred, both languages, thirteen caret positions):
-  //
-  //     list-after-open       96/96 fail
-  //     list-between-items    96/96 fail
-  //     table-between-cells   96/96 fail
-  //     the other ten          0/96
-  //
-  // 288 documents, one engine message — *the character `#` is not valid in
-  // code* — and not one of them a bug of its own. It is the same three code-mode
-  // positions that broke all 114 registry commands the first time, found again
-  // in the one path that was exempted from the fix.
-  //
-  // The writer who hit it said *"it was my error — it was not in brackets where
-  // I placed it"*. It was not their error. A toolbar writes something that
-  // compiles where the caret is, or greys itself out and says why; that standard
-  // is `insertion.rs`'s, and it already applies to everything else.
+  // `insertionAt` is the function that knows a document has *modes*: inside
+  // `#רשימה(…)` or `#טבלה(…)` the caret is already in code, where a leading `#`
+  // is not a hash but a syntax error, and an element spliced between two others
+  // needs its comma. Every other command learned this when the insertion sweep
+  // found 384 broken documents; the note path did not, because `plan`
+  // short-circuits here — and 288 of 1,248 swept documents did not compile.
   //
   // Applied to the marker only, and deliberately. The `|` passes through
   // untouched — that is `insertionAt`'s contract — so the caret arithmetic below
-  // is unchanged. The *body* is a different question: `fileNewBody` files it at
-  // top level at the end of the document, which is never code mode, so putting
-  // it through here would add a comma to a line that has no argument list.
+  // is unchanged. The *body* is a different question: it is filed at top level,
+  // which is never code mode, so putting it through here would add a comma to a
+  // line that has no argument list.
   const snippet = insertionAt(doc, selectionFrom, bare, sel.to ?? selectionFrom, whenSilent);
   const filled = pair ? snippet : snippet.replace("|", taken + "|");
   const caretInSnippet = filled.indexOf("|");
@@ -1191,28 +892,18 @@ export function applyChoice(
   let text = doc.slice(0, selectionFrom) + clean + doc.slice(to);
   let caret = selectionFrom + (caretInSnippet < 0 ? clean.length : caretInSnippet);
 
-  ({ text, caret } = scaffold(text, caret, choice, whenSilent));
+  ({ text, caret } = scaffold(text, caret, pick, whenSilent, preset, sel.marker ?? null));
 
-  // The body last, so it is filed *after* the layout's own scaffolding rather
-  // than being pushed below it — and the caret follows the writer to it, since
-  // the prose is what they are about to type.
+  // The body last, so it is filed *after* the destination's own scaffolding
+  // rather than being pushed below it — and the caret follows the writer to it,
+  // since the prose is what they are about to type.
   if (pair) {
     const body = pair.body.replace("|", taken + "|");
-    // The name, which is the whole reason `fileNewBody` takes one.
-    //
-    // Without it `neighbours` has nothing to place this body *relative to* and
-    // falls through to "after the last one" — so bodies were filed in the order
-    // they were created rather than the order their markers are read in. Add a
-    // note today between two you wrote last week and its prose lands at the
-    // bottom of the block, under prose belonging to markers pages further on.
-    // The writer's words: *"the footnotes are ordered on bottom, not in the
-    // order they were put in — they are ordered by their assigned number."*
-    //
-    // `createBody` in `deferred.ts` passes it. This did not. One function, two
-    // callers, one argument — which is the same shape as every other bug in
-    // this file's history and the reason `notepaths.test.mjs` asks both paths
-    // the same questions.
-    const filed = fileNewBody(text, body.replace("|", ""), name, grouped);
+    // The name, which is the whole reason `fileNewBody` takes one. Without it
+    // `neighbours` has nothing to place this body relative to and falls through
+    // to "after the last one", so bodies come out in the order they were created
+    // rather than the order their markers are read in.
+    const filed = fileNewBody(text, body.replace("|", ""), name, grouped, home, caret);
     text = filed.text;
     caret = filed.at + body.indexOf("|");
   }

@@ -136,22 +136,22 @@ export function facts() {
     templates: readdirSync(path.join(ROOT, "ksav/engine/templates")).filter((f) =>
       f.endsWith(".ksav"),
     ).length,
-    // The note layouts, counted from `NOTE_CHOICES` — the cards the chooser
-    // offers.
+    // The note destinations, counted from `channels.ts` — the one pick the
+    // chooser asks for.
     //
-    // This used to count rows in `spec.md`'s status table, on the stated grounds
-    // that `NOTE_CHOICES` "is deliberately not the authority: it holds twelve
-    // records because one option ships as two chooser cards". That reasoning was
-    // the tell. The claim being defended was *"there are eleven note options and
-    // nothing else"*, and the fence guarding this repository's counted claims
-    // had to pick which artifact to count in order to get the answer the prose
-    // wanted. When a fence has to choose its evidence, the prose is wrong.
+    // This used to count `NOTE_CHOICES`, and before that rows in `spec.md`'s
+    // status table, on the stated grounds that the cards were "deliberately not
+    // the authority". That reasoning was the tell: the claim being defended was
+    // *"there are eleven note options and nothing else"*, and the fence guarding
+    // this repository's counted claims had to pick which artifact to count in
+    // order to get the answer the prose wanted. When a fence has to choose its
+    // evidence, the prose is wrong.
     //
-    // So the claim changed rather than the counting. "Eleven options" was a
-    // statement about a taxonomy nobody can check; **thirteen cards** is a
-    // statement about the chooser, which is what a writer actually meets, and it
-    // is counted from the thing that renders it. See §4 of the 7 August report.
-    noteLayouts: (read("ksav/app/src/notes.ts").match(/^\s{4}id: "/gmu) ?? []).length,
+    // The cards are gone and the claim went with them. A writer meets **one
+    // question with six answers**, so that is what is counted, off the table
+    // that renders it. See §4 of the 7 August report, and Part 6 of
+    // `NOTES-PLAN.md` for why the grid had to go.
+    noteDestinations: destinationCount(),
     // Lexicon entries: every line that is not a comment. The generator writes
     // its own count into the header, so the header is checked against the file
     // too — a stale header would otherwise become the authority for the docs.
@@ -172,6 +172,23 @@ export function facts() {
       /^\s*\{"id":/gmu,
     ) ?? []).length,
   };
+}
+
+/**
+ * The destinations the chooser offers, off the table that renders them.
+ *
+ * Sliced to the `DESTINATIONS` array by name, not matched over the whole file:
+ * `channels.ts` also holds the presets, and two of those declare an `id` on a
+ * line of their own. A count that included them would have read eight, which is
+ * the shape of mistake this whole module exists to make impossible — a number in
+ * a living page that nothing actually measures.
+ */
+function destinationCount() {
+  const src = read("ksav/app/src/channels.ts");
+  const at = src.indexOf("export const DESTINATIONS");
+  if (at < 0) throw new Error("channels.ts no longer declares DESTINATIONS");
+  const end = src.indexOf("\n];", at);
+  return (src.slice(at, end).match(/^\s{4}id: "/gmu) ?? []).length;
 }
 
 /** Non-comment lines in a lexicon, checked against the count in its own header. */
@@ -285,7 +302,7 @@ export const CLAIMS = [
   ["ksav/README.md", "commands", (n) => `**${n} commands**`],
   ["ksav/README.md", "offered", (n) => `searches all ${n} commands`],
   ["ksav/README.md", "templates", (n) => `${n} templates (all compile)`],
-  ["ksav/README.md", "noteLayouts", (n) => `all ${word(n)} note layouts`],
+  ["ksav/README.md", "noteDestinations", (n) => `all ${word(n)} destinations`],
   ["ksav/README.md", "ciJobs", (n) => `green across all ${word(n)} jobs`],
   ["ksav/README.md", "appAssertions", (n) => `${group(n)} assertions`],
   ["ksav/README.md", "appTestFiles", (n) => `across ${n} files`],
@@ -368,7 +385,6 @@ export const NOUNS = [
   ["commands?", ["commands", "offered"]],
   ["bindings?", "bindings"],
   ["templates?", "templates"],
-  ["note layouts?", "noteLayouts"],
   ["assertions?", "appAssertions"],
   ["engine tests?", "engineTests"],
   ["binaries", "engineBinaries"],

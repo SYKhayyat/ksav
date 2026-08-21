@@ -473,34 +473,30 @@ export interface Settings {
   snippets?: string; // "abbrev = expansion" per line, expanded on Tab
   keybindings?: Record<string, string>; // action id -> key combo override
   reviewer?: string; // the name that goes on this person's review comments
-  // Write note bodies at the end of the file (the org-mode arrangement) instead
-  // of inline. A habit, not a document property — the page is identical either
-  // way — so it belongs to the person and has to outlive the tab.
+  /**
+   * Where a note's prose sits in the file: in the sentence, at the foot of the
+   * file, or at the end of its own section. See `deferred.BODY_HOMES`.
+   *
+   * A habit, not a document property — the page is byte-identical whichever
+   * answer it gets — so it belongs to the person and has to outlive the tab.
+   */
+  noteBodyHome?: "inline" | "file" | "section";
+  /**
+   * The two-answer version of `noteBodyHome`, still written and still read.
+   *
+   * Kept in step by the row that sets the new one, because a preference with two
+   * spellings that can disagree is the defect family this repository is named
+   * for — and because a writer who set this before there was a third answer must
+   * not have to set it again.
+   */
   deferNoteBodies?: boolean;
   /**
-   * Per note kind, whether its body is written inline where the marker sits or
-   * collected into a section at the end of the source (in order). Keyed by the
-   * note's `where` — foot-of-page, section, document, margin, volume — so a
-   * writer can keep footnotes inline while sending endnotes to the back. A kind
-   * with no entry falls back to the global `deferNoteBodies`.
+   * Per destination, where that kind of note's prose is written — keyed by the
+   * destination's own id, so a writer can keep footnotes in the sentence while
+   * the haaros at the back collect into a block at the end of the source. A
+   * destination with no entry falls back to `noteBodyHome`.
    */
-  noteBodyPlacement?: Partial<Record<string, "inline" | "deferred">>;
-  /**
-   * How the notes chooser asks its question.
-   *
-   *   `guided` — one question at a time. Where should it print, and then, of the
-   *              arrangements that can print there, how are the layers
-   *              arranged. Six buttons on screen instead of fifty.
-   *   `matrix` — the whole where x how grid at once, refusals included. The view
-   *              for someone comparing arrangements rather than choosing one.
-   *   `cards`  — every arrangement as a card, in two groups by layer count.
-   *
-   * All three reach the same arrangements and write the same commands; this is
-   * only which of them is on screen. Kept as a preference rather than a mode
-   * switch inside the panel alone, because it is a fact about how a person
-   * prefers to be asked and it has to outlive the tab.
-   */
-  notesChooserView?: "guided" | "matrix" | "cards";
+  noteBodyPlacement?: Partial<Record<string, "inline" | "file" | "section">>;
   // Per-operation hydra key overrides, `{"table.rowDelete": "r"}`. Generated
   // keys are deterministic; this is how a writer overrules one, the same way
   // `keybindings` overrules a shortcut.
@@ -575,10 +571,6 @@ export const DEFAULTS: Settings = {
   autoSnapshotMinutes: 3,
   editingMode: "default",
   tabCompile: "keep",
-  // One question at a time by default. The grid and the card wall are both real
-  // views and both stay, but neither is what to hand somebody who has opened
-  // this panel because they want a footnote.
-  notesChooserView: "guided",
   focusMode: false,
   typewriter: false,
   typewriterAnchor: "center",

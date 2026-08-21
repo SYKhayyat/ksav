@@ -117,18 +117,17 @@ listing every note in the document — click one to jump to it, right-click it (
 the pane or in the text) to convert it, delete it with its marker, or hang
 another note off it.
 
-Underneath, Ksav supports fourteen note layouts — page-bottom footnotes, endnotes,
-notes at the end of each section, sidenotes down one or both margins, fixed bands
-at the foot of the page, any number of parallel streams each in a fixed region,
-two separately-numbered blocks, and combinations. The
-**Notes** button asks two questions you can answer — *where does it print* (the
-foot of the page, the end of a section, the end of the document, the margin, a
-second volume) and *how are the layers arranged* (one series, stacked bands,
-parallel streams, parallel streams in fixed regions, fixed regions, each layer
-somewhere else) — and the fourteen
-layouts are the cells of that grid. A combination that does not exist is greyed
-with its reason rather than hidden. Picking a cell renders a real page, set from
-your own text, instead of a diagram.
+Underneath, writing a note is **one pick: where should it print.** The **Notes**
+button asks that and nothing else, and it offers all six destinations — the foot
+of the page, the back of the sefer, the end of the section, the side column, a
+companion volume, and a named region you made in the page layout. The
+destination *is* the stream, so its numbering, its size and the rest belong to it
+and can be changed afterwards without touching a single note; two
+separately-numbered apparatuses in one place are two named regions. Ready-made
+arrangements — a footnote, an endnote, the Mishna Berura page — are picks like
+any other, so you can press one and then take it apart. A pick that costs
+something says so in a sentence rather than greying itself out, and the one you
+land on renders a real page, set from your own text, instead of a diagram.
 
 **Side notes** take three settings worth knowing. Their width is
 `#הגדרות_הערות_צד(יחס: …)`. Their marker follows the document: a Hebrew sefer
@@ -657,11 +656,11 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **WASM** — real Typst in the browser, no server; auto backend selection (M3)
 - [x] Cross-platform (Linux / macOS / Windows), fonts embedded
 - [x] **Tauri desktop app** — native window, engine in-process via `invoke` (M4)
-- [x] **The full note apparatus** — all fourteen note layouts in `spec.md` render
-      correctly (footnotes, endnotes, per-section endnotes, fixed page-foot
-      regions in centimetres or in percent of the page, any number of parallel
-      streams each in its own region, true sidenotes down either margin, and the
-      four two-layer notes-on-notes arrangements). See
+- [x] **The full note apparatus** — the chooser offers all six destinations and
+      each one renders (footnotes, endnotes, per-section endnotes, fixed
+      page-foot regions in centimetres or in percent of the page, any number of
+      parallel streams each in its own region, true sidenotes down either
+      margin, and notes on notes). See
       [`engine/README-notes.md`](engine/README-notes.md).
 - [x] **Rendered-output tests** — `engine/src/probe.rs` reads the laid-out
       document and `engine/tests/apparatus.rs` asserts where things landed on the
@@ -724,7 +723,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 7,315 editor assertions, 852 tests in
+      all nine jobs: the typechecker and 7,249 editor assertions, 859 tests in
       the engine, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -803,8 +802,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 7,315 assertions across 107 files |
-| `engine` | both | formatting, lints, then 852 tests across 48 binaries |
+| `editor` | both | the typechecker, then 7,249 assertions across 106 files |
+| `engine` | both | formatting, lints, then 859 tests across 50 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
@@ -868,7 +867,7 @@ bar is where most of this product's bugs are visible.
 
 Everything above this line reads. It reads extremely well — an insertion grid
 that compiles every legal insertion the UI can produce, an oracle that checks the
-editor's scanner against Typst's own parser over **4,347**<!--=oracleDocuments--> documents, a fence that
+editor's scanner against Typst's own parser over **4,321**<!--=oracleDocuments--> documents, a fence that
 fails when a number in this file stops being true. All of it is *about parts*.
 
 The bugs a reader meets are the ones in the seams — a button wired to nothing, a

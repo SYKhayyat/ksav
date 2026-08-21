@@ -93,25 +93,47 @@ pub fn note_markers(doc: &PagedDocument, main: &Source, body: &str) -> Vec<NoteM
     let offset = crate::diagnostics::body_offset_of(main.text(), body);
     let mut out = Vec::new();
     for page in doc.pages() {
-        collect(&page.frame, main, offset, &mut out);
+        collect(&page.frame, main, offset, &mut out, &mut None);
     }
     out
 }
 
 /// The pairing, over one frame and its children.
 ///
-/// **Pending state is this frame's own.** It is not inherited by a child frame
-/// and never survives one, which is what keeps a marker from reaching across an
-/// entry boundary to claim the next note's prose. Measured case: a note's marker
-/// in the prose is still pending when the walk arrives at the apparatus at the
-/// foot of the page, and without this it would pair with the first note's body
-/// down there and be wrong about every row.
-fn collect(frame: &Frame, main: &Source, offset: usize, out: &mut Vec<NoteMarker>) {
-    let mut pending: Option<Pending> = None;
-
+/// # A marker reaches into the next frame, and no further
+///
+/// A marker may be printed beside prose that is **inside a child frame**, and it
+/// must pair with it. That is not a corner: a slanted note body is sheared word
+/// by word, and every sheared word is a box of its own — so an italic tier-2
+/// entry lays out as the marker run followed by a group per word, and a rule
+/// that stops at the frame boundary finds no prose at all and loses the marker.
+/// Measured, on the two tests below, the moment configuration-driven slant
+/// started rendering.
+///
+/// What the boundary rule was protecting against is a marker leaking *sideways*
+/// — a note's marker still pending when the walk reaches the apparatus at the
+/// foot of the page, pairing with the first note's body down there and being
+/// wrong about every row afterwards.
+///
+/// Both are satisfied by clearing the pending when a frame ends rather than when
+/// one begins: the first child may consume what its parent left waiting, and
+/// nothing after that child can, because the child's return takes the pending
+/// with it. A marker reaches exactly as far as the words printed next to it.
+fn collect(
+    frame: &Frame,
+    main: &Source,
+    offset: usize,
+    out: &mut Vec<NoteMarker>,
+    pending: &mut Option<Pending>,
+) {
     for (_, item) in frame.items() {
         match item {
-            FrameItem::Group(group) => collect(&group.frame, main, offset, out),
+            FrameItem::Group(group) => {
+                collect(&group.frame, main, offset, out, pending);
+                // Whatever was waiting has now had its chance. It does not get a
+                // second one in a later sibling.
+                *pending = None;
+            }
             FrameItem::Text(text) => {
                 match first_byte(&text.glyphs, main, offset) {
                     // The writer's own words. If a marker is waiting, this is
@@ -122,7 +144,7 @@ fn collect(frame: &Frame, main: &Source, offset: usize, out: &mut Vec<NoteMarker
                         }
                     }
                     // Generated text: a marker, a page number, a rule's label.
-                    None => match &mut pending {
+                    None => match pending.as_mut() {
                         // Two runs of generated text with nothing between them
                         // are one marker. An endnote prints `1` and `.` as
                         // separate runs and the reader sees `1.`.
@@ -133,7 +155,7 @@ fn collect(frame: &Frame, main: &Source, offset: usize, out: &mut Vec<NoteMarker
                         // the entry it will get of its own.
                         Some(_) => {}
                         None => {
-                            pending = Some(Pending {
+                            *pending = Some(Pending {
                                 text: text.text.to_string(),
                                 open: true,
                             })
@@ -147,7 +169,7 @@ fn collect(frame: &Frame, main: &Source, offset: usize, out: &mut Vec<NoteMarker
             // marker from the next. `1` `.` have no tag between them; `1` and a
             // nested note's `2` have four.
             FrameItem::Tag(_) => {
-                if let Some(p) = &mut pending {
+                if let Some(p) = pending.as_mut() {
                     p.open = false;
                 }
             }

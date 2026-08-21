@@ -232,7 +232,7 @@ export function changedLines(hunks: Hunk[]): number[] {
  * The smallest single replacement that turns `prev` into `next`.
  *
  * Every producer in this app that rewrites a document returns the **whole new
- * text**, and that is the right shape for a pure function: `applyChoice`,
+ * text**, and that is the right shape for a pure function: `applyPick`,
  * `promote`, `moveSection`, `healAll` and the rest are testable precisely
  * because they take a string and give a string back. The mistake was dispatching
  * it as `{from: 0, to: doc.length}`.

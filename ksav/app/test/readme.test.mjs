@@ -87,10 +87,10 @@ check("in both directions", DEFAULT_KEYS["heading.moveDown"], "Alt-Shift-ArrowDo
   // fourteenth card turned one fence red for wanting "fourteen" and the other
   // red for no longer finding "thirteen", and the two disagreed about which
   // direction to fix. The derived one is the one that keeps being true.
-  const layouts = word(facts().noteLayouts);
+  const layouts = word(facts().noteDestinations);
   ok(
-    `the README claims ${layouts} note layouts`,
-    README.includes(`${layouts} note layouts`),
+    `the README claims ${layouts} destinations`,
+    README.includes(`${layouts} destinations`),
   );
   ok("and nine heading levels", /nine levels/.test(README));
 }

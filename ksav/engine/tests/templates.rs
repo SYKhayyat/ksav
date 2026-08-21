@@ -40,14 +40,34 @@ fn laid_out(id: &str) -> (Vec<TextRun>, Vec<(f64, f64)>) {
     (probe::text_runs(&doc), probe::page_sizes(&doc))
 }
 
+/// Where a phrase printed.
+///
+/// **A phrase is not always a run.** A slanted one is sheared word by word and
+/// every sheared word is a box of its own, so the gemara template's second band —
+/// which ships italic, like every tier below the first — has no run holding a
+/// sentence. Asking the run alone said the words were not on the page while they
+/// were plainly on it at y=761.83.
+///
+/// So the line is asked when the run cannot answer, and the line's first run is
+/// what comes back: every run of a phrase is on the same line at the same size,
+/// which is all any caller here reads off it.
 fn find<'a>(runs: &'a [TextRun], needle: &str) -> &'a TextRun {
+    if let Some(r) = runs.iter().find(|r| r.text.contains(needle)) {
+        return r;
+    }
+    let line = probe::lines(runs, 1.0)
+        .into_iter()
+        .find(|l| l.contains(needle))
+        .unwrap_or_else(|| panic!("{needle:?} is not on the page"));
+    let first = line.runs.first().expect("a line has a run").clone();
     runs.iter()
-        .find(|r| r.text.contains(needle))
-        .unwrap_or_else(|| panic!("{needle:?} is not on the page"))
+        .find(|r| r.page == first.page && r.y == first.y && r.x == first.x)
+        .expect("the line's own run")
 }
 
 fn has(runs: &[TextRun], needle: &str) -> bool {
     runs.iter().any(|r| r.text.contains(needle))
+        || probe::lines(runs, 1.0).iter().any(|l| l.contains(needle))
 }
 
 /// The whole point of the sefer template: notes on notes, and an index.

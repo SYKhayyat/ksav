@@ -59,81 +59,89 @@ const BODIES = [
   "טקסטהערהשש",
   "טקסטהערהשבע",
 ];
-/** The fixture's name for one layer, kept readable for the two common ones. */
-function whichName(layer) {
-  return layer === 0 ? "primary" : layer === 1 ? "secondary" : `layer${layer + 1}`;
+/** The fixture's name for one case's stream: a region's name, or `primary`. */
+function whichName(pick) {
+  return pick.region ?? "primary";
 }
 
 export async function buildFixture() {
-  const { NOTE_CHOICES, applyChoice, markersOf } = await load("notes");
+  const { applyPick, destinationLines } = await load("notes");
+  const { DESTINATIONS, PLACEMENTS, PRESETS, destinationOf, presetLines, presetOf } =
+    await load("channels");
+
+  /**
+   * Where a pick *claims* its notes print — the assertion §1.3 was missing, and
+   * the reason a writer could pick "two separate blocks" and get a band sitting
+   * near the top of the page.
+   *
+   * Derived, not tabulated. `side` and `file` come back `null` because the
+   * engine does not carry those placements yet (`_ch_places`), so a note sent to
+   * one lands in a region at the page foot — which the chooser says in words
+   * rather than hiding. Asserting that interim answer would pin the bug in place
+   * and make the day the engine grows the placement a red test about nothing.
+   */
+  const placeOf = (pick, preset) => {
+    const place =
+      pick.dest === "region"
+        ? (presetOf(preset)?.makes?.placement ?? null)
+        : destinationOf(pick.dest).channel;
+    if (place === null) return null;
+    if (place === "רגל") return "page";
+    return PLACEMENTS.includes(place) ? "end" : null;
+  };
+
+  // Every destination, plus the presets that make a region — a preset is a value
+  // of the one axis, so a case for one is a case for the pick it sets and there
+  // is no second mechanism here to cover.
+  const picks = [
+    ...DESTINATIONS.filter((d) => d.id !== "region").map((d) => ({
+      id: d.id,
+      pick: { dest: d.id, region: null },
+      preset: null,
+    })),
+    ...PRESETS.filter((p) => p.makes).map((p) => ({ id: p.id, pick: p.pick, preset: p.id })),
+  ];
+
   const cases = [];
-  for (const c of NOTE_CHOICES) {
-    const markers = markersOf(c);
-    // "both" matters more than it looks: a multi-layer layout's settings are
-    // what tell the layers apart, so a document containing only the first layer
-    // cannot show whether those settings arrived. The first version of the
-    // engine-side test passed a layout whose configuration was doing nothing,
-    // purely because the fixture never used the second marker.
-    //
-    // One variant per layer, not per *first two* layers: a card with three
-    // parallel streams has a third region, and a fixture that stops at two would
-    // render it empty on every page and call that a pass.
-    const variants =
-      markers.length > 1
-        ? [...markers.map((_, i) => [whichName(i), [i]]), ["both", markers.map((_, i) => i)]]
-        : [["primary", [0]]];
-    for (const [which, layers] of variants) {
-      // Notes of the kind under test spread from early to late, so a per-page
-      // apparatus has to render on more than the page it was configured on.
-      let text = FILLER;
-      // Paragraph 2 to paragraph 36 of 44, evenly, one note per layer — and for
-      // a single-layer case two notes of that one layer, which is the same
-      // spread with the same ends.
-      const slots = layers.length > 1 ? layers : [layers[0], layers[0]];
-      const plan = slots.map((layer, i) => [
-        2 + Math.round((i * 34) / (slots.length - 1)),
-        BODIES[i],
-        layer,
-      ]);
-      const bodies = plan.map(([, body]) => body);
-      // Insert the later note first, so the earlier insertion's offset holds.
-      for (const [para, body, layer] of [...plan].reverse()) {
-        const at = text.split("\n\n").slice(0, para).join("\n\n").length;
-        const r = applyChoice(text, at, c, layer, false);
-        text = r.text.slice(0, r.caret) + body + r.text.slice(r.caret);
-      }
-      // Where this layout *claims* the notes print — the assertion §1.3 was
-      // missing. `#הערות_מדורגות` renders in the main flow, so on a short
-      // document its band landed near the top of the page (measured: y=126 of
-      // 842) while the page-bottom equivalent sat at y=741, and nothing in the
-      // product distinguished "at the foot of every page" from "at the end".
-      // Only the layouts whose layers all land in one place are asserted: a
-      // split arrangement is two places by definition, and the margin ones are
-      // beside their line rather than below anything.
-      const place =
-        c.how === "split"
-          ? null
-          : c.where.length === 1 && c.where[0] === "page"
-            ? "page"
-            : c.where.includes("document") || c.where.includes("section")
-              ? "end"
-              : null;
-      cases.push({
-        id: c.id,
-        which,
-        place,
-        // What the writer would see in the editor after two clicks.
-        source: text,
-        bodies,
-        // The configuration line this layout needs, and whether *this* case can
-        // show it working. A multi-layer layout configured with a scheme per
-        // layer changes nothing in a document that uses only one layer — true,
-        // and not a bug, so only the case that uses every layer is asked to
-        // prove it.
-        head: c.head ?? null,
-        exercisesHead: !!c.head && (markers.length > 1 ? which === "both" : true),
-      });
+  for (const { id, pick, preset } of picks) {
+    // Notes of the kind under test spread from early to late, so a per-page
+    // apparatus has to render on more than the page it was configured on.
+    let text = FILLER;
+    const bodies = [BODIES[0], BODIES[1]];
+    // Paragraph 2 and paragraph 36 of 44. The later note is inserted first, so
+    // the earlier insertion's offset still holds.
+    const plan = [
+      [2, bodies[0]],
+      [36, bodies[1]],
+    ];
+    for (const [para, body] of [...plan].reverse()) {
+      const at = text.split("\n\n").slice(0, para).join("\n\n").length;
+      const r = applyPick(text, at, pick, false, {}, "he", false, preset ? presetOf(preset) : null);
+      text = r.text.slice(0, r.caret) + body + r.text.slice(r.caret);
     }
+    const made = preset ? presetLines(presetOf(preset), "he") : { head: [], tail: [] };
+    const heads = [...made.head, ...destinationLines(pick, "he", presetOf(preset)?.makes?.placement).head];
+    cases.push({
+      id,
+      which: whichName(pick),
+      place: placeOf(pick, preset),
+      // What the writer would see in the editor after two clicks.
+      source: text,
+      bodies,
+      // The line that places this destination, when it writes one.
+      //
+      // **`exercisesHead` is false for every case, and that is the model rather
+      // than an omission.** `#ערוץ` and `#אזור` are read with `.final()`, quite
+      // deliberately: where an apparatus prints is a fact about the document and
+      // not about a position in it, which is the whole property the eighteen
+      // commands could not offer. So moving one of these lines to the end of the
+      // file changes nothing at all, and `channels.test.mjs` asserts that
+      // directly — it is a property of the declaration rather than of any one
+      // layout, and it is the opposite of the `#הגדרות_*` trap this field was
+      // added for.
+      head: heads[0] ?? null,
+      exercisesHead: false,
+    });
   }
   return JSON.stringify(
     { note: "generated by app/tools/emit-note-fixtures.mjs", lastBody: LAST_BODY, cases },

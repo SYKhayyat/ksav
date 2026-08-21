@@ -44,16 +44,13 @@ import { panelHead } from "./panels";
 import * as git from "./git";
 import * as review from "./review";
 import {
-  NOTE_CHOICES,
-  NOTE_HOW,
-  NOTE_WHERE,
-  choiceAt,
-  markersOf,
-  whyNot,
-  type NoteChoice,
-  type NoteHow,
-  type NoteWhere,
-} from "./notes";
+  DESTINATIONS,
+  PRESETS,
+  destinationOf,
+  type Caveat,
+  type DestinationId,
+  type NotePick,
+} from "./channels";
 import type { GitBranch, GitCommit, GitRemote, GitStatus } from "./api";
 
 // ---------------------------------------------------------------- git
@@ -532,9 +529,9 @@ export const STYLE_SECTIONS: readonly StyleSection[] = [
   { kind: "headings", heading: "styleHeadings", note: null, scope: ["kindHeading", "kindHeadingOne"] },
   { kind: "lists", heading: "styleLists", note: null, scope: ["kindList", "kindListOne"] },
   { kind: "tables", heading: "styleTables", note: null, scope: ["kindTable", "kindTableOne"] },
-  // No scope selector, and that is not an omission: a channel is a note stream
-  // for the whole document, so "this one" names nothing.
-  { kind: "channels", heading: "styleChannels", note: "styleChannelsNote", scope: null },
+  // No scope selector, and that is not an omission: a destination is a note
+  // stream for the whole document, so "this one" names nothing.
+  { kind: "destinations", heading: "styleDestinations", note: "styleDestinationsNote", scope: null },
   // The layer under the six apparatus sections, and therefore above them on the
   // page: a writer setting the look of "the notes" should meet the one control
   // that means all of them before the six that mean one each. No scope
@@ -746,427 +743,258 @@ export function keysPanel(view: KeysView, act: KeysActions): Node[] {
   out.push(reset);
   return out;
 }
-
 // ---------------------------------------------------------------- notes chooser
 //
-// `notes.ts` decides which arrangements exist and what each of them writes. This
-// decides how a writer is asked, which was the whole of what was wrong with it.
+// One question, and it is the only question: **where should this note print?**
 //
-// The panel opened onto: two quick buttons, a body-placement block, a thirty-cell
-// grid, and then every one of the fourteen arrangements as a full card with a
-// page sketch, a description, a caveat and up to three buttons. Somewhere past
-// fifty controls on one screen, all of them about a decision the person opening
-// the panel has usually already made — they want a footnote.
+// What was here was a thirty-cell `where` x `how` grid with eleven cards in it,
+// three presentations of that grid, a body-placement block, and somewhere past
+// fifty controls on one screen — all about a decision the person opening the
+// panel has usually already made. Worse than the volume, the shape was wrong:
+// the cells *were* the product, so an arrangement nobody had written a card for
+// was unreachable even when the engine had shipped it.
 //
-// The grid is not the problem and is not going anywhere: it is the only view
-// that shows the *shape* of the question, refusals included, and comparing
-// arrangements is a real thing to want. The card wall is where the descriptions
-// live. What was missing is the ordinary path: **ask one question, then ask the
-// next one about the answers that survive it.** That is `guided`, and it is the
-// default; the other two are a preference away.
-
-/** Which of the three presentations the chooser is showing. */
-export type NotesChooserView = "guided" | "matrix" | "cards";
-
-export const NOTES_CHOOSER_VIEWS: readonly NotesChooserView[] = ["guided", "matrix", "cards"];
+// The model underneath is one axis (`channels.DESTINATIONS`), so the panel is
+// one row of six. Everything else on this screen is derived from the pick:
+//
+//   - **the presets** are picks, not a parallel list. Pressing one sets a
+//     destination and, where it needs one, a region — and leaves the writer
+//     holding an ordinary pick they can take apart, which is the whole
+//     difference between a preset and a cell.
+//   - **the refusals** are `channels.caveatsFor`, in words, under the pick they
+//     are about. Not a `title` tooltip: absent on a touch screen, absent to
+//     anyone not hovering, absent to a screen reader.
+//   - **the sketches** are the one thing the cards got right and are kept.
+//
+// Where the note's *prose* goes in the file is deliberately **not** here. It
+// changes the file and never the page, so it is a document preference and lives
+// with the document preferences; a writer choosing where a note prints should
+// not have to walk past a question about their source to get there.
 
 /** Everything the notes chooser draws itself from. */
 export interface NotesView {
-  view: NotesChooserView;
   /**
-   * The first question's answer — where the note prints — or null before one is
-   * given. `guided` shows nothing of the second question until this is set.
+   * The pick in hand. Never null: there is always a destination, and the
+   * everyday one is the foot of the page — which is what a person who opened
+   * this panel wanting a footnote should find already answered.
    */
-  where: NoteWhere | null;
-  /** The second question's answer, or null. */
-  how: NoteHow | null;
-  /** Note bodies are written at the end of the file rather than inline. */
-  defer: boolean;
+  pick: NotePick;
+  /** The regions this document declared, in declaration order. */
+  regions: readonly string[];
+  /** What is wrong with this pick against this document. */
+  caveats: readonly Caveat[];
+  /** The preset the pick still matches, when it matches one. */
+  preset: string | null;
 }
 
 export interface NotesActions {
-  setView(view: NotesChooserView): void;
-  /** The first question was answered. */
-  pickWhere(where: NoteWhere): void;
-  /** The second was. */
-  pickHow(how: NoteHow): void;
-  /** Write this arrangement's marker at layer `layer` and close. */
-  use(choice: NoteChoice, layer: number): void;
-  setDefer(on: boolean): void;
-  /** Sweep every note in the document to bodies at the end, and back. */
-  deferAll(): void;
-  inlineAll(): void;
-  sortDeferred(): void;
+  /** The writer answered the question. */
+  pick(pick: NotePick): void;
+  /** A preset was pressed: set its pick, and make its region if it needs one. */
+  usePreset(id: string): void;
+  /** Write a note at the caret with the pick in hand, and close. */
+  use(): void;
   /**
-   * Compile the selected arrangement against the writer's own opening and put
-   * the first page in `host`.
+   * Compile the pick against the writer's own opening and put the first page in
+   * `host`.
    *
    * Injected because it needs a backend and the document, neither of which
    * belongs in a view. A test passes a recorder and finds out that exactly one
-   * card was asked to preview.
+   * destination was asked to preview.
    */
-  preview(host: HTMLElement, choice: NoteChoice): void;
+  preview(host: HTMLElement, pick: NotePick): void;
 }
 
 /**
- * The arrangement the two answers name, if they name one.
+ * Which destination a pick names, for the row that has to look selected.
  *
- * Exported because the shell asks the same question — a card is drawn from it
- * and `Enter` acts on it — and two functions deciding what "the current choice"
- * means is how the picked card and the button that uses it come apart.
+ * Exported because the shell asks the same question — the preview is drawn from
+ * it and `Enter` acts on it — and two functions deciding what "the current pick"
+ * means is how the highlighted row and the button that writes it come apart.
  */
-export function pickedChoice(view: NotesView): NoteChoice | null {
-  if (!view.where || !view.how) return null;
-  return choiceAt(view.where, view.how) ?? null;
+export function pickedDestination(view: NotesView): DestinationId {
+  return view.pick.dest;
 }
 
 /**
- * The second answer, after the first one changed.
+ * The pick after a change of destination.
  *
- * `page` x `fixed` is an arrangement and `document` x `fixed` is a stated
- * refusal, so carrying the old answer across unexamined would leave a card on
- * screen for a cell that the question above it has just greyed out. Kept when it
- * still resolves, dropped when it does not — and the shell calls this rather
- * than deciding for itself, so the panel and the state cannot disagree about it.
+ * A region name is meaningless under any other destination, so it is dropped
+ * rather than carried across unexamined; moving *to* a region takes the first
+ * one the document has, so the commonest case needs one press rather than two.
+ * The shell calls this rather than deciding for itself, so the panel and the
+ * state cannot disagree about what a change of destination means.
  */
-export function howAfterWhere(where: NoteWhere, how: NoteHow | null): NoteHow | null {
-  return how && choiceAt(where, how) ? how : null;
+export function pickAfterDestination(
+  dest: DestinationId,
+  regions: readonly string[],
+  held: string | null,
+): NotePick {
+  if (dest !== "region") return { dest, region: null };
+  return { dest, region: held && regions.includes(held) ? held : (regions[0] ?? null) };
 }
 
-/**
- * What to call a marker on its own button.
- *
- * A stream marker names its stream — `#הערה_זרם("מקורות")[|]` — and that name is
- * the only thing about it a writer cares to read. Anything else falls back to
- * the command, which is still shorter and truer than "the second layer".
- */
-function noteMarkerLabel(marker: string): string {
-  const named = /"([^"]+)"/.exec(marker)?.[1];
-  return named ?? /^#([A-Za-z0-9֐-׿_]+)/u.exec(marker)?.[1] ?? marker;
-}
-
-function noteCard(c: NoteChoice, act: NotesActions, live = false): HTMLElement {
-  const he = getLang() === "he";
-  const note = he ? c.noteHe : c.noteEn;
-  // The sketch until the page arrives, and the page after it — so the card is
-  // never empty and never waiting.
-  const preview = el("div", { class: "note-preview" }, [c.sketch.join("\n")]);
-  if (live) act.preview(preview, c);
-  return el("div", { class: "note-card" + (live ? " picked" : ""), "data-note-card": c.id }, [
-    preview,
-    el("div", { class: "note-body" }, [
-      el("b", {}, [he ? c.he : c.en]),
-      // Word's name for the same arrangement, beside the sefer's. Someone who
-      // has only ever used Word searches for "footnote"; someone setting a sefer
-      // searches for שער־הציון. Neither should have to learn the other's
-      // vocabulary to find the card they are already looking at.
-      ...(c.word ? [el("span", { class: "note-alias" }, [t("word." + c.word)])] : []),
-      el("p", {}, [he ? c.descHe : c.descEn]),
-      ...(note ? [el("p", { class: "note-caveat" }, [note])] : []),
-      // One button per marker the layout has, not one plus an optional second.
-      // A layout with three streams offered two of them, and the third was
-      // reachable only by typing `#הערה_זרם("נוסחאות")` — which is precisely the
-      // knowledge this chooser exists so nobody needs.
-      el("div", { class: "note-actions" }, [
-        el(
-          "button",
-          { class: "note-use", "data-note-use": c.id, onClick: () => act.use(c, 0) },
-          [t("useThis")],
-        ),
-        ...markersOf(c)
-          .slice(1)
-          .map((marker, i) =>
-            el(
-              "button",
-              {
-                class: "note-use secondary",
-                "data-note-use": `${c.id}:${i + 1}`,
-                onClick: () => act.use(c, i + 1),
-              },
-              // Two layers is "the note on it"; more than two are peers and want
-              // their own names, which the marker itself carries — a stream is
-              // called `#הערה_זרם("מקורות")` and that string is the label.
-              [markersOf(c).length > 2 ? noteMarkerLabel(marker) : t("useSecond")],
-            ),
-          ),
-      ]),
-    ]),
+/** The tiny page diagram, and the live page once one has been compiled. */
+function destinationSketch(pick: NotePick, act: NotesActions, live: boolean): HTMLElement {
+  const host = el("div", { class: "note-preview" }, [
+    destinationOf(pick.dest).sketch.join("\n"),
   ]);
+  if (live) act.preview(host, pick);
+  return host;
 }
 
 /**
- * The second question the chooser asks: where does the *text* of the note get
- * written?
+ * The presets, as one press each.
  *
- * Deliberately not a fifteenth card. It is orthogonal to all fourteen — the page
- * comes out identical either way — and folding it into the grid would suggest
- * a writer has to give up a layout to get a readable source.
+ * **Derived, never a separate list.** Each of these is a *value* of the one axis
+ * — a destination, and for two of them a region — so pressing one leaves the
+ * writer in exactly the state they would have reached by hand, and the row of
+ * destinations below shows which one they landed on. A preset that could not be
+ * taken apart would be a cell wearing a friendlier name.
  */
-function bodyPlacementRow(view: NotesView, act: NotesActions): HTMLElement {
-  const option = (on: boolean, label: string, desc: string) =>
-    el(
-      "button",
-      {
-        class: `defer-option${view.defer === on ? " on" : ""}`,
-        "data-defer": on ? "end" : "inline",
-        onClick: () => act.setDefer(on),
-      },
-      [el("b", {}, [label]), el("span", {}, [desc])],
-    );
-  return el("div", { class: "defer-row" }, [
-    el("h3", {}, [t("deferBodiesTitle")]),
-    el("div", { class: "defer-options" }, [
-      option(false, t("deferInlineLabel"), t("deferInlineDesc")),
-      option(true, t("deferEndLabel"), t("deferEndDesc")),
-    ]),
-    el("button", { class: "defer-all", onClick: () => act.deferAll() }, [t("deferAllAction")]),
-    // The other direction, and the one that was missing. "Where the note bodies
-    // live" is only *changeable after the notes exist* if it is changeable both
-    // ways: a document could be swept to the org-mode arrangement with one press
-    // and could not be swept back, which is a switch that goes one way.
-    el("button", { class: "defer-all", onClick: () => act.inlineAll() }, [
-      t("deferRecallAllAction"),
-    ]),
-    // The other half of writing bodies at the end: keeping that list readable.
-    // Filed one at a time, it comes out in the order the notes were *written*,
-    // and a note added to page 1 of a finished chapter lands under the note from
-    // page 40. New bodies are now filed in reading order by construction; this is
-    // for the document that was written before they were.
-    el("button", { class: "defer-all", onClick: () => act.sortDeferred() }, [
-      t("deferSortAction"),
-    ]),
-  ]);
+function presetRow(view: NotesView, act: NotesActions): HTMLElement {
+  return el(
+    "div",
+    { class: "note-quick-row", "data-nq": "presets" },
+    PRESETS.map((p) =>
+      el(
+        "button",
+        {
+          class: "note-quick" + (view.preset === p.id ? " on" : ""),
+          "data-note-preset": p.id,
+          "aria-pressed": view.preset === p.id ? "true" : "false",
+          onClick: () => act.usePreset(p.id),
+        },
+        [
+          el("span", { class: "note-quick-sketch" }, [
+            destinationOf(p.pick.dest).sketch.join("\n"),
+          ]),
+          el("span", {}, [
+            el("b", {}, [t("preset." + p.id)]),
+            el("span", {}, [t("presetDesc." + p.id)]),
+          ]),
+        ],
+      ),
+    ),
+  );
+}
+
+/** The one question: six destinations, each showing what it builds. */
+function destinationRow(view: NotesView, act: NotesActions): HTMLElement {
+  return el(
+    "div",
+    { class: "nq-options nq-destinations", "data-nq": "destinations" },
+    DESTINATIONS.map((d) =>
+      el(
+        "button",
+        {
+          class: "nq-option" + (view.pick.dest === d.id ? " on" : ""),
+          "data-dest": d.id,
+          "aria-pressed": view.pick.dest === d.id ? "true" : "false",
+          onClick: () =>
+            act.pick(pickAfterDestination(d.id, view.regions, view.pick.region)),
+        },
+        [
+          el("span", { class: "nq-sketch" }, [d.sketch.join("\n")]),
+          el("b", {}, [t("dest." + d.id)]),
+          el("span", {}, [t("destDesc." + d.id)]),
+        ],
+      ),
+    ),
+  );
 }
 
 /**
- * The two everyday kinds, as one click each.
+ * *"A region"* expands to *"which region"*.
  *
- * Fourteen cards of equal visual weight said "choose your document's note
- * system", and a writer who wanted an ordinary footnote read that as a decision
- * they were not qualified to make. They are the same two arrangements the
- * questions below lead to — this row only says which two a person reaches for
- * ninety-five times out of a hundred, and that reaching for one does not spend
- * the other.
+ * The list is the **document's**, not a menu: regions are made and named by the
+ * writer in the page-layout surface, which is where a general page-splitting
+ * mechanism belongs. A document with none says so and says where to go — a panel
+ * that offers an empty list is a panel that looks broken.
  */
-function quickNotesRow(act: NotesActions): HTMLElement {
-  const quick = (id: string, label: string, desc: string, glyph: string) => {
-    const choice = NOTE_CHOICES.find((c) => c.id === id)!;
-    return el(
-      "button",
-      { class: "note-quick", "data-note-quick": id, onClick: () => act.use(choice, 0) },
-      [
-        el("span", { class: "note-quick-glyph" }, [glyph]),
-        el("span", {}, [el("b", {}, [label]), el("span", {}, [desc])]),
-      ],
-    );
-  };
-  return el("div", { class: "note-quick-row" }, [
-    quick("footnote", t("notesQuickFootnote"), t("notesQuickFootnoteDesc"), "†"),
-    quick("endnote", t("notesQuickEndnote"), t("notesQuickEndnoteDesc"), "⁋"),
-  ]);
-}
-
-/**
- * One question at a time.
- *
- * The first question has five answers and every one of them is a place a person
- * can picture. The second has at most six, and only the ones that can print in
- * the place they just chose — which is how a chooser stops asking somebody to
- * hold two axes in their head at once in order to find a footnote.
- *
- * **A refused arrangement is still shown, with its reason, in words.** The grid
- * greys those cells and puts the reason in a `title`, which is a tooltip: absent
- * on a touch screen, absent to anyone not hovering, and absent to a screen
- * reader that is reading the button's text. Here there is room for the sentence
- * itself, and a writer who cannot see that "fixed regions at the end of the
- * document" was considered has no way to tell a wrong question from a gap in the
- * product.
- */
-function notesGuided(view: NotesView, act: NotesActions): Node[] {
-  const he = getLang() === "he";
-  const out: Node[] = [
-    el("h3", { class: "nq-ask" }, [t("notesQ1")]),
+function regionRow(view: NotesView, act: NotesActions): Node[] {
+  if (view.pick.dest !== "region") return [];
+  if (!view.regions.length) {
+    return [
+      el("p", { class: "nq-wait", "data-nq": "no-regions" }, [t("notesNoRegions")]),
+    ];
+  }
+  return [
+    el("h3", { class: "nq-ask" }, [t("notesRegionQ")]),
     el(
       "div",
-      { class: "nq-options", "data-nq": "where" },
-      NOTE_WHERE.map((where) =>
+      { class: "nq-options", "data-nq": "regions" },
+      view.regions.map((name) =>
         el(
           "button",
           {
-            class: "nq-option" + (view.where === where ? " on" : ""),
-            "data-where": where,
-            "aria-pressed": view.where === where ? "true" : "false",
-            onClick: () => act.pickWhere(where),
+            class: "nq-option" + (view.pick.region === name ? " on" : ""),
+            "data-region": name,
+            "aria-pressed": view.pick.region === name ? "true" : "false",
+            onClick: () => act.pick({ dest: "region", region: name }),
           },
-          [el("b", {}, [t("where." + where)])],
+          [el("b", {}, [name])],
         ),
       ),
     ),
   ];
-
-  out.push(el("h3", { class: "nq-ask" }, [t("notesQ2")]));
-  if (!view.where) {
-    // Not an empty div. A second heading with nothing under it reads as a panel
-    // that failed to draw.
-    out.push(el("p", { class: "nq-wait", "data-nq": "wait" }, [t("notesQ2Wait")]));
-    return out;
-  }
-
-  const where = view.where;
-  out.push(
-    el(
-      "div",
-      { class: "nq-options", "data-nq": "how" },
-      NOTE_HOW.map((how) => {
-        const choice = choiceAt(where, how);
-        if (!choice) {
-          return el("div", { class: "nq-option off", "data-how-off": how }, [
-            el("b", {}, [t("how." + how)]),
-            el("span", {}, [t(whyNot(where, how))]),
-          ]);
-        }
-        return el(
-          "button",
-          {
-            class: "nq-option" + (view.how === how ? " on" : ""),
-            "data-how": how,
-            "aria-pressed": view.how === how ? "true" : "false",
-            onClick: () => act.pickHow(how),
-          },
-          [el("b", {}, [t("how." + how)]), el("span", {}, [he ? choice.he : choice.en])],
-        );
-      }),
-    ),
-  );
-  return out;
 }
 
 /**
- * Both questions at once, as a matrix.
+ * Why this pick costs something, or cannot be written at all — in words, under
+ * the pick it is about.
  *
- * Rows are where it prints; columns are how the layers are arranged. Cells with
- * no arrangement are greyed **with a reason**, never hidden.
- *
- * The column count is written here and nowhere else. The stylesheet used to
- * carry its own `repeat(5, …)`, which was true until `parallel-fixed` became a
- * sixth `how` and then quietly laid the last column out in an implicit track of
- * a different width. A grid whose width is a fact about `NOTE_HOW` reads that
- * fact off `NOTE_HOW`.
+ * *"Two balanced apparatuses at the live page foot — Typst has one, so the
+ * second becomes a box"* is a sentence, and a writer who is never shown it has
+ * no way to tell a wrong question from a gap in the product. The grid this
+ * replaced put its reasons in a `title` attribute and greyed the cell, which
+ * says neither thing to anybody who is not hovering a mouse.
  */
-function notesMatrix(view: NotesView, act: NotesActions): HTMLElement {
-  const head = el("div", { class: "nm-row nm-head" }, [
-    el("div", { class: "nm-corner" }, [t("notesAxisHow")]),
-    ...NOTE_HOW.map((how) => el("div", { class: "nm-col-head" }, [t("how." + how)])),
-  ]);
-  const rows = NOTE_WHERE.map((where) =>
-    el("div", { class: "nm-row" }, [
-      el("div", { class: "nm-row-head" }, [t("where." + where)]),
-      ...NOTE_HOW.map((how) => {
-        const choice = choiceAt(where, how);
-        if (!choice) {
-          return el(
-            "div",
-            { class: "nm-cell empty", "data-cell-off": `${where}/${how}`, title: t(whyNot(where, how)) },
-            ["—"],
-          );
-        }
-        const on = view.where === where && view.how === how;
-        return el(
-          "button",
-          {
-            class: "nm-cell" + (on ? " on" : ""),
-            "data-cell": `${where}/${how}`,
-            title: getLang() === "he" ? choice.descHe : choice.descEn,
-            onClick: () => {
-              act.pickWhere(where);
-              act.pickHow(how);
-            },
-          },
-          [getLang() === "he" ? choice.he : choice.en],
-        );
-      }),
-    ]),
-  );
-  return el(
-    "div",
-    { class: "notes-matrix", style: `--nm-cols:${NOTE_HOW.length}` },
-    [head, ...rows],
-  );
-}
-
-/** Which of the three presentations is on, and how to change it. */
-function notesViewRow(view: NotesView, act: NotesActions): HTMLElement {
-  return el("div", { class: "nq-views", "data-nq": "views" }, [
-    el("span", { class: "nq-views-label" }, [t("notesViewLabel")]),
-    ...NOTES_CHOOSER_VIEWS.map((v) =>
-      el(
-        "button",
-        {
-          class: "nq-view" + (view.view === v ? " on" : ""),
-          "data-note-view": v,
-          "aria-pressed": view.view === v ? "true" : "false",
-          onClick: () => act.setView(v),
-        },
-        [t("notesView." + v)],
-      ),
+function caveatRows(view: NotesView): Node[] {
+  return view.caveats.map((c) =>
+    el(
+      "p",
+      { class: "note-caveat" + (c.blocks ? " blocks" : ""), "data-caveat": c.why },
+      [t(c.why)],
     ),
-  ]);
+  );
 }
 
 /** The notes chooser, whole. */
 export function notesPanel(view: NotesView, act: NotesActions): Node[] {
-  const picked = pickedChoice(view);
-  const out: Node[] = [
+  const blocked = view.caveats.some((c) => c.blocks);
+  return [
     panelHead("notes-chooser", "notesChooserTitle"),
     el("p", { class: "notes-lede" }, [t("notesChooserLede")]),
-    el("p", { class: "notes-mix" }, [t("notesMix")]),
-    notesViewRow(view, act),
-    el("h3", {}, [t("notesCommon")]),
-    quickNotesRow(act),
-    // Above the questions, not below them: where the prose lives in the *file*
-    // applies to all fourteen arrangements equally, and it is the one question
-    // here whose answer a writer already knows. Below the fold it was never
-    // found.
-    bodyPlacementRow(view, act),
-  ];
-
-  if (view.view === "cards") {
-    out.push(
-      el("h3", {}, [t("notesMore")]),
-      el(
-        "div",
-        { class: "note-grid" },
-        NOTE_CHOICES.filter((c) => c.layers === "one").map((c) => noteCard(c, act)),
-      ),
-      el("h3", {}, [t("notesTwoLayers")]),
-      el(
-        "div",
-        { class: "note-grid" },
-        NOTE_CHOICES.filter((c) => c.layers === "two").map((c) => noteCard(c, act)),
-      ),
-    );
-    return out;
-  }
-
-  if (view.view === "matrix") {
-    out.push(el("h3", {}, [t("notesAxisWhere")]), notesMatrix(view, act));
-  } else {
-    out.push(...notesGuided(view, act));
-  }
-
-  // The arrangement itself, set from the writer's own document, under whichever
-  // of the two questioning views asked for it.
-  //
-  // The sentence differs because the gesture does. "Pick a cell in the table" is
-  // true of the matrix and is a lie in a view with no table in it, and a panel
-  // that describes a control the reader cannot see is worse than one that says
-  // nothing — they go looking for the table.
-  out.push(
-    picked
-      ? noteCard(picked, act, true)
-      : el("p", { class: "notes-mix", "data-nq": "unpicked" }, [
-          t(view.view === "matrix" ? "notesPickCell" : "notesPickHow"),
+    el("h3", {}, [t("notesPresets")]),
+    presetRow(view, act),
+    el("p", { class: "notes-mix" }, [t("notesTakeApart")]),
+    el("h3", { class: "nq-ask" }, [t("notesQ1")]),
+    destinationRow(view, act),
+    ...regionRow(view, act),
+    ...caveatRows(view),
+    // The answer, shown as the page it makes, with the button that writes it.
+    // Measured in the assembled run: this used to land below the bottom of a
+    // 1280x720 viewport, so a writer who had just answered was looking at the
+    // space where their answer was not.
+    el("div", { class: "note-card picked", "data-note-card": view.pick.dest }, [
+      destinationSketch(view.pick, act, !blocked),
+      el("div", { class: "note-body" }, [
+        el("b", {}, [t("dest." + view.pick.dest)]),
+        ...(view.pick.region ? [el("span", { class: "note-alias" }, [view.pick.region])] : []),
+        el("div", { class: "note-actions" }, [
+          el(
+            "button",
+            {
+              class: "note-use",
+              "data-note-use": view.pick.dest,
+              ...(blocked ? { disabled: "disabled" } : {}),
+              onClick: () => act.use(),
+            },
+            [t("useThis")],
+          ),
         ]),
-  );
-  return out;
+      ]),
+    ]),
+  ];
 }

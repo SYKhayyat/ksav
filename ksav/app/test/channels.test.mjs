@@ -1,18 +1,46 @@
-import { check, ok } from "./harness.mjs";
+import { check, notOk, ok } from "./harness.mjs";
+import { dirOf } from "../tools/paths.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { DICTS } from "../.tmp-test/i18n.mjs";
+import { NOTE_BODY_COMMANDS } from "../.tmp-test/note-commands.mjs";
 import {
   DEFAULT_CHANNEL,
+  DESTINATIONS,
+  DESTINATION_IDS,
   PLACEMENTS,
+  PRESETS,
   TIER_CHANNELS,
+  blockedFor,
+  caveatsFor,
   channelLine,
   channelsIn,
+  footRivals,
   noteCounts,
   noteLine,
+  presetLines,
   regionLine,
   regionsIn,
+  samePick,
+  settingsOf,
   showRegionLine,
   usedChannels,
   writeChannel,
+  writeDestination,
 } from "../.tmp-test/channels.mjs";
+import {
+  applyPick,
+  deleteNote,
+  noteAt,
+  noteDestination,
+  noteFor,
+  notesIn,
+  retargetNote,
+  tieredNoteAt,
+} from "../.tmp-test/notes.mjs";
+
+const HERE = dirOf(import.meta.url);
+const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 
 // The editor's half of the channel model.
 //
@@ -230,4 +258,441 @@ export async function run() {
       return channel(doc, "x").placement === p;
     }),
   );
+
+  // ==========================================================================
+  //  Destinations — the one pick, and everything `notepaths.test.mjs` held
+  // ==========================================================================
+  //
+  // `app/test/notepaths.test.mjs` was the `where` x `how` grid's fence: it
+  // imported `NOTE_CHOICES`, `choiceAt`, `whyNot`, `BLOCKED`, `NOTE_WHERE` and
+  // `NOTE_HOW`, and it asserted that thirty cells were each either a card or a
+  // stated refusal. **Deleting it was the acceptance criterion for replacing the
+  // grid** — if `NOTE_CHOICES` is still imported anywhere, the cell grid is still
+  // alive — and everything it actually held is below, re-asked against the model
+  // that replaced it.
+  //
+  // Three properties came across unchanged, because they were never about the
+  // grid: there is **one producer** of note markup and every surface reaches it,
+  // a refusal **says why** in both languages, and `main.ts` has **no second way
+  // in**. The fourth — "every cell is filled or explained" — became "every
+  // destination is reachable and every caveat is a sentence", which is the same
+  // property over an axis instead of a cross product.
+
+  // ------------------------------------------------- one producer, one path in
+
+  // `settings.deferNoteBodies` was persisted correctly and read by exactly one
+  // caller out of four. The toolbar `†`, `Ctrl+Shift+F` and the command palette
+  // each spliced `#הערה[|]` into the buffer and never went near it, so a writer
+  // who had set the preference got it only through the modal — which is exactly
+  // the complaint that produced it: *"I have to go into the menu to pick an
+  // org-mode one each time."*
+  //
+  // The fix is not to wire the other three. It is that there is one producer and
+  // every surface reaches it by inserting the ordinary snippet, so `noteFor` has
+  // to recognise every note command there is.
+  {
+    const unrouted = [];
+    for (const command of NOTE_BODY_COMMANDS) {
+      if (!noteFor(`#${command}[|]`)) unrouted.push(command);
+    }
+    check("notes: every note command is routed through the note path", unrouted, []);
+  }
+
+  // A command that is not a note must not be swallowed by it.
+  for (const notNote of ["#הדגשה[|]", "#רשימה(\n  פריט[|],\n)", "#תוכן()", "#טבלה(עמודות: 2)"]) {
+    check(`notes: ${notNote} is not routed as a note`, noteFor(notNote), null);
+  }
+
+  // The exact strings the surfaces put into `insertSnippet`: the toolbar's
+  // registry entry, the keyboard action, the palette row. The same snippet
+  // through any of them writes the same bytes, and this is the assertion that it
+  // stays so — the moment one of them writes its own variant, it stops being
+  // routed.
+  {
+    const DOC = "פתיחה של פסקה, ואחריה עוד מלים.";
+    const AT = 12;
+    const SURFACES = {
+      "toolbar †": "#הערה[|]",
+      "Ctrl+Shift+F": "#הערה[|]",
+      "palette הערה": "#הערה[|]",
+      "Insert ▸ endnote": "#הערתסיום[|]",
+      "toolbar ⁋": "#הערתסיום[|]",
+    };
+    for (const home of ["inline", "file"]) {
+      const produced = new Map();
+      for (const [surface, snippet] of Object.entries(SURFACES)) {
+        const found = noteFor(snippet);
+        ok(`notes: ${surface} goes through the note path`, !!found);
+        if (!found) continue;
+        const r = applyPick(DOC, AT, found.pick, home !== "inline", { marker: found.marker });
+        if (produced.has(snippet)) {
+          check(
+            `notes: ${surface} is byte-identical to the other surface writing ${snippet} (${home})`,
+            r.text,
+            produced.get(snippet),
+          );
+        } else {
+          produced.set(snippet, r.text);
+        }
+      }
+      // And the preference is actually honoured on that one path, or none of the
+      // above means anything.
+      const foot = noteFor("#הערה[|]");
+      const r = applyPick(DOC, AT, foot.pick, home !== "inline", { marker: foot.marker });
+      if (home === "inline") {
+        ok("notes: inline, the prose is written at the caret", r.text.includes("#הערה[]"));
+      } else {
+        ok("notes: deferred, the marker is a name", r.text.includes("#הערה_בשם"));
+        ok("notes: deferred, the body is filed at the end", r.text.includes("גוף_הערה"));
+      }
+    }
+  }
+
+  // The selection survives the routing. A toolbar button pressed with text
+  // selected has wrapped that text since the first version of the product, and
+  // funnelling the toolbar through one producer is exactly the kind of refactor
+  // that drops it silently.
+  {
+    const found = noteFor("#הערה[|]");
+    const r = applyPick("אבג דהו", 4, found.pick, false, {
+      to: 7,
+      text: "דהו",
+      marker: found.marker,
+    });
+    check("notes: a selection is wrapped, not discarded", r.text, "אבג #הערה[דהו]");
+  }
+
+  // ------------------------------------------------- and no second way in
+
+  // `main.ts` may not splice a note marker directly. Every occurrence has to be
+  // an argument to `insertSnippet`, which routes it. A `view.dispatch` that
+  // inserts `#הערה[` is the bug this exists to prevent, and it would be invisible
+  // to every other test in the suite.
+  //
+  // Derived, not listed. It was six Hebrew literals — and the hole was exactly
+  // the shape of what was not being fixed the day it was written: **no English
+  // spellings**, so `#fnote[` and `#endnote[` could be spliced directly and this
+  // would say nothing; **no side, stream or margin command**; and not
+  // `#מראה_מקום`, which is the most sefer-specific note in the product and was in
+  // fact the one being spliced raw by the Mekoros panel.
+  {
+    for (const command of NOTE_BODY_COMMANDS) {
+      const marker = `#${command}[`;
+      for (let at = MAIN.indexOf(marker); at >= 0; at = MAIN.indexOf(marker, at + 1)) {
+        const line = MAIN.slice(MAIN.lastIndexOf("\n", at) + 1, MAIN.indexOf("\n", at));
+        ok(
+          `notes: main.ts writes ${marker} only through insertSnippet — ${line.trim().slice(0, 70)}`,
+          // `noteBtn` and `noteItem` are the toolbar's and the menu's two-line
+          // wrappers, and both hand the snippet straight to `insertSnippet` —
+          // they exist so the button can also print its shortcut, not to write
+          // markup.
+          /insertSnippet|noteBtn\(|noteItem\(/.test(line) ||
+            line.trim().startsWith("//") ||
+            line.trim().startsWith("*"),
+        );
+      }
+    }
+  }
+
+  // ------------------------------------------------- the tier reads the caret
+
+  // A sub-note's parent is whatever note the caret is inside — determined, never
+  // chosen. Tier א is `#הערה`: the prelude makes them one function, so in prose
+  // the tiered button writes the note anybody would have written, and tier ב
+  // hangs off *that* with no conversion in between.
+  check("notes: in prose, the tiered note is the ordinary note", tieredNoteAt("שלום עולם", 4), "#הערה[|]");
+  {
+    const doc = "טקסט#הערה[בתוך ההערה] סוף";
+    const inside = doc.indexOf("בתוך") + 2;
+    check("notes: inside a note, it is tier ב", tieredNoteAt(doc, inside), "#הערה_ב[|]");
+    check("notes: outside it again, the ordinary note", tieredNoteAt(doc, doc.length - 1), "#הערה[|]");
+  }
+  {
+    const doc = "א#הערה[ב#הערה_ב[ג]]";
+    check("notes: two notes deep, it is tier ג", tieredNoteAt(doc, doc.indexOf("ג")), "#הערה_ג[|]");
+  }
+  check("notes: a deep tier is still a note at the page foot", noteFor("#הערה_ג[|]")?.pick.dest, "foot");
+
+  // ------------------------------------------------- every destination is real
+
+  // The grid's own completeness check, over one axis instead of thirty cells:
+  // every destination the chooser offers writes markup, and that markup reads
+  // back as the destination it was written for. A destination that could be
+  // picked and not written is the "dead control" this replaced eleven cards to
+  // be rid of.
+  {
+    const doc = "פתיחה של פסקה, ואחריה עוד מלים.\n";
+    for (const d of DESTINATIONS) {
+      const pick = { dest: d.id, region: d.id === "region" ? "שער_הציון" : null };
+      const r = applyPick(doc, 6, pick, false);
+      ok(`notes: ${d.id} writes something`, r.text.length > doc.length, r.text);
+      const written = notesIn(r.text);
+      check(`notes: ${d.id} writes exactly one note`, written.length, 1);
+      check(`notes: ${d.id} reads back as itself`, noteDestination(r.text, written[0]).dest, d.id);
+      // And a sketch, because a pick has to show what it builds. This is the one
+      // thing the eleven cards got right and it is the reason the table carries
+      // a diagram at all.
+      ok(`notes: ${d.id} has a page sketch`, d.sketch.length >= 3, d.sketch.join("|"));
+    }
+  }
+
+  // Four singular destinations and a named list — the shape the plan asks for,
+  // asserted rather than assumed. A sixth singular destination would be a cell
+  // arriving by the back door.
+  check(
+    "notes: exactly one destination is a named list",
+    DESTINATIONS.filter((d) => d.channel === null).map((d) => d.id),
+    ["region"],
+  );
+
+  // ------------------------------------------------- a refusal says why
+
+  // **Impossible combinations say why, they do not merely grey out.** The one
+  // genuinely good half of the grid, carried forward with its shape intact: a
+  // *table* of reasons, never a fallthrough chain. A chain always has an answer,
+  // so it can never be incomplete, so nothing can notice that two of its answers
+  // were false against the shipped engine — which is what happened, twice.
+  {
+    // The plan's own example, and the reason it is a sentence rather than a
+    // greyed cell: *"two balanced apparatuses at the live page foot — Typst has
+    // one, so the second becomes a box."*
+    const clean = "טקסט#הערה[גוף]";
+    check(
+      "notes: one apparatus at the foot costs nothing",
+      caveatsFor(clean, { dest: "foot", region: null }),
+      [],
+    );
+    const busy = '#ערוץ("מקורות", מיקום: "רגל")\nטקסט#הערה(ערוץ: "מקורות")[גוף]';
+    const why = caveatsFor(busy, { dest: "foot", region: null });
+    check("notes: a second one at the foot says what it costs", why.length, 1);
+    check("notes: …by name", why[0]?.why, "whySecondFootIsABox");
+    notOk("notes: …and is still allowed", why[0]?.blocks ?? false);
+    ok("notes: the rival is named", footRivals(busy).some((c) => c.name === "מקורות"));
+  }
+  {
+    // A region with no name is a half-answered question, not a destination — the
+    // one refusal in the model that actually blocks.
+    const why = caveatsFor("טקסט", { dest: "region", region: null });
+    check("notes: an unnamed region is refused", why[0]?.why, "whyRegionNeedsAName");
+    ok("notes: …and blocks the write", blockedFor("טקסט", { dest: "region", region: null }));
+    // A region nobody declared is a warning, not a refusal: the note is still
+    // written and still prints, and the region can be made afterwards.
+    const undeclared = caveatsFor("טקסט", { dest: "region", region: "שער" });
+    check("notes: an undeclared region says so", undeclared[0]?.why, "whyRegionNotDeclared");
+    notOk("notes: …without blocking", undeclared[0]?.blocks);
+    // …and once it is declared, there is nothing to say.
+    check(
+      "notes: a declared region costs nothing",
+      caveatsFor('#אזור("שער", מיקום: "רגל")\nטקסט', { dest: "region", region: "שער" }),
+      [],
+    );
+  }
+  {
+    // A destination the engine cannot place yet is offered **with its reason**,
+    // because a note sent there still prints — in a region at the page foot —
+    // and a writer who is not told that goes looking at the wrong end of their
+    // sefer. Derived from `PLACEMENTS`, so the day the engine grows the
+    // placement this stops firing without anyone editing a list.
+    const pending = DESTINATIONS.filter(
+      (d) => d.channel !== null && !PLACEMENTS.includes(d.channel),
+    ).map((d) => d.id);
+    for (const dest of pending) {
+      const why = caveatsFor("טקסט", { dest, region: null });
+      check(`notes: ${dest} says the engine cannot place it yet`, why[0]?.why, `whyNotPlaced.${dest}`);
+      notOk(`notes: …and does not refuse the note`, why[0]?.blocks);
+    }
+    for (const d of DESTINATIONS) {
+      if (d.channel === null || pending.includes(d.id)) continue;
+      check(
+        `notes: ${d.id} is placed, so it says nothing`,
+        caveatsFor("טקסט", { dest: d.id, region: null }),
+        [],
+      );
+    }
+  }
+
+  // Every reason is a sentence in both languages. A refusal that renders as
+  // `whySecondFootIsABox` is worse than no refusal at all, and this is the check
+  // the grid's own fence had — the one thing about it worth keeping verbatim.
+  {
+    const docs = [
+      "טקסט",
+      '#ערוץ("מקורות", מיקום: "רגל")\nטקסט#הערה(ערוץ: "מקורות")[גוף]',
+    ];
+    const reasons = new Set();
+    for (const doc of docs) {
+      for (const d of DESTINATIONS) {
+        for (const region of [null, "שער"]) {
+          for (const c of caveatsFor(doc, { dest: d.id, region })) reasons.add(c.why);
+        }
+      }
+    }
+    ok("notes: the caveats are reachable at all", reasons.size >= 4, [...reasons].join(", "));
+    for (const why of reasons) {
+      ok(`notes: ${why} has a reason in Hebrew`, !!DICTS.he[why], why);
+      ok(`notes: ${why} has a reason in English`, !!DICTS.en[why], why);
+    }
+  }
+
+  // ------------------------------------------------- presets are picks
+
+  // **Derived from the axes, never a separate list** (decision 11). A preset that
+  // cannot be taken apart is a cell, so the assertion is that every preset *is*
+  // a value of the one axis and nothing more — press one, and what you are left
+  // holding is an ordinary pick.
+  {
+    for (const p of PRESETS) {
+      ok(`notes: preset ${p.id} names a destination`, DESTINATION_IDS.includes(p.pick.dest), p.id);
+      check(
+        `notes: preset ${p.id} names a region exactly when it is one`,
+        p.pick.region !== null,
+        p.pick.dest === "region",
+      );
+      if (p.makes) {
+        check(`notes: preset ${p.id} makes the region it names`, p.makes.name, p.pick.region);
+        ok(
+          `notes: preset ${p.id} declares that region`,
+          presetLines(p).head.some((l) => l.includes(p.makes.name)),
+        );
+      }
+      // The taking-apart, in one line: the pick a preset sets is a pick, so it
+      // survives being changed to any other destination and back.
+      const taken = { dest: "end", region: null };
+      notOk(`notes: preset ${p.id} can be taken apart`, samePick(p.pick, taken) && p.id !== "endnote");
+    }
+    // A preset's region prints. Forgetting the dump call is the
+    // collected-and-never-rendered failure this application has performed on its
+    // own writers twice — and a region at the page foot must *not* get one, or
+    // its notes render a second time.
+    for (const p of PRESETS.filter((x) => x.makes)) {
+      const lines = presetLines(p);
+      check(
+        `notes: preset ${p.id} prints its region exactly when it is not at the foot`,
+        lines.tail.length > 0,
+        p.makes.placement !== "רגל",
+      );
+    }
+  }
+
+  // ------------------------------------------------- settings live on the destination
+
+  // *"You move three hundred haaros to the back by changing one setting, not
+  // three hundred notes."* The settings are keyed by destination, written as a
+  // `#ערוץ` line, and the writer never meets the word.
+  {
+    const doc = 'טקסט#הערה(ערוץ: "סוף")[גוף]';
+    const back = { dest: "end", region: null };
+    check("notes: a destination with no settings says nothing", settingsOf(doc, back), {});
+    const numbered = writeDestination(doc, back, { numbering: "א" });
+    ok("notes: a numbering scheme is written on the destination", numbered.text.includes('מספור: "א"'));
+    check("notes: …and read back", settingsOf(numbered.text, back).numbering, "א");
+    // A field left alone keeps what the document said; the defect this guards is
+    // a panel that writes one knob and wipes the three beside it.
+    const sized = writeDestination(numbered.text, back, { size: "0.9em" });
+    ok("notes: a second knob keeps the first", sized.text.includes('מספור: "א"'), sized.text);
+    ok("notes: …and adds its own", sized.text.includes('גודל: "0.9em"'), sized.text);
+    check("notes: exactly one declaration", sized.text.split("#ערוץ(").length - 1, 1);
+    // …and `null` is a different instruction from "leave it alone".
+    const cleared = writeDestination(sized.text, back, { numbering: null });
+    notOk("notes: null clears a knob", cleared.text.includes("מספור"));
+    ok("notes: …and leaves the others", cleared.text.includes('גודל: "0.9em"'));
+    // Not one note changed, which is the whole payoff.
+    ok("notes: and not one note changed", cleared.text.includes('#הערה(ערוץ: "סוף")[גוף]'));
+  }
+
+  // The declaration is position-independent, and that is not a detail: `#ערוץ`
+  // is read with `.final()` precisely so a line written at the bottom of the file
+  // reaches page one. It is the opposite of the `#הגדרות_*` trap — a
+  // `state.update` read from a page footer takes effect only on the pages after
+  // it — and the reason the note fixture marks no case `exercisesHead`.
+  {
+    const notes = 'טקסט#הערה(ערוץ: "סוף")[גוף]';
+    const top = `#ערוץ("סוף", מיקום: "סוף")\n${notes}`;
+    const bottom = `${notes}\n#ערוץ("סוף", מיקום: "סוף")`;
+    check(
+      "notes: a declaration at the foot of the file says the same thing",
+      channelsIn(top).find((c) => c.name === "סוף")?.placement,
+      channelsIn(bottom).find((c) => c.name === "סוף")?.placement,
+    );
+  }
+
+  // Two destinations in one document get **two** placement lines and two dump
+  // calls. This is the trap in the de-duplication, and it was live: the check
+  // for "does the document already carry this line" compared *command names*,
+  // which is right for `#הערות_בסוף()` — there is one of those per document —
+  // and wrong for every line this model writes, because they all name
+  // something. So the second destination got no placement and no dump call: its
+  // notes were collected into a stream the engine had never been told where to
+  // print, and never rendered. Third instance of that failure in this
+  // application, arriving through the one function whose job is to prevent it.
+  {
+    const doc = "טקסט ראשון כאן וגם עוד מלים.\n";
+    let r = applyPick(doc, 5, { dest: "end", region: null }, false);
+    r = applyPick(r.text, r.text.indexOf("עוד"), { dest: "section", region: null }, false);
+    for (const name of ["סוף", "סוף_מדור"]) {
+      ok(`notes: ${name} is placed`, r.text.includes(`#ערוץ("${name}", מיקום: "${name}")`), r.text);
+      ok(`notes: ${name} is printed`, r.text.includes(`#הצג_אזור("${name}")`), r.text);
+    }
+    // …and asking for the same one twice still writes it once.
+    const again = applyPick(r.text, 5, { dest: "end", region: null }, false);
+    check("notes: one placement line per destination", again.text.split('#ערוץ("סוף",').length - 1, 1);
+    check("notes: one dump call per destination", again.text.split('#הצג_אזור("סוף")').length - 1, 1);
+  }
+
+  // ------------------------------------------------- the notes index
+
+  // The pane, the jump list and the right-click menu are all built on these two.
+  {
+    const doc = "פתיחה#הערה[ראשונה #הדגשה[מודגש] סוף] אמצע#הערתסיום[שניה] סיום.";
+    const found = notesIn(doc);
+    check("notes: two notes found", found.length, 2);
+    check("notes: the first is a footnote", found[0].command, "הערה");
+    check("notes: its body survives inner brackets", found[0].text, "ראשונה #הדגשה[מודגש] סוף");
+    check("notes: the second is an endnote", found[1].command, "הערתסיום");
+    check("notes: both are at depth 0", found.map((n) => n.depth).join(","), "0,0");
+    check("notes: and they go to different places", noteDestination(doc, found[1]).dest, "end");
+  }
+  {
+    const doc = "א#הערה[ב#הערה_ב[ג]]";
+    const found = notesIn(doc);
+    check("notes: a nested note is found too", found.length, 2);
+    check("notes: and knows it is nested", found[1].depth, 1);
+    check("notes: the outer body spans the inner note", found[0].text, "ב#הערה_ב[ג]");
+  }
+  {
+    // A bracket inside a string inside an argument list opens nothing.
+    const doc = 'א#הערה[ב #תמונה("צד[ימין") ג]';
+    const found = notesIn(doc);
+    check("notes: a bracket in a string does not end the note", found.length, 1);
+    ok("notes: and the whole body is captured", found[0].text.endsWith(" ג"));
+  }
+  {
+    const doc = "א#הערה[חצי";
+    const found = notesIn(doc);
+    check("notes: a half-typed note is still listed", found.length, 1);
+    check("notes: reported as far as it got", found[0].text, "חצי");
+  }
+  {
+    const doc = "א#הערה[גוף] ב";
+    const n = noteAt(doc, doc.indexOf("גוף"));
+    ok("notes: noteAt finds the note under the caret", !!n);
+    check(
+      "notes: sending it elsewhere keeps its prose and changes one argument",
+      retargetNote(doc, n, { dest: "end", region: null }).text,
+      'א#הערה(ערוץ: "סוף")[גוף] ב',
+    );
+    check("notes: delete takes the marker with it", deleteNote(doc, n).text, "א ב");
+    check("notes: noteAt is null in plain prose", noteAt("שלום עולם", 3), null);
+  }
+  {
+    // The deferred spelling: the prose does not move, the marker's argument does.
+    const doc = 'א#הערה_בשם("1") ב\n#גוף_הערה("1")[גוף]';
+    const n = noteAt(doc, doc.indexOf("1") + 1);
+    ok("notes: a deferred note is found", !!n);
+    const moved = retargetNote(doc, n, { dest: "end", region: null });
+    ok("notes: its marker names the destination", moved.text.includes('ערוץ: "סוף"'), moved.text);
+    ok("notes: and its prose has not moved", moved.text.includes('#גוף_הערה("1")[גוף]'), moved.text);
+    check("notes: which reads back", noteDestination(moved.text, noteAt(moved.text, 3)).dest, "end");
+  }
+
 }

@@ -281,3 +281,21 @@ export function fileAtEnd(doc: string, call: string): { text: string; caret: num
   const body = doc.replace(/\s*$/, "");
   return { text: `${body}\n\n${call}\n`, caret: body.length + 2 };
 }
+
+/**
+ * The dump call a collecting command needs, spelt for `lang`, or null.
+ *
+ * The same rules the lint reads, asked the other way round: the lint finds a
+ * collector with no dump and offers the call; this is asked *while writing* one,
+ * so the document never reaches the state the lint exists to report.
+ *
+ * The destination model does not need this — `#הערה(ערוץ: "סוף")` is placed by
+ * its channel and printed by `#הצג_אזור` — but the collecting commands are still
+ * in the registry, still in the palette, and still work. A writer who reaches
+ * for `#הערתסיום` by name gets the command they asked for and the call that
+ * renders it, rather than the command they asked for and a lint.
+ */
+export function dumpFor(command: string, lang: "he" | "en" = "he"): string | null {
+  const rule = RULES.find((r) => r.collectors.includes(command));
+  return rule ? fixFor(rule, lang) : null;
+}

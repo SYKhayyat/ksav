@@ -64,38 +64,140 @@ import { CONTEXTS, LANGS } from "./emit-insertion-fixtures.mjs";
 const OUT = join(ENGINE, "tests", "fixtures", "note-insertions.json");
 
 export async function buildFixture() {
-  const notes = await load("notes");
-  const { NOTE_CHOICES, applyChoice, markersOf } = notes;
+  const { applyPick, noteFor, tieredNoteAt } = await load("notes");
+  const { DESTINATIONS, PRESETS, presetOf } = await load("channels");
   const cases = [];
+
+  // Every destination, plus every preset — a preset is a value of the one axis,
+  // and the region declaration it writes is a second line at the top of the
+  // file, which is exactly the kind of thing a code-mode caret breaks on.
+  const picks = [
+    ...DESTINATIONS.filter((d) => d.id !== "region").map((d) => ({
+      id: d.id,
+      pick: { dest: d.id, region: null },
+      preset: null,
+    })),
+    ...PRESETS.map((p) => ({ id: p.id, pick: p.pick, preset: p.id })),
+  ];
+
+  // Where a sub-note can be sent. The five singular destinations, plus a region
+  // — through the preset that makes one, because a note in a fixed region under
+  // the live page foot *is* the Mishna Berura page and there is nothing else to
+  // build it out of. The presets whose pick is a bare destination are left out:
+  // they would be the same nested document twice under two names.
+  const subPicks = [
+    ...DESTINATIONS.filter((d) => d.id !== "region").map((d) => ({
+      id: d.id,
+      pick: { dest: d.id, region: null },
+      preset: null,
+    })),
+    ...PRESETS.filter((p) => p.pick.dest === "region").map((p) => ({
+      id: p.id,
+      pick: p.pick,
+      preset: p.id,
+    })),
+  ];
+
+  /** How a case names the stream it writes into. */
+  const choiceOf = (pick) => (pick.region ? `region/${pick.region}` : pick.dest);
+
+  /** One insertion, at `at`, with everything the app would pass. */
+  const write = (doc, at, pick, preset, lang, home, marker) =>
+    applyPick(
+      doc,
+      at,
+      pick,
+      home !== "inline",
+      marker ? { marker } : {},
+      lang,
+      false,
+      preset ? presetOf(preset) : null,
+      home,
+    );
 
   for (const [ctx, tpls] of Object.entries(CONTEXTS)) {
     for (const lang of LANGS) {
       const tpl = tpls[lang];
       const at = tpl.indexOf("@");
       const doc = tpl.replace("@", "");
-      for (const choice of NOTE_CHOICES) {
-        // Every tier the layout offers, not just the first. The tiered cards —
-        // `#מדף_א`/`#מדף_ב`, `#מדור_א`/`#מדור_ב` — are a different command per
-        // layer, and a fence that only ever asked about layer 0 would be asking
-        // about a third of what the chooser can emit.
-        const layers = Math.max(1, markersOf(choice).length);
-        for (let layer = 0; layer < layers; layer++) {
-          // Both, because where the prose *lives* is orthogonal to where it
-          // prints and the two go through different code: deferred rewrites the
-          // snippet into a marker/body pair and files the body elsewhere in the
-          // document, so it is not the inline case with an extra line.
-          for (const deferred of [false, true]) {
-            const out = applyChoice(doc, at, choice, layer, deferred, {}, lang);
-            cases.push({
-              ctx,
-              lang,
-              choice: `${choice.where.join(",")}/${choice.how}`,
-              id: choice.id,
-              layer,
-              deferred,
-              source: out.text,
-            });
-          }
+      // Both, because where the prose *lives* is orthogonal to where it prints
+      // and the two go through different code: deferred rewrites the snippet
+      // into a marker/body pair and files the body elsewhere in the document, so
+      // it is not the inline case with an extra line.
+      //
+      // Three homes rather than two, and for the same reason: filing at the end
+      // of a *section* takes a different path through `fileNewBody`, and a path
+      // with no fence is where the 384 uncompilable documents came from.
+      for (const home of ["inline", "file", "section"]) {
+        for (const { id, pick, preset } of picks) {
+          const out = write(doc, at, pick, preset, lang, home);
+          cases.push({
+            ctx,
+            lang,
+            choice: choiceOf(pick),
+            id,
+            layer: 0,
+            deferred: home !== "inline",
+            source: out.text,
+          });
+        }
+
+        // ---- the layers -------------------------------------------------
+        //
+        // **A layer is a fact about the caret, not an axis of the chooser.** It
+        // used to be one: a card carried up to three markers and the emitter
+        // walked `markersOf`, so "layer" meant "the writer picked the second
+        // button on this card". A sub-note's parent is now whatever note the
+        // caret is *inside* — determined, never chosen, which is what a writer
+        // means anyway — so nothing is picked and the depth is read.
+        //
+        // That makes it more this file's business, not less. This suite is about
+        // **caret positions**, and *inside another note's body* is a position
+        // like any other: it is a content group opened by a call, it is the one
+        // place a marker and its prose can be in different apparatuses, and with
+        // a deferred body it is a caret at the end of the file writing into
+        // `#גוף_הערה("1")[…]` while its marker sits pages away. None of that was
+        // swept by the layer-0 half above.
+        //
+        // The outer note is always the page foot, because that is the note a
+        // writer already has when they reach for a second one.
+        const parent = write(doc, at, { dest: "foot", region: null }, null, lang, home);
+
+        // A sub-note in a different apparatus from its parent — Mishna Berura at
+        // the live foot with Shaar HaTziyun in the box beneath it, and the same
+        // shape for every other place a sub-note can be sent.
+        for (const { id, pick, preset } of subPicks) {
+          const out = write(parent.text, parent.caret, pick, preset, lang, home);
+          cases.push({
+            ctx,
+            lang,
+            choice: choiceOf(pick),
+            id,
+            layer: 1,
+            deferred: home !== "inline",
+            source: out.text,
+          });
+        }
+
+        // …and the native chain, where the sub-note stays in its parent's
+        // apparatus and is a *tier* of it. `tieredNoteAt` reads the caret, in
+        // the document's own language, so this is the same string the toolbar's
+        // `⁑` would put in — two levels deep, because tier ג inside tier ב is
+        // where a depth counted rather than declared would first go wrong.
+        let held = parent;
+        for (let depth = 1; depth <= 2; depth++) {
+          const marker = tieredNoteAt(held.text, held.caret, lang);
+          const found = noteFor(marker);
+          held = write(held.text, held.caret, found.pick, null, lang, home, found.marker);
+          cases.push({
+            ctx,
+            lang,
+            choice: `tier${depth + 1}`,
+            id: "tier",
+            layer: depth,
+            deferred: home !== "inline",
+            source: held.text,
+          });
         }
       }
     }

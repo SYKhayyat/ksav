@@ -42,7 +42,8 @@
 import { continueLevel } from "./headings";
 import { itemsFor, makeList } from "./lists";
 import { legalAt, insertionAt } from "./mode";
-import { noteFor, type NoteChoice } from "./notes";
+import { noteFor } from "./notes";
+import type { NotePick } from "./channels";
 import { continueSeries } from "./numbering";
 import { SPELLING, type ListKind } from "./spans";
 
@@ -53,7 +54,7 @@ export function commandOf(snippet: string): string | null {
 
 export type Insertion =
   | { kind: "refuse"; reason: string }
-  | { kind: "note"; choice: NoteChoice; layer: number; marker?: string }
+  | { kind: "note"; pick: NotePick; marker?: string }
   | { kind: "edit"; text: string; cursor: number }
   | { kind: "rewrite"; text: string; caret: number };
 
@@ -108,7 +109,7 @@ export function plan(
   // its *body* may not be going in at the caret at all.
   const note = noteFor(snippetInSeries);
   if (note) {
-    return { kind: "note", choice: note.choice, layer: note.layer, marker: note.marker };
+    return { kind: "note", pick: note.pick, marker: note.marker };
   }
 
   const command = commandOf(snippetInSeries);

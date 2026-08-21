@@ -126,8 +126,10 @@ fn an_english_line_reads_the_same_way() {
     // The other direction through the same code, and the reason the walk asks
     // no question about direction: a fix that sorted by `-x` for Hebrew would
     // break this and nothing else would notice.
-    let mut cfg = DocConfig::default();
-    cfg.dir = "ltr".into();
+    let cfg = DocConfig {
+        dir: "ltr".into(),
+        ..Default::default()
+    };
     let body = "alef beis gimel";
     let doc = compile_doc(body, &cfg).expect("the document lays out");
     let main = Source::detached(main_source(body, &cfg));
@@ -159,8 +161,10 @@ fn a_running_foot_belongs_to_no_line_of_the_source() {
     // Ink the writer never typed, and the case that must **not** be given a
     // nearby line: naming one would put the caret in a sentence the reader was
     // not looking at, with total confidence.
-    let mut cfg = DocConfig::default();
-    cfg.footer = "קונטרס בעניני שבת".into();
+    let cfg = DocConfig {
+        footer: "קונטרס בעניני שבת".into(),
+        ..Default::default()
+    };
     let body = "שלום";
     let doc = compile_doc(body, &cfg).expect("the document lays out");
     let main = Source::detached(main_source(body, &cfg));

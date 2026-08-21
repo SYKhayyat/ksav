@@ -5,6 +5,7 @@ import { commands } from "../tools/commands.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
 import { STYLE_SECTIONS } from "../.tmp-test/panelviews.mjs";
+import { DESTINATION_KNOBS } from "../.tmp-test/channels.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 // Is it reachable from the chrome at all?
@@ -251,14 +252,31 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // declared somewhere better". `panels.test.mjs` opens with a longer version
   // of this complaint about reading `main.ts` as text.
   ok(
-    "the Styles panel has a channels section",
-    STYLE_SECTIONS.some((s) => s.kind === "channels"),
+    "the Styles panel has a destinations section",
+    STYLE_SECTIONS.some((s) => s.kind === "destinations"),
   );
-  ok("…which reads the document's own channels", MAIN.includes("channels.channelsIn("));
-  ok("…and writes a declaration back", MAIN.includes("channels.writeChannel("));
-  // The payoff, as a control: a placement chooser over the three placements the
-  // engine has, not a menu of arrangements.
-  ok("…offering the placements", MAIN.includes("channels.PLACEMENTS.map("));
+  ok("…which reads the document's own streams", MAIN.includes("channels.channelsIn("));
+  ok("…and writes a declaration back", MAIN.includes("channels.writeDestination("));
+  // The payoff, as a control: the knobs that belong to a *place* — its
+  // numbering, its size, its columns, its heading — read off the one table that
+  // pairs each with the prelude's own argument name, so a knob in the model with
+  // no control here is a red test rather than something nobody built.
+  // Every knob a destination has, with a label, from the one table. The panel
+  // draws a row per entry, so a knob in the model with no control is not
+  // expressible — which is stronger than what stood here, a check that `main.ts`
+  // *mentioned* the table by name and passed on any mention of it at all.
+  ok("…offering every knob a destination has", MAIN.includes("for (const knob of channels.DESTINATION_KNOBS)"));
+  for (const knob of DESTINATION_KNOBS) {
+    ok(`…and ${knob.key} is labelled in Hebrew`, !!DICTS.he[knob.label], knob.label);
+    ok(`…and in English`, !!DICTS.en[knob.label], knob.label);
+  }
+  // And the writer never meets the word. A channel is the machinery underneath;
+  // what is on this surface is a place.
+  ok(
+    "…without the word 'channel' on the surface",
+    !DICTS.he.styleDestinationsNote.includes("ערוץ") && !DICTS.en.styleDestinationsNote.includes("channel"),
+    DICTS.en.styleDestinationsNote,
+  );
   // A collected channel prints nowhere until its region is shown, which is the
   // "collected and then never rendered" failure every one of the eighteen
   // commands could produce. Offered as a button rather than as a lint after the

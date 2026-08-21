@@ -30,7 +30,8 @@ import path from "node:path";
 const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
 const mainSource = () => readFile(path.join(SRC, "main.ts"), "utf8");
 import { docLang, translated, insertionAt } from "../.tmp-test/mode.mjs";
-import { NOTE_CHOICES, applyChoice, hasLine, markersOf, noteFor } from "../.tmp-test/notes.mjs";
+import { applyPick, destinationLines, hasLine, noteFor } from "../.tmp-test/notes.mjs";
+import { DESTINATIONS, PRESETS, pickLine, presetLines } from "../.tmp-test/channels.mjs";
 import { plan } from "../.tmp-test/insert.mjs";
 
 const HEBREW = /\p{Script=Hebrew}/u;
@@ -197,17 +198,39 @@ check(
 }
 
 // --------------------------------------- 3. every note layout, in English
+// --------------------------------------- 3. every destination, in English
 
 {
+  // Asked as *no Hebrew at all*, not through `leftover`. `leftover` translates
+  // the snippet first and then looks for what is left, which is the right
+  // question about a table entry that is going to be translated on its way in —
+  // and the wrong one here, because a destination is built in the target
+  // language rather than translated into it. Asked the loose way, a mutation
+  // that wrote every channel name in Hebrew was caught for exactly one of the
+  // six: the other five have a pairing in the content table, so `translated`
+  // quietly cleaned them up and the fence reported them as English.
   const guilty = [];
-  for (const c of NOTE_CHOICES) {
-    for (const s of [...markersOf(c), c.head, c.tail, c.wrap?.open, c.wrap?.close]) {
-      if (!s) continue;
-      const rest = leftover(s);
-      if (rest !== null) guilty.push(`${c.id}: ${rest}`);
+  for (const d of DESTINATIONS) {
+    const pick = { dest: d.id, region: d.id === "region" ? "shaar" : null };
+    const lines = destinationLines(pick, "en", "סוף");
+    for (const s of [pickLine(pick, "en"), ...lines.head, ...lines.tail]) {
+      if (HEBREW.test(s)) guilty.push(`${d.id}: ${s}`);
     }
   }
-  check("no note layout writes Hebrew into an English document", guilty, []);
+  check("no destination writes Hebrew into an English document", guilty, []);
+  // …and the presets, which write a region declaration as well.
+  const madeGuilty = [];
+  for (const p of PRESETS) {
+    const lines = presetLines(p, "en");
+    for (const s of [...lines.head, ...lines.tail]) {
+      // A region's *name* is the writer's own word and is deliberately not
+      // translated — `#region("Sources")` would name a region that does not
+      // exist. So the names are cut out before the line is read for Hebrew.
+      const bare = s.replace(/"[^"]*"/g, '""');
+      if (HEBREW.test(bare)) madeGuilty.push(`${p.id}: ${s}`);
+    }
+  }
+  check("no preset writes a Hebrew command or parameter into an English document", madeGuilty, []);
 }
 
 // The path itself, not just the strings: `plan` short-circuits to `note` before
@@ -216,20 +239,20 @@ check(
   const doc = "An English page, and a footnote goes here.\n";
   const at = doc.indexOf("here");
   const found = noteFor("#הערה[|]");
-  ok("the footnote is still a note layout", !!found);
-  const r = applyChoice(doc, at, found.choice, found.layer, false, { marker: found.marker });
+  ok("the footnote is still a note", !!found);
+  const r = applyPick(doc, at, found.pick, false, { marker: found.marker });
   ok("a footnote in an English document is #fnote", r.text.includes("#fnote["));
   ok("and not #הערה", !r.text.includes("#הערה["));
 }
 
-// The scaffolding as well as the marker — the dump call, the configuration
-// line and the wrapper are all source the writer has to read.
+// The scaffolding as well as the marker — the placement line and the dump call
+// are both source the writer has to read and edit.
 {
   const doc = "An English page, and an endnote goes here.\n";
-  const c = NOTE_CHOICES.find((x) => x.tail && HEBREW.test(x.tail));
-  ok("some layout files a Hebrew dump call", !!c);
-  const r = applyChoice(doc, 10, c, 0, false);
+  const r = applyPick(doc, 10, { dest: "end", region: null }, false);
   check("the scaffolding it adds is English", leftover(r.text), null);
+  ok("…and it is the destination's own line", r.text.includes('#channel("end", placement: "document")'));
+  ok("…with the call that prints the block", r.text.includes('#show_region("end")'));
 }
 
 // A Hebrew document keeps every one of them Hebrew, which is the other half of
@@ -237,7 +260,7 @@ check(
 {
   const doc = "עמוד בעברית, וכאן באה הערה.\n";
   const found = noteFor("#הערה[|]");
-  const r = applyChoice(doc, 12, found.choice, found.layer, false, { marker: found.marker });
+  const r = applyPick(doc, 12, found.pick, false, { marker: found.marker });
   ok("a footnote in a Hebrew document is #הערה", r.text.includes("#הערה["));
 }
 

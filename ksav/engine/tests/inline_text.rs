@@ -200,27 +200,117 @@ fn the_bare_highlight_is_the_colour_the_toolbar_starts_on() {
 // so this asks the same question of every inline style the product offers
 // rather than of the one that was reported.
 
-/// Every command in the `style` category keeps its words on the line they were
-/// written on, in both spellings.
+/// Commands that end the paragraph they are written in **on purpose**, with the
+/// reason each one is not a bug.
+///
+/// Everything not named here has to leave the sentence around it alone. The
+/// list is the whole content of this fence: adding a name to it is the moment
+/// somebody has to say out loud that a new command is block-level, and that is
+/// exactly the sentence nobody said about `#הערת_גיליון`.
+const BLOCK_ON_PURPOSE: &[(&str, &str)] = &[
+    // Headings. A heading is a block by definition, and every one of these is
+    // one — `#כותרת_בהערה` included, which is a heading inside a note body.
+    ("שער", "a title page's title"),
+    ("תת_שער", "and its subtitle"),
+    ("כותרת1", "a heading"),
+    ("כותרת2", "a heading"),
+    ("כותרת3", "a heading"),
+    ("כותרת", "a heading at a level the writer names"),
+    ("כותרת_בהערה", "a heading inside a note's body"),
+    ("סימן", "a siman is a heading"),
+    ("סעיף", "a seif is a heading"),
+    // Alignment. Aligning something means giving it a line of its own to be
+    // aligned within.
+    ("מרכז", "alignment"),
+    ("ימין", "alignment"),
+    ("שמאל", "alignment"),
+    ("הזחה", "an indented block"),
+    // Lists and tables — grids of text, each row its own line.
+    ("רשימה", "a list"),
+    ("ממוספרת", "a numbered list"),
+    ("ממוספרת_עברית", "a list numbered א ב ג"),
+    ("רשימת_הגדרות", "a definition list"),
+    ("טבלה", "a table"),
+    // Blocks that draw a frame, a rule or a space.
+    ("ציטוט", "a block quotation"),
+    ("הערת_צד", "a callout"),
+    ("אזהרה", "a callout"),
+    ("הצלחה", "a callout"),
+    ("תיבה", "a framed box"),
+    ("קו_מפריד", "a horizontal rule"),
+    ("מרווח", "vertical space"),
+    ("טורים_בלוק", "a multi-column block"),
+    (
+        "מעבר_שורה",
+        "a line break — ending the line is the whole command",
+    ),
+    ("מעבר_פסקה", "a paragraph break — likewise"),
+    // Page and document structure.
+    ("תוכן", "a table of contents"),
+    ("כלול", "another file's whole contents"),
+    (
+        "גופי_הערות",
+        "the block of deferred note bodies at the foot of the file",
+    ),
+    // Arrangements: each of these *is* a page layout, and reserves columns.
+    ("עם_פירוש", "a two-column arrangement"),
+    ("עם_הערות_צד", "reserves the side column"),
+    ("עם_הערות_דו_צד", "reserves both side columns"),
+];
+
+/// Snippets this fence cannot put in a sentence, and why.
+///
+/// Kept separate from the pass so that a command going quiet is not read as a
+/// command behaving. A partial result must not wear a complete one's words.
+const NOT_EXERCISED: &[(&str, &str)] = &[
+    (
+        "תמונה",
+        "takes a filename, and this fence has no image to give it. \
+         `tests/assets.rs` renders it against real bytes.",
+    ),
+    (
+        "נוסחה",
+        "takes a formula, and the placeholder word this fence substitutes is not \
+         one. Block-level in any case.",
+    ),
+    (
+        "נוסחה_בשורה",
+        "the same, and this one *is* inline — so it is the entry here that is \
+         worth removing first, with a formula a writer might really type.",
+    ),
+];
+
+/// **Every** command in the registry keeps the words around it on their line —
+/// or is named above as block-level on purpose.
 ///
 /// **Driven off the registry, not off a list written here.** The first version
 /// of this fence asked four commands — the one that was reported and its three
-/// neighbours in the toolbar — and the `style` category holds eighteen. That is
-/// this repository's oldest failure by count: the class gets named in the commit
-/// message, one instance gets fixed, and the siblings are never swept. A hand
-/// list also cannot notice a nineteenth command, which is the case that matters
-/// most, because a new inline style is written by copying an old one.
+/// neighbours in the toolbar. The second asked the `style` category, which holds
+/// eighteen. Both were the same mistake at different sizes, and the second one
+/// cost a real bug: `#הערת_גיליון` is in the `footnote` category, which holds
+/// **forty-two**, and it called a block-level `layout()` from the middle of a
+/// sentence for as long as it has existed. Every sidenote in every sefer added
+/// about 20pt of stray leading to the body around it — measured at 36.72pt
+/// between two lines against 16.92pt everywhere else — in a document class where
+/// the notes outnumber the body five to one.
+///
+/// A fence scoped to the category the bug was *reported* in is this repository's
+/// `ONLY_AT_TOP` shape once more: it cannot fail for the reason it was written
+/// under, because the sibling it was meant to catch is one category over. So the
+/// filter is gone and the whole registry is asked.
 ///
 /// Each command is exercised through its own `insert` snippet, so the arity and
 /// the argument names come from the same table the toolbar inserts from rather
 /// than from a guess made here about what `#צבע` takes.
 #[test]
-fn no_style_command_breaks_the_paragraph() {
+fn no_command_breaks_the_paragraph_it_was_written_in() {
     let mut broken = Vec::new();
     let mut checked = 0;
     for cmd in ksav_engine::commands::COMMANDS
         .iter()
-        .filter(|c| c.category == "style")
+        .filter(|c| !c.deprecated)
+        .filter(|c| !BLOCK_ON_PURPOSE.iter().any(|(n, _)| *n == c.he))
+        .filter(|c| !NOT_EXERCISED.iter().any(|(n, _)| *n == c.he))
     {
         for (script, name, (a, b, c)) in [
             ("hebrew", cmd.he, ("אאא", "בבב", "גגג")),
@@ -231,14 +321,19 @@ fn no_style_command_breaks_the_paragraph() {
             let snippet = cmd
                 .insert
                 .replace(&format!("#{}", cmd.he), &format!("#{name}"));
-            let Some(styled) = snippet.strip_suffix("|]") else {
-                broken.push(format!(
-                    "#{name} ({script}): snippet is not `…[|]`: {snippet}"
-                ));
+            // The caret is where a writer would start typing, so the middle word
+            // goes there whatever shape the snippet has. The earlier version of
+            // this required `…[|]` and reported every other shape as broken,
+            // which is why it could only ever have run on one category: two
+            // thirds of the registry does not end that way.
+            let piece = snippet.replacen('|', b, 1);
+            let body = format!("{a} {piece} {c}");
+            let Ok(doc) = ksav_engine::probe::layout(&body, &ksav_engine::DocConfig::default())
+            else {
+                broken.push(format!("#{name} ({script}): did not compile — {body}"));
                 continue;
             };
-            let body = format!("{a} {styled}{b}] {c}");
-            let runs = render(&body);
+            let runs = ksav_engine::probe::text_runs(&doc);
             // # What "it broke the paragraph" actually means
             //
             // Two metrics were tried here and both were wrong, in opposite
@@ -266,54 +361,96 @@ fn no_style_command_breaks_the_paragraph() {
                 broken.push(format!("#{name} ({script}): the plain words did not print"));
                 continue;
             };
-            let Some(middle) = y(b) else {
-                broken.push(format!("#{name} ({script}): the styled word did not print"));
-                continue;
-            };
             checked += 1;
             if before != after {
                 broken.push(format!(
                     "#{name} ({script}): the words around it split, {before} against {after}"
                 ));
             }
-            // And the styled word is still in that line rather than a line of its
-            // own. A whole line is 2,230 hundredths at the default size; a
-            // superscript is 420 and a subscript 90, so half a line separates the
-            // two cases with room on both sides.
-            if (middle - before).abs() > 1_000 {
-                broken.push(format!(
-                    "#{name} ({script}): the styled word left the line, {middle} against {before}"
-                ));
+            // # Where the command's own word went is a different question
+            //
+            // The general rule is about the **sentence**: the words the command
+            // was never applied to have to stay on one baseline with each other.
+            //
+            // Where the command's own word ends up is not that question, and
+            // asking it of the whole registry gets a wrong answer forty times
+            // over. `#הערה`'s word is *supposed* to leave the line — that is what
+            // a footnote is, and it lands at y=771 on the same page. `#מדור_א`'s
+            // does not print here at all, because a banded note is collected and
+            // rendered where `#הערות_מדורגות` is called. `#ערוץ` and every
+            // `#הגדרות_*` take no body to print. None of those is a broken
+            // paragraph, and every one of them was reported as one.
+            //
+            // So it stays where it belongs: on the `style` category, whose whole
+            // promise is that the words remain in the sentence. That is also the
+            // shape of the second half of the italic bug — one box around a long
+            // passage makes an unbreakable slab that jumps to a line of its own —
+            // and `a_long_italic_passage_flows_rather_than_becoming_a_slab` below
+            // holds it at length.
+            if cmd.category == "style" {
+                let Some(middle) = y(b) else {
+                    broken.push(format!("#{name} ({script}): the styled word did not print"));
+                    continue;
+                };
+                // A whole line is 2,230 hundredths at the default size; a
+                // superscript is 420 and a subscript 90, so half a line separates
+                // the two cases with room on both sides.
+                if (middle - before).abs() > 1_000 {
+                    broken.push(format!(
+                        "#{name} ({script}): the styled word left the line, {middle} against {before}"
+                    ));
+                }
             }
         }
     }
-    // A floor under the two `continue`s above. Break the prelude so that nothing
+    // A floor under the `continue`s above. Break the prelude so that nothing
     // prints and every case takes an escape, and without this the test passes
     // having measured none of them — the exact shape `skips.test.mjs` sweeps for,
     // and the shape it caught this file in within an hour of it being written.
     let expected = ksav_engine::commands::COMMANDS
         .iter()
-        .filter(|c| c.category == "style")
+        .filter(|c| !c.deprecated)
+        .filter(|c| !BLOCK_ON_PURPOSE.iter().any(|(n, _)| *n == c.he))
+        .filter(|c| !NOT_EXERCISED.iter().any(|(n, _)| *n == c.he))
         .count()
         * 2;
     // And a floor under `expected` itself. `assert_eq!(checked, expected)` alone
-    // is `0 == 0` the day the category filter matches nothing — a fully-skipped
-    // walk passing on a comparison of two zeroes, which is the exact shape
+    // is `0 == 0` the day the filters match nothing — a fully-skipped walk
+    // passing on a comparison of two zeroes, which is the exact shape
     // `skips.test.mjs` sweeps for, and it caught this test on that shape rather
     // than on the `continue`s it was written to defend.
+    //
+    // The floor is stated against the *registry*, not against the survivors of
+    // the two exemption lists, so that exempting the whole file one command at a
+    // time cannot quietly empty this test out.
+    let registry = ksav_engine::commands::COMMANDS
+        .iter()
+        .filter(|c| !c.deprecated)
+        .count();
     assert!(
-        expected >= 30,
-        "the style category came back with {} commands — the registry is not being read",
-        expected / 2
+        registry >= 150,
+        "the registry came back with {registry} commands — it is not being read"
+    );
+    assert!(
+        expected >= registry,
+        "{} of {registry} commands are exempted from this fence — more than half of \
+         the product is declared block-level, which is not a fence any more",
+        registry - expected / 2
+    );
+    // **Named before counted.** Every case that took an escape above also wrote
+    // itself into `broken`, so this assertion is the one that says *which*
+    // commands are unaccounted for. Asserting the count first reports the number
+    // 72 and nothing a person can act on — which is a partial result wearing a
+    // complete one's words, one level in.
+    assert!(
+        broken.is_empty(),
+        "commands that broke the paragraph they were written in, or could not be \
+         measured at all:\n  {}",
+        broken.join("\n  ")
     );
     assert_eq!(
         checked, expected,
-        "only {checked} of the {expected} style spellings printed anything to measure"
-    );
-    assert!(
-        broken.is_empty(),
-        "style commands that broke their paragraph:\n  {}",
-        broken.join("\n  ")
+        "only {checked} of the {expected} spellings printed anything to measure"
     );
 }
 

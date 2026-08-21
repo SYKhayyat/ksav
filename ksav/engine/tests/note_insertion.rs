@@ -74,8 +74,15 @@ fn every_note_insertion_compiles_where_it_is_offered() {
     // silently emptied would turn this whole file into a loop over nothing,
     // which is the cheapest possible green and the exact failure this test was
     // written to end.
+    // A **floor against collapse**, deliberately far below the real number
+    // rather than equal to it. It used to be 1,000 against a grid of about
+    // 1,200, and the day the chooser stopped being eleven cards and became one
+    // pick among six destinations the grid became 780 — so a number that was a
+    // *tally* of the product failed for the product changing shape, which is not
+    // what this assertion is for. It is here so that an emptied fixture cannot
+    // turn this file into a loop over nothing.
     assert!(
-        all.len() >= 1000,
+        all.len() >= 300,
         "the grid collapsed to {} cases — the fixture is not being generated",
         all.len()
     );
@@ -145,11 +152,35 @@ fn every_note_insertion_compiles_where_it_is_offered() {
 fn the_grid_covers_every_layout_and_both_body_placements() {
     let all = cases();
     let ids: std::collections::BTreeSet<&str> = all.iter().map(|c| c.id.as_str()).collect();
+    // **Every destination, by name.** The five places a note can print are a
+    // closed set now — that is the whole of the model — so this asks for them
+    // rather than counting them. A count is a claim somebody has to keep true,
+    // and this one was `>= 11` against the eleven cards of a chooser that no
+    // longer exists; it failed for the product being rebuilt rather than for
+    // anything being wrong. Names cannot go stale that way: a destination
+    // dropped from the emitter fails here and says which.
+    for want in ["foot", "end", "section", "side", "file"] {
+        assert!(
+            ids.contains(want),
+            "the {want} destination never reaches the grid; it covers {ids:?}"
+        );
+    }
+    // And the presets, which are derived from the destinations and are where a
+    // writer actually starts. Not named individually — they are a list the
+    // product is free to grow — but the grid must carry more than the five
+    // destinations alone, or the emitter has stopped walking them.
     assert!(
-        ids.len() >= 11,
-        "the chooser publishes eleven layouts; the grid covers {}: {:?}",
-        ids.len(),
-        ids
+        ids.len() > 5,
+        "the grid covers the destinations and no preset at all: {ids:?}"
+    );
+    // The native chain, by name. It is the only id that is neither a destination
+    // nor a preset — `#הערה[#הערה_ב[#הערה_ג[]]]`, the string the toolbar's tier
+    // button actually writes — so it is the one thing a nested-case regression
+    // could drop while the layer assertion below stayed true through the
+    // cross-destination cases.
+    assert!(
+        ids.contains("tier"),
+        "no case writes the native tier chain: {ids:?}"
     );
     // Both languages, for the reason `insertion.rs` learned the hard way: the
     // best fence in this repository once asked all 1,035 of its questions in
@@ -165,6 +196,12 @@ fn the_grid_covers_every_layout_and_both_body_placements() {
     // stopped reporting tiers and two thirds of the tiered cards are untested.
     assert!(
         all.iter().any(|c| c.layer > 0),
-        "no case carries a tier above the first — the tiered layouts are not being swept"
+        // Reworded when the chooser stopped having tiers. A layer is no longer
+        // *a card the writer pressed*; it is a **caret position** — inside
+        // another note's body — which is the one place a marker and its prose
+        // sit in different apparatuses, and with a deferred body it is a caret
+        // at the end of the file writing into `#גוף_הערה("1")[…]` while its
+        // marker is pages away. None of that is reachable from a layer-0 sweep.
+        "no case writes a note inside another note's body"
     );
 }

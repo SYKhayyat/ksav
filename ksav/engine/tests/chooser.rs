@@ -175,12 +175,28 @@ fn an_apparatus_prints_where_the_chooser_says_it_does() {
 
 /// A layout's configuration line reaches the pages it is meant to configure.
 ///
-/// This is the regression test for the head/tail bug. It does not need to know
-/// what each setting does: it renders the chooser's own output, then renders the
-/// same document with the configuration line moved to the end — where it used to
-/// be written — and requires the two to differ. If they do not, either the
-/// setting is inert (so writing it is a lie) or it is position-independent (so
-/// `head` is the wrong field for it). Both are worth failing on.
+/// This is the regression test for the head/tail bug, and **the property it
+/// asserts has been turned over.**
+///
+/// It was written when a layout's configuration was a `state.update` read from a
+/// page footer, which takes effect on the pages *after* it: the chooser wrote
+/// the line at the end of the file, so fixed band heights applied to the last
+/// page of a sefer and no other. The test therefore rendered the chooser's own
+/// output, rendered it again with the line moved to the end, and required the
+/// two to **differ** — because if they did not, the line was inert.
+///
+/// Under the channel model that is the wrong requirement. `#ערוץ` and `#אזור`
+/// are read with `.final()` by design — that is the whole capability the
+/// eighteen commands could not offer, and it is what lets a writer move three
+/// hundred haaros to the back by changing one line wherever it happens to sit.
+/// So the configuration is *deliberately* position-independent, and the honest
+/// assertion is the opposite one: moving the line must change **nothing**.
+///
+/// The old requirement is not weakened, it is relocated: a line that changed
+/// nothing wherever it went would be an inert setting, and
+/// `tests/settings_live.rs` now asks that of every key of every settings
+/// dictionary by rendering both values and diffing the page. What is left here
+/// is the position question, which is this file's own.
 #[test]
 fn a_layouts_configuration_is_written_where_it_takes_effect() {
     // Both `continue`s below are ordinary — most cases carry no configuration
@@ -200,9 +216,6 @@ fn a_layouts_configuration_is_written_where_it_takes_effect() {
             c.id,
             c.which
         );
-        if !c.exercises_head {
-            continue;
-        }
         moved += 1;
         let at_head = c.source.clone();
         let at_tail = format!(
@@ -244,10 +257,13 @@ fn a_layouts_configuration_is_written_where_it_takes_effect() {
         let hy = lines_of(&head_runs, "head");
         let ty = lines_of(&tail_runs, "tail");
 
-        assert_ne!(
+        assert_eq!(
             hy, ty,
-            "{}/{}: moving {head:?} to the end of the file changed nothing, so writing it \
-             at the top is not what makes it work — check whether the setting is inert",
+            "{}/{}: moving {head:?} to the end of the file changed the page. A channel \
+             declaration is read with `.final()` precisely so that it does not matter \
+             where it sits — a writer moves an apparatus by editing one line wherever \
+             they left it. Something in this layout is reading its configuration at the \
+             position it is written instead.",
             c.id, c.which,
         );
     }
@@ -256,10 +272,27 @@ fn a_layouts_configuration_is_written_where_it_takes_effect() {
         "no case carries a configuration line, so nothing above ran. Either the \
          chooser stopped emitting `head` or the field was renamed."
     );
+    assert_eq!(
+        moved, with_head,
+        "only {moved} of the {with_head} cases carrying a configuration line were \
+         compared head against tail"
+    );
+    // And the field that used to select which cases were worth moving. It is a
+    // claim about the *old* model — *"this line does something different when it
+    // is written somewhere else"* — and under the channel model nothing does, so
+    // the honest thing is to require it of nothing rather than to delete the
+    // field and lose the question. The emitter still publishes it; the day
+    // anything sets it, this fails and somebody has to say why a setting became
+    // position-dependent again.
+    let claiming: std::collections::BTreeSet<String> = cases()
+        .into_iter()
+        .filter(|c| c.exercises_head)
+        .map(|c| c.id)
+        .collect();
     assert!(
-        moved > 0,
-        "{with_head} cases carry a configuration line and none of them is marked \
-         `exercises_head`, so the head/tail comparison — the whole regression this \
-         test is — never ran."
+        claiming.is_empty(),
+        "these layouts claim their configuration line only works where it is \
+         written: {claiming:?} — under the channel model a declaration is read \
+         with `.final()`, so either the claim is wrong or the model has changed"
     );
 }

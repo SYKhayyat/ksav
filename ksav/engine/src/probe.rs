@@ -50,6 +50,20 @@ pub struct TextRun {
     pub italic: bool,
     /// The face's weight, 400 for regular and 700 for bold.
     pub weight: u16,
+    /// The colour the words were set in, as `#rrggbb`, or empty for a gradient
+    /// or a pattern.
+    ///
+    /// **The colour of *text* was invisible to every test in this repository.**
+    /// `fills` reads filled shapes — a highlight, a cell background, a rule —
+    /// and a coloured word is none of those: it is a glyph with a paint on it.
+    /// So `#הגדרות_הערות(צבע: red)` against `#הגדרות_הערות(צבע: blue)` came back
+    /// *no difference*, which is byte-for-byte what a passing test looks like,
+    /// and the whole `צבע` column of every settings dictionary read as dead.
+    ///
+    /// This is the third kind of thing that turned out to be invisible here, and
+    /// the lesson each time is the same one: before writing a test about
+    /// something drawn, check that the instrument can see it at all.
+    pub fill: String,
 }
 
 /// Every positioned text run in the document, in layout order.
@@ -83,6 +97,13 @@ fn walk(frame: &Frame, origin: Point, page: usize, out: &mut Vec<TextRun>) {
                     font: info.family.clone(),
                     italic: info.variant.style != FontStyle::Normal,
                     weight: info.variant.weight.to_number(),
+                    fill: match &t.fill {
+                        Paint::Solid(c) => {
+                            let [r, g, b, _] = c.to_vec4_u8();
+                            format!("#{r:02x}{g:02x}{b:02x}")
+                        }
+                        _ => String::new(),
+                    },
                 })
             }
             _ => {}
@@ -269,6 +290,7 @@ pub fn lines(runs: &[TextRun], tol: f64) -> Vec<Line> {
             .find(|l| l.page == r.page && (l.y - r.y).abs() <= tol)
         {
             Some(l) => {
+                l.reading.push_str(&r.text);
                 l.runs.push(r.clone());
                 // keep the line's y as the topmost run's y
                 if r.y < l.y {
@@ -278,6 +300,7 @@ pub fn lines(runs: &[TextRun], tol: f64) -> Vec<Line> {
             None => ls.push(Line {
                 page: r.page,
                 y: r.y,
+                reading: r.text.clone(),
                 runs: vec![r.clone()],
             }),
         }
@@ -300,24 +323,60 @@ pub struct Line {
     pub page: usize,
     pub y: f64,
     pub runs: Vec<TextRun>,
+    /// The line's text in **reading** order, which is walk order.
+    ///
+    /// `runs` is sorted by `x`, so `text()` reads a Hebrew line backwards and
+    /// every test that uses it matches on a substring inside one run. That held
+    /// for as long as a phrase was one run.
+    ///
+    /// It stops holding the moment anything boxes part of a line — and the
+    /// synthetic oblique boxes every *word*, because a sheared frame is a block
+    /// and one box around a passage is an unbreakable slab. So an italic phrase
+    /// is one run per word, no run holds the phrase, and `contains` said no
+    /// about words that are plainly on the page. It has been true of `#נטוי`
+    /// since it was written; it became true of every configured slant when those
+    /// started rendering.
+    ///
+    /// Typst lays a paragraph out in logical order and expresses bidi as
+    /// *positions*, so the order the runs arrive in is the order they are read
+    /// in, for Hebrew as for English — the same fact `pagetext` is built on.
+    /// This is that string, kept as the runs come in and before they are sorted.
+    pub reading: String,
 }
 
 impl Line {
-    /// The line's text, in x order (so RTL reads reversed — match on substrings).
+    /// The line's text, in **reading** order.
+    ///
+    /// It used to be in `x` order, documented as *"so RTL reads reversed — match
+    /// on substrings"*. That worked for as long as a Hebrew phrase arrived as one
+    /// run: the run's own text is logical, so a substring of it was findable
+    /// wherever the run sat in the joined string.
+    ///
+    /// A phrase is not always one run. The synthetic oblique boxes every *word*
+    /// — a sheared frame is a block, and one box around a passage is an
+    /// unbreakable slab — so an italic phrase is one run per word, and joining
+    /// those by `x` prints a Hebrew sentence backwards. Three tests asked for
+    /// text that was plainly on the page and were told it was not there.
+    ///
+    /// Reading order is walk order: Typst lays a paragraph out in logical order
+    /// and expresses bidi as *positions*, which is the fact `pagetext` — the
+    /// printed-page search — is built on. `runs` stays sorted by `x`, because
+    /// that is what a positional assertion wants.
     ///
     /// There used to be a `logical_text` beside this, documented as giving "the
-    /// line's text in layout (logical) order, which is what a reader of the
-    /// source expects". It sorted the runs by `x` — which is what this already
-    /// does, because `runs` is built in x order — so the two returned the same
-    /// string for every input, in a *shipping library*, with a doc comment
-    /// claiming otherwise. Nothing called it. A `page_text` went with it, also
-    /// uncalled: the `page_text(&runs)` in the tests is each test file's own
-    /// local helper and always was.
+    /// line's text in layout (logical) order". It sorted the runs by `x` — which
+    /// is what this used to do — so the two returned the same string for every
+    /// input, in a *shipping library*, with a doc comment claiming otherwise.
+    /// This is that function, finally doing what its name said.
     pub fn text(&self) -> String {
-        self.runs.iter().map(|r| r.text.as_str()).collect()
+        self.reading.clone()
     }
+    /// Is this phrase on this line?
+    ///
+    /// Asked of the line and not of a run, because a phrase is not a run: a
+    /// slanted one is a run per word. See [`Line::reading`].
     pub fn contains(&self, needle: &str) -> bool {
-        self.runs.iter().any(|r| r.text.contains(needle))
+        self.reading.contains(needle) || self.runs.iter().any(|r| r.text.contains(needle))
     }
 }
 

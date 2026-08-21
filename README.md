@@ -20,8 +20,9 @@ nothing.
 |---|---|
 | **use it** | [`docs/start-here.md`](docs/start-here.md) |
 | **switch from Word** | [`docs/from-word.md`](docs/from-word.md) |
+| **fix something that went wrong** | [`docs/troubleshooting.md`](docs/troubleshooting.md) — by what you are looking at, not by what is broken |
 | **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 97 bindings in both languages, generated from the source |
-| **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — clone to landed change |
+| **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — clone to landed change, then [`docs/your-first-change.md`](docs/your-first-change.md) for one walked end to end |
 | **understand the architecture** | [`ksav/README.md`](ksav/README.md) |
 | **work on the seam with Girsa** | [`docs/girsa.md`](docs/girsa.md) |
 | **write in Emacs instead** | [`ksav/editors/emacs/README.md`](ksav/editors/emacs/README.md) |

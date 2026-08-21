@@ -27,6 +27,11 @@ A shell will also write a PDF without opening anything: `ksav sefer.ksav`.
 Building it from source is [`CONTRIBUTING.md`](../CONTRIBUTING.md), and is only
 for changing Ksav rather than using it.
 
+## When something goes wrong
+
+[`troubleshooting.md`](troubleshooting.md), organised by what you are looking
+at rather than by what is broken.
+
 ## The first document
 
 It opens with one. Type into it.

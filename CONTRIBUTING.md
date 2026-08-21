@@ -2,6 +2,10 @@
 
 Welcome. This page gets you from a fresh clone to a change that lands.
 
+If you would rather be shown than told, [`docs/your-first-change.md`](docs/your-first-change.md)
+walks one real change through every surface it touches — nine files, each one
+found for you by a fence rather than remembered.
+
 If you have never opened Ksav as a writer, spend five minutes on
 [`docs/start-here.md`](docs/start-here.md) first. It is hard to have an opinion
 about the shape of the code without having seen the thing it is shaped for.
@@ -12,6 +16,7 @@ about the shape of the code without having seen the thing it is shaped for.
 | **Working on the seam with Girsa?** | [`docs/girsa.md`](docs/girsa.md) |
 | **Want to know *why* something is like that?** | [`decisions/README.md`](decisions/README.md) |
 | **Writing in Emacs rather than in the app?** | [`ksav/editors/emacs/README.md`](ksav/editors/emacs/README.md) |
+| **Something is broken and you want the short answer?** | [`docs/troubleshooting.md`](docs/troubleshooting.md) — including the gate failures and the instruments that lie |
 | **Looking for what to work on?** | [`HANDOFF.md`](HANDOFF.md) — what is open, what is deliberately not yours to close, and the lessons that were paid for |
 
 ---

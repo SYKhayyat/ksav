@@ -482,8 +482,15 @@ check(
   // underneath it and the × is the only way back. Read off the stylesheet
   // because that is where it is decided, and because deleting the rule is a
   // one-line change that nothing else here would notice.
-  const rule = /\.drawer\s+\.styles-head\s*\{([^}]*)\}/.exec(CSS);
-  ok("the drawer head has a rule of its own", !!rule);
+  // Read off `.styles-head` and not `.drawer .styles-head`, because the rule moved
+  // and the behaviour did not. Every panel that scrolls has a head and every one
+  // of them needs it to stay put; the notes chooser proved that by opening 87px
+  // past its own ×, which is the check the assembled run had been red on for a
+  // fortnight. The drawer keeps a rule of its own for the negative margins that
+  // let a sticky head reach past the drawer's padding — the half below.
+  const rule = /^\.styles-head\s*\{([^}]*)\}/m.exec(CSS);
+  ok("the panel head has a rule of its own", !!rule);
+  ok("…and the drawer keeps one for its margins", /\.drawer\s+\.styles-head\s*\{/.test(CSS));
   ok("…and it stays put while the drawer scrolls", /position:\s*sticky/.test(rule?.[1] ?? ""));
   ok("…anchored to the top", /top:\s*0/.test(rule?.[1] ?? ""));
   // The other half, and it is not decoration: a sticky element cannot rise

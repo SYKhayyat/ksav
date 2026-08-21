@@ -1658,20 +1658,72 @@
 // than counting the markers between them is what makes a `#המשך_מספור` work
 // here for free: it does not restart, so it does not change the origin, so the
 // run carries on.
+/// The numbers a list of entries carries, restarts included.
+///
+/// # One query, not one per entry
+///
+/// This used to ask `_nr_origin` for each location, and `_nr_origin` queries the
+/// whole document — so an apparatus showing every note in the sefer at once did
+/// one full query per note. That is the quadratic: measured on a twenty-chapter
+/// sefer with a hundred and twenty collected notes, **48.8 seconds**, against
+/// 3.7 for the same notes at the foot of the page where a block holds a handful
+/// at a time and never feels it. Thirty chapters wanted 111 seconds and fourteen
+/// gigabytes.
+///
+/// Both lists are in document order — Typst's `query` returns them that way, and
+/// the entries come from one — so the markers can be walked **once**, beside the
+/// entries, with a cursor that only ever moves forward. Same answer, one query.
+///
+/// The comparison is page and vertical position, which is what `_rg_key` uses a
+/// few thousand lines down for the same reason: Typst gives no ordering on
+/// locations themselves, and this is the only pair that is true across a page
+/// break. It is written out here rather than borrowed because `_rg_key` is
+/// defined below this and a closure is resolved where it is written.
 #let _nr_numbers(locs) = {
   if not _nr_any() { return none }
+  let lvl = _nr_cfg.get().at("אפס_לפי", default: none)
+  let ms = query(_nr_label)
+  let key(l) = (l.page(), l.position().y)
+  // At or before, because `selector.before(loc)` is inclusive and this is
+  // standing in for it.
+  let upto(a, b) = a.at(0) < b.at(0) or (a.at(0) == b.at(0) and a.at(1) <= b.at(1))
   let out = ()
+  let i = 0
+  let cur = none
+  let prev = none
   let base = 0
   let last = none
   let started = false
-  for (i, l) in locs.enumerate() {
-    let og = _nr_origin(l)
-    if not started or og != last {
-      base = i
-      last = og
+  for (j, l) in locs.enumerate() {
+    let lk = key(l)
+    while i < ms.len() and upto(key(ms.at(i).location()), lk) {
+      let v = ms.at(i).value
+      let kind = v.at(0)
+      if kind == "auto" {
+        if lvl != none and v.at(1) <= lvl {
+          prev = cur
+          cur = ms.at(i).location()
+        }
+      } else if kind == "restart" {
+        // A restart naming somebody else's series is not this one's business,
+        // and this list has no name of its own — so only an unnamed restart
+        // counts, which is what `_nr_origin(l)` answered.
+        let whose = if v.len() > 1 { v.at(1) } else { none }
+        if whose == none {
+          prev = cur
+          cur = ms.at(i).location()
+        }
+      } else {
+        cur = prev
+      }
+      i += 1
+    }
+    if not started or cur != last {
+      base = j
+      last = cur
       started = true
     }
-    out.push(i - base + 1)
+    out.push(j - base + 1)
   }
   out
 }
@@ -2268,30 +2320,83 @@
   if piece.ends-with("\n") { 3 } else if piece.contains(". ") { 2 } else { 1 }
 }
 
-/// The largest prefix of `s` that fits `width` × `height`, and the rest.
+/// The inline elements a note body may be built from and still be cut.
 ///
-/// Returns `(ראש, שאר)` — the piece to set here and the piece still to place.
-/// `שאר` is the empty string when it all fitted, which is the caller's signal
-/// that nothing carries.
+/// All of them are **one body with a look on it**, so a word out of one is that
+/// word with the same look: `strong[א ב]` cut after `א` is `strong[א]`, and a reader
+/// cannot tell the difference. That is not true of a table or a figure, which is
+/// why this is a list and not a rule.
+#let _ct_inline = (
+  "strong", "emph", "underline", "overline", "strike", "highlight", "smallcaps",
+  "sub", "super",
+)
+
+/// A body as a list of `(content, text)` atoms, one per word, or `none`.
 ///
-/// **Binary search, so the cost is logarithmic in the words and not linear.**
-/// Typst memoises `measure`, so the same prefix measured on a later layout pass
-/// is free; what this costs is about `log2(n)` measures the first time. Seven
-/// calls for a hundred and forty words, measured.
-/// `עטיפה` is how the caller sets this text, and it is not optional decoration:
-/// a prefix measured at the document's size and printed at an apparatus's is
-/// measured at the wrong size, and the cut lands in the wrong place by however
-/// much the two differ. `none` measures at whatever is ambient, which is right
-/// for a caller — `ברך` — that is setting the text in the ambient style.
-#let _ct_fit(s, width, height, תפר: 8, עטיפה: none) = {
-  let ws = _ct_pieces(s)
-  if ws.len() == 0 { return ("", "") }
-  let set_as(t) = if עטיפה == none { t } else { עטיפה(t) }
-  let fits(n) = measure(block(width: width, set_as(ws.slice(0, n).join("")))).height <= height
-  // The whole thing, which is the common case and worth not searching for.
-  if fits(ws.len()) { return (s, "") }
+/// # Why this exists, and what it cost not to have it
+///
+/// `_ct_text` answers `none` for anything that is not bare words, and a body it
+/// refuses falls back to the window — which slides the whole note by a fixed
+/// distance and **cuts through a line of type** to do it. Measured: a forty-word
+/// note with **one bolded word in it** came out with a line sliced across two
+/// pages, the top half on one and the bottom half on the next. One asterisk was
+/// all it took, and words with a look on them are what a note is usually made of.
+///
+/// So the words come out of the markup rather than the markup disqualifying the
+/// words. Each atom is a word *and its own look*, rebuilt from the element's own
+/// fields — `fields()` minus the body, handed back to `func()` — so an underline
+/// keeps its stroke and a highlight keeps its fill. A word with no look on it
+/// stays a bare string, which leaves the ordinary case exactly as it was.
+///
+/// `none` still means the window, and it still has to: a table has no seam.
+#let _ct_split(body) = {
+  if body == none { return none }
+  let f = repr(body.func())
+  if f == "text" {
+    let fs = body.fields()
+    let raw = fs.at("text", default: "")
+    let _ = fs.remove("text")
+    let g = body.func()
+    return _ct_pieces(raw).map(w => (if fs.len() == 0 { w } else { g(..fs, w) }, w))
+  }
+  if f == "space" { return ((" ", " "),) }
+  if f == "linebreak" { return (("\n", "\n"),) }
+  if f == "sequence" {
+    let out = ()
+    for c in body.children {
+      let got = _ct_split(c)
+      if got == none { return none }
+      out += got
+    }
+    return out
+  }
+  if _ct_inline.contains(f) {
+    let inner = _ct_split(body.at("body", default: none))
+    if inner == none { return none }
+    let g = body.func()
+    let fs = body.fields()
+    let _ = fs.remove("body")
+    return inner.map(a => (g(..fs, a.at(0)), a.at(1)))
+  }
+  none
+}
+
+/// The largest prefix of `atoms` that fits, and the rest. See `_ct_fit`.
+///
+/// The atom list is the general case and a string is a special one: a word with
+/// no look on it is its own content. Both go through here, so the seam rule, the
+/// binary search and the one-word floor are written once.
+#let _ct_fit_atoms(atoms, width, height, תפר: 8, עטיפה: none) = {
+  if atoms.len() == 0 { return ((), ()) }
+  let join(list) = if list.len() == 0 { [] } else { list.map(a => a.at(0)).join() }
+  let set_as(list) = {
+    let t = join(list)
+    if עטיפה == none { t } else { עטיפה(t) }
+  }
+  let fits(n) = measure(block(width: width, set_as(atoms.slice(0, n)))).height <= height
+  if fits(atoms.len()) { return (atoms, ()) }
   let lo = 0
-  let hi = ws.len()
+  let hi = atoms.len()
   while lo < hi {
     let mid = calc.ceil((lo + hi) / 2)
     if fits(mid) { lo = mid } else { hi = mid - 1 }
@@ -2312,10 +2417,71 @@
   let floor = calc.max(1, lo - תפר)
   let i = lo
   while i > floor {
-    if _ct_rank(ws.at(i - 1)) > _ct_rank(ws.at(best - 1)) { best = i }
+    if _ct_rank(atoms.at(i - 1).at(1)) > _ct_rank(atoms.at(best - 1).at(1)) { best = i }
     i -= 1
   }
-  (ws.slice(0, best).join(""), ws.slice(best).join(""))
+  (atoms.slice(0, best), atoms.slice(best))
+}
+
+/// A body's slices as content, one per page. See `_ct_pages`.
+#let _ct_pages_atoms(atoms, width, height, תפר: 8, עטיפה: none) = {
+  let out = ()
+  let rest = atoms
+  let guard = 0
+  while rest.len() > 0 and guard < 64 {
+    guard += 1
+    let i = out.len()
+    let (head, tail) = _ct_fit_atoms(
+      rest,
+      width,
+      height,
+      תפר: תפר,
+      עטיפה: if עטיפה == none { none } else { t => עטיפה(t, i) },
+    )
+    if head.len() == 0 {
+      out.push(rest)
+      break
+    }
+    out.push(head)
+    rest = tail
+  }
+  out.map(list => if list.len() == 0 { [] } else { list.map(a => a.at(0)).join() })
+}
+
+/// The largest prefix of `s` that fits `width` × `height`, and the rest.
+///
+/// Returns `(ראש, שאר)` — the piece to set here and the piece still to place.
+/// `שאר` is the empty string when it all fitted, which is the caller's signal
+/// that nothing carries.
+///
+/// **Binary search, so the cost is logarithmic in the words and not linear.**
+/// Typst memoises `measure`, so the same prefix measured on a later layout pass
+/// is free; what this costs is about `log2(n)` measures the first time. Seven
+/// calls for a hundred and forty words, measured.
+/// `עטיפה` is how the caller sets this text, and it is not optional decoration:
+/// a prefix measured at the document's size and printed at an apparatus's is
+/// measured at the wrong size, and the cut lands in the wrong place by however
+/// much the two differ. `none` measures at whatever is ambient, which is right
+/// for a caller — `ברך` — that is setting the text in the ambient style.
+#let _ct_fit(s, width, height, תפר: 8, עטיפה: none) = {
+  let ws = _ct_pieces(s)
+  if ws.len() == 0 { return ("", "") }
+  // The whole thing, which is the common case and worth not searching for.
+  // Answered here rather than inside the search so the string that comes back is
+  // the string that went in, character for character.
+  let set_as(t) = if עטיפה == none { t } else { עטיפה(t) }
+  if measure(block(width: width, set_as(s))).height <= height { return (s, "") }
+  // Everything else is `_ct_fit_atoms` with a word for its own content — the
+  // binary search, the one-word floor and the seam rule are written once, there,
+  // because two copies of a seam rule is two seam rules the day one is changed.
+  let (head, tail) = _ct_fit_atoms(
+    ws.map(w => (w, w)),
+    width,
+    height,
+    תפר: תפר,
+    עטיפה: עטיפה,
+  )
+  (head.map(a => a.at(1)).join(""), tail.map(a => a.at(1)).join(""))
 }
 
 /// The words of a body, when it is made of nothing but words.
@@ -2582,6 +2748,32 @@
 
 /// How tall one line of a given apparatus is.
 ///
+/// One line of an entry, and nothing else.
+///
+/// `_ap_line_of` is this plus the gap that follows an entry, which is the right
+/// unit for *"three lines tall"* — a writer counting lines is counting what they
+/// can see, and what they can see includes the space between entries. The window
+/// wants the other one: how far down the page the next line of the **same** entry
+/// begins, with no gap in it, because there is no next entry involved.
+#let _ap_one_line(cfg, g) = measure(
+  _ap_wrap(cfg, g, [א], ריווח_שורה: _ap_lead(cfg, g, 1.0)),
+).height
+
+/// How far down the page the **next line of the same entry** begins.
+///
+/// Two lines less one, and not the height of one: a line box is its ascender and
+/// descender, and the advance is what the next line starts at. Measured on a
+/// 10.2pt band they are 16.83pt and 14.38pt, and using the first as the second
+/// is how a window that means to slide two whole lines slides 2.34 of them and
+/// cuts the third in half — which is the bug this exists for, one step further
+/// in.
+#let _ap_advance(cfg, g) = {
+  let lead = _ap_lead(cfg, g, 1.0)
+  let two = measure(_ap_wrap(cfg, g, [א#linebreak()א], ריווח_שורה: lead)).height
+  let one = measure(_ap_wrap(cfg, g, [א], ריווח_שורה: lead)).height
+  two - one
+}
+
 /// The grid when a document has one — that is the whole point of a grid, that a
 /// line is one unit whatever is set on it — and the apparatus's own leading and
 /// size otherwise.
@@ -2597,9 +2789,26 @@
   // Bound rather than written as one expression across two lines: a leading `+`
   // on a continuation line is parsed as a second statement, and the block then
   // tries to join two lengths instead of adding them.
-  let one = measure(_ap_wrap(cfg, g, [א], ריווח_שורה: _ap_lead(cfg, g, 1.0))).height
   let gap = _ap_pick(cfg, "ריווח_פריט", g, 0.3em).to-absolute()
-  one + gap
+  _ap_one_line(cfg, g) + gap
+}
+
+/// A declared height, or `none` for *as tall as it needs*.
+///
+/// Four places read a region's `גובה` and each decided for itself what counted as
+/// "declared". Three of them tested `!= none`, which let `auto` through — and `auto`
+/// is the word a writer reaches for to mean exactly what `none` means here. It
+/// came out as **"cannot compare auto and length"** from inside Typst, about a
+/// perfectly ordinary thing to write.
+///
+/// Fixing two of the three left the third, which then failed differently —
+/// `none` multiplied by an integer, from a slot that had no height — and that is
+/// the shape this repository keeps recording: a class named, one instance fixed,
+/// the siblings never swept. So the reading is written once, here, and the four
+/// callers ask it.
+#let _rg_height_of(rec, key: "גובה") = {
+  let h = rec.at(key, default: none)
+  if h == auto { none } else { h }
 }
 
 #let _ap_fixed_height(h, קו: none) = {
@@ -2834,6 +3043,7 @@
   ריווח_שורה: none,
   הסט: 0pt,
   חלון: 0pt,
+  מנה: 0,
 ) = {
   above
   // One entry, marker and body, at whatever this page's settings are. Shared by
@@ -2893,6 +3103,9 @@
     // and the second one is not spilling — it must be neither cut nor slid.
     let piece = 0
     let shift = 0pt
+    // How tall the window is, in whole lines. `0pt` for everything that is not
+    // being windowed, which is everything except an entry with no words in it.
+    let pane = 0pt
     let body = body
     if חלון > 0pt {
       let wrap(t, i) = _ap_wrap(
@@ -2908,26 +3121,49 @@
       // region, and an entry that fits was never spilling, whatever it is
       // sharing the region with.
       if measure(box(width: w, wrap(body, 0))).height > חלון {
-        piece = calc.floor(הסט / חלון)
+        piece = מנה
+        // Bare words first, because that is what most notes are and a string
+        // cut and rejoined is the same string. Then words **with a look on
+        // them** — bold, italic, an underline — which used to be enough on its
+        // own to send a note to the window. Only content with no words in it at
+        // all falls through, and for that there is nothing to cut at.
+        let seam = _ap_pick(cfg, "תפר", g, 8)
         let words = _ct_text(body)
-        if words == none {
+        let parts = if words != none {
+          _ct_pages(words, w, חלון, תפר: seam, עטיפה: wrap)
+        } else {
+          let atoms = _ct_split(body)
+          if atoms == none { none } else {
+            _ct_pages_atoms(atoms, w, חלון, תפר: seam, עטיפה: wrap)
+          }
+        }
+        if parts == none {
           // `move` shifts **paint and not layout**, which is what the window
           // needs: the block stays where it is on every page and the content
           // slides up inside it, so page two resumes exactly where page one
           // stopped and nothing is lost.
           shift = הסט
+          // …and it is clipped to a whole number of lines rather than to the
+          // slot, for the same reason the walk slides it by a whole number of
+          // lines: 34.02pt of region against a 14.38pt advance is 2.34 lines,
+          // and the slot's own clip cut the third one in half — top of the
+          // glyphs on one page, bottom on the next. Two whole lines and 5.26pt
+          // of white space under them, which is what white space is for.
+          //
+          // The same arithmetic as `_ap_fill`'s, from the same two numbers, so
+          // the two agree without being told: any other way of saying it is a
+          // second opinion about where the page breaks.
+          let adv = _ap_advance(ecfg, g)
+          pane = if adv > 0pt and adv <= חלון {
+            calc.floor(חלון / adv) * adv
+          } else {
+            חלון
+          }
         } else {
-          let parts = _ct_pages(
-            words,
-            w,
-            חלון,
-            תפר: _ap_pick(cfg, "תפר", g, 8),
-            עטיפה: wrap,
-          )
           // Past the last slice is an empty page of region, which happens when
           // the walk reserved one more page than the cut needed. Empty and not
           // a repeat: a repeat is the defect.
-          body = if piece < parts.len() { parts.at(piece) } else { "" }
+          body = if piece < parts.len() { parts.at(piece) } else { [] }
         }
       }
     }
@@ -2959,7 +3195,11 @@
       כיווץ: כיווץ,
       ריווח_שורה: ריווח_שורה,
     )
-    if shift == 0pt { drawn } else { move(dy: -shift, drawn) }
+    if pane == 0pt {
+      drawn
+    } else {
+      block(height: pane, clip: true, move(dy: -shift, drawn))
+    }
   }
   let inner = {
     lead
@@ -3195,8 +3435,20 @@
 #let _rg_over_default = "צמצום"
 
 #let _ap_fit_room(h, איפה: "רגל", קו: none, חריגה: _rg_over_default, מי: none) = {
-  if h == none { return none }
+  // `auto` is a height, and it is the one a writer reaches for to say *as tall as
+  // it needs*. It used to reach here and be compared against a length, which is
+  // not an error Typst has a Ksav sentence for: `#אזור("צר", גובה: auto)` came
+  // out as **"cannot compare auto and length"**, from inside the engine, about a
+  // perfectly ordinary thing to write.
+  //
+  // It means what `none` means — take the height from the content — so it is
+  // answered here rather than at each of the three places that read a height,
+  // and the second one is not hypothetical either: `_ap_fixed_height` hands back
+  // `auto` of its own accord for a percentage height on a page that is itself
+  // `auto` tall, which is every continuous-mode document.
+  if h == none or h == auto { return none }
   let want = _ap_fixed_height(h, קו: קו)
+  if want == auto { return none }
   let room = _ap_room(איפה: איפה)
   if want > room and _val(חריגה) == "סירוב" {
     panic(
@@ -3467,6 +3719,9 @@
   let scales = (:)
   let tracks = (:)
   let spans = (:)
+  // How far a windowed note slides between pages. Not the slot: see `steps`
+  // below, and `_ap_on_page`.
+  let steps = (:)
   for k in order {
     let g = gof.at(k)
     let moves = policy_of(g)
@@ -3595,24 +3850,48 @@
         // the renderer will cut it is what keeps the document from reserving a
         // page that comes out empty.
         if bounded and mine.len() == 1 and hh > cap and can_spill {
-          let words = _ct_text(all.at(j).value.body)
-          span = if words == none {
-            calc.max(1, calc.ceil(hh / cap))
+          // **The window slides by whole lines, not by the height of the slot.**
+          //
+          // It used to slide by exactly the slot, and a slot is not a whole
+          // number of lines: 34.02pt of region against a 14.38pt line is 2.36
+          // lines, so the third line of a note began 28.76pt down, the slot ended
+          // at 34.02, and that line was **cut in half across two pages** — its
+          // top on one and its bottom on the next. Measured on a note with a box
+          // in it, which is now the only kind that reaches the window at all.
+          //
+          // Two whole lines per page instead, and the 5.26pt left over is white
+          // space at the foot of the region, which is what white space is for.
+          let one = _ap_advance(cfg, g)
+          let step = if one > 0pt and one <= cap {
+            calc.floor(cap / one) * one
           } else {
-            calc.max(1, _ct_pages(
-              words,
-              _ap_page_width(cfg, g),
-              cap,
-              תפר: _ap_pick(cfg, "תפר", g, 8),
-              עטיפה: (t, i) => _ap_wrap(
-                cfg,
-                g,
-                if i == 0 { [#super[1] #t] } else { t },
-                יחס: sc,
-                כיווץ: tr,
-                ריווח_שורה: _ap_lead(cfg, g, sc),
-              ),
-            ).len())
+            cap
+          }
+          steps.insert(k, step)
+          let seam = _ap_pick(cfg, "תפר", g, 8)
+          let wrap = (t, i) => _ap_wrap(
+            cfg,
+            g,
+            if i == 0 { [#super[1] #t] } else { t },
+            יחס: sc,
+            כיווץ: tr,
+            ריווח_שורה: _ap_lead(cfg, g, sc),
+          )
+          let width = _ap_page_width(cfg, g)
+          let words = _ct_text(all.at(j).value.body)
+          let parts = if words != none {
+            _ct_pages(words, width, cap, תפר: seam, עטיפה: wrap)
+          } else {
+            let atoms = _ct_split(all.at(j).value.body)
+            if atoms == none { none } else {
+              _ct_pages_atoms(atoms, width, cap, תפר: seam, עטיפה: wrap)
+            }
+          }
+          span = if parts == none {
+            // The window's own count, in its own unit.
+            calc.max(1, calc.ceil(hh / step))
+          } else {
+            calc.max(1, parts.len())
           }
         }
       }
@@ -3621,7 +3900,15 @@
     over += rest
     if span > 1 { spans.insert(k, span) }
   }
-  (placed: placed, over: over, scales: scales, tracks: tracks, spans: spans, caps: caps)
+  (
+    placed: placed,
+    over: over,
+    scales: scales,
+    tracks: tracks,
+    spans: spans,
+    caps: caps,
+    steps: steps,
+  )
 }
 
 /// Where each note of a page-foot apparatus prints, and how it is set.
@@ -3652,7 +3939,15 @@
   if n == 0 { return () }
   let out = ()
   for _ in range(n) {
-    out.push((page: 0, scale: 1.0, tracking: 0pt, runin: false, span: 1, slot: 0pt))
+    out.push((
+      page: 0,
+      scale: 1.0,
+      tracking: 0pt,
+      runin: false,
+      span: 1,
+      slot: 0pt,
+      step: 0pt,
+    ))
   }
   let i = 0
   let carry = ()
@@ -3685,7 +3980,22 @@
         tracking: f.tracks.at(k),
         runin: policy_of(all.at(j).value.group).contains("רצף"),
         span: sp,
-        slot: f.caps.at(k, default: 0pt),
+        // A length, whatever came back. A region with no declared height has no
+        // cap, and the offset below multiplies this by a page number.
+        slot: {
+          let c = f.caps.at(k, default: 0pt)
+          if type(c) == length { c } else { 0pt }
+        },
+        // How far the window slides, which is a whole number of lines and
+        // therefore not the slot. Falls back to the slot for a group that never
+        // reached the window branch, where it is never used.
+        step: {
+          let st = f.steps.at(k, default: none)
+          if type(st) == length { st } else {
+            let c = f.caps.at(k, default: 0pt)
+            if type(c) == length { c } else { 0pt }
+          }
+        },
       )
       if sp > 1 { busy.insert(k, pg + sp) }
     }
@@ -3713,6 +4023,7 @@
   let runins = (:)
   let offsets = (:)
   let slots = (:)
+  let pieces = (:)
   for i in range(all.len()) {
     let d = where.at(i)
     // On every page of its span, not only the first. The entry is emitted whole
@@ -3723,12 +4034,22 @@
       scales.insert(k, d.scale)
       tracks.insert(k, d.tracking)
       runins.insert(k, d.runin)
-      offsets.insert(k, d.slot * (pg - d.page))
-      // The slot itself, so the renderer can work out which slice of a spilling
-      // note this page is showing — the same numbers, and no second opinion.
-      // `0pt` for a group with nothing spilling, which is what turns the whole
-      // mechanism off for the ordinary case.
+      offsets.insert(k, d.step * (pg - d.page))
+      // The slot, and **which slice this is**.
+      //
+      // The slice used to be worked out in the renderer, as
+      // `floor(offset / slot)` — which is the same number in arithmetic and not
+      // in floating point. `slot * k / slot` lands a hair under `k` once `k` is
+      // large enough, `floor` takes it down to `k - 1`, and that page draws the
+      // slice before it: measured on a three-hundred-word note in a one-line
+      // region, **words 97–112 printed twice and 113–129 were never printed at
+      // all**, and again every seventh page after that. A sefer quietly missing
+      // sixteen words a page, with nothing on the page to show it.
+      //
+      // So the walk says which slice it is. It is an integer here — the page
+      // minus the page the note started on — and it stays an integer.
       slots.insert(k, if d.span > 1 { d.slot } else { 0pt })
+      pieces.insert(k, pg - d.page)
     }
   }
   (
@@ -3738,6 +4059,7 @@
     runins: runins,
     offsets: offsets,
     slots: slots,
+    pieces: pieces,
   )
 }
 
@@ -3763,6 +4085,7 @@
     ריווח_שורה: _ap_lead(cfg, g, sc),
     הסט: on.offsets.at(k, default: 0pt),
     חלון: on.slots.at(k, default: 0pt),
+    מנה: on.pieces.at(k, default: 0),
   )
 }
 
@@ -3944,7 +4267,7 @@
   while guard < _ch_walk_max {
     if _ch_place(t, at) != "רגל" { return false }
     let r = _ch_rec(t, at)
-    if r.at("אזור", default: none) != none or r.at("גובה", default: none) != none {
+    if r.at("אזור", default: none) != none or _rg_height_of(r) != none {
       return false
     }
     let s = _ch_source(t, at)
@@ -3972,7 +4295,7 @@
 // The height of a region: its own if it declared one, else the height of the
 // lone channel that made it, else whatever the apparatus's own table says.
 #let _ch_region_height(cfg, t, rg, chans) = {
-  let own = _rg_rec(t, rg).at("גובה", default: none)
+  let own = _rg_height_of(_rg_rec(t, rg))
   // A region's own line is its first channel's, since that is what will be set
   // in it. A region holding two channels of different sizes is a region whose
   // "three lines" is ambiguous, and the first one declared is the answer.
@@ -3980,7 +4303,7 @@
   let חריגה = _val(_rg_rec(t, rg).at("חריגה", default: _rg_over_default))
   if own != none { return _ap_fit_room(own, קו: קו, חריגה: חריגה, מי: rg) }
   for c in chans {
-    let h = _ch_rec(t, c).at("גובה", default: none)
+    let h = _rg_height_of(_ch_rec(t, c))
     if h != none { return h }
   }
   _ap_pick(cfg, "גבהים", rg, none)
@@ -4578,7 +4901,7 @@
   // at y=853.90 on an 841.89pt sheet — off the paper, which is the one thing
   // decision 6 says may never happen.
   let rg = _ch_region(t, g)
-  let own = _rg_rec(t, rg).at("גובה", default: none)
+  let own = _rg_height_of(_rg_rec(t, rg))
   let own = if own != none { own } else { _ap_pick(cfg, "גבהים", g, none) }
   if own != none {
     _ap_fit_room(
@@ -4657,7 +4980,7 @@
       // channel for is its own channel, which is how `#הערה(אזור: "x")` names one.
       let declared = ()
       for rg in t.סדר_אזורים {
-        if _rg_rec(t, rg).at("גובה", default: none) == none { continue }
+        if _rg_height_of(_rg_rec(t, rg)) == none { continue }
         let mem = t.סדר.filter(c => _ch_region(t, c) == rg)
         let mem = if mem.len() == 0 { (rg,) } else { mem }
         for c in mem { if not declared.contains(c) { declared.push(c) } }

@@ -1308,7 +1308,23 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
   font-family: var(--mono); font-size: 11px; color: var(--accent);
   background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; white-space: nowrap;
 }
-.styles-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+/* A panel head stays put in a panel that scrolls, and every panel that can
+   scroll has one. It used to be sticky only in a drawer, and the notes chooser
+   paid for that: it scrolls its picked card into view when it opens - added
+   because at 1280x720 the card and the button that writes it landed below the
+   fold - and scrolling the card in scrolled the title and the x OUT, 87px above
+   the top of the screen. One visibility bug traded for another, and the
+   assembled run said so on every commit for a fortnight.
+
+   Sticky is the answer rather than a smaller scroll, because the two demands
+   stop being in tension once the head does not move: the card comes to the
+   middle and the way out stays where a hand expects it. In a container that
+   does not scroll, sticky does nothing at all. */
+.styles-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  position: sticky; top: 0; z-index: var(--z-editor-marks);
+  background: var(--panel);
+}
 .styles-head h2 { margin: 0; font-size: 18px; }
 /* The way out stays reachable.
    A drawer scrolls, its head scrolled away with the rest of it, and the × went
@@ -1318,11 +1334,26 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
    the only way back. Sticky here rather than in each drawer: `panelHead` builds
    every one of these, and one of them being fixed and the next not is how this
    became a report in the first place. */
+/* A panel's head stays put in a panel that scrolls, and every panel that can
+   scroll has one. It used to be sticky only in a drawer, and the notes chooser
+   paid for that: it scrolls its picked card into view when it opens — added
+   because at 1280x720 the card and the button that writes it landed below the
+   fold — and scrolling the card in scrolled the title and the x **out**, 87px
+   above the top of the screen. One visibility bug traded for another, and the
+   assembled run said so on every commit for a fortnight.
+
+   Sticky is the answer rather than a smaller scroll, because the two demands are
+   not in tension once the head does not move: the card comes to the middle and
+   the way out stays where a hand expects it. In a container that does not
+   scroll, sticky does nothing at all. */
 .drawer .styles-head {
-  position: sticky; top: 0; z-index: var(--z-editor-marks);
-  background: var(--panel);
   margin: 0 -18px 10px; padding: 16px 18px 8px;
   border-block-end: 1px solid var(--line);
+}
+/* The chooser's own box has the padding, so the head has to reach past it to
+   cover what scrolls under it. */
+.notes-chooser-box .styles-head {
+  margin: -22px -26px 4px; padding: 22px 26px 8px;
 }
 .drawer .styles-head h2, .drawer .styles-head h3 { margin: 0; }
 .styles-close {

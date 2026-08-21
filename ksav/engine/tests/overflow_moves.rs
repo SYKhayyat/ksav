@@ -409,9 +409,16 @@ fn a_body_that_cannot_be_cut_is_still_spilled_by_the_window() {
         on(pages[1]),
         "the window is meant to emit the note whole into both pages"
     );
-    // The slot is 1.2cm = 34.02pt, and each page shows the next slot's worth.
-    // Approximate here would pass on a window that drifts, which over enough
-    // pages is a note with a line missing from the middle of it.
+    // **A whole number of lines, not the height of the slot.** The slot is 1.2cm
+    // = 34.02pt and the line advance is 14.38pt, so the slot is 2.34 lines — and
+    // sliding by 34.02 put the third line half on one page and half on the next,
+    // top of the glyphs here and bottom of them overleaf. It slides by 28.76 now,
+    // two whole lines, and is clipped to the same, leaving 5.25pt of white space
+    // at the foot of the region. `svgdump` shows both rectangles; `probe` cannot
+    // see either, which is why the number below is the one thing asserted here.
+    //
+    // Exact rather than approximate: a window that drifts is, over enough pages,
+    // a note with a line missing from the middle of it.
     let top = |page: usize| {
         runs.iter()
             .filter(|r| r.page == page && r.y > 600.0 && r.y < 790.0 && r.size < 11.0)
@@ -420,8 +427,194 @@ fn a_body_that_cannot_be_cut_is_still_spilled_by_the_window() {
     };
     let step = top(pages[0]) - top(pages[1]);
     assert!(
-        (step - 34.02).abs() < 0.1,
-        "page two resumes {step}pt up, and the slot is 34.02pt — the window drifts"
+        (step - 28.76).abs() < 0.1,
+        "page two resumes {step}pt up, and two lines are 28.76pt — the window drifts"
+    );
+}
+
+/// A note made of words **with a look on them** is cut, not slid.
+///
+/// `_ct_text` answers `none` for anything that is not bare words, and until this
+/// existed that sent the note to the window — which slides the whole thing by a
+/// fixed distance and **cuts through a line of type** to do it. Measured on this
+/// corpus before the fix: a line split across two pages, its top half on one and
+/// its bottom half on the next. One asterisk was all it took.
+///
+/// So the words come out of the markup instead. Two claims, and the second is
+/// the one that makes it worth doing rather than a way of dropping the styling:
+/// every word once, **and the bold word still bold on the other side of it**.
+#[test]
+fn a_note_with_a_look_on_its_words_is_still_cut() {
+    let doc = probe::layout(&corpus("giant_spill_marked"), &DocConfig::default())
+        .expect("giant_spill_marked did not compile");
+    let runs = probe::text_runs(&doc);
+    let fills = probe::fills(&doc);
+    let lines = probe::lines(&runs, 2.0);
+    let mut printed: Vec<String> = Vec::new();
+    for l in lines
+        .iter()
+        .filter(|l| l.y > 600.0 && l.runs.first().is_some_and(|r| r.size < 11.0))
+    {
+        for w in l.reading.split_whitespace() {
+            if w.starts_with("מילה") {
+                printed.push(w.to_string());
+            }
+        }
+    }
+    let expected: Vec<String> = (1..=50).map(|i| format!("מילה{i:02}")).collect();
+    assert_eq!(
+        printed, expected,
+        "a note with markup in it lost or repeated words when it was cut"
+    );
+
+    // …and the markup came through the cut. A cut that dropped the look would
+    // pass the count above and be a worse bug than the window it replaced.
+    let looks = |needle: &str| -> Option<(u16, bool)> {
+        runs.iter()
+            .find(|r| r.size < 11.0 && r.text.contains(needle))
+            .map(|r| (r.weight, r.italic))
+    };
+    assert_eq!(
+        looks("מודגש").map(|(w, _)| w >= 600),
+        Some(true),
+        "the bolded word came out of the cut unbolded: {:?}",
+        looks("מודגש")
+    );
+    // The highlight, which probe reads as a fill rather than as a property of
+    // the type. It has to be a fill and not an italic: Ksav has no italic Hebrew
+    // face and *shears* the glyphs instead, and a shear is a transform that this
+    // instrument cannot see — asked about slant it answers "upright" for a word
+    // that is visibly slanted. Same trap as the clip, one property along.
+    let green: Vec<&probe::Fill> = fills
+        .iter()
+        .filter(|f| f.colour == "#00ff00" && f.y > 600.0)
+        .collect();
+    assert!(
+        !green.is_empty(),
+        "the highlighted word came out of the cut unhighlighted"
+    );
+    // On one page. Two pages would be the window: the note emitted whole into
+    // both of them, which is the cost the cut exists to stop paying. The count
+    // itself is not asserted — Typst paints a highlight once per text run and
+    // Hebrew shapes into more than one — so the claim is *where*, not *how many*.
+    let pages: std::collections::BTreeSet<usize> = green.iter().map(|f| f.page).collect();
+    assert_eq!(
+        pages.len(),
+        1,
+        "the highlight was painted on more than one page: {pages:?}"
+    );
+
+    // The plain words beside them are plain, so the look did not leak outward.
+    assert_eq!(
+        looks("רגיל").map(|(w, i)| (w >= 600, i)),
+        Some((false, false)),
+        "the look leaked onto a word that never had one"
+    );
+}
+
+/// A deep spill loses nothing and repeats nothing, over dozens of pages.
+///
+/// # The bug this is written against
+///
+/// The slice a page shows was worked out in the renderer as
+/// `floor(offset / slot)` — the same number in arithmetic and not in floating
+/// point. `slot * k / slot` lands a hair under `k` once `k` is large enough,
+/// `floor` takes it to `k - 1`, and that page draws the slice before it again.
+///
+/// Measured on three hundred words in a one-line region: **words 97–112 printed
+/// twice and 113–129 were never printed at all**, and again every seventh page
+/// after that. Thirty-three words gone out of three hundred, with nothing on any
+/// page to show it — no gap, no warning, no short line. The two-page corpus could
+/// not see it, because at `k = 1` the arithmetic is exact.
+///
+/// So the number is counted rather than divided, and this asks the only question
+/// that would have caught it: over twenty-one slices, is every word printed
+/// exactly once, in order?
+#[test]
+fn a_note_spilling_over_many_pages_prints_every_word_once() {
+    let body = (1..=300)
+        .map(|i| format!("דד{i:03}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let doc = format!(
+        "#מסמך(אזור_הערות: 3cm)[\n\
+         #אזור(\"צר\", מיקום: \"רגל\", גובה: שורות(1), גלישה: (\"עמוד_הבא\",))\n\
+         פתיחה.\n\nטקסט#הערה(אזור: \"צר\")[{body}] סוף.\n]\n"
+    );
+    let laid = probe::layout(&doc, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("the deep-spill document did not compile: {d:?}"));
+    let runs = probe::text_runs(&laid);
+    let mut printed: Vec<String> = Vec::new();
+    for l in probe::lines(&runs, 2.0)
+        .iter()
+        .filter(|l| l.y > 600.0 && l.runs.first().is_some_and(|r| r.size < 11.0))
+    {
+        for w in l.reading.split_whitespace() {
+            if w.starts_with("דד") {
+                printed.push(w.to_string());
+            }
+        }
+    }
+    let expected: Vec<String> = (1..=300).map(|i| format!("דד{i:03}")).collect();
+    // Named separately so a failure says *which* way it went wrong: a count that
+    // is short is words lost, a count that is long is words repeated, and the
+    // bug that prompted this did both at once and netted out close to right.
+    assert_eq!(
+        printed.len(),
+        300,
+        "three hundred words were written and {} were printed",
+        printed.len()
+    );
+    let missing: Vec<&String> = expected.iter().filter(|w| !printed.contains(w)).collect();
+    assert!(missing.is_empty(), "words never printed: {missing:?}");
+    assert_eq!(printed, expected, "the words came out in the wrong order");
+}
+
+/// Three notes spilling through one region keep out of each other's way.
+///
+/// A region showing the rest of an over-tall note has no room for anything else,
+/// which is what `busy` is for — and the way that goes wrong is not a crash but
+/// two notes' words interleaved, or a note that waits for ever. Every word of
+/// all three, each on its own pages, in order.
+#[test]
+fn several_spilling_notes_in_one_region_do_not_interleave() {
+    let note = |tag: &str| {
+        (1..=40)
+            .map(|i| format!("{tag}{i:03}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let doc = format!(
+        "#מסמך(אזור_הערות: 3cm)[\n\
+         #אזור(\"צר\", מיקום: \"רגל\", גובה: 1.2cm, גלישה: (\"עמוד_הבא\",))\n\
+         פתיחה.\n\n\
+         א#הערה(אזור: \"צר\")[{}] ב#הערה(אזור: \"צר\")[{}] ג#הערה(אזור: \"צר\")[{}] סוף.\n]\n",
+        note("אא"),
+        note("בב"),
+        note("גג")
+    );
+    let laid = probe::layout(&doc, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("the three-note document did not compile: {d:?}"));
+    let runs = probe::text_runs(&laid);
+    let mut printed: Vec<String> = Vec::new();
+    for l in probe::lines(&runs, 2.0)
+        .iter()
+        .filter(|l| l.y > 600.0 && l.runs.first().is_some_and(|r| r.size < 11.0))
+    {
+        for w in l.reading.split_whitespace() {
+            if w.len() > 3 && (w.starts_with("אא") || w.starts_with("בב") || w.starts_with("גג"))
+            {
+                printed.push(w.to_string());
+            }
+        }
+    }
+    let expected: Vec<String> = ["אא", "בב", "גג"]
+        .iter()
+        .flat_map(|t| (1..=40).map(move |i| format!("{t}{i:03}")))
+        .collect();
+    assert_eq!(
+        printed, expected,
+        "three notes spilling through one region came out interleaved, short or repeated"
     );
 }
 

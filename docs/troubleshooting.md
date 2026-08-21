@@ -27,16 +27,18 @@ page somebody who clicked *Download* is actually looking at.
 
 ### The window opens and stays blank for a long time
 
-Two costs, both one-time, and neither is a hang:
+**The first compile of a document builds the prelude.** `ksav.typ` is around
+nine thousand lines of Typst and it is compiled before your first page can be. It
+is cached afterwards, so this is a one-time cost per session and not a hang.
 
-1. **The first compile of a document builds the prelude.** `ksav.typ` is around
-   nine thousand lines of Typst and it is compiled before your first page can
-   be. It is cached afterwards.
-2. **The desktop build starts an engine beside itself** and waits for it to
-   answer. On a cold start with a virus scanner watching, that is seconds.
+If it stays blank for more than about a minute, it is not this — and which
+entry to read next depends on which build you are in:
 
-If it stays blank for more than about a minute, it is not this. Check the next
-entry.
+- **The desktop app** runs the engine **in-process**. There is no server, no
+  port and nothing to connect to; if it is stuck, it is stuck inside the
+  application. Nothing in the next entry applies to it.
+- **The browser build** talks to an engine over the loopback interface, and the
+  next entry is about exactly that.
 
 ### The browser build cannot reach the engine
 
@@ -52,9 +54,11 @@ interface. In development the editor is served by Vite and proxies to
 - **You browsed to `127.0.0.1` and got nothing.** Use `localhost`. Vite binds
   `::1`, and `127.0.0.1` is a different address.
 
-The installed desktop app does **not** use 7878 — it starts its own engine on a
-port it picks and tells the editor about. If you go looking for 7878 there you
-will not find it, and nothing is wrong.
+**None of this applies to the installed desktop app.** It has no HTTP server at
+all: the frontend calls the engine in-process through Tauri, against the same
+service registry the HTTP server routes from and the wasm build exports through —
+three transports, one contract. If you go looking for a port there you will not
+find one, and nothing is wrong.
 
 ### Firefox behaves differently from Chrome
 

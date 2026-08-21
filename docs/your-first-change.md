@@ -4,9 +4,10 @@
 real change end to end so that the rules stop being abstract.
 
 The change is a **new setting on a region** — the thing you are most likely to
-want to add, and the one that touches the most machinery. It is nine files, and
-you will not have to remember which nine: **a fence tells you about each one in
-turn.** That is the whole experience this page exists to give you.
+want to add, and the one that touches the most machinery. The worked example
+came to **eight files, one of them generated** — and you will not have to
+remember which eight: **a fence tells you about each one in turn.** That is the
+whole experience this page exists to give you.
 
 Set aside an hour. Most of it is builds.
 
@@ -125,7 +126,7 @@ mutation they were written to catch.
 
 ---
 
-## 4 · Now the fences find the other seven files for you
+## 4 · Now the fences find the other files for you
 
 Run the engine group:
 

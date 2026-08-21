@@ -5725,7 +5725,27 @@
   // a number whose glyphs differ exactly when the answer does. `place` keeps it
   // out of the flow — a bare `hide[…]` reserves a line, which at the end of a
   // full page is an extra sheet of its own — and `hide` keeps it off the paper.
-  place(hide[#want])
+  //
+  // **And only when there is something to watch**, which is the second half and
+  // was missing. Emitted unconditionally it put a numeral at the end of a flow
+  // that had nothing else to carry, and `place` still needs a frame to hang off:
+  // Typst opened a sheet for it. So **every sefer with a page-foot apparatus
+  // ended on a blank sheet** — measured on a document that is one line of body
+  // and one short note, at every commit this walk has existed. A note that
+  // spills got two blanks, because the walk reserves the pages and this added
+  // one more past them.
+  //
+  // Nothing caught it because nothing asked. The suite reads *where words landed*
+  // and a blank sheet has no words on it, so every assertion about the notes was
+  // true on a document that was one page longer than the writer wrote. It is the
+  // same shape as the bug this whole file exists for, one sign flipped: that one
+  // was pages that were needed and never appeared.
+  //
+  // `want > last` is exactly the condition the loop below already runs on, so
+  // there is no case where the pass that grows `want` cannot be noticed — the
+  // numeral appears on that pass, which is itself the frame change that earns
+  // the next one.
+  if want > last { place(hide[#want]) }
   for _ in range(want - last) {
     pagebreak()
     // A page with nothing in its flow is a page Typst does not make, and the

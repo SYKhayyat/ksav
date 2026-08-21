@@ -1108,3 +1108,29 @@ Everything consulted, so nobody re-finds it.
 - `obelisk` — the absolute baseline grid — https://typst.app/universe/package/obelisk/
 - `toffee-tufte` — graceful degradation to footnotes — https://typst.app/universe/package/toffee-tufte/
 - `scholia` — **not relevant**; a STEM study-notes template despite the name — https://typst.app/universe/package/scholia/
+
+---
+
+## What the 20 August handoff wave landed alongside this plan
+
+Seventeen of the eighteen items are in (`c7a49a9`, `d493660`); #30 — fixed-region
+resize and note picking — is untouched and reserved. Four of them touch the note
+system this document is about, so they are worth knowing before anything here is
+built on top: **#36 and #13** give notes and siman numerals one vocabulary for
+restarting a count — `#הגדרות_מספור(אפס_לפי: N)` plus `#התחל_מספור()` and
+`#המשך_מספור()` — restarting both halves of every apparatus, the marker (a query)
+and the entry (a walk), across all six apparatuses including the side column,
+which numbers itself in a function of its own and was missed by the first pass;
+**#34** gives all six a shared text style with `_מפורש` recording what the writer
+actually set, so "shared, and still changeable" means something; **#35** groups
+deferred bodies into one block per apparatus, by apparatus first and reading
+order within each block, with the filing following the same two keys; and **#26**
+made the engine able to answer *what does each page say* (`pagetext.rs`), which
+is the first time anything in Ksav could read the printed page rather than the
+source. Two defects surfaced on the way that this plan should assume are now
+fixed rather than latent: `fileNewBody` filed the first body of a list at the
+preceding newline rather than at a line start, so a body could land inside a
+comment and leave its note with no prose; and `renderLeaf` seeded every new pane
+from the *stored* body rather than from the words on screen, which meant a sefer
+typed into and switched away from inside the 600 ms autosave window lost what had
+just been written.

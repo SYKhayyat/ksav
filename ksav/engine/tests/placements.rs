@@ -305,3 +305,78 @@ fn a_region_can_refuse_to_be_quietly_clamped() {
         "the default stopped clamping"
     );
 }
+
+/// The ten placements, read out of `#let _ch_places = (…)` in the prelude.
+///
+/// Read rather than listed so that a placement added tomorrow is swept the day
+/// it is added. Every one of the three that printed nothing was a placement this
+/// file did not yet name.
+fn placements() -> Vec<String> {
+    let prelude = include_str!("../typst/ksav.typ");
+    let at = prelude
+        .find("#let _ch_places = (")
+        .expect("`_ch_places` is not in ksav.typ — has the placement list moved?");
+    let rest = &prelude[at..];
+    let end = rest.find(')').expect("`_ch_places` is not closed");
+    rest[..end]
+        .match_indices('"')
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>()
+        .chunks(2)
+        .filter(|c| c.len() == 2)
+        .map(|c| rest[c[0] + 1..c[1]].to_string())
+        .collect()
+}
+
+/// Where a word landed, coarsely: the page, and which third of the sheet in each
+/// direction.
+///
+/// Coarse on purpose. The exact coordinates of an entry are the engine's to
+/// decide and change when a margin changes; what this file is about is whether a
+/// note reached the apparatus it was filed into, and a third of a sheet is
+/// enough to separate the foot from the head from either margin.
+fn quarter(runs: &[probe::TextRun], word: &str) -> (usize, u8, u8) {
+    let r = runs
+        .iter()
+        .find(|r| r.text.contains(word))
+        .unwrap_or_else(|| panic!("{word:?} is nowhere in the document"));
+    let third = |v: f64, of: f64| -> u8 { ((v / of) * 3.0).floor().clamp(0.0, 2.0) as u8 };
+    (r.page, third(r.x, 595.0), third(r.y, 842.0))
+}
+
+/// Every placement means the same thing on a note upon a note.
+///
+/// `a_note_on_a_note_reaches_its_own_placement` proves one of the ten. The
+/// placement belongs to the **channel** and the tier belongs to the **marker**,
+/// so all ten ought to be tier-blind — and "ought to" is exactly how three
+/// placements came to print nothing at all for a channel that named no region.
+///
+/// Checked by comparison rather than against coordinates this file picks: the
+/// same channel at the same placement, once with its note written in the body
+/// and once with the identical note written inside another note. Where the entry
+/// lands is the engine's business; that the two agree is the invariant, and it
+/// is the one a reader of a Mishna Berura page depends on.
+#[test]
+fn every_placement_means_the_same_on_a_note_upon_a_note() {
+    let mut wrong = Vec::new();
+    for place in placements() {
+        let flat = format!(
+            "#ערוץ(\"ז\", מיקום: \"{place}\")\nטקסט#הערה(ערוץ: \"ז\")[אלף] וסוף."
+        );
+        let nested = format!(
+            "#ערוץ(\"אב\", מיקום: \"רגל\")\n\
+             #ערוץ(\"ז\", מקור: \"אב\", מיקום: \"{place}\")\n\
+             טקסט#הערה(ערוץ: \"אב\")[בית#הערה(ערוץ: \"ז\")[אלף]] וסוף."
+        );
+        let a = quarter(&laid(&flat), "אלף");
+        let b = quarter(&laid(&nested), "אלף");
+        if a != b {
+            wrong.push(format!("{place}: alone {a:?}, upon a note {b:?}"));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "a placement moved when the note was written upon another note:\n  {}",
+        wrong.join("\n  ")
+    );
+}

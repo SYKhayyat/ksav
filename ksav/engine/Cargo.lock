@@ -1376,6 +1376,7 @@ dependencies = [
  "typst-layout",
  "typst-pdf",
  "typst-svg",
+ "typst-timing",
 ]
 
 [[package]]

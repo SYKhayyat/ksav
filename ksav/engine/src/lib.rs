@@ -1456,6 +1456,27 @@ pub(crate) fn prelude_source() -> &'static typst::syntax::Source {
     })
 }
 
+/// Where a span points, as a file and a one-based line.
+///
+/// For `examples/timing.rs`, which turns on Typst's own span recorder and needs
+/// to say *which* line of the prelude a `func call` came from. A profile that
+/// says "1.7 million function calls" and cannot say whose is a profile that
+/// answers the easy half of the question.
+pub fn span_line(raw: std::num::NonZeroU64) -> (String, u32) {
+    use typst::syntax::{Span, SpanKind};
+    let src = prelude_source();
+    let start = match Span::from_raw(raw).get() {
+        SpanKind::Number { id, num } if id == src.id() => match src.range(num, None) {
+            Some(r) => r.start,
+            None => return ("<document>".to_string(), 0),
+        },
+        SpanKind::Range { id, range } if id == src.id() => range.start,
+        _ => return ("<document>".to_string(), 0),
+    };
+    let line = src.lines().byte_to_line(start).unwrap_or(0) + 1;
+    (PRELUDE_PATH.to_string(), line as u32)
+}
+
 /// The prelude module's text: catalogue, then prelude.
 ///
 /// Shared with [`assemble_source`], which is what makes "export .typ" a

@@ -11,11 +11,29 @@
 | 2 · thing two | the destinations, and `#הערה(אזור:)` as the fifth | [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md) |
 | 6 | **the chooser** — `NOTE_CHOICES` is gone | [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md) |
 | 1 · thing one | source position, three of its four homes | [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md) |
+| 1 · thing three | the **grid** region — column widths, and `יחידה` for register | [The moves that were refused](decisions/2026-08-21-the-moves-that-were-refused.md) |
+| 1 · thing four | all ten moves — seven a writer picks, three that are the invariant | [The moves that were refused](decisions/2026-08-21-the-moves-that-were-refused.md) |
+| 1 · thing four | **spill across pages** — the cut and the window, and both stay | [Two ways to continue a note](decisions/2026-08-21-two-ways-to-continue-a-note.md) |
+| 1 · thing five | the entry head, cross-references, and a second marker | [What stands in front of the prose](decisions/2026-08-21-what-stands-in-front-of-the-prose.md) |
+| 1 · document level | the baseline grid, the binding side, the reader's direction | [A page with no bottom](decisions/2026-08-21-a-page-with-no-bottom.md) |
+| 2 · the surface | the region panel — every knob the engine reads, in both languages | [A region you could not say in English](decisions/2026-08-21-a-region-you-could-not-say-in-english.md) |
 | 14 | every placeholder name, decided and written down | [The words for the note system](decisions/2026-08-20-the-words-for-the-note-system.md) |
 
-**Still open:** thing three's *grid* kind (the box half is built), the rest of
-thing four's ten moves as settable values, the entry-head ingredients,
-cross-references, the document-level settings, and export degradation.
+**Still open — three things, and nothing else in this plan is:**
+
+- **Thing one's fourth home** — a note's prose in a *separate* file. The engine
+  already reads a body out of another file (`tests/cross_file_notes.rs`); what is
+  missing is the editor filing one there, because the deferred model is
+  one-string-in-one-string-out and `problems()` would report every marker in the
+  sefer as an orphan. A change to the model, not another branch in the filing.
+- **`ראש: ("שורה",)`** — addressing an entry by the line it sits on, which a
+  markerless apparatus needs. Refused by name, with both attempts written down in
+  `_xa_part`: Typst keeps nothing queryable behind the line numbers it prints in
+  the margin, and deriving the line from the baseline grid counts paragraph
+  spacing as lines. It needs Ksav numbering the lines itself.
+- **The Vilna wrap as a region.** `טורים` is one set of widths for the whole grid,
+  so every row has the same column count. Three columns, then two, then the full
+  measure is proved in the corpus and is not yet something `#אזור` can say.
 
 This page is the plan and the evidence; it is **not** the record of what was done
 on a day, which is [`decisions/`](decisions/README.md). Where the two disagree

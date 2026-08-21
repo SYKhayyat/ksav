@@ -49,6 +49,10 @@ include_dir = { version = "0.7", optional = true }
 # spans exist only inside a compiled document, and the alternative — guessing
 # from the scroll position — is what this replaced.
 typst-ide = "0.15"
+# Typst records its own layout spans; `examples/timing.rs` turns them on and
+# writes a Chrome trace. Already in the tree transitively — named here so an
+# example can call it.
+typst-timing = "0.15"
 
 # The HTTP server (net + threads) is native-only; wasm builds skip it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

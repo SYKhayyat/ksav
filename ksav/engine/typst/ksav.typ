@@ -4921,11 +4921,34 @@
 /// Read off the region the stream is pointed into, which is the stream's own
 /// name when it was never pointed anywhere — the same rule every other question
 /// about a stream's placement follows.
+/// Where a stream is painted — the placement itself, and not a guess.
+///
+/// # The catch-all that cost a sefer its afternoon
+///
+/// This used to answer `"למעלה"` for the band above the text and **`"רגל"` for
+/// everything else** — which is true of the two placements the page furniture
+/// draws and false of the eight it does not. A note collected at the back of the
+/// sefer, at the end of a section, in a companion volume or in a margin was
+/// therefore classified as a page-foot note.
+///
+/// That is not a harmless default. The page-foot walk measures every entry it is
+/// handed, on every page, to decide which notes each page can hold — and it was
+/// being handed notes that are never drawn at the foot at all. `_ap_on_page`
+/// then filtered them out *after* the measuring, so nothing appeared on the page
+/// and everything had been paid for.
+///
+/// Measured with Typst's own span recorder on a sefer of thirty collected notes:
+/// **`_ap_entry_height` ran 30,348 times** and `_ap_fill` 1,620, for an
+/// apparatus that the page foot never draws. It is quadratic because the walk is
+/// over pages and is re-run per page, and every one of those runs measured every
+/// collected note in the document.
+///
+/// So: the placement, as it is. The two callers ask for the end they are
+/// painting and compare, and the eight placements drawn elsewhere match neither.
 #let _sf_where(t, g) = {
   let rg = _ch_region(t, g)
   let own = _rg_rec(t, rg).at("מיקום", default: auto)
-  let p = if own == auto { _ch_rec(t, g).at("מיקום", default: "רגל") } else { own }
-  if _val(p) == "למעלה" { "למעלה" } else { "רגל" }
+  _val(if own == auto { _ch_rec(t, g).at("מיקום", default: "רגל") } else { own })
 }
 
 /// What a stream's region does when it is full.
@@ -6071,10 +6094,16 @@
     want = calc.max(want, _ap_last_page(bands, cfg, _pp_cap(cfg)))
     any = true
   }
-  let streams = _sf_all()
+  // The page-foot streams, and only those. Carry pages are what a note does when
+  // the *page furniture* runs out of room; a note collected at the back of the
+  // sefer prints in the flow, and the flow makes its own pages. Handing the whole
+  // set to this walk made it measure every collected note in the document — see
+  // `_sf_where`, which is where the same mistake was made the other way round.
+  let t_now = _ch_st.final()
+  let streams = _sf_all().filter(e => _sf_where(t_now, e.value.group) == "רגל")
   if streams.len() > 0 {
     let cfg = _nt_under(_sf_cfg.get())
-    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg, _ch_st.final(), "רגל"), policy_of: _sf_spill(_ch_st.final())))
+    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg, t_now, "רגל"), policy_of: _sf_spill(t_now)))
     any = true
   }
   if not any { return }

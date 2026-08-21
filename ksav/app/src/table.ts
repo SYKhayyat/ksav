@@ -531,6 +531,69 @@ export function canStepCell(t: TableInfo, pos: number, by: -1 | 1): boolean {
   return stepCell(t, pos, by) !== null;
 }
 
+/**
+ * Where the caret goes moving one step through the **grid** rather than through
+ * the sequence of cells.
+ *
+ * `Tab` walks the cells in the order they are written, which is the order you
+ * fill a table in. It is not the order you *read* one: a writer checking the
+ * third column of every row is moving down a column, and following the sequence
+ * to get there is as many keystrokes as there are columns.
+ *
+ * `drow`/`dcol` are grid steps, and deliberately not named up/down/left/right.
+ * Which arrow means `dcol: +1` depends on the direction the table is set in — in
+ * a Hebrew table column 0 is the *rightmost* — and that is the shell's question,
+ * because the shell is what knows the document's direction. A module that
+ * decided it here would be a second opinion about which way Hebrew runs.
+ *
+ * A merged cell is one placement however many columns it spans, so stepping off
+ * its left edge lands in the column after the span rather than inside it. That
+ * is `placementAt`'s doing, and it is the reason this walks the geometry rather
+ * than arithmetic on cell indices.
+ *
+ * Returns `null` at the edge of the table — never a wrapped-around position: a
+ * writer holding an arrow at the last row means *stop*, and jumping to the first
+ * row is the kind of helpfulness that loses somebody their place.
+ */
+export function stepGrid(
+  t: TableInfo,
+  pos: number,
+  drow: number,
+  dcol: number,
+): number | null {
+  const here = cellIndexAt(t, pos);
+  if (here === null) return null;
+  const g = geometry(t);
+  // The *geometry's* placement, not `layout(t.cells, …)`: a ragged last row is
+  // padded to a rectangle by `geometry`, and the two disagree about where the
+  // grid ends. Stepping against the unpadded one lands on a placement whose
+  // cell was never in the source, and `bodyOf` on that returns a position
+  // inside `#טבלה(`'s arguments — which is markup, not a place to type. Caught
+  // by `structure.test.mjs`'s "no operation leaves the caret outside the body
+  // it was in", which is precisely the fence for this.
+  const at = g.grid[here];
+  if (!at) return null;
+  const row = at.row + drow;
+  if (row < 0 || row >= g.rows) return null;
+  // **Past the span, not one column along it.** A cell merged across three
+  // columns is entered at its start and occupies all three, so `col + 1` is
+  // still the same cell — the caret would not move, and a key that does nothing
+  // reads as the feature being broken. Endward leaves at the end of the span;
+  // startward leaves from its start.
+  const col = dcol > 0 ? at.col + at.span : at.col + dcol;
+  if (col < 0 || col >= t.cols) return null;
+  const p = placementAt(g, row, col);
+  // A padded cell has no source of its own; landing in one would put the caret
+  // in a cell the document does not contain.
+  if (!p || p.index >= t.cells.length) return null;
+  return bodyOf(p.cell).from;
+}
+
+/** Whether a grid step from here goes anywhere. */
+export function canStepGrid(t: TableInfo, pos: number, drow: number, dcol: number): boolean {
+  return stepGrid(t, pos, drow, dcol) !== null;
+}
+
 // ---------------------------------------------------------------- the operations
 
 export function insertRow(doc: string, t: TableInfo, afterRow: number): string {

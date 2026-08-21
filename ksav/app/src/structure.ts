@@ -674,6 +674,72 @@ const TABLE_ACTIONS: StructureAction[] = [
       (ctx) => ({ text: ctx.doc, caret: tables.stepCell(ctx.table()!, ctx.pos, -1)! }),
     ),
   },
+  // Through the **grid**, which is a different question from through the cells.
+  //
+  // `Tab` walks the cells in the order they are written, which is the order a
+  // table is filled in. It is not the order one is read: a writer checking the
+  // third column of every row is moving down a column, and following the
+  // sequence to get there costs a keystroke per column. Reported as *"table row
+  // and column navigation"*, and it was the one thing the table's twenty
+  // operations could not do.
+  //
+  // **Startward and endward, not left and right.** Which arrow means "the next
+  // column" depends on the direction the sefer is set in — in a Hebrew table
+  // column 0 is the rightmost — and this registry has no business holding an
+  // opinion about that. The shell binds the arrows, because the shell is what
+  // knows the document's direction; see `structureKeymap`.
+  {
+    id: "table.cellUp",
+    why: "why.topRow",
+    structure: "table",
+    group: "cells",
+    glyph: "↑",
+    label: "cellUp",
+    moves: true,
+    ...op(
+      (ctx) => !!ctx.table() && tables.canStepGrid(ctx.table()!, ctx.pos, -1, 0),
+      (ctx) => ({ text: ctx.doc, caret: tables.stepGrid(ctx.table()!, ctx.pos, -1, 0)! }),
+    ),
+  },
+  {
+    id: "table.cellDown",
+    why: "why.bottomRow",
+    structure: "table",
+    group: "cells",
+    glyph: "↓",
+    label: "cellDown",
+    moves: true,
+    ...op(
+      (ctx) => !!ctx.table() && tables.canStepGrid(ctx.table()!, ctx.pos, 1, 0),
+      (ctx) => ({ text: ctx.doc, caret: tables.stepGrid(ctx.table()!, ctx.pos, 1, 0)! }),
+    ),
+  },
+  {
+    id: "table.cellStartward",
+    why: "why.firstCol",
+    structure: "table",
+    group: "cells",
+    glyph: "⇤",
+    label: "cellStartward",
+    moves: true,
+    ...op(
+      (ctx) => !!ctx.table() && tables.canStepGrid(ctx.table()!, ctx.pos, 0, -1),
+      (ctx) => ({ text: ctx.doc, caret: tables.stepGrid(ctx.table()!, ctx.pos, 0, -1)! }),
+    ),
+  },
+  {
+    id: "table.cellEndward",
+    why: "why.lastCol",
+    structure: "table",
+    group: "cells",
+    glyph: "⇥",
+    label: "cellEndward",
+    moves: true,
+    ...op(
+      (ctx) => !!ctx.table() && tables.canStepGrid(ctx.table()!, ctx.pos, 0, 1),
+      (ctx) => ({ text: ctx.doc, caret: tables.stepGrid(ctx.table()!, ctx.pos, 0, 1)! }),
+    ),
+  },
   {
     id: "table.mergeRight",
     why: "why.noCellRight",

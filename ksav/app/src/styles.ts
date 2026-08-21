@@ -38,6 +38,24 @@ export type StyleCommand =
   // run down a side column. Typing the command was the whole interface.
   | "tiers"
   | "sidenotes"
+  /**
+   * The look every note apparatus falls back to.
+   *
+   * Not an apparatus: `#הגדרות_טקסט_הערות` styles no element of its own, it is
+   * what the other six consult for a knob they were not given. So it has a
+   * section and a command like the rest, and no per-instance layer at all —
+   * "this one shared default" names nothing.
+   */
+  | "noteText"
+  /**
+   * The endnote section's own look.
+   *
+   * It had no section here and, until the shared layer, no ink knobs in the
+   * engine either — `#הגדרות_הערות_סיום` carried a numbering scheme and
+   * nothing else. Half of *"either should be easy to change on its own"* was
+   * therefore not a UI gap but a missing feature.
+   */
+  | "endnotes"
   | "marks";
 
 /**
@@ -117,7 +135,32 @@ const COMMAND_NAMES: Record<SectionCommand, string> = {
   // The side column. Its ratio and gutter are page geometry rather than ink —
   // the same shape as the bands' heights, and offered on the same terms.
   sidenotes: "הגדרות_הערות_צד",
+  // The layer under all six. See the note on the `noteText` kind: a sefer with
+  // footnotes at the page foot and endnotes at the back had two apparatuses
+  // shipping their own size, slant, colour and gap, so *"make the notes a
+  // little smaller"* was six edits — and the two most seforim have looked
+  // different from each other for no reason anybody chose.
+  noteText: "הגדרות_טקסט_הערות",
+  endnotes: "הגדרות_הערות_סיום",
 };
+
+/**
+ * The apparatuses that read the shared note style — the prelude's `_nt_under`
+ * call sites, as section kinds.
+ *
+ * Written down once because two surfaces need it: the panel marks each of these
+ * sections when it is overruling the shared layer, and `styles.test.mjs` holds
+ * the list against the prelude. The sweep the report asks for is exactly this
+ * set being six rather than the two that were reported.
+ */
+export const NOTE_KINDS: readonly SectionCommand[] = [
+  "notes",
+  "endnotes",
+  "bands",
+  "streams",
+  "tiers",
+  "sidenotes",
+];
 
 /**
  * The mark classes a control may style, in the order the panel offers them.
@@ -358,7 +401,16 @@ export const OVERRULE = "כפה";
  * `#מדור_א`'s override against the page-band global would compare a setting to
  * the wrong default, which is why they are two kinds and not one.
  */
-const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
+/**
+ * The kinds that have an element to point at.
+ *
+ * Two do not, and for the same reason in both cases: `noteText` is a default
+ * six apparatuses fall back to, and `endnotes` is a whole section at the back.
+ * Neither has a *this one* — see the note on each in `StyleCommand`.
+ */
+export type InstanceCommand = Exclude<StyleCommand, "noteText" | "endnotes">;
+
+const INSTANCE_COMMANDS: Record<InstanceCommand, readonly string[]> = {
   headings: ["כותרת", "כותרת1", "כותרת2", "כותרת3", "כותרת4", "כותרת5", "כותרת6"],
   lists: ["רשימה", "ממוספרת", "ממוספרת_עברית"],
   tables: ["טבלה"],
@@ -387,10 +439,10 @@ const INSTANCE_COMMANDS: Record<StyleCommand, readonly string[]> = {
 
 /** The Hebrew names, for a caller checking them against the prelude. */
 export function instanceCommands(kind: StyleCommand): readonly string[] {
-  return INSTANCE_COMMANDS[kind];
+  return INSTANCE_COMMANDS[kind as InstanceCommand] ?? [];
 }
 
-const INSTANCE_NAMES: Record<StyleCommand, Set<string>> = Object.fromEntries(
+const INSTANCE_NAMES: Record<InstanceCommand, Set<string>> = Object.fromEntries(
   Object.entries(INSTANCE_COMMANDS).map(([kind, names]) => [
     kind,
     new Set(names.flatMap((n) => bothSpellings(n))),
@@ -407,6 +459,14 @@ const INSTANCE_NAMES: Record<StyleCommand, Set<string>> = Object.fromEntries(
  * same object.
  */
 export type FieldKind =
+  /**
+   * A typographic family, by name.
+   *
+   * Offered as the fonts this installation actually has, and still typable: a
+   * sefer is often written on one machine and printed on another, and a family
+   * this machine does not have is a legitimate thing to name.
+   */
+  | "font"
   | "size-em"
   | "size-pt"
   | "length-em"
@@ -455,8 +515,12 @@ export interface Field {
  * sequence's numbering scheme describe the *arrangement*, and one member of it has
  * no answer to give.
  */
-export const INSTANCE_FIELDS: Record<StyleCommand, Readonly<Record<string, Field>>> = {
+export const INSTANCE_FIELDS: Record<
+  InstanceCommand,
+  Readonly<Record<string, Field>>
+> = {
   headings: {
+    גופן: { kind: "font", label: "knobFont" },
     גודל: { kind: "size-em", label: "knobSize" },
     משקל: { kind: "weight", label: "knobWeight" },
     צבע: { kind: "colour", label: "knobColour" },
@@ -581,8 +645,10 @@ export interface InstanceCall {
  * equals the latest — which for nested calls is the same answer arrived at twice.
  */
 export function findInstance(doc: string, kind: StyleCommand, pos: number): InstanceCall | null {
-  const names = INSTANCE_NAMES[kind];
-  if (!names.size) return null;
+  // The two kinds with no element to point at answer `null` here rather than
+  // being a lookup that returns undefined and crashes on `.size`.
+  const names = INSTANCE_NAMES[kind as InstanceCommand];
+  if (!names || !names.size) return null;
   let best: InstanceCall | null = null;
   let bestDepth = -1;
   for (const n of scan(doc).nodes) {
@@ -839,6 +905,7 @@ export function readLevels(src: string | undefined): string[] {
  * of text looks like*, and inventing one here would have been the third.
  */
 export const STYLE_FIELDS: Readonly<Record<string, Field>> = {
+  גופן: { kind: "font", label: "knobFont" },
   גודל: { kind: "size-em", label: "knobSize" },
   משקל: { kind: "weight", label: "knobWeight" },
   צבע: { kind: "colour", label: "knobColour" },
@@ -869,6 +936,23 @@ export const STYLE_FIELDS: Readonly<Record<string, Field>> = {
  * measures that these three and only these three really do block.
  */
 export const PARAGRAPH_KNOBS: readonly string[] = ["יישור", "ריווח_לפני", "ריווח_אחרי"];
+
+/**
+ * The knobs the shared note style carries — `_nt_keys` in the prelude.
+ *
+ * Exactly the ink: what the text looks like and how far apart the entries sit.
+ * Not indent, not numbering, not a label prefix, and not a height — each of
+ * those is a property of *one* apparatus's arrangement, and a shared default
+ * for "how deep is tier 3 indented" would be a default for a question the side
+ * column and the endnote section do not have.
+ */
+export const SHARED_NOTE_FIELDS: Readonly<Record<string, Field>> = {
+  גופן: { kind: "font", label: "knobFont" },
+  גודל: { kind: "size-em", label: "knobSize" },
+  סגנון: { kind: "slant", label: "knobSlant" },
+  צבע: { kind: "colour", label: "knobColour" },
+  ריווח: { kind: "length-em", label: "knobSpacing" },
+};
 
 /** One `#let NAME(תוכן) = עיצוב(תוכן, …)` in the document. */
 export interface CustomStyle {
@@ -1236,6 +1320,56 @@ export function readLength(src: string | undefined, unit: string): number | null
  * survives the sefer moving from A4 to A5. Both are what the engine reserves
  * the page foot from, so both have to round-trip exactly.
  */
+/**
+ * A text size, as the number and the unit the writer is thinking in.
+ *
+ * Two units and not one, because `em` and `pt` answer different questions. `em`
+ * is a *proportion* — 115% of whatever this text sits inside — and it is what a
+ * style should almost always say, because a style used in a heading and in a
+ * footnote has to be right in both. `pt` is a measurement, and a writer setting
+ * a title to exactly 24pt means exactly 24pt.
+ *
+ * The panel spells `em` as a percentage, which is what every word processor
+ * calls it and what `1.15em` means. The conversion is exact both ways at the one
+ * decimal place the control offers, so a value typed here and read back is the
+ * same value.
+ */
+export function readTextSize(src: string | undefined): { n: number; unit: "%" | "pt" } | null {
+  if (!src) return null;
+  const m = /^(-?[\d.]+)\s*(em|pt)$/.exec(src.trim());
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return m[2] === "em" ? { n: Math.round(n * 1000) / 10, unit: "%" } : { n, unit: "pt" };
+}
+
+/** The source text for a size the panel is showing. The inverse of `readTextSize`. */
+export function writeTextSize(n: number, unit: "%" | "pt"): string {
+  return unit === "%" ? `${Math.round((n / 100) * 1000) / 1000}em` : `${n}pt`;
+}
+
+/**
+ * The action id a custom style answers to.
+ *
+ * A style is an *action*, which is the whole of how it gets a key. `actions()`
+ * already turns every saved macro into one and everything downstream — the
+ * palette, the keys drawer, the chord printed beside a menu row, the vim and
+ * Emacs command names — follows from being in that list. A second, parallel
+ * "style bindings" table would have been a second answer to a question this
+ * application already answers once.
+ *
+ * Prefixed, and the prefix is not decoration: a style may be named anything a
+ * Typst identifier may be named, including `bold`, and an unprefixed id would
+ * have quietly taken over an action that already exists.
+ */
+export function styleActionId(name: string): string {
+  return `style.${name}`;
+}
+
+/** The style behind an action id, or `null` if it is not one. */
+export function styleOfAction(id: string): string | null {
+  return id.startsWith("style.") ? id.slice("style.".length) : null;
+}
+
 export function readRegionHeight(src: string | undefined): { n: number; unit: "cm" | "%" } | null {
   if (!src) return null;
   const m = /^(-?[\d.]+)\s*(cm|%)$/.exec(src.trim());

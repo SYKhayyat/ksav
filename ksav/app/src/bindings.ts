@@ -52,6 +52,26 @@ export const DEFAULT_KEYS: Record<string, string> = {
   sidenote: "Mod-Alt-g",
   // A note *on* a note, at whatever tier the caret is standing in.
   tieredNote: "Mod-Shift-n",
+  // Select the construct the caret is in, widening on every press. `Mod-Alt-a`
+  // for *all of it* — and beside the two that act on what it selected, which is
+  // the order the three are meant to be learnt in: look, then unwrap, then
+  // remove. Every editor with an expand-selection puts it one chord from home
+  // for the same reason.
+  // Lay the sefer out now — Word's F9, which is the key somebody who has waited
+  // for a field to update already knows.
+  compileNow: "F9",
+  entitySelect: "Mod-Alt-a",
+  // Take the command off and keep the words. The default of the two removals,
+  // because the words inside a construct are almost always the writer's own.
+  entityUnwrap: "Mod-Alt-u",
+  // And the whole thing, words included.
+  //
+  // Not a bare Delete or Backspace: a key that usually removes one character
+  // and sometimes removes a whole siman is not a key anybody can trust. And not
+  // `Mod-Alt-x` either, which was the first choice and is `isolate` — caught by
+  // the fence that refuses two actions on one combination, which is the third
+  // time that fence has caught a chord in this file.
+  entityRemove: "Mod-Alt-Backspace",
   // A fold: the writer marks off a span so it can be collapsed, and every word
   // of it still prints. Was `region`, which named the one thing it is not.
   fold: "Mod-Shift-g",
@@ -202,6 +222,20 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // It is worth the exception because `Tab` is how every table in every word
   // processor is filled in, and without it the only way into the next cell is a
   // mouse click on the source between two brackets.
+  // Through the grid. `Mod-Alt` and not `Alt` alone, which is the list's move
+  // up and down, and not `Alt-Shift`, which is the heading's — both of which
+  // can fire inside a table cell.
+  //
+  // The two column keys are bound to the arrows a *writer* means, and the shell
+  // hands each arrow to the startward or endward action according to the
+  // document's direction: in a Hebrew table the left arrow moves to the next
+  // column, and in an English one it moves to the previous. See
+  // `structureKeymap`. Binding them the other way round is not a preference,
+  // it is a table that navigates backwards for half the seforim in the product.
+  "table.cellUp": "Mod-Alt-ArrowUp",
+  "table.cellDown": "Mod-Alt-ArrowDown",
+  "table.cellStartward": "Mod-Alt-ArrowRight",
+  "table.cellEndward": "Mod-Alt-ArrowLeft",
   "table.nextCell": "Tab",
   "table.prevCell": "Shift-Tab",
   "list.moveUp": "Alt-ArrowUp",

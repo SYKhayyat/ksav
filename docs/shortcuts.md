@@ -20,6 +20,10 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+D` | Endnote | הערת סיום |
 | `Ctrl+Alt+G` | Margin note | הערת גיליון (בשוליים) |
 | `Ctrl+Shift+N` | Note on the note | הערה על ההערה |
+| `F9` | Lay the preview out now | סידור התצוגה עכשיו |
+| `Ctrl+Alt+A` | Select the command the caret is in | בחירת הפקודה שהסמן בתוכה |
+| `Ctrl+Alt+U` | Unwrap it, keeping the words | הסרת המסגרת, והשארת התוכן |
+| `Ctrl+Alt+Backspace` | Remove it and its contents | מחיקת הפקודה על תוכנה |
 | `Ctrl+Shift+G` | Fold | קיפול |
 | `Ctrl+/` | Hide line | הסתרת שורה |
 | `Ctrl+Shift+/` | Hide passage | הסתרת קטע |
@@ -65,6 +69,10 @@ rather than leaving two actions on one key.
 | `Ctrl+Enter` | New paragraph in this item | פסקה חדשה באותו פריט |
 | `Tab` | Indent (make a sub-item) | הזחה פנימה (תת־פריט) |
 | `Shift+Tab` | Outdent | הזחה החוצה |
+| `Ctrl+Alt+ArrowUp` | The cell above | לתא שמעל |
+| `Ctrl+Alt+ArrowDown` | The cell below | לתא שמתחת |
+| `Ctrl+Alt+ArrowRight` | The previous column | לטור הקודם |
+| `Ctrl+Alt+ArrowLeft` | The next column | לטור הבא |
 | `Tab` | Next cell | לתא הבא |
 | `Shift+Tab` | Previous cell | לתא הקודם |
 | `Alt+ArrowUp` | Move up | העברה למעלה |
@@ -115,7 +123,7 @@ prose again — the markup is one key away, which is the right distance for the
 people who want it. The `＃` button in the header switches permanently.
 
 **`#`** in the editor offers every command, in both languages, with what each
-one does. There are 154 of them and none is worth memorising.
+one does. There are 161 of them and none is worth memorising.
 
 **Vim and Emacs mode take the whole keyboard.** With either one on, not one
 combination in the table above is installed — that is how the mode wins, rather

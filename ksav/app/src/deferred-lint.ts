@@ -8,6 +8,20 @@
 // nothing at all, which is worse).
 
 import { docTextOf } from "./spans";
+import { settings } from "./settings";
+
+/**
+ * Whether the bodies at the foot of the file are kept in one block per
+ * apparatus.
+ *
+ * Read here, once, and handed to `deferred.ts` — which has never imported a
+ * setting and is not going to start. Every path that *files* a body asks, and
+ * that is the whole of the item's second sentence: a tidy that groups and an
+ * insertion that appends is a setting that lies about itself.
+ */
+function grouping(): boolean {
+  return settings.deferGrouped === true;
+}
 import { linter } from "@codemirror/lint";
 import type { Diagnostic } from "@codemirror/lint";
 import { EditorView, hoverTooltip } from "@codemirror/view";
@@ -64,7 +78,7 @@ export function jumpDeferred(view: EditorView): boolean {
     return true;
   }
   if (j.kind === "bodyMissing") {
-    const c = createBody(text, j.name);
+    const c = createBody(text, j.name, grouping());
     apply(view, c.text, c.caret);
     setStatus(tf("deferWroteBody", j.name), "ok");
     return true;
@@ -89,13 +103,13 @@ export function deferHere(view: EditorView, lang: "he" | "en" = "he"): boolean {
   if (note) {
     // Exiling an existing note takes its spelling from the note itself; only a
     // note written from nothing has to be told the document's language.
-    const c = deferInlineNote(text, pos);
+    const c = deferInlineNote(text, pos, grouping());
     if (!c) return false;
     apply(view, c.text, c.caret);
     setStatus(t("deferMoved"), "ok");
     return true;
   }
-  const c = insertDeferred(text, pos, null, lang);
+  const c = insertDeferred(text, pos, null, lang, grouping());
   apply(view, c.text, c.caret);
   setStatus(t("deferStarted"), "ok");
   return true;
@@ -116,7 +130,7 @@ export function recallHere(view: EditorView): boolean {
 
 /** Send every inline note in the document to the end. */
 export function deferAll(view: EditorView): boolean {
-  const { text, moved } = deferAllInlineNotes(docTextOf(view.state.doc));
+  const { text, moved } = deferAllInlineNotes(docTextOf(view.state.doc), grouping());
   if (!moved) {
     setStatus(t("deferNothingToMove"), "");
     return false;
@@ -155,7 +169,7 @@ export function inlineAll(view: EditorView): boolean {
  */
 export function sortDeferredBodies(view: EditorView): boolean {
   const before = docTextOf(view.state.doc);
-  const { text, moved } = sortBodies(before);
+  const { text, moved } = sortBodies(before, settings.deferGrouped === true);
   if (text === before) {
     setStatus(t("deferAlreadySorted"), "");
     return false;
@@ -202,7 +216,7 @@ const deferredLinter = linter(
               {
                 name: t("deferWriteBodyAction"),
                 apply: (v: EditorView) => {
-                  const c = createBody(docTextOf(v.state.doc), p.name);
+                  const c = createBody(docTextOf(v.state.doc), p.name, grouping());
                   apply(v, c.text, c.caret);
                 },
               },

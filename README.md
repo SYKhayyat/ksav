@@ -20,7 +20,7 @@ nothing.
 |---|---|
 | **use it** | [`docs/start-here.md`](docs/start-here.md) |
 | **switch from Word** | [`docs/from-word.md`](docs/from-word.md) |
-| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 89 bindings in both languages, generated from the source |
+| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 97 bindings in both languages, generated from the source |
 | **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — clone to landed change |
 | **understand the architecture** | [`ksav/README.md`](ksav/README.md) |
 | **work on the seam with Girsa** | [`docs/girsa.md`](docs/girsa.md) |

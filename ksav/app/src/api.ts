@@ -185,6 +185,22 @@ export interface RequestAssets {
    * on pays for the parse once. See `engine/src/notemarks.rs`.
    */
   want_markers?: boolean;
+  /**
+   * Ask what each page actually *says*.
+   *
+   * Off by default, and the fifth flag with this shape. One surface asks for
+   * it: the find drawer, while it is searching the preview. It shares the walk
+   * over the laid-out frames and the re-parse of the source with the two flags
+   * above.
+   *
+   * The reason it is an engine answer at all rather than a client one is the
+   * whole of the feature it serves: the printed page has words nobody typed — a
+   * note's marker, a running head, an auto-numbered siman, an included chapter
+   * — and searching the source string under the label "search the preview"
+   * would be a different answer wearing the name of the one that was asked for.
+   * See `engine/src/pagetext.rs`.
+   */
+  want_text?: boolean;
 }
 
 export const NO_ASSETS: RequestAssets = { assets: [], fonts: [] };
@@ -230,6 +246,23 @@ export interface LineRun {
   file: string | null;
   from: number;
   to: number;
+}
+
+/**
+ * One printed line of one page: what it says, and where it came from.
+ *
+ * `y` is the baseline in points from the top of the page, which is what a hit
+ * is revealed at. `file` and `line` are the source it can be traced back to,
+ * and both are absent when it cannot be — a running head, a note's marker and
+ * an auto-numbered siman are ink the writer never typed, and naming a nearby
+ * line for them would put the caret in the wrong sentence with total
+ * confidence.
+ */
+export interface PrintedLine {
+  y: number;
+  text: string;
+  file?: string | null;
+  line?: number | null;
 }
 
 /**
@@ -280,6 +313,15 @@ export interface CompileResult {
    * already scanned. See `engine/src/notemarks.rs`.
    */
   note_markers?: NoteMarker[];
+  /**
+   * What each page says, in reading order, one entry per page.
+   *
+   * Empty unless `want_text` asked. Each line carries the source line it can be
+   * traced back to, or nothing at all where the ink was not the writer's own
+   * text — which is why a find drawer can offer to *edit* some printed hits and
+   * only reveal the others. See `engine/src/pagetext.rs`.
+   */
+  pages_text?: PrintedLine[][];
   /** Hashes the client omitted bytes for but the engine did not hold; the client
    *  re-sends them. Absent from older engines, which is treated as "none". */
   missing_assets?: string[];

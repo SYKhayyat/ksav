@@ -1317,10 +1317,27 @@ async function main() {
   );
   const off = await said();
   await pressInEditor("Control+Alt+o");
+  // **Either answer proves it, and only one of them used to exist.**
+  //
+  // What this check is for is that Ksav's keymap is installed with the mode
+  // off — the control for the two above it, which assert that the same key
+  // reaches nothing while Emacs holds the keyboard. It used to look for a
+  // status message, because `openSwitcher` refuses below two open documents and
+  // that refusal *is* the message; with one sefer open there was no other
+  // outcome to have.
+  //
+  // Opening a document no longer takes the arrangement you were in, so by this
+  // point in the run two are open and the key does the thing it is named after:
+  // the switcher opens, and nothing is written to the status line. The proxy
+  // went stale, not the mechanism — measured, on a red run, as
+  // `{"open":true,"rows":2}`. So ask for the key's *effect*, whichever of its
+  // two effects this run has earned.
+  const opened = await showing("#switcher", false);
   check(
     "…as does the switcher's key",
-    (await said()) !== off,
-    "the status line did not move with no mode on, so the check above proves nothing",
+    opened || (await said()) !== off,
+    "neither the switcher opened nor the status line moved with no mode on, " +
+      "so Ksav's keymap is not installed and the two checks above prove nothing",
   );
   await press("Escape");
 

@@ -20,6 +20,7 @@
 // and `insertionAt` beside it.
 
 import { scan } from "./spans";
+import { headings } from "./headings";
 
 /**
  * Letter values, largest first, which is the order a numeral is built in.
@@ -225,13 +226,96 @@ export interface Numbered {
  * style writes `א`, and a resequence that changed one into the other would be
  * making a typographic decision nobody asked it to make.
  */
+/**
+ * Where a count starts again, and by whose say-so.
+ *
+ * **One mechanism, two counts.** The prelude restarts note numbering from the
+ * same two commands and the same document setting — see `_nr_label` in
+ * `ksav.typ` — and a writer who has learnt *"start the count again here"* has
+ * learnt it once. What differs is only what is being counted: there, notes;
+ * here, the numeral a siman carries in the source, which is written by hand
+ * because that is what a siman *is*.
+ */
+export interface Restart {
+  /** Byte offset the restart takes effect from. */
+  at: number;
+  /** `continue` undoes the restart above it rather than clearing the count. */
+  kind: "restart" | "continue";
+}
+
+/** Every spelling of the two hand-placed commands. */
+const RESTART_NAMES = ["התחל_מספור", "restart_numbering"];
+const CONTINUE_NAMES = ["המשך_מספור", "continue_numbering"];
+
+/**
+ * The heading level a count starts again at, or `null` for never.
+ *
+ * Read out of the document rather than out of the settings, because it is the
+ * document's property: a sefer numbered per chapter is numbered per chapter on
+ * whoever's machine it is opened. `#הגדרות_מספור(אפס_לפי: 2)` is the same
+ * statement the prelude reads for the notes.
+ */
+export function restartLevel(doc: string): number | null {
+  for (const n of scan(doc).nodes) {
+    if (n.name !== "הגדרות_מספור" && n.name !== "numbering_config") continue;
+    if (!n.args) continue;
+    const m = /(?:אפס_לפי|restart_by)\s*:\s*(\d+|none)/u.exec(doc.slice(n.args.from, n.args.to));
+    if (!m) continue;
+    if (m[1] === "none") return null;
+    return Number(m[1]);
+  }
+  return null;
+}
+
+/**
+ * Every point in `doc` where a count starts again, in document order.
+ *
+ * A heading counts only when it is **not itself a member of a series**: `#סימן`
+ * is a real heading at level 1, so a rule that restarted at level 1 would have
+ * every siman restart the siman count and the numbers would read א׳ א׳ א׳ —
+ * which is precisely the bug `continueSeries` was written to end.
+ */
+export function restarts(doc: string, series: Series): Restart[] {
+  const level = restartLevel(doc);
+  const out: Restart[] = [];
+  for (const n of scan(doc).nodes) {
+    if (RESTART_NAMES.includes(n.name)) out.push({ at: n.from, kind: "restart" });
+    else if (CONTINUE_NAMES.includes(n.name)) out.push({ at: n.from, kind: "continue" });
+  }
+  if (level !== null) {
+    for (const h of headings(doc)) {
+      if (series.names.includes(h.name)) continue;
+      if (h.level <= level) out.push({ at: h.from, kind: "restart" });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
 export function sequence(doc: string): Numbered[] {
   const nodes = [...scan(doc).nodes].sort((a, b) => a.from - b.from);
   const out: Numbered[] = [];
   for (const series of SERIES) {
     let count = 0;
     let suffix: string | null = null;
+    // The restarts this series answers to, and how far through them we are.
+    // `before` is the count as it stood in front of the most recent restart,
+    // which is what `#המשך_מספור` puts back — *carrying on*, rather than
+    // starting again from the beginning of the sefer, which is what clearing
+    // the origin would mean and is not what the word says.
+    const marks = restarts(doc, series);
+    let mark = 0;
+    let before = 0;
     for (const n of nodes) {
+      while (mark < marks.length && marks[mark].at <= n.from) {
+        if (marks[mark].kind === "restart") {
+          before = count;
+          count = 0;
+          suffix = null;
+        } else {
+          count = before;
+        }
+        mark++;
+      }
       if (series.resetBy.includes(n.name)) {
         count = 0;
         suffix = null;

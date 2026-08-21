@@ -144,6 +144,32 @@ specified for them turned out not to exist, are
   network-first precisely so nobody is pinned to the version they first
   opened; the orphaned entry is never requested again.
 
+### The 20 August wave, and what is left of it
+
+Eighteen items came in as
+`C:\Users\Administrator\Documents\Ksav-handoff-2026-08-20.md`, which is outside
+the repository and is the authority for their wording. Ten are done and are in
+[`decisions/`](decisions/README.md); the rest are here with what is actually
+known about each, so nothing has to be re-derived.
+
+**Done since this section was written:** #35, #36 and #13 (one vocabulary for
+restarting a count, and one block per apparatus at the foot of the file, in
+[`decisions/2026-08-20-starting-the-count-again.md`](decisions/2026-08-20-starting-the-count-again.md)),
+#5 (the scroll sync — direction-aware
+anchor, dead zone, estimate-then-settle, all in
+[`decisions/2026-08-20-the-thing-in-hand.md`](decisions/2026-08-20-the-thing-in-hand.md))
+and #26 (the search scopes, in
+[`decisions/2026-08-20-two-seforim-one-search.md`](decisions/2026-08-20-two-seforim-one-search.md)
+— the engine gained `pagetext.rs`, which answers what each page *says*, because
+nothing in the application could).
+
+- [ ] **#30 · Fixed-region resize, and note picking.** **Reserved for a
+      conversation with the user.** Not designed, not started, deliberately. The
+      first half needs establishing whether the size is settable at all — the
+      page-foot reserve is a percent-of-sheet claim written in Rust *and* in
+      Typst and the two must agree — and the user has not yet said what they
+      want from note picking.
+
 ### The live tracker
 
 - [ ] **Keep writing in it.** `ksav/README.md`'s last box, and it calls this the

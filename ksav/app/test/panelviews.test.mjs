@@ -373,8 +373,20 @@ export async function run() {
 
     {
       const kinds = STYLE_SECTIONS.map((s) => s.kind);
-      check("the ten sections, in order", kinds, [
-        "headings", "lists", "tables", "channels", "notes", "bands", "streams",
+      check("the sections, in order", kinds, [
+        // The writer's own styles first: each one edited from beside its own
+        // name, with a chord of its own. There was no such list anywhere, which
+        // is why "edit styles" could only ever mean *all of them at once*.
+        "mine",
+        "headings", "lists", "tables", "channels",
+        // The look every note apparatus falls back to, above the six that fall
+        // back to it — a writer setting "the notes" should meet the control
+        // that means all of them before the six that mean one each.
+        "noteText",
+        "notes", "bands", "streams",
+        // The back matter, which had no section at all and, until it had one,
+        // no ink knobs in the engine either.
+        "endnotes",
         "tiers", "sidenotes", "marks",
       ]);
       // A scope selector is what lets a writer style *this* heading differently
@@ -382,7 +394,13 @@ export async function run() {
       // cannot says so by having none: a channel is a document-wide
       // arrangement, so "this one" names nothing.
       const unscoped = STYLE_SECTIONS.filter((s) => !s.scope).map((s) => s.kind);
-      check("only channels have no scope selector", unscoped, ["channels"]);
+      // Four, and each for the same reason: there is no single element for
+      // "this one" to name. A channel is a document-wide arrangement, a custom
+      // style is a `#let` at the top of the file, the shared note style is what
+      // six apparatuses fall back to, and the endnote section is a section.
+      check("the four kinds with no this-one have no scope selector", unscoped, [
+        "mine", "channels", "noteText", "endnotes",
+      ]);
       for (const s of STYLE_SECTIONS) {
         ok(`${s.kind}'s heading is a key`, s.heading.startsWith("style"), s.heading);
         if (s.note) ok(`${s.kind}'s note is a key`, s.note.endsWith("Note"), s.note);
@@ -401,11 +419,16 @@ export async function run() {
     {
       // The frame each section is built in, so a section is addressable by what
       // it is rather than by a localised heading.
-      const built = [styleSection(STYLE_SECTIONS[0], ["SCOPE"], ["ROW"])];
+      // By name and not by index: the first draft indexed into the table, and
+      // the two sections added for the style-editing rebuild moved every index
+      // in this block by one. A fence that has to be renumbered when the thing
+      // it guards grows is a fence that gets renumbered wrongly.
+      const byKind = (k) => STYLE_SECTIONS.find((s) => s.kind === k);
+      const built = [styleSection(byKind("headings"), ["SCOPE"], ["ROW"])];
       check("the section is named", withAttr(built, "data-style")[0]["data-style"], "headings");
       const said = words(built);
       check("its heading, then its scope, then its rows", said, [t("styleHeadings"), "SCOPE", "ROW"]);
-      const withNote = [styleSection(STYLE_SECTIONS[4], [], [])];
+      const withNote = [styleSection(byKind("notes"), [], [])];
       ok("a section with a note shows it", words(withNote).includes(t("styleNotesNote")));
     }
 

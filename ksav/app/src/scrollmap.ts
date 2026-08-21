@@ -230,3 +230,52 @@ export function lineAtFraction(prefix: number[], f: number): number {
   }
   return lo;
 }
+
+// ---------------------------------------------------------------- the anchor
+//
+// Where two linked panes line up. Here rather than in the shell because it is a
+// rule and not a rendering — the shell had it as one line of nested ternaries
+// inside `matchFraction`, which is exactly the shape that gets a fourth answer
+// added to it wrongly.
+
+/** The four answers a writer can give. */
+export type SyncMatch = "direction" | "top" | "middle" | "bottom";
+
+/**
+ * The point down the viewport the two panes line up on, `0` top and `1` bottom.
+ *
+ * `direction` is the report: *"scrolling down should match top-to-top,
+ * scrolling up should match bottom-to-bottom."* Which is what reading wants and
+ * what no fixed anchor can give — going down, the line the reader cares about
+ * is the one arriving at the **top**; coming back, it is the one arriving at
+ * the **bottom**. A fixed middle is wrong in both directions by half a
+ * viewport, and a fixed top is right going down and useless coming back.
+ *
+ * `dir` is `+1` down, `-1` up, and `0` for the things that have no direction —
+ * a caret follow, a click on the page. Those take the middle, because a reader
+ * who asked to be shown one place wants it where they can see it rather than at
+ * an edge.
+ */
+export function anchorFor(match: SyncMatch | undefined, dir: -1 | 0 | 1): number {
+  switch (match ?? "direction") {
+    case "top":
+      return 0;
+    case "bottom":
+      return 1;
+    case "middle":
+      return 0.5;
+    default:
+      return dir > 0 ? 0 : dir < 0 ? 1 : 0.5;
+  }
+}
+
+/**
+ * Does a movement of `moved` pixels deserve a follow?
+ *
+ * A trackpad emits an event for a two-pixel drift, and following one is a
+ * preview that shivers while a hand rests on the pad. `dead` of zero is the old
+ * behaviour, kept for anybody who wants it.
+ */
+export function worthFollowing(moved: number, dead: number | undefined): boolean {
+  return Math.abs(moved) >= Math.max(0, dead ?? 0);
+}

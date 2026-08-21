@@ -35,7 +35,7 @@ import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
 import { numberingMarks, renumberAll } from "./numbering-lint";
-import { inSeries, resequenceAt } from "./numbering";
+import { inSeries, outOfSequence, resequenceAt } from "./numbering";
 import {
   deferredNotes,
   jumpDeferred,
@@ -94,7 +94,8 @@ import {
 import { aliasesInForce, keyHint, keybindingsFrom, whoHolds } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
-import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction } from "./scrollmap";
+import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction, anchorFor, worthFollowing } from "./scrollmap";
+import * as entity from "./entity";
 import * as styles from "./styles";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
@@ -174,12 +175,14 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 import * as settings_ from "./settings";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
+import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
 import * as commands from "./commands";
+import * as find from "./find";
 import {
   applyPreview,
   clearPages,
   currentPages,
+  currentPageText,
   drawCurrentInto,
   drawRemembered,
   forgetPages,
@@ -408,7 +411,7 @@ const editorTheme = (dark: boolean) =>
  */
 let switchGeneration = 0;
 
-async function openDoc(id: string) {
+async function openDoc(id: string, opts: { handedOver?: boolean } = {}) {
   const mine = ++switchGeneration;
   const stale = () => mine !== switchGeneration;
   const next = await docs.getDoc(id);
@@ -427,11 +430,21 @@ async function openDoc(id: string) {
   const leaving = runtime.currentDoc?.id ?? null;
   // Where each pane is standing, before the document is taken out from under
   // them. The open set has one caret per document; a window has one per pane.
-  rememberPlaces(leaving);
-  // Keep this document's pages before anything points somewhere else, so coming
-  // back to it shows it rather than a blank pane and a wait. See `showPagesFor`
-  // for the other half, and `preview.ts` for why the pages are kept at all.
-  if (leaving) rememberPages(leaving);
+  // **Unless the caller has already done it**, which is not an optimisation:
+  // this function yields twice before it reaches here, and a caller that has
+  // rebuilt the panes cannot wait that long — see `handOverPages`. By the time
+  // this line runs for such a caller, the pages on screen are the *arriving*
+  // document's, and filing them under the departing one would put one sefer's
+  // layout under another sefer's name, which is the defect this whole mechanism
+  // exists to close.
+  if (!opts.handedOver) {
+    rememberPlaces(leaving);
+    // Keep this document's pages before anything points somewhere else, so
+    // coming back to it shows it rather than a blank pane and a wait. See
+    // `showPagesFor` for the other half, and `preview.ts` for why the pages are
+    // kept at all.
+    if (leaving) rememberPages(leaving);
+  }
   runtime.setCurrentDoc(next);
   docs.setCurrentId(next.id);
   // The incoming document is a different text; its first spell check must be a
@@ -538,6 +551,31 @@ function showPagesFor(id: string) {
   // screen — and an empty pane if we do not, which is a document being opened
   // for the first time this session.
   if (!drawRemembered(id)) clearPages();
+}
+
+/**
+ * Give the preview to the document arriving, synchronously, right now.
+ *
+ * **Why this cannot wait for `openDoc`.** Three routes rebuild the panes before
+ * the document changes — selecting a tab, closing one, and opening a sefer into
+ * a new tab. `openDoc` is the one that swaps the document, and it `await`s
+ * twice before it touches the preview, so between the render and those awaits
+ * the pane shows **the sefer you just left, under the tab you just arrived in**.
+ * Long enough for the departing document's own compile to land in it and report
+ * its page count, which is how the acceptance run found this: the pane answered
+ * "1 page" for a sefer that had four.
+ *
+ * A pane stating one document while the editor holds another is the exact
+ * family this application is audited for, so the hand-over is done here, in one
+ * turn, and `openDoc` is told not to do it again — doing it twice would file
+ * the *arriving* document's pages under the departing one's name.
+ */
+function handOverPages(leaving: string | null, arriving: string) {
+  if (leaving && leaving !== arriving) {
+    rememberPlaces(leaving);
+    rememberPages(leaving);
+  }
+  showPagesFor(arriving);
 }
 
 /**
@@ -918,6 +956,16 @@ function insertCommand(he: string): boolean {
  * render time and is the only surface that did. Three views of one list, two of
  * them looking at a snapshot.
  */
+/**
+ * How deep a list-depth chooser goes.
+ *
+ * Three, and unlike the heading levels this one is a genuine judgement rather
+ * than a leak: a list nested past three is rare and a chooser offering nine
+ * depths of it would be nine rows nobody reads. The commands themselves have no
+ * such limit — `foldAll` still takes everything.
+ */
+const LIST_DEPTHS = [1, 2, 3] as const;
+
 const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Every action that inserts a registry command, generated from the one table
   // that says which. Hand-listing them here is what let the bullet list come out
@@ -954,6 +1002,16 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // The verb the product had no word for: take what is written and make it a
   // list, reading the numbers the writer typed by hand and throwing them away.
   { id: "makeList", run: () => makeListHere() },
+  // Selecting a whole construct, and taking one off. See `entity.ts` for why
+  // all three are generic over `Node` rather than a list of command names.
+  //
+  // `entitySelect` widens on every press, which is why it is the one bound
+  // nearest to hand: *see the extent before you act on it* is the whole answer
+  // to "hand-deleting a command name, its parentheses, its brackets and its
+  // arguments", and the two that follow are then unmissable.
+  { id: "entitySelect", run: () => entityAct("select") },
+  { id: "entityUnwrap", run: () => entityAct("unwrap") },
+  { id: "entityRemove", run: () => entityAct("remove") },
   // One question — does this reach the page? — asked three ways. See `hiding.ts`.
   { id: "fold", run: () => (insertFold(), true) },
   { id: "hideBlock", run: () => (hideBlockHere(), true) },
@@ -969,11 +1027,20 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // that also runs it. See `actions.BREAKS`.
   { id: "undo", run: (v) => undo(v) },
   { id: "redo", run: (v) => redo(v) },
+  // Lay the sefer out now. Bound and in the palette under every setting, not
+  // only `manual`: "compile now" in the middle of a relaxed wait is a thing
+  // writers press, and a control that exists only under one setting is one
+  // nobody learns.
+  { id: "compileNow", run: () => (compileNow(), true) },
   { id: "palette", run: () => (openPalette(), true) },
   { id: "commandsDrawer", run: () => (openCommands(), true) },
   { id: "gitPanel", run: () => (openGit(), true) },
   { id: "keysDrawer", run: () => (openKeys(), true) },
-  { id: "find", run: (v) => openSearchPanel(v) },
+  // Which sefer a search reads is a setting, so which surface opens is too.
+  // `source` is the default and is what this has always done — the editor's own
+  // find panel over the buffer. The other two open the find drawer, which is
+  // the only surface that can show a hit on a page.
+  { id: "find", run: (v) => startFind(v) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
   // Lock this pane to the section the caret is in, and let it out again. On the
@@ -985,9 +1052,23 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Fold *to a depth*: chapters only, or chapters and simanim. `foldAll` takes
   // every collapsible thing in the document down at once, which is a different
   // question and the only one this editor could answer.
-  ...[1, 2, 3].map((level) => ({
+  // Every level the editor can write, not the three that had chords. Three was
+  // the count of *keys somebody had bound*, and it had become the count of
+  // depths the product could fold to — the same six-versus-nine leak the
+  // heading styling had. An action exists for each, so the palette and the menu
+  // reach all of them and the keyboard keeps the three that are worth a chord.
+  ...Array.from({ length: heads.MAX_LEVEL }, (_, i) => i + 1).map((level) => ({
     id: `foldLevel${level}`,
     run: (v: EditorView) => (foldToLevel(v, level), true),
+  })),
+  // The other nesting in this product, and the half of the report that had
+  // nothing at all: *"the same for the siman/seif hierarchy and for lists, each
+  // of which has its own nesting"*. Simanim are headings — `#סימן` is
+  // `heading(level: 1, …)`, which is why the levels above already reach them —
+  // but a list's depth is its own, and no surface could ask about it.
+  ...LIST_DEPTHS.map((depth) => ({
+    id: `foldListDepth${depth}`,
+    run: (v: EditorView) => (foldListsToDepth(v, depth), true),
   })),
   { id: "save", run: () => (saveFile(), true) },
   { id: "open", run: () => (openFile(), true) },
@@ -1181,7 +1262,35 @@ function actions(): { id: string; run: (v: EditorView) => boolean }[] {
       id: macros.actionIdOf(m),
       run: () => (playMacro(m), true),
     })),
+    // **Every style this document defines, as an action.** Which is the whole
+    // of *"each style should be assignable a key combination, and that binding
+    // must appear wherever the style appears and in the shortcut list"*: being
+    // in this list is what makes something bindable, and everything that shows
+    // a chord — the keys drawer, the palette, the style dropdown, the vim and
+    // Emacs command names — reads from here. A styles-only binding table would
+    // have been a second answer to a question already answered once, and it
+    // would have been the one that went stale.
+    //
+    // Per *document*, because a style is: the keymap is reconfigured whenever
+    // the set of names changes, which is the same moment the dropdown is
+    // refilled.
+    ...styleActions(),
   ];
+}
+
+/**
+ * The open document's own styles, as bindable actions.
+ *
+ * Guarded on the view existing: `actions()` is reachable before the editor is
+ * built (the palette and the keymap are both assembled early), and reading the
+ * document then is a crash on the first keystroke of the session.
+ */
+function styleActions(): { id: string; run: (v: EditorView) => boolean }[] {
+  if (!runtime.view) return [];
+  return styles.findCustomStyles(docTextNow()).map((st) => ({
+    id: styles.styleActionId(st.name),
+    run: () => applyCustomStyle(st.name),
+  }));
 }
 /**
  * The bindings, and the aliases, now live in `bindings.ts` (B31, B36).
@@ -2129,6 +2238,13 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
           scheduleCompile();
           updateCounts();
           refreshPanes();
+          // Delete and move, which are the two the insertion path cannot see:
+          // a writer deletes a siman by selecting it and pressing a key, and
+          // drags one by cut and paste, and this application is asked no
+          // question at either moment. So the *document* is watched instead of
+          // the gesture — which is also the honest shape for a sefer opened
+          // from a file, or edited by somebody else, or merged.
+          scheduleRenumber();
         }
       }),
     ],
@@ -2707,6 +2823,19 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     });
   } else if (pane.role === "preview") {
     host.classList.add("preview-host");
+    // **What makes `manual` safe to offer.** A preview that stopped updating
+    // and did not say so is not a setting — it is a way to read an old page and
+    // believe it is current, which is a worse failure than a slow preview
+    // because nothing on the screen contradicts it. So the banner is part of
+    // the mode rather than an addition to it, it names the way out, and it sits
+    // on the page it is about rather than in the status bar with everything
+    // else.
+    host.append(
+      el("button", { class: "preview-stale", onClick: () => compileNow(), hidden: "hidden" }, [
+        el("b", {}, ["⟳ " + t("previewStale")]),
+        el("span", {}, [t("previewStaleHow")]),
+      ]),
+    );
     wirePreviewClicks(host);
   } else {
     // The outline and the notes list, as panes rather than as drawers over the
@@ -3286,7 +3415,13 @@ let scrollFloor: { pane: string; until: number } | null = null;
 const scrollWritten = new Map<string, number>();
 
 /** The follow booked for the next frame, if one is booked. */
-let scrollBooked: { from: panes.Leaf; to: panes.Leaf; top: number } | null = null;
+let scrollBooked: {
+  from: panes.Leaf;
+  to: panes.Leaf;
+  top: number;
+  /** Which way the pane that is leading moved: `+1` down, `-1` up. */
+  dir: -1 | 0 | 1;
+} | null = null;
 let scrollFrame = 0;
 
 function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
@@ -3312,9 +3447,21 @@ function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
       // Either way it is not a person, and treating it as one is the loop.
       if (scrollFloor && scrollFloor.pane !== pane.id && now < scrollFloor.until) return;
 
+      // **The dead zone.** A trackpad emits an event for a two-pixel drift and
+      // following one is a preview that shivers while a hand rests on the pad.
+      // Read before the floor is claimed, so a shiver does not make this pane
+      // the leader either — otherwise the drift would lock the *other* pane out
+      // for the length of the floor while doing nothing itself.
+      const was = pane.scrollTop ?? top;
+      const moved = top - was;
+      if (!worthFollowing(moved, settings.syncDeadZone)) return;
+
       scrollWritten.delete(pane.id);
       scrollFloor = { pane: pane.id, until: now + SCROLL_FLOOR_MS };
       pane.scrollTop = top;
+      // Down or up, which is what the anchor is chosen from. Zero only if the
+      // pane genuinely has not moved, which the dead zone has already excluded.
+      const dir: -1 | 0 | 1 = moved > 0 ? 1 : moved < 0 ? -1 : 0;
       // Both halves, and they are not the same claim. `linked` says these two
       // panes are a pair — an arrangement, remembered with the tab. The setting
       // says pairs follow each other at all, and until now it said nothing:
@@ -3324,7 +3471,7 @@ function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
       if (!pane.linked) return;
       const other = panes.sibling(paneTree, pane.id);
       if (!other || !other.linked) return;
-      bookLinkedScroll(pane, other, top);
+      bookLinkedScroll(pane, other, top, dir);
     },
     true,
   );
@@ -3337,8 +3484,8 @@ function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
  * is somewhere newer, and following the older position first would be work done
  * to be immediately undone.
  */
-function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number) {
-  scrollBooked = { from, to, top };
+function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, dir: -1 | 0 | 1 = 0) {
+  scrollBooked = { from, to, top, dir };
   if (scrollFrame) return;
   scrollFrame = requestAnimationFrame(() => {
     scrollFrame = 0;
@@ -3352,11 +3499,89 @@ function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number) {
     if (!live || !live.linked || !panes.find(paneTree, job.from.id)) return;
     const target = live.role === "source" ? paneViews.get(live.id)?.scrollDOM : paneHostOf(live.id);
     if (!target) return;
-    syncLinkedScroll(job.from, live, job.top, target);
+    syncLinkedScroll(job.from, live, job.top, target, job.dir ?? 0);
+    // Estimate now, exact when the hand stops. See `settleExactly`.
+    settleExactly(job.from, live, job.dir ?? 0);
     // What we wrote, as the browser actually clamped it, so the echo is
     // recognised. See `scrollWritten`.
     scrollWritten.set(live.id, target.scrollTop);
   });
+}
+
+/**
+ * Once the hand stops, put the preview where the sefer actually printed.
+ *
+ * **Estimate while moving, exact when it settles.** The follow above reads
+ * `scrollmap.ts`'s printed map, which is a line-height model: it costs nothing,
+ * it is continuous, and it is an estimate — a page break, a note band, a figure
+ * or a fold all move the real answer away from it, and on a long sefer the
+ * error accumulates down the page. The exact answer is the compiler's, and
+ * asking it per scroll event would be a layout per frame.
+ *
+ * So the estimate lands immediately and this settles afterwards, at
+ * `syncSettleMs` after the last movement — one layout per gesture rather than
+ * one per frame.
+ *
+ * Only source → preview: the map's error is the *printed* position of a source
+ * line, and the other direction has no compiler question to ask. And only while
+ * nothing else has taken the floor, so a settle that arrives after the writer
+ * has started scrolling something else is dropped rather than yanking the pane
+ * out from under them.
+ */
+let settleTimer = 0;
+function settleExactly(from: panes.Leaf, to: panes.Leaf, dir: -1 | 0 | 1) {
+  clearTimeout(settleTimer);
+  if (settings.syncExact === false) return;
+  if (from.role !== "source" || to.role !== "preview") return;
+  const delay = Math.max(0, settings.syncSettleMs ?? 150);
+  settleTimer = window.setTimeout(() => {
+    void settleNow(from, to, dir);
+  }, delay);
+}
+
+async function settleNow(from: panes.Leaf, to: panes.Leaf, dir: -1 | 0 | 1) {
+  const view = paneViews.get(from.id);
+  const host = paneHostOf(to.id);
+  // The arrangement can change between the gesture and the settle.
+  if (!view || !host || !runtime.backend) return;
+  if (!panes.find(paneTree, from.id) || !panes.find(paneTree, to.id)) return;
+  const pages = currentPages();
+  if (!pages.length) return;
+  const mp = matchFraction(dir);
+  // The line at the pane's own match point — the same anchor the estimate used,
+  // so the settle is a correction to it rather than a different question.
+  const anchorY = view.scrollDOM.scrollTop + mp * view.scrollDOM.clientHeight;
+  const block = view.lineBlockAtHeight(anchorY);
+  const line = view.state.doc.lineAt(block.from);
+  const { body, offset } = bodyOnScreen();
+  const points = await runtime.backend
+    .reveal(
+      body,
+      docConfig(),
+      { line: line.number + offset, column: 1 },
+      docs.requestAssets(runtime.currentDoc?.assets ?? []),
+    )
+    // A line that prints nothing — a comment, a `#הגדרות_*` line, a fold's
+    // marker — is not an error and not worth a word in the status bar. The
+    // estimate stands, which is what it is for.
+    .catch(() => []);
+  const at = points[0];
+  const box = at ? pageBox(pages[at.page]) : null;
+  if (!at || !box) return;
+  // Somebody started scrolling while the compiler was thinking. Their gesture
+  // wins: a preview that jumps a second after you have moved on is worse than
+  // one that is a few pixels out.
+  if (scrollFloor && scrollFloor.pane !== from.id && performance.now() < scrollFloor.until) return;
+  const node = host.querySelector<HTMLElement>(`.page[data-page="${at.page}"]`);
+  if (!node) return;
+  const spot = pixelInPage(at, node.getBoundingClientRect(), box);
+  const y = node.offsetTop + spot.y - mp * host.clientHeight;
+  const want = clampScroll(y, host);
+  if (Math.abs(want - host.scrollTop) < 1) return;
+  host.scrollTop = want;
+  // Our own write, so the pane's own handler recognises the echo rather than
+  // treating the settle as a person scrolling and following it back.
+  scrollWritten.set(to.id, host.scrollTop);
 }
 
 function paneHostOf(id: string): HTMLElement | null {
@@ -3378,7 +3603,13 @@ function paneNarrow(id: string): Span | null {
  * source's pixels is not a fraction of the printed pixels in any document with
  * comments or folds in it.
  */
-function syncLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, target: HTMLElement) {
+function syncLinkedScroll(
+  from: panes.Leaf,
+  to: panes.Leaf,
+  top: number,
+  target: HTMLElement,
+  dir: -1 | 0 | 1 = 0,
+) {
   if (from.role === to.role) {
     const src = from.role === "source" ? paneViews.get(from.id)!.scrollDOM : paneHostOf(from.id)!;
     target.scrollTop = (top / Math.max(1, src.scrollHeight)) * target.scrollHeight;
@@ -3388,7 +3619,7 @@ function syncLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, target:
   // The line at this point of one side is put at the same point of the other,
   // so a writer who sets it to the middle watches the line they are on stay put
   // in both panes rather than at the very top edge.
-  const mp = matchFraction();
+  const mp = matchFraction(dir);
   if (from.role === "source") {
     const view = paneViews.get(from.id)!;
     // The point `mp` down the source viewport, in document pixels.
@@ -3475,8 +3706,20 @@ function followCaretInPreview() {
 }
 
 /** The viewport fraction the two panes line up on: 0 top, 0.5 middle, 1 bottom. */
-function matchFraction(): number {
-  return settings.syncMatch === "top" ? 0 : settings.syncMatch === "bottom" ? 1 : 0.5;
+/**
+ * Where two linked panes line up, for a movement in this direction.
+ *
+ * `direction` — the default — is the report: *"scrolling down should match
+ * top-to-top, scrolling up should match bottom-to-bottom"*. Going down, the
+ * line the reader wants is the one arriving at the top of the pane; coming
+ * back, it is the one arriving at the bottom. A fixed anchor is wrong in one of
+ * the two directions by half a viewport, every time.
+ *
+ * `dir` is `+1` down, `-1` up, `0` when nobody is moving — a caret follow or a
+ * click, which have no direction and take the middle.
+ */
+function matchFraction(dir: -1 | 0 | 1 = 0): number {
+  return anchorFor(settings.syncMatch, dir);
 }
 
 // ------------------------------------------------------------ the pane menu
@@ -4166,8 +4409,13 @@ function newTab() {
  */
 async function openInNewTab(docId: string) {
   closeMenus();
+  const leaving = runtime.currentDoc?.id ?? null;
   newTabShowing(docId);
-  await openDoc(docId);
+  // The same window as `selectTab`'s, and it is why this is not simply awaited:
+  // `newTabShowing` has already drawn the new arrangement, and until `openDoc`
+  // gets past its awaits that arrangement is showing the sefer being left.
+  handOverPages(leaving, docId);
+  await openDoc(docId, { handedOver: true });
 }
 
 /**
@@ -4246,8 +4494,10 @@ function selectTab(i: number) {
   // document is already on screen, so switching between two tabs on one document
   // costs nothing.
   const want = tabs.focusedDoc(tab);
-  if (want && want !== runtime.currentDoc?.id) void openDoc(want);
-  else scheduleCompile();
+  if (want && want !== runtime.currentDoc?.id) {
+    handOverPages(runtime.currentDoc?.id ?? null, want);
+    void openDoc(want, { handedOver: true });
+  } else scheduleCompile();
 }
 
 function closeTab(i: number) {
@@ -4262,8 +4512,10 @@ function closeTab(i: number) {
   refreshTabStrip();
   rememberPanes();
   const want = tabs.focusedDoc(next);
-  if (want && want !== runtime.currentDoc?.id) void openDoc(want);
-  else scheduleCompile();
+  if (want && want !== runtime.currentDoc?.id) {
+    handOverPages(runtime.currentDoc?.id ?? null, want);
+    void openDoc(want, { handedOver: true });
+  } else scheduleCompile();
 }
 
 async function renameTab(i: number) {
@@ -4344,9 +4596,60 @@ function refreshPanes() {
     if (settings.outline) renderOutline();
     if (settings.notesPane) renderNotesPane();
     if (settings.marksPane) renderMarksPane();
+    // The find drawer is a view of the document too — of two of them. The
+    // source half moves on every keystroke and the printed half moves when the
+    // compile lands, and a list of hits into a document that has since been
+    // edited is the stale surface this application is repeatedly reported for.
+    if (isPanelOpen("find-drawer")) renderFindPane();
   }, PANE_DEBOUNCE_MS);
 }
 const PANE_DEBOUNCE_MS = 200;
+
+// ------------------------------------------------------- keeping a series in order
+//
+// A siman's number is written into the source by hand, because that is what a
+// siman *is*. Insert one in the middle and `insertSnippet` renumbers the rest;
+// delete one, or move one, and nothing did — there was a warning on the line
+// and a click to take it.
+//
+// The wait is deliberately long. This rewrites the writer's own characters, and
+// doing it between two keystrokes of a numeral they are in the middle of typing
+// would be a fight rather than a help; a second of quiet is the difference
+// between "I finished an edit" and "I am mid-word".
+let renumberTimer: number | undefined;
+const RENUMBER_DEBOUNCE_MS = 1000;
+
+function scheduleRenumber() {
+  clearTimeout(renumberTimer);
+  if (settings.renumberAuto === false) return;
+  renumberTimer = window.setTimeout(renumberNow, RENUMBER_DEBOUNCE_MS);
+}
+
+/**
+ * Put every series back in order, if any of it is out.
+ *
+ * Two refusals, and both are about not fighting the writer. A selection that
+ * covers a number being rewritten is an edit in progress — leave it. And a
+ * caret **inside** one of the numerals about to change is somebody typing that
+ * numeral, which is the one case where the document is out of order *on
+ * purpose*, for as long as it takes to finish the word.
+ */
+function renumberNow() {
+  const view = runtime.view;
+  if (!view || settings.renumberAuto === false) return;
+  const text = docTextOf(view.state.doc);
+  const wrong = outOfSequence(text);
+  if (!wrong.length) return;
+  const sel = view.state.selection.main;
+  if (wrong.some((n) => sel.from <= n.to && sel.to >= n.from)) return;
+  const changed = renumberAll(view);
+  // Said out loud, and configurably so — the item asks for it in those words.
+  // Software that rewrites the writer's own characters and says nothing is
+  // software the writer cannot trust, however right it is.
+  if (changed && settings.renumberReport !== false) {
+    setStatus(tf("renumbered", changed), "ok");
+  }
+}
 
 let countTimer: number | undefined;
 const COUNT_DEBOUNCE_MS = 200;
@@ -5401,6 +5704,45 @@ function hideLineHere() {
  * where a section ends, so this collapses exactly what a click on the gutter
  * arrow would — one authority for "what does this heading fold", asked twice.
  */
+/**
+ * Fold every list item nested at least `depth` deep.
+ *
+ * The same shape as `foldToLevel` and deliberately so: ask the fold service for
+ * the range, so this collapses exactly what a click on the gutter arrow would.
+ * A second reckoning of where a list item ends is the thing that eventually
+ * disagrees with the arrow beside it.
+ */
+function foldListsToDepth(view: EditorView, depth: number) {
+  unfoldAll(view);
+  const sc = scanDoc(view.state.doc);
+  const effects = [];
+  const seen = new Set<number>();
+  for (const n of sc.nodes) {
+    if (n.role !== "item" && n.role !== "list") continue;
+    // Depth among *lists*, not among all calls: a list inside a footnote inside
+    // a heading is still a top-level list to the reader, and counting the
+    // wrappers would fold it as though it were three deep.
+    let d = 0;
+    for (let p = n.parent; p; p = p.parent) if (p.role === "list") d += 1;
+    if (d < depth) continue;
+    const line = view.state.doc.lineAt(n.from);
+    if (seen.has(line.from)) continue;
+    seen.add(line.from);
+    for (const service of view.state.facet(foldService)) {
+      const range = service(view.state, line.from, line.to);
+      if (range) {
+        effects.push(foldEffect.of(range));
+        break;
+      }
+    }
+  }
+  if (effects.length) view.dispatch({ effects });
+  setStatus(
+    effects.length ? tf("foldListDepth", String(depth)) : t("noListsToFold"),
+    effects.length ? "ok" : "",
+  );
+}
+
 function foldToLevel(view: EditorView, level: number) {
   unfoldAll(view);
   const doc = docTextOf(view.state.doc);
@@ -5587,7 +5929,16 @@ function fillParagraphStyles(sel: HTMLSelectElement) {
       el(
         "optgroup",
         { label: t("customStyles") },
-        own.map((s) => el("option", { value: `custom:${s.name}` }, [s.name])),
+        // The chord beside the name, which is the other half of *"that binding
+        // must appear wherever the style appears"*. An `<option>` holds text
+        // and nothing else, so it is spelled into the label — and through
+        // `hintFor`, so under a mode it prints what to type instead.
+        own.map((s) => {
+          const hint = hintFor(styles.styleActionId(s.name));
+          return el("option", { value: `custom:${s.name}` }, [
+            hint ? `${s.name} · ${hint}` : s.name,
+          ]);
+        }),
       ),
     );
   }
@@ -6191,15 +6542,43 @@ function buildFormatMenu(): HTMLElement {
       el("span", { class: "menu-desc" }, [t("makeListLede")]),
     ]),
     el("div", { class: "menu-sep" }),
+    // The three acts on the construct in hand. Named for what they do to the
+    // *writer's words* rather than for the markup, because that is the
+    // distinction the report is about: one of these keeps them and one does
+    // not, and hand-deleting brackets is what a writer does when neither is
+    // offered. See `entity.ts`.
+    el("div", { class: "menu-cat" }, [t("entityActs")]),
+    ...([
+      ["select", "⌖", "sc.entitySelect", "entitySelect"],
+      ["unwrap", "⌫", "sc.entityUnwrap", "entityUnwrap"],
+      ["remove", "✕", "sc.entityRemove", "entityRemove"],
+    ] as const).map(([what, glyph, label, id]) =>
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), entityAct(what)) }, [
+        el("b", {}, [`${glyph} ${t(label)}`]),
+        keyCode(id),
+      ]),
+    ),
+    el("div", { class: "menu-sep" }),
     ...structureMenuItems(["heading", "list"]),
     el("div", { class: "menu-cat" }, [t("foldLevels")]),
     // Fold *to* a depth. The chips beside the toolbar take everything down or
     // put everything back, which is the only folding this product could do from
     // a door — and not the one somebody with a 300-page sefer wants.
-    ...[1, 2, 3].map((level) =>
+    ...Array.from({ length: heads.MAX_LEVEL }, (_, i) => i + 1).map((level) =>
       el("button", { class: "menu-item", onClick: () => (closeMenus(), foldToLevel(runtime.view, level)) }, [
         el("b", {}, [`⊟ ${tf("foldLevel", String(level))}`]),
         keyCode(`foldLevel${level}`),
+      ]),
+    ),
+    // The other nesting. A list's depth is not a heading level and no surface
+    // could ask about it — *"the same for the siman/seif hierarchy and for
+    // lists, each of which has its own nesting"*. Simanim are headings, so the
+    // levels above already reach them; lists needed their own row.
+    el("div", { class: "menu-cat" }, [t("foldListDepths")]),
+    ...LIST_DEPTHS.map((depth) =>
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), foldListsToDepth(runtime.view, depth)) }, [
+        el("b", {}, [`⊟ ${tf("foldListDepth", String(depth))}`]),
+        keyCode(`foldListDepth${depth}`),
       ]),
     ),
     el("button", { class: "menu-item", onClick: () => (closeMenus(), void unfoldAll(runtime.view)) }, [
@@ -6566,11 +6945,24 @@ function lazyMenu(name: string, label: string, build: () => (Node | string)[]): 
  * untestable. A chip named here with no description there (or the reverse) is a
  * `tsc` error, because both are keyed by the same union.
  */
+/**
+ * Open whichever search the writer asked for.
+ *
+ * One action and two surfaces, rather than two actions: *"find"* is one thing a
+ * writer wants, and a second binding for "find, but in the preview" would be a
+ * chord to remember for a question they have already answered in the settings.
+ */
+function startFind(view: EditorView): boolean {
+  if ((settings.searchScope ?? "source") === "source") return openSearchPanel(view);
+  openPanel("find-drawer");
+  return true;
+}
+
 const CHIP_RUN: Record<header.ChipId, () => void> = {
   undo: () => void undo(runtime.view),
   redo: () => void redo(runtime.view),
   styles: openStyles,
-  find: () => void openSearchPanel(runtime.view),
+  find: () => void startFind(runtime.view),
   outline: toggleOutline,
   notesChooser: openNotesChooser,
   notesPane: toggleNotesPane,
@@ -7359,15 +7751,54 @@ function buildSettingsDrawer(): HTMLElement {
       ["current", t("openIn.current")],
     ]),
     el("div", { class: "set-note" }, [t("openInNote")]),
+    // One section for all of it, which the report asks for by name. The four
+    // rows are one question — *how does the other pane follow this one* — and
+    // they were spread between a checkbox here and two constants in the source.
     selectRow("syncMatchLabel", "syncMatch", [
+      ["direction", t("syncMatch.direction")],
       ["top", t("syncMatch.top")],
       ["middle", t("syncMatch.middle")],
       ["bottom", t("syncMatch.bottom")],
     ]),
+    numberRow("syncDeadZoneLabel", "syncDeadZone", 0, 60, 1),
+    checkRow("syncExactLabel", "syncExact"),
+    numberRow("syncSettleMsLabel", "syncSettleMs", 0, 2000, 50),
+    el("p", { class: "set-hint" }, [t("syncSettleNote")]),
     selectRow("previewDelayLabel", "previewDelay", [
       ["live", t("previewDelay.live")],
       ["relaxed", t("previewDelay.relaxed")],
+      ["manual", t("previewDelay.manual")],
     ]),
+    // Which sefer a search reads. Here as well as on the find drawer itself:
+    // this is where a writer sets the application up, and that is where they
+    // meet the consequence — a control that lives in only one of the two is a
+    // control somebody has to already know about.
+    selectRow("searchScope", "searchScope", [
+      ["source", t("searchScope.source")],
+      ["preview", t("searchScope.preview")],
+      ["both", t("searchScope.both")],
+    ]),
+    checkRow("searchCaseSensitive", "searchCaseSensitive"),
+    el("p", { class: "set-hint" }, [t("searchCaseSensitiveNote")]),
+    // Keeping a hand-numbered series in order. Beside the search rows rather
+    // than in a corner of its own is arbitrary; what is not arbitrary is that
+    // the *report* has a row of its own — a rewrite of the writer's own
+    // characters that says nothing is the thing to be able to turn off, and it
+    // is not the same question as whether to rewrite at all.
+    checkRow("renumberAuto", "renumberAuto"),
+    checkRow("renumberReport", "renumberReport"),
+    el("p", { class: "set-hint" }, [t("renumberNote")]),
+    // How the deferred bodies at the foot of the file are arranged. Beside the
+    // renumbering rows because both are about the *source* staying legible
+    // rather than about the page.
+    checkRow("deferGrouped", "deferGrouped"),
+    el("p", { class: "set-hint" }, [t("deferGroupedNote")]),
+    // The two history ceilings. Beside the snapshot cadence rather than in a
+    // corner of their own, because *how often* and *how many are kept* are one
+    // question asked twice, and a writer changing one wants to see the other.
+    numberRow("maxSnapshotsLabel", "maxSnapshots", 1, 500, 5),
+    numberRow("maxHistoryMBLabel", "maxHistoryMB", 0.25, 200, 0.5),
+    el("p", { class: "set-hint" }, [t("historyLimitsNote")]),
     el("h3", { style: "margin-top:18px" }, [t("notePlacementLabel")]),
     ...notePlacementRows(),
     checkRow("autosaveFileLabel", "autosaveFile"),
@@ -7629,6 +8060,43 @@ function renderMarksPane() {
   }
 }
 
+/**
+ * The find drawer: every place a phrase appears, in whichever sefer was asked
+ * for.
+ *
+ * The source half is read off the buffer that is on screen. The printed half is
+ * read off `pages_text`, which the engine filled in on the last compile because
+ * `compile.searchingThePage` asked it to — never off the source under a second
+ * name, which is the fake the item warns about and the only way this feature
+ * can be got wrong while looking right.
+ */
+function renderFindPane() {
+  const host = document.getElementById("find-list");
+  if (!host || !runtime.view) return;
+  const query = (document.getElementById("find-query") as HTMLInputElement | null)?.value ?? "";
+  const scope = settings.searchScope ?? "source";
+  // The chooser on the drawer follows the setting, wherever the setting was
+  // changed. The same question is asked in two places by design — here and in
+  // the settings drawer — and a control that shows one answer while the search
+  // uses another is worse than having only one of them.
+  const chooser = document.getElementById("find-scope") as HTMLSelectElement | null;
+  if (chooser && chooser.value !== scope) chooser.value = scope;
+  const result = find.findIn(
+    docTextOf(runtime.view.state.doc),
+    currentPageText(),
+    query,
+    { scope, caseSensitive: !!settings.searchCaseSensitive },
+  );
+  const rows = panelrows.findList(result, query, scope);
+  // The group headings and the two empty states carry i18n keys rather than
+  // words: `panelrows` does not resolve language. The same arrangement as the
+  // marks pane's class rows, and translated in the same place — here, once.
+  for (const r of rows.rows) {
+    if (r.id?.startsWith("findgroup:") || r.id?.startsWith("findempty:")) r.label = t(r.label);
+  }
+  drawList(host, rows, LOOKS.find);
+}
+
 function renderNotesPane() {
   if (!runtime.view) return;
   // A row jumps to wherever the prose actually is. For a deferred note that is
@@ -7822,6 +8290,10 @@ const LOOKS: Record<string, Look> = {
   // the drawer is browsed with the mouse and the search field, and a keyboard
   // selection that Enter runs belongs to the modal that closes afterwards.
   commands: { row: "pal-item", chip: "pal-cat", label: "b" },
+  // The notes pane's row again: a chip carrying a page or a line, and one line
+  // of words. A fourth stylesheet for a fourth list of clickable lines is the
+  // copy `panelrows` exists to stop.
+  find: { row: "outline-item note-item", chip: "note-item-n", label: "span" },
 };
 
 /**
@@ -7914,6 +8386,41 @@ function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
       return;
     case "restore":
       void restoreSnapshot(snaps[does.index]);
+      return;
+    case "hit":
+      // Both, when both are known, and in this order: the caret first, because
+      // that is where the writer will type, and the page second so the eye can
+      // follow. A printed hit that no source line answers for — a running head,
+      // a note's marker, an auto-numbered siman — shows the page and leaves the
+      // caret alone rather than putting it somewhere plausible.
+      if (does.at !== undefined) goToOffset(does.at);
+      if (does.page !== undefined && does.y !== undefined) revealPrinted(does.page, does.y);
+  }
+}
+
+/**
+ * Scroll every preview to a point on a page, given in Typst points.
+ *
+ * The tail of `revealCursor`, and it is the tail rather than a copy of it: what
+ * `revealCursor` does that this does not is *ask the engine where the caret
+ * printed*, which a find hit already knows. Everything from there down — the
+ * page element, the box, the inverse of `jump.ts`'s arithmetic, the match point
+ * — is the same problem and would have been the same code written twice.
+ */
+function revealPrinted(page: number, y: number) {
+  const pages = currentPages();
+  const index = page - 1;
+  const box = pageBox(pages[index]);
+  if (!box) return;
+  for (const host of document.querySelectorAll<HTMLElement>(".preview-host")) {
+    const node = host.querySelector<HTMLElement>(`.page[data-page="${index}"]`);
+    if (!node) continue;
+    const spot = pixelInPage({ page: index, x_pt: 0, y_pt: y }, node.getBoundingClientRect(), box);
+    const pageTop = node.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
+    host.scrollTo({
+      top: clampScroll(pageTop + spot.y - matchFraction() * host.clientHeight, host),
+      behavior: "smooth",
+    });
   }
 }
 
@@ -8038,6 +8545,38 @@ async function renderHistory() {
   // thing that makes "restore" a safe button to press. Prepended after the fact
   // because `drawList` owns the list and this is not part of it.
   host.prepend(scope);
+  // **What the history costs, and the way to stop paying it.**
+  //
+  // Nothing anywhere said. Snapshots hold whole document bodies rather than
+  // diffs, so the biggest seforim — the ones whose history matters most — hit
+  // the byte ceiling first and end up with the *fewest* restore points, and the
+  // only evidence of that was restore points quietly not being there. The
+  // number is measured off the same list the rows are drawn from, so it cannot
+  // disagree with what is on screen.
+  const cost = docs.historyCost(snaps);
+  const limit = docs.historyLimits(settings);
+  const clear = el("button", { class: "sc-key" }, [t("historyClear")]);
+  clear.addEventListener("click", () => {
+    if (!runtime.currentDoc) return;
+    if (!confirm(t("historyClearConfirm"))) return;
+    void docs.clearHistory(runtime.currentDoc.id).then(() => {
+      setStatus(t("historyCleared"), "ok");
+      void renderHistory();
+    });
+  });
+  host.append(
+    el("p", { class: "styles-note history-cost" }, [
+      tf(
+        "historyCost",
+        String(cost.count),
+        String(limit.count),
+        (cost.bytes / (1024 * 1024)).toFixed(1),
+        (limit.bytes / (1024 * 1024)).toFixed(1),
+      ),
+    ]),
+    el("p", { class: "styles-note" }, [t("historyWholeBodies")]),
+    clear,
+  );
 }
 
 // ---------------------------------------------------------------- version control
@@ -9236,6 +9775,12 @@ function updateContextBar() {
     if (levelSel.dataset.styles !== names) {
       levelSel.dataset.styles = names;
       fillParagraphStyles(levelSel);
+      // A style is an action, so the set of actions has changed. Without this a
+      // style defined a keystroke ago is in the dropdown, in the palette and in
+      // the keys drawer, and its chord does nothing — which is the worst of the
+      // three states a shortcut can be in.
+      reconfigureShortcuts();
+      if (isPanelOpen("styles-panel")) renderStylesPanel();
     }
     const want = paragraphStyleAt(doc, pos);
     // Assigning `value` on a `<select>` is not free and fires no change event,
@@ -9409,6 +9954,26 @@ function updateContextBar() {
  * `runStructureAction` returns false otherwise, and CodeMirror moves on to the
  * next handler. Enter at the end of a paragraph must stay Enter.
  */
+/**
+ * Which of the two column steps each arrow means, in this document.
+ *
+ * In a Hebrew table column 0 is the **rightmost**, so the left arrow moves to
+ * the next column; in an English one it moves to the previous. `structure.ts`
+ * holds no opinion about that — its two actions are *startward* and *endward* —
+ * because the direction is a property of the document and the registry has
+ * never seen one.
+ *
+ * Getting this the wrong way round is not a preference: it is a table that
+ * navigates backwards for half the seforim in the product, and it would look
+ * exactly like working software to whoever wrote it in the other language.
+ */
+function columnStepFor(id: string): string {
+  const rtl = docConfig().dir !== "ltr";
+  if (id === "table.cellStartward") return rtl ? "table.cellStartward" : "table.cellEndward";
+  if (id === "table.cellEndward") return rtl ? "table.cellEndward" : "table.cellStartward";
+  return id;
+}
+
 function structureKeymap() {
   const kb = keybindings();
   const out: KeyBinding[] = [];
@@ -9416,7 +9981,14 @@ function structureKeymap() {
     const key = kb[a.id];
     // No `preventDefault`: returning false has to let the key through, which is
     // exactly how Enter stays Enter in ordinary prose.
-    if (key) out.push({ key, run: () => runStructureAction(a) });
+    //
+    // The two column arrows are handed to the action the *document's* direction
+    // says they mean. Resolved when the keymap is built and again whenever
+    // direction changes, which is what `reconfigureShortcuts` is already for.
+    if (!key) continue;
+    const want = columnStepFor(a.id);
+    const act = want === a.id ? a : structure.actionById(want);
+    if (act) out.push({ key, run: () => runStructureAction(act) });
   }
   return out;
 }
@@ -9609,6 +10181,10 @@ function savedMacros(): macros.Macro[] {
 function macroName(id: string): string {
   const structural = structure.actionById(id);
   if (structural) return t(structural.label);
+  // A style names itself. `t("sc.style.PIRUSH")` would print the raw key, which
+  // is the "shipped unnamed" row `bindings.test.mjs` exists to refuse.
+  const style = styles.styleOfAction(id);
+  if (style) return tf("styleActionName", style);
   const mac = savedMacros().find((m) => macros.actionIdOf(m) === id);
   return mac ? mac.name : t("sc." + id);
 }
@@ -10019,6 +10595,51 @@ function unwrapCustomStyle(name: string) {
   view.focus();
 }
 
+/**
+ * Select, unwrap or remove the construct the caret is in.
+ *
+ * One door for the three, because they are one act at three depths and because
+ * the refusals are shared: there may be no construct here at all, and the
+ * construct there is may be one whose words do not all live in its body.
+ *
+ * A refusal says which of those it was. *"Deleting a construct is confusing and
+ * easy to get wrong"* is a report about silence as much as about typing — a key
+ * that does nothing and says nothing is why a writer goes back to deleting
+ * brackets by hand.
+ */
+function entityAct(what: "select" | "unwrap" | "remove"): boolean {
+  const view = runtime.view;
+  const doc = docTextOf(view.state.doc);
+  const sel = view.state.selection.main;
+  const node = entity.entityAt(doc, sel.from, sel.to);
+  if (!node) {
+    setStatus(t("noEntityHere"), "warn");
+    return true;
+  }
+  if (what === "select") {
+    view.dispatch({ selection: { anchor: node.from, head: node.to }, scrollIntoView: true });
+    setStatus(tf("entitySelected", node.name), "");
+    return true;
+  }
+  const edit = what === "unwrap" ? entity.unwrap(doc, node) : entity.remove(doc, node);
+  if (!edit) {
+    // The construct whose text is not all in its body — `#סימן("א", […])`
+    // carries the siman number as an argument. Unwrapping to the body alone
+    // would drop it, which is the writer's text going missing quietly, so the
+    // offer is the one that says what it does.
+    setStatus(tf("entityKeepsNothing", node.name), "warn");
+    return true;
+  }
+  editDoc(edit.text, edit.caret);
+  if (edit.to !== undefined) {
+    runtime.view.dispatch({ selection: { anchor: edit.caret, head: edit.to } });
+  }
+  scheduleCompile();
+  setStatus(tf(what === "unwrap" ? "entityUnwrapped" : "entityRemoved", node.name), "ok");
+  runtime.view.focus();
+  return true;
+}
+
 /** Every name a new style may not take: the registry's, and the ones already made. */
 function takenStyleNames(): string[] {
   const doc = docTextNow();
@@ -10378,6 +10999,86 @@ function unitControl(
   return input;
 }
 
+/**
+ * A text size: a number the writer types, and which of the two units it is in.
+ *
+ * This was a dropdown of seven percentages — 80, 90, 100, 115, 135, 160, 200 —
+ * and a writer wanting 105% could not have it. The report is one sentence,
+ * *"the knobs are too coarse"*, and a preset list is the coarsest a control
+ * gets: it is not a shortage of options, it is a control that decides for you.
+ *
+ * The unit is the other half of it, and the half a preset list cannot express
+ * at all. `em` is a proportion of whatever the text sits inside and `pt` is a
+ * measurement; a style set to 115% is right in a heading and in a footnote,
+ * and a title set to 24pt is 24pt wherever it lands. Both are things a writer
+ * means, so both are sayable, and switching the unit keeps the *number* rather
+ * than silently converting — the same rule `regionHeightControl` follows, for
+ * the same reason.
+ */
+function sizeControl(raw: string | undefined, set: (v: string | null) => void): HTMLElement {
+  const read = styles.readTextSize(raw);
+  const unit = read?.unit ?? "%";
+  const input = el("input", {
+    type: "number",
+    min: 0,
+    step: unit === "%" ? 5 : 0.5,
+    value: read == null ? "" : String(read.n),
+    placeholder: "—",
+    "aria-label": t("knobSize"),
+  }) as HTMLInputElement;
+  // Emptying the box is how a knob is unset, exactly as `unitControl` does it:
+  // absent means *this layer says nothing*, which is not the same as any number.
+  input.addEventListener("change", () => {
+    const v = parseFloat(input.value);
+    set(input.value.trim() === "" || !Number.isFinite(v) ? null : styles.writeTextSize(v, unit));
+  });
+  const units = selectControl(
+    [["%", t("unitEm")], ["pt", t("unitPt")]],
+    unit,
+    (u) => {
+      const n = read?.n ?? (u === "%" ? 100 : 12);
+      set(styles.writeTextSize(n, u as "%" | "pt"));
+    },
+  );
+  return el("span", { class: "knob-size" }, [input, units]);
+}
+
+/**
+ * A typographic family, by name — the families this machine has, and any other.
+ *
+ * A `<datalist>` and not a `<select>`, because both halves are true: almost
+ * everybody wants one of the fonts they have, and a sefer typeset here and
+ * printed elsewhere may legitimately name a family this machine has never
+ * heard of. A dropdown would make the second impossible; a bare text box would
+ * make the first a spelling test.
+ */
+function fontControl(raw: string | undefined, set: (v: string | null) => void): HTMLElement {
+  const id = `font-list-${(fontListSeq += 1)}`;
+  const input = el("input", {
+    type: "text",
+    list: id,
+    value: styles.readString(raw) ?? "",
+    placeholder: t("notSet"),
+    "aria-label": t("knobFont"),
+  }) as HTMLInputElement;
+  input.addEventListener("change", () =>
+    set(input.value.trim() === "" ? null : styles.typstString(input.value.trim())),
+  );
+  return el("span", { class: "knob-font" }, [
+    input,
+    el(
+      "datalist",
+      { id },
+      fonts
+        .fontOptions(BUNDLED_FONTS, runtime.currentDoc?.assets ?? [], docConfig().font)
+        .map((o) => el("option", { value: o.name })),
+    ),
+  ]);
+}
+
+/** One id per datalist on the page: two size rows must not share one list. */
+let fontListSeq = 0;
+
 /** A colour, with the means to unset it — a colour picker alone has no "none". */
 function clearableColour(
   raw: string | undefined,
@@ -10413,11 +11114,10 @@ function fieldControl(
   const pick = (options: [string, string][], current: string) =>
     selectControl([blank, ...options], current, (v) => set(v || null));
   switch (field.kind) {
+    case "font":
+      return fontControl(raw, set);
     case "size-em":
-      return pick(
-        [["0.8em", "80%"], ["0.9em", "90%"], ["1em", "100%"], ["1.15em", "115%"], ["1.35em", "135%"], ["1.6em", "160%"], ["2em", "200%"]],
-        (raw ?? "").trim(),
-      );
+      return sizeControl(raw, set);
     case "size-pt":
     case "length-pt":
       return unitControl(raw, "pt", 1, set);
@@ -10465,7 +11165,7 @@ function fieldControl(
 }
 
 /** Every knob one element of this kind may answer for itself. */
-function instanceRows(kind: styles.StyleCommand, inst: styles.InstanceCall): Node[] {
+function instanceRows(kind: styles.InstanceCommand, inst: styles.InstanceCall): Node[] {
   return Object.entries(styles.INSTANCE_FIELDS[kind]).map(([key, field]) =>
     styleRow(
       t(field.label),
@@ -10488,6 +11188,20 @@ const HEADING_RAMP: Record<string, string[]> = {
   ריווח_לפני: ["1.2em", "1.1em", "1em", "0.9em", "0.8em", "0.8em"],
   ריווח_אחרי: ["0.6em", "0.55em", "0.5em", "0.45em", "0.4em", "0.4em"],
 };
+
+/**
+ * A ramp as long as there are levels, grown by repeating its last entry.
+ *
+ * The shipped ramps are six long because the engine's are, and `_cfg_pick`
+ * clamps — level 9 has always been drawn at level 6's size. Writing level 9
+ * needs a tuple with a ninth slot in it, and padding with the last value is
+ * what the engine's own `_hd_set` does, so a tuple written here and one written
+ * by hand in Typst say the same thing about levels nobody touched.
+ */
+function rampFor(key: string): string[] {
+  const base = HEADING_RAMP[key] ?? [HEADING_FLAT[key] ?? "none"];
+  return Array.from({ length: heads.MAX_LEVEL }, (_, i) => base[Math.min(i, base.length - 1)]);
+}
 
 /** And its scalar defaults, for the knobs whose default is one value for all six. */
 const HEADING_FLAT: Record<string, string> = {
@@ -10523,8 +11237,8 @@ function setHeadingArg(key: string, value: string | null) {
   // when one level is changed; and absent means the engine's own ramp.
   const fill =
     now !== undefined && styles.readTuple(now) === null
-      ? Array<string>(6).fill(now)
-      : (HEADING_RAMP[key] ?? Array<string>(6).fill(HEADING_FLAT[key] ?? "none"));
+      ? Array<string>(heads.MAX_LEVEL).fill(now)
+      : rampFor(key);
   const v = value ?? fill[headingLevel - 1] ?? "none";
   setStyleArgs("headings", { [key]: styles.withTier(now, headingLevel, v, fill) });
 }
@@ -10536,10 +11250,16 @@ function headingLevelRow(): Node {
     selectControl(
       [
         ["0", t("everyLevel")],
-        ...([1, 2, 3, 4, 5, 6].map((n) => [String(n), tf("oneLevel", String(n))]) as [
-          string,
-          string,
-        ][]),
+        // Every level the editor can write, which is nine. Six was the count of
+        // *named* heading commands and it had leaked into the styling: levels 7
+        // to 9 were real in the outline, in the numbering, in `#תוכן` and in the
+        // indent ramp on the page, and this dropdown was the surface saying they
+        // did not exist. The engine's `_hd_levels` moved with it, so each of the
+        // three now has a door of its own rather than inheriting level 6's.
+        ...(Array.from({ length: heads.MAX_LEVEL }, (_, i) => [
+          String(i + 1),
+          tf("oneLevel", String(i + 1)),
+        ]) as [string, string][]),
       ],
       String(headingLevel),
       (v) => {
@@ -10653,6 +11373,155 @@ function noteStyleRows(): Node[] {
     );
   }
   return rows;
+}
+
+/**
+ * Styles › One look for every note — the layer the six apparatuses share.
+ *
+ * The report is *"footnotes and endnotes should share a default style, and
+ * either should be easy to change on its own"*, and the half that was actually
+ * missing is the sharing: each apparatus shipped its own size, slant, colour
+ * and gap, so the two apparatuses a sefer most often has looked different from
+ * each other by default and "make the notes smaller" was six edits. Endnotes
+ * were worse than that — they had no ink knobs at all, so there was no *own*
+ * to change either.
+ *
+ * Writes `#הגדרות_טקסט_הערות`, which the engine consults **under** each
+ * apparatus's own config: a knob the writer set on the apparatus wins, and one
+ * they did not is answered here. Which is what makes "shared, and still
+ * changeable" mean something rather than being an order of precedence nobody
+ * can see.
+ */
+/**
+ * Styles › Endnotes — the back matter's numbering, and its ink.
+ *
+ * The five shared knobs plus the one thing that is only an endnote's: the
+ * numbering scheme. That scheme is why the section matters even beyond the
+ * report — a sefer with footnotes at the foot *and* endnotes at the back marked
+ * every note in both apparatuses `1`, so a reader met two different `1` on one
+ * page with nothing to tell them apart.
+ */
+function endnoteStyleRows(): Node[] {
+  return [
+    styleRow(
+      t("noteTierNumbering"),
+      selectControl(
+        [
+          ["", t("default")],
+          ['"1"', "1 2 3"],
+          ['"א"', "א ב ג"],
+          ['"a"', "a b c"],
+          ['"i"', "i ii iii"],
+          ['"*"', "* † ‡"],
+        ],
+        (styleArg("endnotes", "מספור") ?? "").trim(),
+        (v) => setStyleArgs("endnotes", { מספור: v || null }),
+      ),
+    ),
+    // The word above the section — the writer's own, or none at all.
+    //
+    // *"It should be the writer's choice: their own word, or nothing at all,
+    // with no leftover gap where it was."* Both halves are here: an empty box
+    // is `none`, and the engine keeps the heading, the rule above it and the
+    // space below it inside one condition so that nothing is left behind.
+    styleRow(
+      t("endnoteHeading"),
+      fieldControl(
+        { kind: "text", label: "endnoteHeading" },
+        styleArg("endnotes", "כותרת"),
+        (v) => setStyleArgs("endnotes", { כותרת: v ?? "none" }),
+      ),
+    ),
+    // On its own page, or running on from the end of the body.
+    styleRow(
+      t("endnoteFreshPage"),
+      fieldControl(
+        { kind: "bool", label: "endnoteFreshPage" },
+        styleArg("endnotes", "עמוד_חדש"),
+        (v) => setStyleArgs("endnotes", { עמוד_חדש: v }),
+      ),
+    ),
+    ...Object.entries(styles.SHARED_NOTE_FIELDS).map(([key, field]) =>
+      styleRow(
+        t(field.label),
+        fieldControl(field, styleArg("endnotes", key), (v) =>
+          setStyleArgs("endnotes", { [key]: v }),
+        ),
+      ),
+    ),
+  ];
+}
+
+function sharedNoteRows(): Node[] {
+  return Object.entries(styles.SHARED_NOTE_FIELDS).map(([key, field]) =>
+    styleRow(
+      t(field.label),
+      fieldControl(field, styleArg("noteText", key), (v) =>
+        setStyleArgs("noteText", { [key]: v }),
+      ),
+    ),
+  );
+}
+
+/**
+ * Which of the shared knobs this apparatus is answering for itself.
+ *
+ * The visible half of the same rule. An apparatus section that has written one
+ * of the five says so, by name — otherwise the shared control appears to do
+ * nothing for that apparatus and there is nothing on the screen to say why.
+ */
+function overridingShared(kind: styles.SectionCommand): Node[] {
+  const mine = Object.keys(styles.SHARED_NOTE_FIELDS).filter(
+    (key) => styleArg(kind, key) !== undefined,
+  );
+  if (!mine.length) return [];
+  const named = mine.map((k) => t(styles.SHARED_NOTE_FIELDS[k].label)).join(", ");
+  return [el("p", { class: "styles-note style-overriding" }, [`${t("styleOverriding")}: ${named}`])];
+}
+
+/**
+ * Styles › My styles — one row per style the document defines.
+ *
+ * The complaint was *"there is one edit-styles button that opens an editor for
+ * every style at once"*, and the fix is not a smaller dialog: it is that a
+ * style is edited **from where you see it**. So each row carries the three
+ * things a style has — its name, the chord that applies it, and the way into
+ * its formatting — and the chord is captured through exactly the same
+ * `captureShortcut` the keys drawer uses, because a style is an action and
+ * there is one way to bind an action.
+ */
+function myStyleRows(): Node[] {
+  const own = styles.findCustomStyles(docTextNow());
+  if (!own.length) return [el("p", { class: "styles-note" }, [t("styleNoneYet")])];
+  const kb = keybindings();
+  return own.map((st) => {
+    const id = styles.styleActionId(st.name);
+    const chord = kb[id] ?? "";
+    // `hintFor` and not `readable`: under vim or Emacs none of these chords is
+    // live, and a row printing `Ctrl+Alt+1` there would be naming a key that
+    // does something else. `prohibitions.test.mjs` holds the whole application
+    // to this, and a new surface is exactly what it is holding it for.
+    const key = el("button", { class: "sc-key", title: t("styleKeyLabel") }, [
+      hintFor(id, kb) || "—",
+    ]) as HTMLButtonElement;
+    key.addEventListener("click", () => captureShortcut(id, key));
+    const kids: Node[] = [key];
+    if (chord) {
+      // The same `×` the keys drawer has, and for the same reason: capture can
+      // only assign, so without this the only way off a chord is the reset that
+      // discards every custom binding in the application.
+      kids.push(
+        glyphBtn("×", t("none"), () => {
+          settings.keybindings = { ...(settings.keybindings || {}), [id]: "" };
+          saveSettings();
+          reconfigureShortcuts();
+          renderStylesPanel();
+        }, "knob-clear"),
+      );
+    }
+    kids.push(iconBtn("✎", tf("editStyleTitle", st.name), () => openStyleEditor(st.name)));
+    return styleRow(st.name, el("span", { class: "style-mine-row" }, kids));
+  });
 }
 
 /**
@@ -11643,7 +12512,13 @@ function renderStylesPanel() {
         ? scopeRows(section.kind as styles.StyleCommand, section.scope[0], section.scope[1])
         : [];
       const rows =
-        section.kind === "headings"
+        section.kind === "noteText"
+          ? sharedNoteRows()
+          : section.kind === "endnotes"
+          ? endnoteStyleRows()
+          : section.kind === "mine"
+          ? myStyleRows()
+          : section.kind === "headings"
           ? headings
           : section.kind === "lists"
             ? lists
@@ -11652,9 +12527,14 @@ function renderStylesPanel() {
               : section.kind === "channels"
                 ? channelRows()
                 : inst
-                  ? instanceRows(section.kind as styles.StyleCommand, inst)
+                  ? instanceRows(section.kind as styles.InstanceCommand, inst)
                   : DEFAULT_STYLE_ROWS[section.kind]();
-      return panelviews.styleSection(section, scope, rows);
+      // Every apparatus that reads the shared note style says so when it is
+      // not: `NOTE_KINDS` is the six the engine's `_nt_under` covers.
+      const overriding = (styles.NOTE_KINDS as readonly string[]).includes(section.kind)
+        ? overridingShared(section.kind as styles.SectionCommand)
+        : [];
+      return panelviews.styleSection(section, scope, [...overriding, ...rows]);
     }),
     el("p", { class: "styles-note" }, [t("documentStyleNote")]),
   );
@@ -12122,6 +13002,9 @@ function applyNoteChoice(
     deferBodiesFor(choice),
     sel,
     dirLang(),
+    // The filing has to know about the blocks, or the option is true only until
+    // the writer adds a note. See `neighbours` in `deferred.ts`.
+    settings.deferGrouped === true,
   );
   editDoc(text, caret);
   scheduleCompile();
@@ -12710,11 +13593,13 @@ function render() {
       // one: below 720px a drawer is the full viewport, so the chip that opened
       // it is underneath it and cannot be the only way back out.
       panelHead("outline-drawer", "outline", { level: "h3" }),
+      el("p", { class: "pane-lede" }, [t("outlineLede")]),
       el("div", { id: "outline-list", class: "outline-list" }),
     ]),
     // The notes pane, beside the outline: the two halves of a sefer's structure.
     el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane"), "data-i18n-label": "notesPane" }, [
       panelHead("notes-drawer", "notesPane", { level: "h3" }),
+      el("p", { class: "pane-lede" }, [t("notesPaneLede")]),
       el("div", { id: "notes-list", class: "notes-list" }),
     ]),
     // The marks pane, beside the other two: what the document *says things are*,
@@ -12722,7 +13607,63 @@ function render() {
     // off it.
     el("aside", { id: "marks-drawer", class: "drawer drawer-start", "aria-label": t("marksPane"), "data-i18n-label": "marksPane" }, [
       panelHead("marks-drawer", "marksPane", { level: "h3" }),
+      // **The report, and it is one sentence long:** *"the marks pane reads as
+      // a second siman/seif outline and gives no indication of what it actually
+      // lists"*. It did read that way — three drawers on the same edge, each a
+      // list of Hebrew phrases with a chip, and only the heading to tell them
+      // apart. A heading names a pane; it does not say what a pane is *for*,
+      // and "Marks" is not a word that explains itself.
+      //
+      // All three get one, and that is the fix rather than an extra: labelling
+      // only the one that was reported would leave the two it is confused with
+      // still unlabelled, and the confusion is between them.
+      el("p", { class: "pane-lede" }, [t("marksPaneLede")]),
       el("div", { id: "marks-list", class: "marks-list" }),
+    ]),
+    // Find. A drawer on the same edge as the three list panes, because the
+    // answer is a list of places in the document and that is what that edge is
+    // for — but transient, because it answers a question rather than showing a
+    // view of the sefer.
+    el("aside", { id: "find-drawer", class: "drawer drawer-start", "aria-label": t("findTitle"), "data-i18n-label": "findTitle" }, [
+      panelHead("find-drawer", "findTitle", { level: "h3" }),
+      el("p", { class: "pane-lede" }, [t("findLede")]),
+      el("input", {
+        id: "find-query",
+        type: "search",
+        placeholder: t("findPlaceholder"),
+        "data-i18n-placeholder": "findPlaceholder",
+        class: "help-search",
+        onInput: () => renderFindPane(),
+      }),
+      // The scope, on the surface it governs and not only in the settings
+      // drawer. A search that is quietly looking somewhere else is the whole
+      // complaint; a writer has to be able to see which sefer is being read and
+      // change it without leaving the answer.
+      el("label", { class: "find-scope" }, [
+        el("span", {}, [t("searchScope")]),
+        el(
+          "select",
+          {
+            id: "find-scope",
+            onChange: (e: Event) => {
+              settings.searchScope = (e.target as HTMLSelectElement).value as Settings["searchScope"];
+              saveSettings();
+              // The printed text is only fetched while a scope that reads it is
+              // on screen, so switching to one has to ask for a compile — or
+              // the drawer would say the preview is unavailable until the next
+              // keystroke happened to trigger one.
+              if (settings.searchScope !== "source") compileNow();
+              renderFindPane();
+            },
+          },
+          [
+            el("option", { value: "source" }, [t("searchScope.source")]),
+            el("option", { value: "preview" }, [t("searchScope.preview")]),
+            el("option", { value: "both" }, [t("searchScope.both")]),
+          ],
+        ),
+      ]),
+      el("div", { id: "find-list", class: "marks-list" }),
     ]),
     // styles panel (a drawer, so the document stays visible while you tune it)
     el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle"), "data-i18n-label": "stylesTitle" }, [
@@ -13119,6 +14060,20 @@ function wirePanels() {
     },
   });
 
+  wirePanel("find-drawer", {
+    open: () => {
+      const scope = document.getElementById("find-scope") as HTMLSelectElement | null;
+      if (scope) scope.value = settings.searchScope ?? "source";
+      // The scope decides whether the engine is asked for the printed text at
+      // all, and it is asked *while the drawer is open* — so opening one that
+      // reads the page has to trigger the compile that fills it in.
+      if ((settings.searchScope ?? "source") !== "source") compileNow();
+      renderFindPane();
+      (document.getElementById("find-query") as HTMLInputElement | null)?.focus();
+    },
+    close: () => runtime.view?.focus(),
+  });
+
   wirePanel("settings-drawer", { close: () => runtime.view?.focus() });
   wirePanel("commands-drawer", {
     open: () => {
@@ -13218,6 +14173,12 @@ function installHooks() {
   save.onUpdateTitleBar(updateTitleBar);
   // Spell-check rides the compile timer: one pause in typing, both schedules.
   onSchedule(scheduleSpellCheck);
+  // Every preview pane on screen, told at once. Not a re-render: a banner
+  // appearing must not scroll the page the writer is reading, which is the
+  // whole reason to look at a stale preview in the first place.
+  onStale((v) => {
+    for (const b of document.querySelectorAll<HTMLElement>(".preview-stale")) b.hidden = !v;
+  });
   // A compile is the only thing that can say what a note's marker printed as,
   // and it lands seconds after the edit that caused it — long after the drawer
   // last redrew. Without this the markers appear on the next keystroke and not

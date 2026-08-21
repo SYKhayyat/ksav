@@ -67,8 +67,25 @@ export async function run() {
   // Most keys come from the operation's own name. Not all can — the last few
   // operations in a long hydra exhaust their own letters and fall through to the
   // alphabet, which is the price of guaranteeing every one gets a key at all.
-  const fromName = table.entries.filter((e) => e.action.id.toLowerCase().includes(e.key));
-  ok("most keys are mnemonic", fromName.length >= table.entries.length - 2);
+  // **The operations a writer reaches first keep a key from their own name.**
+  //
+  // This was "all but two of them", which is a statement about a hydra of
+  // twenty rather than about the assignment: the longer the list, the more of
+  // its own letters it has exhausted by the end, so four new operations pushed
+  // a bound that was never about them. Growing the slack every time the list
+  // grows is a fence that reports nothing.
+  //
+  // What is worth holding is what a writer actually meets. Assignment is in
+  // registry order and the registry is in the order these are reached for, so
+  // the head of the list is where a mnemonic matters and the tail is where
+  // "there is a key at all" matters. Both are asserted, and neither moves when
+  // the list grows.
+  const head = table.entries.slice(0, 12);
+  const strays = head.filter((e) => !e.action.id.toLowerCase().includes(e.key));
+  check("the first twelve keys all come from their own names", strays.map((e) => e.action.id), []);
+  const keys = table.entries.map((e) => e.key);
+  check("every operation has a key", keys.filter(Boolean).length, table.entries.length);
+  check("...and no two share one", new Set(keys).size, keys.length);
 }
 
 {

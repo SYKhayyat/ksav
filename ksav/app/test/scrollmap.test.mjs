@@ -16,7 +16,7 @@
 // was being counted was not.
 
 import { check, ok } from "./harness.mjs";
-import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction } from "../.tmp-test/scrollmap.mjs";
+import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction, anchorFor, worthFollowing } from "../.tmp-test/scrollmap.mjs";
 
 export async function run() {
   // ------------------------------------------------------- comments weigh nothing
@@ -304,4 +304,52 @@ async function deferredBodyChecks() {
   const hashed = printedPrefix(line.repeat(3) + "#כלול(\"פרק.ksav\")\n");
   check("skipping the scan is not a different answer", noHash[noHash.length - 1], 51);
   check("and a non-note command still prints nothing", hashed[hashed.length - 1], 51);
+}
+
+// ---------------------------------------------------------------- the anchor
+//
+// > *"Direction-aware anchor: scrolling down should match top-to-top, scrolling
+// > up should match bottom-to-bottom. Configurable dead zone."*
+//
+// Both are rules rather than renderings, so both are here rather than in the
+// shell, where the first of them was one line of nested ternaries inside
+// `matchFraction` — the shape a fourth answer gets added to wrongly.
+
+{
+  // The report, as two assertions. Going down, the line a reader cares about is
+  // the one arriving at the top; coming back it is the one arriving at the
+  // bottom. A fixed anchor is wrong in one of the two directions by half a
+  // viewport, every single time somebody scrolls back to check something.
+  check("scrolling down matches top to top", anchorFor("direction", 1), 0);
+  check("scrolling up matches bottom to bottom", anchorFor("direction", -1), 1);
+  // No direction: a caret follow, or a click on the page. Those asked to be
+  // *shown* a place, and the middle is where you can see it.
+  check("with no direction it is the middle", anchorFor("direction", 0), 0.5);
+  check("...and that is the shipped answer", anchorFor(undefined, 1), 0);
+}
+
+{
+  // The three fixed answers survive, and ignore the direction — a writer who
+  // wants the line they are on pinned to one place while they read wants
+  // exactly that, and a rule that moves is not it.
+  for (const dir of [-1, 0, 1]) {
+    check(`top stays top going ${dir}`, anchorFor("top", dir), 0);
+    check(`middle stays middle going ${dir}`, anchorFor("middle", dir), 0.5);
+    check(`bottom stays bottom going ${dir}`, anchorFor("bottom", dir), 1);
+  }
+}
+
+{
+  // The dead zone. A trackpad emits an event for a two-pixel drift; following
+  // one is a preview that shivers under a resting hand.
+  ok("a drift under the dead zone is ignored", !worthFollowing(2, 6));
+  ok("...in either direction", !worthFollowing(-2, 6));
+  ok("a real movement is followed", worthFollowing(7, 6));
+  ok("...and exactly the dead zone counts as movement", worthFollowing(6, 6));
+  // Zero is the old behaviour, kept for anybody who wants it — and it must not
+  // swallow a one-pixel scroll, which is what a `>` here would have done.
+  ok("zero follows everything", worthFollowing(1, 0));
+  ok("...and an unset dead zone does not crash", worthFollowing(1, undefined));
+  // A pane that has not moved is not a gesture.
+  ok("no movement is not followed", !worthFollowing(0, 1));
 }

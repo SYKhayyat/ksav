@@ -23,7 +23,7 @@
 // Nothing in this module touches the DOM except `applyPreview`, so the geometry
 // is testable without a browser.
 
-import type { LineRun } from "./api";
+import type { LineRun, PrintedLine } from "./api";
 import { tf } from "./i18n";
 import { docConfig, settings } from "./settings";
 
@@ -370,6 +370,18 @@ let current: { pages: string[]; hashes: string[] } | null = null;
  * printed nowhere and blank itself, mid-keystroke, on every unbalanced bracket.
  */
 let currentLines: LineRun[][] = [];
+
+/**
+ * What each page on screen *says*, from the last compile that was asked.
+ *
+ * Beside `currentLines` and for its reason, which by now is a rule this
+ * repository has been bitten by three times: a failed compile is stored in
+ * `runtime.lastResult` with no pages and no text, while the pages on screen are
+ * still the last good ones. A find drawer reading the failed result would
+ * announce that the phrase the writer is looking at printed nowhere, mid
+ * keystroke, on every unbalanced bracket.
+ */
+let currentText: PrintedLine[][] = [];
 
 /**
  * What each preview host is narrowed to, if anything.
@@ -842,7 +854,7 @@ export function drawPages(host: HTMLElement, pages: string[], hashes?: string[],
  * is about *what is on the screen* and is what Print reads. An engine too old to
  * send hashes would have printed nothing.
  */
-function setCurrent(pages: string[], hashes?: string[], lines?: LineRun[][]) {
+function setCurrent(pages: string[], hashes?: string[], lines?: LineRun[][], text?: PrintedLine[][]) {
   current = { pages, hashes: hashes && hashes.length === pages.length ? hashes : [] };
   // Replaced, never merged, and emptied when a page set arrives without them.
   //
@@ -853,6 +865,7 @@ function setCurrent(pages: string[], hashes?: string[], lines?: LineRun[][]) {
   // field along. Empty is the honest state, `shownBy` reads it as *not told yet*,
   // and the compile that follows says.
   currentLines = lines ?? [];
+  currentText = text ?? [];
 }
 
 /**
@@ -893,7 +906,12 @@ export function previewHosts(): HTMLElement[] {
  * which page*, when one was asked for — which is when a preview on screen is
  * narrowed, and not otherwise.
  */
-export function drawPagesEverywhere(pages: string[], hashes?: string[], lines?: LineRun[][]) {
+export function drawPagesEverywhere(
+  pages: string[],
+  hashes?: string[],
+  lines?: LineRun[][],
+  text?: PrintedLine[][],
+) {
   const hosts = previewHosts();
   // Recorded **before** the early return, and this is not a tidy-up.
   //
@@ -903,7 +921,7 @@ export function drawPagesEverywhere(pages: string[], hashes?: string[], lines?: 
   // is what Print and the page-range chooser read, so printing from a
   // source-only pane printed the pages of a document you had since left, at the
   // length of a document you were not looking at. The one output that is paper.
-  setCurrent(pages, hashes, lines);
+  setCurrent(pages, hashes, lines, text);
   if (!hosts.length) return;
   // The first pane draws; the rest reuse what it recorded, so a document with
   // four previews still compiles once. Each of them still decides for itself
@@ -936,6 +954,17 @@ export function drawPagesEverywhere(pages: string[], hashes?: string[], lines?: 
  */
 export function currentPages(): readonly string[] {
   return current?.pages ?? [];
+}
+
+/**
+ * What the pages on screen say, or nothing when the engine was never asked.
+ *
+ * The find drawer's preview half, and the only door to it. Empty is the honest
+ * state and the drawer reports it as *not laid out yet* rather than as *no
+ * matches* — see `find.FindResult.previewUnavailable`.
+ */
+export function currentPageText(): readonly (readonly PrintedLine[])[] {
+  return currentText;
 }
 
 function render(host: HTMLElement, pages: string[], hashes?: string[]) {

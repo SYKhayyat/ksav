@@ -301,6 +301,33 @@
   {
    "ctx": "prose",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת7(גודל: 0.95em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת8(גודל: 0.95em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_כותרת9(גודל: 0.95em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -531,6 +558,42 @@
    "legal": true,
    "reason": null,
    "source": "שורה של פרוזה ובה מלים#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_טקסט_הערות(גודל: 0.9em)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#הגדרות_מספור(אפס_לפי: 1)אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#התחל_מספור()אחרות להמשך."
+  },
+  {
+   "ctx": "prose",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "שורה של פרוזה ובה מלים#המשך_מספור()אחרות להמשך."
   },
   {
    "ctx": "prose",
@@ -1714,6 +1777,33 @@
   {
    "ctx": "prose",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h7_config(size: 0.95em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h8_config(size: 0.95em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#h9_config(size: 0.95em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -1944,6 +2034,42 @@
    "legal": true,
    "reason": null,
    "source": "A line of prose with some wor#footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#notes_text_config(size: 0.9em)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#numbering_config(restart_by: 1)ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#restart_numbering()ds to continue."
+  },
+  {
+   "ctx": "prose",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "A line of prose with some wor#continue_numbering()ds to continue."
   },
   {
    "ctx": "prose",
@@ -3127,6 +3253,33 @@
   {
    "ctx": "heading-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת7(גודל: 0.95em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת8(גודל: 0.95em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_כותרת9(גודל: 0.95em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -3357,6 +3510,42 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת1[פרק #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_טקסט_הערות(גודל: 0.9em)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #הגדרות_מספור(אפס_לפי: 1)ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #התחל_מספור()ראשון]\n\nגוף."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת1[פרק #המשך_מספור()ראשון]\n\nגוף."
   },
   {
    "ctx": "heading-body",
@@ -4540,6 +4729,33 @@
   {
    "ctx": "heading-body",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h7_config(size: 0.95em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h8_config(size: 0.95em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #h9_config(size: 0.95em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -4770,6 +4986,42 @@
    "legal": true,
    "reason": null,
    "source": "#h1[Chapter #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #notes_text_config(size: 0.9em)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #numbering_config(restart_by: 1)One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #restart_numbering()One]\n\nBody."
+  },
+  {
+   "ctx": "heading-body",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#h1[Chapter #continue_numbering()One]\n\nBody."
   },
   {
    "ctx": "heading-body",
@@ -5953,6 +6205,33 @@
   {
    "ctx": "note-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת7(גודל: 0.95em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת8(גודל: 0.95em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_כותרת9(גודל: 0.95em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -6183,6 +6462,42 @@
    "legal": true,
    "reason": null,
    "source": "טקסט#הערה[הערה #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_טקסט_הערות(גודל: 0.9em)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #הגדרות_מספור(אפס_לפי: 1)פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #התחל_מספור()פנימית] המשך."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "טקסט#הערה[הערה #המשך_מספור()פנימית] המשך."
   },
   {
    "ctx": "note-body",
@@ -7366,6 +7681,33 @@
   {
    "ctx": "note-body",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h7_config(size: 0.95em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h8_config(size: 0.95em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #h9_config(size: 0.95em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -7596,6 +7938,42 @@
    "legal": true,
    "reason": null,
    "source": "Text#fnote[a note #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #notes_text_config(size: 0.9em)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #numbering_config(restart_by: 1)inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #restart_numbering()inside] continues."
+  },
+  {
+   "ctx": "note-body",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "Text#fnote[a note #continue_numbering()inside] continues."
   },
   {
    "ctx": "note-body",
@@ -8779,6 +9157,33 @@
   {
    "ctx": "list-in-item",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת7(גודל: 0.95em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת8(גודל: 0.95em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_כותרת9(גודל: 0.95em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -9009,6 +9414,42 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_טקסט_הערות(גודל: 0.9em)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הגדרות_מספור(אפס_לפי: 1)כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #התחל_מספור()כאן],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #המשך_מספור()כאן],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -10192,6 +10633,33 @@
   {
    "ctx": "list-in-item",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h7_config(size: 0.95em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h8_config(size: 0.95em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #h9_config(size: 0.95em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -10422,6 +10890,42 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #notes_text_config(size: 0.9em)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #numbering_config(restart_by: 1)here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #restart_numbering()here],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-in-item",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #continue_numbering()here],\n  item[second],\n)"
   },
   {
    "ctx": "list-in-item",
@@ -11605,6 +12109,33 @@
   {
    "ctx": "list-between-items",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת7(גודל: 0.95em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת8(גודל: 0.95em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_כותרת9(גודל: 0.95em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -11835,6 +12366,42 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון],הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\")),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_טקסט_הערות(גודל: 0.9em),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],הגדרות_מספור(אפס_לפי: 1),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],התחל_מספור(),\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון],המשך_מספור(),\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -13018,6 +13585,33 @@
   {
    "ctx": "list-between-items",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h7_config(size: 0.95em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h8_config(size: 0.95em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],h9_config(size: 0.95em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -13248,6 +13842,42 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first],footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\")),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],notes_text_config(size: 0.9em),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],numbering_config(restart_by: 1),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],restart_numbering(),\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-between-items",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first],continue_numbering(),\n  item[second],\n)"
   },
   {
    "ctx": "list-between-items",
@@ -14431,6 +15061,33 @@
   {
    "ctx": "list-after-open",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת7(גודל: 0.95em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת8(גודל: 0.95em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_כותרת9(גודל: 0.95em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -14661,6 +15318,42 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\")),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_טקסט_הערות(גודל: 0.9em),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(הגדרות_מספור(אפס_לפי: 1),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(התחל_מספור(),\n  פריט[ראשון],\n  פריט[שני],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(המשך_מספור(),\n  פריט[ראשון],\n  פריט[שני],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -15844,6 +16537,33 @@
   {
    "ctx": "list-after-open",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h7_config(size: 0.95em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h8_config(size: 0.95em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(h9_config(size: 0.95em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -16074,6 +16794,42 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\")),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(notes_text_config(size: 0.9em),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(numbering_config(restart_by: 1),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(restart_numbering(),\n  item[first],\n  item[second],\n)"
+  },
+  {
+   "ctx": "list-after-open",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(continue_numbering(),\n  item[first],\n  item[second],\n)"
   },
   {
    "ctx": "list-after-open",
@@ -17257,6 +18013,33 @@
   {
    "ctx": "table-in-cell",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת7(גודל: 0.95em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת8(גודל: 0.95em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_כותרת9(גודל: 0.95em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -17487,6 +18270,42 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_טקסט_הערות(גודל: 0.9em)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הגדרות_מספור(אפס_לפי: 1)כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #התחל_מספור()כאן], תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #המשך_מספור()כאן], תא[שתים],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -18670,6 +19489,33 @@
   {
    "ctx": "table-in-cell",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h7_config(size: 0.95em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h8_config(size: 0.95em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #h9_config(size: 0.95em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -18900,6 +19746,42 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #notes_text_config(size: 0.9em)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #numbering_config(restart_by: 1)here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #restart_numbering()here], cell[two],\n)"
+  },
+  {
+   "ctx": "table-in-cell",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #continue_numbering()here], cell[two],\n)"
   },
   {
    "ctx": "table-in-cell",
@@ -20083,6 +20965,33 @@
   {
    "ctx": "table-between-cells",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת7(גודל: 0.95em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת8(גודל: 0.95em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_כותרת9(גודל: 0.95em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -20313,6 +21222,42 @@
    "legal": true,
    "reason": null,
    "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\")), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_טקסט_הערות(גודל: 0.9em), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הגדרות_מספור(אפס_לפי: 1), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],התחל_מספור(), תא[שתים],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],המשך_מספור(), תא[שתים],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -21496,6 +22441,33 @@
   {
    "ctx": "table-between-cells",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h7_config(size: 0.95em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h8_config(size: 0.95em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],h9_config(size: 0.95em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -21726,6 +22698,42 @@
    "legal": true,
    "reason": null,
    "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\")), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],notes_text_config(size: 0.9em), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],numbering_config(restart_by: 1), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],restart_numbering(), cell[two],\n)"
+  },
+  {
+   "ctx": "table-between-cells",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],continue_numbering(), cell[two],\n)"
   },
   {
    "ctx": "table-between-cells",
@@ -22909,6 +23917,33 @@
   {
    "ctx": "nested-deep",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת7(גודל: 0.95em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת8(גודל: 0.95em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_כותרת9(גודל: 0.95em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -23139,6 +24174,42 @@
    "legal": true,
    "reason": null,
    "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_טקסט_הערות(גודל: 0.9em)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הגדרות_מספור(אפס_לפי: 1)כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #התחל_מספור()כאן] סוף],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #המשך_מספור()כאן] סוף],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -24322,6 +25393,33 @@
   {
    "ctx": "nested-deep",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h7_config(size: 0.95em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h8_config(size: 0.95em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #h9_config(size: 0.95em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -24552,6 +25650,42 @@
    "legal": true,
    "reason": null,
    "source": "#bullets(\n  item[first #fnote[in a note #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #notes_text_config(size: 0.9em)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #numbering_config(restart_by: 1)here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #restart_numbering()here] end],\n)"
+  },
+  {
+   "ctx": "nested-deep",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#bullets(\n  item[first #fnote[in a note #continue_numbering()here] end],\n)"
   },
   {
    "ctx": "nested-deep",
@@ -25735,6 +26869,33 @@
   {
    "ctx": "deep-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת7(גודל: 0.95em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת8(גודל: 0.95em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_כותרת9(גודל: 0.95em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -25965,6 +27126,42 @@
    "legal": true,
    "reason": null,
    "source": "#כותרת4[פרק #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_טקסט_הערות(גודל: 0.9em)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #הגדרות_מספור(אפס_לפי: 1)רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #התחל_מספור()רביעי]\n\nגוף."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#כותרת4[פרק #המשך_מספור()רביעי]\n\nגוף."
   },
   {
    "ctx": "deep-heading-body",
@@ -27148,6 +28345,33 @@
   {
    "ctx": "deep-heading-body",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h7_config(size: 0.95em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h8_config(size: 0.95em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #h9_config(size: 0.95em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -27378,6 +28602,42 @@
    "legal": true,
    "reason": null,
    "source": "#h4[Section #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #notes_text_config(size: 0.9em)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #numbering_config(restart_by: 1)Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #restart_numbering()Four]\n\nBody."
+  },
+  {
+   "ctx": "deep-heading-body",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#h4[Section #continue_numbering()Four]\n\nBody."
   },
   {
    "ctx": "deep-heading-body",
@@ -28561,6 +29821,33 @@
   {
    "ctx": "siman-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת7(גודל: 0.95em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת8(גודל: 0.95em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_כותרת9(גודל: 0.95em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -28791,6 +30078,42 @@
    "legal": true,
    "reason": null,
    "source": "#סימן[א׳][דיני #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_טקסט_הערות(גודל: 0.9em)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #הגדרות_מספור(אפס_לפי: 1)תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #התחל_מספור()תפילה]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#סימן[א׳][דיני #המשך_מספור()תפילה]"
   },
   {
    "ctx": "siman-body",
@@ -29974,6 +31297,33 @@
   {
    "ctx": "siman-body",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h7_config(size: 0.95em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h8_config(size: 0.95em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #h9_config(size: 0.95em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -30204,6 +31554,42 @@
    "legal": true,
    "reason": null,
    "source": "#siman[1][The laws of #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #notes_text_config(size: 0.9em)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #numbering_config(restart_by: 1)prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #restart_numbering()prayer]"
+  },
+  {
+   "ctx": "siman-body",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#siman[1][The laws of #continue_numbering()prayer]"
   },
   {
    "ctx": "siman-body",
@@ -31387,6 +32773,33 @@
   {
    "ctx": "title-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת7(גודל: 0.95em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת8(גודל: 0.95em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_כותרת9(גודל: 0.95em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -31617,6 +33030,42 @@
    "legal": true,
    "reason": null,
    "source": "#שער[כותרת #הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_טקסט_הערות(גודל: 0.9em)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #הגדרות_מספור(אפס_לפי: 1)ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #התחל_מספור()ראשית]\n\nגוף."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#שער[כותרת #המשך_מספור()ראשית]\n\nגוף."
   },
   {
    "ctx": "title-body",
@@ -32800,6 +34249,33 @@
   {
    "ctx": "title-body",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h7_config(size: 0.95em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h8_config(size: 0.95em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #h9_config(size: 0.95em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -33030,6 +34506,42 @@
    "legal": true,
    "reason": null,
    "source": "#title[The #footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #notes_text_config(size: 0.9em)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #numbering_config(restart_by: 1)Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #restart_numbering()Title]\n\nBody."
+  },
+  {
+   "ctx": "title-body",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#title[The #continue_numbering()Title]\n\nBody."
   },
   {
    "ctx": "title-body",
@@ -34213,6 +35725,33 @@
   {
    "ctx": "note-heading-body",
    "lang": "he",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת7(גודל: 0.95em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת8(גודל: 0.95em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_כותרת9(גודל: 0.95em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -34443,6 +35982,42 @@
    "legal": true,
    "reason": null,
    "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_טקסט_הערות(גודל: 0.9em)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#הגדרות_מספור(אפס_לפי: 1)ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#התחל_מספור()ת] גוף ההערה]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "he",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#הערה[#כותרת_בהערה[ראשי#המשך_מספור()ת] גוף ההערה]"
   },
   {
    "ctx": "note-heading-body",
@@ -35626,6 +37201,33 @@
   {
    "ctx": "note-heading-body",
    "lang": "en",
+   "cmd": "הגדרות_כותרת7",
+   "en": "h7_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h7_config(size: 0.95em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת8",
+   "en": "h8_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h8_config(size: 0.95em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_כותרת9",
+   "en": "h9_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#h9_config(size: 0.95em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
    "cmd": "מרכז",
    "en": "center_",
    "legal": true,
@@ -35856,6 +37458,42 @@
    "legal": true,
    "reason": null,
    "source": "#fnote[#note_heading[Head#footnote_config(style: (\"normal\", \"italic\"), indent: (0em, 1em), numbering: (\"א\", \"1\", \"i\"))ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_טקסט_הערות",
+   "en": "notes_text_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#notes_text_config(size: 0.9em)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "הגדרות_מספור",
+   "en": "numbering_config",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#numbering_config(restart_by: 1)ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "התחל_מספור",
+   "en": "restart_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#restart_numbering()ing] the note body]"
+  },
+  {
+   "ctx": "note-heading-body",
+   "lang": "en",
+   "cmd": "המשך_מספור",
+   "en": "continue_numbering",
+   "legal": true,
+   "reason": null,
+   "source": "#fnote[#note_heading[Head#continue_numbering()ing] the note body]"
   },
   {
    "ctx": "note-heading-body",

@@ -337,6 +337,33 @@
       "deprecated": false
     },
     {
+      "he": "הגדרות_כותרת7",
+      "en": "h7_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 7",
+      "desc_en": "How level 7 headings are set",
+      "insert": "#הגדרות_כותרת7(גודל: 0.95em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת8",
+      "en": "h8_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 8",
+      "desc_en": "How level 8 headings are set",
+      "insert": "#הגדרות_כותרת8(גודל: 0.95em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_כותרת9",
+      "en": "h9_config",
+      "category": "heading",
+      "desc_he": "עיצוב כותרות רמה 9",
+      "desc_en": "How level 9 headings are set",
+      "insert": "#הגדרות_כותרת9(גודל: 0.95em)|",
+      "deprecated": false
+    },
+    {
       "he": "מרכז",
       "en": "center_",
       "category": "align",
@@ -568,6 +595,42 @@
       "desc_he": "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות/מספור לכל דרגה)",
       "desc_en": "Configure layered notes (size/style/indent/labels/numbering per tier)",
       "insert": "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_טקסט_הערות",
+      "en": "notes_text_config",
+      "category": "footnote",
+      "desc_he": "עיצוב אחיד לכל ההערות — הערות שוליים, הערות סיום, מדורים, מדפים, זרמים והערות צד",
+      "desc_en": "One look shared by every note apparatus; each may still overrule it",
+      "insert": "#הגדרות_טקסט_הערות(גודל: 0.9em)|",
+      "deprecated": false
+    },
+    {
+      "he": "הגדרות_מספור",
+      "en": "numbering_config",
+      "category": "footnote",
+      "desc_he": "באיזו רמת כותרת המספור מתחיל מחדש (none = ממשיך לאורך כל הספר)",
+      "desc_en": "The heading level a count restarts at (none = one run through the sefer)",
+      "insert": "#הגדרות_מספור(אפס_לפי: 1)|",
+      "deprecated": false
+    },
+    {
+      "he": "התחל_מספור",
+      "en": "restart_numbering",
+      "category": "footnote",
+      "desc_he": "התחל את המספור מכאן מחדש",
+      "desc_en": "Start the count again from here",
+      "insert": "#התחל_מספור()|",
+      "deprecated": false
+    },
+    {
+      "he": "המשך_מספור",
+      "en": "continue_numbering",
+      "category": "footnote",
+      "desc_he": "המשך את המספור דרך האיפוס שמעל",
+      "desc_en": "Carry the count on through the restart above",
+      "insert": "#המשך_מספור()|",
       "deprecated": false
     },
     {

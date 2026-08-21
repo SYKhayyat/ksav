@@ -55,6 +55,7 @@ export const DOC_DEFAULTS = {
  * short of, and an export meets a document that used one.
  */
 export const COMMAND_EN: Readonly<Record<string, string>> = {
+  "הגדרות_טקסט_הערות": "notes_text_config",
   "הגדרות_סימונים": "marks_config",
   "הגדרות_ציון": "ref_config",
   "הגדרות_גמרא": "gemara_config",
@@ -75,6 +76,9 @@ export const COMMAND_EN: Readonly<Record<string, string>> = {
   "הגדרות_שער": "title_config",
   "הגדרות_תת_שער": "subtitle_config",
   "הגדרות_הערות": "footnote_config",
+  "הגדרות_מספור": "numbering_config",
+  "התחל_מספור": "restart_numbering",
+  "המשך_מספור": "continue_numbering",
   "הערה_בדרגה": "tier",
   "מדור_בדרגה": "band",
   "מדור_א": "band1",
@@ -115,6 +119,9 @@ export const COMMAND_EN: Readonly<Record<string, string>> = {
   "הגדרות_כותרת4": "h4_config",
   "הגדרות_כותרת5": "h5_config",
   "הגדרות_כותרת6": "h6_config",
+  "הגדרות_כותרת7": "h7_config",
+  "הגדרות_כותרת8": "h8_config",
+  "הגדרות_כותרת9": "h9_config",
   "הגדרות_כותרות": "headings_config",
   "הגדרות_רשימות": "lists_config",
   "הגדרות_טבלאות": "tables_config",
@@ -261,6 +268,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "שפה": "lang",
   "כיוון": "dir",
   "עובי": "thickness",
+  "אפס_לפי": "restart_by",
   "לרוחב": "landscape",
   "סימן_מים": "watermark",
   "כותרת_עליונה": "header",

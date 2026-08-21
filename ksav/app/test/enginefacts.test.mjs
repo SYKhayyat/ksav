@@ -534,6 +534,9 @@ export async function run() {
       "prints nothing at all": [
         "כלול", "סמן", "הפניה", "גופי_הערות", "גוף_הערה", "הערה_בשם",
         "הצג_אזור",
+        // Where a count starts again. They leave a marker and no ink — see
+        // `_nr_label` in the prelude — so there is nothing about them to style.
+        "התחל_מספור", "המשך_מספור",
       ],
       "a configuration or an index": [
         "תוכן", "רשימת_סימונים", "מפתח_מקורות",

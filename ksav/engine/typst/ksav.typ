@@ -34,6 +34,9 @@
   page_width: "רוחב_עמוד", page_height: "גובה_עמוד",
   weight: "משקל", paper: "נייר", margin: "שוליים", lang: "שפה", dir: "כיוון",
   thickness: "עובי",
+  // Which structural level a count starts again at — one word for the notes
+  // and for the numbers a siman carries, because it is one mechanism.
+  restart_by: "אפס_לפי",
   landscape: "לרוחב", watermark: "סימן_מים", header: "כותרת_עליונה",
   footer: "כותרת_תחתונה", numbering: "מספור", hebrew_numbering: "מספור_עברי",
   // `justify` is **not** here, and `align` is. Both used to be, both mapping to
@@ -199,6 +202,65 @@
   // setting it belongs to rather than living in a tenth piece of state.
   else if c.at("כפה", default: false) { c }
   else { let d = c; for (k, v) in own { d.insert(k, v) }; d }
+}
+
+// ---- the note style every apparatus falls back to ----
+//
+// Ksav has six note apparatuses — the page-foot footnotes, the endnote section,
+// the stacked section bands, the per-page bands, the parallel streams and the
+// side column — and each shipped its own size, slant, colour and gap. So *"make
+// the notes a little bigger"* was six edits in six sections of the panel, and
+// two apparatuses in one sefer looked different for no reason anybody chose.
+// The report is about footnotes and endnotes, which are the pair most seforim
+// have; the answer has to cover all six or it is the same complaint waiting.
+//
+// One state, consulted **under** each apparatus's own — a fourth layer below
+// `_cfg_with`'s three. The rule is the only one that makes "shared, and still
+// changeable" mean anything: a knob the writer set on the apparatus wins, and a
+// knob they did not is the shared answer. Which requires knowing what the
+// writer set, since a shipped default is indistinguishable from a chosen value
+// in a dictionary — so each `#הגדרות_*` records the keys it was actually given,
+// under `_מפורש`, and nothing else reads that key.
+#let _nt_keys = ("גופן", "גודל", "סגנון", "צבע", "ריווח")
+#let _nt_cfg = state("ksav-nt-cfg", (:))
+#let הגדרות_טקסט_הערות(..opts) = _nt_cfg.update(c => {
+  let d = c
+  for (k, v) in opts.named() {
+    if not _nt_keys.contains(k) {
+      panic("הגדרות_טקסט_הערות: ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+    d.insert(k, v)
+  }
+  d
+})
+
+#let notes_text_config = _en(הגדרות_טקסט_הערות)
+
+/// Record which keys a `#הגדרות_*` call was actually given.
+///
+/// Appended to rather than replaced: two calls at different points in a sefer
+/// each set what they set, and the second must not un-say the first.
+#let _nt_explicit(d, named) = {
+  let out = d
+  let seen = out.at("_מפורש", default: ())
+  for (k, v) in named { if not seen.contains(k) { seen.push(k) } }
+  out.insert("_מפורש", seen)
+  out
+}
+
+/// One apparatus's configuration with the shared note style under it.
+///
+/// Called at the point of *use* rather than at the point of configuration,
+/// because both states are read at a location: a `#הגדרות_טקסט_הערות` halfway
+/// down a sefer has to reach the notes below it and not the ones above.
+#let _nt_under(c) = {
+  let shared = _nt_cfg.get()
+  if shared.len() == 0 { c } else {
+    let explicit = c.at("_מפורש", default: ())
+    let d = c
+    for (k, v) in shared { if not explicit.contains(k) { d.insert(k, v) } }
+    d
+  }
 }
 
 /// Split an element's named arguments into the ones that override its style and
@@ -796,7 +858,7 @@
 #let הגדרות_הערות(..opts) = _fn_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
-  d
+  _nt_explicit(d, opts.named())
 })
 #let footnote_config = _en(הגדרות_הערות)
 
@@ -922,7 +984,7 @@
 //
 // `.before(loc)` is inclusive, which is what makes this the caller's own rank
 // rather than the count in front of it.
-#let _ksav_rank(sel, loc, pred) = {
+#let _ksav_count(sel, loc, pred) = {
   let depth = 0
   let n = 0
   for e in query(selector(sel).or(_ksav_ap0).or(_ksav_ap1).before(loc)) {
@@ -932,7 +994,200 @@
       n += 1
     }
   }
-  calc.max(n, 1)
+  n
+}
+/// The same, as a number to print: never zero, because there is no note nought.
+///
+/// Split from `_ksav_count` because a caller that composes two counts — see
+/// `_ap_note`, which adds a note's place in the sefer to its place inside the
+/// entry being re-displayed — must clamp once at the end and not twice in the
+/// middle.
+#let _ksav_rank(sel, loc, pred) = calc.max(_ksav_count(sel, loc, pred), 1)
+
+// ---- מספור מתחיל מחדש · restartable numbering ----
+//
+// # What is being asked
+//
+// > *"Note numbering should be restartable rather than running unbroken through
+// > a whole sefer — most importantly in the endnote section, where per-chapter
+// > numbering is the normal convention. Wanted: automatic restart at a chosen
+// > structural level, plus explicit restart and explicit continue commands the
+// > writer can place by hand."*
+//
+// And the same question is asked of simanim by another item, which is why this
+// is one mechanism and not two: the two commands below are read here, for
+// notes, and by the editor's `numbering.ts`, for the numbers a siman carries in
+// the source. A writer who has learnt *"restart the count here"* has learnt it
+// once.
+//
+// # How it works, and why it is a marker rather than a counter
+//
+// A note's number is a **query** — how many notes lie before this one — and has
+// been since counters were found not to converge under page breaking. Restarting
+// a query is therefore not a matter of setting anything to zero; it is a matter
+// of moving where the counting *starts*. So every restart point drops a marker,
+// and `_nr_origin` answers "which marker governs this spot", and the count is
+// taken `.after()` it. Nothing is stored, nothing has to converge, and the
+// answer is the same on every layout pass.
+//
+// Three kinds of marker, all in one label so that `query` returns them in
+// document order and no two streams have to be merged by position:
+//
+//   - `("auto", level)` — emitted by every heading, by `_hd_show`. Whether it
+//     restarts anything is decided *here*, against `אפס_לפי`, rather than by
+//     emitting the marker conditionally. That way changing the setting changes
+//     the answer without the markers having to be re-emitted, and a document
+//     with the setting off pays one metadata element per heading, which is
+//     nothing beside the query it already runs per note.
+//   - `("restart",)` — `#התחל_מספור`, placed by hand.
+//   - `("continue",)` — `#המשך_מספור`, placed by hand, and the reason the item
+//     asks for *both*: an automatic rule the writer cannot override locally is
+//     a rule they will turn off entirely the first time it is wrong.
+//
+// `continue` undoes the restart immediately in front of it, which is where a
+// writer puts it: under the chapter heading whose numbering should run on. It
+// restores the origin that was in force before that restart rather than
+// clearing the origin altogether — otherwise a `#המשך_מספור` in chapter four
+// would count from the start of the sefer, which is not "continue", it is
+// "start again from the beginning".
+#let _nr_label = <ksav-nr>
+#let _nr_defaults = (
+  // The heading level an automatic restart happens at, or `none` for never.
+  //
+  // `none` is the default because it is what every sefer written in Ksav so far
+  // has done, and a numbering scheme that changes under a document on upgrade
+  // is not an improvement. A writer asking for per-chapter endnotes says so.
+  אפס_לפי: none,
+)
+#let _nr_cfg = state("ksav-nr-cfg", _nr_defaults)
+// Whether this document restarts a count by hand anywhere.
+//
+// A **state** and not a query, and that is load-bearing rather than tidy.
+// Everything downstream has to ask "does anything restart here" before it can
+// decide how to number, and asking it as a query would be one query per note in
+// every document ever written — which is precisely the Θ(n²) the comment above
+// `_ap_entries` says was this apparatus's performance defect. A state is read
+// without walking anything, and `.final()` is document-global, so a
+// `#התחל_מספור` at the back of the sefer is known at the front.
+#let _nr_used = state("ksav-nr-used", false)
+#let הגדרות_מספור(..opts) = {
+  // Checked **here** and not inside the update. A state's update closure runs
+  // only when something reads the state, so a document that restarts nothing
+  // never runs it — and a misspelt knob would then compile, print the old
+  // numbering, and give the writer no way to tell a typo from a feature that
+  // does not work. Which is the defect this whole repository is about.
+  for (k, v) in opts.named() {
+    if k not in _nr_defaults {
+      panic("הגדרות_מספור: אין הגדרה בשם " + k)
+    }
+  }
+  _nr_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    d
+  })
+}
+#let numbering_config = _en(הגדרות_מספור)
+
+// The marker itself. Boxed to nothing: it must leave no ink and take no space,
+// and a bare `metadata` in markup is already spaceless — the label is what
+// makes it findable.
+#let _nr_mark(value) = [#metadata(value)#_nr_label]
+
+/// Start the count again from here.
+#let התחל_מספור() = { _nr_used.update(true); _nr_mark(("restart",)) }
+#let restart_numbering = _en(התחל_מספור)
+
+/// Carry the count on through the restart just above — an automatic one or a
+/// hand-placed one. The local override the automatic rule needs to be safe.
+#let המשך_מספור() = { _nr_used.update(true); _nr_mark(("continue",)) }
+#let continue_numbering = _en(המשך_מספור)
+
+// Where the count that governs `loc` begins, or `none` for the start of the
+// sefer.
+//
+// One pass over the markers in document order, carrying two values: the origin
+// in force and the one before it. That is exactly enough for `continue` to mean
+// "the restart above me did not happen" and no more — a deeper history would be
+// a stack nobody can predict the behaviour of from the source.
+#let _nr_origin(loc) = {
+  let lvl = _nr_cfg.get().at("אפס_לפי", default: none)
+  let cur = none
+  let prev = none
+  for m in query(selector(_nr_label).before(loc)) {
+    let v = m.value
+    let kind = v.at(0)
+    if kind == "auto" {
+      if lvl != none and v.at(1) <= lvl {
+        prev = cur
+        cur = m.location()
+      }
+    } else if kind == "restart" {
+      prev = cur
+      cur = m.location()
+    } else {
+      cur = prev
+    }
+  }
+  cur
+}
+
+// Does anything in this document restart a count at all?
+//
+// The guard that keeps the default free. Everything below costs one query per
+// entry, which is the shape the comment above `_ap_entries` says was the
+// performance defect of this apparatus — so it is paid only by a document that
+// actually asked for restarts, and a sefer with `אפס_לפי` unset and no
+// `#התחל_מספור` in it does one query and stops.
+#let _nr_any() = {
+  _nr_cfg.get().at("אפס_לפי", default: none) != none or _nr_used.final()
+}
+
+// A selector restricted to the count that governs `loc`.
+//
+// The one door: every numbering that should restart goes through this, and a
+// numbering that does not is one that was never asked to. Wrapping the selector
+// rather than adding an argument to `_ksav_count` keeps the composition in
+// `_ap_note` — a note's place in the sefer plus its place inside the entry
+// being re-displayed — readable, which is where the numbering bug before this
+// one lived.
+#let _nr_scope(sel, loc) = {
+  // Asked here rather than by each caller, so a document that restarts nothing
+  // pays a state read and not a query — and the side column, which computes a
+  // rank per neighbour per note, does not turn into a query per neighbour per
+  // note. The callers that need the guard for their own reasons ask again.
+  if not _nr_any() { return sel }
+  let og = _nr_origin(loc)
+  if og == none { sel } else { selector(sel).after(og) }
+}
+
+// The number each of `locs` prints, `locs` being one apparatus group's entries
+// in document order. `none` when nothing in the document restarts anything, so
+// the caller keeps its own cursor and pays nothing.
+//
+// The entries are numbered by *walking the list* rather than by asking where
+// each one is — that is the fix the marker bug before this one turned on — so a
+// restart has to be expressed the same way: a run of entries sharing an origin
+// is one count, and a new origin starts a new one. Comparing the origins rather
+// than counting the markers between them is what makes a `#המשך_מספור` work
+// here for free: it does not restart, so it does not change the origin, so the
+// run carries on.
+#let _nr_numbers(locs) = {
+  if not _nr_any() { return none }
+  let out = ()
+  let base = 0
+  let last = none
+  let started = false
+  for (i, l) in locs.enumerate() {
+    let og = _nr_origin(l)
+    if not started or og != last {
+      base = i
+      last = og
+      started = true
+    }
+    out.push(i - base + 1)
+  }
+  out
 }
 // Restrict a selector to the span between the surrounding pair of `marker`
 // elements — i.e. "the current section". `loc` is the caller's own location.
@@ -986,7 +1241,7 @@
 // per-tier behaviour this apparatus has always had.
 #let הערה_בדרגה(דרגה, body, _ערוץ: none, _מספור: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
-  let cfg = _cfg_with(_fn_cfg.get(), own)
+  let cfg = _cfg_with(_nt_under(_fn_cfg.get()), own)
   // Not ours: handed to `footnote` at both call sites below, so its own error
   // names it. A note takes no other named argument, which is precisely why a
   // silent drop here would be a typo that formats nothing and says nothing.
@@ -1009,6 +1264,12 @@
   let scheme = if _מספור != none { _מספור } else if type(schemes) == array {
     _fn_pick(schemes, דרגה, "1")
   } else { none }
+  // The default channel is numbered by Typst's own footnote counter, which is
+  // balanced and free and cannot be restarted from here — so a document that
+  // restarts counts moves it onto the same query path every other channel
+  // already uses. `_nr_any` is a state read rather than a query for exactly
+  // this call site: it is asked once per note, in every document.
+  let scheme = if scheme == none and _nr_any() { "1" } else { scheme }
   if scheme == none {
     footnote(..rest, entry)
   } else {
@@ -1023,7 +1284,7 @@
     [#metadata(key)#label("ksav-fnt")]
     context {
       let loc = here()
-      let n = _ksav_rank(selector(label("ksav-fnt")), loc, e => e.value == key)
+      let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
       footnote(numbering: _ => numbering(scheme, n), ..rest, entry)
     }
   }
@@ -1166,6 +1427,40 @@
 // call site, so `cfg` there is already merged; the entry's own size, slant and
 // colour have to reach the band, and this dictionary is the only thing that gets
 // there.
+/// The entry an apparatus is re-displaying right now, and where it really lives.
+///
+/// `none` in the body of the sefer, which is where almost every marker is
+/// rendered. Set by `_ap_group` around each entry it prints, because a note
+/// written **inside another note's body** has its marker rendered there — down
+/// in the band, long after the place in the sefer it belongs to.
+///
+/// `real` is that place: the location of the entry's own registration. `at` is
+/// where the re-display of it starts, which is what lets a note inside the entry
+/// tell how many of its siblings came before it *within* that entry.
+#let _ap_origin = state("ksav-ap-origin", none)
+
+/// Start a deferred section on a fresh page, if it was asked for.
+///
+/// **The recorded trap:** a page break works in the flow and does nothing
+/// inside a container — a `box`, a `block`, a `grid` cell. Every one of the
+/// sections below is built inside a `context`, which is *not* a container, so
+/// the break has to be emitted there, before the block the section draws, and
+/// never from inside the block itself. One helper so there is one answer,
+/// called at the same lexical level in all six.
+///
+/// **Not weak, and that is the whole of why two of these sections did not
+/// break.** A weak page break is dropped when what follows it is produced by a
+/// `context` — measured: `#מעבר_עמוד`, which is `pagebreak(weak: true)`,
+/// written by hand between a paragraph and `#מראה_מקומות()` also produced one
+/// page. So the break was correct, emitted in the right place, and thrown away
+/// for being weak; two guesses at the lexical level were wrong because the
+/// level was never the problem.
+///
+/// The reason a weak break was reached for — not putting a blank page in front
+/// of nothing — is already answered by the caller: every one of these sections
+/// asks for the break only when it has something to print.
+#let _ap_fresh_page(want) = if want == true { pagebreak() }
+
 #let _ap_note(cfg, lbl, scope, g, body, own: (:)) = {
   [#metadata((group: g, body: body, own: own))#lbl]
   // Force nested groups to register in this same pass, in a zero-size inline box
@@ -1177,15 +1472,39 @@
   // so an apparatus re-display cannot count itself.
   context {
     let loc = here()
+    let mine = e => e.value.group == g
+    // **Where this marker is being drawn is not where the note is.**
+    //
+    // The hidden pre-registration above — the one `apparatus_golden.rs` counts
+    // and requires exactly one of — is what makes a *nested* note register in
+    // the same pass, so a note written inside another note's body has its
+    // real registration up in the sefer, at the outer note's own place, and has
+    // its marker drawn down in the band when that body is re-displayed. Ranking
+    // that marker `.before(here())` counts every sibling registration in the
+    // sefer, so **every nested marker printed the last number**: two notes, both
+    // reading ב, which is the report.
+    //
+    // The entries below were right the whole time, because they are numbered by
+    // walking the collected list rather than by asking where they are.
+    //
+    // So a marker inside a re-display is numbered from the entry it is inside:
+    // how many of its own group came before that entry in the sefer, plus how
+    // many of its siblings this same entry has already printed. In the body of
+    // the sefer, where `_ap_origin` is `none`, nothing changes.
+    let og = _ap_origin.get()
+    let n = if og == none or og.real == none {
+      _ksav_rank(_nr_scope(scope(loc), loc), loc, mine)
+    } else {
+      let before = _ksav_count(_nr_scope(scope(og.real), og.real), og.real, mine)
+      let here_in = query(selector(lbl).after(og.at).before(loc)).filter(mine).len()
+      calc.max(before + here_in, 1)
+    }
     // Through the apparatus's own `סימן`, which is a look for the *number*
     // rather than for the note. They are two decisions: the note sits at the
     // foot of the page in its band, and the number sits in the middle of a
     // sentence the reader is reading — a peirush set 0.8em and grey wants its
     // markers legible, and until this the number had no look at all.
-    _ap_piece(
-      cfg,
-      super(_ap_mark(cfg, g, _ksav_rank(scope(loc), loc, e => e.value.group == g))),
-    )
+    _ap_piece(cfg, super(_ap_mark(cfg, g, n)))
   }
 }
 
@@ -1212,6 +1531,12 @@
 #let _ap_entries(shown, scope, g) = {
   let mine = scope.filter(e => e.value.group == g)
   let want = shown.filter(e => e.value.group == g)
+  // What each entry is numbered, restarts included, or `none` when the document
+  // restarts nothing and the cursor below is the whole answer. The markers in
+  // the sefer restart through `_nr_scope`; this is the other half, and the two
+  // disagreeing is the exact defect `#31` was — one side of an apparatus
+  // numbering by position and the other by order.
+  let nums = _nr_numbers(mine.map(e => e.location()))
   let out = ()
   let i = 0
   for e in want {
@@ -1223,13 +1548,21 @@
     // re-displays its own registrations.
     let own = e.value.at("own", default: (:))
     if i < mine.len() {
-      out.push((i + 1, e.value.body, own))
+      // The entry's own place in the sefer travels with it. A note *inside* this
+      // body is numbered from here — see `_ap_origin` — because by the time that
+      // note's marker is drawn, "here" is the foot of a page.
+      out.push((
+        if nums == none { i + 1 } else { nums.at(i) },
+        e.value.body,
+        own,
+        mine.at(i).location(),
+      ))
       i += 1
     } else {
       // Not found — which cannot happen for a `shown` drawn from `scope`, and if
       // it ever did, a note printed with no number is better than one printed
       // with somebody else's. Restart the cursor so the rest still number.
-      out.push((out.len() + 1, e.value.body, own))
+      out.push((out.len() + 1, e.value.body, own, none))
       i = 0
     }
   }
@@ -1259,14 +1592,31 @@
   above
   let inner = {
     lead
-    for (num, body, own) in entries {
+    for (num, body, own, org) in entries {
       // One entry's own overrides apply to the entry and to nothing else — the
       // gap between entries and the column count belong to the band, not to a
       // note inside it, so they stay read off `cfg`.
       let ecfg = _cfg_with(cfg, own)
       block(
         spacing: cfg.at("ריווח_פריט", default: 0.3em),
-        _ap_wrap(ecfg, g, [#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #body]),
+        _ap_wrap(ecfg, g, {
+          // Say which entry is being re-displayed, and from where, for the
+          // length of its body only. A note inside it reads this instead of
+          // asking where it is standing; a note anywhere else finds `none` and
+          // is numbered exactly as before. See `_ap_origin`.
+          //
+          // **Outside the entry's own content, and that is not cosmetic.** The
+          // first draft put these inside the `[…]`, between the marker and the
+          // body — and a `context` lands a zero-width run there, so the run
+          // immediately before an entry's body stopped being its number. Two
+          // tests in `apparatus.rs` read exactly that adjacency to check that a
+          // band restarts its numbering per section and that parallel streams
+          // count independently, and both failed on correct numbering. The
+          // markup inside the brackets is byte-identical to what it was.
+          context { _ap_origin.update((real: org, at: here())) }
+          [#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #body]
+          _ap_origin.update(none)
+        }),
       )
     }
   }
@@ -1549,7 +1899,7 @@
 #let הגדרות_מדורגות(..opts) = _md_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
-  d
+  _nt_explicit(d, opts.named())
 })
 // The channels pointed into a region, in declaration order.
 #let _ch_in_region(t, rg) = t.סדר.filter(c => _ch_region(t, c) == rg)
@@ -1589,7 +1939,7 @@
 // convention wherever it is placed, which is what makes moving one from the foot
 // of the page to the back of the sefer leave its numbering alone.
 #let _ch_ramped(cfg, t, chans, keys, declared) = {
-  let base = _md_cfg.get()
+  let base = _nt_under(_md_cfg.get())
   let c = cfg
   for (k, fb) in keys {
     let arr = base.at(k, default: none)
@@ -1624,16 +1974,17 @@
 #let מדור_בדרגה(דרגה, body, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
   _cfg_strict("מדור", rest)
-  _ap_note(_cfg_with(_md_cfg.get(), own), _md_label, _md_scope, דרגה, body, own: own)
+  _ap_note(_cfg_with(_nt_under(_md_cfg.get()), own), _md_label, _md_scope, דרגה, body, own: own)
 }
 // #הערות_מדורגות() — render this section's collected tiers as stacked bands, here.
 // Call it once per section (and/or at the end of the document); each call renders
 // only the notes written since the previous call.
-#let הערות_מדורגות(כותרת: none) = {
+#let הערות_מדורגות(כותרת: none, עמוד_חדש: false) = {
   context {
     let notes = _md_section_notes(here())
     if notes.len() > 0 {
-      let cfg = _md_cfg.get()
+      _ap_fresh_page(עמוד_חדש)
+      let cfg = _nt_under(_md_cfg.get())
       let tiers = notes.map(e => e.value.group).dedup().sorted()
       _ap_bands(
         cfg,
@@ -1731,7 +2082,7 @@
 #let הגדרות_מדפים(..opts) = _pp_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
-  d
+  _nt_explicit(d, opts.named())
 })
 #let _pp_label = label("ksav-pp")
 // Every מדף note registered outside an apparatus block — i.e. the real ones.
@@ -1745,7 +2096,7 @@
 #let מדף_בדרגה(דרגה, body, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _ap_own_keys)
   _cfg_strict("מדף", rest)
-  _ap_note(_cfg_with(_pp_cfg.get(), own), _pp_label, _pp_scope, דרגה, body, own: own)
+  _ap_note(_cfg_with(_nt_under(_pp_cfg.get()), own), _pp_label, _pp_scope, דרגה, body, own: own)
 }
 // Read-only footer: render the bands for the CURRENT page. Called from the
 // wrapper's page footer. Renders nothing (and touches nothing) when the page
@@ -1753,7 +2104,7 @@
 #let _pp_page_bands() = context {
   let all = _pp_all()
   if all.len() > 0 {
-    let cfg = _pp_cfg.get()
+    let cfg = _nt_under(_pp_cfg.get())
     let pg = here().page()
     let mine = all.filter(e => e.location().page() == pg)
     if mine.len() > 0 {
@@ -1835,14 +2186,14 @@
 #let הגדרות_זרמים(..opts) = _sf_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
-  d
+  _nt_explicit(d, opts.named())
 })
 // One page-foot channel's configuration: the stream settings, anything the
 // channel declared, and its numbering by position in its region. Read at the
 // marker *and* in the footer, because a marker that says `1` over an entry that
 // says `א` is a reader sent to the wrong band.
 #let _ch_foot_cfg(t, chans) = _ch_ramped(
-  _ch_merge(_sf_cfg.get(), t, chans), t, chans, _ch_ramp_number, true,
+  _ch_merge(_nt_under(_sf_cfg.get()), t, chans), t, chans, _ch_ramp_number, true,
 )
 #let _sf_label = label("ksav-sf")
 #let _sf_all() = _ap_all(_sf_label)
@@ -1978,7 +2329,7 @@
 // The apparatus configuration for a set of collected channels: whatever the
 // channel declared and whatever the bands were configured with, then the ramps.
 #let _ch_cfg(t, chans) = _ch_ramped(
-  _ch_merge(_md_cfg.get(), t, chans), t, chans, _ch_ramps, false,
+  _ch_merge(_nt_under(_md_cfg.get()), t, chans), t, chans, _ch_ramps, false,
 )
 
 // ---- the collected placement · one region, rendered where it is asked for ----
@@ -2165,6 +2516,7 @@
 
 // ---- כותרות · headings ----
 #let _hd_defaults = (
+  גופן: none,                                            // family name (none = the document's)
   גודל: (1.6em, 1.35em, 1.18em, 1.06em, 1em, 0.95em),   // per-level size
   משקל: "bold",                                          // weight (or per-level array)
   צבע: luma(0),                                          // fill
@@ -2185,7 +2537,15 @@
 #let הגדרות_כותרות(..opts) = _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
 
 /// How many levels the ramps carry, which is how many doors there are below.
-#let _hd_levels = 6
+///
+/// Nine, matching `MAX_LEVEL` in the editor and what `#כותרת(רמה: 9)` already
+/// wrote. Six was the count of *named* commands (`#כותרת1`…`#כותרת6`) and it had
+/// leaked into the styling: levels 7, 8 and 9 were real everywhere — the
+/// outline, the numbering, `#תוכן`, the indent ramp below — and had no door of
+/// their own, so `_cfg_pick` handed them level 6's values and the panel offered
+/// six rows. The shipped ramps are still six entries long and `_hd_set` grows
+/// them by repeating the last, so nothing on any existing page moves.
+#let _hd_levels = 9
 
 /// Set one level's own look — the door each heading level gets.
 ///
@@ -2228,6 +2588,12 @@
 #let h5_config = _en(הגדרות_כותרת5)
 #let הגדרות_כותרת6(..opts) = _hd_set(6, opts.named())
 #let h6_config = _en(הגדרות_כותרת6)
+#let הגדרות_כותרת7(..opts) = _hd_set(7, opts.named())
+#let h7_config = _en(הגדרות_כותרת7)
+#let הגדרות_כותרת8(..opts) = _hd_set(8, opts.named())
+#let h8_config = _en(הגדרות_כותרת8)
+#let הגדרות_כותרת9(..opts) = _hd_set(9, opts.named())
+#let h9_config = _en(הגדרות_כותרת9)
 #let _hd_show(it) = context {
   // In HTML export, leave the heading alone: Typst turns a real heading into an
   // <h1>…<h6>, and replacing it with a styled block would emit a semantically
@@ -2255,6 +2621,11 @@
   let deep = calc.max(lvl - 6, 0)
   let styled = {
     set text(
+      // Spread, because `font` has no "leave it alone" value: `none` is not one
+      // and `auto` is the *first available* family rather than the inherited
+      // one, so a heading with no family of its own must not name the argument
+      // at all.
+      ..(if _cfg_pick(c, "גופן", lvl, none) != none { (font: _cfg_pick(c, "גופן", lvl, none)) } else { (:) }),
       size: _cfg_pick(c, "גודל", lvl, 1em),
       weight: _cfg_pick(c, "משקל", lvl, "bold"),
       fill: _cfg_pick(c, "צבע", lvl, luma(0)),
@@ -2271,6 +2642,11 @@
   // Past level 6, one step of indent per level. `pad` and not `h`, because a
   // heading is a block: an inline space would be swallowed at the start of it.
   let body = {
+    // Where an automatic numbering restart *would* be, if `אפס_לפי` says this
+    // level restarts one. Emitted for every heading and judged in `_nr_origin`,
+    // so the setting can change without the markers being re-emitted — see the
+    // block above `_nr_label`.
+    _nr_mark(("auto", lvl))
     head
     if _cfg_pick(c, "קו", lvl, false) { v(0.25em); line(length: 100%, stroke: 0.5pt + luma(160)) }
   }
@@ -2888,6 +3264,7 @@
 // which a style that always blocked would not be.
 #let עיצוב(
   body,
+  גופן: auto,
   גודל: auto,
   משקל: auto,
   צבע: auto,
@@ -2903,6 +3280,7 @@
   if רברבתי { inner = smallcaps(inner) }
   if קו_תחתון { inner = underline(inner) }
   let t = (:)
+  if גופן != auto { t.insert("font", גופן) }
   if גודל != auto { t.insert("size", גודל) }
   if משקל != auto { t.insert("weight", משקל) }
   if צבע != auto { t.insert("fill", צבע) }
@@ -3433,15 +3811,68 @@
 // it. "This endnote is lettered and its neighbours are numbered" is not a style,
 // it is two apparatuses — `#הערתסיום(זרם: …)` is how a document says that. So
 // there is nothing here for `כפה` to overrule either.
-#let _es_defaults = (מספור: "1")
+// The knobs, and the fact that there were none but the scheme is the report.
+// An endnote section was set in the document's body face at the document's body
+// size, with no way to say otherwise — so *"footnotes and endnotes should share
+// a default style, and either should be easy to change on its own"* was half
+// impossible: there was no *own* to change. The four ink knobs are the shared
+// set (`_nt_keys`), so an endnote section that says nothing takes whatever
+// `#הגדרות_טקסט_הערות` says and a sefer's two apparatuses match by default.
+//
+// `auto` and not a value, for every one of them: a shipped value would be
+// indistinguishable from a chosen one, and the whole of the shared layer is
+// that distinction. See `_nt_under`.
+#let _es_defaults = (
+  מספור: "1",
+  // Start the section on a page of its own. A document property, because
+  // *"endnotes begin a new page"* is a fact about this sefer's layout and not
+  // about the machine it is typeset on.
+  עמוד_חדש: false,
+  // The word above the section, and `none` is a real answer.
+  //
+  // The report is *"the word printed above the endnote section is fixed — it
+  // should be the writer's choice: their own word, or nothing at all, with no
+  // leftover gap where it was"*. `auto` here means *whatever the call says*,
+  // which for `#הערות_בסוף` with no title of its own is nothing — the heading,
+  // the space above it and the space below it are all inside the same `if`, so
+  // choosing nothing leaves no gap rather than an empty line.
+  //
+  // A document property and not an application setting, which is what makes it
+  // travel with the sefer: a reader opening the file gets the writer's word,
+  // and a sefer written in English says its own word in English because the
+  // *document* has a language, not the render.
+  כותרת: auto,
+  גופן: auto,
+  גודל: auto,
+  סגנון: auto,
+  צבע: auto,
+  ריווח: auto,
+)
 #let _es_cfg = state("ksav-es-cfg", _es_defaults)
 #let הגדרות_הערות_סיום(..opts) = _es_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
-  d
+  _nt_explicit(d, opts.named())
 })
 #let endnotes_config = _en(הגדרות_הערות_סיום)
 #let _es_scheme() = _es_cfg.get().at("מספור", default: "1")
+
+/// The endnote section's ink, with the shared note style under it.
+///
+/// Returns the arguments for a `set text`, so a knob nobody answered for is
+/// simply absent rather than set to a sentinel the page would then show.
+#let _es_text() = {
+  let c = _nt_under(_es_cfg.get())
+  let t = (:)
+  for (k, arg) in (("גופן", "font"), ("גודל", "size"), ("סגנון", "style"), ("צבע", "fill")) {
+    let v = c.at(k, default: auto)
+    if v != auto and v != none { t.insert(arg, v) }
+  }
+  t
+}
+
+/// The gap between endnote entries, or `auto` for the document's own spacing.
+#let _es_gap() = _nt_under(_es_cfg.get()).at("ריווח", default: auto)
 #let _en_label(זרם) = label("ksav-en-" + זרם)
 #let _en_dump_label(זרם) = label("ksav-end-" + זרם)
 #let _en_section(זרם, loc) = _ksav_real_of(
@@ -3460,26 +3891,78 @@
     // second authority this register exists to prevent.
     _mk_render(_mk_conf("הערתסיום", own), super[#numbering(
       _es_scheme(),
-      _ksav_rank(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc), loc, e => true),
+      _ksav_rank(_nr_scope(_ksav_between(selector(_en_label(זרם)), _en_dump_label(זרם), loc), loc), loc, e => true),
     )])
   }
 }
 #let הגדרות_הערתסיום(..opts) = _mk_set("הערתסיום", opts.named())
 #let endnote_config = _en(הגדרות_הערתסיום)
-// The rendered block for one stream's notes in the section around `loc`.
-#let _en_block(זרם, loc) = {
-  let items = _en_section(זרם, loc).map(e => e.value.body)
-  if items.len() > 0 { enum(numbering: _es_scheme() + ".", ..items) }
+// One stream's notes, split into the runs the numbering restarts between.
+//
+// The section is printed as Typst `enum`s, which is right — the numbering
+// scheme, the gap and the hanging indent are all `enum`'s — and an `enum`
+// counts from one. So a restart is a *second* `enum`, and the whole of
+// restarting an endnote section is deciding where to cut.
+//
+// One run when nothing restarts, which is the shipped answer and costs a single
+// state read to establish.
+#let _en_runs(entries) = {
+  if not _nr_any() { return (entries.map(e => e.value.body),) }
+  let runs = ()
+  let cur = ()
+  let last = none
+  let started = false
+  for e in entries {
+    let og = _nr_origin(e.location())
+    if started and og != last {
+      runs.push(cur)
+      cur = ()
+    }
+    last = og
+    started = true
+    cur.push(e.value.body)
+  }
+  if cur.len() > 0 { runs.push(cur) }
+  runs
 }
-#let הערות_בסוף(זרם: "הערות", כותרת: none) = {
+// The rendered block for one stream's notes in the section around `loc`.
+#let _en_print(entries) = {
+  for run in _en_runs(entries) {
+    enum(numbering: _es_scheme() + ".", spacing: _es_gap(), ..run)
+  }
+}
+#let _en_block(זרם, loc) = {
+  let entries = _en_section(זרם, loc)
+  if entries.len() > 0 {
+    set text(.._es_text())
+    _en_print(entries)
+  }
+}
+#let הערות_בסוף(זרם: "הערות", כותרת: auto, עמוד_חדש: auto) = {
   context {
-    let items = _en_section(זרם, here()).map(e => e.value.body)
+    let entries = _en_section(זרם, here())
+    let items = entries.map(e => e.value.body)
+    // Emitted here, in the flow of the context and before the block below —
+    // see `_ap_fresh_page` for why that placement is the whole of it. Only when
+    // there is something to print: a page break in front of nothing is a blank
+    // page at the back of the sefer.
+    let fresh = if עמוד_חדש != auto { עמוד_חדש } else {
+      _es_cfg.get().at("עמוד_חדש", default: false)
+    }
+    if items.len() > 0 { _ap_fresh_page(fresh) }
+    // `auto` asks the document; an explicit title on this call wins, and `none`
+    // on this call means *no heading here* even when the document names one.
+    let כותרת = if כותרת != auto { כותרת } else {
+      let want = _es_cfg.get().at("כותרת", default: auto)
+      if want == auto { none } else { want }
+    }
     if items.len() > 0 {
       _ksav_ap_open
       v(1em)
       line(length: 100%, stroke: 0.5pt + luma(150))
       if כותרת != none { heading(outlined: false, numbering: none, level: 3, כותרת) }
-      enum(numbering: _es_scheme() + ".", ..items)
+      set text(.._es_text())
+      _en_print(entries)
       _ksav_ap_close
     }
   }
@@ -3490,11 +3973,12 @@
 // הערות_בסוף_צד — render several endnote streams SIDE BY SIDE (one column each),
 // e.g. content notes and sources as two parallel end-columns. Any number of
 // streams; pass their order and optional per-stream titles.
-#let הערות_בסוף_צד(זרמים: (), כותרות: (:), יחס: none) = {
+#let הערות_בסוף_צד(זרמים: (), כותרות: (:), יחס: none, עמוד_חדש: false) = {
   context {
     let loc = here()
     let present = זרמים.filter(s => _en_section(s, loc).len() > 0)
     if present.len() > 0 {
+      _ap_fresh_page(עמוד_חדש)
       _ksav_ap_open
       v(1em)
       line(length: 100%, stroke: 0.5pt + luma(150))
@@ -3544,7 +4028,7 @@
 // placed against one arithmetic and measured by its neighbours against another.
 // See `_cfg_split` and `_sn_note`.
 #let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע")
-#let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+#let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
 // Is a side-column wrapper currently open? A sidenote outside one has no column
 // to land in, so it must not be `place`d off the page — see _sn_note.
 #let _sn_active = state("ksav-sn-active", 0)
@@ -3601,12 +4085,19 @@
   // page's geometry, and every note on the page has to compute the same stack
   // from it or they overlap. `cfg` is this note's own text — size and colour —
   // which is all a single note may overrule.
-  let base = _sn_cfg.get()
+  let base = _nt_under(_sn_cfg.get())
   let cfg = _cfg_with(base, own)
   // here() is read AFTER the metadata above, so the rank counts this note itself.
   let loc0 = here()
   let all = query(label(lbl))
-  let num = _ksav_rank(label(lbl), loc0, e => true)
+  // **Two ranks, and they are two different questions.** `id` is this note's
+  // place among every sidenote in the sefer and is what the stacking loop below
+  // matches itself by; it must stay document-wide and unique, because once a
+  // count restarts two notes on one page can print the same number and identity
+  // by number would put a note at its neighbour's height. `num` is what the
+  // reader sees, and that is the one that starts again.
+  let id = _ksav_rank(label(lbl), loc0, e => true)
+  let num = _ksav_rank(_nr_scope(label(lbl), loc0), loc0, e => true)
   // The marker in the running text, through the column's own `סימן`. Not
   // through `cfg`: the note's size and colour are the column's, and the
   // number is standing in the sentence being annotated.
@@ -3632,12 +4123,17 @@
         // `mine` is only this page's notes, so identify myself by document-wide
         // rank rather than by index within the page.
         let n = _ksav_rank(label(lbl), e.location(), x => true)
-        if n == num { dy = top - loc.position().y }
+        if n == id { dy = top - loc.position().y }
         // Measured with *that* note's overrides, not with mine: a neighbour set
         // one size larger is one size taller, and a stack computed off my own
         // configuration would put the next note on top of it.
         let ecfg = _cfg_with(base, e.value.at("own", default: (:)))
-        cursor = top + measure(box(width: colw, _sn_wrap(ecfg, mark(n), e.value.body))).height + gap
+        // Measured with the number that will be *printed* beside it, which is
+        // not `n` once a count has restarted: a two-digit number and a
+        // one-digit number are different widths, and measuring the wrong one is
+        // how a column comes out a hair short and overlaps at the foot.
+        let shown = _ksav_rank(_nr_scope(label(lbl), e.location()), e.location(), x => true)
+        cursor = top + measure(box(width: colw, _sn_wrap(ecfg, mark(shown), e.value.body))).height + gap
       }
       // `place` in a flow anchors horizontally to the container's START corner
       // (the RIGHT edge of the column in RTL, the left in LTR) and vertically to
@@ -3681,7 +4177,7 @@
   if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
   _sn_active.update(n => n + 1)
   context {
-    let cfg = _sn_cfg.get()
+    let cfg = _nt_under(_sn_cfg.get())
     // The ratio off the configuration, not off the parameter — which is `auto`
     // when the call did not give one, and `auto * 1fr` is a compile error rather
     // than a default. Caught by two tests the moment the parameter changed.
@@ -3732,7 +4228,7 @@
   if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
   _sn_active.update(n => n + 1)
   context {
-    let cfg = _sn_cfg.get()
+    let cfg = _nt_under(_sn_cfg.get())
     let r = cfg.at("יחס", default: 2.4)
     let g = cfg.at("מרווח", default: 1.2em)
     // Which column comes first is a question about the *text direction*, not
@@ -4334,9 +4830,31 @@
 // Cheap by construction: the refs are already in the document, so this is a
 // sort and a print (Girsa spec.md §10.4). Every citation that carried a `מקור:`
 // appears once, in the order it was first cited.
-#let מראה_מקומות(כותרת: none) = context {
+// **`עמוד_חדש` is deliberately not offered here.**
+//
+// `#הערות_בסוף`, `#הערות_בסוף_צד` and `#הערות_מדורגות` take it and are measured
+// starting a fresh page. This section and `#רשימת_סימונים` do not, and not for
+// want of trying — four rounds, each one measured rather than reasoned:
+//
+//   1. the body written as a block around a context rather than as a context —
+//      no change;
+//   2. the early `return` replaced by a positive `if` — no change;
+//   3. `pagebreak(weak: true)` made strong — no change here, though it turned
+//      up a real finding about `#מעבר_עמוד`, which is weak and is therefore
+//      dropped in front of any deferred section;
+//   4. the break emitted outside the `context` — the document grows a second
+//      page and the index still prints on the first. That is where the
+//      evidence stops.
+//
+// A `panic` planted in `_ap_fresh_page` fires, so the break is built and does
+// reach Typst. What becomes of it after that is not established, and three
+// wrong explanations are enough. An argument that silently does nothing is the
+// exact defect this product is named for, so the finding is written up rather
+// than shipped.
+#let מראה_מקומות(כותרת: none) = {
+  context {
   let notes = _mk_of("מראה_מקום")
-  if notes.len() == 0 { return }
+  if notes.len() > 0 {
   if כותרת != none { heading(level: 2, outlined: false, numbering: none, כותרת) }
   // A dictionary, not an array. `x in array` is a linear scan, so deduplicating
   // this way was quadratic in the number of citations in the sefer — and the
@@ -4351,6 +4869,8 @@
     seen.insert(key, true)
     block(above: 0.4em, below: 0.4em)[#m.printed]
   }
+}
+}
 }
 #let sources = _en(מראה_מקומות)
 
@@ -4739,10 +5259,12 @@
   _mk_titles.at(cls, default: "רשימת הסימונים")
 } else { כותרת }
 
-#let רשימת_סימונים(סוג, כותרת: auto, טורים: 1, גודל: 0.9em, מיון: false) = context {
+// No `עמוד_חדש` here either — see the note on `מראה_מקומות`.
+#let רשימת_סימונים(סוג, כותרת: auto, טורים: 1, גודל: 0.9em, מיון: false) = {
+  context {
   let cls = _val(_as_string(סוג).trim())
   let marks = _mk_of(cls)
-  if marks.len() == 0 { return }
+  if marks.len() > 0 {
   if כותרת != none { heading(level: 1, numbering: none, _mk_head(cls, כותרת)) }
   let by = (:)
   let order = ()
@@ -4760,6 +5282,8 @@
     for e in names { _ix_entry_line(e, by.at(e)) }
   }
   if טורים > 1 { columns(טורים, body) } else { body }
+}
+}
 }
 #let marklist = _en(רשימת_סימונים, extra: (columns: "טורים"))
 

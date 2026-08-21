@@ -51,6 +51,7 @@ import type { Available } from "./commands";
 import { matches } from "./commands";
 import { actionForCommand } from "./actions";
 import { commandName, keyHint } from "./bindings";
+import type { FindResult, Hit, SearchScope } from "./find";
 
 /** What a row is for. The shell performs these; nothing here does. */
 export type RowAction =
@@ -60,7 +61,17 @@ export type RowAction =
   | { kind: "action"; id: string }
   | { kind: "insert"; snippet: string }
   /** Restore the snapshot at this index of the list that was passed in. */
-  | { kind: "restore"; index: number };
+  | { kind: "restore"; index: number }
+  /**
+   * A search hit: put the caret on it, show the page it printed on, or both.
+   *
+   * Three fields and not one, because a printed hit is not always a place in
+   * the source. `at` is absent for ink the writer never typed — a note's
+   * marker, a running head, an auto-numbered siman — and `page` is absent for a
+   * source hit found while the sefer has not been laid out. A row with neither
+   * is not built.
+   */
+  | { kind: "hit"; at?: number; page?: number; y?: number };
 
 export interface PanelRow {
   does: RowAction;
@@ -360,6 +371,78 @@ export function historyList(snapshots: readonly Snapshot[]): PanelList {
     empty: null,
     hidden: 0,
   };
+}
+
+/**
+ * Every place a phrase was found, the source first and then the pages.
+ *
+ * Two groups with a heading each, and the headings are there even when only one
+ * of them has rows: *"nothing printed"* and *"nothing typed"* are answers, and a
+ * list that silently omits the empty half reads as though the search never
+ * looked there. That is the same failure the marks pane was reported for — a
+ * surface that does not say what it is showing.
+ *
+ * The chip is the page for a printed hit and the line for a typed one, because
+ * that is the coordinate the writer is actually holding in their head on each
+ * side.
+ */
+export function findList(
+  result: FindResult,
+  query: string,
+  scope: SearchScope,
+): PanelList {
+  if (!query) return { rows: [], empty: "findNothingAsked", hidden: 0 };
+  const rows: PanelRow[] = [];
+  const source = result.hits.filter((h) => h.where === "source");
+  const printed = result.hits.filter((h) => h.where === "preview");
+
+  const group = (heading: string, hits: readonly Hit[], empty: string) => {
+    rows.push({
+      does: { kind: "hit" },
+      indent: 0,
+      chip: String(hits.length),
+      label: heading,
+      id: "findgroup:" + heading,
+    });
+    if (!hits.length) {
+      rows.push({ does: { kind: "hit" }, indent: 1, label: empty, id: "findempty:" + heading });
+      return;
+    }
+    for (const h of hits) {
+      rows.push({
+        does: { kind: "hit", at: h.at, page: h.page, y: h.y },
+        indent: 1,
+        chip: h.where === "preview" ? String(h.page) : String(h.line),
+        // The file, when the line is not in the document that is open: without
+        // it, line 12 of an included chapter and line 12 of the sefer that
+        // included it are the same row twice.
+        note: h.file ?? undefined,
+        label: gist(h.text),
+        full: h.text,
+      });
+    }
+  };
+
+  // Only the groups the search actually looked in. A "0 in the source" heading
+  // under a preview-only scope would be a count of something nobody counted,
+  // which is worse than no heading at all.
+  if (scope !== "preview") group("findInSource", source, "findNoSourceHits");
+  if (scope !== "source") {
+    if (result.previewUnavailable) {
+      // Said out loud, and said *instead of* an empty list. "No matches" and
+      // "there was nothing to match against" are different answers, and only
+      // one of them is about the phrase that was typed.
+      rows.push({
+        does: { kind: "hit" },
+        indent: 0,
+        label: "findPreviewUnavailable",
+        id: "findgroup:unavailable",
+      });
+    } else {
+      group("findOnPage", printed, "findNoPageHits");
+    }
+  }
+  return { rows, empty: null, hidden: result.hidden };
 }
 
 /** How many rows of each kind the palette shows before it stops. */

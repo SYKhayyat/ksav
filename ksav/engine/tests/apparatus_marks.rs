@@ -220,3 +220,337 @@ fn adjacent_tiers_are_visibly_different_sizes() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// A note written inside another note's body
+//
+// The report: *"adding a second footnote inside a fixed region made the first
+// marker change to ב as well, so both markers read the same"*. Fifteen ordinary
+// arrangements were measured first and every one of them was right — the shape
+// that fails is a note **nested inside another note's body**, which is the one
+// case where the marker is not drawn where the note is.
+//
+// `_ap_note` pre-registers a note's body in a hidden box so that nested notes
+// register in the same pass. So the inner note's real registration is up in the
+// sefer, at the outer note's place, while its marker is drawn down in the band
+// when the outer body is re-displayed — and ranking that marker by what lies
+// `.before(here())` counted every sibling registration in the sefer. Both
+// markers therefore printed the last number. The *entries* were right the whole
+// time, because they are numbered by walking the collected list.
+//
+// Which is why these assertions compare the markers against the entries rather
+// than against a literal: a number is only right if the reader can follow it
+// from the sentence to the note, and that is exactly the pairing the defect
+// broke.
+
+/// Every one-character marker on page one, excluding the page number.
+///
+/// Both kinds — the superscript in the sentence and the number at the head of an
+/// entry — because the whole assertion is that they pair up. The page number is
+/// a one-character run too, and it sits alone at the foot of the page.
+fn all_marks(runs: &[TextRun]) -> Vec<String> {
+    let foot = runs
+        .iter()
+        .filter(|r| r.page == 1)
+        .map(|r| r.y)
+        .fold(0.0_f64, f64::max);
+    runs.iter()
+        .filter(|r| r.page == 1 && r.y < foot - 1.0)
+        .map(|r| r.text.trim().to_string())
+        .filter(|t| t.chars().count() == 1 && t.chars().all(char::is_alphanumeric))
+        .collect()
+}
+
+/// How many times each marker was printed, in order of first appearance.
+fn tally(runs: &[TextRun], want: &[&str], what: &str) {
+    let marks = all_marks(runs);
+    let got: Vec<(String, usize)> = want
+        .iter()
+        .map(|w| {
+            (
+                (*w).to_string(),
+                marks.iter().filter(|m| m.as_str() == *w).count(),
+            )
+        })
+        .collect();
+    let bad: Vec<&(String, usize)> = got.iter().filter(|(_, n)| *n != 2).collect();
+    assert!(
+        bad.is_empty(),
+        "{what}\n  every number is printed twice — once at the reference and once \
+         at its entry — but {bad:?}\n  markers were: {marks:?}\n  on the page: {}",
+        flat(runs)
+    );
+}
+
+/// The region a nested note is written into, declared.
+const NESTED: &str = "#אזור(\"פירושים\", מיקום: \"רגל\", גובה: 4cm)\n\
+                      #ערוץ(\"ביאור\", אזור: \"פירושים\")\n\
+                      #ערוץ(\"עומק\", מקור: \"ביאור\", אזור: \"פירושים\")\n";
+
+/// The report, as nearly word for word as a document can be.
+#[test]
+fn a_note_inside_each_of_two_notes_gets_its_own_number() {
+    let runs = render(&format!(
+        "{NESTED}אלף#הערה(ערוץ: \"ביאור\")[ראשון#הערה(ערוץ: \"עומק\")[עמוק]] \
+         בית#הערה(ערוץ: \"ביאור\")[שני#הערה(ערוץ: \"עומק\")[שוב]] סוף."
+    ));
+    tally(
+        &runs,
+        &["1", "2"],
+        "two nested notes, one in each of two notes, must be 1 and 2",
+    );
+}
+
+/// And two of them inside *one* note, which is the same defect a step along.
+#[test]
+fn two_notes_inside_one_note_get_their_own_numbers() {
+    let runs = render(&format!(
+        "{NESTED}אלף#הערה(ערוץ: \"ביאור\")[ראשון#הערה(ערוץ: \"עומק\")[עמוק] \
+         ועוד#הערה(ערוץ: \"עומק\")[שוב]] סוף."
+    ));
+    tally(
+        &runs,
+        &["1", "2"],
+        "two nested notes inside one note must be 1 and 2",
+    );
+}
+
+/// Three, because two numbers can agree by accident and three cannot.
+#[test]
+fn three_nested_notes_run_one_two_three() {
+    let runs = render(&format!(
+        "{NESTED}אלף#הערה(ערוץ: \"ביאור\")[ראשון#הערה(ערוץ: \"עומק\")[א] \
+         ועוד#הערה(ערוץ: \"עומק\")[ב] ושוב#הערה(ערוץ: \"עומק\")[ג]] סוף."
+    ));
+    tally(
+        &runs,
+        &["1", "2", "3"],
+        "three nested notes must run 1, 2, 3",
+    );
+}
+
+/// The other numbering shape. A Hebrew-lettered channel has to count too — the
+/// handoff asks for both, and a rank is a rank whatever glyph prints it.
+#[test]
+fn nested_notes_count_in_hebrew_letters_too() {
+    let runs = render(
+        "#אזור(\"פירושים\", מיקום: \"רגל\", גובה: 4cm)\n\
+         #ערוץ(\"ביאור\", אזור: \"פירושים\", מספור: \"1\")\n\
+         #ערוץ(\"עומק\", מקור: \"ביאור\", אזור: \"פירושים\", מספור: \"א\")\n\
+         אלף#הערה(ערוץ: \"ביאור\")[ראשון#הערה(ערוץ: \"עומק\")[עמוק]] \
+         בית#הערה(ערוץ: \"ביאור\")[שני#הערה(ערוץ: \"עומק\")[שוב]] סוף.",
+    );
+    // The outer channel is numbered and the inner lettered, which is how a sefer
+    // tells two apparatuses apart at the point of reference — and what makes
+    // this assertion decisive. With both lettered, `א` legitimately appears four
+    // times and the count says nothing about either; the first draft of this
+    // test did that and failed on correct output.
+    tally(
+        &runs,
+        &["א", "ב"],
+        "nested notes lettered א,ב must not repeat",
+    );
+    tally(
+        &runs,
+        &["1", "2"],
+        "...and the notes they sit in still run 1, 2",
+    );
+}
+
+/// The control: unnested notes were never broken, and must stay unbroken.
+///
+/// Here for the reason the whole fix is scoped the way it is — the ranking path
+/// in the body of the sefer is untouched, and a fence that only watched the
+/// nested case could not tell you that.
+#[test]
+fn two_ordinary_notes_in_a_region_still_read_alef_beis() {
+    let runs = render(
+        "#אזור(\"פירושים\", מיקום: \"רגל\", גובה: 4cm)\n\
+         #ערוץ(\"ביאור\", אזור: \"פירושים\")\n\
+         אלף#הערה(ערוץ: \"ביאור\")[ראשון] בית#הערה(ערוץ: \"ביאור\")[שני] סוף.",
+    );
+    tally(
+        &runs,
+        &["א", "ב"],
+        "two notes in a foot region must read א then ב",
+    );
+}
+
+/// The same nesting in the *native* apparatus, which has no region at all.
+#[test]
+fn a_note_on_a_note_still_numbers_in_the_native_apparatus() {
+    let runs = render("אלף#הערה_א[ראשון#הערה_ב[עמוק]] בית#הערה_א[שני#הערה_ב[שוב]] סוף.");
+    tally(
+        &runs,
+        &["1", "2", "3", "4"],
+        "one running sequence across both tiers must not repeat a number",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// A deferred section on a page of its own
+//
+// *"An easy way to force the endnote section onto a fresh page instead of
+// running on from the end of the body."* With the trap written into the item:
+// **a page break fails inside a container and works outside one**, so the break
+// has to be emitted at the right lexical level rather than wherever the section
+// happens to be built. These assert the page, which is the only way to tell the
+// two apart — a break that lands inside a `block` compiles perfectly and does
+// nothing.
+
+/// How many pages this document printed.
+fn pages(body: &str) -> usize {
+    render(body).iter().map(|r| r.page).max().unwrap_or(0)
+}
+
+/// Which page a phrase printed on **last**.
+///
+/// The last and not the first, for the deferred sections: a mark prints its own
+/// words where it stands *and* again in the section that collects it, so
+/// `#מראה_מקום[ברכות ב.]` puts "ברכות" in the body on page one and in the index
+/// on page two. Asking for the first occurrence answered "page one" for a
+/// section that had correctly moved — which is a test measuring the body while
+/// claiming to measure the index.
+fn last_page_of(body: &str, needle: &str) -> usize {
+    let runs = render(body);
+    let mut found = 0;
+    for line in probe::lines(&runs, 1.0) {
+        if line.contains(needle) {
+            found = line.runs.first().map(|r| r.page).unwrap_or(0);
+        }
+    }
+    assert!(found > 0, "{needle:?} never printed: {}", flat(&runs));
+    found
+}
+
+/// Which page a phrase printed on.
+fn page_of(body: &str, needle: &str) -> usize {
+    let runs = render(body);
+    for line in probe::lines(&runs, 1.0) {
+        if line.contains(needle) {
+            return line.runs.first().map(|r| r.page).unwrap_or(0);
+        }
+    }
+    panic!("{needle:?} never printed: {}", flat(&runs))
+}
+
+const ENDNOTES: &str = "אלף#הערתסיום[הראשונה] בית#הערתסיום[השניה] סוף.\n\n";
+
+#[test]
+fn endnotes_run_on_from_the_body_by_default() {
+    let body = format!("{ENDNOTES}#הערות_בסוף()");
+    assert_eq!(pages(&body), 1, "nothing asked for a page break");
+    assert_eq!(page_of(&body, "הראשונה"), 1);
+}
+
+#[test]
+fn endnotes_can_start_on_their_own_page() {
+    let body = format!("{ENDNOTES}#הערות_בסוף(עמוד_חדש: true)");
+    assert_eq!(page_of(&body, "אלף"), 1, "the body stays where it was");
+    assert_eq!(
+        page_of(&body, "הראשונה"),
+        2,
+        "the endnote section was asked for a page of its own"
+    );
+}
+
+/// The document-level knob, which is where the item says the choice belongs:
+/// *"a setting or knob on the endnote apparatus, plus a matching Ksav command
+/// so the choice lives in the document rather than only in application state"*.
+#[test]
+fn the_document_can_say_it_once_for_every_endnote_section() {
+    let body = format!("#הגדרות_הערות_סיום(עמוד_חדש: true)\n{ENDNOTES}#הערות_בסוף()");
+    assert_eq!(page_of(&body, "הראשונה"), 2);
+}
+
+/// And one call may still overrule the document.
+#[test]
+fn one_section_can_refuse_the_documents_answer() {
+    let body =
+        format!("#הגדרות_הערות_סיום(עמוד_חדש: true)\n{ENDNOTES}#הערות_בסוף(עמוד_חדש: false)");
+    assert_eq!(page_of(&body, "הראשונה"), 1);
+}
+
+/// No blank page in front of nothing: a section with no notes prints nothing at
+/// all, and a page break in front of nothing is a blank sheet at the back of the
+/// sefer that nobody asked for.
+#[test]
+fn an_empty_section_breaks_no_page() {
+    let body = "אלף בית סוף.\n\n#הערות_בסוף(עמוד_חדש: true)";
+    assert_eq!(pages(body), 1);
+}
+
+/// The control that found the cause, after two guesses at the lexical level had
+/// both been measured and been wrong.
+///
+/// A hand-written `#מעבר_עמוד` between a paragraph and ordinary prose makes two
+/// pages. The same break in front of a deferred section makes **one** — and
+/// `#מעבר_עמוד` is `pagebreak(weak: true)`, so nothing about where the prelude
+/// emitted its break was ever the problem. A weak break is dropped when what
+/// follows comes out of a `context`, which every one of these sections is.
+///
+/// Both halves stay. The first is the sanity check — if it ever fails the fault
+/// is in `pages` or in these documents and not in the engine. The second is the
+/// finding, and it is a live one: a writer who types a page break in front of
+/// `#מראה_מקומות()` gets no page break, and nothing says so.
+#[test]
+fn a_weak_break_before_a_deferred_section_is_dropped() {
+    let plain = "אלף בית.
+
+#מעבר_עמוד
+
+גימל דלת.";
+    assert_eq!(
+        pages(plain),
+        2,
+        "a literal page break made no second page at all"
+    );
+
+    let deferred = "אלף#מראה_מקום[ברכות ב.] סוף.
+
+#מעבר_עמוד
+
+#מראה_מקומות()";
+    assert_eq!(
+        pages(deferred),
+        1,
+        "a weak break in front of a deferred section now survives — if this is          deliberate, `_ap_fresh_page` can go back to being weak"
+    );
+}
+
+/// The siblings. The item says to ask the same question of every deferred
+/// surface, and this is the sweep: each of them takes the same argument, spelled
+/// the same way, and each of them actually moves the page.
+///
+/// All five, including the two that took three rounds to get right. The cause
+/// was a **weak** page break being dropped in front of a `context`, not the
+/// lexical level the item warns about — see `_ap_fresh_page` in `ksav.typ`.
+#[test]
+fn every_deferred_section_can_start_a_page() {
+    let cases: Vec<(&str, String, &str)> = vec![
+        (
+            "the tiered section band",
+            "אלף#מדור_א[הפירוש] סוף.\n\n#הערות_מדורגות(עמוד_חדש: true)".into(),
+            "הפירוש",
+        ),
+        (
+            "endnotes side by side",
+            "אלף#הערתסיום(זרם: \"א\")[ראשונה] סוף.\n\n\
+             #הערות_בסוף_צד(זרמים: (\"א\",), עמוד_חדש: true)"
+                .into(),
+            "ראשונה",
+        ),
+    ];
+    for (what, body, needle) in &cases {
+        assert!(
+            pages(body) >= 2,
+            "{what}: asked for a page of its own and printed on one page\n  {}",
+            flat(&render(body))
+        );
+        assert_eq!(
+            last_page_of(body, needle),
+            2,
+            "{what}: printed on the wrong page"
+        );
+    }
+}

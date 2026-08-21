@@ -321,7 +321,57 @@ export interface Settings {
    * which is what a writer watching their own line wants; the top is right for
    * reading straight down.
    */
-  syncMatch?: "top" | "middle" | "bottom";
+  /**
+   * Where two linked panes line up, and `direction` is the answer the report
+   * asks for.
+   *
+   * > *"Scrolling down should match top-to-top, scrolling up should match
+   * > bottom-to-bottom."*
+   *
+   * Which is what reading actually wants and what a fixed anchor cannot give.
+   * Scrolling down, the interesting line is the one arriving at the **top** of
+   * the pane; scrolling up, it is the one arriving at the **bottom**. A fixed
+   * middle is a compromise that is wrong in both directions by half a viewport,
+   * and a fixed top is right going down and useless coming back.
+   *
+   * The three fixed answers stay, because a writer who wants the line they are
+   * on pinned to one place while they read wants exactly that and not a rule
+   * that moves.
+   */
+  syncMatch?: "direction" | "top" | "middle" | "bottom";
+
+  /**
+   * How far a pane must move before its partner follows, in pixels.
+   *
+   * A trackpad emits a scroll event for a two-pixel drift, and following one is
+   * a preview that shivers while a writer rests two fingers on the pad. Zero
+   * turns the dead zone off for somebody who wants the old behaviour.
+   */
+  syncDeadZone?: number;
+
+  /**
+   * How long after the last movement the follow settles to the exact answer.
+   *
+   * The follow while a pane is *moving* is an estimate — `scrollmap.ts`'s
+   * printed map, which is a line-height model and costs nothing. The exact
+   * answer is the compiler's, and asking it per scroll event would be a layout
+   * per frame. So: estimate while moving, and once the movement stops, ask the
+   * engine where that line really printed and settle there.
+   *
+   * Milliseconds. Long enough not to fire mid-flick, short enough that the
+   * settle is part of the same gesture.
+   */
+  syncSettleMs?: number;
+
+  /**
+   * Whether the settle happens at all.
+   *
+   * On by default. Off is for a very long sefer on a slow machine, where a
+   * layout after every scroll is a cost a writer may not want to pay — and
+   * saying so is better than a setting that quietly does nothing, which is the
+   * other way this could have gone.
+   */
+  syncExact?: boolean;
   /**
    * How quickly the preview chases the writing. One page compiles in tens of
    * milliseconds, but a whole sefer takes seconds, and recompiling that on every
@@ -331,7 +381,78 @@ export interface Settings {
    * every sentence. Both are exact — this trades how often the layout runs,
    * never whether it is right.
    */
-  previewDelay?: "live" | "relaxed";
+  /**
+   * How the preview keeps up: as you type, once you stop, or when you say.
+   *
+   * `manual` is the third and it is not merely a longer delay — the preview
+   * updates on a press and on nothing else, and says so on the page while it is
+   * behind. See `compile.isStale`.
+   */
+  previewDelay?: "live" | "relaxed" | "manual";
+
+  /**
+   * Which document a search reads: what was typed, what printed, or both.
+   *
+   * `source` is the default and is what the application has always done — the
+   * editor's own find panel over the buffer. The other two open the find
+   * drawer, which reads the printed text off the laid-out page rather than
+   * re-reading the source under a second name; see `find.ts` for why that
+   * distinction is the entire feature.
+   */
+  searchScope?: "source" | "preview" | "both";
+
+  /** Whether a search tells `A` from `a`. Off by default: Hebrew has no case. */
+  searchCaseSensitive?: boolean;
+
+  /**
+   * Whether a siman or se'if series renumbers itself when it goes out of order.
+   *
+   * A siman's number is written into the source by hand — that is what a siman
+   * *is* — so deleting one in the middle leaves every number after it wrong.
+   * The insertion path has always renumbered; delete and move are not
+   * insertions and had only a lint on the line. On by default, because a sefer
+   * with two simanim numbered ב׳ is wrong on the page, in the index and in the
+   * outline, and reads as a typo rather than as a consequence of an edit made
+   * three screens ago.
+   *
+   * Off leaves the lint, which is what this did before: the mark on the line
+   * and one click to fix it.
+   */
+  renumberAuto?: boolean;
+
+  /**
+   * Whether an automatic renumber says that it happened.
+   *
+   * On by default, and the item asks for it in those words. Software that
+   * rewrites the writer's own characters and says nothing is software the
+   * writer cannot trust, however right it is.
+   */
+  renumberReport?: boolean;
+
+  /**
+   * Keep the deferred bodies at the foot of the file in one block per
+   * apparatus, with a separator naming each.
+   *
+   * Off by default, which is one run in reading order — what this has always
+   * done and what a sefer with one apparatus wants. On, the bodies are
+   * grouped by apparatus **first** and kept in reading order within each
+   * group: the filing rule is not abandoned, it is applied per block.
+   */
+  deferGrouped?: boolean;
+
+  /**
+   * How many restore points one document keeps, and how much room they may take.
+   *
+   * Two ceilings and not one, because either alone is wrong: fifty snapshots of
+   * a big sefer is tens of megabytes, and a byte cap alone would let a one-line
+   * document accumulate restore points without end. Both were constants in
+   * `docs.ts` — judgement calls with the shipped value as the only value — and
+   * both are here now with those values as their defaults. `docs.historyLimits`
+   * clamps them, because what a sane ceiling is belongs to the feature rather
+   * than to the row that sets it.
+   */
+  maxSnapshots?: number;
+  maxHistoryMB?: number;
   autosaveFile?: boolean; // write back to the bound file on a timer, not only on Ctrl+S
   /**
    * Take a snapshot on a timer, or leave the history to the writer's own hand.
@@ -486,8 +607,23 @@ export const DEFAULTS: Settings = {
   // they open is not already in a tab, so they get the one tab they had — and
   // gives the writer with two seforim their arrangement back.
   openIn: "reuse",
-  syncMatch: "middle",
+  // `direction`, and not `middle`, which is what it shipped as. The report is
+  // about reading rather than about preference: a fixed anchor is wrong in one
+  // of the two directions and the writer notices it every time they scroll back.
+  syncMatch: "direction",
+  syncDeadZone: 6,
+  syncSettleMs: 150,
+  syncExact: true,
   previewDelay: "live",
+  // What the application has always searched. A new scope is an option, not a
+  // change of what happens to a writer who never opens the settings.
+  searchScope: "source",
+  searchCaseSensitive: false,
+  // On, which is what the item asks for. The lint stays as the surface for
+  // anybody who turns it off.
+  renumberAuto: true,
+  renumberReport: true,
+  deferGrouped: false,
   autosaveFile: true,
 };
 

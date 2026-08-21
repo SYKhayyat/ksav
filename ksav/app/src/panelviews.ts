@@ -517,15 +517,39 @@ export interface StyleSection {
  * and marks.
  */
 export const STYLE_SECTIONS: readonly StyleSection[] = [
+  // The writer's own styles, first, and first is the argument. They were on no
+  // surface but the ribbon dropdown, where a style could be *applied* and its
+  // formatting could be reached only by applying it to something and then
+  // pressing the pencil. This section is the styles list every word processor
+  // has: each style named, edited from beside its own name, and given a chord
+  // of its own there.
+  //
+  // No scope selector: a custom style is a `#let` at the top of the document,
+  // so "this one" would have to mean a single *use* of it — which is not a
+  // thing the document says, and would need a per-use override the engine has
+  // no argument for.
+  { kind: "mine", heading: "styleMine", note: "styleMineNote", scope: null },
   { kind: "headings", heading: "styleHeadings", note: null, scope: ["kindHeading", "kindHeadingOne"] },
   { kind: "lists", heading: "styleLists", note: null, scope: ["kindList", "kindListOne"] },
   { kind: "tables", heading: "styleTables", note: null, scope: ["kindTable", "kindTableOne"] },
   // No scope selector, and that is not an omission: a channel is a note stream
   // for the whole document, so "this one" names nothing.
   { kind: "channels", heading: "styleChannels", note: "styleChannelsNote", scope: null },
+  // The layer under the six apparatus sections, and therefore above them on the
+  // page: a writer setting the look of "the notes" should meet the one control
+  // that means all of them before the six that mean one each. No scope
+  // selector, for the same reason `channels` has none — there is no single
+  // element for "this one" to name.
+  { kind: "noteText", heading: "styleNoteText", note: "styleNoteTextNote", scope: null },
   { kind: "notes", heading: "styleNotes", note: "styleNotesNote", scope: ["kindNote", "kindNoteOne"] },
   { kind: "bands", heading: "styleBands", note: "styleBandsNote", scope: ["kindBand", "kindBandOne"] },
   { kind: "streams", heading: "styleStreams", note: "styleStreamsNote", scope: ["kindStream", "kindStreamOne"] },
+  // The back matter, which had no section at all. Its numbering scheme was
+  // reachable only by typing `#הגדרות_הערות_סיום`, and its ink was not
+  // reachable at all because the engine had none to offer. No scope selector:
+  // one endnote cannot be lettered while its neighbours are numbered — that is
+  // two streams, and `#הערתסיום(זרם: …)` is how a document says so.
+  { kind: "endnotes", heading: "styleEndnotes", note: "styleEndnotesNote", scope: null },
   { kind: "tiers", heading: "styleTiers", note: "styleTiersNote", scope: ["kindTier", "kindTierOne"] },
   { kind: "sidenotes", heading: "styleSidenotes", note: "styleSidenotesNote", scope: ["kindSidenote", "kindSidenoteOne"] },
   { kind: "marks", heading: "styleMarks", note: "styleMarksNote", scope: ["kindMark", "kindMarkOne"] },

@@ -127,6 +127,9 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הגדרות_כותרת4", "h4_config", "heading", "עיצוב כותרות רמה 4", "How level 4 headings are set", "#הגדרות_כותרת4(גודל: 1.1em)|"),
     cmd!("הגדרות_כותרת5", "h5_config", "heading", "עיצוב כותרות רמה 5", "How level 5 headings are set", "#הגדרות_כותרת5(גודל: 1em)|"),
     cmd!("הגדרות_כותרת6", "h6_config", "heading", "עיצוב כותרות רמה 6", "How level 6 headings are set", "#הגדרות_כותרת6(גודל: 0.95em)|"),
+    cmd!("הגדרות_כותרת7", "h7_config", "heading", "עיצוב כותרות רמה 7", "How level 7 headings are set", "#הגדרות_כותרת7(גודל: 0.95em)|"),
+    cmd!("הגדרות_כותרת8", "h8_config", "heading", "עיצוב כותרות רמה 8", "How level 8 headings are set", "#הגדרות_כותרת8(גודל: 0.95em)|"),
+    cmd!("הגדרות_כותרת9", "h9_config", "heading", "עיצוב כותרות רמה 9", "How level 9 headings are set", "#הגדרות_כותרת9(גודל: 0.95em)|"),
     // ---- align / direction ----
     cmd!("מרכז", "center_", "align", "יישור למרכז", "Center align", "#מרכז[|]"),
     cmd!("ימין", "right_", "align", "יישור לימין", "Right align", "#ימין[|]"),
@@ -197,6 +200,13 @@ pub static COMMANDS: &[Command] = &[
     cmd!("הערה_ג", "tier3", "footnote", "הערה על הערה — דרגה ג (מוזחת באותו בלוק)", "Note on a note — tier C (indented in the same block)", "#הערה_ג[|]"),
     cmd!("הערה_בדרגה", "tier", "footnote", "הערה שכבתית בכל דרגה", "Layered note at any tier", "#הערה_בדרגה(2)[|]"),
     cmd!("הגדרות_הערות", "footnote_config", "footnote", "עיצוב ההערות השכבתיות (גודל/סגנון/הזחה/תוויות/מספור לכל דרגה)", "Configure layered notes (size/style/indent/labels/numbering per tier)", "#הגדרות_הערות(סגנון: (\"normal\", \"italic\"), הזחה: (0em, 1em), מספור: (\"א\", \"1\", \"i\"))"),
+    cmd!("הגדרות_טקסט_הערות", "notes_text_config", "footnote", "עיצוב אחיד לכל ההערות — הערות שוליים, הערות סיום, מדורים, מדפים, זרמים והערות צד", "One look shared by every note apparatus; each may still overrule it", "#הגדרות_טקסט_הערות(גודל: 0.9em)|"),
+    // Restartable numbering. One mechanism for the notes and for the numbers a
+    // siman carries in the source, which the editor reads out of the same two
+    // commands — see `_nr_label` in the prelude.
+    cmd!("הגדרות_מספור", "numbering_config", "footnote", "באיזו רמת כותרת המספור מתחיל מחדש (none = ממשיך לאורך כל הספר)", "The heading level a count restarts at (none = one run through the sefer)", "#הגדרות_מספור(אפס_לפי: 1)|"),
+    cmd!("התחל_מספור", "restart_numbering", "footnote", "התחל את המספור מכאן מחדש", "Start the count again from here", "#התחל_מספור()|"),
+    cmd!("המשך_מספור", "continue_numbering", "footnote", "המשך את המספור דרך האיפוס שמעל", "Carry the count on through the restart above", "#המשך_מספור()|"),
     // regrouped stacked bands (Gemara / critical-apparatus) — collect then render
     cmd!("מדור_א", "band1", "footnote", "מדור א — בלוק ההערות הראשון (כל דרגה 1)", "Band A — the first note block (all tier-1)", "#מדור_א[|]"),
     cmd!("מדור_ב", "band2", "footnote", "מדור ב — הערות על מדור א", "Band B — notes on band A", "#מדור_ב[|]"),

@@ -184,6 +184,20 @@ export const PANELS: readonly Panel[] = [
     persisted: true,
     exits: [{ via: "head" }],
   },
+  // Every place a phrase appears — in the source, on the page, or both.
+  //
+  // Transient, like the settings drawer and unlike the three list panes: those
+  // are views of the document a writer keeps open beside the text, and this is
+  // a question with an answer. Escape closes it, and the answer is thrown away
+  // with it, because a stale list of hits against a document that has since
+  // been edited is the surface this repository keeps being reported for.
+  {
+    id: "find-drawer",
+    kind: "drawer",
+    presence: "class",
+    escape: true,
+    exits: [{ via: "head" }],
+  },
   // Every command the writer can type, grouped and searchable.
   //
   // A drawer rather than a modal, so that running a command does not close the

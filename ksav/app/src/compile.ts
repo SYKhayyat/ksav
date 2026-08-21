@@ -7,6 +7,7 @@
 // the two never touch. A render is a convenience; a save is the writer's work.
 
 import { analyze } from "./brackets";
+import { isPanelOpen } from "./panels";
 import * as commands from "./commands";
 import { troubleSaid } from "./diagnostics";
 import { drawDiagnostics, preambleLines, shown } from "./diagview";
@@ -48,14 +49,82 @@ let timer: number | undefined;
 // on the signal; the wasm worker answers B1 with its queue instead.
 let compileAbort: AbortController | null = null;
 
+/**
+ * Is the page on screen older than the document?
+ *
+ * Only ever true under `manual`, and it is the half of that mode that makes it
+ * safe to have. A preview that stops updating and does not say so is not a
+ * setting, it is a way to read an old page and believe it is current — which is
+ * a worse failure than a slow preview, because the writer has no way to notice
+ * it. So the flag is part of the mechanism rather than a decoration the shell
+ * might have added: `scheduleCompile` sets it at exactly the moment it declines
+ * to lay the sefer out.
+ */
+let stale = false;
+let alsoStale: (v: boolean) => void = () => {};
+
+/** Tell the shell when the preview goes stale, and when it stops being. */
+export function onStale(fn: (v: boolean) => void) {
+  alsoStale = fn;
+}
+
+/** Whether the preview is behind the document. */
+export function isStale(): boolean {
+  return stale;
+}
+
+function setStale(v: boolean) {
+  if (stale === v) return;
+  stale = v;
+  alsoStale(v);
+}
+
+/**
+ * Lay the sefer out now, whatever the setting says.
+ *
+ * The door `manual` exists for, and it is also the right answer under the other
+ * two: *"compile now"* in the middle of a relaxed 1.2-second wait is a thing
+ * writers press, and refusing it under `live` because the timer will fire
+ * anyway would be a control that behaves differently depending on a setting the
+ * writer is not looking at.
+ */
+export function compileNow() {
+  clearTimeout(timer);
+  setStale(false);
+  void runCompile();
+}
+
+/**
+ * Is a search that reads the printed page on screen?
+ *
+ * Both halves matter. A writer whose scope is `source` never pays for the walk,
+ * and a writer whose scope includes the preview pays for it only while the find
+ * drawer is actually open — a setting is not a subscription.
+ */
+function searchingThePage(): boolean {
+  if ((settings.searchScope ?? "source") === "source") return false;
+  return isPanelOpen("find-drawer");
+}
+
 export function scheduleCompile() {
   clearTimeout(timer);
   clearTimeout(quietTimer);
+  // `manual` lays nothing out at all: the writer says when. The preview is
+  // marked stale in the same breath, because the mode is only honest if the
+  // page on screen admits how old it is.
+  if (settings.previewDelay === "manual") {
+    setStale(true);
+    alsoSchedule();
+    return;
+  }
   // `relaxed` lays a big sefer out once the writer has stopped rather than
   // between every sentence; `live` (the default) keeps a page in step as it is
   // typed. See `previewDelay` in `settings.ts`.
   const delay = settings.previewDelay === "relaxed" ? 1200 : 250;
-  timer = window.setTimeout(runCompile, delay);
+  timer = window.setTimeout(() => {
+    setStale(false);
+    void runCompile();
+  }, delay);
   alsoSchedule();
 }
 
@@ -196,6 +265,19 @@ export async function runCompile() {
   const backend = runtime.backend;
   if (!backend) return; // still initializing (createBackend not resolved yet)
   const mine = ++generation;
+  // **Which sefer this layout is of.**
+  //
+  // `generation` says whether a newer compile has started; it cannot say
+  // whether the *document* changed under this one, because switching documents
+  // does not start a compile — it draws the arriving sefer's kept pages and
+  // schedules a fresh layout. So a compile already in flight for the sefer
+  // being left would land afterwards and paint its pages over the ones that
+  // were just restored, under the new document's name.
+  //
+  // Measured, on the acceptance run this was found by: a four-page sefer came
+  // back correctly and was overwritten a quarter-second later by the one-page
+  // layout of the document it had been switched away from.
+  const forDoc = runtime.currentDoc?.id ?? null;
   // Abort the compile the last generation left in flight — its result is already
   // destined for the discard pile (`mine !== generation`), so there is no reason
   // to keep paying for it on the wire.
@@ -231,13 +313,22 @@ export async function runCompile() {
       // markers are read off the layout that has just happened, and a document
       // whose drawer is shut has nothing that would read them.
       want_markers: !!settings.notesPane,
+      // Only while a search that reads the page is on screen. Same bargain
+      // again: the printed text is a walk over the layout that has just
+      // happened, and a document nobody is searching has nothing that reads it.
+      want_text: searchingThePage(),
     }, { signal: abort.signal });
     if (mine !== generation) return; // superseded while we were waiting
+    // …and superseded by a *switch*, which is the other way to be stale. A pane
+    // stating one document while the editor holds another is the family this
+    // application is audited for; the switch has already put the right pages
+    // there and scheduled the layout that belongs to them.
+    if ((runtime.currentDoc?.id ?? null) !== forDoc) return;
     runtime.setLastResult(res);
     const ms = Math.round(performance.now() - t0);
     if (res.pages_svg.length) {
       // Every preview pane, from one compile. See `previewHosts`.
-      drawPagesEverywhere(res.pages_svg, res.pages_hash, res.pages_lines);
+      drawPagesEverywhere(res.pages_svg, res.pages_hash, res.pages_lines, res.pages_text);
       applyPreview();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");

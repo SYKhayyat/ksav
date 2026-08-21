@@ -1118,6 +1118,17 @@ export function applyChoice(
   sel: { to?: number; text?: string; marker?: string } = {},
   /** What the page direction says, for a document that has said nothing yet. */
   whenSilent: "he" | "en" = "he",
+  /**
+   * Whether the deferred bodies at the foot of the file are kept in one block
+   * per apparatus.
+   *
+   * Threaded down to `fileNewBody` rather than read from a setting here,
+   * because this module has never imported one — and because the option is only
+   * true tomorrow if the *filing* knows about the blocks. A tidy that groups
+   * and an insertion that appends is a setting that lies about itself the first
+   * time the writer adds a note.
+   */
+  grouped = false,
 ): { text: string; caret: number } {
   // `marker` overrides the layout's own: tiers ג and below are the same layout
   // as ב and want the same configuration line, but not the same command.
@@ -1201,7 +1212,7 @@ export function applyChoice(
     // callers, one argument — which is the same shape as every other bug in
     // this file's history and the reason `notepaths.test.mjs` asks both paths
     // the same questions.
-    const filed = fileNewBody(text, body.replace("|", ""), name);
+    const filed = fileNewBody(text, body.replace("|", ""), name, grouped);
     text = filed.text;
     caret = filed.at + body.indexOf("|");
   }

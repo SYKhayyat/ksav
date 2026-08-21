@@ -25,7 +25,7 @@
 // a cache, and `init` rebuilds it from IndexedDB whenever it goes missing or
 // disagrees, so it can never become the authority on what exists.
 
-import { settingsPageSetup, ownPageSetup, readPageSetup } from "./settings";
+import { settings, settingsPageSetup, ownPageSetup, readPageSetup } from "./settings";
 import type { PageSetup } from "./settings";
 import * as store from "./store";
 import { ASSETS, DOCS, HISTORY, StorageFullError } from "./store";
@@ -119,6 +119,35 @@ const LEGACY_HISTORY_KEY = "ksav.history";
  */
 export const MAX_SNAPSHOTS = 50;
 export const MAX_HISTORY_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The two ceilings a writer may move, with the shipped values as their defaults.
+ *
+ * Both were judgement calls written as constants, which is the shape this
+ * repository has a standing rule about: fifty is somebody's guess at how many
+ * restore points a sefer wants, and two megabytes is somebody's guess at what a
+ * browser's storage will bear. A writer with a 400-page sefer and a writer
+ * keeping a page of notes want different answers and neither could say so.
+ *
+ * Read through here rather than off `settings` directly so that `trim` has one
+ * definition of what the ceiling is — including the clamping, which is a fact
+ * about the feature and not about the row that sets it. Zero snapshots is not
+ * on offer: a history of nothing is a feature switched off by arithmetic, and
+ * turning it off is what `snapshotEvery: null` already means.
+ */
+export function historyLimits(s: {
+  maxSnapshots?: number;
+  maxHistoryMB?: number;
+}): { count: number; bytes: number } {
+  const count = Math.min(500, Math.max(1, Math.round(s.maxSnapshots ?? MAX_SNAPSHOTS)));
+  const mb = Math.min(200, Math.max(0.25, s.maxHistoryMB ?? MAX_HISTORY_BYTES / (1024 * 1024)));
+  return { count, bytes: Math.round(mb * 1024 * 1024) };
+}
+
+/** What one document's history costs, for a surface that says so. */
+export function historyCost(list: readonly Snapshot[]): { count: number; bytes: number } {
+  return { count: list.length, bytes: list.reduce((n, s) => n + s.body.length, 0) };
+}
 
 /**
  * How often a snapshot is taken by itself, if at all.
@@ -435,13 +464,27 @@ export async function latestSnapshot(docId: string): Promise<Snapshot | null> {
   return list.length ? list[list.length - 1] : null;
 }
 
+/**
+ * Throw one document's restore points away.
+ *
+ * Offered because the cost is now shown, and a number a writer can see with no
+ * way to act on it is a complaint rather than a control. Both keys go: the
+ * record and the small newest-snapshot pointer beside it, or the next boot
+ * would find a baseline for a history that no longer exists.
+ */
+export async function clearHistory(docId: string): Promise<void> {
+  await store.del(HISTORY, docId);
+  await store.del(HISTORY, docId + LATEST_SUFFIX);
+}
+
 /** Trim a history to the count and byte ceilings, oldest first. */
 function trim(list: Snapshot[]): Snapshot[] {
-  let kept = list.slice(-MAX_SNAPSHOTS);
+  const limit = historyLimits(settings);
+  let kept = list.slice(-limit.count);
   let bytes = kept.reduce((n, s) => n + s.body.length, 0);
   // Always keep the newest snapshot, even if it alone is over the ceiling:
   // a history of nothing is worse than a history that is slightly too big.
-  while (kept.length > 1 && bytes > MAX_HISTORY_BYTES) {
+  while (kept.length > 1 && bytes > limit.bytes) {
     bytes -= kept[0].body.length;
     kept = kept.slice(1);
   }

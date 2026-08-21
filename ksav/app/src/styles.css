@@ -1405,6 +1405,24 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    take it away again, rather than the panel showing a fixed three because
    three is what fitted. */
 .region-row { display: flex; align-items: center; gap: 4px; }
+/* A number and its unit, in the two places a knob has both. */
+/* The one sentence that says which of the three list panes this is. */
+/* The stale-preview banner: on the page it is about, and it is the way out. */
+.preview-stale {
+  position: sticky; top: 0; z-index: 4; display: flex; gap: 8px; align-items: baseline;
+  width: 100%; padding: 6px 10px; border: 0; cursor: pointer; text-align: start;
+  background: #fdf1d6; color: #6b4a00; border-bottom: 1px solid #e5c97a; font: inherit;
+}
+.preview-stale span { opacity: 0.75; font-size: 11px; }
+.preview-stale[hidden] { display: none; }
+.pane-lede { margin: 0 8px 6px; font-size: 11px; line-height: 1.45; opacity: 0.72; }
+.region-height, .knob-size { display: flex; align-items: center; gap: 4px; }
+.knob-size input[type="number"] { width: 62px; }
+.knob-size select { font-size: 11px; padding: 2px 4px; }
+.knob-font input[type="text"] { width: 140px; }
+/* A style's own row: its chord, the way off it, and the way into its knobs. */
+.style-mine-row { display: flex; align-items: center; gap: 4px; }
+.style-mine-row .sc-key { min-width: 68px; }
 .region-height { display: flex; align-items: center; gap: 4px; }
 .region-height input[type="number"] { width: 62px; }
 .region-height select { font-size: 11px; padding: 2px 4px; }
@@ -1783,3 +1801,16 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 .pane-hidden { display: none !important; }
 .pane-zoomed { flex: 1 1 auto !important; }
 .pane-btn.pane-zoom-on { color: var(--accent); }
+
+/* The find drawer's scope chooser: the setting, on the surface it governs. */
+.find-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+  font-size: 13px;
+}
+.find-scope select {
+  flex: 1;
+  min-width: 0;
+}

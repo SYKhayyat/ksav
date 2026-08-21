@@ -53,6 +53,9 @@ pub mod notices;
 /// Which of the writer's lines printed on each page — the fact a preview
 /// narrowed to one siman is drawn from.
 pub mod pagelines;
+/// What each page actually *says* — the fact a search of the preview is drawn
+/// from, and the one a search of the source cannot answer.
+pub mod pagetext;
 /// What Typst's own parser says a document is made of — the authority the
 /// editor's hand-written scanner is checked against offline, since it cannot
 /// ask for the answer mid-keystroke.
@@ -1255,6 +1258,11 @@ pub struct Compiled {
     /// Empty unless [`Wants::lines`] asked for it. See [`crate::pagelines`] for
     /// what a run is and why a page reports several of them.
     pub pages_lines: Vec<Vec<pagelines::LineRun>>,
+    /// What each page says, in reading order, in page order.
+    ///
+    /// Empty unless [`Wants::text`] asked for it. See [`crate::pagetext`] for
+    /// how a line is assembled and why the walk order is the reading order.
+    pub pages_text: Vec<Vec<pagetext::PageLine>>,
     /// Every marker the layout printed, paired with the prose beside it.
     ///
     /// Empty unless [`Wants::markers`] asked for it. Not a list of notes and not
@@ -1284,6 +1292,9 @@ pub struct Wants {
     /// What each note's marker printed as. The same walk and the same re-parse
     /// as `lines`, and read only by the notes drawer while it is open.
     pub markers: bool,
+    /// What each page printed. The same walk and the same re-parse as `lines`,
+    /// and read only by a search that has been told to look at the preview.
+    pub text: bool,
 }
 
 impl Wants {
@@ -1298,6 +1309,10 @@ impl Wants {
             source: true,
             lines: false,
             markers: false,
+            // An export produces a file. What the pages *say* is a question
+            // only a search on a screen has, for the same reason `lines` is
+            // off here.
+            text: false,
         }
     }
 }
@@ -2093,7 +2108,7 @@ pub fn compile_parts(
             // and the writer's own text; the prelude is a different file.
             //
             // `markers` shares it, so the parse happens once for either or both.
-            let parsed = (wants.lines || wants.markers)
+            let parsed = (wants.lines || wants.markers || wants.text)
                 .then(|| typst::syntax::Source::detached(source.clone()));
             let pages_lines = match (&parsed, wants.lines) {
                 (Some(main), true) => pagelines::page_lines(&doc, main, body),
@@ -2101,6 +2116,10 @@ pub fn compile_parts(
             };
             let note_markers = match (&parsed, wants.markers) {
                 (Some(main), true) => notemarks::note_markers(&doc, main, body),
+                _ => Vec::new(),
+            };
+            let pages_text = match (&parsed, wants.text) {
+                (Some(main), true) => pagetext::page_text(&doc, main, body),
                 _ => Vec::new(),
             };
             // Fingerprint the **page**, then serialise only what the caller
@@ -2153,6 +2172,7 @@ pub fn compile_parts(
                     String::new()
                 },
                 pages_lines,
+                pages_text,
                 note_markers,
             }
         }
@@ -2174,6 +2194,7 @@ pub fn compile_parts(
                 pages_hash: Vec::new(),
                 diagnostics,
                 pages_lines: Vec::new(),
+                pages_text: Vec::new(),
                 note_markers: Vec::new(),
                 typst_source: if wants.source {
                     assemble_source(body, cfg)
@@ -2291,6 +2312,7 @@ fn malformed_request(reason_he: &str, reason_en: &str) -> String {
         }],
         "typst_source": "",
         "pages_lines": [],
+        "pages_text": [],
         "note_markers": [],
         "missing_assets": [],
     })
@@ -2454,6 +2476,9 @@ pub fn compile_request(input_json: &str) -> String {
         lines: flag("want_lines"),
         // Asked for by the notes drawer while it is open, and by nothing else.
         markers: flag("want_markers"),
+        // Asked for by the find drawer while it is searching the preview, and
+        // by nothing else.
+        text: flag("want_text"),
     };
     // Pages the client already has, by fingerprint.
     //
@@ -2485,6 +2510,9 @@ pub fn compile_request(input_json: &str) -> String {
     // a diagnostic has one line to move, and a run has to be *split* where a
     // page holds the end of one chapter and the head of the next.
     pagelines::relabel(&expanded, &mut result.pages_lines);
+    // And the same for the printed lines, which is simpler than either: a
+    // printed line is one line of one file, so there is nothing to split.
+    pagetext::relabel(&expanded, &mut result.pages_text);
     // And the third translation, which is a deletion — see `notemarks::keep_main`
     // for why a marker from an included chapter cannot be moved into the open
     // document's coordinates the way a page run can.
@@ -2543,6 +2571,9 @@ pub fn compile_request(input_json: &str) -> String {
         // `want_lines` asked. One entry per page, in page order, so the client
         // can index it by page number; see `pagelines`.
         "pages_lines": result.pages_lines,
+        // What each page says — empty unless `want_text` asked. One entry per
+        // page, in page order, each line in reading order; see `pagetext`.
+        "pages_text": result.pages_text,
         // What each note's marker printed as — empty unless `want_markers`
         // asked. A flat list of (marker, offset) pairs and **not** a list of
         // notes; the client intersects it with the note bodies it already holds.

@@ -114,6 +114,23 @@ export const RECIPES = new Map([
   ["outline-drawer", { how: HOW.chip, chip: "outline" }],
   ["notes-drawer", { how: HOW.chip, chip: "notesPane" }],
   ["marks-drawer", { how: HOW.chip, chip: "marksPane" }],
+  [
+    "find-drawer",
+    {
+      how: HOW.class,
+      // Built with the chrome, like the three list panes beside it, so the
+      // element, the head and the `×` are all real and this measures a whole
+      // drawer rather than a shell.
+      head: true,
+      why:
+        "The `find` chip opens it only under `searchScope` of `preview` or `both`; " +
+        "under the default it opens the editor's own find panel, which is what the " +
+        "application has always done and what the item asked to leave alone. The " +
+        "gesture is therefore a setting away, and the harness drives clicks and " +
+        "keystrokes rather than `<select>` values, so there is no honest chip or " +
+        "recipe to write here yet.",
+    },
+  ],
   ["commands-drawer", { how: HOW.chip, chip: "commands" }],
   ["help-panel", { how: HOW.chip, chip: "help" }],
   ["styles-panel", { how: HOW.chip, chip: "styles" }],

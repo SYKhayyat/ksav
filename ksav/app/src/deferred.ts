@@ -496,17 +496,38 @@ function markerOf(s: Scan, name: string): number {
  *
  * With no name to go on (or a marker not yet in the text) this answers "after
  * the last one", which is what it always did.
+ *
+ * **`grouped` is not a refinement, it is the setting being true tomorrow.** A
+ * document tidied into one block per apparatus and then written in stays tidy
+ * only if the *filing* knows about the blocks; otherwise the option is true
+ * until the writer adds a note, which is a setting that lies about itself. So
+ * the comparison takes the block as its first key and reading order as its
+ * second — the same two keys, in the same order, as `permuteBodies`.
  */
-function neighbours(s: Scan, name?: string): { after: Def | null; before: Def | null } {
+function neighbours(
+  s: Scan,
+  name?: string,
+  grouped = false,
+): { after: Def | null; before: Def | null } {
   const last = s.defs.length ? s.defs[s.defs.length - 1] : null;
   if (name == null) return { after: last, before: null };
   const mine = s.refs.find((r) => r.name === name)?.from;
   if (mine == null) return { after: last, before: null };
+  const order = apparatusOrder(s);
+  const rank = (n: string) => {
+    if (!grouped) return 0;
+    const kind = apparatusOf(s, n);
+    return kind === null ? Infinity : order.indexOf(kind);
+  };
+  // Where this note sits, on both keys.
+  const myRank = rank(name);
   let after: Def | null = null;
   let before: Def | null = null;
   for (const d of s.defs) {
     if (d.name === name) continue;
-    if (markerOf(s, d.name) < mine) after = d;
+    const r = rank(d.name);
+    const earlier = r < myRank || (r === myRank && markerOf(s, d.name) < mine);
+    if (earlier) after = d;
     else if (!before) before = d;
   }
   return { after, before };
@@ -520,9 +541,14 @@ function neighbours(s: Scan, name?: string): { after: Def | null; before: Def | 
  * region if the writer made one, otherwise straight after the last body, and
  * otherwise a fresh block at the end of the document.
  */
-export function fileNewBody(text: string, entry: string, name?: string): { text: string; at: number } {
+export function fileNewBody(
+  text: string,
+  entry: string,
+  name?: string,
+  grouped = false,
+): { text: string; at: number } {
   const s = scan(text);
-  const { after, before } = neighbours(s, name);
+  const { after, before } = neighbours(s, name, grouped);
   if (after) {
     const at = after.to;
     return { text: text.slice(0, at) + "\n" + entry + text.slice(at), at: at + 1 };
@@ -530,7 +556,14 @@ export function fileNewBody(text: string, entry: string, name?: string): { text:
   // Every body already filed belongs after this one — so this is the first, and
   // it goes above them rather than under the whole list.
   if (before) {
-    const at = lineStartIfAlone(text, before.from, before.to);
+    // The **start of `before`'s own line**, so the new body lands on a line of
+    // its own directly above it. `lineStartIfAlone` hands back the *preceding
+    // newline* instead, which appends the entry to whatever is on the line
+    // above — harmless while that line was always blank, and not harmless at
+    // all once a block separator can be there: the body ends up inside a
+    // comment, where the scanner rightly cannot see it, and the note simply has
+    // no prose. Found by the grouping tests, and it was latent before them.
+    const at = text.lastIndexOf("\n", before.from - 1) + 1;
     return { text: text.slice(0, at) + entry + "\n" + text.slice(at), at };
   }
   if (s.region) {
@@ -570,10 +603,10 @@ function referenceText(name: string, kind: string | null, rest: string, lang: La
  * prose yet does not report an error, it writes the line and takes you there.
  * The body is spelled the way its marker is — the pair is one note.
  */
-export function createBody(text: string, name: string): Change {
+export function createBody(text: string, name: string, grouped = false): Change {
   const lang = scan(text).refs.find((r) => r.name === name)?.lang ?? "he";
   const entry = definitionText(name, "", lang);
-  const { text: out, at } = fileNewBody(text, entry, name);
+  const { text: out, at } = fileNewBody(text, entry, name, grouped);
   // Inside the body brackets: `#גוף_הערה("name")[` is the prefix.
   return { text: out, caret: at + entry.length - 1 };
 }
@@ -589,12 +622,13 @@ export function insertDeferred(
   pos: number,
   kind: string | null = null,
   lang: Lang = "he",
+  grouped = false,
 ): Change {
   const name = nextName(text);
   const marker = referenceText(name, kind, "", lang);
   const withMarker = text.slice(0, pos) + marker + text.slice(pos);
   const entry = definitionText(name, "", lang);
-  const { text: out, at } = fileNewBody(withMarker, entry, name);
+  const { text: out, at } = fileNewBody(withMarker, entry, name, grouped);
   return { text: out, caret: at + entry.length - 1 };
 }
 
@@ -690,7 +724,7 @@ export function inlineNoteAt(
  * live in the file* and nothing else. Any other extra arguments ride along
  * verbatim rather than being interpreted.
  */
-export function deferInlineNote(text: string, pos: number): Change | null {
+export function deferInlineNote(text: string, pos: number, grouped = false): Change | null {
   const note = inlineNoteAt(text, pos);
   if (!note) return null;
   const name = nextName(text);
@@ -699,7 +733,7 @@ export function deferInlineNote(text: string, pos: number): Change | null {
   const kind = isDefaultKind(note.cmd) ? null : note.cmd;
   const marker = referenceText(name, kind, note.args, lang);
   const withMarker = text.slice(0, note.from) + marker + text.slice(note.to);
-  const { text: out } = fileNewBody(withMarker, definitionText(name, body, lang), name);
+  const { text: out } = fileNewBody(withMarker, definitionText(name, body, lang), name, grouped);
   // The caret stays where the note was — the writer is still writing the
   // sentence, not the note.
   return { text: out, caret: note.from + marker.length };
@@ -890,7 +924,7 @@ export function resolveDeferred(text: string): string {
  * already travelling with the body that contains them, and hoisting both would
  * put a marker inside a body that is itself about to move.
  */
-export function deferAllInlineNotes(text: string): { text: string; moved: number } {
+export function deferAllInlineNotes(text: string, grouped = false): { text: string; moved: number } {
   const isComment = inComment(text);
   const spans: { from: number; to: number; cmd: string; args: string; body: string }[] = [];
   for (const start of callsOf(text, NOTE_COMMANDS, isComment)) {
@@ -944,7 +978,7 @@ export function deferAllInlineNotes(text: string): { text: string; moved: number
   }
   out += text.slice(cursor);
 
-  for (const b of bodies) out = fileNewBody(out, b.entry, b.name).text;
+  for (const b of bodies) out = fileNewBody(out, b.entry, b.name, grouped).text;
   return { text: out, moved: top.length };
 }
 
@@ -1044,19 +1078,153 @@ export function inlineAllDeferredNotes(text: string): { text: string; moved: num
  *   chose — `#הערה_בשם("רש״י")` — is theirs and is left alone, which also means
  *   this can be run on a document that mixes the two.
  */
-export function sortBodies(text: string): { text: string; moved: number } {
-  const ordered = permuteBodies(text);
+export function sortBodies(text: string, grouped = false): { text: string; moved: number } {
+  // Old separators go first, always — including when the grouping is being
+  // turned *off*, which is the case that would otherwise leave the headings
+  // standing over a list they no longer describe.
+  const bare = withoutSeparators(text);
+  const ordered = permuteBodies(bare, grouped);
   const renamed = renumberNotes(ordered.text);
-  return { text: renamed, moved: ordered.moved };
+  const final = grouped ? withSeparators(renamed) : renamed;
+  // Counted against what the writer had, not against the stripped copy: a
+  // document whose separators were removed and put back unchanged has moved
+  // nothing, and saying otherwise would report work that did not happen.
+  return { text: final, moved: final === text ? 0 : Math.max(ordered.moved, 1) };
 }
 
-/** The bodies, permuted into the order their markers appear. */
-function permuteBodies(text: string): { text: string; moved: number } {
+/** Each block's separator, written above the first body of that apparatus. */
+function withSeparators(text: string): string {
+  const s = scan(text);
+  if (!s.defs.length) return text;
+  const edits: { at: number; insert: string }[] = [];
+  let last: string | null | undefined;
+  for (const d of s.defs) {
+    const mine = apparatusOf(s, d.name);
+    // Orphans get no heading of their own. They are not an apparatus, they are
+    // bodies nothing points at, and the lint already says so on the line.
+    if (mine === null) break;
+    if (mine !== last) {
+      // The **start of the line**, not `lineStartIfAlone`, which hands back the
+      // preceding newline so that a caller can insert `"\n" + entry` after it.
+      // Used here that puts the separator at the end of the line above, where
+      // it is no longer a comment on a line of its own — so `withoutSeparators`
+      // cannot find it again, the tidy stops being idempotent, and turning the
+      // option off leaves the headings behind. All three, from one offset.
+      const at = text.lastIndexOf("\n", d.from - 1) + 1;
+      edits.push({ at, insert: separatorFor(mine) + "\n" });
+      last = mine;
+    }
+  }
+  let out = text;
+  for (const e of [...edits].sort((a, b) => b.at - a.at)) {
+    out = out.slice(0, e.at) + e.insert + out.slice(e.at);
+  }
+  return out;
+}
+
+// ------------------------------------------------- one block per apparatus
+//
+// # The report
+//
+// > *"At the end of the source, deferred bodies for footnotes and endnotes are
+// > interleaved in one run, which is confusing to read and to edit. Add an
+// > option to keep each apparatus's bodies in its own block, with a heading or
+// > separator."*
+//
+// And the constraint the item states in the same breath, which is what makes it
+// a design rather than a sort: the bodies are filed in **reading order**, and
+// that rule does not get abandoned. So the answer is grouping by apparatus
+// first and reading order *within* each group — two keys on one sort, not a
+// second scheme replacing the first.
+//
+// The groups themselves are in reading order too: the apparatus whose first
+// marker appears first comes first. Any other order would be a decision this
+// module is not entitled to make — there is no natural precedence between a
+// footnote and an endnote, and putting them in a fixed order would shuffle
+// somebody's file for a reason nobody can see on the page.
+//
+// # Why the separator is a comment
+//
+// It has to name the block, print nothing, and survive being written again.
+// A `#גופי_הערות` region is an engine construct with meaning, and a heading
+// would print. A comment is the only thing in this language that is addressed
+// to the person reading the source and to nobody else — which is exactly what
+// this is.
+//
+// Recognised by its own shape and stripped before a re-sort, so running the
+// tidy twice leaves one separator and not two.
+
+/** The apparatus a marker names, defaulted to the ordinary footnote. */
+export function kindOf(ref: Ref): string {
+  return ref.kind ?? DEFAULT_NOTE_KIND[ref.lang];
+}
+
+/** The apparatus a body belongs to, via its marker. `null` for an orphan. */
+export function apparatusOf(s: Scan, name: string): string | null {
+  const ref = s.refs.find((r) => r.name === name);
+  return ref ? kindOf(ref) : null;
+}
+
+/**
+ * The apparatuses of this document, in the order a reader first meets them.
+ *
+ * Orphans — bodies whose marker is gone — are not in here and sort last, which
+ * is where `permuteBodies` already puts them and for the same reason: a body
+ * nothing points at has no place in the reading order, and inventing one for it
+ * would move somebody's text on the strength of a guess.
+ */
+function apparatusOrder(s: Scan): string[] {
+  const seen: string[] = [];
+  for (const r of s.refs) {
+    const k = kindOf(r);
+    if (!seen.includes(k)) seen.push(k);
+  }
+  return seen;
+}
+
+/** The separator line written above each block, and the shape that finds it. */
+const SEPARATOR = /^[ \t]*\/\/[ \t]*—— .+ ——[ \t]*\n?/gmu;
+function separatorFor(apparatus: string): string {
+  return `// —— ${apparatus} ——`;
+}
+
+/**
+ * The document with every generated separator taken out again.
+ *
+ * Its own line goes with it, newline included, or turning the grouping off
+ * would leave a run of blank lines where the headings had been — a tidy-up
+ * that leaves litter is one nobody trusts twice.
+ */
+function withoutSeparators(text: string): string {
+  return text.replace(SEPARATOR, "");
+}
+
+/**
+ * The bodies, permuted into the order their markers appear.
+ *
+ * `grouped` adds a *first* key — which apparatus the body belongs to — and
+ * leaves the reading order as the second. That is the whole of the item's
+ * constraint: the rule that bodies are filed in reading order is not abandoned,
+ * it is applied within each block.
+ */
+function permuteBodies(text: string, grouped = false): { text: string; moved: number } {
   const s = scan(text);
   if (s.defs.length < 2) return { text, moved: 0 };
+  const order = apparatusOrder(s);
+  // An orphan sorts last in both keys, which is where the reading-order sort
+  // already put it: a body nothing points at has no place in the reading order,
+  // and inventing a block for it would move somebody's text on a guess.
+  const block = (name: string) => {
+    const mine = apparatusOf(s, name);
+    return mine === null ? Infinity : order.indexOf(mine);
+  };
   // A stable sort, so orphans — all keyed `Infinity` — keep the order they were
   // written in rather than being shuffled among themselves for no reason.
-  const want = [...s.defs].sort((a, b) => markerOf(s, a.name) - markerOf(s, b.name));
+  const want = [...s.defs].sort(
+    (a, b) =>
+      (grouped ? block(a.name) - block(b.name) : 0) ||
+      markerOf(s, a.name) - markerOf(s, b.name),
+  );
   let moved = 0;
   let out = "";
   let cursor = 0;

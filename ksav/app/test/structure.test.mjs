@@ -488,7 +488,11 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   const doc = bigTable(600);
   const at = doc.indexOf("ב300");
   const table = STRUCTURE_ACTIONS.filter((a) => a.structure === "table");
-  check("every table operation is under test", table.length, 20);
+  // Twenty-four since the grid navigation landed: `Tab` walks the cells in the
+  // order they are written and four more walk the grid — up, down, and the two
+  // column steps, which are startward and endward rather than left and right
+  // because which arrow means which depends on the document's direction.
+  check("every table operation is under test", table.length, 24);
 
   const asking = perCall(60, (i) => availableAt(doc, at + i));
   const doing = perCall(10, (i) => table.forEach((a) => a.run(doc, at + i)));

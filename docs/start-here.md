@@ -57,7 +57,7 @@ Hebrew one:
 #נוסחה[x^2 + y^2 = z^2]
 ```
 
-The registry declares 157 commands and `#` in the editor offers all 154 of them
+The registry declares 164 commands and `#` in the editor offers all 161 of them
 that are still current, with what each one does, so none is worth memorising.
 The rest still compile, so an older document keeps working; they are not offered.
 
@@ -117,6 +117,38 @@ printed sees them too. In an English document the pair is written
 Hovering a marker shows its text without going anywhere. A marker whose words
 were never written is marked in the editor and prints a red `?` — the one thing
 worse than an unwritten note is an invisible one.
+
+The list at the foot of the file is kept in **reading order** — a note added to
+the first paragraph of a finished chapter has its prose filed at the top, not
+under the note from the last page. If your sefer uses more than one apparatus,
+*Keep the bodies at the foot of the file in one block per apparatus* in the
+settings gives each its own block with a comment naming it, and keeps reading
+order inside each block. The filing follows the setting too, so a note written
+afterwards lands in the right block rather than at the end.
+
+## Starting a count again
+
+A count normally runs unbroken through the sefer. Per-chapter numbering — the
+usual convention for an endnote section — is one line:
+
+```
+#הגדרות_מספור(אפס_לפי: 1)
+```
+
+which says *start again at every level-1 heading*. Any level works, and `none`
+is never, which is the default.
+
+Where the rule is wrong, override it in place: `#התחל_מספור()` starts the count
+again from that point whether or not a rule says so, and `#המשך_מספור()` carries
+it on through the restart just above — under a chapter heading whose numbering
+should run on. Continuing means carrying on from where the previous run left
+off, not going back to the beginning of the sefer.
+
+The same three commands govern the numbers a `#סימן` carries, which are written
+into your source by hand rather than counted by the engine. Those are put back
+in order for you when a deletion or a move leaves them wrong, and the status
+line says when it happened; both halves are settings if you would rather they
+did not.
 
 ## Whitespace you can see and the page cannot
 
@@ -221,6 +253,26 @@ it says so and marks the first.
 Both directions lay the document out to answer, so they take about as long as a
 compile. That is why the second one is a key you press rather than something
 that follows your cursor around.
+
+## Searching what printed, not only what you typed
+
+`Ctrl+F` is find, and it finds in the source — which is where you type and is
+what it has always done. It is not always the question you have: the page holds
+words nobody typed
+— a note's marker, a running head, an auto-numbered siman, a whole chapter
+pulled in with `#כלול` — and your source holds words that never print, like
+command names and comments.
+
+*Where to search* in the settings has a third answer for that. Set it to the
+page, or to both, and `Ctrl+F` finds in a drawer instead, listing every place the
+phrase appears: the source hits by line, the printed hits by page. Clicking a printed
+hit scrolls the preview to it, and puts your cursor on it as well when the words
+are yours to edit — a running head is not, and the row says so rather than
+guessing at a nearby line.
+
+The printed half reads the page the compiler actually laid out, so a phrase that
+breaks across a line break is still found, and the drawer says plainly when the
+sefer has not been laid out yet rather than reporting no matches.
 
 ## One siman at a time
 
@@ -391,7 +443,7 @@ like a transposition, then by how common the word is. `teh` gives you `the`.
 
 ## Next
 
-- [`shortcuts.md`](shortcuts.md) — all 89 bindings, both languages, generated from
+- [`shortcuts.md`](shortcuts.md) — all 97 bindings, both languages, generated from
   the source so it cannot drift.
 - [`from-word.md`](from-word.md) — what is better and what is worse, in a table.
 - [Girsa's own start-here](https://github.com/SYKhayyat/girsa/blob/main/docs/start-here.md) — the loop, which is

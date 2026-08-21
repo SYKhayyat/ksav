@@ -63,6 +63,28 @@ const SPILLING: &str = ", מיקום: \"רגל\", גובה: שורות(1), גל�
 const NOTES: &str = "פתיחה.\n\nא#הערה(אזור: \"צר\")[הערה ראשונה] ב#הערה(אזור: \"צר\")[הערה שניה] \
                      ג#הערה(אזור: \"צר\")[הערה שלישית] ד#הערה(אזור: \"צר\")[הערה רביעית]";
 
+/// A grid region of two channels over three simanim, the second channel silent
+/// in the third.
+///
+/// Company for the four keys the row plan reads. Every one of them needs a page
+/// the others do not: `מחזור` needs a **third** row, or repeating the last plan
+/// and cycling the list agree; `ריק` needs a cell with nothing in it, or holding
+/// the place and dropping it agree; and both gaps need two of something to put a
+/// gap between. The silent one is the **second** channel on purpose: the first
+/// column is the one at the right edge in a Hebrew sefer, so dropping its
+/// neighbour leaves it exactly where it was and every one of these keys would
+/// report itself dead. Dropping the *first* moves the second, and that is the
+/// difference these renders are looking for.
+const WRAP_GRID: &str = ", מיקום: \"רגל\", פריסה: \"צד\", יחידה: \"כותרת\"";
+
+const WRAP: &str = "#ערוץ(\"א\", אזור: \"צר\")\n#ערוץ(\"ב\", אזור: \"צר\")\n\
+                    #כותרת[פרק א]\n\n\
+                    ראשון#הערה(ערוץ: \"א\")[אלף] וגם#הערה(ערוץ: \"ב\")[בית] סוף.\n\n\
+                    #כותרת[פרק ב]\n\n\
+                    שני#הערה(ערוץ: \"א\")[גימל] וגם#הערה(ערוץ: \"ב\")[דלת] סוף.\n\n\
+                    #כותרת[פרק ג]\n\n\
+                    שלישי#הערה(ערוץ: \"ב\")[הא] סוף.";
+
 fn vary(key: &str) -> Option<Vary> {
     let notes = Vary {
         a: "",
@@ -72,6 +94,29 @@ fn vary(key: &str) -> Option<Vary> {
     };
     Some(match key {
         "מיקום" => Vary { a: "\"רגל\"", b: "\"סוף\"", ..notes },
+        // The row plan. Two shapes and three rows, so that the third row is the
+        // one the two answers disagree about: repeat the last plan, or start the
+        // list again.
+        "מחזור" => Vary {
+            a: "false",
+            b: "true",
+            with: ", מיקום: \"רגל\", פריסה: \"צד\", יחידה: \"כותרת\", \
+                  טורים: ((1fr, 1fr), (1fr,))",
+            body: WRAP,
+        },
+        "מרווח_טורים" => Vary { a: "0pt", b: "4em", with: WRAP_GRID, body: WRAP },
+        "ריווח_טורים" => Vary { a: "0pt", b: "3em", with: WRAP_GRID, body: WRAP },
+        "ריק" => Vary { a: "\"ריק\"", b: "\"דלג\"", with: WRAP_GRID, body: WRAP },
+        // A channel with something to say and no column in its row: a row of
+        // its own, or a column added to the one it was left out of. The third
+        // answer is a refusal, which cannot be a contrast because a document
+        // that does not compile is not a page to compare.
+        "עודף" => Vary {
+            a: "\"שורה_נוספת\"",
+            b: "\"טור_נוסף\"",
+            with: ", מיקום: \"רגל\", פריסה: \"צד\", יחידה: \"כותרת\", טורים: ((1fr,),)",
+            body: WRAP,
+        },
         "גובה" => Vary { a: "1cm", b: "4cm", with: ", מיקום: \"רגל\"", ..notes },
         "כותרת" => Vary { a: "none", b: "\"ביאורים\"", with: ", מיקום: \"סוף\"", ..notes },
         "גלישה" => Vary {

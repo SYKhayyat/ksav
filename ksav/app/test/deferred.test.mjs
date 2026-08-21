@@ -23,7 +23,7 @@ import {
   printingAnchor,
 } from "../.tmp-test/deferred.mjs";
 import { applyPick, noteAt, notesIn, retargetNote } from "../.tmp-test/notes.mjs";
-import { BODY_HOMES, defersBody } from "../.tmp-test/deferred.mjs";
+import { BODY_HOMES, defersBody, COMPANION, includes, includeLine } from "../.tmp-test/deferred.mjs";
 import { DESTINATIONS, destinationArg } from "../.tmp-test/channels.mjs";
 import { toMarkdown } from "../.tmp-test/markdown.mjs";
 
@@ -774,11 +774,63 @@ const filed = (text) => scan(text).defs.map((d) => d.name);
 
   // The three answers are the three the setting offers, and `defersBody` is the
   // one place that decides which of them writes a marker at all.
-  check("home: three answers, named once", [...BODY_HOMES], ["inline", "file", "section"]);
+  check("home: four answers, named once", [...BODY_HOMES], [
+    "inline",
+    "file",
+    "section",
+    "companion",
+  ]);
   check("home: only inline keeps the prose in the sentence", BODY_HOMES.filter(defersBody), [
     "file",
     "section",
+    "companion",
   ]);
+
+  // 40c. a body filed in a document of its own
+  //
+  // The fourth home. The marker goes in this file, the prose does not, and the
+  // errand is what carries it — one string in, one string and one write out. The
+  // `#כלול` line is the half that is easy to forget and fatal to omit: a body in
+  // a document nothing includes is a body nothing prints.
+  {
+    const c = applyPick("ראש סוף.\n", 3, { dest: "foot", region: null }, true, {}, "he", false, null, "companion");
+    ok("home/companion: the marker is in this file", /הערה_בשם/u.test(c.text), c.text);
+    notOk("home/companion: and the prose is not", /גוף_הערה/u.test(c.text), c.text);
+    ok("home/companion: an errand carries the prose", /גוף_הערה/u.test(c.errand?.entry ?? ""), c.errand);
+    check("home/companion: …to the companion", c.errand?.file, COMPANION);
+    ok("home/companion: and this file now includes it", includes(c.text, COMPANION), c.text);
+
+    // Twice, because adding the line every time is how a sefer ends up with
+    // forty identical inclusions and the engine reporting a cycle.
+    const again = applyPick(c.text, 3, { dest: "foot", region: null }, true, {}, "he", false, null, "companion");
+    check(
+      "home/companion: the inclusion is written once",
+      again.text.split(includeLine(COMPANION)).length - 1,
+      1,
+    );
+
+    // And the lint, which is the reason this home was held back. Alone, the
+    // marker is dangling; told what the companion holds, it is a note.
+    ok("home/companion: alone, the marker has no body", problems(c.text).some((p) => p.kind === "dangling"), problems(c.text));
+    const named = /"([^"]+)"/u.exec(c.errand?.entry ?? "")?.[1];
+    check(
+      "home/companion: told about the companion, it is a note",
+      problems(c.text, { defined: [named] }).length,
+      0,
+    );
+    // …and the companion, linted alone, is all orphans; told about the markers
+    // here, it is all notes.
+    ok(
+      "home/companion: the companion alone is an orphan",
+      problems(c.errand.entry).some((p) => p.kind === "orphan"),
+      problems(c.errand.entry),
+    );
+    check(
+      "home/companion: …and is not, read together",
+      problems(c.errand.entry, { referenced: [named] }).length,
+      0,
+    );
+  }
 }
 
 // 41. the per-destination override has a row for every destination

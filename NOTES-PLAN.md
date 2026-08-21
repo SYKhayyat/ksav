@@ -1,6 +1,6 @@
 # The note system — decisions, plan, and evidence
 
-**Status: being built.** What is done, and where the record of each chunk is:
+**Status: built.** What is done, and where the record of each chunk is:
 
 | Part | | Where |
 |---|---|---|
@@ -17,23 +17,23 @@
 | 1 · thing five | the entry head, cross-references, and a second marker | [What stands in front of the prose](decisions/2026-08-21-what-stands-in-front-of-the-prose.md) |
 | 1 · document level | the baseline grid, the binding side, the reader's direction | [A page with no bottom](decisions/2026-08-21-a-page-with-no-bottom.md) |
 | 2 · the surface | the region panel — every knob the engine reads, in both languages | [A region you could not say in English](decisions/2026-08-21-a-region-you-could-not-say-in-english.md) |
+| 1 · thing one | the fourth source position — a body in a document of its own | [The three that were left](decisions/2026-08-21-the-three-that-were-left.md) |
+| 1 · thing three | the **Vilna wrap** — a row plan per row, and the column that drops out | [The three that were left](decisions/2026-08-21-the-three-that-were-left.md) |
+| 1 · thing five | the line address, from `par.line`'s own numbering function | [The three that were left](decisions/2026-08-21-the-three-that-were-left.md) |
 | 14 | every placeholder name, decided and written down | [The words for the note system](decisions/2026-08-20-the-words-for-the-note-system.md) |
 
-**Still open — three things, and nothing else in this plan is:**
+**Nothing in this plan is open.** Every one of the five things, the chooser and
+the document-level settings is built, and each has its record in the table above.
 
-- **Thing one's fourth home** — a note's prose in a *separate* file. The engine
-  already reads a body out of another file (`tests/cross_file_notes.rs`); what is
-  missing is the editor filing one there, because the deferred model is
-  one-string-in-one-string-out and `problems()` would report every marker in the
-  sefer as an orphan. A change to the model, not another branch in the filing.
-- **`ראש: ("שורה",)`** — addressing an entry by the line it sits on, which a
-  markerless apparatus needs. Refused by name, with both attempts written down in
-  `_xa_part`: Typst keeps nothing queryable behind the line numbers it prints in
-  the margin, and deriving the line from the baseline grid counts paragraph
-  spacing as lines. It needs Ksav numbering the lines itself.
-- **The Vilna wrap as a region.** `טורים` is one set of widths for the whole grid,
-  so every row has the same column count. Three columns, then two, then the full
-  measure is proved in the corpus and is not yet something `#אזור` can say.
+Two things that are **not** in this plan and are worth writing down beside it:
+
+- `probe` cannot tell a clipped note from a printed one — a clip is a paint
+  operation and it walks laid-out frames — so
+  `engine/tests/nothing_is_truncated.rs` proves the words reached a *frame*,
+  not that a reader can see them. `svgdump` is the instrument for the other
+  half, and the gap is named in that file rather than papered over.
+- A note filed with `גלישה: ()` — a box the writer asked to stay fixed — is the
+  one arrangement that may lose text, and it loses it by request.
 
 This page is the plan and the evidence; it is **not** the record of what was done
 on a day, which is [`decisions/`](decisions/README.md). Where the two disagree

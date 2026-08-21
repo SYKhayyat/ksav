@@ -38,6 +38,7 @@ import {
   problems,
   scan,
   sortBodies,
+  type Elsewhere,
 } from "./deferred";
 import type { Problem } from "./deferred";
 import { setStatus } from "./runtime";
@@ -206,10 +207,29 @@ function deleteBody(view: EditorView, name: string, which: "first" | "last") {
   });
 }
 
+/**
+ * What the rest of the sefer answers for, for the lint to read.
+ *
+ * A note whose prose is filed in a companion document is one pair written across
+ * two files, and each half read alone is a fault — the marker with no body here,
+ * the body with no marker there. Both squiggles would be wrong.
+ *
+ * A holder rather than a lookup because a CodeMirror linter runs synchronously
+ * and the other documents live in IndexedDB. It is filled by the compile path,
+ * which already reads every included document to build the request, so this
+ * costs nothing and is never staler than the last compile.
+ */
+let elsewhere: Elsewhere = {};
+
+/** Told by whoever last collected the sefer's other documents. */
+export function noteNamesElsewhere(next: Elsewhere): void {
+  elsewhere = next;
+}
+
 const deferredLinter = linter(
   (view) => {
     const text = docTextOf(view.state.doc);
-    return problems(text).map((p): Diagnostic => {
+    return problems(text, elsewhere).map((p): Diagnostic => {
       const actions =
         p.kind === "dangling"
           ? [

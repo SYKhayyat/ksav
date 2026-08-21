@@ -99,6 +99,11 @@
   tracking_amount: "כיווץ_מידה",
   head: "ראש", address_numbering: "מספור_כתובת", first_folio: "דף_ראשון",
   new_page: "עמוד_חדש", unit: "יחידה",
+  // The row plan of a grid region — the Vilna wrap. `רוחב` and `ערוצים` inside a
+  // plan are `width` and `channels`, which are already in this table; these four
+  // are the region's own.
+  cycle: "מחזור", column_gap: "מרווח_טורים", row_gap: "ריווח_טורים",
+  empty: "ריק", leftover: "עודף",
   // How a note too tall for its region is continued onto the next page: how
   // far back the cut may look for a sentence break, and whether the continuation
   // carries the note number again.
@@ -107,7 +112,7 @@
   // took looks of their own.
   radius: "רדיוס",
   // notes and streams
-  stream: "זרם", streams: "זרמים", tint: "גוון", rule: "קו",
+  stream: "זרם", streams: "זרמים", channels: "ערוצים", tint: "גוון", rule: "קו",
   kind: "סוג", name: "שם",
   // channels. `placement` and not `place`, which is already מקום — a source
   // reference's page — and would have made one English word mean two things a
@@ -240,6 +245,14 @@
   // thing.
   heading: "כותרת",
   tier: "מדור",
+  // אזור · ריק — what a cell for a channel with nothing to say in this row does.
+  // Holding the place is a parallel-text table; dropping it is the Vilna wrap,
+  // where the column that ran out disappears and its neighbours take the width.
+  blank: "ריק",
+  skip: "דלג",
+  // אזור · עודף — where a channel goes when its row plan gave it no column.
+  extra_row: "שורה_נוספת",
+  extra_column: "טור_נוסף",
 )
 
 /// One value, said in Hebrew whichever language it arrived in.
@@ -1816,15 +1829,67 @@
 // entry lays out at the foot, where `here()` is the foot. The banded and
 // collected renderers carry the note's real place in the sefer with it, which is
 // what makes this possible at all: `org` in `_ap_entries`.
-// The three that are built. `"שורה"` is **not** here and is refused by name in
-// `_eh_read`: Typst's line numbers are drawn by the layout rather than kept in a
-// counter this can read back at a marker's own place, so the address came out
-// empty on every entry — a word that compiles and prints nothing, which is
-// exactly what `settings_live.rs` exists to stop being added to. The margin
-// numbers themselves work (`#מסמך(מספור_שורות: …)`); reading one back at an
-// arbitrary location does not.
-#let _xa_kinds = ("עמוד", "דף", "סימן")
-#let _xa_unbuilt = ("שורה",)
+// ---- the line address, and how Ksav came to have one ----
+//
+// `"שורה"` was refused by name for a while, and the reasoning was right about
+// the two routes it had tried:
+//
+// **`counter(par.line)` cannot be read back.** Measured again before this was
+// built: `counter(par.line).at(marker)` answers `(0,)` at a location whose
+// margin visibly prints a number. Typst draws its line numbers out of the layout
+// and keeps nothing behind them that a query reaches.
+//
+// **Arithmetic on the baseline grid counts the wrong thing.** Paragraph spacing
+// occupies grid rows that are not lines, so a marker on the line the margin
+// numbers 5 comes out 8 — exact arithmetic about the wrong quantity, which is
+// the more dangerous of the two failures because it looks like an answer.
+//
+// What both missed is that Typst hands the layout to *us* once per line: the
+// `numbering` function of `par.line` is **called at each numbered line, in that
+// line's place**. So the function records where it was, and the address is a
+// query over what it recorded — the same mechanism as every other thing in this
+// prelude that has to survive page breaking.
+//
+// That also settles the honesty question the old comment raised. The number in
+// the margin and the number in the entry now come from **one call**, so they
+// cannot disagree; and an address by line is offered only where the lines are
+// numbered, because the number is the reader's way back to the place and one
+// they cannot see in the margin is a number they cannot use.
+#let _ln_label = label("ksav-ln")
+
+/// Every line the layout numbered, as `(number, page, y)`, in document order.
+#let _ln_marks() = query(_ln_label).map(m => {
+  let l = m.location()
+  (m.value, l.page(), l.position().y)
+})
+
+/// The line `org` sits on, or `none` when the sefer numbers no lines.
+///
+/// **The last line at or above the marker, and not the nearest one.** Measured:
+/// a line's mark comes back at 107.08pt and a marker written on that same line at
+/// 112.63pt — the mark is placed where the line *starts* and the marker sits
+/// below it, so a marker is always a few points under its own line's y.
+///
+/// Nearest was tried first and is wrong for a reason worth keeping: the flow is
+/// full of paragraphs with no ink in them — the anchors this prelude drops to
+/// mark where a region's scope ends, among others — and each is a line the
+/// layout numbers. One of those falls between the last line of the prose and the
+/// apparatus under it, closer to a marker on that last line than the line itself
+/// is, so every note at the foot of a paragraph came out addressed to a blank.
+/// Off by one, pointing at nothing, and confident.
+#let _ln_at(org) = {
+  let p = org.page()
+  let y = org.position().y + 0.01pt
+  let best = none
+  for (n, page, ly) in _ln_marks() {
+    if page != p or ly > y { continue }
+    if best == none or ly > best.at(1) { best = (n, ly) }
+  }
+  if best == none { none } else { best.at(0) }
+}
+
+#let _xa_kinds = ("עמוד", "דף", "סימן", "שורה")
+#let _xa_unbuilt = ()
 
 /// The ingredients of an entry head, checked.
 ///
@@ -1905,27 +1970,20 @@
       if sch == none { h.body } else { [#numbering(sch, ..n)] }
     }
   } else if kind == "שורה" {
-    // The line number Typst printed in the margin, read back at the marker's
-    // own place. It is the same counter the margin numbers come off, so the two
-    // cannot disagree — and it is worth nothing unless the body prints them,
-    // which is `#מסמך(מספור_שורות: …)` and the writer's own call.
-    // **Refused, and both ways of building it were measured.**
-    //
-    // One: `counter(par.line)` is not a counter this can read. Measured, it
-    // returns 0 at a location whose margin visibly prints 6. Typst draws its line
-    // numbers out of the layout and keeps nothing queryable behind them.
-    //
-    // Two: compute it from where the marker sits. On a baseline grid every line
-    // is on a known multiple, so the arithmetic is exact — and it counts the
-    // wrong thing. **Paragraph spacing occupies grid rows that are not lines**,
-    // so a marker on the line the margin numbers 5 comes out 8. Exact arithmetic
-    // about the wrong quantity, which is the more dangerous of the two failures
-    // because it looks like an answer.
-    //
-    // What it would take: Ksav numbering the lines itself, so the number in the
-    // margin and the number in the entry come from one place. That is a real
-    // feature and not a patch on this one.
-    none
+    // The line the marker sits on, from the record `par.line`'s own numbering
+    // function left behind. See `_ln_at`.
+    let n = _ln_at(org)
+    if n == none {
+      panic(
+        "ראש: שורה · אין מספור שורות בספר · an entry cannot be addressed by line "
+          + "in a sefer whose lines are not numbered. Turn them on with "
+          + "#מסמך(מספור_שורות: true) — the number in the entry is the one the "
+          + "reader finds in the margin, and one they cannot see there is one "
+          + "they cannot use.",
+      )
+    }
+    let np = cfg.at("מספור_כתובת", default: "1")
+    [שורה #numbering(np, n)]
   }
 }
 
@@ -2377,6 +2435,24 @@
     let fs = body.fields()
     let _ = fs.remove("body")
     return inner.map(a => (g(..fs, a.at(0)), a.at(1)))
+  }
+  // A link, which is the same idea and needs its own two lines.
+  //
+  // It is not in `_ct_inline` because the rebuild above hands an element's own
+  // fields back as **named** arguments, and a link's destination is
+  // **positional** — `link(dest: "…", body)` is not a call Typst accepts. So the
+  // destination is read off the element and passed where it belongs, and every
+  // word of a cut link points where the whole link pointed.
+  //
+  // Until this was here a note carrying a link fell back to the window and was
+  // repeated whole in the text layer of every page it spanned. Nobody was going
+  // to find that by reading it: the note prints, in the right place, with every
+  // word on it.
+  if f == "link" {
+    let inner = _ct_split(body.at("body", default: none))
+    if inner == none { return none }
+    let d = body.dest
+    return inner.map(a => (link(d, a.at(0)), a.at(1)))
   }
   none
 }
@@ -3045,6 +3121,18 @@
   חלון: 0pt,
   מנה: 0,
 ) = {
+  // Line numbers belong to the **body**, and an apparatus is furniture. `_ap_wrap`
+  // has said so since a band of commentary came out with stray digits down its
+  // edge continuing the body's count — but `_ap_wrap` is the banded renderer, and
+  // a *collected* region does not go through it. So a region at the back of the
+  // sefer went on numbering its own lines, invisibly on most pages and visibly on
+  // the page where the region sat beside the margin.
+  //
+  // That was a cosmetic fault until the line **address** was built on the same
+  // record, at which point it became a wrong answer: the apparatus's own lines
+  // were in the record, and an entry near the foot of the text was addressed to
+  // one of them. Measured, off by one and pointing at nothing.
+  set par.line(numbering: none)
   above
   // One entry, marker and body, at whatever this page's settings are. Shared by
   // both arrangements below so that run-in and stacked cannot drift in what an
@@ -4409,6 +4497,255 @@
   w
 }
 
+// ---- the row plan · a grid region whose shape changes down the page ----
+//
+// A Vilna daf is three columns at the head, two where the Rashi runs out, and
+// the full measure below that. `טורים` said one set of widths for the whole
+// region, so every row had the same number of columns and that page could be
+// drawn by hand — `vilna.ksav` does, with a literal `#table` — and not asked
+// for. This is the asking.
+//
+// # One knob, three depths, and the shallow one is unchanged
+//
+// `טורים` now reads as a **list of row plans** when it is given one, and as one
+// plan for every row when it is given widths — which is what every document
+// written before this gives, so nothing moves.
+//
+//   `טורים: (1fr, 2fr, 1fr)`               one shape, every row
+//   `טורים: ((1fr, 2fr, 1fr), (2fr, 1fr))` a shape per row, in order
+//   `טורים: ((רוחב: …, ערוצים: …), …)`      and everything about a row
+//
+// A plan given as a bare array is its widths; given as a dictionary it may say
+// any of `_rg_plan_keys`, and everything it does not say it takes from the
+// region. Rows past the end of the list repeat the last plan, or cycle the whole
+// list when `מחזור` is on — which is what a page alternating two shapes wants
+// and is one word rather than a list as long as the sefer.
+//
+// # What makes it a *wrap* rather than a table
+//
+// `ריק`. A cell for a channel with nothing to say in that unit is either kept
+// blank — which holds the register, and is the default because that is what
+// parallel text is for — or **dropped**, and then the row's remaining columns
+// take the width. Dropped is the knee: the Rashi column disappears from the row
+// where the Rashi ends and the gemara widens into it, without the writer
+// counting rows or measuring anything.
+//
+// Note that this is the same shape as `#ברך`, one level up. `#ברך` knees one
+// block around one neighbour, in the flow, for content that is not an
+// apparatus; this knees a whole region, per unit, for content that is.
+#let _rg_col_gap = 1.2em
+#let _rg_row_gap = 0.6em
+
+/// What a row plan may say about itself.
+#let _rg_plan_keys = ("רוחב", "ערוצים", "מרווח", "ריווח", "ריק", "יישור", "עודף")
+
+/// What an empty cell does.
+#let _rg_empty_kinds = ("ריק", "דלג")
+
+/// What a channel with something to say and no column in its row does.
+///
+/// **This key exists because the first draft of the row plan had no answer, and
+/// its answer was silence.** A plan naming two of three channels dropped the
+/// third's notes off the page — filed, numbered, queryable and printed nowhere,
+/// which is the exact fault the placements had and the one thing a note may
+/// never do. Nothing about a plan being the writer's own makes losing their text
+/// their fault: they said how the columns sit, not that a peirush should vanish
+/// on the simanim they forgot about.
+///
+/// So there are three answers and all three are visible. A row of its own below
+/// the planned one, at the full measure — which is what a Vilna daf does when
+/// the band above runs out, and is the default. A column appended to the row,
+/// for a writer who would rather the shape stretched than the page grew. Or a
+/// refusal, naming the channel and the unit, for a sefer whose shape is exact
+/// and where a surprise is a mistake worth stopping for.
+#let _rg_over_plan = ("שורה_נוספת", "טור_נוסף", "סירוב")
+
+/// Is `v` a column width, rather than a row plan?
+///
+/// The one piece of guessing in the whole knob, and it is safe because the two
+/// cannot be confused: a width is a length, a ratio or a fraction, and a plan is
+/// an array or a dictionary. Read off the **first** element, because a list
+/// mixing the two is a mistake worth refusing rather than a form worth
+/// supporting.
+#let _rg_is_width(v) = (
+  v == auto or (length, ratio, relative, fraction).contains(type(v))
+)
+
+/// The row plans a grid region declared, in the order they are used.
+#let _rg_plans(t, rg, chans) = {
+  let rec = _rg_rec(t, rg)
+  let empty = _val(rec.at("ריק", default: "ריק"))
+  if not _rg_empty_kinds.contains(empty) {
+    panic(
+      "אזור " + rg + ": ריק לא מוכר · unknown empty-cell rule: " + _as_string(empty)
+        + " (" + _rg_empty_kinds.join(" · ") + ")",
+    )
+  }
+  let over = _val(rec.at("עודף", default: "שורה_נוספת"))
+  if not _rg_over_plan.contains(over) {
+    panic(
+      "אזור " + rg + ": עודף לא מוכר · unknown rule for a channel with no column: "
+        + _as_string(over) + " (" + _rg_over_plan.join(" · ") + ")",
+    )
+  }
+  let base = (
+    רוחב: chans.map(_ => 1fr),
+    ערוצים: chans,
+    מרווח: rec.at("מרווח_טורים", default: _rg_col_gap),
+    ריווח: rec.at("ריווח_טורים", default: _rg_row_gap),
+    ריק: empty,
+    יישור: auto,
+    עודף: over,
+  )
+  let v = rec.at("טורים", default: none)
+  // No plan, or the flat form: one shape for every row. `_ch_region_cols` keeps
+  // the flat form's own count check, which has a sentence written for it.
+  if v == none or type(v) != array or v.len() == 0 or _rg_is_width(v.first()) {
+    return ((..base, רוחב: _ch_region_cols(t, rg, chans)),)
+  }
+  let read(p) = {
+    let p = if type(p) == array { (רוחב: p) } else { p }
+    if type(p) != dictionary {
+      panic(
+        "אזור " + rg + ": טורים · a row plan is widths or a dictionary, not "
+          + _as_string(type(p)) + ".",
+      )
+    }
+    // Said in whichever language the writer said it in. A plan is a *value* and
+    // not a parameter list, so `_en` never sees it — which is how `#אזור` came
+    // to take English arguments carrying a dictionary nobody could spell in
+    // English. Same table, applied one level down.
+    let p = {
+      let d = (:)
+      for (k, val) in p { d.insert(_en_params.at(k, default: k), val) }
+      d
+    }
+    for k in p.keys() {
+      if not _rg_plan_keys.contains(k) {
+        panic(
+          "אזור " + rg + ": טורים · מפתח לא מוכר בשורה · unknown key in a row plan: "
+            + k + " (" + _rg_plan_keys.join(" · ") + ")",
+        )
+      }
+    }
+    if "רוחב" not in p {
+      panic("אזור " + rg + ": טורים · a row plan must say its widths (רוחב).")
+    }
+    let ws = p.רוחב
+    if type(ws) != array or ws.len() == 0 {
+      panic("אזור " + rg + ": טורים · רוחב is a list of column widths.")
+    }
+    // The channels this row holds. Said, or the first few of the region's own —
+    // so `((1fr, 2fr, 1fr), (2fr, 1fr))` on three channels means the third
+    // column drops out of the second row, which is the wrap written the short
+    // way and is what a writer means by it.
+    let names = p.at("ערוצים", default: none)
+    let names = if names == none {
+      if ws.len() > chans.len() {
+        panic(
+          "אזור " + rg + ": טורים · a row asks for " + str(ws.len())
+            + " columns and the region holds " + str(chans.len())
+            + " channels. Name them (ערוצים:) or ask for fewer.",
+        )
+      }
+      chans.slice(0, ws.len())
+    } else { names }
+    if names.len() != ws.len() {
+      panic(
+        "אזור " + rg + ": טורים · " + str(ws.len()) + " widths for "
+          + str(names.len()) + " channels in one row. They are one per column.",
+      )
+    }
+    for n in names {
+      if not chans.contains(n) {
+        panic(
+          "אזור " + rg + ": טורים · ערוץ " + n + " אינו באזור · that channel is not "
+            + "in this region (" + chans.join(" · ") + ").",
+        )
+      }
+    }
+    let out = base + p
+    let out = (..out, ערוצים: names)
+    if not _rg_empty_kinds.contains(_val(out.ריק)) {
+      panic(
+        "אזור " + rg + ": ריק לא מוכר · unknown empty-cell rule: "
+          + _as_string(out.ריק) + " (" + _rg_empty_kinds.join(" · ") + ")",
+      )
+    }
+    if not _rg_over_plan.contains(_val(out.עודף)) {
+      panic(
+        "אזור " + rg + ": עודף לא מוכר · unknown rule for a channel with no column: "
+          + _as_string(out.עודף) + " (" + _rg_over_plan.join(" · ") + ")",
+      )
+    }
+    (..out, ריק: _val(out.ריק), עודף: _val(out.עודף))
+  }
+  v.map(read)
+}
+
+/// The plan for row `i`, once the list has run out.
+///
+/// Repeat the last, or cycle the whole list. Repeating is the default because a
+/// wrap narrows and stays narrow: the shape at the foot of the daf is the shape
+/// for the rest of it, however many simanim follow.
+#let _rg_plan_at(plans, cycle, i) = if cycle {
+  plans.at(calc.rem(i, plans.len()))
+} else {
+  plans.at(calc.min(i, plans.len() - 1))
+}
+
+/// One row of a grid region, as content: the cells that survive `ריק`, at the
+/// widths that belong to them, and whatever `עודף` says to do with a channel
+/// that has something to say and no column of its own.
+///
+/// `none` when the row has nothing in it at all — an empty row is a band of
+/// white across the page for a siman nobody commented on, and the register is
+/// kept by the rows that exist.
+///
+/// `over` is the channels in that position, already filtered to the ones with
+/// content, in the region's declared order. `where` is a sentence naming the row
+/// for the refusal to quote.
+#let _rg_row(plan, cell_of, over: (), where: "") = {
+  let names = plan.ערוצים
+  let widths = plan.רוחב
+  if over.len() > 0 and plan.עודף == "סירוב" {
+    panic(
+      where + ": " + over.join(" · ") + " · this row's plan has no column for that "
+        + "channel and it has something to say here. Name it in the plan "
+        + "(ערוצים:), or let it have a row of its own (עודף: \"שורה\") or a "
+        + "column (עודף: \"טור\").",
+    )
+  }
+  // A column each, at the width one more column leaves over. Written before the
+  // cells are built so that the widths and the names stay one list.
+  if over.len() > 0 and plan.עודף == "טור_נוסף" {
+    names = names + over
+    widths = widths + over.map(_ => 1fr)
+  }
+  let cells = ()
+  let ws = ()
+  for (j, s) in names.enumerate() {
+    let (c, any) = cell_of(s)
+    if not any and plan.ריק == "דלג" { continue }
+    cells.push(if plan.יישור == auto { c } else { align(plan.יישור, c) })
+    ws.push(widths.at(j))
+  }
+  let out = if cells.len() == 0 { none } else {
+    grid(columns: ws, column-gutter: plan.מרווח, ..cells)
+  }
+  // …or a row of its own underneath, at the full measure. The Vilna answer: the
+  // band above runs out and the text carries on across the page.
+  if over.len() > 0 and plan.עודף == "שורה_נוספת" {
+    let extra = grid(
+      columns: over.map(_ => 1fr),
+      column-gutter: plan.מרווח,
+      ..over.map(s => cell_of(s).at(0)),
+    )
+    return if out == none { extra } else { out + v(plan.ריווח) + extra }
+  }
+  out
+}
+
 /// What this region's columns are kept in register by, or `none`.
 #let _ch_region_unit(t, rg) = {
   let u = _rg_rec(t, rg).at("יחידה", default: none)
@@ -5085,12 +5422,24 @@
           // inside a column can fix. With it there is one grid row per unit,
           // and a grid row starts level by construction.
           let unit = _ch_region_unit(t, rg)
-          let cols = _ch_region_cols(t, rg, chans)
+          let plans = _rg_plans(t, rg, chans)
+          let cycle = _val(_rg_rec(t, rg).at("מחזור", default: false)) == true
           _ap_slot(_ch_region_height(cfg, t, rg, chans), if chans.len() == 1 and unit == none {
             one(chans.first())
           } else if _ch_region_side(t, rg) {
             if unit == none {
-              grid(columns: cols, column-gutter: 1.2em, ..chans.map(one))
+              // One row, and it is the first plan: a region with no
+              // synchronisation unit has nothing to make a second row out of.
+              let plan = plans.first()
+              let row = _rg_row(
+                plan,
+                s => (one(s), mine.any(e => e.value.group == s)),
+                over: chans.filter(s => (
+                  not plan.ערוצים.contains(s) and mine.any(e => e.value.group == s)
+                )),
+                where: "אזור " + rg,
+              )
+              if row == none { [] } else { row }
             } else {
               let bounds = _rg_bounds(unit)
               // Only the units that have something in them this page. An empty
@@ -5103,16 +5452,36 @@
                   if not want.contains(u) { want.push(u) }
                 }
               }
-              let cells = ()
-              for u in want.sorted() {
-                for s in chans {
-                  let his = mine.filter(e => (
-                    e.value.group == s and _rg_unit_of(bounds, e) == u
-                  ))
-                  cells.push(_sf_stream_block(cfg, s, his, all, on))
-                }
+              // A row per unit, each at its own plan — which is where the shape
+              // is allowed to change down the page. The gap between two rows
+              // belongs to the row above it, so a plan that widens can also say
+              // it wants more air before the next one.
+              let rows = ()
+              for (i, u) in want.sorted().enumerate() {
+                let plan = _rg_plan_at(plans, cycle, i)
+                let here(s) = mine.filter(e => (
+                  e.value.group == s and _rg_unit_of(bounds, e) == u
+                ))
+                let row = _rg_row(
+                  plan,
+                  s => {
+                    let his = here(s)
+                    (_sf_stream_block(cfg, s, his, all, on), his.len() > 0)
+                  },
+                  // Anything with something to say in this unit and no column in
+                  // this row. `עודף` decides where it goes; what it may not do is
+                  // go nowhere.
+                  over: chans.filter(s => (
+                    not plan.ערוצים.contains(s) and here(s).len() > 0
+                  )),
+                  where: "אזור " + rg + " · " + _as_string(unit) + " " + str(u + 1),
+                )
+                if row != none { rows.push((row, plan.ריווח)) }
               }
-              grid(columns: cols, column-gutter: 1.2em, row-gutter: 0.6em, ..cells)
+              for (i, r) in rows.enumerate() {
+                if i > 0 { v(rows.at(i - 1).at(1)) }
+                r.at(0)
+              }
             }
           } else {
             for s in chans { one(s) }
@@ -5177,6 +5546,11 @@
   // A parallel-column region: the widths of its columns, and what keeps them in
   // register. See the grid-region block above `_ch_region_side`.
   "טורים", "יחידה",
+  // …and the four the row plan reads: whether the list of plans repeats its last
+  // or cycles, the two gaps that used to be numbers written into the renderer,
+  // and what a cell with nothing in it does — which is the difference between a
+  // parallel-text table and a Vilna wrap.
+  "מחזור", "מרווח_טורים", "ריווח_טורים", "ריק", "עודף",
   // How a note too tall for the region is continued onto the next page: how far
   // back the cut may look for a sentence or paragraph break, and whether the
   // continuation repeats the note's number. See `_ct_fit` and `_ap_group`.
@@ -5269,38 +5643,6 @@
   })
 }
 
-/// One note in a channel that is pointed at a named region.
-///
-/// The region is honoured whether or not it was ever declared: an undeclared one
-/// is a page-foot region of its own, which is exactly what `#הערה_זרם` has always
-/// been, and declaring it later with `#אזור(…, מיקום: "סוף")` moves every note in
-/// it without touching one of them. That is the whole promise of the model, and
-/// it is why a region can be used before it is described.
-#let _ch_note_in(chan, region, body, named) = context {
-  let t = _ch_st.final()
-  // The declared placement wins; an undeclared region is at the page foot.
-  let place = if region in t.אזורים { _val(_rg_rec(t, region).at("מיקום", default: "רגל")) } else { "רגל" }
-  let mine = if "שם" in named { named.at("שם") } else { none }
-  let named = if mine == none { named } else {
-    let d = named
-    let _ = d.remove("שם")
-    d
-  }
-  if place == "רגל" {
-    _sf_stream_note(chan, body, שם: mine, ..named)
-  } else {
-    let (own, rest) = _cfg_split(named, _ap_own_keys)
-    _cfg_strict("הערה", rest)
-    _cn_note(
-      _cfg_with(_rg_head_cfg(_ch_cfg(t, (chan,)), t, region), own),
-      region,
-      chan,
-      body,
-      own,
-      שם: mine,
-    )
-  }
-}
 
 // One note, in one channel. Which collector it lands in is read off the table,
 // so nothing at the call site says where the note prints — that is the whole
@@ -5378,6 +5720,11 @@
 
 #let _rg_show(rg, כותרת) = {
   context {
+    // The whole region, and not only the entries inside it. `_ap_group` says the
+    // same thing one level down; a region also has furniture of its own — its
+    // title, the rule above it, the block that opens it — and each of those is a
+    // line the layout would number and put into the record `_ln_at` reads.
+    set par.line(numbering: none)
     let t = _ch_st.final()
     let notes = _ksav_real_of(_cn_scope(rg)(here()))
     let mine = notes.filter(e => _ch_region(t, e.value.group) == rg)
@@ -5414,7 +5761,17 @@
   }
   // The section boundary itself, after the context above so that context renders
   // the section ending here rather than the next one.
-  [#metadata(none)#_cn_dump(rg)]
+  //
+  // **A paragraph of nothing is still a paragraph, and the layout numbers it.**
+  // This anchor carries no ink and lands between the prose and the region, so a
+  // sefer with `מספור_שורות` on printed a stray number in the margin under its
+  // last line — and, once the line address was built on the same record, an entry
+  // written on the last line of the text was addressed to the blank line under
+  // it. The scope keeps it out of the numbering and out of the record.
+  {
+    set par.line(numbering: none)
+    [#metadata(none)#_cn_dump(rg)]
+  }
 }
 
 /// Every region placed at the end of a *section*, drawn here.
@@ -5776,6 +6133,20 @@
       out.push((lbl: _sn_chan_lbl(c), kind: "צד"))
     }
   }
+  // …and one for each **region** put beside the text, because a note written
+  // `#הערה(אזור: "x")` files into a channel named for the region and nobody
+  // declares that channel: it exists because a note was written into it.
+  //
+  // Without this the note is filed, numbered and marked in the sentence, and the
+  // walk that draws the margin never looks for it — so the prose appears on no
+  // page at all. `#הערה(אזור:)` is one of the five destinations the chooser
+  // writes and `מיקום` is one of the region panel's own controls, so the two
+  // clicks that lose a peirush are next to each other.
+  for rg in t.סדר_אזורים {
+    if not _ch_side_places.contains(_val(_rg_rec(t, rg).at("מיקום", default: "רגל"))) { continue }
+    if t.סדר.contains(rg) { continue }
+    out.push((lbl: _sn_chan_lbl(rg), kind: "צד"))
+  }
   out
 }
 
@@ -6094,17 +6465,31 @@
     want = calc.max(want, _ap_last_page(bands, cfg, _pp_cap(cfg)))
     any = true
   }
-  // The page-foot streams, and only those. Carry pages are what a note does when
-  // the *page furniture* runs out of room; a note collected at the back of the
-  // sefer prints in the flow, and the flow makes its own pages. Handing the whole
-  // set to this walk made it measure every collected note in the document — see
-  // `_sf_where`, which is where the same mistake was made the other way round.
+  // The streams the **page furniture** draws, each asked about its own end of
+  // the sheet. Carry pages are what a note does when the furniture runs out of
+  // room; a note collected at the back of the sefer prints in the flow, and the
+  // flow makes its own pages. Handing the whole set to this walk made it measure
+  // every collected note in the document — see `_sf_where`, which is where the
+  // same mistake was made the other way round.
+  //
+  // **Both ends, and not only the foot.** Filtering to `"רגל"` alone was the same
+  // two-bucket error one bucket smaller: a band above the text is page furniture
+  // with the same overflow policy and the same need to carry, and it was never
+  // asked how many pages it wanted. A note too long for the band was simply cut
+  // off at the band's edge — 36 words of 60 on the corpus that found it — with
+  // the rest on no page at all. The cap differs per end, which is why this is a
+  // loop over the two and not one call with a wider filter.
   let t_now = _ch_st.final()
-  let streams = _sf_all().filter(e => _sf_where(t_now, e.value.group) == "רגל")
-  if streams.len() > 0 {
-    let cfg = _nt_under(_sf_cfg.get())
-    want = calc.max(want, _ap_last_page(streams, cfg, _sf_cap(cfg, t_now, "רגל"), policy_of: _sf_spill(t_now)))
-    any = true
+  for end in ("רגל", "למעלה") {
+    let streams = _sf_all().filter(e => _sf_where(t_now, e.value.group) == end)
+    if streams.len() > 0 {
+      let cfg = _nt_under(_sf_cfg.get())
+      want = calc.max(
+        want,
+        _ap_last_page(streams, cfg, _sf_cap(cfg, t_now, end), policy_of: _sf_spill(t_now)),
+      )
+      any = true
+    }
   }
   if not any { return }
   // **The record of the decision, and the thing that makes the decision take
@@ -6694,8 +7079,17 @@
   // Every n-th line numbered, in the margin. `true` means every fifth, which is
   // what a critical edition sets; a number means every n-th.
   let _ln = if מספור_שורות == true { 5 } else if type(מספור_שורות) == int { מספור_שורות } else { none }
+  // The function is called **once per line, in that line's place**, so it is
+  // also where the line's position is recorded: `_ln_at` reads the record back
+  // to address an entry by the line its marker sits on. Every line leaves a
+  // mark and only every n-th prints a number — the record is what the address
+  // needs and the digits are what the reader needs, and they are one call, so
+  // the margin and the entry cannot disagree.
   set par.line(..(if _ln != none {
-    (numbering: n => if calc.rem(n, _ln) == 0 { text(size: 0.7em, fill: luma(100), str(n)) })
+    (numbering: n => {
+      [#metadata(n)#_ln_label]
+      if calc.rem(n, _ln) == 0 { text(size: 0.7em, fill: luma(100), str(n)) }
+    })
   } else { (:) }))
   // The size, one way or the other. `paper` and `width`/`height` are alternative
   // spellings of one setting in Typst, and passing both is how a document ends
@@ -7684,6 +8078,62 @@
   }
 }
 #let toc = _en(תוכן)
+
+/// One note in a channel that is pointed at a named region.
+///
+/// The region is honoured whether or not it was ever declared: an undeclared one
+/// is a page-foot region of its own, which is exactly what `#הערה_זרם` has always
+/// been, and declaring it later with `#אזור(…, מיקום: "סוף")` moves every note in
+/// it without touching one of them. That is the whole promise of the model, and
+/// it is why a region can be used before it is described.
+#let _ch_note_in(chan, region, body, named) = context {
+  let t = _ch_st.final()
+  // The declared placement wins; an undeclared region is at the page foot.
+  let place = if region in t.אזורים { _val(_rg_rec(t, region).at("מיקום", default: "רגל")) } else { "רגל" }
+  let mine = if "שם" in named { named.at("שם") } else { none }
+  let named = if mine == none { named } else {
+    let d = named
+    let _ = d.remove("שם")
+    d
+  }
+  // Ten placements, and **three** collectors — not two.
+  //
+  // This asked `place == "רגל"` and sent everything else to the collected dump,
+  // which is right for the back of the sefer, the end of a section and a
+  // companion volume, and wrong for the four the page furniture draws. A note
+  // written `#הערה(אזור: "x")` into a region placed at the side or above the
+  // text was filed into a collector nothing ever draws: **the words did not
+  // appear anywhere on any page**, with the marker still in the sentence and no
+  // complaint from anything.
+  //
+  // Not a rare corner. `#הערה(אזור:)` is one of the five destinations the
+  // chooser writes, and `מיקום` on a region is one of the panel's own controls,
+  // so it is two clicks apart in the interface.
+  //
+  // The same shape as `_sf_where` before it, and as `_rg_height_of` before that:
+  // a function answering a two-valued question about a ten-valued input, with a
+  // catch-all for the cases nobody enumerated. `_ch_kind` has had the four-way
+  // answer for a channel since side channels existed; this is that answer, asked
+  // about the region.
+  if place == "רגל" or place == "למעלה" {
+    _sf_stream_note(chan, body, שם: mine, ..named)
+  } else if _ch_side_places.contains(place) {
+    let (own, rest) = _cfg_split(named, _sn_own_keys)
+    _cfg_strict("הערה", rest)
+    _sn_note(_sn_chan_lbl(chan), _ch_side_of(place), "צד", body, own: own, מוצב: true)
+  } else {
+    let (own, rest) = _cfg_split(named, _ap_own_keys)
+    _cfg_strict("הערה", rest)
+    _cn_note(
+      _cfg_with(_rg_head_cfg(_ch_cfg(t, (chan,)), t, region), own),
+      region,
+      chan,
+      body,
+      own,
+      שם: mine,
+    )
+  }
+}
 
 // ============================================================
 //  הערות שוליים · footnotes

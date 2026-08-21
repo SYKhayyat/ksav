@@ -324,11 +324,17 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "דף_ראשון": "first_folio",
   "עמוד_חדש": "new_page",
   "יחידה": "unit",
+  "מחזור": "cycle",
+  "מרווח_טורים": "column_gap",
+  "ריווח_טורים": "row_gap",
+  "ריק": "empty",
+  "עודף": "leftover",
   "תפר": "seam",
   "סימן_בהמשך": "continued_mark",
   "רדיוס": "radius",
   "זרם": "stream",
   "זרמים": "streams",
+  "ערוצים": "channels",
   "גוון": "tint",
   "קו": "rule",
   "סוג": "kind",
@@ -447,7 +453,7 @@ export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
  * they always apply, and a panel that says so is better than a writer wondering
  * where clamping went.
  */
-export const VOCABULARY = {"regionKeys":["מיקום","גובה","פריסה","כותרת","גלישה","הקטנה_מזערית","שומר_מקום","הקטנה_צעד","כיווץ_מידה","חריגה","ראש","מספור_כתובת","דף_ראשון","עמוד_חדש","טורים","יחידה","תפר","סימן_בהמשך"],"spillMoves":["דחיסה","רצף","הקטנה","כיווץ_אותיות","חלוקה","צף","עמוד_הבא"],"spillAlways":["הזזה","מפל","הצמדה"],"overflowPolicies":["צמצום","סירוב"],"headParts":["מספר","תווית","ציטוט","עמוד","דף","סימן"],"gridUnits":["כותרת","סימן","מדור"]} as const;
+export const VOCABULARY = {"regionKeys":["מיקום","גובה","פריסה","כותרת","גלישה","הקטנה_מזערית","שומר_מקום","הקטנה_צעד","כיווץ_מידה","חריגה","ראש","מספור_כתובת","דף_ראשון","עמוד_חדש","טורים","יחידה","מחזור","מרווח_טורים","ריווח_טורים","ריק","עודף","תפר","סימן_בהמשך"],"spillMoves":["דחיסה","רצף","הקטנה","כיווץ_אותיות","חלוקה","צף","עמוד_הבא"],"spillAlways":["הזזה","מפל","הצמדה"],"overflowPolicies":["צמצום","סירוב"],"headParts":["מספר","תווית","ציטוט","עמוד","דף","סימן","שורה"],"gridUnits":["כותרת","סימן","מדור"],"emptyCells":["ריק","דלג"],"leftovers":["שורה_נוספת","טור_נוסף","סירוב"]} as const;
 
 export const CONTAINERS: readonly string[] = [
   "הערה_בדרגה",

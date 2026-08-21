@@ -166,6 +166,11 @@ function readVocabularies() {
     // says before it says anything of its own is making one choice.
     headParts: [...readTuple(src, "_eh_parts"), ...readTuple(src, "_xa_kinds")],
     gridUnits: readTuple(src, "_rg_grid_units"),
+    // What a grid region does with a cell nobody filled, and with a channel
+    // whose row plan gave it no column. Both are the Vilna wrap: the first is
+    // how a column disappears, the second is where its text goes instead.
+    emptyCells: readTuple(src, "_rg_empty_kinds"),
+    leftovers: readTuple(src, "_rg_over_plan"),
   }
 }
 

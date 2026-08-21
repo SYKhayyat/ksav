@@ -141,19 +141,20 @@ fn line_numbers_are_the_bodys_and_not_the_apparatuss() {
     }
 }
 
-/// `"שורה"` is refused by name, with the addresses that exist.
+/// An address by line in a sefer that numbers no lines is refused, and the
+/// refusal says which setting turns them on.
 #[test]
-fn an_address_that_is_not_built_is_refused() {
+fn an_address_by_line_needs_the_lines_numbered() {
     let Err(d) = probe::layout(
         "#אזור(\"ב\", מיקום: \"סוף\", ראש: (\"שורה\",))\nטקסט#הערה(אזור: \"ב\")[גוף].",
         &DocConfig::default(),
     ) else {
-        panic!("an unbuilt address compiled")
+        panic!("an address by line compiled in a sefer with no line numbers")
     };
     let text = format!("{d:?}");
     assert!(
-        text.contains("שורה") && text.contains("עמוד"),
-        "the refusal does not say what exists: {text}"
+        text.contains("שורה") && text.contains("מספור_שורות"),
+        "the refusal does not name the setting that turns them on: {text}"
     );
 }
 
@@ -168,4 +169,71 @@ fn a_misspelled_entry_head_ingredient_is_refused() {
     };
     let text = format!("{d:?}");
     assert!(text.contains("ציטוט"), "the refusal does not help: {text}");
+}
+
+/// The number in the entry is the number in the margin.
+///
+/// # Why this is the claim, and not "the entry says a plausible number"
+///
+/// An address by line is the reader's way back to the place. If the entry says
+/// «שורה 7» and the margin beside that line says 6, the address is worse than no
+/// address at all — it sends them to the wrong line with complete confidence.
+/// The two now come from one call to `par.line`'s numbering function, and this
+/// is what holds them there: the margin digit nearest the marker's own line is
+/// read off the laid-out page, and the entry has to agree with it.
+#[test]
+fn the_line_in_the_entry_is_the_line_in_the_margin() {
+    let body = "#מסמך(מספור_שורות: 1)[\n\
+                #אזור(\"שורות\", מיקום: \"סוף\", ראש: (\"שורה\",))\n\
+                פתיחה לגוף הספר ובה מילים רבות כדי שהעמוד יתמלא ותהיינה שורות רבות זו אחר זו \
+                וכדי שיהיה מה למספר בשוליים ועוד ועוד ועוד מילים כדי להאריך את השורה הזאת \
+                ולהגיע אל השורה הבאה ואחריה עוד אחת וכאן הסימן פלוני\
+                #הערה(אזור: \"שורות\")[גוף ההערה] ואחריו עוד טקסט להשלמת השורה.\n\
+                ]";
+    let doc = probe::layout(body, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("did not compile: {d:?}"));
+    let runs = probe::text_runs(&doc);
+
+    // Where the marker sits: the word written immediately before it.
+    let at = runs
+        .iter()
+        .find(|r| r.text.contains("פלוני"))
+        .expect("the word before the marker is nowhere on the page");
+
+    // The margin numbers: runs of digits alone, set smaller than the body.
+    let digits: Vec<&probe::TextRun> = runs
+        .iter()
+        .filter(|r| {
+            r.page == at.page
+                && r.size < at.size
+                && !r.text.trim().is_empty()
+                && r.text.trim().chars().all(|c| c.is_ascii_digit())
+        })
+        .collect();
+    assert!(
+        !digits.is_empty(),
+        "מספור_שורות printed no line numbers to compare against"
+    );
+    let nearest = digits
+        .iter()
+        .min_by(|a, b| {
+            (a.y - at.y)
+                .abs()
+                .partial_cmp(&(b.y - at.y).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .expect("no margin number on the marker's page");
+    let want = nearest.text.trim().to_string();
+
+    // …and what the entry says. Read off the whole apparatus line rather than one
+    // run, because «שורה 3» is Hebrew then digits and Typst shapes it into two.
+    let said = probe::lines(&runs, 2.0)
+        .into_iter()
+        .find(|l| l.reading.contains("שורה") && l.reading.contains("גוף ההערה"))
+        .map(|l| l.reading)
+        .expect("the entry printed no line address at all");
+    assert!(
+        said.contains(&format!("שורה {want}")) || said.contains(&format!("שורה{want}")),
+        "the entry says {said:?} and the margin beside that line says {want}"
+    );
 }

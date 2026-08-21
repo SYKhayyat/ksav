@@ -480,7 +480,7 @@ export interface Settings {
    * A habit, not a document property — the page is byte-identical whichever
    * answer it gets — so it belongs to the person and has to outlive the tab.
    */
-  noteBodyHome?: "inline" | "file" | "section";
+  noteBodyHome?: "inline" | "file" | "section" | "companion";
   /**
    * The two-answer version of `noteBodyHome`, still written and still read.
    *
@@ -496,7 +496,7 @@ export interface Settings {
    * the haaros at the back collect into a block at the end of the source. A
    * destination with no entry falls back to `noteBodyHome`.
    */
-  noteBodyPlacement?: Partial<Record<string, "inline" | "file" | "section">>;
+  noteBodyPlacement?: Partial<Record<string, "inline" | "file" | "section" | "companion">>;
   // Per-operation hydra key overrides, `{"table.rowDelete": "r"}`. Generated
   // keys are deterministic; this is how a writer overrules one, the same way
   // `keybindings` overrules a shortcut.

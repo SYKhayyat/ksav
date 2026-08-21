@@ -122,6 +122,12 @@ const EN_ARGS: Record<string, string> = {
   תפר: "seam",
   סימן_בהמשך: "continued_mark",
   טורים: "columns",
+  // The row plan of a grid region — the Vilna wrap.
+  מחזור: "cycle",
+  מרווח_טורים: "column_gap",
+  ריווח_טורים: "row_gap",
+  ריק: "empty",
+  עודף: "leftover",
 };
 const HE_ARGS: Record<string, string> = Object.fromEntries(
   Object.entries(EN_ARGS).map(([he, en]) => [en, he]),
@@ -192,6 +198,15 @@ const EN_VALUES: Record<string, string> = {
   כותרת: "heading",
   מדור: "tier",
   סימן: "siman",
+  // ריק · what a grid region does with a column nobody filled, and עודף · where
+  // a channel goes when its row plan gave it none. The leftover answers are
+  // spelled שורה_נוספת and טור_נוסף rather than שורה and טור because שורה is
+  // already *line* in this table — one Hebrew word cannot carry two English
+  // names, and the address ingredient had it first.
+  ריק: "blank",
+  דלג: "skip",
+  שורה_נוספת: "extra_row",
+  טור_נוסף: "extra_column",
 };
 const HE_VALUES: Record<string, string> = Object.fromEntries(
   Object.entries(EN_VALUES).map(([he, en]) => [en, he]),
@@ -1188,6 +1203,11 @@ export interface RegionSettings {
   unit?: string | null;
   seam?: string | null;
   continuedMark?: string | null;
+  cycle?: string | null;
+  columnGap?: string | null;
+  rowGap?: string | null;
+  empty?: string | null;
+  leftover?: string | null;
 }
 
 /**
@@ -1286,6 +1306,28 @@ export const REGION_KNOBS: ReadonlyArray<{
     label: "regionUnit",
     hint: "",
     choices: VOCABULARY.gridUnits,
+  },
+  // The row plan. `טורים` above carries the shape itself — one set of widths,
+  // a list of them, or a list of plans — and these five are everything about
+  // how the rows are drawn that is not the shape.
+  { key: "cycle", arg: "מחזור", kind: "flag", label: "regionCycle", hint: "" },
+  { key: "columnGap", arg: "מרווח_טורים", kind: "bare", label: "regionColumnGap", hint: "1.2em" },
+  { key: "rowGap", arg: "ריווח_טורים", kind: "bare", label: "regionRowGap", hint: "0.6em" },
+  {
+    key: "empty",
+    arg: "ריק",
+    kind: "choice",
+    label: "regionEmpty",
+    hint: "",
+    choices: VOCABULARY.emptyCells,
+  },
+  {
+    key: "leftover",
+    arg: "עודף",
+    kind: "choice",
+    label: "regionLeftover",
+    hint: "",
+    choices: VOCABULARY.leftovers,
   },
 ];
 

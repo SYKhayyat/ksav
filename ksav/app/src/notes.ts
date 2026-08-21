@@ -52,6 +52,7 @@ import {
   retargetRef,
   scan as scanDeferred,
   type BodyHome,
+  type Errand,
 } from "./deferred";
 import type { NoteMarker } from "./api";
 import {
@@ -846,7 +847,7 @@ export function applyPick(
   preset: Preset | null = null,
   /** Where the prose goes in the file. See `deferred.BODY_HOMES`. */
   home: BodyHome = "file",
-): { text: string; caret: number } {
+): { text: string; caret: number; errand?: Errand } {
   const lang = docLang(doc, selectionFrom, whenSilent);
   // Spelt in the document's language before anything else happens to it, so the
   // deferred pair, the caret arithmetic and `scaffold`'s own reading of the
@@ -905,7 +906,11 @@ export function applyPick(
     // rather than the order their markers are read in.
     const filed = fileNewBody(text, body.replace("|", ""), name, grouped, home, caret);
     text = filed.text;
-    caret = filed.at + body.indexOf("|");
+    // A body filed in a companion document is not in this text, so there is
+    // nothing here for the caret to land on: it stays where the marker was
+    // written, and `fileNewBody` says so by handing `near` straight back.
+    caret = filed.errand ? filed.at : filed.at + body.indexOf("|");
+    if (filed.errand) return { text, caret, errand: filed.errand };
   }
 
   return { text, caret };

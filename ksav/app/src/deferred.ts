@@ -354,10 +354,28 @@ export type Problem =
   /** A second body for a name already defined; the engine takes the first. */
   | { kind: "duplicate"; name: string; from: number; to: number };
 
-export function problems(text: string): Problem[] {
+/**
+ * What the documents beside this one already answer for.
+ *
+ * A note whose prose is filed in a companion file is one pair written across two
+ * documents. Linted alone, each half is a fault: the marker has no body here and
+ * the body has no marker there. Both readings are wrong and the writer sees two
+ * red squiggles for a note that is perfectly well formed.
+ *
+ * So the lint is told what the neighbours hold. Absent, it behaves exactly as it
+ * did — a single document is still linted as a single document.
+ */
+export interface Elsewhere {
+  /** Names with a body somewhere else in the sefer. */
+  defined?: Iterable<string>;
+  /** Names a marker somewhere else in the sefer points at. */
+  referenced?: Iterable<string>;
+}
+
+export function problems(text: string, elsewhere: Elsewhere = {}): Problem[] {
   const { refs, defs } = scan(text);
-  const defined = new Set(defs.map((d) => d.name));
-  const referenced = new Set(refs.map((r) => r.name));
+  const defined = new Set([...defs.map((d) => d.name), ...(elsewhere.defined ?? [])]);
+  const referenced = new Set([...refs.map((r) => r.name), ...(elsewhere.referenced ?? [])]);
   const out: Problem[] = [];
 
   for (const r of refs) {
@@ -574,19 +592,67 @@ function neighbours(
 // where a note prints. Three homes, and the difference between them is only how
 // far the prose travels from its marker:
 //
-//   `inline`  — in the sentence, where it belongs.
-//   `file`    — one list at the foot of the file. The org-mode arrangement.
-//   `section` — at the end of the section the marker is in, so a chapter's
-//               prose stays with the chapter and a hundred-page sefer does not
-//               end in a thousand-line block.
+//   `inline`    — in the sentence, where it belongs.
+//   `file`      — one list at the foot of the file. The org-mode arrangement.
+//   `section`   — at the end of the section the marker is in, so a chapter's
+//                 prose stays with the chapter and a hundred-page sefer does not
+//                 end in a thousand-line block.
+//   `companion` — a document of its own, which this one includes.
 //
-// A fourth — a separate file — is a real position and is **not** here: the
-// bodies would have to be written into a document this one only includes, and
-// every function on this path takes one string and returns one string. See the
-// decision record; it needs a cross-document edit, not another branch.
+// # The fourth one, and why it took a change to the model
+//
+// It was left out for a while with a reason that was true: every function on
+// this path takes one string and returns one string, so a body written into
+// *another* document has nowhere to go, and `problems()` would report every
+// marker in the sefer as an orphan by construction. An option that quietly files
+// somewhere else is a control that lies, so it was better absent than stubbed.
+//
+// Both halves are answered here rather than worked around. `fileNewBody` returns
+// the entry for the companion **beside** the text rather than inside it — one
+// string in, one string and one errand out, which the caller runs — and it adds
+// the `#כלול` line to this document if it is not already there, because a body
+// in a file nothing includes is a body nothing prints. And `problems()` takes
+// what the neighbouring documents define and refer to, so a pair split across two
+// files is a pair and not two faults.
+//
+// The engine has always been able to read it: `#כלול` expands textually before
+// Typst sees anything and the pairing is a document-wide query, so a sefer of
+// many files is one document and a marker here finds a body there.
+
+/**
+ * The document a companion body is filed in, when nobody named another.
+ *
+ * A default and not a constant: `fileNewBody` takes the name, so a sefer that
+ * keeps its commentary in 'ביאורים' says so and this word is only what the
+ * writer gets for saying nothing.
+ */
+export const COMPANION = "הערות";
+
+/** A write into another document, for the caller to run. */
+export interface Errand {
+  /** The document the body belongs in, by title. */
+  file: string;
+  /** The definition to append to it. */
+  entry: string;
+}
+
+/** `#כלול("name")`, on a line of its own — the form the engine reads. */
+export function includeLine(name: string): string {
+  return '#כלול("' + name + '")';
+}
+
+/** Does this document already include that one? */
+export function includes(text: string, name: string): boolean {
+  return text
+    .split("\n")
+    .some((line) => {
+      const m = /^\s*#(?:כלול|include_part)\(\s*"([^"]*)"\s*\)\s*$/u.exec(line);
+      return m?.[1]?.trim() === name;
+    });
+}
 
 /** The places a deferred body can be filed. */
-export const BODY_HOMES = ["inline", "file", "section"] as const;
+export const BODY_HOMES = ["inline", "file", "section", "companion"] as const;
 export type BodyHome = (typeof BODY_HOMES)[number];
 
 /** Is this a home that defers the prose at all? */
@@ -648,7 +714,26 @@ export function fileNewBody(
   grouped = false,
   home: BodyHome = "file",
   near = -1,
-): { text: string; at: number } {
+  companion = COMPANION,
+): { text: string; at: number; errand?: Errand } {
+  // A document of its own. The body does not go into this file at all: it goes
+  // beside the returned text as an errand for the caller to run, and this file
+  // gains the `#כלול` line if it did not have one — because a body in a document
+  // nothing includes is a body nothing prints, and adding the line is the
+  // difference between a home and a hiding place.
+  if (home === "companion") {
+    const withInclude = includes(text, companion)
+      ? text
+      : text.replace(/s*$/u, "") + "\n\n" + includeLine(companion) + "\n";
+    return {
+      text: withInclude,
+      // The caret stays where the marker was written. There is nothing in this
+      // file to move it to, and moving it into the companion is the caller's
+      // errand and not this function's.
+      at: near >= 0 ? near : withInclude.length,
+      errand: { file: companion, entry },
+    };
+  }
   if (home === "section" && near >= 0) {
     const filed = fileInSection(text, entry, name, grouped, near);
     // A document with no headings has no sections, and filing at the foot of the

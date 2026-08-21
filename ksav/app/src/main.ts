@@ -97,7 +97,7 @@ import * as styles from "./styles";
 import * as review from "./review";
 import { typstString, typstContent } from "./typst-escape";
 import { citationMarkup } from "./citation";
-import { BODY_HOMES, defersBody, type BodyHome } from "./deferred";
+import { BODY_HOMES, defersBody, type BodyHome, type Errand } from "./deferred";
 import {
   DESTINATIONS,
   PRESETS,
@@ -13100,7 +13100,7 @@ function applyNotePick(
 ) {
   const from = runtime.view.state.selection.main.from;
   const home = bodyHomeFor(pick);
-  const { text, caret } = applyPick(
+  const { text, caret, errand } = applyPick(
     docTextOf(runtime.view.state.doc),
     from,
     pick,
@@ -13114,12 +13114,45 @@ function applyNotePick(
     home,
   );
   editDoc(text, caret);
+  // A body filed in a companion document. `applyPick` is one string in and one
+  // string out by design, so it hands the write back rather than reaching into
+  // the library itself — and this is the only place that runs it.
+  if (errand) void runErrand(errand);
   scheduleCompile();
   // The caret lands inside the note's brackets, but a note reached from the
   // toolbar (†) or the chooser modal leaves focus on the button that was
   // clicked, so the writer's next keystroke goes nowhere until they click back
   // in. Return the focus to where the caret already is.
   runtime.view.focus();
+}
+
+/**
+ * Append a note body to the document it was filed in, making that document if
+ * the sefer has not got one yet.
+ *
+ * The fourth of thing one's homes, and the half that could not live in
+ * `deferred.ts`: writing into another document is a library operation and that
+ * module is pure. The marker and the `#כלול` line went into this file already;
+ * this is the prose arriving where the line points.
+ *
+ * Reported either way. A body that quietly failed to be written is the marker
+ * with no note behind it that this whole home was held back to avoid.
+ */
+async function runErrand(errand: Errand): Promise<void> {
+  try {
+    const found = docs.library().find((e) => e.title === errand.file);
+    if (found) {
+      const doc = await docs.getDoc(found.id);
+      if (!doc) throw new Error("the companion is in the index and not in the store");
+      const body = doc.body.replace(/\s*$/u, "") + "\n" + errand.entry + "\n";
+      await docs.putDoc({ ...doc, body });
+    } else {
+      await docs.createDoc(errand.file, errand.entry + "\n");
+    }
+    setStatus(tf("noteBodyFiledIn", errand.file), "ok");
+  } catch (e) {
+    setStatus(tf("noteBodyNotFiled", errand.file, String(e)), "warn");
+  }
 }
 
 /**

@@ -147,7 +147,22 @@ fn values(key: &str) -> Vec<String> {
         "תפר" => plain(&["0", "8", "500"]),
         "מספור_כתובת" => plain(&["\"1\"", "\"א\"", "\"I\""]),
         "דף_ראשון" => plain(&["1", "2", "40"]),
-        "טורים" => plain(&["(1fr,)", "(1fr, 1fr)", "(1fr, 4fr)"]),
+        // The flat form, then a list of row plans, then a plan that says
+        // everything about itself. The Vilna wrap is the third one, and the
+        // reason all three are here is that they are one key: `טורים` decides
+        // which form it was handed by looking at the first element, and a form
+        // nobody compiles is a form that panics the day a writer picks it.
+        "טורים" => plain(&[
+            "(1fr,)",
+            "(1fr, 1fr)",
+            "(1fr, 4fr)",
+            "((1fr, 1fr), (1fr,))",
+            "((רוחב: (1fr, 1fr)), (רוחב: (2fr,), ערוצים: (\"א\",), מרווח: 2em, ריווח: 1em))",
+        ]),
+        "מחזור" => plain(&["true", "false"]),
+        "מרווח_טורים" | "ריווח_טורים" => plain(&["0pt", "1.2em", "2cm"]),
+        "ריק" => quoted(vocab("_rg_empty_kinds")),
+        "עודף" => quoted(vocab("_rg_over_plan")),
         _ => panic!("region_matrix has no values for {key} — add them, or the key is unswept"),
     }
 }

@@ -13,6 +13,8 @@ import { troubleSaid } from "./diagnostics";
 import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import * as parts from "./parts";
+import { scan } from "./deferred";
+import { noteNamesElsewhere } from "./deferred-lint";
 import { t, tf } from "./i18n";
 import * as opendocs from "./opendocs";
 import { anyPreviewNarrowed, applyPreview, drawPagesEverywhere, filePages } from "./preview";
@@ -429,7 +431,7 @@ async function includedParts(body: string): Promise<{ name: string; body: string
   const updatedOf = new Map(docs.library().map((e) => [e.id, e.updated]));
   // One read per name the document actually asks for, transitively. The loop
   // this replaced read *every* document in the library — see `collectAsync`.
-  return parts.collectAsync(body, async (name) => {
+  const found = await parts.collectAsync(body, async (name) => {
     const id = idOf.get(name);
     if (!id) return null;
     const updated = updatedOf.get(id) ?? 0;
@@ -440,6 +442,22 @@ async function includedParts(body: string): Promise<{ name: string; body: string
     rememberPart(id, updated, doc.body);
     return doc.body;
   });
+  // …and while every included document is in hand, tell the note lint what they
+  // answer for. A note whose prose is filed in a companion document is one pair
+  // written across two files, and a lint that reads one file at a time calls the
+  // marker dangling and the body an orphan — two red squiggles for a note that is
+  // perfectly well formed. This costs nothing: the bodies are already read.
+  {
+    const defined: string[] = [];
+    const referenced: string[] = [];
+    for (const part of found) {
+      const s = scan(part.body);
+      for (const d of s.defs) defined.push(d.name);
+      for (const r of s.refs) referenced.push(r.name);
+    }
+    noteNamesElsewhere({ defined, referenced });
+  }
+  return found;
 }
 
 /**

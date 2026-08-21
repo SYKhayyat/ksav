@@ -360,9 +360,7 @@ fn quarter(runs: &[probe::TextRun], word: &str) -> (usize, u8, u8) {
 fn every_placement_means_the_same_on_a_note_upon_a_note() {
     let mut wrong = Vec::new();
     for place in placements() {
-        let flat = format!(
-            "#ערוץ(\"ז\", מיקום: \"{place}\")\nטקסט#הערה(ערוץ: \"ז\")[אלף] וסוף."
-        );
+        let flat = format!("#ערוץ(\"ז\", מיקום: \"{place}\")\nטקסט#הערה(ערוץ: \"ז\")[אלף] וסוף.");
         let nested = format!(
             "#ערוץ(\"אב\", מיקום: \"רגל\")\n\
              #ערוץ(\"ז\", מקור: \"אב\", מיקום: \"{place}\")\n\

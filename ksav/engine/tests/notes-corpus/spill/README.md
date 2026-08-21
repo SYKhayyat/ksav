@@ -1,7 +1,8 @@
 # spill — the documents behind `NOTES-SPILL-FINDINGS.md`
 
-Twenty documents, added 2026-08-21, behind every number in
-`NOTES-SPILL-FINDINGS.md` at the repository root. They are in a subdirectory
+26 documents, added 2026-08-21, behind every number in
+`NOTES-SPILL-FINDINGS.md` and `NOTES-PRIOR-ART.md` at the repository root. They
+are in a subdirectory
 rather than alongside the main corpus because they were written while the note
 system was another session's working area.
 
@@ -69,3 +70,14 @@ because the full content is emitted into every frame and only masked. That is no
 a probe artifact — it is true of the PDF too, and it means text extraction, copy,
 Ksav's own printed-page search, screen readers and DOCX export all see the note
 repeated. Any document here that uses the window trick carries that cost.
+
+## Prior art (behind `NOTES-PRIOR-ART.md`)
+
+| File | Claim |
+|---|---|
+| `berech.ksav` | **A berech can be computed.** Binary-search `measure()` for the largest word prefix fitting a 150×80pt column, render it beside the neighbouring block, render the remainder full-width below. Knee at word 20; **140/140 words, 0 duplicated, 0 lost**, continuous across the boundary. This is the same `fitPrefix` primitive note-splitting needs. |
+| `berech_none.ksav` | The control — the identical split, hardcoded. Compile 0.665s against `berech`'s 0.699s, so ~7 `measure` calls cost about 34ms including process startup. |
+| `hebnum.ksav` | **Typst's Hebrew numbering respects לשון נקיה.** 15=טו and 16=טז, never י״ה or י״ו. |
+| `hebnum2.ksav` | And it holds above 100: 115=קטו, 215=רטו, 315=שטו. |
+| `hebnum3.ksav` | **[X] But gershayim cannot be produced.** `numbering("א׳", 15)` gives `טו׳` — geresh appended — where a sefer wants `ט״ו`, gershayim before the last letter. Single letters (`א׳`) come out right by accident, which is why this is invisible until note 11. |
+| `pkg.ksav` | **[X] Ksav cannot load Typst packages.** `#import "@preview/meander:0.4.4"` → "file not found (searched at typst.toml)". No `PackageSpec` handling exists anywhere in the repository. |

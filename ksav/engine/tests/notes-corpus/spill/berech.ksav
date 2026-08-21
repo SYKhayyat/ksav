@@ -1,0 +1,19 @@
+#let pad(i) = if i < 10 { "00" + str(i) } else if i < 100 { "0" + str(i) } else { str(i) }
+#let ws = range(1, 141).map(i => "רש" + pad(i))
+#context {
+  let w = 150pt
+  let h = 80pt
+  let fits(n) = measure(block(width: w, ws.slice(0, n).join(" "))).height <= h
+  let lo = 0
+  let hi = ws.len()
+  while lo < hi {
+    let mid = calc.ceil((lo + hi) / 2)
+    if fits(mid) { lo = mid } else { hi = mid - 1 }
+  }
+  [KNEE-AT-#lo]
+  grid(columns: (w, 1fr), column-gutter: 8pt,
+    block(width: w, ws.slice(0, lo).join(" ")),
+    block[GEMARA-BLOCK GEMARA-BLOCK GEMARA-BLOCK GEMARA-BLOCK GEMARA-BLOCK GEMARA-BLOCK],
+  )
+  block(width: 100%, ws.slice(lo).join(" "))
+}

@@ -1,0 +1,4 @@
+#let pad(i) = if i < 10 { "00" + str(i) } else if i < 100 { "0" + str(i) } else { str(i) }
+#let ws = range(1, 141).map(i => "רש" + pad(i))
+#block(width: 150pt, ws.slice(0,20).join(" "))
+#block(width: 100%, ws.slice(20).join(" "))

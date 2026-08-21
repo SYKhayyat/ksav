@@ -1,0 +1,1 @@
+#for i in (1,5,15,16,21) [ #i: bare=#numbering("א", i) suffix=#numbering("א׳", i) ]

@@ -64,7 +64,7 @@ These came out of the design conversation and are settled.
 | 1 | **No migration.** The eighteen commands and eleven chooser cards are replaced, not preserved. Documents written the old way are not a constraint. |
 | 2 | **The model is five things** — source position, stream/destination, region, overflow, counters. Everything a writer can say is one of them. |
 | 3 | **Source position belongs elsewhere in the UI.** It changes the file, never the page, and must not appear in the note-layout chooser. |
-| 4 | **Routing lives on the stream, not the note.** Exceptions come from declaring more streams. |
+| 4 | **The destination is the stream.** Writing a note is one pick among the five; there is nothing to declare first. Two apparatuses in the same place are two named sections. |
 | 5 | **Spill to the next page is the strongest overflow move**, and the default worth reaching for. |
 | 6 | **Notes never overlap and never print off the paper.** This is an invariant, not an option. |
 | 7 | **Notes-as-data is a compilation target, not an authoring surface.** The writer keeps typing `#הערה[…]`; the compiler emits the series. |
@@ -78,6 +78,28 @@ These came out of the design conversation and are settled.
 ---
 
 # Part 1 — The five things
+
+**Two of the five are not note features at all, and building them inside the note
+system would be a mistake.**
+
+| | What it is | Notes are… |
+|---|---|---|
+| **One** — source position | where prose sits in the *file* | the only customer |
+| **Two** — destination | where a note prints | the whole subject |
+| **Three** — regions | **a page-layout mechanism**: split the page into grids and boxes | *one* customer |
+| **Four** — overflow | what a fixed region does when full | a customer, alongside anything else in a box |
+| **Five** — counters | **a numbering mechanism**: named series that renumber on insert | *one* customer |
+
+**Thing three** builds a parallel-text page whether or not a single note is
+involved — an original facing a translation needs it with no apparatus at all.
+**Thing five** numbers a list of opinions, a set of variants, or a siman count with
+no note anywhere.
+
+So both belong **outside** the notes feature, with notes as a caller. Today
+neither exists as a general thing: page splitting exists only to hold notes
+(`#אזור`), and renumbering-on-insert exists only inside footnotes. That is the
+same mistake this document is written to undo — a general capability trapped
+inside one of its customers.
 
 ## Thing one — where the note sits in your source
 
@@ -96,8 +118,9 @@ the same page at the same coordinates at the same size.
 
 ## Thing two — where the note prints
 
-A note names its **stream**. The stream was declared once and owns the
-destination.
+**The destination *is* the stream.** A note picks one of five; there is nothing
+else to declare. Notes sharing a destination share its numbering and its settings,
+because they are the same stream.
 
 ### The five destinations
 
@@ -119,27 +142,39 @@ has to fit on a page.
 
 **A note on a note takes the same five.**
 
-### Why routing lives on the stream **[SHAUL, decision 4]**
+### Two apparatuses in the same place — use sections
 
-- You move three hundred haaros to the back of the sefer by changing **one word**.
-- The engine must know nesting depth **before** laying out a page. A header
-  declaration gives it that; a per-note decision does not, and past five levels it
-  stops settling.
+Four of the five are singular. **A section is a named list**, and that is what
+gives you more than one apparatus in one place:
 
-Exceptions are more streams:
+| Wanted | Picked as | Numbered |
+|---|---|---|
+| ביאורים at the foot | **bottom** | 1 2 3 |
+| מקורות at the back | **end** | א ב ג |
+| נוסחאות in a companion volume | **a separate document** | (1) (2) (3) |
+| **and** haaros *also* at the back | **a section**, placed at the end | its own |
 
-| Stream | Hangs off | Prints | Numbered |
-|---|---|---|---|
-| ביאורים | the body | bottom | 1 2 3 |
-| מקורות | the peirush | the back | א ב ג |
-| נוסחאות | the peirush | a separate file | (1) (2) (3) |
+At the bottom the limit costs nothing — the engine has one real bottom regardless
+(§2b). At the end and the side it is real, and "make it a section" is the escape.
 
-### Per stream
+### Why the destination, not the note **[SHAUL, decision 4]**
 
-destination · numbering scheme · restart rule · head of entry (thing five) ·
-arrangement (paragraphs / run-in) · columns · overflow (thing four) · size · slant
-· weight · colour · indent per level · gap between entries · **the marker's own
-look, set independently of the entry** · title · rule above · rule between blocks
+- You move three hundred haaros to the back by changing **one setting**, not three
+  hundred notes.
+- The engine must know nesting depth **before** laying out a page, and past five
+  levels a depth *discovered during layout* never settles. This holds either way —
+  **depth is lexical**: `#הערה(רגל)[… #הערה(אזור)[…]]` shows the nesting in the
+  source, so the engine reads it without laying anything out.
+
+**A sub-note's parent is whatever note the caret is inside** — determined, not
+chosen, which is what a writer means anyway.
+
+### Settings, per destination
+
+numbering scheme · restart rule · head of entry (thing five) · arrangement
+(paragraphs / run-in) · columns · overflow (thing four) · size · slant · weight ·
+colour · indent per level · gap between entries · **the marker's own look, set
+independently of the entry** · title · rule above · rule between blocks
 
 ### Per note
 
@@ -334,21 +369,31 @@ worth arguing about.
 #הערה(מקור: "סוף_הקובץ")[…]         // the per-note override
 ```
 
-## Thing two — declaring streams
+## Thing two — writing a note is one pick
 
 ```typst
-#ערוץ("ביאורים",  מקור: auto,        מיקום: "רגל",  מספור: "1")
-#ערוץ("מקורות",   מקור: "ביאורים",   מיקום: "סוף",  מספור: "א",
-      עמוד_חדש: true, כותרת: [מקורות וציונים], טורים: 2)
-#ערוץ("נוסחאות",  מקור: "ביאורים",   מיקום: "קובץ", מספור: "(1)")
-#ערוץ("גיליון",   מקור: auto,        מיקום: "צד",   צד: "חיצוני",
-      מיקום_בצד: "לצד_המילה", גלישה: "עמוד_הבא")
-
-בראשית ברא#הערה("ביאורים")[עיין רש״י שם] אלקים.
+בראשית ברא#הערה(רגל)[עיין רש״י שם] אלקים.        // bottom
+… #הערה(סוף)[מקור: בבלי ברכות ד.]                 // the back
+… #הערה(צד)[הערת גיליון]                          // the margin
+… #הערה(קובץ)[לכרך הנספח]                         // a separate document
+… #הערה(אזור: "שער_הציון")[…]                     // a named section
 ```
 
-`מקור: auto` means the body text. `מקור: "ביאורים"` is a note on a note. One
-stream, one destination — if two notes go different places they are two streams.
+**That is the whole gesture.** No stream to declare, no name to invent. A note on
+a note is the same five, written inside the note the caret is in — the parent is
+determined, not chosen.
+
+Settings hang off the destination, not off a declared name:
+
+```typst
+#הגדרות_הערות(רגל, מספור: "1", רצוף: true, גלישה: "עמוד_הבא")
+#הגדרות_הערות(סוף, מספור: "א", עמוד_חדש: true,
+              כותרת: [מקורות וציונים], טורים: 2)
+#הגדרות_הערות(צד, צד: "חיצוני", מיקום_בצד: "לצד_המילה")
+```
+
+Four destinations are singular. **`אזור` is the named one**, and two apparatuses
+in the same place are two sections — see thing three.
 
 ## Thing three — regions
 
@@ -360,7 +405,8 @@ stream, one destination — if two notes go different places they are two stream
 #אזור("שער_הציון", פריסה: "תיבה", מיקום: "רגל",
       גובה: 15%, גלישה: "עמוד_הבא", שומר_מקום: true)
 
-#ערוץ("שער_הציון", מקור: "ביאורים", אזור: "שער_הציון", מספור: "א")
+// and the notes sent there get their settings the same way
+#הגדרות_הערות(אזור: "שער_הציון", מספור: "א", רצוף: true)
 ```
 
 `שומר_מקום` is whether the box holds its space on pages with nothing in it.
@@ -389,8 +435,8 @@ The invariant is not in this list — it is guaranteed under all of them.
 And the head-of-entry setting on a stream:
 
 ```typst
-#ערוץ("נוסחאות", ראש: ("מילים",), מילים: 2)   // quoted words, no number
-#ערוץ("מקורות",  ראש: ("מספר", "תווית"), תווית: [מקור: ])
+#הגדרות_הערות(אזור: "נוסחאות", ראש: ("מילים",), מילים: 2)  // words, no number
+#הגדרות_הערות(סוף, ראש: ("מספר", "תווית"), תווית: [מקור: ])
 ```
 
 ## The UI **[SHAUL]**

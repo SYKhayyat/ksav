@@ -110,6 +110,13 @@ grep -o 'y=[ ]*[0-9.]*' | tr -d 'y= ' | sort -g | tail -1
 Same disease as the colour case, one layer up: an instrument that cannot see the
 value returns a plausible answer rather than an error.
 
+### The block bug
+
+| File | Claim |
+|---|---|
+| `sn_p_none.ksav` / `sn_p_note.ksav` | **[X] Every side note breaks its own line out of the paragraph.** One paragraph: 78.79/95.71/112.63/129.55 without notes, 78.79/95.71/**132.43**/149.35 with. ~20pt added at each note, so a document's body spacing is wrong in proportion to how many notes it has. |
+| `lay_none` / `lay_bare` / `lay_boxed` | **The cause and the fix, isolated in raw Typst.** `layout()` is block-level: bare it gives 78.79/132.43/186.07; `box(layout(…))` gives 78.79/95.71/112.63/129.55, identical to no call at all. |
+
 ## Adding to this corpus
 
 A new claim in `NOTES-PLAN.md` should arrive with a file here and a row above. The

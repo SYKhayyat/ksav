@@ -79,4 +79,10 @@ hdr "Design C — A and B composed (compose, compose_long)"
 probe compose | cut -c1-66
 printf "  compose_long  max y = %s   (design A on the same content: 1477.69)\n" "$(maxy compose_long)"
 printf "  spanning      max y = %s   <- design A, nested notes, off the sheet\n" "$(maxy spanning)"
+
+hdr "Side notes break their paragraph (sn_p_none vs sn_p_note) — must match"
+printf "  no notes : "; probe sn_p_none | awk '/בראשית|אלקים|מרחפת/{printf "%s ", $2}'; echo
+printf "  two notes: "; probe sn_p_note | awk '/בראשית|אלקים|מרחפת/{printf "%s ", $2}'; echo
+hdr "…because layout() is block-level (lay_none / lay_bare / lay_boxed)"
+for f in lay_none lay_bare lay_boxed; do printf "  %-10s " "$f"; probe $f | awk '/בראשית|אלקים|מרחפת/{printf "%s ", $2}'; echo; done
 printf "\ndone.\n"

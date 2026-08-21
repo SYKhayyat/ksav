@@ -17,7 +17,7 @@
 | **2c** | **Acceptance criteria.** Corpus documents that fail today and must pass. |
 | **3** | **What works** — with the file that proves each. Designs A, B and **C (the recommendation)**. |
 | **4** | **What does not work** — ten disproven things, so nobody retries them. |
-| **5** | **Bugs to fix**, independent of the plan. |
+| **5** | **Bugs to fix**, independent of the plan — including a new one: every side note adds ~20pt to the body. |
 | **6** | **The chooser** — the original problem, still open. |
 | **7** | **Where to start.** |
 | **8** | **Rejected proposals**, with reasons, and what was worth taking. |
@@ -297,6 +297,41 @@ page **spills into the next page's side column**; it does not silently become so
 else.
 
 **And always warn.**
+
+### What spill concretely means, per box
+
+"Spill" is one word for three different pieces of work, because the three boxes
+are built differently (thing three). All three end up as the **same shape** — a
+read-only, per-note computation over a shared query, in which each note works out
+its own place including what carried in from earlier pages. That is already how
+the side-column stack works today: *every note computes the same stack from the
+same query, so they agree without any shared state.*
+
+**The side column** — `#הערת_גיליון`
+1. **Fix the block bug first** (Part 5). Until placement stops adding height to
+   the body, spilling a note moves the body, which moves the page breaks, which
+   changes which notes are on the page. **After the fix there is no feedback at
+   all** and the rest is arithmetic.
+2. **Clamp** — never place below the column's bottom.
+3. **Shift both directions** — down for collisions, back up to stay inside.
+4. **Cascade** — re-adjust notes already placed.
+5. **Carry in** — the stacking loop already filters `all` to *this page's* notes.
+   Spill means that filter also admits notes carried forward from earlier pages,
+   and emits what will not fit as carry-out. **The next page's column already
+   exists and is already empty**, so nothing new has to be built to receive them.
+
+**The page footer** — `#מדף_`, `#הערה_זרם`
+The footer is regenerated per page from a query and **must never write** (§2b).
+So the change is what it asks for: today it renders *the notes registered on this
+page*; it must render *the notes assigned to this page*. Each note computes its
+own assignment from the same shared query — height, room remaining, therefore
+which page — exactly as the side-column stack computes its own y. **It converges
+because the strip's height is declared rather than computed**, so re-assigning
+notes never changes the text area and never moves a page break.
+
+**A declared region** — `#אזור`
+The same as the footer. It is the general case; the footer is the special case
+pinned to the page bottom.
 
 ### How you know
 
@@ -787,6 +822,47 @@ differing widths approximate it **[V]**.
 20 notes on one paragraph reach **y=827.27 on an 841.89pt page**. **Ksav only ever
 shifts a colliding note down; it never shifts back up.** One line, and it is the
 only bug currently printing onto paper that cannot be printed.
+
+## Every side note breaks its own line out of the paragraph **[V]** — `sn_p_none`/`sn_p_note`
+
+**Found while working out how to fix the one above, and it must be fixed first.**
+
+One paragraph, notes inline:
+
+```
+no notes:    78.79  95.71  112.63  129.55       ← 16.92pt apart, normal
+two notes:   78.79  95.71  132.43  149.35 …     ← 36.72pt at each note
+```
+
+**Every side note adds ~20pt of vertical space to the body text**, and the more
+notes a document has the more its body spacing is wrong.
+
+**Cause:** `_sn_note` does its placement inside `layout(sz => context {…})`, and
+**`layout()` is block-level** — called inline it breaks the paragraph. Isolated
+and confirmed against raw Typst (`lay_none` / `lay_bare` / `lay_boxed`):
+
+```
+no layout() call:   78.79  95.71  112.63  129.55
+bare layout():      78.79  132.43  186.07          ← broken
+box(layout()):      78.79  95.71  112.63  129.55   ← identical to none
+```
+
+**Fix:** wrap the `layout()` call in `box(…)`. The marker is emitted separately
+before it, so the boxed call renders nothing inline and cannot become an
+unbreakable slab.
+
+**This is the third instance of the class in this repo.** Commit `e0bd3f3` is
+*"Italic was a block, so every emphasised phrase broke its own paragraph"*, and
+the comment at `ksav.typ:2953` works through the same trap in detail. The lesson
+written there was applied to `#נטוי` and never swept to anything else that calls a
+block-level function inline. **Worth grepping for other inline uses of `layout()`,
+`place()` and `measure()` on the same grounds.**
+
+**And it is a prerequisite, not just a bug.** While side notes change the body's
+layout, spilling one to the next page changes the body, which moves the page
+breaks, which changes which notes are on which page — a feedback loop. Once
+placement is purely `place`d, notes stop affecting the body at all and **spill
+converges by construction.** Fix this before building spill for the side column.
 
 ## Config-driven italic renders nothing **[V]** — `k_slant_a`/`k_slant_b`
 

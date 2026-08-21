@@ -727,13 +727,16 @@ export async function run() {
   // reachable only by typing into the source.
   {
     // The table against the prelude's own key list, so a key added to `#אזור`
-    // tomorrow has to arrive with a control. `מיקום` is the one exception and it
-    // is a deliberate one: the chooser owns *where the notes go*, and offering it
-    // twice is two controls that can disagree.
+    // tomorrow has to arrive with a control. **All eighteen**, with no exception:
+    // the first draft left `מיקום` out on the reasoning that the chooser owns it,
+    // and the chooser writes a placement exactly once, when a preset creates the
+    // region. After that a region's placement was changeable nowhere in the
+    // application — and not through the channel either, because a channel
+    // pointed into a region takes the region's placement and its own is ignored.
     const covered = new Set(REGION_KNOBS.map((k) => k.arg));
     check(
-      "regions: every key #אזור accepts has a knob, bar the placement",
-      VOCABULARY.regionKeys.filter((k) => k !== "מיקום" && !covered.has(k)),
+      "regions: every key #אזור accepts has a knob",
+      VOCABULARY.regionKeys.filter((k) => !covered.has(k)),
       [],
     );
     check(

@@ -18,13 +18,19 @@ month: a working engine behind a surface that does not reach it.
 
 ## What it now offers
 
-Seventeen controls, one per key, in the same shape the destination knobs already
+Eighteen controls, one per key, in the same shape the destination knobs already
 use: one table pairing each key with the prelude's argument name, its kind and
 its label, and a panel that draws a row per entry. A knob in the model with no
 control is then not expressible rather than something nobody noticed.
 
-`מיקום` is the one key deliberately absent. The chooser owns *where the notes
-go*, and offering it twice is two controls that can disagree.
+**All eighteen, `מיקום` included.** The first draft left the placement out on the
+reasoning that the chooser owns *where the notes go* — and that was wrong on the
+facts. The chooser writes a placement exactly once, when a preset *creates* a
+region; after that it only picks which destination the panel is about. So a
+region’s placement was changeable nowhere in the application, and not through the
+channel either, because a channel pointed into a region takes the **region’s**
+placement and its own is ignored. A writer who put a region at the foot of the
+page and wanted it at the back of the sefer had to edit the source.
 
 ## Three things the controls had to get right
 
@@ -75,18 +81,40 @@ half of the corpus you happened to look at.
   no English key — the name exists, so using it looks supported, and then it
   errors.
 
-## What the fences do not cover, and it is worth saying
+## What holds it, in three layers
 
-The **model** is proven: 282 assertions in `channels.test.mjs` render a region
-declaration, read it back, rewrite one knob and check the sixteen beside it are
-still there, in both languages. The **wiring** is checked the way the destination
-knobs are checked — by reading `main.ts` for the loop and the call. That is the
-existing convention here and it is weaker than it looks: this repository already
-has a record of a panel guard that passed on a mention of the thing it wanted.
+**The model.** `channels.test.mjs` renders a region declaration, reads it back,
+rewrites one knob and checks the seventeen beside it are still there, in both
+languages.
 
-No harness renders the styles panel today, which is why the check is what it is.
-A harness that mounted it and clicked a box would be the right fence and is not
-built.
+**The panel, built and pressed.** The controls moved out of `main.ts` into
+`panelviews.ts`, which exists for exactly this reason — a panel drawn where no
+test can build it is a panel nothing has ever built. `panelviews.test.mjs` now
+builds this one against the DOM stub, presses one control the way a writer does,
+hands what the shell was asked for to `writeRegion`, and reads the line that lands
+in the document. Nothing is asserted about a callback in isolation: the claim is
+*press this and the sefer says that*.
+
+Four mutations, each caught by the assertion that names it:
+
+| mutation | what failed |
+|---|---|
+| drop the trailing comma on a one-member tuple | *unticking down to one keeps the comma* (and three model assertions) |
+| write the set in tick order rather than the engine’s | *ticking a move writes the tuple in the engine’s order* |
+| skip one knob’s row | *every knob is drawn* |
+| quote a switch, so Typst reads a string | *a switch goes in bare, not quoted* |
+
+**The real browser.** Vite dev server, the engine on 7878, the actual application
+in Chromium. A document with a region and a note; the styles panel opened; the
+region picked; controls pressed. All eighteen rows rendered in Hebrew. Ticking
+shrink, then next-page, then compress wrote
+`גלישה: (u05d3u05d7u05d9u05e1u05d4, u05d4u05e7u05d8u05e0u05d4, u05e2u05deu05d5u05d3_u05d4u05d1u05d0)` — the engine’s order, not the order of the
+clicks. Unticking to one kept the comma; unticking to none wrote `()`. A switch
+went in bare and clearing it removed the key. The placement select moved the
+region to the back of the sefer. And after every one of those the status line read
+**✓ 1 עמֳ · 14ms** — the engine accepted everything the panel wrote, and the
+document stayed one page, which is the blank-sheet fix holding in the assembled
+application too.
 
 ## One thing found on the way
 

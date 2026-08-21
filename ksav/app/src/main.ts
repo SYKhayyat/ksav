@@ -12327,96 +12327,17 @@ function setRegion(name: string, fields: channels.RegionSettings) {
 }
 
 /**
- * One member of a region vocabulary, said in the *interface's* language.
+ * The region's own settings, when the destination is one.
  *
- * Through the English spelling, because that is the one thing both languages
- * agree on: the prelude's own word is Hebrew, the writer may be reading either,
- * and a key made of Hebrew letters is a key nobody can grep for.
- */
-function regionValueLabel(member: string): string {
-  return t("regionValue." + (channels.englishValue(member) ?? member));
-}
-
-/**
- * The region's own settings, when the destination is a region.
- *
- * **A destination and a region are two questions**, and this panel had four
- * answers to the second out of eighteen. A destination is a *stream* — its
- * numbering, its type size, its heading — and `#ערוץ` is its line. A region is a
- * *place on the page*: how tall it is, what it does when a note outgrows it,
- * whether it holds its slot on a page it has nothing on. Everything in that
- * second list was reachable only by typing into the source.
- *
- * A row per knob, from the one table that pairs each with the prelude's argument
- * name, its kind and its label — the same arrangement the destination knobs use,
- * for the same reason: a knob in the model and not on this panel is not
- * expressible, and `channels.test.mjs` holds the table against the key list read
- * out of the prelude, so a key added to `#אזור` has to arrive with a control.
+ * The rows themselves are `panelviews.regionPanel`, where a test can build them
+ * and press them; this is the half that only the shell can do — reading the
+ * document, and writing the edit back through the editor.
  */
 function regionRows(doc: string, name: string): Node[] {
-  const held = channels.regionSettingsOf(doc, name);
-  const rows: Node[] = [
-    el("h3", { style: "margin-top:18px" }, [t("regionSettings")]),
-    el("p", { class: "styles-note" }, [t("regionSettingsNote")]),
-  ];
-  for (const knob of channels.REGION_KNOBS) {
-    const now = held[knob.key] ?? "";
-    let control: Node;
-    if (knob.kind === "set") {
-      const chosen = now === "" ? [] : now.split(",");
-      control = el(
-        "span",
-        { class: "chan-actions" },
-        (knob.choices ?? []).map((m) =>
-          el("label", { class: "region-box" }, [
-            toggleControl(chosen.includes(m), (on) => {
-              const next = on ? [...chosen, m] : chosen.filter((c) => c !== m);
-              // Written back in the prelude's own order, and that is not tidiness:
-              // for `גלישה` the order **is** the policy — the moves are tried in
-              // the order they are listed — so a box ticked last must not become
-              // the move tried last.
-              setRegion(name, {
-                [knob.key]: (knob.choices ?? []).filter((c) => next.includes(c)).join(","),
-              });
-            }),
-            regionValueLabel(m),
-          ]),
-        ),
-      );
-    } else if (knob.kind === "flag") {
-      control = selectControl(
-        [
-          ["", t("flagDefault")],
-          ["true", t("flagYes")],
-          ["false", t("flagNo")],
-        ],
-        now,
-        (v) => setRegion(name, { [knob.key]: v === "" ? null : v }),
-      );
-    } else if (knob.kind === "choice") {
-      control = selectControl(
-        [
-          ["", t("flagDefault")],
-          ...(knob.choices ?? []).map((m) => [m, regionValueLabel(m)] as [string, string]),
-        ],
-        now,
-        (v) => setRegion(name, { [knob.key]: v === "" ? null : v }),
-      );
-    } else {
-      control = textControl(
-        now,
-        (v) => setRegion(name, { [knob.key]: v.trim() || null }),
-        knob.hint,
-      );
-    }
-    rows.push(styleRow(t(knob.label), control));
-    // Said once, beside the control it is about: three of the ten moves are not
-    // on this list and cannot be, because they always apply. A writer looking for
-    // clamping and not finding it should read why rather than conclude it is
-    // missing.
-    if (knob.key === "spill") rows.push(el("p", { class: "styles-note" }, [t("regionSpillNote")]));
-  }
-  return rows;
+  return panelviews.regionPanel(
+    { name, held: channels.regionSettingsOf(doc, name) },
+    { set: (fields) => setRegion(name, fields) },
+  );
 }
 
 function destinationRows(): Node[] {

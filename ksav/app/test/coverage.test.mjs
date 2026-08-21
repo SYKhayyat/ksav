@@ -285,7 +285,11 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // The other half of the same panel, and the half that was missing: a region is
   // a place on the page and not only a stream, and the seventeen knobs that
   // decide how that place behaves had no control at all.
-  ok("…offering every knob a region has", MAIN.includes("for (const knob of channels.REGION_KNOBS)"));
+  // The region's own controls are built in `panelviews.ts`, where
+  // `panelviews.test.mjs` presses each one and reads back the Typst it writes.
+  // What is left for this file is the half only the shell can do: that the panel
+  // is reached at all, and reached on the destination that is a place.
+  ok("…offering a region its own controls", MAIN.includes("panelviews.regionPanel("));
   ok("…on the destination that is a place", MAIN.includes("rows.push(...regionRows(doc, stylePick.region))"));
   for (const knob of REGION_KNOBS) {
     ok(`…and the region's ${knob.key} is labelled in Hebrew`, !!DICTS.he[knob.label], knob.label);

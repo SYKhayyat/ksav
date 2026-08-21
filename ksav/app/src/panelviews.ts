@@ -46,10 +46,13 @@ import * as review from "./review";
 import {
   DESTINATIONS,
   PRESETS,
+  REGION_KNOBS,
   destinationOf,
+  englishValue,
   type Caveat,
   type DestinationId,
   type NotePick,
+  type RegionSettings,
 } from "./channels";
 import type { GitBranch, GitCommit, GitRemote, GitStatus } from "./api";
 
@@ -997,4 +1000,134 @@ export function notesPanel(view: NotesView, act: NotesActions): Node[] {
       ]),
     ]),
   ];
+}
+
+// ---------------------------------------------------------------- the region
+//
+// **A destination is a stream and a region is a place**, and the styles panel
+// had four controls for the second out of eighteen keys. A destination owns its
+// numbering and its type and `#ערוץ` is its line; a region is a place on the
+// page — how tall it is, what it does when a note outgrows it, whether it holds
+// its slot on a page it has nothing on — and `#אזור` is that one.
+//
+// Built here rather than in `main.ts` for the reason at the top of this file: a
+// panel drawn where no test can build it is a panel that has never been built by
+// anything. That is not a hypothetical for this one either. Its controls write
+// Typst into the writer's document — a tuple whose *order is the policy*, a
+// tuple of one whose comma decides whether the region does anything at all — and
+// a control that writes the wrong thing is a sefer that lays out wrong, not a
+// panel that looks odd.
+
+/** Everything a region's own controls draw themselves from. */
+export interface RegionView {
+  /** The region's name, as the document wrote it. */
+  name: string;
+  /** What the document has already said about it, in the prelude's own words. */
+  held: RegionSettings;
+}
+
+/** What pressing one of them asks the shell to do. */
+export interface RegionActions {
+  /**
+   * Write these knobs onto the region's declaration.
+   *
+   * `undefined` keeps what the document said and `null` clears one, which is the
+   * rule `writeRegion` states and the reason a panel that writes one knob does
+   * not wipe the seventeen beside it.
+   */
+  set(fields: RegionSettings): void;
+}
+
+/**
+ * One member of a region's vocabulary, said in the *interface's* language.
+ *
+ * Looked up through the English spelling, because that is the one thing both
+ * languages agree on: the prelude's word is Hebrew, the reader may be reading
+ * either, and a translation key made of Hebrew letters is a key nobody can grep
+ * for.
+ */
+function regionWord(member: string): string {
+  return t("regionValue." + (englishValue(member) ?? member));
+}
+
+/** A `<select>` over a fixed set, with the current member shown as chosen. */
+function pickOne(
+  options: [string, string][],
+  current: string,
+  onPick: (v: string) => void,
+): HTMLElement {
+  return el(
+    "select",
+    { onChange: (e: Event) => onPick((e.target as HTMLSelectElement).value) },
+    options.map(([v, label]) =>
+      el("option", { value: v, ...(current === v ? { selected: "selected" } : {}) }, [label]),
+    ),
+  );
+}
+
+/** The rows for one region's own settings, in the order the prelude lists them. */
+export function regionPanel(view: RegionView, act: RegionActions): Node[] {
+  const rows: Node[] = [
+    el("h3", { style: "margin-top:18px" }, [t("regionSettings")]),
+    el("p", { class: "styles-note" }, [t("regionSettingsNote")]),
+  ];
+  for (const knob of REGION_KNOBS) {
+    const now = view.held[knob.key] ?? "";
+    let control: Node;
+    if (knob.kind === "set") {
+      // A set is a box per member and not a text field: the writer is picking
+      // several out of seven and wants the seven where they can be compared.
+      const chosen = now === "" ? [] : now.split(",");
+      control = el(
+        "span",
+        { class: "chan-actions" },
+        (knob.choices ?? []).map((m) => {
+          const box = checkField(chosen.includes(m));
+          box.addEventListener("change", () => {
+            const next = box.checked ? [...chosen, m] : chosen.filter((c) => c !== m);
+            // Written back in the prelude's own order, and that is not tidiness:
+            // for `גלישה` the order **is** the policy — the moves are tried in
+            // the order they are listed — so a box ticked last must not become
+            // the move tried last.
+            act.set({
+              [knob.key]: (knob.choices ?? []).filter((c) => next.includes(c)).join(","),
+            });
+          });
+          return el("label", { class: "region-box", "data-member": m }, [box, regionWord(m)]);
+        }),
+      );
+    } else if (knob.kind === "flag") {
+      // Three states and not two. A switch the document has not mentioned is not
+      // the same as one it set to `false`: the first takes the prelude's default,
+      // which for `שומר_מקום` is `true`.
+      control = pickOne(
+        [
+          ["", t("flagDefault")],
+          ["true", t("flagYes")],
+          ["false", t("flagNo")],
+        ],
+        now,
+        (v) => act.set({ [knob.key]: v === "" ? null : v }),
+      );
+    } else if (knob.kind === "choice") {
+      control = pickOne(
+        [["", t("flagDefault")], ...(knob.choices ?? []).map((m) => [m, regionWord(m)] as [string, string])],
+        now,
+        (v) => act.set({ [knob.key]: v === "" ? null : v }),
+      );
+    } else {
+      const field = textField(now, knob.hint);
+      field.addEventListener("change", () =>
+        act.set({ [knob.key]: field.value.trim() || null }),
+      );
+      control = field;
+    }
+    rows.push(el("div", { "data-knob": knob.key }, [fieldRow(t(knob.label), control)]));
+    // Said once, beside the control it is about: three of the ten moves are not
+    // on that list and cannot be, because they always apply. A writer looking for
+    // clamping and not finding it should read why rather than conclude it is
+    // missing.
+    if (knob.key === "spill") rows.push(el("p", { class: "styles-note" }, [t("regionSpillNote")]));
+  }
+  return rows;
 }

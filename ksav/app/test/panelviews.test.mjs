@@ -27,10 +27,18 @@ import {
   notesPanel,
   pickAfterDestination,
   pickedDestination,
+  regionPanel,
 } from "../.tmp-test/panelviews.mjs";
 import { face } from "../.tmp-test/git.mjs";
 import { setLang, t } from "../.tmp-test/i18n.mjs";
-import { DESTINATIONS, DESTINATION_IDS, PRESETS } from "../.tmp-test/channels.mjs";
+import {
+  DESTINATIONS,
+  DESTINATION_IDS,
+  PRESETS,
+  REGION_KNOBS,
+  regionSettingsOf,
+  writeRegion,
+} from "../.tmp-test/channels.mjs";
 
 /** Every node in a built tree, depth first. */
 function all(nodes) {
@@ -853,4 +861,180 @@ function notesChooser() {
     );
     setLang("en");
   }
+  // ------------------------------------------------- the region's own controls
+  //
+  // **Pressed, and the Typst they write read back.** The knob table and the
+  // writer were already tested; what was not is the thing between them, and it
+  // is the half that can be wrong in a way nobody sees — a box wired to the
+  // neighbouring knob, a `<select>` whose options are labels where the engine
+  // wants words, a tuple built in the order the boxes were ticked rather than
+  // the order the engine tries them.
+  //
+  // So each of these builds the panel, presses one control the way a writer
+  // does, hands what the shell was asked for to `writeRegion`, and reads the
+  // line that lands in the document. Nothing is asserted about the callback in
+  // isolation: the claim is *press this and the sefer says that*.
+  {
+    const chrome = installChrome();
+
+    /** The panel, plus the last edit it asked for. */
+    const panel = (doc, name = "צר") => {
+      const asked = [];
+      const built = regionPanel(
+        { name, held: regionSettingsOf(doc, name) },
+        { set: (fields) => asked.push(fields) },
+      );
+      return { built, asked, doc, name };
+    };
+    /** What the document says after the panel's last request. */
+    const written = (p) => writeRegion(p.doc, p.name, p.asked.at(-1) ?? {}).text.split("\n")[0];
+    /** The control in one knob's row. */
+    const rowFor = (built, key) => all(built).find((n) => n["data-knob"] === key);
+    /** Fire a `<select>` the way a browser does. */
+    const choose = (node, value) => {
+      const box = all([node]).find((n) => n.tagName === "SELECT");
+      box.value = value;
+      for (const fn of box.listeners?.change ?? []) fn({ target: box });
+    };
+    /** Type into a field and leave it. */
+    const type = (node, value) => {
+      const box = all([node]).find((n) => n.tagName === "INPUT" && n.type === "text");
+      box.value = value;
+      for (const fn of box.listeners?.change ?? []) fn({ target: box });
+    };
+    /** Tick or untick one member of a set. */
+    const tick = (node, member, on) => {
+      const label = all([node]).find((n) => n["data-member"] === member);
+      const box = (label.children ?? []).find((c) => c && c.tagName === "INPUT");
+      box.checked = on;
+      for (const fn of box.listeners?.change ?? []) fn({ target: box });
+    };
+
+    {
+      // Every key has a row, and every row is labelled in words.
+      const p = panel("");
+      const missing = REGION_KNOBS.filter((k) => !rowFor(p.built, k.key));
+      check("regions: every knob is drawn", missing.map((k) => k.key), []);
+      const said = words(p.built).join(" ");
+      notOk(
+        "regions: …and the panel prints no i18n keys",
+        /\b(region[A-Z][a-zA-Z]*|regionValue\.[a-z_]+|flag[A-Z][a-zA-Z]*)\b/.test(said),
+        said.slice(0, 120),
+      );
+    }
+    {
+      // A text field. The height goes in bare, because a length is not a string.
+      const p = panel('#אזור("צר", מיקום: "רגל")\nגוף');
+      type(rowFor(p.built, "height"), "2cm");
+      check(
+        "regions: typing a height writes it bare",
+        written(p),
+        '#אזור("צר", מיקום: "רגל", גובה: 2cm)',
+      );
+    }
+    {
+      // A choice. The eighteenth key, and the one a writer could not reach at
+      // all: a region's placement was written once by the preset that made it
+      // and was changeable nowhere.
+      const p = panel('#אזור("צר", מיקום: "רגל", גובה: 1.2cm)\nגוף');
+      choose(rowFor(p.built, "placement"), "סוף");
+      check(
+        "regions: moving a region to the back of the sefer writes it",
+        written(p),
+        '#אזור("צר", מיקום: "סוף", גובה: 1.2cm)',
+      );
+    }
+    {
+      // …and back to the default, which is a different edit from any value.
+      const p = panel('#אזור("צר", מיקום: "רגל", חריגה: "סירוב")\nגוף');
+      choose(rowFor(p.built, "overflow"), "");
+      check(
+        "regions: choosing the default clears the key",
+        written(p),
+        '#אזור("צר", מיקום: "רגל")',
+      );
+    }
+    {
+      // A switch, and three states rather than two: a key the document has not
+      // mentioned takes the prelude's default, which for this one is `true`.
+      const p = panel('#אזור("צר", מיקום: "רגל")\nגוף');
+      choose(rowFor(p.built, "keepsPlace"), "false");
+      check(
+        "regions: a switch goes in bare, not quoted",
+        written(p),
+        '#אזור("צר", מיקום: "רגל", שומר_מקום: false)',
+      );
+    }
+    {
+      // A set, ticked in the wrong order on purpose. For `גלישה` the order **is**
+      // the policy — the moves are tried in the order they are listed — so a box
+      // ticked last must not become the move tried last.
+      const p = panel('#אזור("צר", מיקום: "רגל", גלישה: ("עמוד_הבא",))\nגוף');
+      tick(rowFor(p.built, "spill"), "הקטנה", true);
+      check(
+        "regions: ticking a move writes the tuple in the engine's order",
+        written(p),
+        '#אזור("צר", מיקום: "רגל", גלישה: ("הקטנה", "עמוד_הבא"))',
+      );
+      check(
+        "regions: …and the box that was already ticked is still ticked",
+        regionSettingsOf(writeRegion(p.doc, p.name, p.asked.at(-1)).text, "צר").spill,
+        "הקטנה,עמוד_הבא",
+      );
+    }
+    {
+      // Down to one, where the comma is the whole difference between a tuple and
+      // a parenthesised string — a region that shrinks and one that does nothing
+      // and says nothing about it.
+      const p = panel('#אזור("צר", מיקום: "רגל", גלישה: ("הקטנה", "עמוד_הבא"))\nגוף');
+      tick(rowFor(p.built, "spill"), "עמוד_הבא", false);
+      check(
+        "regions: unticking down to one keeps the comma",
+        written(p),
+        '#אזור("צר", מיקום: "רגל", גלישה: ("הקטנה",))',
+      );
+    }
+    {
+      // And down to none, which is a fixed box that stays fixed — a real thing
+      // to want, and the only behaviour there was before the moves existed.
+      const p = panel('#אזור("צר", מיקום: "רגל", גלישה: ("הקטנה",))\nגוף');
+      tick(rowFor(p.built, "spill"), "הקטנה", false);
+      check(
+        "regions: unticking the last one is a box that stays fixed",
+        written(p),
+        '#אזור("צר", מיקום: "רגל", גלישה: ())',
+      );
+    }
+    {
+      // One knob at a time. A panel that writes one control and wipes the
+      // seventeen beside it is the failure `writeRegion` states its rule against,
+      // and the rule is only worth anything if the panel goes through it.
+      const doc =
+        '#אזור("צר", מיקום: "רגל", גובה: 1.2cm, גלישה: ("הקטנה",), חריגה: "צמצום", שומר_מקום: false)\nגוף';
+      const p = panel(doc);
+      type(rowFor(p.built, "seam"), "20");
+      check(
+        "regions: writing one knob leaves the rest where they were",
+        written(p),
+        '#אזור("צר", מיקום: "רגל", גובה: 1.2cm, גלישה: ("הקטנה",), ' +
+          'חריגה: "צמצום", שומר_מקום: false, תפר: 20)',
+      );
+    }
+    {
+      // In Hebrew, and the words are words.
+      setLang("he");
+      const built = regionPanel({ name: "צר", held: {} }, { set: () => {} });
+      const said = words(built).join(" ");
+      ok("regions: the panel speaks Hebrew", /[֐-׿]/.test(said), said.slice(0, 60));
+      notOk(
+        "regions: …and prints no i18n keys in Hebrew either",
+        /\b(region[A-Z][a-zA-Z]*|regionValue\.[a-z_]+|flag[A-Z][a-zA-Z]*)\b/.test(said),
+        said.slice(0, 120),
+      );
+      setLang("en");
+    }
+
+    chrome.restore();
+  }
+
 }

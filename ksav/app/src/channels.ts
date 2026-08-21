@@ -1170,6 +1170,7 @@ export type RegionKnobKind = "text" | "content" | "bare" | "choice" | "flag" | "
 
 /** The knobs a region carries, keyed the way this module names them. */
 export interface RegionSettings {
+  placement?: string | null;
   height?: string | null;
   layout?: string | null;
   title?: string | null;
@@ -1192,9 +1193,15 @@ export interface RegionSettings {
 /**
  * Every key `#אזור` accepts, paired with the prelude's name for it.
  *
- * `מיקום` is the one key not here, and deliberately: the chooser owns *where the
- * notes go* and offering it twice is two controls that can disagree. Everything
- * else is a property of the region and belongs on the region's panel.
+ * **All eighteen, `מיקום` included.** The first draft left the placement out on
+ * the reasoning that the chooser owns *where the notes go* — and that was wrong
+ * on the facts. The chooser writes a placement exactly once, when a preset
+ * *creates* a region; after that it only picks which destination the panel is
+ * about. A region's placement could then be changed nowhere in the application,
+ * and the settings that hang off the channel cannot do it either, because a
+ * channel pointed into a region takes the **region's** placement and its own is
+ * ignored. So a writer who put a region at the foot of the page and wanted it at
+ * the back of the sefer had to edit the source.
  *
  * A list rather than seventeen `if`s, for the reason `DESTINATION_KNOBS` gives:
  * the model and the panel are the same question from two directions, and a knob
@@ -1214,6 +1221,14 @@ export const REGION_KNOBS: ReadonlyArray<{
   /** For `choice` and `set`: the members, in the prelude's Hebrew. */
   choices?: readonly string[];
 }> = [
+  {
+    key: "placement",
+    arg: "מיקום",
+    kind: "choice",
+    label: "regionPlacement",
+    hint: "",
+    choices: PLACEMENTS,
+  },
   { key: "height", arg: "גובה", kind: "bare", label: "regionHeight", hint: "1.2cm" },
   {
     key: "layout",

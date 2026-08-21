@@ -33,7 +33,23 @@ Two things that are **not** in this plan and are worth writing down beside it:
   not that a reader can see them. `svgdump` is the instrument for the other
   half, and the gap is named in that file rather than papered over.
 - A note filed with `גלישה: ()` — a box the writer asked to stay fixed — is the
-  one arrangement that may lose text, and it loses it by request.
+  one arrangement that may lose text, and **it loses it silently**. Thing four
+  says *and always warn* and that half is not built. It cannot be a compiler
+  warning: Typst 0.15 gives a prelude `panic` and nothing quieter, and refusing
+  to compile is the wrong answer to a writer who asked for a fixed box. A mark at
+  the clipped edge was built and **backed out**, because the obvious way to know
+  the box overflowed does not work: `_ap_slot` is handed the region's furniture
+  and not only its prose, so `measure` answers 64.26pt for a four-word note in a
+  34.02pt box and the mark fires on every fixed box there is. A false alarm on
+  all of them is worse than none. The signal that would work is the walk's own —
+  comparing the page count this region wants under `("עמוד_הבא",)` against the one
+  it gets under `()` — and that is the next person's starting point.
+- **A note placed beside the text takes no `שם`**, so `#הפניה_להערה` cannot reach
+  one. Pre-existing on the channel path and inherited by the region path rather
+  than introduced by it.
+- **`_ln_at` walks every numbered line, per entry.** Opt-in — it runs only for
+  `ראש: ("שורה",)` — and unmeasured, which is exactly the shape `_ap_entry_height`
+  had before it cost a sefer thirty seconds.
 
 This page is the plan and the evidence; it is **not** the record of what was done
 on a day, which is [`decisions/`](decisions/README.md). Where the two disagree

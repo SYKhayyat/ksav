@@ -37,6 +37,11 @@
   // Which structural level a count starts again at — one word for the notes
   // and for the numbers a siman carries, because it is one mechanism.
   restart_by: "אפס_לפי",
+  // The words a note is **on** — what an entry head prints as its dibbur
+  // hamaschil — and whether the note may be the one that moves when its region
+  // has to give something up. Neither is a look; both are set on one note.
+  quote: "ציטוט",
+  floats: "צף",
   landscape: "לרוחב", watermark: "סימן_מים", header: "כותרת_עליונה",
   footer: "כותרת_תחתונה", numbering: "מספור", hebrew_numbering: "מספור_עברי",
   // `justify` is **not** here, and `align` is. Both used to be, both mapping to
@@ -1542,7 +1547,43 @@
 // entry lays out at the foot, where `here()` is the foot. The banded and
 // collected renderers carry the note's real place in the sefer with it, which is
 // what makes this possible at all: `org` in `_ap_entries`.
-#let _xa_kinds = ("עמוד", "דף", "סימן", "שורה")
+// The three that are built. `"שורה"` is **not** here and is refused by name in
+// `_eh_read`: Typst's line numbers are drawn by the layout rather than kept in a
+// counter this can read back at a marker's own place, so the address came out
+// empty on every entry — a word that compiles and prints nothing, which is
+// exactly what `settings_live.rs` exists to stop being added to. The margin
+// numbers themselves work (`#מסמך(מספור_שורות: …)`); reading one back at an
+// arbitrary location does not.
+#let _xa_kinds = ("עמוד", "דף", "סימן")
+#let _xa_unbuilt = ("שורה",)
+
+/// The ingredients of an entry head, checked.
+///
+/// It was never checked. An ingredient nobody recognised was silently dropped,
+/// so `ראש: ("ציטט",)` — one letter out — produced an entry with no head at all
+/// and no complaint, which is the same shape as every other bug in this file.
+#let _eh_parts = ("מספר", "תווית", "ציטוט")
+#let _eh_read(cfg) = {
+  let want = cfg.at("ראש", default: _eh_default)
+  let want = if type(want) == array { want } else { (want,) }
+  for part in want {
+    if _xa_unbuilt.contains(part) {
+      panic(
+        "ראש: " + _as_string(part) + " עדיין לא נבנתה · this entry-head "
+          + "ingredient is not built yet. The addresses that are: "
+          + _xa_kinds.join(" · "),
+      )
+    }
+    if not (_eh_parts.contains(part) or _xa_kinds.contains(part)) {
+      panic(
+        "ראש: מרכיב לא מוכר · unknown entry-head ingredient: " + _as_string(part)
+          + " (" + (_eh_parts + _xa_kinds).join(" · ") + ")",
+      )
+    }
+  }
+  want
+}
+
 
 // The daf a page falls on, and which side of it. Two printed pages to a daf,
 // counting from `דף_ראשון` — which is ב and not א, because in a gemara-numbered
@@ -1600,14 +1641,17 @@
     // cannot disagree — and it is worth nothing unless the body prints them,
     // which is `#מסמך(מספור_שורות: …)` and the writer's own call.
     let n = counter(par.line).at(org)
-    if n.len() == 0 { none } else { [שורה #numbering("1", n.first())] }
+    // Zero is what this counter reads in a document that never turned line
+    // numbering on, and *"line 0"* reads like an answer. A missing address
+    // prints nothing, because a blank address is worse than none — it looks
+    // like the question was asked and answered.
+    if n.len() == 0 or n.first() < 1 { none } else { [שורה #numbering("1", n.first())] }
   }
 }
 
 /// Whatever `ראש` asked for out of the four, in the order it asked.
 #let _eh_addr(cfg, org) = {
-  let want = cfg.at("ראש", default: _eh_default)
-  let want = if type(want) == array { want } else { (want,) }
+  let want = _eh_read(cfg)
   for part in want {
     if _xa_kinds.contains(part) {
       let a = _xa_part(part, org, cfg)
@@ -1623,8 +1667,7 @@
 }
 
 #let _eh_head(cfg, label_, quote) = {
-  let want = cfg.at("ראש", default: _eh_default)
-  let want = if type(want) == array { want } else { (want,) }
+  let want = _eh_read(cfg)
   for part in want {
     if part == "תווית" and label_ != none and label_ != "" {
       [#strong(label_) ]
@@ -1642,11 +1685,7 @@
 /// Leaving `"מספר"` out of the list is how a writer says *no number* — the
 /// fourth of the plan's four ingredients — and it is the one that has to reach
 /// the marker rather than the entry, because Typst draws the number itself.
-#let _eh_numbered(cfg) = {
-  let want = cfg.at("ראש", default: _eh_default)
-  let want = if type(want) == array { want } else { (want,) }
-  want.contains("מספר")
-}
+#let _eh_numbered(cfg) = _eh_read(cfg).contains("מספר")
 
 #let _fn_wrap(cfg, tier, body) = {
   let sz = _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em)
@@ -2059,6 +2098,11 @@
   // asking for a slant that came back upright.
   {
     set par(..(if ריווח_שורה != none { (leading: ריווח_שורה) } else { (:) }))
+    // Line numbers are the **body's**. An apparatus is margin furniture, and it
+    // was being numbered along with the prose — a band of commentary came out
+    // with stray digits down its edge, and worse, they continued the body's
+    // count, so the numbers in the margin stopped meaning what they say.
+    set par.line(numbering: none)
     _ks_style(_ap_pick(cfg, "סגנון", g, "normal"), body)
   },
 )
@@ -2156,7 +2200,13 @@
     // foot of the page in its band, and the number sits in the middle of a
     // sentence the reader is reading — a peirush set 0.8em and grey wants its
     // markers legible, and until this the number had no look at all.
-    _ap_piece(cfg, super(_ap_mark(cfg, g, n)))
+    // …unless this apparatus prints no numbers at all. Leaving `"מספר"` out of
+    // `ראש` is how a writer asks for a **markerless** apparatus — the one a sefer
+    // sets constantly, where the body carries nothing and the entry is found by
+    // its opening words. It was honoured at the entry and not here, so the body
+    // still carried a marker pointing at an entry that had no number to match:
+    // the worst of both, and the arrangement is the plan's own `[U]` case.
+    if _eh_numbered(cfg) { _ap_piece(cfg, super(_ap_mark(cfg, g, n))) }
     // The **printed** number, recorded under the name the writer gave this note
     // — `#הפניה_להערה` reads it. Printed and not the rank, because a band
     // lettered א ב ג is referred to as *"עיין הערה ב"*, and a reference saying 2
@@ -2765,8 +2815,20 @@
     scales.insert(k, sc)
     tracks.insert(k, tr)
     // Now place. The first entry of a group always goes on the page, however
-    // tall it is: placed and clipped a reader can see, whereas carried for ever
-    // is a note that was written and never printed, which they cannot.
+    // tall it is, because carrying it for ever is a note that was written and
+    // never printed.
+    //
+    // **This is not a good answer, and the comment here used to claim it was.**
+    // It said a clipped note is something a reader can see. It is not: `_ap_slot`
+    // draws with `clip: true`, so an entry taller than its region is masked and
+    // reads as a short note. `probe` cannot see a clip — it reads frame items —
+    // so the overhang measures as if it were printed past the paper edge, and
+    // that is how it was written down. `svgdump` shows the clip rectangle.
+    //
+    // Neither `"עמוד_הבא"` nor `"דחיסה"` moves such a note by a single point,
+    // and not because the policy is wrong: the footer is composed afresh on every
+    // page and has no continuation, so there is nowhere for the second half of a
+    // note to land. See NOTES-SPILL-FINDINGS.md, which costs four ways out.
     let u = 0pt
     let mine = ()
     let rest = ()
@@ -3076,6 +3138,32 @@
   }
   _ap_pick(cfg, "גבהים", rg, none)
 }
+// What stands at the head of an entry is the **region's** to say as much as the
+// channel's — two channels sharing a region share its arrangement, which is what
+// a region is. Read after the channels so a channel may still differ.
+//
+// This was the gap that made the four positional addresses unreachable:
+// `ראש` was accepted on `#אזור` and the renderer built its configuration out of
+// the *channels* alone, so a region that asked for an address got the default
+// entry head and printed a number instead.
+#let _rg_head_keys = ("ראש", "מספור_כתובת", "דף_ראשון")
+#let _rg_head_cfg(cfg, t, rg) = {
+  let out = cfg
+  let rec = _rg_rec(t, rg)
+  for k in _rg_head_keys {
+    if k in rec { out.insert(k, rec.at(k)) }
+  }
+  out
+}
+
+/// Which regions the writer placed by hand.
+///
+/// A state rather than a query for the dump marker, and that is not a style
+/// choice: `_rg_show` emits one of those itself, so a guard that counted them
+/// would switch itself off on the next layout pass, switch back on the pass
+/// after, and never settle.
+#let _cn_shown = state("ksav-cn-shown", ())
+
 #let _ch_region_side(t, rg) = _val(_rg_rec(t, rg).at("פריסה", default: "מוערם")) == "צד"
 
 // Fold the channel table into an apparatus's configuration.
@@ -3804,7 +3892,14 @@
   } else {
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)
-    _cn_note(_cfg_with(_ch_cfg(t, (chan,)), own), region, chan, body, own, שם: mine)
+    _cn_note(
+      _cfg_with(_rg_head_cfg(_ch_cfg(t, (chan,)), t, region), own),
+      region,
+      chan,
+      body,
+      own,
+      שם: mine,
+    )
   }
 }
 
@@ -3853,8 +3948,7 @@
 // הצג_אזור(שם) — print a collected region's channels here, and close its scope.
 // Called at the end of the section, or once at the end of the document; each
 // call renders only the notes written since the previous one.
-#let הצג_אזור(שם, כותרת: auto) = {
-  let rg = _as_string(שם).trim()
+#let _rg_show(rg, כותרת) = {
   context {
     let t = _ch_st.final()
     let notes = _ksav_real_of(_cn_scope(rg)(here()))
@@ -3864,7 +3958,7 @@
       // without being declared — which keeps a note visible rather than tidy.
       let chans = _ch_in_region(t, rg).filter(c => mine.any(e => e.value.group == c))
       for e in mine { if not chans.contains(e.value.group) { chans.push(e.value.group) } }
-      let cfg = _ch_cfg(t, chans)
+      let cfg = _rg_head_cfg(_ch_cfg(t, chans), t, rg)
       let title = if כותרת != auto { כותרת } else {
         _rg_rec(t, rg).at("כותרת", default: none)
       }
@@ -3890,6 +3984,17 @@
   // The section boundary itself, after the context above so that context renders
   // the section ending here rather than the next one.
   [#metadata(none)#_cn_dump(rg)]
+}
+
+// הצג_אזור("ביאורים") — print a region here.
+//
+// Marks the region as placed, so the automatic dump at the end of `#מסמך` leaves
+// it alone. A writer who says where a region goes has said it, and a document
+// that places some of its regions by hand gets the rest at the end.
+#let הצג_אזור(שם, כותרת: auto) = {
+  let rg = _as_string(שם).trim()
+  _cn_shown.update(l => if l.contains(rg) { l } else { l + (rg,) })
+  _rg_show(rg, כותרת)
 }
 
 #let channel = _en(ערוץ, extra: (columns: "טורים"))
@@ -5084,6 +5189,27 @@
     laid
   } else {
     laid
+  }
+  // Every region declared at the end of the sefer, printed there.
+  //
+  // `#אזור("ביאורים", מיקום: "סוף")` says where the region goes, and that is the
+  // whole promise of the model — the writer says it once, at the top, and every
+  // note filed into it moves. It was only half true: the placement was honoured
+  // for *filing* and a writer still had to call `#הצג_אזור` by hand to make it
+  // appear, so a region declared at the end of the sefer and never shown printed
+  // **nothing at all**, silently, with its notes filed correctly into it.
+  //
+  // Skipped for a region the writer did show, which is what the dump marker is:
+  // one exists for every `#הצג_אזור` call, so a document that places its own
+  // regions is untouched and one that places some of them gets the rest.
+  context {
+    let t = _ch_st.final()
+    let shown = _cn_shown.final()
+    for rg in t.סדר_אזורים {
+      if _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) != "סוף" { continue }
+      if shown.contains(rg) { continue }
+      _rg_show(rg, auto)
+    }
   }
   // After the body, and only ever after it: pages for whatever the side column
   // carried past the last one. See `_sn_tail_pages` for why they cannot be

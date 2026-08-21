@@ -88,7 +88,12 @@ fn no_corpus_document_prints_below_the_text_area() {
         ),
         ("rot", "Part 4: rotation does not paginate"),
         // A page-foot region that declares its own height, in a document that
-        // reserved no room for one. `#מסמך` sets the page margins before any
+        // reserved no room for one. **The notes are silently truncated, not
+        // printed off the paper** — `_ap_slot` clips, and `probe` reads frame
+        // items and cannot see a clip, so an entry masked away measures exactly
+        // like one drawn past the edge. `svgdump` shows the rectangle. Which is
+        // the worse of the two: a note past the edge is at least visible as a
+        // fault, and a clipped one reads as a short note. `#מסמך` sets the page margins before any
         // `#אזור` line in the body has run, so the region cannot enlarge the
         // reserve it needs — and the footer only clips when a reserve exists
         // (`if reserve != 0pt`), so the region runs past the paper edge. All
@@ -100,9 +105,18 @@ fn no_corpus_document_prints_below_the_text_area() {
         // a change to what `#אזור` may say and not to how a footer draws.
         // `ov_shrink2`/`ov_clip2` are the same pair with `אזור_הערות` declared,
         // and they stay inside the page.
-        ("ov_shrink", "a declared region height with no reserved room overruns the footer"),
-        ("ov_clip", "a declared region height with no reserved room overruns the footer"),
-        ("ov_runin", "a declared region height with no reserved room overruns the footer"),
+        (
+            "ov_shrink",
+            "a declared region height with no reserved room overruns the footer",
+        ),
+        (
+            "ov_clip",
+            "a declared region height with no reserved room overruns the footer",
+        ),
+        (
+            "ov_runin",
+            "a declared region height with no reserved room overruns the footer",
+        ),
     ];
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/notes-corpus");
     let mut over = Vec::new();
@@ -136,20 +150,26 @@ fn no_corpus_document_prints_below_the_text_area() {
     let mut stale = Vec::new();
     for (name, why) in DISPROOFS {
         if !names.iter().any(|n| n == name) {
-            stale.push(format!("{name}: listed as a disproof and not in the corpus"));
+            stale.push(format!(
+                "{name}: listed as a disproof and not in the corpus"
+            ));
             continue;
         }
         let (runs, _) = laid(name);
         if !runs.iter().any(|r| r.y > PAGE_FOOT) {
-            stale.push(format!("{name}: no longer prints past the page number — {why}"));
+            stale.push(format!(
+                "{name}: no longer prints past the page number — {why}"
+            ));
         }
     }
     assert!(
         stale.is_empty(),
         "stale disproofs, which are stale claims:
   {}",
-        stale.join("
-  ")
+        stale.join(
+            "
+  "
+        )
     );
     assert!(
         checked >= 30,

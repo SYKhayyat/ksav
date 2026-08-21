@@ -230,6 +230,11 @@ const EN_ARGS: Record<string, string> = {
   // now reads `_en_params` out of the prelude and fails on any key this panel
   // writes without a spelling here, which is what would have caught them.
   משקל: "weight",
+  // Not looks, but the panel writes them onto a note like everything else here,
+  // so they need the engine’s own English spelling for a document written in
+  // English commands. See `_en_args` in the prelude.
+  ציטוט: "quote",
+  צף: "floats",
   גופן: "font",
   ריווח_לפני: "space_before",
   ריווח_אחרי: "space_after",
@@ -567,12 +572,28 @@ export const INSTANCE_FIELDS: Record<
     סגנון: { kind: "slant", label: "knobSlant" },
     צבע: { kind: "colour", label: "knobColour" },
     משקל: { kind: "weight", label: "knobWeight" },
+    // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
+    // an entry head prints — and `צף` is the note saying *"if something has to
+    // move, move me"* when its region has to give something up. They travel in
+    // the same per-note dictionary as the looks because that dictionary is
+    // already carried to the walk that decides, and the panel offers them for
+    // the same reason: they are set on one note and on nothing else.
+    ציטוט: { kind: "text", label: "knobQuote" },
+    צף: { kind: "bool", label: "knobFloat" },
   },
   streams: {
     גודל: { kind: "size-em", label: "knobSize" },
     סגנון: { kind: "slant", label: "knobSlant" },
     צבע: { kind: "colour", label: "knobColour" },
     משקל: { kind: "weight", label: "knobWeight" },
+    // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
+    // an entry head prints — and `צף` is the note saying *"if something has to
+    // move, move me"* when its region has to give something up. They travel in
+    // the same per-note dictionary as the looks because that dictionary is
+    // already carried to the walk that decides, and the panel offers them for
+    // the same reason: they are set on one note and on nothing else.
+    ציטוט: { kind: "text", label: "knobQuote" },
+    צף: { kind: "bool", label: "knobFloat" },
   },
   // The same three the bands take, because they are the same apparatus with a
   // different scope — `_ap_own_keys` is one list in the prelude and the fence in
@@ -582,6 +603,14 @@ export const INSTANCE_FIELDS: Record<
     סגנון: { kind: "slant", label: "knobSlant" },
     צבע: { kind: "colour", label: "knobColour" },
     משקל: { kind: "weight", label: "knobWeight" },
+    // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
+    // an entry head prints — and `צף` is the note saying *"if something has to
+    // move, move me"* when its region has to give something up. They travel in
+    // the same per-note dictionary as the looks because that dictionary is
+    // already carried to the walk that decides, and the panel offers them for
+    // the same reason: they are set on one note and on nothing else.
+    ציטוט: { kind: "text", label: "knobQuote" },
+    צף: { kind: "bool", label: "knobFloat" },
   },
   sidenotes: {
     גודל: { kind: "size-em", label: "knobSize" },

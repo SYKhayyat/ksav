@@ -37,7 +37,9 @@ fn laid(name: &str) -> Vec<probe::TextRun> {
 /// The runs of the apparatus at the foot of the page — everything set smaller
 /// than the body, and below it.
 fn apparatus(runs: &[probe::TextRun]) -> Vec<&probe::TextRun> {
-    runs.iter().filter(|r| r.y > 600.0 && r.size < 11.0).collect()
+    runs.iter()
+        .filter(|r| r.y > 600.0 && r.size < 11.0)
+        .collect()
 }
 
 /// The size the apparatus entries are set at. The page number is set at the
@@ -109,7 +111,8 @@ fn running_the_region_in_puts_every_entry_on_one_line() {
     );
     // …and all six are in it, which is the half that says nothing was lost.
     let band: String = entries.iter().map(|r| r.text.clone()).collect();
-    for n in ["קצרה א", "קצרה ב", "קצרה ג", "קצרה ד", "קצרה ה", "קצרה ו"] {
+    for n in ["קצרה א", "קצרה ב", "קצרה ג", "קצרה ד", "קצרה ה", "קצרה ו"]
+    {
         assert!(band.contains(n), "{n} is not in the run-in band: {band:?}");
     }
 }
@@ -153,9 +156,12 @@ fn a_baseline_grid_advances_by_exactly_the_grid() {
 /// An overflow move nobody built is refused, and the message says what exists.
 #[test]
 fn an_unbuilt_move_is_refused_by_name() {
-    let d = probe::layout("#אזור(\"צר\", גלישה: (\"קסם\",))\nטקסט.", &DocConfig::default())
-        .err()
-        .expect("an unknown overflow move compiled");
+    let Err(d) = probe::layout(
+        "#אזור(\"צר\", גלישה: (\"קסם\",))\nטקסט.",
+        &DocConfig::default(),
+    ) else {
+        panic!("an unknown overflow move compiled")
+    };
     let text = format!("{d:?}");
     assert!(
         text.contains("גלישה") && text.contains("הקטנה"),
@@ -168,9 +174,12 @@ fn an_unbuilt_move_is_refused_by_name() {
 /// clamping would go looking for a way to turn it on.
 #[test]
 fn an_always_on_move_says_it_is_always_on() {
-    let d = probe::layout("#אזור(\"צר\", גלישה: (\"מפל\",))\nטקסט.", &DocConfig::default())
-        .err()
-        .expect("an always-on overflow move compiled");
+    let Err(d) = probe::layout(
+        "#אזור(\"צר\", גלישה: (\"מפל\",))\nטקסט.",
+        &DocConfig::default(),
+    ) else {
+        panic!("an always-on overflow move compiled")
+    };
     let text = format!("{d:?}");
     assert!(
         text.contains("invariant") || text.contains("תמיד"),

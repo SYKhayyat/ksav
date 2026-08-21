@@ -2034,11 +2034,17 @@ async function main() {
   // ------------------------------------- 16. the notes chooser asks one question
 
   // The panel opened onto somewhere past fifty controls, and every one of them
-  // was about a decision the person opening it had usually already made. What is
-  // driven here is the ordinary path: the first question, then the second one
-  // narrowed to what can print where the first one landed, then the arrangement
-  // itself — and that the whole grid is still one press away for anyone who
-  // wants it.
+  // was about a decision the person opening it had usually already made. It then
+  // asked two questions — *where* and *how* — and the second was a menu of
+  // arrangements, which is the shape the note model was rebuilt to get rid of.
+  //
+  // There is one question now: **where the note goes.** The arrangement is not a
+  // second axis a writer picks from, it is what the document does with the
+  // destination, so there is nothing to ask. What is driven here is that one
+  // question, the presets that are values of it rather than a list beside it,
+  // the one destination that expands into a second question because it has to
+  // (a region, which is the document's own and not a menu), and that pressing a
+  // destination writes.
   //
   // Offline this is built out of a DOM stub. Here it is the real panel, in the
   // assembled application, with the real engine behind the card's preview.
@@ -2063,128 +2069,53 @@ async function main() {
     );
     await page.waitForSelector("#notes-chooser.open", { timeout: 10_000 });
 
-    // The first question, and nothing else. `NOTE_WHERE` has five answers; the
-    // count is asserted rather than "more than zero" because the failure this
-    // catches is a question that renders one button.
+    // The one question, whole. The count is asserted rather than "more than
+    // zero" because the failure this catches is a question that renders one
+    // button — and six is `DESTINATIONS`, which is the axis itself.
     check(
-      "the first question offers every place a note can print",
-      (await count('[data-nq="where"] [data-where]')) === 5,
-      `${await count('[data-nq="where"] [data-where]')} places`,
+      "the one question offers every place a note can go",
+      (await count('[data-nq="destinations"] [data-dest]')) === 6,
+      `${await count('[data-nq="destinations"] [data-dest]')} destinations`,
     );
+    // The presets are *values* of that axis rather than a list beside it, so
+    // pressing one has to leave the destination row showing where it landed.
+    // A preset that could not be taken apart would be a cell wearing a
+    // friendlier name, which is the thing this panel was rebuilt to stop being.
     check(
-      "the second question is waiting rather than missing",
-      (await count('[data-nq="wait"]')) === 1,
-      "no waiting line under the second question",
-    );
-    check(
-      "no arrangement is offered for use before either question is answered",
-      (await count("[data-note-use]")) === 0,
-      `${await count("[data-note-use]")} use buttons on a panel with nothing chosen`,
-    );
-
-    // First answer: the margin, which is where the narrowing is worth seeing.
-    // Two of the six arrangements can print down a margin — one column of notes
-    // and one down each side — and the other four are refused, each with its own
-    // sentence. The foot of the page is deliberately *not* the example here: it
-    // is the one place where all six are possible, so it would have proved
-    // nothing about narrowing at all. A first draft of this step used it and
-    // asserted `offered < 6` against a panel that was right to offer six.
-    //
-    // These clicks are not wrapped in `act()`: answering a question changes what
-    // the panel is asking and does not touch the document, so demanding a
-    // compile of them fails on a panel that is behaving correctly.
-    await clickVisible("the margin answer", '[data-where="margin"]');
-    const offered = await count('[data-nq="how"] [data-how]');
-    const refused = await count('[data-nq="how"] [data-how-off]');
-    check(
-      "the second question appears once the first is answered",
-      offered > 0,
-      "no arrangements offered for the margin",
-    );
-    check(
-      "…and it is narrowed to what can print there",
-      offered === 2 && refused === 4,
-      `${offered} offered and ${refused} refused, of six`,
-    );
-    check(
-      "a refused arrangement says why in the panel itself",
-      (await page.locator('[data-nq="how"] [data-how-off] span').first().innerText()).trim().length > 20,
-      "a greyed arrangement with no sentence under it",
+      "the presets are on the screen with it",
+      (await count('[data-nq="presets"] [data-note-preset]')) > 0,
+      "no presets offered",
     );
 
-    // Second answer, and the arrangement itself — set from the document that is
-    // actually open, which is what the sketch could never say.
+    // A region is the one destination that asks a second question, and it asks
+    // it because the answer is the **document's** — regions are made and named
+    // in the page-layout surface. A document with none has to say so: a panel
+    // that offers an empty list is a panel that looks broken.
+    await clickVisible("the region destination", '[data-dest="region"]');
+    const regions = await count('[data-nq="regions"] [data-region]');
+    const noRegions = await count('[data-nq="no-regions"]');
     check(
-      "no arrangement is shown until both questions are answered",
-      (await count("[data-note-card]")) === 0,
-      `${await count("[data-note-card]")} arrangements on screen with one answer in`,
-    );
-    await clickVisible("the both-margins answer", '[data-nq="how"] [data-how="parallel"]');
-    check(
-      "answering the second question names an arrangement",
-      (await count('[data-note-card="twosided"]')) === 1,
-      "the card shown is not the one down both margins",
-    );
-
-    // Changing the first answer, to a place the second answer cannot print. A
-    // separate volume is a split and nothing else, so "two streams side by side"
-    // has to be let go of rather than carried across — otherwise the panel shows
-    // a card for a cell the question above it has just refused.
-    await clickVisible("the separate-volume answer", '[data-where="volume"]');
-    check(
-      "an answer the new place refuses is dropped, not carried across",
-      (await count("[data-note-card]")) === 0,
-      "the arrangement survived a change of place that refuses it",
-    );
-    check(
-      "…and only what can print there is offered",
-      (await count('[data-nq="how"] [data-how]')) === 1,
-      `${await count('[data-nq="how"] [data-how]')} arrangements offered for a separate volume`,
+      "a region asks which region, or says there are none",
+      regions > 0 || noRegions === 1,
+      "the region destination showed neither a list nor a reason",
     );
 
     // And back to the everyday one, which is what gets written below.
-    await clickVisible("the page-foot answer", '[data-where="page"]');
+    await clickVisible("the page-foot destination", '[data-dest="foot"]');
     check(
-      "every arrangement is possible at the foot of a page",
-      (await count('[data-nq="how"] [data-how]')) === 6,
-      `${await count('[data-nq="how"] [data-how]')} of six offered at the page foot`,
-    );
-    await clickVisible("the one-series answer", '[data-nq="how"] [data-how="one"]');
-    check(
-      "one arrangement is shown, not fourteen",
-      (await count("[data-note-card]")) === 1,
-      `${await count("[data-note-card]")} arrangements on screen`,
-    );
-    check(
-      "…and it is the one the two answers name",
-      (await count('[data-note-card="footnote"]')) === 1,
-      "the card shown is not the page-foot footnote",
-    );
-
-    // The whole grid, still one press away. Thirty cells: five places by six
-    // arrangements, refusals included.
-    await clickVisible("the grid view", '[data-note-view="matrix"]');
-    const cells = (await count("[data-cell]")) + (await count("[data-cell-off]"));
-    check("the whole grid is one press away", cells === 30, `${cells} cells`);
-    check(
-      "…and the arrangement chosen in the questions is the one selected in it",
-      (await count('[data-cell="page/one"].on')) === 1,
-      "the grid opened with nothing selected, so the two views do not share an answer",
-    );
-
-    await clickVisible("the guided view", '[data-note-view="guided"]');
-    check(
-      "the answers survive the switch back",
-      (await count('[data-note-card="footnote"]')) === 1,
-      "the arrangement was forgotten by changing how the panel asks",
+      "the destination chosen is the one shown",
+      (await count('[data-note-card="foot"]')) === 1,
+      "the card shown is not the page-foot one",
     );
 
     // And it writes. A chooser that asks beautifully and inserts nothing is the
     // failure this panel had in its first version.
-    await act("using the arrangement", () =>
-      clickVisible("its use button", '[data-note-use="footnote"]'),
+    await act("using the destination", () =>
+      clickVisible("its use button", '[data-note-use="foot"]'),
     );
-    await page.waitForSelector("#notes-chooser.open", { state: "detached", timeout: 5_000 }).catch(() => {});
+    await page
+      .waitForSelector("#notes-chooser.open", { state: "detached", timeout: 5_000 })
+      .catch(() => {});
     // Read off `.cm-line` elements rather than `.cm-content.textContent`, and
     // only the line the marker is on: CodeMirror renders the viewport, not the
     // document, so "is it in the source" is a question this cannot ask and the
@@ -2195,7 +2126,7 @@ async function main() {
         .find((l) => l.includes("בחירה")) ?? "",
     );
     check(
-      "choosing an arrangement writes it into the document",
+      "choosing a destination writes it into the document",
       marked.includes("#הערה["),
       marked ? `the line reads "${marked}"` : "the marked line is not on screen at all",
     );

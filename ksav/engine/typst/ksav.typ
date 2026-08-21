@@ -3984,6 +3984,12 @@
 #let _rg_own = (
   "מיקום", "גובה", "פריסה", "כותרת", "גלישה", "הקטנה_מזערית", "שומר_מקום",
   "ראש", "מספור_כתובת", "דף_ראשון",
+  // Whether the region opens on a sheet of its own. `#הערות_בסוף` has had this
+  // since it existed and a region had no way to say it, so a collected apparatus
+  // at the end of the sefer either always broke the page or never could.
+  // `auto` keeps each placement's own habit: a companion volume starts a sheet
+  // because that is what makes it a volume, and the back of the sefer follows on.
+  "עמוד_חדש",
   // A parallel-column region: the widths of its columns, and what keeps them in
   // register. See the grid-region block above `_ch_region_side`.
   "טורים", "יחידה",
@@ -4183,6 +4189,41 @@
   // The section boundary itself, after the context above so that context renders
   // the section ending here rather than the next one.
   [#metadata(none)#_cn_dump(rg)]
+}
+
+/// Every region placed at the end of a *section*, drawn here.
+///
+/// A channel at `מיקום: "סוף_מדור"` files its notes into a collected region like
+/// any other, and the only thing that drew one was an explicit `#הצג_אזור` — so a
+/// writer who declared the placement and called nothing got markers in the body
+/// and no entries anywhere. The notes were filed, numbered and queryable, and
+/// never drawn.
+///
+/// It is emitted by `#סימן`, and by `#מסמך` for the last section, and by nothing
+/// else. **Not by a `show heading` rule**, which was the first shape and is
+/// wrong: `_ap_bands` draws a band's own title with a raw `heading(level: 3)`,
+/// so a rule on headings would fire from inside the thing it is rendering.
+///
+/// Renders nothing at all for a document with no such channel, which is every
+/// document written before this line.
+#let _cn_section_dump() = context {
+  let t = _ch_st.final()
+  let shown = _cn_shown.final()
+  let want = t.סדר_אזורים.filter(rg => (
+    _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) == "סוף_מדור"
+  ))
+  // …and the channels that named no region, which are their own. See the
+  // document-end dump in `#מסמך` for why this half is separate.
+  for c in t.סדר {
+    let rg = _ch_region(t, c)
+    if rg in t.אזורים { continue }
+    if _val(_ch_rec(t, c).at("מיקום", default: "רגל")) != "סוף_מדור" { continue }
+    if not want.contains(rg) { want.push(rg) }
+  }
+  for rg in want {
+    if shown.contains(rg) { continue }
+    _rg_show(rg, auto)
+  }
 }
 
 // הצג_אזור("ביאורים") — print a region here.
@@ -5424,15 +5465,42 @@
     // The back of the sefer first, then the companion volumes, whatever order
     // they were declared in: a volume of its own comes after everything that is
     // part of this one, which is what makes it a separate volume.
+    // The last section has no siman after it to close it, so the document does.
+    _cn_section_dump()
     for place in ("סוף", "קובץ") {
       // A companion held for a file of its own prints nothing here. It is not
       // dropped — every note in it is still filed, still numbered, still
       // queryable — it is simply not part of *this* document.
       if place == "קובץ" and כרך_נפרד { continue }
-      for rg in t.סדר_אזורים {
-        if _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) != place { continue }
+      // The regions declared with `#אזור`…
+      let want = t.סדר_אזורים.filter(rg => (
+        _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) == place
+      ))
+      // …and the channels that named no region at all. **Such a channel is its
+      // own region** — that is what `_ch_region` answers and what `_ch_note`
+      // files it under — so walking only the declared ones lost them. A note
+      // sent to the end of the sefer by `#ערוץ("ביאורים", מיקום: "סוף")` alone
+      // was filed correctly, numbered correctly, queryable, and **never drawn**:
+      // a marker in the body pointing at nothing, with no complaint.
+      //
+      // It is the same fault the declared regions had, one layer out, and it
+      // survived the first fix because that one was written against `#אזור`
+      // rather than against *what a placement means*.
+      for c in t.סדר {
+        let rg = _ch_region(t, c)
+        // A channel pointed into a declared region takes that region's
+        // placement, and the loop above has already decided about it.
+        if rg in t.אזורים { continue }
+        if _val(_ch_rec(t, c).at("מיקום", default: "רגל")) != place { continue }
+        if not want.contains(rg) { want.push(rg) }
+      }
+      for rg in want {
         if shown.contains(rg) { continue }
-        if place == "קובץ" {
+        // The writer's answer, or the placement's own habit when they had none.
+        let own = _rg_rec(t, rg).at("עמוד_חדש", default: auto)
+        let fresh = if own == auto { place == "קובץ" } else { _val(own) == true }
+        if fresh and place != "קובץ" { pagebreak(weak: false) }
+        if fresh and place == "קובץ" {
           // Its own sheet and its own count, which is what separates a volume
           // from a section. The *scheme* stays the document’s: `set page` inside
           // a `context` reaches only that block’s content and not the page it
@@ -7063,6 +7131,10 @@
 #let סימן(מספר, כותרת, ..opts) = {
   let (own, rest) = _cfg_split(opts.named(), _mk_own_keys)
   _cfg_strict("סימן", rest)
+  // A siman is a section boundary, so anything filed at the end of a section
+  // ends here — before this heading, which is what "the end of the previous
+  // one" means. Nothing is drawn for a document with no such channel.
+  _cn_section_dump()
   let entry = "סימן " + _as_string(מספר) + if כותרת != none { " — " + _as_string(כותרת) } else { "" }
   heading(level: 1, {
     if own.at("ברשימה", default: true) != false {

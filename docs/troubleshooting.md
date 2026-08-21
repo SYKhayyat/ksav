@@ -27,8 +27,8 @@ page somebody who clicked *Download* is actually looking at.
 
 ### The window opens and stays blank for a long time
 
-**The first compile of a document builds the prelude.** `ksav.typ` is around
-nine thousand lines of Typst and it is compiled before your first page can be. It
+**The first compile of a document builds the prelude.** `ksav.typ` is over ten
+thousand lines of Typst and it is compiled before your first page can be. It
 is cached afterwards, so this is a one-time cost per session and not a hang.
 
 If it stays blank for more than about a minute, it is not this — and which

@@ -147,53 +147,61 @@ its **advance** is 14.38: the first is its ascender and descender, the second is
 where the next line starts. Using the box gave a step of 33.66pt, which is 2.34
 lines wearing a different number. `_ap_advance` measures two lines less one.
 
-## 6. What is not fixed, and what the measurements will and will not support
+## 6. What is not fixed — measured properly, on a release build
 
-**A collected apparatus is far more expensive than a page-foot one.** That much
-is solid, and so is where the cost lives — not in the number of notes but in the
-**total text collected into one block**:
+**A collected apparatus is quadratic in the text collected into it.** That is now
+a claim worth making, because the instrument it was measured on repeats. The
+first version of this section refused the word "quadratic" and it was right to,
+on the evidence it had.
 
-| notes | words each | pages | time |
-|---|---|---|---|
-| 30 | 24 | 12 | 7.4s |
-| 60 | 24 | 23 | 12.8s |
-| 120 | 24 | 46 | 55.1s |
-| 120 | **1** | 36 | **3.3s** |
+A debug build on this box gave ±100% on identical work — the same twenty-chapter
+document timed 48.8s, 55.1s, 97.5s and 133.5s across one afternoon. So the
+release build was made and every number taken twice:
 
-The last row is the informative one: same note count, same bodies, same
-everything except the length of the notes, and seventeen times faster. Set beside
-the page-foot apparatus with the same notes — 3.7s — and against a body word,
-which costs about a three-hundredth of a collected word.
+| notes | words each | pages | release, run 1 | run 2 |
+|---|---|---|---|---|
+| 30 | 24 | 12 | 1.41s | 1.34s |
+| 60 | 24 | 23 | 5.75s | 5.51s |
+| 120 | 24 | 46 | 31.1s | 34.8s |
+| 120 | **1** | 36 | **2.23s** | **2.53s** |
 
-Memory is solid too: thirty chapters reached **14.2 GB** resident, and sixty was
-killed on the way there.
+Five per cent apart, not a hundred. And the shape is unmistakable: **four times
+the work for twice the notes**, twice over. The last row says where it lives —
+same note count, same bodies, only shorter notes, and fourteen times faster. It
+is the text collected into one block, not the number of notes.
 
-**What the measurements will not support is the word "quadratic", and the first
-draft of this record used it.** Run-to-run variance on this box, in a debug
-build, reached **2×**: the same twenty-chapter document timed 48.8s, 55.1s, 97.5s
-and 133.5s across the afternoon, depending on what else had just run and how much
-disk was free. Thirty-to-sixty notes looked linear; sixty-to-a-hundred-and-twenty
-looked worse than linear; neither reading survives that much noise.
+For scale: the same notes at the **page foot** cost 3.7s, and an ordinary body
+word costs about a three-hundredth of a collected one.
 
-Two hypotheses were formed and both refuted by measurement, which is the useful
-part of the record:
+## Three hypotheses, all refuted by measurement
 
-* **The per-entry state bracket.** Every entry brackets its body with an
-  `_ap_origin` update, and a collected block makes two state events per note where
-  a page foot makes two per page. Removing both lines: 48.8s to 40.3s. A seventh.
-* **The synthetic oblique.** Ksav has no italic Hebrew face and shears the glyphs
-  instead, boxing every word, and the shipped style ramp sets tier two and below
-  italic — which would be a per-word cost of exactly this shape. Forcing
-  `סגנון: "normal"`: no improvement at all.
+Recorded so nobody spends an afternoon re-running them.
 
-One thing was fixed along the way and is worth keeping on its own merits, though
-it does not move these documents: `_nr_numbers` asked `_nr_origin` for every entry
-and `_nr_origin` queries the whole document, so an apparatus showing every note at
-once did one full query per note. It is one query and one merge pass now. These
-documents never reach it — they restart no numbering, so the walk short-circuits
-— but a sefer that restarts per siman reaches it on every entry.
+**1. The per-entry state bracket.** Every entry brackets its body with an
+`_ap_origin` update, so a collected block makes two state events per note where a
+page foot makes two per page. Debug said removing them saved a seventh, which was
+inside the noise. Release says removing them costs **12.3s against 5.6s** — the
+brackets make it more than twice as *fast*. Whatever they do to what Typst
+memoises, they are helping, and the hypothesis was not merely wrong but backwards.
 
-The next step is not another guess. It is a **release build** and Typst's own
-`typst_timing`, on a machine with nothing else running. Wall-clock on a debug
-build here has been measured to be worth ±100%, and no amount of care in reading
-those numbers fixes that.
+**2. The synthetic oblique.** Ksav has no italic Hebrew face and shears the
+glyphs, boxing every word, and the shipped ramp sets tier two and below italic —
+exactly a per-word cost of this shape. Forcing `סגנון: "normal"`: no improvement.
+
+**3. The numbering walk.** `_nr_numbers` asked `_nr_origin` for every entry and
+`_nr_origin` queries the whole document — one full query per note in a block
+showing every note, which is a genuine O(n·m). It is one query and one merge pass
+now, and it is worth keeping on its own merits, but it does not move these
+documents: they restart no numbering, so `_nr_any()` short-circuits before the
+walk begins. A sefer that restarts per siman reaches it on every entry.
+
+## What is left to try
+
+Typst's own `typst_timing` against the release binary, which is the one
+instrument not yet used. Everything above is bisection by document, and bisection
+by document has now been taken as far as it goes: it says *where* the cost is —
+the text inside a collected block — and it cannot say *what* is doing it.
+
+One more fact for whoever picks it up, because it is the sort that saves a day:
+the debug and release builds disagree about the sign of hypothesis 1. Measure on
+release.

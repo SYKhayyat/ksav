@@ -47,7 +47,7 @@ export const NOTE_COMMAND = "הערה";
 export const DEFAULT_CHANNEL = "הערה";
 
 /**
- * The three placements, in the order a chooser offers them.
+ * The four placements, in the order a chooser offers them.
  *
  * The decision record names five. Three of them are the ones a writer chooses;
  * the other two are consequences. *Indented inside its parent's block* is what a
@@ -55,7 +55,7 @@ export const DEFAULT_CHANNEL = "הערה";
  * cannot be indented inside a block three hundred pages away — and *a named
  * region* is an argument every placement takes.
  */
-export const PLACEMENTS = ["רגל", "סוף_מדור", "סוף"] as const;
+export const PLACEMENTS = ["רגל", "סוף_מדור", "סוף", "קובץ"] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
 /** How a region lays out the channels pointed into it. */
@@ -107,9 +107,11 @@ const EN_VALUES: Record<string, string> = {
   מוערם: "stacked",
   צד: "side",
   // A companion volume, which is a destination rather than a placement today —
-  // `_ch_places` does not carry it yet, and `caveatsFor` says so in words. The
-  // spelling is here because it is the same table either way and a second one
-  // for the destinations is how two spellings of a value get written.
+  // `_ch_places` carries it now — a companion volume is a fourth placement, with
+  // its own sheet and its own page count. The spelling was written here before
+  // the engine had one, and `caveatsFor` said so in words until it did; the
+  // caveat retired itself the moment `PLACEMENTS` grew, which is what that
+  // mechanism was for.
   קובץ: "file",
 };
 const HE_VALUES: Record<string, string> = Object.fromEntries(

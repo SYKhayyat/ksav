@@ -110,6 +110,14 @@ export interface DocConfig {
    */
   continuous?: boolean;
   /**
+   * A companion volume — a channel at `מיקום: "קובץ"` — written as its own
+   * file rather than bound behind the body.
+   *
+   * The same content either way, which is the point: the choice is made after
+   * the sefer is written and changing it does not touch a note.
+   */
+  separate_volume?: boolean;
+  /**
    * Which pages to export, `1,3,5-9`. A property of one export rather than of
    * the document, so it is set at the moment of exporting and never persisted.
    */

@@ -152,6 +152,8 @@
   foot: "רגל",
   section: "סוף_מדור",
   document: "סוף",
+  // A companion volume — its own sheet and its own page count. See `_ch_places`.
+  file: "קובץ",
   end: "סוף",
   // הגדרות_סקירה · תצוגה
   marks: "סימון",
@@ -2312,6 +2314,7 @@
   כיווץ: 0pt,
   רצף: false,
   ריווח_שורה: none,
+  הסט: 0pt,
 ) = {
   above
   // One entry, marker and body, at whatever this page's settings are. Shared by
@@ -2386,6 +2389,17 @@
   }
   let cols = _ap_pick(cfg, "טורים", g, 1)
   let filled = if cols > 1 { columns(cols, inner) } else { inner }
+  // The slice this page shows of a note that is spilling through the region.
+  // `move` shifts **paint and not layout**, which is exactly what is wanted: the
+  // block stays where it is on every page and the content slides up inside it,
+  // so page two's window resumes precisely where page one's stopped. No content
+  // is cut, so it works on a table or an image as well as on a paragraph.
+  //
+  // The cost, and it is real: the whole note is emitted into every page it runs
+  // through and only masked. Text extraction, copy, and Ksav's own search of the
+  // printed page see it once per page. Cutting the body at a word boundary would
+  // give a clean text layer and only works on text.
+  let filled = if הסט == 0pt { filled } else { move(dy: -הסט, filled) }
   _ap_slot(if גובה == auto { _ap_pick(cfg, "גבהים", g, none) } else { גובה }, filled)
 }
 
@@ -2460,6 +2474,23 @@
 /// read-only footer can see it.
 #let _ap_reserve = state("ksav-ap-reserve", 0pt)
 
+/// The room a page-foot apparatus has when no reserve was declared.
+///
+/// `#מסמך` sets the page margins before any `#אזור` line in the body has run, so
+/// a region cannot enlarge the reserve it needs — which left every document that
+/// declared `#אזור(גובה:)` and no `אזור_הערות` with **no bound at all**: the
+/// footer's clipping block is written inside `if reserve != 0pt`, so the one case
+/// that most needs a bound was the one branch that could not reach it. That is
+/// the single configuration behind the truncated notes, the reading that looked
+/// like printing off the paper, and the region heights that did nothing.
+///
+/// So the bottom margin is the bound instead, less the page number and its
+/// clearance. Seven tenths is not measured, it is chosen: the number needs a
+/// line and a little air, and a fraction resolves against any margin without
+/// needing a context to work it out.
+#let _ap_free = state("ksav-ap-free", 0pt)
+#let _ap_free_share = 0.7
+
 /// How much room a page-foot region actually has.
 ///
 /// The declared reserve when there is one, and otherwise the bottom margin,
@@ -2474,6 +2505,10 @@
 #let _ap_room() = {
   let r = _ap_reserve.get()
   if r > 0pt { return r }
+  // What the footer will actually clip to, so the walk that decides what fits
+  // and the block that draws it are working from one number.
+  let f = _ap_free.get()
+  if f > 0pt { return f }
   // No reserve was declared, so the room is whatever is under the footer where
   // it actually starts — which is **not** the bottom margin. The page number
   // and its clearance live in that margin too, and on a default sheet the
@@ -2753,6 +2788,7 @@
   let over = ()
   let scales = (:)
   let tracks = (:)
+  let spans = (:)
   for k in order {
     let g = gof.at(k)
     let moves = policy_of(g)
@@ -2816,7 +2852,8 @@
     tracks.insert(k, tr)
     // Now place. The first entry of a group always goes on the page, however
     // tall it is, because carrying it for ever is a note that was written and
-    // never printed.
+    // never printed — but *how much of it* this page shows is the next question,
+    // and `span` is the answer.
     //
     // **This is not a good answer, and the comment here used to claim it was.**
     // It said a clipped note is something a reader can see. It is not: `_ap_slot`
@@ -2832,6 +2869,7 @@
     let u = 0pt
     let mine = ()
     let rest = ()
+    let span = 1
     for j in idxs {
       if rest.len() > 0 {
         rest.push(j)
@@ -2847,12 +2885,27 @@
       } else {
         mine.push(j)
         u = hh
+        // **One entry taller than the whole region.** Truncation is never the
+        // answer, and it was the answer: `_ap_slot` clips, so the second half of
+        // such a note was masked away and the page read as a short apparatus.
+        // Spilling it as a whole does not help either — the next page's region is
+        // exactly as small — so it spills *into itself*, over as many pages as it
+        // takes, and each of them shows one region's worth of it.
+        //
+        // The page footer cannot continue a block: it is composed afresh on every
+        // page and has no notion of what the page before ended on. So the note is
+        // emitted whole into every one of its pages and each draws a different
+        // part of it, which is what `slot` and the renderer's `move` are for.
+        if bounded and mine.len() == 1 and hh > cap and can_spill {
+          span = calc.max(1, calc.ceil(hh / cap))
+        }
       }
     }
     placed += mine
     over += rest
+    if span > 1 { spans.insert(k, span) }
   }
-  (placed: placed, over: over, scales: scales, tracks: tracks)
+  (placed: placed, over: over, scales: scales, tracks: tracks, spans: spans, caps: caps)
 }
 
 /// Where each note of a page-foot apparatus prints, and how it is set.
@@ -2883,11 +2936,15 @@
   if n == 0 { return () }
   let out = ()
   for _ in range(n) {
-    out.push((page: 0, scale: 1.0, tracking: 0pt, runin: false))
+    out.push((page: 0, scale: 1.0, tracking: 0pt, runin: false, span: 1, slot: 0pt))
   }
   let i = 0
   let carry = ()
   let pg = 0
+  // How long each group's region is still showing the rest of an over-tall
+  // entry. Nothing else of that group may be placed while it runs, because the
+  // region is full of the note that is spilling through it.
+  let busy = (:)
   while i < n or carry.len() > 0 {
     // With nothing carried, the next page with any work on it is the next page
     // anything is anchored to — a sefer with notes on pages 3 and 40 does not
@@ -2898,17 +2955,25 @@
       cands.push(i)
       i += 1
     }
+    // A group whose region is still spilling an earlier note shows nothing else
+    // this page. Its candidates wait rather than being dropped.
+    let held = cands.filter(j => busy.at(str(all.at(j).value.group), default: 0) > pg)
+    let cands = cands.filter(j => busy.at(str(all.at(j).value.group), default: 0) <= pg)
     let f = _ap_fill(all, cands, cfg, cap_of, policy_of)
     for j in f.placed {
       let k = str(all.at(j).value.group)
+      let sp = f.spans.at(k, default: 1)
       out.at(j) = (
         page: pg,
         scale: f.scales.at(k),
         tracking: f.tracks.at(k),
         runin: policy_of(all.at(j).value.group).contains("רצף"),
+        span: sp,
+        slot: f.caps.at(k, default: 0pt),
       )
+      if sp > 1 { busy.insert(k, pg + sp) }
     }
-    carry = f.over
+    carry = held + f.over
     pg += 1
   }
   out
@@ -2930,24 +2995,28 @@
   let scales = (:)
   let tracks = (:)
   let runins = (:)
+  let offsets = (:)
   for i in range(all.len()) {
     let d = where.at(i)
-    if d.page == pg {
+    // On every page of its span, not only the first. The entry is emitted whole
+    // each time and the offset says which part of it this page shows.
+    if pg >= d.page and pg < d.page + d.span {
       mine.push(all.at(i))
       let k = str(all.at(i).value.group)
       scales.insert(k, d.scale)
       tracks.insert(k, d.tracking)
       runins.insert(k, d.runin)
+      offsets.insert(k, d.slot * (pg - d.page))
     }
   }
-  (entries: mine, scales: scales, tracks: tracks, runins: runins)
+  (entries: mine, scales: scales, tracks: tracks, runins: runins, offsets: offsets)
 }
 
 /// The last page any of an apparatus's notes was assigned to.
 #let _ap_last_page(all, cfg, cap_of, policy_of: g => _ap_spill_default) = {
   let last = 0
   for d in _ap_assign(all, cfg, cap_of, policy_of: policy_of) {
-    last = calc.max(last, d.page)
+    last = calc.max(last, d.page + d.span - 1)
   }
   last
 }
@@ -2963,6 +3032,7 @@
     כיווץ: on.tracks.at(k, default: 0pt),
     רצף: on.runins.at(k, default: false),
     ריווח_שורה: _ap_lead(cfg, g, sc),
+    הסט: on.offsets.at(k, default: 0pt),
   )
 }
 
@@ -3024,7 +3094,18 @@
 //  this layer exists above.
 // ============================================================
 #let _ch_default = "הערה"
-#let _ch_places = ("רגל", "סוף_מדור", "סוף")
+// A fourth place: **a companion volume.**
+//
+// `"סוף"` is the back of this sefer — the notes follow the body, in the same page
+// numbering, as a section of it. `"קובץ"` is a volume of its own: it starts on a
+// fresh sheet and restarts its page count, the way a kuntres of biurim bound
+// behind a sefer is numbered separately from the sefer.
+//
+// Whether it is bound behind the body or written out as a second file is the
+// writer's, and it is `#מסמך(כרך_נפרד:)` — the same content either way, so the
+// choice can be made after everything is written, which is the whole promise of
+// the channel model.
+#let _ch_places = ("רגל", "סוף_מדור", "סוף", "קובץ")
 // A knob of a channel, and where the shared renderer reads it: `_ap_pick` wants
 // knob-major dictionaries keyed by the group, and a channel's record is
 // channel-major. `כותרת` is singular on a channel and plural in the renderer for
@@ -3163,6 +3244,89 @@
 /// would switch itself off on the next layout pass, switch back on the pass
 /// after, and never settle.
 #let _cn_shown = state("ksav-cn-shown", ())
+
+// ---- the grid region · a parallel-column page ----
+//
+// `NOTES-PLAN` thing three asks for a region that is a page split into parallel
+// columns synchronised on a chunk — the Vilna page, and equally an original
+// facing a translation, which is why it belongs to regions and not to notes.
+//
+// # `פריסה: "צד"` already was this, and needed two things
+//
+// The naming record's open question was what to call grid-versus-box, since
+// `פריסה` was taken. It turns out not to need a word: a region whose channels
+// sit side by side **is** the parallel-column arrangement, and `פריסה: "צד"` has
+// meant that since channels existed. What it could not do was set the column
+// widths, and what it could not do at all was keep the columns in register.
+//
+//   · `טורים` — the widths, as a list, one per channel in the region
+//   · `יחידה` — what the columns are synchronised on
+//
+// # Synchronisation is a row per unit, and that is the whole mechanism
+//
+// Without `יחידה` a region draws each channel as one long cell, and the columns
+// drift apart exactly as far as their contents differ in length — which is what
+// makes amateur parallel typesetting look wrong, and which no amount of care
+// inside a column fixes. With it, the region is a grid of *rows*: one per unit,
+// each holding what each channel has to say about that unit, and every row
+// starts level because a grid row starts level. It is the same answer
+// `perdaf.ksav` demonstrates by hand — register per daf — with the writer no
+// longer writing the table.
+#let _rg_grid_units = ("כותרת", "סימן", "מדור")
+
+/// The column widths a grid region declared, one per channel.
+#let _ch_region_cols(t, rg, chans) = {
+  let w = _rg_rec(t, rg).at("טורים", default: none)
+  if w == none or type(w) != array { return chans.map(_ => 1fr) }
+  if w.len() != chans.len() {
+    panic(
+      "אזור " + rg + ": טורים · " + str(w.len()) + " column widths were given for "
+        + str(chans.len()) + " channels. A grid region's widths are one per "
+        + "channel, in the order the channels were pointed into it.",
+    )
+  }
+  w
+}
+
+/// What this region's columns are kept in register by, or `none`.
+#let _ch_region_unit(t, rg) = {
+  let u = _rg_rec(t, rg).at("יחידה", default: none)
+  if u == none { return none }
+  let u = _val(u)
+  if not _rg_grid_units.contains(u) {
+    panic(
+      "אזור " + rg + ": יחידה לא מוכרת · unknown synchronisation unit: "
+        + _as_string(u) + " (" + _rg_grid_units.join(" · ") + ")",
+    )
+  }
+  u
+}
+
+// Document order as a value that can be compared. Typst gives no ordering on
+// locations themselves, and both the unit markers and the entries come back from
+// their queries in document order — so page and vertical position is enough to
+// say which of two things came first, and it is the only pair that is true
+// across a page break.
+#let _rg_key(l) = (l.page(), l.position().y)
+#let _rg_before(a, b) = a.at(0) < b.at(0) or (a.at(0) == b.at(0) and a.at(1) < b.at(1))
+
+/// The unit boundaries in the sefer, as comparable keys.
+#let _rg_bounds(unit) = {
+  let sel = if unit == "מדור" { heading.where(level: 1) } else { heading }
+  query(sel).map(h => _rg_key(h.location()))
+}
+
+/// Which unit an entry belongs to: how many boundaries lie before it. Zero is
+/// everything written above the first one, which is a real place in a sefer —
+/// a hakdama sits there — and gets a row of its own rather than being dropped.
+#let _rg_unit_of(bounds, e) = {
+  let k = _rg_key(e.location())
+  let n = 0
+  for b in bounds {
+    if _rg_before(b, k) { n += 1 } else { break }
+  }
+  n
+}
 
 #let _ch_region_side(t, rg) = _val(_rg_rec(t, rg).at("פריסה", default: "מוערם")) == "צד"
 
@@ -3733,10 +3897,42 @@
         rg => {
           let chans = members.at(rg)
           let one(s) = _sf_stream_block(cfg, s, mine, all, on)
-          _ap_slot(_ch_region_height(cfg, t, rg, chans), if chans.len() == 1 {
+          // A grid region: the channels are columns, and `יחידה` keeps them in
+          // register. Without it the columns are one long cell each and drift
+          // apart by however much their contents differ, which is the thing
+          // that makes parallel typesetting look amateur and which no care
+          // inside a column can fix. With it there is one grid row per unit,
+          // and a grid row starts level by construction.
+          let unit = _ch_region_unit(t, rg)
+          let cols = _ch_region_cols(t, rg, chans)
+          _ap_slot(_ch_region_height(cfg, t, rg, chans), if chans.len() == 1 and unit == none {
             one(chans.first())
           } else if _ch_region_side(t, rg) {
-            grid(columns: chans.map(_ => 1fr), column-gutter: 1.2em, ..chans.map(one))
+            if unit == none {
+              grid(columns: cols, column-gutter: 1.2em, ..chans.map(one))
+            } else {
+              let bounds = _rg_bounds(unit)
+              // Only the units that have something in them this page. An empty
+              // row is a band of white across the page for a siman that had no
+              // commentary, and the register is kept by the rows that exist.
+              let want = ()
+              for e in mine {
+                if chans.contains(e.value.group) {
+                  let u = _rg_unit_of(bounds, e)
+                  if not want.contains(u) { want.push(u) }
+                }
+              }
+              let cells = ()
+              for u in want.sorted() {
+                for s in chans {
+                  let his = mine.filter(e => (
+                    e.value.group == s and _rg_unit_of(bounds, e) == u
+                  ))
+                  cells.push(_sf_stream_block(cfg, s, his, all, on))
+                }
+              }
+              grid(columns: cols, column-gutter: 1.2em, row-gutter: 0.6em, ..cells)
+            }
           } else {
             for s in chans { one(s) }
           })
@@ -3788,6 +3984,9 @@
 #let _rg_own = (
   "מיקום", "גובה", "פריסה", "כותרת", "גלישה", "הקטנה_מזערית", "שומר_מקום",
   "ראש", "מספור_כתובת", "דף_ראשון",
+  // A parallel-column region: the widths of its columns, and what keeps them in
+  // register. See the grid-region block above `_ch_region_side`.
+  "טורים", "יחידה",
 )
 
 // The apparatus configuration for a set of collected channels: whatever the
@@ -4897,6 +5096,15 @@
   // address in an apparatus is worth nothing without them, and they are the one
   // addressing scheme that puts anything on the body page.
   מספור_שורות: false,
+  // A companion volume — a channel at `מיקום: "קובץ"` — bound behind the body
+  // or written out as a file of its own. **The same content either way**, which
+  // is the point: the choice is made after the sefer is written, and changing it
+  // does not touch a note.
+  //
+  // `false` binds it at the back, on its own sheet with its own page count.
+  // `true` holds it out of this document entirely, for the engine to render as
+  // a second file — see `compile_companion`.
+  כרך_נפרד: false,
   רשת_בסיס: false,
   רציף: false,
   כותרת_עליונה: none,
@@ -5078,6 +5286,13 @@
           _sf_page_streams()
         })
       } else {
+        // No block here, and that is deliberate. A fixed-height block draws its
+        // height whether or not it has anything in it, so bounding the footer
+        // this way pushed the page number down 49.6pt on **every** document,
+        // apparatus or not. The bound belongs to the region rather than to the
+        // footer: `_ap_fit_room` clamps a declared height to `_ap_room`, and
+        // `_ap_slot` clips at the clamped height, so a region is bounded and a
+        // page with no apparatus pays nothing.
         _pp_page_bands()
         _sf_page_streams()
       }
@@ -5153,6 +5368,7 @@
   // next page — and it is *declared*, which is the whole reason that walk
   // converges. See `_ap_assign`.
   _ap_reserve.update(reserve)
+  _ap_free.update(m_bot * _ap_free_share)
   set footnote.entry(gap: ריווח_הערות)
   // Keep the heading counter stepping (so #הגדרות_כותרות(מספור: …) can display a
   // number) while suppressing Typst's own number — _hd_show renders headings
@@ -5205,10 +5421,27 @@
   context {
     let t = _ch_st.final()
     let shown = _cn_shown.final()
-    for rg in t.סדר_אזורים {
-      if _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) != "סוף" { continue }
-      if shown.contains(rg) { continue }
-      _rg_show(rg, auto)
+    // The back of the sefer first, then the companion volumes, whatever order
+    // they were declared in: a volume of its own comes after everything that is
+    // part of this one, which is what makes it a separate volume.
+    for place in ("סוף", "קובץ") {
+      // A companion held for a file of its own prints nothing here. It is not
+      // dropped — every note in it is still filed, still numbered, still
+      // queryable — it is simply not part of *this* document.
+      if place == "קובץ" and כרך_נפרד { continue }
+      for rg in t.סדר_אזורים {
+        if _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) != place { continue }
+        if shown.contains(rg) { continue }
+        if place == "קובץ" {
+          // Its own sheet and its own count, which is what separates a volume
+          // from a section. The *scheme* stays the document’s: `set page` inside
+          // a `context` reaches only that block’s content and not the page it
+          // above it, and a reader citing it would be citing this sefer's pages.
+          pagebreak(weak: false)
+          counter(page).update(1)
+        }
+        _rg_show(rg, auto)
+      }
     }
   }
   // After the body, and only ever after it: pages for whatever the side column
@@ -5262,6 +5495,8 @@
   // is impossible by definition because there is no page bottom for a note to
   // fall past.
   continuous: "רציף",
+  // Whether a companion volume is bound at the back or written as its own file.
+  separate_volume: "כרך_נפרד",
   // Every line advances by one grid unit or by a whole multiple of it, so a
   // commentary set smaller than the body still meets it line for line.
   baseline_grid: "רשת_בסיס",

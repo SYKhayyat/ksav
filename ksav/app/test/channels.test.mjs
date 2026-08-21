@@ -243,7 +243,10 @@ export async function run() {
 
   // ------------------------------------------------------------------ the axes
 
-  ok("channels: three placements, not eighteen commands", PLACEMENTS.length === 3);
+  // Four now: the foot of the page, the end of the section, the end of the sefer
+  // and a companion volume of its own. Still an *axis* rather than eighteen
+  // commands, which is the thing this line is really asserting.
+  ok("channels: four placements, not eighteen commands", PLACEMENTS.length === 4);
   ok(
     "channels: every placement round-trips through a written line",
     PLACEMENTS.every((p) => {

@@ -684,6 +684,10 @@ export const PAGE_FIELDS = [
   // showed a writer a page shape their PDF does not have would be the preview
   // lying about the page — which is the defect this repository is named for.
   "continuous",
+  // Whether a companion volume is written as its own file or bound behind the
+  // body. A page field like any other: it is a property of the document and not
+  // of one export, because the same sefer printed twice is printed the same way.
+  "separate_volume",
 ] as const;
 
 const KEY = "ksav.settings";

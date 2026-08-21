@@ -44,7 +44,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "שורה של פרוזה ובה מלים#הערה(ערוץ: \"קובץ\")[]אחרות להמשך."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nשורה של פרוזה ובה מלים#הערה(ערוץ: \"קובץ\")[]אחרות להמשך.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "prose",
@@ -134,7 +134,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "שורה של פרוזה ובה מלים#הערה[#הערה(ערוץ: \"קובץ\")[]]אחרות להמשך."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nשורה של פרוזה ובה מלים#הערה[#הערה(ערוץ: \"קובץ\")[]]אחרות להמשך.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "prose",
@@ -215,7 +215,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "שורה של פרוזה ובה מלים#הערה_בשם(\"1\", ערוץ: \"קובץ\")אחרות להמשך.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nשורה של פרוזה ובה מלים#הערה_בשם(\"1\", ערוץ: \"קובץ\")אחרות להמשך.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "prose",
@@ -305,7 +305,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "שורה של פרוזה ובה מלים#הערה_בשם(\"1\")אחרות להמשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nשורה של פרוזה ובה מלים#הערה_בשם(\"1\")אחרות להמשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "prose",
@@ -386,7 +386,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "שורה של פרוזה ובה מלים#הערה_בשם(\"1\", ערוץ: \"קובץ\")אחרות להמשך.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nשורה של פרוזה ובה מלים#הערה_בשם(\"1\", ערוץ: \"קובץ\")אחרות להמשך.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "prose",
@@ -476,7 +476,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "שורה של פרוזה ובה מלים#הערה_בשם(\"1\")אחרות להמשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nשורה של פרוזה ובה מלים#הערה_בשם(\"1\")אחרות להמשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "prose",
@@ -557,7 +557,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "A line of prose with some wor#fnote(channel: \"file\")[]ds to continue."
+   "source": "#channel(\"file\", placement: \"file\")\n\nA line of prose with some wor#fnote(channel: \"file\")[]ds to continue.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "prose",
@@ -647,7 +647,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "A line of prose with some wor#fnote[#fnote(channel: \"file\")[]]ds to continue."
+   "source": "#channel(\"file\", placement: \"file\")\n\nA line of prose with some wor#fnote[#fnote(channel: \"file\")[]]ds to continue.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "prose",
@@ -728,7 +728,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "A line of prose with some wor#note_named(\"1\", channel: \"file\")ds to continue.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nA line of prose with some wor#note_named(\"1\", channel: \"file\")ds to continue.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "prose",
@@ -818,7 +818,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "A line of prose with some wor#note_named(\"1\")ds to continue.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nA line of prose with some wor#note_named(\"1\")ds to continue.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "prose",
@@ -899,7 +899,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "A line of prose with some wor#note_named(\"1\", channel: \"file\")ds to continue.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nA line of prose with some wor#note_named(\"1\", channel: \"file\")ds to continue.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "prose",
@@ -989,7 +989,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "A line of prose with some wor#note_named(\"1\")ds to continue.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nA line of prose with some wor#note_named(\"1\")ds to continue.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "prose",
@@ -1070,7 +1070,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#כותרת1[פרק #הערה(ערוץ: \"קובץ\")[]ראשון]\n\nגוף."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת1[פרק #הערה(ערוץ: \"קובץ\")[]ראשון]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1160,7 +1160,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#כותרת1[פרק #הערה[#הערה(ערוץ: \"קובץ\")[]]ראשון]\n\nגוף."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת1[פרק #הערה[#הערה(ערוץ: \"קובץ\")[]]ראשון]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1241,7 +1241,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#כותרת1[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשון]\n\nגוף.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת1[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשון]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "heading-body",
@@ -1331,7 +1331,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#כותרת1[פרק #הערה_בשם(\"1\")ראשון]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת1[פרק #הערה_בשם(\"1\")ראשון]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1412,7 +1412,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#כותרת1[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשון]\n\nגוף.\n\n#גוף_הערה(\"1\")[]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת1[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשון]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "heading-body",
@@ -1502,7 +1502,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#כותרת1[פרק #הערה_בשם(\"1\")ראשון]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת1[פרק #הערה_בשם(\"1\")ראשון]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1583,7 +1583,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#h1[Chapter #fnote(channel: \"file\")[]One]\n\nBody."
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h1[Chapter #fnote(channel: \"file\")[]One]\n\nBody.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1673,7 +1673,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#h1[Chapter #fnote[#fnote(channel: \"file\")[]]One]\n\nBody."
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h1[Chapter #fnote[#fnote(channel: \"file\")[]]One]\n\nBody.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1754,7 +1754,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#h1[Chapter #note_named(\"1\", channel: \"file\")One]\n\nBody.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h1[Chapter #note_named(\"1\", channel: \"file\")One]\n\nBody.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "heading-body",
@@ -1844,7 +1844,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#h1[Chapter #note_named(\"1\")One]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h1[Chapter #note_named(\"1\")One]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "heading-body",
@@ -1925,7 +1925,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#h1[Chapter #note_named(\"1\", channel: \"file\")One]\n\nBody.\n\n#note_body(\"1\")[]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h1[Chapter #note_named(\"1\", channel: \"file\")One]\n\nBody.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "heading-body",
@@ -2015,7 +2015,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#h1[Chapter #note_named(\"1\")One]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h1[Chapter #note_named(\"1\")One]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "heading-body",
@@ -2096,7 +2096,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "טקסט#הערה[הערה #הערה(ערוץ: \"קובץ\")[]פנימית] המשך."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nטקסט#הערה[הערה #הערה(ערוץ: \"קובץ\")[]פנימית] המשך.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-body",
@@ -2186,7 +2186,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "טקסט#הערה[הערה #הערה[#הערה(ערוץ: \"קובץ\")[]]פנימית] המשך."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nטקסט#הערה[הערה #הערה[#הערה(ערוץ: \"קובץ\")[]]פנימית] המשך.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-body",
@@ -2267,7 +2267,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "טקסט#הערה[הערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")פנימית] המשך.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nטקסט#הערה[הערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")פנימית] המשך.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "note-body",
@@ -2357,7 +2357,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "טקסט#הערה[הערה #הערה_בשם(\"1\")פנימית] המשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nטקסט#הערה[הערה #הערה_בשם(\"1\")פנימית] המשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-body",
@@ -2438,7 +2438,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "טקסט#הערה[הערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")פנימית] המשך.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nטקסט#הערה[הערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")פנימית] המשך.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "note-body",
@@ -2528,7 +2528,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "טקסט#הערה[הערה #הערה_בשם(\"1\")פנימית] המשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\nטקסט#הערה[הערה #הערה_בשם(\"1\")פנימית] המשך.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-body",
@@ -2609,7 +2609,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "Text#fnote[a note #fnote(channel: \"file\")[]inside] continues."
+   "source": "#channel(\"file\", placement: \"file\")\n\nText#fnote[a note #fnote(channel: \"file\")[]inside] continues.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-body",
@@ -2699,7 +2699,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "Text#fnote[a note #fnote[#fnote(channel: \"file\")[]]inside] continues."
+   "source": "#channel(\"file\", placement: \"file\")\n\nText#fnote[a note #fnote[#fnote(channel: \"file\")[]]inside] continues.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-body",
@@ -2780,7 +2780,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "Text#fnote[a note #note_named(\"1\", channel: \"file\")inside] continues.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nText#fnote[a note #note_named(\"1\", channel: \"file\")inside] continues.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "note-body",
@@ -2870,7 +2870,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "Text#fnote[a note #note_named(\"1\")inside] continues.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nText#fnote[a note #note_named(\"1\")inside] continues.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-body",
@@ -2951,7 +2951,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "Text#fnote[a note #note_named(\"1\", channel: \"file\")inside] continues.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nText#fnote[a note #note_named(\"1\", channel: \"file\")inside] continues.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "note-body",
@@ -3041,7 +3041,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "Text#fnote[a note #note_named(\"1\")inside] continues.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\nText#fnote[a note #note_named(\"1\")inside] continues.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-body",
@@ -3122,7 +3122,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#רשימה(\n  פריט[ראשון #הערה(ערוץ: \"קובץ\")[]כאן],\n  פריט[שני],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה(ערוץ: \"קובץ\")[]כאן],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3212,7 +3212,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[#הערה(ערוץ: \"קובץ\")[]]כאן],\n  פריט[שני],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[#הערה(ערוץ: \"קובץ\")[]]כאן],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3293,7 +3293,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "list-in-item",
@@ -3383,7 +3383,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\")כאן],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\")כאן],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3464,7 +3464,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "list-in-item",
@@ -3554,7 +3554,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\")כאן],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה_בשם(\"1\")כאן],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3635,7 +3635,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#bullets(\n  item[first #fnote(channel: \"file\")[]here],\n  item[second],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote(channel: \"file\")[]here],\n  item[second],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3725,7 +3725,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#bullets(\n  item[first #fnote[#fnote(channel: \"file\")[]]here],\n  item[second],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[#fnote(channel: \"file\")[]]here],\n  item[second],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3806,7 +3806,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(\n  item[first #note_named(\"1\", channel: \"file\")here],\n  item[second],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #note_named(\"1\", channel: \"file\")here],\n  item[second],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "list-in-item",
@@ -3896,7 +3896,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(\n  item[first #note_named(\"1\")here],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #note_named(\"1\")here],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -3977,7 +3977,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(\n  item[first #note_named(\"1\", channel: \"file\")here],\n  item[second],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #note_named(\"1\", channel: \"file\")here],\n  item[second],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "list-in-item",
@@ -4067,7 +4067,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(\n  item[first #note_named(\"1\")here],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #note_named(\"1\")here],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-in-item",
@@ -4148,7 +4148,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#רשימה(\n  פריט[ראשון],הערה(ערוץ: \"קובץ\")[],\n  פריט[שני],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון],הערה(ערוץ: \"קובץ\")[],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -4238,7 +4238,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#רשימה(\n  פריט[ראשון],הערה[#הערה(ערוץ: \"קובץ\")[]],\n  פריט[שני],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון],הערה[#הערה(ערוץ: \"קובץ\")[]],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -4319,7 +4319,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "list-between-items",
@@ -4409,7 +4409,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\"),\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\"),\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -4490,7 +4490,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "list-between-items",
@@ -4580,7 +4580,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\"),\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון],הערה_בשם(\"1\"),\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -4661,7 +4661,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#bullets(\n  item[first],fnote(channel: \"file\")[],\n  item[second],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first],fnote(channel: \"file\")[],\n  item[second],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -4751,7 +4751,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#bullets(\n  item[first],fnote[#fnote(channel: \"file\")[]],\n  item[second],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first],fnote[#fnote(channel: \"file\")[]],\n  item[second],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -4832,7 +4832,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(\n  item[first],note_named(\"1\", channel: \"file\"),\n  item[second],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first],note_named(\"1\", channel: \"file\"),\n  item[second],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "list-between-items",
@@ -4922,7 +4922,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(\n  item[first],note_named(\"1\"),\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first],note_named(\"1\"),\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -5003,7 +5003,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(\n  item[first],note_named(\"1\", channel: \"file\"),\n  item[second],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first],note_named(\"1\", channel: \"file\"),\n  item[second],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "list-between-items",
@@ -5093,7 +5093,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(\n  item[first],note_named(\"1\"),\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first],note_named(\"1\"),\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-between-items",
@@ -5174,7 +5174,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#רשימה(הערה(ערוץ: \"קובץ\")[],\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(הערה(ערוץ: \"קובץ\")[],\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -5264,7 +5264,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#רשימה(הערה[#הערה(ערוץ: \"קובץ\")[]],\n  פריט[ראשון],\n  פריט[שני],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(הערה[#הערה(ערוץ: \"קובץ\")[]],\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -5345,7 +5345,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "list-after-open",
@@ -5435,7 +5435,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(הערה_בשם(\"1\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(הערה_בשם(\"1\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -5516,7 +5516,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(הערה_בשם(\"1\", ערוץ: \"קובץ\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "list-after-open",
@@ -5606,7 +5606,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(הערה_בשם(\"1\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(הערה_בשם(\"1\"),\n  פריט[ראשון],\n  פריט[שני],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -5687,7 +5687,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#bullets(fnote(channel: \"file\")[],\n  item[first],\n  item[second],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(fnote(channel: \"file\")[],\n  item[first],\n  item[second],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -5777,7 +5777,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#bullets(fnote[#fnote(channel: \"file\")[]],\n  item[first],\n  item[second],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(fnote[#fnote(channel: \"file\")[]],\n  item[first],\n  item[second],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -5858,7 +5858,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(note_named(\"1\", channel: \"file\"),\n  item[first],\n  item[second],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(note_named(\"1\", channel: \"file\"),\n  item[first],\n  item[second],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "list-after-open",
@@ -5948,7 +5948,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(note_named(\"1\"),\n  item[first],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(note_named(\"1\"),\n  item[first],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -6029,7 +6029,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(note_named(\"1\", channel: \"file\"),\n  item[first],\n  item[second],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(note_named(\"1\", channel: \"file\"),\n  item[first],\n  item[second],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "list-after-open",
@@ -6119,7 +6119,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(note_named(\"1\"),\n  item[first],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(note_named(\"1\"),\n  item[first],\n  item[second],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "list-after-open",
@@ -6200,7 +6200,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה(ערוץ: \"קובץ\")[]כאן], תא[שתים],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה(ערוץ: \"קובץ\")[]כאן], תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6290,7 +6290,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה[#הערה(ערוץ: \"קובץ\")[]]כאן], תא[שתים],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה[#הערה(ערוץ: \"קובץ\")[]]כאן], תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6371,7 +6371,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן], תא[שתים],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן], תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6461,7 +6461,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\")כאן], תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\")כאן], תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6542,7 +6542,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן], תא[שתים],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן], תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6632,7 +6632,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\")כאן], תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד #הערה_בשם(\"1\")כאן], תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6713,7 +6713,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #fnote(channel: \"file\")[]here], cell[two],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one #fnote(channel: \"file\")[]here], cell[two],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6803,7 +6803,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #fnote[#fnote(channel: \"file\")[]]here], cell[two],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one #fnote[#fnote(channel: \"file\")[]]here], cell[two],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6884,7 +6884,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\", channel: \"file\")here], cell[two],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\", channel: \"file\")here], cell[two],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "table-in-cell",
@@ -6974,7 +6974,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\")here], cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\")here], cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -7055,7 +7055,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\", channel: \"file\")here], cell[two],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\", channel: \"file\")here], cell[two],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "table-in-cell",
@@ -7145,7 +7145,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\")here], cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one #note_named(\"1\")here], cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-in-cell",
@@ -7226,7 +7226,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה(ערוץ: \"קובץ\")[], תא[שתים],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה(ערוץ: \"קובץ\")[], תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7316,7 +7316,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה[#הערה(ערוץ: \"קובץ\")[]], תא[שתים],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה[#הערה(ערוץ: \"קובץ\")[]], תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7397,7 +7397,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\", ערוץ: \"קובץ\"), תא[שתים],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\", ערוץ: \"קובץ\"), תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7487,7 +7487,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\"), תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\"), תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7568,7 +7568,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\", ערוץ: \"קובץ\"), תא[שתים],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\", ערוץ: \"קובץ\"), תא[שתים],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7658,7 +7658,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\"), תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#טבלה(עמודות: (1fr, 1fr),\n  תא[אחד],הערה_בשם(\"1\"), תא[שתים],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7739,7 +7739,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],fnote(channel: \"file\")[], cell[two],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one],fnote(channel: \"file\")[], cell[two],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7829,7 +7829,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],fnote[#fnote(channel: \"file\")[]], cell[two],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one],fnote[#fnote(channel: \"file\")[]], cell[two],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -7910,7 +7910,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\", channel: \"file\"), cell[two],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\", channel: \"file\"), cell[two],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "table-between-cells",
@@ -8000,7 +8000,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\"), cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\"), cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -8081,7 +8081,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\", channel: \"file\"), cell[two],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\", channel: \"file\"), cell[two],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "table-between-cells",
@@ -8171,7 +8171,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\"), cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#mktable(columns: (1fr, 1fr),\n  cell[one],note_named(\"1\"), cell[two],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "table-between-cells",
@@ -8252,7 +8252,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה(ערוץ: \"קובץ\")[]כאן] סוף],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה(ערוץ: \"קובץ\")[]כאן] סוף],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -8342,7 +8342,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה[#הערה(ערוץ: \"קובץ\")[]]כאן] סוף],\n)"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה[#הערה(ערוץ: \"קובץ\")[]]כאן] סוף],\n)\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -8423,7 +8423,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן] סוף],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן] סוף],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "nested-deep",
@@ -8513,7 +8513,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\")כאן] סוף],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\")כאן] סוף],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -8594,7 +8594,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן] סוף],\n)\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\", ערוץ: \"קובץ\")כאן] סוף],\n)\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "nested-deep",
@@ -8684,7 +8684,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\")כאן] סוף],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#רשימה(\n  פריט[ראשון #הערה[בהערה #הערה_בשם(\"1\")כאן] סוף],\n)\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -8765,7 +8765,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#bullets(\n  item[first #fnote[in a note #fnote(channel: \"file\")[]here] end],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[in a note #fnote(channel: \"file\")[]here] end],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -8855,7 +8855,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#bullets(\n  item[first #fnote[in a note #fnote[#fnote(channel: \"file\")[]]here] end],\n)"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[in a note #fnote[#fnote(channel: \"file\")[]]here] end],\n)\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -8936,7 +8936,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(\n  item[first #fnote[in a note #note_named(\"1\", channel: \"file\")here] end],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[in a note #note_named(\"1\", channel: \"file\")here] end],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "nested-deep",
@@ -9026,7 +9026,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(\n  item[first #fnote[in a note #note_named(\"1\")here] end],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[in a note #note_named(\"1\")here] end],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -9107,7 +9107,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#bullets(\n  item[first #fnote[in a note #note_named(\"1\", channel: \"file\")here] end],\n)\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[in a note #note_named(\"1\", channel: \"file\")here] end],\n)\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "nested-deep",
@@ -9197,7 +9197,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#bullets(\n  item[first #fnote[in a note #note_named(\"1\")here] end],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#bullets(\n  item[first #fnote[in a note #note_named(\"1\")here] end],\n)\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "nested-deep",
@@ -9278,7 +9278,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#כותרת4[פרק #הערה(ערוץ: \"קובץ\")[]רביעי]\n\nגוף."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת4[פרק #הערה(ערוץ: \"קובץ\")[]רביעי]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9368,7 +9368,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#כותרת4[פרק #הערה[#הערה(ערוץ: \"קובץ\")[]]רביעי]\n\nגוף."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת4[פרק #הערה[#הערה(ערוץ: \"קובץ\")[]]רביעי]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9449,7 +9449,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#כותרת4[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")רביעי]\n\nגוף.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת4[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")רביעי]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9539,7 +9539,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#כותרת4[פרק #הערה_בשם(\"1\")רביעי]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת4[פרק #הערה_בשם(\"1\")רביעי]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9620,7 +9620,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#כותרת4[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")רביעי]\n\nגוף.\n\n#גוף_הערה(\"1\")[]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת4[פרק #הערה_בשם(\"1\", ערוץ: \"קובץ\")רביעי]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9710,7 +9710,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#כותרת4[פרק #הערה_בשם(\"1\")רביעי]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#כותרת4[פרק #הערה_בשם(\"1\")רביעי]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9791,7 +9791,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#h4[Section #fnote(channel: \"file\")[]Four]\n\nBody."
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h4[Section #fnote(channel: \"file\")[]Four]\n\nBody.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9881,7 +9881,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#h4[Section #fnote[#fnote(channel: \"file\")[]]Four]\n\nBody."
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h4[Section #fnote[#fnote(channel: \"file\")[]]Four]\n\nBody.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -9962,7 +9962,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#h4[Section #note_named(\"1\", channel: \"file\")Four]\n\nBody.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h4[Section #note_named(\"1\", channel: \"file\")Four]\n\nBody.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -10052,7 +10052,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#h4[Section #note_named(\"1\")Four]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h4[Section #note_named(\"1\")Four]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -10133,7 +10133,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#h4[Section #note_named(\"1\", channel: \"file\")Four]\n\nBody.\n\n#note_body(\"1\")[]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h4[Section #note_named(\"1\", channel: \"file\")Four]\n\nBody.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -10223,7 +10223,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#h4[Section #note_named(\"1\")Four]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#h4[Section #note_named(\"1\")Four]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "deep-heading-body",
@@ -10304,7 +10304,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#סימן[א׳][דיני #הערה(ערוץ: \"קובץ\")[]תפילה]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#סימן[א׳][דיני #הערה(ערוץ: \"קובץ\")[]תפילה]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "siman-body",
@@ -10394,7 +10394,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#סימן[א׳][דיני #הערה[#הערה(ערוץ: \"קובץ\")[]]תפילה]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#סימן[א׳][דיני #הערה[#הערה(ערוץ: \"קובץ\")[]]תפילה]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "siman-body",
@@ -10475,7 +10475,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#סימן[א׳][דיני #הערה_בשם(\"1\", ערוץ: \"קובץ\")תפילה]\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#סימן[א׳][דיני #הערה_בשם(\"1\", ערוץ: \"קובץ\")תפילה]\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "siman-body",
@@ -10565,7 +10565,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#סימן[א׳][דיני #הערה_בשם(\"1\")תפילה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#סימן[א׳][דיני #הערה_בשם(\"1\")תפילה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "siman-body",
@@ -10646,7 +10646,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#סימן[א׳][דיני #הערה_בשם(\"1\", ערוץ: \"קובץ\")תפילה]\n\n#גוף_הערה(\"1\")[]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#סימן[א׳][דיני #הערה_בשם(\"1\", ערוץ: \"קובץ\")תפילה]\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "siman-body",
@@ -10736,7 +10736,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#סימן[א׳][דיני #הערה_בשם(\"1\")תפילה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#סימן[א׳][דיני #הערה_בשם(\"1\")תפילה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "siman-body",
@@ -10817,7 +10817,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#siman[1][The laws of #fnote(channel: \"file\")[]prayer]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#siman[1][The laws of #fnote(channel: \"file\")[]prayer]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "siman-body",
@@ -10907,7 +10907,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#siman[1][The laws of #fnote[#fnote(channel: \"file\")[]]prayer]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#siman[1][The laws of #fnote[#fnote(channel: \"file\")[]]prayer]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "siman-body",
@@ -10988,7 +10988,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#siman[1][The laws of #note_named(\"1\", channel: \"file\")prayer]\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#siman[1][The laws of #note_named(\"1\", channel: \"file\")prayer]\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "siman-body",
@@ -11078,7 +11078,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#siman[1][The laws of #note_named(\"1\")prayer]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#siman[1][The laws of #note_named(\"1\")prayer]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "siman-body",
@@ -11159,7 +11159,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#siman[1][The laws of #note_named(\"1\", channel: \"file\")prayer]\n\n#note_body(\"1\")[]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#siman[1][The laws of #note_named(\"1\", channel: \"file\")prayer]\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "siman-body",
@@ -11249,7 +11249,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#siman[1][The laws of #note_named(\"1\")prayer]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#siman[1][The laws of #note_named(\"1\")prayer]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "siman-body",
@@ -11330,7 +11330,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#שער[כותרת #הערה(ערוץ: \"קובץ\")[]ראשית]\n\nגוף."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#שער[כותרת #הערה(ערוץ: \"קובץ\")[]ראשית]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "title-body",
@@ -11420,7 +11420,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#שער[כותרת #הערה[#הערה(ערוץ: \"קובץ\")[]]ראשית]\n\nגוף."
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#שער[כותרת #הערה[#הערה(ערוץ: \"קובץ\")[]]ראשית]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "title-body",
@@ -11501,7 +11501,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#שער[כותרת #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשית]\n\nגוף.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#שער[כותרת #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשית]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "title-body",
@@ -11591,7 +11591,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#שער[כותרת #הערה_בשם(\"1\")ראשית]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#שער[כותרת #הערה_בשם(\"1\")ראשית]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "title-body",
@@ -11672,7 +11672,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#שער[כותרת #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשית]\n\nגוף.\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#שער[כותרת #הערה_בשם(\"1\", ערוץ: \"קובץ\")ראשית]\n\nגוף.\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "title-body",
@@ -11762,7 +11762,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#שער[כותרת #הערה_בשם(\"1\")ראשית]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#שער[כותרת #הערה_בשם(\"1\")ראשית]\n\nגוף.\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "title-body",
@@ -11843,7 +11843,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#title[The #fnote(channel: \"file\")[]Title]\n\nBody."
+   "source": "#channel(\"file\", placement: \"file\")\n\n#title[The #fnote(channel: \"file\")[]Title]\n\nBody.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "title-body",
@@ -11933,7 +11933,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#title[The #fnote[#fnote(channel: \"file\")[]]Title]\n\nBody."
+   "source": "#channel(\"file\", placement: \"file\")\n\n#title[The #fnote[#fnote(channel: \"file\")[]]Title]\n\nBody.\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "title-body",
@@ -12014,7 +12014,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#title[The #note_named(\"1\", channel: \"file\")Title]\n\nBody.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#title[The #note_named(\"1\", channel: \"file\")Title]\n\nBody.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "title-body",
@@ -12104,7 +12104,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#title[The #note_named(\"1\")Title]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#title[The #note_named(\"1\")Title]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "title-body",
@@ -12185,7 +12185,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#title[The #note_named(\"1\", channel: \"file\")Title]\n\nBody.\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#title[The #note_named(\"1\", channel: \"file\")Title]\n\nBody.\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "title-body",
@@ -12275,7 +12275,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#title[The #note_named(\"1\")Title]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#title[The #note_named(\"1\")Title]\n\nBody.\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "title-body",
@@ -12356,7 +12356,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה(ערוץ: \"קובץ\")[]ת] גוף ההערה]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#הערה[#כותרת_בהערה[ראשי#הערה(ערוץ: \"קובץ\")[]ת] גוף ההערה]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12446,7 +12446,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה[#הערה(ערוץ: \"קובץ\")[]]ת] גוף ההערה]"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#הערה[#כותרת_בהערה[ראשי#הערה[#הערה(ערוץ: \"קובץ\")[]]ת] גוף ההערה]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12527,7 +12527,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\", ערוץ: \"קובץ\")ת] גוף ההערה]\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\", ערוץ: \"קובץ\")ת] גוף ההערה]\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12617,7 +12617,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\")ת] גוף ההערה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\")ת] גוף ההערה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12698,7 +12698,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\", ערוץ: \"קובץ\")ת] גוף ההערה]\n\n#גוף_הערה(\"1\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\", ערוץ: \"קובץ\")ת] גוף ההערה]\n\n#הצג_אזור(\"קובץ\")\n\n#גוף_הערה(\"1\")[]\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12788,7 +12788,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\")ת] גוף ההערה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n"
+   "source": "#ערוץ(\"קובץ\", מיקום: \"קובץ\")\n\n#הערה[#כותרת_בהערה[ראשי#הערה_בשם(\"1\")ת] גוף ההערה]\n\n#גוף_הערה(\"1\")[#הערה_בשם(\"2\", ערוץ: \"קובץ\")]\n#גוף_הערה(\"2\")[]\n\n#הצג_אזור(\"קובץ\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12869,7 +12869,7 @@
    "id": "file",
    "layer": 0,
    "deferred": false,
-   "source": "#fnote[#note_heading[Head#fnote(channel: \"file\")[]ing] the note body]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#fnote[#note_heading[Head#fnote(channel: \"file\")[]ing] the note body]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -12959,7 +12959,7 @@
    "id": "file",
    "layer": 1,
    "deferred": false,
-   "source": "#fnote[#note_heading[Head#fnote[#fnote(channel: \"file\")[]]ing] the note body]"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#fnote[#note_heading[Head#fnote[#fnote(channel: \"file\")[]]ing] the note body]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -13040,7 +13040,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#fnote[#note_heading[Head#note_named(\"1\", channel: \"file\")ing] the note body]\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#fnote[#note_heading[Head#note_named(\"1\", channel: \"file\")ing] the note body]\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "note-heading-body",
@@ -13130,7 +13130,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#fnote[#note_heading[Head#note_named(\"1\")ing] the note body]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#fnote[#note_heading[Head#note_named(\"1\")ing] the note body]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-heading-body",
@@ -13211,7 +13211,7 @@
    "id": "file",
    "layer": 0,
    "deferred": true,
-   "source": "#fnote[#note_heading[Head#note_named(\"1\", channel: \"file\")ing] the note body]\n\n#note_body(\"1\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#fnote[#note_heading[Head#note_named(\"1\", channel: \"file\")ing] the note body]\n\n#show_region(\"file\")\n\n#note_body(\"1\")[]\n"
   },
   {
    "ctx": "note-heading-body",
@@ -13301,7 +13301,7 @@
    "id": "file",
    "layer": 1,
    "deferred": true,
-   "source": "#fnote[#note_heading[Head#note_named(\"1\")ing] the note body]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n"
+   "source": "#channel(\"file\", placement: \"file\")\n\n#fnote[#note_heading[Head#note_named(\"1\")ing] the note body]\n\n#note_body(\"1\")[#note_named(\"2\", channel: \"file\")]\n#note_body(\"2\")[]\n\n#show_region(\"file\")\n"
   },
   {
    "ctx": "note-heading-body",

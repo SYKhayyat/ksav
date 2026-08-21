@@ -170,6 +170,14 @@ pub struct DocConfig {
     /// fit is a sentence about a page bottom, and this has none. Off by default,
     /// because a sefer is a printed object and this is the other thing it can be.
     pub continuous: bool,
+    /// A companion volume is written as its own file rather than bound behind
+    /// the body.
+    ///
+    /// The body document then prints without it, and [`compile_companion`]
+    /// renders the other half from the **same source** — which is what keeps the
+    /// two in step. A companion built from a separate document would be a second
+    /// thing to keep correct, and the first note moved would break it.
+    pub separate_volume: bool,
     /// "rtl" or "ltr"
     pub dir: String,
     /// BCP-47 language tag for the text (`lang:` in Typst). Empty = follow the
@@ -905,6 +913,7 @@ impl Default for DocConfig {
             pdf_pages: String::new(),
             prevent_orphans: false,
             continuous: false,
+            separate_volume: false,
             dir: "rtl".to_string(),
             lang: String::new(),
             numbering: true,
@@ -1146,6 +1155,9 @@ impl DocConfig {
         }
         if let Some(o) = v.get("prevent_orphans").and_then(|x| x.as_bool()) {
             cfg.prevent_orphans = o;
+        }
+        if let Some(c) = v.get("separate_volume").and_then(|x| x.as_bool()) {
+            cfg.separate_volume = c;
         }
         if let Some(c) = v.get("continuous").and_then(|x| x.as_bool()) {
             cfg.continuous = c;
@@ -1472,6 +1484,7 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
          יישור_כותרת: {head_align}, \
          כותרת_מסמך: {title}, מחבר: {author}, מילות_מפתח: {keywords}, \
          מניעת_יתומים: {orphans}, רציף: {continuous}, \
+         כרך_נפרד: {separate_volume}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
          הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})",
         font = typst_str(&cfg.font),
@@ -1495,6 +1508,7 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         keywords = typst_str_array(&cfg.keywords),
         orphans = if cfg.prevent_orphans { "true" } else { "false" },
         continuous = if cfg.continuous { "true" } else { "false" },
+        separate_volume = if cfg.separate_volume { "true" } else { "false" },
         dir = dir,
         lang = typst_str(effective_lang(cfg)),
         numbering = if cfg.numbering { "true" } else { "false" },
@@ -1997,6 +2011,62 @@ fn layout_source(
 /// whether compilation succeeded.
 pub fn compile_doc(body: &str, cfg: &DocConfig) -> Result<PagedDocument, Vec<Diagnostic>> {
     compile_doc_with(body, cfg, &Assets::default())
+}
+
+/// A sefer and its companion volume, as two documents from **one source**.
+///
+/// `NOTES-PLAN`'s `קובץ` destination is a volume of its own — a kuntres of
+/// biurim bound behind a sefer, numbered separately from it — and the writer
+/// chooses whether it is bound at the back or written out as its own file.
+/// This is the second answer.
+///
+/// # Two compiles, and the boundary comes for free
+///
+/// The obvious shape is one compile split at the companion's first page, and
+/// finding that page means asking the laid-out document where a marker landed.
+/// There is a cheaper answer that needs no introspection at all: compile it
+/// **once with the companion held out** and once with it bound in. The first is
+/// the body file, and its page count *is* where the companion starts in the
+/// second. Nothing has to be located, because the difference between the two
+/// documents is exactly the thing being looked for.
+///
+/// It costs a second layout of the same source, and buys a boundary that cannot
+/// be off by one.
+///
+/// # Why the companion is cut out of the bound document rather than rendered alone
+///
+/// A companion addressed by `ראש: ("עמוד", …)` cites **the sefer's** pages. Laid
+/// out on its own, with the body hidden so its notes still register, every one
+/// of those addresses would read page 1 — a volume whose whole purpose is to say
+/// where in the sefer each entry belongs, saying it wrongly on every line. So
+/// the companion is taken from the document that has the body in it, and the
+/// addresses are the ones the reader can use.
+///
+/// Returns the full document and the 1-based page the companion starts on.
+/// `None` for that page when the document has no companion volume — the two
+/// compiles came out the same length, so there was nothing held out.
+pub fn compile_companion(
+    body: &str,
+    cfg: &DocConfig,
+    assets: &Assets,
+) -> Result<(PagedDocument, Option<usize>), Vec<Diagnostic>> {
+    let held = DocConfig {
+        separate_volume: true,
+        ..cfg.clone()
+    };
+    let body_only = compile_doc_with(body, &held, assets)?;
+    let bound = DocConfig {
+        separate_volume: false,
+        ..cfg.clone()
+    };
+    let whole = compile_doc_with(body, &bound, assets)?;
+    let n = body_only.pages().len();
+    let start = if whole.pages().len() > n {
+        Some(n + 1)
+    } else {
+        None
+    };
+    Ok((whole, start))
 }
 
 /// `compile_doc`, with the request's images and fonts available to the document.

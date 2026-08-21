@@ -282,6 +282,7 @@ const CONTENT: readonly (readonly [string, string])[] = [
   ["רגל", "foot"],
   ["סוף_מדור", "section"],
   ["סוף", "document"],
+  ["קובץ", "file"],
   ["סימון", "marks"],
   ["סופי", "final"],
   ["מקורי", "original"],

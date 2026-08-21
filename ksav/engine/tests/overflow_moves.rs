@@ -236,3 +236,104 @@ fn a_held_region_sits_in_the_same_place_on_every_page() {
         lower
     );
 }
+
+/// A note taller than its whole region reaches the next page.
+///
+/// This is the one thing decision 6 forbids that was still happening. A note
+/// that did not fit its slot was **truncated** — `_ap_slot` clips, so the second
+/// half was masked away and the page read as a short apparatus — and neither
+/// `"עמוד_הבא"` nor `"דחיסה"` moved it by a single point, because a page footer
+/// is composed afresh on every page and has no continuation.
+///
+/// So the note spills *into itself*: it occupies as many pages as it takes, is
+/// emitted whole into each of them, and each draws a different part of it. The
+/// window is fixed and the content slides, so page two resumes exactly where
+/// page one stopped — which is what the assertion on the offset is about, and
+/// the reason it is exact rather than approximate.
+#[test]
+fn a_note_taller_than_its_region_reaches_the_next_page() {
+    let runs = laid("giant_spill");
+    let pages: Vec<usize> = {
+        let mut p: Vec<usize> = runs
+            .iter()
+            .filter(|r| r.y > 600.0 && r.y < 780.0 && r.size < 11.0)
+            .map(|r| r.page)
+            .collect();
+        p.sort_unstable();
+        p.dedup();
+        p
+    };
+    assert!(
+        pages.len() >= 2,
+        "an over-tall note stayed on {} page(s) — it was truncated, not spilled",
+        pages.len()
+    );
+
+    // The slot is 1.2cm = 34.02pt, and each page shows the next slot's worth.
+    // Approximate here would pass on a window that drifts, which over enough
+    // pages is a note with a line missing from the middle of it.
+    let top_on = |page: usize| {
+        runs.iter()
+            .filter(|r| r.page == page && r.y > 600.0 && r.y < 780.0 && r.size < 11.0)
+            .map(|r| r.y)
+            .fold(f64::MAX, f64::min)
+    };
+    let step = top_on(pages[0]) - top_on(pages[1]);
+    assert!(
+        (step - 34.02).abs() < 0.1,
+        "page two resumes {step}pt up, and the slot is 34.02pt — the window drifts"
+    );
+}
+
+/// A grid region: parallel columns, kept in register by a unit.
+///
+/// Thing three's other half. `פריסה: "צד"` has meant *"these channels sit beside
+/// each other"* since channels existed, and it could not say how wide they were
+/// or keep them level. Two keys finish it — `טורים` for the widths and `יחידה`
+/// for what the columns are synchronised on — and there is no new word for
+/// grid-versus-box, because a region whose channels sit side by side **is** the
+/// parallel-column arrangement. The naming record's open question answers itself.
+///
+/// Register is the whole point. Without `יחידה` each channel is one long cell
+/// and the columns drift apart by however much their contents differ, which is
+/// what makes amateur parallel typesetting look wrong and what no care inside a
+/// column can fix. With it there is one grid row per unit, and a grid row starts
+/// level by construction.
+#[test]
+fn a_grid_region_keeps_its_columns_in_register() {
+    let runs = laid("grid_region");
+    // Grouped by baseline, not by run. The two columns of a row are two runs at
+    // the same y — which is precisely what register means, so a test that counts
+    // runs is counting the thing it is supposed to be proving.
+    let mut rows: Vec<(f64, String)> = Vec::new();
+    let mut band: Vec<&probe::TextRun> = runs
+        .iter()
+        .filter(|r| r.y > 600.0 && r.y < 780.0 && r.size < 11.0 && r.text.contains("סימן"))
+        .collect();
+    band.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+    for r in band {
+        match rows.last_mut() {
+            Some((y, t)) if (*y - r.y).abs() < 0.5 => t.push_str(&r.text),
+            _ => rows.push((r.y, r.text.clone())),
+        }
+    }
+    assert_eq!(
+        rows.len(),
+        2,
+        "expected one row per siman, got {}: {:?}",
+        rows.len(),
+        rows.iter().map(|r| &r.1).collect::<Vec<_>>()
+    );
+    // Both channels of a unit share a row, which is what register *is*: the
+    // commentary on siman alef is level with the other commentary on siman alef.
+    for (_, t) in &rows {
+        assert!(
+            t.contains("רשי") && t.contains("תוספות"),
+            "a row holds only one channel, so the columns are not in register: {t:?}"
+        );
+    }
+    assert!(
+        (rows[0].0 - rows[1].0).abs() > 5.0,
+        "the two simanim landed on one row"
+    );
+}

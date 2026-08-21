@@ -12,7 +12,7 @@
 |---|---|
 | **0** | **Decisions already made.** Settled; do not re-litigate. |
 | **1** | **The five things.** The model: source position · stream/destination · region · overflow · counters. Plus document-level settings. |
-| **2** | **A concrete surface.** Proposed syntax. Names are placeholders. |
+| **2** | **A concrete surface.** Proposed syntax (names are placeholders) and **the UI: writing a note is one pick.** |
 | **2b** | **The terrain.** Where the code is, five non-negotiable engine rules, four dead ends, what this makes stale, what a parallel session already built. **Read before writing a line.** |
 | **2c** | **Acceptance criteria.** Corpus documents that fail today and must pass. |
 | **3** | **What works** — with the file that proves each. Designs A, B and **C (the recommendation)**. |
@@ -393,12 +393,56 @@ And the head-of-entry setting on a stream:
 #ערוץ("מקורות",  ראש: ("מספר", "תווית"), תווית: [מקור: ])
 ```
 
-## The four screens **[CLAUDE]**
+## The UI **[SHAUL]**
 
-1. **Source position** — global, one override.
-2. **Streams** — each note picks one; each stream has a destination and settings.
-3. **Regions** — columns, rows, or both; and which overflow behaviour.
-4. **Counters** — add a series.
+**Writing a note is one pick: which of the five.** That is the entire gesture.
+There is no "declare a stream, then reference it" — **the destination *is* the
+stream.**
+
+This is not a simplification imposed on a richer model. It matches the engine:
+there is exactly one real bottom, so one stream per destination is close to what
+is available anyway. And it does the Mishna Berura page with no stream vocabulary
+at all — MB picks **bottom**, ShT picks **a section**.
+
+| | |
+|---|---|
+| **Writing a note** | pick one of five. If "a section", pick which. |
+| **Destinations** | settings live here — numbering, size, run-in, overflow, columns |
+| **Sections** | made in the region screen; a named list |
+| **Counters** | add a series |
+| **Source position** | global, one override — and not in this chooser (decision 3) |
+
+**Two refinements it needs.**
+
+*"A section" expands to "which section."* Sections are made and named by the
+writer, so the fifth option is a short list. That is also what recovers the case a
+flat five would foreclose: **two separately-numbered apparatuses in the same
+place.** Mekoros in one block at the back and haaros in another are both "end" —
+as one choice you get one of them; as two named sections placed at the end you get
+both. So the honest shape is **four singular destinations plus a named list.**
+
+*Settings move from the stream to the destination.* They still exist; they are
+just keyed by destination rather than by a declared stream name.
+
+**What it forecloses:** two differently-numbered apparatuses at the *same*
+destination, except through sections. At the bottom that costs nothing — the
+engine has one real bottom regardless. At the end and the side it is a real limit,
+and "make it a section" is the escape.
+
+**It does not break decision 4**, though it looks like it might. Depth is
+**lexical either way** — `#הערה(רגל)[… #הערה(אזור)[…]]` shows the nesting in the
+source, so the engine reads it without laying anything out. And "move an apparatus
+without retyping three hundred notes" survives: you change the destination's
+settings, not the notes.
+
+One thing does change, for the better: **a sub-note's parent is whatever note the
+caret is inside** — determined rather than chosen, which is what a writer means
+anyway.
+
+**Four things with no home yet:** the marker's own look · per-note overrides ·
+where a destination's numbering scheme is set (probably the destination's own
+settings) · **a preview**, because someone building a Gemara page needs to see the
+page. The current chooser's small sketches are the one thing worth keeping.
 
 **Four things with no home yet:** where a stream's numbering is set (probably
 screen 2) · the marker's own look · per-note overrides · **a preview**, because
@@ -723,10 +767,12 @@ and `small.ksav` in the corpus are that exact failure and its intended fix.
 
 1. **Delete `NOTE_CHOICES`** (`app/src/notes.ts:133`) and the where × how grid with
    it. Eleven cards, five `NoteWhere` values, six `NoteHow` values — all cells.
-2. **The chooser becomes the four screens** of Part 2. Screen 2 is the one a writer
-   opens most: pick a stream for this note, or declare a new one.
-3. **`channels.ts` already models streams correctly** and is the editor half of one
-   authority with the prelude. It is the surface that should win.
+2. **What replaces it is one pick** (Part 2, *The UI*): which of the five
+   destinations. Not a card, not a grid, not a stream to declare first — the
+   destination *is* the stream. Everything else is settings behind it.
+3. **`channels.ts` already models this correctly** and is the editor half of one
+   authority with the prelude. It stays as the machinery; what changes is that the
+   writer never meets the word "channel" — they pick a place.
 4. **Keep the sketches.** The small page diagrams on the current cards are the best
    thing about it and the new screens need them more, not less — a preset should
    show what it builds.

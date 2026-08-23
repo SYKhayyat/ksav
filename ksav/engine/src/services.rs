@@ -173,8 +173,11 @@ pub const SERVICES: &[Service] = &[
     // a write wearing a read's clothes, and as a `GET` it was reachable by
     // `<img src="http://localhost:7878/inbox">` on any page the writer had
     // open. An image load sends no `Origin`, so no CORS check anywhere could
-    // have caught it; the method is what makes the request unforgeable.
-    svc("inbox", Post, "/inbox", Quick, Native, girsa::inbox),
+    // have caught it; the method is what makes the request unforgeable. And
+    // `Work`, for the same reason it is a POST: truncating and rewriting the
+    // inbox is disk work, and a `Quick` service runs on the thread that draws
+    // the desktop window.
+    svc("inbox", Post, "/inbox", Work, Native, girsa::inbox),
     svc("mekoros", Post, "/mekoros", Work, Native, girsa::mekoros),
     svc("linkify", Post, "/linkify", Work, Native, girsa::linkify),
     svc("refresh", Post, "/refresh", Work, Native, girsa::refresh),
@@ -196,8 +199,9 @@ pub const SERVICES: &[Service] = &[
     // document registry, its `who_cites` query and its tests were all built and
     // **nothing ever sent it a path** — so the query walked Girsa's own toy
     // editor's directory and a document written in the real Ksav answered
-    // *nothing cites this*.
-    svc("saved-here", Post, "/saved-here", Quick, Native, girsa::saved_here),
+    // *nothing cites this*. `Work`, because the answer waits on Girsa over the
+    // loopback, however fast that usually is.
+    svc("saved-here", Post, "/saved-here", Work, Native, girsa::saved_here),
     // Version control, on the git the writer already has. `Work` and not
     // `Quick`: `push` leaves the machine and `status` starts a process, and a
     // `Quick` service runs on the thread that draws the desktop window.
@@ -313,9 +317,9 @@ mod disk {
 /// Two implementations, chosen by target rather than by feature flag: the
 /// `girsa-post` dependency is already native-only in `Cargo.toml`, for the same
 /// reason the HTTP server is. What is new is that the wasm build answers these
-/// with a sentence instead of not having them — so the table is the same eleven
-/// entries everywhere, and "this build cannot do that" is data the client can
-/// read rather than a hole it has to know about.
+/// with a sentence instead of not having them — so the table is the same table
+/// everywhere, and "this build cannot do that" is data the client can read
+/// rather than a hole it has to know about.
 mod girsa {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn inbox(input: &str) -> String {

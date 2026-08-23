@@ -3914,7 +3914,6 @@ mod tests {
         let defined = |name: &str| {
             PRELUDE.contains(&format!("#let {name}("))
                 || PRELUDE.contains(&format!("#let {name} ="))
-                || PRELUDE.contains(&format!("#let {name}("))
                 || PRELUDE.contains(&format!("#let {name}\n"))
         };
         for c in commands::COMMANDS {

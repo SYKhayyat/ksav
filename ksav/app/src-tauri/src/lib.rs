@@ -296,7 +296,14 @@ async fn ksav_open_file(
         .pick_file(move |f| {
             let _ = tx.send(f);
         });
-    let Some(path) = rx.recv().map_err(|e| e.to_string())? else {
+    // `recv` blocks until the dialog closes, which can be forever — and an
+    // async command runs on the shared runtime, so waiting here parked a
+    // worker. The blocking half goes to its own thread.
+    let Some(path) = tokio::task::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?
+    else {
         return Ok(None);
     };
     let path = path.into_path().map_err(|e| e.to_string())?;
@@ -326,7 +333,12 @@ async fn ksav_save_file(
         .save_file(move |f| {
             let _ = tx.send(f);
         });
-    let Some(path) = rx.recv().map_err(|e| e.to_string())? else {
+    // Same shape as the Open dialog above: the wait belongs off the runtime.
+    let Some(path) = tokio::task::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?
+    else {
         return Ok(None);
     };
     let path = path.into_path().map_err(|e| e.to_string())?;
@@ -456,7 +468,12 @@ async fn ksav_confirm_write(
         .show(move |yes| {
             let _ = tx.send(yes);
         });
-    let yes = rx.recv().map_err(|e| e.to_string())?;
+    // Off the runtime, like the two file dialogs: the answer arrives when the
+    // writer answers.
+    let yes = tokio::task::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     if yes {
         allowed.allow(&p);
     }

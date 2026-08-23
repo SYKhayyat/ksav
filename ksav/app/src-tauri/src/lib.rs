@@ -271,7 +271,7 @@ fn deliver(url: &str) {
         return;
     };
     if let Err(why) = ksav_engine::post::arrived(&packet) {
-        eprintln!("a source arrived and was refused: {why}");
+        log::warn!("a source arrived and was refused: {why}");
     }
 }
 
@@ -501,6 +501,23 @@ pub fn run() {
 
     let built = built
         .plugin(tauri_plugin_dialog::init())
+        // Diagnoses outlive the console that release builds do not have: the
+        // windowed subsystem detaches stdout, so an eprintln about a refused
+        // source was written where nobody can read it. The file target is
+        // registered **before** setup, because the URL that started this
+        // process is delivered during setup and its refusals are exactly the
+        // lines worth finding later.
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: None,
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                ])
+                .build(),
+        )
         .manage(AllowedPaths::default())
         .manage(DeskHold::default())
         // `ksav://insert?packet=…`, and the pairing with Girsa (spec.md §10.6).
@@ -522,7 +539,7 @@ pub fn run() {
                         *hold = Some(desk);
                     }
                 }
-                Err(e) => eprintln!("the Girsa pairing is not open: {e}"),
+                Err(e) => log::warn!("the Girsa pairing is not open: {e}"),
             }
 
             #[cfg(any(windows, target_os = "linux"))]
@@ -551,15 +568,15 @@ pub fn run() {
                         let _ = crate::scheme::write_marker(&marker, &me);
                     }
                     crate::scheme::Claim::Vacant | crate::scheme::Claim::Stale { .. } => {
-                        if let crate::scheme::Claim::Stale { was } = &claim {
-                            eprintln!(
-                                "ksav:// was registered to {}, which is gone — taking it back",
-                                was.display()
-                            );
-                        }
-                        if let Err(e) = app.deep_link().register_all() {
-                            eprintln!("could not register ksav:// with the system: {e}");
-                        } else {
+                    if let crate::scheme::Claim::Stale { was } = &claim {
+                        log::warn!(
+                            "ksav:// was registered to {}, which is gone — taking it back",
+                            was.display()
+                        );
+                    }
+                    if let Err(e) = app.deep_link().register_all() {
+                        log::warn!("could not register ksav:// with the system: {e}");
+                    } else {
                             let _ = crate::scheme::write_marker(&marker, &me);
                         }
                     }
@@ -568,7 +585,7 @@ pub fn run() {
                     // the difference between "Girsa opens the wrong Ksav" and
                     // "Girsa opens the Ksav that claimed the scheme, which is
                     // this one, and here is its path".
-                    crate::scheme::Claim::Theirs { owner } => eprintln!(
+                    crate::scheme::Claim::Theirs { owner } => log::warn!(
                         "ksav:// belongs to {} — leaving it. Sources sent from Girsa will open that one.",
                         owner.display()
                     ),
@@ -594,7 +611,7 @@ pub fn run() {
                         }
                     }
                     Ok(None) => {}
-                    Err(e) => eprintln!("could not read the URL Ksav was started with: {e}"),
+                    Err(e) => log::warn!("could not read the URL Ksav was started with: {e}"),
                 }
             }
             tauri_plugin_deep_link::DeepLinkExt::deep_link(app).on_open_url(|event| {
@@ -604,6 +621,8 @@ pub fn run() {
             });
 
             if cfg!(debug_assertions) {
+                // The debug console keeps its own view; the file target above
+                // is registered unconditionally and is the one release has.
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
@@ -663,8 +682,9 @@ pub fn run() {
         Err(e) => {
             // A sentence somebody can act on rather than a panic message. Every
             // other refusal in this shell is legible; the one path that can only
-            // stop should be too.
-            eprintln!("Ksav could not open its window: {e}");
+            // stop should be too. The log file target is registered before
+            // setup, so this line survives even here.
+            log::error!("Ksav could not open its window: {e}");
             std::process::exit(1);
         }
     }

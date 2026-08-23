@@ -115,7 +115,7 @@ pub const SEFARIM: &[Sefer] = &[
     s!("תהלים", Tanach, 1041, "תה'", "תהילים"),
     s!("משלי", Tanach, 1042, "מש'"),
     s!("איוב", Tanach, 1043),
-    s!("שיר השירים", Tanach, 1044, "שה\"ש", "שיר השירים רבה"),
+    s!("שיר השירים", Tanach, 1044, "שה\"ש"),
     s!("רות", Tanach, 1045),
     s!("איכה", Tanach, 1046),
     s!("קהלת", Tanach, 1047, "קה'"),
@@ -196,6 +196,11 @@ pub const SEFARIM: &[Sefer] = &[
     s!("עוקצין", Mishnah, 2512),
     // ── מדרש ──────────────────────────────────────────────────────────────
     s!("מדרש רבה", Midrash, 3001, "מד\"ר"),
+    // One of the five megillos' midrash, and not the megillah: it was filed as
+    // an alias of שיר השירים, which printed a Shir HaShirim Rabbah citation
+    // under Tanach at 1044 — in the catalogue that exists because "everybody's
+    // index is wrong", this entry was.
+    s!("שיר השירים רבה", Midrash, 3008, "שה\"ש רבה"),
     s!("תנחומא", Midrash, 3002),
     s!("ספרא", Midrash, 3003, "תורת כהנים", "תו\"כ"),
     s!("ספרי", Midrash, 3004),

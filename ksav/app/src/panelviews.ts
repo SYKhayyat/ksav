@@ -108,6 +108,22 @@ function gitSays(said: string): HTMLElement {
 }
 
 /**
+ * What the writer has typed into the version-control drawer, kept across its
+ * rebuilds. The drawer rebuilds whole on every change — the right call for six
+ * blocks of mutable state — and without this, typing a commit message and
+ * pressing Ctrl+S rebuilt the drawer mid-sentence and recreated every field
+ * empty. Keyed by field; cleared by the action that consumed the draft.
+ */
+const gitDrafts = new Map<string, string>();
+
+/** A text field whose value survives the drawer rebuilding around it. */
+function gitField(key: string, placeholder = "", value = ""): HTMLInputElement {
+  const input = textField(gitDrafts.get(key) ?? value, placeholder);
+  input.addEventListener("input", () => gitDrafts.set(key, input.value));
+  return input;
+}
+
+/**
  * The version-control drawer.
  *
  * Rebuilt whole on every change rather than patched, like every other panel
@@ -216,19 +232,23 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
       case "identity": {
         // Offered *before* the commit that would otherwise fail with git's own
         // nine-line lecture about `user.email`.
-        const name = textField("");
-        const email = textField("");
+        const name = gitField("identity-name");
+        const email = gitField("identity-email");
         block.push(
           el("p", { class: "git-why", "data-git": "no-identity" }, [t(section.empty ?? "git.whoNeeded")]),
           fieldRow(t("git.whoName"), name),
           fieldRow(t("git.whoEmail"), email),
-          gitButton(view, t("git.whoSet"), () => act.run("who", { name: name.value, email: email.value })),
+          gitButton(view, t("git.whoSet"), () => {
+            act.run("who", { name: name.value, email: email.value });
+            gitDrafts.delete("identity-name");
+            gitDrafts.delete("identity-email");
+          }),
           el("p", { class: "set-hint" }, [t("git.whoLocal")]),
         );
         break;
       }
       case "commit": {
-        const message = textField("", t("git.message"));
+        const message = gitField("commit-message", t("git.message"));
         const all = checkField(false);
         block.push(
           el("div", { class: "git-commit" }, [
@@ -243,6 +263,7 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
                 const said = message.value.trim();
                 if (!said) return;
                 act.run("commit", { message: said, all: all.checked });
+                gitDrafts.delete("commit-message");
               },
               "sc-key git-do-commit",
             ),
@@ -303,7 +324,7 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
             ),
           );
         }
-        const branchName = textField("", t("git.branchName"));
+        const branchName = gitField("branch-name", t("git.branchName"));
         block.push(
           el("div", { class: "git-new-branch" }, [
             branchName,
@@ -331,8 +352,8 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
             ),
           );
         }
-        const remoteName = textField("origin", t("git.remoteName"));
-        const remoteUrl = textField("", t("git.remoteUrl"));
+        const remoteName = gitField("remote-name", t("git.remoteName"), "origin");
+        const remoteUrl = gitField("remote-url", t("git.remoteUrl"));
         const args = () => git.remoteArgs(state, view.remotes);
         block.push(
           el("details", { class: "git-add-remote" }, [

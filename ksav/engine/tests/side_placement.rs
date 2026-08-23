@@ -328,3 +328,118 @@ fn a_note_beside_the_text_can_be_referred_to() {
         wrong.join("\n  ")
     );
 }
+
+/// The runs of one margin note, top first.
+fn lines_of(runs: &[probe::TextRun], page: usize, word: &str) -> Vec<f64> {
+    let mut ys: Vec<f64> = runs
+        .iter()
+        .filter(|r| r.page == page && r.text.contains(word))
+        .map(|r| r.y)
+        .collect();
+    ys.sort_by(|a, b| a.total_cmp(b));
+    ys
+}
+
+/// A note written `ערוץ:` **and** `אזור:` into a side-placed region.
+///
+/// Filing used to key the margin stream by the channel's name — which nobody
+/// declared, because the note names its destination outright — and the walk that
+/// draws the margin enumerates regions and declared side channels, so the entry
+/// was numbered and marked in the sentence and drawn by nothing. The third way
+/// of saying "beside the text" lost the words; the two covered by
+/// `a_note_beside_the_text_can_be_referred_to` did not.
+#[test]
+fn a_note_into_a_side_region_through_both_arguments_prints() {
+    let body = "#אזור(\"הגהות\", מיקום: \"חוץ\")\n\
+                #עם_הערות_צד[\n\
+                טקסט ראשון#הערה(ערוץ: \"א\", אזור: \"הגהות\")[גוף ההגהה שלו] ועוד טקסט כאן.\n\
+                ]\n";
+    let runs = laid(body, &DocConfig::default());
+    assert!(
+        runs.iter().any(|r| r.text.contains("גוף ההגהה")),
+        "a note into a side region named by both arguments never printed"
+    );
+}
+
+/// Two independently placed apparatuses in one margin stack without interleaving.
+///
+/// The page foreground used to walk each stream alone, so the collision
+/// machinery saw only its own stream's list: a second stream's notes were slotted
+/// between the first's lines, adjacent lines of different notes points apart at
+/// 9pt type. There is one margin; it gets one occupancy.
+#[test]
+fn two_side_apparatuses_share_one_occupancy() {
+    let long_a = "הארה ארוכה מאוד אחת שתצא לה מספר שורות במלואה ובלי להיחתך באמצע הדברים. ".repeat(3);
+    let long_b = "הגהה ארוכה מאוד אחת שתצא לה מספר שורות במלואה ובלי להיחתך באמצע הדברים. ".repeat(3);
+    let body = format!(
+        "#אזור(\"א\", מיקום: \"חוץ\")\n\
+         #אזור(\"ב\", מיקום: \"חוץ\")\n\
+         #עם_הערות_צד[\n\
+         טקסט מסוים#הערה(אזור: \"א\")[{long_a}] ומיד אחריו באותה שורה#הערה(אזור: \"ב\")[{long_b}] ועוד טקסט כאן.\n\
+         ]\n"
+    );
+    let runs = laid(&body, &DocConfig::default());
+    // Each series' own consecutive-line pitch, measured off itself: the probe
+    // carries no glyph height, and a pitch guessed rather than measured is how a
+    // fence fails on a font change.
+    let pitch = |ys: &[f64]| ys.windows(2).map(|w| w[1] - w[0]).fold(f64::INFINITY, f64::min);
+    let a = lines_of(&runs, 1, "הארה ארוכה");
+    let b = lines_of(&runs, 1, "הגהה ארוכה");
+    assert!(
+        a.len() >= 2 && b.len() >= 2,
+        "both notes must run to more than one line each ({} / {})",
+        a.len(),
+        b.len()
+    );
+    let pa = pitch(&a);
+    let pb = pitch(&b);
+    // No line of either note may sit strictly inside another's line box: the
+    // gap between an A line and its nearest B line is at least the smaller of
+    // the two pitches, less a point of slack for superscript markers.
+    for &y in &a {
+        let nearest = b.iter().fold(f64::INFINITY, |m, &yb| m.min((yb - y).abs()));
+        assert!(
+            nearest >= pa.min(pb) - 1.0,
+            "interleaved: an A line at {y} sits {nearest}pt from the nearest B line"
+        );
+    }
+}
+
+/// A note carried to the next page respects the pinned notes already there.
+///
+/// The overflow branch placed at the floor of the next page unconditionally,
+/// while the pinned-note machinery ran on the normal path only — so a
+/// `הזזה: false` gloss anchored near the top of page *n+1* was overprinted by
+/// whatever carried in from page *n*.
+#[test]
+fn a_carried_note_lands_below_a_pinned_gloss_on_the_next_page() {
+    // Page 1: ordinary prose whose last line carries the carrier's marker, so
+    // the carrier starts at the bottom of page 1's column.
+    let page_one = "פסק ראשון של טקסט רגיל לצורך מילוי העמוד הראשון עד סופו. ".repeat(14);
+    // Page 2 opens on the pinned gloss, in its first line.
+    let body = format!(
+        "#עם_הערות_צד[\n\
+         {page_one}\
+         #הערת_גיליון[{}]\n\
+         נעוצה בראש העמוד השני#הערת_גיליון(הזזה: false)[הגהה נעוצה במקומה ולא תזוז משם למען אף שכנה.]\n\
+         ]\n",
+        "מילוי ארוך מאוד לצורך הכרחת הערה להיסחב אל העמוד הבא בשלמותה. ".repeat(8),
+    );
+    let runs = laid(&body, &DocConfig::default());
+    let carried = lines_of(&runs, 2, "מילוי ארוך");
+    let pinned = lines_of(&runs, 2, "הגהה נעוצה");
+    assert!(!carried.is_empty(), "the carrier never reached page 2");
+    assert!(
+        !pinned.is_empty(),
+        "the pinned gloss is not on page 2, so nothing was tested"
+    );
+    let pitch = |ys: &[f64]| ys.windows(2).map(|w| w[1] - w[0]).fold(f64::INFINITY, f64::min);
+    let p = pitch(&pinned).min(pitch(&carried));
+    let nearest = carried.iter().fold(f64::INFINITY, |m, &y| {
+        m.min(pinned.iter().fold(f64::INFINITY, |mm, &yp| mm.min((yp - y).abs())))
+    });
+    assert!(
+        nearest >= p - 1.0,
+        "overprinted: the carried note sits {nearest}pt from the pinned gloss"
+    );
+}

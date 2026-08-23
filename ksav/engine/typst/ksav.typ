@@ -2991,8 +2991,18 @@
 /// asks for the break only when it has something to print.
 #let _ap_fresh_page(want) = if want == true { pagebreak() }
 
-#let _ap_note(cfg, lbl, scope, g, body, own: (:), שם: none) = {
-  [#metadata((group: g, body: body, own: own))#lbl]
+#let _ap_note(cfg, lbl, scope, g, body, own: (:), שם: none, אזור: none) = {
+  [
+    #metadata((
+      group: g, body: body, own: own,
+      // The region this note was *filed* into, when one collector knows it.
+      // Drawing must ask what filing recorded, not re-derive it from the
+      // declarations: a note written `#הערה(ערוץ: "c", אזור: "r")` lands in r's
+      // window under channel c, which may never have declared any region — and
+      // re-deriving answers "c", which loses the entry in silence.
+      אזור: אזור,
+    ))#lbl
+  ]
   // Force nested groups to register in this same pass, in a zero-size inline box
   // so it can never break the line the marker sits on — including when a band
   // re-displays this body and the machinery runs again inside it.
@@ -3140,8 +3150,8 @@
 /// arrives here through `_ap_setting` beside every other per-page fact.
 #let _ap_clip_mark = "…"
 
-#let _ap_slot(h, body, סימן: none) = if h == none { body } else {
-  context block(width: 100%, height: _ap_fixed_height(h), clip: true, {
+#let _ap_slot(h, body, סימן: none, קו: none) = if h == none { body } else {
+  context block(width: 100%, height: _ap_fixed_height(h, קו: קו), clip: true, {
     body
     // Inside the clip and against its bottom edge, so it lands on the last
     // line the reader can see — which is where the text they cannot see
@@ -3400,6 +3410,10 @@
     if גובה == auto { _ap_pick(cfg, "גבהים", g, none) } else { גובה },
     filled,
     סימן: if not חתוך { none } else if סימן_חיתוך == auto { _ap_clip_mark } else { סימן_חיתוך },
+    // The line the walk budgeted with — a `שורות` height resolved here against
+    // the ambient text instead answers a different number than the one that
+    // decided what fits.
+    קו: _ap_line_of(cfg, g),
   )
 }
 
@@ -4494,9 +4508,15 @@
   let קו = _ap_line_of(cfg, if chans.len() > 0 { chans.first() } else { rg })
   let חריגה = _val(_rg_rec(t, rg).at("חריגה", default: _rg_over_default))
   if own != none { return _ap_fit_room(own, קו: קו, חריגה: חריגה, מי: rg) }
+  // A height declared on the **channel** that made the region is the slot too,
+  // and goes through the same clamp and refusal as a region's own — raw, it
+  // reached the slot renderer unclamped while the walk packed against
+  // `_ap_room`, so the two halves of one apparatus disagreed about the room.
   for c in chans {
     let h = _rg_height_of(_ch_rec(t, c))
-    if h != none { return h }
+    if h != none {
+      return _ap_fit_room(h, קו: _ap_line_of(cfg, c), חריגה: חריגה, מי: rg)
+    }
   }
   _ap_pick(cfg, "גבהים", rg, none)
 }
@@ -5347,16 +5367,24 @@
   // decision 6 says may never happen.
   let rg = _ch_region(t, g)
   let own = _rg_height_of(_rg_rec(t, rg))
-  let own = if own != none { own } else { _ap_pick(cfg, "גבהים", g, none) }
-  if own != none {
-    _ap_fit_room(
-      own,
-      איפה: איפה,
-      קו: _ap_line_of(cfg, g),
-      חריגה: _val(_rg_rec(t, rg).at("חריגה", default: _rg_over_default)),
-      מי: rg,
-    )
-  } else {
+  let חריגה = _val(_rg_rec(t, rg).at("חריגה", default: _rg_over_default))
+  let fit(h) = _ap_fit_room(
+    h,
+    איפה: איפה,
+    קו: _ap_line_of(cfg, g),
+    חריגה: חריגה,
+    מי: rg,
+  )
+  if own != none { return fit(own) }
+  // …and a height declared on the **channel** is the same room, read here in
+  // the same order the drawn slot resolves it (`_ch_region_height`), so the
+  // walk packs against one number and the slot clips at that number too.
+  for c in _ch_in_region(t, rg) {
+    let h = _rg_height_of(_ch_rec(t, c))
+    if h != none { return fit(h) }
+  }
+  let pick = _ap_pick(cfg, "גבהים", g, none)
+  if pick != none { fit(pick) } else {
     _ap_room(איפה: איפה)
   }
 }
@@ -5541,6 +5569,9 @@
               let own = _rg_rec(t, rg).at("סימן_חיתוך", default: auto)
               if own == auto { _ap_clip_mark } else { own }
             } else { none },
+            // Same line the walk budgeted with (`_sf_cap`), so a `שורות`
+            // height that reaches here unresolved still answers one number.
+            קו: _ap_line_of(cfg, if chans.len() > 0 { chans.first() } else { rg }),
             if chans.len() == 1 and unit == none {
             one(chans.first())
           } else if _ch_region_side(t, rg) {
@@ -5693,7 +5724,7 @@
 #let _cn_dump(rg) = label("ksav-cnd-" + rg)
 #let _cn_scope(rg) = loc => _ksav_between(selector(_cn_label), _cn_dump(rg), loc)
 #let _cn_note(cfg, rg, name, body, own, שם: none) = _ap_note(
-  cfg, _cn_label, _cn_scope(rg), name, body, own: own, שם: שם,
+  cfg, _cn_label, _cn_scope(rg), name, body, own: own, שם: שם, אזור: rg,
 )
 
 // ערוץ(שם, מקור: auto, מיקום: "רגל", אזור: none, גובה: none, …) — declare a
@@ -5847,7 +5878,14 @@
     set par.line(numbering: none)
     let t = _ch_st.final()
     let notes = _ksav_real_of(_cn_scope(rg)(here()))
-    let mine = notes.filter(e => _ch_region(t, e.value.group) == rg)
+    // Membership is what filing recorded, carried on the entry itself. The
+    // window between this region's dump markers can hold entries filed to
+    // another region (two section dumps sit back to back), so a filter is still
+    // needed — but re-deriving the region from the channel's *declarations*
+    // answered "its own name" for every note filed here through
+    // `#הערה(ערוץ: …, אזור: …)` whose channel never declared one, and the entry
+    // was numbered, queryable, and drawn by nothing.
+    let mine = notes.filter(e => e.value.at("אזור", default: none) == rg)
     if mine.len() > 0 {
       // Inside the guard: a page break in front of a region with nothing in it
       // is a blank sheet the writer did not ask for.
@@ -6436,8 +6474,12 @@
       // cannot. `page(height: auto)` has no ceiling at all and never reaches
       // here: that is the digital output mode, where the page grows instead.
       page_ += 1
-      y = floor
       cursor = floor
+      // The pinned-note check is not only for the normal path: a note carried
+      // in from the previous page lands on a column that may already hold a
+      // `הזזה: false` gloss anchored near its top, and arriving at the floor
+      // unconditionally printed straight through it.
+      y = clear(page_, cursor, it.h)
     }
     out.push((page: page_, y: y))
     cursor = y + it.h + gap
@@ -6454,7 +6496,7 @@
 /// Both callers go through here rather than each running its own walk. Two
 /// copies of one greedy stack that disagree by a single gap is a note printed on
 /// top of its neighbour, and this repository is named for that defect family.
-#let _sn_placed(st, upto) = {
+#let _sn_stream_items(st, upto) = {
   let lbl = label(st.lbl)
   let all = query(lbl)
   let within = if upto == none { all } else { all.filter(e => e.location().page() <= upto) }
@@ -6464,7 +6506,6 @@
   let live = within.filter(e => (
     _sn_has_column(e.location(), e.value.at("מוצב", default: false))
   ))
-  if live.len() == 0 { return (items: (), placed: ()) }
   let items = ()
   for e in live {
     let loc = e.location()
@@ -6497,6 +6538,28 @@
       piece: piece,
     ))
   }
+  items
+}
+
+/// Every stream's notes assigned against **one** occupancy.
+///
+/// The walk is over all streams together, in document order. Per-stream walks
+/// each saw only their own list, so two independently placed apparatuses in one
+/// margin — two side regions, or a region and a wrapper stream — interleaved:
+/// one grid at its own pitch, the second slotted between its lines, adjacent
+/// lines of different notes a few points apart. Collision machinery that cannot
+/// see the other streams is not collision machinery; there is one margin and it
+/// gets one walk.
+#let _sn_placed(upto) = {
+  let items = ()
+  for st in _sn_all_streams() {
+    for it in _sn_stream_items(st, upto) { items.push(it) }
+  }
+  if items.len() == 0 { return (items: (), placed: ()) }
+  // Document order across streams: (page, anchor y) is the reading order of the
+  // margin to within a tie, and a tie is two markers on one line whose order
+  // the stack cannot observe.
+  items.sort(key: it => (it.page, it.want))
   // The gap between two stacked notes belongs to the column, not to either of
   // them, so the first note's answer is the one the whole stack is walked with.
   // A note that overruled it for itself would be placed against one arithmetic
@@ -6507,18 +6570,16 @@
   )
 }
 
-/// Draw this page's side notes. Renders nothing — and queries nothing beyond one
-/// empty lookup per stream — for a document that has none.
+/// Draw this page's side notes. Renders nothing — and runs one empty walk —
+/// for a document that has none.
 #let _sn_page_column() = context {
   let pg = here().page()
-  for st in _sn_all_streams() {
-    let out = _sn_placed(st, pg)
-    for i in range(out.items.len()) {
-      if out.placed.at(i).page == pg {
-        let it = out.items.at(i)
-        let x = _sn_column(it.base, it.shape, it.side, pg).x
-        place(top + left, dx: x, dy: out.placed.at(i).y, it.piece)
-      }
+  let out = _sn_placed(pg)
+  for i in range(out.items.len()) {
+    if out.placed.at(i).page == pg {
+      let it = out.items.at(i)
+      let x = _sn_column(it.base, it.shape, it.side, pg).x
+      place(top + left, dx: x, dy: out.placed.at(i).y, it.piece)
     }
   }
 }
@@ -6558,13 +6619,11 @@
   let any = false
   // The lowest point any side note reaches, for the continuous mode below.
   let deepest = 0pt
-  for st in _sn_all_streams() {
-    let out = _sn_placed(st, none)
-    if out.items.len() > 0 { any = true }
-    for i in range(out.items.len()) {
-      want = calc.max(want, out.placed.at(i).page)
-      deepest = calc.max(deepest, out.placed.at(i).y + out.items.at(i).h)
-    }
+  let out = _sn_placed(none)
+  if out.items.len() > 0 { any = true }
+  for i in range(out.items.len()) {
+    want = calc.max(want, out.placed.at(i).page)
+    deepest = calc.max(deepest, out.placed.at(i).y + out.items.at(i).h)
   }
   // # A continuous page grows for its notes, or they fall off the bottom of it
   //
@@ -8253,7 +8312,11 @@
   } else if _ch_side_places.contains(place) {
     let (own, rest) = _cfg_split(named, _sn_own_keys)
     _cfg_strict("הערה", rest)
-    _sn_note(_sn_chan_lbl(chan), _ch_side_of(place), "צד", body, own: own, מוצב: true, שם: mine)
+    // The stream is named for the **region**, not for the channel: the walk
+    // that draws the margin enumerates side regions, and a note filed under a
+    // channel name nobody declared (the default when only `אזור:` was given) is
+    // a stream nothing looks for — numbered, marked, never drawn.
+    _sn_note(_sn_chan_lbl(region), _ch_side_of(place), "צד", body, own: own, מוצב: true, שם: mine)
   } else {
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)

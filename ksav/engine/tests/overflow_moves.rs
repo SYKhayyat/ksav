@@ -670,3 +670,75 @@ fn a_grid_region_keeps_its_columns_in_register() {
         "the two simanim landed on one row"
     );
 }
+
+/// A height declared on the **channel** is the room the walk packs against too.
+///
+/// The slot renderer used to take a channel-declared height raw — no clamp, no
+/// refusal, and no word to the walk — while the walk gave the stream the whole
+/// reserve as its room. Ten notes into a 2cm channel: the walk packed all ten
+/// onto page one, the slot clipped at 2cm, and six entries vanished behind the
+/// ellipsis in silence. The two halves of one apparatus must answer with one
+/// number, or the spill move that exists to save them never fires.
+#[test]
+fn a_channel_declared_height_is_the_room_the_walk_packs_against() {
+    let body = format!(
+        "#ערוץ(\"צר\", מיקום: \"רגל\", גובה: 2cm)\n\
+         #ערוץ(\"אחר\", מיקום: \"רגל\")\n\
+         {}\n\
+         {}\n",
+        (1..=6)
+            .map(|i| {
+                format!(
+                    "מילה{}#הערה(ערוץ: \"צר\")[הערה צפופה מספר {} שתתפוס יותר משורה אחת בוודאי. ]\n\n",
+                    i, i
+                )
+            })
+            .collect::<String>(),
+        "פסק למנוע דף אחרון ריק מדי. ".repeat(6),
+    );
+    let doc = probe::layout(&body, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("did not compile: {d:?}"));
+    let runs = probe::text_runs(&doc);
+    let reading: String = runs.iter().map(|r| r.text.clone()).collect();
+    for i in 1..=6 {
+        assert!(
+            reading.contains(&format!("מספר {i}")),
+            "entry {i} never printed anywhere — the walk packed it into a slot that clips"
+        );
+    }
+}
+
+/// A `שורות` height means what the walk budgeted and what the slot drew — the
+/// same box.
+///
+/// Four one-line notes into a two-row region: exactly two are visible on the
+/// page, and the rest carry to the next one. If the walk budgeted against one
+/// line and the slot resolved the same height against another — as it did, with
+/// the ambient leading and size — the counts drift apart and entries vanish
+/// behind the ellipsis or pile past the drawn edge.
+#[test]
+fn a_row_height_is_one_number_to_the_walk_and_to_the_slot() {
+    let head = "#ערוץ(\"ב\", מיקום: \"רגל\", גובה: (שורות: 2))\n";
+    let notes = (1..=4)
+        .map(|i| format!("מלה{i}#הערה(ערוץ: \"ב\")[הערה בת שורה אחת מספר {i}. ]\n\n"))
+        .collect::<String>();
+    let body = format!("{head}{notes}פסק למילוי העמוד כדי שיהיה לאן לגלוש. ");
+    let doc = probe::layout(&body, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("did not compile: {d:?}"));
+    let runs = probe::text_runs(&doc);
+    let reading: String = runs.iter().map(|r| r.text.clone()).collect();
+    for i in 1..=4 {
+        assert!(
+            reading.contains(&format!("מספר {i}")),
+            "entry {i} never printed anywhere — a שורות height lost it"
+        );
+    }
+    let on_first = runs
+        .iter()
+        .filter(|r| r.page == 1 && r.text.contains("מספר"))
+        .count();
+    assert_eq!(
+        on_first, 2,
+        "a two-row region showed {on_first} one-line entries on page one"
+    );
+}

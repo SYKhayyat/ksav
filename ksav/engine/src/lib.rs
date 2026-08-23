@@ -448,12 +448,28 @@ fn channel_region_cm(body: &str, page_h_cm: f64) -> Option<f64> {
     let channels = channel_declarations(body, CHANNEL_DECL);
     let regions = channel_declarations(body, REGION_DECL);
 
-    // Which channels notes were actually written into.
+    // Which channels notes were actually written into. `אזור:` names the target
+    // too — the filing reads the region's placement, and when both arguments
+    // are given the region wins — so a note written `#הערה(אזור: "x")` into a
+    // foot region reserves for it exactly as `#הערה(ערוץ: "x")` does. Missing
+    // this spelling was a reserve of zero for one of the five destinations the
+    // chooser writes.
     let mut used: Vec<String> = Vec::new();
     let mut base = 0;
     while let Some(i) = body[base..].find('#') {
         let start = base + i;
         base = start + 1;
+        // The command head, which decides whether this is a note at all.
+        let head: String = body[base..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        // A `#ערוץ("c", אזור: "r")` *declaration* carries the same argument a
+        // note does and writes nothing into anything; counting it would reserve
+        // for an apparatus no note ever touched.
+        if CHANNEL_DECL.contains(&head.as_str()) || REGION_DECL.contains(&head.as_str()) {
+            continue;
+        }
         let Some(open) = body[start..].find('(') else {
             break;
         };
@@ -461,7 +477,8 @@ fn channel_region_cm(body: &str, page_h_cm: f64) -> Option<f64> {
             continue;
         };
         let args = &body[start + open + 1..start + open + end];
-        if let Some(name) = named_arg(args, CHANNEL_ARG) {
+        let target = named_arg(args, REGION_ARG).or(named_arg(args, CHANNEL_ARG));
+        if let Some(name) = target {
             if !name.is_empty() && !used.contains(&name) {
                 used.push(name);
             }
@@ -604,12 +621,30 @@ fn declared_region_cm(body: &str, names: &[&str], page_h_cm: f64) -> Option<Vec<
 /// The byte offset just past the `(` that closes the one `s` opens with.
 ///
 /// Depth-counted, so a nested tuple — which is what `גבהים` is — does not end the
-/// list at its own bracket. Strings do not need handling here: the caller works
-/// on `code_only` output, where they are already blanked.
+/// list at its own bracket. Quoted spans are skipped wholesale: two of this
+/// file's callers work on text that still carries its strings
+/// (`code_only_keeping_strings`), and a value like `"a)b"` would otherwise close
+/// the scan one argument in — a channel or region missed there is a reserve
+/// under-counted, and the note it belonged to prints off the paper.
 fn closing_paren(s: &str) -> Option<usize> {
     let mut depth = 0usize;
-    for (i, c) in s.char_indices() {
+    let mut chars = s.char_indices();
+    while let Some((i, c)) = chars.next() {
         match c {
+            '"' => {
+                // To the closing quote, honouring backslash escapes. Typst has
+                // no single-quoted string; a `'` is content.
+                let mut escaped = false;
+                for (_, q) in chars.by_ref() {
+                    if escaped {
+                        escaped = false;
+                    } else if q == '\\' {
+                        escaped = true;
+                    } else if q == '"' {
+                        break;
+                    }
+                }
+            }
             '(' => depth += 1,
             ')' => {
                 depth -= 1;
@@ -2907,6 +2942,43 @@ mod tests {
             auto_notes_region_cm(&body.replace("\"רגל\", גובה: 3cm", "\"סוף\"")),
             0.0
         );
+    }
+
+    #[test]
+    fn a_note_written_into_a_region_by_name_reserves_the_region() {
+        // `אזור:` is one of the five destinations the chooser writes, and the
+        // filing reads the *region's* placement — so it reserves exactly as
+        // `ערוץ:` does. Missing this spelling was a reserve of zero for a
+        // document whose declared-height region printed off the paper.
+        let body = "#אזור(\"צר\", מיקום: \"רגל\", גובה: 2cm)\n\
+                    טקסט#הערה(אזור: \"צר\")[גוף]";
+        assert!(near(auto_notes_region_cm(body), 2.0 + BAND_RULE_CM));
+        // A note carrying both arguments lands in the region, not in two places,
+        // so the region is reserved once and the undeclared channel reserves
+        // nothing besides it.
+        let both = "#אזור(\"r\", מיקום: \"רגל\", גובה: 2cm)\n\
+                    טקסט#הערה(ערוץ: \"c\", אזור: \"r\")[גוף]";
+        assert!(near(auto_notes_region_cm(both), 2.0 + BAND_RULE_CM));
+    }
+
+    #[test]
+    fn a_declaration_carrying_a_region_argument_reserves_nothing() {
+        // `#ערוץ("c", אזור: "r")` writes no note into anything; the keyed-on-
+        // notes rule holds for the region spelling of the argument too.
+        assert_eq!(
+            auto_notes_region_cm("#ערוץ(\"c\", אזור: \"r\")\n#אזור(\"r\", מיקום: \"רגל\", גובה: 4cm)\nטקסט"),
+            0.0
+        );
+    }
+
+    #[test]
+    fn closing_paren_skips_a_quoted_paren() {
+        // The channel scans run over text that keeps its string literals, so a
+        // value like `"a)b"` used to close the argument list one argument in and
+        // the call was read short.
+        assert_eq!(closing_paren("(\"a)b\", x)"), Some(9));
+        assert_eq!(closing_paren("(\"a\\\"b)\")"), Some(8));
+        assert_eq!(closing_paren("(unclosed"), None);
     }
 
     #[test]

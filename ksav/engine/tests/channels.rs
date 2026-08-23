@@ -667,3 +667,35 @@ fn a_tiered_note_configuration_does_not_take_over_the_streams() {
     assert_eq!(mark("מקור־אחד"), "א", "the first מקורות note is not א");
     assert_eq!(mark("מקור־שתיים"), "ב", "the second מקורות note is not ב");
 }
+
+/// A note written `ערוץ:` **and** `אזור:` into a collected region prints there.
+///
+/// Filing keys the entry by the channel's name; membership at draw time used to
+/// re-derive the region from the channel's *declarations*, and a channel that
+/// never declared one answered with its own name — so the entry was numbered,
+/// queryable, and drawn by nothing. The writer's text, gone, with no diagnostic.
+#[test]
+fn a_note_into_a_named_region_prints_when_the_region_is_shown() {
+    let body = "#אזור(\"ביאורים\", מיקום: \"סוף\")\n\
+                טקסט ראשון#הערה(ערוץ: \"א\", אזור: \"ביאורים\")[הביאור שחייב להיראות] ועוד טקסט.\n\n\
+                #הצג_אזור(\"ביאורים\")\n";
+    let printed = out(body);
+    assert!(
+        printed.contains("הביאור שחייב להיראות"),
+        "the entry was filed but never drawn. What printed: {printed}"
+    );
+}
+
+/// …and the same through the per-note spelling alone, which shares the channel
+/// named for the region — the control that proves the fix is not narrower than
+/// the family.
+#[test]
+fn a_note_into_a_region_alone_still_prints_and_numbers_with_its_peers() {
+    let body = "#אזור(\"ביאורים\", מיקום: \"סוף\")\n\
+                טקסט ראשון#הערה(אזור: \"ביאורים\")[ביאור־אחד] ועוד.\n\n\
+                טקסט שני#הערה(ערוץ: \"א\", אזור: \"ביאורים\")[ביאור־שני] ודי.\n\n\
+                #הצג_אזור(\"ביאורים\")\n";
+    let printed = out(body);
+    assert!(printed.contains("ביאור־אחד"), "the first entry never printed");
+    assert!(printed.contains("ביאור־שני"), "the second entry never printed");
+}

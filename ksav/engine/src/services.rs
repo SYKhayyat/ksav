@@ -462,8 +462,15 @@ mod girsa {
         let Ok(saved) = serde_json::from_str::<Saved>(body) else {
             return super::error_json("הבקשה אינה מכילה נתיב · the request carries no path");
         };
-        let told = crate::post::document(&saved.path, saved.name.as_deref(), saved.forget).is_ok();
-        serde_json::json!({ "told": told }).to_string()
+        // Still not an error — a save must never fail because the sibling
+        // application is closed — but the outcomes are no longer collapsed:
+        // "the library is not open" and "Girsa heard this and declined it" are
+        // different facts, and `why` carries which one happened.
+        let told = crate::post::document(&saved.path, saved.name.as_deref(), saved.forget);
+        match told {
+            Ok(()) => serde_json::json!({ "told": true }).to_string(),
+            Err(why) => serde_json::json!({ "told": false, "why": why }).to_string(),
+        }
     }
 
     #[cfg(target_arch = "wasm32")]

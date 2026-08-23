@@ -353,10 +353,25 @@ fn run_of_letters(s: &str) -> usize {
 ///
 /// A geresh is also an abbreviation marker at the END of a word (תוס', סי',
 /// וגו'), so for it a preceding letter is enough — which the caller has already
-/// established by being inside a token.
+/// established by being inside a token. **With one exception:** the two curly
+/// forms are a word processor's punctuation before they are anything else, and
+/// text pasted from one closes its quotations with U+2019. A closing mark has no
+/// letter after it by definition, so a curly form joins only mid-word — the same
+/// rule the English side gives its apostrophe. The canonical spellings a Hebrew
+/// keyboard types keep joining at the end of the word, because that is where an
+/// abbreviation geresh lives and the lexicon stores them there.
 pub(crate) fn joins(c: char, rest: &str) -> bool {
     let tail = run_of_letters(rest);
-    (is_gershayim(c) && (1..=2).contains(&tail)) || is_geresh(c)
+    if is_gershayim(c) {
+        return (1..=2).contains(&tail);
+    }
+    if !is_geresh(c) {
+        return false;
+    }
+    if matches!(c, '\u{2018}' | '\u{2019}') {
+        return tail >= 1;
+    }
+    true
 }
 
 // --------------------------------------------------------------- normalisation
@@ -416,16 +431,28 @@ pub fn should_check(word: &str) -> bool {
 /// Dates are written this way constantly and there is no dictionary of them —
 /// every year is a new word. They are always correct by construction, so they
 /// are exempt rather than flagged.
+///
+/// Two bounds keep this exemption from swallowing the rest of the acronym
+/// apparatus, which it did for a while: a year's thousands digit is ת (400),
+/// always — nothing in use begins with ש, and allowing it exempted שו"ס,
+/// שב"ס and every other short ש-initial gershayim abbreviation; and the
+/// gershayim sits before the units digit, one letter from the end, which is
+/// where a date puts it and an arbitrary acronym does not.
 fn is_hebrew_year(word: &str) -> bool {
     let w = normalize(word);
     // Optional millennium marker (ה' / ה), then the year letters with gershayim
     // before the final letter.
     let body = w.strip_prefix("ה'").unwrap_or(&w);
     let letters: String = body.chars().filter(|c| is_hebrew_letter(*c)).collect();
-    if letters.chars().count() < 3 || letters.chars().count() > 5 {
+    if !(3..=4).contains(&letters.chars().count()) {
         return false;
     }
-    // A year must carry gershayim (תשפ"ה) and start with the ת/ש of the current
-    // and previous millennia, which is what every year in use looks like.
-    body.chars().any(is_gershayim) && letters.starts_with(['ת', 'ש'])
+    // The thousands glyph, and the gershayim one letter from the end.
+    if !letters.starts_with('ת') {
+        return false;
+    }
+    match body.char_indices().find(|(_, c)| is_gershayim(*c)) {
+        Some((p, _)) => body[p..].chars().filter(|c| is_hebrew_letter(*c)).count() == 1,
+        None => false,
+    }
 }

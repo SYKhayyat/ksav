@@ -1175,6 +1175,14 @@ shraga
 feivish
 
 # ---- the vocabulary of an English dvar Torah ----
+# sh'ma is listed whole: its stem is two letters, below the prefix machinery's
+# three-letter floor, and the floor is right — the docstring above that rule
+# names this word as the case it exists for, which is the sign of a closed set
+# to enumerate rather than a bound to loosen.
+sh'ma
+Sh'ma
+SH'MA
+
 chazal
 chinuch
 peah

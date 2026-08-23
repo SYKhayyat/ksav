@@ -684,7 +684,20 @@ fn for_request(
 /// Output: `{misspellings: [{start, len, word, lang, suggestions?}],
 /// lexicon_size, lexicon_sizes: {he, en}}`.
 pub fn spell_request(input_json: &str) -> String {
-    let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
+    // A malformed request is refused, not answered with a clean bill: the
+    // `unwrap_or(Null)` this used to be read unparseable input as *empty text*
+    // and reported zero misspellings — silence wearing the shape of an answer,
+    // while `/mekoros` refuses loudly for the same input. The error shape is
+    // the one `services.rs` answers refusals with.
+    let v: serde_json::Value = match serde_json::from_str(input_json) {
+        Ok(v) => v,
+        Err(e) => {
+            return serde_json::json!({
+                "error": format!("malformed spell request: {e}"),
+            })
+            .to_string();
+        }
+    };
     let text = v.get("text").and_then(|x| x.as_str()).unwrap_or("");
     let user_words = v.get("user_words").and_then(|x| x.as_str()).unwrap_or("");
     let want_suggestions = v.get("suggest").and_then(|x| x.as_bool()).unwrap_or(false);

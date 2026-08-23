@@ -444,7 +444,7 @@ fn channel_declarations(body: &str, names: &[&str]) -> HashMap<String, ChannelDe
 /// Deliberately keyed on notes actually written, not on declarations: declaring
 /// an apparatus and never writing into it reserves nothing, which is the rule
 /// the stream and band configuration commands already follow.
-fn channel_region_cm(body: &str, page_h_cm: f64) -> Option<f64> {
+fn channel_region_cm(body: &str, page_h_cm: Option<f64>) -> Option<f64> {
     let channels = channel_declarations(body, CHANNEL_DECL);
     let regions = channel_declarations(body, REGION_DECL);
 
@@ -556,7 +556,7 @@ fn channel_region_cm(body: &str, page_h_cm: f64) -> Option<f64> {
 /// `("מקורות": 1.5cm)`. Both are read here, because both reserve the same page
 /// foot, and reading only the first is how three declared streams got the flat
 /// 3 cm default and printed the third one off the sheet.
-fn declared_region_cm(body: &str, names: &[&str], page_h_cm: f64) -> Option<Vec<f64>> {
+fn declared_region_cm(body: &str, names: &[&str], page_h_cm: Option<f64>) -> Option<Vec<f64>> {
     for name in names {
         let mut base = 0;
         while let Some(i) = body[base..].find(name) {
@@ -658,7 +658,8 @@ fn closing_paren(s: &str) -> Option<usize> {
     None
 }
 
-/// A Typst length, in cm. `None` for anything font-relative.
+/// A Typst length, in cm. `None` for anything font-relative — or for a
+/// percentage when the sheet it would be a percentage of is not known.
 ///
 /// `%` is a percentage **of the sheet**, not of anything nearer. That is the one
 /// reading a writer means by "make the apparatus a fifth of the page", and it is
@@ -666,10 +667,16 @@ fn closing_paren(s: &str) -> Option<usize> {
 /// so that the two halves of this agree. A bare ratio handed to `block(height:)`
 /// would otherwise be a percentage of the reserve block the bands already sit
 /// inside — a fraction of a fraction, shrinking as more is asked for.
-fn length_cm(s: &str, page_h_cm: f64) -> Option<f64> {
+///
+/// Resolving a percentage against a *guessed* sheet is how the reserve and the
+/// prelude disagree by exactly the ratio of the guess, silently and in page
+/// geometry, so an unknown paper answers `None` here and the height counts as
+/// undeclared: the working default, which keeps everything on the page.
+fn length_cm(s: &str, page_h_cm: Option<f64>) -> Option<f64> {
     let s = s.trim();
     if let Some(n) = s.strip_suffix('%') {
-        return n.trim().parse::<f64>().ok().map(|v| v / 100.0 * page_h_cm);
+        let h = page_h_cm?;
+        return n.trim().parse::<f64>().ok().map(|v| v / 100.0 * h);
     }
     for (unit, per_cm) in [
         ("cm", 1.0),
@@ -690,39 +697,47 @@ fn length_cm(s: &str, page_h_cm: f64) -> Option<f64> {
 /// Only a `%` region height needs the sheet, so this is exact for every document
 /// that measures its apparatus in centimetres — which is all of them until now.
 pub fn auto_notes_region_cm(body: &str) -> f64 {
-    auto_notes_region_cm_on(body, paper_height_cm("a4"))
+    auto_notes_region_cm_on(body, paper_height_cm("a4").unwrap_or(29.7))
 }
 
 /// The height of a named paper, in cm — what a `%` region height is a percentage
-/// of.
+/// of. `None` for a name this side does not know: guessing it would put the
+/// reserve's arithmetic on one sheet and the prelude's `page.height` on another.
 ///
-/// Only the papers the product offers, plus A4 as the fallback. A number here is
-/// page geometry, and inventing a height for a paper nobody selected would put a
-/// band off the bottom of a sheet nobody thought to check.
-fn paper_height_cm(paper: &str) -> f64 {
+/// Only the papers the product offers.
+fn paper_height_cm(paper: &str) -> Option<f64> {
     match paper {
-        "a3" => 42.0,
-        "a5" => 21.0,
-        "a6" => 14.8,
-        "us-letter" => 27.94,
-        "us-legal" => 35.56,
-        _ => 29.7,
+        "a2" => Some(42.0),
+        "a3" => Some(42.0),
+        "a4" => Some(29.7),
+        "a5" => Some(21.0),
+        "a6" => Some(14.8),
+        "b4" => Some(35.3),
+        "b5" => Some(25.0),
+        "b6" => Some(17.6),
+        "us-letter" => Some(27.94),
+        "us-legal" => Some(35.56),
+        _ => None,
     }
 }
 
-/// The sheet this document is laid out on, in cm.
+/// The sheet this document is laid out on, in cm — or `None` when neither an
+/// explicit pair nor a known paper says.
 ///
 /// `page_width_cm`/`page_height_cm` are **both or neither** — the prelude only
 /// honours them as a pair, because Typst's `width`/`height` override `paper:`
 /// entirely and a width with no height would silently keep the named paper's.
-fn sheet_height_cm(cfg: &DocConfig) -> f64 {
+fn sheet_height_cm(cfg: &DocConfig) -> Option<f64> {
     match (cfg.page_width_cm, cfg.page_height_cm) {
-        (Some(_), Some(h)) => h,
+        (Some(_), Some(h)) => Some(h),
         _ => paper_height_cm(&sanitize_paper(&cfg.paper)),
     }
 }
 
-pub fn auto_notes_region_cm_on(body: &str, page_h_cm: f64) -> f64 {
+/// The reserve, given the sheet it is laid out on — or `None` for the sheet,
+/// in which case a `%` height counts as undeclared rather than resolved against
+/// a guess. The f64 form below is the same scan with the sheet known.
+pub fn auto_notes_region_cm_sheet(body: &str, page_h_cm: Option<f64>) -> f64 {
     // Comments first, and this is the eleventh scanner in this repository.
     //
     // `spans.ts` opens with a monument to ten client-side matchers disagreeing
@@ -787,7 +802,13 @@ pub fn auto_notes_region_cm_on(body: &str, page_h_cm: f64) -> f64 {
     // modest right up until it is nine tenths of the sheet. Past this the regions
     // are clipped, which is visible on the page; a document that will not lay out
     // at all is not.
-    total.min(page_h_cm * MAX_REGION_SHARE)
+    total.min(page_h_cm.unwrap_or(29.7) * MAX_REGION_SHARE)
+}
+
+/// The same scan with the sheet known — the shape every existing caller and
+/// test means.
+pub fn auto_notes_region_cm_on(body: &str, page_h_cm: f64) -> f64 {
+    auto_notes_region_cm_sheet(body, Some(page_h_cm))
 }
 
 /// A working reserve for an apparatus that did not say how tall it is.
@@ -1075,7 +1096,15 @@ impl DocConfig {
             cfg.margin_cm = m;
         }
         if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
-            cfg.dir = d.to_string();
+            // The one config string that was never sanitised: `"RTL"` reached
+            // the prelude whole, named no direction anything compared against,
+            // and silently meant whatever the reader's default was. Two tags
+            // exist, said either case; anything else is dropped here, where it
+            // arrives.
+            let clean = d.trim().to_ascii_lowercase();
+            if clean == "rtl" || clean == "ltr" {
+                cfg.dir = clean;
+            }
         }
         // Sanitised like `paper`, and for the same reason: it is formatted into
         // the prelude as a string literal, so it may only ever be a tag.
@@ -1605,7 +1634,7 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         // into the centimetres it takes off the bottom margin.
         region = match cfg
             .notes_region_cm
-            .unwrap_or_else(|| auto_notes_region_cm_on(body, sheet_height_cm(cfg)))
+            .unwrap_or_else(|| auto_notes_region_cm_sheet(body, sheet_height_cm(cfg)))
         {
             r if r <= 0.0 => "none".to_string(),
             r => format!("{r}cm"),

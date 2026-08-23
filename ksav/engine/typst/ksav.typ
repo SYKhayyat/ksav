@@ -259,6 +259,12 @@
   // אזור · עודף — where a channel goes when its row plan gave it no column.
   extra_row: "שורה_נוספת",
   extra_column: "טור_נוסף",
+  // מסמך · גרשיים — how a Hebrew number carries its marks. Compared against a
+  // fixed set everywhere, so an English word that missed the set meant
+  // marks-on: `"none"` silently printed gershayim.
+  "none": "ללא",
+  geresh: "גרש",
+  gershayim: "גרשיים",
 )
 
 /// One value, said in Hebrew whichever language it arrived in.
@@ -399,6 +405,9 @@
 /// `#numbering("א.א", 1, 2)`, whose marks would land between the parts.
 #let _hb_num(scheme, mode, ..n) = {
   let nums = n.pos()
+  // Said either way, compared in Hebrew: the mode travels from configuration
+  // dictionaries that may carry the English spelling.
+  let mode = _val(mode)
   let hebrew = type(scheme) == str and (scheme.contains("א") or scheme.contains("׳"))
   if mode == "ללא" or not hebrew or nums.len() != 1 {
     numbering(scheme, ..nums)
@@ -3680,13 +3689,22 @@
   if want == auto { return none }
   let room = _ap_room(איפה: איפה)
   if want > room and _val(חריגה) == "סירוב" {
+    // Advice that fits where the region sits: a band above the text takes no
+    // page-foot reserve, and being told to grow one would send the writer to a
+    // knob that changes nothing.
+    let how =
+      if איפה == "למעלה" {
+        "Raise #מסמך(חלק_שוליים_רגל: …)"
+      } else {
+        "Reserve more with #מסמך(אזור_הערות: …)"
+      }
     panic(
       "אזור" + (if מי != none { " " + מי } else { "" })
         + ": גובה גדול מן המקום · this region asks for "
         + _as_string(calc.round(want.pt(), digits: 1))
         + "pt and the page has "
         + _as_string(calc.round(room.pt(), digits: 1))
-        + "pt under the text. Reserve more with #מסמך(אזור_הערות: …), ask for "
+        + "pt under the text. " + how + ", ask for "
         + "less, or set חריגה: \"צמצום\" to take what there is.",
     )
   }
@@ -4906,7 +4924,11 @@
   for (j, s) in names.enumerate() {
     let (c, any) = cell_of(s)
     if not any and plan.ריק == "דלג" { continue }
-    cells.push(if plan.יישור == auto { c } else { align(plan.יישור, c) })
+    // Through `_doc_align`, which is the one place a written alignment becomes
+    // an alignment — raw, `"מרכז"` reached Typst's own `align()` as a string and
+    // stopped the compile.
+    let al = if plan.יישור == auto { none } else { _doc_align(plan.יישור) }
+    cells.push(if al == none { c } else { align(al, c) })
     ws.push(widths.at(j))
   }
   let out = if cells.len() == 0 { none } else {
@@ -5517,6 +5539,25 @@
   _ap_spill_read("אזור", mine)
 }
 
+/// Whether a region keeps its slot on a page where it has nothing in it.
+///
+/// The region's own answer when it gave one; otherwise a member channel may
+/// carry it, since the key sits in `_ch_own` and a channel nobody declared as a
+/// region is its own place — which is the only reading it ever had there. The
+/// default is to hold, because that is what fixed geometry means.
+#let _sf_holds(t, rg) = {
+  let own = _rg_rec(t, rg).at("שומר_מקום", default: auto)
+  if own == auto {
+    let from_chans = t.סדר
+      .filter(c => _ch_region(t, c) == rg)
+      .map(c => _ch_rec(t, c).at("שומר_מקום", default: auto))
+      .find(a => a != auto)
+    from_chans == none or _val(from_chans) == true
+  } else {
+    _val(own) == true
+  }
+}
+
 #let _sf_page_streams(איפה: "רגל") = context {
   let t = _ch_st.final()
   // Only the streams painted at this end. Filtered **before** the assignment,
@@ -5539,28 +5580,34 @@
     )
     let on = _ap_on_page(all, base, _sf_cap(base, t, איפה), pg, policy_of: _sf_spill(t))
     let mine = on.entries
-    if mine.len() > 0 {
+    // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
+    // laid out on every apparatus page, even with nothing in it this page, so
+    // a stream never drifts into another's place.
+    let fixed = _sf_cfg.get().at("גבהים", default: (:)).keys()
+    // A region that declared a height is laid out on every apparatus page,
+    // whether or not it has anything on this one. That is what a declared
+    // height *means* — fixed geometry, so the region under it never moves —
+    // and without this line an empty region was simply absent, the regions
+    // below it drifted up, and `שומר_מקום` had nothing to switch between
+    // because neither of its answers was happening.
+    //
+    // The members are the channels pointed into it; a region nobody declared a
+    // channel for is its own channel, which is how `#הערה(אזור: "x")` names one.
+    let declared = ()
+    for rg in t.סדר_אזורים {
+      if _rg_height_of(_rg_rec(t, rg)) == none { continue }
+      let mem = t.סדר.filter(c => _ch_region(t, c) == rg)
+      let mem = if mem.len() == 0 { (rg,) } else { mem }
+      for c in mem { if not declared.contains(c) { declared.push(c) } }
+    }
+    // **A page with no entries here still draws the regions that hold their
+    // place.** The whole block used to be gated on `mine.len() > 0`, so the
+    // pages between two apparatus pages — and every page of a sefer whose notes
+    // land elsewhere — lost the fixed geometry entirely.
+    let holds_place = fixed + declared.filter(s => not fixed.contains(s))
+    let any_holds = holds_place.any(s => _sf_holds(t, _ch_region(t, s)))
+    if mine.len() > 0 or any_holds {
       let present = mine.map(e => e.value.group).dedup()
-      // Fixed heights ⇒ fixed geometry: every stream that has a reserved slot is
-      // laid out on every apparatus page, even with nothing in it this page, so
-      // a stream never drifts into another's place.
-      let fixed = _sf_cfg.get().at("גבהים", default: (:)).keys()
-      // A region that declared a height is laid out on every apparatus page,
-      // whether or not it has anything on this one. That is what a declared
-      // height *means* — fixed geometry, so the region under it never moves —
-      // and without this line an empty region was simply absent, the regions
-      // below it drifted up, and `שומר_מקום` had nothing to switch between
-      // because neither of its answers was happening.
-      //
-      // The members are the channels pointed into it; a region nobody declared a
-      // channel for is its own channel, which is how `#הערה(אזור: "x")` names one.
-      let declared = ()
-      for rg in t.סדר_אזורים {
-        if _rg_height_of(_rg_rec(t, rg)) == none { continue }
-        let mem = t.סדר.filter(c => _ch_region(t, c) == rg)
-        let mem = if mem.len() == 0 { (rg,) } else { mem }
-        for c in mem { if not declared.contains(c) { declared.push(c) } }
-      }
       let fixed = fixed + declared.filter(c => not fixed.contains(c))
       let streams = _sf_order(_sf_cfg.get(), present + fixed.filter(s => not present.contains(s)))
       // …and the ramps, for the channels a `#ערוץ` line declared. A channel's
@@ -5622,20 +5669,7 @@
         t.סדר_אזורים.filter(rg => regions.contains(rg))
           + regions.filter(rg => not t.סדר_אזורים.contains(rg))
       )
-      let regions = regions.filter(rg => {
-        let own = _rg_rec(t, rg).at("שומר_מקום", default: auto)
-        // A member channel may carry the answer instead — the key sits in
-        // `_ch_own`, and a channel nobody declared as a region is its own place,
-        // so this is the only reading it ever had.
-        if own == auto {
-          for c in members.at(rg, default: ()) {
-            let v = _ch_rec(t, c).at("שומר_מקום", default: auto)
-            if v != auto { own = v }
-          }
-        }
-        let holds = if own == auto { true } else { _val(own) == true }
-        holds or members.at(rg).any(s => mine.any(e => e.value.group == s))
-      })
+      let regions = regions.filter(rg => _sf_holds(t, rg) or members.at(rg).any(s => mine.any(e => e.value.group == s)))
       set align(if text.dir == rtl { right } else { left })
       block(width: 100%, _ap_bands(
         cfg,
@@ -6156,7 +6190,13 @@
   // through `_ks_style` it is.
   weight: cfg.at("משקל", default: "regular"),
   fill: cfg.at("צבע", default: luma(65)),
-  _ks_style(cfg.at("סגנון", default: "normal"), [#super[#mark] #body]),
+  // `mark: none` prints no marker of its own — which is what the footnote
+  // fallback below asks for, since Typst numbers that entry with its own series.
+  _ks_style(cfg.at("סגנון", default: "normal"), if mark == none {
+    body
+  } else {
+    [#super[#mark] #body]
+  }),
 )
 
 // A sidenote's marker, in the document's own numerals.
@@ -6449,8 +6489,11 @@
     if שם != none { _xn_mark(שם, _sn_mark_of(kind, num, own)) }
     if not _sn_has_column(loc0, מוצב) {
       // No side column is open, so there is nowhere to put the note. Fall back
-      // to a real footnote rather than placing it off the edge of the paper.
-      footnote(_sn_wrap(cfg, _sn_mark_of(kind, num, own), body))
+      // to a real footnote rather than placing it off the edge of the paper —
+      // **with no mark of ours in the entry**: Typst numbers that entry with
+      // its own series, and two marks from two unrelated counts on one entry
+      // told the reader nothing about either.
+      footnote(_sn_wrap(cfg, none, body))
     }
   }
 }
@@ -7559,6 +7602,10 @@
   _ap_free.update(m_bot * חלק_שוליים_רגל)
   _ap_free_top.update(m_top * חלק_שוליים_רגל)
   _sn_reserve.update(side_res)
+  // Said either way: the English spellings canonicalise before the check, so
+  // `gershayim: "none"` is refused as *ללא* rather than falling past the set
+  // into marks-on.
+  let גרשיים = _val(גרשיים)
   if not _hb_modes.contains(גרשיים) {
     panic("מסמך: גרשיים לא מוכר · unknown setting: " + _as_string(גרשיים) + " (" + _hb_modes.join(" · ") + ")")
   }

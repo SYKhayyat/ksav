@@ -143,6 +143,14 @@ fn remember(waiting: &[Arrival]) {
             body.push('\n');
         }
     }
+    // Unchanged is not written. Every poll used to land here through `persist`
+    // and rewrite the file byte-for-byte — disk churn on a timer for an answer
+    // that was already on it.
+    if let Ok(existing) = std::fs::read_to_string(&path) {
+        if existing == body {
+            return;
+        }
+    }
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -356,22 +364,25 @@ fn persist(waiting: &[Arrival]) {
 #[must_use]
 pub fn drain(took: &[String]) -> Vec<Arrival> {
     let mut out = Vec::new();
-    if let Ok(mut handed) = HANDED.lock() {
-        // Acknowledged: gone, from memory and from the file below.
-        handed.retain(|a| !took.contains(&a.id));
-        // Not acknowledged: handed out again. The client is idempotent about
-        // this in the only way that matters — it is the same source it did not
-        // get.
-        out.extend(handed.iter().cloned());
+    // **One critical section around the whole handover.** Three separate ones
+    // let two concurrent polls each walk the same handed-out list — the same
+    // source offered twice, and inserted twice by an idempotent-only-in-one-
+    // direction client — and walked an acknowledged arrival through a moment
+    // where it sat in neither list.
+    match (HANDED.lock(), INBOX.lock()) {
+        (Ok(mut handed), Ok(mut inbox)) => {
+            // Acknowledged: gone, from memory and from the file below.
+            handed.retain(|a| !took.contains(&a.id));
+            // Not acknowledged: handed out again. The client is idempotent about
+            // this in the only way that matters — it is the same source it did not
+            // get.
+            out.extend(handed.iter().cloned());
+            let waiting = std::mem::take(&mut *inbox);
+            handed.extend(waiting.iter().cloned());
+            out.extend(waiting);
+        }
+        _ => return out,
     }
-    let waiting = INBOX
-        .lock()
-        .map(|mut inbox| std::mem::take(&mut *inbox))
-        .unwrap_or_default();
-    if let Ok(mut handed) = HANDED.lock() {
-        handed.extend(waiting.iter().cloned());
-    }
-    out.extend(waiting);
     // The file now says: nothing waiting, these still in flight.
     persist(&[]);
     out

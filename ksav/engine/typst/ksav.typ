@@ -140,6 +140,12 @@
   // The mark register's two non-style knobs: opt this mark out of its class's
   // styling, and out of its class's list.
   exempt: "פטור", listed: "ברשימה",
+  // How a note's number is set wherever it prints. `watermark`, `clip_mark`,
+  // `continued_mark` and `refmark` were here and plain `mark` was not — so the
+  // apparatus configuration dictionaries that ship a `סימן:` knob took the
+  // English writer's argument, stored it under `"mark"`, and no renderer read
+  // that key.
+  mark: "סימן",
   // named colours
   header_fill: "צבע_כותרת", stripe: "צבע_פס", striped: "פסים",
   insert_colour: "צבע_הוספה", delete_colour: "צבע_מחיקה",
@@ -911,11 +917,23 @@
   _cfg_with(shipped, chosen.at(part, default: (:)))
 }
 
-#let הגדרות_סימונים(..opts) = _mk_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  d
-})
+#let הגדרות_סימונים(..opts) = {
+  // The store is knob-major, so a legal top-level key is a knob, a class, or
+  // the parts key. Anything else was inserted whole and read by nothing — a
+  // typo became a dead key in silence.
+  let legal = _mk_knobs + _mk_block_knobs + _mk_rule_knobs + _mk_titles.keys()
+    + _mk_part_defaults.keys() + (_mk_parts_key,)
+  for k in opts.named().keys() {
+    if not legal.contains(k) {
+      panic("הגדרות_סימונים: ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+  }
+  _mk_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    d
+  })
+}
 #let marks_config = _en(הגדרות_סימונים)
 
 /// Set one thing's look, by name — the door each command gets of its own.
@@ -934,7 +952,25 @@
 /// The store stays knob-major — `גודל: ("סימן": 1.6em)` — because that is what
 /// `_mk_pick` reads and what `#הגדרות_סימונים` writes when a sefer sets six
 /// classes at once. This turns a class-major call into that.
-#let _mk_set(cls, named) = _mk_cfg.update(c => {
+#let _mk_set(cls, raw-named) = {
+  // English spellings arrive untranslated past the first level: `_en` renames
+  // this call's own arguments, and the values of a part's argument are another
+  // dictionary — `gemara_config(masechta: (weight: "bold"))` used to store the
+  // English words whole and every renderer read Hebrew. Canonicalised here,
+  // both levels, before anything validates or stores.
+  let en(k) = _en_params.at(k, default: k)
+  let named = (:)
+  for (k, v) in raw-named {
+    let v = if type(v) == dictionary {
+      let inner = (:)
+      for (kk, vv) in v { inner.insert(en(kk), vv) }
+      inner
+    } else {
+      v
+    }
+    named.insert(en(k), v)
+  }
+  _mk_cfg.update(c => {
   let d = c
   // The parts first — `#הגדרות_סימן(מספר: (משקל: "bold"))`. A key that is
   // neither a knob nor one of this command's parts stops the compile naming
@@ -1001,8 +1037,8 @@
     d.insert(k, per)
   }
   d
-})
-
+  })
+}
 // One door per command, which is the rule: *anything that is a separate command
 // has a style you can set*. Each is the same three lines and each names exactly
 // one thing, so `#הגדרות_סימן(גודל: 1.6em)` is a sentence about simanim rather
@@ -1214,6 +1250,15 @@
 // `ריווח` stays out of `_fn_own_keys`: the gap is *between* two entries and
 // belongs to neither of them.
 #let הגדרות_הערות(..opts) = {
+  // Refused here and not inside the update, for the reason `#הגדרות_מספור`
+  // gives below its own state: an update closure runs only when something
+  // reads it, and a typo that compiles into a dead key is the defect this
+  // repository exists to kill.
+  for k in opts.named().keys() {
+    if k not in _fn_defaults {
+      panic("הגדרות_הערות: ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+  }
   _fn_cfg.update(c => {
     let d = c
     for (k, v) in opts.named() { d.insert(k, v) }
@@ -4561,8 +4606,18 @@
   }
   out
 }
-#let _rg_head_cfg(cfg, t, rg) = {
+#let _rg_head_cfg(cfg, t, rg, chans: ()) = {
   let out = cfg
+  // A channel may say what stands at the head of its entries too — the keys sit
+  // in `_ch_own`, and until now their only readers were the region-record paths,
+  // so declaring one on a channel compiled and changed nothing. The region is
+  // still the authority: it merges last and wins.
+  for c in chans {
+    let rec = _ch_rec(t, c)
+    for k in _rg_head_keys {
+      if k in rec { out.insert(k, rec.at(k)) }
+    }
+  }
   let rec = _rg_rec(t, rg)
   for k in _rg_head_keys {
     if k in rec { out.insert(k, rec.at(k)) }
@@ -4970,11 +5025,18 @@
   תוויות: false,        // show a small "· tier ·" label above each band
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
-#let הגדרות_מדורגות(..opts) = _md_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  _nt_explicit(d, opts.named())
-})
+#let הגדרות_מדורגות(..opts) = {
+  for k in opts.named().keys() {
+    if k not in _md_defaults {
+      panic("הגדרות_מדורגות: ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+  }
+  _md_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    _nt_explicit(d, opts.named())
+  })
+}
 // The channels pointed into a region, in declaration order.
 #let _ch_in_region(t, rg) = t.סדר.filter(c => _ch_region(t, c) == rg)
 
@@ -5153,7 +5215,13 @@
                         //   seven tiers מדף_א…ז name.
 )
 #let _pp_cfg = state("ksav-pp-cfg", _pp_defaults)
-#let הגדרות_מדפים(..opts) = _pp_cfg.update(c => {
+#let הגדרות_מדפים(..opts) = {
+  for k in opts.named().keys() {
+    if k not in _pp_defaults {
+      panic("הגדרות_מדפים: ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+  }
+  _pp_cfg.update(c => {
   let d = c
   for (k, v) in opts.named() { d.insert(k, v) }
   _nt_explicit(d, opts.named())
@@ -5279,11 +5347,23 @@
   סימן: (:),            // how the note s number is set, wherever it prints
 )
 #let _sf_cfg = state("ksav-sf-cfg", _sf_defaults)
-#let הגדרות_זרמים(..opts) = _sf_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  _nt_explicit(d, opts.named())
-})
+#let הגדרות_זרמים(..opts) = {
+  // `גלישה` is refused here rather than wired: overflow belongs to the region
+  // (and to the channel that made it) by decision 12 — two streams sharing a
+  // region share its answer, and a per-stream knob would let them disagree.
+  // Accepting it here read as supported and reached no reader at all, which is
+  // the exact class this refusal exists for.
+  for k in opts.named().keys() {
+    if k not in _sf_defaults {
+      panic("הגדרות_זרמים: ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+  }
+  _sf_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    _nt_explicit(d, opts.named())
+  })
+}
 // One page-foot channel's configuration: the stream settings, anything the
 // channel declared, and its numbering by position in its region. Read at the
 // marker *and* in the footer, because a marker that says `1` over an entry that
@@ -5504,7 +5584,10 @@
             if spill(s).contains("דחיסה") {
               0pt
             } else {
-              cfg.at("ריווח_פריט", default: 0.3em)
+              // Through `_ap_pick`, like every other knob here: the gap is
+              // per-group once anything can set it per-group, and read with a
+              // bare `.at` a dictionary arrives whole as the gap.
+              _ap_pick(cfg, "ריווח_פריט", s, 0.3em)
             },
           )
         }
@@ -5541,6 +5624,15 @@
       )
       let regions = regions.filter(rg => {
         let own = _rg_rec(t, rg).at("שומר_מקום", default: auto)
+        // A member channel may carry the answer instead — the key sits in
+        // `_ch_own`, and a channel nobody declared as a region is its own place,
+        // so this is the only reading it ever had.
+        if own == auto {
+          for c in members.at(rg, default: ()) {
+            let v = _ch_rec(t, c).at("שומר_מקום", default: auto)
+            if v != auto { own = v }
+          }
+        }
         let holds = if own == auto { true } else { _val(own) == true }
         holds or members.at(rg).any(s => mine.any(e => e.value.group == s))
       })
@@ -5894,7 +5986,7 @@
       // without being declared — which keeps a note visible rather than tidy.
       let chans = _ch_in_region(t, rg).filter(c => mine.any(e => e.value.group == c))
       for e in mine { if not chans.contains(e.value.group) { chans.push(e.value.group) } }
-      let cfg = _rg_head_cfg(_ch_cfg(t, chans), t, rg)
+      let cfg = _rg_head_cfg(_ch_cfg(t, chans), t, rg, chans: chans)
       let title = if כותרת != auto { כותרת } else {
         _rg_rec(t, rg).at("כותרת", default: none)
       }
@@ -8321,7 +8413,7 @@
     let (own, rest) = _cfg_split(named, _ap_own_keys)
     _cfg_strict("הערה", rest)
     _cn_note(
-      _cfg_with(_rg_head_cfg(_ch_cfg(t, (chan,)), t, region), own),
+      _cfg_with(_rg_head_cfg(_ch_cfg(t, (chan,)), t, region, chans: (chan,)), own),
       region,
       chan,
       body,

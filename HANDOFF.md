@@ -144,6 +144,22 @@ specified for them turned out not to exist, are
   network-first precisely so nobody is pinned to the version they first
   opened; the orphaned entry is never requested again.
 
+### The audits of 23 August 2026
+
+Two passes ran on this date and their findings live in
+[`AUDIT-code-audit-2026-08-23.md`](AUDIT-code-audit-2026-08-23.md): a render
+stress pass over footnotes and sidenotes (thirteen new documents through a
+fresh build, read back through `probe`), and a full code audit graded by
+lens — bugs, inefficiencies, confusing behavior, missing features. The three
+render-pass findings — independently placed side apparatuses interleaving in
+one margin, a region printing off the paper when no reserve exists, and
+`#הערת_גיליון` refusing `שם:` — are absorbed into that document's findings
+with their code-level causes, and are not tracked here. The artifacts
+(documents, probe dumps, screenshots, logs) sit outside the repository at
+`C:\Users\Administrator\Videos\Ksav-audit\`.
+
+
+
 ### The 20 August wave, and what is left of it
 
 Eighteen items came in as

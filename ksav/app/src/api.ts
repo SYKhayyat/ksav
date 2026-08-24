@@ -11,6 +11,7 @@
 // writer noticing could have found it.
 
 import { SERVICE, SERVICE_PATH, type GitOp, type ServiceName } from "./services.gen";
+import { isOp } from "./git";
 
 export interface DocConfig {
   font: string;
@@ -1212,6 +1213,12 @@ abstract class ServiceClient {
    * out. The answer carries `ok` and the drawer shows what it says.
    */
   async git(op: GitOp, path: string, extra: Record<string, unknown> = {}): Promise<GitAnswer> {
+    // The wire does not read TypeScript. `isOp` turns the type into a checked
+    // claim at the last door before the request leaves, for the embedder whose
+    // JavaScript never met a `.d.ts`.
+    if (!isOp(op)) {
+      return { ok: false, error: `unknown git operation: ${op}` } as GitAnswer;
+    }
     return this.ask("git", { op, path, ...extra });
   }
 

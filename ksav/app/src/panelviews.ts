@@ -212,6 +212,10 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
       case "changes": {
         const changed = git.changed(state);
         if (changed.length) {
+          // The question the list cannot answer by itself: *is my sefer among
+          // them?* Twelve dirty files and one writer scanning for their own
+          // path is the reading this chip saves.
+          const mine = git.documentChanged(view.status) ? view.status?.this?.path : null;
           block.push(
             el(
               "ul",
@@ -222,6 +226,7 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
                   el("span", { class: "git-path" }, [f.path]),
                   ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
                   ...(git.isStaged(f) ? [el("small", { class: "git-staged" }, [t("git.readyToCommit")])] : []),
+                  ...(mine && f.path === mine ? [el("small", { class: "git-this-doc" }, [t("git.thisDoc")])] : []),
                 ]),
               ),
             ),

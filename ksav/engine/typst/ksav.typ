@@ -245,6 +245,9 @@
   quote: "ציטוט",
   page: "עמוד",
   folio: "דף",
+  amud: "אמוד",
+  // The words an entry address prints around its numbers — `כתובות`'s keys.
+  addresses: "כתובות",
   line: "שורה",
   // אזור · יחידה — what a grid region's columns are kept in register by.
   // `siman` is not repeated: it is above, and it is the same word for the same
@@ -2039,20 +2042,31 @@
 /// `cfg` is the apparatus's own configuration, so the page numbering an address
 /// prints is the one the page itself prints — an entry that says «עמ' 47» about
 /// a page whose corner reads «מז» is an address the reader cannot use.
+///
+/// The **words** around the numbers are the writer's too: `עמ'` and `דף` are
+/// invented here, and this file's own rule is that an invented word takes a
+/// `כתובות` answer — a dictionary keyed by ingredient, said either language,
+/// because an English sefer citing «p. 47» was previously unwritable.
 #let _xa_part(kind, org, cfg) = {
   if org == none { return none }
   let scheme = cfg.at("מספור_כתובת", default: none)
+  let words = {
+    let w = cfg.at("כתובות", default: (:))
+    let out = (:)
+    for (k, v) in w { out.insert(_en_params.at(k, default: k), v) }
+    out
+  }
   if kind == "עמוד" {
     let p = org.page()
     let np = if scheme != none { scheme } else {
       let c = org.page-numbering()
       if c == none { "1" } else { c }
     }
-    [עמ' #numbering(np, p)]
+    [#{words.at("עמוד", default: "עמ'")} #numbering(np, p)]
   } else if kind == "דף" {
     let first = cfg.at("דף_ראשון", default: _xa_daf_first)
     let (d, amud) = _xa_daf(org.page(), first)
-    [דף #_hb_num("א", _hb_mode.get(), d) ע"#amud]
+    [#{words.at("דף", default: "דף")} #_hb_num("א", _hb_mode.get(), d) #{words.at("אמוד", default: "ע\"")}#amud]
   } else if kind == "סימן" {
     let h = _xa_section(org)
     if h == none { none } else {
@@ -4591,7 +4605,7 @@
 // `ראש` was accepted on `#אזור` and the renderer built its configuration out of
 // the *channels* alone, so a region that asked for an address got the default
 // entry head and printed a number instead.
-#let _rg_head_keys = ("ראש", "מספור_כתובת", "דף_ראשון")
+#let _rg_head_keys = ("ראש", "מספור_כתובת", "דף_ראשון", "כתובות")
 /// The keys that shape how a region overflows.
 ///
 /// Read through `_ap_pick` deep inside the walk, which has the *channel's*
@@ -4909,8 +4923,11 @@
     panic(
       where + ": " + over.join(" · ") + " · this row's plan has no column for that "
         + "channel and it has something to say here. Name it in the plan "
-        + "(ערוצים:), or let it have a row of its own (עודף: \"שורה\") or a "
-        + "column (עודף: \"טור\").",
+        // The words as they are spelt, not as they are remembered — an advice
+        // that names values the parser refuses is an error whose remediation
+        // errors.
+        + "(ערוצים:), or let it have a row of its own (עודף: \"שורה_נוספת\") or a "
+        + "column (עודף: \"טור_נוסף\").",
     )
   }
   // A column each, at the width one more column leaves over. Written before the
@@ -5044,6 +5061,7 @@
   ריווח_פריט: 0.35em,   // gap between entries within a band
   משקל: "regular",      // per-tier weight (or one value for every tier)
   סימן: (:),            // how the note's number is set, wherever it prints
+  כתובות: (:),          // the words an address prints around its numbers — see `_xa_part`
   תוויות: false,        // show a small "· tier ·" label above each band
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
@@ -5227,6 +5245,7 @@
   ריווח_פריט: 0.25em,   // gap between entries within a band
   משקל: "regular",      // per-tier weight (or one value for every tier)
   סימן: (:),            // how the note's number is set, wherever it prints
+  כתובות: (:),          // the words an address prints around its numbers — see `_xa_part`
   גבהים: none,          // fixed per-tier band heights, e.g. (2cm, 1cm) — the
                         //   "fixed regions" layout: a band always occupies its
                         //   height, empty space stays empty, overflow is clipped.
@@ -5367,6 +5386,7 @@
   ריווח_פריט: 0.22em,   // gap between entries in a stream
   משקל: "regular",      // per-stream weight (or one value for every stream)
   סימן: (:),            // how the note s number is set, wherever it prints
+  כתובות: (:),          // the words an address prints around its numbers — see `_xa_part`
 )
 #let _sf_cfg = state("ksav-sf-cfg", _sf_defaults)
 #let הגדרות_זרמים(..opts) = {
@@ -5800,8 +5820,9 @@
   "מקור", "מיקום", "אזור", "גובה", "גלישה",
   "מספור", "גודל", "סגנון", "צבע", "טורים", "כותרת", "הקטנה_מזערית",
   // What stands at the head of an entry — the number, the dibbur hamaschil and
-  // the four addresses — plus how an address is set. See `_eh_addr`.
-  "ראש", "ציטוט", "מספור_כתובת", "דף_ראשון", "שומר_מקום",
+  // the four addresses — plus how an address is set and what words it prints.
+  // See `_eh_addr` and `_xa_part`.
+  "ראש", "ציטוט", "מספור_כתובת", "דף_ראשון", "שומר_מקום", "כתובות",
 )
 // `גלישה` — what this region does when it is full. On the region and not only on
 // the channel, because it is a property of *the space*: two channels sharing one
@@ -5819,7 +5840,7 @@
   // What to do when the declared height is more than the page has. See
   // `_ap_fit_room`.
   "חריגה",
-  "ראש", "מספור_כתובת", "דף_ראשון",
+  "ראש", "מספור_כתובת", "דף_ראשון", "כתובות",
   // Whether the region opens on a sheet of its own. `#הערות_בסוף` has had this
   // since it existed and a region had no way to say it, so a collected apparatus
   // at the end of the sefer either always broke the page or never could.
@@ -5879,7 +5900,9 @@
   if "מיקום" in own and not _ch_places.contains(_val(own.מיקום)) {
     panic(
       "ערוץ: מיקום לא מוכר · unknown placement: " + _as_string(own.מיקום)
-        + " (רגל · סוף_מדור · סוף)",
+        // The whole set, read off the table: three of the ten hid the side
+        // family and `קובץ` from the writer who most wanted them.
+        + " (" + _ch_places.join(" · ") + ")",
     )
   }
   _ch_st.update(t => {
@@ -5915,7 +5938,7 @@
   if "מיקום" in own and not _ch_places.contains(_val(own.מיקום)) {
     panic(
       "אזור: מיקום לא מוכר · unknown placement: " + _as_string(own.מיקום)
-        + " (רגל · סוף_מדור · סוף)",
+        + " (" + _ch_places.join(" · ") + ")",
     )
   }
   _ch_st.update(t => {
@@ -6184,9 +6207,6 @@
 // to keep in step.
 #let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע", "הזזה")
 #let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
-// Is a side-column wrapper currently open? A sidenote outside one has no column
-// to land in, so it must not be `place`d off the page — see _sn_note.
-#let _sn_active = state("ksav-sn-active", 0)
 #let _sn_wrap(cfg, mark, body) = text(
   size: cfg.at("גודל", default: 0.78em),
   // Slant and weight, which a side column had no way to ask for. A peirush
@@ -6228,61 +6248,13 @@
 
 // ---- ערימת הערות הצד · one stack, computed the same way by every note ----
 //
-// **The arithmetic lives here and not in `_sn_note` because two different call
-// sites need the identical answer** — each note works out where it goes, and the
-// same walk decides what will not fit at all. Two copies of a greedy stack that
-// disagree by one gap put two notes on one line.
-//
-// Given this page's entries in document order, each with a measured height, it
-// returns the y each one is placed at. Three of the ten overflow moves are in
-// here and they are the three a fixed column cannot do without:
-//
-//   **clamp** — no note is placed below the text area. The column had no bottom
-//     at all: twenty notes on one paragraph reached y=827.27 on an 841.89pt
-//     sheet, printing over the page number and into the part of the paper a
-//     printer will not mark.
-//   **shift, both directions** — the old loop only ever pushed a colliding note
-//     *down*, so the stack could only grow towards the edge. A note that does not
-//     fit below is now pulled back **up** towards its marker until it does.
-//   **cascade** — pulling one note up moves the one above it, and so on. The
-//     backward pass is what makes that a stack rather than a single nudge.
-//
-// What it deliberately does not do is drop, shrink, or overprint: when even the
-// pulled-up stack does not fit, the entries that will not go are returned
-// separately as `spill`, and it is the caller's business what becomes of them.
-// A note this walk could not place is a note the reader must still be given.
-#let _sn_stack(tops, heights, gap, floor, ceiling) = {
-  // Forward: every note wants to sit beside its own marker, and takes the first
-  // free position at or below it.
-  let ys = ()
-  let cursor = floor
-  for i in range(tops.len()) {
-    let y = calc.max(tops.at(i), cursor)
-    ys.push(y)
-    cursor = y + heights.at(i) + gap
-  }
-  if ceiling == none { return (ys: ys, spill: ()) }
-  // Backward: whatever hangs below the text area is pulled up, and takes its
-  // neighbours with it. `limit` is the lowest edge the note above may reach.
-  let limit = ceiling
-  let spill = ()
-  let i = tops.len()
-  while i > 0 {
-    i -= 1
-    let y = calc.min(ys.at(i), limit - heights.at(i))
-    if y < floor {
-      // Even against the top of the text area it does not fit. Pulling it
-      // further would print it above the page's first line and on top of its
-      // neighbour, which is the one thing a note may never do — so it is not
-      // placed here at all.
-      spill.push(i)
-      y = floor
-    }
-    ys.at(i) = y
-    limit = y - gap
-  }
-  (ys: ys, spill: spill.rev())
-}
+// **The arithmetic lives in `_sn_assign`, and only there.** An earlier walk —
+// clamp, shift-both-ways, cascade, and a `spill` list for what will not fit —
+// sat here finished, documented, and called by nothing: the same greedy stack,
+// a second implementation waiting to disagree with the first by one gap. It is
+// gone; this comment is what keeps the lesson next to the place it would have
+// rotted in. The three moves it carried are the three `_sn_assign` runs
+// unconditionally, because they are decision 6's invariant and not choices.
 
 // How many note columns the wrapper in force reserved, and on which sides. Read
 // per *note*, at the note's own location, because the answer can differ down a
@@ -8839,11 +8811,22 @@
 
 
 // Named arguments style this one sidenote — `גודל` and `צבע`, the two knobs that
-// belong to a note rather than to the column. See `_sn_note` and `_cfg_with`.
+// belong to a note rather than to the column, and `שם`, which names it for
+// `#הפניה_להערה`. The underlying collector always accepted a name; these three
+// wrappers were the only doors that refused to carry one, so a gloss beside the
+// text was the one note that could not be referred to through the spelling the
+// chooser leads with. See `_sn_note`.
 #let הערת_גיליון(body, ..opts) = {
-  let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
+  let named = opts.named()
+  let mine = named.at("שם", default: none)
+  let named = if mine == none { named } else {
+    let d = named
+    let _ = d.remove("שם")
+    d
+  }
+  let (own, rest) = _cfg_split(named, _sn_own_keys)
   _cfg_strict("הערת_גיליון", rest)
-  _sn_note("ksav-sn", "חוץ", "צד", body, own: own)
+  _sn_note("ksav-sn", "חוץ", "צד", body, own: own, שם: mine)
 }
 
 // עם_הערות_צד — reserve the note column beside `עיקר`. The notes themselves are
@@ -8861,7 +8844,6 @@
   // which could say *a column exists* and not *which one*, so the renderer had
   // to be inside the grid to find out — which is exactly what made a note
   // unable to reach the next page. See `_sn_page_column`.
-  _sn_active.update(n => n + 1)
   _sn_shape.update(s => (טורים: 1, צדדים: "שניהם"))
   context {
     let cfg = _nt_under(_sn_cfg.get())
@@ -8875,7 +8857,6 @@
       [],
     )
   }
-  _sn_active.update(n => n - 1)
   _sn_shape.update(s => (טורים: 0, צדדים: "שניהם"))
 }
 #let sidenote = _en(הערת_גיליון, extra: (gutter: "מרווח"))
@@ -8888,14 +8869,28 @@
 // the left column (numbered 1′,2′,3′) — two independent apparatuses running down
 // both sides of the centred main text, each note beside its own line.
 #let הערת_ימין(body, ..opts) = {
-  let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
+  let named = opts.named()
+  let mine = named.at("שם", default: none)
+  let named = if mine == none { named } else {
+    let d = named
+    let _ = d.remove("שם")
+    d
+  }
+  let (own, rest) = _cfg_split(named, _sn_own_keys)
   _cfg_strict("הערת_ימין", rest)
-  _sn_note("ksav-sn-r", "ימין", "צד", body, own: own)
+  _sn_note("ksav-sn-r", "ימין", "צד", body, own: own, שם: mine)
 }
 #let הערת_שמאל(body, ..opts) = {
-  let (own, rest) = _cfg_split(opts.named(), _sn_own_keys)
+  let named = opts.named()
+  let mine = named.at("שם", default: none)
+  let named = if mine == none { named } else {
+    let d = named
+    let _ = d.remove("שם")
+    d
+  }
+  let (own, rest) = _cfg_split(named, _sn_own_keys)
   _cfg_strict("הערת_שמאל", rest)
-  _sn_note("ksav-sn-l", "שמאל", "שמאל", body, own: own)
+  _sn_note("ksav-sn-l", "שמאל", "שמאל", body, own: own, שם: mine)
 }
 // `צדדים` — which margins to reserve. **This is the layout ask**, and it is a
 // capability rather than a default: the grid below was always three columns, so
@@ -8910,11 +8905,10 @@
 // The stream a note goes to is unchanged: `#הערת_ימין` still feeds the right and
 // `#הערת_שמאל` the left. Reserving one side and writing to the other is the
 // writer's mistake to make, and `#הערת_שמאל` in a right-only layout lands where
-// it always did — outside the reserved column — which is what `_sn_active`
-// already guards against off the page.
+// it always did — outside the reserved column, which is what `_sn_has_column`
+// guards against.
 #let עם_הערות_דו_צד(עיקר, יחס: auto, צדדים: "שניהם") = {
   if יחס != auto { _sn_cfg.update(c => { let d = c; d.insert("יחס", יחס); d }) }
-  _sn_active.update(n => n + 1)
   _sn_shape.update(s => (טורים: 2, צדדים: צדדים))
   context {
     let cfg = _nt_under(_sn_cfg.get())
@@ -8938,7 +8932,6 @@
       grid(columns: (1fr, r * 1fr, 1fr), column-gutter: g, [], עיקר, [])
     }
   }
-  _sn_active.update(n => n - 1)
   _sn_shape.update(s => (טורים: 0, צדדים: "שניהם"))
 }
 #let noteright = _en(הערת_ימין, extra: (gutter: "מרווח"))

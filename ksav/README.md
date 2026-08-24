@@ -99,9 +99,10 @@ no longer pointed at.)
 
 ### Notes
 
-A footnote is `Ctrl+Shift+F` — or `Ctrl+Alt+F`, which is Word's. An endnote is
-`Ctrl+Alt+D`, Word's again. Both are on the toolbar (`†`, `⁋`) and in **Insert**,
-where a Word user looks first.
+`Ctrl+Shift+F` — or `Ctrl+Alt+F`, which is Word's — opens the footnote dialog,
+where you type the note's prose and add it; the marker lands where the caret
+was. An endnote is `Ctrl+Alt+D`, Word's again, and flows the same way. Both are
+on the toolbar (`†`, `⁋`) and in **Insert**, where a Word user looks first.
 
 A note *on* a note is `Ctrl+Shift+N`, and it reads the caret: in prose it makes
 an ordinary note, inside a note a second-tier one, inside two a third. **You
@@ -305,7 +306,7 @@ collapses the sefer to chapters, or to chapters and simanim.
   you do not. It stays open while you use it, and each row shows the shortcut it
   answers to.
 - **`F1`** — help, and every line of it is a button: the entry that tells you
-  `Ctrl+Shift+F` makes a footnote makes one.
+  `Ctrl+Shift+F` opens the footnote dialog makes one.
 - **`Ctrl+=` / `Ctrl+-` / `Ctrl+0`** — bigger, smaller, back to 100%. They resize
   whichever of the two you are standing in: the text when the caret is in it, the
   page otherwise. Both sizes are also rows in Settings, named for what they zoom.

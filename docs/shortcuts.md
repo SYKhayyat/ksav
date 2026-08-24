@@ -16,7 +16,7 @@ rather than leaving two actions on one key.
 | `Ctrl+B` | Bold | מודגש |
 | `Ctrl+I` | Italic | נטוי |
 | `Ctrl+U` | Underline | קו תחתון |
-| `Ctrl+Shift+F` · `Ctrl+Alt+F` | Footnote | הערת שוליים |
+| `Ctrl+Shift+F` · `Ctrl+Alt+F` | Footnote · opens the insert dialog | הערת שוליים · נפתח דו־שיח ההוספה |
 | `Ctrl+Alt+D` | Endnote | הערת סיום |
 | `Ctrl+Alt+G` | Margin note | הערת גיליון (בשוליים) |
 | `Ctrl+Shift+N` | Note on the note | הערה על ההערה |

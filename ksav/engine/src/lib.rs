@@ -2626,6 +2626,18 @@ struct DocumentRequest {
 }
 
 /// Read the document out of a request, or say why it could not be read.
+///
+/// # The validation seam, stated where a client author will read it
+///
+/// Two philosophies meet at this boundary and **both are deliberate**. A request
+/// field this function does not know (`fontX`, `paperX`) is *ignored*: the HTTP
+/// contract belongs to clients that ship on their own schedule, and refusing an
+/// unknown field would make every older client break against every newer engine
+/// instead of simply missing a feature it never asked for. A configuration key
+/// the *prelude* does not know (`#הגדרות_הערות(גדול: …)`) is *refused by name*:
+/// that text is the writer's own document, a typo there is a dead knob in their
+/// sefer, and silence is exactly what this product refuses to be. The first is
+/// about versioning across a wire; the second is about honesty inside a page.
 fn read_document(input_json: &str) -> Result<DocumentRequest, Unreadable> {
     // A request that does not parse is not an empty document.
     //

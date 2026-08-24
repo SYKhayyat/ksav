@@ -158,6 +158,30 @@ with their code-level causes, and are not tracked here. The artifacts
 (documents, probe dumps, screenshots, logs) sit outside the repository at
 `C:\Users\Administrator\Videos\Ksav-audit\`.
 
+**Every finding has been worked.** Eight chunks landed on 23 August, one
+decision record each, all indexed in
+[`decisions/README.md`](decisions/README.md) from *The entry that was filed
+but never drawn* through *The seam, the wrappers, and four helpers*. Owner
+rulings that came with the work: grow-the-reserve is the default for a body
+region that declares a height with no reserve declared (refusal stays
+available via an explicit `אזור_הערות` plus `חריגה: "סירוב"`), and `שם:` is
+accepted on every sidenote spelling.
+
+- [ ] **Run the whole gate, then the builds, then accept — none have run since
+      the wave.** `node tools/gate.mjs` (all nine checks; several fences will
+      be red until counts they hold are updated — fix the fences' complaints,
+      not the fences). Then `ksav/app && npm run build`,
+      `ksav/engine && cargo build --release --features embed-ui`, and
+      `npm run accept`. The engine tests to watch: the new fences in
+      `channels.rs`, `side_placement.rs`, `overflow_moves.rs`, `lib.rs`
+      (reserve scanner + spell), and every prelude behaviour touched above.
+- [ ] **The documentation sweep, counts last**, per the lesson at the bottom
+      of this page: README assertion tallies, any count a fence complains
+      about, and a re-read of the pages the wave touched (`docs/shortcuts.md`,
+      `ksav/README.md` notes section already updated).
+- [ ] **Push.** Eight commits from 099b5c0 onward sit local only, by order —
+      push once the gate and builds are green, and keep an eye on CI after.
+
 
 
 ### The 20 August wave, and what is left of it

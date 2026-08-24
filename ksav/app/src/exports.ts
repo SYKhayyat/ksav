@@ -401,7 +401,14 @@ export async function copyForWord() {
         "text/plain": new Blob([toPlainText(runtime.docText())], { type: "text/plain" }),
       }),
     ]);
-    runtime.setStatus(t("copiedForWord"), "ok");
+    // The same sentence the file route says: it is the same handoff, and a
+    // stated downgrade beats a silent one whichever door it leaves by.
+    const lost = wordDegradations(runtime.docText());
+    if (lost.length === 0) {
+      runtime.setStatus(t("copiedForWord"), "ok");
+    } else {
+      runtime.setStatus(`${t("copiedForWord")} — ${t("wordFlattenNote")} ${lost.join(" ")}`, "warn");
+    }
   } catch {
     runtime.setStatus(t("copyFailed"), "warn");
   }

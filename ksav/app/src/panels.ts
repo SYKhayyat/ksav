@@ -405,6 +405,17 @@ export interface PanelHooks {
   open?: () => void;
   /** Put back whatever opening took. Runs only if it was actually open. */
   close?: () => void;
+  /**
+   * Re-render an open surface from current state, with no side effects.
+   *
+   * The language flip used to rebuild the header and the settings drawer and
+   * leave every other open panel body in the old language until its next
+   * interaction. `open` could not simply be re-run: opening is allowed to take
+   * focus and start work, and a flip must do neither. Where a surface has a
+   * pure renderer, this is that renderer; where it does not, the flip falls
+   * back to the `[data-i18n]` sweep as before.
+   */
+  rebuild?: () => void;
 }
 
 const HOOKS = new Map<string, PanelHooks>();
@@ -471,6 +482,19 @@ export function closePanel(id: string): void {
     else n.classList.remove("open");
   }
   HOOKS.get(id)?.close?.();
+}
+
+/**
+ * Re-render every open surface that has a pure renderer.
+ *
+ * Called from the chrome rerender, which is what a language flip runs: the
+ * header and the settings drawer were rebuilt there and everything else waited
+ * for its next interaction to come back in the new language.
+ */
+export function rebuildOpenPanels(): void {
+  for (const p of PANELS) {
+    if (isPanelOpen(p.id)) HOOKS.get(p.id)?.rebuild?.();
+  }
 }
 
 /**

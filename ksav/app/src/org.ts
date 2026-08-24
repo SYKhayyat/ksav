@@ -411,6 +411,11 @@ export function fromOrg(text: string): ImportResult {
       if (list.items.length && item[1].length > list.indent) dropped.add("nested list levels");
       if (!list.items.length) list.indent = item[1].length;
       list.ordered = ordered;
+      // A description list carries its definition after ` :: `. Ksav's lists
+      // have no descriptions, so the words survive inside a plain item — named
+      // here, because ` :: ` arriving as literal prose is punctuation that
+      // means nothing in this document class.
+      if (item[4].includes(" :: ")) dropped.add("definition lists");
       list.items.push(say(item[4]));
       continue;
     }

@@ -157,6 +157,7 @@ import {
   panelHead,
   overlayPanel,
   localise,
+  rebuildOpenPanels,
 } from "./panels";
 import { BUNDLED_NOTICES, COMMAND_EN } from "./engine.gen";
 import { bodyAt, docTextOf, plainText, scanDoc } from "./spans";
@@ -13675,6 +13676,10 @@ function rerenderChrome() {
   // that swept for `[data-i18n]` and found nothing, because nothing produced
   // one. See `panelHead`.
   localise();
+  // …and every open surface with a pure renderer re-renders. The flip used to
+  // stop here, and a git drawer or a notes pane stayed in the old language
+  // until its next interaction.
+  rebuildOpenPanels();
 }
 
 // ---------------------------------------------------------------- boot
@@ -14136,6 +14141,7 @@ function wirePanels() {
   // back on the next launch, which is the same class of lie as a menu item that
   // does nothing.
   wirePanel("outline-drawer", {
+    rebuild: renderOutline,
     open: () => {
       settings.outline = true;
       saveSettings();
@@ -14150,6 +14156,7 @@ function wirePanels() {
     },
   });
   wirePanel("notes-drawer", {
+    rebuild: renderNotesPane,
     open: () => {
       settings.notesPane = true;
       saveSettings();
@@ -14165,6 +14172,7 @@ function wirePanels() {
   });
 
   wirePanel("marks-drawer", {
+    rebuild: renderMarksPane,
     open: () => {
       settings.marksPane = true;
       saveSettings();
@@ -14180,6 +14188,7 @@ function wirePanels() {
   });
 
   wirePanel("find-drawer", {
+    rebuild: renderFindPane,
     open: () => {
       const scope = document.getElementById("find-scope") as HTMLSelectElement | null;
       if (scope) scope.value = settings.searchScope ?? "source";
@@ -14208,11 +14217,11 @@ function wirePanels() {
     },
     close: () => runtime.view?.focus(),
   });
-  wirePanel("styles-panel", { open: renderStylesPanel });
-  wirePanel("review-panel", { open: renderReviewPanel });
+  wirePanel("styles-panel", { open: renderStylesPanel, rebuild: renderStylesPanel });
+  wirePanel("review-panel", { open: renderReviewPanel, rebuild: renderReviewPanel });
   // Opening it is what asks git. Nothing polls: `git status` is a subprocess,
   // and a drawer nobody has opened must not be starting one every second.
-  wirePanel("git-panel", { open: () => void refreshGit() });
+  wirePanel("git-panel", { open: () => void refreshGit(), rebuild: renderGitPanel });
   wirePanel("keys-drawer", {
     open: () => {
       // A fresh search every time. A drawer that reopens holding the last query
@@ -14237,10 +14246,11 @@ function wirePanels() {
     close: () => runtime.view.focus(),
   });
   wirePanel("notes-chooser", {
+    rebuild: renderNotesChooser,
     open: renderNotesChooser,
     close: () => runtime.view.focus(),
   });
-  wirePanel("history-modal", { open: () => void renderHistory() });
+  wirePanel("history-modal", { open: () => void renderHistory(), rebuild: () => void renderHistory() });
   wirePanel("preview-modal", {
     open: () => {
       // Drawn from the pages themselves, not copied out of the other pane. It

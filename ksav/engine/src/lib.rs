@@ -251,6 +251,13 @@ pub struct DocConfig {
     /// apparatus (page-bands / streams). `None` = decide automatically from the
     /// document: reserve only when the document actually uses that apparatus.
     pub notes_region_cm: Option<f64>,
+    /// What happens when a writer-fixed reserve is smaller than its foot
+    /// regions' declared heights: `"grow"` (the default) raises the reserve to
+    /// hold them; `"refuse"` stops before layout and names both numbers.
+    /// (`"flow"` — keep the strip, let excess entries continue on later pages —
+    /// needs the walk to cap at the strip and comes with the overflow-ladder
+    /// work.)
+    pub reserve_overflow: String,
 }
 
 /// Commands whose notes render into the page *footer* rather than expanding the
@@ -1040,6 +1047,7 @@ impl Default for DocConfig {
             header: String::new(),
             footer: String::new(),
             notes_region_cm: None,
+            reserve_overflow: "grow".to_string(),
         }
     }
 }
@@ -1199,6 +1207,9 @@ impl DocConfig {
         }
         if let Some(n) = clamped(v, "notes_region_cm", 0.0, 20.0) {
             cfg.notes_region_cm = Some(n);
+        }
+        if let Some(p) = v.get("reserve_overflow").and_then(|x| x.as_str()) {
+            cfg.reserve_overflow = p.to_string();
         }
         // Per-edge margins are clamped on the same range as the uniform one, and
         // stay `None` when absent — an absent edge means "use margin_cm", which
@@ -1677,12 +1688,27 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         // The sheet is handed in because a `%` region height is a percentage of
         // it, and Rust is the half of this that has to turn the writer's `15%`
         // into the centimetres it takes off the bottom margin.
-        region = match cfg
-            .notes_region_cm
-            .unwrap_or_else(|| auto_notes_region_cm_sheet(body, sheet_height_cm(cfg)))
-        {
-            r if r <= 0.0 => "none".to_string(),
-            r => format!("{r}cm"),
+        region = {
+            let need = auto_notes_region_cm_sheet(body, sheet_height_cm(cfg));
+            match cfg.notes_region_cm {
+                // Nothing declared: the scan is the reserve, and zero means no
+                // apparatus at all.
+                None => {
+                    if need > 0.0 { format!("{need}cm") } else { "none".to_string() }
+                }
+                Some(w) => {
+                    // A writer-fixed strip smaller than what its regions
+                    // declare: "grow" (the default) raises it to hold them,
+                    // "flow" keeps the writer's number, and "refuse" never
+                    // reaches here - `compile_doc_with` stops it first.
+                    let fits = need <= w || need <= 0.0;
+                    if fits || cfg.reserve_overflow == "flow" {
+                        if w > 0.0 { format!("{w}cm") } else { "none".to_string() }
+                    } else {
+                        format!("{need}cm")
+                    }
+                }
+            }
         },
     )
 }
@@ -2273,6 +2299,31 @@ pub fn compile_doc_with(
     cfg: &DocConfig,
     assets: &Assets,
 ) -> Result<PagedDocument, Vec<Diagnostic>> {
+    // The too-small switch's "refuse": a writer-fixed reserve smaller than its
+    // foot regions' declared heights, where flowing cannot help because every
+    // page is equally short. Both numbers, then stop - the one answer that can
+    // never lose a reader's text to silence.
+    if cfg.reserve_overflow == "refuse" {
+        if let Some(w) = cfg.notes_region_cm {
+            let need = auto_notes_region_cm_sheet(body, sheet_height_cm(cfg));
+            if need > w {
+                return Err(vec![crate::diagnostics::Diagnostic {
+                    severity: "error".to_string(),
+                    message: format!(
+                        "אזור_הערות: הפסים גבוהים מן השמורה · the foot regions ask for \
+                         {need:.1}cm and the reserve holds {w:.1}cm. Raise אזור_הערות, \
+                         lower the regions' גבהים, or set reserve_overflow to \"grow\"."
+                    ),
+                    raw: format!("reserve {w}cm < declared regions {need}cm"),
+                    line: None,
+                    column: None,
+                    about: Some("אזור_הערות".to_string()),
+                    did_you_mean: None,
+                    file: None,
+                }]);
+            }
+        }
+    }
     let text = main_source(body, cfg);
     let Warned { output, warnings } = layout_source(text.clone(), assets);
     match output {

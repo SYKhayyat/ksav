@@ -443,7 +443,7 @@ const SINGLE_SOURCE: &[(&str, usize, &str)] = &[
          same layout pass. It belongs to `_ap_note`.",
     ),
     (
-        "block(width: 100%, height: _ap_fixed_height(h), clip: true",
+        "block(width: 100%, height: _ap_fixed_height(h, קו: קו), clip: true",
         1,
         "the fixed-height band slot. It was written twice — array-indexed for the \
          page bands, dictionary-keyed for the streams — and belongs to `_ap_group`.",

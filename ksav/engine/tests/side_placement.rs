@@ -369,8 +369,10 @@ fn a_note_into_a_side_region_through_both_arguments_prints() {
 /// 9pt type. There is one margin; it gets one occupancy.
 #[test]
 fn two_side_apparatuses_share_one_occupancy() {
-    let long_a = "הארה ארוכה מאוד אחת שתצא לה מספר שורות במלואה ובלי להיחתך באמצע הדברים. ".repeat(3);
-    let long_b = "הגהה ארוכה מאוד אחת שתצא לה מספר שורות במלואה ובלי להיחתך באמצע הדברים. ".repeat(3);
+    let long_a =
+        "הארה ארוכה מאוד אחת שתצא לה מספר שורות במלואה ובלי להיחתך באמצע הדברים. ".repeat(3);
+    let long_b =
+        "הגהה ארוכה מאוד אחת שתצא לה מספר שורות במלואה ובלי להיחתך באמצע הדברים. ".repeat(3);
     let body = format!(
         "#אזור(\"א\", מיקום: \"חוץ\")\n\
          #אזור(\"ב\", מיקום: \"חוץ\")\n\
@@ -382,7 +384,11 @@ fn two_side_apparatuses_share_one_occupancy() {
     // Each series' own consecutive-line pitch, measured off itself: the probe
     // carries no glyph height, and a pitch guessed rather than measured is how a
     // fence fails on a font change.
-    let pitch = |ys: &[f64]| ys.windows(2).map(|w| w[1] - w[0]).fold(f64::INFINITY, f64::min);
+    let pitch = |ys: &[f64]| {
+        ys.windows(2)
+            .map(|w| w[1] - w[0])
+            .fold(f64::INFINITY, f64::min)
+    };
     let a = lines_of(&runs, 1, "הארה ארוכה");
     let b = lines_of(&runs, 1, "הגהה ארוכה");
     assert!(
@@ -414,8 +420,9 @@ fn two_side_apparatuses_share_one_occupancy() {
 #[test]
 fn a_carried_note_lands_below_a_pinned_gloss_on_the_next_page() {
     // Page 1: ordinary prose whose last line carries the carrier's marker, so
-    // the carrier starts at the bottom of page 1's column.
-    let page_one = "פסק ראשון של טקסט רגיל לצורך מילוי העמוד הראשון עד סופו. ".repeat(14);
+    // the carrier starts at the bottom of page 1's column. Thirty sentences,
+    // measured: fewer leave most of the page empty and nothing has to carry.
+    let page_one = "פסק ראשון של טקסט רגיל לצורך מילוי העמוד הראשון עד סופו. ".repeat(30);
     // Page 2 opens on the pinned gloss, in its first line.
     let body = format!(
         "#עם_הערות_צד[\n\
@@ -433,10 +440,18 @@ fn a_carried_note_lands_below_a_pinned_gloss_on_the_next_page() {
         !pinned.is_empty(),
         "the pinned gloss is not on page 2, so nothing was tested"
     );
-    let pitch = |ys: &[f64]| ys.windows(2).map(|w| w[1] - w[0]).fold(f64::INFINITY, f64::min);
+    let pitch = |ys: &[f64]| {
+        ys.windows(2)
+            .map(|w| w[1] - w[0])
+            .fold(f64::INFINITY, f64::min)
+    };
     let p = pitch(&pinned).min(pitch(&carried));
     let nearest = carried.iter().fold(f64::INFINITY, |m, &y| {
-        m.min(pinned.iter().fold(f64::INFINITY, |mm, &yp| mm.min((yp - y).abs())))
+        m.min(
+            pinned
+                .iter()
+                .fold(f64::INFINITY, |mm, &yp| mm.min((yp - y).abs())),
+        )
     });
     assert!(
         nearest >= p - 1.0,

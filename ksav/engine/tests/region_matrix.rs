@@ -146,6 +146,13 @@ fn values(key: &str) -> Vec<String> {
         // number larger than the note is the other end of it.
         "תפר" => plain(&["0", "8", "500"]),
         "מספור_כתובת" => plain(&["\"1\"", "\"א\"", "\"I\""]),
+        // The words an address prints around its numbers — a dictionary keyed
+        // by ingredient, said in either language.
+        "כתובות" => plain(&[
+            "(עמוד: \"p.\")",
+            "(דף: \"d\", אמוד: \"a\")",
+            "(סימן: \"§\", שורה: \"l.\")",
+        ]),
         "דף_ראשון" => plain(&["1", "2", "40"]),
         // The flat form, then a list of row plans, then a plan that says
         // everything about itself. The Vilna wrap is the third one, and the

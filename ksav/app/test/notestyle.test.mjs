@@ -166,8 +166,11 @@ export async function run() {
       "הגדרות_הערות_סיום",
       "הגדרות_הערות_צד",
     ]) {
+      // The slice reaches past the setter's head because the unknown-key
+      // refusal may sit between `#let` and the update — validation before
+      // recording is the right order, so the window carries both.
       const at = PRELUDE.indexOf(`#let ${cmd}(..opts)`);
-      ok(`${cmd} records what it was given`, at >= 0 && PRELUDE.slice(at, at + 400).includes("_nt_explicit(d, opts.named())"));
+      ok(`${cmd} records what it was given`, at >= 0 && PRELUDE.slice(at, at + 800).includes("_nt_explicit(d, opts.named())"));
     }
   }
 

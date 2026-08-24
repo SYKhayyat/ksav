@@ -696,6 +696,12 @@ fn a_note_into_a_region_alone_still_prints_and_numbers_with_its_peers() {
                 טקסט שני#הערה(ערוץ: \"א\", אזור: \"ביאורים\")[ביאור־שני] ודי.\n\n\
                 #הצג_אזור(\"ביאורים\")\n";
     let printed = out(body);
-    assert!(printed.contains("ביאור־אחד"), "the first entry never printed");
-    assert!(printed.contains("ביאור־שני"), "the second entry never printed");
+    assert!(
+        printed.contains("ביאור־אחד"),
+        "the first entry never printed"
+    );
+    assert!(
+        printed.contains("ביאור־שני"),
+        "the second entry never printed"
+    );
 }

@@ -162,13 +162,13 @@ is.
 
 ### Minor (selected — full list in artifacts)
 
-- Closing curly quote joins the Hebrew token (`spell/hebrew.rs:357`): `'אמת'`
+- Closing curly quote joins the Hebrew token (`engine/src/spell/hebrew.rs:357`): `'אמת'`
   flags a correct word. The gershayim arm got a lookahead; the geresh arm
   didn't.
 - `sh'ma` — the docstring's own motivating example — is flagged
-  (`spell/english.rs:173` vs 165; stem bound ≥3).
+  (`engine/src/spell/english.rs:173` vs 165; stem bound ≥3).
 - A malformed `/spell` request answers a clean bill
-  (`spell/mod.rs:687`) while `/mekoros` refuses loudly — verified live
+  (`engine/src/spell/mod.rs:687`) while `/mekoros` refuses loudly — verified live
   against the running server.
 - `saved-here` collapses every Girsa outcome into `{"told":false}`
   (`services.rs:465`).
@@ -178,7 +178,7 @@ is.
 - Every inbox poll rewrites the inbox file, unchanged or empty
   (`post.rs:159, 376`).
 - The Hebrew-year exemption covers every short ש/ת-initial gershayim
-  acronym, so `שו"ס` is never flagged (`spell/hebrew.rs:419`).
+  acronym, so `שו"ס` is never flagged (`engine/src/spell/hebrew.rs:419`).
 - The footnote fallback prints two markers from two unrelated series
   (`ksav.typ:6323` — custom rank plus Typst's own superscript).
 - Declared-height regions vanish on pages with no assigned entries

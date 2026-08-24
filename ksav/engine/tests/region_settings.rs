@@ -175,6 +175,14 @@ fn vary(key: &str) -> Option<Vary> {
             with: ", מיקום: \"סוף\", ראש: (\"עמוד\",)",
             ..notes
         },
+        // The word around the number is the key's answer, so two words are two
+        // different pages.
+        "כתובות" => Vary {
+            a: "(עמוד: \"עמ'\")",
+            b: "(עמוד: \"p.\")",
+            with: ", מיקום: \"סוף\", ראש: (\"עמוד\",)",
+            ..notes
+        },
         "דף_ראשון" => Vary {
             a: "2",
             b: "40",

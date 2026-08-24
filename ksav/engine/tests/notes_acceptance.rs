@@ -79,6 +79,17 @@ const PAGE_FOOT: f64 = 799.02;
 /// many pages as it takes with nothing below the page number. An exemption that
 /// has stopped being needed is a stale claim, so it is gone rather than left
 /// harmlessly true.
+///
+/// The three `ov_*` documents were exempt for the same reason, and their
+/// exemption went the same way. A page-foot region declaring a height in a
+/// document that reserved no room printed off the paper — the footer only
+/// clipped when a reserve existed, so the case that most needed clipping was
+/// the one branch that could not reach it. Fixed on 23 August by owner ruling,
+/// the other way round from the refusal this comment once predicted: **the
+/// reserve now grows by default to fit a declared foot region**, and refusal
+/// stays available through an explicit reserve plus `חריגה: "סירוב"`. The
+/// documents stay in the corpus as ordinary members — regression coverage for
+/// the grown path — and print inside the page like everything else.
 #[test]
 fn no_corpus_document_prints_below_the_text_area() {
     const DISPROOFS: &[(&str, &str)] = &[
@@ -87,36 +98,6 @@ fn no_corpus_document_prints_below_the_text_area() {
             "Part 4: a nested band cannot split — the document exists to fail",
         ),
         ("rot", "Part 4: rotation does not paginate"),
-        // A page-foot region that declares its own height, in a document that
-        // reserved no room for one. **The notes are silently truncated, not
-        // printed off the paper** — `_ap_slot` clips, and `probe` reads frame
-        // items and cannot see a clip, so an entry masked away measures exactly
-        // like one drawn past the edge. `svgdump` shows the rectangle. Which is
-        // the worse of the two: a note past the edge is at least visible as a
-        // fault, and a clipped one reads as a short note. `#מסמך` sets the page margins before any
-        // `#אזור` line in the body has run, so the region cannot enlarge the
-        // reserve it needs — and the footer only clips when a reserve exists
-        // (`if reserve != 0pt`), so the region runs past the paper edge. All
-        // three print past the page number, and `ov_shrink`/`ov_clip` reach
-        // y=853.90 on an 841.89pt sheet.
-        //
-        // Kept as the reproduction rather than deleted. The fix is almost
-        // certainly to **refuse the declaration** rather than clamp it, which is
-        // a change to what `#אזור` may say and not to how a footer draws.
-        // `ov_shrink2`/`ov_clip2` are the same pair with `אזור_הערות` declared,
-        // and they stay inside the page.
-        (
-            "ov_shrink",
-            "a declared region height with no reserved room overruns the footer",
-        ),
-        (
-            "ov_clip",
-            "a declared region height with no reserved room overruns the footer",
-        ),
-        (
-            "ov_runin",
-            "a declared region height with no reserved room overruns the footer",
-        ),
     ];
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/notes-corpus");
     let mut over = Vec::new();

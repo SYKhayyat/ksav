@@ -636,8 +636,12 @@ fn identity(dir: &Path) -> serde_json::Value {
             let mut email = None;
             for line in r.out.lines() {
                 match line.split_once(' ') {
-                    Some(("user.name", v)) if !v.trim().is_empty() => name = Some(v.trim().to_string()),
-                    Some(("user.email", v)) if !v.trim().is_empty() => email = Some(v.trim().to_string()),
+                    Some(("user.name", v)) if !v.trim().is_empty() => {
+                        name = Some(v.trim().to_string())
+                    }
+                    Some(("user.email", v)) if !v.trim().is_empty() => {
+                        email = Some(v.trim().to_string())
+                    }
                     _ => {}
                 }
             }

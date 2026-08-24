@@ -237,6 +237,9 @@ const CONTRAST: &[(&str, &str, &str)] = &[
     // fourth of the plan's four ingredients and the one that has to take the
     // marker with it.
     ("ראש", "(\"מספר\", \"תווית\")", "()"),
+    // The words an address prints around its numbers — one row covers every
+    // apparatus that grew the knob, because the key name is shared vocabulary.
+    ("כתובות", "(עמוד: \"עמ'\")", "(עמוד: \"p.\")"),
 ];
 
 /// Where a shared key name means something else in one block, said out loud.

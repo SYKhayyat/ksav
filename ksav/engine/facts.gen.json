@@ -1691,7 +1691,7 @@
       "name": "inbox",
       "method": "post",
       "path": "/inbox",
-      "cost": "quick",
+      "cost": "work",
       "reach": "native"
     },
     {
@@ -1726,7 +1726,7 @@
       "name": "saved-here",
       "method": "post",
       "path": "/saved-here",
-      "cost": "quick",
+      "cost": "work",
       "reach": "native"
     },
     {

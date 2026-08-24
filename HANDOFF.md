@@ -91,6 +91,13 @@ cd ksav/app && npm run accept
 - Never pipe a `cargo` test run through another command — redirect it to a file.
   A full engine test run needs tens of gigabytes; run it near a full disk and
   the compiler leaves truncated artefacts whose errors look like code faults.
+- No Python heredocs for editing source, and no round-tripping a UTF-8 file
+  through `cmd /c type` into a PowerShell variable and back — the capture
+  decodes through the console code page and every Hebrew byte arrives as
+  mojibake, which then gets written back over the original. This destroyed
+  `ksav.typ` outright once (recovered from git); edit files with the editing
+  tools, and if a script must rewrite one, read and write bytes with the .NET
+  `[System.IO.File]` methods at an explicit UTF-8 encoding.
 - No Python heredocs for editing source. Watch for LF becoming CRLF on
   `ksav.typ`; it breaks a prelude fence.
 - Reading the Girsa repository at `C:\Users\Administrator\Videos\Girsa` is
@@ -167,20 +174,12 @@ region that declares a height with no reserve declared (refusal stays
 available via an explicit `אזור_הערות` plus `חריגה: "סירוב"`), and `שם:` is
 accepted on every sidenote spelling.
 
-- [ ] **Run the whole gate, then the builds, then accept — none have run since
-      the wave.** `node tools/gate.mjs` (all nine checks; several fences will
-      be red until counts they hold are updated — fix the fences' complaints,
-      not the fences). Then `ksav/app && npm run build`,
-      `ksav/engine && cargo build --release --features embed-ui`, and
-      `npm run accept`. The engine tests to watch: the new fences in
-      `channels.rs`, `side_placement.rs`, `overflow_moves.rs`, `lib.rs`
-      (reserve scanner + spell), and every prelude behaviour touched above.
-- [ ] **The documentation sweep, counts last**, per the lesson at the bottom
-      of this page: README assertion tallies, any count a fence complains
-      about, and a re-read of the pages the wave touched (`docs/shortcuts.md`,
-      `ksav/README.md` notes section already updated).
-- [ ] **Push.** Eight commits from 099b5c0 onward sit local only, by order —
-      push once the gate and builds are green, and keep an eye on CI after.
+None of that had ever been executed: the trunk did not compile from
+`cbd078f` onward, so cargo had been stopping at the first broken target
+ever since. On 24 August the whole tree was made to run — gate nine of
+nine, release build, acceptance — and the fences that then met working
+code for the first time each got their say; the sitting is recorded in
+[`decisions/2026-08-24-the-trunk-the-wave-left.md`](decisions/2026-08-24-the-trunk-the-wave-left.md).
 
 
 

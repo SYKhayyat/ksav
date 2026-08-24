@@ -322,6 +322,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "ראש": "head",
   "מספור_כתובת": "address_numbering",
   "דף_ראשון": "first_folio",
+  "כתובות": "addresses",
   "עמוד_חדש": "new_page",
   "יחידה": "unit",
   "מחזור": "cycle",
@@ -367,6 +368,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "מיון": "sort",
   "פטור": "exempt",
   "ברשימה": "listed",
+  "סימן": "mark",
   "צבע_כותרת": "header_fill",
   "צבע_פס": "stripe",
   "פסים": "striped",
@@ -454,7 +456,7 @@ export function paramsOf(heCommand: string): Readonly<Record<string, string>> {
  * they always apply, and a panel that says so is better than a writer wondering
  * where clamping went.
  */
-export const VOCABULARY = {"regionKeys":["מיקום","גובה","פריסה","כותרת","גלישה","הקטנה_מזערית","שומר_מקום","הקטנה_צעד","כיווץ_מידה","חריגה","ראש","מספור_כתובת","דף_ראשון","עמוד_חדש","טורים","יחידה","מחזור","מרווח_טורים","ריווח_טורים","ריק","עודף","סימן_חיתוך","תפר","סימן_בהמשך"],"spillMoves":["דחיסה","רצף","הקטנה","כיווץ_אותיות","חלוקה","צף","עמוד_הבא"],"spillAlways":["הזזה","מפל","הצמדה"],"overflowPolicies":["צמצום","סירוב"],"headParts":["מספר","תווית","ציטוט","עמוד","דף","סימן","שורה"],"gridUnits":["כותרת","סימן","מדור"],"emptyCells":["ריק","דלג"],"leftovers":["שורה_נוספת","טור_נוסף","סירוב"]} as const;
+export const VOCABULARY = {"regionKeys":["מיקום","גובה","פריסה","כותרת","גלישה","הקטנה_מזערית","שומר_מקום","הקטנה_צעד","כיווץ_מידה","חריגה","ראש","מספור_כתובת","דף_ראשון","כתובות","עמוד_חדש","טורים","יחידה","מחזור","מרווח_טורים","ריווח_טורים","ריק","עודף","סימן_חיתוך","תפר","סימן_בהמשך"],"spillMoves":["דחיסה","רצף","הקטנה","כיווץ_אותיות","חלוקה","צף","עמוד_הבא"],"spillAlways":["הזזה","מפל","הצמדה"],"overflowPolicies":["צמצום","סירוב"],"headParts":["מספר","תווית","ציטוט","עמוד","דף","סימן","שורה"],"gridUnits":["כותרת","סימן","מדור"],"emptyCells":["ריק","דלג"],"leftovers":["שורה_נוספת","טור_נוסף","סירוב"]} as const;
 
 export const CONTAINERS: readonly string[] = [
   "הערה_בדרגה",

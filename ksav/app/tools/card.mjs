@@ -91,6 +91,23 @@ function label(id, lang) {
 }
 
 /**
+ * A label with its description, when the action carries one.
+ *
+ * Some keys do something a bare label hides: `Ctrl+Shift+F` opens an insert
+ * dialog rather than dropping a footnote straight in, which is worth a clause
+ * on a printed card. The sentence lives in `i18n.ts` under `scDesc.` — where
+ * any other surface can read it too — and this card appends it when it exists,
+ * so the fact is written once and printed wherever it is true.
+ */
+function described(id, lang) {
+  const said = label(id, lang);
+  i18n.setLang(lang);
+  const desc = i18n.t("scDesc." + id);
+  if (desc === "scDesc." + id) return said;
+  return `${said} · ${desc}`;
+}
+
+/**
  * The shortcut card, as text.
  *
  * A function rather than a script body, so the fence that checks the file on
@@ -121,7 +138,7 @@ for (const [id, binding] of Object.entries(DEFAULT_KEYS)) {
     // thirtieth binding might.
     .map((k) => "`" + k.replace(/\|/g, "\\|") + "`")
     .join(" · ");
-  lines.push(`| ${keys} | ${label(id, "en")} | ${label(id, "he")} |`);
+  lines.push(`| ${keys} | ${described(id, "en")} | ${described(id, "he")} |`);
 }
 
 lines.push("");

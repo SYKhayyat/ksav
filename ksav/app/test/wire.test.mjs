@@ -155,7 +155,15 @@ const SEAM = [
   {
     what: "saved-here: Girsa took the errand",
     file: "services.rs",
-    at: '"told": told',
+    at: 'json!({ "told": true })',
+    ts: "Told",
+    // The reason travels only on a refusal.
+    optional: ["why"],
+  },
+  {
+    what: "saved-here: Girsa refused, and said why",
+    file: "services.rs",
+    at: '"told": false, "why": why',
     ts: "Told",
     optional: [],
   },
@@ -167,7 +175,7 @@ const SEAM = [
     // wrong thing for a fragment to match.
     at: 'json!({ "told": false })',
     ts: "Told",
-    optional: [],
+    optional: ["why"],
   },
   {
     what: "clipboard-source: a packet, rendered to markup in Rust",

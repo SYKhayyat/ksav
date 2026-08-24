@@ -33,12 +33,12 @@ export const SERVICES: readonly ServiceDef[] = [
   { name: "commands", method: "GET", path: "/commands", cost: "quick", nativeOnly: false },
   { name: "templates", method: "GET", path: "/templates", cost: "quick", nativeOnly: false },
   { name: "sefarim", method: "GET", path: "/sefarim", cost: "quick", nativeOnly: false },
-  { name: "inbox", method: "POST", path: "/inbox", cost: "quick", nativeOnly: true },
+  { name: "inbox", method: "POST", path: "/inbox", cost: "work", nativeOnly: true },
   { name: "mekoros", method: "POST", path: "/mekoros", cost: "work", nativeOnly: true },
   { name: "linkify", method: "POST", path: "/linkify", cost: "work", nativeOnly: true },
   { name: "refresh", method: "POST", path: "/refresh", cost: "work", nativeOnly: true },
   { name: "clipboard-source", method: "POST", path: "/clipboard-source", cost: "quick", nativeOnly: true },
-  { name: "saved-here", method: "POST", path: "/saved-here", cost: "quick", nativeOnly: true },
+  { name: "saved-here", method: "POST", path: "/saved-here", cost: "work", nativeOnly: true },
   { name: "git", method: "POST", path: "/git", cost: "work", nativeOnly: true },
 ];
 

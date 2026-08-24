@@ -98,6 +98,7 @@
   shrink_floor: "הקטנה_מזערית", shrink_step: "הקטנה_צעד",
   tracking_amount: "כיווץ_מידה",
   head: "ראש", address_numbering: "מספור_כתובת", first_folio: "דף_ראשון",
+  addresses: "כתובות",
   new_page: "עמוד_חדש", unit: "יחידה",
   // The row plan of a grid region — the Vilna wrap. `רוחב` and `ערוצים` inside a
   // plan are `width` and `channels`, which are already in this table; these four
@@ -529,6 +530,11 @@
   else { let d = c; for (k, v) in own { d.insert(k, v) }; d }
 }
 
+// Rule 3's switch is part of the override model itself, not a knob of any one
+// kind, so every settings door that validates its arguments admits it whether
+// or not its defaults dictionary happens to carry a value for it yet.
+#let _cfg_global_keys = ("כפה",)
+
 // ---- the note style every apparatus falls back to ----
 //
 // Ksav has six note apparatuses — the page-foot footnotes, the endnote section,
@@ -933,8 +939,14 @@
   // The store is knob-major, so a legal top-level key is a knob, a class, or
   // the parts key. Anything else was inserted whole and read by nothing — a
   // typo became a dead key in silence.
-  let legal = _mk_knobs + _mk_block_knobs + _mk_rule_knobs + _mk_titles.keys()
-    + _mk_part_defaults.keys() + (_mk_parts_key,)
+  let legal = (
+    _mk_knobs + _mk_block_knobs + _mk_rule_knobs + _mk_titles.keys()
+      + _mk_part_defaults.keys() + (_mk_parts_key,)
+      // The sweep-back switch is a knob of the global like any other: the
+      // doors accept it (`_mk_set` exempts it twice) and `_mk_pick` reads it,
+      // so refusing it here made `#הגדרות_סימונים(כפה: true)` impossible.
+      + ("כפה",)
+  )
   for k in opts.named().keys() {
     if not legal.contains(k) {
       panic("הגדרות_סימונים: ארגומנט לא מוכר · unrecognised argument: " + k)
@@ -1267,7 +1279,7 @@
   // reads it, and a typo that compiles into a dead key is the defect this
   // repository exists to kill.
   for k in opts.named().keys() {
-    if k not in _fn_defaults {
+    if k not in _fn_defaults and k not in _cfg_global_keys {
       panic("הגדרות_הערות: ארגומנט לא מוכר · unrecognised argument: " + k)
     }
   }
@@ -3060,17 +3072,17 @@
 #let _ap_fresh_page(want) = if want == true { pagebreak() }
 
 #let _ap_note(cfg, lbl, scope, g, body, own: (:), שם: none, אזור: none) = {
-  [
-    #metadata((
-      group: g, body: body, own: own,
-      // The region this note was *filed* into, when one collector knows it.
-      // Drawing must ask what filing recorded, not re-derive it from the
-      // declarations: a note written `#הערה(ערוץ: "c", אזור: "r")` lands in r's
-      // window under channel c, which may never have declared any region — and
-      // re-deriving answers "c", which loses the entry in silence.
-      אזור: אזור,
-    ))#lbl
-  ]
+  // The registration and its label on **one line**: this is markup, so a
+  // newline inside the brackets is a space on the page, and a multi-line
+  // version of this block printed a gap in front of every marker in every
+  // apparatus.
+  //
+  // אזור records the region this note was *filed* into, when one collector
+  // knows it. Drawing must ask what filing recorded, not re-derive it from
+  // the declarations: a note written `#הערה(ערוץ: "c", אזור: "r")` lands in
+  // r's window under channel c, which may never have declared any region —
+  // and re-deriving answers "c", which loses the entry in silence.
+  [#metadata((group: g, body: body, own: own, אזור: אזור))#lbl]
   // Force nested groups to register in this same pass, in a zero-size inline box
   // so it can never break the line the marker sits on — including when a band
   // re-displays this body and the machinery runs again inside it.
@@ -3706,12 +3718,11 @@
     // Advice that fits where the region sits: a band above the text takes no
     // page-foot reserve, and being told to grow one would send the writer to a
     // knob that changes nothing.
-    let how =
-      if איפה == "למעלה" {
-        "Raise #מסמך(חלק_שוליים_רגל: …)"
-      } else {
-        "Reserve more with #מסמך(אזור_הערות: …)"
-      }
+    let how = if איפה == "למעלה" {
+      "Raise #מסמך(חלק_שוליים_רגל: …)"
+    } else {
+      "Reserve more with #מסמך(אזור_הערות: …)"
+    }
     panic(
       "אזור" + (if מי != none { " " + מי } else { "" })
         + ": גובה גדול מן המקום · this region asks for "
@@ -5061,13 +5072,12 @@
   ריווח_פריט: 0.35em,   // gap between entries within a band
   משקל: "regular",      // per-tier weight (or one value for every tier)
   סימן: (:),            // how the note's number is set, wherever it prints
-  כתובות: (:),          // the words an address prints around its numbers — see `_xa_part`
   תוויות: false,        // show a small "· tier ·" label above each band
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
 #let הגדרות_מדורגות(..opts) = {
   for k in opts.named().keys() {
-    if k not in _md_defaults {
+    if k not in _md_defaults and k not in _cfg_global_keys {
       panic("הגדרות_מדורגות: ארגומנט לא מוכר · unrecognised argument: " + k)
     }
   }
@@ -5245,7 +5255,6 @@
   ריווח_פריט: 0.25em,   // gap between entries within a band
   משקל: "regular",      // per-tier weight (or one value for every tier)
   סימן: (:),            // how the note's number is set, wherever it prints
-  כתובות: (:),          // the words an address prints around its numbers — see `_xa_part`
   גבהים: none,          // fixed per-tier band heights, e.g. (2cm, 1cm) — the
                         //   "fixed regions" layout: a band always occupies its
                         //   height, empty space stays empty, overflow is clipped.
@@ -5258,15 +5267,16 @@
 #let _pp_cfg = state("ksav-pp-cfg", _pp_defaults)
 #let הגדרות_מדפים(..opts) = {
   for k in opts.named().keys() {
-    if k not in _pp_defaults {
+    if k not in _pp_defaults and k not in _cfg_global_keys {
       panic("הגדרות_מדפים: ארגומנט לא מוכר · unrecognised argument: " + k)
     }
   }
   _pp_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  _nt_explicit(d, opts.named())
-})
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    _nt_explicit(d, opts.named())
+  })
+}
 #let _pp_label = label("ksav-pp")
 // Every מדף note registered outside an apparatus block — i.e. the real ones.
 #let _pp_all() = _ap_all(_pp_label)
@@ -5386,7 +5396,6 @@
   ריווח_פריט: 0.22em,   // gap between entries in a stream
   משקל: "regular",      // per-stream weight (or one value for every stream)
   סימן: (:),            // how the note s number is set, wherever it prints
-  כתובות: (:),          // the words an address prints around its numbers — see `_xa_part`
 )
 #let _sf_cfg = state("ksav-sf-cfg", _sf_defaults)
 #let הגדרות_זרמים(..opts) = {
@@ -5396,7 +5405,7 @@
   // Accepting it here read as supported and reached no reader at all, which is
   // the exact class this refusal exists for.
   for k in opts.named().keys() {
-    if k not in _sf_defaults {
+    if k not in _sf_defaults and k not in _cfg_global_keys {
       panic("הגדרות_זרמים: ארגומנט לא מוכר · unrecognised argument: " + k)
     }
   }
@@ -5556,15 +5565,28 @@
   // The answer for one region cannot change between two entries on one page,
   // but this used to re-read and re-validate the moves list for every entry
   // the walk asked about. One validated answer per region, per evaluation.
-  let cache = (:)
+  //
+  // Computed **before** the closure is built: a Typst closure reads the
+  // variables it captures but cannot modify them, so the cache has to be
+  // finished rather than filled lazily. A group outside the table's order is
+  // answered fresh rather than not at all.
+  let answers = (:)
+  for g in t.סדר {
+    let rg = _ch_region(t, g)
+    if rg in answers { continue }
+    let own = _rg_rec(t, rg).at("גלישה", default: auto)
+    let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
+    answers.insert(rg, _ap_spill_read("אזור", mine))
+  }
   g => {
     let rg = _ch_region(t, g)
-    if not cache.contains(rg) {
+    if rg in answers {
+      answers.at(rg)
+    } else {
       let own = _rg_rec(t, rg).at("גלישה", default: auto)
       let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
-      cache.insert(rg, _ap_spill_read("אזור", mine))
+      _ap_spill_read("אזור", mine)
     }
-    cache.at(rg)
   }
 }
 
@@ -6674,8 +6696,10 @@
   if items.len() == 0 { return (items: (), placed: ()) }
   // Document order across streams: (page, anchor y) is the reading order of the
   // margin to within a tie, and a tie is two markers on one line whose order
-  // the stack cannot observe.
-  items.sort(key: it => (it.page, it.want))
+  // the stack cannot observe. `sorted` and not `sort` — Typst arrays have no
+  // in-place sort — and bound back to the name, because a bare statement's
+  // value would otherwise join with the next line's.
+  items = items.sorted(key: it => (it.page, it.want))
   // The gap between two stacked notes belongs to the column, not to either of
   // them, so the first note's answer is the one the whole stack is walked with.
   // A note that overruled it for itself would be placed against one arithmetic

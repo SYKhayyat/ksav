@@ -755,7 +755,11 @@ fn reserve_cache_key(body: &str, page_h_cm: Option<f64>) -> u128 {
         }
     };
     chunk(body.as_bytes());
-    chunk(&page_h_cm.map(|h| h.to_bits()).to_le_bytes());
+    // A `None` sheet contributes no bytes at all rather than a stand-in value,
+    // so it cannot collide with any real height.
+    if let Some(h) = page_h_cm {
+        chunk(&h.to_bits().to_le_bytes());
+    }
     h
 }
 
@@ -1985,7 +1989,7 @@ fn slanting_commands() -> &'static std::collections::BTreeSet<String> {
 /// place is a diagnostic the writer has to go looking for. With one, the status
 /// bar's entry becomes a button that goes there and the line is marked, which
 /// is the whole difference between being told and being able to act.
-fn first_italic(root: &typst::syntax::Syntax) -> Option<(usize, String)> {
+fn first_italic(root: &typst::syntax::SyntaxNode) -> Option<(usize, String)> {
     use typst::syntax::{LinkedNode, SyntaxKind};
     fn walk(node: &LinkedNode) -> Option<(usize, String)> {
         if node.kind() == SyntaxKind::Ident {
@@ -2004,7 +2008,7 @@ fn first_italic(root: &typst::syntax::Syntax) -> Option<(usize, String)> {
 /// The pair `#סמן`/`#הפניה` needs both halves of the document to answer a
 /// question about either of them, which is why this collects rather than
 /// finding the first one.
-fn calls_with_name(root: &typst::syntax::Syntax, names: &[&str]) -> Vec<(String, usize)> {
+fn calls_with_name(root: &typst::syntax::SyntaxNode, names: &[&str]) -> Vec<(String, usize)> {
     use typst::syntax::{LinkedNode, SyntaxKind};
     fn walk(node: &LinkedNode, names: &[&str], out: &mut Vec<(String, usize)>) {
         if node.kind() == SyntaxKind::FuncCall {
@@ -2056,10 +2060,7 @@ fn calls_with_name(root: &typst::syntax::Syntax, names: &[&str]) -> Vec<(String,
 ///
 /// So the question is asked of the whole document at compile time, where both
 /// halves are visible, and the answer names the name.
-pub(crate) fn dangling_references(
-    root: &typst::syntax::Syntax,
-    body: &str,
-) -> Vec<Diagnostic> {
+pub(crate) fn dangling_references(root: &typst::syntax::SyntaxNode, body: &str) -> Vec<Diagnostic> {
     let anchors: std::collections::BTreeSet<String> = calls_with_name(root, &["סמן", "anchor"])
         .into_iter()
         .map(|(name, _)| name)
@@ -2110,7 +2111,7 @@ fn line_column(body: &str, offset: usize) -> (usize, usize) {
 /// What must not happen is that they keep pressing a button which does nothing
 /// and are never told.
 pub(crate) fn italic_warning(
-    root: &typst::syntax::Syntax,
+    root: &typst::syntax::SyntaxNode,
     body: &str,
     cfg: &DocConfig,
     assets: &Assets,
@@ -3069,7 +3070,9 @@ mod tests {
         // `#ערוץ("c", אזור: "r")` writes no note into anything; the keyed-on-
         // notes rule holds for the region spelling of the argument too.
         assert_eq!(
-            auto_notes_region_cm("#ערוץ(\"c\", אזור: \"r\")\n#אזור(\"r\", מיקום: \"רגל\", גובה: 4cm)\nטקסט"),
+            auto_notes_region_cm(
+                "#ערוץ(\"c\", אזור: \"r\")\n#אזור(\"r\", מיקום: \"רגל\", גובה: 4cm)\nטקסט"
+            ),
             0.0
         );
     }

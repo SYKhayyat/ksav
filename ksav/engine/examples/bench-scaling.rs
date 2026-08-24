@@ -31,7 +31,9 @@ fn endnotes(n: usize) -> String {
     let body = "פסק קצר של טקסט לפני ההערה";
     let mut s = String::new();
     for i in 1..=n {
-        s.push_str(&format!("{body}#הערה(ערוץ: \"ג\") [הערה מספר {i} בת ארבע מילים בערך.] "));
+        s.push_str(&format!(
+            "{body}#הערה(ערוץ: \"ג\") [הערה מספר {i} בת ארבע מילים בערך.] "
+        ));
     }
     s.push_str("\n#הצג_אזור(\"ג\")\n");
     s

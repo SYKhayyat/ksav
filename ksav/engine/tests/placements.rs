@@ -21,6 +21,10 @@
 
 use ksav_engine::{probe, DocConfig};
 
+/// Where the page number sits under the default document. Nothing but the page
+/// number may reach it, and nothing may go past it.
+const PAGE_FOOT: f64 = 799.02;
+
 fn laid(body: &str) -> Vec<probe::TextRun> {
     let doc = probe::layout(body, &DocConfig::default())
         .unwrap_or_else(|d| panic!("did not compile: {d:?}"));
@@ -283,9 +287,30 @@ fn a_region_can_be_two_lines_tall() {
 /// have fitted, which is what a sefer being set to a fixed design wants — a
 /// region silently 30pt shorter than the specification is a fault to find now
 /// rather than at the printer.
+///
+/// Since 23 August there is room under the default that did not exist when this
+/// test was written: a declared foot region in a document that reserved nothing
+/// **grows the reserve to fit** (the owner ruling recorded in the filing-and-
+/// drawing chunk), so a fittable declaration with `"סירוב"` set is accepted —
+/// there is nothing left to refuse. The refusal fires where growth cannot: an
+/// ask taller than everything the sheet has under the text.
 #[test]
 fn a_region_can_refuse_to_be_quietly_clamped() {
-    let doc = "#אזור(\"צר\", מיקום: \"רגל\", גובה: 2cm, חריגה: \"סירוב\")\n\
+    // A fittable ask, no reserve written: the reserve grows, and the document
+    // sets without complaint.
+    let grown = "#אזור(\"צר\", מיקום: \"רגל\", גובה: 2cm, חריגה: \"סירוב\")\n\
+                 טקסט#הערה(אזור: \"צר\")[גוף] וסוף.";
+    let Ok(doc) = probe::layout(grown, &DocConfig::default()) else {
+        panic!("a fittable declared region was refused although the reserve grows to fit")
+    };
+    let runs = probe::text_runs(&doc);
+    assert!(
+        !runs.iter().any(|r| r.y > PAGE_FOOT),
+        "a grown reserve still printed below the text area"
+    );
+
+    // An ask taller than the sheet can answer: refused, with both numbers.
+    let doc = "#אזור(\"צר\", מיקום: \"רגל\", גובה: 30cm, חריגה: \"סירוב\")\n\
                טקסט#הערה(אזור: \"צר\")[גוף] וסוף.";
     let Err(d) = probe::layout(doc, &DocConfig::default()) else {
         panic!("a region asking for more room than the page has was accepted")
@@ -293,7 +318,7 @@ fn a_region_can_refuse_to_be_quietly_clamped() {
     let text = format!("{d:?}");
     // The numbers, not just a complaint: what it asked for and what there is.
     assert!(
-        text.contains("56.7") && text.contains("49.6"),
+        text.contains("850.4") && text.contains("505.1"),
         "the refusal does not say how much was asked for and how much there is: {text}"
     );
 

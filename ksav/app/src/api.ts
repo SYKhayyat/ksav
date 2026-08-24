@@ -744,9 +744,11 @@ export interface Moved {
 }
 
 /** `saved-here`: whether Girsa took the errand. False is an answer — Girsa not
- *  running is the ordinary case, not a failure. */
+ *  running is the ordinary case, not a failure. When it is false and the build
+ *  has a loopback, `why` is what Girsa said. */
 export interface Told {
   told: boolean;
+  why?: string;
 }
 
 /** `clipboard-source`: a Girsa source packet on the clipboard, rendered to Ksav

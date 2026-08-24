@@ -117,6 +117,7 @@ const EN_ARGS: Record<string, string> = {
   ראש: "head",
   מספור_כתובת: "address_numbering",
   דף_ראשון: "first_folio",
+  כתובות: "addresses",
   עמוד_חדש: "new_page",
   יחידה: "unit",
   תפר: "seam",
@@ -1199,6 +1200,7 @@ export interface RegionSettings {
   head?: string | null;
   addressNumbering?: string | null;
   firstFolio?: string | null;
+  addresses?: string | null;
   newPage?: string | null;
   columns?: string | null;
   unit?: string | null;
@@ -1299,6 +1301,11 @@ export const REGION_KNOBS: ReadonlyArray<{
   },
   { key: "addressNumbering", arg: "מספור_כתובת", kind: "text", label: "regionAddressNum", hint: "א" },
   { key: "firstFolio", arg: "דף_ראשון", kind: "bare", label: "regionFirstFolio", hint: "2" },
+  // The words an address is said in — `עמ' 47`, `דף ב׳ א` — one override per
+  // ingredient. A **bare** knob, like `טורים`: the value is a dictionary in the
+  // prelude's own syntax, and the panel carries it verbatim rather than
+  // pretending three optional words are three more controls.
+  { key: "addresses", arg: "כתובות", kind: "bare", label: "regionAddresses", hint: '(עמוד: "p.")' },
   { key: "newPage", arg: "עמוד_חדש", kind: "flag", label: "regionNewPage", hint: "" },
   { key: "columns", arg: "טורים", kind: "bare", label: "regionColumns", hint: "(1fr, 2fr)" },
   {

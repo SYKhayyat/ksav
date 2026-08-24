@@ -91,11 +91,32 @@ export function ownCommands(own: Preamble = preambleInForce()): Available[] {
  *
  * Registry first because those are the 115 that are documented and always there;
  * the writer's own come after, and say where they came from.
+ *
+ * **Memoised on its inputs.** This is pure over the registry and the preamble,
+ * and the palette asked for it once per character typed — a fresh registry
+ * mapping and a preamble regex scan every keystroke for an answer that changes
+ * only when the preamble does. One cached answer; a preamble edit or a
+ * different document misses it.
  */
+let availableCache: {
+  reg: readonly CommandDef[];
+  text: string;
+  from: string;
+  out: Available[];
+} | null = null;
+
 export function available(
   registry: readonly CommandDef[],
   preamble: Preamble = preambleInForce(),
 ): Available[] {
+  if (
+    availableCache &&
+    availableCache.reg === registry &&
+    availableCache.text === preamble.text &&
+    availableCache.from === preamble.from
+  ) {
+    return availableCache.out;
+  }
   // Deprecated commands drop out here, which removes them from the palette and
   // the `#` completion in one place. They still compile — they are in documents
   // — they are simply no longer *offered*, which is the distinction between
@@ -120,6 +141,7 @@ export function available(
     if (at >= 0) out[at] = { ...out[at], ...own };
     else out.push(own);
   }
+  availableCache = { reg: registry, text: preamble.text, from: preamble.from, out };
   return out;
 }
 

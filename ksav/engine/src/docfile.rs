@@ -143,24 +143,10 @@ pub fn read(text: &str) -> DocFile {
         None => DocConfig::default(),
     };
 
-    // One `assets` array in the file, two lists on a request: `requestAssets`
-    // splits them by `kind`, and so does this. A `kind` the file does not state
-    // is an image, which is the direction `requestAssets` takes as well (it
-    // tests `!== "font"`), so an older file whose entries have no `kind` still
-    // resolves its pictures.
-    let (fonts, files): (Vec<_>, Vec<_>) = v
-        .get("assets")
-        .and_then(|x| x.as_array())
-        .map(|a| {
-            a.iter()
-                .cloned()
-                .partition(|e| e.get("kind").and_then(|k| k.as_str()) == Some("font"))
-        })
-        .unwrap_or_default();
-    let (assets, missing_assets) = Assets::from_request(&serde_json::json!({
-        "assets": files,
-        "fonts": fonts,
-    }));
+    // One `assets` array in the file, two lists for the engine: read in one
+    // pass over references, with no clone of the entries on the way through.
+    // See `Assets::from_docfile`.
+    let (assets, missing_assets) = Assets::from_docfile(v.get("assets"));
 
     let custom = v
         .get("customCommands")

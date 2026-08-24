@@ -229,14 +229,22 @@ fn git_run(dir: &Path, args: &[&str]) -> Result<Run, String> {
 /// Asked of the current directory rather than of a repository: whether git
 /// exists is a fact about the machine, and the panel has to be able to say
 /// *there is no git here* before it knows anything about the document.
+///
+/// **Once.** The answer cannot change while this process runs — git does not
+/// upgrade itself underneath an open drawer — and every status request used to
+/// pay a spawn to learn it again.
 pub fn version() -> Option<String> {
-    let here = std::env::current_dir().ok()?;
-    let run = git_run(&here, &["--version"]).ok()?;
-    if !run.ok {
-        return None;
-    }
-    // "git version 2.54.0.windows.1"
-    Some(run.out.trim().rsplit(' ').next()?.to_string())
+    static ONCE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    ONCE.get_or_init(|| {
+        let here = std::env::current_dir().ok()?;
+        let run = git_run(&here, &["--version"]).ok()?;
+        if !run.ok {
+            return None;
+        }
+        // "git version 2.54.0.windows.1"
+        Some(run.out.trim().rsplit(' ').next()?.to_string())
+    })
+    .clone()
 }
 
 // ---------------------------------------------------------------- arguments
@@ -616,15 +624,27 @@ fn status(place: &Place, asked: &Asked) -> String {
 /// Asked because the alternative is the writer's first commit failing with
 /// git's own nine-line lecture about `user.email`, in English, in a drawer.
 /// The panel offers the two fields instead, and this is what tells it to.
+///
+/// One spawn, not two: `--get-regexp` answers both keys in the same process,
+/// where two `config --get` calls were two spawns for one fact.
 fn identity(dir: &Path) -> serde_json::Value {
-    let get = |key: &str| {
-        git_run(dir, &["config", "--get", key])
-            .ok()
-            .filter(|r| r.ok)
-            .map(|r| r.out.trim().to_string())
-            .filter(|s| !s.is_empty())
-    };
-    match (get("user.name"), get("user.email")) {
+    let both = git_run(dir, &["config", "--get-regexp", r"^user\.(name|email)$"])
+        .ok()
+        .filter(|r| r.ok)
+        .map(|r| {
+            let mut name = None;
+            let mut email = None;
+            for line in r.out.lines() {
+                match line.split_once(' ') {
+                    Some(("user.name", v)) if !v.trim().is_empty() => name = Some(v.trim().to_string()),
+                    Some(("user.email", v)) if !v.trim().is_empty() => email = Some(v.trim().to_string()),
+                    _ => {}
+                }
+            }
+            (name, email)
+        })
+        .unwrap_or((None, None));
+    match both {
         (Some(name), Some(email)) => serde_json::json!({ "name": name, "email": email }),
         _ => serde_json::Value::Null,
     }

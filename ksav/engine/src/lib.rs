@@ -734,10 +734,51 @@ fn sheet_height_cm(cfg: &DocConfig) -> Option<f64> {
     }
 }
 
+/// The last answer the scanner gave, keyed by its inputs.
+///
+/// The scan is several whole-document passes, and it ran at the bottom of
+/// `show_rule` — every compile, including the ones a watcher or a settings
+/// change asks for with the text untouched. One entry: the previous document's
+/// key. A keystroke that changed the text misses it and pays the scan; a
+/// compile of unchanged text stops paying for an answer that has not moved.
+static RESERVE_CACHE: std::sync::Mutex<Option<(u128, f64)>> = std::sync::Mutex::new(None);
+
+fn reserve_cache_key(body: &str, page_h_cm: Option<f64>) -> u128 {
+    // FNV-1a over the body with the sheet folded in at the end. A collision
+    // costs one wrong reserve until the next edit — and two distinct bodies
+    // colliding here, in a 128-bit space, is not the failure to spend on.
+    let mut h: u128 = 0xcbf29ce484222325;
+    let mut chunk = |bytes: &[u8]| {
+        for b in bytes {
+            h ^= *b as u128;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+    };
+    chunk(body.as_bytes());
+    chunk(&page_h_cm.map(|h| h.to_bits()).to_le_bytes());
+    h
+}
+
 /// The reserve, given the sheet it is laid out on — or `None` for the sheet,
 /// in which case a `%` height counts as undeclared rather than resolved against
 /// a guess. The f64 form below is the same scan with the sheet known.
 pub fn auto_notes_region_cm_sheet(body: &str, page_h_cm: Option<f64>) -> f64 {
+    let key = reserve_cache_key(body, page_h_cm);
+    if let Ok(guard) = RESERVE_CACHE.lock() {
+        if let Some((k, v)) = *guard {
+            if k == key {
+                return v;
+            }
+        }
+    }
+    let answer = auto_notes_region_cm_scan(body, page_h_cm);
+    if let Ok(mut guard) = RESERVE_CACHE.lock() {
+        *guard = Some((key, answer));
+    }
+    answer
+}
+
+fn auto_notes_region_cm_scan(body: &str, page_h_cm: Option<f64>) -> f64 {
     // Comments first, and this is the eleventh scanner in this repository.
     //
     // `spans.ts` opens with a monument to ten client-side matchers disagreeing
@@ -1818,6 +1859,18 @@ fn families_with_italic(fonts: &[&[u8]]) -> std::collections::BTreeSet<String> {
     out
 }
 
+/// The italic families among the **bundled** fonts, read once.
+///
+/// The bundled set is fixed for the life of the process and the answer is pure
+/// over it; reading it per compile cloned every font byte (~2 MB) and iterated
+/// every face on the keystroke path. Attached fonts are not here — they arrive
+/// and go with requests, and they are read per compile beside this answer.
+fn bundled_italic_families() -> &'static std::collections::BTreeSet<String> {
+    static ONCE: std::sync::OnceLock<std::collections::BTreeSet<String>> =
+        std::sync::OnceLock::new();
+    ONCE.get_or_init(|| families_with_italic(&bundled_fonts()))
+}
+
 /// Every command in the prelude that asks for a slant, read off the prelude.
 ///
 /// # Why this is derived and was not
@@ -1932,7 +1985,7 @@ fn slanting_commands() -> &'static std::collections::BTreeSet<String> {
 /// place is a diagnostic the writer has to go looking for. With one, the status
 /// bar's entry becomes a button that goes there and the line is marked, which
 /// is the whole difference between being told and being able to act.
-fn first_italic(body: &str) -> Option<(usize, String)> {
+fn first_italic(root: &typst::syntax::Syntax) -> Option<(usize, String)> {
     use typst::syntax::{LinkedNode, SyntaxKind};
     fn walk(node: &LinkedNode) -> Option<(usize, String)> {
         if node.kind() == SyntaxKind::Ident {
@@ -1943,8 +1996,7 @@ fn first_italic(body: &str) -> Option<(usize, String)> {
         }
         node.children().find_map(|child| walk(&child))
     }
-    let root = typst::syntax::parse(body);
-    walk(&LinkedNode::new(&root))
+    walk(&LinkedNode::new(root))
 }
 
 /// Every call of `names` in the body, as (its first string argument, offset).
@@ -1952,7 +2004,7 @@ fn first_italic(body: &str) -> Option<(usize, String)> {
 /// The pair `#סמן`/`#הפניה` needs both halves of the document to answer a
 /// question about either of them, which is why this collects rather than
 /// finding the first one.
-fn calls_with_name(body: &str, names: &[&str]) -> Vec<(String, usize)> {
+fn calls_with_name(root: &typst::syntax::Syntax, names: &[&str]) -> Vec<(String, usize)> {
     use typst::syntax::{LinkedNode, SyntaxKind};
     fn walk(node: &LinkedNode, names: &[&str], out: &mut Vec<(String, usize)>) {
         if node.kind() == SyntaxKind::FuncCall {
@@ -1979,12 +2031,10 @@ fn calls_with_name(body: &str, names: &[&str]) -> Vec<(String, usize)> {
             walk(&child, names, out);
         }
     }
-    let root = typst::syntax::parse(body);
     let mut out = Vec::new();
-    walk(&LinkedNode::new(&root), names, &mut out);
+    walk(&LinkedNode::new(root), names, &mut out);
     out
 }
-
 /// References that point at an anchor the document has not got.
 ///
 /// # What this is really about
@@ -2006,12 +2056,15 @@ fn calls_with_name(body: &str, names: &[&str]) -> Vec<(String, usize)> {
 ///
 /// So the question is asked of the whole document at compile time, where both
 /// halves are visible, and the answer names the name.
-pub(crate) fn dangling_references(body: &str) -> Vec<Diagnostic> {
-    let anchors: std::collections::BTreeSet<String> = calls_with_name(body, &["סמן", "anchor"])
+pub(crate) fn dangling_references(
+    root: &typst::syntax::Syntax,
+    body: &str,
+) -> Vec<Diagnostic> {
+    let anchors: std::collections::BTreeSet<String> = calls_with_name(root, &["סמן", "anchor"])
         .into_iter()
         .map(|(name, _)| name)
         .collect();
-    calls_with_name(body, &["הפניה", "xref"])
+    calls_with_name(root, &["הפניה", "xref"])
         .into_iter()
         .filter(|(name, _)| !anchors.contains(name))
         .map(|(name, at)| {
@@ -2056,11 +2109,21 @@ fn line_column(body: &str, offset: usize) -> (usize, usize) {
 /// is fine, and a writer part-way through a sefer is entitled to keep working.
 /// What must not happen is that they keep pressing a button which does nothing
 /// and are never told.
-pub(crate) fn italic_warning(body: &str, cfg: &DocConfig, assets: &Assets) -> Option<Diagnostic> {
-    let (at, command) = first_italic(body)?;
-    let mut fonts = bundled_fonts();
-    fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
-    if families_with_italic(&fonts).contains(&cfg.font.to_lowercase()) {
+pub(crate) fn italic_warning(
+    root: &typst::syntax::Syntax,
+    body: &str,
+    cfg: &DocConfig,
+    assets: &Assets,
+) -> Option<Diagnostic> {
+    let (at, command) = first_italic(root)?;
+    // The bundled answer is cached; only fonts attached to this request are
+    // read fresh, and there are usually none.
+    let mut with_italic = bundled_italic_families().clone();
+    let extra: Vec<&[u8]> = assets.fonts.iter().map(|f| f.bytes.as_slice()).collect();
+    if !extra.is_empty() {
+        with_italic.extend(families_with_italic(&extra));
+    }
+    if with_italic.contains(&cfg.font.to_lowercase()) {
         return None;
     }
     let (line, column) = line_column(body, at);
@@ -2289,14 +2352,13 @@ pub fn compile_parts(
         }
     };
 
-    // A request the fonts cannot grant. Computed here rather than inside the
-    // compile because Typst has no way to ask whether a face exists — the font
-    // book is the compiler's, and this is the one place that holds both it and
-    // the writer's text. See `italic_warning`.
-    let italic = italic_warning(body, cfg, assets);
-    // A reference to an anchor the document has not got. Same shape and same
-    // reason: a question only the whole document can answer, asked once here.
-    let dangling = dangling_references(body);
+    // A request the fonts cannot grant, and a reference with no anchor. Both
+    // are questions about the writer's whole text, and **one parse serves
+    // both**: each used to walk its own full parse — three per compile on this
+    // path — for trees that were identical every time.
+    let body_tree = typst::syntax::parse(body);
+    let italic = italic_warning(&body_tree, body, cfg, assets);
+    let dangling = dangling_references(&body_tree, body);
 
     match output {
         Ok(doc) => {

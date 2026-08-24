@@ -144,6 +144,33 @@ impl Assets {
         let fonts = read_list_cached(v.get("fonts"), &mut missing);
         (Assets { files, fonts }, missing)
     }
+
+    /// Read **one** assets array split by each entry's own `kind`.
+    ///
+    /// This is the document-file shape — `requestAssets` sends two arrays and
+    /// this file carries one, and reading it used to mean cloning every entry,
+    /// multi-megabyte base64 payloads included, to build the two-array request
+    /// shape just so [`from_request`](Self::from_request) could walk it again.
+    /// One pass over references now; an entry with no `kind` is an image, the
+    /// same reading `!== "font"` makes on the client.
+    pub fn from_docfile(v: Option<&serde_json::Value>) -> (Assets, Vec<String>) {
+        let mut missing = Vec::new();
+        let mut files = Vec::new();
+        let mut fonts = Vec::new();
+        if let Some(arr) = v.and_then(|x| x.as_array()) {
+            for entry in arr {
+                let is_font = entry.get("kind").and_then(|k| k.as_str()) == Some("font");
+                if let Some(asset) = read_one_cached(entry, &mut missing) {
+                    if is_font {
+                        fonts.push(asset);
+                    } else {
+                        files.push(asset);
+                    }
+                }
+            }
+        }
+        (Assets { files, fonts }, missing)
+    }
 }
 
 fn read_list_cached(v: Option<&serde_json::Value>, missing: &mut Vec<String>) -> Vec<Asset> {

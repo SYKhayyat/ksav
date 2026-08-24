@@ -465,7 +465,10 @@ export function reviewPanel(view: ReviewView, act: ReviewActions): Node[] {
     ]);
 
   const reviewer = textField(view.reviewer);
-  reviewer.addEventListener("input", () => act.setReviewer(reviewer.value));
+  // On `change`, not `input`: the setter persists settings, and a keystroke in
+  // this field was serialising every preference to localStorage per letter.
+  // The name is committed when the writer leaves the field or presses Enter.
+  reviewer.addEventListener("change", () => act.setReviewer(reviewer.value));
 
   return [
     panelHead("review-panel", "reviewTitle"),

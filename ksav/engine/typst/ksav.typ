@@ -5532,11 +5532,20 @@
 /// name when it was never pointed anywhere — the case every document written
 /// before channels existed is in. A channel may say it too, and then it is
 /// saying it about the region it made.
-#let _sf_spill(t) = g => {
-  let rg = _ch_region(t, g)
-  let own = _rg_rec(t, rg).at("גלישה", default: auto)
-  let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
-  _ap_spill_read("אזור", mine)
+#let _sf_spill(t) = {
+  // The answer for one region cannot change between two entries on one page,
+  // but this used to re-read and re-validate the moves list for every entry
+  // the walk asked about. One validated answer per region, per evaluation.
+  let cache = (:)
+  g => {
+    let rg = _ch_region(t, g)
+    if not cache.contains(rg) {
+      let own = _rg_rec(t, rg).at("גלישה", default: auto)
+      let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
+      cache.insert(rg, _ap_spill_read("אזור", mine))
+    }
+    cache.at(rg)
+  }
 }
 
 /// Whether a region keeps its slot on a page where it has nothing in it.

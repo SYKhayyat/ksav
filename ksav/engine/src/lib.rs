@@ -679,11 +679,28 @@ fn closing_paren(s: &str) -> Option<usize> {
 /// prelude disagree by exactly the ratio of the guess, silently and in page
 /// geometry, so an unknown paper answers `None` here and the height counts as
 /// undeclared: the working default, which keeps everything on the page.
+/// One line of the document's default text, in cm — the same answer
+/// [`crate::typst::ksav`]'s `_ap_fixed_height` gives a `שורות` height when no
+/// caller's line is known: `par.leading + text.size` at the shipped defaults
+/// (12pt body, 0.75em leading). The two sides of the percent-of-sheet claim
+/// meet here; change one, change both.
+const DEFAULT_LINE_CM: f64 = 12.0 * (1.0 + 0.75) * 2.54 / 72.0;
+
 fn length_cm(s: &str, page_h_cm: Option<f64>) -> Option<f64> {
     let s = s.trim();
     if let Some(n) = s.strip_suffix('%') {
         let h = page_h_cm?;
         return n.trim().parse::<f64>().ok().map(|v| v / 100.0 * h);
+    }
+    // A count of lines, in either spelling — resolved against the same
+    // default line the drawn slot falls back to, so the reserve the Rust
+    // side takes off the margin and the block Typst draws agree.
+    for name in ["שורות", "lines"] {
+        if let Some(rest) = s.strip_prefix(name) {
+            let inner = rest.trim().strip_prefix('(')?;
+            let n = inner.trim_end_matches(')').trim().parse::<f64>().ok()?;
+            return Some(n * DEFAULT_LINE_CM);
+        }
     }
     for (unit, per_cm) in [
         ("cm", 1.0),
@@ -4409,5 +4426,35 @@ mod tests {
         };
         let out = compile("שלום עולם", &cfg);
         assert!(out.ok(), "diagnostics: {:?}", out.diagnostics);
+    }
+}
+
+#[cfg(test)]
+mod line_height_tests {
+    use super::*;
+
+    /// The fence on the percent-of-sheet claim: the Rust scanner and the
+    /// Typst slot must resolve a `שורות` height to the same centimetres.
+    /// `_ap_fixed_height` falls back to `par.leading + text.size` — 21pt at
+    /// the shipped defaults — so three lines are 63pt, not some other number.
+    #[test]
+    fn a_lines_height_resolves_like_the_drawn_slot() {
+        let got = length_cm("שורות(3)", Some(29.7)).expect("שורות resolves");
+        let want = 3.0 * 21.0 * 2.54 / 72.0;
+        assert!((got - want).abs() < 1e-9, "{got} against {want}");
+        let english = length_cm("lines(2)", None).expect("lines resolves without a sheet");
+        assert!(
+            (english - 2.0 * DEFAULT_LINE_CM).abs() < 1e-9,
+            "a count of lines needs no sheet: {english}"
+        );
+        // …and the scan of a document declaring one reserves it, rather than
+        // falling back to the flat default that under-reserved the sitting's
+        // sefer into 116 near-blank leaves.
+        let body = "#הגדרות_מדפים(גבהים: (שורות(2),))\n#מדף_א[גוף] טקסט.";
+        let reserve = auto_notes_region_cm(body);
+        assert!(
+            reserve >= 2.0 * DEFAULT_LINE_CM,
+            "a שורות-declared band reserved {reserve}cm - under its own height"
+        );
     }
 }

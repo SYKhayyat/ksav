@@ -1,4 +1,4 @@
-﻿//! Every placement draws, for a channel that declared no region.
+//! Every placement draws, for a channel that declared no region.
 //!
 //! `NOTES-PLAN` thing two says a note has one axis — **where it goes** — and that
 //! the arrangement follows from it. Four of the five are placements a channel can
@@ -409,19 +409,31 @@ fn every_placement_means_the_same_on_a_note_upon_a_note() {
 fn the_too_small_switch_grows_or_refuses_as_asked() {
     let doc = "#הגדרות_מדפים(גבהים: (4cm,))
 פתיחה#מדף_א[גוף ההערה] וסוף.";
-    let refuse =
-        DocConfig { notes_region_cm: Some(1.0), reserve_overflow: "refuse".to_string(), ..DocConfig::default() };
+    let refuse = DocConfig {
+        notes_region_cm: Some(1.0),
+        reserve_overflow: "refuse".to_string(),
+        ..DocConfig::default()
+    };
     let Err(d) = probe::layout(doc, &refuse) else {
         panic!("refuse accepted a reserve smaller than its bands");
     };
     let text = format!("{d:?}");
-    assert!(text.contains("4.") && text.contains("1."), "no numbers: {text}");
+    assert!(
+        text.contains("4.") && text.contains("1."),
+        "no numbers: {text}"
+    );
 
-    let grow = DocConfig { notes_region_cm: Some(1.0), ..DocConfig::default() };
+    let grow = DocConfig {
+        notes_region_cm: Some(1.0),
+        ..DocConfig::default()
+    };
     match probe::layout(doc, &grow) {
         Ok(doc) => {
             let runs = probe::text_runs(&doc);
-            assert!(!runs.iter().any(|r| r.y > PAGE_FOOT), "grown printed past the folio");
+            assert!(
+                !runs.iter().any(|r| r.y > PAGE_FOOT),
+                "grown printed past the folio"
+            );
         }
         Err(d) => panic!("grow failed: {d:?}"),
     }

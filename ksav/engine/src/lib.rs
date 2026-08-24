@@ -1694,7 +1694,11 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
                 // Nothing declared: the scan is the reserve, and zero means no
                 // apparatus at all.
                 None => {
-                    if need > 0.0 { format!("{need}cm") } else { "none".to_string() }
+                    if need > 0.0 {
+                        format!("{need}cm")
+                    } else {
+                        "none".to_string()
+                    }
                 }
                 Some(w) => {
                     // A writer-fixed strip smaller than what its regions
@@ -1703,7 +1707,11 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
                     // reaches here - `compile_doc_with` stops it first.
                     let fits = need <= w || need <= 0.0;
                     if fits || cfg.reserve_overflow == "flow" {
-                        if w > 0.0 { format!("{w}cm") } else { "none".to_string() }
+                        if w > 0.0 {
+                            format!("{w}cm")
+                        } else {
+                            "none".to_string()
+                        }
                     } else {
                         format!("{need}cm")
                     }

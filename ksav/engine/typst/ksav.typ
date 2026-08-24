@@ -6612,15 +6612,26 @@
       page_ = it.page
       cursor = floor
     }
+    // **A note whose line the walk has already left is carried**, whatever
+    // its shift asks. Its own page is behind the cursor's page, so "beside my
+    // line" names a place that no longer exists — and using its source-line
+    // height on the *new* page copied a y from a page it is not on, which is
+    // how one carried note pushed every later note a full leaf down while the
+    // margin stood empty.
+    let carried = it.page < page_
     // `"התעלם"` takes no part: drawn where its marker is, and the cursor is left
-    // exactly as it was so nothing moves for it either.
-    if it.at("shift", default: auto) == "התעלם" {
+    // exactly as it was so nothing moves for it either — unless the marker's
+    // page is gone, in which case it is carried like everything else.
+    if it.at("shift", default: auto) == "התעלם" and not carried {
       out.push((page: it.page, y: it.want))
       continue
     }
+    let carried_y = clear(page_, calc.max(cursor, floor), it.h)
     // A note that may not shift stays beside its own line, and the cursor picks
-    // up after it — so the notes below move around it rather than it around them.
-    let y = if _sn_may_shift(it) {
+    // up after it - so the notes below move around it rather than it around them.
+    let y = if carried {
+      carried_y
+    } else if _sn_may_shift(it) {
       clear(page_, calc.max(it.want, cursor), it.h)
     } else {
       it.want

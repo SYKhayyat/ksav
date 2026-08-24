@@ -8426,6 +8426,10 @@
 #let תוכן(כותרת: auto, מספור: auto, עומק: none) = context {
   let title = if כותרת != auto { כותרת } else if text.lang == "he" { [תוכן העניינים] } else { [Contents] }
   let show-nums = if מספור == auto { _hd_cfg.get().at("מספור", default: none) != none } else { מספור }
+  // The contents' own title is furniture, not a chapter: Typst renders it as a
+  // heading, and left to the document's numbering rule it printed "0." — the
+  // counter read before anything had stepped. Unnumbered, always.
+  set heading(numbering: none)
   if show-nums {
     outline(title: title, depth: עומק)
   } else {

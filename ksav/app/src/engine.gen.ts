@@ -47,6 +47,7 @@ export const DOC_DEFAULTS = {
   hebrew_numbering: false,
   header: "",
   footer: "",
+  reserve_overflow: "grow",
 } as const;
 
 /**

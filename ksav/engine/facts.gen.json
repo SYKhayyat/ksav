@@ -38,7 +38,8 @@
     "hebrew_numbering": false,
     "header": "",
     "footer": "",
-    "notes_region_cm": null
+    "notes_region_cm": null,
+    "reserve_overflow": "grow"
   },
   "commands": [
     {

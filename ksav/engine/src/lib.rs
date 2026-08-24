@@ -1761,6 +1761,44 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
 /// textually by the engine. So there is a prefix, it is two lines and a blank
 /// one, and [`diagnostics::body_offset_of`] measures it by subtraction off the
 /// two strings the caller already holds.
+/// A writer who fixed the reserve *inline* — `#מסמך(אזור_הערות: 3.5cm)` inside
+/// the body — overrides the wrapper's injected value, and when the foot
+/// regions declare more than that number holds the stack painted straight
+/// through the page number (live-sitting fault F3). Under the default
+/// `"grow"` policy the inline number is raised to what the strips need; the
+/// writer sees the taller strip on the very next render, which is the
+/// statement. `"refuse"` is stopped earlier in `compile_doc_with`; `"flow"`
+/// keeps the writer's number untouched.
+fn grow_inline_reserve(body: &str, need_cm: f64) -> String {
+    for name in ["אזור_הערות", "notes_region"] {
+        let Some(i) = body.find(name) else { continue };
+        let colon = i + name.len();
+        let rest = &body[colon..];
+        let Some(rest) = rest.strip_prefix(':') else {
+            continue;
+        };
+        let ws = rest.len() - rest.trim_start().len();
+        let tok_start = colon + 1 + ws;
+        let after = rest.trim_start();
+        let end = after
+            .find(|c: char| !(c.is_ascii_digit() || c == '.' || c.is_alphabetic()))
+            .unwrap_or(after.len());
+        let token = &after[..end];
+        if let Some(w) = length_cm(token, None) {
+            if need_cm > w {
+                return format!(
+                    "{}{:.2}cm{}",
+                    &body[..tok_start],
+                    need_cm,
+                    &body[tok_start + token.len()..]
+                );
+            }
+        }
+        return body.to_string();
+    }
+    body.to_string()
+}
+
 pub fn main_source(body: &str, cfg: &DocConfig) -> String {
     format!(
         "{IMPORT_LINE}\n{rule}\n\n{body}\n",
@@ -2349,7 +2387,23 @@ pub fn compile_doc_with(
             }
         }
     }
-    let text = main_source(body, cfg);
+    // The inline grow runs here, where the scan's need and the writer's own
+    // number can meet: a fixed reserve smaller than the strips declare is
+    // raised (default policy) before anything lays out.
+    let body = if cfg.notes_region_cm.is_none()
+        && cfg.reserve_overflow != "flow"
+        && cfg.reserve_overflow != "refuse"
+    {
+        let need = auto_notes_region_cm_sheet(body, sheet_height_cm(cfg));
+        if need > 0.0 {
+            grow_inline_reserve(body, need)
+        } else {
+            body.to_string()
+        }
+    } else {
+        body.to_string()
+    };
+    let text = main_source(&body, cfg);
     let Warned { output, warnings } = layout_source(text.clone(), assets);
     match output {
         Ok(doc) => Ok(doc),
@@ -2357,7 +2411,7 @@ pub fn compile_doc_with(
             // The same text Typst just parsed, parsed again here so spans can be
             // turned into lines — but only now that there is a diagnostic to
             // locate. See `compile_parts` for why this is not done up front.
-            let located = Located::of(&text, body);
+            let located = Located::of(&text, &body);
             let mut diagnostics = located.all(&warnings, "warning");
             use typst_as_lib::TypstAsLibError::*;
             match err {

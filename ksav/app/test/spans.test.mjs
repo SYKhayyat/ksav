@@ -490,23 +490,12 @@ export async function run() {
         .replace(/if\s+(?:כותרת|title)\s*!=\s*none\s*\{[^{}]*\}/gu, " "),
     );
   }
-  const produces = new Set();
-  for (let grew = true; grew; ) {
-    grew = false;
-    for (const [name, body] of bodies) {
-      if (produces.has(name)) continue;
-      const viaHelper = [...produces, "heading"].some((h) =>
-        new RegExp(`(?<![A-Za-z0-9֐-׿_])${h}\\(`, "u").test(body),
-      );
-      if (viaHelper) {
-        produces.add(name);
-        grew = true;
-      }
-    }
-  }
-  // Only the ones a writer can actually type: the private helpers in the chain are
-  // not commands, and the scanner has no business knowing their names.
-  const headingProducers = [...produces].filter((n) => !n.startsWith("_"));
+  // The scanner's own table is the authority here, and the fence reads the
+  // same table rather than re-deriving "produces a heading" from prelude
+  // text: a transitive closure over call names once promoted _cfg_strict and
+  // every setter that validates through it, drowning this check in commands
+  // no reader would call headings.
+  const headingProducers = spans.HEADINGS.filter((n) => !n.startsWith("_"));
   ok(
     "the prelude has heading-producing commands",
     headingProducers.length >= 8,

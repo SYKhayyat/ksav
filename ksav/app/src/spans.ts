@@ -353,6 +353,14 @@ const FIXED_HEADINGS: Record<string, number> = withAliases({ "סימן": 1 });
  */
 export const NOT_HEADINGS = new Set([...bothSpellings("שער"), ...bothSpellings("תת_שער")]);
 
+/** Every command the scanner will call a heading — the fence reads this table
+ * rather than re-deriving "produces a heading" from prelude text. */
+export const HEADINGS: string[] = [
+  ...Object.keys(NAMED_HEADINGS),
+  ...GENERIC_HEADINGS,
+  ...Object.keys(FIXED_HEADINGS),
+];
+
 /**
  * A `(a|b|…)` alternation over names, longest first.
  *

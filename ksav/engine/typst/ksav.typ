@@ -2247,22 +2247,42 @@
     schemes
   } else { none }
   // The default channel is numbered by Typst's own footnote counter, which is
-  // balanced and free and cannot be restarted from here — so a document that
-  // restarts counts moves it onto the same query path every other channel
-  // already uses. `_nr_any` is a state read rather than a query for exactly
-  // this call site: it is asked once per note, in every document.
-  let scheme = if scheme == none and _nr_any() { "1" } else { scheme }
-  // Leaving `"מספר"` out of `ראש` means the entry carries no number, and Typst
-  // draws the number itself — so it is said here, to the footnote, rather than
-  // in the entry's own content where there is nothing to remove.
+  // balanced and free but cannot be restarted - so a note whose count was
+  // actually restarted moves onto the same query path every other channel
+  // uses. *Whose count was restarted* is the whole question: asked with
+  // `_nr_any()` alone it renumbered every nested note into its own colliding
+  // 1..N whenever any sefer numbered a list of psakim anywhere in the
+  // document. Governance is per note, so the decision sits inside the context
+  // below, where the note's location exists.
   let numbered = _eh_numbered(cfg)
   if scheme == none {
-    if numbered { footnote(..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
-    // The number this note turned out to be, recorded under the name the writer
-    // gave it — see `#הפניה_להערה`. Read *after* the footnote, because that is
-    // what steps Typst's own counter, and `.get()` in a context here is this
-    // note's number rather than the one before it.
-    if שם != none { context _xn_mark(שם, counter(footnote).get().first()) }
+    context {
+      let loc = here()
+      let governed = _nr_any() and _nr_origin(loc) != none
+      if not governed {
+        if numbered { footnote(..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
+        // The number this note turned out to be, recorded under the name the
+        // writer gave it - see `#הפניה_להערה`. Read *after* the footnote,
+        // because that is what steps Typst's own counter, and `.get()` in a
+        // context here is this note's number rather than the one before it.
+        if שם != none { _xn_mark(שם, counter(footnote).get().first()) }
+      } else {
+        // Per-channel numbering for the governed note: Typst has ONE footnote
+        // counter, and it cannot be restarted from here - so the number is
+        // this note's rank among the real notes of its own channel, read out
+        // of a query scoped after the governing restart, exactly as the
+        // collect-then-render apparatus does it.
+        let key = if _ערוץ != none { _ערוץ } else { _ch_tier_name(דרגה) }
+        [#metadata(key)#label("ksav-fnt")]
+        let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
+        footnote(
+          numbering: _ => if numbered { _hb_num("1", _hb_mode.get(), n) } else { [] },
+          ..rest,
+          entry,
+        )
+        if שם != none { _xn_mark(שם, _hb_num("1", _hb_mode.get(), n)) }
+      }
+    }
   } else {
     // Per-channel numbering. Typst has ONE footnote counter, and the `numbering`
     // callback is handed that counter's value — so it cannot be used to count a

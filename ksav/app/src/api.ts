@@ -85,6 +85,17 @@ export interface DocConfig {
   footer_odd?: string;
   /** Where the running head sits. Only means anything once `two_sided` is on. */
   head_align?: "center" | "outside" | "inside";
+  /**
+   * Height in cm reserved at the foot of every page for the page-foot
+   * apparatus. Absent = the engine decides from the document.
+   */
+  notes_region_cm?: number;
+  /**
+   * What happens when that reserve (or the document's own inline one) is
+   * smaller than its foot regions declare: `"grow"` raises it, `"refuse"`
+   * stops with both numbers, `"flow"` keeps it and lets entries continue.
+   */
+  reserve_overflow: string;
   /** PDF metadata. Without a title the file opens nameless in every reader. */
   title?: string;
   author?: string;

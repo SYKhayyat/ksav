@@ -1508,6 +1508,7 @@
 // without walking anything, and `.final()` is document-global, so a
 // `#התחל_מספור` at the back of the sefer is known at the front.
 #let _nr_used = state("ksav-nr-used", false)
+#let _fnt_gov = state("ksav-fnt-gov", false)
 #let הגדרות_מספור(..opts) = {
   // Checked **here** and not inside the update. A state's update closure runs
   // only when something reads the state, so a document that restarts nothing
@@ -2259,13 +2260,9 @@
     context {
       let loc = here()
       let governed = _nr_any() and _nr_origin(loc) != none
+      _fnt_gov.update(governed)
       if not governed {
         if numbered { footnote(..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
-        // The number this note turned out to be, recorded under the name the
-        // writer gave it - see `#הפניה_להערה`. Read *after* the footnote,
-        // because that is what steps Typst's own counter, and `.get()` in a
-        // context here is this note's number rather than the one before it.
-        if שם != none { _xn_mark(שם, counter(footnote).get().first()) }
       } else {
         // Per-channel numbering for the governed note: Typst has ONE footnote
         // counter, and it cannot be restarted from here - so the number is
@@ -2282,6 +2279,13 @@
         )
         if שם != none { _xn_mark(שם, _hb_num("1", _hb_mode.get(), n)) }
       }
+    }
+    // The shared-counter note's name-mark, in its own later context: state
+    // reads inside one context share one snapshot, so a read beside the
+    // footnote saw the counter *before* this note stepped it and every named
+    // note recorded its predecessor's number. Here the step has happened.
+    if שם != none and not _fnt_gov.get() {
+      context _xn_mark(שם, counter(footnote).get().first())
     }
   } else {
     // Per-channel numbering. Typst has ONE footnote counter, and the `numbering`

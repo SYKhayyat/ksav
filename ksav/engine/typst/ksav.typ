@@ -99,6 +99,7 @@
   tracking_amount: "כיווץ_מידה",
   head: "ראש", address_numbering: "מספור_כתובת", first_folio: "דף_ראשון",
   addresses: "כתובות",
+  default_spill: "בררת_גלישה", spill_warning: "אזהרת_גלישה",
   new_page: "עמוד_חדש", unit: "יחידה",
   // The row plan of a grid region — the Vilna wrap. `רוחב` and `ערוצים` inside a
   // plan are `width` and `channels`, which are already in this table; these four
@@ -5422,6 +5423,11 @@
   סימן: (:),            // how the note s number is set, wherever it prints
 )
 #let _sf_cfg = state("ksav-sf-cfg", _sf_defaults)
+// What an undeclared fixed region does when its notes outgrow it, and how
+// many continuation leaves may pass before each one says so. Document-level,
+// set by #מסמך; a region's own גלישה always wins over the default.
+#let _rg_default_spill = state("ksav-rg-default-spill", none)
+#let _rg_warn_leaves = state("ksav-rg-warn-leaves", none)
 #let הגדרות_זרמים(..opts) = {
   // `גלישה` is refused here rather than wired: overflow belongs to the region
   // (and to the channel that made it) by decision 12 — two streams sharing a
@@ -5595,12 +5601,13 @@
   // finished rather than filled lazily. A group outside the table's order is
   // answered fresh rather than not at all.
   let answers = (:)
+  let dflt = _rg_default_spill.get()
   for g in t.סדר {
     let rg = _ch_region(t, g)
     if rg in answers { continue }
     let own = _rg_rec(t, rg).at("גלישה", default: auto)
     let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
-    answers.insert(rg, _ap_spill_read("אזור", mine))
+    answers.insert(rg, if mine == auto and dflt != none { dflt } else { _ap_spill_read("אזור", mine) })
   }
   g => {
     let rg = _ch_region(t, g)
@@ -5608,7 +5615,9 @@
       answers.at(rg)
     } else {
       let own = _rg_rec(t, rg).at("גלישה", default: auto)
-      let mine = if own == auto { _ch_rec(t, g).at("גלישה", default: auto) } else { own }
+      let mine = if own == auto {
+        if dflt != none { dflt } else { _ap_spill_read("אזור", auto) }
+      } else { own }
       _ap_spill_read("אזור", mine)
     }
   }
@@ -5745,8 +5754,24 @@
           + regions.filter(rg => not t.סדר_אזורים.contains(rg))
       )
       let regions = regions.filter(rg => _sf_holds(t, rg) or members.at(rg).any(s => mine.any(e => e.value.group == s)))
+      // The tripwire: a fixed region spilling past the writer's threshold
+      // says so at the top of every continuation leaf — visible, small, and
+      // naming the region — rather than spending near-blank leaves in
+      // silence. `pieces` is which slice of its note this page shows, so a
+      // member at or past the threshold IS a continuation leaf.
+      let warn = _rg_warn_leaves.get()
+      let notices = if warn != none {
+        regions.filter(rg => members.at(rg).any(s => on.pieces.at(s, default: 0) >= warn))
+      } else { () }
       set align(if text.dir == rtl { right } else { left })
-      block(width: 100%, _ap_bands(
+      block(width: 100%, {
+        for rg in notices {
+          text(size: 0.62em, fill: luma(120))[
+            #rg: הגלישה נמשכת — הגדילו את האזור או הגבילו את ההערות ·
+            spill continues, leaf #calc.round(on.pieces.at(members.at(rg).first(), default: 0))
+          ]
+        }
+        _ap_bands(
         cfg,
         regions,
         rg => {
@@ -5838,7 +5863,8 @@
         },
         divider: 30%,
         side: _val(cfg.at("פריסה", default: "מוערם")) == "צד",
-      ))
+        )
+      })
     }
   }
 }
@@ -7389,6 +7415,12 @@
   // always has somewhere to go. `none` = reserve nothing (correct for documents
   // that only use native footnotes / endnotes, which need no reserve at all).
   אזור_הערות: none,
+  // What an undeclared fixed region does when its notes outgrow it, and how
+  // many continuation leaves may pass before each one carries a small notice
+  // saying the spill continues. `בררת_גלישה` takes a גלישה-style list; a
+  // region's own גלישה always wins over it.
+  בררת_גלישה: none,
+  אזהרת_גלישה: none,
   body,
 ) = {
   let np = if מספור_עברי { "א" } else { "1" }
@@ -7639,6 +7671,11 @@
   // next page — and it is *declared*, which is the whole reason that walk
   // converges. See `_ap_assign`.
   _ap_reserve.update(reserve)
+  // The spill defaults and the tripwire, put where the footer walk reads
+  // them. The list is validated by the same reader the regions use, so a
+  // misspelled move is refused here with the vocabulary named.
+  _rg_default_spill.update(if בררת_גלישה == none { none } else { _ap_spill_read("מסמך", בררת_גלישה) })
+  _rg_warn_leaves.update(if אזהרת_גלישה == none { none } else { אזהרת_גלישה })
   _ap_free.update(m_bot * חלק_שוליים_רגל)
   _ap_free_top.update(m_top * חלק_שוליים_רגל)
   _sn_reserve.update(side_res)

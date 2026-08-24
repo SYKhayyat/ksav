@@ -438,3 +438,56 @@ fn the_too_small_switch_grows_or_refuses_as_asked() {
         Err(d) => panic!("grow failed: {d:?}"),
     }
 }
+
+/// The spill defaults and the tripwire.
+///
+/// A 2-line foot region fed one very long note: with the document's
+/// `אזהרת_גלישה` set at leaf 1, every continuation leaf carries a small
+/// notice naming the region; with it unset, nothing does; and an explicit
+/// גלישה on the region still beats the document default.
+/// The spill defaults and the tripwire.
+///
+/// A 2-line foot region fed one very long note: with the document's
+/// `אזהרת_גלישה` set at leaf 1, every continuation leaf carries a small
+/// notice naming the region; with it unset, nothing does; and an explicit
+/// גלישה on the region still beats the document default.
+#[test]
+fn the_spill_defaults_and_tripwire_answer_as_asked() {
+    let long = "מילה ".repeat(60);
+    let mk = |warn: &str, extra: &str| {
+        format!(
+            "#מסמך(אזור_הערות: 2cm{warn})[\n\
+             #אזור(\"ב\", מיקום: \"רגל\", גובה: שורות(2){extra})\n\
+             פתיחה#הערה(אזור: \"ב\")[{long}] וסוף.\n]",
+            warn = warn,
+            extra = extra,
+            long = long,
+        )
+    };
+    let doc = mk(", אזהרת_גלישה: 1", "");
+    let runs = probe::text_runs(&probe::layout(&doc, &DocConfig::default()).unwrap());
+    assert!(
+        runs.iter().any(|r| r.text.contains("הגלישה נמשכת")),
+        "the tripwire stayed silent past its threshold"
+    );
+    assert!(
+        !runs.iter().any(|r| r.y > PAGE_FOOT),
+        "the notice itself printed below the folio"
+    );
+
+    let quiet = mk("", "");
+    let quiet_runs = probe::text_runs(&probe::layout(&quiet, &DocConfig::default()).unwrap());
+    assert!(
+        !quiet_runs.iter().any(|r| r.text.contains("הגלישה נמשכת")),
+        "a document that asked for no tripwire got one"
+    );
+
+    let ladder = mk(
+        ", בררת_גלישה: (\"הקטנה\", \"עמוד_הבא\")",
+        ", גלישה: (\"עמוד_הבא\",)",
+    );
+    assert!(
+        probe::layout(&ladder, &DocConfig::default()).is_ok(),
+        "an explicit regional גלישה broke under a document default"
+    );
+}

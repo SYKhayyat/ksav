@@ -563,3 +563,19 @@ fn a_marks_shipped_slant_reaches_the_page() {
         "`#גמרא` ships an italic default and it is not printing"
     );
 }
+
+/// A name given to two notes says so at every reference to it.
+///
+/// The dangling name has always printed red; the duplicated one used to
+/// answer silently with the first mark, which is the same mistake wearing a
+/// quieter coat (live-sitting fault F5).
+#[test]
+fn a_duplicated_note_name_says_so_at_the_reference() {
+    let doc = "אחד#הערה(שם: \"מקורות\")[א]. שנים#הערה(שם: \"מקורות\")[ב]. \
+               ועיין הערה #הפניה_להערה(\"מקורות\").";
+    let runs = probe::text_runs(&probe::layout(doc, &DocConfig::default()).unwrap());
+    assert!(
+        runs.iter().any(|r| r.text.contains("כפול")),
+        "a duplicated note name passed in silence"
+    );
+}

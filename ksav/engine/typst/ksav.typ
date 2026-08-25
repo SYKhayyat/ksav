@@ -9147,11 +9147,13 @@
   let hits = query(_xn_label).filter(e => e.value.שם == name)
   if hits.len() == 0 {
     text(fill: red, if סימון { super[?#name] } else { [?#name] })
+  } else if hits.len() > 1 {
+    // Two notes of one name: the reference cannot know which was meant, and
+    // answering silently with the first taught nobody anything — while a
+    // *dangling* name has always spoken up, in this same colour. The first
+    // number still answers, so nothing is lost by saying so.
+    text(fill: red, if סימון { super[#name כפול] } else { [#name כפול] })
   } else {
-    // The **first** one, when a name was given twice. Two notes of one name is
-    // the writer's mistake and the reference has to answer something; answering
-    // with the first is at least the same answer every time and in every
-    // reference to it.
     let num = hits.first().value.מספר
     if סימון { super[#num] } else { [#num] }
   }

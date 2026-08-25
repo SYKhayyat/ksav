@@ -324,6 +324,8 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "מספור_כתובת": "address_numbering",
   "דף_ראשון": "first_folio",
   "כתובות": "addresses",
+  "בררת_גלישה": "default_spill",
+  "אזהרת_גלישה": "spill_warning",
   "עמוד_חדש": "new_page",
   "יחידה": "unit",
   "מחזור": "cycle",

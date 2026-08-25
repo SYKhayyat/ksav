@@ -7309,6 +7309,72 @@ function optNumberRow(labelKey: string, key: Field, min: number, max: number, st
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
 }
 
+/** Remove an optional page field entirely: absent means "decide from the
+ * document", which merging cannot say. Same write path as `setPageSetup`. */
+function clearPageField(key: Field): void {
+  const doc = runtime.currentDoc;
+  if (!doc) return;
+  const config: Record<string, unknown> = { ...(doc.config ?? {}) };
+  delete config[key];
+  runtime.setCurrentDoc({ ...doc, config });
+  void docs.rememberConfig(doc.id, config).catch(reportSaveFailure);
+}
+
+/**
+ * The page-foot reserve row: a length (`2cm`, `40pt`) or a percent of a
+ * chosen base, blank meaning the engine decides. The percent is converted
+ * to centimetres here — the engine's knob is centimetres — using the open
+ * document's own sheet and margins, so the number the writer sees is the
+ * number the layout gets.
+ */
+function reserveRow() {
+  const input = el("input", {
+    type: "text",
+    placeholder: t("perEdgeHint").replace(/שוליים/g, "").trim() || "2cm",
+    value: (() => {
+      const cm = now("notes_region_cm");
+      return cm === undefined || cm === null ? "" : `${cm}cm`;
+    })(),
+  });
+  const base = el(
+    "select",
+    {},
+    [
+      ["sheet", t("baseSheet")],
+      ["text", t("baseText")],
+    ].map(([v, label]) => {
+      const o = el("option", {}, [label]);
+      (o as HTMLOptionElement).value = v;
+      return o;
+    }),
+  );
+  const apply = (raw: string) => {
+    if (raw === "") return clearPageField("notes_region_cm");
+    if (raw.endsWith("%")) {
+      const frac = Number(raw.slice(0, -1)) / 100;
+      if (!Number.isFinite(frac)) return;
+      const pageH = Number(now("page_height_cm")) || 29.7;
+      const mTop = Number(now("margin_top_cm") ?? now("margin_cm") ?? 2.5);
+      const mBot = Number(now("margin_bottom_cm") ?? now("margin_cm") ?? 2.5);
+      const baseH = (base as HTMLSelectElement).value === "text" ? pageH - mTop - mBot : pageH;
+      setSetting("notes_region_cm", Math.round(frac * baseH * 1000) / 1000 as never);
+    } else {
+      const cm = raw.endsWith("pt")
+        ? (Number(raw.slice(0, -2)) * 2.54) / 72
+        : raw.endsWith("mm")
+          ? Number(raw.slice(0, -2)) / 10
+          : raw.endsWith("in")
+            ? Number(raw.slice(0, -2)) * 2.54
+            : Number(raw);
+      if (Number.isFinite(cm)) setSetting("notes_region_cm", Math.round(cm * 1000) / 1000 as never);
+    }
+  };
+  input.onchange = (e: Event) => apply((e.target as HTMLInputElement).value.trim());
+  base.onchange = () => apply(input.value.trim());
+  return el("div", { class: "set-row" }, [el("span", {}, [t("notesReserve")]), input, base]);
+}
+
+
 /** A fixed choice, labelled through the dictionary like every other row. */
 function selectRow(labelKey: string, key: Field, options: [string, string][]) {
   const live = String(now(key) ?? "");
@@ -7717,6 +7783,12 @@ function buildSettingsDrawer(): HTMLElement {
     optNumberRow("marginInner", "margin_inner_cm", 0, 7, 0.25),
     optNumberRow("marginOuter", "margin_outer_cm", 0, 7, 0.25),
     numberRow("gutter", "gutter_cm", 0, 5, 0.25),
+    reserveRow(),
+    selectRow("reserveOverflow", "reserve_overflow", [
+      ["grow", t("overflowGrow")],
+      ["refuse", t("overflowRefuse")],
+      ["flow", t("overflowFlow")],
+    ]),
     selectRow("headAlign", "head_align", [
       ["center", t("headAlign.center")],
       ["outside", t("headAlign.outside")],

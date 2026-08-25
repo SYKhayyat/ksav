@@ -674,6 +674,8 @@ export const PAGE_FIELDS = [
   // holds: grow (default), refuse, or — once the walk caps at the strip — flow.
   // A fact about the document's geometry, so it travels with the file.
   "reserve_overflow",
+  // The strip itself, in cm. Absent = decide from the document.
+  "notes_region_cm",
   // Metadata and the export standard: also facts about the document, not about
   // the machine it is being written on. `pdf_pages` is deliberately absent —
   // "just pages 4 to 9" is a property of one export, not of the sefer.

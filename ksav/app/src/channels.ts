@@ -564,6 +564,83 @@ export function regionsIn(doc: string): Declared[] {
   return out;
 }
 
+/**
+ * Set (or remove) named arguments on one declared call, in place.
+ *
+ * Pure: returns the next document, or the same string when nothing would
+ * change. Keys are read in either language — `namedArgs` files them under
+ * their Hebrew reading, so that is what a change is matched against. A
+ * `null` value removes the argument; a new one is appended before the
+ * closing paren when the key is not present.
+ */
+export function setDeclaredArgs(
+  doc: string,
+  target: Declared,
+  changes: Record<string, string | null>,
+): string {
+  // Re-locate the call node so the argument spans are in hand.
+  let args: Group | null = null;
+  for (const n of scan(doc).nodes) {
+    if (!n.hash || !isCommand(n.name, REGION_COMMAND)) continue;
+    if (n.from !== target.from || firstPositional(doc, n) !== target.name) continue;
+    args = n.args;
+    break;
+  }
+  if (!args) return doc;
+
+  type Seg = { keyFrom: number; keyTo: number; vFrom: number; vTo: number; he: string; value: string; ws: number };
+  const segs: Seg[] = [];
+  for (const g of splitArgs(doc, args.from, args.to)) {
+    const raw = doc.slice(g.from, g.to);
+    const lead = raw.length - raw.trimStart().length;
+    const m = /^\s*([\p{L}\p{N}_]+)\s*:([\s\S]*)$/u.exec(raw);
+    if (!m) continue;
+    const he = HE_ARGS[m[1]] ?? m[1];
+    const ws = m[2].length - m[2].trimStart().length;
+    segs.push({
+      keyFrom: g.from + lead,
+      keyTo: g.to,
+      vFrom: g.from + lead + m[1].length + 1 + ws,
+      vTo: g.to,
+      he,
+      value: m[2].trim(),
+      ws: Math.min(ws, 1),
+    });
+  }
+
+  // Removals and replacements. Process highest span first so earlier offsets
+  // stay put while several keys change at once.
+  let out = doc;
+  const jobs = Object.entries(changes)
+    .map(([he, value]) => ({ seg: segs.find((s) => s.he === he), he, value }))
+    .filter((j) => j.seg || j.value !== null)
+    .sort((a, b) => (b.seg?.keyFrom ?? 0) - (a.seg?.keyFrom ?? 0));
+  for (const { seg, he, value } of jobs) {
+    if (!seg) {
+      // Append inside the parens, after whatever is last.
+      const at = args.to;
+      const head = out.slice(0, at);
+      const sep = /[(:]\s*$/.test(head) ? "" : ", ";
+      out = head + sep + `${he}: ${value}` + out.slice(at);
+      continue;
+    }
+    if (value === null) {
+      // The whole `key: value` unit goes, with one neighbouring comma.
+      let from = seg.keyFrom;
+      let to = seg.keyTo;
+      if (out[from - 1] === ",") from -= 1;
+      else {
+        while (to < out.length && out[to] === " ") to += 1;
+        if (out[to] === ",") to += 1;
+      }
+      out = out.slice(0, from) + out.slice(to);
+    } else if (value !== seg.value) {
+      out = out.slice(0, seg.vFrom) + value + out.slice(seg.vTo);
+    }
+  }
+  return out;
+}
+
 export interface ChannelFields {
   source?: string | null;
   placement?: Placement;

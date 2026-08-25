@@ -25,6 +25,7 @@ import {
   regionLine,
   regionSettingsOf,
   regionsIn,
+  setDeclaredArgs,
   samePick,
   settingsOf,
   showRegionLine,
@@ -854,4 +855,17 @@ export async function run() {
   }
 
 
+}
+
+// ---- setDeclaredArgs: the region-height editor's pure half -----------------
+
+{
+  const doc = "#אזור(\"ב\", מיקום: \"רגל\", גובה: שורות(2))\n#הערה(אזור: \"ב\")[גוף]";
+  const d = regionsIn(doc)[0];
+    ok("replaces an existing value", setDeclaredArgs(doc, d, { "גובה": "4cm" }).includes("גובה: 4cm"));
+  const noPlace = setDeclaredArgs(doc, d, { "מיקום": null });
+  ok(`removal yields: ${JSON.stringify(noPlace)}`, !noPlace.includes("מיקום"));
+  const bare = "#אזור(\"ב\", מיקום: \"רגל\")\nx";
+  const grown = setDeclaredArgs(bare, regionsIn(bare)[0], { "גובה": "3cm" });
+  ok("append lands inside the parens", /, גובה: 3cm\)$/.test(grown.split("\n")[0]), grown);
 }

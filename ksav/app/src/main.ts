@@ -7371,7 +7371,27 @@ function reserveRow() {
   };
   input.onchange = (e: Event) => apply((e.target as HTMLInputElement).value.trim());
   base.onchange = () => apply(input.value.trim());
-  return el("div", { class: "set-row" }, [el("span", {}, [t("notesReserve")]), input, base]);
+  // The same write path under the writer's hand: dragging is typing, one
+  // value at a time, through `setSetting`.
+  const slider = el("input", { type: "range", min: "0", max: "12", step: "0.1" });
+  const sync = () => {
+    const cm = now("notes_region_cm");
+    (slider as HTMLInputElement).value = String(cm ?? 0);
+  };
+  sync();
+  (slider as HTMLInputElement).oninput = () => {
+    const cm = Number((slider as HTMLInputElement).value);
+    setSetting("notes_region_cm", Math.round(cm * 1000) / 1000 as never);
+    input.value = `${cm}cm`;
+  };
+  const originalApply = apply;
+  const applyAndUpdateSlider = (raw: string) => {
+    originalApply(raw);
+    sync();
+  };
+  input.onchange = (e: Event) => applyAndUpdateSlider((e.target as HTMLInputElement).value.trim());
+  base.onchange = () => applyAndUpdateSlider(input.value.trim());
+  return el("div", { class: "set-row" }, [el("span", {}, [t("notesReserve")]), input, slider, base]);
 }
 
 

@@ -104,6 +104,7 @@ import {
   caveatsFor,
   presetOf,
   regionsIn,
+  setDeclaredArgs,
   samePick,
   type DestinationId,
   type NotePick,
@@ -13344,6 +13345,35 @@ function renderNotesChooser() {
       },
     ),
   );
+  // Per-region heights, under the chooser: one row per declared region, each
+  // writing its גובה back into the declaration itself — the same real edit
+  // dragging the strip would make, and absent stays absent (the engine
+  // decides).
+  const declared = regionsIn(doc);
+  if (declared.length > 0) {
+    const rows = declared.map((d) => {
+      const input = el("input", {
+        type: "text",
+        placeholder: t("notesReserveHint").includes("לפי המסמך") ? "" : "",
+        value: d.args["גובה"] ?? "",
+        onchange: () => {
+          const v = (input as HTMLInputElement).value.trim();
+          const next = setDeclaredArgs(docTextOf(runtime.view.state.doc), d, {
+            "גובה": v === "" ? null : v,
+          });
+          if (next === doc) return;
+          editDoc(next);
+          scheduleCompile();
+        },
+      });
+      return el("label", { class: "set-row" }, [el("span", {}, [d.name]), input]);
+    });
+    box.append(
+      el("h3", { style: "margin-top:14px" }, [t("regionHeightsTitle")]),
+      el("div", { class: "set-note" }, [t("regionHeightsNote")]),
+      ...rows,
+    );
+  }
 
   // The answer, brought to where the question was asked.
   //

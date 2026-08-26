@@ -152,6 +152,14 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Cargo writes into src-tauri/target while tauri dev is up, and the
+    // watcher — which sees every path under app/, including that one — died
+    // on the locked dll with EBUSY, taking beforeDevCommand and the whole
+    // launch with it. Nothing under src-tauri is frontend source; nothing
+    // there wants hot reload.
+    watch: {
+      ignored: ["**/src-tauri/**"],
+    },
     // Every route the engine answers, from the engine's own registry.
     //
     // This was a hand-written list, and it carried five of the twelve routes:

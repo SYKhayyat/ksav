@@ -637,15 +637,14 @@ pub fn run() {
                 }
             });
 
-            if cfg!(debug_assertions) {
-                // The debug console keeps its own view; the file target above
-                // is registered unconditionally and is the one release has.
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // No debug-only log registration here any more. It used to sit
+            // "so the console keeps its own view", and when B13 made the
+            // plugin register unconditionally in the builder above — whose
+            // targets already include Stdout — the two initializations met:
+            // every debug launch panicked with "attempted to set a logger
+            // after the logging system was already initialized". Nothing
+            // booted this binary anywhere in CI or the gate, so the defect
+            // sat for three days until a writer ran `npm run tauri dev`.
             Ok(())
         })
         // Twenty-one entries, of which thirteen were engine services listed

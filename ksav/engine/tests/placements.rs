@@ -445,12 +445,6 @@ fn the_too_small_switch_grows_or_refuses_as_asked() {
 /// `אזהרת_גלישה` set at leaf 1, every continuation leaf carries a small
 /// notice naming the region; with it unset, nothing does; and an explicit
 /// גלישה on the region still beats the document default.
-/// The spill defaults and the tripwire.
-///
-/// A 2-line foot region fed one very long note: with the document's
-/// `אזהרת_גלישה` set at leaf 1, every continuation leaf carries a small
-/// notice naming the region; with it unset, nothing does; and an explicit
-/// גלישה on the region still beats the document default.
 #[test]
 fn the_spill_defaults_and_tripwire_answer_as_asked() {
     let long = "מילה ".repeat(60);
@@ -489,5 +483,49 @@ fn the_spill_defaults_and_tripwire_answer_as_asked() {
     assert!(
         probe::layout(&ladder, &DocConfig::default()).is_ok(),
         "an explicit regional גלישה broke under a document default"
+    );
+}
+
+/// A writer-level `#מסמך(...)` must not wipe the scanned reserve.
+///
+/// The wrapper's own `אזור_הערות` default is *reserve nothing*, and a nested
+/// call used to re-run the margin setup with it after the engine had injected
+/// the scan's answer — so any document opening with its own `#מסמך(...)`
+/// printed its foot-band apparatus in the bottom margin with the page number
+/// pushed past the sheet edge, while the identical document without the
+/// wrapper laid out perfectly. Found by the stress sitting of 25 August.
+#[test]
+fn a_writer_masmer_does_not_wipe_the_scanned_reserve() {
+    let doc = "#מסמך()[\n\
+               #אזור(\"ב\", מיקום: \"רגל\", גובה: שורות(4))\n\
+               פתיחה#הערה(אזור: \"ב\")[גוף קצר שחייב להיות בשמורה.] וסוף.\n\
+               ]";
+    let runs = probe::text_runs(&probe::layout(doc, &DocConfig::default()).unwrap());
+    assert!(
+        runs.iter().all(|r| r.y <= PAGE_FOOT + 1.0),
+        "the writer's own מסמך wiped the reserve: ink at {:?}",
+        runs.iter().map(|r| r.y).fold(0.0f64, f64::max)
+    );
+}
+
+/// `"refuse"` sees the inline reserve too, not only the configured one.
+///
+/// The policy used to read `notes_region_cm` alone, so an inline
+/// `אזור_הערות: 1cm` under regions asking for six lines compiled and flowed —
+/// silently doing exactly what the writer had asked it never to do.
+#[test]
+fn the_refuse_policy_refuses_an_inline_reserve_too() {
+    let doc = "#מסמך(אזור_הערות: 1cm)[\n\
+               #אזור(\"ב\", מיקום: \"רגל\", גובה: שורות(6))\n\
+               פתיחה#הערה(אזור: \"ב\")[גוף.] וסוף.\n\
+               ]";
+    let cfg = DocConfig {
+        reserve_overflow: "refuse".to_string(),
+        ..Default::default()
+    };
+    let err = probe::layout(doc, &cfg).expect_err("refuse set an inline over-ask");
+    assert!(
+        err.iter().any(|d| d.message.contains("cm")),
+        "the refusal named no numbers"
     );
 }

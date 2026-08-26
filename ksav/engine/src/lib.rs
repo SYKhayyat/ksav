@@ -1705,37 +1705,113 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         // The sheet is handed in because a `%` region height is a percentage of
         // it, and Rust is the half of this that has to turn the writer's `15%`
         // into the centimetres it takes off the bottom margin.
-        region = {
-            let need = auto_notes_region_cm_sheet(body, sheet_height_cm(cfg));
-            match cfg.notes_region_cm {
-                // Nothing declared: the scan is the reserve, and zero means no
-                // apparatus at all.
-                None => {
-                    if need > 0.0 {
-                        format!("{need}cm")
-                    } else {
-                        "none".to_string()
-                    }
-                }
-                Some(w) => {
-                    // A writer-fixed strip smaller than what its regions
-                    // declare: "grow" (the default) raises it to hold them,
-                    // "flow" keeps the writer's number, and "refuse" never
-                    // reaches here - `compile_doc_with` stops it first.
-                    let fits = need <= w || need <= 0.0;
-                    if fits || cfg.reserve_overflow == "flow" {
-                        if w > 0.0 {
-                            format!("{w}cm")
-                        } else {
-                            "none".to_string()
-                        }
-                    } else {
-                        format!("{need}cm")
-                    }
-                }
-            }
-        },
+        region = reserve_region_expr(body, cfg),
     )
+}
+
+/// The value the wrapper hands `מסמך` for `אזור_הערות`, as Typst source.
+///
+/// The scan is the second pass; the configured number overrides it under the
+/// document's own overflow policy. Shared between the injected wrapper and
+/// [`inject_reserve_into_writer_masmer`], so a writer who opens their own
+/// `#מסמך(...)` gets exactly the reserve a bare body would have got.
+fn reserve_region_expr(body: &str, cfg: &DocConfig) -> String {
+    let need = auto_notes_region_cm_sheet(body, sheet_height_cm(cfg));
+    match cfg.notes_region_cm {
+        // Nothing declared: the scan is the reserve, and zero means no
+        // apparatus at all.
+        None => {
+            if need > 0.0 {
+                format!("{need}cm")
+            } else {
+                "none".to_string()
+            }
+        }
+        Some(w) => {
+            // A writer-fixed strip smaller than what its regions declare:
+            // "grow" (the default) raises it to hold them, "flow" keeps the
+            // writer's number, and "refuse" never reaches here -
+            // `compile_doc_with` stops it first.
+            let fits = need <= w || need <= 0.0;
+            if fits || cfg.reserve_overflow == "flow" {
+                if w > 0.0 {
+                    format!("{w}cm")
+                } else {
+                    "none".to_string()
+                }
+            } else {
+                format!("{need}cm")
+            }
+        }
+    }
+}
+
+/// A writer-level `#מסמך(...)` in the body becomes the document's own margin
+/// setup — and its `אזור_הערות` default is *reserve nothing*, which wiped the
+/// scanned reserve the injected wrapper had set and sent every foot-band entry
+/// into the bottom margin with the page number behind it. Found by the stress
+/// sitting of 25 August: any document opening with its own `#מסמך(...)`
+/// printed its apparatus off the paper while the identical document without
+/// the wrapper laid out perfectly.
+///
+/// So when that call does not name the reserve itself, the scanned answer is
+/// written into it — the same surgery [`grow_inline_reserve`] performs on the
+/// inline number, and for the same reason: the prelude cannot inherit through
+/// a nested call, because the nested margin setup would still need the value.
+/// An explicit writer value is left exactly where it stands; policy answers
+/// to it live in `compile_doc_with`.
+fn inject_reserve_into_writer_masmer(body: &str, region_expr: &str) -> String {
+    let mut base = 0;
+    while let Some(i) = body[base..].find('#') {
+        let start = base + i;
+        base = start + 1;
+        let head: String = body[base..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if head != "מסמך" {
+            continue;
+        }
+        // Where do its arguments begin?
+        let after_head = start + 1 + "מסמך".len();
+        let rest = &body[after_head..];
+        let trimmed = rest.trim_start();
+        if trimmed.starts_with('[') {
+            // `#מסמך[...]`: no argument list at all. One is minted ahead of
+            // the body bracket.
+            let at = after_head + (rest.len() - trimmed.len());
+            return format!(
+                "{}(אזור_הערות: {}){}",
+                &body[..at],
+                region_expr,
+                &body[at..]
+            );
+        }
+        let Some(open_rel) = trimmed.find('(') else {
+            continue;
+        };
+        let open = after_head + (rest.len() - trimmed.len()) + open_rel;
+        let Some(end_rel) = closing_paren(&body[open..]) else {
+            continue;
+        };
+        let args = &body[open + 1..open + end_rel];
+        let has_it = ["אזור_הערות", "notes_region"]
+            .iter()
+            .any(|k| named_arg(args, &[k]).is_some());
+        if has_it {
+            return body.to_string();
+        }
+        let at = open + 1;
+        let sep = if args.trim().is_empty() { "" } else { ", " };
+        return format!(
+            "{}אזור_הערות: {}{}{}",
+            &body[..at],
+            region_expr,
+            sep,
+            &body[at..]
+        );
+    }
+    body.to_string()
 }
 
 /// What the compiler is actually handed: two lines and the writer's text.
@@ -1761,14 +1837,29 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
 /// textually by the engine. So there is a prefix, it is two lines and a blank
 /// one, and [`diagnostics::body_offset_of`] measures it by subtraction off the
 /// two strings the caller already holds.
-/// A writer who fixed the reserve *inline* — `#מסמך(אזור_הערות: 3.5cm)` inside
-/// the body — overrides the wrapper's injected value, and when the foot
-/// regions declare more than that number holds the stack painted straight
-/// through the page number (live-sitting fault F3). Under the default
-/// `"grow"` policy the inline number is raised to what the strips need; the
-/// writer sees the taller strip on the very next render, which is the
-/// statement. `"refuse"` is stopped earlier in `compile_doc_with`; `"flow"`
-/// keeps the writer's number untouched.
+/// The reserve a writer fixed *inline* in the body — `#מסמך(אזור_הערות:
+/// 3.5cm)` — if there is one, in centimetres. Both inline policies read this:
+/// `"grow"` rewrites the number when it cannot hold the strips, and `"refuse"`
+/// compares against it before anything lays out, because a policy that only
+/// ever saw the configured value would silently set exactly when the writer
+/// had spoken in the document instead.
+fn inline_reserve_cm(body: &str) -> Option<f64> {
+    for name in ["אזור_הערות", "notes_region"] {
+        let Some(i) = body.find(name) else { continue };
+        let colon = i + name.len();
+        let rest = &body[colon..];
+        let Some(rest) = rest.strip_prefix(':') else {
+            continue;
+        };
+        let after = rest.trim_start();
+        let end = after
+            .find(|c: char| !(c.is_ascii_digit() || c == '.' || c.is_alphabetic()))
+            .unwrap_or(after.len());
+        return length_cm(&after[..end], None);
+    }
+    None
+}
+
 fn grow_inline_reserve(body: &str, need_cm: f64) -> String {
     for name in ["אזור_הערות", "notes_region"] {
         let Some(i) = body.find(name) else { continue };
@@ -1803,6 +1894,7 @@ pub fn main_source(body: &str, cfg: &DocConfig) -> String {
     format!(
         "{IMPORT_LINE}\n{rule}\n\n{body}\n",
         rule = show_rule(body, cfg),
+        body = inject_reserve_into_writer_masmer(body, &reserve_region_expr(body, cfg)),
     )
 }
 
@@ -1820,6 +1912,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
         "{prelude}{rule}\n\n{body}\n",
         prelude = prelude_text(),
         rule = show_rule(body, cfg),
+        body = inject_reserve_into_writer_masmer(body, &reserve_region_expr(body, cfg)),
     )
 }
 
@@ -2365,9 +2458,15 @@ pub fn compile_doc_with(
     // The too-small switch's "refuse": a writer-fixed reserve smaller than its
     // foot regions' declared heights, where flowing cannot help because every
     // page is equally short. Both numbers, then stop - the one answer that can
-    // never lose a reader's text to silence.
+    // never lose a reader's text to silence. The writer's number may have
+    // arrived through configuration or *inline in the body*, which overrides
+    // the wrapper; a policy that read only the configured value would silently
+    // set precisely when the writer spoke in the document instead. Found by
+    // the stress sitting of 25 August: `refuse` over an inline 1cm reserve
+    // under a six-line region compiled and flowed.
     if cfg.reserve_overflow == "refuse" {
-        if let Some(w) = cfg.notes_region_cm {
+        let fixed = cfg.notes_region_cm.or_else(|| inline_reserve_cm(body));
+        if let Some(w) = fixed {
             let need = auto_notes_region_cm_sheet(body, sheet_height_cm(cfg));
             if need > w {
                 return Err(vec![crate::diagnostics::Diagnostic {

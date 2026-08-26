@@ -1,0 +1,92 @@
+# How many backends completed a real install -> list -> binary -> remove round-trip, per
+# host class. A ratchet: it may rise, and a run that falls below the recorded number fails.
+#
+# WHY THIS EXISTS (G-11, owner ruling 2026-07-28 — Q12). The coverage audit asks "did every
+# registered backend get a lifecycle OR a plan-smoke", and a plan-smoke satisfies it. So a run
+# with 4 real lifecycles and a run with 15 both PASS. The clean Windows sweep reported 4 — not
+# because anything broke, but because 8 of 15 canaries were already installed on that host and
+# the harness correctly refuses to remove software the user already had. **The gate's coverage
+# is therefore inversely proportional to how much the machine is used, and it never noticed.**
+#
+# A fixed threshold was rejected: the honest number varies by host, and a number guessed once
+# is the kind of constant this repo keeps discovering was wrong. A ratchet needs no guess. It
+# only ever asserts "this host class did better than this before, so it can again".
+#
+# HOST CLASS is `<harness>-<os>-<ci|local>`. `ci` and `local` are separate on purpose: that IS
+# the difference the finding is about — a clean runner installs the canaries, a developer's box
+# already has half of them. Holding a developer to CI's number would make the gate red on every
+# machine that has ever been used, which is how a gate learns to be ignored.
+#
+# For a container, `<os>` is the IMAGE (`SHALL_IT_IMAGE`, declared by each Dockerfile), not the
+# distro underneath it. `/etc/os-release` says `ubuntu` for both the ubuntu image and the `tools`
+# image, because `tools` is built on Ubuntu — so the two runs that differ most in coverage (7 and
+# 25) were filed under one record, and whichever wrote it last made the other permanently wrong.
+#
+# A container is also always `local`: `docker run` passes no `CI`, and that is left alone rather
+# than "fixed", because the ci/local split exists for how used a machine is and a disposable
+# image is equally clean either way. One number per image is the honest granularity there.
+#
+# TO RAISE ONE: run the sweep, read the number it prints, edit the line, commit it. The harness
+# prints the exact edit when a run exceeds the record. Never lower a line to get green — that is
+# the one edit this file exists to make visible in a diff.
+#
+# A host class with no line here is not failed — a gate that fails the first time it sees a new
+# platform is a gate that stops people adding platforms — but it is not PASSED either. It prints
+# the line to add and counts as neither, because a record that is not there compares nothing.
+# That branch was a counted PASS until 2026-07-30, and every class below was taking it: the whole
+# matrix reported the ratchet green while one developer's machine was the only place it ran.
+#
+# Every number below was read from CI run 30503630610 (2026-07-30) except the first, which
+# predates it. `gentoo` is absent on purpose: it runs SMOKE_ONLY, installs nothing, and its
+# honest count is 0 — a floor no run could fall below.
+
+windows-native-windows-local 5
+# Raised 10 -> 12 on 2026-07-31. The run MEASURED 13 (CI 30680916682, pass=287 fail=0) and 12
+# is recorded deliberately: the gain comes from `pip` becoming lifecycleable on a disposable
+# host and from four canaries that stopped sharing one binary name, and one flaky manager
+# should not turn a real improvement into a red gate. Raise it to 13 once two consecutive
+# runs show 13 — which is the evidence a ratchet is supposed to want, and twice that night I
+# set a threshold from a single measurement and CI made me take it back.
+#
+# **Raised to 13 the same night**: runs 30680916682 and 30682513822 both measured 13, which
+# is the condition written above. The rule got its evidence rather than the number getting
+# the benefit of the doubt.
+windows-native-windows-ci 13
+windows-native-darwin-ci 8
+# Raised 7 -> 10 on 2026-08-14, measured on a run with no failures (pass=393 fail=0). The gain
+# is four dependent statements that had been plan-smoked and are now driven end to end —
+# `shim:`, `dotfiles:`, `exec:` and `service:` — and none of them touches the network, so the
+# "wait for two runs" caution recorded against the windows line does not apply: there is no
+# flaky manager here to give the benefit of the doubt to.
+container-linux-ubuntu-local 10
+container-linux-fedora-local 9
+# Raised 7 -> 12 on 2026-08-14, measured on a run with no failures (pass=395 fail=0). The image
+# now runs its harness as an unprivileged user, which is what `yay` and `paru` require, so two
+# backends that had never met their manager anywhere are driven end to end here; the rest of the
+# gain is the dependent statements that stopped being plan-smoked. Nothing in it is a network
+# flake, so the "wait for two runs" caution on the windows line does not apply.
+container-linux-arch-local 12
+container-linux-alpine-local 7
+# Raised 25 -> 26 on 2026-07-31: `nix`, which this file's own harness had recorded as a
+# backend with NO PATH TO A REAL LIFECYCLE ANYWHERE for months. The truth was that the image's
+# install line refused to run as root and said so in a build log nobody read. It now installs,
+# lists, and removes `figlet` — a canary chosen because `hello`, its old one, is also cabal's
+# and cabal cannot uninstall.
+container-linux-tools-local 26
+# Added 2026-07-31, each read off that image's own first green run rather than estimated. The
+# `storage` image is the only one that needs `--privileged` and the host's /lib/modules.
+#
+# Raised 3 → 5 the same day, on the first run of that image with NO failures (pass=274 fail=0):
+# apt, github, btrfs, cargo and lvm. `lvm` is the one `Q18` unblocked — it had no legal
+# declaration at all until the option table admitted `@size` — and `btrfs`'s canary now carries
+# `@quota` and `@mount` as well, so the number covers the mount path and not just creation.
+# `zfs` is still not in it: this kernel has no ZFS module, which `Q4` counts as a release
+# blocker rather than an exemption.
+container-linux-opensuse-local 7
+# Added 2026-08-14 from that image's first run with no failures (pass=322 fail=1 -> the one
+# failure was a fixture this mirror does not carry, now softened, and the number below was read
+# from the same run). Slackware is the seventh distro image and the first whose native manager
+# had never met its own packages anywhere.
+container-linux-slackware-local 7
+container-linux-void-local 9
+container-linux-storage-local 5

@@ -1,0 +1,15 @@
+GET /commands -> 200 35ms len=31177 commands=0
+GET /templates -> 200 10ms len=20757 head=[{"id":"letter","he":"מכתב","en":"Letter","category":"general","lang":"he","desc
+GET /nope -> 404 1ms head=not found
+GET / -> 200 10ms len=1073
+POST /compile empty-object -> 200 6ms len=297 head={"diagnostics":[{"message":"הבקשה לא נקראה — אין במסמך שדה טקסט · the request could not be read — it carries n
+POST /compile body-empty-string -> 200 48ms len=1134 head={"diagnostics":[],"missing_assets":[],"note_markers":[],"ok":true,"pages_hash":["9ef9ca119917b2fe782d81b9b3b25
+POST /compile body-wrong-type -> 200 7ms len=317 head={"diagnostics":[{"message":"הבקשה לא נקראה — שדה הטקסט של המסמך אינו טקסט · the request could not be read — th
+POST /compile not-json -> 200 13ms len=379 head={"diagnostics":[{"message":"הבקשה לא נקראה — ייתכן שההעברה נקטעה (expected value at line 1 column 1) · the req
+POST /compile unknown-fields -> 200 17ms len=4774 head={"diagnostics":[],"missing_assets":[],"note_markers":[],"ok":true,"pages_hash":["3dbc412ef0ac89154145ca5c82f0f
+POST /compile 4.7MB-body -> 200 20043ms len=906
+POST /spell garbage -> 200 279ms head={"lexicon_size":360033,"lexicon_sizes":{"en":97352,"he":262681},"misspellings":[]}
+POST /spell wrong-field -> 200 6ms head={"lexicon_size":360033,"lexicon_sizes":{"en":97352,"he":262681},"misspellings":[]}
+POST /spell valid -> 200 15ms head={"lexicon_size":360033,"lexicon_sizes":{"en":97352,"he":262681},"misspellings":[{"lang":"he","len":4,"start":10,"word":"שלומ"}]}
+POST /mekoros garbage -> 200 16ms head={"diagnostics":[{"message":"הבקשה אינה מכילה ביטוי לחיפוש · the request carries no phrase to look for","severity":"error"}],"error":"הבקשה אינה מכילה ביטוי לחיפ
+GET /inbox -> 404 16ms head=not found

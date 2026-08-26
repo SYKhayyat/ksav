@@ -1,0 +1,19 @@
+PLACE 1822: //   #ערוץ("ביאורים", מיקום: "סוף", ראש: ("עמוד", "ציטוט"))
+PLACE 3503: /// `#עם_הערות_צד` wrapped around the prose — so `#ערוץ("x", מיקום: "חוץ")` on its
+PLACE 4395: d.insert(n, (מיקום: "רגל", מקור: if i == 0 { auto } else { _ch_tiers.at(i - 1) }))
+PLACE 5396: _val(if own == auto { _ch_rec(t, g).at("מיקום", default: "רגל") } else { own })
+PLACE 5699: // ערוץ(שם, מקור: auto, מיקום: "רגל", אזור: none, גובה: none, …) — declare a
+PLACE 5730: // אזור(שם, מיקום: "רגל", גובה: none, פריסה: "מוערם", כותרת: none) — declare a
+PLACE 5826: _ch_rec(t, rg).at("מיקום", default: "רגל")
+PLACE 5899: /// A channel at `מיקום: "סוף_מדור"` files its notes into a collected region like
+PLACE 5916: _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) == "סוף_מדור"
+PLACE 5923: if _val(_ch_rec(t, c).at("מיקום", default: "רגל")) != "סוף_מדור" { continue }
+PLACE 5953: // `#הערה` — so declaring `#ערוץ("הערה_ב", מיקום: "סוף")` moves every tier-two
+PLACE 6266: if not _ch_side_places.contains(_val(_rg_rec(t, rg).at("מיקום", default: "רגל"))) { continue }
+PLACE 7459: // `#אזור("ביאורים", מיקום: "סוף")` says where the region goes, and that is the
+PLACE 7484: _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) == place
+PLACE 7489: // sent to the end of the sefer by `#ערוץ("ביאורים", מיקום: "סוף")` alone
+PLACE 7501: if _val(_ch_rec(t, c).at("מיקום", default: "רגל")) != place { continue }
+PLACE 8219: /// been, and declaring it later with `#אזור(…, מיקום: "סוף")` moves every note in
+PLACE 8225: let place = if region in t.אזורים { _val(_rg_rec(t, region).at("מיקום", default: "רגל")) } else { "רגל" }
+PLACE 8304: // what `#הערה_זרם` has always been, and `#אזור("שער_הציון", מיקום: "סוף")` moves

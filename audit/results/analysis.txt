@@ -1,0 +1,45 @@
+===== 01-fn-balance =====
+pages: 1
+page 1: bodyLines=22 footRuns=11 footY=[602,619,636,669,686,703,720,737,754,771,799]
+note bodies found: ראשונה=Y שנייה=Y שלישית=Y פנימית=Y רביעית=Y חמישית=Y שישית=Y שביעית=Y שמינית=Y תשיעית=Y עשירית=Y
+
+===== 02-sn-align =====
+pages: 1
+
+===== 03-sn-dense =====
+pages: 2
+missing tokens: none
+page 1: maxY(note ink)=720.6  (page number line: 799.0)
+page 2: maxY(note ink)=288.9  (page number line: 799.0)
+
+===== 07a/07b clip mark =====
+07a-clip-mark: ellipsis-mark count=1 | tokens 01-40 present: מילה01=Y מילה10=Y מילה20=Y מילה30=Y מילה40=Y
+07b-clip-quiet: ellipsis-mark count=0 | tokens 01-40 present: מילה01=Y מילה10=Y מילה20=Y מילה30=Y מילה40=Y
+
+===== 08-slots =====
+pages: 1
+
+===== 09-no-reserve =====
+pages: 1
+  y=78.79 x=277.0 sz=12 :: פתיחה לגוף הספר, בלי שום שמור של אזור הע
+  y=101.11 x=446.2 sz=12 :: טקסט ראשון1 סוף.
+  y=816.42 x=76.3 sz=10.2 :: 1 הערה אחת באזור שהכריז על עצמו גובה ולא
+  y=830.80 x=444.7 sz=10.2 :: מתחת לדף, או נחתך?
+  y=848.62 x=295.2 sz=10.2 :: 1
+(A4 sheet height = 841.89)
+
+===== 10a vs 10b coordinate equality =====
+runs: deferred=13 inline=13
+  diff #8: p1/y124.2/x70.9 " גוף בית, שנועד להיות זהה" vs p1/y124.2/x70.9 " גוף בית, שנועד להיות זהה"
+1 differences
+
+===== 11-perf-120 =====
+pages: 5
+endnote bodies present in output: 80/80
+last page 5: first lines:
+   y=78.8 :: 70.גוף ההערה השנייה של הפסקה 35, וגם היא ארוכה מעט
+   y=95.7 :: 71.גוף ההערה הראשונה של הפסקה 36, ובה דברי פירוש א
+   y=112.6 :: 72.גוף ההערה השנייה של הפסקה 36, וגם היא ארוכה מעט
+   y=129.6 :: 73.גוף ההערה הראשונה של הפסקה 37, ובה דברי פירוש א
+   y=146.5 :: 74.גוף ההערה השנייה של הפסקה 37, וגם היא ארוכה מעט
+   y=163.4 :: 75.גוף ההערה הראשונה של הפסקה 38, ובה דברי פירוש א

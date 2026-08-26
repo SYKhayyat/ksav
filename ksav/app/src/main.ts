@@ -13354,7 +13354,6 @@ function renderNotesChooser() {
     const rows = declared.map((d) => {
       const input = el("input", {
         type: "text",
-        placeholder: t("notesReserveHint").includes("לפי המסמך") ? "" : "",
         value: d.args["גובה"] ?? "",
         onchange: () => {
           const v = (input as HTMLInputElement).value.trim();

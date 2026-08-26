@@ -180,6 +180,10 @@ ever since. On 24 August the whole tree was made to run — gate nine of
 nine, release build, acceptance — and the fences that then met working
 code for the first time each got their say; the sitting is recorded in
 [`decisions/2026-08-24-the-trunk-the-wave-left.md`](decisions/2026-08-24-the-trunk-the-wave-left.md).
+The follow-up stress sitting of 25 August — whole documents through the
+whole machine, the footer walk measured and cut, and two more silent-loss
+defects found — is
+[`decisions/2026-08-25-the-stress-sitting.md`](decisions/2026-08-25-the-stress-sitting.md).
 
 
 
@@ -202,12 +206,17 @@ and #26 (the search scopes, in
 — the engine gained `pagetext.rs`, which answers what each page *says*, because
 nothing in the application could).
 
-- [ ] **#30 · Fixed-region resize, and note picking.** **Reserved for a
-      conversation with the user.** Not designed, not started, deliberately. The
-      first half needs establishing whether the size is settable at all — the
-      page-foot reserve is a percent-of-sheet claim written in Rust *and* in
-      Typst and the two must agree — and the user has not yet said what they
-      want from note picking.
+- [ ] **#30 · Fixed-region resize, and note picking.** The **resize half is
+      built** (24 August): the reserve row and overflow selector in the
+      settings drawer, per-region heights under the chooser, writing back into
+      the declarations themselves —
+      [`decisions/2026-08-25-the-too-small-switch.md`](decisions/2026-08-25-the-too-small-switch.md)
+      and
+      [`decisions/2026-08-25-the-reserve-in-the-writers-hands.md`](decisions/2026-08-25-the-reserve-in-the-writers-hands.md)
+      hold the reasoning, including how the percent-of-sheet claim stays one
+      claim across Rust and Typst. What remains of #30 is **note picking**, and
+      that is still reserved for a conversation with the user: it has not been
+      said what picking should do.
 
 ### The note system — closed
 

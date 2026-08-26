@@ -862,7 +862,7 @@ export async function run() {
 {
   const doc = "#אזור(\"ב\", מיקום: \"רגל\", גובה: שורות(2))\n#הערה(אזור: \"ב\")[גוף]";
   const d = regionsIn(doc)[0];
-    ok("replaces an existing value", setDeclaredArgs(doc, d, { "גובה": "4cm" }).includes("גובה: 4cm"));
+  ok("replaces an existing value", setDeclaredArgs(doc, d, { "גובה": "4cm" }).includes("גובה: 4cm"));
   const noPlace = setDeclaredArgs(doc, d, { "מיקום": null });
   ok(`removal yields: ${JSON.stringify(noPlace)}`, !noPlace.includes("מיקום"));
   const bare = "#אזור(\"ב\", מיקום: \"רגל\")\nx";

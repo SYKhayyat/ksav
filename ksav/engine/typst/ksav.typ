@@ -4330,7 +4330,15 @@
 /// that decided which page they are on, and handing back only the entries is how
 /// a renderer ends up drawing at a size the arithmetic never left room for.
 #let _ap_on_page(all, cfg, cap_of, pg, policy_of: g => _ap_spill_default) = {
-  let where = _ap_assign(all, cfg, cap_of, policy_of: policy_of)
+  // Only entries anchored at or before this page can print on it. The walk
+  // places a note on its anchor's page or later — never earlier — so the
+  // suffix anchored after `pg` cannot change this page's answer, and walking
+  // it (measuring every entry afresh) bought nothing on any page but the
+  // last. Measured before building, 24 August: forty pages of four notes
+  // spent 2.1s of a 2.2s compile in walks whose answers for early pages were
+  // identical to what their truncated prefix returns.
+  let eligible = all.filter(e => e.location().page() <= pg)
+  let where = _ap_assign(eligible, cfg, cap_of, policy_of: policy_of)
   let mine = ()
   let scales = (:)
   let tracks = (:)
@@ -4340,13 +4348,13 @@
   let pieces = (:)
   // Which groups lost text to a box that could not spill. See `_ap_fill`.
   let cuts = (:)
-  for i in range(all.len()) {
+  for i in range(eligible.len()) {
     let d = where.at(i)
     // On every page of its span, not only the first. The entry is emitted whole
     // each time and the offset says which part of it this page shows.
     if pg >= d.page and pg < d.page + d.span {
-      mine.push(all.at(i))
-      let k = str(all.at(i).value.group)
+      mine.push(eligible.at(i))
+      let k = str(eligible.at(i).value.group)
       scales.insert(k, d.scale)
       tracks.insert(k, d.tracking)
       runins.insert(k, d.runin)

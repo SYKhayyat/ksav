@@ -536,6 +536,19 @@
 // or not its defaults dictionary happens to carry a value for it yet.
 #let _cfg_global_keys = ("כפה",)
 
+/// Validate a setting dictionary before storing it.
+///
+/// Typst's `..opts` accepts arbitrary named arguments, so a misspelling can
+/// otherwise be stored successfully and never read by the renderer. Every
+/// settings command uses this helper at its public boundary.
+#let _cfg_validate(name, opts, defaults) = {
+  for k in opts.named().keys() {
+    if k not in defaults and k not in _cfg_global_keys {
+      panic(name + ": ארגומנט לא מוכר · unrecognised argument: " + k)
+    }
+  }
+}
+
 // ---- the note style every apparatus falls back to ----
 //
 // Ksav has six note apparatuses — the page-foot footnotes, the endnote section,
@@ -1276,6 +1289,7 @@
 // `ריווח` stays out of `_fn_own_keys`: the gap is *between* two entries and
 // belongs to neither of them.
 #let הגדרות_הערות(..opts) = {
+  _cfg_validate("הגדרות_הערות", opts, _fn_defaults)
   // Refused here and not inside the update, for the reason `#הגדרות_מספור`
   // gives below its own state: an update closure runs only when something
   // reads it, and a typo that compiles into a dead key is the defect this
@@ -5149,11 +5163,7 @@
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
 #let הגדרות_מדורגות(..opts) = {
-  for k in opts.named().keys() {
-    if k not in _md_defaults and k not in _cfg_global_keys {
-      panic("הגדרות_מדורגות: ארגומנט לא מוכר · unrecognised argument: " + k)
-    }
-  }
+  _cfg_validate("הגדרות_מדורגות", opts, _md_defaults)
   _md_cfg.update(c => {
     let d = c
     for (k, v) in opts.named() { d.insert(k, v) }
@@ -5339,11 +5349,7 @@
 )
 #let _pp_cfg = state("ksav-pp-cfg", _pp_defaults)
 #let הגדרות_מדפים(..opts) = {
-  for k in opts.named().keys() {
-    if k not in _pp_defaults and k not in _cfg_global_keys {
-      panic("הגדרות_מדפים: ארגומנט לא מוכר · unrecognised argument: " + k)
-    }
-  }
+  _cfg_validate("הגדרות_מדפים", opts, _pp_defaults)
   _pp_cfg.update(c => {
     let d = c
     for (k, v) in opts.named() { d.insert(k, v) }
@@ -5477,6 +5483,7 @@
 #let _rg_default_spill = state("ksav-rg-default-spill", none)
 #let _rg_warn_leaves = state("ksav-rg-warn-leaves", none)
 #let הגדרות_זרמים(..opts) = {
+  _cfg_validate("הגדרות_זרמים", opts, _sf_defaults)
   // `גלישה` is refused here rather than wired: overflow belongs to the region
   // (and to the channel that made it) by decision 12 — two streams sharing a
   // region share its answer, and a per-stream knob would let them disagree.

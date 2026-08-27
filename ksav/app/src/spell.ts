@@ -286,7 +286,7 @@ const USER_WORDS_KEY = "ksav.userWords";
  * list is handed to every spell request and every suggestion, and making those
  * await a file read would put a disk on the path of a keystroke.
  */
-let kept: { words: string[]; write: (text: string) => void } | null = null;
+let kept: { words: string[]; write: (text: string) => Promise<void> } | null = null;
 
 /**
  * Keep the dictionary in a file from now on, starting from what is in it (B29).
@@ -302,7 +302,7 @@ let kept: { words: string[]; write: (text: string) => void } | null = null;
  * Returns how many the browser's copy contributed, so the window can say so once
  * rather than leaving a writer to wonder whether a zman of teaching survived.
  */
-export function keepDictionaryIn(text: string, write: (text: string) => void): number {
+export function keepDictionaryIn(text: string, write: (text: string) => Promise<void>): number {
   const merged = mergeWords(parseDictionary(text), fromLocalStorage().join("\n"));
   kept = { words: merged.words, write };
   // Written back only when the browser's copy actually added something, so
@@ -377,7 +377,7 @@ export function userWords(): string[] {
 function writeUserWords(list: string[]) {
   if (kept) {
     kept.words = [...list];
-    kept.write(serializeDictionary(list));
+    void kept.write(serializeDictionary(list));
     return;
   }
   try {

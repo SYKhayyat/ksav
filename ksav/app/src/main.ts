@@ -14561,10 +14561,15 @@ async function adoptDictionary(): Promise<void> {
   try {
     const kept = await (
       backend as unknown as {
-        dictionary: () => Promise<{ text: string; write: (t: string) => void; where: string }>;
+        dictionary: () => Promise<{ text: string; write: (t: string) => Promise<void>; where: string }>;
       }
     ).dictionary();
-    const moved = spell.keepDictionaryIn(kept.text, kept.write);
+    const moved = spell.keepDictionaryIn(kept.text, (next) =>
+      kept.write(next).catch((e: unknown) => {
+        const bad = troubleSaid(e, "save_file");
+        setStatus(bad.said, "err", bad.detail);
+      }),
+    );
     if (moved > 0) {
       showChromeNotice(`${moved} · ${kept.where}`);
     }

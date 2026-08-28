@@ -302,6 +302,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "מידה": "amount",
   "הזחה": "indent",
   "הזחת_גוף": "body_indent",
+  "הזחה_מרבית": "max_indent",
   "הידוק": "tight",
   "סמן": "marker",
   "התחלה": "start",

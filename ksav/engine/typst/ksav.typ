@@ -66,7 +66,7 @@
   // next thing that takes a depth should get the same Hebrew for it.
   depth: "עומק",
   caption: "כיתוב", width: "רוחב", ratio: "יחס", amount: "מידה",
-  indent: "הזחה", body_indent: "הזחת_גוף", tight: "הידוק", marker: "סמן",
+  indent: "הזחה", body_indent: "הזחת_גוף", max_indent: "הזחה_מרבית", tight: "הידוק", marker: "סמן",
   // `start` is Typst's own name for it and always worked; there was no name for
   // it here, so a list could not begin at 0 without leaving the language.
   start: "התחלה",
@@ -6988,6 +6988,8 @@
   מספור: none,          // heading numbering scheme, e.g. "1.1.1" or "א." (none = off)
   רברבתי: false,        // small caps
   מרווח_אותיות: 0pt,    // letter tracking
+  הזחה: 1em,            // indent per level past 6 — 0pt disables the deep indent
+  הזחה_מרבית: 12em,      // cap so deep headings keep one line — #17
 )
 #let _hd_cfg = state("ksav-hd-cfg", _hd_defaults)
 // One heading's own overrides, in flight between the call and the show rule.
@@ -7077,7 +7079,22 @@
   // Levels 1-6 are deliberately untouched: changing them would restyle every
   // document ever written in Ksav. Below the ramp, depth is shown by slant and
   // then by indent, which is how a sefer shows a sub-sub-point anyway.
+  //
+  // Below the ramp, indent is the visual cue. The ramp adds 1em per level
+  // past 6, so level 39's box was pushed against the column edge (x≈70.9)
+  // and its title wrapped mid-phrase. A heading must stay on one line
+  // whatever its level — #17.
+  //
+  // Toggleable, as every fix here: `הזחה` is the step (0pt disables the
+  // indent entirely), `הזחה_מרבית` is the cap (none disables the cap).
+  // Both are heading knobs so `#הגדרות_כותרות(הזחה: 0pt)` and
+  // `#הגדרות_כותרות(הזחה_מרבית: 6em)` do what they read as, in either
+  // language (`indent` / `max_indent`).
   let deep = calc.max(lvl - 6, 0)
+  let _hd_step = _cfg_pick(c, "הזחה", lvl, 1em)
+  let _hd_cap = _cfg_pick(c, "הזחה_מרבית", lvl, 12em)
+  let _hd_raw = deep * _hd_step
+  let _hd_indent = if _hd_cap == none { _hd_raw } else { calc.min(_hd_raw, _hd_cap) }
   // The slant is resolved here and applied to the body below rather than named
   // in the `set text` — `text(style: "italic")` is the request the bundled
   // Hebrew families answer with the upright face, so the *whole* of what marks
@@ -7144,10 +7161,10 @@
     // physical sides only, so the direction has to be asked for: `pad(left:)` on
     // an RTL page indents from the far edge, which moves nothing visible and
     // looks exactly like the feature not working. It did, for one round.
-    if deep == 0 { body } else if text.dir == rtl {
-      pad(right: deep * 1em, body)
+    if _hd_indent == 0pt { body } else if text.dir == rtl {
+      pad(right: _hd_indent, body)
     } else {
-      pad(left: deep * 1em, body)
+      pad(left: _hd_indent, body)
     },
   )
 }

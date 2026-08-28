@@ -241,6 +241,7 @@ const EN_ARGS: Record<string, string> = {
   ריווח_לפני: "space_before",
   ריווח_אחרי: "space_after",
   מרווח_אותיות: "tracking",
+  הזחה_מרבית: "max_indent",
   הזחת_גוף: "body_indent",
   ריווח_מספור: "number_spacing",
   צבע_פס: "stripe",
@@ -540,6 +541,8 @@ export const INSTANCE_FIELDS: Record<
     מספור: { kind: "numbering", label: "knobNumbering" },
     רברבתי: { kind: "bool", label: "knobSmallcaps" },
     מרווח_אותיות: { kind: "length-pt", label: "knobTracking" },
+    הזחה: { kind: "length-em", label: "knobIndent" },
+    הזחה_מרבית: { kind: "length-em", label: "knobMaxIndent" },
   },
   lists: {
     סמן: { kind: "marker", label: "knobMarker" },

@@ -530,6 +530,18 @@ const RULES = [
       });
     },
   },
+  {
+    what: "footnote markers must be superscript small, not inline full-size (issue 18)",
+    where: /\.typ$/u,
+    contains: ["footnote(context"],
+    allow: [],
+  },
+  {
+    what: "footnote numbering must be superscript small, not plain _hb_num (issue 18)",
+    where: /\.typ$/u,
+    match: /numbering:\s*_\s*=>\s*if numbered\s*\{\s*_hb_num/u,
+    allow: [],
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

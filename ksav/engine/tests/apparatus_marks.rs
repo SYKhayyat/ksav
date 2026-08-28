@@ -554,3 +554,69 @@ fn every_deferred_section_can_start_a_page() {
         );
     }
 }
+
+#[test]
+fn footnote_and_sourcenote_markers_are_superscript_small_and_raised() {
+    let runs = render(
+        "#שער[בדיקת מרקר]\n\nטקסט עם הערה#הערה[גוף ההערה] וציטוט#מראה_מקום(מקור: \"ברכות-לה-א\")[#ציון_מקור(\"ברכות\", מקום: \"ל״ה ע״א\")] סוף.",
+    );
+    let body = runs
+        .iter()
+        .find(|r| r.text.contains("טקסט עם הערה"))
+        .expect("body line");
+    for n in ["1", "2"] {
+        let mark = runs
+            .iter()
+            .find(|r| r.text.trim() == n && (r.y - body.y).abs() < 20.0)
+            .unwrap_or_else(|| panic!("marker {n} not found near body: {}", flat(&runs)));
+        assert!(
+            mark.size < body.size - 1.5,
+            "marker {n} must be smaller than body (body {:.1}, marker {:.1})",
+            body.size,
+            mark.size
+        );
+        assert!(
+            mark.y < body.y - 1.0,
+            "marker {n} must be raised above body baseline (body y={:.1}, marker y={:.1})",
+            body.y,
+            mark.y
+        );
+    }
+}
+
+#[test]
+fn adjacent_footnote_markers_do_not_collapse_into_one_number() {
+    let runs = render("א#הערה[ראשונה]#הערה[שנייה] ב.");
+    let ones: Vec<&ksav_engine::probe::TextRun> =
+        runs.iter().filter(|r| r.text.trim() == "1").collect();
+    let twos: Vec<&ksav_engine::probe::TextRun> =
+        runs.iter().filter(|r| r.text.trim() == "2").collect();
+    assert_eq!(
+        ones.len(),
+        1,
+        "exactly one '1' marker expected: {}",
+        flat(&runs)
+    );
+    assert_eq!(
+        twos.len(),
+        1,
+        "exactly one '2' marker expected: {}",
+        flat(&runs)
+    );
+    let a = ones[0];
+    let b = twos[0];
+    assert_eq!(a.page, b.page, "adjacent markers must be on same page");
+    let gap = (b.x - a.x).abs();
+    assert!(
+        gap > a.width * 0.5,
+        "adjacent markers must have visible separation (gap {gap:.1}, widths {:.1}/{:.1})",
+        a.width,
+        b.width
+    );
+    assert!(
+        a.size < 9.0 && b.size < 9.0,
+        "adjacent markers must be small superscript (sizes {:.1}/{:.1})",
+        a.size,
+        b.size
+    );
+}

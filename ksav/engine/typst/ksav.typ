@@ -2263,7 +2263,7 @@
       let governed = _nr_any() and _nr_origin(loc) != none
       _fnt_gov.update(governed)
       if not governed {
-        if numbered { footnote(..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
+        if numbered { footnote(numbering: n => super(text(size: 0.68em, str(n)) + h(0.08em, weak: true)), ..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
       } else {
         // Per-channel numbering for the governed note: Typst has ONE footnote
         // counter, and it cannot be restarted from here - so the number is
@@ -2274,7 +2274,7 @@
         [#metadata(key)#label("ksav-fnt")]
         let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
         footnote(
-          numbering: _ => if numbered { _hb_num("1", _hb_mode.get(), n) } else { [] },
+          numbering: _ => if numbered { super(text(size: 0.68em, _hb_num("1", _hb_mode.get(), n)) + h(0.08em, weak: true)) } else { [] },
           ..rest,
           entry,
         )
@@ -2302,7 +2302,7 @@
       let loc = here()
       let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
       footnote(
-        numbering: _ => if numbered { _hb_num(scheme, _hb_mode.get(), n) } else { [] },
+        numbering: _ => if numbered { super(text(size: 0.68em, _hb_num(scheme, _hb_mode.get(), n)) + h(0.08em, weak: true)) } else { [] },
         ..rest,
         entry,
       )
@@ -3155,7 +3155,7 @@
     // its opening words. It was honoured at the entry and not here, so the body
     // still carried a marker pointing at an entry that had no number to match:
     // the worst of both, and the arrangement is the plan's own `[U]` case.
-    if _eh_numbered(cfg) { _ap_piece(cfg, super(_ap_mark(cfg, g, n))) }
+    if _eh_numbered(cfg) { _ap_piece(cfg, super(text(size: 0.68em, _ap_mark(cfg, g, n)) + h(0.08em, weak: true))) }
     // The **printed** number, recorded under the name the writer gave this note
     // — `#הפניה_להערה` reads it. Printed and not the rank, because a band
     // lettered א ב ג is referred to as *"עיין הערה ב"*, and a reference saying 2
@@ -3357,7 +3357,7 @@
         _eh_head(ecfg, none, ecfg.at("ציטוט", default: none))
       }
       if _eh_numbered(ecfg) and not again {
-        [#head#_ap_piece(ecfg, super(_ap_mark(ecfg, g, num))) #b]
+        [#head#_ap_piece(ecfg, super(text(size: 0.68em, _ap_mark(ecfg, g, num)) + h(0.08em, weak: true))) #b]
       } else {
         [#head#b]
       }
@@ -6542,7 +6542,7 @@
     // The marker in the running text, through the column's own `סימן`. Not
     // through `cfg`: the note's size and colour are the column's, and the
     // number is standing in the sentence being annotated.
-    _mk_render(base.at("סימן", default: (:)), super[#_sn_mark_of(kind, num, own)])
+    _mk_render(base.at("סימן", default: (:)), super(text(size: 0.68em, _sn_mark_of(kind, num, own)) + h(0.08em, weak: true)))
     // The **printed** marker under the name the writer gave, for the same reason
     // the page-foot apparatus records the printed one: a column lettered א ב ג is
     // referred to as «עיין הגהה ב», and a reference saying 2 would name a note
@@ -6554,7 +6554,7 @@
       // **with no mark of ours in the entry**: Typst numbers that entry with
       // its own series, and two marks from two unrelated counts on one entry
       // told the reader nothing about either.
-      footnote(_sn_wrap(cfg, none, body))
+      footnote(numbering: n => super(text(size: 0.68em, str(n)) + h(0.08em, weak: true)), _sn_wrap(cfg, none, body))
     }
   }
 }
@@ -9681,7 +9681,7 @@
       printed: body,
     ))#_mk_label]
   }
-  footnote(context _mk_render(_mk_conf("מראה_מקום", own), body))
+  footnote(numbering: n => super(text(size: 0.68em, str(n)) + h(0.08em, weak: true)), context _mk_render(_mk_conf("מראה_מקום", own), body))
 }
 
 // מקור_חי — a citation in the flow of the prose that keeps its ref.

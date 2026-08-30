@@ -27,7 +27,8 @@ Each item below is shaped so it can be lifted directly into one GitHub issue.
   ("Ksav's own internal copies") — the one top prior finding still outright live.
 - **Refine:** rebuild the reserve as one `parse::partition(body)` pass (comments→skip,
   strings→channels, content-blocks/arg-ranges→name-match for `#מדף_`/`#ערוץ`/`#מסמך`) plus the
-  existing arithmetic. Delete the hand lexer family. First commit: add a
+  existing arithmetic, and retire the hand lexer family now that the parser owns the
+  job it was re-doing. First commit: add a
   `parse::apparatus_shape(body)` helper behind a gate the current scanner tests
   (lib.rs:3211-3701) run against both; flip when byte-identical.
 - **Cost:** the arithmetic is untouched, only the lexing; ~twenty reserved-region tests become the
@@ -191,7 +192,7 @@ Each item below is shaped so it can be lifted directly into one GitHub issue.
 
 ## 13. The `audit/` directory is a committed, test-shaped morgue that can never fail
 
-- **Lens:** 1 · **Verdict:** don't-build → **fix (distill to conclusions, stop growing)**
+- **Lens:** 1 · **Verdict:** rewrite → **fix (distill to conclusions, keep every durable rule, let git log hold the history)**
 - **The problem:** `audit/` is ~118 tracked files (fixtures/results/shots/tools) that CI neither
   runs nor references — added wholesale by "Preserve Ksav and Shall audit artifacts." It *looks*
   like a gate and is not; much is archaeology about a *different* project on a Windows path
@@ -216,12 +217,13 @@ Each item below is shaped so it can be lifted directly into one GitHub issue.
 
 ## 15. `watch.forget` has no caller
 
-- **Lens:** 1 · **Verdict:** delete → **fix (wire or drop)**
+- **Lens:** 1 · **Verdict:** wrong-but-keep → **fix (wire it, or retire it cleanly)**
 - **The problem:** a public `forget` on the file-watch surface exists with no caller; the watcher
   teardown contract is stated twice and enforced in neither place consistently. External §4.2
   confirmed it callerless; still true at HEAD.
-- **Refine:** add the one lifecycle caller, or delete the method + its route. Prefer adding the
-  caller if Tauri teardown actually needs it (which is the cheaper of the two).
+- **Refine:** add the one lifecycle caller and wire it into the watcher teardown (the preferred
+  fix — it is the cheaper of the two), and only if Tauri teardown genuinely does not need it,
+  retire the method + its route cleanly with a pointer to the caller-less state in git history.
 
 ## 16. Dead/vestigial: nil
 

@@ -26,9 +26,13 @@
 //! marker run in every arrangement resolves to nothing.
 //!
 //! What *does* resolve is the note's own prose, because that is the writer's
-//! content passed through untouched. And every apparatus in this product lays an
-//! entry out the same way — «marker» «body» — with the two as **siblings in one
-//! frame**:
+//! content passed through untouched. So the marker is not *resolved*; it is
+//! *joined to* the note's prose by reading the entry that holds both.
+//!
+//! The collected apparatus at the page foot, endnotes and the end-of-file
+//! deferred body all lay their «marker» «body» out as **siblings in one frame**,
+//! so a walk that pairs the run resolving to nothing with the next run resolving
+//! to somewhere reads them directly:
 //!
 //! ```text
 //! group
@@ -36,10 +40,16 @@
 //!   TEXT " ראשונה"          ← the writer's own: offset 85
 //! ```
 //!
-//! So the marker is not resolved. It is *paired*: the run that resolves to
-//! nothing, beside the run that resolves to somewhere. That holds for native
-//! footnotes, for the collected apparatus at the page foot, for endnotes and for
-//! a deferred body at the end of the file, because all four are one entry shape.
+//! A **native footnote** is the one apparatus that does not. Typst lays each one
+//! out as a single atomic `entry` whose marker run and body sit on opposite
+//! sides of an internal frame split — the marker up in a `par`, the body over in
+//! a sibling `table` — so the ordinary walk that clears its pending text at a
+//! frame boundary would read the marker and then lose the body on the far side.
+//! This module therefore reads each native entry *whole*, as one unit, keyed by
+//! typst's own `entry` tag: the marker and the first body offset inside that one
+//! entry are by construction the same note's, with no cross-frame guess.
+//! (`#הערה_בשם…` notes are native footnotes too, so a deferred body is read
+//! through its entry exactly as an inline one is.)
 //!
 //! # What the caller gets, and what it must still do
 //!
@@ -98,7 +108,12 @@ pub fn note_markers(doc: &PagedDocument, main: &Source, body: &str) -> Vec<NoteM
     out
 }
 
-/// The pairing, over one frame and its children.
+/// The pairing, over one frame and its children, for the sibling-laid apparatus.
+///
+/// Native footnotes are read whole by [`native_entry_marker`] in the group arm
+/// below (their marker and body live apart in one atomic entry), and everything
+/// else — the page-foot bands, endnotes, a deferred body — lays «marker» «body»
+/// out as adjacent content this walk joins.
 ///
 /// # A marker reaches into the next frame, and no further
 ///
@@ -129,6 +144,17 @@ fn collect(
     for (_, item) in frame.items() {
         match item {
             FrameItem::Group(group) => {
+                // A native footnote entry is one atomic unit — its marker run up in
+                // the `par` and its body over in the sibling `table` belong to the
+                // same note, and nothing between the two resolves to another
+                // writer's prose. Read it whole and move on, rather than let it be
+                // split by the very frame boundary the document draws between its
+                // own two halves. (The shared counter falls back to this walk only
+                // down in the foot of the page, so nothing here doubles it.)
+                if let Some(m) = native_entry_marker(&group.frame, main, offset) {
+                    out.push(m);
+                    continue;
+                }
                 collect(&group.frame, main, offset, out, pending);
                 // Whatever was waiting has now had its chance. It does not get a
                 // second one in a later sibling.
@@ -174,6 +200,120 @@ fn collect(
                 }
             }
             FrameItem::Shape(..) | FrameItem::Image(..) | FrameItem::Link(..) => {}
+        }
+    }
+}
+
+/// Is this frame a native footnote entry — the atomic "marker + body" unit that
+/// `footnote` lays the note out as, at the foot of the page?
+///
+/// Every native footnote entry is one [`Frame`] whose items begin with the
+/// introspectable `entry` tag. Recognising the unit by that tag (an annotation
+/// the engine's own machinery wrote, not a guess about generated text) rather
+/// than by reading its bytes lets the entry be paired whole: its marker run and
+/// its body are split across a nested `par` and a sibling `table`, and the
+/// ordinary walk would clear the pending marker at the `par` boundary and lose
+/// the body on the other side.
+fn is_native_entry(frame: &Frame) -> bool {
+    frame.items().any(|(_, item)| {
+        matches!(item, FrameItem::Tag(typst::introspection::Tag::Start(elem, _))
+            if elem.elem().name() == "entry")
+    })
+}
+
+/// The one note one native entry holds: its printed marker and the body it
+/// introduced, as laid out — or `None` for an empty entry (a marker over
+/// nothing), which has no body to pair and must report nothing.
+fn native_entry_marker(frame: &Frame, main: &Source, offset: usize) -> Option<NoteMarker> {
+    if !is_native_entry(frame) {
+        return None;
+    }
+    let mut marker = String::new();
+    let mut at: Option<usize> = None;
+    scan_entry(
+        frame,
+        main,
+        offset,
+        &mut marker,
+        &mut at,
+    );
+    // An entry keeps its marker run and its body on either side of a subframe
+    // split, but the body is the first thing after the run (while the run's own
+    // number is generated, the body is the writer's own text). Collect the run,
+    // then the first body offset, and they are the pair — no second opinion about
+    // *whether* the run is a marker is needed, the entry tag already said so.
+    at.map(|a| NoteMarker { marker, at: a })
+}
+
+/// Fill `marker` (the generated run) then `at` (the first body offset) from one
+/// entry, in layout order. Generated runs before the writer's prose are the
+/// marker — the entry number, and the punctuation an endnote prints — and the
+/// first run that resolves to the writer's own text is where the body starts.
+///
+/// A note whose body **opens with a nested note** prints the nested note's own
+/// inline reference *inside* this entry, before any of the writer's prose — so
+/// the generated text of a nested `footnote` must not join this entry's marker,
+/// or `1` and the child's `2` would read as `12`. Anything the nesting wraps is
+/// that child's: skipped here, and owned by its own entry down below.
+fn scan_entry(
+    frame: &Frame,
+    main: &Source,
+    offset: usize,
+    marker: &mut String,
+    at: &mut Option<usize>,
+) {
+    scan_entry_inner(frame, main, offset, marker, at, 0);
+}
+
+fn scan_entry_inner(
+    frame: &Frame,
+    main: &Source,
+    offset: usize,
+    marker: &mut String,
+    at: &mut Option<usize>,
+    nested: usize,
+) {
+    if at.is_some() {
+        return;
+    }
+    // `nested` counts how many `footnote` *references* printed inside this entry
+    // are still open. Their generated numbers are the nested notes' own markers
+    // and must not join this one. The count is shared down through the frame
+    // recursion, so the flat reference (its tags and its number run) is skipped
+    // whether it sits in the body's frame or one level down.
+    let mut depth = nested;
+    for (_, item) in frame.items() {
+        if at.is_some() {
+            return;
+        }
+        match item {
+            FrameItem::Tag(tag) => match tag {
+                // The nested reference itself, when nothing is already open.
+                typst::introspection::Tag::Start(elem, _)
+                    if depth == 0 && elem.elem().name() == "footnote" =>
+                {
+                    depth = 1;
+                }
+                // While one nested reference is open, bracket-count every Start
+                // and End so its *own* matching End — however many tags its inner
+                // face is wrapped in — is the one that closes it.
+                typst::introspection::Tag::Start(..) if depth > 0 => depth += 1,
+                typst::introspection::Tag::End(..) if depth > 0 => depth -= 1,
+                _ => {}
+            },
+            FrameItem::Group(g) => {
+                scan_entry_inner(&g.frame, main, offset, marker, at, depth)
+            }
+            FrameItem::Text(text) if depth == 0 => {
+                match first_byte(&text.glyphs, main, offset) {
+                    Some(b) => {
+                        *at = Some(b);
+                        return;
+                    }
+                    None => marker.push_str(&text.text),
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -448,3 +588,4 @@ mod tests {
         assert_eq!(marks.len(), 1);
     }
 }
+

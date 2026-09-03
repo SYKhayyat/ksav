@@ -1259,7 +1259,6 @@
   //   tells the reader which block to look in — the one thing size and slant
   //   cannot say at the point of reference, where the reader actually is.
   מספור: none,
-  סימן_בהמשך: true,
 )
 #let _fn_cfg = state("ksav-fn-cfg", _fn_defaults)
 // What one note may overrule: its own text and its own indent. Not `מספור` — the
@@ -2174,40 +2173,6 @@
   }
 }
 
-#let _fn_cont_wrap(cfg, tier, n, scheme, numbered, markerPage, body) = {
-  let raw = cfg.at("סימן_בהמשך", default: true)
-  let doShow = if type(raw) == array { _fn_pick(raw, tier, true) } else { raw }
-  if doShow == false or doShow == none {
-    body
-  } else {
-    let sz = _fn_pick(cfg.at("גודל", default: ()), tier, 0.85em)
-    let st = _fn_pick(cfg.at("סגנון", default: ()), tier, "normal")
-    let cl = _fn_pick(cfg.at("צבע", default: ()), tier, luma(0))
-    let mark = if numbered {
-      let s = if scheme != none { scheme } else { "1" }
-      _hb_num(s, _hb_mode.get(), n)
-    } else { none }
-    table(
-      columns: 1,
-      stroke: none,
-      inset: 0pt,
-      align: left,
-      table.header(repeat: true)[
-        #context {
-          if here().page() > markerPage {
-            if mark != none {
-              text(size: sz, fill: cl, _ks_style(st, super(text(size: 0.68em, mark) + h(0.08em, weak: true)) + [ \u{05d4}\u{05de}\u{05e9}\u{05da}]))
-            } else {
-              text(size: sz, fill: cl, _ks_style(st, [\u{05d4}\u{05de}\u{05e9}\u{05da}]))
-            }
-          }
-        }
-      ],
-      body
-    )
-  }
-}
-
 // The tiers of the native apparatus, named. A tier IS a channel — the one whose
 // source is the tier above it and whose placement is the foot of the page — so
 // the seven tier commands are seven built-in channels and this array is where
@@ -2236,7 +2201,6 @@
 // above passes both, and a writer who never declares a channel sees exactly the
 // per-tier behaviour this apparatus has always had.
 #let הערה_בדרגה(דרגה, body, שם: none, ציטוט: none, _ערוץ: none, _מספור: none, ..opts) = context {
-  let markerPage = here().page()
   let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
   let cfg = _cfg_with(_nt_under(_fn_cfg.get()), own)
   // Not ours: handed to `footnote` at both call sites below, so its own error
@@ -2314,8 +2278,7 @@
       _fnt_gov.update(governed)
       if not governed {
         let n = counter(footnote).get().first() + 1
-        let entry = _fn_cont_wrap(cfg, דרגה, n, scheme, numbered, markerPage, entryBase)
-        if numbered { footnote(numbering: n => super(text(size: 0.68em, str(n)) + h(0.08em, weak: true)), ..rest, entry) } else { footnote(numbering: _ => [], ..rest, entry) }
+        if numbered { footnote(numbering: n => super(text(size: 0.68em, str(n)) + h(0.08em, weak: true)), ..rest, entryBase) } else { footnote(numbering: _ => [], ..rest, entryBase) }
       } else {
         // Per-channel numbering for the governed note: Typst has ONE footnote
         // counter, and it cannot be restarted from here - so the number is
@@ -2325,11 +2288,10 @@
         let key = if _ערוץ != none { _ערוץ } else { _ch_tier_name(דרגה) }
         [#metadata(key)#label("ksav-fnt")]
         let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
-        let entry = _fn_cont_wrap(cfg, דרגה, n, "1", numbered, markerPage, entryBase)
         footnote(
           numbering: _ => if numbered { super(text(size: 0.68em, _hb_num("1", _hb_mode.get(), n)) + h(0.08em, weak: true)) } else { [] },
           ..rest,
-          entry,
+          entryBase,
         )
         if שם != none { _xn_mark(שם, _hb_num("1", _hb_mode.get(), n)) }
       }
@@ -2354,11 +2316,10 @@
     context {
       let loc = here()
       let n = _ksav_rank(_nr_scope(selector(label("ksav-fnt")), loc), loc, e => e.value == key)
-      let entry = _fn_cont_wrap(cfg, דרגה, n, scheme, numbered, markerPage, entryBase)
       footnote(
         numbering: _ => if numbered { super(text(size: 0.68em, _hb_num(scheme, _hb_mode.get(), n)) + h(0.08em, weak: true)) } else { [] },
         ..rest,
-        entry,
+        entryBase,
       )
       // The *printed* number, not the rank: a channel numbered א ב ג is
       // referred to as "עיין הערה ב", and a reference that said 2 would name a

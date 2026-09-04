@@ -299,6 +299,7 @@ export function logDate(file) {
 // to make one of these pass is for the page to say the true number.
 export const CLAIMS = [
   ["README.md", "bindings", (n) => `all ${n} bindings`],
+  ["issue-notes.md", "bindings", (n) => `all ${n} bindings`],
   ["ksav/README.md", "commands", (n) => `**${n} commands**`],
   ["ksav/README.md", "offered", (n) => `searches all ${n} commands`],
   ["ksav/README.md", "templates", (n) => `${n} templates (all compile)`],

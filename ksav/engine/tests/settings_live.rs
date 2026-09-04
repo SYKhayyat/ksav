@@ -96,7 +96,12 @@ const BLOCKS: &[Block] = &[
         // and Hebrew has no case: a Hebrew-only heading is a document in which
         // that setting cannot do anything, which is not the same claim as the
         // setting being dead.
-        document: "#כותרת1[שער Title]\n\nגוף המסמך.\n\n#כותרת2[תת שער]\n\nעוד גוף.\n",
+        //
+        // And with a heading past level 6, because the deep-indent knobs
+        // (`הזחה`, `הזחה_מרבית`) only engage below the ramp — a document with
+        // nothing deeper than `#כותרת2` renders both ends of either axis
+        // identically and reports the setting as dead.
+        document: "#כותרת1[שער Title]\n\nגוף המסמך.\n\n#כותרת2[תת שער]\n\nעוד גוף.\n\n#כותרת(רמה: 9)[עומק רב]\n\nגוף עמוק.\n",
         groups: &[],
     },
     Block {
@@ -193,6 +198,7 @@ const CONTRAST: &[(&str, &str, &str)] = &[
     ("מרווח", "0em", "4em"),
     ("מרווח_אותיות", "0pt", "4pt"),
     ("הזחה", "0em", "5em"),
+    ("הזחה_מרבית", "1em", "20em"),
     ("הזחת_גוף", "0em", "5em"),
     ("גבהים", "1cm", "6cm"),
     ("יחס", "1.2", "6"),

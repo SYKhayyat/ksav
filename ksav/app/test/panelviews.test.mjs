@@ -232,6 +232,54 @@ export async function run() {
     }
 
     {
+      // B12, made checkable: the drawer rebuilds **whole** on every change, and
+      // a typed commit message has to survive the rebuild. This is the finding
+      // — pressing Ctrl+S refreshes git through `gitMayHaveChanged`, and a
+      // refresh that recreated every field empty ate the message mid-sentence.
+      //
+      // The draft is written through the `input` event, not by setting `.value`
+      // — a test that sets the property directly is testing the field, and the
+      // listener is what the mechanism hangs on.
+      const act = recorder();
+      const type = (into, text) => {
+        into.value = text;
+        for (const fn of into.listeners.input ?? []) fn({ target: into });
+      };
+      const messageOf = (built) =>
+        all(built).find((n) => n.tagName === "INPUT" && n.placeholder === t("git.message"));
+
+      const first = gitPanel(view(), act);
+      type(messageOf(first), "פרק ראשון");
+
+      // The refresh, as `refreshGit` and the language flip both perform it: a
+      // brand-new build from current state.
+      const rebuilt = gitPanel(view(), act);
+      check("a typed commit message survives the drawer rebuilding", messageOf(rebuilt).value, "פרק ראשון");
+
+      // The identity fields are drafts too, and survive the same way — when
+      // git reports no identity, the drawer asks for one.
+      const whoAct = recorder();
+      const noWho = view({ status: { ...REPO, who: null } });
+      const whoPanel = gitPanel(noWho, whoAct);
+      const identityOf = (built) =>
+        all(withAttr(built, "data-git-section", "identity")).filter((n) => n.tagName === "INPUT");
+      type(identityOf(whoPanel)[0], "פלוני אליהו");
+      const whoRebuilt = gitPanel(noWho, whoAct);
+      check("a typed identity survives the rebuilding", identityOf(whoRebuilt)[0].value, "פלוני אליהו");
+      buttonSaying(whoRebuilt, t("git.whoSet")).click();
+      check("setting the identity was sent", whoAct.done, [["who", { name: "פלוני אליהו", email: "" }]]);
+      const whoThird = gitPanel(noWho, whoAct);
+      check("a consumed identity does not come back", identityOf(whoThird)[0].value, "");
+
+      // And the actions that consume the drafts leave the next build clean, so
+      // a consumed message is not committed twice.
+      buttonSaying(rebuilt, t("git.commit")).click();
+      check("the commit was sent", act.done, [["commit", { message: "פרק ראשון", all: false }]]);
+      const third = gitPanel(view(), recorder());
+      check("the consumed message does not come back", messageOf(third).value, "");
+    }
+
+    {
       const act = recorder();
       const commits = [
         { hash: "aaaa", short: "aaa", author: "פלוני", email: "p@x", when: 1700000000, refs: "", subject: "פרק ראשון" },

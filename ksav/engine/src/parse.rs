@@ -86,6 +86,23 @@ pub struct ContentBlock {
     pub to: usize,
 }
 
+/// One function call the parser saw: an identifier immediately followed by `(`
+/// and/or `[…]`. A call is live code by construction — the parser only produces
+/// one for actual call syntax — so nothing inside a comment or a string literal
+/// can ever be one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Call {
+    /// The callee identifier, exactly as written.
+    pub name: String,
+    /// The byte range of the parenthesized argument list's *contents*, if the
+    /// call had one. `None` for a pure `#name[…]` call, and for an unbalanced
+    /// `name(…` whose close paren the parser never saw.
+    pub args: Option<(usize, usize)>,
+    /// Whether the call was written as `#name`, i.e. preceded by a hash in
+    /// markup. `false` for `#let x = name(…)` and other code-side calls.
+    pub hash: bool,
+}
+
 /// Everything the oracle needs from one parse.
 #[derive(Debug, Clone, Default)]
 pub struct Partition {
@@ -98,6 +115,8 @@ pub struct Partition {
     /// its children reach `leaves`. The oracle needs the whole span, because
     /// what it is comparing is the region in which nothing is a command.
     pub raws: Vec<ContentBlock>,
+    /// Every call, in document order.
+    pub calls: Vec<Call>,
 }
 
 /// The kinds that are markup's own children.
@@ -177,11 +196,11 @@ fn mode_of(kind: SyntaxKind, outer: Mode) -> Mode {
 pub fn partition(text: &str) -> Partition {
     let source = Source::detached(text.to_string());
     let mut out = Partition::default();
-    walk(source.root(), 0, Mode::Content, &mut out);
+    walk(source.root(), 0, Mode::Content, text, &mut out);
     out
 }
 
-fn walk(node: &SyntaxNode, at: usize, outer: Mode, out: &mut Partition) {
+fn walk(node: &SyntaxNode, at: usize, outer: Mode, text: &str, out: &mut Partition) {
     let mode = mode_of(node.kind(), outer);
     if node.kind() == SyntaxKind::Raw {
         out.raws.push(ContentBlock {
@@ -197,6 +216,9 @@ fn walk(node: &SyntaxNode, at: usize, outer: Mode, out: &mut Partition) {
             to: at + node.len() - 1,
         });
     }
+    if node.kind() == SyntaxKind::FuncCall {
+        record_call(node, at, text, out);
+    }
     if node.children().len() == 0 {
         out.leaves.push(Leaf {
             kind: node.kind(),
@@ -208,9 +230,58 @@ fn walk(node: &SyntaxNode, at: usize, outer: Mode, out: &mut Partition) {
     }
     let mut cursor = at;
     for child in node.children() {
-        walk(child, cursor, mode, out);
+        walk(child, cursor, mode, text, out);
         cursor += child.len();
     }
+}
+
+/// Record one `FuncCall` the way the reserve reads one: the callee, the
+/// contents of its parenthesized argument list (bounded by the parser's own
+/// `LeftParen`/`RightParen` pair, so exact even when the document is otherwise
+/// unbalanced), and whether it was written `#name` in markup.
+fn record_call(node: &SyntaxNode, at: usize, text: &str, out: &mut Partition) {
+    let mut cursor = at;
+    let mut name: Option<(usize, usize)> = None;
+    let mut paren: Option<(usize, usize)> = None;
+    for child in node.children() {
+        let from = cursor;
+        let to = cursor + child.len();
+        if name.is_none() && child.kind() == SyntaxKind::Ident {
+            name = Some((from, to));
+        }
+        // The parens are direct children of the `Args` node, which is itself a
+        // child of the call — a nested tuple's parens are one level deeper and
+        // cannot be mistaken for the call's own.
+        if child.kind() == SyntaxKind::Args {
+            let mut c2 = from;
+            let mut open: Option<usize> = None;
+            for inner in child.children() {
+                let ifrom = c2;
+                let ito = c2 + inner.len();
+                match inner.kind() {
+                    SyntaxKind::LeftParen => open = Some(ito),
+                    SyntaxKind::RightParen => {
+                        if let Some(o) = open.take() {
+                            paren = Some((o, ifrom));
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                c2 = ito;
+            }
+        }
+        cursor = to;
+    }
+    let Some((name_from, name_to)) = name else {
+        return;
+    };
+    let hash = name_from > 0 && text.as_bytes().get(name_from - 1) == Some(&b'#');
+    out.calls.push(Call {
+        name: text[name_from..name_to].to_string(),
+        args: paren,
+        hash,
+    });
 }
 
 impl Partition {
@@ -234,6 +305,34 @@ impl Partition {
         self.leaves
             .iter()
             .any(|l| l.mode == Mode::Math && l.from < to && from < l.to)
+    }
+}
+
+/// The facts a document's page-foot reserve is decided from, read off one parse.
+///
+/// This is the parser's answer where the reserve used to re-lex Typst by hand —
+/// strings, comments, parens and identifiers, each with its own hand-written
+/// scanner. The parser already lexes them all, so the reserve now asks it once
+/// for what it needs and keeps only the arithmetic.
+#[derive(Debug, Clone, Default)]
+pub struct ApparatusShape {
+    /// Every call, in document order.
+    pub calls: Vec<Call>,
+    /// Comment ranges (both spellings), byte offsets.
+    pub comments: Vec<(usize, usize)>,
+    /// String-literal ranges, byte offsets.
+    pub strings: Vec<(usize, usize)>,
+}
+
+/// The apparatus facts of a body, from one `partition` pass.
+pub fn apparatus_shape(body: &str) -> ApparatusShape {
+    let p = partition(body);
+    let comments = p.comments().map(|l| (l.from, l.to)).collect();
+    let strings = p.of_kind(SyntaxKind::Str).map(|l| (l.from, l.to)).collect();
+    ApparatusShape {
+        calls: p.calls,
+        comments,
+        strings,
     }
 }
 

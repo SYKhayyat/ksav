@@ -394,245 +394,14 @@ fn named_arg(args: &str, keys: &[&str]) -> Option<String> {
     None
 }
 
-/// Every `#name(…)` declaration in `body`, keyed by the first positional
-/// argument — which for both of these commands is the thing's own name.
-fn channel_declarations(body: &str, names: &[&str]) -> HashMap<String, ChannelDecl> {
-    let mut out: HashMap<String, ChannelDecl> = HashMap::new();
-    for name in names {
-        let mut base = 0;
-        while let Some(i) = body[base..].find(name) {
-            let start = base + i;
-            base = start + name.len();
-            // `#ערוץ(`, not the word ערוץ inside `#הערה(ערוץ: …)` — the argument
-            // and the command are the same word, deliberately, and only one of
-            // them declares anything.
-            if !body[..start].ends_with('#') {
-                continue;
-            }
-            let after = body[base..].trim_start();
-            if !after.starts_with('(') {
-                continue;
-            }
-            let Some(end) = closing_paren(after) else {
-                continue;
-            };
-            let args = &after[1..end];
-            let Some(first) = args.split(',').next() else {
-                continue;
-            };
-            let key = first.trim().trim_matches('"').trim().to_string();
-            if key.is_empty() {
-                continue;
-            }
-            let decl = ChannelDecl {
-                placement: named_arg(args, PLACEMENT_ARG),
-                region: named_arg(args, REGION_ARG),
-                height: named_arg(args, HEIGHT_ARG),
-                has_source: named_arg(args, SOURCE_ARG).is_some(),
-            };
-            // A second declaration of the same name adds to the first, exactly as
-            // the prelude's own `#ערוץ` does.
-            let slot = out.entry(key).or_default();
-            slot.placement = decl.placement.or(slot.placement.take());
-            slot.region = decl.region.or(slot.region.take());
-            slot.height = decl.height.or(slot.height.take());
-            slot.has_source |= decl.has_source;
-        }
-    }
-    out
-}
-
-/// How much page foot a document's *channels* need, in cm.
-///
-/// `None` when it writes no note into a channel that lands at the page foot —
-/// which is every document that only uses the default channel, its tiers, or a
-/// channel it placed at the back.
-///
-/// Deliberately keyed on notes actually written, not on declarations: declaring
-/// an apparatus and never writing into it reserves nothing, which is the rule
-/// the stream and band configuration commands already follow.
-fn channel_region_cm(body: &str, page_h_cm: Option<f64>) -> Option<f64> {
-    let channels = channel_declarations(body, CHANNEL_DECL);
-    let regions = channel_declarations(body, REGION_DECL);
-
-    // Which channels notes were actually written into. `אזור:` names the target
-    // too — the filing reads the region's placement, and when both arguments
-    // are given the region wins — so a note written `#הערה(אזור: "x")` into a
-    // foot region reserves for it exactly as `#הערה(ערוץ: "x")` does. Missing
-    // this spelling was a reserve of zero for one of the five destinations the
-    // chooser writes.
-    let mut used: Vec<String> = Vec::new();
-    let mut base = 0;
-    while let Some(i) = body[base..].find('#') {
-        let start = base + i;
-        base = start + 1;
-        // The command head, which decides whether this is a note at all.
-        let head: String = body[base..]
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        // A `#ערוץ("c", אזור: "r")` *declaration* carries the same argument a
-        // note does and writes nothing into anything; counting it would reserve
-        // for an apparatus no note ever touched.
-        if CHANNEL_DECL.contains(&head.as_str()) || REGION_DECL.contains(&head.as_str()) {
-            continue;
-        }
-        let Some(open) = body[start..].find('(') else {
-            break;
-        };
-        let Some(end) = closing_paren(&body[start + open..]) else {
-            continue;
-        };
-        let args = &body[start + open + 1..start + open + end];
-        let target = named_arg(args, REGION_ARG).or(named_arg(args, CHANNEL_ARG));
-        if let Some(name) = target {
-            if !name.is_empty() && !used.contains(&name) {
-                used.push(name);
-            }
-        }
-    }
-
-    // Each such channel's region, when that region is at the foot of the page.
-    let mut feet: Vec<(String, Option<String>)> = Vec::new();
-    for name in used {
-        if TIER_CHANNELS.contains(&name.as_str()) {
-            continue;
-        }
-        let ch = channels.get(&name).cloned().unwrap_or_default();
-        let region = ch.region.clone().unwrap_or_else(|| name.clone());
-        let rg = regions.get(&region).cloned().unwrap_or_default();
-        // The channel's own placement, else its region's, else the page foot.
-        let placement = ch.placement.clone().or(rg.placement.clone());
-        if let Some(p) = &placement {
-            if !FOOT_PLACEMENT.contains(&p.as_str()) {
-                continue;
-            }
-        }
-        // A channel that hangs off another and asked for no region of its own is
-        // a tier of the native apparatus — indented in its parent's block, in
-        // Typst's balanced series, reserving nothing.
-        if ch.has_source && ch.region.is_none() && ch.height.is_none() {
-            continue;
-        }
-        let height = ch.height.clone().or(rg.height.clone());
-        if !feet.iter().any(|(r, _)| *r == region) {
-            feet.push((region, height));
-        }
-    }
-    if feet.is_empty() {
-        return None;
-    }
-    // Exactly what was asked for plus the furniture the prelude draws, and the
-    // working default for a region that did not say — the same arithmetic the
-    // bands and streams get, because they share the block.
-    let mut total = BAND_RULE_CM + BAND_GAP_CM * (feet.len().saturating_sub(1)) as f64;
-    for (_, height) in &feet {
-        total += match height.as_deref().and_then(|h| length_cm(h, page_h_cm)) {
-            Some(cm) => cm,
-            None => DEFAULT_REGION_CM,
-        };
-    }
-    Some(total)
-}
-
-/// How much page-foot region a body needs, in cm.
-///
-/// The per-page apparatus lives in the bottom margin, so with nothing reserved it
-/// grows straight off the bottom of the sheet — the single most visible defect in
-/// that apparatus. Rather than make every writer discover a knob, reserve a
-/// workable default as soon as the document uses one of those commands, and
-/// nothing at all otherwise (native footnotes expand the text region themselves
-/// and must not lose page height to a reserve they never use).
-/// The band heights a document declared, in cm, if it declared any.
-///
-/// `#הגדרות_מדפים(גבהים: (1.5cm, 1cm))` is the *fixed regions* layout: each band
-/// always occupies its height whether or not it has notes. Those heights are the
-/// document telling us exactly how much page foot it needs, and until now nothing
-/// read them — the reserve was a flat 3 cm for every document, so declaring
-/// `(3cm, 2cm)` printed the second band **at y=879 on an 842pt page**, off the
-/// sheet, while the prelude's own comment promised it would be clipped instead.
-///
-/// A length with a unit this cannot resolve (`em`) yields `None` rather than a
-/// guess: the fallback reserve is a working default, and a wrong number here is
-/// worse than no number, because it would be wrong *silently* and in page
-/// geometry.
-///
-/// `names` is one apparatus's configuration command, in both spellings. The
-/// bands write their heights as an **array** — `(1.5cm, 1cm)`, one entry per tier
-/// — and the streams as a **dictionary** keyed by stream name —
-/// `("מקורות": 1.5cm)`. Both are read here, because both reserve the same page
-/// foot, and reading only the first is how three declared streams got the flat
-/// 3 cm default and printed the third one off the sheet.
-fn declared_region_cm(body: &str, names: &[&str], page_h_cm: Option<f64>) -> Option<Vec<f64>> {
-    for name in names {
-        let mut base = 0;
-        while let Some(i) = body[base..].find(name) {
-            let start = base + i + name.len();
-            base = start;
-            let after_name = body[start..].trim_start();
-            if !after_name.starts_with('(') {
-                continue;
-            }
-            // Bounded to this call's own argument list. Searching the rest of the
-            // document for `גבהים` would let a bare `#הגדרות_מדפים()` followed
-            // three paragraphs later by the word in prose decide how much of every
-            // page is reserved.
-            let Some(end) = closing_paren(after_name) else {
-                continue;
-            };
-            let rest = &after_name[..end];
-            for key in ["גבהים", "heights"] {
-                let Some(k) = rest.find(key) else { continue };
-                let after = rest[k + key.len()..].trim_start();
-                let Some(after) = after.strip_prefix(':') else {
-                    continue;
-                };
-                let after = after.trim_start();
-                let Some(open) = after.strip_prefix('(') else {
-                    continue;
-                };
-                let Some(close) = open.find(')') else {
-                    continue;
-                };
-                let items: Vec<&str> = open[..close]
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                // An entry is either a bare length (the array form) or
-                // `"name": length` (the dictionary form). `code_only` has already
-                // blanked the name along with its quotes, so what survives of a
-                // dictionary entry is `: 1.5cm` — and the height is whatever
-                // follows the last colon in either shape. An empty dictionary,
-                // `(:)`, leaves nothing after the colon and so reads as *not
-                // declared*, which is exactly what it means.
-                let parsed: Option<Vec<f64>> = items
-                    .iter()
-                    .map(|s| length_cm(s.rsplit_once(':').map_or(*s, |(_, v)| v), page_h_cm))
-                    .collect();
-                // One unreadable entry disqualifies the whole list: a partial sum
-                // reserves less than the bands will use, which is the exact defect
-                // this function exists to stop.
-                if let Some(v) = parsed {
-                    if !v.is_empty() {
-                        return Some(v);
-                    }
-                }
-                return None;
-            }
-        }
-    }
-    None
-}
-
 /// The byte offset just past the `(` that closes the one `s` opens with.
 ///
 /// Depth-counted, so a nested tuple — which is what `גבהים` is — does not end the
-/// list at its own bracket. Quoted spans are skipped wholesale: two of this
-/// file's callers work on text that still carries its strings
-/// (`code_only_keeping_strings`), and a value like `"a)b"` would otherwise close
-/// the scan one argument in — a channel or region missed there is a reserve
-/// under-counted, and the note it belonged to prints off the paper.
+/// list at its own bracket. Quoted spans are skipped wholesale: `inject_
+/// reserve_into_writer_masmer` works on text that still carries its strings,
+/// and a value like `"a)b"` would otherwise close the scan one argument in —
+/// a channel or region missed there is a reserve under-counted, and the note
+/// it belonged to prints off the paper.
 fn closing_paren(s: &str) -> Option<usize> {
     let mut depth = 0usize;
     let mut chars = s.char_indices();
@@ -758,12 +527,12 @@ fn sheet_height_cm(cfg: &DocConfig) -> Option<f64> {
     }
 }
 
-/// The last answer the scanner gave, keyed by its inputs.
+/// The last answer the reserve gave, keyed by its inputs.
 ///
-/// The scan is several whole-document passes, and it ran at the bottom of
+/// The scan is a whole-document parse, and it ran at the bottom of
 /// `show_rule` — every compile, including the ones a watcher or a settings
 /// change asks for with the text untouched. One entry: the previous document's
-/// key. A keystroke that changed the text misses it and pays the scan; a
+/// key. A keystroke that changed the text misses it and pays the parse; a
 /// compile of unchanged text stops paying for an answer that has not moved.
 static RESERVE_CACHE: std::sync::Mutex<Option<(u128, f64)>> = std::sync::Mutex::new(None);
 
@@ -807,16 +576,9 @@ pub fn auto_notes_region_cm_sheet(body: &str, page_h_cm: Option<f64>) -> f64 {
 }
 
 fn auto_notes_region_cm_scan(body: &str, page_h_cm: Option<f64>) -> f64 {
-    // Comments first, and this is the eleventh scanner in this repository.
-    //
-    // `spans.ts` opens with a monument to ten client-side matchers disagreeing
-    // about `"`, `\`, `//` and `{}`; that ruling stopped at the wire. This one
-    // was a naive `find` with no string or comment tracking, so a **commented-out**
-    // `// #מדף_א[…]` — the ordinary way somebody parks an apparatus while they
-    // decide about it — reserved 3 cm at the foot of every page in the document.
-    // The existing test covered the prose case (`the מדף_ command`) and stopped
-    // one case short.
-    let visible = code_only(body);
+    let shape = parse::apparatus_shape(body);
+    let mut total = 0.0;
+    let mut used_any = false;
     // Per apparatus, not once for the document. The footer renders the bands and
     // then the streams into the *same* reserved block, one under the other, so
     // what the page needs is the sum of what each of them needs — and reading the
@@ -826,20 +588,18 @@ fn auto_notes_region_cm_scan(body: &str, page_h_cm: Option<f64>) -> f64 {
     // been fixed for the bands, one apparatus over, which is the shape this
     // repository keeps rebuilding: the class is named, one instance is fixed, the
     // sibling is never swept.
-    let mut total = 0.0;
-    let mut used_any = false;
     for (commands, config) in [
         (BAND_COMMANDS, BAND_CONFIG),
         (STREAM_COMMANDS, STREAM_CONFIG),
     ] {
-        if !commands
+        let used = commands
             .iter()
-            .any(|c| apparatus_is_called(&visible, c) || apparatus_is_named_as_kind(&visible, c))
-        {
+            .any(|c| apparatus_is_called(&shape, c) || apparatus_is_named_as_kind(body, &shape, c));
+        if !used {
             continue;
         }
         used_any = true;
-        total += match declared_region_cm(&visible, config, page_h_cm) {
+        total += match declared_region_cm(body, &shape, config, page_h_cm) {
             // Fixed regions: reserve exactly what the document asked for, plus the
             // furniture the prelude draws around the bands — a rule above the
             // apparatus and a gap between adjacent bands (`ריווח_בין`, 0.35em). Those
@@ -858,7 +618,7 @@ fn auto_notes_region_cm_scan(body: &str, page_h_cm: Option<f64>) -> f64 {
     // …and the channels, which are the same footer and the same block. A document
     // may carry both — the eighteen commands still work — so this is a third
     // summand and not a third answer.
-    if let Some(cm) = channel_region_cm(&code_only_keeping_strings(body), page_h_cm) {
+    if let Some(cm) = channel_region_cm(body, &shape, page_h_cm) {
         used_any = true;
         total += cm;
     }
@@ -894,129 +654,229 @@ const BAND_GAP_CM: f64 = 0.45;
 /// The rule above the apparatus as a whole, plus its `rule_gap`.
 const BAND_RULE_CM: f64 = 0.25;
 
-/// `body` with its comments and string literals blanked out, offsets preserved.
-///
-/// Blanked rather than removed so that anything reading positions from the
-/// result still agrees with the original, and so a comment cannot join the two
-/// halves of an identifier it sat between.
-///
-/// String literals go too: `#כותרת_עליונה("ראה #מדף_א[…]")` is a page header
-/// whose *text* mentions an apparatus, not a document that has one. This is the
-/// same rule `spans.ts` applies and, deliberately, not the same implementation —
-/// a Typst body is not a Ksav editor buffer, and the shared thing worth having
-/// is the corpus of documents that must come out the same way, not the code.
-fn code_only(body: &str) -> String {
-    code_only_with(body, false)
+// --------------------------------------------------------------------------
+// The same answers from the real parser.
+//
+// The hand scanners this used to be re-lexed Typst — strings, comments, parens,
+// identifiers — in a crate that ships the real lexer and already uses it in
+// `parse::partition`. The rebuild is one `parse::apparatus_shape(body)` pass
+// supplying the calls and the comment/string ranges, and the arithmetic is
+// unchanged. The differential gate proved the two halves agreed on the corpus
+// before the hand family retired.
+
+/// Whether byte `at` sits in the document's live code — outside every comment
+/// and string literal the parser saw.
+fn is_live_code(shape: &parse::ApparatusShape, at: usize) -> bool {
+    !shape.comments.iter().any(|&(a, b)| a <= at && at < b)
+        && !shape.strings.iter().any(|&(a, b)| a <= at && at < b)
 }
 
-/// The same, keeping the string literals.
-///
-/// One caller wants them: a channel declaration says where it goes *in a string*
-/// — `#ערוץ("ביאור", מיקום: "רגל")` — so blanking them leaves nothing to read.
-/// A parameter and not a second scanner, because the comment rules are the same
-/// rules and the last thing this repository needs is a twelfth of these.
-fn code_only_keeping_strings(body: &str) -> String {
-    code_only_with(body, true)
+/// Whether `name` (a command, or the common prefix of a family of them) appears
+/// as an actual call. A call is live code by construction, so a prose mention,
+/// a comment or a string literal can never be one.
+fn apparatus_is_called(shape: &parse::ApparatusShape, name: &str) -> bool {
+    shape.calls.iter().any(|c| c.name.starts_with(name))
 }
 
-fn code_only_with(body: &str, keep_strings: bool) -> String {
-    let mut out = String::with_capacity(body.len());
-    let mut chars = body.chars().peekable();
-    let mut in_string = false;
-    // Blank a character, keeping newlines so line numbers and line starts stay
-    // exactly where they were.
-    let blank = |c: char| if c == '\n' { '\n' } else { ' ' };
-    while let Some(c) = chars.next() {
-        if in_string {
-            out.push(if keep_strings { c } else { blank(c) });
-            if c == '\\' {
-                if let Some(n) = chars.next() {
-                    out.push(if keep_strings { n } else { blank(n) });
-                }
-            } else if c == '"' {
-                in_string = false;
+/// Whether `name` is handed to the deferred-note wrapper as its layout — the
+/// value of `סוג:`/`kind:`, where there is no bracket for
+/// `apparatus_is_called` to find. The key may not sit inside a comment
+/// or a string literal.
+fn apparatus_is_named_as_kind(body: &str, shape: &parse::ApparatusShape, name: &str) -> bool {
+    for key in ["סוג:", "kind:"] {
+        let mut base = 0;
+        while let Some(i) = body[base..].find(key) {
+            let at = base + i;
+            if is_live_code(shape, at) && body[at + key.len()..].trim_start().starts_with(name) {
+                return true;
             }
+            base = at + key.len();
+        }
+    }
+    false
+}
+
+/// Every `#name(…)` declaration in the shape, keyed by the first positional
+/// argument — which for both of these commands is the thing's own name.
+fn channel_declarations(
+    body: &str,
+    shape: &parse::ApparatusShape,
+    names: &[&str],
+) -> HashMap<String, ChannelDecl> {
+    let mut out: HashMap<String, ChannelDecl> = HashMap::new();
+    for call in &shape.calls {
+        if !call.hash || !names.contains(&call.name.as_str()) {
             continue;
         }
-        match c {
-            '"' => {
-                in_string = true;
-                out.push(if keep_strings { '"' } else { ' ' });
-            }
-            '/' if chars.peek() == Some(&'/') => {
-                out.push(' ');
-                for n in chars.by_ref() {
-                    out.push(blank(n));
-                    if n == '\n' {
-                        break;
-                    }
-                }
-            }
-            '/' if chars.peek() == Some(&'*') => {
-                out.push(' ');
-                let mut star = false;
-                for n in chars.by_ref() {
-                    out.push(blank(n));
-                    if star && n == '/' {
-                        break;
-                    }
-                    star = n == '*';
-                }
-            }
-            _ => out.push(c),
+        let Some((from, to)) = call.args else {
+            continue;
+        };
+        let args = &body[from..to];
+        let Some(first) = args.split(',').next() else {
+            continue;
+        };
+        let key = first.trim().trim_matches('"').trim().to_string();
+        if key.is_empty() {
+            continue;
         }
+        let decl = ChannelDecl {
+            placement: named_arg(args, PLACEMENT_ARG),
+            region: named_arg(args, REGION_ARG),
+            height: named_arg(args, HEIGHT_ARG),
+            has_source: named_arg(args, SOURCE_ARG).is_some(),
+        };
+        // A second declaration of the same name adds to the first, exactly as
+        // the prelude's own `#ערוץ` does.
+        let slot = out.entry(key).or_default();
+        slot.placement = decl.placement.or(slot.placement.take());
+        slot.region = decl.region.or(slot.region.take());
+        slot.height = decl.height.or(slot.height.take());
+        slot.has_source |= decl.has_source;
     }
     out
 }
 
-/// Whether `name` (a command, or the common prefix of a family of them) appears
-/// as an actual call, not merely as text.
-///
-/// A bare `body.contains(name)` reserved 3 cm at the foot of every page for any
-/// document that so much as mentioned `מדף_` in prose. The names here are prefixes
-/// — `מדף_` covers `מדף_א`, `מדף_בדרגה`, … — so this consumes the rest of the
-/// identifier after the prefix and then requires the argument bracket that makes
-/// it a call: `#מדף_א[…]`, `הערה_זרם(…)`. Prose ("the מדף_ command") has a space
-/// or punctuation there, not a bracket, so it no longer triggers the reserve.
-fn apparatus_is_called(body: &str, name: &str) -> bool {
-    let mut base = 0;
-    while let Some(i) = body[base..].find(name) {
-        let start = base + i;
-        let rest = &body[start + name.len()..];
-        // Skip the rest of the identifier (Hebrew letters are alphabetic, so
-        // `is_alphanumeric` covers them), then look at the first character after.
-        let after_ident = rest
-            .char_indices()
-            .find(|(_, ch)| !(ch.is_alphanumeric() || *ch == '_'))
-            .map(|(idx, _)| idx)
-            .unwrap_or(rest.len());
-        if matches!(rest[after_ident..].chars().next(), Some('(') | Some('[')) {
-            return true;
+/// How much page foot a document's *channels* need, in cm — the parser half of
+/// [`channel_region_cm`].
+fn channel_region_cm(
+    body: &str,
+    shape: &parse::ApparatusShape,
+    page_h_cm: Option<f64>,
+) -> Option<f64> {
+    let channels = channel_declarations(body, shape, CHANNEL_DECL);
+    let regions = channel_declarations(body, shape, REGION_DECL);
+
+    // Which channels notes were actually written into. `אזור:` names the target
+    // too — the filing reads the region's placement, and when both arguments
+    // are given the region wins — so a note written `#הערה(אזור: "x")` into a
+    // foot region reserves for it exactly as `#הערה(ערוץ: "x")` does.
+    let mut used: Vec<String> = Vec::new();
+    for call in &shape.calls {
+        if !call.hash {
+            continue;
         }
-        base = start + name.len();
+        // A `#ערוץ("c", אזור: "r")` *declaration* carries the same argument a
+        // note does and writes nothing into anything; counting it would reserve
+        // for an apparatus no note ever touched.
+        if CHANNEL_DECL.contains(&call.name.as_str()) || REGION_DECL.contains(&call.name.as_str()) {
+            continue;
+        }
+        let Some((from, to)) = call.args else {
+            continue;
+        };
+        let args = &body[from..to];
+        let target = named_arg(args, REGION_ARG).or(named_arg(args, CHANNEL_ARG));
+        if let Some(name) = target {
+            if !name.is_empty() && !used.contains(&name) {
+                used.push(name);
+            }
+        }
     }
-    false
+
+    // Each such channel's region, when that region is at the foot of the page.
+    let mut feet: Vec<(String, Option<String>)> = Vec::new();
+    for name in used {
+        if TIER_CHANNELS.contains(&name.as_str()) {
+            continue;
+        }
+        let ch = channels.get(&name).cloned().unwrap_or_default();
+        let region = ch.region.clone().unwrap_or_else(|| name.clone());
+        let rg = regions.get(&region).cloned().unwrap_or_default();
+        // The channel's own placement, else its region's, else the page foot.
+        let placement = ch.placement.clone().or(rg.placement.clone());
+        if let Some(p) = &placement {
+            if !FOOT_PLACEMENT.contains(&p.as_str()) {
+                continue;
+            }
+        }
+        // A channel that hangs off another and asked for no region of its own
+        // is a tier of the native apparatus — indented in its parent's block,
+        // in Typst's balanced series, reserving nothing.
+        if ch.has_source && ch.region.is_none() && ch.height.is_none() {
+            continue;
+        }
+        let height = ch.height.clone().or(rg.height.clone());
+        if !feet.iter().any(|(r, _)| *r == region) {
+            feet.push((region, height));
+        }
+    }
+    if feet.is_empty() {
+        return None;
+    }
+    // Exactly what was asked for plus the furniture the prelude draws, and the
+    // working default for a region that did not say — the same arithmetic the
+    // bands and streams get, because they share the block.
+    let mut total = BAND_RULE_CM + BAND_GAP_CM * (feet.len().saturating_sub(1)) as f64;
+    for (_, height) in &feet {
+        total += match height.as_deref().and_then(|h| length_cm(h, page_h_cm)) {
+            Some(cm) => cm,
+            None => DEFAULT_REGION_CM,
+        };
+    }
+    Some(total)
 }
 
-/// Whether `name` is handed to the deferred-note wrapper as its layout.
-///
-/// `#הערה_בשם("א", סוג: מדף_בדרגה, 1)` puts a genuine page-foot apparatus on the
-/// page, but names the command as a *value* — there is no bracket after it, so
-/// `apparatus_is_called` cannot see it and the page would lose the 3 cm reserve
-/// while carrying the very apparatus that needs it. That failure is invisible in
-/// a compile check and reads on the page as notes running off the bottom edge.
-fn apparatus_is_named_as_kind(body: &str, name: &str) -> bool {
-    for key in ["סוג:", "kind:"] {
-        let mut base = 0;
-        while let Some(i) = body[base..].find(key) {
-            let after = base + i + key.len();
-            if body[after..].trim_start().starts_with(name) {
-                return true;
+/// The band or stream heights a document declared, in cm — the parser half of
+/// [`declared_region_cm`]. The search stays inside the call's own argument
+/// list, which is now bounded by the parser rather than by a hand-balanced
+/// paren scan.
+fn declared_region_cm(
+    body: &str,
+    shape: &parse::ApparatusShape,
+    names: &[&str],
+    page_h_cm: Option<f64>,
+) -> Option<Vec<f64>> {
+    for name in names {
+        for call in &shape.calls {
+            if call.name != *name {
+                continue;
             }
-            base = after;
+            let Some((from, to)) = call.args else {
+                continue;
+            };
+            let rest = &body[from..to];
+            for key in ["גבהים", "heights"] {
+                let Some(k) = rest.find(key) else {
+                    continue;
+                };
+                let after = rest[k + key.len()..].trim_start();
+                let Some(after) = after.strip_prefix(':') else {
+                    continue;
+                };
+                let after = after.trim_start();
+                let Some(open) = after.strip_prefix('(') else {
+                    continue;
+                };
+                let Some(close) = open.find(')') else {
+                    continue;
+                };
+                let items: Vec<&str> = open[..close]
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                // An entry is either a bare length (the array form) or
+                // `"name": length` (the dictionary form), and the height is
+                // whatever follows the last colon in either shape. An empty
+                // dictionary, `(:)`, leaves nothing after the colon and so
+                // reads as *not declared*, which is exactly what it means.
+                let parsed: Option<Vec<f64>> = items
+                    .iter()
+                    .map(|s| length_cm(s.rsplit_once(':').map_or(*s, |(_, v)| v), page_h_cm))
+                    .collect();
+                // One unreadable entry disqualifies the whole list: a partial
+                // sum reserves less than the bands will use, which is the exact
+                // defect this function exists to stop.
+                if let Some(v) = parsed {
+                    if !v.is_empty() {
+                        return Some(v);
+                    }
+                }
+                return None;
+            }
         }
     }
-    false
+    None
 }
 
 impl Default for DocConfig {
@@ -3318,21 +3178,21 @@ mod tests {
 
     #[test]
     fn a_commented_out_channel_reserves_nothing() {
-        // The eleventh scanner's rule, on the twelfth caller: parking an
-        // apparatus behind `//` while you decide about it must not silently cost
-        // 3 cm on every page.
+        // Parking an apparatus behind `//` while you decide about it must not
+        // silently cost 3 cm on every page.
         assert_eq!(
             auto_notes_region_cm("// טקסט#הערה(ערוץ: \"מקורות\")[גוף]\nטקסט"),
             0.0
         );
         // A header whose *text* mentions a channel is text, not an apparatus.
-        // String literals are kept for this scan — that is what makes the
-        // placement readable — so the guard is that a channel argument has to sit
-        // in a real call, and `#כותרת_עליונה("…")` gives it one. This is the
-        // known gap, written down rather than guessed at: the reserve is 3 cm too
-        // generous for a document that quotes the command in a running head, and
-        // 3 cm too small is the failure that puts notes off the paper.
-        assert!(auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")") >= 0.0);
+        // The parser only produces a call for real call syntax, so a quoted
+        // command in a running head cannot reserve anything — the old hand
+        // scanner's known 3 cm over-reserve, written down here so it does not
+        // come back.
+        assert_eq!(
+            auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")"),
+            0.0
+        );
     }
 
     #[test]
@@ -3523,6 +3383,42 @@ mod tests {
         ));
     }
 
+    /// The reserve survives the shapes the hand scanners were written to
+    /// survive, with the parser now doing the lexing.
+    ///
+    /// These are the cases the differential gate covered before the hand
+    /// scanner retired — comments, strings and unbalanced brackets, which are
+    /// what a body looks like while its writer is typing. Each assertion pins
+    /// the parser's answer so the reserve cannot regress into one of the old
+    /// failure modes: a commented-out apparatus reserving a full page foot, a
+    /// string that mentions a command counting as a call, or a document that
+    /// never finishes a bracket stealing space from every page.
+    #[test]
+    fn the_reserve_reads_comments_strings_and_unbalanced_brackets() {
+        // A comment is a place to park an apparatus, not a document that has one.
+        assert_eq!(auto_notes_region_cm("// #מדף_א[הערה]\nטקסט"), 0.0);
+        assert_eq!(auto_notes_region_cm("שלום /* #מדף_א[הערה] */ עולם"), 0.0);
+        assert_eq!(
+            auto_notes_region_cm("// אולי #הערה_זרם(זרם: \"א\")[טקסט]\nעולם"),
+            0.0
+        );
+        // A comment between the halves of a name must not let them meet.
+        assert_eq!(auto_notes_region_cm("מד/* x */ף_א[הערה]"), 0.0);
+        // A string is text, not a call.
+        assert_eq!(auto_notes_region_cm("#let x = \"#מדף_א[א]\""), 0.0);
+        assert_eq!(
+            auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")"),
+            0.0
+        );
+        // Unbalanced, as a body is while its writer is typing: the reserve must
+        // not fall over, and must not invent an apparatus that is not there.
+        assert_eq!(auto_notes_region_cm("#הערה("), 0.0);
+        assert_eq!(auto_notes_region_cm("טקסט#הערה(ערוץ: \"מקורות\""), 0.0);
+        assert_eq!(auto_notes_region_cm("#הגדרות_מדפים(גבהים: (1cm, "), 0.0);
+        // …but a real call that merely has not got its bracket yet still counts.
+        assert_eq!(auto_notes_region_cm("#מדף_א["), 3.0);
+    }
+
     /// A commented-out apparatus is not an apparatus.
     ///
     /// The case the test above stopped one short of. Parking a band while you
@@ -3565,26 +3461,6 @@ mod tests {
             3.0
         );
         assert_eq!(auto_notes_region_cm("#מדף_א[הערה] // הערה"), 3.0);
-    }
-
-    /// Blanking preserves offsets and never joins two identifiers.
-    #[test]
-    fn blanking_a_comment_keeps_the_document_the_same_length() {
-        for doc in [
-            "אלף // בית
-גימל",
-            "אלף /* בית */ גימל",
-            "אלף \"בית\" גימל",
-            "#מדף_א[א] // #מדף_ב[ב]",
-        ] {
-            assert_eq!(
-                code_only(doc).chars().count(),
-                doc.chars().count(),
-                "{doc:?}"
-            );
-        }
-        // A comment between two halves of a name must not let them meet.
-        assert!(!code_only("מד/* x */ף_א[הערה]").contains("מדף_א"));
     }
 
     /// Every command in the prelude that puts notes in the page footer, derived

@@ -45,53 +45,31 @@ export function referenced(body: string): string[] {
 const MAX_DEPTH = 8;
 
 /**
- * Every document this one needs, following inclusions through inclusions.
+ * Every document this one needs, following inclusions through inclusions,
+ * resolving each name as it is reached.
  *
  * `lookup` returns a body by title, or null. The `seen` set is what makes a
  * cycle terminate here rather than in the engine: a loop is still *reported* by
  * the engine, which can see the whole picture, but this walk must not hang
  * before the request is even built.
- */
-export function collect(
-  body: string,
-  lookup: (name: string) => string | null,
-): Part[] {
-  const parts: Part[] = [];
-  const seen = new Set<string>();
-  const walk = (text: string, depth: number) => {
-    if (depth > MAX_DEPTH) return;
-    for (const name of referenced(text)) {
-      if (seen.has(name)) continue;
-      seen.add(name);
-      const found = lookup(name);
-      // A name nothing answers to is *not* dropped from the walk — `seen` still
-      // holds it — but nothing is sent for it. The engine reports it, once, with
-      // a marker on the page, which is the right place for that message: it is
-      // the thing that knows the name could not be resolved.
-      if (found === null) continue;
-      parts.push({ name, body: found });
-      walk(found, depth + 1);
-    }
-  };
-  walk(body, 0);
-  return parts;
-}
-
-/**
- * The same walk, resolving each name as it is reached.
  *
- * `collect` takes a synchronous `lookup`, so its caller had to have every
- * candidate body in hand before starting — and `includedParts` obliged by
- * reading **the entire library** out of IndexedDB and holding it, bodies and
- * all, for the life of the tab. A document that includes one chapter cost a
- * forty-document library forty round trips on the first compile after a name was
- * typed, and eight megabytes retained to resolve one `#כלול`.
+ * The `lookup` is async, and that is the point. A synchronous `lookup` meant
+ * the caller had to have every candidate body in hand before starting — and
+ * `includedParts` obliged by reading **the entire library** out of IndexedDB
+ * and holding it, bodies and all, for the life of the tab. A document that
+ * includes one chapter cost a forty-document library forty round trips on the
+ * first compile after a name was typed, and eight megabytes retained to resolve
+ * one `#כלול`.
  *
  * The header of this file states the opposite intent — *"to do it without
  * sending the whole library on every keystroke — a writer with forty documents
  * open would otherwise pay for all forty on every pause in typing"*. The
  * *sending* was fixed; the *reading* was not, and the `lookup` callback was
  * already the right shape for it.
+ *
+ * There was once a sync twin of this walk, and it was deleted: its only caller
+ * was a test, and two copies of the visit/cycle/`MAX_DEPTH` logic could diverge
+ * in exactly the way the test was supposed to catch. One walk, one cap.
  *
  * Serial rather than parallel, deliberately: the walk is depth-first and a
  * chapter's own inclusions are not known until it has been read, so there is
@@ -111,7 +89,9 @@ export async function collectAsync(
       seen.add(name);
       const found = await lookup(name);
       // A name nothing answers to is *not* dropped from the walk — `seen` still
-      // holds it — but nothing is sent for it. See `collect`.
+      // holds it — but nothing is sent for it. The engine reports it, once, with
+      // a marker on the page, which is the right place for that message: it is
+      // the thing that knows the name could not be resolved.
       if (found === null) continue;
       parts.push({ name, body: found });
       await walk(found, depth + 1);

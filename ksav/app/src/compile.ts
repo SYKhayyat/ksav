@@ -423,12 +423,15 @@ async function includedParts(body: string): Promise<{ name: string; body: string
   if (!parts.referenced(body).length) return [];
   // Titles to ids, off the in-memory index. This is not a read of anything: the
   // library index is already resident, and it is the *bodies* that live in
-  // IndexedDB. Built once per call because a title can be renamed between two.
+  // IndexedDB. Built once per call because a title can be renamed between two,
+  // and in one pass — two full scans of the library on a debounced keystroke is
+  // exactly the tax this function exists to avoid paying elsewhere.
   const idOf = new Map<string, string>();
+  const updatedOf = new Map<string, number>();
   for (const entry of docs.library()) {
     if (!idOf.has(entry.title)) idOf.set(entry.title, entry.id);
+    updatedOf.set(entry.id, entry.updated);
   }
-  const updatedOf = new Map(docs.library().map((e) => [e.id, e.updated]));
   // One read per name the document actually asks for, transitively. The loop
   // this replaced read *every* document in the library — see `collectAsync`.
   const found = await parts.collectAsync(body, async (name) => {

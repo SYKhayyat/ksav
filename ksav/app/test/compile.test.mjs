@@ -24,6 +24,7 @@
 import { check, ok, notOk, fakeView, installChrome } from "./harness.mjs";
 import { bodyOnScreen, compileForExport, reflowableHtml } from "../.tmp-test/compile.mjs";
 import { analyze } from "../.tmp-test/brackets.mjs";
+import * as docs from "../.tmp-test/docs.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -109,6 +110,45 @@ export async function run() {
       const seen = backendThat({ ok: true, pages_svg: [], diagnostics: [] });
       await compileForExport({ pdf_pages: "4-9" });
       check("the page range reaches the engine", seen[0].config.pdf_pages, "4-9");
+    }
+
+    // ------------------------------------------------ the parts, by title
+    {
+      // The chapters a request carries are resolved by *title* off the in-memory
+      // library index, with one read per name the document actually asks for.
+      // The body has to survive the map-building, not just the directive scan.
+      await docs.createDoc("פרק א", "גוף א");
+      runtime.setView(fakeView('#כלול("פרק א")\n', 0));
+      const seen = backendThat({ ok: true, pages_svg: [], diagnostics: [] });
+      await compileForExport();
+      check("an included chapter is sent by title", seen[0].opts.parts, [
+        { name: "פרק א", body: "גוף א" },
+      ]);
+
+      // Two documents sharing a title are possible, and the library is ordered
+      // newest first, so the one being worked on wins — a resolution that
+      // depends on the map keeping the first title it sees.
+      await docs.createDoc("פרק א", "גוף החדש");
+      runtime.setView(fakeView('#כלול("פרק א")\n', 0));
+      const newer = backendThat({ ok: true, pages_svg: [], diagnostics: [] });
+      await compileForExport();
+      check("the newer of two titles wins", newer[0].opts.parts, [
+        { name: "פרק א", body: "גוף החדש" },
+      ]);
+    }
+
+    {
+      // The title/id/updated maps are built in one pass over the library index,
+      // on the debounced typing path. A second `docs.library()` scan beside this
+      // one is the regression that issue Lamdan 5 exists to stop — and the fence
+      // is read from source because the maps are local to the function.
+      const src = await readFile(path.join(SRC, "compile.ts"), "utf8");
+      const start = src.indexOf("async function includedParts");
+      ok("includedParts was found", start > 0);
+      const rest = src.slice(start);
+      const fn = rest.slice(0, rest.indexOf("\nexport async function sourceForExport"));
+      const scans = (fn.match(/docs\.library\(\)/g) ?? []).length;
+      check("includedParts scans the library once", scans, 1);
     }
 
     {

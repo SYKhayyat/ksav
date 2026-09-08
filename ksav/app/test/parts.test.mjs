@@ -14,7 +14,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { check, notOk, ok } from "./harness.mjs";
-import { referenced, collect } from "../.tmp-test/parts.mjs";
+import { referenced, collectAsync } from "../.tmp-test/parts.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
@@ -75,22 +75,22 @@ export async function run() {
 
   // --------------------------------------------------------------- collecting
   {
-    const got = collect('#כלול("א")', from({ א: "שלום" }));
+    const got = await collectAsync('#כלול("א")', from({ א: "שלום" }));
     check("a chapter is collected", got, [{ name: "א", body: "שלום" }]);
   }
   {
     // Transitively: a chapter that includes a section pulls the section too.
-    const got = collect('#כלול("א")', from({ א: '#כלול("ב")', ב: "עלה" }));
+    const got = await collectAsync('#כלול("א")', from({ א: '#כלול("ב")', ב: "עלה" }));
     check("through a chain", got.map((p) => p.name), ["א", "ב"]);
   }
   {
     // The check that has to exist here rather than only in the engine: a loop
     // must terminate *before* the request is built, or nothing is ever sent.
-    const got = collect('#כלול("א")', from({ א: '#כלול("ב")', ב: '#כלול("א")' }));
+    const got = await collectAsync('#כלול("א")', from({ א: '#כלול("ב")', ב: '#כלול("א")' }));
     check("a loop terminates", got.map((p) => p.name), ["א", "ב"]);
   }
   {
-    const got = collect('#כלול("א")\n#כלול("ב")', from({ א: "x" }));
+    const got = await collectAsync('#כלול("א")\n#כלול("ב")', from({ א: "x" }));
     check("an unknown name is simply not sent", got.map((p) => p.name), ["א"]);
     // …and is not sent as an empty body either, which would look to the engine
     // like a chapter that exists and is blank — so the writer would get a silent
@@ -102,7 +102,7 @@ export async function run() {
     // attempted, which is what keeps this off the hot path for everybody who
     // writes one file.
     let asked = 0;
-    const got = collect("שלום עולם", () => {
+    const got = await collectAsync("שלום עולם", () => {
       asked++;
       return null;
     });
@@ -113,7 +113,7 @@ export async function run() {
     // Depth is bounded, so a chain long enough to be a mistake cannot run away.
     const chain = {};
     for (let i = 0; i < 30; i++) chain[`p${i}`] = `#כלול("p${i + 1}")`;
-    const got = collect('#כלול("p0")', from(chain));
+    const got = await collectAsync('#כלול("p0")', from(chain));
     notOk("a runaway chain is cut", got.length > 20);
   }
 }

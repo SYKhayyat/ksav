@@ -13,7 +13,9 @@ use ksav_engine::{docfile, probe};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let path = args.first().expect("usage: glue file.ksav [top_cm] [bottom_cm] [outdir]");
+    let path = args
+        .first()
+        .expect("usage: glue file.ksav [top_cm] [bottom_cm] [outdir]");
     let text = std::fs::read_to_string(path).expect("read");
     let doc = docfile::read(&text);
     let body = doc.source();

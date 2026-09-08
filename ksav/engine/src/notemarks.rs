@@ -230,13 +230,7 @@ fn native_entry_marker(frame: &Frame, main: &Source, offset: usize) -> Option<No
     }
     let mut marker = String::new();
     let mut at: Option<usize> = None;
-    scan_entry(
-        frame,
-        main,
-        offset,
-        &mut marker,
-        &mut at,
-    );
+    scan_entry(frame, main, offset, &mut marker, &mut at);
     // An entry keeps its marker run and its body on either side of a subframe
     // split, but the body is the first thing after the run (while the run's own
     // number is generated, the body is the writer's own text). Collect the run,
@@ -301,18 +295,14 @@ fn scan_entry_inner(
                 typst::introspection::Tag::End(..) if depth > 0 => depth -= 1,
                 _ => {}
             },
-            FrameItem::Group(g) => {
-                scan_entry_inner(&g.frame, main, offset, marker, at, depth)
-            }
-            FrameItem::Text(text) if depth == 0 => {
-                match first_byte(&text.glyphs, main, offset) {
-                    Some(b) => {
-                        *at = Some(b);
-                        return;
-                    }
-                    None => marker.push_str(&text.text),
+            FrameItem::Group(g) => scan_entry_inner(&g.frame, main, offset, marker, at, depth),
+            FrameItem::Text(text) if depth == 0 => match first_byte(&text.glyphs, main, offset) {
+                Some(b) => {
+                    *at = Some(b);
+                    return;
                 }
-            }
+                None => marker.push_str(&text.text),
+            },
             _ => {}
         }
     }
@@ -588,4 +578,3 @@ mod tests {
         assert_eq!(marks.len(), 1);
     }
 }
-

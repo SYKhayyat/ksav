@@ -1250,6 +1250,7 @@
   הזחה: (0em, 1.4em, 2.8em, 4.2em, 5.6em, 7em, 8.4em, 9.8em, 11.2em),  // per-tier indent (nesting)
   תוויות: none,        // none, or an array of per-tier bold label prefixes ("", "על הערה: ", …)
   ריווח: 0.85em,       // gap between footnote entries
+  ריווח_פסקאות: none,  // paragraph spacing INSIDE a multi-paragraph entry — none = the entry keeps the document's
   // What stands at the head of an entry, as a list of ingredients in the order
   // they should be printed — see `_eh_head`.
   ראש: ("מספר", "תווית"),
@@ -1261,6 +1262,24 @@
   מספור: none,
 )
 #let _fn_cfg = state("ksav-fn-cfg", _fn_defaults)
+// Paragraph rhythm inside one entry — the space between the paragraphs of a
+// multi-paragraph note. The gap *between* entries is `ריווח`; this is the
+// spacing *within* one entry, which `ריווח` cannot reach and which is the
+// normal case in a sefer (note text runs five times the body).
+//
+// Measured on this engine, `block(spacing:)` cannot reach inside a native
+// footnote entry — Typst resolves the entry at page level and leaves every
+// block-spacing lever at the document's own value — but `par(spacing:)` can.
+// So the note carries its tier's value here, and `_fn_rhythm_wrap` applies it
+// through the same lever `#מסמך` uses for the document's own paragraph spacing
+// (`set par(spacing: …)`). `none` is the byte-identical no-op: a document that
+// never mentions `ריווח_פסקאות` — or a tier in a tuple that does — lays out
+// exactly as it did before this knob existed.
+#let _fn_rhythm = state("ksav-fn-rhythm", none)
+#let _fn_rhythm_wrap(entry) = context {
+  let r = _fn_rhythm.get()
+  if r == none { entry } else { [#show par: set par(spacing: r); #entry] }
+}
 // What one note may overrule: its own text and its own indent. Not `מספור` — the
 // scheme is the sequence's, and a note overriding it with a single value would
 // leave the per-tier rank numbering altogether — and not `ריווח`, which is the gap
@@ -1286,7 +1305,11 @@
 // default that this overrules.
 //
 // `ריווח` stays out of `_fn_own_keys`: the gap is *between* two entries and
-// belongs to neither of them.
+// belongs to neither of them. So does `ריווח_פסקאות`, for the same reason in
+// the other direction: it spaces the paragraphs of one entry, which a single
+// note could own, but the tuple form is the tiers' — and the tuple is the
+// convention. The per-note override path hands unknown keys to `footnote`,
+// which refuses them by name.
 #let הגדרות_הערות(..opts) = {
   _cfg_validate("הגדרות_הערות", opts, _fn_defaults)
   // Refused here and not inside the update, for the reason `#הגדרות_מספור`
@@ -2203,6 +2226,12 @@
 #let הערה_בדרגה(דרגה, body, שם: none, ציטוט: none, _ערוץ: none, _מספור: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
   let cfg = _cfg_with(_nt_under(_fn_cfg.get()), own)
+  // The entry's paragraph rhythm, carried here because the wrapper that applies
+  // it runs at page level and cannot see a tier. Read at entry creation — the
+  // wrapper's own `context` resolves `_fn_rhythm` per note — so nesting works:
+  // an inner note re-arms the state for itself and the outer note's update
+  // runs after its body was evaluated, restoring its own value.
+  _fn_rhythm.update(_fn_pick(cfg.at("ריווח_פסקאות", default: none), דרגה, none))
   // Not ours: handed to `footnote` at both call sites below, so its own error
   // names it. A note takes no other named argument, which is precisely why a
   // silent drop here would be a typo that formats nothing and says nothing.
@@ -7699,6 +7728,16 @@
   // per note, and `_fn_gap_base` is how that command finds out what it is
   // overruling. See `_fn_wrap`.
   _fn_gap_base.update(ריווח_הערות)
+  // The paragraph-rhythm wrapper. `#הגדרות_הערות(ריווח_פסקאות:)` spaces the
+  // paragraphs *inside* a multi-paragraph entry, and the per-note value rides
+  // `_fn_rhythm`, which `#הערה_בדרגה` updates to its own tier's. Registered
+  // here — in the document wrapper, whose block IS the document — because a
+  // `show` emitted from `#הגדרות_הערות`'s own body would scope to that body
+  // and do nothing: a `set` propagates to the caller, a `show` does not. The
+  // wrapper returns an entry untouched when its rhythm is `none`, so a
+  // document that never mentions `ריווח_פסקאות` lays out byte-identically to
+  // one written before this knob existed.
+  show footnote.entry: _fn_rhythm_wrap
   // The reserve, put where the read-only footer can see it. It is what tells the
   // page-foot apparatus how many of its notes fit here and how many go to the
   // next page — and it is *declared*, which is the whole reason that walk

@@ -21,7 +21,7 @@
 
 mod common;
 
-use common::render;
+use common::{line_with, render, render_sized, visual_lines};
 use ksav_engine::{probe, DocConfig};
 
 /// The corpus document by that name.
@@ -577,5 +577,165 @@ fn a_duplicated_note_name_says_so_at_the_reference() {
     assert!(
         runs.iter().any(|r| r.text.contains("כפול")),
         "a duplicated note name passed in silence"
+    );
+}
+
+/// A document that never sets `ריווח_פסקאות` lays out byte-identically to one
+/// written before the knob existed.
+///
+/// The wrapper that applies the rhythm is registered on **every** document by
+/// `#מסמך`, so the default has to be a true no-op and not merely an unset one:
+/// the promise `_fn_wrap` keeps for tier 1, kept for the whole apparatus. Asked
+/// of every run's place, size and text rather than of the paragraph gaps, so a
+/// shift anywhere — the number orphaning onto its own line, an entry nudged —
+/// fails the test and names the drift.
+#[test]
+fn the_untouched_paragraph_rhythm_is_byte_identical() {
+    let doc = |cfg: &str| {
+        format!(
+            "{cfg}מבוא#הערה[פסקה ראשונה.\n\nפסקה שניה.\n\nפסקה שלישית.] \
+             סיום#הערה[הערה יחידה]. המשך#הערה_ב[הערה על הערה.\n\nפסקה שניה].\n"
+        )
+    };
+    let shape = |runs: &[probe::TextRun]| -> Vec<(i32, i32, i32, String)> {
+        runs.iter()
+            .map(|r| {
+                (
+                    (r.x * 100.0).round() as i32,
+                    (r.y * 100.0).round() as i32,
+                    (r.size * 100.0).round() as i32,
+                    r.text.clone(),
+                )
+            })
+            .collect()
+    };
+    let plain = shape(&render(&doc("")));
+    // Configuring the apparatus for something else still registers the wrapper.
+    let other = shape(&render(&doc("#הגדרות_הערות(ריווח: 0.85em)\n")));
+    // And asking for the no-op by its own name.
+    let none = shape(&render(&doc("#הגדרות_הערות(ריווח_פסקאות: none)\n")));
+    assert_eq!(plain, other, "configuring the apparatus moved a footnote");
+    assert_eq!(
+        plain, none,
+        "an explicit `none` rhythm is not the byte-identical no-op it promises"
+    );
+}
+
+/// `#הגדרות_הערות(ריווח_פסקאות:)` spaces the paragraphs *inside* one entry,
+/// and the gap between entries (`ריווח`) is a separate space it leaves alone.
+///
+/// The two knobs being independent is the whole point: a multi-paragraph note
+/// in a sefer runs five times the body, and a writer wants its paragraphs
+/// tighter than the prose's while the notes still read as one block each.
+#[test]
+fn the_paragraph_rhythm_inside_an_entry_is_settable() {
+    let gaps = |rhythm: &str| {
+        let body = format!(
+            "#הגדרות_הערות(ריווח_פסקאות: {rhythm})\n\
+             מבוא#הערה[פסקה ראשונה.\n\nפסקה שניה.\n\nפסקה שלישית.] \
+             סיום#הערה[הערה יחידה].\n"
+        );
+        let runs = render(&body);
+        let mut paras: Vec<f64> = runs
+            .iter()
+            .filter(|r| r.text.contains("פסקה"))
+            .map(|r| r.y)
+            .collect();
+        paras.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(paras.len(), 3, "the three paragraphs did not print");
+        let entry2 = runs
+            .iter()
+            .find(|r| r.text.contains("הערה יחידה"))
+            .map(|r| r.y)
+            .expect("the second entry did not print");
+        let para_gaps = [paras[1] - paras[0], paras[2] - paras[1]];
+        (para_gaps, entry2 - paras[2])
+    };
+    let (tight_gaps, tight_gap_between) = gaps("0em");
+    let (loose_gaps, loose_gap_between) = gaps("1em");
+    for (tight, loose) in tight_gaps.iter().zip(loose_gaps.iter()) {
+        assert!(
+            *loose > *tight + 4.0,
+            "1em put two paragraphs {loose:.2}pt apart and 0em {tight:.2}pt — \
+             the rhythm is not reaching the entry"
+        );
+    }
+    assert!(
+        (tight_gap_between - loose_gap_between).abs() < 1.0,
+        "the inter-entry gap changed: 0em left {tight_gap_between:.2}pt \
+         between entries and 1em {loose_gap_between:.2}pt — \
+         ריווח_פסקאות must not touch ריווח"
+    );
+}
+
+/// The rhythm is per-tier, following the tuple convention: `(none, 1em)` leaves
+/// tier-1 entries at the document's spacing and spaces tier-2 entries by 1em.
+///
+/// The tier is not discoverable at the page level where the wrapper runs, so
+/// the note carries its own tier's value to the wrapper. Nested notes are the
+/// point: an inner note re-arms the value for itself, and the outer note's
+/// update runs after its body was evaluated, restoring its own.
+///
+/// Read off visual lines rather than runs — a tier-2 entry's words come back
+/// one run each, where a tier-1 entry's come back as one run, so a needle that
+/// matches text would pass for one tier and miss for the other.
+#[test]
+fn the_paragraph_rhythm_is_per_tier() {
+    let note = concat!(
+        "מבוא#הערה[אחת ראשונה.\n\nשתיים שנייה א.] ",
+        "המשך#הערה_ב[שלוש שלישית.\n\nארבע רביעית].\n",
+    );
+    let doc = |rhythm: &str| format!("#הגדרות_הערות(ריווח_פסקאות: {rhythm})\n{note}");
+    let gaps = |body: &str| -> (f64, f64) {
+        let lines = visual_lines(&render(body));
+        let y = |needle: &str| -> f64 { line_with(&lines, needle).y };
+        let tier1 = y("שתיים שנייה") - y("אחת ראשונה");
+        let tier2 = y("ארבע רביעית") - y("שלוש שלישית");
+        (tier1, tier2)
+    };
+    // Both tiers explicitly `none`: the per-tier control, rendered with the
+    // wrapper active and doing nothing.
+    let (c1, c2) = gaps(&doc("(none, none)"));
+    // Tier 1 `none`, tier 2 `3em`: 3em is unambiguous at the tier's own size
+    // (9.2pt), where 1em would land *inside* the document's paragraph spacing
+    // and read as no change.
+    let (p1, p2) = gaps(&doc("(none, 3em)"));
+    assert!(
+        (p1 - c1).abs() < 1.0,
+        "tier 1 changed when it was asked for none: {c1:.2}pt before, {p1:.2}pt with \
+         ריווח_פסקאות: (none, 3em)"
+    );
+    assert!(
+        p2 > c2 + 8.0,
+        "tier 2 kept {c2:.2}pt between its paragraphs when asked for 3em and got \
+         {p2:.2}pt — the per-tier value is not reaching the page"
+    );
+}
+
+/// A long multi-paragraph entry still splits across pages under the rhythm.
+///
+/// The continuation machinery sits on the entry, not on the paragraphs, so a
+/// rhythm that inflates the entry must not cost it the split — and nothing may
+/// print below the page number, which is the whole apparatus's invariant.
+#[test]
+fn a_long_multi_paragraph_entry_still_splits_with_the_rhythm() {
+    let mut paras = String::new();
+    for i in 0..24 {
+        paras.push_str(&format!(
+            "\n\nפסקה מספר {i} אורכת מספיק כדי שההערה תתפרק על פני עמודים \
+             ולכן כל אחת מהפסקאות האלו נמשכת על כמה שורות בגוף ההערה, \
+             והגוף הזה ארוך יותר משטח ההערות של עמוד שלם.",
+        ));
+    }
+    let body = format!("#הגדרות_הערות(ריווח_פסקאות: 1em)\nמבוא#הערה[פתיחה.{paras}].\n");
+    let (runs, sizes) = render_sized(&body, &DocConfig::default());
+    assert!(
+        sizes.len() >= 2,
+        "the long entry did not split onto a second page"
+    );
+    let low = max_y(&runs);
+    assert!(
+        low <= PAGE_FOOT,
+        "a split entry under the rhythm reached y={low:.2}, past the page number"
     );
 }

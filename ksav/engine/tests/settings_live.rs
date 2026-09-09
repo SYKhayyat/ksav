@@ -53,7 +53,11 @@ const BLOCKS: &[Block] = &[
         dict: "_fn_defaults",
         before: "",
         command: "הגדרות_הערות",
-        document: "פתיחה#הערה[גוף ההערה הראשונה]. המשך#הערה_ב[הערה על הערה]. סיום#הערה[גוף ההערה השניה].\n",
+        // One multi-paragraph note, because `ריווח_פסקאות` spaces the paragraphs
+        // *inside* an entry and a document of single-paragraph notes renders
+        // every value of it identically — the one key in this block that needs
+        // two paragraphs to exist at all.
+        document: "פתיחה#הערה[גוף ההערה הראשונה.\n\nפסקה שניה בגוף]. המשך#הערה_ב[הערה על הערה]. סיום#הערה[גוף ההערה השניה].\n",
         groups: &[],
     },
     Block {
@@ -190,6 +194,7 @@ const CONTRAST: &[(&str, &str, &str)] = &[
     // lengths and spacings
     ("גודל", "0.6em", "1.4em"),
     ("ריווח", "0em", "6em"),
+    ("ריווח_פסקאות", "0em", "1em"),
     ("ריווח_בין", "0em", "4em"),
     ("ריווח_פריט", "0em", "3em"),
     ("ריווח_לפני", "0em", "5em"),

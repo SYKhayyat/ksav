@@ -25,6 +25,7 @@ Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #2
 - [ ] #5 parser/config/installer hardening. (High)
 - [ ] #3 i18n completeness + e2e switch test. (High)
 - [ ] #15 two-document glue second flow (probe exists). (High)
+- [ ] #67 Typst package resolution missing — @preview/@local imports fail. (High)
 
 ## Phase 4 — Mediums (engine quality)
 - [ ] #63 include diamond, #62 tokenizer quadratic, #60 undecodable assets, #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.

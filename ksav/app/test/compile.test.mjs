@@ -22,7 +22,7 @@
 //     its *caller* was going to do, true for one caller and false for two.
 
 import { check, ok, notOk, fakeView, installChrome } from "./harness.mjs";
-import { bodyOnScreen, compileForExport, reflowableHtml } from "../.tmp-test/compile.mjs";
+import { bodyOnScreen, compileForExport, reflowableHtml, runCompile } from "../.tmp-test/compile.mjs";
 import { analyze } from "../.tmp-test/brackets.mjs";
 import * as docs from "../.tmp-test/docs.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
@@ -86,6 +86,30 @@ export async function run() {
       runtime.setView(fakeView(doc, 0));
       check("nothing to repair", analyze(doc).problems, []);
       ok("so the body ends with the writer's own text", bodyOnScreen().body.endsWith(doc));
+    }
+
+    {
+      // The RenderPlan is decided once per compile. `runCompile` derives what
+      // the compiler will see — the healed copy behind the preamble — and
+      // `bodyOnScreen` answers from the plan that *landed*: a click is a
+      // question about the page that was drawn, not about the document as it
+      // stands this instant. Three call sites used to compose this answer
+      // independently; the plan is the one derivation they all read.
+      const doc = "פתיחה#הערה[לא נסגר\nעוד שורה\n";
+      runtime.setCurrentDoc(await docs.createDoc("תוכנית", doc));
+      runtime.setView(fakeView(doc, 0));
+      const seen = backendThat({ ok: true, pages_svg: [], diagnostics: [] });
+      await runCompile();
+      const onScreen = bodyOnScreen();
+      check("the plan on screen is exactly what the engine was sent", onScreen.body, seen[0].body);
+      ok("the heal is reported, not silent", onScreen.healed > 0);
+      check("and it counts the analyzer's own repairs", onScreen.healed, analyze(doc).problems.length);
+
+      // The writer keeps typing while the next debounce runs; a click in that
+      // window still maps through the layout on screen, so the plan holds until
+      // a newer compile of this same document lands.
+      runtime.setView(fakeView(doc + "עוד מילה\n", 0));
+      check("an edited document still answers with the page that was drawn", bodyOnScreen(), onScreen);
     }
 
     // ------------------------------------------------ what the export asks for

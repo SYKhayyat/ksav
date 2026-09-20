@@ -8,7 +8,7 @@ Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #2
 - #12 does not exist.
 
 ## Phase 1 — Foundations first (unblock everything below)
-- [ ] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
+- [x] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
 - [ ] #27 English vocab via regex → generate from facts, not regex over ksav.typ. (High)
 - [ ] #29 commands registry prose-in-wire → descriptions out of the wire contract. (Medium)
 - [ ] #28 template coverage gate → one test tying every template guarantee to a reachable command set. (Medium)

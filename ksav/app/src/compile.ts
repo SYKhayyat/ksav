@@ -207,8 +207,7 @@ export async function compileUnfocused(): Promise<number> {
       const stored = await docs.getDoc(entry.id);
       if (!stored) continue;
       const text = entry.state.doc.toString();
-      const { problems, healed } = analyze(text);
-      const { body } = withPreamble(problems.length ? healed : text);
+      const { body } = planFor(text);
       const res = await backend.compile(
         body,
         docConfigFor(stored.config),
@@ -268,22 +267,64 @@ export function preambleOffset(): number {
 }
 
 /**
- * The exact text the pages on screen were rendered from, and its line offset.
+ * What the compiler will see, decided once per compile.
  *
- * Both directions of jump (`jump.ts`) ask about a *layout*, so they have to ask
- * about the same text the layout came from — including the speculative heal.
- * A document mid-`#הערה[` is compiled healed and shown healed; asking where a
- * click landed in the unhealed text would be asking about a page that was never
- * drawn, and on a document with an unbalanced bracket that is every page.
+ * Three places used to compose this independently — `runCompile`, the
+ * unfocused-tab compile and `bodyOnScreen` — each carrying the same two
+ * sentences about the speculative heal and the preamble in its own voice. They
+ * all ask for a RenderPlan now, and get the same answer for the same text: the
+ * healed copy (a document mid-`#הערה[` lays out instead of blanking the preview
+ * with an error pointing at end-of-file), the custom-command preamble in front,
+ * and the line offset that maps the engine's line numbers back onto the
+ * writer's.
  *
- * Healing never inserts or removes a newline, which is what lets the offset be a
- * line count at all — the same invariant `diagview` rests on, and the same test
- * holds it.
+ * `healed` is how many repairs the heal made. The status line says so when it
+ * is not zero — silently showing a page built from text the writer did not type
+ * would be worse than the blank preview this replaces.
+ *
+ * The law that lets `offset` be a line count at all is one sentence, and it is
+ * stated here because this is now the only place that depends on it: **healing
+ * never inserts or removes a newline**, so a line the engine reports about the
+ * healed copy is the same line in what the writer typed. The test that holds
+ * it lives in `diagview.test.mjs` (*healing moves no line*).
+ *
+ * The export compiles keep composing the writer's own text with
+ * `withPreamble` and deliberately do not go through this: an unbalanced
+ * document must fail an export with a compile error rather than quietly
+ * exporting a repair, and `compile.test.mjs` holds that asymmetry in place.
  */
-export function bodyOnScreen(): { body: string; offset: number } {
-  const doc = runtime.docText();
-  const { problems, healed } = analyze(doc);
-  return withPreamble(problems.length ? healed : doc);
+export type RenderPlan = {
+  /** The writer's text, healed if it did not balance, preamble in front. */
+  body: string;
+  /** Preamble lines in front of the writer's first line. */
+  offset: number;
+  /** Repairs the speculative heal made — zero when the text balanced. */
+  healed: number;
+};
+
+function planFor(text: string): RenderPlan {
+  const { problems, healed } = analyze(text);
+  return { ...withPreamble(problems.length ? healed : text), healed: problems.length };
+}
+
+/**
+ * The plan the pages on screen were rendered from.
+ *
+ * `bodyOnScreen` answers from this once a compile has landed, because both
+ * directions of jump ask about a *layout*: a document mid-`#הערה[` is compiled
+ * healed and shown healed, and asking where a click landed in anything else —
+ * the raw text, or a fresh heal of a document the writer has edited since — is
+ * asking about a page that was never drawn. The document id rides along so a
+ * switch can never answer a click about the sefer being left; until the
+ * arriving document's own compile lands, the fallback below derives, which is
+ * all this function ever did.
+ */
+let lastPlan: { docId: string | null; plan: RenderPlan } | null = null;
+
+/** The text the pages on screen came from, its offset, and its repair count. */
+export function bodyOnScreen(): RenderPlan {
+  if (lastPlan && lastPlan.docId === (runtime.currentDoc?.id ?? null)) return lastPlan.plan;
+  return planFor(runtime.docText());
 }
 
 export async function runCompile() {
@@ -315,17 +356,12 @@ export async function runCompile() {
   status.className = "";
   const t0 = performance.now();
   const userDoc = runtime.docText();
-  // Speculative heal. A document is unbalanced for as long as it takes to type
-  // the body of a `#הערה[`, and compiling that raw would blank the preview and
-  // replace it with an error pointing at end-of-file. Compile the repaired copy
-  // instead, and say so — the writer keeps seeing their page while they type.
-  // The document itself is never modified; only what we hand the compiler is.
-  const { problems, healed } = analyze(userDoc);
-  const healedCount = problems.length;
-  // Healing never inserts or removes a newline, so a line the engine reports
-  // about the healed copy is the same line in what the writer typed. `diagview`
-  // has the test that keeps that true.
-  const { body, offset } = withPreamble(healedCount ? healed : userDoc);
+  // The one derivation of what the compiler will see. `bodyOnScreen` reads this
+  // compile's plan once it lands, and nothing downstream re-derives the heal —
+  // the three independent recompositions this module used to carry are the
+  // RenderPlan's reason for existing.
+  const plan = planFor(userDoc);
+  const { body, offset, healed: healedCount } = plan;
   try {
     const res = await backend.compile(body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
@@ -350,6 +386,10 @@ export async function runCompile() {
     // there and scheduled the layout that belongs to them.
     if ((runtime.currentDoc?.id ?? null) !== forDoc) return;
     runtime.setLastResult(res);
+    // The pages on screen are now this compile's. `bodyOnScreen` answers from
+    // the plan until the next one lands, because a click is a question about
+    // the page that was drawn, not about the document as it stands this instant.
+    lastPlan = { docId: forDoc, plan };
     const ms = Math.round(performance.now() - t0);
     if (res.pages_svg.length) {
       // Every preview pane, from one compile. See `previewHosts`.

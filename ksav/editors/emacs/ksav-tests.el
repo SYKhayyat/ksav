@@ -132,13 +132,13 @@ for."
     (should (assoc op ksav-git-arguments))
     (dolist (arg (cdr (assoc op ksav-git-arguments)))
       ;; Every argument has a prompt, or `ksav-git' would ask for it with nil.
-      (should (stringp (alist-get arg ksav-git-prompts)))))
+      (should (stringp (cdr (assoc arg ksav-git-prompts))))))
   ;; And nothing in the table is an operation the engine does not have.
   (dolist (row ksav-git-arguments)
     (should (member (car row) ksav-git-operations)))
   ;; Every flag is an argument something actually asks for.
   (dolist (flag ksav-git-flags)
-    (should (cl-some (lambda (row) (memq flag (cdr row))) ksav-git-arguments))))
+    (should (cl-some (lambda (row) (member flag (cdr row))) ksav-git-arguments))))
 
 (ert-deftest ksav-git-refuses-an-operation-the-engine-does-not-have ()
   (should-error (ksav-git--call "rebase")))

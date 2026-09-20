@@ -478,6 +478,13 @@ export function numericClaimsIn(text) {
     // Written as `[\d,]*` it swallowed the one in "CodeMirror 6, command palette"
     // and reported a claim that six commands exist — the sweep's first catch was
     // itself, which is the right order for a sweep to fail in.
+    //
+    // A number a `#` holds is an issue reference, not a count. The work queue
+    // in `PLAN.md` writes `#29 commands registry prose-in-wire`, and the sweep
+    // read that as a claim that twenty-nine commands exist — which turned CI
+    // red on a commit that changed nothing but documentation. A count in prose
+    // is never written with the `#` glued on, so the reference shape is
+    // declined here rather than the queue being reworded around the sweep.
     // A space inside a *noun* is a line wrap waiting to happen.
     //
     // The gap between the number and the noun was already `\s+`, so it crossed a
@@ -490,7 +497,7 @@ export function numericClaimsIn(text) {
     // The sweep's job is to read prose, and prose does not know where its lines
     // end. Every space in a pattern is `\s+`.
     const re = new RegExp(
-      String.raw`\b(\d{1,3}(?:,\d{3})+|\d+)\s+(?:[\w'’-]+\s+){0,2}(${pattern.replace(/ /gu, String.raw`\s+`)})\b`,
+      String.raw`\b(?<!#)(\d{1,3}(?:,\d{3})+|\d+)\s+(?:[\w'’-]+\s+){0,2}(${pattern.replace(/ /gu, String.raw`\s+`)})\b`,
       "gu",
     );
     for (const m of flat.matchAll(re)) {

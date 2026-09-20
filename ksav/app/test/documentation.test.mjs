@@ -136,6 +136,23 @@ export async function run() {
       }
     }
     check("no living page states a fenced count that nothing checks", stray, []);
+
+    // The two shapes the sweep must still tell apart, asserted here so the
+    // retreat above cannot rot back into reporting references: `PLAN.md`'s
+    // work queue writes `#29 commands registry`, and the sweep read the `29`
+    // as a count of commands — CI went red on a commit that touched nothing
+    // but documentation. The `#` shape is an issue reference and is declined;
+    // the same words without it are prose, and the noun still fences them.
+    check(
+      "an issue reference is not read as a count claim",
+      numericClaimsIn("#29 commands registry prose-in-wire").map((c) => c.number),
+      [],
+    );
+    check(
+      "…while the same words without the `#` still are",
+      numericClaimsIn("29 commands registry prose-in-wire").map((c) => c.number),
+      [29],
+    );
   }
 
   // ── the marked numbers ────────────────────────────────────────────────────

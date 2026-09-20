@@ -38,42 +38,50 @@
   '(("status"      . ())
     ("init"        . ())
     ("log"         . ())
-    ("show"        . (rev))
-    ("commit"      . (message all))
-    ("who"         . (name email))
-    ("restore"     . (rev))
-    ("revert"      . (rev))
+    ("show"        . ("rev"))
+    ("commit"      . ("message" "all"))
+    ("who"         . ("name" "email"))
+    ("restore"     . ("rev"))
+    ("revert"      . ("rev"))
     ("branches"    . ())
-    ("switch"      . (name create))
-    ("merge"       . (name))
+    ("switch"      . ("name" "create"))
+    ("merge"       . ("name"))
     ("merge-abort" . ())
-    ("resolve"     . (side))
+    ("resolve"     . ("side"))
     ("remotes"     . ())
-    ("remote-add"  . (name url))
-    ("fetch"       . (remote))
-    ("pull"        . (remote))
-    ("push"        . (remote set_upstream)))
+    ("remote-add"  . ("name" "url"))
+    ("fetch"       . ("remote"))
+    ("pull"        . ("remote"))
+    ("push"        . ("remote" "set_upstream")))
   "What each git operation is asked for, beyond the document's own path.
 
 A hand-written table, and the one in this package that could go stale — so
 `ksav-tests.el' holds it against `ksav-git-operations', which is generated from
 the engine's own list.  An operation added in Rust and not given a row here is
-a red test rather than a command that prompts for nothing and refuses.")
+a red test rather than a command that prompts for nothing and refuses.
+
+The argument names are strings, spelled exactly as the engine reads them off
+the request — which is what they are on the wire, JSON keys going out through
+`json-encode' either way.  Written as elisp symbols they would land in that
+language's function namespace, where a linter cannot tell a table from a call:
+package-lint read `(all . …)' here as a use of the `all' that Emacs 31.1 adds,
+and demanded a dependency the package does not want.")
 
 (defconst ksav-git-prompts
-  '((message      . "Commit message: ")
-    (rev          . "Commit, branch or tag: ")
-    (name         . "Name: ")
-    (email        . "Email: ")
-    (url          . "URL: ")
-    (remote       . "Remote (empty for origin): ")
-    (side         . "Take which side (ours/theirs): ")
-    (all          . "Everything that changed, not only this document? ")
-    (create       . "Create it? ")
-    (set_upstream . "Set the upstream branch? "))
-  "How each argument is asked for.  A flag is a yes-or-no; the rest are strings.")
+  '(("message"      . "Commit message: ")
+    ("rev"          . "Commit, branch or tag: ")
+    ("name"         . "Name: ")
+    ("email"        . "Email: ")
+    ("url"          . "URL: ")
+    ("remote"       . "Remote (empty for origin): ")
+    ("side"         . "Take which side (ours/theirs): ")
+    ("all"          . "Everything that changed, not only this document? ")
+    ("create"       . "Create it? ")
+    ("set_upstream" . "Set the upstream branch? "))
+  "How each argument is asked for, keyed by the engine's own spellings.
+A flag is a yes-or-no; the rest are strings.")
 
-(defconst ksav-git-flags '(all create set_upstream)
+(defconst ksav-git-flags '("all" "create" "set_upstream")
   "The arguments that are yes-or-no rather than text.")
 
 (defun ksav-git-operation-p (op)
@@ -100,8 +108,8 @@ of these operations is about a path and an unsaved buffer has none."
   "Ask for whatever OP wants, as an alist ready for the request."
   (let (args)
     (dolist (arg (cdr (assoc op ksav-git-arguments)) (nreverse args))
-      (let ((prompt (alist-get arg ksav-git-prompts)))
-        (if (memq arg ksav-git-flags)
+      (let ((prompt (cdr (assoc arg ksav-git-prompts))))
+        (if (member arg ksav-git-flags)
             (when (y-or-n-p prompt) (push (cons arg t) args))
           (let ((said (read-string prompt)))
             ;; An empty answer is left off the request rather than sent as "".

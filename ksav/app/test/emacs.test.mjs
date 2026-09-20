@@ -127,7 +127,14 @@ export async function run() {
     // quote and the opening parens of the list itself, so a pattern anchored to
     // the start of a line reads every row but the first — and "status", the one
     // every reader meets before any other, was the row it could not see.
-    const rows = [...git.matchAll(/\("([a-z-]+)"\s*\./gu)].map((m) => m[1]);
+    // The `(` after the dot is the row's shape: an operation mapped to the
+    // parenthesized arguments it reads. The prompts table's rows are the same
+    // `"name" . …` pairs with a *string* on the right, and when those keys
+    // became strings too they fed this read and reported nine prompts as
+    // operations the engine does not have — which is the fence saying it
+    // cannot tell its two tables apart. Anchoring on the argument list is the
+    // difference the table itself is about.
+    const rows = [...git.matchAll(/\("([a-z-]+)"\s*\.\s*\(/gu)].map((m) => m[1]);
     check(
       "every git operation says what it wants",
       ops.filter((op) => !rows.includes(op)),

@@ -208,3 +208,79 @@ fn the_flattened_pairs_are_the_structured_tables() {
     }
     assert_eq!(flat, want);
 }
+
+/// The walk's edge cases, on synthetic preludes the real file can only grow into.
+///
+/// These pin what "only a `FuncCall` to `_en` opens a row" actually rejects.
+/// Without them a future edit that starts accepting *any* `extra:` — or that
+/// walks into `_en`'s own definition — would pass every floor and every
+/// byte-identity check against today's artefact, then ship a bogus wrapper the
+/// first time somebody adds one.
+#[test]
+fn the_walk_only_opens_rows_for_real_en_wrappers() {
+    use ksav_engine::diagnostics::param_tables;
+
+    // `_en`'s own definition: a Closure whose parameter is named `extra`.
+    let en_def = "#let _en(f, extra: (:)) = (..a) => f";
+    let t = param_tables(en_def);
+    assert!(t.global.is_empty(), "no _en_params in that snippet");
+    assert!(
+        t.by_command.is_empty(),
+        "`_en` itself must not open a by_command row: {:?}",
+        t.by_command
+    );
+
+    // The three unrelated `extra:` sites in the real prelude, reduced to their shape.
+    let traps = [
+        "#let _mk_mark(cls, body, named, extra: (:)) = body",
+        "#let ערך(מונח, תת: none, ..שאר) = מונח",
+        "let extra = (sub: \"x\")",
+    ];
+    for src in traps {
+        let t = param_tables(src);
+        assert!(
+            t.by_command.is_empty(),
+            "trap {src:?} must not open a row: {:?}",
+            t.by_command
+        );
+    }
+
+    // A wrapper with no `extra:` (or an empty one) contributes nothing — the
+    // client's `if (over.size)` enforced the empty case after the fact; the
+    // walk must enforce both before serialisation.
+    let bare = "#let document = _en(מסמך)\n#let empty_extra = _en(מסמך, extra: (:))";
+    assert!(
+        param_tables(bare).by_command.is_empty(),
+        "wrapper without overrides must not appear in by_command"
+    );
+
+    // Comments between `_en_params` entries are how the prelude documents why
+    // a pairing is *absent*; they must not invent a pair or end the walk early.
+    let commented = r#"
+        #let _en_params = (
+          colour: "צבע",
+          // color: "צבע" — deliberately not here; British first.
+          size: "גודל",
+        )
+        #let document = _en(מסמך, extra: (
+          columns: "טורים", // PDF text columns, not table columns
+        ))
+    "#;
+    let t = param_tables(commented);
+    assert_eq!(
+        t.global,
+        vec![
+            ("colour".into(), "צבע".into()),
+            ("size".into(), "גודל".into()),
+        ],
+        "comments must not contribute pairs or truncate the dict"
+    );
+    assert_eq!(
+        t.by_command,
+        vec![(
+            "מסמך".into(),
+            vec![("columns".into(), "טורים".into())],
+        )],
+        "a trailing // note inside extra: must not hide the pair"
+    );
+}

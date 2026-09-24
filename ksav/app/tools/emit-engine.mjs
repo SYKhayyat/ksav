@@ -247,8 +247,17 @@ function dictPairs(block) {
  * parse of the prelude. The prelude text is still read below — only as a
  * cross-check that fails loudly if the two ever disagree.
  */
-function readParams() {
-  const pe = facts().param_en;
+/**
+ * Build the two maps from `facts().param_en` alone — pure, no cross-check.
+ *
+ * Exported so a test can hand a *mutated* table to `paramProblems` and prove
+ * the fence actually fires; `readParams` is the generation path that always
+ * runs both.
+ *
+ * @param {{ global: [string, string][], by_command: [string, [string, string][]][] }} pe
+ * @returns {{ global: Map<string, string>, byCommand: Map<string, Map<string, string>> }}
+ */
+export function paramsFromFacts(pe) {
   const global = new Map();
   for (const [en, he] of pe.global) {
     if (!global.has(he)) global.set(he, en); // first English spelling wins
@@ -259,8 +268,13 @@ function readParams() {
     for (const [en, heParam] of pairs) over.set(heParam, en);
     if (over.size) byCommand.set(he, over);
   }
-  crossCheckParamsAgainstPrelude(global, byCommand);
   return { global, byCommand };
+}
+
+function readParams() {
+  const tables = paramsFromFacts(facts().param_en);
+  crossCheckParamsAgainstPrelude(tables.global, tables.byCommand);
+  return tables;
 }
 
 /**
@@ -272,7 +286,7 @@ function readParams() {
  * relative to `ksav.typ`, or the structured walk and the text scan ever part
  * company, generation stops here rather than shipping one of the two.
  */
-function preludeParamsFromText() {
+export function preludeParamsFromText() {
   const src = readFileSync(PRELUDE, "utf8");
   const at = src.indexOf("#let _en_params = (");
   if (at < 0) return { global: new Map(), byCommand: new Map() };
@@ -291,8 +305,20 @@ function preludeParamsFromText() {
   return { global, byCommand };
 }
 
-function crossCheckParamsAgainstPrelude(global, byCommand) {
-  const { global: textGlobal, byCommand: textBy } = preludeParamsFromText();
+/**
+ * Every way two parameter tables can disagree — as strings, never as a process.
+ *
+ * Pure so `test/paramen.test.mjs` can prove the fence fires: hand it facts that
+ * disagree with the prelude text and expect a named problem. `readParams` is
+ * the only caller that turns a non-empty list into `process.exit(1)`.
+ *
+ * @param {Map<string, string>} global facts, Hebrew → first English
+ * @param {Map<string, Map<string, string>>} byCommand facts, Hebrew cmd → overrides
+ * @param {Map<string, string>} textGlobal prelude text read of the same
+ * @param {Map<string, Map<string, string>>} textBy prelude text read of the same
+ * @returns {string[]}
+ */
+export function paramProblems(global, byCommand, textGlobal, textBy) {
   const problems = [];
   if (global.size !== textGlobal.size) {
     problems.push(
@@ -328,6 +354,12 @@ function crossCheckParamsAgainstPrelude(global, byCommand) {
       }
     }
   }
+  return problems;
+}
+
+function crossCheckParamsAgainstPrelude(global, byCommand) {
+  const { global: textGlobal, byCommand: textBy } = preludeParamsFromText();
+  const problems = paramProblems(global, byCommand, textGlobal, textBy);
   if (problems.length) {
     console.error(
       "engine/facts.gen.json's param_en disagrees with engine/typst/ksav.typ:\n" +

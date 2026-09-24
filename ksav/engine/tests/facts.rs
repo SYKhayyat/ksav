@@ -92,7 +92,16 @@ fn first_difference(have: &str, wanted: &str) -> String {
     ) else {
         return String::new();
     };
-    for key in ["doc_defaults", "commands", "notices", "services"] {
+    for key in [
+        "doc_defaults",
+        "commands",
+        "notices",
+        "services",
+        "hebrew",
+        "template_fields",
+        "markup_escapes",
+        "param_en",
+    ] {
         if a.get(key) != b.get(key) {
             return format!(" — `{key}` changed");
         }
@@ -146,4 +155,56 @@ fn no_table_is_empty() {
         };
         assert!(n >= least, "{key}: {n}, expected at least {least}");
     }
+}
+
+/// The English parameter vocabulary crossed as a value, not as source text.
+///
+/// An empty or truncated `param_en` generates a `PARAM_EN` that typechecks,
+/// breaks every English document at runtime, and looks like a successful
+/// regeneration — the same failure an empty `commands` table would. The floors
+/// are the ones the generator already enforced on its regex read; they move
+/// here so a stale artefact is caught before a client sees it.
+#[test]
+fn the_parameter_vocabulary_is_present() {
+    let v: serde_json::Value =
+        serde_json::from_str(&ksav_engine::facts::facts_json()).expect("valid JSON");
+    let pe = &v["param_en"];
+    let global = pe["global"].as_array().expect("param_en.global is an array");
+    let by_command = pe["by_command"]
+        .as_array()
+        .expect("param_en.by_command is an array");
+    assert!(global.len() >= 40, "global: {}", global.len());
+    assert!(by_command.len() >= 10, "by_command: {}", by_command.len());
+
+    // The two ambiguities the prelude's own comments are about, asserted so a
+    // walk that starts collecting the wrong dictionary fails here rather than
+    // in an editor whose English panel offers Hebrew.
+    let colour = global
+        .iter()
+        .any(|p| p[0] == "colour" && p[1] == "צבע");
+    assert!(colour, "colour → צבע is not in param_en.global");
+    let document = by_command
+        .iter()
+        .find(|row| row[0] == "מסמך")
+        .expect("document carries an extra table");
+    let pairs = document[1].as_array().expect("its pairs");
+    let columns = pairs
+        .iter()
+        .any(|p| p[0] == "columns" && p[1] == "טורים");
+    assert!(columns, "מסמך.extra.columns → טורים is missing");
+}
+
+/// The structured walk and `en_param_pairs` (what diagnostics still flatten)
+/// describe the same prelude — one is not a second table that can drift.
+#[test]
+fn the_flattened_pairs_are_the_structured_tables() {
+    use ksav_engine::diagnostics::{en_param_pairs, param_tables};
+    let prelude = include_str!("../typst/ksav.typ");
+    let tables = param_tables(prelude);
+    let flat = en_param_pairs(prelude);
+    let mut want = tables.global.clone();
+    for (_, pairs) in &tables.by_command {
+        want.extend(pairs.iter().cloned());
+    }
+    assert_eq!(flat, want);
 }

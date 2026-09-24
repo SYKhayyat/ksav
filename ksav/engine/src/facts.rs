@@ -237,6 +237,17 @@ pub struct Facts {
     /// five it was missing — `* _ < > @` — are strong, emph, a label and a ref,
     /// and Sefaria titles contain them. See `src/escape.rs`.
     pub markup_escapes: String,
+    /// The English parameter vocabulary: the flat `_en_params` table and every
+    /// `_en` wrapper's `extra:`, as Typst's parse of the prelude states them.
+    ///
+    /// **Not read by regex.** `emit-engine.mjs` used to find
+    /// `"#let _en_params = ("` and `"extra: ("` by substring, count parentheses
+    /// to the close, and split on commas — the same failure mode this module
+    /// exists to end, one layer over, at the English seam. A param *rename* is
+    /// the normal edit there and it passed the floor checks while shipping a
+    /// wrong English snippet. Declaration order is preserved because the first
+    /// English spelling of a Hebrew word wins when the client builds `PARAM_EN`.
+    pub param_en: crate::diagnostics::ParamTables,
 }
 
 /// The git operations, from the module that answers them.
@@ -268,6 +279,7 @@ pub fn facts() -> Facts {
         hebrew: hebrew_facts(),
         template_fields: template_fields(),
         markup_escapes: crate::escape::MARKUP.iter().collect(),
+        param_en: crate::diagnostics::param_tables(crate::PRELUDE),
     }
 }
 

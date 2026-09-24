@@ -252,11 +252,11 @@ export const COMMAND_EN: Readonly<Record<string, string>> = {
 /**
  * The English name of every *parameter*, keyed by its Hebrew one.
  *
- * From the prelude's `_en_params`, which is what makes the pairing: an English
- * alias is not a plain binding but a wrapper that renames its named arguments
- * through that table. An English alias whose parameters are still Hebrew is not
- * English, so a command written into an English document needs this as much as
- * it needs `COMMAND_EN`.
+ * From the engine's facts (`param_en`), which serialise Typst's own parse of
+ * the prelude's `_en_params`: an English alias is not a plain binding but a
+ * wrapper that renames its named arguments through that table. An English alias
+ * whose parameters are still Hebrew is not English, so a command written into
+ * an English document needs this as much as it needs `COMMAND_EN`.
  *
  * Where two English spellings share one Hebrew word (`colour`/`color` → `צבע`)
  * the first the prelude declares is the one here, because going back the other
@@ -382,7 +382,8 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
 };
 
 /**
- * Per-command overrides, exactly as the prelude's `extra:` states them.
+ * Per-command overrides, exactly as the prelude's `extra:` states them —
+ * serialised by the engine from Typst's parse, not regexed out of the text.
  *
  * Two Hebrew parameters can share one English word — `טורים` (text columns) and
  * `עמודות` (table columns) are both `columns` — so the commands that need the

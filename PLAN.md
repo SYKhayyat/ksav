@@ -1,7 +1,7 @@
 # PLAN — ksav (work top to bottom, one issue per worker session)
 
 Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving test, commit, check it off, stop. Do not batch. Do not reorder.
-Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #26, #30, #40, #41, #49.
+Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #30, #40, #41, #49.
 
 ## SKIP — do not work (see AI_ISSUE_ROUTING.md)
 - #36 watch.forget — FALSE POSITIVE (callers at main.ts:740,827).
@@ -9,7 +9,7 @@ Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #2
 
 ## Phase 1 — Foundations first (unblock everything below)
 - [x] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
-- [ ] #27 English vocab via regex → generate from facts, not regex over ksav.typ. (High)
+- [x] #27 English vocab via regex → generate from facts, not regex over ksav.typ. (High)
 - [ ] #29 commands registry prose-in-wire → descriptions out of the wire contract. (Medium)
 - [ ] #28 template coverage gate → one test tying every template guarantee to a reachable command set. (Medium)
 

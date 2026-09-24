@@ -1666,16 +1666,9 @@ mod end_to_end {
     }
 }
 
-/// Every parameter-name table in the prelude: the shared one, and each
-/// `_en(f, extra: (…))`.
-///
-/// Returns the text *inside* the parentheses of each, for the caller to split on
-/// commas. Balanced-paren scanning rather than "find the next `)`", because an
-/// `extra` table's values are string literals and one of them could hold a
-/// parenthesis; and because the shared table ends on a line of its own while an
-/// `extra` ends mid-expression, so there is no single closing token to look for.
 /// Every `english: "hebrew"` pair the prelude states, from **Typst's own parse
-/// of it**.
+/// of it**: the flat `_en_params` table first, then every `_en` wrapper's
+/// `extra:` in declaration order.
 ///
 /// # This was a string scan, in the shipping binary, and said so
 ///
@@ -1705,41 +1698,118 @@ mod end_to_end {
 /// the same row.
 #[must_use]
 pub fn en_param_pairs(prelude: &str) -> Vec<(String, String)> {
-    let source = Source::detached(prelude.to_string());
-    let mut out = Vec::new();
-    collect_pairs(&LinkedNode::new(source.root()), false, &mut out);
+    let tables = param_tables(prelude);
+    let mut out = tables.global;
+    for (_, pairs) in tables.by_command {
+        out.extend(pairs);
+    }
     out
 }
 
-/// Walk, collecting `Named` pairs once inside one of the two containers.
+/// Both English parameter tables, as Typst's parse of the prelude states them.
 ///
-/// `inside` is set by the node that opens a container rather than tested for at
-/// each pair, because "is this dictionary the parameter table" is a question
-/// about an ancestor and asking it per-pair would be the same walk again.
-fn collect_pairs(node: &LinkedNode, inside: bool, out: &mut Vec<(String, String)>) {
+/// Declaration order is load-bearing and is preserved: the first English
+/// spelling of a Hebrew word wins when the client builds `PARAM_EN`, and the
+/// per-command overrides arrive in the order their wrappers are declared.
+#[derive(Debug, serde::Serialize)]
+pub struct ParamTables {
+    /// `#let _en_params = (…)`, as `(english, hebrew)` pairs in declaration order.
+    pub global: Vec<(String, String)>,
+    /// Each `#let … = _en(המפקד, extra: (…))`, keyed by the **Hebrew** command
+    /// (the first argument to `_en`), pairs in declaration order.
+    pub by_command: Vec<(String, Vec<(String, String)>)>,
+}
+
+/// Read the two parameter tables out of the prelude's syntax tree.
+///
+/// A structured walk, not a regex: only `LetBinding`s whose value is a call to
+/// `_en` contribute a by-command row, so `_en`'s own definition and the three
+/// unrelated `extra:` sites in the prelude (`_mk_mark`, `ערך`, `ציון_מקור`) are
+/// not mistaken for wrappers.
+#[must_use]
+pub fn param_tables(prelude: &str) -> ParamTables {
+    let source = Source::detached(prelude.to_string());
+    let mut tables = ParamTables {
+        global: Vec::new(),
+        by_command: Vec::new(),
+    };
+    collect_param_tables(&LinkedNode::new(source.root()), &mut tables);
+    tables
+}
+
+fn collect_param_tables(node: &LinkedNode, tables: &mut ParamTables) {
     for child in node.children() {
-        // `#let _en_params = (…)` — the flat table.
-        let opens = if child.kind() == SyntaxKind::LetBinding {
-            // `binding_name` answers with the `#` a writer would type, because its
-            // other caller puts it straight into a message.
-            binding_name(&child).as_deref() == Some("#_en_params")
-        } else {
-            // `extra: (…)` on an `_en` wrapper — the per-command overrides.
-            child.kind() == SyntaxKind::Named
-                && child.children().next().is_some_and(|n| {
-                    n.kind() == SyntaxKind::Ident && n.get().leaf_text() == "extra"
-                })
-        };
-        if inside && child.kind() == SyntaxKind::Named {
-            if let Some(pair) = named_pair(&child) {
-                out.push(pair);
+        if child.kind() == SyntaxKind::LetBinding {
+            if binding_name(&child).as_deref() == Some("#_en_params") {
+                // The flat table: every `english: "hebrew"` directly under its dict.
+                if let Some(dict) = child.children().find(|c| c.kind() == SyntaxKind::Dict) {
+                    for entry in dict.children() {
+                        if entry.kind() == SyntaxKind::Named {
+                            if let Some(pair) = named_pair(&entry) {
+                                tables.global.push(pair);
+                            }
+                        }
+                    }
+                }
+                continue;
             }
-            // A `Named` inside the table is a leaf as far as this is concerned;
-            // recursing into it would read a nested call's arguments as pairs.
-            continue;
+            if let Some((he_command, pairs)) = en_wrapper(&child) {
+                if !pairs.is_empty() {
+                    tables.by_command.push((he_command, pairs));
+                }
+            }
         }
-        collect_pairs(&child, inside || opens, out);
+        collect_param_tables(&child, tables);
     }
+}
+
+/// A `#let name = _en(המפקד, extra: (…))` wrapper: the Hebrew command and its
+/// overrides, or nothing when this binding is not one.
+///
+/// Only the value's callee being `_en` opens the row. `_en`'s own definition is
+/// a `Closure`, not a `FuncCall` to `_en`, and a wrapper with no `extra:` (or an
+/// empty one) contributes nothing — which is what the client's `if (over.size)`
+/// used to enforce after the fact.
+fn en_wrapper(binding: &LinkedNode) -> Option<(String, Vec<(String, String)>)> {
+    // `#let name = _en(…)`: the value is a direct `FuncCall` child. A `Closure`
+    // value (`#let _en(f, extra: (:)) = …`) is not this shape and returns nothing.
+    let value = binding
+        .children()
+        .find(|c| c.kind() == SyntaxKind::FuncCall)?;
+    let mut call_kids = value.children().filter(|c| !c.kind().is_trivia());
+    let callee = call_kids.next()?;
+    if callee.kind() != SyntaxKind::Ident || callee.get().leaf_text() != "_en" {
+        return None;
+    }
+    let args = value.children().find(|c| c.kind() == SyntaxKind::Args)?;
+    let mut he_command = None;
+    let mut pairs = Vec::new();
+    for arg in args.children().filter(|c| !c.kind().is_trivia()) {
+        match arg.kind() {
+            SyntaxKind::Ident if he_command.is_none() => {
+                he_command = Some(arg.get().leaf_text().to_string());
+            }
+            SyntaxKind::Named => {
+                let mut named = arg.children().filter(|c| !c.kind().is_trivia());
+                let name = named.next();
+                if name.as_ref().is_some_and(|n| {
+                    n.kind() == SyntaxKind::Ident && n.get().leaf_text() == "extra"
+                }) {
+                    if let Some(dict) = named.find(|c| c.kind() == SyntaxKind::Dict) {
+                        for entry in dict.children() {
+                            if entry.kind() == SyntaxKind::Named {
+                                if let Some(pair) = named_pair(&entry) {
+                                    pairs.push(pair);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Some((he_command?, pairs))
 }
 
 /// `english: "hebrew"` from a `Named` node, or nothing.

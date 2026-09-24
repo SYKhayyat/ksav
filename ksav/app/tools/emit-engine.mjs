@@ -228,7 +228,7 @@ function dictPairs(block) {
  * down: an English alias whose parameters are still Hebrew is not English, and
  * `#mktable(עמודות: 3)` is not a thing anybody would type. The prelude states
  * the pairing once, in `_en_params`, and the two tables below are that
- * statement crossing the seam as a *value* — `facts.rs:20-28`'s rule applied to
+ * statement crossing the seam as a *value* — `facts.rs`'s rule applied to
  * the one table that lives in Typst rather than in Rust.
  *
  * Two directions of ambiguity, both handled here rather than at the call site:
@@ -242,19 +242,44 @@ function dictPairs(block) {
  *     exists for. So the per-command overrides are kept as their own table
  *     rather than flattened into the global one, and a reader merges them in the
  *     same order `_en` does: `_en_params + extra`.
+ *
+ * Source of truth is `facts().param_en`, serialised by Rust from Typst's own
+ * parse of the prelude. The prelude text is still read below — only as a
+ * cross-check that fails loudly if the two ever disagree.
  */
 function readParams() {
+  const pe = facts().param_en;
+  const global = new Map();
+  for (const [en, he] of pe.global) {
+    if (!global.has(he)) global.set(he, en); // first English spelling wins
+  }
+  const byCommand = new Map();
+  for (const [he, pairs] of pe.by_command) {
+    const over = new Map();
+    for (const [en, heParam] of pairs) over.set(heParam, en);
+    if (over.size) byCommand.set(he, over);
+  }
+  crossCheckParamsAgainstPrelude(global, byCommand);
+  return { global, byCommand };
+}
+
+/**
+ * The same two tables, read out of the prelude's text the old way.
+ *
+ * Kept as a fence, not as a source: a count or a pair that disagrees can only
+ * produce a loud refusal, never a wrong value — the opposite failure mode from
+ * the regex-as-source this file used to run on. If `facts.gen.json` is stale
+ * relative to `ksav.typ`, or the structured walk and the text scan ever part
+ * company, generation stops here rather than shipping one of the two.
+ */
+function preludeParamsFromText() {
   const src = readFileSync(PRELUDE, "utf8");
   const at = src.indexOf("#let _en_params = (");
   if (at < 0) return { global: new Map(), byCommand: new Map() };
   const global = new Map();
   for (const [en, he] of dictPairs(parenBlock(src, src.indexOf("(", at)))) {
-    if (!global.has(he)) global.set(he, en); // first English spelling wins
+    if (!global.has(he)) global.set(he, en);
   }
-
-  // `#let banded_config = _en(הגדרות_מדורגות, extra: (columns: "טורים"))`, and
-  // `#let document = _en(מסמך, extra: (` over eleven lines. Keyed by the Hebrew
-  // command, because that is the name a registry snippet is written with.
   const byCommand = new Map();
   for (const m of src.matchAll(/#let [A-Za-z][A-Za-z0-9_]* = _en\(([^\s,)]+),\s*extra:\s*\(/g)) {
     const he = m[1].trim();
@@ -264,6 +289,54 @@ function readParams() {
     if (over.size) byCommand.set(he, over);
   }
   return { global, byCommand };
+}
+
+function crossCheckParamsAgainstPrelude(global, byCommand) {
+  const { global: textGlobal, byCommand: textBy } = preludeParamsFromText();
+  const problems = [];
+  if (global.size !== textGlobal.size) {
+    problems.push(
+      `  global: ${global.size} pairs in facts.gen.json, ${textGlobal.size} in ksav.typ`,
+    );
+  }
+  for (const [he, en] of textGlobal) {
+    if (global.get(he) !== en) {
+      problems.push(`  ${he}: facts say ${global.get(he) ?? "—"}, prelude text says ${en}`);
+    }
+  }
+  if (byCommand.size !== textBy.size) {
+    problems.push(
+      `  by command: ${byCommand.size} wrappers in facts.gen.json, ${textBy.size} in ksav.typ`,
+    );
+  }
+  for (const [he, over] of textBy) {
+    const have = byCommand.get(he);
+    if (!have) {
+      problems.push(`  ${he}: extra table in the prelude, missing from facts.gen.json`);
+      continue;
+    }
+    if (have.size !== over.size) {
+      problems.push(
+        `  ${he}: ${have.size} overrides in facts.gen.json, ${over.size} in the prelude`,
+      );
+    }
+    for (const [param, en] of over) {
+      if (have.get(param) !== en) {
+        problems.push(
+          `  ${he}.${param}: facts say ${have.get(param) ?? "—"}, prelude text says ${en}`,
+        );
+      }
+    }
+  }
+  if (problems.length) {
+    console.error(
+      "engine/facts.gen.json's param_en disagrees with engine/typst/ksav.typ:\n" +
+        problems.join("\n") +
+        "\n\nIf the prelude changed, regenerate with:\n  KSAV_BLESS=1 cargo test --test facts\n" +
+        "then regenerate this side with:\n  npm run fixtures",
+    );
+    process.exit(1);
+  }
 }
 
 /**
@@ -436,11 +509,11 @@ ${aliasRows}
 /**
  * The English name of every *parameter*, keyed by its Hebrew one.
  *
- * From the prelude's \`_en_params\`, which is what makes the pairing: an English
- * alias is not a plain binding but a wrapper that renames its named arguments
- * through that table. An English alias whose parameters are still Hebrew is not
- * English, so a command written into an English document needs this as much as
- * it needs \`COMMAND_EN\`.
+ * From the engine's facts (\`param_en\`), which serialise Typst's own parse of
+ * the prelude's \`_en_params\`: an English alias is not a plain binding but a
+ * wrapper that renames its named arguments through that table. An English alias
+ * whose parameters are still Hebrew is not English, so a command written into
+ * an English document needs this as much as it needs \`COMMAND_EN\`.
  *
  * Where two English spellings share one Hebrew word (\`colour\`/\`color\` → \`צבע\`)
  * the first the prelude declares is the one here, because going back the other
@@ -451,7 +524,8 @@ ${paramRows}
 };
 
 /**
- * Per-command overrides, exactly as the prelude's \`extra:\` states them.
+ * Per-command overrides, exactly as the prelude's \`extra:\` states them —
+ * serialised by the engine from Typst's parse, not regexed out of the text.
  *
  * Two Hebrew parameters can share one English word — \`טורים\` (text columns) and
  * \`עמודות\` (table columns) are both \`columns\` — so the commands that need the
@@ -689,7 +763,8 @@ for (const c of commands) if (!aliases.has(c.he)) aliases.set(c.he, c.en);
 // the cost of the check is four comparisons.
 for (const [what, rows, least] of [
   ["aliases (engine/typst/ksav.typ)", aliases, 120],
-  ["parameter names (engine/typst/ksav.typ)", params.global, 40],
+  ["parameter names (engine/facts.gen.json)", params.global, 40],
+  ["per-command overrides (engine/facts.gen.json)", params.byCommand, 10],
   ["containers (engine/tests/fixtures/containers.json)", containers, 30],
   ["commands (engine/facts.gen.json)", commands, 100],
   ["document defaults (engine/facts.gen.json)", defaults, 25],

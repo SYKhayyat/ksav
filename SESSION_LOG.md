@@ -42,10 +42,9 @@ Chronological log of work in this session (append-only; newest at bottom).
 | facts tests | 6/6 |
 | english_commands | 27/27 |
 | npm full | **7,607 / 107 files, 0 failed** (confirmed after log wording fix) |
-| Commit for tests+reopen | **pending this entry** |
+| Commit for tests+reopen | **`a8e0d45` pushed** (paramen fence, pure `paramProblems`/`paramsFromFacts`, AST-trap test, PLAN remainder, README 987 / 7,607 / 107, this log) |
 
 ### Next move
 
-1. Commit + push (paramen fence, emit-engine pure exports, facts AST-trap test, PLAN, README, this log).
-2. Leave **#27 OPEN** until `COMMAND_EN` crosses as a value (`readAliases()` still line-regex).
-3. On next session: pick up #27 COMMAND_EN refine from the reopen comment.
+1. Leave **#27 OPEN** until `COMMAND_EN` crosses as a value (`readAliases()` still line-regex).
+2. On next session: pick up #27 COMMAND_EN refine from the reopen comment.

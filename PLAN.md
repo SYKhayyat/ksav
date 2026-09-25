@@ -1,7 +1,7 @@
 # PLAN — ksav (work top to bottom, one issue per worker session)
 
 Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving test, commit, check it off, stop. Do not batch. Do not reorder.
-Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #29, #30, #40, #41, #49.
+Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #28, #29, #30, #40, #41, #49.
 
 ## SKIP — do not work (see AI_ISSUE_ROUTING.md)
 - #36 watch.forget — FALSE POSITIVE (callers at main.ts:740,827).
@@ -15,7 +15,9 @@ Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #2
 
 ## Phase 1 — Foundations first (unblock everything below)
 - [x] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
-- [ ] #28 template coverage gate → one test tying every template guarantee to a reachable command set. (Medium)
+- [x] #27 all three English tables are facts values now; each with a cross-check that exits 1. (High)
+- [x] #28 the templates' collective guarantee is a predicate; it found three unreachable capabilities. (Medium)
+- [x] #29 FALSE POSITIVE, measured; the fence it was missing is `engine/tests/registry_wire.rs`. (Medium)
 
 ## Phase 2 — Security Criticals
 - [ ] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)

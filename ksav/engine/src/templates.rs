@@ -58,6 +58,34 @@ pub static TEMPLATES: &[Template] = &[
         desc_en: "Article with headings, footnotes, a table",
         body: include_str!("../templates/article.ksav"),
     },
+    // The two English ones, and what "kept in step" means for them.
+    //
+    // `letter.ksav` and `article.ksav` have an English copy each, and the copy
+    // is a **translation, not a variant**: same document, same shape, same
+    // commands in the same places. The reason they exist at all is in the module
+    // comment — a letter is a letter in either language and an English writer
+    // should not start from a document they have to delete.
+    //
+    // What is deliberately *not* kept in step is typography, and the differences
+    // are two, both of them the same difference: **direction**.
+    //
+    //   - `letter.ksav` wraps `ב"ה` and the telephone number in `#משמאל_לימין`.
+    //     Hebrew is right to left, so a left-to-right run inside it has to be
+    //     told, and without the wrapper the number prints in the wrong order.
+    //     `letter-en.ksav` is already left to right and the wrapper would be a
+    //     no-op wrapped around a thing that is already correct.
+    //   - `article-en.ksav` writes `#bold[L'maaseh:]` inside the callout where
+    //     `article.ksav` writes `נפקא־מינה למעשה:` with nothing around it. In a
+    //     right-to-left column the colon already separates it; in a left-to-right
+    //     one the eye has nothing to catch on and the label disappears into the
+    //     sentence. The extra `#bold` is the translation of a visual fact, not a
+    //     different document.
+    //
+    // `tests/templates.rs` declares both, so the two copies cannot drift apart
+    // silently — the English one gaining a command, or the Hebrew one, is a red
+    // test naming the pair and the difference it did not expect. That is the
+    // whole arrangement: the copies are held together, and the two places they
+    // are allowed to differ are written down where the test reads them.
     Template {
         id: "letter-en",
         he: "מכתב באנגלית",
@@ -112,6 +140,16 @@ pub static TEMPLATES: &[Template] = &[
     // it. Both exercise `auto_notes_region_cm`, which is the point — a template
     // that reserves no note region is a template whose apparatus grows off the
     // bottom of the paper.
+    //
+    // **And the paragraph above is now a predicate rather than a promise.**
+    // `tests/templates.rs` holds a declared set of the arrangements a writer must
+    // be able to reach, and asserts each is in *one* template's body — not in the
+    // corpus between them, which is the arrangement that let the apparatus go
+    // unreachable in the first place. It found three things this paragraph was
+    // claiming and nothing here demonstrated: a note on a note, a note whose text
+    // is written at the end of the document, and the topic index. A claim that
+    // can only be checked by reading is a claim that regresses one command at a
+    // time, which is what this one did.
     Template {
         id: "gemara",
         he: "דף גמרא",

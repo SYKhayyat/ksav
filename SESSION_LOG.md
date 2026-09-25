@@ -248,3 +248,96 @@ README's tallies updated; `PLAN.md` SKIP gained #29 with the measurements;
   so a reader can move them knowingly.
 - Net: close as a false positive *and* ship the fence. The issue was wrong about
   the wire and right about there being nothing holding it.
+
+---
+
+## 2026-09-25 · #28 the templates' collective guarantee (closed)
+
+### The plan item, and why it was two gates rather than one
+
+`#28` asked for *"one test that walks every template probe and asserts a declared
+covered set is present in some `template_body`"*, and for the `-en` copies to fail
+if one alone drifts structurally. Phase 1's last item, and the first one that was
+a real finding rather than a refactor.
+
+### Gate one, and the three things it found
+
+`COVERED` in `engine/tests/templates.rs` is ten capabilities, each with the
+commands that demonstrate it. A capability is reachable only when **one** template
+body holds every command in its row — not when the corpus between them does, which
+is the arrangement that let the apparatus go unreachable the first time (ten
+templates, eight of 115 commands, five using no apparatus at all).
+
+What it found, none of it demonstrated by anything:
+
+| Capability | Was in | Now in |
+|---|---|---|
+| a note on a note, at a tier the writer picks | no template at all | `sefer.ksav` |
+| a note whose text is written at the end of the document | no template at all | `article.ksav` + `article-en.ksav` |
+| the topic index | no template at all | `sefer.ksav` |
+
+The topic index is the one that stings: `מפתח_ענינים` has been in the registry, in
+the palette and in the toolbar this whole time with nothing on the far side of it.
+
+### Probed, never `ok()`ed — and the third capability earned it
+
+This file's header rule is that every apparatus bug this project has had compiled
+cleanly and was wrong on the page. So the new apparatus got rendering probes, and
+the deferred note is asserted by its **failure mode**: `#הערה_בשם` answers a
+missing body with a red `?` and the name, deliberately. So the article test is
+`!runs.any(|r| r.text.contains("?תחום הדיון"))` plus two positive halves — a
+template whose marker vanished also passes a red-free check.
+
+### Gate two, and the differences that are allowed
+
+`TRANSLATED_PAIRS` declares the `-en` copies and the differences between them, and
+the test asserts the differences are *exactly* those. LCS over the command lists,
+the Hebrew one mapped through the prelude's pairing, the English one as written; the
+assertion is on the two remainders. A plain `zip` would report twelve differences
+for one mistake, which is a message nobody reads.
+
+All three allowed differences are **direction**:
+- the Hebrew letter wraps `ב"ה` and the phone number in `#משמאל_לימין` (an LTR run
+  inside RTL text has to be told or the digits print backwards);
+- the English article writes `#bold[…]` around the callout label (in an RTL column
+  the colon already separates it; in an LTR one the eye has nothing to catch on);
+- and the one this found, a **cross**: `#שמאל` against `#right_`. Same slot — the
+  end of the line, left in RTL and right in LTR — so the two copies use opposite
+  alignment commands for one gesture. Reading that as drift, or "fixing" it, would
+  have made one of the two letters wrong.
+
+### The gate caught this work's own drift, on the first run
+
+`article-en` was named, with the three commands just added to `article.ksav`. A
+deferred note is a *document feature*, not a Hebrew one, so both copies have it
+now — translated, in the same slot.
+
+### Fences, each shown red for the reason it was written
+
+| Mutation | Caught by | Named |
+|---|---|---|
+| `#הדגשה[…]` added to `letter.ksav` only | the in-step gate | `#הדגשה is in the Hebrew copy and not the English one, and it is not a declared difference` |
+| `#מפתח_ענינים()` removed from `sefer.ksav` | the coverage gate | `the topic index` / `#מפתח_ענינים() — in no template at all` |
+| `Adret` in the new English text | `spell.rs::ksavs_own_templates_are_not_underlined` | `templates contain flagged words: ["Adret [en] (article-en)"]` |
+
+The third is the standing lexicon check earning its place. `adret`/`adrett` went
+into the hand-curated supplement beside `gra` and `rambam` — the generated lexicon
+is **not** regenerated, because the supplement is compiled in separately and the
+generated file's own header says hand additions belong there.
+
+### Two of the repository's fences were right again
+
+`skips.test.mjs` rejected the in-step gate for no floor under its `continue` (two
+files that stopped parsing to commands would compare empty against empty and pass);
+it now asserts at least eight commands matched and each copy holds at least twelve.
+`documentation.test.mjs` rejected the log, `PLAN.md` and the README for a stale
+engine-test tally. Fixed at the source in each case.
+
+### Phase 1 is now complete
+
+#25, #27, #28, #29 — all four closed. Next is Phase 2, security criticals, starting
+with **#50** (the missing-chapter marker injecting a name into Typst unescaped).
+
+Engine tests 995 → 999. Editor assertions unchanged at 7,633. The two oracle
+fixtures regenerate because the templates are in them — the staleness fence doing
+its job.

@@ -845,6 +845,12 @@ gra
 gaon
 geonim
 gaonim
+# The R. Shlomo ben Adret who is quoted by name in any English article on
+# chiyuv talmud torah — the ruling a writer most often has to name and the one
+# no public-domain Judaic English list carries. Beside `gra` because that is the
+# other surname an English Torah article cannot avoid.
+adret
+adrett
 
 # ---- objects and mitzvos ----
 tefillin

@@ -411,3 +411,80 @@ reader does not read the omission in the hostile-name list as an oversight.
 
 Engine tests 999 → 1001. Editor assertions 7,633 → 7,638. Next in Phase 2:
 **#51**, opening a `.ksav` executing `customCommands` with no warning.
+
+---
+
+## 2026-09-25 · #51 a document that runs code says so (closed)
+
+### The measurement that changed the fix
+
+The report says a shared `.ksav` "ships arbitrary `#let`/loop/package code that
+runs on open/compile with no prompt or diagnostic". Two facts in the engine bound
+that before I wrote a line of the fix:
+
+- **No network, no disk outside `packages/`.** `typst-as-lib` offers a resolver
+  that *downloads*; this one declines it and builds a resolver whose root **is**
+  the bundled package directory. `lib.rs` on `packages_root`: *"a document cannot
+  reach anything else on the disk through it."*
+- **A bounded run.** `server.rs` compiles on its own thread; the pool thread only
+  *waits*, with a timeout.
+
+So the honest sentence is the small one — *the document runs the commands it
+carries, they can change what the page says, and here they are* — and I pinned the
+wording against five overclaims (`arbitrary`, `malicious`, `untrusted`, `attack`,
+`exploit`) because "improving" a warning into a scary one is the likely next edit
+and it would be wrong in both directions.
+
+### Which clients were actually silent: three different answers
+
+| Client | Before | Now |
+|---|---|---|
+| browser | **not silent** — the palette lists the document's commands, chipped `fromDocument` | unchanged; `commands.test.mjs` already fences it |
+| CLI | silent | one `warning:` line naming them |
+| Emacs | silent | one `message`, once per open |
+
+The browser was the informative measurement. `available()` already carries
+`from: "document"` and `i18n.ts` has `fromDocument`. What it does *not* do is show
+the preamble's **text** — the names, not the code. That is a UI decision rather
+than a defect, so it is written up on the issue, not decided here.
+
+### The two halves
+
+`DocFile::advisories()` is one list holding both kinds: the missing-asset warning
+that predated it, and the new one. `main.rs` used to format the first itself, and a
+second formatter is a second wording.
+
+In Emacs, `ksav--announce-preamble` fires from `ksav--unwrap` — the single door
+where a file's container is adopted.
+
+### Two traps in the Emacs half, both recorded in the code
+
+**The first name-scanning regex matched nothing, and the suite was green.**
+`\\(?:#\\)?let[ \t]+\\([^ \t\n()\[\]{};,]+\\)` — bisected in a file rather than
+through shell-escaped `--eval`, the culprit is Emacs's regex reader taking `}` in
+a bracket expression as the start of an interval, so adding `{` to a negated class
+made the whole pattern match no preamble at all. `[[:alnum:]_]` is the fix and the
+better class anyway: an identifier is a run of word characters, and a negated
+class has to escape brackets, braces and commas to say the same thing.
+
+**`with-message-to-string` does not exist** — the name sounds right. And
+`message-function` is read by the interactive `message` *command*, not the
+function, so binding it captures nothing and the test passes for the wrong reason.
+The capture is `cl-letf` over `message`, and the docstring on `ksav--say` says why
+both of the others are wrong.
+
+### Fences, each shown to do its job
+
+| Where | Mutation | Result |
+|---|---|---|
+| `docfile.rs` | the advisory suppressed | three tests red |
+| CLI | a `.ksav` carrying two commands | `warning: … defines its own commands and they are compiled with it: 2 commands (2 lines) — דגש, mine` |
+| CLI | a plain `.ksav` | nothing; the compile line otherwise identical |
+| `ksav.el` | the announcement suppressed | `ksav-the-announcement-names-the-commands-and-their-size` red |
+
+The negative half is asserted as firmly as the positive one in both languages: most
+`.ksav` files are plain text, and an announcement on every open is one nobody
+reads.
+
+Engine tests 1001 → 1006. Editor assertions 7,638 → 7,639. Emacs 60 → 63. Next in
+Phase 2: **#53**, the engine's SVG `innerHTML` and attribute passthrough.

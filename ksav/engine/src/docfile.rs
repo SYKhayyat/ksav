@@ -99,6 +99,121 @@ impl DocFile {
             custom.lines().count() + 1
         }
     }
+
+    /// What a writer should be told about this file before trusting its output.
+    ///
+    /// One list, one place, because these are the sentences a client prints and
+    /// a second formatter is a second wording. `main.rs` has been formatting
+    /// `missing_assets` itself; this is where the custom-command one lives, and
+    /// putting them side by side is the only way a reader can tell whether the
+    /// two are saying the same kind of thing.
+    ///
+    /// # The custom-command advisory, and what it does *not* say
+    ///
+    /// A `.ksav` may carry a `#let` preamble, and [`DocFile::source`] puts it in
+    /// front of the body, so opening the file **runs** it. Every client has to
+    /// say so; none of them did.
+    ///
+    /// What the advisory deliberately does not claim is that arbitrary code ran.
+    /// Two measurements, both in this crate, bound it:
+    ///
+    ///   - **No network, and no disk outside `packages/`.** `typst-as-lib` offers
+    ///     a package resolver that downloads; this one does not take it, and
+    ///     builds a resolver whose root *is* the bundled package directory — so
+    ///     "a document cannot reach anything else on the disk through it" is
+    ///     `lib.rs`'s own comment on `packages_root`, not an inference.
+    ///   - **A bounded run.** `server.rs` compiles on its own thread and the pool
+    ///     thread only *waits* for it with a timeout, so a preamble that loops
+    ///     forever costs a timeout rather than the process.
+    ///
+    /// So the honest statement is the small one: the document runs the commands
+    /// it carries, they can change what the page says, and here they are. A
+    /// warning that said "arbitrary code" would be wrong in both directions —
+    /// it would send a reader looking for an attack that the sandbox forecloses,
+    /// and it would make the real, smaller fact easy to dismiss.
+    pub fn advisories(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for name in &self.missing_assets {
+            out.push(format!(
+                "refers to an asset that is not in the file ({name})"
+            ));
+        }
+        let custom = self.custom.trim();
+        if !custom.is_empty() {
+            let names = defined_let_names(custom);
+            let count = custom.lines().count();
+            out.push(format!(
+                "defines its own commands and they are compiled with it: \
+                 {} command{} ({} line{}) — {}",
+                names.len(),
+                if names.len() == 1 { "" } else { "s" },
+                count,
+                if count == 1 { "" } else { "s" },
+                if names.is_empty() {
+                    "none this reader can name, so read the preamble yourself".to_string()
+                } else {
+                    names.join(", ")
+                }
+            ));
+        }
+        out
+    }
+}
+
+/// The names a preamble binds, in the order it declares them.
+///
+/// A hand-rolled scan, and the reason it is here rather than in the caller is
+/// that **this crate has no regex dependency** and the same twelve lines are
+/// wanted by [`DocFile::advisories`] and by the app's `commands.ts::definedIn`.
+/// The two must agree, and the agreement that can be run is a test comparing
+/// them over the corpus in `tests/docfile_oracle.rs`; the agreement that cannot
+/// is somebody reading both and deciding they look the same.
+///
+/// Both forms of binding are accepted — `#let` and a bare `let` — because a
+/// preamble is prepended to a document and a writer reasonably writes either,
+/// which is the app's own reason and it is as good a one.
+fn defined_let_names(preamble: &str) -> Vec<String> {
+    let chars: Vec<char> = preamble.chars().collect();
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        // `let` at a **word start**, optionally introduced by `#`. The word-start
+        // test is what stops `#letter = 3` reading as a `let` of `ter` — without
+        // it the scan finds the `let` inside a longer name, which is the shape a
+        // naive `match_indices("let")` gets wrong and the shape that would make
+        // the advisory name commands the preamble does not define.
+        let hashed = chars[i] == '#';
+        let start = if hashed { i + 1 } else { i };
+        if i.checked_sub(1).and_then(|p| chars.get(p)).is_some_and(|c| ident(*c)) {
+            i += 1;
+            continue;
+        }
+        let word: String = chars[start.min(chars.len())..].iter().take(3).collect();
+        if !word.eq_ignore_ascii_case("let") {
+            i += 1;
+            continue;
+        }
+        // …and the other end of it: `let` must be the **whole** word, so
+        // `#letter = 3` is not a `let` of `ter`. The preceding-character test
+        // above cannot see that one, because the `#` in front is not a word
+        // character and `ter` is a perfectly good identifier tail.
+        let after = start + 3;
+        if chars.get(after).is_some_and(|c| ident(*c)) {
+            i = after;
+            continue;
+        }
+        let mut j = after;
+        while j < chars.len() && chars[j].is_whitespace() {
+            j += 1;
+        }
+        let name: String = chars[j..].iter().take_while(|c| ident(**c)).collect();
+        if !name.is_empty() {
+            out.push(name);
+        }
+        i = j.max(i + 1);
+    }
+    out
 }
 
 /// Read a `.ksav`, in either of its two forms.
@@ -297,5 +412,125 @@ mod tests {
         );
         assert!(d.assets.files.is_empty());
         assert_eq!(d.missing_assets, vec!["0000000000000000".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod advisory_tests {
+    use super::*;
+
+    /// A wrapper the way `serializeDoc` writes one.
+    ///
+    /// Built by `serde_json` rather than by hand, because a hand-built one is
+    /// wrong in a way that hides the test: a raw newline inside a JSON string is
+    /// not a newline, and `read` answers invalid JSON with `plain()` — as it
+    /// should — so the fixture loses its preamble and the assertion below fails
+    /// for a reason that has nothing to do with the advisory.
+    fn wrapped(custom: &str) -> String {
+        serde_json::json!({
+            "format": FILE_MAGIC,
+            "version": 1,
+            "body": "shalom",
+            "customCommands": custom,
+        })
+        .to_string()
+    }
+
+    /// The finding, as a predicate: a `.ksav` that runs code says so.
+    ///
+    /// Before this there was no signal at all on this path. The CLI compiled the
+    /// preamble, printed a success line and wrote a PDF; the Emacs client did the
+    /// same from the other end. So the first assertion is the one the issue asked
+    /// for — a document carrying commands produces an advisory — and the rest are
+    /// about that advisory being *true*, because a warning that overstates is
+    /// worse than none: it sends a reader looking for an attack the sandbox
+    /// forecloses, and it makes the real and smaller fact easy to wave away.
+    #[test]
+    fn a_file_that_defines_commands_says_so() {
+        let d = read(&wrapped("#let דגש(x) = strong(x)\n#let h2 = heading(level: 2)"));
+        let said = d.advisories();
+        assert_eq!(said.len(), 1, "{said:?}");
+        let line = &said[0];
+        assert!(
+            line.contains("compiled with it"),
+            "the advisory must say the commands run, not merely that they exist: {line}"
+        );
+        assert!(line.contains("דגש"), "and name them: {line}");
+        assert!(line.contains("h2"), "all of them: {line}");
+        assert!(line.contains("2 commands"), "and count them: {line}");
+        assert!(line.contains("2 lines"), "and the size: {line}");
+    }
+
+    /// A plain document says nothing, which is the other half.
+    ///
+    /// An advisory on every file is an advisory nobody reads, and this is the
+    /// overwhelmingly common case: a sefer with no preamble of its own.
+    #[test]
+    fn a_plain_document_says_nothing() {
+        assert!(read("#bold[hello]\n").advisories().is_empty());
+        assert!(read(&wrapped("   \n  ")).advisories().is_empty());
+    }
+
+    /// Both advisory kinds in one list, and neither shadowing the other.
+    ///
+    /// The missing-asset warning predates this one and `main.rs` used to format
+    /// it itself. One list is the reason a second kind could be added without a
+    /// second wording, so both have to come out of the same call.
+    #[test]
+    fn a_missing_asset_and_a_preamble_are_both_reported() {
+        let d = read(
+            r##"{"format":"ksav-document","version":1,"body":"x",
+                "customCommands":"#let mine(x) = x",
+                "assets":[{"name":"logo.png","hash":"0000000000000000"}]}"##,
+        );
+        assert_eq!(d.missing_assets, vec!["0000000000000000".to_string()]);
+        let said = d.advisories();
+        assert_eq!(said.len(), 2, "{said:?}");
+        assert!(said[0].contains("not in the file"), "{said:?}");
+        assert!(said[1].contains("mine"), "{said:?}");
+    }
+
+    /// The names, and the two binding spellings.
+    ///
+    /// `commands.ts::definedIn` is the app's copy of this and the two must agree:
+    /// the palette lists the document's commands under a "from document" chip, and
+    /// an advisory that named a different set would contradict the panel a writer
+    /// is looking at. The shapes that break a naive scan are here — `let` with no
+    /// hash, a hash with no `let`, the word `let` inside a longer word, and a
+    /// Hebrew identifier, which is the whole point of the language.
+    #[test]
+    fn the_names_come_out_right() {
+        assert_eq!(defined_let_names("#let a(x) = x"), vec!["a"]);
+        assert_eq!(defined_let_names("let b = 1"), vec!["b"]);
+        assert_eq!(defined_let_names("#let דגש(x) = strong(x)"), vec!["דגש"]);
+        // A word containing `let`, and a `#` that introduces nothing.
+        assert_eq!(defined_let_names("#letter = 3\n#let = 4"), Vec::<String>::new());
+        assert_eq!(
+            defined_let_names("#let first = 1\n#let second = 2"),
+            vec!["first", "second"]
+        );
+        // Both spellings, and the order they are written in.
+        assert_eq!(defined_let_names("let a = 1\n#let b = 2"), vec!["a", "b"]);
+    }
+
+    /// The advisory never claims more than is true.
+    ///
+    /// Two claims this repository can actually back, both measured in the crate:
+    /// packages are bundled and never fetched, and the resolver's root is the
+    /// package directory. So a preamble cannot reach the network and cannot
+    /// reach the writer's files. A warning saying "arbitrary code" would be
+    /// wrong, and this assertion is what stops somebody improving the wording
+    /// into it.
+    #[test]
+    fn the_advisory_does_not_claim_the_wrong_thing() {
+        let said = read(&wrapped("#let x = 1")).advisories().join(" ");
+        for overclaim in ["arbitrary", "malicious", "untrusted", "attack", "exploit"] {
+            assert!(
+                !said.to_lowercase().contains(overclaim),
+                "the advisory overclaims with {overclaim:?}: {said}"
+            );
+        }
+        // And it does say the true thing.
+        assert!(said.contains("compiled with it"), "{said}");
     }
 }

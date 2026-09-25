@@ -229,6 +229,61 @@ first character."
               (equal (alist-get 'format v) "ksav-document")
               v))))
 
+(defun ksav--preamble-names (pre)
+  "The names PRE binds, in the order it declares them.
+A preamble is prepended to the buffer, so a writer reasonably writes either
+`#let' or a bare `let', and Hebrew letters are identifiers — which is the whole
+point of the language.
+
+The name is a run of word characters, which is what an identifier is — and not a
+run up to the next space: `#let mine(x) = x` binds `mine`, and a pattern that ran
+to the whitespace announced `mine(x)`, a command the writer never defined and
+would go looking for. `[[:alnum:]_]` rather than a negated class because a
+negated one has to escape the brackets *and* the braces, and Emacs's regex
+reader takes `}` in a bracket expression as the start of an interval and stops
+matching altogether — a fence that passes on the four names in the test and
+finds nothing in a real preamble."
+  (let (names (at 0))
+    (while (string-match "\\(?:#\\)?let[ \t]+\\([[:alnum:]_]+\\)" pre at)
+      (push (match-string 1 pre) names)
+      (setq at (match-end 0)))
+    (nreverse names)))
+
+(defun ksav--announce-preamble (container)
+  "Say once, when a file runs the commands it carries.
+CONTAINER is the wrapper alist, or nil for a plain-text document.
+
+A `.ksav' may carry a `#let' preamble, and `ksav--preamble' puts it in front of
+the buffer's text on every request — so opening the file **runs** it. This package
+was silent about that while rendering a preview of whatever the preamble
+produced, and a `.ksav' is a file people are sent.
+
+The wording is this function's own rather than the engine's, and that is a known
+duplication: `DocFile::advisories' says the same thing for the CLI. The two answer
+\"one sentence, produced once\" only once there is a service the editor can ask,
+which is a protocol change rather than a sentence, so out of scope here — and the
+sentence here is therefore deliberately the short one.
+
+It says only what is true, and that is worth the care: packages are bundled and
+never fetched, the resolver's root is the package directory so a document cannot
+read anything else off the disk, and the compile sits behind a timeout. Saying
+\"arbitrary code\" would send a reader hunting for an attack the sandbox
+forecloses, and make the real and much smaller fact easy to wave away.
+
+Once per document rather than once per keystroke: this runs from
+`ksav--unwrap', which runs when a file is opened, so a writer who opens a shared
+sefer is told once and can go on writing."
+  (let* ((custom (and (listp container) (alist-get 'customCommands container)))
+         (pre (if (stringp custom) (string-trim custom) "")))
+    (unless (string-empty-p pre)
+      (let ((names (ksav--preamble-names pre))
+            (lines (length (split-string pre "\n"))))
+        (message
+         "Ksav: this document defines its own commands and they are compiled with it%s (%d line%s)"
+         (if names (format ": %s" (mapconcat #'identity names ", ")) "")
+         lines
+         (if (= 1 lines) "" "s"))))))
+
 (defun ksav--unwrap ()
   "Show the document rather than the file, when the file is the wrapped form.
 Does nothing to a plain-text `.ksav', which is most of them."
@@ -236,6 +291,7 @@ Does nothing to a plain-text `.ksav', which is most of them."
     (let ((body (or (alist-get 'body container) ""))
           (inhibit-read-only t))
       (setq ksav--container container)
+      (ksav--announce-preamble container)
       (erase-buffer)
       (insert (if (stringp body) body ""))
       (goto-char (point-min))

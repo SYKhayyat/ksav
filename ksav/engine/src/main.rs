@@ -126,11 +126,18 @@ fn main() -> ExitCode {
     // a file always carries its bytes — so this is a hand-edited or truncated
     // document, and the image would otherwise simply fail to resolve with no
     // hint as to which one or why.
-    for name in &doc.missing_assets {
-        eprintln!(
-            "warning: {} refers to an asset that is not in the file ({name})",
-            input.display()
-        );
+    //
+    // And a file that carries its own `#let` commands has them **compiled with
+    // it**: `doc.source()` puts the preamble in front of the body, so opening
+    // the file runs it. This binary was silent about that while printing a
+    // success line and writing a PDF, and a `.ksav` is a file somebody sends
+    // you. The wording is the engine's, not this binary's — `advisories()` is
+    // where the sentence lives, so the Emacs client and this one cannot drift —
+    // and it is deliberately the *small* claim: packages are bundled and never
+    // fetched, the resolver's root is the package directory so a document cannot
+    // reach anything else on the disk, and the compile sits behind a timeout.
+    for advice in doc.advisories() {
+        eprintln!("warning: {} {advice}", input.display());
     }
 
     let started = std::time::Instant::now();

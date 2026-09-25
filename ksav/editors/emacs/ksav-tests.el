@@ -982,3 +982,63 @@ same question without leaving the machine."
 
 (provide 'ksav-tests)
 ;;; ksav-tests.el ends here
+
+(defun ksav--say (fn)
+  "What FN's `message' calls said, as one string.
+
+`cl-letf' over `message\'' rather than the `message-function' hook, because that
+hook is read by the interactive \"message\" *command* and not by the function:
+binding it captures nothing and the test passes for the wrong reason. And there
+is no `with-message-to-string' — the name sounds right and does not exist."
+  (require 'cl-lib)
+  (let (said)
+    (cl-letf (((symbol-function (quote message))
+               (lambda (&rest args) (push (apply #'format args) said))))
+      (funcall fn))
+    (mapconcat #'identity (nreverse said) "\n")))
+
+(ert-deftest ksav-opening-a-file-says-it-runs-the-commands-it-carries ()
+  "A `.ksav' may carry a `#let' preamble, and opening it compiles one.
+
+This package was silent about that while rendering a preview of whatever the
+preamble produced, and a `.ksav' is a file people are sent. The engine says the
+same thing for the CLI in `DocFile::advisories'; these are the editor's half."
+  (should (equal (ksav--preamble-names "#let mine(x) = strong(x)") '("mine")))
+  (should (equal (ksav--preamble-names "let bare = 1\n#let dashed = 2")
+                 '("bare" "dashed")))
+  (should (equal (ksav--preamble-names "#let דגש(x) = strong(x)") '("דגש")))
+  ;; `letter` is not a `let`, and `mine(x)` binds `mine` — a pattern that ran to
+  ;; the whitespace announced a command the writer never defined and would go
+  ;; looking for.
+  (should (equal (ksav--preamble-names "#letter = 3") nil)))
+
+(ert-deftest ksav-the-announcement-names-the-commands-and-their-size ()
+  "The sentence has to be the small true one.
+
+Saying \"arbitrary code\" would send a reader hunting for an attack the sandbox
+forecloses — packages are bundled and never fetched, the resolver's root is the
+package directory, and the compile sits behind a timeout — and would make the
+real and much smaller fact easy to wave away. So the wording is pinned."
+  (let* ((container '((format . "ksav-document")
+                       (customCommands . "#let דגש(x) = strong(x)\n#let mine(y) = y")))
+         (msg (ksav--say (lambda () (ksav--announce-preamble container)))))
+    (should (string-match-p "compiled with it" msg))
+    (should (string-match-p "דגש, mine" msg))
+    (should (string-match-p "2 lines" msg))
+    (dolist (overclaim '("arbitrary" "malicious" "untrusted" "attack" "exploit"))
+      (should-not (string-match-p overclaim msg)))))
+
+(ert-deftest ksav-a-plain-document-is-not-announced ()
+  "Most `.ksav' files are plain text with no preamble at all.
+
+An announcement on every open is an announcement nobody reads, so the negative
+half is asserted as firmly as the positive one."
+  (let ((silent (lambda (container)
+                  (ksav--say (lambda () (ksav--announce-preamble container))))))
+    (should (equal (funcall silent '((format . "ksav-document")
+                                     (body . "shalom")))
+                   ""))
+    (should (equal (funcall silent '((format . "ksav-document")
+                                     (customCommands . "  \n ")))
+                   ""))
+    (should (equal (funcall silent nil) ""))))

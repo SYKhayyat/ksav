@@ -13,8 +13,8 @@
 //     prelude — `#let h1 = כותרת1` is the whole reason `#h1` compiles — and
 //     `markdown.ts` re-typed ~100 of the pairs by hand so that an export would
 //     recognise both spellings. A command renamed in the prelude simply stopped
-//     exporting under its new name. It is read from `ksav.typ` rather than from
-//     `commands.rs` because the registry is deliberately a *subset*: it stops at
+//     exporting under its new name. It is the *prelude's* pairing rather than
+//     the registry's because the registry is deliberately a *subset*: it stops at
 //     tier ג, on the argument that a chooser card with seven tiers on it is
 //     unreadable, while the prelude defines all seven and an export has to
 //     handle a document that used one.
@@ -40,11 +40,11 @@
 // sliders would have read one number while the page was laid out to another.
 //
 // They come from `engine/facts.gen.json` now, which `engine/src/facts.rs`
-// serialises and `cargo test --test facts` keeps honest. The prelude is still
-// read as text and that is a different thing: `#let h1 = כותרת1` is a
-// *declaration in a language*, not a value literal, and reading it is how this
-// file knows about the four tiers per family the Rust registry deliberately
-// stops short of.
+// serialises and `cargo test --test facts` keeps honest — the document defaults,
+// the pairing and both English parameter tables, all read out of the values that
+// own them. The prelude is still read as *text* for one thing only: the fixed
+// vocabularies a panel offers a choice from, which are `#let` tuples rather than
+// a table with a shape. The pairing is a value; see `readAliases`.
 //
 //   node tools/emit-engine.mjs          # rewrite app/src/engine.gen.ts
 //   node tools/emit-engine.mjs --check  # fail if it is stale
@@ -101,6 +101,12 @@ const NOT_A_SETTING = {
  * the two sources are unioned rather than one being preferred, and the check
  * below is the one that can actually be made: where both speak, they agree, and
  * every English name the registry advertises is a name the prelude defines.
+ *
+ * This pairing is a **value now**: `facts().command_en`, serialised by Rust from
+ * Typst's own parse of the prelude. The line regex this file used to run is
+ * `preludeAliasesFromText` below, kept as a cross-check — see there for what it
+ * got right (all 189 pairs, and it had to) and, in both directions, what it does
+ * not.
  */
 /**
  * A `#let NAME = ("a", "b", …)` tuple of strings, out of the prelude.
@@ -174,7 +180,77 @@ function readVocabularies() {
   }
 }
 
+/**
+ * Build the pairing from `facts().command_en` alone — pure, no cross-check.
+ *
+ * Exported so a test can hand a *mutated* table to `aliasProblems` and prove the
+ * fence actually fires; `readAliases` is the generation path that always runs
+ * both.
+ *
+ * One rule here rather than at the call site: **the first English spelling of a
+ * Hebrew command wins**. `אות` is declared twice — `#let os = אות` and
+ * `#let osource = אות` — and going back the other way needs one answer. The
+ * pairs arrive in declaration order, which is why the JSON keeps both rows
+ * rather than a map: the choice belongs to the reader, and this is the reader.
+ *
+ * @param {[string, string][]} ce facts, `(english, hebrew)` in declaration order
+ * @returns {Map<string, string>} Hebrew → English
+ */
+export function aliasesFromFacts(ce) {
+  const byHebrew = new Map();
+  for (const [en, he] of ce) {
+    if (!byHebrew.has(he)) byHebrew.set(he, en);
+  }
+  return byHebrew;
+}
+
 function readAliases() {
+  const aliases = aliasesFromFacts(facts().command_en);
+  crossCheckAliasesAgainstPrelude(aliases);
+  return aliases;
+}
+
+/**
+ * The same pairing, read out of the prelude's text with the line regex this
+ * file used to *generate* from.
+ *
+ * Kept as a fence, not as a source: a disagreement can only produce a loud
+ * refusal, never a wrong value — the opposite failure mode from the
+ * regex-as-source arrangement. If `facts.gen.json` is stale relative to
+ * `ksav.typ`, generation stops here rather than shipping one of the two.
+ *
+ * Worth being exact about what this regex got *right*, because the fix is only
+ * worth the difference. It agreed with the walk on all 189 pairs of today's
+ * prelude, and it had to: Typst's own parser will not accept a `#let` whose
+ * value is on the next line — it is an `Error` node — so a bare alias is always
+ * on one line, and no bare alias can be one reader finds and the other misses.
+ * First-wins and declaration order agreed too, because both readers iterate the
+ * same bindings in the same order.
+ *
+ * Where it is wrong, in both directions — each measured against this regex, and
+ * pinned by `test/commanden.test.mjs` so the list cannot rot into a story:
+ *
+ *   - A block comment whose contents are the alias (`slash-star`, a line, `#let
+ *     bold = הדגשה`, `slash-star`), a multi-line string quoting a command, and a
+ *     fenced raw block all start a line, so all three read as commands. A
+ *     one-line `slash-slash #let …` is safe — the anchor needs `#` first — but a
+ *     commented-out *block* of aliases is how one switches several off at once,
+ *     and nothing in a line distinguishes it from the code under it.
+ *   - `#box[#let cell = תא]` is a command a document may legitimately declare,
+ *     and this cannot see it, because it is not at the start of a line.
+ *   - `_en\(([^\s,)]+)` stops at the first space, comma or paren, so
+ *     `_en((מדור_בדרגה))` — a real binding, which compiles and names the same
+ *     command — reads nothing. (`_en (מדור_בדרגה)`, with a space, is not an
+ *     example: Typst rejects it and the parse is an `Error` node.)
+ *   - "Which bindings are commands" is decided here by a line anchor and a
+ *     `[A-Za-z]` first character. That it excludes the prelude's 810
+ *     function-local `let`s — one of them `let _gmin = רשת_מרווח_מזערי`, a bare
+ *     Hebrew value no shape test could reject — is luck. The walk uses the tree's
+ *     own markup/code distinction instead.
+ *
+ * @returns {Map<string, string>} Hebrew → English
+ */
+export function preludeAliasesFromText() {
   const src = readFileSync(PRELUDE, "utf8");
   const LINE = /^#let ([A-Za-z][A-Za-z0-9_]*) = (?:([^\s_(][^\s(]*)|_en\(([^\s,)]+))/;
   const byHebrew = new Map();
@@ -185,11 +261,60 @@ function readAliases() {
     // Hebrew-named only. `#let sources = מראה_מקומות` pairs; a hypothetical
     // ASCII-to-ASCII `#let` would not be a translation of anything.
     if (!/^[֐-׿][֐-׿_0-9]*$/.test(he)) continue;
-    // First alias wins, so a second English spelling of one command (there are
-    // none today) would not silently replace the first.
+    // First alias wins, so a second English spelling of one command (there is
+    // one today — `os` and `osource`) does not silently replace the first.
     if (!byHebrew.has(he)) byHebrew.set(he, m[1]);
   }
   return byHebrew;
+}
+
+/**
+ * Every way the two reads of the pairing can disagree — as strings, never as a
+ * process.
+ *
+ * Pure so `test/commanden.test.mjs` can prove the fence fires: hand it facts
+ * that disagree with the prelude text and expect a named problem.
+ * `readAliases` is the only caller that turns a non-empty list into
+ * `process.exit(1)`.
+ *
+ * Reported as Hebrew-keyed rows, so the exit-1 message names the command a
+ * writer would search for rather than an index.
+ *
+ * @param {Map<string, string>} fromFacts facts, Hebrew → first English
+ * @param {Map<string, string>} fromText prelude text read of the same
+ * @returns {string[]}
+ */
+export function aliasProblems(fromFacts, fromText) {
+  const problems = [];
+  if (fromFacts.size !== fromText.size) {
+    problems.push(
+      `  ${fromFacts.size} pairs in facts.gen.json, ${fromText.size} in ksav.typ`,
+    );
+  }
+  for (const [he, en] of fromText) {
+    if (fromFacts.get(he) !== en) {
+      problems.push(`  ${he}: facts say ${fromFacts.get(he) ?? "—"}, prelude text says ${en}`);
+    }
+  }
+  for (const [he, en] of fromFacts) {
+    // Only the direction the size check above cannot cover on its own: a
+    // command facts invented, with the text read not knowing about it.
+    if (!fromText.has(he)) problems.push(`  ${he}: facts say ${en}, which the prelude text does not`);
+  }
+  return problems;
+}
+
+function crossCheckAliasesAgainstPrelude(aliases) {
+  const problems = aliasProblems(aliases, preludeAliasesFromText());
+  if (problems.length) {
+    console.error(
+      "engine/facts.gen.json's command_en disagrees with engine/typst/ksav.typ:\n" +
+        problems.join("\n") +
+        "\n\nIf the prelude changed, regenerate with:\n  KSAV_BLESS=1 cargo test --test facts\n" +
+        "then regenerate this side with:\n  npm run fixtures",
+    );
+    process.exit(1);
+  }
 }
 
 /**
@@ -530,9 +655,14 @@ ${defaultRows}
 /**
  * The English alias of every command, keyed by its Hebrew name.
  *
- * From the prelude's own \`#let\` lines, which are what *make* the pairing —
- * so this covers the four tiers per family that the palette registry stops
- * short of, and an export meets a document that used one.
+ * From the engine's facts (\`command_en\`), which serialise Typst's own parse of
+ * the prelude's \`#let\` declarations — so this covers the four tiers per family
+ * that the palette registry stops short of, and an export meets a document that
+ * used one, and an alias commented out in the prelude is not a command.
+ *
+ * Where two English spellings share one Hebrew command (\`os\`/\`osource\` →
+ * \`אות\`) the first the prelude declares is the one here, because going back the
+ * other way needs one answer.
  */
 export const COMMAND_EN: Readonly<Record<string, string>> = {
 ${aliasRows}
@@ -794,7 +924,7 @@ for (const c of commands) if (!aliases.has(c.he)) aliases.set(c.he, c.en);
 // text — a truncated artefact and a table that lost its rows both land here, and
 // the cost of the check is four comparisons.
 for (const [what, rows, least] of [
-  ["aliases (engine/typst/ksav.typ)", aliases, 120],
+  ["aliases (engine/facts.gen.json)", aliases, 120],
   ["parameter names (engine/facts.gen.json)", params.global, 40],
   ["per-command overrides (engine/facts.gen.json)", params.byCommand, 10],
   ["containers (engine/tests/fixtures/containers.json)", containers, 30],

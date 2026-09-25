@@ -53,9 +53,14 @@ export const DOC_DEFAULTS = {
 /**
  * The English alias of every command, keyed by its Hebrew name.
  *
- * From the prelude's own `#let` lines, which are what *make* the pairing —
- * so this covers the four tiers per family that the palette registry stops
- * short of, and an export meets a document that used one.
+ * From the engine's facts (`command_en`), which serialise Typst's own parse of
+ * the prelude's `#let` declarations — so this covers the four tiers per family
+ * that the palette registry stops short of, and an export meets a document that
+ * used one, and an alias commented out in the prelude is not a command.
+ *
+ * Where two English spellings share one Hebrew command (`os`/`osource` →
+ * `אות`) the first the prelude declares is the one here, because going back the
+ * other way needs one answer.
  */
 export const COMMAND_EN: Readonly<Record<string, string>> = {
   "הגדרות_טקסט_הערות": "notes_text_config",

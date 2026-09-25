@@ -1812,6 +1812,205 @@ fn en_wrapper(binding: &LinkedNode) -> Option<(String, Vec<(String, String)>)> {
     Some((he_command?, pairs))
 }
 
+/// Every Hebrew→English command alias the prelude declares, as
+/// `(english, hebrew)` pairs in declaration order.
+///
+/// # This was a line regex, in the app's generator, and said so
+///
+/// `#let h1 = כותרת1` and `#let band = _en(מדור_בדרגה, extra: (…))` are the two
+/// shapes, and `readAliases` in `app/tools/emit-engine.mjs` found both with one
+/// `/^#let ([A-Za-z][A-Za-z0-9_]*) = …/` per line.
+///
+/// Worth being exact about what that regex got *right*, because the fix is only
+/// worth what the difference is. It agreed with the walk on all 189 pairs of
+/// today's prelude, and it had to: Typst's own grammar will not parse a `#let`
+/// whose value is on the next line — it is an `Error` node — so a bare alias is
+/// always on one line, and the two readers cannot disagree about one. The
+/// first-wins rule and the declaration order agree too, because the regex
+/// iterated the same bindings in the same order.
+///
+/// # Where it is wrong, and both directions
+///
+///   - **A line is not a binding.** `/*\n#let bold = הדגשה\n*/` is a comment and
+///     a multi-line string quoting a command is documentation, and the regex
+///     reads both as commands. It also reads a ```` ```typ ```` raw block. The
+///     tree knows the difference and refuses all three. This is not hypothetical
+///     for a file whose every paragraph explains a pairing: a commented-out
+///     *block* of aliases is how one switches several off at once.
+///   - **A binding is not a line.** `#box[#let cell = תא]` is a command a
+///     document may legitimately declare, and the regex cannot see it because it
+///     is not at the start of a line. The tree sees it; the parent-kind rule
+///     below admits it.
+///   - **The `_en` argument was read as text.** `_en\(([^\s,)]+)` stops at the
+///     first space, comma or paren, so `_en((מדור_בדרגה))` — a real binding,
+///     which compiles and names the same command — reads nothing while the regex
+///     has no answer and this walk does. (`_en (מדור_בדרגה)`, with a space, is
+///     *not* an example: Typst rejects it, and the parse is an `Error` node.)
+///   - **Which bindings are *commands* was a regex.** That it happened to be
+///     right was luck: the line anchor and the `[A-Za-z]` first character
+///     excluded the prelude's 810 function-local `let`s, one of which
+///     (`let _gmin = רשת_מרווח_מזערי`) is a bare Hebrew value indistinguishable
+///     from a real alias by shape. It is now the tree's own distinction between
+///     a binding in markup and one in a function body.
+///   - **It is a fourth read of a truth stated twice already.** `commands.rs`
+///     carries the pairing for the 115 commands the palette offers, the prelude
+///     makes it for all of them, and the generator already cross-checks those
+///     two. A third reader is what this removes.
+///
+/// So it asks the tree, exactly as [`param_tables`] does one screen above, and
+/// leaves the line scan in the generator as a fence rather than as a source.
+///
+/// # The two shapes, and what makes a binding a command
+///
+/// A bare alias (`#let bold = הדגשה`) and an `_en(…)` wrapper
+/// (`#let banded = _en(הערות_מדורגות)`) are commands. Four things are not, and
+/// each is rejected for a stated reason rather than by a pattern that happens to
+/// exclude it:
+///
+///   - **A `let` in code mode.** A document-level `#let` is a markup expression,
+///     so its parent is a `Markup` node; a `let` inside a function body sits
+///     under `Code`. That is Typst's own distinction, and it is the only thing
+///     that separates the 810 local bindings in this prelude — one of them a
+///     bare Hebrew value — from a real alias. The `Hash` cannot decide it: it
+///     is a *sibling* of the `LetBinding`, not a child of it.
+///   - **A Hebrew name.** `#let סימן = …` binds a Hebrew name; an alias is the
+///     English spelling of a Hebrew one, so the bound name has to be ASCII.
+///   - **Plumbing.** An ASCII name starting `_` is the prelude's own
+///     (`_en`, `_en_params`, `_kd_parents`) — state, labels, numbering arrays.
+///     Nobody types `#_kd_parents`, so it is not a command and not an alias.
+///   - **A value that is not a name.** A call to any function other than `_en`
+///     is an ordinary binding that happens to be spelled in English.
+#[must_use]
+pub fn command_aliases(prelude: &str) -> Vec<(String, String)> {
+    let source = Source::detached(prelude.to_string());
+    let mut out = Vec::new();
+    collect_aliases(&LinkedNode::new(source.root()), &mut out);
+    out
+}
+
+fn collect_aliases(node: &LinkedNode, out: &mut Vec<(String, String)>) {
+    for child in node.children() {
+        if child.kind() == SyntaxKind::LetBinding {
+            if let Some(pair) = alias_pair(&child) {
+                out.push(pair);
+            }
+        }
+        collect_aliases(&child, out);
+    }
+}
+
+/// One `(english, hebrew)` alias from a `LetBinding`, or nothing.
+fn alias_pair(binding: &LinkedNode) -> Option<(String, String)> {
+    // Markup only. Typst's own distinction, not a pattern: a document-level
+    // `#let` is a markup expression, so its parent is a `Markup` node, while a
+    // `let` inside a function body sits under `Code`. A command a writer types
+    // is bound in the document's own namespace; a function-local binding is a
+    // local variable and is not a command. The `Hash` cannot decide it — it is
+    // a *sibling* of the `LetBinding`, not a child of it.
+    //
+    // The prelude has 810 of the second kind, and one of them is a bare Hebrew
+    // value (`let _gmin = רשת_מרווח_מזערי`) that no shape test could have told
+    // apart from a real alias.
+    if binding.parent().map(|p| p.kind()) != Some(SyntaxKind::Markup) {
+        return None;
+    }
+    let english = binding_name(binding)?.trim_start_matches('#').to_string();
+    if !is_command_alias_name(&english) {
+        return None;
+    }
+    // The value is whatever follows the `=`, not the first `Ident` in the
+    // binding: in `#let bold = הדגשה` that is the second one.
+    let mut after_eq = false;
+    let mut value = None;
+    for child in binding.children() {
+        if after_eq {
+            if !child.kind().is_trivia() {
+                value = Some(child);
+                break;
+            }
+            continue;
+        }
+        if child.kind() == SyntaxKind::Eq {
+            after_eq = true;
+        }
+    }
+    let hebrew = match value? {
+        // `#let bold = הדגשה` — the whole statement of the pairing.
+        v if v.kind() == SyntaxKind::Ident => v.get().leaf_text().to_string(),
+        // `#let band = _en(מדור_בדרגה, extra: (…))` — the first positional
+        // argument of `_en` is the Hebrew command; a call to anything else is
+        // an ordinary binding with an English name.
+        v if v.kind() == SyntaxKind::FuncCall => en_wrapper_command(&v)?,
+        _ => return None,
+    };
+    if !is_hebrew_command_name(&hebrew) {
+        return None;
+    }
+    Some((english, hebrew))
+}
+
+/// The Hebrew command an `_en(…)` wrapper wraps, or nothing for any other call.
+fn en_wrapper_command(call: &LinkedNode) -> Option<String> {
+    let callee = call.children().find(|c| !c.kind().is_trivia())?;
+    if callee.kind() != SyntaxKind::Ident || callee.get().leaf_text() != "_en" {
+        return None;
+    }
+    let args = call.children().find(|c| c.kind() == SyntaxKind::Args)?;
+    // The **first positional** argument, which is the command. Stopping at the
+    // first `Named` matters: `_en(extra: (…), מדור)` binds nothing useful, and a
+    // reader that kept scanning would silently pick up a later argument and
+    // report it as the command.
+    for arg in args.children() {
+        match arg.kind() {
+            SyntaxKind::LeftParen | SyntaxKind::RightParen => continue,
+            k if k.is_trivia() => continue,
+            // `_en(מדור_בדרגה)` — the shape the prelude writes.
+            SyntaxKind::Ident => return Some(arg.get().leaf_text().to_string()),
+            // `_en((מדור_בדרגה))` — the same command, parenthesised. It compiles
+            // and names the same thing, and both this walk and the line regex it
+            // replaced read nothing at all for it; a writer's document can contain
+            // either form, so generation has to see both. A parenthesised
+            // *group* rather than a name (`_en((a, b))`) contributes nothing.
+            SyntaxKind::Parenthesized => {
+                let mut names = arg
+                    .children()
+                    .filter(|c| c.kind() == SyntaxKind::Ident);
+                return match (names.next(), names.next()) {
+                    (Some(one), None) => Some(one.get().leaf_text().to_string()),
+                    _ => None,
+                };
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// The bound name of a command alias: ASCII, and not the prelude's own plumbing.
+fn is_command_alias_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic())
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// A Hebrew command name: Hebrew letters and digits, `קו_תחתון`-style.
+fn is_hebrew_command_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    matches!(chars.next(), Some(c) if is_hebrew_letter(c))
+        && chars.all(|c| is_hebrew_letter(c) || c == '_' || c.is_ascii_digit())
+}
+
+/// The block the prelude's commands live in, inclusive.
+///
+/// U+05D0 (alef) to U+05EA (tav) are the letters; the combining marks below
+/// them are not letters, and a command name containing one is not a command the
+/// writer types. Stated as a range rather than `is_alphabetic` so that a
+/// Hebrew-script letter *outside* the block — a Yiddish or Judeo-Arabic
+/// addition — cannot slip into the English vocabulary silently.
+fn is_hebrew_letter(c: char) -> bool {
+    matches!(c, '\u{05D0}'..='\u{05EA}')
+}
+
 /// `english: "hebrew"` from a `Named` node, or nothing.
 ///
 /// The name must be an `Ident` — a quoted key is a dictionary entry about
@@ -1831,3 +2030,6 @@ fn named_pair(node: &LinkedNode) -> Option<(String, String)> {
     }
     Some((name.get().leaf_text().to_string(), hebrew.to_string()))
 }
+
+
+

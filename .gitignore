@@ -60,3 +60,8 @@ ksav/engine/tools/.corpus-cache/
 
 # Locally built Linux installers
 /ksav/packaging/out/
+
+# Worker scratch: build logs, measurement scratchpads and one-off probes. Kept
+# in the tree rather than the system temp directory so a long run's evidence
+# survives a reboot, and ignored so a `git add -A` never sweeps it in.
+/.scratch/

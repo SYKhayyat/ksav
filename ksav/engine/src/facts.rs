@@ -248,6 +248,23 @@ pub struct Facts {
     /// wrong English snippet. Declaration order is preserved because the first
     /// English spelling of a Hebrew word wins when the client builds `PARAM_EN`.
     pub param_en: crate::diagnostics::ParamTables,
+    /// The Hebrew→English command pairing, as the prelude declares it.
+    ///
+    /// **Not read by regex.** `emit-engine.mjs` walked the prelude's text one
+    /// line at a time with `/^#let ([A-Za-z][A-Za-z0-9_]*) = …/`, which is the
+    /// same failure this module exists to end, one layer over, at the command
+    /// seam: it cannot see a binding that is not on a line of its own, it
+    /// decides what a *command* is with three alternatives in a regex rather
+    /// than with the tree's own distinction between a markup `#let` and a
+    /// function-local `let`, and it is a fourth read of a pairing that
+    /// `commands.rs` and the prelude both already state.
+    ///
+    /// Pairs are `(english, hebrew)` in declaration order, for the same reason
+    /// `param_en` is: the first English spelling of a Hebrew command wins when
+    /// the client builds `COMMAND_EN`. `diagnostics::command_aliases` reads it
+    /// out of Typst's parse of the prelude, and the old line scan is left in
+    /// the generator as a cross-check that exits 1 on disagreement.
+    pub command_en: Vec<(String, String)>,
 }
 
 /// The git operations, from the module that answers them.
@@ -280,6 +297,7 @@ pub fn facts() -> Facts {
         template_fields: template_fields(),
         markup_escapes: crate::escape::MARKUP.iter().collect(),
         param_en: crate::diagnostics::param_tables(crate::PRELUDE),
+        command_en: crate::diagnostics::command_aliases(crate::PRELUDE),
     }
 }
 

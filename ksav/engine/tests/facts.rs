@@ -101,6 +101,7 @@ fn first_difference(have: &str, wanted: &str) -> String {
         "template_fields",
         "markup_escapes",
         "param_en",
+        "command_en",
     ] {
         if a.get(key) != b.get(key) {
             return format!(" — `{key}` changed");
@@ -284,3 +285,217 @@ fn the_walk_only_opens_rows_for_real_en_wrappers() {
         "a trailing // note inside extra: must not hide the pair"
     );
 }
+
+/// The command pairing crossed as a value, not as source text.
+///
+/// An empty or truncated `command_en` generates a `COMMAND_EN` that typechecks,
+/// breaks every English spelling at runtime, and looks like a successful
+/// regeneration. These are the floors the generator enforced on its line regex,
+/// moved here so a stale artefact is caught before a client sees it — plus the
+/// one ambiguity a floor cannot catch.
+#[test]
+fn the_command_pairing_is_present() {
+    let v: serde_json::Value =
+        serde_json::from_str(&ksav_engine::facts::facts_json()).expect("valid JSON");
+    let pairs = v["command_en"]
+        .as_array()
+        .expect("command_en is an array of [english, hebrew] pairs");
+    assert!(pairs.len() >= 120, "command_en: {}", pairs.len());
+    for row in pairs {
+        assert!(
+            row[0].is_string() && row[1].is_string(),
+            "not a [english, hebrew] pair: {row}"
+        );
+    }
+
+    // The two forms, because they are two shapes of one statement and a walk
+    // that reads only one of them passes every floor and ships half a palette.
+    let has = |en: &str, he: &str| pairs.iter().any(|r| r[0] == en && r[1] == he);
+    assert!(has("bold", "הדגשה"), "the bare-alias form is missing");
+    assert!(has("band", "מדור_בדרגה"), "the _en wrapper form is missing");
+
+    // First English spelling wins, so the second one has to be *in* the table
+    // for the reader's rule to have anything to apply. `אות` is the only
+    // command with two (`os` and `osource`). If the walk deduplicated here
+    // instead, the client would still be right today — so the assertion is
+    // that both are present, not which one wins.
+    assert!(has("os", "אות"), "אות → os is missing");
+    assert!(has("osource", "אות"), "אות → osource is missing");
+}
+
+/// The first English spelling of a Hebrew command is the one the client keeps.
+///
+/// `command_aliases` returns declaration order and leaves the choice to the
+/// reader, exactly as `param_en` does; this states the reader's rule where a
+/// future consumer of the raw list can see what it is for.
+#[test]
+fn the_first_english_spelling_of_a_command_wins() {
+    let mut first: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for (en, he) in ksav_engine::diagnostics::command_aliases(include_str!("../typst/ksav.typ")) {
+        first.entry(he).or_insert(en);
+    }
+    assert_eq!(first.get("אות").map(String::as_str), Some("os"), "declaration order decides");
+    assert_eq!(first.get("הדגשה").map(String::as_str), Some("bold"));
+    assert_eq!(first.get("מדור_בדרגה").map(String::as_str), Some("band"));
+}
+
+/// The alias walk's edge cases, on synthetic preludes the real file can only grow into.
+///
+/// Each trap is a shape the walk has to reject *for a stated reason*: a
+/// function-local `let` binds a variable, a Hebrew-bound name is a Hebrew name
+/// rather than an English spelling of one, an `_`-prefixed name is the
+/// prelude's own plumbing, and a call to anything but `_en` is an ordinary
+/// binding. A walk that accepted all four would pass every floor and every
+/// byte-identity check against today's artefact, then ship a bogus English name
+/// the first time somebody wrote one.
+#[test]
+fn the_alias_walk_only_opens_for_document_commands() {
+    use ksav_engine::diagnostics::command_aliases;
+
+    let none = Vec::<(String, String)>::new();
+
+    // A function-local `let` whose value is a bare Hebrew identifier. The
+    // prelude really has this shape (`let _gmin = רשת_מרווח_מזערי`), and only
+    // the `Code` parent separates it from a real alias.
+    assert_eq!(command_aliases("#let f(a) = {\n  let inner = a\n  inner\n}\n"), none);
+
+    // A Hebrew name bound to a Hebrew name is a Hebrew definition.
+    assert_eq!(command_aliases("#let סימן = סימן_אחר\n"), none);
+
+    // Plumbing: `_en`, `_en_params`, `_kd_parents` are the prelude's own.
+    assert_eq!(
+        command_aliases("#let _en(f, extra: (:)) = f\n#let _pair = כותרת1\n"),
+        none,
+        "an underscore-prefixed name is not a command"
+    );
+
+    // An English-named binding that is not an alias: a call to another
+    // function, a string, a number, a list, a closure.
+    for src in [
+        "#let pick = titles.at(0)\n",
+        "#let text = \"הדגשה\"\n",
+        "#let n = 3\n",
+        "#let names = (הדגשה, נטוי)\n",
+        "#let make() = הדגשה\n",
+        // `_en` wrapping an ASCII name is the other direction, and the
+        // registry has no row for it.
+        "#let wrap = _en(h1)\n",
+    ] {
+        assert_eq!(command_aliases(src), none, "trap {src:?} is not an alias");
+    }
+
+    // The two forms, and the two directions in which a line scan is wrong.
+    //
+    // Each of these was measured against the line regex this walk replaced
+    // (`/^#let ([A-Za-z][A-Za-z0-9_]*) = …/` per line), which is why the shapes
+    // are the ones they are. Over-reads: the regex invents a command where there
+    // is none. Under-reads: it misses one that is there.
+    for src in [
+        // Over-read: a block comment with the alias on a line of its own. A
+        // one-line `// #let …` is safe — the anchor needs `#` first — but a
+        // commented-out *block* of aliases is how one switches several off at
+        // once, and the regex cannot tell it from the code under it.
+        "/*\n#let bold = הדגשה\n*/\n",
+        // Over-read: a multi-line string, which the prelude uses to carry
+        // documentation that quotes commands.
+        "#let s = \"\n#let bold = הדגשה\n\"\n",
+        // Over-read: a raw block. Its contents are code shown to a reader, not
+        // the document's namespace.
+        "```typ\n#let bold = הדגשה\n```\n",
+    ] {
+        assert_eq!(
+            command_aliases(src),
+            none,
+            "trap {src:?} is a comment, a string or a raw block, not a command"
+        );
+    }
+
+    // Under-read: a `#let` in a markup content block **is** a command a document
+    // may legitimately declare, and the line scan cannot see it because it is
+    // not at the start of a line.
+    assert_eq!(
+        command_aliases("#box[#let cell = תא]"),
+        vec![("cell".into(), "תא".into())],
+        "a binding is not a line"
+    );
+
+    // Under-read: the `_en` argument read as text rather than as an argument.
+    // `_en\(([^\s,)]+)` stops at the first paren, so a parenthesised command —
+    // a real binding, which compiles and names the same thing — read as nothing
+    // at all. Both readers missed it before this walk; that is why the case is
+    // here rather than in the paragraph above.
+    assert_eq!(
+        command_aliases("#let band = _en((מדור_בדרגה))\n"),
+        vec![("band".into(), "מדור_בדרגה".into())],
+        "a parenthesised command is the same command"
+    );
+
+    // The first *positional* argument is the command, and a `Named` one is not.
+    // Reading past it would report `extra` as the command.
+    for src in [
+        "#let band = _en(extra: (columns: \"טורים\"), מדור_בדרגה)\n",
+        "#let band = _en((a, b))\n",
+    ] {
+        assert_eq!(command_aliases(src), none, "trap {src:?} has no command");
+    }
+
+    // Both forms, in one file, in the order a client will keep them.
+    let both = "#let bold = הדגשה\n#let band = _en(מדור_בדרגה, extra: (columns: \"טורים\"))\n#let ital = נטוי\n";
+    assert_eq!(
+        command_aliases(both),
+        vec![
+            ("bold".into(), "הדגשה".into()),
+            ("band".into(), "מדור_בדרגה".into()),
+            ("ital".into(), "נטוי".into()),
+        ],
+        "declaration order is what the reader's first-wins rule runs on"
+    );
+}
+
+/// The registry and the prelude say the same thing, checked from Rust.
+///
+/// `emit-engine.mjs` already cross-checks the two and exits 1, but that runs on
+/// a machine that has Node and reads a JSON artefact. This asks the same
+/// question of the values, so a disagreement is a red `cargo test` as well —
+/// and, unlike the generator, it can say which of the two is wrong when the
+/// registry and the prelude name *different* English names for one command.
+#[test]
+fn every_registry_command_agrees_with_the_preludes_spelling() {
+    let mut aliases: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for (en, he) in ksav_engine::diagnostics::command_aliases(include_str!("../typst/ksav.typ")) {
+        // First declaration wins, as the client does.
+        aliases.entry(he).or_insert(en);
+    }
+    let mut twins = 0;
+    for c in ksav_engine::commands::COMMANDS {
+        match aliases.get(c.he) {
+            Some(en) => assert_eq!(
+                en.as_str(), c.en,
+                "registry and prelude disagree about {}: the registry says \"{}\", \
+                 the prelude aliases it to \"{en}\"",
+                c.he, c.en
+            ),
+            None => {
+                // The registry's independently-defined twins — `#let hlevel(body,
+                // level: 1)`, which is `#כותרת` under an English parameter name
+                // rather than an alias of it. The prelude cannot record that the
+                // two are one command, so the generator adds them from the
+                // registry; there must be few of them or the aliasing has
+                // stopped being the mechanism.
+                twins += 1;
+                assert!(
+                    !c.en.is_empty(),
+                    "{} is in the registry with no English name at all",
+                    c.he
+                );
+            }
+        }
+    }
+    assert!(
+        twins <= 5,
+        "{twins} registry commands are not prelude aliases — the aliasing is \
+         supposed to be the mechanism, and a growing list here means the \
+         generator's registry-only fallback is doing the work"
+    );
+}
+

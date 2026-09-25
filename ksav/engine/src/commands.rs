@@ -5,6 +5,24 @@
 //! consumes this (as JSON) to build the command palette, the toolbar tooltips,
 //! and the generated documentation. Every command here has a matching `#let`
 //! in `typst/ksav.typ`.
+//!
+//! # The wire is a palette, and this file's comments are not on it
+//!
+//! Seven columns go to the client, 224 bytes a row. Everything a reader would
+//! want to know *about* those columns — why this command exists, what happened
+//! to the one that was deprecated, why `insert` is empty in four places — is
+//! written here as a `///` comment on the field or a `//` comment above the
+//! row, and a Rust comment is not a value. That split is deliberate and it is
+//! measured, not asserted: `tests/registry_wire.rs` fences the wire's length,
+//! its total size, its column set, and the one place a second sentence is
+//! allowed to appear.
+//!
+//! The failure this arrangement exists to catch is not hypothetical and not
+//! subtle. An author documenting a command properly reaches for the description
+//! field, because it is right there; the paragraph compiles, passes every floor,
+//! ships to a browser, and lands in a tooltip. That is prose-as-value, which is
+//! what `facts.rs` was written against — and it is why the descriptions stay
+//! short *by test* rather than by good intentions.
 
 use serde::Serialize;
 

@@ -1,15 +1,20 @@
 # PLAN — ksav (work top to bottom, one issue per worker session)
 
 Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving test, commit, check it off, stop. Do not batch. Do not reorder.
-Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #30, #40, #41, #49.
+Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #29, #30, #40, #41, #49.
 
 ## SKIP — do not work (see AI_ISSUE_ROUTING.md)
 - #36 watch.forget — FALSE POSITIVE (callers at main.ts:740,827).
+- #29 registry "docs in the wire" — FALSE POSITIVE, measured: the essays are
+  `///`/`//` comments (15,181 of 40,053 bytes, none a value); the literals are 22
+  chars at the median and `commands_json` is 224 bytes a row. The descriptions
+  stay — the palette displays and searches them. What was missing was a fence, and
+  `engine/tests/registry_wire.rs` (column set, length, size, the four deprecation
+  notices) is it. See decisions/2026-09-25-the-registry-wire-is-a-palette.md.
 - #12 does not exist.
 
 ## Phase 1 — Foundations first (unblock everything below)
 - [x] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
-- [ ] #29 commands registry prose-in-wire → descriptions out of the wire contract. (Medium)
 - [ ] #28 template coverage gate → one test tying every template guarantee to a reachable command set. (Medium)
 
 ## Phase 2 — Security Criticals

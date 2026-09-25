@@ -149,3 +149,102 @@ what asked.
   a measurement; there are 2 today.
 - Net: ship, and close #27. Both halves of the issue are now facts values with
   loud fences behind them.
+
+---
+
+## 2026-09-25 · #29 registry "docs in the wire" (closed as a measured false positive)
+
+### Why this one is a verdict and not a fix
+
+`PLAN.md`'s next item, and the first one on the list that turned out not to be a
+finding at all. #29 claimed the registry "carries long-form *why* essays and
+deprecation histories inside `cmd!` literals that serialize to the client
+(`commands_json`)". Filed with 10% suspicion of being a false positive. It is
+one, and the reason is worth recording because it is not visible from reading
+the issue.
+
+Measured off `src/commands.rs` as committed: **40,053 bytes, of which 15,181
+(38%) are comment and 16,035 (40%) are the `cmd!` literals**; 4,505 of the
+comment bytes are `///`. Median description **22 characters**. `commands_json()` is
+**37,472 bytes for the whole registry, 224 bytes a row**, 32% of it the two
+description columns. The essays are real — this repository argues in comments as policy — and
+every one is in the 38%. A Rust comment is not a value, so none of it is in the
+wire. There was no prose on the wire to remove.
+
+And the descriptions have to stay: `app/src/commands.ts` displays them and
+`matches` searches them, because `matches` queries every field a writer might
+recall a command by. Moving them off the wire would move them onto a second
+wire.
+
+### What was actually missing, and is now fenced
+
+A prohibition. The failure #29 describes is plausible rather than far-fetched: an
+author documenting a command properly reaches for the description field, because
+it is right there and the comment is twenty lines up. The paragraph compiles,
+passes every floor, ships 37 KB to a browser, and lands in a tooltip. Same shape
+as the `DocConfig` default that `facts.rs` was written against — a value that
+grows rather than a value that is wrong.
+
+`engine/tests/registry_wire.rs`, four tests, all measured off the artefact that
+crosses:
+
+- `the_wire_carries_exactly_the_columns_the_palette_reads` — the seven columns by
+  name. Not that the values are short but that the *shape* has not grown a column
+  nothing reads.
+- `no_description_on_the_wire_is_longer_than_ui_copy` — 160 for a description,
+  200 for an `insert` (longest real: 105, a fully-specified `#הגדרות_כותרות(…)`).
+- `a_second_sentence_on_the_wire_is_a_deprecation_notice` — the only descriptions
+  with a second sentence are the deprecation notices: four of them, two commands,
+  two languages, **pinned in both directions**.
+- `the_wire_is_a_palette_and_not_a_manual` — 40 KB, three times today's payload.
+
+### Two fences of the repository's own, and they were right both times
+
+- `skips.test.mjs` rejected the length test: *"Count what was actually checked and
+  assert a floor under it."* The loop `continue`s, so it counted nothing, and a
+  field rename that matched neither arm would have skipped every row and passed.
+  Now a literal floor (`> 400`) **and** the exact count, because every command
+  contributes three strings.
+- `documentation.test.mjs`'s living-page sweep rejected `PLAN.md` and the
+  decision record for numbers beside a fenced noun. Reworded, not deleted.
+
+### One rule of mine that was wrong on the first attempt
+
+The second-sentence test treated an **em-dash** as prose. It went red on forty
+descriptions — "Footnote — in a chosen channel, or the default one", "Band C —
+notes on band B". That is the house style for a one-line description, so the rule
+would have banned the style rather than caught the problem. The rule is now a
+**sentence boundary**: a full stop, question mark or exclamation mark followed by
+a space and a letter, which is why `use #הערה_ב.` is not a second sentence and an
+em-dash never is.
+
+### Every fence shown red, for the reason it was written
+
+| Mutation | Caught by | Named |
+|---|---|---|
+| a 235-character description pasted into `הדגשה` | the sentence test *and* the length test | `הדגשה.desc_en has a second sentence and is not deprecated`, then `is 235 characters, over the 160` |
+| a `rationale: &'static str` column added to `Command` | the column test | `the wire contract changed`, with the eighth column listed |
+| a deprecation notice deleted from `הערה_על_הערה` | the count in the sentence test | `expected four deprecation notices … found 3` |
+
+All three reverted; `commands.rs` restored, `git diff` empty for that file.
+
+### Also
+
+`commands.rs`'s module comment now states the split — seven columns on the wire,
+the essays in the comments — and points at the fence, so the next person to
+consider a description as a place for an explanation is told where they go.
+
+Engine tests 991 → 995, binaries 68 → 69, editor assertions 7,632 → 7,633.
+README's tallies updated; `PLAN.md` SKIP gained #29 with the measurements;
+`decisions/README.md` row added.
+
+### Confidence review
+
+- Very sure: the false-positive verdict, which is four numbers rather than an
+  argument; the four fences, each demonstrated red.
+- Limit: the length bound (160) and the size bound (40 KB) are judgements with
+  headroom rather than derived numbers, and both would need revisiting if the
+  palette ever moved to a multi-line row. Stated as constants with their reasons
+  so a reader can move them knowingly.
+- Net: close as a false positive *and* ship the fence. The issue was wrong about
+  the wire and right about there being nothing holding it.

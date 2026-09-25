@@ -266,7 +266,7 @@ a real finding rather than a refactor.
 commands that demonstrate it. A capability is reachable only when **one** template
 body holds every command in its row — not when the corpus between them does, which
 is the arrangement that let the apparatus go unreachable the first time (ten
-templates, eight of 115 commands, five using no apparatus at all).
+templates between them, eight commands, five of the ten using no apparatus at all).
 
 What it found, none of it demonstrated by anything:
 
@@ -341,3 +341,73 @@ with **#50** (the missing-chapter marker injecting a name into Typst unescaped).
 Engine tests 995 → 999. Editor assertions unchanged at 7,633. The two oracle
 fixtures regenerate because the templates are in them — the staleness fence doing
 its job.
+
+---
+
+## 2026-09-25 · #50 a chapter name is not a Typst program (closed)
+
+### Phase 2, first item. The bug
+
+`include.rs`'s `marker()` was `format!("#חסר_הכללה[{what}]")`, and `what` is a
+chapter name out of the sefer. A content block is not a string: a `]` inside `[…]`
+closes the enclosing call and everything after it is **live Typst**. A sefer with a
+part called `a]#evil[` compiled a call to `evil`. A file name is not a trusted
+input — it is whatever the writer typed, or whatever arrived in a `.ksav` file
+somebody was sent.
+
+Three call sites reached it (missing part, cycle, over-deep nesting), all building
+the same string for the same reason.
+
+### The fix, and where it lives
+
+`marker` now runs its argument through `escape::content` — the engine's one answer
+to "what does Typst read as markup", the table `escape.rs`'s own header records as
+having been copied wrong twice already.
+
+It is in `marker` and not at the three call sites on purpose: an escaper somebody
+has to remember to call is missed on the fourth `format!` at 3am, and
+`marker(what: &str) -> String` leaves no way to reach the content block without
+going through it.
+
+### Both halves of the test went red on the fix, and that is the record
+
+**1.** The first version asserted on the **diagnostics** and failed. The
+missing-document problem reads `אין מסמך בשם "a]#evil["` — it quotes the name
+**unescaped on purpose**, because it is a sentence for a person who needs to see
+the name they typed. Escaping that would be a different bug, and asserting on it
+tests the wrong string. The surface that matters is the compiled body.
+
+**2.** The second version asserted `!expanded.contains("#evil")` and failed too:
+the *escaped* form is `a\]\#evil\[`, which **contains** `#evil` as a substring. A
+`contains` check cannot tell an escape from a hole. The assertion is now
+**equality** against `#חסר_הכללה[` + `escape::content(…)` + `]`, which is also the
+stronger claim — it catches a name that escaped too *much* as readily as one that
+escaped too little.
+
+### The class, as a new prohibition
+
+`prohibitions.test.mjs` gained a repo-wide rule: a `format!` that builds Typst
+markup with a `{…}` in a **content block**. That is the interpolation
+`escape::content` answers and the dangerous one; a `{…}` inside a *string literal*
+argument is `escape::string_literal`'s job, and the two are not interchangeable —
+which is why the rule names the bracket rather than the brace.
+
+Scoped to `ksav/engine/src/*.rs`, with `include.rs` the one exemption: a claim
+with a Rust test attached, not a name on a skip list, so the marker ceasing to
+escape takes the exemption with it.
+
+**Shown to fire**: a `format!("#הערת_צד[על {title}]", …)` added to `lib.rs` turns
+the sweep red — in a file holding twenty-nine *correct* interpolations. That
+discrimination is the rule's whole worth; a prohibition that flagged `show_rule`
+would have been switched off within a week.
+
+### A limit stated rather than fixed
+
+`include.rs` reads the name as the *text* of a string literal without unescaping
+it, so a name cannot contain a quote and cannot express an odd backslash. Minor and
+not injecting, so out of scope; the backslash is covered in the test by the
+`MARKUP` sweep, which reaches it through `expand` directly. Recorded so the next
+reader does not read the omission in the hostile-name list as an oversight.
+
+Engine tests 999 → 1001. Editor assertions 7,633 → 7,638. Next in Phase 2:
+**#51**, opening a `.ksav` executing `customCommands` with no warning.

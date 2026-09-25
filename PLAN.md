@@ -20,7 +20,7 @@ Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #2
 - [x] #29 FALSE POSITIVE, measured; the fence it was missing is `engine/tests/registry_wire.rs`. (Medium)
 
 ## Phase 2 — Security Criticals
-- [ ] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)
+- [x] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)
 - [ ] #51 opening .ksav executes customCommands with no warning. (High)
 - [ ] #53 engine SVG innerHTML + attribute passthrough. (High)
 - [ ] #52 asset names unvalidated; ksav.typ shadows prelude. (High)

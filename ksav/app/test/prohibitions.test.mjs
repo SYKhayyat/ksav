@@ -542,6 +542,40 @@ const RULES = [
     match: /numbering:\s*_\s*=>\s*if numbered\s*\{\s*_hb_num/u,
     allow: [],
   },
+  {
+    // #50, and the class behind it: **a value out of a document interpolated
+    // into Typst source without passing through an escaper.**
+    //
+    // `include.rs`'s marker was `format!("#חסר_הכללה[{what}]")` for a
+    // `what` that is a chapter name out of the sefer, and a content block is
+    // not a string: a `]` in it closes the enclosing call and the rest is live
+    // Typst. A sefer containing a part called `a]#evil[` compiled a call to
+    // `evil`. It is the same class `escape.rs` exists for — that module's own
+    // header records the two other implementations of "what does Typst read as
+    // markup" and both were wrong — except the failing half was a caller that
+    // simply did not call it.
+    //
+    // The rule is shaped as "a `format!` that builds Typst markup with a
+    // `{…}` in a **content block**", because that is the interpolation the
+    // escaper for content bodies answers, and it is the one that is dangerous.
+    // A `{…}` inside a *string literal* argument is a different escaper's job
+    // (`escape::string_literal`), and the two are not interchangeable — which is
+    // why the rule names the bracket rather than the brace.
+    //
+    // Scoped to the Rust that builds Typst source, because `show_rule`'s twenty-
+    // nine `{…}` interpolations are all inside `typst_str(…)` string literals
+    // and are the *correct* shape; forbidding braces there would forbid the
+    // assembly. What is forbidden is a brace reaching a `[…]` body.
+    what: "a value out of a document never reaches a Typst content block unescaped (issue 50)",
+    where: /^ksav\/engine\/src\/.*\.rs$/u,
+    match: /#\s*[\p{L}][\p{L}\p{N}_]*\s*\[(?:[^\]"\\\n]|\\.)*\{/gu,
+    // `include.rs` owns the one legitimate site: the marker, which escapes the
+    // name itself before interpolating. The exemption is a claim with a test
+    // attached — `engine/tests/includes.rs` proves the marker escapes every
+    // character in `escape::MARKUP` — so if the marker ever stops escaping, the
+    // Rust suite goes red and this exemption goes with it.
+    allow: ["ksav/engine/src/include.rs"],
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

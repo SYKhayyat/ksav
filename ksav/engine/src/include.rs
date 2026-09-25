@@ -252,8 +252,33 @@ fn expand_into(
 ///
 /// Deliberately visible. A missing chapter that left a silent gap would be
 /// discovered when the sefer came back from the printer.
+///
+/// # Why the argument is escaped here, and not by the caller
+///
+/// The name comes from the document: `#כלול("פרק ג")` names a file, and the file
+/// name comes from whoever saved the sefer. It is interpolated into a **content
+/// block** — `[…]` — and a content block is not a string: a `]` in it closes the
+/// enclosing call, and everything after the close is live Typst. So a part named
+/// `a]#evil[` produced
+///
+/// ```typst
+/// #חסר_הכללה[חסר: a]#evil[]   // …and `evil` is now a function call
+/// ```
+///
+/// which compiles, runs, and is code injection out of a filename.
+///
+/// The fix is `escape::content`, and the reason it lives *here* rather than at
+/// the three call sites is that all three build the same string for the same
+/// reason, and an escaper somebody has to remember to call is an escaper that is
+/// missed on the fourth `format!` at 3am. This function takes a name and returns
+/// a marker, so there is no way to reach the content block without going through
+/// it — the callers cannot emit an unescaped one even by accident.
+///
+/// `#` is in the set as well as `]` and `[`, so a part named `#eval` cannot call
+/// anything either; `escape::MARKUP` is the engine's one answer to "what does
+/// Typst read as markup" and the marker uses it rather than a list of its own.
 fn marker(what: &str) -> String {
-    format!("#חסר_הכללה[{what}]")
+    format!("#חסר_הכללה[{}]", crate::escape::content(what))
 }
 
 /// Rewrite diagnostics from the assembled body's coordinates into each line's

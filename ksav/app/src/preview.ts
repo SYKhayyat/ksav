@@ -26,6 +26,7 @@
 import type { LineRun, PrintedLine } from "./api";
 import { tf } from "./i18n";
 import { docConfig, settings } from "./settings";
+import { sanitizeSvg, setSafeSvg } from "./svgsafe";
 
 /**
  * The stretch of a document a narrowed preview is following, in lines.
@@ -709,7 +710,12 @@ function flattenedPage(w: Windowed, i: number): string {
 
 function fill(w: Windowed, node: HTMLElement, i: number) {
   if (w.showing[i] === w.hashes[i]) return;
-  node.innerHTML = flattenedPage(w, i);
+  // Through the allow-list, not `innerHTML`. The engine's SVG is a string and a
+  // string assigned to `innerHTML` is parsed as markup in this origin, so every
+  // attribute on it is a decision this application has to get right; see
+  // `svgsafe.ts` for the measurement of what actually arrives and why the two
+  // obvious payload routes are already closed.
+  setSafeSvg(node, flattenedPage(w, i));
   w.showing[i] = w.hashes[i];
 }
 
@@ -989,7 +995,16 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
     // different page, and caching under it would hand that page's SVG to this
     // one on the next draw. The cache is keyed on a name; a branch that exists
     // because there is no reliable name does not get to use it.
-    host.innerHTML = pages.map((s) => `<div class="page">${flattenGlyphs(s)}</div>`).join("");
+    // Composed as a string, through the host, and **not** with
+    // `document.createElement` — `test/harness.mjs` says why in so many words: a
+    // `document` on `globalThis` is enough to convince `@codemirror/view` it is
+    // in a browser, so the harness installs none and `drawPages` builds its
+    // nodes through the host element instead. The wrapper here is *our* markup;
+    // what goes inside it has been through the allow-list, which is the part that
+    // came from the engine.
+    host.innerHTML = pages
+      .map((s) => `<div class="page">${sanitizeSvg(flattenGlyphs(s)).safe}</div>`)
+      .join("");
     windows.delete(host);
     // Hidden afterwards rather than written into the markup, so both paths
     // through this function narrow by setting the same property on the same

@@ -576,6 +576,59 @@ const RULES = [
     // Rust suite goes red and this exemption goes with it.
     allow: ["ksav/engine/src/include.rs"],
   },
+  {
+    // #53, and the class: **the engine's SVG reaches the DOM through the
+    // allow-list, never as a string.**
+    //
+    // Three sites did `host.innerHTML = svg`, and `flattenGlyphs` made it
+    // sharper by rewriting `<use>` into `<path>` with string surgery that kept
+    // every attribute the `<use>` carried. A string assigned to `innerHTML` is
+    // parsed as markup in the serve origin, so each attribute on it was a
+    // decision the application had to get right and had not.
+    //
+    // Two routes into that string are closed by upstream behaviour rather than by
+    // anything here — Typst base64-encodes an SVG image rather than inlining it,
+    // and escapes text — and both are measured in `engine/tests/svg_output.rs`,
+    // whose `alarming` list is **empty** over the whole corpus. So this rule is
+    // hardening rather than the close of a live hole, which is exactly why it
+    // wants a fence: a path that is safe today because of somebody else's encoder
+    // is one Typst version from not being.
+    //
+    // The rule is the *assignment*, not the word. `innerHTML = ""` is how a pane
+    // is emptied and is not what this is about, so the probe allows an empty
+    // right-hand side and refuses everything else.
+    what: "engine SVG never reaches innerHTML; it goes through the allow-list (issue 53)",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    probe: (body) => {
+      const out = [];
+      const lines = body.split("\n");
+      for (let i = 0; i < lines.length; i += 1) {
+        const m = /\.innerHTML\s*=\s*(.+)$/u.exec(lines[i].trim());
+        if (!m) continue;
+        if (/^["'`]\s*["'`];?$/u.test(m[1].trim())) continue; // `= ""` clears
+        out.push(`${lines.slice(Math.max(0, i - 2), i + 1).join("\n")}`);
+      }
+      return out.join("\n---\n");
+    },
+    // Two exemptions, each a claim this harness checks is still true of the file:
+    //
+    //   - `svgsafe.ts` **is** the allow-list. Its one assignment is the only place
+    //     engine SVG may touch `innerHTML`, and `svgsafe.test.mjs` is what says
+    //     the right-hand side has been through the filter.
+    //   - `preview.ts` composes `<div class="page">…</div>` **around** a page. The
+    //     wrapper is the application's own; the string inside it has been through
+    //     `sanitizeSvg`, which is the same filter `svgsafe.ts` applies. It
+    //     composes rather than building with `createElement` because
+    //     `test/harness.mjs` installs no global `document` on purpose — a
+    //     `document` is enough to convince `@codomirror/view` it is in a browser
+    //     — and the fake host's `innerHTML` setter parses exactly this shape.
+    //   - `ksav-lang.ts` is a CodeMirror widget rendering **the application's
+    //     own** table markup, from the application's own renderer. It is not
+    //     engine output and never was. It is listed because it is the *other*
+    //     `innerHTML` in `src/`, and a rule that names only the one it noticed
+    //     reads like it was written for the one it noticed.
+    allow: ["ksav/app/src/svgsafe.ts", "ksav/app/src/preview.ts", "ksav/app/src/ksav-lang.ts"],
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

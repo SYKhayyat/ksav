@@ -145,6 +145,7 @@ import {
 } from "./dom";
 import * as runtime from "./runtime";
 import { setStatus, closeMenus, jumpTo } from "./runtime";
+import { setSafeSvg } from "./svgsafe";
 import {
   openPanel,
   closePanel,
@@ -13283,7 +13284,11 @@ async function fillNotePreview(host: HTMLElement, pick: NotePick) {
   const res = await backend.compile(src, { ...docConfig(), paper: "a5" }).catch(() => null);
   const svg = res?.pages_svg?.[0];
   if (!svg) return;
-  host.innerHTML = svg;
+  // Through the allow-list, not `innerHTML`: this panel renders engine output in
+  // the serve origin, and a string assigned to `innerHTML` is parsed as markup
+  // there. See `svgsafe.ts` — and the measurement in it, which is why this is
+  // hardening rather than the close of a live hole.
+  setSafeSvg(host, svg);
   host.classList.add("ready");
 }
 

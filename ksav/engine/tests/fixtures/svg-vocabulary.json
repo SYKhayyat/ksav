@@ -1,0 +1,40 @@
+{
+  "alarming": [],
+  "attributes": [
+    "clip-path",
+    "d",
+    "fill",
+    "fill-rule",
+    "height",
+    "id",
+    "overflow",
+    "preserveAspectRatio",
+    "stroke",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-miterlimit",
+    "stroke-width",
+    "transform",
+    "viewBox",
+    "width",
+    "x",
+    "xlink:href",
+    "xmlns",
+    "xmlns:h5",
+    "xmlns:xlink",
+    "y"
+  ],
+  "elements": [
+    "a",
+    "clipPath",
+    "defs",
+    "g",
+    "image",
+    "path",
+    "rect",
+    "svg",
+    "symbol",
+    "use"
+  ],
+  "prefixed": []
+}

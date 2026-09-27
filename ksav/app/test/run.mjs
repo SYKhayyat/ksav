@@ -50,6 +50,12 @@ const GENERATORS = [
   // to. Both sides of that format now have an implementation, and the CLI
   // compiled the JSON wrapper as prose for as long as only one of them did.
   ["docfile oracle", "emit-docfile-oracle.mjs"],
+  // What the engine's SVG actually contains, measured by
+  // `engine/examples/emit-svg-vocabulary.rs` and filtered through by
+  // `svgsafe.ts`. A stale copy here is a preview that has silently started
+  // dropping a name the exporter emits — every link in every document, in the
+  // case of `<a>`.
+  ["svg vocabulary", "emit-svg-vocabulary.mjs"],
   // The fifth target for one registry: `editors/emacs/ksav-services.el`. The
   // elisp cannot import `services.gen.ts`, so it gets its own generated copy
   // rather than a hand-written fifth list — see the header of

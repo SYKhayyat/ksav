@@ -478,7 +478,7 @@ both of the others are wrong.
 | Where | Mutation | Result |
 |---|---|---|
 | `docfile.rs` | the advisory suppressed | three tests red |
-| CLI | a `.ksav` carrying two commands | `warning: … defines its own commands and they are compiled with it: 2 commands (2 lines) — דגש, mine` |
+| CLI | a `.ksav` carrying a preamble | `warning: … defines its own commands and they are compiled with it: …` — it names both, `דגש, mine`, and their size, two of them over two lines |
 | CLI | a plain `.ksav` | nothing; the compile line otherwise identical |
 | `ksav.el` | the announcement suppressed | `ksav-the-announcement-names-the-commands-and-their-size` red |
 
@@ -488,3 +488,102 @@ reads.
 
 Engine tests 1001 → 1006. Editor assertions 7,638 → 7,639. Emacs 60 → 63. Next in
 Phase 2: **#53**, the engine's SVG `innerHTML` and attribute passthrough.
+
+---
+
+## 2026-09-25 · #53 engine SVG innerHTML (closed)
+
+### Measured first, and the measurement changed the verdict
+
+Built the hostile file the issue describes — a `.ksav` carrying an SVG asset with
+`<script>`, `onload` and a `foreignObject` — and compiled it:
+
+```
+warning: hostile.ksav:3:1: image contains foreign object
+<image xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0i…" width="30" …/>
+grep -c script  hostile.page-1.svg  →  0
+```
+
+Typst does **not** inline an SVG image; it base64-encodes it into an `href`. And
+it escapes text, so a document whose body is `<script>alert(1)</script>` is text.
+So both obvious payload routes were already closed, and the finding that survives
+is the **absence of a fence** — a path safe today because of an upstream encoder
+is one Typst version from not being, and nothing here would notice.
+
+The number that replaces the argument: `alarming: []` over the whole corpus.
+
+### The allow-list is generated, and the reason is one name
+
+`emit-svg-vocabulary.rs` compiles every template plus two documents for shapes
+they do not reach, scans every page, and writes `svg-vocabulary.json`;
+`emit-svg-vocabulary.mjs` turns it into `svg-vocabulary.gen.ts`. Ten elements,
+twenty-two attributes.
+
+And there is a name in that list nobody would have written down: **`<a>`** — Typst
+emits an `<a>` with a transparent `<rect>` and no `href` for a link's hit area. A
+list written by reading the markup drops **every link in every document**, silently,
+and no test in this repository renders a document and asserts anything about links.
+
+The **denied** list is not generated: refusing a name is a judgement, and
+`svg_output.rs` asserts the two never disagree about a name the engine actually
+emits — the only disagreement with a consequence.
+
+### Three bugs the tests found
+
+1. **Dropping a tag is not dropping the thing.** Dropping `<style>` and passing the
+   body through emitted `*{background:url(javascript:…)}` as text. The
+   hostile-input list caught it because the string still said `javascript:`. A
+   filter that removes a tag and keeps what was between them has reclassified it,
+   and "inert text" is a claim about a consumer nobody has checked.
+2. **A denied *self-closing* element spun the scanner for ever.**
+   `<animate attributeName="href" values="javascript:1"/>` — the branches that
+   handle a refused element advanced `i` only when it had content to skip. A
+   **crash**; the process dumped core. The two shapes that hang are the two no
+   engine output has ever contained.
+3. **The measurement itself was wrong first.** Its attribute reader split a tag
+   body on whitespace, so every path segment in every `d="M3.15 3.6…"` became an
+   attribute name — 30,000 names that were numbers. A measurement that does that
+   is worse than none, because it looks like a vocabulary.
+
+### `DOMParser` was the first shape, and the harness decided it
+
+Parse with `DOMParser` and build with `createElementNS` is structurally the best
+answer: a name not on the list is never created. It is also untestable here —
+`test/harness.mjs` says a `document` on `globalThis` is enough to convince
+`@codemirror/view` it is in a browser, so it installs none, and a fence needing a
+real DOM is a fence that gets skipped wherever it is inconvenient.
+
+The same constraint answered the wiring. My first attempt built the page panes with
+`document.createElement` and **three suites went red with `ReferenceError: document
+is not defined`** — the harness's own comment refusing exactly that. The fake
+host's `innerHTML` setter parses `<div class="page">` runs because that is the
+shape `drawPages` emitted before; the wrapper is our markup and the string inside
+it has been through the filter, so composing through the host is both supported
+and safe.
+
+### A prohibition, with three claims rather than three skips
+
+`prohibitions.test.mjs` forbids engine SVG reaching `innerHTML` (`= ""` is allowed
+— that is a pane being emptied). The three exempt files are claims the harness
+checks are *still* true of each: `svgsafe.ts` is the allow-list; `preview.ts`
+composes a wrapper around a filtered page; `ksav-lang.ts` is a CodeMirror widget
+rendering the **application's own** table markup, and it is listed because it is
+the *other* `innerHTML` in `src/`.
+
+### Fences, each shown to do its job
+
+| Where | Mutation | Result |
+|---|---|---|
+| `svgsafe.ts` | a `<style>` body | the body leaked as text; the test said `javascript:` |
+| `svgsafe.ts` | a denied self-closing element | the scanner hung and the process died |
+| `preview.ts` | back to `node.innerHTML = …` | the prohibition went red on `preview.ts` |
+| the fixture | `<a>` removed | the generator refuses; `svg_output.rs` goes red |
+| `skips.test.mjs` | — | rejected the staleness test for no floor; it now asserts ≥14 pages came back |
+
+`skips.test.mjs` has made that same complaint four times today and has been right
+every time: a walk that stopped finding pages would measure an empty vocabulary,
+write it, and leave everything else green over a measurement of nothing.
+
+Engine tests 1006 → 1009, binaries 69 → 70, editor assertions 7,639 → 7,775 across
+109 files. Next in Phase 2: **#52**, asset names unvalidated and `ksav.typ`
+shadowing the prelude.

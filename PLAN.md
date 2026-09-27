@@ -37,7 +37,9 @@ still right.
   (Critical) — six of the audit's seven no longer reproduce; the deliverable is
   `engine/tests/note_layout.rs`, and what was left was a note sent to a
   **destination the document never declared**, landing silently in the page foot.
-- [ ] #6 audit fire-and-forget (127 void, no fence). (High)
+- [x] #6 audit fire-and-forget (127 void, no fence). (High) — measured **51 of 93
+  sites** had a callee with no error handling at all; 48 converted to one wrapper,
+  3 of them found to be synchronous and put back. The fence is the inventory.
 - [ ] #2′ non-linear note fixtures — the audit's B3 sort and B5 carry branch are
   unverified because no linear document reaches them. (Medium, from #2)
 - [ ] #5 parser/config/installer hardening. (High)

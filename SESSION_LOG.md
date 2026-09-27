@@ -898,3 +898,11 @@ Four mutations, each run:
 instead of in `NOT_IMPORTABLE`.
 
 Editor assertions 7,777 → 7,798, test files 109 → 110.
+
+### #6 closed; the inventory is the deliverable, not the wrapper
+
+The wrapper is 60 lines and could have been written in ten. The 32-entry
+inventory with a measured reason beside each is the part that stops the next
+`void`, and the "may not name a `void` that is gone" rule is what stops the
+inventory itself from becoming the thing it replaced — a list that rots into
+permission.

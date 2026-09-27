@@ -889,9 +889,11 @@ arrow body swallows the call.
 Four mutations, each run:
 
 - a new bare `void newNamedDoc()` → the sweep fires and names the exact site
-- every failure swallowed as if it were a cancellation → 3 assertions fail
-- no cancellation recognised at all → 3 assertions fail
-- the wrapper writing its own failure sentence, bypassing `troubleSaid` → 1 fails
+- every failure swallowed as if it were a cancellation → the three reporting
+  assertions go red
+- no cancellation recognised at all → the same three go red
+- the wrapper writing its own failure sentence, bypassing `troubleSaid` → the
+  "writes no sentence of its own" check goes red
 
 `runner.test.mjs`'s "every module is imported by at least one test" caught that
 `asyncaction.ts` was not, which is how it ended up on the normal build path
@@ -906,3 +908,69 @@ inventory with a measured reason beside each is the part that stops the next
 `void`, and the "may not name a `void` that is gone" rule is what stops the
 inventory itself from becoming the thing it replaced — a list that rots into
 permission.
+
+---
+
+## 2026-09-27 · #2′ the two branches #2 could not reach
+
+Both closed by finding the geometry, and in both cases the geometry is the lesson.
+
+### B3: one `place` away
+
+`_sn_placed` sorts the streams together with `items.sorted(key: it => (it.page,
+it.want))`. I had deleted that sort and **two documents came out byte-identical**:
+two side regions with one note each, and two table cells. The reason is the key —
+for a linear document `(page, want)` *is* the document order, and two cells in a row
+share a baseline, so a tie keeps the order. A sort that cannot change anything is
+not a sort that can be tested.
+
+What it protects is worth more than the audit's interleaving. Anchor one note 300pt
+down the page and the next at the top, so the source order is the **reverse** of the
+reading order — which is the only situation where the sort does anything:
+
+```
+#place(dy: 300pt)[#הערה(אזור: "ר1")[הערה במקום גבוה]]
+#place(dy: 0pt)[#הערה(אזור: "ר2")[הערה במקום נמוך]]
+```
+
+With the sort: 406.08 and 106.08, each at its own marker. **Without it: 406.08 and
+432.66** — the second note drawn 326pt from the word it belongs to, in the other
+apparatus's band. A note a reader cannot find from its marker is B1's defect class
+arrived at from the other direction: the text is drawn, and it is somewhere else.
+
+### B5: four wrong documents, and the fourth is the whole one
+
+1. **A page with no paper grows.** The carry branch's guard is
+   `y + it.h > ceiling`; `ceiling` is `_pg_text_bottom()`, which is `none` unless
+   `page.height` is a length. `רציף` (continuous) is off by default, but
+   `page.height` is still `auto` unless `#מסמך[…]` is the thing carrying the
+   setting — so the document has to be *inside* one.
+2. **The note has to be too long for its page.** A 500pt note anchored at the top
+   of page 1 fits, and then there is nothing to carry. 200 repetitions of a phrase
+   does not.
+3. **The pinned note has to hold the top of the page being carried *onto*.**
+4. **And `clear` was a no-op while the pinned note was the immediately preceding
+   item** — because `cursor` is already `y + it.h + gap`, the same arithmetic
+   `clear` performs. My first two attempts died on exactly this, and a test that
+   could not fail is worse than no test. Hence a page break: the pinned note is the
+   first line of page 2, and the carried note arrives at the top of page 2 having
+   been anchored on page 1.
+
+Measured with `clear` deleted: carried at **y=90.24**, pinned at **y=95.63**, same
+column, same page — 5.4pt apart, and the two are 40pt and 500pt tall. That is the
+audit's sentence, reproduced: *a note printed straight through it*. With the fix,
+135.40, which is 39.8pt below the pinned note's top — its height, exactly.
+
+Both mutations confirmed to fail with the fix deleted. `note_layout.rs` is eleven
+tests and **nine of them now fire with their fix removed**; B1 and B3's stacking
+property test are the two that do not, and both say so in their own doc comments.
+
+### The documentation fence caught me stating a count as prose
+
+The #6 mutation table said "3 assertions fail". `documentation.test.mjs` refuses a
+numeric claim in a living page that no declaration backs — and it is right: I had
+written a mutation result in the shape of a suite fact, which is exactly what that
+fence exists to stop. Spelled out as "the three reporting assertions go red", which
+is what it was.
+
+Engine tests 1028 → 1030.

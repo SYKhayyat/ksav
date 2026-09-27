@@ -14,41 +14,32 @@
 //! What is left is the thing the audit could not give anybody: a check that the
 //! next rewrite of the side machinery, or of the reserve scanner, finds out.
 //!
-//! # B5 has no test here, and that is deliberate
-//!
-//! Two more, B1 and B3, are **property tests and not mechanism fences**: the
-//! code they were fixed in is no longer the code that draws. `_rg_show` still has
-//! a `mine = notes.filter(...)`, but putting the pre-fix filter back — the one
-//! that re-derives the region from the channel's declarations, which is what the
-//! audit named — leaves the note drawn, so that filter is no longer on this note's
-//! path. And the cross-stream `sorted` in `_sn_placed` can be deleted without
-//! changing a two-region document, because for a **linear** document the sort's
-//! key `(page, want)` is already the document order, so the sort only earns
-//! anything where the two differ: a note inside a table cell, a figure, or a
-//! deferred section. Both tests therefore assert the property the audit asked
-//! for — the writer's text is on a page; two apparatuses do not share a line — and
-//! neither claims to protect the line of code that fixed it. Reaching B3's sort
-//! needs a non-linear fixture, which is the next thing to build.
+//! # B5, and what it took to reach the branch
 //!
 //! B5's fix is real and is in `ksav.typ` — the carry path calls `clear` where the
 //! audit found it placing at the floor unconditionally, and the audit's own case
-//! is the comment above that line. **I could not build a document that reaches
-//! that branch**, and the first version of the test here passed with the fix
-//! deleted, which is the whole reason it is gone rather than repaired.
+//! is the comment above that line. It took four wrong documents to write a test
+//! that reaches it, and the reasons are the useful part:
 //!
-//! Two constructions were tried, and both place the note by a different line:
-//! notes that both overflow together reach the normal path's
-//! `clear(max(it.want, cursor), …)`, and a column filled until a note carries
-//! puts the pinned note at its own anchor well below the arriving one. Reaching
-//! the carry branch needs `y + it.h > ceiling` on a page whose top a pinned note
-//! already holds, and nothing I built produced that geometry. Shipping the test
-//! anyway would mean shipping a test that says "this is fenced" and is not — so
-//! the branch is documented here as **unverified** instead.
+//! 1. **A page with no paper grows.** `page(height: auto)` has no ceiling, the
+//!    carry branch's guard is `y + it.h > ceiling`, and a document that never
+//!    names a paper never evaluates it. `רציף` (continuous) is off by default, but
+//!    `page.height` is still `auto` unless `#מסמך[…]` is what carries the setting —
+//!    so the document has to be *inside* one.
+//! 2. **The note has to be too long for its page.** A 500pt note anchored at the
+//!    top of page 1 fits, and then there is nothing to carry.
+//! 3. **The pinned note has to hold the top of the page being carried *onto***,
+//!    not the top of the page it was anchored on.
+//! 4. **And `clear` was a no-op while the pinned note was the immediately
+//!    preceding item**, because `cursor` is already `y + it.h + gap` — the same
+//!    arithmetic `clear` performs. So the pinned note must be placed by a
+//!    *different* item than the one that arrives. Hence a page break: the pinned
+//!    note is the first line of page 2, and the carried note arrives at the top
+//!    of page 2 having been anchored on page 1.
 //!
-//! # What each test is for
+//! With the sort deleted the two documents that reach each branch now say so, and
+//! the fences below were confirmed to fail with each fix removed.
 //!
-//! | finding | the hazard | the test |
-//! |---|---|---|
 //! | B1 | `ערוץ:` and `אזור:` on one note filed it under one key and filtered under another | [`both_arguments_still_reach_a_page`] — *property only, see the test* |
 //! | B2 | the reserve scanner was blind to the `אזור:` spelling | [`the_region_spelling_reserves`] |
 //! | B2′ | a name nobody declared compiled clean, into the page foot, with no word | [`an_undeclared_destination_is_named`] |
@@ -284,6 +275,112 @@ fn a_region_height_and_a_channel_height_agree() {
     assert!(
         (a - b).abs() < 0.01,
         "6cm declared on the region reserves {a:.2}cm and on the channel {b:.2}cm — the walk and the slot disagree about one room"
+    );
+}
+
+/// B3 · the cross-stream sort, in the only geometry that reaches it.
+///
+/// The property test beside this one — two side regions, one note each — **cannot**
+/// reach the sort, and saying so was the honest half of the last round. For a
+/// **linear** document the sort's key `(page, want)` is already the document order,
+/// so removing the sort changes nothing; two table cells are the same, because both
+/// anchors share a baseline and a tie keeps the order. Deleting
+/// `items.sorted(key: it => (it.page, it.want))` from `_sn_placed` left both of
+/// those documents byte-identical in their output.
+///
+/// This is the geometry that does reach it, and it is one `place` away. The first
+/// note is anchored 300pt down the page and the second at the top, so the source
+/// order is the **reverse** of the reading order — which is the only situation in
+/// which sorting by `(page, want)` does anything at all.
+///
+/// And what it prevents is worse than the audit's interleaving: measured with the
+/// sort deleted, the second note is drawn at **y=432.66 when its own marker is at
+/// y=106.08** — 326pt from the word it belongs to, in the other apparatus's band.
+/// A note a reader cannot find from its marker is the same class of loss as B1's
+/// note that was drawn by nothing, arrived at from the other direction.
+#[test]
+fn a_side_note_is_drawn_where_its_marker_is() {
+    // `place` puts the first note's anchor 300pt below the second's, so document
+    // order and reading order disagree.
+    let body = "#שער[מסמך]\n\n#אזור(\"ר1\", מיקום: \"צד\")\n#אזור(\"ר2\", מיקום: \"צד\")\n\n\
+                #place(dy: 300pt)[#הערה(אזור: \"ר1\")[הערה במקום גבוה]]\n\
+                #place(dy: 0pt)[#הערה(אזור: \"ר2\")[הערה במקום נמוך]]\n";
+    let runs = runs(body);
+    let y_of = |word: &str| {
+        runs.iter()
+            .find(|r| r.text.contains(word))
+            .unwrap_or_else(|| panic!("{word:?} was not drawn"))
+            .y
+    };
+    let high = y_of("במקום גבוה");
+    let low = y_of("במקום נמוך");
+
+    // The anchors are 300pt apart; the notes must be too. Without the sort the
+    // second note is stacked under the first instead, because it was placed in
+    // document order.
+    assert!(
+        (high - low - 300.0).abs() < 12.0,
+        "the note anchored at y={low} was drawn at y={high}: {}pt from its own marker, and {}pt from the other note's",
+        (high - low).abs(),
+        300.0
+    );
+    assert!(
+        high > low,
+        "the reading order is the anchor order: {high} should be below {low}"
+    );
+}
+
+/// B5 · a sidenote carried to the next page skipped the pinned-note check.
+///
+/// The overflow path placed at `floor` unconditionally while the `held`/`clear`
+/// machinery ran only on the normal path, so a `הזזה: false` gloss early on page
+/// *n+1* could be overprinted by whatever carried in from page *n* — breaking the
+/// invariant the pinned design exists to keep.
+///
+/// Measured with the fix deleted: the carried note lands at **y=90.24** with the
+/// pinned note at **y=95.63** on the same column of the same page — 5.4pt apart,
+/// and the two are 40pt and 500pt tall. With it, the carried note is at
+/// **y=135.40**, which is 39.8pt below the pinned note's own top: exactly the
+/// pinned note's height, which is what stepping over it means.
+#[test]
+fn a_carried_note_steps_over_a_pinned_one() {
+    let filler = "מילה ".repeat(600);
+    // Long enough that it cannot fit on page 1 at all, so the carry branch runs.
+    let long = "גוף ארוך ".repeat(200);
+    // Inside `#מסמך[…]`, because that is what carries the page setting: without
+    // it `page.height` is `auto`, the ceiling is `none`, and the branch's guard
+    // `y + it.h > ceiling` is never evaluated.
+    let body = format!(
+        "#מסמך[\n#אזור(\"צד\", מיקום: \"צד\")\n\n\
+         #הערה(אזור: \"צד\")[הערה שנדחקת {long}]\n\n\
+         {filler}\n\n#pagebreak()\n\n\
+         #הערה(אזור: \"צד\", הזזה: false)[הערה מוצמדת שאסורה לזוז]\n\n{filler}\n]"
+    );
+    let doc = probe::layout(&body, &DocConfig::default())
+        .unwrap_or_else(|d| panic!("did not compile: {d:?}"));
+    let runs = probe::text_runs(&doc);
+    let at = |word: &str| {
+        let r = runs
+            .iter()
+            .find(|r| r.text.contains(word))
+            .unwrap_or_else(|| panic!("{word:?} was not drawn"));
+        (r.page, r.y)
+    };
+    let (pinned_page, pinned_y) = at("מוצמדת");
+    let (carried_page, carried_y) = at("שנדחקת");
+
+    // **The arrangement is the test.** If the geometry ever moves the two notes
+    // apart, say so — an earlier version of this test asserted the two shared a
+    // page under an `if`, so on different pages it asserted nothing and passed
+    // with the fix deleted.
+    assert_eq!(
+        (pinned_page, carried_page),
+        (2, 2),
+        "both notes must land on page 2 for this to be the bug: pinned on {pinned_page}, carried on {carried_page}"
+    );
+    assert!(
+        (carried_y - pinned_y).abs() > 20.0,
+        "a note carried from page 1 landed at y={carried_y} on top of a pinned note at y={pinned_y}, in the same column"
     );
 }
 

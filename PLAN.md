@@ -18,15 +18,19 @@ Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #2
 - [x] #27 all three English tables are facts values now; each with a cross-check that exits 1. (High)
 - [x] #28 the templates' collective guarantee is a predicate; it found three unreachable capabilities. (Medium)
 - [x] #29 FALSE POSITIVE, measured; the fence it was missing is `engine/tests/registry_wire.rs`. (Medium)
-- [x] #50/#51/#53 engine SVG and asset names: two gates, and the real #52 finding was a
-  panic in `typst-as-lib`'s path handling rather than the shadowing the report named.
-  Phase 2 complete.
 
 ## Phase 2 — Security Criticals
 - [x] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)
 - [x] #51 opening .ksav executes customCommands with no warning. (High)
 - [x] #53 engine SVG innerHTML + attribute passthrough. (High)
-- [x] #52 asset names unvalidated; ksav.typ shadows prelude. (High)
+- [x] #52 asset names unvalidated; ksav.typ shadows prelude. (High) — the shadowing was
+  already closed by resolver order; what was real is a **panic** in `typst-as-lib`'s
+  path handling, i.e. one unauthenticated request could take a worker thread down.
+
+**Phase 2 complete.** Four Highs, all fixed at the root with a fence that was shown
+to fire. Two of them (#52, and #29 before it) turned out to be mis-identified: what
+was actually there was smaller or larger than the report said, and the fix list was
+still right.
 
 ## Phase 3 — Correctness Highs
 - [ ] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan). (Critical)

@@ -668,3 +668,26 @@ correctness highs, starting with **#2** — note-layout hazards, marked Critical
 
 Engine tests 1009 → 1019, binaries 70 → 71, editor assertions 7,775 → 7,776.
 Emacs 63.
+
+### The two clarifying comments asked for, filed under #64 and #68
+
+- **#64** gained the two things its body did not say: that the ordering key is a
+  title that is **set** rather than a header that happens to be there (with the
+  case that settles it — a commentary keyed to *"where Rashi and the Tosafot
+  differ"* has no header to derive from, so a model that only reads headers cannot
+  order it at all), and that the sort needs a **footnote-interweave toggle**: a
+  unit of B carrying its own notes, anchored inside a footnote of the base text,
+  either interleaves with the base's footnote flow or appends to the end, and those
+  are two documents rather than a formatting preference.
+- The comment also asks the question that decides how big that toggle is:
+  interleaving either **reserves a sequence** for the commentary's notes or
+  **renumbers the base text's own footnotes**, and the first re-numbers notes the
+  writer has already seen numbered.
+- **#68** (the companion that mirrors A's structure into the sorted result) gained
+  the parts that reach its own resolving test — and one consequence specific to it:
+  if the title used for matching is *not* displayed, a transferred heading must not
+  be promoted to a title, or a second sort would read the heading it injected as the
+  anchor and re-order against it.
+
+Recorded in the SESSION_LOG so there is a trail in the repository, and in the
+issues themselves where the work will be picked up.

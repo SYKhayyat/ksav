@@ -798,3 +798,103 @@ Filed the two unverified branches as `#2′` rather than leaving them as a parag
 inside a test file: a non-linear note fixture is what reaches B3's cross-stream
 sort, and a bounded-ceiling geometry is what reaches B5's carry path. A sentence
 in a doc comment is a promise with no owner; a plan line is a task.
+
+---
+
+## 2026-09-27 · #6 fire-and-forget — the rule, and 43 call sites that did not have one
+
+### Measured first, and the number is worse than the issue's word "many"
+
+93 `void someAsyncCall()` sites, 59 distinct callees. Of those 59, **30 had no
+`try`, no `catch` and no `.catch` anywhere in their body** — 51 of the 93 sites.
+A `void p()` on a rejecting promise is an unhandled rejection: the browser logs
+it, the writer sees nothing, and whatever the handler was halfway through
+changing stays changed.
+
+The issue's word for that state was "without an exhaustive policy, a new failure
+*can* silently leave stale UI". Measured, 51 existing sites already could.
+
+### `watch.ts` already knew the answer, which is why there was no rule
+
+`src/watch.ts` is the model: `try`, a `catch` carrying a comment that says why a
+`stat` that throws is a file that was unplugged and not a conflict, and `busy`
+restored in a `finally`. The problem was never that the call sites were wrong. It
+was that whether a call site was safe depended on who wrote it that day, and
+nothing recorded the answer.
+
+### One function, and the distinction it draws is cancellation from failure
+
+`src/asyncaction.ts`: `action(doing, body)` returns a promise that never rejects,
+and `voidAction(doing, body)` is the approved fire-and-forget form. A failure goes
+through `troubleSaid` — the repository's existing answer to a caught error, so the
+sentence is the reader's and the machine's string is behind the details
+affordance — and lands in the status bar. A **cancellation says nothing at all**,
+because a superseded compile is the app working and reporting it would teach
+writers to ignore the status line.
+
+**48 call sites converted**, the 26 that change which document is open or what is
+on the page (`enterDoc`, `openDoc`, `closeOpenDoc`, `newDocTab`, `openInNewTab`,
+`newBlankDoc`, `newNamedDoc`, `duplicateDoc`, `reloadFromDisk`, `loadTemplate`,
+`setEditingMode`, `saveArrangementHere`, `restoreSnapshot`, `addFont`,
+`importDictionary`) plus the 22 unguarded ones elsewhere (`refreshGit`, `runGit`,
+`restoreCommit`, `revertCommit`, `compareWithCommit`, `renderHistory`,
+`revealCursor`, `jumpFromClick`, `offerRecovery`, `maybeCheckForUpdate`,
+`openSharedIfLinked`, `saveFileAs`, `startFromTemplate`, `healAll`, `renumberAll`).
+
+One of them was **awaited**: `void setEditingMode(value).then(rerenderChrome)`
+chains `.then`, so it became `action`, not `voidAction` — which is the distinction
+the wrapper exists to make visible at the call site.
+
+### Three of them were never promises
+
+`healAll` returns the number of fixes applied, `renumberAll` the number of fields
+renumbered, `startFind` whether a find opened. `void f()` on a number discards
+nothing that can reject. The typechecker said `Type 'number' is not assignable to
+type 'Promise<unknown>'`, which is the honest answer, and they went back to bare
+`void` with a note saying why. A rule that wraps a synchronous call to look
+careful is a rule that teaches people the wrapper does not mean what it says.
+
+So the sweep now finds 47 sites, 32 distinct, and **every one either returns no
+promise or carries its own error handling**. That is the answer to the issue's
+"inventory all user-triggered handlers and classify each", arrived at by
+measurement rather than by assertion.
+
+### My first `isCancellation` swallowed real failures
+
+It matched a message merely *containing* "cancelled" — so
+`Error("cancelled the subscription")`, a broken subscription, reported nothing.
+That is precisely the defect this file exists to remove, and a test case in my own
+file caught it. The heuristic is gone: a cancellation is `AbortError`,
+`TimeoutError`, or this app's own `cancelled()` marker, which is an object rather
+than a string so nothing that merely says the word is mistaken for one.
+
+### The fence, and four mutations
+
+`test/asyncaction.test.mjs` sweeps every `void f(` in `src/`, comments stripped
+(several mention `void` in prose, and a fence that fires on its own documentation
+is a fence people learn to disable). It requires each to be in an inventory with a
+reason, requires the inventory not to name a `void` that is gone, and requires
+every reason to contain a justification keyword rather than a shrug.
+
+Wrapper behaviour is asserted through the **real built module** and the **real
+status bar** — `installChrome()` and `document.getElementById("status")`, the
+harness this repository built for exactly this class of bug. My first version
+instead read the source, stripped it with Node's own `stripTypeScriptTypes`, and
+evaluated it with two dependencies replaced; that worked and it was the wrong
+call, since it tests a copy. The version I kept also has a comment about why the
+replacement is *named functions* and not inline arrows: substituting a callee with
+an arrow expression in place turns `f(a, b)` into `(x, y) => …(a, b)`, and the
+arrow body swallows the call.
+
+Four mutations, each run:
+
+- a new bare `void newNamedDoc()` → the sweep fires and names the exact site
+- every failure swallowed as if it were a cancellation → 3 assertions fail
+- no cancellation recognised at all → 3 assertions fail
+- the wrapper writing its own failure sentence, bypassing `troubleSaid` → 1 fails
+
+`runner.test.mjs`'s "every module is imported by at least one test" caught that
+`asyncaction.ts` was not, which is how it ended up on the normal build path
+instead of in `NOT_IMPORTABLE`.
+
+Editor assertions 7,777 → 7,798, test files 109 → 110.

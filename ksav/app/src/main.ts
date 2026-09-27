@@ -183,6 +183,7 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 // see `alignRow` — so it comes in under a namespace instead of as four more
 // names in the list above.
 import * as settings_ from "./settings";
+import { action, voidAction } from "./asyncaction";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, compileNow, supersedeCompiles, onStale, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
@@ -617,7 +618,7 @@ function openSwitcher() {
           class: "pal-item" + (i === 0 ? " active" : ""),
           onClick: () => {
             closePanel("switcher");
-            void enterDoc(entry.id);
+            voidAction("save_file", () => enterDoc(entry.id));
           },
         },
         [
@@ -637,7 +638,7 @@ function goToLastDoc() {
     setStatus(t("onlyOneOpen"), "");
     return;
   }
-  void openDoc(to);
+  voidAction("save_file", () => openDoc(to));
 }
 
 /** Put what the view currently holds back into the open set, before leaving it. */
@@ -683,7 +684,7 @@ function syncGlobals() {
   for (const v of sourceViews()) v.dispatch({ effects });
   // The editing mode is loaded asynchronously, so it is applied rather than
   // reconfigured inline — `applyMode` awaits the import and dispatches itself.
-  void setEditingMode(settings.editingMode);
+  voidAction("save_file", () => setEditingMode(settings.editingMode));
 }
 
 /**
@@ -1176,7 +1177,7 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // there is none rather than complaining that there is none.
   // Forward search: where did what I am typing print? The pair to clicking the
   // preview, which needs no key because it has a mouse.
-  { id: "revealCursor", run: () => (void revealCursor(), true) },
+  { id: "revealCursor", run: () => (voidAction("general", () => revealCursor()), true) },
   // The manual override for when the automatic isolation does not reach.
   { id: "isolate", run: (v) => toggleIsolateSelection(v) },
   {
@@ -1206,10 +1207,10 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // `switcher` is "show me what I am holding" and does.
   { id: "lastDoc", run: () => (goToLastDoc(), true) },
   { id: "switcher", run: () => (openSwitcher(), true) },
-  { id: "closeDoc", run: () => (void closeOpenDoc(runtime.currentDoc.id), true) },
+  { id: "closeDoc", run: () => (voidAction("save_file", () => closeOpenDoc(runtime.currentDoc.id)), true) },
   { id: "newTab", run: () => (newTab(), true) },
   { id: "pane.zoom", run: () => (cyclePaneZoom(), true) },
-  { id: "newDocTab", run: () => (void newDocTab(), true) },
+  { id: "newDocTab", run: () => (voidAction("save_file", () => newDocTab()), true) },
   { id: "closeTab", run: () => (closeTab(tabs.activeIndex()), true) },
   // Round, in both directions. Round because a key that stops at the end is a
   // key you have to look at the screen to use; **both** directions because
@@ -2769,7 +2770,7 @@ function renderPanes() {
   // the new pane alone because the call is per view anyway and the import is
   // cached, so there is nothing to be gained by being clever about which panes
   // already have it.
-  void setEditingMode(settings.editingMode);
+  voidAction("save_file", () => setEditingMode(settings.editingMode));
 
   // The focused pane has to be one that still exists.
   const live = panes.leaves(paneTree).filter((l) => l.role === "source");
@@ -3884,7 +3885,7 @@ function openPaneMenu(pane: panes.Leaf, at: HTMLElement) {
       "data-save-arrangement": "",
       onClick: () => {
         closeFloating();
-        void saveArrangementHere();
+        voidAction("save_file", () => saveArrangementHere());
       },
     }, [
       el("b", {}, [t("saveArrangement")]),
@@ -4551,7 +4552,7 @@ function selectTab(i: number) {
   const want = tabs.focusedDoc(tab);
   if (want && want !== runtime.currentDoc?.id) {
     handOverPages(runtime.currentDoc?.id ?? null, want);
-    void openDoc(want, { handedOver: true });
+    voidAction("save_file", () => openDoc(want, { handedOver: true }));
   } else scheduleCompile();
 }
 
@@ -4569,7 +4570,7 @@ function closeTab(i: number) {
   const want = tabs.focusedDoc(next);
   if (want && want !== runtime.currentDoc?.id) {
     handOverPages(runtime.currentDoc?.id ?? null, want);
-    void openDoc(want, { handedOver: true });
+    voidAction("save_file", () => openDoc(want, { handedOver: true }));
   } else scheduleCompile();
 }
 
@@ -4757,7 +4758,7 @@ function wirePreviewClicks(host: HTMLElement) {
     // A drag that ended here is a selection, not a click: the reader is copying
     // a rendered line, and moving the caret would take the selection with it.
     if (!isPlainClick(window.getSelection())) return;
-    void jumpFromClick(e as MouseEvent);
+    voidAction("general", () => jumpFromClick(e as MouseEvent));
   });
 }
 
@@ -4974,7 +4975,7 @@ function revealFromSourceClick(e?: MouseEvent) {
   // cancel the approximate one rather than let the preview jump twice.
   clearTimeout(caretFollowTimer);
   clearTimeout(revealClickTimer);
-  revealClickTimer = window.setTimeout(() => void revealCursor({ quiet: true, from }), 120);
+  revealClickTimer = window.setTimeout(() => voidAction("general", () => revealCursor({ quiet: true, from })), 120);
 }
 
 // ------------------------------------------------------------------- cite on selection
@@ -6311,7 +6312,7 @@ function docsMenuItems(): (Node | string)[] {
       // Named for the same reason the rows below carry `data-doc`: the label is
       // translated, and the acceptance run has to be able to say *this* item.
       "data-doc-action": "new",
-      onClick: () => void newNamedDoc(),
+      onClick: () => voidAction("save_file", () => newNamedDoc()),
     }, [t("newDoc")]),
     // **Here**, and not in the arrangement panel, because this is where a writer
     // asks for a new anything. The arrangement panel is where somebody who
@@ -6321,7 +6322,7 @@ function docsMenuItems(): (Node | string)[] {
     el("button", {
       class: "menu-item",
       "data-doc-action": "new-tab",
-      onClick: () => void newDocTab(),
+      onClick: () => voidAction("save_file", () => newDocTab()),
     }, [`${t("newDocTab")} · ${hintFor("newDocTab")}`]),
     el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
     // "Save as" already existed, in the File menu. The margin comment asking
@@ -6330,8 +6331,8 @@ function docsMenuItems(): (Node | string)[] {
     // wondering how to change the second — which is here, not under File. The
     // command is the same one; this is a second door onto it, at the place the
     // question gets asked.
-    el("button", { class: "menu-item", onClick: () => void saveFileAs() }, [t("saveAs")]),
-    el("button", { class: "menu-item", onClick: () => void duplicateDoc(runtime.currentDoc.id) }, [
+    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => saveFileAs()) }, [t("saveAs")]),
+    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)) }, [
       t("duplicate"),
     ]),
   ];
@@ -6359,7 +6360,7 @@ function docsMenuItems(): (Node | string)[] {
               "data-doc": entry.id,
               onClick: () => {
                 closeMenus();
-                void enterDoc(entry.id);
+                voidAction("save_file", () => enterDoc(entry.id));
               },
             },
             [
@@ -6378,7 +6379,7 @@ function docsMenuItems(): (Node | string)[] {
             t("openInNewTab"),
             (e: Event) => {
               e.stopPropagation();
-              void openInNewTab(entry.id);
+              voidAction("save_file", () => openInNewTab(entry.id));
             },
             "menu-newtab",
           ),
@@ -6387,7 +6388,7 @@ function docsMenuItems(): (Node | string)[] {
             t("closeDoc"),
             (e: Event) => {
               e.stopPropagation();
-              void closeOpenDoc(entry.id);
+              voidAction("save_file", () => closeOpenDoc(entry.id));
             },
             "menu-close",
           ),
@@ -6410,7 +6411,7 @@ function docsMenuItems(): (Node | string)[] {
             "data-doc": entry.id,
             onClick: () => {
               closeMenus();
-              void enterDoc(entry.id);
+              voidAction("save_file", () => enterDoc(entry.id));
             },
           },
           [
@@ -6428,7 +6429,7 @@ function docsMenuItems(): (Node | string)[] {
           t("openInNewTab"),
           (e: Event) => {
             e.stopPropagation();
-            void openInNewTab(entry.id);
+            voidAction("save_file", () => openInNewTab(entry.id));
           },
           "menu-newtab",
         ),
@@ -7143,7 +7144,7 @@ function buildHeader(): HTMLElement {
           return el("div", { class: "menu-item-row" }, [
             el("button", {
               class: "menu-item menu-item-main",
-              onClick: () => void startFromTemplate(ut.body, ut.name),
+              onClick: () => voidAction("save_file", () => startFromTemplate(ut.body, ut.name)),
             }, [
               el("b", {}, [entry.label]),
             ]),
@@ -7159,7 +7160,7 @@ function buildHeader(): HTMLElement {
           ]);
         }
         const tpl = templatesByMenu.get(entry.id)!;
-        return el("button", { class: "menu-item", onClick: () => void loadTemplate(tpl) }, [
+        return el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => loadTemplate(tpl)) }, [
           el("b", {}, [entry.label]),
           el("span", { class: "menu-desc" }, [entry.desc ?? ""]),
         ]);
@@ -7678,7 +7679,7 @@ function buildFontPicker(): HTMLElement {
 
 /** The `+` that attaches a font file to this document — labelled, not a bare glyph. */
 function addFontButton(): HTMLElement {
-  return glyphBtn("+", t("addFont"), () => void addFont(), "mini");
+  return glyphBtn("+", t("addFont"), () => voidAction("save_file", () => addFont()), "mini");
 }
 
 /** The sentinel value of the "name it yourself" row. Not a family anybody has. */
@@ -8006,7 +8007,7 @@ function buildSettingsDrawer(): HTMLElement {
       el("button", { class: "sc-key", type: "button", onClick: exportDictionary }, [
         t("exportDictionary"),
       ]),
-      el("button", { class: "sc-key", type: "button", onClick: () => void importDictionary() }, [
+      el("button", { class: "sc-key", type: "button", onClick: () => voidAction("save_file", () => importDictionary()) }, [
         t("importDictionary"),
       ]),
     ]),
@@ -8550,7 +8551,7 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
 function goToOffset(at: number) {
   const where = settings.outlineJump ?? "source";
   jumpTo(at, where !== "preview");
-  if (where !== "source") void revealCursor({ quiet: true });
+  if (where !== "source") voidAction("general", () => revealCursor({ quiet: true }));
 }
 
 /**
@@ -8576,7 +8577,7 @@ function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
       closePalette();
       return;
     case "restore":
-      void restoreSnapshot(snaps[does.index]);
+      voidAction("save_file", () => restoreSnapshot(snaps[does.index]));
       return;
     case "hit":
       // Both, when both are known, and in this order: the caret first, because
@@ -8752,7 +8753,7 @@ async function renderHistory() {
     if (!confirm(t("historyClearConfirm"))) return;
     void docs.clearHistory(runtime.currentDoc.id).then(() => {
       setStatus(t("historyCleared"), "ok");
-      void renderHistory();
+      voidAction("general", () => renderHistory());
     });
   });
   host.append(
@@ -8902,12 +8903,12 @@ function forgetGit(): void {
   gitCommits = [];
   gitBranches = [];
   gitRemotes = [];
-  if (isGitOpen()) void refreshGit();
+  if (isGitOpen()) voidAction("general", () => refreshGit());
 }
 
 /** The file on disk changed under version control's feet: re-read, if open. */
 function gitMayHaveChanged(): void {
-  if (isGitOpen()) void refreshGit();
+  if (isGitOpen()) voidAction("general", () => refreshGit());
 }
 
 /**
@@ -9029,13 +9030,13 @@ function renderGitPanel(): void {
         wholeRepo: gitWholeRepo,
       },
       {
-        run: (op, extra) => void runGit(op, extra),
-        compare: (c) => void compareWithCommit(c),
-        restore: (c) => void restoreCommit(c),
-        revert: (c) => void revertCommit(c),
+        run: (op, extra) => voidAction("general", () => runGit(op, extra)),
+        compare: (c) => voidAction("general", () => compareWithCommit(c)),
+        restore: (c) => voidAction("save_file", () => restoreCommit(c)),
+        revert: (c) => voidAction("save_file", () => revertCommit(c)),
         setScope: (whole) => {
           gitWholeRepo = whole;
-          void refreshGit();
+          voidAction("general", () => refreshGit());
         },
       },
     ),
@@ -9906,7 +9907,7 @@ async function newBlankDoc() {
 }
 
 function newDoc() {
-  void newBlankDoc();
+  voidAction("save_file", () => newBlankDoc());
 }
 
 // ---------------------------------------------------------------- table editing
@@ -13632,7 +13633,7 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // "default" and the chrome is rebuilt describing the mode that is on its way
     // out — the shortcut list goes on printing keys the mode is about to take.
     // Caught by driving it: the settings list never showed a single `M-x` row.
-    void setEditingMode(value).then(rerenderChrome);
+    action("save_file", () => setEditingMode(value)).then(rerenderChrome);
   } else if (key === "focusMode" || key === "typewriter" || key === "typewriterAnchor") {
     runtime.view.dispatch({
       effects: focusCompartment.reconfigure(
@@ -14201,7 +14202,7 @@ function maybeOnboard() {
                 "data-template": tpl.id,
                 onClick: () => {
                   dismissOnboard();
-                  void loadTemplate(tpl);
+                  voidAction("save_file", () => loadTemplate(tpl));
                 },
               },
               [lang === "he" ? tpl.he : tpl.en],
@@ -14347,7 +14348,7 @@ function wirePanels() {
   wirePanel("review-panel", { open: renderReviewPanel, rebuild: renderReviewPanel });
   // Opening it is what asks git. Nothing polls: `git status` is a subprocess,
   // and a drawer nobody has opened must not be starting one every second.
-  wirePanel("git-panel", { open: () => void refreshGit(), rebuild: renderGitPanel });
+  wirePanel("git-panel", { open: () => voidAction("general", () => refreshGit()), rebuild: renderGitPanel });
   wirePanel("keys-drawer", {
     open: () => {
       // A fresh search every time. A drawer that reopens holding the last query
@@ -14376,7 +14377,7 @@ function wirePanels() {
     open: renderNotesChooser,
     close: () => runtime.view.focus(),
   });
-  wirePanel("history-modal", { open: () => void renderHistory(), rebuild: () => void renderHistory() });
+  wirePanel("history-modal", { open: () => voidAction("general", () => renderHistory()), rebuild: () => voidAction("general", () => renderHistory()) });
   wirePanel("preview-modal", {
     open: () => {
       // Drawn from the pages themselves, not copied out of the other pane. It
@@ -14750,7 +14751,7 @@ async function boot() {
     })();
   });
   registerServiceWorker();
-  void openSharedIfLinked();
+  voidAction("save_file", () => openSharedIfLinked());
   // Rescue the text before anything else, then say what happened.
   crash.install(
     () => ({
@@ -14760,8 +14761,8 @@ async function boot() {
     }),
     (_e, detail) => showCrashPanel(detail),
   );
-  void offerRecovery();
-  void maybeCheckForUpdate();
+  voidAction("save_file", () => offerRecovery());
+  voidAction("general", () => maybeCheckForUpdate());
   // A filesystem stat that nothing before the first compile reads, so it does
   // not gate the first page — void-fired like the other watch bookkeeping.
   void watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
@@ -14777,12 +14778,12 @@ async function boot() {
       // is how writers learn to dismiss dialogs without reading them.
       showChromeNotice(tf("fileChangedNotice", name), {
         label: t("reloadFromDisk"),
-        press: () => void reloadFromDisk(),
+        press: () => voidAction("save_file", () => reloadFromDisk()),
       });
     },
   );
   if (settings.editingMode && settings.editingMode !== "default") {
-    void setEditingMode(settings.editingMode);
+    voidAction("save_file", () => setEditingMode(settings.editingMode));
   }
   runCompile();
   // The first check has to be scheduled explicitly: boot compiles directly

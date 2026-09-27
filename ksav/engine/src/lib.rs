@@ -2145,6 +2145,111 @@ pub(crate) fn dangling_references(root: &typst::syntax::SyntaxNode, body: &str) 
         .collect()
 }
 
+/// Notes sent to a destination this document never declared.
+///
+/// # What this is really about
+///
+/// A note written `#הערה(אזור: "טיפים")` in a document that declares no such
+/// region is not an error and not a crash: the note is drawn, in the default
+/// apparatus at the foot of the page, numbered, queryable, and perfectly legible.
+/// Measured on the 2026-09-27 probe — a typo'd region name lands at y=712.5 on
+/// an 841.89 pt sheet, indistinguishable from the note having been filed
+/// correctly.
+///
+/// That is the problem. The writer asked for a named place and got the page foot
+/// with no word, and the two are not the same document: their note is in the wrong
+/// apparatus, it is not where the reader will look for it, and the region's own
+/// height, placement and overflow policy — the whole point of naming it — are not
+/// applied to it. The 23 August audit called this the same defect class as its B1,
+/// the mixed-`ערוץ:`-and-`אזור:` case where a note was filed under one key and
+/// filtered under another and the writer's text appeared on no page at all. B1
+/// lost the text; this one keeps the text and loses the destination, which is the
+/// quieter half of the same bug.
+///
+/// A **warning**, on the reasoning `italic_warning` already states and for the
+/// same reason: the document compiles, the note is on the page, every other
+/// command in it is fine, and a writer part-way through a sefer is entitled to
+/// keep working. Refusing would take away working text over a typo in a word that
+/// costs them nothing to keep. What must not happen is that they never find out.
+///
+/// The seven tier channels are the built-in balanced series and reserve nothing,
+/// so they are legal undeclared; the rest must be declared by `#ערוץ(…)` or
+/// `#אזור(…)`. When a document declares none at all, the message says so rather
+/// than listing an empty set — the likeliest cause of a wrong name in a document
+/// that declares nothing is a name copied from another document.
+pub(crate) fn unknown_destinations(
+    body: &str,
+    shape: &parse::ApparatusShape,
+) -> Vec<Diagnostic> {
+    let channels = channel_declarations(body, shape, CHANNEL_DECL);
+    let regions = channel_declarations(body, shape, REGION_DECL);
+    // A document full of `#הערה(ערוץ: "הערה_ב")` is one writer's ordinary sefer,
+    // and warning on it would be the noise that teaches people to skip this list.
+    let declared = |name: &str| {
+        channels.contains_key(name) || regions.contains_key(name) || TIER_CHANNELS.contains(&name)
+    };
+    let mut out: Vec<Diagnostic> = Vec::new();
+    for call in &shape.calls {
+        if !call.hash {
+            continue;
+        }
+        // A `#ערוץ("c", אזור: "r")` *declaration* carries the same argument a note
+        // does, and the declaration is what makes the name known.
+        if CHANNEL_DECL.contains(&call.name.as_str()) || REGION_DECL.contains(&call.name.as_str()) {
+            continue;
+        }
+        let Some((from, to)) = call.args else {
+            continue;
+        };
+        let Some(name) = named_arg(&body[from..to], REGION_ARG).or(named_arg(&body[from..to], CHANNEL_ARG))
+        else {
+            continue;
+        };
+        if name.is_empty() || declared(&name) {
+            continue;
+        }
+        // The command's own name, not the first argument: `from` is the byte
+        // after the `(`, and the writer is looking for `#הערה`, not for the
+        // argument that follows it.
+        let at = from.saturating_sub(call.name.len() + 1);
+        let (line, column) = line_column(body, at);
+        let mut said = Diagnostic::ours(
+            "warning",
+            if channels.is_empty() && regions.is_empty() {
+                format!(
+                    concat!(
+                        "אין במסמך אזור או ערוץ בשם {name} — ההערה נדפסה באותו מקום, אך לא באזור שביקשתם. ",
+                        "הוסיפו #אזור({name}) או #ערוץ({name}) במסמך, או תקנו את האיות · ",
+                        "no region or channel named {name} in this document — the note is printed, ",
+                        "but not in the apparatus you asked for. Add #region({name}) or ",
+                        "#channel({name}), or fix the spelling"
+                    ),
+                    name = format!("{name:?}"),
+                )
+            } else {
+                let mut known: Vec<&str> = channels.keys().map(String::as_str).collect();
+                known.extend(regions.keys().map(String::as_str));
+                known.sort_unstable();
+                format!(
+                    concat!(
+                        "אין במסמך אזור או ערוץ בשם {name} — יש: {known}. ",
+                        "ההערה נדפסה באותו מקום, אך לא באזור שביקשתם · ",
+                        "no region or channel named {name} in this document — declared here: {known}. ",
+                        "The note is printed, but not in the apparatus you asked for"
+                    ),
+                    name = format!("{name:?}"),
+                    known = known.join(", "),
+                )
+            },
+        );
+        said.line = Some(line);
+        said.column = Some(column);
+        said.about = Some(format!("#{}", call.name));
+        out.push(said);
+    }
+    out
+}
+
 /// A byte offset in the body as a 1-based (line, column), counted in characters.
 ///
 /// The same convention `Diagnostic` states: a Hebrew letter is two bytes and no
@@ -2462,12 +2567,19 @@ pub fn compile_parts(
     let body_tree = typst::syntax::parse(body);
     let italic = italic_warning(&body_tree, body, cfg, assets);
     let dangling = dangling_references(&body_tree, body);
+    // A note filed at a place this document does not have. The same question as
+    // the dangling reference — a name the writer used and the document never
+    // got — asked of the other place a name can be wrong, and the scan is over
+    // the partition `show_rule` already built for the reserve, so it costs
+    // nothing extra.
+    let stray = unknown_destinations(body, &parse::apparatus_shape(body));
 
     match output {
         Ok(doc) => {
             let mut diagnostics = locate(&warnings, "warning");
             diagnostics.extend(italic.clone());
             diagnostics.extend(dangling.clone());
+            diagnostics.extend(stray.clone());
             // Whatever the export has to say, say it. These used to go into
             // `.ok()` and vanish, so a PDF that failed to export came back as
             // `ok: true` with no bytes and no explanation. It mattered little
@@ -2563,6 +2675,7 @@ pub fn compile_parts(
             let mut diagnostics = located.all(&warnings, "warning");
             diagnostics.extend(italic);
             diagnostics.extend(dangling);
+            diagnostics.extend(stray);
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),

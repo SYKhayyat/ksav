@@ -691,3 +691,103 @@ Emacs 63.
 
 Recorded in the SESSION_LOG so there is a trail in the repository, and in the
 issues themselves where the work will be picked up.
+
+---
+
+## 2026-09-27 · #2 note-layout hazards — six of seven were already fixed, and the fence is the deliverable
+
+### The audit is a month old and the code moved
+
+`#2` tracks seven hazards from the 2026-08-23 audit (B1–B5, B10, B11), each
+`[render-verified]` or `[code-verified]` with a line number. I checked all seven
+before touching anything, and **six no longer reproduce**:
+
+| | finding | measured 2026-09-27 |
+|---|---|---|
+| B1 | `ערוץ:`+`אזור:` filed under one key, filtered under another | note drawn at y=712.5 — does not reproduce |
+| B2 | the reserve scanner was blind to the `אזור:` spelling | reserve 3.25cm, ink 712.5, page number 799.02 on an 841.89pt sheet — does not reproduce |
+| B3 | two side apparatuses interleaved at 4–9pt | fixture `12-two-regions-side`: first note's last line 137.75, second's first 151.13 — a full 13.38pt pitch apart, **stacked, not interleaved** |
+| B4 | a channel-declared height bypassed the clamp | `_ch_region_height` routes it through `_ap_fit_room` now |
+| B5 | a carried note arrived at the floor over a pinned one | the carry path calls `clear` now |
+| B10 | `שורות()` resolved against two typographies | both halves go through `_ap_line_of` now |
+| B11 | a `)` in a quoted argument derailed the paren scan | the scan is over a real parse, not a depth counter |
+
+The fixes each landed **with a comment quoting the finding**, which is how I found
+each one. So the code is in better shape than the issue says.
+
+### And that is exactly why the issue is still open
+
+Seven findings, seven comments, **zero tests**. Nothing in `engine/tests/` mentions
+any of the audit's own fixtures. The code was fixed by hand and the property was
+never written down, so the next rewrite of the side machinery or the reserve
+scanner has nothing to fail. That is the whole of #2's remaining value, and it is
+`engine/tests/note_layout.rs` — one render regression per finding, each doc
+comment recording what was true when it was written.
+
+### The seventh finding was real: a name nobody declared
+
+B2's audit text has a sibling it flags as still open — "a note into a region name
+that was never declared compiles clean ... no diagnostic ever says the name is
+unknown". Measured: `ok: true`, **zero diagnostics**, ink at y=712.5, which is
+exactly where a correctly-filed note lands. Indistinguishable, to a writer, from
+right.
+
+So the note is drawn. Nothing is lost. What is lost is the *destination*, and
+silently, which is the quieter half of B1's defect class — B1 lost the text, this
+loses the place. `unknown_destinations` is a **warning**, on the reasoning
+`italic_warning` already states: the document compiles, the note is on the page,
+and a writer part-way through a sefer keeps working. What must not happen is that
+they never find out. It names the unknown name, lists the declared ones when the
+document declares any, and locates the call (3:6, the `ה` of `#הערה`).
+
+The seven tier channels are exempt because they are Typst's own balanced series —
+warning on `#הערה(ערוץ: "הערה_ב")`, which is an ordinary sefer, is the noise that
+teaches people to skip the list.
+
+### Three of the four mutations fire, and two fences were vacuous
+
+Mutation-tested, one at a time, restoring by md5 because I destroyed a working
+tree restoring a stale backup:
+
+- the warning not collected → `an_undeclared_destination_is_named` fails
+- the tier channels not exempt → `a_known_destination_is_not_named` fails, and the
+  panic prints the exact false positive a writer would have met
+- the declared-name check never skips → the same test fails
+- the reserve cap `total.min(page_h_cm * MAX_REGION_SHARE)` deleted →
+  `a_declared_height_is_clamped` fails
+- the channel-declared height ignored → `a_region_height_and_a_channel_height_agree` fails
+- the scanner blind to `REGION_ARG` again → `the_region_spelling_reserves` fails
+- the `שורות` unit unrecognised → `a_lines_band_resolves_against_one_typography` fails
+
+**Three tests I wrote passed with the fix deleted, and are labelled accordingly
+rather than shipped as fences:**
+
+- **B1** — putting the pre-fix filter back (`_rg_show` re-deriving the region from
+  the channel's declarations, which is what the audit named) leaves the note
+  drawn. That filter is no longer on this note's path. Two document shapes later
+  — a channel declaring no region, then a *named* region the channel never
+  mentions — it still does not reproduce. The test asserts the property; it does
+  not claim to protect that line.
+- **B3** — deleting the cross-stream `sorted` in `_sn_placed` changes nothing for a
+  two-region document, because for a **linear** document the sort's key
+  `(page, want)` is already the document order. The sort only earns anything where
+  the two differ: a note inside a table cell, a figure, a deferred section.
+- **B5** — I could not build a document that reaches the carry branch at all. Two
+  constructions both place the note by a different line, and the first version of
+  that test passed with `clear` deleted, so it is **gone** rather than repaired.
+  The branch is documented as unverified; a non-linear fixture is the next thing
+  to build for B3, and a bounded-ceiling geometry for B5.
+
+That is three of nine. The other six fire.
+
+### A test bug worth the space it took
+
+`a_carried_note_steps_over_a_pinned_one` asserted `carried.page == pinned.page`
+under an `if`, so when the two notes landed on different pages — where the bug is
+not reachable — it asserted nothing and passed. The mutation found it. It is now
+`assert_eq!((pinned_page, carried_page), (2, 2), "the two notes must carry onto
+the same page for this to be the bug")`: if the geometry ever moves them apart, the
+test says so instead of skipping.
+
+Engine tests 1019 → 1028, binaries 71 → 72, editor assertions 7,776 → 7,777.
+Emacs 63, 0 unexpected.

@@ -33,8 +33,13 @@ was actually there was smaller or larger than the report said, and the fix list 
 still right.
 
 ## Phase 3 — Correctness Highs
-- [ ] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan). (Critical)
+- [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
+  (Critical) — six of the audit's seven no longer reproduce; the deliverable is
+  `engine/tests/note_layout.rs`, and what was left was a note sent to a
+  **destination the document never declared**, landing silently in the page foot.
 - [ ] #6 audit fire-and-forget (127 void, no fence). (High)
+- [ ] #2′ non-linear note fixtures — the audit's B3 sort and B5 carry branch are
+  unverified because no linear document reaches them. (Medium, from #2)
 - [ ] #5 parser/config/installer hardening. (High)
 - [ ] #3 i18n completeness + e2e switch test. (High)
 - [ ] #15 two-document glue second flow (probe exists). (High)

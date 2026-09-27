@@ -791,3 +791,10 @@ test says so instead of skipping.
 
 Engine tests 1019 → 1028, binaries 71 → 72, editor assertions 7,776 → 7,777.
 Emacs 63, 0 unexpected.
+
+### #2 closed; the verification gap is its own plan item
+
+Filed the two unverified branches as `#2′` rather than leaving them as a paragraph
+inside a test file: a non-linear note fixture is what reaches B3's cross-stream
+sort, and a bounded-ceiling geometry is what reaches B5's carry path. A sentence
+in a doc comment is a promise with no owner; a plan line is a task.

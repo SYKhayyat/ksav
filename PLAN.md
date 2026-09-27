@@ -40,8 +40,9 @@ still right.
 - [x] #6 audit fire-and-forget (127 void, no fence). (High) — measured **51 of 93
   sites** had a callee with no error handling at all; 48 converted to one wrapper,
   3 of them found to be synchronous and put back. The fence is the inventory.
-- [ ] #2′ non-linear note fixtures — the audit's B3 sort and B5 carry branch are
-  unverified because no linear document reaches them. (Medium, from #2)
+- [x] #2′ non-linear note fixtures — both branches reached and fenced: B3's sort
+  needs a reversed anchor order, B5's carry needs a bounded sheet and a page
+  break. **9 of 11 tests now fail with their fix removed.** (from #2)
 - [ ] #5 parser/config/installer hardening. (High)
 - [ ] #3 i18n completeness + e2e switch test. (High)
 - [ ] #15 two-document glue second flow (probe exists). (High)

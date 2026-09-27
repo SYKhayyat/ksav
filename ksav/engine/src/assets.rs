@@ -125,24 +125,32 @@ impl Assets {
     ///
     /// This is the simple, cache-free reader — every entry must carry its bytes.
     /// The live compile path uses [`from_request`](Self::from_request) instead.
-    pub fn from_json(v: &serde_json::Value) -> Assets {
-        Assets {
-            files: read_list(v.get("assets")),
-            fonts: read_list(v.get("fonts")),
-        }
+    pub fn from_json(v: &serde_json::Value) -> (Assets, Refused) {
+        let mut refused = Refused::default();
+        let mut missing = Vec::new();
+        (
+            Assets {
+                files: read_list_cached(v.get("assets"), &mut missing, &mut refused),
+                fonts: read_list_cached(v.get("fonts"), &mut missing, &mut refused),
+            },
+            refused,
+        )
     }
 
     /// Read the `assets`/`fonts` arrays, resolving hash-only entries from the
     /// content cache and caching any that arrive with their bytes.
     ///
-    /// Returns the assets plus the hashes it could not resolve — a hash the client
-    /// believed was cached but the engine no longer holds. The caller passes those
-    /// back so the client re-sends the bytes on the next compile.
-    pub fn from_request(v: &serde_json::Value) -> (Assets, Vec<String>) {
+    /// Returns the assets, the hashes it could not resolve, and the names it
+    /// **refused**. The three are different things with three different answers
+    /// for the client: a missing hash means *send the bytes again*, and a refused
+    /// name means *this will never be accepted* — so reporting a refusal as
+    /// missing would have the client re-send the same name for ever.
+    pub fn from_request(v: &serde_json::Value) -> (Assets, Vec<String>, Refused) {
         let mut missing = Vec::new();
-        let files = read_list_cached(v.get("assets"), &mut missing);
-        let fonts = read_list_cached(v.get("fonts"), &mut missing);
-        (Assets { files, fonts }, missing)
+        let mut refused = Refused::default();
+        let files = read_list_cached(v.get("assets"), &mut missing, &mut refused);
+        let fonts = read_list_cached(v.get("fonts"), &mut missing, &mut refused);
+        (Assets { files, fonts }, missing, refused)
     }
 
     /// Read **one** assets array split by each entry's own `kind`.
@@ -153,14 +161,15 @@ impl Assets {
     /// shape just so [`from_request`](Self::from_request) could walk it again.
     /// One pass over references now; an entry with no `kind` is an image, the
     /// same reading `!== "font"` makes on the client.
-    pub fn from_docfile(v: Option<&serde_json::Value>) -> (Assets, Vec<String>) {
+    pub fn from_docfile(v: Option<&serde_json::Value>) -> (Assets, Vec<String>, Refused) {
         let mut missing = Vec::new();
+        let mut refused = Refused::default();
         let mut files = Vec::new();
         let mut fonts = Vec::new();
         if let Some(arr) = v.and_then(|x| x.as_array()) {
             for entry in arr {
                 let is_font = entry.get("kind").and_then(|k| k.as_str()) == Some("font");
-                if let Some(asset) = read_one_cached(entry, &mut missing) {
+                if let Some(asset) = read_one_cached(entry, &mut missing, &mut refused) {
                     if is_font {
                         fonts.push(asset);
                     } else {
@@ -169,21 +178,160 @@ impl Assets {
                 }
             }
         }
-        (Assets { files, fonts }, missing)
+        (Assets { files, fonts }, missing, refused)
     }
 }
 
-fn read_list_cached(v: Option<&serde_json::Value>, missing: &mut Vec<String>) -> Vec<Asset> {
+/// Every name the resolver will be asked, checked before it is asked.
+///
+/// # What this refuses, and which of the rules is a crash rather than a theft
+///
+/// The order of the checks is the order of the reasons, and the reasons are not
+/// all the same kind of thing:
+///
+/// 1. **`..` and a backslash** — these make `typst-as-lib`'s `VirtualPath::new`
+///    **panic** (`conversions.rs`: `valid virtual path: Escapes` / `: Backslash`).
+///    There is no `catch_unwind` anywhere in this crate and in `server.rs`, so a
+///    compile request carrying an asset named `../x.png` or `C:\x.png` takes the
+///    worker thread down with it. That is the reason this function exists at all:
+///    a single unauthenticated request to `ksav serve` is a denial of service,
+///    and it is measured rather than argued — the names were run through
+///    `compile_with` and the process died.
+/// 2. **An absolute path**, and **the prelude's own name** — the second is the one
+///    the issue was about, and measuring it is how the impact turned out to be
+///    *not* what the issue said. `main_source` does `#import "ksav.typ"`, and the
+///    resolver chain puts the prelude **first**:
+///    `with_static_source_file_resolver([prelude_source()])` before
+///    `with_static_file_resolver(files)`. A document carrying an asset called
+///    `ksav.typ` therefore cannot replace the prelude — the attacker's `#let`s
+///    never bind and their command is reported as unknown. The asset is simply
+///    shadowed, which is a confusing no-op rather than a compromise.
+///
+///    So the rule is kept anyway, and the reason is now the honest one: a name the
+///    resolver will *never* reach is a name that should not be accepted, because
+///    the day the chain is reordered — which is a two-line change and a plausible
+///    one — the same file stops being inert. `ksav.TYP` is **not** a rule:
+///    `VirtualPath` is case-sensitive, and measured, a case variant is inert too.
+///    A rule I cannot justify is a rule that trains people to skip the list.
+/// 3. **A control character** — no honest use, and it makes a diagnostic
+///    unreadable if it ever reaches one.
+///
+/// # Why the report is a return value and not a diagnostic
+///
+/// A refused asset is not a missing one. The existing `Vec<String>` means *"a
+/// hash this engine does not hold — send the bytes again"*, and the client's
+/// answer to that is to re-send the same name, so a refusal reported there would
+/// loop. `Diagnostics` are the channel for "this arrived and will not be used",
+/// which is exactly what a refusal is.
+#[must_use]
+pub fn diagnose_name(name: &str) -> Option<String> {
+    if name.is_empty() {
+        return Some("an asset needs a name".into());
+    }
+    if name == crate::PRELUDE_PATH {
+        return Some(format!(
+            "“{name}” is the prelude's own name and cannot be carried by a document"
+        ));
+    }
+    // A path that leaves the document's own directory. Checked as segments rather
+    // than as a substring, because `a..b.png` is a legal file name and refusing it
+    // would be refusing something a writer could legitimately attach.
+    let escapes = name
+        .split(['/', '\\'])
+        .any(|seg| seg == "..")
+        // A leading separator is absolute on one platform and rooted on the other,
+        // so it is refused on both rather than detected per-OS.
+        || name.starts_with(['/', '\\'])
+        // `C:` is a drive-relative root on Windows and a legal file name with a
+        // colon nowhere else; a document carrying `C:x.png` wants a file called
+        // `C:x.png`, so only a drive *and* a separator is refused.
+        || (name.len() >= 2
+            && name.as_bytes()[1] == b':'
+            && name.as_bytes()[0].is_ascii_alphabetic()
+            && name[2..].starts_with(['/', '\\']));
+    if escapes {
+        return Some(format!(
+            "“{name}” is not a name a document's own folder can hold — \
+             an absolute path, or one that steps outside it with “..”"
+        ));
+    }
+    if name.chars().any(|c| c.is_control()) {
+        return Some(format!("“{}” contains a control character", escape_it(name)));
+    }
+    None
+}
+
+/// A name as one line, with a control character visible rather than printed.
+///
+/// A refusal message goes into a diagnostic, and a diagnostic goes into a page
+/// and a terminal. An asset named `logo\n.png` must not be able to end its own
+/// sentence in either.
+fn escape_it(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_control() {
+            out.push_str(&format!("\\u{{{:x}}}", c as u32));
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// The names in a request, having been refused.
+#[derive(Debug, Default, Clone)]
+pub struct Refused {
+    /// One message per refused entry, naming it and saying why.
+    pub names: Vec<String>,
+}
+
+impl Refused {
+    /// Whether anything was refused.
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+
+    /// The refusals as diagnostics, so a client that has no other way to hear
+    /// about them still does.
+    pub fn diagnostics(&self) -> Vec<crate::Diagnostic> {
+        self.names
+            .iter()
+            .map(|why| crate::Diagnostic {
+                severity: "warning".into(),
+                message: why.clone(),
+                ..Default::default()
+            })
+            .collect()
+    }
+}
+
+fn read_list_cached(
+    v: Option<&serde_json::Value>,
+    missing: &mut Vec<String>,
+    refused: &mut Refused,
+) -> Vec<Asset> {
     let Some(arr) = v.and_then(|x| x.as_array()) else {
         return Vec::new();
     };
     arr.iter()
-        .filter_map(|entry| read_one_cached(entry, missing))
+        .filter_map(|entry| read_one_cached(entry, missing, refused))
         .collect()
 }
 
-fn read_one_cached(v: &serde_json::Value, missing: &mut Vec<String>) -> Option<Asset> {
+fn read_one_cached(
+    v: &serde_json::Value,
+    missing: &mut Vec<String>,
+    refused: &mut Refused,
+) -> Option<Asset> {
     let name = v.get("name")?.as_str()?.to_string();
+    // **Before anything else is read off the entry**, and before the payload is
+    // decoded: a name the resolver will not accept must not reach it, and a
+    // multi-megabyte base64 payload for a name that is going to be refused should
+    // not be decoded to find out.
+    if let Some(why) = diagnose_name(&name) {
+        refused.names.push(why);
+        return None;
+    }
     let hash = v.get("hash").and_then(|x| x.as_str()).map(str::to_string);
 
     // Bytes on the request: decode, cache under the hash **we compute**, use them.
@@ -298,22 +446,8 @@ fn decode_payload(data: &str) -> Option<Vec<u8>> {
         .ok()
 }
 
-fn read_list(v: Option<&serde_json::Value>) -> Vec<Asset> {
-    let Some(arr) = v.and_then(|x| x.as_array()) else {
-        return Vec::new();
-    };
-    arr.iter().filter_map(read_one).collect()
-}
-
-fn read_one(v: &serde_json::Value) -> Option<Asset> {
-    let name = v.get("name")?.as_str()?.to_string();
-    let data = v.get("data")?.as_str()?;
-    let bytes = decode_payload(data)?;
-    if name.is_empty() || bytes.is_empty() {
-        return None;
-    }
-    Some(Asset {
-        name,
-        bytes: Arc::new(bytes),
-    })
-}
+// There used to be a second, cache-free pair of readers — `read_list` and
+// `read_one` — beside the cached ones, with the same rules written twice and the
+// same hole in both. They are gone rather than gated: `from_json` now goes through
+// `read_list_cached` with a throwaway `missing`, so there is one reader and a
+// name refused on one path is refused on the other by being the *same* code.

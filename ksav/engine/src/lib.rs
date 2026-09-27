@@ -1830,11 +1830,24 @@ pub(crate) fn engine_for(
 ) -> typst_as_lib::TypstEngine<typst_as_lib::TypstTemplateMainFile> {
     let mut fonts = bundled_fonts();
     fonts.extend(assets.fonts.iter().map(|f| f.bytes.as_slice()));
+    // **Checked here as well as at the reader**, and the reason is that
+    // `compile_with` is `pub`. A request and a `.ksav` are both gated on the way
+    // in, but a library caller can hand `Assets` straight to this — and
+    // `typst-as-lib` builds a `VirtualPath` from each name and `.expect()`s it,
+    // so a name with `..` in it is a **panic**, not a refused compile. There is no
+    // `catch_unwind` in this crate or in `server.rs`.
+    //
+    // So the two gates answer two different questions and neither substitutes for
+    // the other: the reader's gate is what lets a *writer* be told their file was
+    // refused, and this one is what makes the panic unreachable at all.
     let files: Vec<(&str, &[u8])> = assets
         .files
         .iter()
+        .filter(|a| assets::diagnose_name(&a.name).is_none())
         .map(|a| (a.name.as_str(), a.bytes.as_slice()))
         .collect();
+    // A font is not resolved by name — it is handed to the shaper as bytes — so
+    // the gate does not apply to one, and `..` in a font's name is not a panic.
     let mut builder = TypstEngine::builder()
         .main_file(source)
         .fonts(fonts)
@@ -2829,7 +2842,7 @@ pub fn compile_request(input_json: &str) -> String {
     // Assets resolve from a per-process cache keyed by content hash, so an
     // unchanged image is not re-sent and re-decoded on every keystroke. Any hash
     // the cache no longer holds comes back so the client re-sends the bytes.
-    let (assets, missing_assets) = Assets::from_request(&v);
+    let (assets, missing_assets, refused) = Assets::from_request(&v);
 
     // `{"format": "html"}` asks for the web export instead of a paged render.
     if v.get("format").and_then(|x| x.as_str()) == Some("html") {
@@ -2902,6 +2915,11 @@ pub fn compile_request(input_json: &str) -> String {
             .diagnostics
             .push(Diagnostic::ours("error", problem.clone()));
     }
+    // A refused asset name is a warning, not a problem with the sefer: the
+    // document still typesets, the image simply is not there, and the writer is
+    // owed the reason. Announced rather than dropped, because the alternative is
+    // a file that silently does not appear.
+    result.diagnostics.extend(refused.diagnostics());
 
     // Pages the client already has, by fingerprint.
     //

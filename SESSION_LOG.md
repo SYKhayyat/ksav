@@ -587,3 +587,84 @@ write it, and leave everything else green over a measurement of nothing.
 Engine tests 1006 → 1009, binaries 69 → 70, editor assertions 7,639 → 7,775 across
 109 files. Next in Phase 2: **#52**, asset names unvalidated and `ksav.typ`
 shadowing the prelude.
+
+---
+
+## 2026-09-26 · #52 asset names (closed) — and Phase 2 complete
+
+### The issue's impact is wrong, and the real one is worse
+
+`#52` said a `.ksav` with an asset named `ksav.typ` "replaces or confuses the
+trusted prelude". Measured, the shadowing is **closed by resolver order** —
+`with_static_source_file_resolver([prelude_source()])` comes *before*
+`with_static_file_resolver(files)`, so the prelude is consulted first, the
+attacker's `#let`s never bind, and `#attack` is reported as unknown. `ksav.TYP` is
+inert too: `VirtualPath` is case-sensitive.
+
+The rule is kept anyway, for the honest reason: a name the resolver will never
+reach is a name that should not be accepted, and the chain is a two-line change
+and a plausible one. `ksav.TYP` is deliberately **not** a rule — a rule I cannot
+justify trains people to skip the list.
+
+### What nobody had looked at
+
+I walked a list of hostile names through `compile_with`. Two **killed the
+process**:
+
+```
+panicked at typst-as-lib-0.16.0/src/conversions.rs:23:44:
+valid virtual path: Escapes      ← ".."
+valid virtual path: Backslash    ← "C:\"
+```
+
+`.expect()` on a `VirtualPath`, and **no `catch_unwind` in this crate or in
+`server.rs`**. So one unauthenticated request to `ksav serve` with an asset named
+`../x.png` takes the worker thread down. That is a denial of service, not a
+compromise — and it is why `diagnose_name` is a gate rather than a check.
+
+### Two gates, and the tests are split to say so
+
+- **the reader's**, so a *writer is told* — and before the payload is decoded, so
+  a multi-megabyte blob for a refused name is never decoded to find out.
+- **`compile_with`'s**, which is `pub` and is what makes the panic unreachable.
+
+Mutation-tested independently: removing the `compile_with` filter brings the
+panic back; removing the reader gate leaves the no-panic test green and turns the
+two "a refusal is announced" tests red. Either can be deleted without the other
+noticing, which is what a single test would have hidden.
+
+### A refusal is not a missing asset
+
+The existing `Vec<String>` means *"a hash this engine does not hold — send the
+bytes again"*, and the client's answer is to re-send. A refusal reported there
+would **loop for ever**, so it is a different type rendering as a **warning**
+diagnostic. On the `.ksav` path it rides on `advisories()` beside the other two,
+because a refused name and a missing one look identical to a writer — an image
+that is not on the page — and only one is fixable by sending the file again.
+
+`read_list`/`read_one` were a second reader with the same hole in both; they are
+**removed** rather than fixed, so `from_json` goes through the cached reader with
+a throwaway `missing`.
+
+### The half a threat-model rule always loses
+
+Eleven ordinary names must survive, and they are in a test: `sub/dir/photo.jpeg`,
+`a..b.png`, `my logo.png`, `שם-בעברית.png`, `..hidden.png`. So `..` is checked as
+a **segment**, not a substring — `a..b.png` is a legal file name, and a gate that
+refuses it is a gate somebody deletes.
+
+### A test bug of my own
+
+`with_asset` took a `&str` into a `json!` array, so it produced an array of
+**strings**; the reader finds no object and reads it as nothing, so the test was
+asserting an empty list for a reason unrelated to the name it was about. The
+helper takes a `serde_json::Value` now, and its docstring says why.
+
+### Phase 2 complete
+
+#50 (chapter name into Typst), #51 (a document that runs code says so), #53 (the
+engine's SVG through a measured allow-list), #52 (asset names). Next is Phase 3,
+correctness highs, starting with **#2** — note-layout hazards, marked Critical.
+
+Engine tests 1009 → 1019, binaries 70 → 71, editor assertions 7,775 → 7,776.
+Emacs 63.

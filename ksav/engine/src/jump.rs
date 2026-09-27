@@ -247,7 +247,7 @@ pub fn jump_request(input_json: &str) -> String {
         x_pt: num("x_pt"),
         y_pt: num("y_pt"),
     };
-    let (assets, _) = Assets::from_request(&v);
+    let (assets, _, _) = Assets::from_request(&v);
     // The page was laid out from the *expanded* body, so that is what has to be
     // walked — and the answer then has to be translated back, or a click on
     // chapter three would send the cursor to a line number in a concatenation
@@ -275,7 +275,7 @@ pub fn reveal_request(input_json: &str) -> String {
     let Some(body) = v.get("body").and_then(|b| b.as_str()) else {
         return r#"{"points":[]}"#.to_string();
     };
-    let (assets, _) = Assets::from_request(&v);
+    let (assets, _, _) = Assets::from_request(&v);
     let expanded = crate::include::expand(body, &crate::include::from_request(&v));
     // The caller names a line in the file the cursor is actually in, which is the
     // only line number it has; the layout knows the expanded body's.

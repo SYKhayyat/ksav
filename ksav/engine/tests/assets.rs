@@ -75,7 +75,7 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     let with_bytes = serde_json::json!({
         "assets": [{ "name": "logo.png", "hash": hash, "data": PNG_B64 }]
     });
-    let (a1, missing1) = Assets::from_request(&with_bytes);
+    let (a1, missing1, _) = Assets::from_request(&with_bytes);
     assert_eq!(a1.files.len(), 1, "the bytes should decode");
     assert!(
         missing1.is_empty(),
@@ -85,7 +85,7 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     let hash_only = serde_json::json!({
         "assets": [{ "name": "logo.png", "hash": hash }]
     });
-    let (a2, missing2) = Assets::from_request(&hash_only);
+    let (a2, missing2, _) = Assets::from_request(&hash_only);
     assert_eq!(
         a2.files.len(),
         1,
@@ -161,7 +161,7 @@ fn bytes_sent_under_a_hash_that_is_not_theirs_do_not_poison_the_cache() {
     let seeded = serde_json::json!({
         "assets": [{ "name": "attacker.png", "hash": claimed, "data": PNG_B64 }]
     });
-    let (used, missing) = Assets::from_request(&seeded);
+    let (used, missing, _) = Assets::from_request(&seeded);
     assert_eq!(
         used.files.len(),
         1,
@@ -178,7 +178,7 @@ fn bytes_sent_under_a_hash_that_is_not_theirs_do_not_poison_the_cache() {
     let asking = serde_json::json!({
         "assets": [{ "name": "the-writers-sefer.png", "hash": claimed }]
     });
-    let (got, missing) = Assets::from_request(&asking);
+    let (got, missing, _) = Assets::from_request(&asking);
     assert!(
         got.files.is_empty(),
         "a hash the engine never computed resolved to bytes anyway"
@@ -193,7 +193,7 @@ fn an_unknown_hash_with_no_bytes_is_reported_missing() {
     let v = serde_json::json!({
         "assets": [{ "name": "gone.png", "hash": "test-never-sent-xyz" }]
     });
-    let (assets, missing) = Assets::from_request(&v);
+    let (assets, missing, _) = Assets::from_request(&v);
     assert!(
         assets.files.is_empty(),
         "an unresolved asset is not conjured"
@@ -211,7 +211,7 @@ fn assets_are_read_from_a_request_with_or_without_a_data_url_prefix() {
             { "name": "", "data": PNG_B64 },
         ]
     });
-    let assets = Assets::from_json(&v);
+    let (assets, _) = Assets::from_json(&v);
     let names: Vec<&str> = assets.files.iter().map(|a| a.name.as_str()).collect();
     // Both encodings are accepted; the undecodable and the unnamed are dropped
     // rather than failing the whole compile — one bad image must not cost the

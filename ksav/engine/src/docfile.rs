@@ -66,6 +66,9 @@ pub struct DocFile {
     pub missing_assets: Vec<String>,
     /// The document's own `#let` commands, empty when it has none.
     pub custom: String,
+    /// Asset names the engine refused, and why. A file a writer sent somebody
+    /// else is the usual place one arrives.
+    pub refused_assets: Vec<String>,
 }
 
 impl DocFile {
@@ -138,6 +141,10 @@ impl DocFile {
                 "refers to an asset that is not in the file ({name})"
             ));
         }
+        // A refused name, alongside a missing one, because from a writer's side
+        // the two look the same — an image that is not on the page — and only one
+        // of them is fixable by sending the file again.
+        out.extend(self.refused_assets.iter().cloned());
         let custom = self.custom.trim();
         if !custom.is_empty() {
             let names = defined_let_names(custom);
@@ -261,7 +268,7 @@ pub fn read(text: &str) -> DocFile {
     // One `assets` array in the file, two lists for the engine: read in one
     // pass over references, with no clone of the entries on the way through.
     // See `Assets::from_docfile`.
-    let (assets, missing_assets) = Assets::from_docfile(v.get("assets"));
+    let (assets, missing_assets, refused) = Assets::from_docfile(v.get("assets"));
 
     let custom = v
         .get("customCommands")
@@ -276,6 +283,7 @@ pub fn read(text: &str) -> DocFile {
         assets,
         missing_assets,
         custom,
+        refused_assets: refused.names,
     }
 }
 
@@ -288,6 +296,7 @@ fn plain(text: &str) -> DocFile {
         assets: Assets::default(),
         missing_assets: Vec::new(),
         custom: String::new(),
+        refused_assets: Vec::new(),
     }
 }
 
@@ -534,3 +543,59 @@ mod advisory_tests {
         assert!(said.contains("compiled with it"), "{said}");
     }
 }
+
+/// A `.ksav` carrying a name the engine refuses says so, on the path a file
+/// arrives by.
+///
+/// The request path reports a refusal as a warning diagnostic, and a preview shows
+/// it. This path has no preview — the CLI and the Emacs package — so the
+/// refusal rides on `advisories()` like the other two, which is the channel a
+/// writer reading a terminal is actually given.
+#[cfg(test)]
+mod refused_asset_tests {
+    use super::*;
+
+    /// One wrapper carrying a single asset **entry as an object**.
+    ///
+    /// A `&str` here would make `json!` produce an array of *strings*, and a
+    /// reader that finds no object in an entry quietly reads it as nothing — so
+    /// the test would have passed an empty asset list for a reason that had
+    /// nothing to do with the name.
+    fn with_asset(entry: serde_json::Value) -> String {
+        serde_json::json!({
+            "format": FILE_MAGIC,
+            "version": 1,
+            "body": "שלום",
+            "assets": [entry],
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn a_refused_name_is_an_advisory() {
+        let d = read(&with_asset(serde_json::json!({
+            "name": "../evil.png",
+            "data": "AAAA",
+        })));
+        assert!(d.assets.files.is_empty(), "the asset must not survive");
+        let said = d.advisories();
+        assert_eq!(said.len(), 1, "{said:?}");
+        assert!(said[0].contains("evil.png"), "and must name it: {}", said[0]);
+    }
+
+    /// A plain file says nothing, and neither does one with an ordinary image.
+    ///
+    /// The negative half again: an advisory on every open is one nobody reads,
+    /// and most `.ksav` files carry a logo and no excuses.
+    #[test]
+    fn an_ordinary_file_says_nothing_about_its_assets() {
+        assert!(read("#שער[מסמך]\n\nשלום\n").advisories().is_empty());
+        let d = read(&with_asset(serde_json::json!({
+            "name": "logo.png",
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        })));
+        assert_eq!(d.assets.files.len(), 1, "the logo survives: {:?}", d.assets.files.len());
+        assert!(d.advisories().is_empty(), "{:?}", d.advisories());
+    }
+}
+

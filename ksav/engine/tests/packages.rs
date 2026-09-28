@@ -47,6 +47,67 @@ fn a_package_that_is_not_there_is_an_error() {
     );
 }
 
+/// A missing package is **named**, and the naming is the fix.
+///
+/// Asserting `is_err()` was the whole of this test, and it passed while the
+/// message said *"a file (e.g. an image) wasn't found — check the path"* — which
+/// sends somebody who imported `@preview/meander` to go looking for an image.
+/// The loader shipped and left behind the exact diagnostic the issue opened with,
+/// so an error that is correct and useless is not a passing test.
+#[test]
+fn a_missing_package_is_named_in_its_own_words() {
+    let doc = "#import \"@preview/nothing-here:9.9.9\": x\n#x";
+    let said = probe::layout(doc, &DocConfig::default())
+        .unwrap_err()
+        .pop()
+        .map(|d| d.message)
+        .unwrap_or_default();
+    assert!(
+        said.contains("@preview/nothing-here:9.9.9"),
+        "the package was not named: {said}"
+    );
+    assert!(
+        !said.contains("image"),
+        "a package import was reported as a missing image: {said}"
+    );
+    // Bundled, not downloaded — so "not found" does not read as "try again".
+    assert!(
+        said.contains("bundled") && said.contains("never downloaded"),
+        "the message does not say packages ship rather than download: {said}"
+    );
+}
+
+/// A *wrong version* of a real package is a different sentence from a wrong
+/// package, because there is a real fix for it and it is not "add a package".
+#[test]
+fn a_wrong_version_names_the_version_that_was_asked_for() {
+    let doc = "#import \"@preview/ksavtest:0.2.0\": hello\n#hello[x]";
+    let said = probe::layout(doc, &DocConfig::default())
+        .unwrap_err()
+        .pop()
+        .map(|d| d.message)
+        .unwrap_or_default();
+    assert!(
+        said.contains("@preview/ksavtest:0.2.0"),
+        "the requested version was not named: {said}"
+    );
+}
+
+/// What is bundled is reported as specs, and the real bundled package is in the
+/// list — so the answer to "what can I import?" is in the error itself.
+#[test]
+fn the_message_lists_what_is_bundled() {
+    let said = probe::layout("#import \"@preview/nothing-here:9.9.9\": x\n#x", &DocConfig::default())
+        .unwrap_err()
+        .pop()
+        .map(|d| d.message)
+        .unwrap_or_default();
+    assert!(
+        said.contains("@preview:ksavtest:0.1.0"),
+        "the bundled package was not listed: {said}"
+    );
+}
+
 /// The version is part of the identity.
 ///
 /// Two versions of one package are two directories and two different imports,

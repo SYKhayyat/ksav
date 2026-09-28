@@ -314,6 +314,67 @@ pub(crate) fn body_byte_of(span: Span, main: &Source, body_offset: usize) -> Opt
 /// `Tracepoint::Call(name)` also carries the function's name, which is a better
 /// answer to *which command was this about* than reading the text backwards —
 /// so the text scan is only the fallback.
+/// The `@namespace/name:version` a *file not found* message was really about.
+///
+/// Typst reports a missing package with the directory it searched, in its own
+/// layout: `…/packages/preview/meander/0.4.4/typst.toml`. That is three segments
+/// after `packages` and a `typst.toml` at the end, which is a shape rather than a
+/// wording — so this keeps working if the sentence changes, and it cannot fire on
+/// an ordinary missing image, which has no such path.
+///
+/// Returns the spec *as the writer wrote it*, namespace and all, because
+/// `@preview/meander:0.4.4` is what they can go and correct in their source.
+fn missing_package(raw: &str) -> Option<String> {
+    // The message ends in the closing paren of `(searched at …)`.
+    let tail = raw.split("packages/").nth(1)?.trim_end_matches(')');
+    let mut parts = tail.split('/');
+    let ns = parts.next()?;
+    let name = parts.next()?;
+    let version = parts.next()?;
+    // Four segments and a manifest: `ns/name/version/typst.toml`. An ordinary
+    // missing image has no such path, so this is the shape and not the wording.
+    if parts.next()? != "typst.toml" {
+        return None;
+    }
+    for seg in [ns, name, version] {
+        if seg.is_empty() || !seg.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)) {
+            return None;
+        }
+    }
+    Some(format!("@{ns}/{name}:{version}"))
+}
+
+/// What is actually in the packages directory, as `@namespace/name:version`.
+///
+/// Read on the error path only. A list beats a path: a writer who is told
+/// *`meander` is not here* still has to guess what is, and the honest answer is
+/// one `read_dir` away. An empty or absent directory is reported as empty rather
+/// than as an error, because "you have none" is a true sentence.
+pub fn bundled_packages() -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let Ok(root) = std::fs::read_dir(crate::packages_root()) else {
+        return out;
+    };
+    for ns in root.flatten() {
+        let Ok(names) = std::fs::read_dir(ns.path()) else { continue };
+        for name in names.flatten() {
+            let Ok(vers) = std::fs::read_dir(name.path()) else { continue };
+            for v in vers.flatten() {
+                if v.path().join("typst.toml").is_file() {
+                    out.push(format!(
+                        "@{}:{}:{}",
+                        ns.file_name().to_string_lossy(),
+                        name.file_name().to_string_lossy(),
+                        v.file_name().to_string_lossy()
+                    ));
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
 fn where_it_happened(
     d: &SourceDiagnostic,
     main: &Source,
@@ -938,6 +999,30 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
         "יש בעיה ליד סימן # — אולי חסר רווח או סוגר, או שרצית סולמית רגילה (כתבו \\#) · \
          Something's off near a # — you may be missing a space or bracket, or want a literal # (write \\#)"
             .to_string()
+    } else if let Some(spec) = missing_package(raw) {
+        // **A missing package, named.** The generic file branch below turns this
+        // into *"a file (e.g. an image) wasn't found — check the path"*, which
+        // sends a writer who imported `@preview/meander` looking for a missing
+        // image. The package path is in the message Typst built
+        // (`…/packages/preview/meander/0.4.4/typst.toml`), so the package and
+        // version are *known* here and the sentence can name them.
+        //
+        // The second half matters more than the first: Ksav bundles packages and
+        // never downloads them, deliberately — a compile that reaches the network
+        // is a compile that can hang, and this editor is 59ms after a keystroke.
+        // So "not found" must not read as "try again" or "check your connection".
+        // It means *this one is not in the box*, and here is what is.
+        let have = bundled_packages();
+        let list = if have.is_empty() {
+            "אין כרגע חבילות מצורפות · none are bundled yet".to_string()
+        } else {
+            format!("המצורפות כרגע: {} · bundled here: {}", have.join(", "), have.join(", "))
+        };
+        format!(
+            "החבילה {spec} אינה מצורפת ל-Ksav — חבילות מגיעות עם התוכנה ולא מורדות ({list}) · \
+             the package {spec} is not bundled with Ksav — packages ship with the \
+             program and are never downloaded ({list})"
+        )
     } else if lower.contains("file not found") || lower.contains("failed to load") {
         "קובץ (למשל תמונה) לא נמצא — בדקו את הנתיב · \
          A file (e.g. an image) wasn't found — check the path"

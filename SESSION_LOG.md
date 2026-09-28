@@ -1661,3 +1661,99 @@ that were once the same, and which a new field made different, is not wrong in i
 arithmetic. It is wrong in its question, and it will not say so.
 
 Engine tests 1036 → 1044, binaries 73 → 74. Editor assertions unchanged at 7,849.
+
+---
+
+## 2026-09-28 · #67 — the ecosystem arrived, and then told you the wrong thing
+
+### A decision that had already been made, in writing, for a good reason
+
+The issue is one of the few that says outright that it is not a bug: *"a decision for
+Shaul"* — vendor the source, wire offline resolution, or fetch over the network. It
+has been sitting here as if it were still open.
+
+It is not. `engine/src/lib.rs` has carried the answer since August, in a doc comment
+that names this issue's own import as the reason it exists:
+
+> `#import "@preview/meander:0.4.4"` failed with *file not found* until this existed
+
+`typst-as-lib` offers `with_package_file_resolver` and it wants `ureq` or `reqwest`:
+**it downloads.** The comment rejects that twice over — *"a compile that reaches the
+network is a compile that can hang, and an editor that is 59ms after a keystroke
+cannot have one in the path; and Ksav is meant to work on a plane."* So packages are
+bundled in Typst's own `<root>/<ns>/<name>/<version>/` layout, built directly rather
+than through `with_file_system_resolver` so that a document cannot reach anything
+else on the disk through it.
+
+**Option 2, chosen, with the reasoning attached, and `tests/packages.rs` holding it
+in place.** The right thing to do with a decision recorded this well is read it
+rather than re-litigate it.
+
+So the remaining gap was not the decision. It was the *sentence*.
+
+### The loader shipped, and left behind the exact wart the issue opened with
+
+`#import "@preview/meander:0.4.4"` today produces:
+
+> **A file (e.g. an image) wasn't found — check the path**
+
+Wrong advice, and specifically wrong: somebody who imported `meander` is sent to hunt
+for a missing image. The issue's headline complaint was *"file not found (searched at
+typst.toml)"* — **the same misleading message, from the same source.** Building the
+loader did not remove the thing the loader was opened for.
+
+And the test that should have caught it asserted `is_err()`. Full stop. A missing
+package that reports itself as a missing image, in a diagnostic layer whose entire
+purpose is saying the useful thing, was a **passing test.** An error that is correct
+and useless is not a passing test.
+
+### Naming it, and the one thing Typst hands you for free
+
+Typst reports the failure with the directory it searched:
+
+```
+file not found (searched at …/packages/preview/nothing-here/9.9.9/typst.toml)
+```
+
+That path **is** the answer. Three segments after `packages` and a manifest at the
+end is a shape, not a wording, so keying on it cannot fire on a missing image and
+survives Typst rewording its error. And because the searched path *names* the package
+and version, the message can report the spec **as the writer wrote it** —
+`@preview/meander:0.4.4` — which is the one string they can go and correct in their
+source.
+
+The second half of the sentence matters more than the first. Ksav bundles and never
+downloads, deliberately, for the reasons above. So **"not found" must not read as
+"try again" or "check your connection"** — it means *this one is not in the box*. The
+message therefore lists what **is** in the box, read on the error path only, because
+a writer told "`meander` is not here" still has to guess what is, and the answer is
+one `read_dir` away.
+
+`bundled_packages` renders specs as `@namespace:name:version` — which is *not* a
+Typst spec, and is not pretending to be: it is a list of what is on disk, and the
+`@preview:ksavtest:0.1.0` shape cannot be pasted into an import and should not be.
+
+Three tests, all of which fail against the old sentence: the package is named, the
+word *image* is **absent**, and a wrong version is reported as a wrong version —
+a different sentence with a different fix, since there is no need to add a package
+that already exists.
+
+### Two of my own, again
+
+- **An off-by-one in the shape I had just described.** Having written *"three segments
+  after `packages` and a `typst.toml` at the end"*, I destructured **three** parts and
+  then asked the **third** — the version — whether it ended in `typst.toml`. It never
+  did, so `missing_package` returned `None` on every input and the branch was dead.
+  The prose was right and the code was the thing I had actually reasoned about.
+- **A `let … else` against the wrong type**, twice, on `file_name()` returning
+  `OsString` and not `Option`. Guessing an API I had not looked up in the same breath
+  as describing it.
+
+The pattern is now familiar enough to be worth naming: I write the *argument* first
+and the code second, and the argument is where the care is. When the two disagree the
+argument is usually the one that is right — which means the fix is to go read the
+type, not to adjust the claim.
+
+Engine tests 1044 → 1047, binaries 74 (72 integration + lib unit + doc-test — and the
+README's "74" was right all along; I had recorded a correction that was not needed).
+Editor assertions unchanged at 7,849.

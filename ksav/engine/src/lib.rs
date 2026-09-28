@@ -1921,7 +1921,7 @@ pub fn assemble_source(body: &str, cfg: &DocConfig) -> String {
 /// The resolver is built directly rather than through `with_file_system_resolver`
 /// so that its root *is* the package directory: a document cannot reach anything
 /// else on the disk through it.
-fn packages_root() -> std::path::PathBuf {
+pub fn packages_root() -> std::path::PathBuf {
     // Beside the executable for a shipped build, and in the crate for tests and
     // for `cargo run --example`. Both are checked because the same binary is used
     // both ways and neither is wrong.

@@ -1581,3 +1581,83 @@ That last one is the one thing left to argue about rather than fix. `troubleSaid
 emits `"he · en"` so a writer sees theirs whichever language this is, which is a
 good rule — and it means an English interface reads it Hebrew-first. A decision, and
 it is written down rather than made here.
+
+---
+
+## 2026-09-27 · #15 — the premise, the seam, and the silence
+
+### I mis-described the proposal, and checking it was worth more than the summary
+
+I told the user the glue would "keep all 30 notes in the band on every page", and
+asked why we would do that. **They were right to ask, and the answer is that the
+issue never proposed it** — it says outright that a flow is a queue and not a
+per-page assignment. My phrasing implied repetition and was simply wrong.
+
+But checking before defending turned up something better. The issue measures itself:
+
+> Doc B: **30 entries → 5 pages**; each page's band holds ~7
+
+And the box today, measured here: **30 entries → 4 pages**, 9 per page, lowest ink
+787.51 on an 841.89 pt sheet, **nothing clipped, nothing overlapping, nothing off
+the page**. So the list under *"why it buys what a box cannot"* — no nine-note cap,
+no clip, no overlap, nothing off-paper, spill-is-pagination-for-free — is a list of
+properties the thing it would replace **already has**, and in the issue's own
+numbers the proposal costs a page.
+
+That does not mean there is no case. A commentary book with a hundred notes might
+want a fixed band and a text that keeps filling the page above it, and the current
+design cannot give that. But the issue does not show that case, and its numbers
+point the other way. It is posted back with the measurement rather than closed on
+my say-so.
+
+### The one solid thing in it, and what it actually was
+
+`DocConfig::from_json` clamped every numeric field and **said nothing**. A request
+for `margin_top_cm: 21.7` came back laid out at 7 cm, compiled, printed, no
+diagnostic: a writer who changed a margin and got the old page back could not tell
+that from a setting that does not work.
+
+That is the bug the app already names, one layer up — `settings.ts`: *"a load that
+falls back to the defaults is a load that has silently un-chosen everything the
+person chose, and it has to be able to say so."* The engine had the same defect and
+no sentence, and #15 read it as *"the first compile fell back to default margins"*
+and built a compositor around it. **It was a reporting problem, and the compositor
+was never the fix.**
+
+So, with the user's agreement:
+
+- **A refusal is recorded and reported.** `clamped` notes what it changed,
+  `DocConfig` carries the notes as a `#[serde(skip)]` field, and `compile` turns
+  each into a warning naming the field, what was asked for and what is in force. A
+  refusal is still **not** an error: the page is the nearest thing the field accepts
+  and the document lays out.
+- **A margin's limit is the sheet's, not a number chosen in advance.** 7 cm was
+  never a limit — A4 is 29.7 cm tall. It is now `sheet − 1 cm`, which is the only
+  physical question there is: how much of the page did the writer ask to give away.
+  Measured: **21.7 cm now works**; 40 cm on A4 is refused at 28.70 and **says so**;
+  a 50 cm sheet admits a 45 cm margin.
+
+The page size has to be read *before* the margins, because a margin bounded by a
+sheet the request was never compared against is a bound against a default — and the
+first version of this clamped at 7 cm for exactly that reason, which is how the
+silent failure survived the fix.
+
+### Three of my own errors, and one that had been hidden all along
+
+- **`ס"מ` inside a format string** closes it. Gershayim — `ס״מ`, U+05F4 — is both
+  the correct Hebrew abbreviation and needs no escape.
+- **A python write that reported success and did nothing.** Two edits I had
+  "applied" and verified by *building* were absent from the file, and I only found
+  out because the probe still returned 7.00. Verified by grep from then on.
+- **`facts.mjs` counted a struct against a table that does not describe it.** Its
+  own comment says it reads the struct "rather than `impl Default`" because
+  rustfmt keeps the struct one field per line — and then the first attempt to
+  exclude the `#[serde(skip)]` field stripped the *attribute* and left
+  `pub refusals: …` to be counted, which is the same 41. It has to be the attribute
+  **and** the field it applies to.
+
+The last one is the shape worth remembering: a check written to compare two things
+that were once the same, and which a new field made different, is not wrong in its
+arithmetic. It is wrong in its question, and it will not say so.
+
+Engine tests 1036 → 1044, binaries 73 → 74. Editor assertions unchanged at 7,849.

@@ -143,7 +143,18 @@ export function disagreements() {
   if (body === null) {
     out.push("  document defaults (engine/src/lib.rs): `pub struct DocConfig` is not there");
   } else {
-    const fields = [...body.matchAll(/\bpub\s+[a-z_0-9]+\s*:/g)].length;
+    // A `#[serde(skip)]` field is a real field and not a **default**, so it is
+    // absent from `doc_defaults` by design — which is what happened to
+    // `DocConfig::refusals`, the note a refused setting leaves on the config.
+    // Counting it here compared a struct against a table that is not trying to
+    // describe the struct, and the difference was that one field.
+    // The attribute **and the field it applies to** — stripping only the
+    // attribute left `pub refusals: …` to be counted, which is the same 41.
+    const serialisable = body.replace(
+      /^\s*#\[serde\(skip\)\]\s*\n\s*pub\s+[a-z_0-9]+\s*:[^\n]*\n/gm,
+      "",
+    );
+    const fields = [...serialisable.matchAll(/\bpub\s+[a-z_0-9]+\s*:/g)].length;
     const wanted = Object.keys(f.doc_defaults).length;
     if (fields !== wanted) {
       out.push(

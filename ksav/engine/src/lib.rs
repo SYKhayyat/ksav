@@ -119,6 +119,14 @@ const FONT_NEWCM_MATH: &[u8] = include_bytes!("../assets/fonts/NewCMMath-Regular
 /// laid out to the old ones. See `facts.rs`.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DocConfig {
+    /// A setting that was outside the range this field accepts, and what was used
+    /// instead. Filled by `from_json`, read by `compile`.
+    ///
+    /// Skipped in serialisation: this is a statement about a *request*, and a
+    /// `DocConfig` that has been through `compile` once should still compare and
+    /// serialise as the configuration it is.
+    #[serde(skip)]
+    pub refusals: Vec<Refusal>,
     pub font: String,
     pub size_pt: f64,
     pub margin_cm: f64,
@@ -498,20 +506,48 @@ pub fn auto_notes_region_cm(body: &str) -> f64 {
 /// reserve's arithmetic on one sheet and the prelude's `page.height` on another.
 ///
 /// Only the papers the product offers.
-fn paper_height_cm(paper: &str) -> Option<f64> {
-    match paper {
-        "a2" => Some(42.0),
-        "a3" => Some(42.0),
-        "a4" => Some(29.7),
-        "a5" => Some(21.0),
-        "a6" => Some(14.8),
-        "b4" => Some(35.3),
-        "b5" => Some(25.0),
-        "b6" => Some(17.6),
-        "us-letter" => Some(27.94),
-        "us-legal" => Some(35.56),
-        _ => None,
+/// The smallest text area a margin may leave, in centimetres.
+///
+/// A centimetre fits a line of text and a little air. Below it the page is a
+/// margin with a smudge in the middle, and a writer who asked for that has made a
+/// mistake worth naming rather than printing.
+const MIN_TEXT_CM: f64 = 1.0;
+
+/// The sheet this document will be laid out on, in centimetres.
+///
+/// An explicit pair, else the named paper, else A4 — the same precedence the
+/// prelude uses, so a margin is bounded by the page that will actually obey it.
+fn sheet_cm_of(cfg: &DocConfig) -> (f64, f64) {
+    match (cfg.page_width_cm, cfg.page_height_cm) {
+        (Some(w), Some(h)) => (w, h),
+        _ => paper_cm_of(&cfg.paper).unwrap_or((21.0, 29.7)),
     }
+}
+
+fn paper_height_cm(paper: &str) -> Option<f64> {
+    paper_cm_of(paper).map(|(_, h)| h)
+}
+
+/// Both dimensions of a named paper, in centimetres.
+///
+/// The same list `paper_height_cm` always had, now with the width beside it —
+/// which is what a *margin* needs, since a top margin is bounded by the height and
+/// an inner one by the width. Two tables would have been two lists to keep in
+/// step, and this one already had to exist.
+fn paper_cm_of(paper: &str) -> Option<(f64, f64)> {
+    Some(match paper {
+        "a2" => (42.0, 42.0),
+        "a3" => (29.7, 42.0),
+        "a4" => (21.0, 29.7),
+        "a5" => (14.8, 21.0),
+        "a6" => (10.5, 14.8),
+        "b4" => (25.0, 35.3),
+        "b5" => (17.6, 25.0),
+        "b6" => (12.5, 17.6),
+        "us-letter" => (21.59, 27.94),
+        "us-legal" => (21.59, 35.56),
+        _ => return None,
+    })
 }
 
 /// The sheet this document is laid out on, in cm — or `None` when neither an
@@ -882,6 +918,7 @@ fn declared_region_cm(
 impl Default for DocConfig {
     fn default() -> Self {
         DocConfig {
+            refusals: Vec::new(),
             font: "Frank Ruhl Hofshi".to_string(),
             size_pt: 12.0,
             margin_cm: 2.5,
@@ -939,12 +976,73 @@ impl Default for DocConfig {
 /// NaN and infinity are rejected outright rather than clamped, because a NaN
 /// formatted into the source is not a Typst length at all and fails inside the
 /// prelude, pointing the writer at code they never wrote.
-fn clamped(v: &serde_json::Value, key: &str, lo: f64, hi: f64) -> Option<f64> {
+fn clamped(
+    cfg: &mut DocConfig,
+    v: &serde_json::Value,
+    key: &str,
+    lo: f64,
+    hi: f64,
+) -> Option<f64> {
     let n = v.get(key)?.as_f64()?;
     if !n.is_finite() {
         return None;
     }
-    Some(n.clamp(lo, hi))
+    let got = n.clamp(lo, hi);
+    // **A clamp that says nothing is the wrong answer.** Not for NaN, which is
+    // refused above because it is not a length at all — but for an ordinary
+    // number outside the range: the writer typed it, the document compiled, and
+    // the page came out as though they had not. `margin_top_cm: 21.7` on an A4
+    // sheet is 21.7 cm of nothing, and the alternative used to be a document laid
+    // out at 7 cm with no diagnostic anywhere. The app has already been bitten by
+    // this class — `settings.ts` says it outright, *"a load that falls back to
+    // the defaults is a load that has silently un-chosen everything the person
+    // chose"* — and the engine had the same bug one layer down.
+    if (got - n).abs() > f64::EPSILON {
+        cfg.refusals.push(Refusal {
+            key: key.to_string(),
+            asked: n,
+            used: got,
+        });
+    }
+    Some(got)
+}
+
+/// One setting that was refused, and what was used instead.
+///
+/// A refusal is **not** an error. The document lays out; the page is the nearest
+/// thing this field accepts. What changes is that the writer is told, at the
+/// point their own text said it: the setting they changed has no effect, the
+/// value that is in force is named, and both numbers are in the sentence so the
+/// correction is obvious.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Refusal {
+    /// The field as the request named it, e.g. `margin_top_cm`.
+    pub key: String,
+    /// What the request asked for.
+    pub asked: f64,
+    /// What was used instead.
+    pub used: f64,
+}
+
+/// A refusal, in the writer's own words and in theirs.
+///
+/// Bilingual for the reason every sentence here is: the machine's half is never
+/// the sentence. Both numbers are in it, because "your margin was too large"
+/// without saying what it is now leaves the writer guessing between the two.
+fn refusal_diagnostic(r: &Refusal) -> Diagnostic {
+    let cm = |n: f64| format!("{:.2}", n);
+    Diagnostic::ours(
+        "warning",
+        format!(
+            concat!(
+                "ההגדרה {key} אינה בתחום המותר — בפועל {used} ס״מ במקום {asked} ס״מ · ",
+                "{key} is outside the range this setting accepts — {used} cm is in force, not {asked} cm"
+            ),
+            key = r.key,
+            asked = cm(r.asked),
+            used = cm(r.used),
+        ),
+    )
 }
 
 /// A paper name safe to place inside a Typst string literal.
@@ -1018,11 +1116,11 @@ impl DocConfig {
         }
         // 1pt is legible-under-a-loupe; 400pt is a poster. Outside that range
         // the number is a mistake, not a choice.
-        if let Some(s) = clamped(v, "size_pt", 1.0, 400.0) {
+        if let Some(s) = clamped(&mut cfg, v, "size_pt", 1.0, 400.0) {
             cfg.size_pt = s;
         }
         // Margins must leave a text region: half of the short side of A5.
-        if let Some(m) = clamped(v, "margin_cm", 0.0, 7.0) {
+        if let Some(m) = clamped(&mut cfg, v, "margin_cm", 0.0, 7.0) {
             cfg.margin_cm = m;
         }
         if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
@@ -1053,18 +1151,18 @@ impl DocConfig {
             // as a string that names no alignment and silently does nothing.
             cfg.text_align = sanitize_text_align(a);
         }
-        if let Some(l) = clamped(v, "line_spacing_em", 0.0, 10.0) {
+        if let Some(l) = clamped(&mut cfg, v, "line_spacing_em", 0.0, 10.0) {
             cfg.line_spacing_em = l;
         }
-        if let Some(p) = clamped(v, "para_spacing_em", 0.0, 20.0) {
+        if let Some(p) = clamped(&mut cfg, v, "para_spacing_em", 0.0, 20.0) {
             cfg.para_spacing_em = p;
         }
-        if let Some(fi) = clamped(v, "first_line_indent_em", 0.0, 20.0) {
+        if let Some(fi) = clamped(&mut cfg, v, "first_line_indent_em", 0.0, 20.0) {
             cfg.first_line_indent_em = fi;
         }
         // More columns than this on any real paper is a column of single
         // letters; the layout succeeds and the document is unreadable.
-        if let Some(c) = clamped(v, "columns", 1.0, 12.0) {
+        if let Some(c) = clamped(&mut cfg, v, "columns", 1.0, 12.0) {
             cfg.columns = c as u32;
         }
         if let Some(p) = v.get("paper").and_then(|x| x.as_str()) {
@@ -1082,7 +1180,7 @@ impl DocConfig {
         if let Some(f) = v.get("footer").and_then(|x| x.as_str()) {
             cfg.footer = f.to_string();
         }
-        if let Some(n) = clamped(v, "notes_region_cm", 0.0, 20.0) {
+        if let Some(n) = clamped(&mut cfg, v, "notes_region_cm", 0.0, 20.0) {
             cfg.notes_region_cm = Some(n);
         }
         if let Some(p) = v.get("reserve_overflow").and_then(|x| x.as_str()) {
@@ -1091,17 +1189,53 @@ impl DocConfig {
         // Per-edge margins are clamped on the same range as the uniform one, and
         // stay `None` when absent — an absent edge means "use margin_cm", which
         // is not the same as an edge explicitly set to zero.
-        for (key, slot) in [
-            ("margin_top_cm", &mut cfg.margin_top_cm),
-            ("margin_bottom_cm", &mut cfg.margin_bottom_cm),
-            ("margin_inner_cm", &mut cfg.margin_inner_cm),
-            ("margin_outer_cm", &mut cfg.margin_outer_cm),
+        // The range is deliberately wide — 1 cm to 200 cm covers a bentcher and
+        // a wall poster — because refusing a size somebody actually prints is
+        // worse than laying one out that they will look at once.
+        {
+            let w = clamped(&mut cfg, v, "page_width_cm", 1.0, 200.0);
+            let h = clamped(&mut cfg, v, "page_height_cm", 1.0, 200.0);
+            if let (Some(w), Some(h)) = (w, h) {
+                cfg.page_width_cm = Some(w);
+                cfg.page_height_cm = Some(h);
+            }
+        }
+
+        // **A margin's limit is the paper's, not a number chosen in advance.**
+        //
+        // It was 7 cm, which is not a limit — an A4 sheet is 29.7 cm tall and a
+        // bentcher is larger. It is the size at which somebody stopped thinking
+        // about it, and it was not only arbitrary: it was *silent*. A request for a
+        // 21.7 cm seam came back laid out at 7 cm with no diagnostic, so a document
+        // came off the printer as though the setting had never been written. #15
+        // measured that as "the first compile fell back to default margins" and
+        // read it as a layout problem; it was a reporting one.
+        //
+        // So the bound is **the sheet minus a printable minimum**: as much of the
+        // page as the writer asked for, and never so much that no text is left. A
+        // value that leaves nothing is still refused — and now says so, which is
+        // the whole of what was missing.
+        let (sheet_w, sheet_h) = sheet_cm_of(&cfg);
+        for (key, lo, hi) in [
+            ("margin_top_cm", 0.0, (sheet_h - MIN_TEXT_CM).max(0.0)),
+            ("margin_bottom_cm", 0.0, (sheet_h - MIN_TEXT_CM).max(0.0)),
+            ("margin_inner_cm", 0.0, (sheet_w - MIN_TEXT_CM).max(0.0)),
+            ("margin_outer_cm", 0.0, (sheet_w - MIN_TEXT_CM).max(0.0)),
         ] {
-            if let Some(m) = clamped(v, key, 0.0, 7.0) {
+            // The value is resolved before the slot is taken, because `clamped`
+            // needs the config to record into and the slot is a borrow of it.
+            let m = clamped(&mut cfg, v, key, lo, hi);
+            let slot = match key {
+                "margin_top_cm" => &mut cfg.margin_top_cm,
+                "margin_bottom_cm" => &mut cfg.margin_bottom_cm,
+                "margin_inner_cm" => &mut cfg.margin_inner_cm,
+                _ => &mut cfg.margin_outer_cm,
+            };
+            if let Some(m) = m {
                 *slot = Some(m);
             }
         }
-        if let Some(g) = clamped(v, "gutter_cm", 0.0, 5.0) {
+        if let Some(g) = clamped(&mut cfg, v, "gutter_cm", 0.0, 5.0) {
             cfg.gutter_cm = g;
         }
         // A custom page size, in centimetres. **Both or neither**: Typst's
@@ -1110,17 +1244,6 @@ impl DocConfig {
         // for. A request that sends one is treated as having sent nothing,
         // which leaves the named paper doing its job rather than half of it.
         //
-        // The range is deliberately wide — 1 cm to 200 cm covers a bentcher and
-        // a wall poster — because refusing a size somebody actually prints is
-        // worse than laying one out that they will look at once.
-        {
-            let w = clamped(v, "page_width_cm", 1.0, 200.0);
-            let h = clamped(v, "page_height_cm", 1.0, 200.0);
-            if let (Some(w), Some(h)) = (w, h) {
-                cfg.page_width_cm = Some(w);
-                cfg.page_height_cm = Some(h);
-            }
-        }
         if let Some(t) = v.get("two_sided").and_then(|x| x.as_bool()) {
             cfg.two_sided = t;
         }
@@ -2580,6 +2703,11 @@ pub fn compile_parts(
             diagnostics.extend(italic.clone());
             diagnostics.extend(dangling.clone());
             diagnostics.extend(stray.clone());
+            // What the request asked for and did not get. The document compiled;
+            // a setting in it did not take effect. A writer who changed a margin
+            // and got the old page back has to be told that here rather than
+            // discovering it in print.
+            diagnostics.extend(cfg.refusals.iter().map(refusal_diagnostic));
             // Whatever the export has to say, say it. These used to go into
             // `.ok()` and vanish, so a PDF that failed to export came back as
             // `ok: true` with no bytes and no explanation. It mattered little
@@ -2676,6 +2804,11 @@ pub fn compile_parts(
             diagnostics.extend(italic);
             diagnostics.extend(dangling);
             diagnostics.extend(stray);
+            // A refused setting is worth saying even when the document did not
+            // compile: the refusal may be the *reason* it did not, and a writer
+            // who cannot see which of their settings was dropped has nothing to
+            // change.
+            diagnostics.extend(cfg.refusals.iter().map(refusal_diagnostic));
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),

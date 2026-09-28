@@ -111,7 +111,12 @@ still right.
 - [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
   the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
   research, **unmeasured here** — one probe, then a decision. (Medium, from #5)
-- [ ] #15 two-document glue second flow (probe exists). (High)
+- [x] #15 two-document glue. (High) — **the seam is fixed; the premise is not.** The
+  7 cm margin clamp was *silently* refusing a 21.7 cm seam, which is the bug the app
+  already names one layer up; a margin is now bounded by the sheet and a refusal is
+  reported. And the box does not cap: 30 entries draw in 4 pages where the proposal
+  measured 5, so *"why it buys what a box cannot"* lists properties the box already
+  has. Reopened on a worked sheet-count, not a preference. (from #15)
 - [ ] #67 Typst package resolution missing — @preview/@local imports fail. (High)
 
 ## Phase 4 — Mediums (engine quality)

@@ -1087,3 +1087,11 @@ Engine tests 1030 → 1036, binaries 72 → 73. Editor assertions unchanged at 7
 The container fixture is **byte-identical** — `emit-containers` learned to tell
 "I refuse this argument" from "I am not a container", so a strict setter stays
 `transparent` rather than being reclassified.
+
+### #5 closed, and the four sub-items that were never code
+
+Worth saying plainly, because the shape recurs across this plan: an audit lists
+five findings, one is a live defect with a root cause nobody had named, and four
+are either already done or describe software this repository does not have. The
+useful move was to say which, with the measurement, rather than to invent work to
+match the list.

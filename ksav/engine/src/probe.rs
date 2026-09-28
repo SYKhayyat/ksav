@@ -12,7 +12,8 @@
 
 use typst::layout::{Frame, FrameItem, Point};
 use typst::text::FontStyle;
-use typst::visualize::Paint;
+use typst::layout::Size;
+use typst::visualize::{Geometry, Paint};
 use typst_layout::PagedDocument;
 
 /// One laid-out run of text, positioned on its page.
@@ -116,6 +117,16 @@ fn walk(frame: &Frame, origin: Point, page: usize, out: &mut Vec<TextRun>) {
 pub struct Fill {
     /// 1-based page number.
     pub page: usize,
+    /// The rectangle's width and height, in points.
+    ///
+    /// Added for #70 and the reason is that `y` alone cannot answer the
+    /// question that issue asks. A `fill` that spans a page break **starts
+    /// above** the last line of text and ends below it, so a probe holding only
+    /// the origin reports a box that begins in the right place and is silent
+    /// about the part nobody can see — which is precisely the part the
+    /// forwarded report was about. An origin is not a shape.
+    pub width: f64,
+    pub height: f64,
     /// Absolute position on the page, in points, from the top-left corner.
     pub x: f64,
     pub y: f64,
@@ -142,6 +153,31 @@ pub fn fills(doc: &PagedDocument) -> Vec<Fill> {
     out
 }
 
+/// The extent of a shape, in points, from whatever geometry it is.
+///
+/// `Shape` carries a `Geometry` and not a size, and the three cases are three
+/// different questions. A `Rect` has one. A `Line` is **relative to its own
+/// position**, so its width and height are the differences to its endpoint —
+/// and taking `abs` is what makes a line drawn right-to-left report a positive
+/// extent rather than a negative one, which is the sort of thing that turns a
+/// measurement into an assertion about nothing. A `Curve` is not measured
+/// here: a border that curves is a thing a writer has asked for on purpose, and
+/// reporting zero for it would be a lie in the other direction.
+fn bounding(g: &Geometry) -> Size {
+    match g {
+        // `abs` on a rect as well, and this is not defensive: a
+        // right-to-left box of `width: 100%` is emitted by Typst as a rect with
+        // a **negative** `size.x` and an origin already moved to the other
+        // edge, and the first version of this reported `-28.3` — a width of
+        // minus twenty-eight point three — for the block it was measuring. An
+        // extent is a magnitude. A negative one is a coordinate that has been
+        // asked a question about size.
+        Geometry::Rect(size) => Size::new(size.x.abs(), size.y.abs()),
+        Geometry::Line(to) => Size::new(to.x.abs(), to.y.abs()),
+        Geometry::Curve(_) => Size::zero(),
+    }
+}
+
 fn walk_fills(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Fill>) {
     for (pos, item) in frame.items() {
         let at = origin + *pos;
@@ -152,10 +188,13 @@ fn walk_fills(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Fill>) {
                     continue;
                 };
                 let [r, g, b, _] = colour.to_vec4_u8();
+                let extent = bounding(&shape.geometry);
                 out.push(Fill {
                     page,
                     x: at.x.to_pt(),
                     y: at.y.to_pt(),
+                    width: extent.x.to_pt(),
+                    height: extent.y.to_pt(),
                     colour: format!("#{r:02x}{g:02x}{b:02x}"),
                 });
             }
@@ -169,6 +208,13 @@ fn walk_fills(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Fill>) {
 pub struct Stroke {
     /// 1-based page number.
     pub page: usize,
+    /// How far the segment runs, in points, and in which direction.
+    ///
+    /// The same gap as [`Fill::width`]: a border segment is asked about by
+    /// where it *ends*, and a stroke that begins at a sensible place and runs
+    /// off the page is a different thing from one that stays put.
+    pub width: f64,
+    pub height: f64,
     /// Absolute position on the page, in points, from the top-left corner.
     pub x: f64,
     pub y: f64,
@@ -209,10 +255,13 @@ fn walk_strokes(frame: &Frame, origin: Point, page: usize, out: &mut Vec<Stroke>
                     continue;
                 };
                 let [r, g, b, _] = colour.to_vec4_u8();
+                let extent = bounding(&shape.geometry);
                 out.push(Stroke {
                     page,
                     x: at.x.to_pt(),
                     y: at.y.to_pt(),
+                    width: extent.x.to_pt(),
+                    height: extent.y.to_pt(),
                     colour: format!("#{r:02x}{g:02x}{b:02x}"),
                     thickness: stroke.thickness.to_pt(),
                 });

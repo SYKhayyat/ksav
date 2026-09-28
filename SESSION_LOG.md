@@ -1837,3 +1837,81 @@ the benefit — and #70's own text already says *"report the measurement, then d
 
 **#70 is the next piece of work, and it is one probe.** Two issues filed, both
 decisions, neither actioned.
+
+---
+
+## 2026-09-28 · #70 measured — the artifact is not there, and three real things were
+
+### The question was not merely unanswered. It was unanswerable.
+
+#70 asks whether a breakable block draws an **empty border at the foot of page 1**.
+To answer that, a probe needs to know where a fill *ends*.
+
+It did not. `Fill` and `Stroke` carried `x` and `y` and no extent, and the reason
+that is fatal rather than merely inconvenient is **the direction a box grows in**: a
+fill that spans a page break *starts above* the last line of text and *ends below* it.
+So the origin is the one property of such a fill that looks entirely correct, and the
+empty band — the entire subject of the question — is exactly what the origin cannot
+speak about. **An origin is not a shape.** `width`/`height` are now derived from
+`Shape::geometry`: `Rect` size, `Line` endpoint difference, `Curve` reported as zero
+rather than guessed.
+
+### The result is the opposite of the forwarded claim
+
+    13.9 (above first line) + 169.2 (six lines) + 22.9 (below last line) = 206.0 = the fill height
+
+The background is **re-fitted to each page's own six lines**, not distributed from the
+whole block's height. No empty band, no stray border, on any of the four pages. A
+breakable block threads correctly across a page break in Typst 0.15.
+
+That removes the strongest reason to vendor `meander` (#73): the argument for measuring
+this first was precisely that a threader built on badly-threading blocks would inherit
+the problem, and we would be importing a workaround for our own first attempt. They
+thread cleanly.
+
+### The control found the actual bug
+
+`breakable: false`, same block, 24 lines: all on one page, `first_y=325.7`,
+`last_y=1104.1` — **the sheet is 841.89pt tall.** The block's own fill ends at 530.1.
+So about **18 of 24 lines are printed nowhere**, outside their own background, with no
+error, no warning, no overflow diagnostic.
+
+Filed as **#74**, and deliberately *not* as a defect Ksav has: `#תיבה` has no
+`breakable: false` anywhere, which is exactly why it is worth filing now — **#65**
+(berech) and **#43** (top/bottom streams) both *need* atomic blocks by design, and the
+failure mode is silent content loss rather than a box that looks wrong. A defect found
+before the feature that triggers it is worth much more than one found after.
+
+### Two smaller things, both from the same afternoon
+
+**#75** — Typst 0.15 dropped bare hex colour literals. `#block(fill: #eef3ff)` is
+rejected with *"something's off near a #"*, and **the `#` is the one character that was
+right**. Ksav's own surface is clean — all 167 `insert` strings use `rgb(...)`, zero
+bare hexes — so nobody is handed a broken example; it is a writer's first attempt at
+colour that gets confidently wrong advice.
+
+**#76** — and this one is a gap in my own #15 work, four days old. The new clamp bounds
+each margin against the sheet and never against *the other margin*, so `margin_cm: 11`
+on A4 is accepted: `11 ≤ 28.7` on every edge, and the text area comes back **negative
+width** (21.0 − 11 − 11 = −1.0cm). A `width: 100%` block in it laid out 28.3pt wide on
+a 595.3pt sheet. It is #15's own sentence arriving by another door — *a load that falls
+back to the defaults has silently un-chosen everything the person chose.*
+
+### How the probe went wrong before it went right
+
+`Iterator::max` needs `Ord` and `f64` has only `PartialOrd`, so the first version would
+not compile; `probe::PagedDocument` is deliberately unnameable outside its module, so a
+test helper would have needed an `unsafe transmute` to a type it cannot spell — spelled
+out at each call site instead, with inference doing the work. And the extent came back
+as **`w=-28.35`**: a right-to-left `width: 100%` box is emitted by Typst as a rect with
+a *negative* `size.x` and the origin already moved to the other edge. An extent is a
+magnitude; a negative one is a coordinate that has been asked a question about size.
+
+Then a wrong turn worth recording: I "fixed" the cramped margins to 3cm, and 60 lines
+rendered to `y=183.6` — nonsense, and I could not explain it inside a sensible budget.
+Rather than keep iterating I reverted to the exact 11cm configuration the #70 numbers
+came from, **so the fence and the report on the issue cannot drift apart.** A test that
+passes under conditions nobody can reproduce is not a fence, and an unexplicable
+measurement is not a measurement.
+
+Engine tests 1047 → 1050, binaries 74 → 75. Clippy clean.

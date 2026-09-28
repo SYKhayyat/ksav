@@ -51,12 +51,12 @@ still right.
 - [x] #3 i18n completeness + e2e switch test. (High) — 11 keys had Hebrew and no
   English, and `t` falls back to the **key name**, so `refreshTitle` was a panel
   heading in English. The switch mechanism already existed and needed only a fence.
-- [ ] #71 a language switch left **114 Hebrew strings** standing; now **13**
-  (2 catalogue keys + 11 composed, of which **6 are Hebrew that should be there** —
-  document source in placeholders, English *about* Hebrew, a document's own name).
-  The real residue is **five**: two pane numbers, the stale-preview notice, a script
-  label, and `troubleSaid`'s deliberate `he · en` status line, which is a decision
-  rather than a bug. Found by a real browser. (High, from #3)
+- [x] #71 a language switch left **114 Hebrew strings** standing; now **9** — two
+  catalogue keys (`untitled`, a document's own name, which must never be tagged, and
+  `registriesFailed`, an error path) and seven composed, all of them Hebrew that
+  belongs there. What is left to argue about rather than fix: `troubleSaid`'s
+  deliberate `"he · en"` status line, which an English interface reads Hebrew-first.
+  Found by a real browser, and the browser test now fences the ceiling at 9. (from #3)
 - [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
   the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
   research, **unmeasured here** — one probe, then a decision. (Medium, from #5)

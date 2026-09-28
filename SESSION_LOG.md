@@ -1915,3 +1915,71 @@ passes under conditions nobody can reproduce is not a fence, and an unexplicable
 measurement is not a measurement.
 
 Engine tests 1047 → 1050, binaries 74 → 75. Clippy clean.
+
+---
+
+## 2026-09-28 · parallel streams already work, and a bug I did not file
+
+### The question, and the answer that made the issue unnecessary
+
+*"Is there a way to have that box without a different background colour, so it is more
+like parallel streams?"*
+
+**It already has no background colour.** `#תיבה`'s defaults are
+
+    (מסגרת: 0.75pt + luma(150), מרווח: 12pt, רדיוס: 6pt, רוחב: 100%)
+
+— a border, an inset, a radius and a width, and **no `גוון`**. And `גוון` *is* the fill
+key: `_mk_block_knobs` is `("גוון", "קו", "מסגרת", "מרווח", "רדיוס", "רוחב", "יישור")`
+and line 1196 is `if "גוון" in c { args.insert("fill", c.גוון) }`. So a `#תיבה` with no
+`גוון` is a box with no `fill` argument at all, which is not the same as a box whose
+fill was set to nothing — it is a box that never asked.
+
+Measured, `fills` counted from the frame:
+
+    #תיבה[פירוש]                        fills=0  strokes=1   x=424.8
+    #תיבה(מסגרת: none)[פירוש]           fills=0  strokes=0   x=424.8
+    #תיבה(מסגרת: none, מרווח: 0pt)[פירוש]  fills=0 strokes=0  x=436.8
+    פירוש (no box at all)                fills=0  strokes=0   x=436.8
+
+**The last two agree exactly.** A borderless, zero-inset `#תיבה` places its text
+**identically to writing no box at all** — so the parallel-stream layout is one global
+setting away and needs nothing built:
+
+    #הגדרות_תיבה(מסגרת: none, מרווח: 0pt)
+
+and the whole apparatus reads as a stream beside the source rather than a stack of
+coloured cards. It also flows, which is the other half of why streams are the right
+shape: a stream has no box to run off the foot of a page.
+
+### A bug I nearly filed, and the reason I nearly filed it
+
+`#אזהרה(גוון: none)` reported `fills=1`, and I read that as *"the tint is still drawn"* —
+which is a bug, exactly the bug asked about, in exactly the place it would hurt. It is
+not a bug:
+
+    #אזהרה                 fills = ["#fef2f2", "#dc2626"]   tint + accent
+    #אזהרה(גוון: none)     fills = ["#dc2626"]               tint gone
+    #הצלחה(גוון: none)     fills = ["#16a34a"]               tint gone
+
+The remaining fill is the **accent stripe**, and it is deliberate. I had measured a
+count and read it as a background without asking *which* fill.
+
+That is the same failure as #70's `last_text_y`: **a number that answers a different
+question than the one being asked, read as though it answered yours.** Twice in one
+afternoon, both times about a probe reporting something real that was not the thing
+under discussion. The count was never wrong. The question was.
+
+So no issue was filed, which is the correct outcome and would not have been had I
+trusted the first reading. `#אזהרה`, `#הצלחה` and `#הערת_צד` all accept `גוון: none`
+today, and the tint is the only thing standing between a writer and a stream.
+
+### And the question I was asked twice and did not answer well
+
+*"Why would we ever say not to split?"* — I answered as though #74 were a live hazard,
+and the honest answer is **nothing in Ksav does, and the two proposals that might
+(#65 berech, #43 top/bottom streams) may not either.** A stream does not need an atomic
+block; if anything the wrap work wants the opposite. So #74 is **latent insurance**,
+cheap to keep as a known trap and not worth engineering against until something asks
+for it. The plan now says so, in those words, rather than dressing it up as a
+correctness bug.

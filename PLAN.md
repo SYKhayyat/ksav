@@ -57,9 +57,37 @@ still right.
   belongs there. What is left to argue about rather than fix: `troubleSaid`'s
   deliberate `"he · en"` status line, which an English interface reads Hebrew-first.
   Found by a real browser, and the browser test now fences the ceiling at 9. (from #3)
-- [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
-  the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
-  research, **unmeasured here** — one probe, then a decision. (Medium, from #5)
+- [x] #70 a breakable Typst box, measured. (Medium, from #5) — **the forwarded claim
+  does not reproduce.** A breakable block re-fits its background to *each page's own*
+  text (13.9 + 169.2 + 22.9 = 206.0 = the fill height, on all four pages), so there is
+  no empty border. This also removed the strongest reason to vendor `meander` in #73.
+  **The instrument could not answer the question at all until `Fill`/`Stroke` grew
+  `width`/`height`**: a fill that spans a break *starts above* the last line, so the
+  origin looks correct and is silent about the empty band that was the subject. An
+  origin is not a shape. (from #70)
+- [ ] #74 an unbreakable block taller than the text area **silently loses content off
+  the sheet** — 24 lines to `y=1104.1` on an 841.89pt page, ~18 lines printed nowhere, no
+  diagnostic. **Latent, not live:** nothing in Ksav sets `breakable: false`, and #65/#43
+  are the only things that would. Worth knowing *before* they are built, because the
+  failure mode is missing text rather than a box that looks wrong. (from #70)
+- [ ] #76 opposing margins can consume the whole page — **a gap in my own #15 work.**
+  The clamp bounds each margin against the sheet and never against *the other* margin,
+  so `margin_cm: 11` on A4 is accepted (11 ≤ 28.7 on every edge) and the text area comes
+  back **negative width**: 21.0 − 11 − 11. Small, and it is the same defect sentence as
+  #15 arriving by another door. (from #70)
+- [ ] #75 a bare hex colour is refused as *"something's off near a #"* — and the `#` is
+  the one character the writer got right; Typst 0.15 wants `rgb("#eef3ff")`. Ksav's own
+  167 `insert` strings already use `rgb()`, so nobody is handed a broken example. (from #70)
+- [ ] #72 a sefer cannot read the disk at all, and that was never a decision. `#import
+  "helper.typ"`, `read()`, absolute paths — all refused; only bundled packages resolve.
+  The sandbox is *right* (`packages_root()` is a root a document cannot escape), but it
+  means a sefer is one file forever. Proposal: `packages_root()` a second time, per
+  sefer. **Cheap half first:** `@local` alone in the `app_data_dir()` that already holds
+  the dictionary. Decision, not a task — autosave, `git.rs` and the file tree all move. (from #15)
+- [ ] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
+  the first time; #70 has now **removed the main reason** (they thread cleanly). What
+  remains is the uncomfortable one: page-breaking is what a typesetting app most needs
+  to control. (from #15)
 - [x] #15 two-document glue. (High) — **the seam is fixed; the premise is not.** The
   7 cm margin clamp was *silently* refusing a 21.7 cm seam, which is the bug the app
   already names one layer up; a margin is now bounded by the sheet and a refusal is

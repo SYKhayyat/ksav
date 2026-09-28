@@ -48,7 +48,9 @@ still right.
   note rather than on the typo. The other four sub-items have no site: `purge_ratio`
   has no owner, the installer does not exist here, git probing is already bounded
   and locale-free, grammar spans already carry line+column.
-- [ ] #3 i18n completeness + e2e switch test. (High)
+- [x] #3 i18n completeness + e2e switch test. (High) — 11 keys had Hebrew and no
+  English, and `t` falls back to the **key name**, so `refreshTitle` was a panel
+  heading in English. The switch mechanism already existed and needed only a fence.
 - [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
   the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
   research, **unmeasured here** — one probe, then a decision. (Medium, from #5)

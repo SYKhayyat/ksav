@@ -1178,3 +1178,10 @@ after it, which is the only reason it was found at all.
 - the `data-i18n-title` sweep dropped from `localise` → four assertions
 
 Editor assertions 7,798 → 7,836, test files 110 → 111. Engine untouched.
+
+### #3 closed; the browser harness is the honest remainder
+
+The issue's own acceptance criteria are not all met, and the record says which:
+"no visible or accessible text left in the old language" is fenced against the
+sweep, but "open every panel, switch, read the screen, reload" needs a browser this
+suite does not have. The gap is in the issue, not in the work.

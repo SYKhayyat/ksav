@@ -1983,3 +1983,70 @@ block; if anything the wrap work wants the opposite. So #74 is **latent insuranc
 cheap to keep as a known trap and not worth engineering against until something asks
 for it. The plan now says so, in those words, rather than dressing it up as a
 correctness bug.
+
+---
+
+## 2026-09-28 · "anything, not just notes" — and two of my own corrections
+
+### Columns work. I said they did not, twice, for the same reason.
+
+`#טורים_בלוק(2)` and `#cols(2)` measured **identical** — 35 distinct x-origins, first at
+295.2 — and with three columns, 23 origins at 295.2 / 390.8 / … So the page divides
+into N columns of arbitrary content, and Ksav's wrapper is byte-identical to Typst's
+own.
+
+Before that I reported "nothing changed" and then "everything identical, probably the
+sefer machinery". **Both were wrong, and for one reason: columns fill vertically first.**
+I handed `#cols(2)` two lines of text, which fit in column 1, so there was nothing to
+see. `#grid` *did* split on the same input — A at 459.0, B at 390.5 — because a grid
+places by cell rather than by overflow, so it is the one that showed me my probe was
+wrong.
+
+That is the **fourth** time in two days that a probe answered faithfully and I read the
+wrong thing off it: `last_text_y` that was the notes box, `fills=1` that was the accent
+stripe, a `f64: Ord` that would not compile, and now a column that had nothing to
+column. The counts were never wrong. **I kept asking the probe a different question from
+the one I meant**, and the fix is always the same — work out what the thing *does*
+before measuring whether it *works*.
+
+### The user's question, and the real gap
+
+*"This can be infinite, no? Not just for notes, but for anything you want to put inside.
+You can break up the page no matter how."*
+
+Mostly **already true**, and it is worth separating two things I had merged:
+
+    divide a page into N columns of arbitrary content      ✅ measured
+    content crossing column and page boundaries            ✅ measured
+    anything placed BESIDE the source at body size          ✅ measured (#הערת_צד)
+    named streams (הערה_זרם, הערות_בסום_צד)                present, unverified by me
+    ADDRESSING — send *this* content to *that* stream       ❌ absent
+
+**Typst 0.15 has no `Flow` element.** Every crate in the dependency set checked; the only
+`Flow` in the registry is GTK's `flow_box` and a parser's AST node.
+
+And that distinction is the whole answer. A column is a **region you fill in order**,
+not an **address you send something to**. Once text is in `cols(2)`, the first thing to
+arrive is in the first column. There is no way to say *"this lemma goes beside that
+verse"* and have the rest of the page make room.
+
+### The correction that matters, posted to #73
+
+I wrote on #70 that the measurement "removed the strongest reason to vendor `meander`".
+**That was too quick.** #70 measured whether a **block** splits across a page boundary
+— one block, one boundary. It says nothing about **routing**, which is sending a chosen
+piece of content into a chosen channel while everything else reflows around it. I
+collapsed two capabilities into one sentence, and #70 only ever spoke to the first.
+
+So the original *note-spill* framing was right that #70 helps — a spilling note is just a
+block that breaks, and blocks break cleanly. But **the framing was too narrow, and it
+made the case look weaker than it is.** The real capability is: put a lemma, a figure, a
+summary, a translation, a proof into a named stream beside the source, and have the page
+reflow. For a sefer that is the difference between *notes in a box* and *an apparatus
+that is part of the page*.
+
+Caveat stated in the issue rather than glossed: **I cannot verify what `meander` does.**
+It is not bundled and I have not read it. Everything above about Ksav and Typst is
+measured; the claim that `meander` supplies this routing comes from its description in
+#73 and is not verified. Vendoring is also **reversible** — #67's resolver reads a
+directory, so removing the directory removes the capability with no code change.

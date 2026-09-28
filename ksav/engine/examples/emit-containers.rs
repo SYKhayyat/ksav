@@ -152,6 +152,25 @@ pub fn probe_one(name: &str) -> Option<bool> {
                 if said.contains("not allowed inside of containers") {
                     return Some(true);
                 }
+                // **"I refuse this argument" is not "I am not a container."**
+                //
+                // A knob-setter answers `#הגדרות_רשימות(א: [ב])` by refusing the
+                // key, and sixteen of them now do it at the moment of the call
+                // rather than on the next read of their state. This probe passes
+                // invented arguments on purpose, so every one of them was about to
+                // be filed as *undecidable* — the bucket the comment above this
+                // function says is where the next command hides.
+                //
+                // So a refusal that names an argument is answered by asking again
+                // with no arguments at all, which every setter accepts. That is
+                // the same question the probe was asking, asked without the
+                // invented part.
+                if said.contains("unrecognised argument") {
+                    return match probe::layout(&format!("{name}\n"), &DocConfig::default()) {
+                        Ok(_) => Some(false),
+                        Err(_) => None,
+                    };
+                }
             }
         }
     }

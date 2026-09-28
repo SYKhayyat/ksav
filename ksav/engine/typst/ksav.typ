@@ -541,10 +541,20 @@
 /// Typst's `..opts` accepts arbitrary named arguments, so a misspelling can
 /// otherwise be stored successfully and never read by the renderer. Every
 /// settings command uses this helper at its public boundary.
-#let _cfg_validate(name, opts, defaults) = {
-  for k in opts.named().keys() {
-    if k not in defaults and k not in _cfg_global_keys {
-      panic(name + ": ארגומנט לא מוכר · unrecognised argument: " + k)
+#let _cfg_validate(name, named, defaults, extra: ()) = {
+  // The keys an apparatus answers to, as a list. Usually a defaults dictionary,
+  // and sometimes a plain list of names — `#הגדרות_טקסט_הערות` has a state whose
+  // default is `(:)` and five keys with no default of their own, so its schema
+  // is the list. Both are the same question, so both are accepted here rather
+  // than a caller having to convert one into the other to be checked.
+  let keys = if type(defaults) == array { defaults } else { defaults.keys() }
+  let legal = keys + _cfg_global_keys + extra
+  for k in named.keys() {
+    if not legal.contains(k) {
+      panic(
+        name + ": ארגומנט לא מוכר · unrecognised argument: " + k
+          + if keys.len() > 0 { " — " + keys.join(", ") } else { "" }
+      )
     }
   }
 }
@@ -569,14 +579,14 @@
 #let _nt_keys = ("גופן", "גודל", "סגנון", "צבע", "ריווח")
 #let _nt_cfg = state("ksav-nt-cfg", (:))
 #let הגדרות_טקסט_הערות(..opts) = {
+  // Measured: with this check inside the closure, the same document and the same
+  // typo compiled clean on their own and refused the moment a note was added.
+  // The failure arrived later, on an unrelated edit, naming an argument written a
+  // page ago.
+  _cfg_validate("הגדרות_טקסט_הערות", opts.named(), _nt_keys)
   _nt_cfg.update(c => {
     let d = c
-    for (k, v) in opts.named() {
-      if not _nt_keys.contains(k) {
-        panic("הגדרות_טקסט_הערות: ארגומנט לא מוכר · unrecognised argument: " + k)
-      }
-      d.insert(k, v)
-    }
+    for (k, v) in opts.named() { d.insert(k, v) }
     d
   })
   // The shared layer says `ריווח` too, and it reaches the footnote area the same
@@ -656,23 +666,6 @@
   panic(name + ": ארגומנט לא מוכר · unrecognised argument: " + rest.keys().join(", "))
 }
 
-// The mark register and the alignment reader both sit here — above every
-// command rather than beside the block commands they were written for —
-// because Typst has no forward references. A `#let` is visible only after its
-// own line, so a command defined before `_mk_render` cannot render through it,
-// and half the commands that need a look of their own are defined early: the
-// banded tiers, the sidenotes, a heading inside a note. The register is the
-// authority for what a command looks like, so it belongs ahead of the
-// commands, and the block commands that used to sit under it stay where they
-// are.
-
-// _doc_align(v) — the alignment half of מסמך's יישור, or `none`.
-//
-// `none` for `true` and `false`, which are the justify half, and `none` for a
-// name that means nothing — an unrecognised alignment falls back to what the
-// document already said rather than to an edge nobody chose. Both spellings of
-// each edge, and a real Typst alignment passes straight through, so
-// `#מסמך(יישור: center)` and `#document(align: "center")` are the same request.
 #let _doc_align(v) = {
   if type(v) == alignment { v }
   else if type(v) != str { none }
@@ -1311,7 +1304,7 @@
 // convention. The per-note override path hands unknown keys to `footnote`,
 // which refuses them by name.
 #let הגדרות_הערות(..opts) = {
-  _cfg_validate("הגדרות_הערות", opts, _fn_defaults)
+  _cfg_validate("הגדרות_הערות", opts.named(), _fn_defaults)
   // Refused here and not inside the update, for the reason `#הגדרות_מספור`
   // gives below its own state: an update closure runs only when something
   // reads it, and a typo that compiles into a dead key is the defect this
@@ -5153,7 +5146,7 @@
 )
 #let _md_cfg = state("ksav-md-cfg", _md_defaults)
 #let הגדרות_מדורגות(..opts) = {
-  _cfg_validate("הגדרות_מדורגות", opts, _md_defaults)
+  _cfg_validate("הגדרות_מדורגות", opts.named(), _md_defaults)
   _md_cfg.update(c => {
     let d = c
     for (k, v) in opts.named() { d.insert(k, v) }
@@ -5339,7 +5332,7 @@
 )
 #let _pp_cfg = state("ksav-pp-cfg", _pp_defaults)
 #let הגדרות_מדפים(..opts) = {
-  _cfg_validate("הגדרות_מדפים", opts, _pp_defaults)
+  _cfg_validate("הגדרות_מדפים", opts.named(), _pp_defaults)
   _pp_cfg.update(c => {
     let d = c
     for (k, v) in opts.named() { d.insert(k, v) }
@@ -5473,7 +5466,7 @@
 #let _rg_default_spill = state("ksav-rg-default-spill", none)
 #let _rg_warn_leaves = state("ksav-rg-warn-leaves", none)
 #let הגדרות_זרמים(..opts) = {
-  _cfg_validate("הגדרות_זרמים", opts, _sf_defaults)
+  _cfg_validate("הגדרות_זרמים", opts.named(), _sf_defaults)
   // `גלישה` is refused here rather than wired: overflow belongs to the region
   // (and to the channel that made it) by decision 12 — two streams sharing a
   // region share its answer, and a per-stream knob would let them disagree.
@@ -6323,7 +6316,10 @@
 // walk that decides, and a second channel for one value would be a second thing
 // to keep in step.
 #let _sn_own_keys = ("גודל", "סגנון", "משקל", "צבע", "הזזה")
-#let הגדרות_הערות_צד(..opts) = _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
+#let הגדרות_הערות_צד(..opts) = {
+  _cfg_validate("הגדרות_הערות_צד", opts.named(), _sn_defaults, extra: _sn_own_keys)
+  _sn_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; _nt_explicit(d, opts.named()) })
+}
 #let _sn_wrap(cfg, mark, body) = text(
   size: cfg.at("גודל", default: 0.78em),
   // Slant and weight, which a side column had no way to ask for. A peirush
@@ -7032,7 +7028,10 @@
 // One heading's own overrides, in flight between the call and the show rule.
 // Set by `_hd_styled`, cleared by it, read here. See the note there.
 #let _hd_own = state("ksav-hd-own", (:))
-#let הגדרות_כותרות(..opts) = _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+#let הגדרות_כותרות(..opts) = {
+  _cfg_validate("הגדרות_כותרות", opts.named(), _hd_defaults)
+  _hd_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+}
 
 /// How many levels the ramps carry, which is how many doors there are below.
 ///
@@ -7057,14 +7056,15 @@
 /// to spread it into a ramp first — otherwise saying something about level 2
 /// would quietly say it about all six. The ramp is grown from what is in force,
 /// which is the current value if there is one and the shipped default if not.
-#let _hd_set(level, named) = _hd_cfg.update(c => {
+#let _hd_set(level, named) = {
+  // Outside the closure, and the reason is worth writing down because it is why
+  // this check was in the wrong place to begin with: a state's update runs only
+  // when something reads the state, so a check written inside one is a rule that
+  // fires on the next heading rather than on the typo.
+  _cfg_validate("הגדרות_כותרת" + str(level), named, _hd_defaults)
+  _hd_cfg.update(c => {
   let d = c
   for (k, v) in named {
-    if not _hd_defaults.keys().contains(k) {
-      panic(
-        "הגדרות_כותרת" + str(level) + ": ארגומנט לא מוכר · unrecognised argument: " + k,
-      )
-    }
     let cur = d.at(k, default: _hd_defaults.at(k, default: none))
     let arr = if type(cur) == array { cur } else { (cur,) * _hd_levels }
     while arr.len() < _hd_levels { arr.push(arr.last()) }
@@ -7072,7 +7072,8 @@
     d.insert(k, arr)
   }
   d
-})
+  })
+}
 
 #let הגדרות_כותרת1(..opts) = _hd_set(1, opts.named())
 #let h1_config = _en(הגדרות_כותרת1)
@@ -7218,7 +7219,10 @@
   התחלה: auto,          // the first item's number (auto = 1; 0 is the other one people want)
 )
 #let _ls_cfg = state("ksav-ls-cfg", _ls_defaults)
-#let הגדרות_רשימות(..opts) = _ls_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+#let הגדרות_רשימות(..opts) = {
+  _cfg_validate("הגדרות_רשימות", opts.named(), _ls_defaults)
+  _ls_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+}
 
 // ---- טבלאות · tables ----
 #let _tb_defaults = (
@@ -7235,7 +7239,10 @@
 // One table's own overrides, live for the span of that table, so its cells can
 // read them. See #טבלה.
 #let _tb_own = state("ksav-tb-own", (:))
-#let הגדרות_טבלאות(..opts) = _tb_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+#let הגדרות_טבלאות(..opts) = {
+  _cfg_validate("הגדרות_טבלאות", opts.named(), _tb_defaults)
+  _tb_cfg.update(c => { let d = c; for (k, v) in opts.named() { d.insert(k, v) }; d })
+}
 
 #let headings_config = _en(הגדרות_כותרות)
 #let lists_config = _en(הגדרות_רשימות)
@@ -8801,11 +8808,14 @@
   ריווח: auto,
 )
 #let _es_cfg = state("ksav-es-cfg", _es_defaults)
-#let הגדרות_הערות_סיום(..opts) = _es_cfg.update(c => {
-  let d = c
-  for (k, v) in opts.named() { d.insert(k, v) }
-  _nt_explicit(d, opts.named())
-})
+#let הגדרות_הערות_סיום(..opts) = {
+  _cfg_validate("הגדרות_הערות_סיום", opts.named(), _es_defaults)
+  _es_cfg.update(c => {
+    let d = c
+    for (k, v) in opts.named() { d.insert(k, v) }
+    _nt_explicit(d, opts.named())
+  })
+}
 #let endnotes_config = _en(הגדרות_הערות_סיום)
 #let _es_scheme() = _es_cfg.get().at("מספור", default: "1")
 
@@ -10266,6 +10276,7 @@
 
 #let הגדרות_סקירה(..opts) = {
   let named = opts.named()
+  _cfg_validate("הגדרות_סקירה", named, _rv_defaults, extra: _rv_colours.keys())
   let mine = (:)
   for (k, v) in named {
     if k in _rv_colours { _mk_set(_rv_colours.at(k), (צבע: v)) } else { mine.insert(k, v) }

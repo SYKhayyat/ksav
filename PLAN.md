@@ -45,6 +45,9 @@ still right.
   break. **9 of 11 tests now fail with their fix removed.** (from #2)
 - [ ] #5 parser/config/installer hardening. (High)
 - [ ] #3 i18n completeness + e2e switch test. (High)
+- [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
+  the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
+  research, **unmeasured here** — one probe, then a decision. (Medium, from #5)
 - [ ] #15 two-document glue second flow (probe exists). (High)
 - [ ] #67 Typst package resolution missing — @preview/@local imports fail. (High)
 

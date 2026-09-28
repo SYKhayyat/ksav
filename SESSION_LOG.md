@@ -967,10 +967,123 @@ property test are the two that do not, and both say so in their own doc comments
 
 ### The documentation fence caught me stating a count as prose
 
-The #6 mutation table said "3 assertions fail". `documentation.test.mjs` refuses a
+The #6 mutation table gave a count. `documentation.test.mjs` refuses a
 numeric claim in a living page that no declaration backs — and it is right: I had
 written a mutation result in the shape of a suite fact, which is exactly what that
 fence exists to stop. Spelled out as "the three reporting assertions go red", which
 is what it was.
 
 Engine tests 1028 → 1030.
+
+---
+
+## 2026-09-27 · #5 config setters — sixteen of fifty, and the check was in the wrong place
+
+### What the audit said, and what it was
+
+"Several config setters accept unknown keys while sibling setters reject them;
+typos become dead settings." Measured across all fifty `הגדרות_*` commands: **16
+of 50 compiled clean on a misspelled knob.** Not a degraded page — an *unchanged*
+one, with the writer's control reading back exactly what they typed and nothing
+happening.
+
+My first sweep was wrong twice before it was right. A static scan for `_cfg_strict`
+reported **45 of 55 loose**, because most of those delegate to `_mk_set` and my
+scan only looked at each command's own body. Then a sweep keyed on the string
+"unrecognised argument" reported 17, of which two refused in their own words
+("אין הגדרה בשם") and one for a missing positional — the *inverse* error, calling
+a strict command a gap. The sweep that was right asked one question: does the
+document compile?
+
+### The root cause is better than "somebody forgot"
+
+Seventeen of them validated **inside their `update` closure**, and a state's update
+closure runs only when something reads the state. So the check was not a check; it
+was a rule that fired on the next note. Against the pre-fix prelude, measured:
+
+```
+#הגדרות_טקסט_הערות(טיפא: true)   ok: true      …and one #הערה      ok: false
+#הגדרות_כותרת1(טיפא: true)        ok: true      …and one = כותרת   ok: false
+```
+
+Two failures, and the second is worse. The document compiled when the writer typed
+the typo, and stopped compiling later, on an unrelated edit, naming an argument
+written a page ago. `#הגדרות_מספור` was already checked outside its closure and
+says why in a comment — the difference between the two was which line somebody
+happened to edit.
+
+### The helper already existed, and I wrote a second one
+
+`_cfg_validate`'s doc comment claims it is *"at the public boundary of every
+settings command"*. Four commands used it. I did not look before writing, so I
+wrote `_cfg_knobs`, put it after the commands that needed it — **and broke
+`הגדרות_טקסט_הערות`**, because Typst has no forward references. The only thing
+that noticed was the container probe, which filed a working command as
+*undecidable* because every shape it tried now failed. That is the argument for
+the probe existing.
+
+Deleted mine, and strengthened the real one: it takes the named half of the
+arguments (so a command handed a dictionary can use it), accepts either a defaults
+dictionary or a bare list of keys, accepts extras, and **prints the legal list**
+with the refusal. Twelve commands route through it now.
+
+### Three of my own errors, and what caught each
+
+- **Braces.** Wrapping `_hd_set` in a block without closing it broke the whole
+  prelude from that line on: 65 tests red, and the first failure was a registry
+  test that disagreed with itself about which `#let`s exist.
+- **`type array has no method 'keys'`.** `_nt_keys` is a list, and I passed it
+  where a dictionary was expected. The *typo sweep* caught this, not the test
+  suite — because a panic is a non-compile too, and the sweep was only asking
+  "did it fail". It now requires the message to **name the key the writer typed**,
+  which is what distinguishes a refusal from any other failure.
+- **A static fence that cried wolf.** `no_settings_command_skips_the_key_check`
+  first read one line per command and reported seven violations, every one a
+  command whose check is on line two. Then, after reading whole bodies, it
+  reported 26 — because it took the first `{` after the name, which for
+  `#let הגדרות_ציון(..opts) = _mk_set("ציון", …)` is the *next command's* brace. It
+  reads balanced-one-line or brace-matched, and it recognises the phrasing
+  `הגדרות_מספור` uses, because a sweep that calls a command which checks a
+  violation gets deleted rather than amended.
+
+### The other four sub-items, which are not code
+
+- **`purge_ratio`** has no owner anywhere in this repository, and `issue-notes.md`
+  already said so: *"adding that setting would invent a contract"*. Not added.
+  A safety value with no subsystem that needs it is dead configuration with a
+  domain test attached to it.
+- **Tool probing is already bounded and machine-readable.** `git_run` has a
+  120-second `DEADLINE` with a kill, and `version()` reads
+  `"git version 2.54.0.windows.1"` with `rsplit(' ').next()` — no locale, no
+  substring match — cached in a `OnceLock` because git does not upgrade itself
+  under an open drawer.
+- **Installer and Windows archive names**: there is no installer here. `packaging/`
+  is a Dockerfile and two shell scripts; no Rust code writes an archive, so
+  "reserved-name and traversal handling" has no site to be right or wrong in.
+- **Grammar spans**: `line_column` exists in the engine and carries 1-based
+  line and character column, and a `DOMException` crossing a worker boundary is
+  matched by name for the same reason `isCancellation` matches by name.
+
+### What is fenced
+
+`engine/tests/settings_keys.rs`, six tests. All fifty setters must refuse an
+unknown knob **by name**; the refusal must happen in a document with nothing that
+reads the state; **every key the refusal offers must itself be accepted** (a list
+that offers a key it then refuses is worse than no list); a global knob is still
+global; and no settings command may skip the check, read out of the prelude so a
+fiftyth command added next year is swept without a line being written here.
+
+Five of the six fail against the actual pre-fix `ksav.typ`, restored from git —
+which is the mutation that matters, rather than a reconstruction of it. An earlier
+attempt at the "inside the closure" mutation passed all six, and the honest
+conclusion is that my reconstruction was not faithful; the real pre-fix file is
+what proves the claim.
+
+`skips.test.mjs` then called the static sweep by name for keeping its assertions
+inside a loop, and it is right: a sweep that matches nothing passes everything it
+has. It now asserts a floor on the number of commands examined.
+
+Engine tests 1030 → 1036, binaries 72 → 73. Editor assertions unchanged at 7,798.
+The container fixture is **byte-identical** — `emit-containers` learned to tell
+"I refuse this argument" from "I am not a container", so a strict setter stays
+`transparent` rather than being reclassified.

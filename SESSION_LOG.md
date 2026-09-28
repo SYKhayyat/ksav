@@ -1185,3 +1185,86 @@ The issue's own acceptance criteria are not all met, and the record says which:
 "no visible or accessible text left in the old language" is fenced against the
 sweep, but "open every panel, switch, read the screen, reload" needs a browser this
 suite does not have. The gap is in the issue, not in the work.
+
+---
+
+## 2026-09-27 · #3′, asked for directly: can the language switch be tested for real?
+
+### Yes, and the answer is that the unit test was measuring the wrong thing
+
+A browser was here the whole time — `playwright-core` with a Chromium already in
+`~/.cache/ms-playwright`. It would not start, because Nix keeps each shared library
+in its own store path and none is on the default search path. About twenty were
+missing; resolving them by name and walking the list until `ldd` came back clean
+took four passes, and two of them — `libasound`, `libudev` — are present in a
+32-bit and a 64-bit build, so the resolver has to check `EI_CLASS` and the failure
+otherwise reads `wrong ELF class: ELFCLASS32`, which names nothing.
+
+Then it worked, and the built application booted: **7,845 characters of Hebrew UI,
+zero console errors**, the settings drawer open, thirty-one headings.
+
+And the switch works. `dir` flips `rtl`→`ltr`, `lang` becomes `en`, the chrome
+turns English, the choice is written to `localStorage` and survives a reload.
+
+### And 114 Hebrew strings were still standing
+
+That is the finding, and it is a whole layer the dictionary fence cannot see.
+
+**Fifty of them are keys that have an English entry already** — `previewSide`,
+`closeTab`, `searchScope.source`, `retrySave`, `untitled`, `zoomPane`,
+`splitAcross`, the five `*Lede`s. They are written into `aria-label` and `title` at
+boot, and `localise()` cannot reach them because nothing tagged them. This is the
+defect `i18n.ts` already describes — *"a title that looked right until somebody
+changed language, and then stayed in the language it was born in"* — fixed for
+`panelHead` and never swept for the other twenty-odd sites. The `*Lede` family is
+the systematic case: `panelHead` tags the head, the lede is the panel's own child,
+so **every panel with a lede has an untagged one**.
+
+**Sixty-four are composed strings** — `"פתח · Alt+a"`, `"Rename: ללא שם"`,
+`"⟳ התצוגה אינה מעודכנת"`. A label, a separator and a shortcut, concatenated. One
+attribute holds one `t(key)`, so these need a message *with parts*, which is a new
+mechanism rather than a missing tag — and the reason the residue cannot be closed
+by sweeping for `[data-i18n]`.
+
+### The shape of the blindness is the lesson
+
+`uilanguage.test.mjs` proves the catalogues hold the same keys in both languages
+and that `localise()` sweeps the four attribute kinds it is given. Both true.
+Neither says anything about **what the DOM holds**, and the defect lives entirely
+in the gap. A catalogue test is a test of the *data*; a language switch is a
+property of the *rendering*. I said that gap needed a browser, and it did, and the
+browser found on the first run seven keys a hand-written `RESIDUE` list had
+missed — which is the argument for measuring rather than listing.
+
+### What ships
+
+`test/browserlang.test.mjs`, twelve assertions against the real window: the toggle
+is pressed the way a writer presses it (found by its accessible name *in the old
+language*, which is the only way a writer can find it), `dir`/`lang` flip, the
+header reads English with a document's own title excluded because a Hebrew
+document's title is supposed to be Hebrew, the choice is written down and survives
+a reload.
+
+The residue is a **ceiling, not a zero**. A test asserting zero would be red on
+arrival, and a red test is a complaint rather than a fence. The direction that
+matters is enforced instead — *no catalogue key stands in Hebrew that the file has
+not recorded* — and a mutation confirms it fires by name. The recorded set is
+allowed to be a superset of what is visible, because which panels are open changes
+the visible set and a fence that fails for a reason outside what it watches is a
+fence people switch off.
+
+It skips **loudly** where there is no Chromium, naming which of the two it lacked,
+rather than failing for a reason that has nothing to do with the application.
+
+### Two fences caught me being lazy
+
+`gate.test.mjs` refused a README note that spelled `npm test` — correctly, since a
+second copy of a check command is the drift that fence exists to catch. And the
+`Rename: ללא שם` in my header assertion was a false positive: a document's own name
+in its own language is correct, and only the verb is this app's text.
+
+Filed as **#71**, with the 31 keys named and the two defects separated, because they
+have different sizes: one is a sweep, the other is a mechanism that does not exist
+yet.
+
+Editor assertions 7,836 → 7,848, test files 111 → 112.

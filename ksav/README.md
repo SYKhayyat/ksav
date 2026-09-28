@@ -724,7 +724,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 7,836 editor assertions, 1030 tests in
+      all nine jobs: the typechecker and 7,848 editor assertions, 1030 tests in
       the engine, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -803,7 +803,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 7,836 assertions across 111 files |
+| `editor` | both | the typechecker, then 7,848 assertions across 112 files |
 | `engine` | both | formatting, lints, then 1036 tests across 73 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
@@ -1238,3 +1238,25 @@ Nothing under the GNU AGPL is bundled. Hspell — the only other open Hebrew
 spelling dictionary in existence — is deliberately not included;
 `engine/src/spell/hebrew.rs` gives the licence reasoning and the measurements
 that ruled it out on quality grounds as well.
+
+## A note for the next machine: running `browserlang.test.mjs`
+
+The test needs a Chromium (`playwright-core` plus a browser in `~/.cache/ms-playwright`) **and** the shared libraries Chromium links against. On a bare checkout the file skips loudly and says which of the two it lacked.
+
+On this machine the libraries are not on the default search path — Nix keeps each one in its own store path — so they are collected from the store and exported:
+
+```sh
+LP=""
+for pat in nspr nss dbus libdrm mesa libxkbcommon atk atspi cairo pango cups \
+           libx11 libxcomposite libxdamage libxext libxfixes libxrandr \
+           libgbm libxcb glib expat systemd alsa; do
+  for d in /nix/store/*-${pat}-*/lib(N); do LP="$LP:$d"; done
+done
+export LD_LIBRARY_PATH="${LP#:}"
+node tools/gate.mjs editor    # builds, then runs the suite
+```
+
+`browserlang.test.mjs` is part of the `editor` group, and the build step matters:
+the test serves `dist/`, and without it the file skips and says so.
+
+Two of the libraries are present in both a 32-bit and a 64-bit build, and picking the wrong one fails with `wrong ELF class: ELFCLASS32` rather than anything that names the problem. The resolver has to check `EI_CLASS` (byte 4 of the file) and keep the 64-bit one.

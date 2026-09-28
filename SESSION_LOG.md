@@ -1757,3 +1757,83 @@ type, not to adjust the claim.
 Engine tests 1044 → 1047, binaries 74 (72 integration + lib unit + doc-test — and the
 README's "74" was right all along; I had recorded a correction that was not needed).
 Editor assertions unchanged at 7,849.
+
+---
+
+## 2026-09-28 · #72, #73 — the sandbox nobody wrote down, and the shelf that is empty
+
+### The question I had flagged and never answered, answered by accident
+
+Two questions came back at the end of the #67 work — *"the different blocks thing"* and
+*"the ability to take typst libraries"*. While measuring the second I ran the
+indentation probe I had flagged much earlier and never got to, and it is worth
+recording because the answer is **yes, it works**:
+
+    plain paragraph   x=499.56  w=24.85  right=524.41
+    #ציטוט (quote)    x=487.56  w=24.85  right=512.41
+
+Same string, so the 12pt is the inset and nothing else. And it moved the **right**
+edge — the reading edge in Hebrew — which is the correct side. A block that indents
+from the left under RTL is a real class of bug, and Ksav does not have it.
+
+The first attempt at this probe was `#בלוק(לשון: "משנה", inset: (right: 1cm))`, and
+the **typo sweep caught my own invented command** and answered with the legal list.
+That is the fence from #5 working on me, unprompted, in a language I invented. Also
+learned: the box is `תיבה` and the quote is `ציטוט`, and `#הזחה(2)[…]` is not its
+signature.
+
+One loose thread from that probe, **not** claimed as a finding: `#מקור` with the
+same text came out at `right=523.69`, barely inside the margin, with a *narrower*
+run (21.12 vs 24.85) — so it sets a smaller size, and its inset may be scaled to the
+font or may be nearly absent. One data point with a confounded variable is not a
+defect. Worth a probe, not worth a claim.
+
+### A sefer cannot read the disk, and that was never a decision anyone made
+
+Four ways a Typst document reaches a file, all measured here:
+
+    #import "helper.typ"   refused
+    #import "/etc/hostname" refused
+    read("names.txt")      refused
+    @preview/ksavtest      works      (#67)
+
+**The document has no file system.** Images and user fonts arrive as bytes on the
+request; everything else is `include_bytes!` in the binary.
+
+That was the *right* call, and the reason is in `packages_root()`'s own comment: the
+resolver is built directly rather than through `with_file_system_resolver` so that a
+document cannot reach anything else on the disk through it. For one pasted snippet, a
+total sandbox is correct.
+
+The cost is that **a sefer is one file, forever.** No splitting a 40-chapter sefer,
+no shared file for a recurring kuntres used 300 times, no `read()` of a list of
+parshiyos, no personal `.typ` of house conventions. For Torah work that ceiling is
+higher than the package question, and it had never been written down as a choice.
+
+The proposal is not a new mechanism — it is `packages_root()` **a second time**:
+give each sefer a read-only root. Sibling files import by relative path, a `packages/`
+subdirectory is `@local` (Typst's own name for this, so nothing is invented), and
+confinement survives. Filed as a **decision** rather than a task, because a sefer
+stops being a path and becomes a tree, and that has consequences in autosave, in
+`engine/src/git.rs`, in the absence of any file-tree UI, and in what happens to the
+single-file sefarim that already exist. Not mine to pick. With the cheap half spelled
+out too: **`@local` alone**, in the `app_data_dir()` that already holds the
+dictionary, answers "can I bring my own library" for most of the value and touches no
+editor, no autosave, no git.
+
+### The shelf is empty, and the order matters more than the answer
+
+#70 deferred `meander` and #67 then made it possible. So the blocker is no longer
+technical — it is licensing, repository size, and one uncomfortable dependency
+question: **page-breaking is the thing a typesetting app most needs to control**, and
+delegating it to a package is how a bug becomes unfixable-in-place.
+
+So #73 argues for measuring **#70 first**, and the argument is not caution, it is
+that #70 decides whether a third-party threader is addressing our problem or
+inheriting it. If Typst's own blocks do not thread cleanly across a page break, a
+package built on them inherits that, and we would be importing a workaround for our
+own first attempt. Vendoring first and measuring second pays the cost before knowing
+the benefit — and #70's own text already says *"report the measurement, then decide."*
+
+**#70 is the next piece of work, and it is one probe.** Two issues filed, both
+decisions, neither actioned.

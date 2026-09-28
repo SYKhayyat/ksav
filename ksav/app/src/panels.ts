@@ -57,7 +57,7 @@
 // the frame moved.
 
 import { el } from "./dom";
-import { hasKey, t } from "./i18n";
+import { hasKey, t, tf } from "./i18n";
 
 // ---------------------------------------------------------------- the shapes
 
@@ -705,17 +705,74 @@ export function panelHead(
  * Four attributes, because a label is not always text: a tooltip, an accessible
  * name and a placeholder are all read by somebody, and all three were as stuck
  * as the headings were.
+ *
+ * # …and the two that a button needs
+ *
+ * Measured 2026-09-27 in a real browser, after the four above were in place and
+ * fenced: **50 catalogue keys were still standing in Hebrew** after a switch to
+ * English. `iconBtn` and `glyphBtn` both write `title` *and* `aria-label` from
+ * one `name` argument, so tagging such a button meant repeating the same key
+ * twice, and at twenty-odd call sites that is twenty-odd chances to write one
+ * attribute and forget the other. So:
+ *
+ * - **`data-i18n-both`** — the key, for the two attributes a button always has.
+ * - **`data-i18n-args`** — a JSON array of substitutions, for a key whose value
+ *   is a template. 64 of the remaining strings were *composed* — `"פתח · Alt+a"`,
+ *   `"Rename: ללא שם"` — a label, a separator and a shortcut concatenated, which
+ *   no single-key attribute can express. The parts are recorded so the whole
+ *   sentence is rebuilt rather than the label alone.
+ *
+ * The shortcut itself is **not** an argument needing translation — `Alt+a` is
+ * `Alt+a` in Hebrew too — so it passes through unchanged, and what gets
+ * re-rendered is the sentence around it.
  */
 export function localise(root: ParentNode = document): void {
+  /**
+   * The value for one attribute, with the element's argument list applied.
+   *
+   * Three details, each of which is a thing that went wrong first:
+   *
+   * - **Per-attribute arguments.** The ribbon's button carries a *different* string
+   *   in `title` (name · shortcut) and in `aria-label` (name alone), because a
+   *   screen reader does not need the chord. So `data-i18n-title-args` overrides
+   *   `data-i18n-args` for `title` alone, and without it one list would have to
+   *   serve both and the accessible name would gain " · Alt+a".
+   * - **A leading `:` means "this argument is a key".** A shortcut is `Alt+a` in
+   *   both languages and must pass through; the label beside it is `sc.open` and
+   *   must not. Guessing which is which from the catalogue is the trap
+   *   `hasKey`'s own comment describes, so it is written down instead.
+   * - **A malformed list is not fatal.** A caller's bug must not become a window
+   *   nobody can read; the un-substituted string is the best answer available.
+   */
+  const value = (e: HTMLElement, key: string, argsAttr: string): string => {
+    const raw = e.getAttribute(argsAttr);
+    if (!raw) return t(key);
+    try {
+      const args = (JSON.parse(raw) as unknown[]).map((a) =>
+        typeof a === "string" && a.startsWith(":") ? t(a.slice(1)) : a,
+      );
+      return tf(key, ...(args as (string | number)[]));
+    } catch {
+      return t(key);
+    }
+  };
   const say = (sel: string, set: (e: HTMLElement, s: string) => void) => {
     root.querySelectorAll<HTMLElement>(`[${sel}]`).forEach((e) => {
-      set(e, t(e.getAttribute(sel)!));
+      set(e, value(e, e.getAttribute(sel)!, `${sel}-args`));
     });
   };
+  say("data-i18n-both", (e, s) => {
+    e.setAttribute("title", s);
+    e.setAttribute("aria-label", s);
+  });
   say("data-i18n", (e, s) => (e.textContent = s));
   say("data-i18n-title", (e, s) => e.setAttribute("title", s));
   say("data-i18n-label", (e, s) => e.setAttribute("aria-label", s));
   say("data-i18n-placeholder", (e, s) => e.setAttribute("placeholder", s));
+  say("data-i18n-both", (e, s) => {
+    e.setAttribute("title", s);
+    e.setAttribute("aria-label", s);
+  });
 }
 
 /**

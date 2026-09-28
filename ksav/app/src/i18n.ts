@@ -29,6 +29,12 @@ const HE: Dict = {
   onlyOneOpen: "רק מסמך אחד פתוח.",
   untitled: "ללא שם",
   rename: "שינוי שם",
+  // Sentences with a part in them. The shortcut is not one of them — `Alt+a` is
+  // `Alt+a` in Hebrew — so what is translated is the sentence around it, and
+  // `data-i18n-args` carries the part through a language switch. See `localise`.
+  "msg.shortcut": "{0} · {1}",
+  "msg.named": "{0}: {1}",
+  "msg.reason": "{0} — {1}",
   renamePrompt: "שם המסמך:",
   duplicate: "שכפול",
   confirmDeleteDoc: "למחוק את המסמך \"{0}\"? אי אפשר לבטל.",
@@ -1526,6 +1532,9 @@ const EN: Dict = {
   onlyOneOpen: "Only one document is open.",
   untitled: "Untitled",
   rename: "Rename",
+  "msg.shortcut": "{0} · {1}",
+  "msg.named": "{0}: {1}",
+  "msg.reason": "{0} — {1}",
   renamePrompt: "Document name:",
   duplicate: "Duplicate",
   confirmDeleteDoc: "Delete \"{0}\"? This cannot be undone.",

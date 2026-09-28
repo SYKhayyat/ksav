@@ -1268,3 +1268,86 @@ have different sizes: one is a sweep, the other is a mechanism that does not exi
 yet.
 
 Editor assertions 7,836 → 7,848, test files 111 → 112.
+
+---
+
+## 2026-09-27 · #71, first slice — the mechanism, and 9 of 50 keys
+
+### Fifty keys with an English entry and no way to be re-localised
+
+The residue was not fifty missing translations. It was fifty strings written into
+`aria-label` and `title` at boot, holding keys the catalogue already answers, in
+elements nothing had tagged. Three changes to `localise`, each for a shape the
+measurement forced:
+
+- **`data-i18n-both`** — `iconBtn` and `glyphBtn` both write `title` *and*
+  `aria-label` from one argument, so tagging such a button meant writing the same
+  key twice, and at twenty-odd call sites that is twenty-odd chances to write one
+  and forget the other. One marker, both attributes.
+- **`data-i18n-args`** — for a key whose value is a template. 64 of the strings
+  were *composed*: `"פתח · Alt+a"`, `"Rename: ללא שם"`. One attribute holds one
+  `t(key)`, so a sentence with a part in it needed something that did not exist.
+- **A leading `:` means "this argument is a key".** The chord `Alt+a` is `Alt+a`
+  in Hebrew; the label beside it is `sc.open` and is not. Guessing which is which
+  from the catalogue is precisely the trap `hasKey`'s own comment describes, so
+  it is spelled in the value instead.
+- **Per-attribute arguments**, because the ribbon's button carries *different*
+  strings: `title` says `name · shortcut` and `aria-label` says `name` alone,
+  since a screen reader has no use for a chord. One shared list would have forced
+  the accessible name to gain "· Alt+a".
+
+### One function builds the whole note ribbon
+
+`noteBtn` — a title of `t("sc." + action) + " · " + hint`, passed to `iconBtn`.
+One site, thirteen buttons, and the chord is an argument rather than part of the
+key. Verified in a real window: `"הערת שוליים · Ctrl+Shift+F"` →
+**`"Footnote · Ctrl+Shift+F"`**.
+
+The pane cluster went with it: `splitAcross`, `splitDown`, `zoomPane`/`unzoomPane`
+(whose marker is itself a ternary, or the button would re-localise to the state it
+was *not* in), `paneMenu`, `closePane`, `scrollLinked`, `previewStaleHow`.
+
+**31 keys → 22. 64 composed → 41.**
+
+### The ceiling could not see its own mechanism, and a mutation said so
+
+With the `:` convention deleted, `tf` receives `":sc.footnote"` untranslated and
+produces `":sc.footnote · Ctrl+Shift+F"` — which is **not Hebrew**. The residue
+count goes *down*, and the ceiling is satisfied by a window that is worse than
+before. A ceiling measures *less bad*; it cannot see *differently* bad.
+
+So the mechanism is asserted directly: after a switch, no attribute value and no
+text may be an unsubstituted `{0}` or a `:key`. The same mutation now fails with
+`aria-label=":sc.footnote · Ctrl+Shift+F"` named in the message.
+
+### Three of my own errors, each caught by something
+
+- Wrote the new helper in the wrong place and **broke a command** — Typst has no
+  forward references — and the only thing that noticed was a container probe.
+- Set `data-i18n-both-args` on an element carrying `data-i18n-title`, so the
+  marker was inert. Only a DOM dump showed the attributes were missing while the
+  isolated unit test passed.
+- A codemod matched the **wrong `glyphBtn`**: it produced a duplicate
+  `data-i18n-both` on `splitAcross` while aiming at `scrollLinked`. `tsc` caught it
+  (`TS1117`), which is the whole argument for a typechecker on a codemod.
+
+And a stale `.tmp-test` bundle made the isolated test report `"{0} · {1}"` as the
+translated value, which looked exactly like a mechanism failure.
+
+### What is left, measured
+
+22 catalogue keys: tab and pane furniture, the two view panes' own names, the
+nikud toggle, the four search-scope rows, and the ledes — `outlineLede`,
+`notesPaneLede`, `marksPaneLede`, `findLede`, `previewFollowsLede`, `welcomeTitle`,
+`narrowLede`, `notesPaneEmpty`, `mark.added`. **Every lede is a `panelHead`
+sibling**, so the systematic fix is for `panelHead` to tag the panel's lede rather
+than twenty panels each doing it.
+
+41 composed, of which about 13 are the file and theme ribbon (`פתח · Alt+a`,
+`סגול · Alt+d`, `חטף סגול · Alt+z`) — the same family as `noteBtn`, a different
+builder. The rest are legitimate: niqqud letter samples (`אְ אֱ אֲ`), Hebrew
+document source in textarea placeholders, and English text *about* Hebrew
+("Off by default: in Hebrew the geresh and gershayim"). Those are counted by the
+ceiling and should not be chased.
+
+Editor assertions 7,848 → 7,849. Engine untouched.

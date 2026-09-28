@@ -71,20 +71,15 @@ const HEBREW = /[֐-׿]/;
  * which is the direction a fence should fail in.
  */
 const RESIDUE = [
-  // panel heads, drawer names, and the tabs
-  "untitled",
+  // Tab and pane furniture
   "closeTab",
   "newTab",
-  "preview",
+  "untitled",
+  "swapPaneDrag",
   "previewSide",
+  // the two view panes' own names
+  "preview",
   "source",
-  "zoomPane",
-  "paneMenu",
-  "closePane",
-  "splitAcross",
-  "splitDown",
-  "scrollLinked",
-  "previewStaleHow",
   // the nikud toggle and its hint
   "nikud",
   "nikudHint",
@@ -93,33 +88,28 @@ const RESIDUE = [
   "searchScope.source",
   "searchScope.preview",
   "searchScope.both",
-  // prose in the welcome panel and the notes pane
-  "welcomeTitle",
-  "narrowLede",
-  "notesPaneEmpty",
-  "mark.added",
-  // a failure the writer can retry
-  "retrySave",
-  // ledes: the paragraph under each panel head, which `panelHead` does not tag
-  // because the lede is the panel's own child element
+  // prose: each panel's lede, the welcome title, the empty notes pane, and the
+  // one line the review drawer adds
   "outlineLede",
   "notesPaneLede",
   "marksPaneLede",
   "findLede",
   "previewFollowsLede",
-  // a drawer that could not load, and the drag affordance on a tab
-  "registriesGaveUp",
-  "swapPaneDrag",
+  "welcomeTitle",
+  "narrowLede",
+  "notesPaneEmpty",
+  "mark.added",
 ];
 
 /**
- * The residue ceiling: 50 catalogue keys plus 64 composed strings, measured.
+ * The residue ceiling, re-measured as the work lands: 31 catalogue keys and 41
+ * composed strings, down from 50 and 64 when this file was written.
  *
  * Composed strings are counted, not named, because they are not catalogue values
  * — they are `"label · shortcut"` and `"verb: name"` built by concatenation, and
  * naming them would mean naming every pair.
  */
-const CEILING = { keys: RESIDUE.length, composed: 64 };
+const CEILING = { keys: RESIDUE.length, composed: 41 };
 
 /** Serve `dist/` and give back the origin. Static, and the SPA fallback only. */
 async function serve() {
@@ -265,6 +255,31 @@ export async function run() {
       `composed strings are at or under the ceiling (${composed.size}/${CEILING.composed})`,
       composed.size <= CEILING.composed,
     );
+
+    // The mechanism itself, asserted directly. The residue ceiling cannot see
+    // this: a `tf` that failed to substitute produces `":sc.open · Alt+a"`, which
+    // is **not Hebrew**, so the count goes *down* and the ceiling is satisfied by
+    // a window that is worse than before. A mutation confirmed exactly that.
+    //
+    // So: after a switch, nothing on the screen may still be a template or a key.
+    const unsubstituted = await page.evaluate(() => {
+      const bad = [];
+      const check = (e, attr) => {
+        const v = e.getAttribute?.(attr);
+        if (v && (/\{\d+\}/.test(v) || /^:[a-zA-Z]/.test(v))) {
+          bad.push(`${attr}=${v}`);
+        }
+      };
+      for (const e of document.querySelectorAll("*")) {
+        for (const a of ["aria-label", "title", "placeholder"]) check(e, a);
+        if (![...e.children].some((c) => c.textContent === e.textContent)) {
+          const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("");
+          if (/\{\d+\}/.test(own)) bad.push(`text=${own.slice(0, 30)}`);
+        }
+      }
+      return [...new Set(bad)];
+    });
+    check("no label is an unsubstituted template or a key", unsubstituted, []);
 
     // A reload, because a language that reverts looks like a selector that does
     // nothing, and costs the writer the whole surface every time they return.

@@ -2889,7 +2889,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     host.append(
       el("button", { class: "preview-stale", onClick: () => compileNow(), hidden: "hidden" }, [
         el("b", {}, ["⟳ " + t("previewStale")]),
-        el("span", {}, [t("previewStaleHow")]),
+        el("span", { "data-i18n": "previewStaleHow" }, [t("previewStaleHow")]),
       ]),
     );
     wirePreviewClicks(host);
@@ -3008,6 +3008,9 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     kids.push(
       glyphBtn(
         pane.linked ? "⇅" : "⇵",
+        // The glyph and the name are both a function of `linked`, and so is the
+        // marker — a static one would re-localise the button to the state it was
+        // *not* in when the language changed.
         pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
         // **Not `setTree`.** Linking changes one field on one leaf and nothing
         // about the shape, and `setTree` rebuilds every `EditorView` in the
@@ -3020,7 +3023,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
           applyPreviewWindows();
         },
         "pane-btn",
-        { "data-pane-act": "link" },
+        { "data-i18n-both": pane.linked ? "scrollLinked" : "scrollUnlinked", "data-pane-act": "link" },
       ),
     );
   }
@@ -3034,10 +3037,10 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // other one. A single pane can be split too, which is the case a writer is
   // most likely to want it in.
   kids.push(
-    glyphBtn("◫", t("splitAcross"), () => splitHere(pane, "row"), "pane-btn", {
+    glyphBtn("◫", t("splitAcross"), () => splitHere(pane, "row"), "pane-btn", { "data-i18n-both": "splitAcross",
       "data-pane-act": "split-across",
     }),
-    glyphBtn("⊟", t("splitDown"), () => splitHere(pane, "col"), "pane-btn", {
+    glyphBtn("⊟", t("splitDown"), () => splitHere(pane, "col"), "pane-btn", { "data-i18n-both": "splitDown",
       "data-pane-act": "split-down",
     }),
     // Zoom, beside the splits, because it is the same question answered the
@@ -3053,7 +3056,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
         cyclePaneZoom();
       },
       "pane-btn" + (zoomedNode ? " pane-zoom-on" : ""),
-      { "data-pane-act": "zoom" },
+      { "data-i18n-both": "zoomPane", "data-pane-act": "zoom" },
     ),
     glyphBtn(
       "⋯",
@@ -3070,7 +3073,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
         openPaneMenu(pane, e.currentTarget as HTMLElement);
       },
       "pane-btn",
-      { "data-pane-act": "menu" },
+      { "data-i18n-both": "paneMenu", "data-pane-act": "menu" },
     ),
   );
   if (panes.leaves(paneTree).length > 1) {
@@ -3086,7 +3089,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
         t("closePane"),
         () => setTree(panes.closePane(paneTree, pane.id)),
         "pane-btn pane-close",
-        { "data-pane-act": "close" },
+        { "data-i18n-both": "closePane", "data-pane-act": "close" },
       ),
     );
   }
@@ -6132,6 +6135,14 @@ function highlightControl(writing: Lang): HTMLElement {
 function noteBtn(action: string, glyph: string, snippet: string | null): HTMLElement {
   const hint = hintFor(action);
   const title = t("sc." + action) + (hint ? ` · ${hint}` : "");
+  // `iconBtn` writes `title` **and** `aria-label` from the one string above, so
+  // one `data-i18n-both` covers both — and the chord is an argument rather than
+  // part of the key, because `Ctrl+Shift+F` is `Ctrl+Shift+F` in Hebrew and the
+  // sentence around it is not. Measured 2026-09-27: this one function left every
+  // note button in Hebrew after a switch to English.
+  const i18n: Record<string, string> = hint
+    ? { "data-i18n-both": "msg.shortcut", "data-i18n-both-args": JSON.stringify([`:sc.${action}`, hint]) }
+    : { "data-i18n-both": `sc.${action}` };
   return iconBtn(
     glyph,
     title,
@@ -6140,7 +6151,7 @@ function noteBtn(action: string, glyph: string, snippet: string | null): HTMLEle
       insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
     },
     "",
-    { "data-action": action },
+    { "data-action": action, ...i18n },
   );
 }
 
@@ -10108,6 +10119,17 @@ function updateContextBar() {
           // no use to somebody who has just been refused.
           title: why ? `${name} — ${t(why)}` : hint ? `${name} · ${hint}` : name,
           "aria-label": name,
+          // The whole ribbon, and the only place these three shapes are built.
+          //
+          // Tagged so a switch rebuilds them: measured 2026-09-27 in a real
+          // browser, this one line left every ribbon button in Hebrew after a
+          // switch to English. The accessible name stays the bare label — a
+          // screen reader has no use for "· Alt+a" — so `title` and `aria-label`
+          // take different argument lists, and a leading `:` in one of them means
+          // "this is a key". The chord is a literal: `Alt+a` is `Alt+a` in Hebrew.
+          "data-i18n-label": action.label,
+          "data-i18n-title-args": JSON.stringify([`:${action.label}`, why ?? hint ?? ""]),
+          "data-i18n-title": why ? "msg.reason" : hint ? "msg.shortcut" : action.label,
           // `aria-disabled`, not `disabled`. A `disabled` button cannot be
           // clicked, cannot be focused and — with `pointer-events: none` on top
           // of it — cannot even be hovered on a touchscreen, so the one control

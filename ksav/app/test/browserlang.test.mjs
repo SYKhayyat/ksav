@@ -71,38 +71,21 @@ const HEBREW = /[֐-׿]/;
  * which is the direction a fence should fail in.
  */
 const RESIDUE = [
-  // Tab and pane furniture
-  "closeTab",
-  "newTab",
+  // **A document's own name.** `untitled` is what a document is *called*, and it
+  // reaches the tab, the title bar and `<title>`. A document created while the
+  // interface was Hebrew is called `ללא שם`, and in English it reads
+  // `Untitled` — a document named in the language it was created in, which is
+  // right, and which no `data-i18n` should touch. Tagging it would rename a
+  // writer's file on a language switch.
   "untitled",
-  "swapPaneDrag",
-  "previewSide",
-  // the two view panes' own names
-  "preview",
-  "source",
-  // the nikud toggle and its hint
-  "nikud",
-  "nikudHint",
-  // the search scope select
-  "searchScope",
-  "searchScope.source",
-  "searchScope.preview",
-  "searchScope.both",
-  // prose: each panel's lede, the welcome title, the empty notes pane, and the
-  // one line the review drawer adds
-  "outlineLede",
-  "notesPaneLede",
-  "marksPaneLede",
-  "findLede",
-  "previewFollowsLede",
+  // One untagged `<span>`, not in the document editor. `panelHead` tags the head
+  // correctly — this is a second rendering of the same string, and it is the
+  // whole of what is left.
   "welcomeTitle",
-  "narrowLede",
-  "notesPaneEmpty",
-  "mark.added",
 ];
 
 /**
- * The residue ceiling, re-measured as the work lands: 31 catalogue keys and 41
+ * The residue ceiling, re-measured as the work lands: **2** catalogue keys and 41
  * composed strings, down from 50 and 64 when this file was written.
  *
  * Composed strings are counted, not named, because they are not catalogue values

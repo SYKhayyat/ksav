@@ -74,7 +74,7 @@ export function nikudKeymap(afterInsert: () => void): KeyBinding[] {
 }
 
 export function buildNikudBar(afterInsert: () => void): HTMLElement {
-  return el("div", { id: "nikud-bar", class: "nikud-bar", role: "group", "aria-label": t("nikud") }, [
+  return el("div", { id: "nikud-bar", class: "nikud-bar", role: "group", "aria-label": t("nikud"), "data-i18n-label": "nikud" }, [
     ...NIKUD.map(([mark, name, key]) =>
       el(
         "button",
@@ -93,6 +93,6 @@ export function buildNikudBar(afterInsert: () => void): HTMLElement {
         ],
       ),
     ),
-    el("span", { class: "nikud-hint" }, [t("nikudHint")]),
+    el("span", { class: "nikud-hint", "data-i18n": "nikudHint" }, [t("nikudHint")]),
   ]);
 }

@@ -56,7 +56,7 @@ import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
 import type * as api from "./api";
 import * as git from "./git";
 import * as panelviews from "./panelviews";
-import { t, tf, setLang, getLang, isRtlUi } from "./i18n";
+import { getLang, hasKey, isRtlUi, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
@@ -157,6 +157,7 @@ import {
   closeOnOutsideClick,
   toggleMenu,
   panelHead,
+  panelLede,
   overlayPanel,
   localise,
   rebuildOpenPanels,
@@ -2827,6 +2828,10 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
       // a *region* rather than a pane.
       "data-node": pane.id,
       "aria-label": t(pane.role),
+      // The pane's own name, and `NAME` above maps a role onto a key for the
+      // same reason: both are the *role*'s name, and both were Hebrew after a
+      // switch. `pane.role` is already a key, so nothing has to be derived.
+      "data-i18n-label": pane.role,
     },
     [host],
   );
@@ -2957,7 +2962,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     el("span", { class: "pane-no", title: tf("paneNumbered", String(paneNumberOf(pane.id))) }, [
       String(paneNumberOf(pane.id)),
     ]),
-    el("span", { class: "pane-name" }, [t(NAME[pane.role])]),
+    el("span", { class: "pane-name", "data-i18n": NAME[pane.role] }, [t(NAME[pane.role])]),
   ];
   // Narrowing, and it is **named rather than iconified**. A glyph can say *this
   // pane is restricted*; only the title can say *to what*, and that is the one
@@ -2982,7 +2987,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
         // that cannot be read off its contents: a pane showing four paragraphs
         // is either a short document or a narrowed one, and nothing on screen
         // told the two apart. `.github/scripts/acceptance.mjs` drives by this.
-        { "data-narrow": span ? "on" : "off" },
+        { "data-i18n-both": span ? "widenLede" : "narrowLede", "data-narrow": span ? "on" : "off" },
       ),
     );
   }
@@ -2997,6 +3002,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
         class: "pane-window",
         "data-preview-window": "",
         title: t("previewFollowsLede"),
+        "data-i18n-title": "previewFollowsLede",
       }),
     );
   }
@@ -3104,6 +3110,10 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // A one-pane window has nothing to trade with, so the handle is not offered.
   if (panes.leaves(paneTree).length > 1) {
     head.title = t("swapPaneDrag");
+    // The attribute as well as the property: `localise` reads attributes, and a
+    // handle whose tooltip was set after the fact is a handle that cannot be
+    // re-localised.
+    head.setAttribute("data-i18n-title", "swapPaneDrag");
     head.classList.add("pane-grab");
     wirePaneDrag(pane, head);
   }
@@ -3369,6 +3379,7 @@ function splitterFor(node: panes.Split): HTMLElement {
     role: "separator",
     tabindex: "0",
     "aria-label": t("previewSide"),
+    "data-i18n-label": "previewSide",
   });
   let dragging = false;
   const onMove = (e: PointerEvent) => {
@@ -4388,12 +4399,13 @@ function buildTabStrip(): HTMLElement {
             closeTab(i);
           },
           "tab-close",
+          { "data-i18n-both": "closeTab" },
         ),
       ]),
     );
   });
   strip.append(
-    glyphBtn("+", t("newTab"), () => newTab(), "tab-new"),
+    glyphBtn("+", t("newTab"), () => newTab(), "tab-new", { "data-i18n-both": "newTab" }),
   );
   return strip;
 }
@@ -7424,11 +7436,31 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
       "data-setting": key,
       onChange: (e: Event) => setSetting(key, (e.target as HTMLSelectElement).value as never),
     },
-    options.map(([value, label]) =>
-      el("option", { value, ...(live === value ? { selected: "selected" } : {}) }, [label]),
-    ),
+    options.map(([value, label]) => {
+      // An `<option>` holds text and nothing else, so its only tag is the text
+      // itself. The key is `<labelKey>.<value>` — `searchScope.source` for the
+      // `searchScope` row — and it is **checked** rather than assumed, so a row
+      // that does not follow the convention simply goes untagged, which is the
+      // old behaviour, rather than being re-localised to a key that means
+      // something else. Measured 2026-09-27: the four `searchScope.*` rows were
+      // in Hebrew after a switch to English, in both this drawer and the find
+      // panel, and they are the same four keys in both places.
+      const key = `${labelKey}.${value}`;
+      return el(
+        "option",
+        {
+          value,
+          ...(live === value ? { selected: "selected" } : {}),
+          ...(hasKey(key) ? { "data-i18n": key } : {}),
+        },
+        [label],
+      );
+    }),
   );
-  return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), sel]);
+  return el("label", { class: "set-row" }, [
+    el("span", { "data-i18n": labelKey }, [t(labelKey)]),
+    sel,
+  ]);
 }
 
 /**
@@ -8525,7 +8557,9 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
   host.dataset.listSig = sig;
   host.innerHTML = "";
   if (list.empty) {
-    host.append(el("div", { class: "outline-empty" }, [t(list.empty)]));
+    host.append(
+      el("div", { class: "outline-empty", "data-i18n": list.empty }, [t(list.empty)]),
+    );
     return;
   }
   list.rows.forEach((r, i) => host.append(drawRow(r, look, i === 0, snaps)));
@@ -13798,11 +13832,10 @@ function openPreviewOverlay() {
  * tooltip that are two hand-written lists are two lists that disagree.
  */
 function nameGutterMarks() {
-  nameMarks({
-    added: t("mark.added"),
-    changed: t("mark.changed"),
-    removed: t("mark.removed"),
-  });
+  // The keys as well as the sentences, so a language switch can re-render a
+  // marker CodeMirror built itself.
+  const keys = { added: "mark.added", changed: "mark.changed", removed: "mark.removed" };
+  nameMarks({ added: t(keys.added), changed: t(keys.changed), removed: t(keys.removed) }, keys);
 }
 
 function applyUiDir() {
@@ -13866,13 +13899,13 @@ function render() {
       // one: below 720px a drawer is the full viewport, so the chip that opened
       // it is underneath it and cannot be the only way back out.
       panelHead("outline-drawer", "outline", { level: "h3" }),
-      el("p", { class: "pane-lede" }, [t("outlineLede")]),
+      panelLede("outlineLede"),
       el("div", { id: "outline-list", class: "outline-list" }),
     ]),
     // The notes pane, beside the outline: the two halves of a sefer's structure.
     el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane"), "data-i18n-label": "notesPane" }, [
       panelHead("notes-drawer", "notesPane", { level: "h3" }),
-      el("p", { class: "pane-lede" }, [t("notesPaneLede")]),
+      panelLede("notesPaneLede"),
       el("div", { id: "notes-list", class: "notes-list" }),
     ]),
     // The marks pane, beside the other two: what the document *says things are*,
@@ -13890,7 +13923,7 @@ function render() {
       // All three get one, and that is the fix rather than an extra: labelling
       // only the one that was reported would leave the two it is confused with
       // still unlabelled, and the confusion is between them.
-      el("p", { class: "pane-lede" }, [t("marksPaneLede")]),
+      panelLede("marksPaneLede"),
       el("div", { id: "marks-list", class: "marks-list" }),
     ]),
     // Find. A drawer on the same edge as the three list panes, because the
@@ -13899,7 +13932,7 @@ function render() {
     // view of the sefer.
     el("aside", { id: "find-drawer", class: "drawer drawer-start", "aria-label": t("findTitle"), "data-i18n-label": "findTitle" }, [
       panelHead("find-drawer", "findTitle", { level: "h3" }),
-      el("p", { class: "pane-lede" }, [t("findLede")]),
+      panelLede("findLede"),
       el("input", {
         id: "find-query",
         type: "search",
@@ -13913,7 +13946,7 @@ function render() {
       // complaint; a writer has to be able to see which sefer is being read and
       // change it without leaving the answer.
       el("label", { class: "find-scope" }, [
-        el("span", {}, [t("searchScope")]),
+        el("span", { "data-i18n": "searchScope" }, [t("searchScope")]),
         el(
           "select",
           {
@@ -13930,9 +13963,9 @@ function render() {
             },
           },
           [
-            el("option", { value: "source" }, [t("searchScope.source")]),
-            el("option", { value: "preview" }, [t("searchScope.preview")]),
-            el("option", { value: "both" }, [t("searchScope.both")]),
+            el("option", { value: "source", "data-i18n": "searchScope.source" }, [t("searchScope.source")]),
+            el("option", { value: "preview", "data-i18n": "searchScope.preview" }, [t("searchScope.preview")]),
+            el("option", { value: "both", "data-i18n": "searchScope.both" }, [t("searchScope.both")]),
           ],
         ),
       ]),
@@ -13992,6 +14025,7 @@ function render() {
     overlayPanel("arrangement", "palette-box", [el("div", { id: "arrangement-list" })]),
     // floating preview (page mode): a button + a modal showing the rendered pages
     glyphBtn("📄", t("preview"), openPreviewOverlay, "float-preview-btn", {
+      "data-i18n-both": "preview",
       id: "float-preview-btn",
       "data-i18n-title": "preview",
     }),
@@ -14206,7 +14240,7 @@ function maybeOnboard() {
   // the `open` class on it.
   const overlay = overlayPanel("welcome", "palette-box welcome-box", [
       panelHead("welcome", "welcomeTitle"),
-      el("p", {}, [t("welcomeBody")]),
+      panelLede("welcomeBody"),
       ...groups.flatMap((g) => [
         el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),
         el(

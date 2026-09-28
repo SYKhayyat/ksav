@@ -76,11 +76,24 @@ export const changes = StateField.define<ChangeState>({
  * there — and the inventory's note was simply *the change gutter's red wedge
  * means something exact and is unlabelled*.
  */
+let nameKeys: Record<Hunk["kind"], string> | undefined;
 let names: Partial<Record<Hunk["kind"], string>> = {};
 
 /** Name the three marks. Called by the shell at boot and on a language change. */
-export function nameMarks(said: Record<Hunk["kind"], string>): void {
+export function nameMarks(
+  said: Record<Hunk["kind"], string>,
+  /** The keys beside them, so a language switch can re-render the marker.
+   *
+   *  The mark is built by CodeMirror and lands in the document's DOM, and it was
+   *  one of the two strings still standing in Hebrew after a switch to English:
+   *  `nameGutterMarks` handed `changes.ts` a *translated* string, so by the time
+   *  the marker existed the key was gone and nothing could re-localise it. The
+   *  keys are optional so a caller with a string from somewhere else still works.
+   */
+  keys?: Record<Hunk["kind"], string>,
+): void {
   names = said;
+  nameKeys = keys;
 }
 
 class ChangeMarker extends GutterMarker {
@@ -95,6 +108,11 @@ class ChangeMarker extends GutterMarker {
     el.className = `cm-change-mark cm-change-${this.kind}`;
     const said = names[this.kind];
     if (said) el.title = said;
+    // The attribute as well as the property: `localise` reads attributes, and a
+    // CodeMirror-built node is never handed back to a builder that would know to
+    // tag it.
+    const key = nameKeys?.[this.kind];
+    if (key) el.setAttribute("data-i18n-title", key);
     return el;
   }
 }

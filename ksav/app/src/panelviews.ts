@@ -191,7 +191,7 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
     // rather than being four literals in a file nothing imports.
     if (section.count === 0 && section.empty && section.id !== "identity") {
       block.push(
-        el("p", { class: "outline-empty", "data-empty": `git-${section.id}` }, [t(section.empty)]),
+        el("p", { class: "outline-empty", "data-empty": `git-${section.id}`, "data-i18n": section.empty }, [t(section.empty)]),
       );
     }
 

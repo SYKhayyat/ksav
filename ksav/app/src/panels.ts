@@ -693,6 +693,29 @@ export function panelHead(
 }
 
 /**
+ * The line under a panel head that says what the panel is for.
+ *
+ * Added 2026-09-27, and the reason is the count. Every drawer's lede is
+ * `el("p", { class: "pane-lede" }, [t("someLede")])` — the head beside it is
+ * tagged by `panelHead`, the lede is not, and a measured switch to English left
+ * **five of them in Hebrew**: `outlineLede`, `notesPaneLede`, `marksPaneLede`,
+ * `findLede`, `previewFollowsLede`.
+ *
+ * Five, each one line, each a `t()` result in a class every drawer already shares.
+ * A shared class is not a tag: `localise` reads attributes, and nothing here had
+ * one. So the lede gets the helper the head got, and the class it shares stops
+ * being decoration.
+ */
+export function panelLede(key: string): HTMLElement {
+  if (!hasKey(key)) {
+    // The same contract as `panelHead`: a key that is not a key renders as its
+    // own name, and a lede reading `outlineLede` is worse than no lede at all.
+    throw new Error(`panels: "${key}" is not a translation key`);
+  }
+  return el("p", { class: "pane-lede", "data-i18n": key }, [t(key)]);
+}
+
+/**
  * Say every marked label again, in whatever language is current now.
  *
  * The mechanism was already here — `rerenderChrome` has swept for `[data-i18n]`

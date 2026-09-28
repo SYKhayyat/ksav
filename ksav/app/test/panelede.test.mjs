@@ -41,7 +41,15 @@ export async function run() {
       ["outline", "outlineLede"],
       ["notes", "notesPaneLede"],
     ]) {
-      ok(`the ${pane} pane says what it lists`, new RegExp(`t\\("${key}"\\)`).test(MAIN));
+      // Either spelling: the lede used to be `t("…")` at the call site and is
+      // now `panelLede("…")`, which tags it. The question this test asks is
+      // whether the pane *says* what it lists, not which line renders it — and a
+      // refactor that moved the `t()` into a helper without moving the sentence
+      // would fail a text assertion while the pane said it perfectly well.
+      ok(
+        `the ${pane} pane says what it lists`,
+        new RegExp(`(?:t|panelLede)\\("${key}"\\)`).test(MAIN),
+      );
       // In both languages, and as sentences rather than as a repeated heading:
       // "Marks" does not explain itself, which is the whole report.
       const said = [...I18N.matchAll(new RegExp(`${key}: "([^"]+)"`, "gu"))].map((m) => m[1]);

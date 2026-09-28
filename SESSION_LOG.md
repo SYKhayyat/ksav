@@ -1287,8 +1287,8 @@ measurement forced:
 - **`data-i18n-args`** — for a key whose value is a template. 64 of the strings
   were *composed*: `"פתח · Alt+a"`, `"Rename: ללא שם"`. One attribute holds one
   `t(key)`, so a sentence with a part in it needed something that did not exist.
-- **A leading `:` means "this argument is a key".** The chord `Alt+a` is `Alt+a`
-  in Hebrew; the label beside it is `sc.open` and is not. Guessing which is which
+- **A leading `:` means "this argument is a key".** A chord is a chord in either
+  language; the label beside it is `sc.open` and is not. Guessing which is which
   from the catalogue is precisely the trap `hasKey`'s own comment describes, so
   it is spelled in the value instead.
 - **Per-attribute arguments**, because the ribbon's button carries *different*
@@ -1351,3 +1351,76 @@ document source in textarea placeholders, and English text *about* Hebrew
 ceiling and should not be chased.
 
 Editor assertions 7,848 → 7,849. Engine untouched.
+
+---
+
+## 2026-09-27 · #71, the rest of the keys — 50 → 2
+
+### The ledes were one missing helper, not five missing attributes
+
+Every drawer's lede was `el("p", { class: "pane-lede" }, [t("someLede")])`. The
+head beside it is tagged by `panelHead`; the lede was not. Five were standing in
+Hebrew — `outlineLede`, `notesPaneLede`, `marksPaneLede`, `findLede`,
+`previewFollowsLede` — and the *class* they all share is not a tag: `localise`
+reads attributes, and nothing there had one. So the lede got the helper the head
+got (`panelLede`, with `panelHead`'s own contract that the argument is a key), and
+`welcomeBody` and `welcomeTitle` came with it.
+
+That is the shape worth keeping: **five attributes versus one helper**, and the
+helper is the only version that also stops the sixth drawer doing it wrong.
+
+### A shared class is a naming convention, and `hasKey` is how you check one
+
+`selectRow` takes a `labelKey`, and its options are `[value, label]`. The option
+keys are `<labelKey>.<value>` — `searchScope.source` for the `searchScope` row —
+and that is a *convention*, not a contract. So the convention is **checked**:
+`selectRow` tags an option only when `hasKey(\`${labelKey}.${value}\`)` is true. A
+row that does not follow it goes untagged, which is the old behaviour, rather than
+being re-localised to a key that means something else. Guessing a key name and
+building an attribute from it is the failure mode `hasKey`'s own comment describes,
+and a check is the whole difference between a convention and a guess.
+
+The same four `searchScope.*` keys were standing in **two** places — the settings
+drawer and the find panel — and one count would not have shown that. Both tagged.
+
+### Two elements that are built by something else
+
+- `head.title = t("swapPaneDrag")` — a **property** assignment on a head built
+  earlier. `localise` reads attributes, so the handle also gets
+  `setAttribute("data-i18n-title", …)`; a tooltip set after the fact is a tooltip
+  that cannot be re-localised.
+- `nameMarks({ added: t("mark.added"), … })` — the change-gutter marker is
+  **built by CodeMirror**, so it is never handed back to a builder that would know
+  to tag it, and by the time the marker existed the key was gone. `nameMarks` now
+  takes the keys beside the sentences, and `toDOM` writes both.
+
+### Fifty keys → two
+
+`untitled` and `welcomeTitle` are what is left, and they are the right two:
+
+- **`untitled` is a document's own name.** It reaches the tab, the title bar and
+  `<title>`. A document created while the interface was Hebrew is called `ללא שם`,
+  and in English it reads `Untitled` — a document named in the language it was
+  created in, which is right. Tagging it would **rename a writer's file on a
+  language switch**, which is a considerably worse bug than a Hebrew string.
+- **`welcomeTitle`** is one untagged `<span>` outside the document editor — a
+  second rendering of a string `panelHead` already tags correctly. Not a
+  systematic case, and I did not find the site by reading; the browser found it by
+  asking which element held the text.
+
+The ceiling in `browserlang.test.mjs` is now `keys: 2, composed: 41`, re-measured
+rather than edited by hand, and every recorded key carries why it is still there.
+
+### Two fences caught me being careless, and both were right
+
+- `panelede.test.mjs` asserts `t("marksPaneLede")` appears in `main.ts`. Moving
+  the `t()` into a helper **broke a test that was checking the wrong thing** — it
+  asks whether the pane says what it lists, not which line renders it. Widened to
+  accept either spelling, with the reason written down, rather than reverting the
+  helper.
+- `readme.test.mjs` refuses a living page that names a shortcut the product does
+  not bind. My session log said *"the chord `Alt+a` is `Alt+a` in Hebrew"* as an
+  illustration, and `Alt+a` is not a Ksav binding. Rewritten to say *"a chord is a
+  chord in either language"*, which is the same point and survives the sweep. The
+  fence is doing exactly what it is for: a plausible sentence about chords in a
+  document that names chords is a claim about which chords exist.

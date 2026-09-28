@@ -117,7 +117,12 @@ still right.
   reported. And the box does not cap: 30 entries draw in 4 pages where the proposal
   measured 5, so *"why it buys what a box cannot"* lists properties the box already
   has. Reopened on a worked sheet-count, not a preference. (from #15)
-- [ ] #67 Typst package resolution missing — @preview/@local imports fail. (High)
+- [x] #67 Typst package resolution. (High) — **decided in August, read today.** Offline
+  bundled resolution, not vendored source and not network: a compile that reaches the
+  network can hang, and an editor 59ms after a keystroke cannot have that in its
+  path. The remaining gap was the *sentence* — a missing `@preview/…` import said
+  *"a file (e.g. an image) wasn't found"*, the very wart the issue opened with — and
+  it now names the spec as written and lists what **is** bundled. (from #67)
 
 ## Phase 4 — Mediums (engine quality)
 - [ ] #63 include diamond, #62 tokenizer quadratic, #60 undecodable assets, #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
